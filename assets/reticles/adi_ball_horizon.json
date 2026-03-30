@@ -1,0 +1,10 @@
+{
+  "id": "adi_ball_horizon",
+  "stroke": "#FFF4D2FF",
+  "lineWidth": 0.0054,
+  "elements": [
+    { "id": "horizon_main", "type": "line", "start": [-0.64, 0.0], "end": [0.64, 0.0] },
+    { "id": "horizon_center_l", "type": "line", "start": [-0.10, 0.0], "end": [-0.03, 0.0] },
+    { "id": "horizon_center_r", "type": "line", "start": [0.03, 0.0], "end": [0.10, 0.0] }
+  ]
+}

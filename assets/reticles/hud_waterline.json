@@ -1,0 +1,11 @@
+{
+  "id": "hud_waterline",
+  "stroke": "#2EFFA2FF",
+  "lineWidth": 0.0036,
+  "elements": [
+    { "id": "left_wing", "type": "line", "start": [-0.18, 0.0], "end": [-0.07, 0.0] },
+    { "id": "right_wing", "type": "line", "start": [0.07, 0.0], "end": [0.18, 0.0] },
+    { "id": "left_hook", "type": "line", "start": [-0.07, 0.0], "end": [-0.04, 0.04] },
+    { "id": "right_hook", "type": "line", "start": [0.07, 0.0], "end": [0.04, 0.04] }
+  ]
+}

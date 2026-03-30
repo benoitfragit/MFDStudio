@@ -1,0 +1,9 @@
+{
+  "id": "adi_ball_bezel",
+  "stroke": "#9BBAD2FF",
+  "lineWidth": 0.0030,
+  "elements": [
+    { "id": "ball_outer_circle", "type": "circle", "radius": 0.41 },
+    { "id": "ball_inner_circle", "type": "circle", "radius": 0.34, "stroke": "#A7C0D7FF", "lineWidth": 0.0022 }
+  ]
+}

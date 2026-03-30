@@ -1,0 +1,23 @@
+{
+  "id": "hud_pitch_ladder",
+  "stroke": "#2EFFA2FF",
+  "lineWidth": 0.0034,
+  "elements": [
+    { "id": "p15_l", "type": "line", "start": [-0.20, 0.18], "end": [-0.07, 0.18] },
+    { "id": "p15_r", "type": "line", "start": [0.07, 0.18], "end": [0.20, 0.18] },
+    { "id": "p15_tl", "type": "text", "text": "15", "at": [-0.25, 0.18], "size": 0.025 },
+    { "id": "p15_tr", "type": "text", "text": "15", "at": [0.25, 0.18], "size": 0.025 },
+    { "id": "p10_l", "type": "line", "start": [-0.16, 0.12], "end": [-0.06, 0.12] },
+    { "id": "p10_r", "type": "line", "start": [0.06, 0.12], "end": [0.16, 0.12] },
+    { "id": "p10_tl", "type": "text", "text": "10", "at": [-0.21, 0.12], "size": 0.023 },
+    { "id": "p10_tr", "type": "text", "text": "10", "at": [0.21, 0.12], "size": 0.023 },
+    { "id": "p5_l", "type": "line", "start": [-0.11, 0.06], "end": [-0.05, 0.06] },
+    { "id": "p5_r", "type": "line", "start": [0.05, 0.06], "end": [0.11, 0.06] },
+    { "id": "m5_l", "type": "line", "start": [-0.11, -0.06], "end": [-0.05, -0.06] },
+    { "id": "m5_r", "type": "line", "start": [0.05, -0.06], "end": [0.11, -0.06] },
+    { "id": "m10_l", "type": "line", "start": [-0.16, -0.12], "end": [-0.06, -0.12] },
+    { "id": "m10_r", "type": "line", "start": [0.06, -0.12], "end": [0.16, -0.12] },
+    { "id": "m10_tl", "type": "text", "text": "-10", "at": [-0.22, -0.12], "size": 0.023 },
+    { "id": "m10_tr", "type": "text", "text": "-10", "at": [0.22, -0.12], "size": 0.023 }
+  ]
+}

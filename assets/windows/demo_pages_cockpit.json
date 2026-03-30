@@ -1,0 +1,26 @@
+{
+  "title": "MFD Cockpit Demo",
+  "size": [1680, 980],
+  "position": [60, 40],
+  "targetFps": 60,
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47220,
+      "maxPacketSize": 16384
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47221,
+      "maxPacketSize": 4096
+    }
+  },
+  "pages": [
+    "../pages/cockpit.json"
+  ]
+}

@@ -1,0 +1,1472 @@
+/*
+ * This file is part of MFDStudio.
+ * Project author: Benoit Fra
+ * Repository: https://github.com/benoitfragit/MFDStudio
+ */
+#include "mfd/runtime/SceneRegistry.h"
+
+#include "mfd/control/CommandTypes.h"
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <limits>
+#include <utility>
+
+namespace mfd
+{
+namespace
+{
+constexpr std::size_t kStrobeDrawOrder = std::numeric_limits<std::size_t>::max() - 1U;
+using BlinkClock = std::chrono::steady_clock;
+
+std::string NormalizeReticleId(const std::string_view value)
+{
+    return NormalizePageName(value);
+}
+
+float DistanceSquared(const Vec2& lhs, const Vec2& rhs) noexcept
+{
+    const float dx = lhs.x - rhs.x;
+    const float dy = lhs.y - rhs.y;
+    return dx * dx + dy * dy;
+}
+
+bool IsInsideCaptureArea(const Vec2& strobePosition,
+                         const Vec2& candidatePosition,
+                         const StrobeCaptureConfig& capture) noexcept
+{
+    const Vec2 offset = candidatePosition - strobePosition;
+
+    switch (capture.shape)
+    {
+    case StrobeCaptureShape::Circle:
+        return DistanceSquared(strobePosition, candidatePosition) <= capture.radius * capture.radius;
+
+    case StrobeCaptureShape::Rectangle:
+        return std::abs(offset.x) <= capture.size.x * 0.5f &&
+               std::abs(offset.y) <= capture.size.y * 0.5f;
+    }
+
+    return false;
+}
+
+bool IsEmptyPatch(const ReticlePatch& patch) noexcept
+{
+    return !patch.visible.has_value() &&
+           !patch.blinkEnabled.has_value() &&
+           !patch.blinkType.has_value() &&
+           !patch.position.has_value() &&
+           !patch.rotationDegrees.has_value() &&
+           !patch.color.has_value() &&
+           !patch.thickness.has_value() &&
+           !patch.text.has_value() &&
+           patch.texts.empty() &&
+           !patch.letterSpacing.has_value() &&
+           patch.letterSpacings.empty();
+}
+
+bool IsEmptyPatch(const WindowDisplayPatch& patch) noexcept
+{
+    return !patch.invertColors.has_value() &&
+           !patch.brightness.has_value() &&
+           !patch.disabled.has_value();
+}
+
+float* FindTextLikeLetterSpacing(Primitive& primitive) noexcept
+{
+    if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))
+    {
+        return &geometry->letterSpacing;
+    }
+
+    if (TimeGeometry* geometry = std::get_if<TimeGeometry>(&primitive.geometry))
+    {
+        return &geometry->letterSpacing;
+    }
+
+    return nullptr;
+}
+
+bool ApplyPatchToReticleGroup(ReticleGroup& reticle, const ReticlePatch& patch)
+{
+    bool applied = false;
+
+    if (patch.visible.has_value())
+    {
+        reticle.visible = *patch.visible;
+        applied = true;
+    }
+
+    if (patch.position.has_value())
+    {
+        reticle.transform.position = *patch.position;
+        applied = true;
+    }
+
+    if (patch.rotationDegrees.has_value())
+    {
+        reticle.transform.rotationDegrees = *patch.rotationDegrees;
+        applied = true;
+    }
+
+    if (patch.color.has_value())
+    {
+        reticle.overrides.color = *patch.color;
+        applied = true;
+    }
+
+    if (patch.thickness.has_value())
+    {
+        reticle.overrides.thickness = *patch.thickness;
+        applied = true;
+    }
+
+    if (patch.text.has_value())
+    {
+        for (auto& primitive : reticle.primitives)
+        {
+            if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))
+            {
+                geometry->text = *patch.text;
+                applied = true;
+                break;
+            }
+        }
+    }
+
+    for (const auto& [primitiveId, text] : patch.texts)
+    {
+        applied = SetTextPrimitive(reticle, primitiveId, text) || applied;
+    }
+
+    if (patch.letterSpacing.has_value())
+    {
+        for (auto& primitive : reticle.primitives)
+        {
+            if (float* letterSpacing = FindTextLikeLetterSpacing(primitive))
+            {
+                *letterSpacing = *patch.letterSpacing;
+                applied = true;
+                break;
+            }
+        }
+    }
+
+    for (const auto& [primitiveId, letterSpacing] : patch.letterSpacings)
+    {
+        applied = SetTextPrimitiveLetterSpacing(reticle, primitiveId, letterSpacing) || applied;
+    }
+
+    return applied;
+}
+
+struct BlinkPatchResult
+{
+    enum class Status
+    {
+        Unchanged,
+        Applied,
+        Invalid
+    };
+
+    Status status = Status::Unchanged;
+    ReticleBlinkState blink {};
+};
+} // namespace
+
+struct SceneRegistry::PageComponent
+{
+    std::string name;
+    std::string normalizedName;
+    std::string title;
+    ColorRgba backgroundColor {6, 14, 20, 255};
+    PageViewState view {};
+    std::unordered_map<std::string, std::uint32_t, TransparentStringHash, TransparentStringEqual> blinkDurationsByType {};
+    std::string defaultBlinkTypeName;
+    std::string normalizedDefaultBlinkTypeName;
+    std::uint32_t defaultBlinkDurationMs = 0;
+    BlinkClock::time_point blinkEpoch = BlinkClock::now();
+    bool hasStrobe = false;
+    bool active = false;
+};
+
+struct SceneRegistry::PageMembership
+{
+    std::string pageName;
+};
+
+struct SceneRegistry::ReticleComponent
+{
+    ReticleGroup group;
+    std::size_t drawOrder = 0;
+};
+
+struct SceneRegistry::DynamicTag
+{
+};
+
+struct SceneRegistry::StaticTag
+{
+};
+
+struct SceneRegistry::StrobeTag
+{
+};
+
+struct SceneRegistry::StrobeBehaviorComponent
+{
+    StrobeCaptureConfig capture;
+    StrobeMagnetConfig magnet;
+};
+
+namespace
+{
+template <typename PageLike>
+bool TryResolveBlinkSelection(const PageLike& page,
+                              const ReticleBlinkState& candidate,
+                              std::uint32_t& durationMs) noexcept
+{
+    if (!candidate.typeName.empty())
+    {
+        const std::string normalizedTypeName =
+            candidate.normalizedTypeName.empty() ? NormalizePageName(candidate.typeName) : candidate.normalizedTypeName;
+        const auto iterator = page.blinkDurationsByType.find(normalizedTypeName);
+        if (iterator == page.blinkDurationsByType.end())
+        {
+            return false;
+        }
+
+        durationMs = iterator->second;
+        return true;
+    }
+
+    if (!candidate.enabled)
+    {
+        durationMs = 0;
+        return true;
+    }
+
+    if (page.defaultBlinkDurationMs == 0)
+    {
+        return false;
+    }
+
+    durationMs = page.defaultBlinkDurationMs;
+    return true;
+}
+
+template <typename PageLike>
+BlinkPatchResult EvaluateBlinkPatch(const PageLike& page,
+                                    const ReticleGroup& reticle,
+                                    const ReticlePatch& patch) noexcept
+{
+    if (!patch.blinkEnabled.has_value() && !patch.blinkType.has_value())
+    {
+        return {};
+    }
+
+    BlinkPatchResult result;
+    result.status = BlinkPatchResult::Status::Applied;
+    result.blink = reticle.blink;
+
+    if (patch.blinkType.has_value())
+    {
+        result.blink.typeName = *patch.blinkType;
+        result.blink.normalizedTypeName = NormalizePageName(result.blink.typeName);
+        if (!patch.blinkType->empty())
+        {
+            result.blink.enabled = true;
+        }
+    }
+
+    if (patch.blinkEnabled.has_value())
+    {
+        result.blink.enabled = *patch.blinkEnabled;
+    }
+
+    std::uint32_t durationMs = result.blink.durationMs;
+    if (!TryResolveBlinkSelection(page, result.blink, durationMs))
+    {
+        result.status = BlinkPatchResult::Status::Invalid;
+        return result;
+    }
+
+    result.blink.durationMs = durationMs;
+    return result;
+}
+
+template <typename PageLike>
+bool ResolveBlinkForReticle(const PageLike& page, ReticleGroup& reticle) noexcept
+{
+    std::uint32_t durationMs = reticle.blink.durationMs;
+    if (!TryResolveBlinkSelection(page, reticle.blink, durationMs))
+    {
+        reticle.blink = {};
+        return false;
+    }
+
+    reticle.blink.durationMs = durationMs;
+    return true;
+}
+
+bool IsBlinkVisible(const std::uint32_t durationMs,
+                    const BlinkClock::time_point blinkEpoch,
+                    const BlinkClock::time_point now) noexcept
+{
+    if (durationMs == 0)
+    {
+        return true;
+    }
+
+    const auto elapsedMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(now - blinkEpoch).count();
+    const std::uint64_t periodMs = static_cast<std::uint64_t>(durationMs);
+    const std::uint64_t phaseMs =
+        static_cast<std::uint64_t>(elapsedMs < 0 ? 0 : elapsedMs) % periodMs;
+    const std::uint64_t visibleWindowMs = std::max<std::uint64_t>(1U, (periodMs + 1U) / 2U);
+    return phaseMs < visibleWindowMs;
+}
+
+template <typename PageLike>
+bool IsReticleVisibleNow(const PageLike& page,
+                         const ReticleGroup& reticle,
+                         const BlinkClock::time_point now) noexcept
+{
+    return reticle.visible &&
+           (!reticle.blink.enabled || IsBlinkVisible(reticle.blink.durationMs, page.blinkEpoch, now));
+}
+} // namespace
+
+SceneRegistry::SceneRegistry(MfdDocument document)
+{
+    LoadDocument(std::move(document));
+}
+
+void SceneRegistry::LoadDocument(MfdDocument document)
+{
+    document_ = std::move(document);
+    registry_.clear();
+    pageEntities_.clear();
+    strobeEntities_.clear();
+    reticleEntities_.clear();
+    nextDynamicOrder_ = 10000;
+    activePage_.clear();
+    windowDisplay_ = {};
+
+    for (const auto& page : document_.pages)
+    {
+        const entt::entity pageEntity = registry_.create();
+        PageComponent pageComponent;
+        pageComponent.name = page.name;
+        pageComponent.normalizedName = page.normalizedName;
+        pageComponent.title = page.title;
+        pageComponent.backgroundColor = page.backgroundColor;
+        pageComponent.view = page.view;
+        pageComponent.defaultBlinkTypeName = page.defaultBlinkTypeName;
+        pageComponent.normalizedDefaultBlinkTypeName = page.normalizedDefaultBlinkTypeName;
+        pageComponent.hasStrobe = page.strobe.has_value();
+        pageComponent.blinkEpoch = BlinkClock::now();
+
+        for (const auto& blinkType : page.blinkTypes)
+        {
+            pageComponent.blinkDurationsByType.emplace(blinkType.normalizedName, blinkType.durationMs);
+        }
+
+        if (!pageComponent.normalizedDefaultBlinkTypeName.empty())
+        {
+            const auto iterator = pageComponent.blinkDurationsByType.find(pageComponent.normalizedDefaultBlinkTypeName);
+            if (iterator != pageComponent.blinkDurationsByType.end())
+            {
+                pageComponent.defaultBlinkDurationMs = iterator->second;
+            }
+        }
+        else if (!page.blinkTypes.empty())
+        {
+            pageComponent.defaultBlinkTypeName = page.blinkTypes.front().name;
+            pageComponent.normalizedDefaultBlinkTypeName = page.blinkTypes.front().normalizedName;
+            pageComponent.defaultBlinkDurationMs = page.blinkTypes.front().durationMs;
+        }
+
+        registry_.emplace<PageComponent>(pageEntity, std::move(pageComponent));
+        pageEntities_.emplace(page.normalizedName, pageEntity);
+
+        for (std::size_t index = 0; index < page.staticReticles.size(); ++index)
+        {
+            const entt::entity reticleEntity = registry_.create();
+            registry_.emplace<ReticleComponent>(reticleEntity, ReticleComponent {page.staticReticles[index], index});
+            registry_.emplace<PageMembership>(reticleEntity, PageMembership {page.normalizedName});
+            registry_.emplace<StaticTag>(reticleEntity);
+            IndexReticle(page.normalizedName, page.staticReticles[index], reticleEntity);
+        }
+
+        if (page.strobe.has_value())
+        {
+            const entt::entity strobeEntity = registry_.create();
+            registry_.emplace<ReticleComponent>(strobeEntity, ReticleComponent {page.strobe->reticle, kStrobeDrawOrder});
+            registry_.emplace<PageMembership>(strobeEntity, PageMembership {page.normalizedName});
+            registry_.emplace<StrobeBehaviorComponent>(strobeEntity,
+                                                       StrobeBehaviorComponent {page.strobe->capture, page.strobe->magnet});
+            registry_.emplace<StrobeTag>(strobeEntity);
+            strobeEntities_.emplace(page.normalizedName, strobeEntity);
+            IndexReticle(page.normalizedName, page.strobe->reticle, strobeEntity);
+        }
+    }
+
+    if (!document_.pages.empty())
+    {
+        activePage_ = document_.pages.front().normalizedName;
+        SetActiveFlag(activePage_, true);
+    }
+}
+
+const MfdDocument& SceneRegistry::Document() const noexcept
+{
+    return document_;
+}
+
+const ReticleLibrary& SceneRegistry::Library() const noexcept
+{
+    return document_.reticleLibrary;
+}
+
+std::vector<PageSummary> SceneRegistry::Pages() const
+{
+    std::vector<PageSummary> pages;
+    pages.reserve(document_.pages.size());
+
+    for (const auto& page : document_.pages)
+    {
+        pages.push_back(PageSummary {
+            page.name,
+            page.title,
+            page.backgroundColor,
+            page.strobe.has_value(),
+            page.normalizedName == activePage_});
+    }
+
+    return pages;
+}
+
+bool SceneRegistry::HasPage(const std::string_view pageName) const noexcept
+{
+    return HasNormalizedPage(NormalizePageName(pageName));
+}
+
+bool SceneRegistry::HasStrobe(const std::string_view pageName) const noexcept
+{
+    return HasNormalizedStrobe(NormalizePageName(pageName));
+}
+
+bool SceneRegistry::ActivePageHasStrobe() const noexcept
+{
+    return HasNormalizedStrobe(activePage_);
+}
+
+bool SceneRegistry::HasNormalizedPage(const std::string_view pageName) const noexcept
+{
+    return pageEntities_.contains(pageName);
+}
+
+bool SceneRegistry::HasNormalizedStrobe(const std::string_view pageName) const noexcept
+{
+    return strobeEntities_.contains(pageName);
+}
+
+void SceneRegistry::SetActivePage(const std::string_view pageName) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    if (!HasNormalizedPage(normalizedPageName))
+    {
+        return;
+    }
+
+    SetActiveFlag(activePage_, false);
+    activePage_ = normalizedPageName;
+    SetActiveFlag(activePage_, true);
+}
+
+std::string SceneRegistry::ActivePageName() const
+{
+    for (const auto& page : document_.pages)
+    {
+        if (page.normalizedName == activePage_)
+        {
+            return page.name;
+        }
+    }
+
+    return {};
+}
+
+std::optional<PageSummary> SceneRegistry::ActivePageSummary() const
+{
+    for (const auto& page : document_.pages)
+    {
+        if (page.normalizedName == activePage_)
+        {
+            return PageSummary {
+                page.name,
+                page.title,
+                page.backgroundColor,
+                page.strobe.has_value(),
+                true};
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<PageViewState> SceneRegistry::ViewForPage(const std::string_view pageName) const noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return page->view;
+}
+
+PageViewState SceneRegistry::ActivePageView() const noexcept
+{
+    const PageComponent* page = FindPage(activePage_);
+    return page == nullptr ? PageViewState {} : page->view;
+}
+
+std::optional<StrobeSummary> SceneRegistry::StrobeForPage(const std::string_view pageName) const
+{
+    return StrobeForPageKey(NormalizePageName(pageName));
+}
+
+std::optional<StrobeSummary> SceneRegistry::ActiveStrobeSummary() const
+{
+    return StrobeForPageKey(activePage_);
+}
+
+std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_view pageName) const
+{
+    const auto iterator = strobeEntities_.find(pageName);
+    if (iterator == strobeEntities_.end())
+    {
+        return std::nullopt;
+    }
+
+    const auto* reticle = registry_.try_get<ReticleComponent>(iterator->second);
+    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+    const PageComponent* page = FindPage(pageName);
+    if (reticle == nullptr || behavior == nullptr || page == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    const BlinkClock::time_point now = BlinkClock::now();
+
+    std::string displayPageName = std::string(pageName);
+    for (const auto& pageDefinition : document_.pages)
+    {
+        if (pageDefinition.normalizedName == pageName)
+        {
+            displayPageName = pageDefinition.name;
+            break;
+        }
+    }
+
+    return StrobeSummary {
+        displayPageName,
+        reticle->group.id,
+        reticle->group.transform.position,
+        behavior->capture,
+        behavior->magnet,
+        IsReticleVisibleNow(*page, reticle->group, now)};
+}
+
+std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPage(const std::string_view pageName) const
+{
+    return StrobeMagnetForPageKey(NormalizePageName(pageName));
+}
+
+std::optional<StrobeMagnetSummary> SceneRegistry::ActiveStrobeMagnetSummary() const
+{
+    return StrobeMagnetForPageKey(activePage_);
+}
+
+std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const std::string_view pageName) const
+{
+    const auto iterator = strobeEntities_.find(pageName);
+    if (iterator == strobeEntities_.end())
+    {
+        return std::nullopt;
+    }
+
+    const auto* reticle = registry_.try_get<ReticleComponent>(iterator->second);
+    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+    const PageComponent* page = FindPage(pageName);
+    if (reticle == nullptr || behavior == nullptr || page == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    StrobeMagnetSummary summary;
+    summary.enabled = behavior->magnet.enabled;
+    summary.radius = behavior->magnet.radius;
+    summary.strength = behavior->magnet.strength;
+
+    const BlinkClock::time_point now = BlinkClock::now();
+
+    if (!IsReticleVisibleNow(*page, reticle->group, now) ||
+        !behavior->magnet.enabled || behavior->magnet.radius <= 0.0f)
+    {
+        return summary;
+    }
+
+    const float radiusSquared = behavior->magnet.radius * behavior->magnet.radius;
+    float bestDistanceSquared = radiusSquared;
+
+    auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
+    for (const entt::entity entity : dynamicView)
+    {
+        const auto& membership = dynamicView.get<PageMembership>(entity);
+        if (membership.pageName != pageName)
+        {
+            continue;
+        }
+
+        const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity).group;
+        if (!IsReticleVisibleNow(*page, dynamicReticle, now))
+        {
+            continue;
+        }
+
+        const float distanceSquared = DistanceSquared(reticle->group.transform.position, dynamicReticle.transform.position);
+        if (distanceSquared > radiusSquared || distanceSquared >= bestDistanceSquared)
+        {
+            continue;
+        }
+
+        bestDistanceSquared = distanceSquared;
+        summary.magnetized = true;
+        summary.reticleId = dynamicReticle.id;
+        summary.targetPosition = dynamicReticle.transform.position;
+        summary.distance = std::sqrt(distanceSquared);
+    }
+
+    return summary;
+}
+
+ColorRgba SceneRegistry::ActiveBackgroundColor() const noexcept
+{
+    const auto activePage = ActivePageSummary();
+    return activePage.has_value() ? activePage->backgroundColor : ColorRgba {6, 14, 20, 255};
+}
+
+WindowDisplayState SceneRegistry::WindowDisplay() const noexcept
+{
+    return windowDisplay_;
+}
+
+std::vector<ReticleGroup> SceneRegistry::CollectPageReticles(const std::string_view pageName) const
+{
+    return CollectPageReticlesByKey(NormalizePageName(pageName));
+}
+
+std::vector<ReticleGroup> SceneRegistry::CollectPageReticlesByKey(const std::string_view pageName) const
+{
+    const PageComponent* page = FindPage(pageName);
+    if (page == nullptr)
+    {
+        return {};
+    }
+
+    const std::vector<const ReticleGroup*> pointers = CollectPageReticlePointersByKey(pageName);
+    std::vector<ReticleGroup> result;
+    result.reserve(pointers.size());
+    const BlinkClock::time_point now = BlinkClock::now();
+
+    for (const ReticleGroup* reticle : pointers)
+    {
+        if (reticle != nullptr)
+        {
+            ReticleGroup copy = *reticle;
+            copy.visible = IsReticleVisibleNow(*page, copy, now);
+            result.push_back(std::move(copy));
+        }
+    }
+
+    return result;
+}
+
+std::vector<const ReticleGroup*> SceneRegistry::CollectPageReticlePointers(const std::string_view pageName) const
+{
+    return CollectPageReticlePointersByKey(NormalizePageName(pageName));
+}
+
+std::vector<const ReticleGroup*> SceneRegistry::CollectPageReticlePointersByKey(const std::string_view pageName) const
+{
+    struct OrderedReticle
+    {
+        std::size_t drawOrder = 0;
+        const ReticleGroup* group = nullptr;
+    };
+
+    std::vector<OrderedReticle> orderedReticles;
+
+    auto staticView = registry_.view<ReticleComponent, PageMembership, StaticTag>();
+    for (const entt::entity entity : staticView)
+    {
+        const auto& membership = staticView.get<PageMembership>(entity);
+        if (membership.pageName != pageName)
+        {
+            continue;
+        }
+
+        const auto& reticle = staticView.get<ReticleComponent>(entity);
+        orderedReticles.push_back(OrderedReticle {reticle.drawOrder, &reticle.group});
+    }
+
+    auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
+    for (const entt::entity entity : dynamicView)
+    {
+        const auto& membership = dynamicView.get<PageMembership>(entity);
+        if (membership.pageName != pageName)
+        {
+            continue;
+        }
+
+        const auto& reticle = dynamicView.get<ReticleComponent>(entity);
+        orderedReticles.push_back(OrderedReticle {reticle.drawOrder, &reticle.group});
+    }
+
+    const auto strobeIterator = strobeEntities_.find(pageName);
+    if (strobeIterator != strobeEntities_.end())
+    {
+        if (const auto* strobe = registry_.try_get<ReticleComponent>(strobeIterator->second))
+        {
+            orderedReticles.push_back(OrderedReticle {strobe->drawOrder, &strobe->group});
+        }
+    }
+
+    std::sort(orderedReticles.begin(),
+              orderedReticles.end(),
+              [](const OrderedReticle& lhs, const OrderedReticle& rhs)
+              {
+                  return lhs.drawOrder < rhs.drawOrder;
+              });
+
+    std::vector<const ReticleGroup*> result;
+    result.reserve(orderedReticles.size());
+
+    for (const auto& reticle : orderedReticles)
+    {
+        result.push_back(reticle.group);
+    }
+
+    return result;
+}
+
+std::vector<ReticleGroup> SceneRegistry::CollectActiveReticles() const
+{
+    return CollectPageReticlesByKey(activePage_);
+}
+
+std::vector<const ReticleGroup*> SceneRegistry::CollectActiveReticlePointers() const
+{
+    return CollectPageReticlePointersByKey(activePage_);
+}
+
+bool SceneRegistry::SetPageView(const std::string_view pageName, const PageViewState& view) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr)
+    {
+        return false;
+    }
+
+    page->view.center = view.center;
+    page->view.zoom = SanitizeZoom(view.zoom);
+    return true;
+}
+
+bool SceneRegistry::SetPageViewCenter(const std::string_view pageName, const Vec2 center) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr)
+    {
+        return false;
+    }
+
+    page->view.center = center;
+    return true;
+}
+
+bool SceneRegistry::SetPageZoom(const std::string_view pageName, const float zoom) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr)
+    {
+        return false;
+    }
+
+    page->view.zoom = SanitizeZoom(zoom);
+    return true;
+}
+
+bool SceneRegistry::SetWindowColorInverted(const bool invertColors) noexcept
+{
+    windowDisplay_.invertColors = invertColors;
+    return true;
+}
+
+bool SceneRegistry::SetWindowBrightness(const float brightness) noexcept
+{
+    if (!std::isfinite(brightness))
+    {
+        return false;
+    }
+
+    windowDisplay_.brightness = std::clamp(brightness, 0.0f, 1.0f);
+    return true;
+}
+
+bool SceneRegistry::SetWindowDisabled(const bool disabled) noexcept
+{
+    windowDisplay_.disabled = disabled;
+    return true;
+}
+
+bool SceneRegistry::ApplyWindowDisplayPatch(const WindowDisplayPatch& patch) noexcept
+{
+    if (patch.brightness.has_value() && !std::isfinite(*patch.brightness))
+    {
+        return false;
+    }
+
+    bool applied = false;
+
+    if (patch.invertColors.has_value())
+    {
+        windowDisplay_.invertColors = *patch.invertColors;
+        applied = true;
+    }
+
+    if (patch.disabled.has_value())
+    {
+        windowDisplay_.disabled = *patch.disabled;
+        applied = true;
+    }
+
+    if (patch.brightness.has_value())
+    {
+        windowDisplay_.brightness = std::clamp(*patch.brightness, 0.0f, 1.0f);
+        applied = true;
+    }
+
+    return applied || IsEmptyPatch(patch);
+}
+
+bool SceneRegistry::SetReticleVisible(const std::string_view pageName,
+                                      const std::string_view reticleId,
+                                      const bool visible) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
+    {
+        reticle->group.visible = visible;
+        return true;
+    }
+
+    return false;
+}
+
+bool SceneRegistry::SetReticleBlinkEnabled(const std::string_view pageName,
+                                           const std::string_view reticleId,
+                                           const bool enabled) noexcept
+{
+    ReticlePatch patch;
+    patch.blinkEnabled = enabled;
+    return ApplyReticlePatch(pageName, reticleId, patch);
+}
+
+bool SceneRegistry::SetReticleBlinkType(const std::string_view pageName,
+                                        const std::string_view reticleId,
+                                        const std::string_view blinkType) noexcept
+{
+    ReticlePatch patch;
+    patch.blinkType = std::string(blinkType);
+    return ApplyReticlePatch(pageName, reticleId, patch);
+}
+
+bool SceneRegistry::ClearReticleBlinkType(const std::string_view pageName,
+                                          const std::string_view reticleId) noexcept
+{
+    ReticlePatch patch;
+    patch.blinkType = std::string {};
+    return ApplyReticlePatch(pageName, reticleId, patch);
+}
+
+bool SceneRegistry::SetReticlePosition(const std::string_view pageName,
+                                       const std::string_view reticleId,
+                                       const Vec2 position) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
+    {
+        reticle->group.transform.position = position;
+        return true;
+    }
+
+    return false;
+}
+
+bool SceneRegistry::SetReticleRotation(const std::string_view pageName,
+                                       const std::string_view reticleId,
+                                       const float rotationDegrees) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
+    {
+        reticle->group.transform.rotationDegrees = rotationDegrees;
+        return true;
+    }
+
+    return false;
+}
+
+bool SceneRegistry::SetReticleColor(const std::string_view pageName,
+                                    const std::string_view reticleId,
+                                    const ColorRgba color) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
+    {
+        reticle->group.overrides.color = color;
+        return true;
+    }
+
+    return false;
+}
+
+bool SceneRegistry::SetReticleThickness(const std::string_view pageName,
+                                        const std::string_view reticleId,
+                                        const float thickness) noexcept
+{
+    if (!std::isfinite(thickness) || thickness <= 0.0f)
+    {
+        return false;
+    }
+
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
+    {
+        reticle->group.overrides.thickness = thickness;
+        return true;
+    }
+
+    return false;
+}
+
+bool SceneRegistry::SetReticleText(const std::string_view pageName,
+                                   const std::string_view reticleId,
+                                   std::string value) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    if (reticle == nullptr)
+    {
+        return false;
+    }
+
+    for (auto& primitive : reticle->group.primitives)
+    {
+        if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))
+        {
+            geometry->text = std::move(value);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool SceneRegistry::SetReticleText(const std::string_view pageName,
+                                   const std::string_view reticleId,
+                                   const std::string_view primitiveId,
+                                   std::string value) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    return reticle != nullptr && SetTextPrimitive(reticle->group, primitiveId, std::move(value));
+}
+
+bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
+                                            const std::string_view reticleId,
+                                            const float letterSpacing) noexcept
+{
+    if (!std::isfinite(letterSpacing))
+    {
+        return false;
+    }
+
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    if (reticle == nullptr)
+    {
+        return false;
+    }
+
+    for (auto& primitive : reticle->group.primitives)
+    {
+        if (float* primitiveLetterSpacing = FindTextLikeLetterSpacing(primitive))
+        {
+            *primitiveLetterSpacing = letterSpacing;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
+                                            const std::string_view reticleId,
+                                            const std::string_view primitiveId,
+                                            const float letterSpacing) noexcept
+{
+    if (!std::isfinite(letterSpacing))
+    {
+        return false;
+    }
+
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    return reticle != nullptr && SetTextPrimitiveLetterSpacing(reticle->group, primitiveId, letterSpacing);
+}
+
+bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
+                                      const std::string_view reticleId,
+                                      const ReticlePatch& patch) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    PageComponent* page = FindPage(normalizedPageName);
+    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    if (page == nullptr || reticle == nullptr)
+    {
+        return false;
+    }
+
+    const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
+    if (blinkResult.status == BlinkPatchResult::Status::Invalid)
+    {
+        return false;
+    }
+
+    bool applied = ApplyPatchToReticleGroup(reticle->group, patch);
+    if (blinkResult.status == BlinkPatchResult::Status::Applied)
+    {
+        reticle->group.blink = blinkResult.blink;
+        applied = true;
+    }
+
+    return applied || IsEmptyPatch(patch);
+}
+
+bool SceneRegistry::HasDynamicReticle(const std::string_view pageName, const std::string_view reticleId) const noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    return entity != entt::null && registry_.all_of<DynamicTag>(entity);
+}
+
+bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
+                                             const std::string_view reticleId,
+                                             const ReticlePatch& patch) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    PageComponent* page = FindPage(normalizedPageName);
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    if (page == nullptr || entity == entt::null || !registry_.all_of<DynamicTag>(entity))
+    {
+        return false;
+    }
+
+    ReticleComponent* reticle = registry_.try_get<ReticleComponent>(entity);
+    if (reticle == nullptr)
+    {
+        return false;
+    }
+
+    const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
+    if (blinkResult.status == BlinkPatchResult::Status::Invalid)
+    {
+        return false;
+    }
+
+    bool applied = ApplyPatchToReticleGroup(reticle->group, patch);
+    if (blinkResult.status == BlinkPatchResult::Status::Applied)
+    {
+        reticle->group.blink = blinkResult.blink;
+        applied = true;
+    }
+
+    return applied || IsEmptyPatch(patch);
+}
+
+bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool active) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const auto iterator = strobeEntities_.find(normalizedPageName);
+    if (iterator == strobeEntities_.end())
+    {
+        return false;
+    }
+
+    if (auto* reticle = registry_.try_get<ReticleComponent>(iterator->second))
+    {
+        reticle->group.visible = active;
+        return true;
+    }
+
+    return false;
+}
+
+bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec2 position) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const auto iterator = strobeEntities_.find(normalizedPageName);
+    if (iterator == strobeEntities_.end())
+    {
+        return false;
+    }
+
+    auto* reticle = registry_.try_get<ReticleComponent>(iterator->second);
+    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+    const PageComponent* page = FindPage(normalizedPageName);
+    if (reticle != nullptr)
+    {
+        Vec2 resolvedPosition = position;
+
+        if (page != nullptr && behavior != nullptr && behavior->magnet.enabled && behavior->magnet.radius > 0.0f)
+        {
+            const float radiusSquared = behavior->magnet.radius * behavior->magnet.radius;
+            float bestDistanceSquared = radiusSquared;
+            std::optional<Vec2> targetPosition;
+            const BlinkClock::time_point now = BlinkClock::now();
+
+            auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
+            for (const entt::entity entity : dynamicView)
+            {
+                const auto& membership = dynamicView.get<PageMembership>(entity);
+                if (membership.pageName != normalizedPageName)
+                {
+                    continue;
+                }
+
+                const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity).group;
+                if (!IsReticleVisibleNow(*page, dynamicReticle, now))
+                {
+                    continue;
+                }
+
+                const float distanceSquared = DistanceSquared(position, dynamicReticle.transform.position);
+                if (distanceSquared > radiusSquared || distanceSquared >= bestDistanceSquared)
+                {
+                    continue;
+                }
+
+                bestDistanceSquared = distanceSquared;
+                targetPosition = dynamicReticle.transform.position;
+            }
+
+            if (targetPosition.has_value())
+            {
+                const float strength = std::clamp(behavior->magnet.strength, 0.0f, 1.0f);
+                resolvedPosition.x += (targetPosition->x - resolvedPosition.x) * strength;
+                resolvedPosition.y += (targetPosition->y - resolvedPosition.y) * strength;
+            }
+        }
+
+        reticle->group.transform.position = resolvedPosition;
+        return true;
+    }
+
+    return false;
+}
+
+bool SceneRegistry::OffsetStrobe(const std::string_view pageName, const Vec2 delta) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const auto iterator = strobeEntities_.find(normalizedPageName);
+    if (iterator == strobeEntities_.end())
+    {
+        return false;
+    }
+
+    if (const auto* reticle = registry_.try_get<ReticleComponent>(iterator->second))
+    {
+        return SetStrobePosition(pageName, reticle->group.transform.position + delta);
+    }
+
+    return false;
+}
+
+std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobe(const std::string_view pageName) const
+{
+    return CaptureWithStrobeKey(NormalizePageName(pageName));
+}
+
+std::optional<StrobeCaptureResult> SceneRegistry::CaptureActivePageStrobe() const
+{
+    return CaptureWithStrobeKey(activePage_);
+}
+
+std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std::string_view pageName) const
+{
+    const auto strobeIterator = strobeEntities_.find(pageName);
+    if (strobeIterator == strobeEntities_.end())
+    {
+        return std::nullopt;
+    }
+
+    const auto* strobe = registry_.try_get<ReticleComponent>(strobeIterator->second);
+    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(strobeIterator->second);
+    const PageComponent* page = FindPage(pageName);
+    if (strobe == nullptr || behavior == nullptr || page == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    const BlinkClock::time_point now = BlinkClock::now();
+    if (!IsReticleVisibleNow(*page, strobe->group, now))
+    {
+        return std::nullopt;
+    }
+
+    std::string displayPageName = std::string(pageName);
+    for (const auto& pageDefinition : document_.pages)
+    {
+        if (pageDefinition.normalizedName == pageName)
+        {
+            displayPageName = pageDefinition.name;
+            break;
+        }
+    }
+
+    std::optional<StrobeCaptureResult> bestCapture;
+    float bestDistanceSquared = std::numeric_limits<float>::max();
+
+    auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
+    for (const entt::entity entity : dynamicView)
+    {
+        const auto& membership = dynamicView.get<PageMembership>(entity);
+        if (membership.pageName != pageName)
+        {
+            continue;
+        }
+
+        const auto& reticle = dynamicView.get<ReticleComponent>(entity).group;
+        if (!IsReticleVisibleNow(*page, reticle, now))
+        {
+            continue;
+        }
+
+        const Vec2 candidatePosition = reticle.transform.position;
+        if (!IsInsideCaptureArea(strobe->group.transform.position, candidatePosition, behavior->capture))
+        {
+            continue;
+        }
+
+        const float distanceSquared = DistanceSquared(strobe->group.transform.position, candidatePosition);
+        if (distanceSquared >= bestDistanceSquared)
+        {
+            continue;
+        }
+
+        bestDistanceSquared = distanceSquared;
+        bestCapture = StrobeCaptureResult {
+            displayPageName,
+            strobe->group.id,
+            reticle.id,
+            reticle.sourceTemplateId,
+            reticle.info.label,
+            reticle.info.category,
+            candidatePosition,
+            std::sqrt(distanceSquared),
+            reticle.info.metadata};
+    }
+
+    return bestCapture;
+}
+
+void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, ReticleGroup reticle)
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    if (!HasNormalizedPage(normalizedPageName) || NormalizeReticleId(reticle.id).empty())
+    {
+        return;
+    }
+
+    if (const PageComponent* page = FindPage(normalizedPageName); page != nullptr)
+    {
+        (void)ResolveBlinkForReticle(*page, reticle);
+    }
+
+    const entt::entity existingEntity = FindReticleEntity(normalizedPageName, reticle.id);
+    if (existingEntity != entt::null)
+    {
+        if (registry_.all_of<DynamicTag>(existingEntity))
+        {
+            if (auto* component = registry_.try_get<ReticleComponent>(existingEntity))
+            {
+                component->group = std::move(reticle);
+            }
+        }
+        return;
+    }
+
+    const entt::entity entity = registry_.create();
+    registry_.emplace<ReticleComponent>(entity, ReticleComponent {std::move(reticle), nextDynamicOrder_++});
+    registry_.emplace<PageMembership>(entity, PageMembership {normalizedPageName});
+    registry_.emplace<DynamicTag>(entity);
+    IndexReticle(normalizedPageName, registry_.get<ReticleComponent>(entity).group, entity);
+}
+
+bool SceneRegistry::RemoveDynamicReticle(const std::string_view pageName, const std::string_view reticleId)
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    if (entity == entt::null || !registry_.all_of<DynamicTag>(entity))
+    {
+        return false;
+    }
+
+    RemoveReticleIndex(normalizedPageName, reticleId);
+    registry_.destroy(entity);
+    return true;
+}
+
+void SceneRegistry::ClearDynamicReticles(const std::string_view pageName)
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    std::vector<entt::entity> entitiesToDestroy;
+    auto dynamicView = registry_.view<PageMembership, DynamicTag>();
+
+    for (const entt::entity entity : dynamicView)
+    {
+        const auto& membership = dynamicView.get<PageMembership>(entity);
+        if (membership.pageName == normalizedPageName)
+        {
+            entitiesToDestroy.push_back(entity);
+        }
+    }
+
+    for (const entt::entity entity : entitiesToDestroy)
+    {
+        const auto& membership = registry_.get<PageMembership>(entity);
+        const auto& reticle = registry_.get<ReticleComponent>(entity).group;
+        RemoveReticleIndex(membership.pageName, reticle.id);
+        registry_.destroy(entity);
+    }
+}
+
+void SceneRegistry::ClearAllDynamicReticles()
+{
+    std::vector<entt::entity> entitiesToDestroy;
+    auto dynamicView = registry_.view<DynamicTag>();
+
+    for (const entt::entity entity : dynamicView)
+    {
+        entitiesToDestroy.push_back(entity);
+    }
+
+    for (const entt::entity entity : entitiesToDestroy)
+    {
+        const auto& membership = registry_.get<PageMembership>(entity);
+        const auto& reticle = registry_.get<ReticleComponent>(entity).group;
+        RemoveReticleIndex(membership.pageName, reticle.id);
+        registry_.destroy(entity);
+    }
+}
+
+entt::registry& SceneRegistry::Raw() noexcept
+{
+    return registry_;
+}
+
+const entt::registry& SceneRegistry::Raw() const noexcept
+{
+    return registry_;
+}
+
+entt::entity SceneRegistry::FindReticleEntity(const std::string_view normalizedPageName,
+                                              const std::string_view reticleId) const noexcept
+{
+    const auto iterator = reticleEntities_.find(MakeReticleLookupKey(normalizedPageName, reticleId));
+    return iterator == reticleEntities_.end() ? entt::null : iterator->second;
+}
+
+SceneRegistry::ReticleComponent* SceneRegistry::FindReticle(const std::string_view normalizedPageName,
+                                                            const std::string_view reticleId) noexcept
+{
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    return entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
+}
+
+const SceneRegistry::ReticleComponent* SceneRegistry::FindReticle(const std::string_view normalizedPageName,
+                                                                  const std::string_view reticleId) const noexcept
+{
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    return entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
+}
+
+SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_view normalizedPageName) noexcept
+{
+    const auto iterator = pageEntities_.find(normalizedPageName);
+    return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
+}
+
+const SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_view normalizedPageName) const noexcept
+{
+    const auto iterator = pageEntities_.find(normalizedPageName);
+    return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
+}
+
+std::string SceneRegistry::MakeReticleLookupKey(const std::string_view normalizedPageName,
+                                                const std::string_view reticleId) const
+{
+    std::string key;
+    key.reserve(normalizedPageName.size() + reticleId.size() + 1U);
+    key.append(normalizedPageName);
+    key.push_back(':');
+    key.append(NormalizeReticleId(reticleId));
+    return key;
+}
+
+void SceneRegistry::IndexReticle(const std::string_view normalizedPageName,
+                                 const ReticleGroup& reticle,
+                                 const entt::entity entity)
+{
+    reticleEntities_.insert_or_assign(MakeReticleLookupKey(normalizedPageName, reticle.id), entity);
+}
+
+void SceneRegistry::RemoveReticleIndex(const std::string_view normalizedPageName, const std::string_view reticleId)
+{
+    reticleEntities_.erase(MakeReticleLookupKey(normalizedPageName, reticleId));
+}
+
+void SceneRegistry::SetActiveFlag(const std::string_view pageName, const bool active)
+{
+    const auto iterator = pageEntities_.find(pageName);
+    if (iterator == pageEntities_.end())
+    {
+        return;
+    }
+
+    if (auto* page = registry_.try_get<PageComponent>(iterator->second))
+    {
+        page->active = active;
+    }
+}
+} // namespace mfd

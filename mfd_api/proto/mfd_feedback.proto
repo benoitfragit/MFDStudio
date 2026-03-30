@@ -1,0 +1,63 @@
+// This file is part of MFDStudio.
+// Project author: Benoit Fra
+// Repository: https://github.com/benoitfragit/MFDStudio
+syntax = "proto3";
+
+package mfd.transport;
+
+import "mfd_commands.proto";
+
+enum StrobeCaptureShape
+{
+  STROBE_CAPTURE_SHAPE_CIRCLE = 0;
+  STROBE_CAPTURE_SHAPE_RECTANGLE = 1;
+}
+
+message StrobeCaptureArea
+{
+  StrobeCaptureShape shape = 1;
+  float radius = 2;
+  Vec2 size = 3;
+}
+
+message StrobeMagnetStatus
+{
+  bool enabled = 1;
+  float radius = 2;
+  float strength = 3;
+  bool magnetized = 4;
+  string reticle = 5;
+  Vec2 target_position = 6;
+  float distance = 7;
+}
+
+message StrobeCaptureStatus
+{
+  string reticle = 1;
+  string template_id = 2;
+  string label = 3;
+  string category = 4;
+  Vec2 position = 5;
+  float distance = 6;
+  map<string, string> metadata = 7;
+}
+
+message StrobeStatusFeedback
+{
+  uint32 sequence = 1;
+  string page = 2;
+  string strobe_id = 3;
+  bool active = 4;
+  Vec2 position = 5;
+  StrobeCaptureArea capture = 6;
+  StrobeMagnetStatus magnet = 7;
+  optional StrobeCaptureStatus capture_result = 8;
+}
+
+message FeedbackEnvelope
+{
+  oneof payload
+  {
+    StrobeStatusFeedback strobe_status = 1;
+  }
+}

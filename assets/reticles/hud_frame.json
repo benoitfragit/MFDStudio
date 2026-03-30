@@ -1,0 +1,23 @@
+{
+  "id": "hud_frame",
+  "stroke": "#2EFFA2FF",
+  "lineWidth": 0.0030,
+  "elements": [
+    {
+      "id": "combiner_top",
+      "type": "polyline",
+      "points": [
+        [-0.46, 0.58],
+        [-0.30, 0.58],
+        [-0.22, 0.50],
+        [0.22, 0.50],
+        [0.30, 0.58],
+        [0.46, 0.58]
+      ]
+    },
+    { "id": "left_post", "type": "line", "start": [-0.42, 0.58], "end": [-0.42, -0.50] },
+    { "id": "right_post", "type": "line", "start": [0.42, 0.58], "end": [0.42, -0.50] },
+    { "id": "lower_left", "type": "line", "start": [-0.42, -0.50], "end": [-0.18, -0.50] },
+    { "id": "lower_right", "type": "line", "start": [0.18, -0.50], "end": [0.42, -0.50] }
+  ]
+}

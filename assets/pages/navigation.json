@@ -1,0 +1,50 @@
+{
+  "name": "Navigation",
+  "title": "Navigation",
+  "backgroundColor": "#171108FF",
+  "staticReticles": [
+    {
+      "id": "compass",
+      "template": "compass_rose",
+      "color": "#FFCB6BFF",
+      "thickness": 0.0038
+    },
+    {
+      "id": "nav_aircraft",
+      "template": "aircraft_symbol",
+      "color": "#FFF1C1FF",
+      "thickness": 0.0042
+    },
+    {
+      "id": "route",
+      "color": "#7AE3FFFF",
+      "thickness": 0.0042,
+      "elements": [
+        {
+          "id": "route_line",
+          "type": "polyline",
+          "points": [
+            { "x": -0.4375, "y": -0.25 },
+            { "x": -0.1875, "y": -0.0417 },
+            { "x": 0.0625, "y": 0.0833 },
+            { "x": 0.25, "y": 0.2292 },
+            { "x": 0.4375, "y": 0.3542 }
+          ]
+        },
+        {
+          "id": "route_label",
+          "type": "text",
+          "text": "ROUTE A",
+          "position": { "x": 0.3958, "y": 0.3958 },
+          "fontSize": 0.0375
+        }
+      ]
+    },
+    {
+      "id": "status_clock",
+      "template": "status_clock",
+      "position": { "x": 0.625, "y": 0.7708 },
+      "stroke": "#EAD29BFF"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "id": "aircraft_symbol",
+  "elements": [
+    {
+      "id": "left_wing",
+      "type": "line",
+      "start": { "x": -0.1458, "y": 0.0 },
+      "end": { "x": -0.0333, "y": 0.0 }
+    },
+    {
+      "id": "right_wing",
+      "type": "line",
+      "start": { "x": 0.0333, "y": 0.0 },
+      "end": { "x": 0.1458, "y": 0.0 }
+    },
+    {
+      "id": "nose",
+      "type": "line",
+      "start": { "x": 0.0, "y": 0.0333 },
+      "end": { "x": 0.0, "y": 0.1167 }
+    },
+    {
+      "id": "tail",
+      "type": "polyline",
+      "points": [
+        { "x": -0.0375, "y": -0.0292 },
+        { "x": 0.0, "y": -0.0708 },
+        { "x": 0.0375, "y": -0.0292 }
+      ]
+    },
+    {
+      "id": "center_box",
+      "type": "square",
+      "width": 0.0375,
+      "height": 0.0375
+    }
+  ]
+}

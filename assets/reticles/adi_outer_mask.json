@@ -1,0 +1,15 @@
+{
+  "id": "adi_outer_mask",
+  "stroke": "#05080CFF",
+  "fill": "#05080CFF",
+  "lineWidth": 0.0020,
+  "elements": [
+    {
+      "id": "ball_mask_ring",
+      "type": "ring",
+      "innerRadius": 0.406,
+      "outerRadius": 0.920,
+      "segments": 160
+    }
+  ]
+}

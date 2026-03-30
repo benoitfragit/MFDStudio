@@ -1,0 +1,116 @@
+// This file is part of MFDStudio.
+// Project author: Benoit Fra
+// Repository: https://github.com/benoitfragit/MFDStudio
+syntax = "proto3";
+
+package mfd.transport;
+
+message Vec2
+{
+  float x = 1;
+  float y = 2;
+}
+
+message ReticleHandle
+{
+  string page = 1;
+  string reticle = 2;
+}
+
+message ReticlePatch
+{
+  optional bool visible = 1;
+  optional Vec2 position = 2;
+  optional float rotation_degrees = 3;
+  optional fixed32 packed_rgba = 4;
+  optional float thickness = 5;
+  optional string text = 6;
+  map<string, string> texts = 7;
+  optional float letter_spacing = 8;
+  map<string, float> letter_spacings = 9;
+  optional bool blink_enabled = 10;
+  optional string blink_type = 11;
+}
+
+message ActivatePageCommand
+{
+  string page = 1;
+}
+
+message SetPageViewCommand
+{
+  string page = 1;
+  Vec2 center = 2;
+  float zoom = 3;
+}
+
+message WindowDisplayPatch
+{
+  optional bool invert_colors = 1;
+  optional float brightness = 2;
+  optional bool disabled = 3;
+}
+
+message UpdateWindowDisplayCommand
+{
+  WindowDisplayPatch patch = 1;
+}
+
+message UpdateReticleCommand
+{
+  ReticleHandle target = 1;
+  ReticlePatch patch = 2;
+}
+
+message UpdateStrobeCommand
+{
+  string page = 1;
+  optional bool active = 2;
+  optional Vec2 position = 3;
+}
+
+message UpsertDynamicReticleCommand
+{
+  ReticleHandle target = 1;
+  string template_id = 2;
+  ReticlePatch patch = 3;
+}
+
+message DynamicReticleState
+{
+  string reticle = 1;
+  ReticlePatch patch = 2;
+}
+
+message UpsertDynamicReticlesCommand
+{
+  string page = 1;
+  string template_id = 2;
+  repeated DynamicReticleState reticles = 3;
+}
+
+message RemoveDynamicReticleCommand
+{
+  ReticleHandle target = 1;
+}
+
+message UserCommand
+{
+  oneof command
+  {
+    ActivatePageCommand activate_page = 1;
+    SetPageViewCommand set_page_view = 2;
+    UpdateWindowDisplayCommand update_window_display = 3;
+    UpdateReticleCommand update_reticle = 4;
+    UpdateStrobeCommand update_strobe = 5;
+    UpsertDynamicReticleCommand upsert_dynamic_reticle = 6;
+    UpsertDynamicReticlesCommand upsert_dynamic_reticles = 7;
+    RemoveDynamicReticleCommand remove_dynamic_reticle = 8;
+  }
+}
+
+message CommandEnvelope
+{
+  uint32 sequence = 1;
+  repeated UserCommand commands = 2;
+}

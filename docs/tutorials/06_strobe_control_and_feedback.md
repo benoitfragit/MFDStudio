@@ -1,0 +1,205 @@
+# Control The Strobe And Receive Feedback
+
+This tutorial shows how to:
+
+- define a strobe in a page
+- control it from a client
+- receive its live state back over UDP
+
+## At A Glance
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant U as UDP I/O worker
+    participant W as Render thread
+    participant S as Strobe logic
+
+    C->>U: SetStrobeActive / SetStrobePosition
+    U->>W: Queue typed command
+    W->>S: Resolve capture and magnetization
+    W->>U: Queue strobe feedback snapshot
+    U->>C: Strobe status feedback
+```
+
+## Step 1 - Define the strobe in the page JSON
+
+Example:
+
+```json
+{
+  "name": "Radar",
+  "strobe": {
+    "id": "radar_strobe",
+    "template": "strobe_cursor",
+    "position": { "x": 0.0, "y": 0.0 },
+    "capture": {
+      "shape": "circle",
+      "radius": 0.10
+    },
+    "magnet": {
+      "enabled": true,
+      "radius": 0.075,
+      "strength": 1.0
+    }
+  }
+}
+```
+
+## Step 2 - Expose the feedback UDP transport in the window JSON
+
+```json
+{
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47221,
+      "maxPacketSize": 4096
+    }
+  }
+}
+```
+
+The window will send one feedback stream for the strobe state.
+
+In the recommended runtime model:
+
+- the UDP worker thread receives strobe commands
+- the render thread resolves the final strobe state
+- the UDP worker thread sends the feedback packet back to the client
+
+## Step 3 - Control the strobe from the client
+
+```cpp
+client.SetStrobeActive("Radar", true);
+client.SetStrobePosition("Radar", {0.15f, -0.08f});
+```
+
+## Step 4 - Understand magnetization
+
+If magnetization is enabled:
+
+- the requested position is the input command
+- the returned position is the actual resolved position
+
+So the feedback position may differ from the command position.
+
+That is expected.
+
+## Step 5 - Create a feedback receiver
+
+```cpp
+#include "mfd/control/FeedbackTransport.h"
+#include "mfd/control/StrobeFeedback.h"
+#include "mfd/ipc/ExchangeChannel.h"
+
+int main()
+{
+    mfd::WindowUdpFeedbackTransport feedbackUdp;
+    feedbackUdp.enabled = true;
+    feedbackUdp.address = "127.0.0.1";
+    feedbackUdp.port = 47221;
+    feedbackUdp.maxPacketSize = 4096;
+
+    auto feedbackChannel = mfd::CreateFeedbackReceiverChannel(feedbackUdp);
+    if (feedbackChannel == nullptr || !feedbackChannel->IsReady())
+    {
+        return 1;
+    }
+
+    while (true)
+    {
+        const auto payload = feedbackChannel->TryReceive();
+        if (!payload.has_value())
+        {
+            continue;
+        }
+
+        const auto* raw = reinterpret_cast<const char*>(payload->data());
+        std::string error;
+        const auto feedback =
+            mfd::DeserializeStrobeStatusFeedback(std::string_view(raw, payload->size()), &error);
+
+        if (!feedback.has_value())
+        {
+            continue;
+        }
+
+        // Use feedback->pageName
+        // Use feedback->active
+        // Use feedback->position
+        // Use feedback->magnet
+        // Use feedback->captureResult
+    }
+}
+```
+
+## Step 6 - Read the feedback fields
+
+Important fields are:
+
+- `pageName`
+- `strobeId`
+- `active`
+- `position`
+- `capture`
+- `magnet`
+- optional `captureResult`
+
+`captureResult` gives you:
+
+- captured reticle id
+- source template id
+- label
+- category
+- position
+- distance
+- metadata
+
+## Step 7 - Test quickly with the mockup
+
+You do not need to write the client first.
+
+Use `mfd_mockup`:
+
+1. select a page with a strobe
+2. send a strobe update
+3. inspect the `Live return from window` section
+
+## Step 8 - Understand requested vs resolved state
+
+The client commands only express intent:
+
+- active or inactive
+- requested position
+
+The window feedback reports the resolved result after runtime processing:
+
+- final active state
+- final position after optional magnetization
+- capture state
+- optional captured target
+
+## What You Should See
+
+With a strobe-enabled page:
+
+- enabling the strobe makes the cursor appear
+- moving the strobe changes its location
+- if magnetization is enabled, the reported position may snap to a nearby target
+- feedback tells you what the window resolved, not only what the client asked for
+
+This distinction is important:
+
+- command position = requested input
+- feedback position = actual resolved state
+
+## Result
+
+You now have:
+
+- a command path from client to window
+- a feedback path from window to client
+- support for strobe magnetization and capture feedback
+- a clean split between UDP I/O and render-thread scene ownership

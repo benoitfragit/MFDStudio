@@ -1,0 +1,119 @@
+/*
+ * This file is part of MFDStudio.
+ * Project author: Benoit Fra
+ * Repository: https://github.com/benoitfragit/MFDStudio
+ */
+#pragma once
+
+/**
+ * @file
+ * @brief Runtime command dispatcher applying Protocol Buffers user commands to a scene registry.
+ */
+
+#include <cstddef>
+#include <span>
+#include <string>
+#include <string_view>
+
+#include <entt/entt.hpp>
+
+#include "mfd/MfdExport.h"
+#include "mfd/control/CommandTypes.h"
+
+namespace mfd
+{
+class IExchangeChannel;
+class SceneRegistry;
+
+/**
+ * @brief Dispatches user commands to a scene registry.
+ *
+ * @note This class is typically owned by the host application that receives
+ * commands from UDP.
+ *
+ * @note In the recommended two-thread runtime model, this object stays on the
+ * render thread. The UDP worker thread should only decode packets and queue
+ * typed commands for later submission.
+ */
+class MFD_API CommandProcessor
+{
+public:
+    /**
+     * @brief Creates a command processor bound to a runtime scene.
+     * @param scene Scene registry updated by the received commands.
+     */
+    explicit CommandProcessor(SceneRegistry& scene);
+
+    /**
+     * @brief Submits a typed command directly.
+     * @param command Command to dispatch.
+     * @return `true` if the command was accepted and applied.
+     */
+    bool Submit(const UserCommand& command);
+
+    /**
+     * @brief Submits a sequence of typed commands directly.
+     * @param commands Commands to dispatch in order.
+     * @return `true` if every command was accepted and applied.
+     */
+    bool Submit(std::span<const UserCommand> commands);
+
+    /**
+     * @brief Submits a serialized Protocol Buffers command payload.
+     * @param payload Raw binary Protocol Buffers payload.
+     * @return `true` if the payload was valid and the command was applied.
+     */
+    bool Submit(std::string_view payload);
+
+    /**
+     * @brief Submits a raw byte buffer containing a Protocol Buffers command payload.
+     * @param payload Raw byte payload.
+     * @return `true` if the payload was valid and the command was applied.
+     */
+    bool Submit(std::span<const std::byte> payload);
+
+    /**
+     * @brief Polls a transport and dispatches all commands received during this call.
+     * @param channel Transport channel to poll.
+     * @return `true` if at least one command was processed.
+     * @note This helper is mainly intended for simple single-threaded hosts.
+     * Multi-threaded hosts should prefer `UdpRuntimeBridge` and `Submit(...)`.
+     */
+    bool Poll(IExchangeChannel& channel);
+
+    /**
+     * @brief Returns the last error produced by a submission or a poll.
+     * @return Error string, or an empty string if the last operation succeeded.
+     */
+    std::string LastError() const;
+
+    /**
+     * @brief Returns the underlying EnTT dispatcher.
+     * @return Mutable dispatcher reference.
+     */
+    entt::dispatcher& Dispatcher() noexcept;
+
+    /**
+     * @brief Returns the underlying EnTT dispatcher.
+     * @return Const dispatcher reference.
+     */
+    const entt::dispatcher& Dispatcher() const noexcept;
+
+private:
+    void OnActivatePage(const ActivatePageCommand& command);
+    void OnSetPageView(const SetPageViewCommand& command);
+    void OnUpdateWindowDisplay(const UpdateWindowDisplayCommand& command);
+    void OnUpdateReticle(const UpdateReticleCommand& command);
+    void OnUpdateStrobe(const UpdateStrobeCommand& command);
+    void OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command);
+    void OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command);
+    void OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
+
+    void SetFailure(std::string message);
+
+    SceneRegistry& scene_;
+    entt::dispatcher dispatcher_ {};
+    std::string lastError_ {};
+    bool lastCommandSucceeded_ = true;
+};
+} // namespace mfd

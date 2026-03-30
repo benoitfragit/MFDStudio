@@ -1,0 +1,11 @@
+{
+  "id": "hud_velocity_vector",
+  "stroke": "#2EFFA2FF",
+  "lineWidth": 0.0032,
+  "elements": [
+    { "id": "vv_circle", "type": "circle", "radius": 0.034 },
+    { "id": "vv_left", "type": "line", "start": [-0.070, 0.0], "end": [-0.034, 0.0] },
+    { "id": "vv_right", "type": "line", "start": [0.034, 0.0], "end": [0.070, 0.0] },
+    { "id": "vv_tail", "type": "line", "start": [0.0, -0.034], "end": [0.0, -0.078] }
+  ]
+}

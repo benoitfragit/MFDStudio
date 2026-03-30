@@ -1,0 +1,29 @@
+{
+  "title": "MFD Minimal Radar",
+  "size": [480, 480],
+  "position": [120, 120],
+  "targetFps": 60,
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47230,
+      "maxPacketSize": 16384
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47231,
+      "maxPacketSize": 4096
+    }
+  },
+  "pages": [
+    "../pages/pfd.json",
+    "../pages/navigation.json",
+    "../pages/radar.json",
+    "../pages/tactical.json"
+  ]
+}

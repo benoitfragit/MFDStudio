@@ -1,0 +1,32 @@
+{
+  "id": "radar_track",
+  "style": {
+    "lineWidth": 0.0042
+  },
+  "elements": [
+    {
+      "id": "track_vector",
+      "type": "line",
+      "start": [0.0, -0.0375],
+      "end": [0.0, -0.1833]
+    },
+    {
+      "id": "track_head",
+      "type": "diamond",
+      "size": 0.0583
+    },
+    {
+      "id": "track_cross",
+      "type": "line",
+      "start": [-0.025, 0.0],
+      "end": [0.025, 0.0]
+    },
+    {
+      "id": "track_label",
+      "type": "text",
+      "text": "TRK",
+      "at": [0.0583, 0.0167],
+      "size": 0.0375
+    }
+  ]
+}

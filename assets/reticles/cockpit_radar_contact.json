@@ -1,0 +1,34 @@
+{
+  "id": "cockpit_radar_contact",
+  "style": {
+    "lineWidth": 0.0034
+  },
+  "elements": [
+    {
+      "id": "contact_stem",
+      "type": "line",
+      "start": [0.0, -0.022],
+      "end": [0.0, -0.108]
+    },
+    {
+      "id": "contact_body",
+      "type": "diamond",
+      "width": 0.048,
+      "height": 0.048
+    },
+    {
+      "id": "contact_cross",
+      "type": "line",
+      "start": [-0.020, 0.0],
+      "end": [0.020, 0.0]
+    },
+    {
+      "id": "contact_label",
+      "type": "text",
+      "text": "TGT",
+      "at": [0.056, 0.018],
+      "size": 0.032,
+      "letterSpacing": 0.006
+    }
+  ]
+}

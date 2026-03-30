@@ -1,0 +1,136 @@
+{
+  "id": "geometry_showcase",
+  "elements": [
+    {
+      "id": "showcase_title",
+      "type": "text",
+      "text": "All primitive types",
+      "position": [0.0, 0.6667],
+      "fontSize": 0.0583,
+      "color": "#FFF5D6FF"
+    },
+    {
+      "id": "showcase_clock",
+      "type": "time",
+      "format": "%H:%M:%S",
+      "utc": true,
+      "position": [0.5833, 0.6667],
+      "fontSize": 0.0417,
+      "letterSpacing": 0.0021,
+      "color": "#EAD29BFF"
+    },
+    {
+      "id": "filled_circle",
+      "type": "circle",
+      "position": [-0.625, 0.25],
+      "radius": 0.0708,
+      "color": "#A6FF9EFF",
+      "fillColor": "#274C21CC",
+      "filled": true,
+      "thickness": 0.0063
+    },
+    {
+      "id": "square",
+      "type": "square",
+      "position": [-0.3125, 0.25],
+      "width": 0.1458,
+      "height": 0.1458,
+      "color": "#FFCB6BFF",
+      "fillColor": "#5A3D0DCC",
+      "filled": true,
+      "thickness": 0.0063
+    },
+    {
+      "id": "diamond",
+      "type": "diamond",
+      "position": [0.0, 0.25],
+      "width": 0.1458,
+      "height": 0.1458,
+      "color": "#8AD8FFFF",
+      "fillColor": "#17384ACC",
+      "filled": true,
+      "thickness": 0.0063
+    },
+    {
+      "id": "triangle",
+      "type": "triangle",
+      "position": [0.3542, 0.2396],
+      "points": [
+        [-0.0792, -0.0458],
+        [0.0, 0.0875],
+        [0.0792, -0.0458]
+      ],
+      "color": "#FF9E8EFF",
+      "fillColor": "#5C2018CC",
+      "filled": true,
+      "thickness": 0.0063
+    },
+    {
+      "id": "ellipse",
+      "type": "ellipse",
+      "position": [0.6771, 0.25],
+      "width": 0.1667,
+      "height": 0.1042,
+      "color": "#8FE6D9FF",
+      "fillColor": "#184A45CC",
+      "filled": true,
+      "thickness": 0.0063
+    },
+    {
+      "id": "rectangle",
+      "type": "rectangle",
+      "position": [-0.6667, -0.1667],
+      "width": 0.1875,
+      "height": 0.125,
+      "color": "#F7B38BFF",
+      "fillColor": "#5C2F22CC",
+      "filled": true,
+      "thickness": 0.0063
+    },
+    {
+      "id": "polyline_open",
+      "type": "polyline",
+      "position": [-0.2917, -0.1667],
+      "points": [
+        [-0.1875, -0.0417],
+        [-0.0833, 0.0938],
+        [0.0, 0.0],
+        [0.1146, 0.1458],
+        [0.2083, -0.0583]
+      ],
+      "color": "#A4FFEBFF",
+      "thickness": 0.0063
+    },
+    {
+      "id": "polyline_closed",
+      "type": "polyline",
+      "position": [0.25, -0.1667],
+      "points": [
+        [-0.1458, -0.0375],
+        [-0.0375, 0.125],
+        [0.125, 0.0375],
+        [0.0708, -0.1146],
+        [-0.0625, -0.1333]
+      ],
+      "closed": true,
+      "color": "#FFB36BFF",
+      "fillColor": "#5B3516CC",
+      "filled": true,
+      "thickness": 0.0052
+    },
+    {
+      "id": "bezier_curve",
+      "type": "bezier",
+      "position": [0.0, -0.5208],
+      "points": [
+        [-0.5417, -0.0208],
+        [-0.2292, 0.2083],
+        [0.0417, -0.25],
+        [0.5208, 0.0417]
+      ],
+      "color": "#72D8FFFF",
+      "thickness": 0.0063,
+      "segments": 64
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "adi_heading_lubber",
+  "stroke": "#FFF4D2FF",
+  "fill": "#FFF4D2FF",
+  "lineWidth": 0.0028,
+  "elements": [
+    { "id": "lubber_line", "type": "line", "start": [0.000, 0.425], "end": [0.000, 0.505] },
+    {
+      "id": "lubber_tip",
+      "type": "triangle",
+      "points": [
+        [-0.015, 0.505],
+        [0.015, 0.505],
+        [0.000, 0.540]
+      ]
+    }
+  ]
+}

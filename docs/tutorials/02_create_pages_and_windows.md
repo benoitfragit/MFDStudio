@@ -1,0 +1,203 @@
+# Create Pages And Windows
+
+This tutorial shows how to:
+
+- create a page JSON file
+- create a window JSON file
+- connect them together
+
+For the exact page and window field reference, see:
+
+- [Common JSON Syntax](../reference/common_json_syntax.md)
+- [Page And Window Reference](../reference/page_and_window_reference.md)
+
+## At A Glance
+
+```mermaid
+flowchart TD
+    A[Window JSON] --> B[Page file 1]
+    A --> C[Page file 2]
+    A --> D[Page file N]
+    A --> E[Reticle library folder]
+```
+
+## Step 1 - Create a page file
+
+Each page lives in its own JSON file inside `assets/pages`.
+
+Create `assets/pages/tutorial_page.json`:
+
+```json
+{
+  "name": "Tutorial",
+  "title": "Tutorial Page",
+  "backgroundColor": "#08131BFF",
+  "view": {
+    "center": [0.0, 0.0],
+    "zoom": 1.0
+  },
+  "staticReticles": [
+    {
+      "id": "aircraft",
+      "template": "aircraft_symbol",
+      "stroke": "hud",
+      "thickness": 0.0042
+    },
+    {
+      "id": "status",
+      "template": "status_clock",
+      "position": { "x": 0.625, "y": 0.7708 },
+      "stroke": "#EAD29BFF"
+    }
+  ]
+}
+```
+
+## Step 2 - Understand the page fields
+
+Important page fields are:
+
+- `name`
+- `title`
+- `backgroundColor`
+- `view.center`
+- `view.zoom`
+- `staticReticles`
+- optional `strobe`
+
+`name` is the page identifier used by the runtime and the client API.
+
+## Step 3 - Create a window file
+
+The root window JSON defines:
+
+- window title
+- window size in pixels
+- window screen position
+- optional text font file for text/time primitives and page overlays
+- UDP command transport
+- optional UDP feedback transport
+- list of page files
+
+Create `assets/windows/tutorial_window.json`:
+
+```json
+{
+  "title": "Tutorial Window",
+  "size": [1280, 800],
+  "position": [80, 60],
+  "targetFps": 60,
+  "fontFile": "../fonts/ocr_a.ttf",
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47300,
+      "maxPacketSize": 16384
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47301,
+      "maxPacketSize": 4096
+    }
+  },
+  "pages": [
+    "../pages/tutorial_page.json"
+  ]
+}
+```
+
+## Step 4 - Reuse templates across pages
+
+One library reticle can be reused many times.
+
+For example, the same `status_clock` can appear in:
+
+- `tutorial_page.json`
+- `navigation.json`
+- any future page file
+
+That is why the template library lives at the window level, not inside one
+page.
+
+## Step 5 - Load the window from C++
+
+Use `mfd::JsonLoader`:
+
+```cpp
+#include "mfd/io/JsonLoader.h"
+
+mfd::JsonLoader loader;
+const mfd::LoadedWindowConfiguration loaded =
+    loader.LoadWindowConfiguration("assets/windows/tutorial_window.json");
+```
+
+`loaded.window` gives you:
+
+- title
+- size
+- position
+- optional font file
+- UDP transport settings
+
+`loaded.document` gives you:
+
+- reticle library
+- pages
+
+## Step 6 - Activate the page in a runtime scene
+
+```cpp
+#include "mfd/runtime/SceneRegistry.h"
+
+mfd::SceneRegistry scene(loaded.document);
+scene.SetActivePage("Tutorial");
+```
+
+## Step 7 - Optional: add a strobe
+
+If a page needs a strobe, add:
+
+```json
+"strobe": {
+  "id": "tutorial_strobe",
+  "template": "strobe_cursor",
+  "position": { "x": 0.0, "y": 0.0 },
+  "capture": {
+    "shape": "circle",
+    "radius": 0.10
+  },
+  "magnet": {
+    "enabled": true,
+    "radius": 0.075,
+    "strength": 1.0
+  }
+}
+```
+
+## What You Should See
+
+Once the window JSON is loaded by an application:
+
+- the window opens with the configured title
+- the configured page exists in the page list
+- its reticles are visible when the page is active
+- zoom and center affect the whole page, not one reticle
+
+Common mistakes:
+
+- placing reticle templates in the page folder instead of the library folder
+- using a page `name` that does not match the client commands
+- using pixel values instead of normalized `[-1, 1]` coordinates
+
+## Result
+
+You now have:
+
+- one reusable reticle library
+- one page file
+- one root window file that loads the page

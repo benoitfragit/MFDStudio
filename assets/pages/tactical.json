@@ -1,0 +1,11 @@
+{
+  "name": "Tactical",
+  "title": "Geometry Lab",
+  "backgroundColor": "#1B120BFF",
+  "staticReticles": [
+    {
+      "id": "geometry_showcase",
+      "template": "geometry_showcase"
+    }
+  ]
+}

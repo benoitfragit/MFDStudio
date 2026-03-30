@@ -1,0 +1,16 @@
+{
+  "id": "adi_bank_pointer",
+  "stroke": "#FFF4D2FF",
+  "fill": "#FFF4D2FF",
+  "elements": [
+    {
+      "id": "pointer",
+      "type": "triangle",
+      "points": [
+        [-0.020, 0.47],
+        [0.020, 0.47],
+        [0.0, 0.40]
+      ]
+    }
+  ]
+}
