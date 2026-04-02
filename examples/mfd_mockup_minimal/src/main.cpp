@@ -23,15 +23,13 @@
 #include <thread>
 #include <vector>
 
+#include "MockupUi.h"
 #include "mfd/control/CommandClient.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/PageDefinition.h"
 
 namespace
 {
-constexpr std::string_view kCockpitWindowFile = "assets/windows/demo_pages_cockpit.json";
-constexpr std::string_view kCockpitPageName = "Cockpit";
-constexpr std::string_view kCockpitRadarTemplateId = "cockpit_radar_contact";
 constexpr std::chrono::milliseconds kSimulationTick {20};
 constexpr float kSimulationTickSeconds = 0.020f;
 constexpr float kDegreesToRadians = 0.01745329252f;
@@ -46,16 +44,23 @@ constexpr float kCockpitRadarCenterY = -0.02f;
 
 volatile std::sig_atomic_t gStopRequested = 0;
 
+/**
+ * @brief Runtime configuration loaded from the cockpit demo window JSON.
+ */
 struct ExampleConfig
 {
+    /** @brief UDP command transport consumed by the headless client. */
     mfd::WindowUdpCommandTransport transport {};
+    /** @brief Authored page view re-applied during startup. */
     mfd::PageViewState cockpitView {};
 };
 
+/**
+ * @brief Simple aircraft state advanced every 20 ms by the example loop.
+ */
 struct CockpitSimulationState
 {
     bool radarEnabled = true;
-    bool contactsPublished = false;
     float elapsedSeconds = 0.0f;
     float pitchDegrees = 2.0f;
     float bankDegrees = 0.0f;
@@ -69,6 +74,9 @@ struct CockpitSimulationState
     std::uint32_t sequence = 1;
 };
 
+/**
+ * @brief Immutable radar-contact seed used to synthesize dynamic tracks.
+ */
 struct CockpitTargetSeed
 {
     const char* id = "";
@@ -165,19 +173,24 @@ std::string BuildStatusCaption(const CockpitSimulationState& simulation)
     return buffer;
 }
 
+/**
+ * @brief Loads the cockpit demo transport and authored page view from JSON.
+ * @return Example configuration required by the headless client.
+ */
 ExampleConfig LoadExampleConfig()
 {
     mfd::JsonLoader loader;
     const mfd::LoadedWindowConfiguration loaded =
-        loader.LoadWindowConfiguration(std::string(kCockpitWindowFile));
+        loader.LoadWindowConfiguration(std::string(mockup_ui::CockpitMockupUi::WindowFile()));
 
-    const mfd::PageDefinition* cockpitPage = mfd::FindPageDefinition(loaded.document, kCockpitPageName);
+    const mfd::PageDefinition* cockpitPage =
+        mfd::FindPageDefinition(loaded.document, mockup_ui::CockpitMockupPage::Name());
     if (cockpitPage == nullptr)
     {
         throw std::runtime_error("The cockpit window JSON does not expose a page named 'Cockpit'");
     }
 
-    if (!loaded.document.reticleLibrary.contains(std::string(kCockpitRadarTemplateId)))
+    if (!loaded.document.reticleLibrary.contains(std::string(mockup_ui::CockpitMockupPage::RadarTemplateId())))
     {
         throw std::runtime_error("The cockpit reticle library does not expose the 'cockpit_radar_contact' template");
     }
@@ -193,6 +206,11 @@ ExampleConfig LoadExampleConfig()
     return config;
 }
 
+/**
+ * @brief Advances the toy aircraft model by one fixed simulation step.
+ * @param simulation State updated in place.
+ * @param deltaSeconds Fixed time step expressed in seconds.
+ */
 void StepCockpitSimulation(CockpitSimulationState& simulation, const float deltaSeconds)
 {
     simulation.elapsedSeconds += std::max(deltaSeconds, 0.0f);
@@ -247,7 +265,21 @@ void StepCockpitSimulation(CockpitSimulationState& simulation, const float delta
     simulation.ownshipY += std::cos(headingRadians) * speedWorldUnitsPerSecond * deltaSeconds;
 }
 
-std::vector<mfd::UserCommand> BuildCockpitBatch(CockpitSimulationState& simulation)
+/**
+ * @brief Builds one cockpit command batch from the current simulation state.
+ *
+ * The function demonstrates the intended usage pattern of the minimal mockup
+ * facade:
+ *
+ * 1. reset the typed helper tree for the new cycle
+ * 2. mutate page, reticle and dynamic-reticle instances directly
+ * 3. emit only the commands whose final state changed
+ *
+ * @param ui Typed cockpit helper tree used by the example client.
+ * @param simulation Aircraft and radar state sampled for this frame.
+ * @return Batched typed commands ready to be sent through `CommandClient`.
+ */
+std::vector<mfd::UserCommand> BuildCockpitBatch(mockup_ui::CockpitMockupUi& ui, CockpitSimulationState& simulation)
 {
     static constexpr mfd::ColorRgba kHudNominal {46, 255, 162, 255};
     static constexpr mfd::ColorRgba kHudWarning {255, 198, 109, 255};
@@ -275,192 +307,73 @@ std::vector<mfd::UserCommand> BuildCockpitBatch(CockpitSimulationState& simulati
     const float headingBugRelativeDegrees =
         std::remainder(simulation.selectedHeadingDegrees - simulation.headingDegrees, 360.0f);
 
-    std::vector<mfd::UserCommand> commands;
-    commands.reserve(25);
-
-    auto pushReticlePatch = [&commands](const std::string_view reticleId, mfd::ReticlePatch patch)
-    {
-        commands.emplace_back(mfd::UpdateReticleCommand {
-            mfd::ReticleHandle {std::string(kCockpitPageName), std::string(reticleId)},
-            std::move(patch)});
-    };
+    ui.Reset();
+    mockup_ui::CockpitMockupPage& cockpit = ui.Cockpit();
 
     // ADI updates.
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees;
-        pushReticlePatch("adi_ball_sky", std::move(patch));
-    }
+    const mfd::Vec2 adiBallPosition {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
+    cockpit.adiBallSky.SetPosition(adiBallPosition);
+    cockpit.adiBallSky.SetRotationDegrees(simulation.bankDegrees);
 
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees;
-        pushReticlePatch("adi_ball_ground", std::move(patch));
-    }
+    cockpit.adiBallGround.SetPosition(adiBallPosition);
+    cockpit.adiBallGround.SetRotationDegrees(simulation.bankDegrees);
 
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees;
-        pushReticlePatch("adi_ball_horizon", std::move(patch));
-    }
+    cockpit.adiBallHorizon.SetPosition(adiBallPosition);
+    cockpit.adiBallHorizon.SetRotationDegrees(simulation.bankDegrees);
 
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees;
-        pushReticlePatch("adi_ball_ladder", std::move(patch));
-    }
+    cockpit.adiBallLadder.SetPosition(adiBallPosition);
+    cockpit.adiBallLadder.SetRotationDegrees(simulation.bankDegrees);
 
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("heading_value", headingText);
-        patch.texts.emplace("command_value", selectedHeadingText);
-        pushReticlePatch("adi_heading_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.rotationDegrees = -simulation.headingDegrees;
-        pushReticlePatch("adi_heading_card", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.rotationDegrees = headingBugRelativeDegrees;
-        pushReticlePatch("adi_heading_command_bug", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("pitch_value", pitchText);
-        pushReticlePatch("adi_pitch_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("roll_value", rollText);
-        pushReticlePatch("adi_roll_box", std::move(patch));
-    }
+    cockpit.adiHeadingBox.SetText("heading_value", headingText);
+    cockpit.adiHeadingBox.SetText("command_value", selectedHeadingText);
+    cockpit.adiHeadingCard.SetRotationDegrees(-simulation.headingDegrees);
+    cockpit.adiHeadingCommandBug.SetRotationDegrees(headingBugRelativeDegrees);
+    cockpit.adiPitchBox.SetValue(pitchText);
+    cockpit.adiRollBox.SetValue(rollText);
 
     // HUD updates.
+    cockpit.hudPitchLadder.SetPosition(mfd::Vec2 {kCockpitHudCenterX, kCockpitHudCenterY + hudPitchOffset});
+    cockpit.hudPitchLadder.SetRotationDegrees(simulation.bankDegrees * 0.88f);
+
+    cockpit.hudVelocityVector.SetPosition(mfd::Vec2 {kCockpitHudCenterX + hudFpmX, kCockpitHudCenterY + hudFpmY});
+
+    cockpit.hudSpeedBox.SetValue(speedText);
+    cockpit.hudSpeedBox.SetColor(overspeed ? kHudWarning : kHudNominal);
+    cockpit.hudMachBox.SetValue(machText);
+    cockpit.hudMachBox.SetColor(overspeed ? kHudWarning : kHudNominal);
+
+    if (overspeed)
     {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitHudCenterX, kCockpitHudCenterY + hudPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees * 0.88f;
-        pushReticlePatch("hud_pitch_ladder", std::move(patch));
+        cockpit.hudSpeedBox.Blink = cockpit.overspeed;
+        cockpit.hudMachBox.Blink = cockpit.overspeed;
+    }
+    else
+    {
+        cockpit.hudSpeedBox.Blink = nullptr;
+        cockpit.hudMachBox.Blink = nullptr;
     }
 
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitHudCenterX + hudFpmX, kCockpitHudCenterY + hudFpmY};
-        pushReticlePatch("hud_velocity_vector", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("speed_value", speedText);
-        patch.color = overspeed ? kHudWarning : kHudNominal;
-        patch.blinkEnabled = overspeed;
-        patch.blinkType = overspeed ? std::string {"overspeed"} : std::string {};
-        pushReticlePatch("hud_speed_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("mach_value", machText);
-        patch.color = overspeed ? kHudWarning : kHudNominal;
-        patch.blinkEnabled = overspeed;
-        patch.blinkType = overspeed ? std::string {"overspeed"} : std::string {};
-        pushReticlePatch("hud_mach_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("heading_value", headingText);
-        pushReticlePatch("hud_heading_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("fpa_value", fpaText);
-        pushReticlePatch("hud_fpa_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("throttle_value", throttleText);
-        pushReticlePatch("hud_throttle_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("radar_value", simulation.radarEnabled ? std::string {"EMIT"} : std::string {"STBY"});
-        patch.color = simulation.radarEnabled ? kHudNominal : kHudWarning;
-        pushReticlePatch("hud_radar_box", std::move(patch));
-    }
+    cockpit.hudHeadingBox.SetValue(headingText);
+    cockpit.hudFpaBox.SetValue(fpaText);
+    cockpit.hudThrottleBox.SetValue(throttleText);
+    cockpit.hudRadarBox.SetValue(simulation.radarEnabled ? std::string {"EMIT"} : std::string {"STBY"});
+    cockpit.hudRadarBox.SetColor(simulation.radarEnabled ? kHudNominal : kHudWarning);
 
     // Radar panel updates.
-    {
-        mfd::ReticlePatch patch;
-        patch.visible = simulation.radarEnabled;
-        pushReticlePatch("radar_scope", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.visible = simulation.radarEnabled;
-        patch.position = mfd::Vec2 {kCockpitRadarCenterX, kCockpitRadarCenterY};
-        patch.rotationDegrees = -radarSweepDegrees;
-        pushReticlePatch("radar_sweep", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.visible = simulation.radarEnabled;
-        pushReticlePatch("radar_ownship", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("heading_value", headingText);
-        pushReticlePatch("radar_heading_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("speed_value", speedText);
-        pushReticlePatch("radar_speed_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("status_value", simulation.radarEnabled ? std::string {"SEARCH"} : std::string {"STANDBY"});
-        patch.color = simulation.radarEnabled ? kRadarSearch : kRadarStandby;
-        pushReticlePatch("radar_status_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.visible = !simulation.radarEnabled;
-        pushReticlePatch("radar_off_overlay", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("status_caption", statusCaption);
-        pushReticlePatch("cockpit_status", std::move(patch));
-    }
-
-    bool contactsPublishedNext = simulation.contactsPublished;
+    cockpit.radarScope.SetVisible(simulation.radarEnabled);
+    cockpit.radarSweep.SetVisible(simulation.radarEnabled);
+    cockpit.radarSweep.SetPosition(mfd::Vec2 {kCockpitRadarCenterX, kCockpitRadarCenterY});
+    cockpit.radarSweep.SetRotationDegrees(-radarSweepDegrees);
+    cockpit.radarOwnship.SetVisible(simulation.radarEnabled);
+    cockpit.radarHeadingBox.SetValue(headingText);
+    cockpit.radarSpeedBox.SetValue(speedText);
+    cockpit.radarStatusBox.SetValue(simulation.radarEnabled ? std::string {"SEARCH"} : std::string {"STANDBY"});
+    cockpit.radarStatusBox.SetColor(simulation.radarEnabled ? kRadarSearch : kRadarStandby);
+    cockpit.radarOffOverlay.SetVisible(!simulation.radarEnabled);
+    cockpit.SetStatusCaption(statusCaption);
 
     if (simulation.radarEnabled)
     {
-        std::vector<mfd::DynamicReticleState> contacts;
-        contacts.reserve(kCockpitTargets.size());
-
         const float headingRadians = simulation.headingDegrees * kDegreesToRadians;
         const float cosine = std::cos(headingRadians);
         const float sine = std::sin(headingRadians);
@@ -482,62 +395,35 @@ std::vector<mfd::UserCommand> BuildCockpitBatch(CockpitSimulationState& simulati
             const float normalizedY = std::clamp(forward / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
             const float contactHeadingDegrees = std::atan2(right, forward) * kRadiansToDegrees;
 
-            mfd::ReticlePatch patch;
-            patch.visible = visible;
-            patch.position = mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY};
-            patch.rotationDegrees = contactHeadingDegrees;
-            patch.color = target.color;
-            patch.texts.emplace("contact_label", target.label);
-            patch.blinkEnabled = target.blink;
+            mockup_ui::DynamicReticle& contact = cockpit.radarContacts.Upsert(target.id);
+            contact.SetVisible(visible);
+            contact.SetPosition(mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY});
+            contact.SetRotationDegrees(contactHeadingDegrees);
+            contact.SetColor(target.color);
+            contact.SetText("contact_label", std::string {target.label});
+
             if (target.blink)
             {
-                patch.blinkType = std::string {"threat"};
+                contact.Blink = cockpit.threat;
             }
-
-            contacts.push_back(mfd::DynamicReticleState {target.id, std::move(patch)});
+            else
+            {
+                contact.Blink = nullptr;
+            }
         }
-
-        commands.emplace_back(mfd::UpsertDynamicReticlesCommand {
-            std::string(kCockpitPageName),
-            std::string(kCockpitRadarTemplateId),
-            std::move(contacts)});
-        contactsPublishedNext = true;
-    }
-    else if (simulation.contactsPublished)
-    {
-        for (const CockpitTargetSeed& target : kCockpitTargets)
-        {
-            commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-                mfd::ReticleHandle {std::string(kCockpitPageName), std::string(target.id)}});
-        }
-
-        contactsPublishedNext = false;
     }
 
-    simulation.contactsPublished = contactsPublishedNext;
-    return commands;
+    return ui.BuildBatch();
 }
 
-std::vector<mfd::UserCommand> BuildShutdownBatch()
+/**
+ * @brief Builds the final batch sent when the example stops.
+ * @param ui Typed cockpit helper tree used by the example client.
+ * @return Final commands clearing dynamic contacts and updating the status line.
+ */
+std::vector<mfd::UserCommand> BuildShutdownBatch(mockup_ui::CockpitMockupUi& ui)
 {
-    std::vector<mfd::UserCommand> commands;
-    commands.reserve(kCockpitTargets.size() + 1);
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("status_caption", std::string {"CLI API stopped | restart mfd_mockup_minimal"});
-        commands.emplace_back(mfd::UpdateReticleCommand {
-            mfd::ReticleHandle {std::string(kCockpitPageName), std::string {"cockpit_status"}},
-            std::move(patch)});
-    }
-
-    for (const CockpitTargetSeed& target : kCockpitTargets)
-    {
-        commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-            mfd::ReticleHandle {std::string(kCockpitPageName), std::string(target.id)}});
-    }
-
-    return commands;
+    return ui.BuildShutdownBatch("CLI API stopped | restart mfd_mockup_minimal");
 }
 } // namespace
 
@@ -557,26 +443,19 @@ int main()
             throw std::runtime_error("Unable to create the cockpit UDP client: " + client.LastError());
         }
 
-        Require(client.ActivatePage(kCockpitPageName), client, "Unable to activate the cockpit page");
-        Require(client.SetPageView(kCockpitPageName, config.cockpitView.center, config.cockpitView.zoom),
+        mockup_ui::CockpitMockupUi ui;
+        Require(ui.SendStartup(client,
+                               config.cockpitView,
+                               std::string {"CLI API booting | waiting for first dummy batch"}),
                 client,
-                "Unable to apply the cockpit page view");
-        Require(client.SetWindowColorInverted(false), client, "Unable to clear window color inversion");
-        Require(client.SetWindowBrightness(1.0f), client, "Unable to restore window brightness");
-        Require(client.SetWindowDisabled(false), client, "Unable to clear whole-window blackout");
-        Require(client.SetReticleText(kCockpitPageName,
-                                      "cockpit_status",
-                                      "status_caption",
-                                      std::string {"CLI API booting | waiting for first dummy batch"}),
-                client,
-                "Unable to prime the cockpit status banner");
+                "Unable to prime the cockpit mockup UI");
 
         CockpitSimulationState simulation;
 
         std::cout << "mfd_mockup_minimal\n";
-        std::cout << "Window JSON: " << kCockpitWindowFile << '\n';
+        std::cout << "Window JSON: " << mockup_ui::CockpitMockupUi::WindowFile() << '\n';
         std::cout << "UDP target: " << config.transport.address << ':' << config.transport.port << '\n';
-        std::cout << "Driving page '" << kCockpitPageName << "' every " << kSimulationTick.count()
+        std::cout << "Driving page '" << mockup_ui::CockpitMockupPage::Name() << "' every " << kSimulationTick.count()
                   << " ms from one plain main loop.\n";
         std::cout << "Start mfd_demo_cockpit separately and press Ctrl+C here to stop.\n";
 
@@ -588,7 +467,7 @@ int main()
         {
             StepCockpitSimulation(simulation, kSimulationTickSeconds);
 
-            const std::vector<mfd::UserCommand> commands = BuildCockpitBatch(simulation);
+            const std::vector<mfd::UserCommand> commands = BuildCockpitBatch(ui, simulation);
             Require(client.SendBatch(commands, simulation.sequence), client, "Unable to send the cockpit batch");
 
             const auto now = clock::now();
@@ -618,7 +497,7 @@ int main()
             }
         }
 
-        const std::vector<mfd::UserCommand> shutdownCommands = BuildShutdownBatch();
+        const std::vector<mfd::UserCommand> shutdownCommands = BuildShutdownBatch(ui);
         (void)client.SendBatch(shutdownCommands, simulation.sequence);
 
         std::cout << "mfd_mockup_minimal stopped.\n";

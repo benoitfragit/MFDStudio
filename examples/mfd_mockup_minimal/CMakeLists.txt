@@ -2,9 +2,13 @@
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
 set(MFD_MOCKUP_MINIMAL_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MockupUi.cpp)
 
-add_executable(mfd_mockup_minimal ${MFD_MOCKUP_MINIMAL_SOURCES})
+set(MFD_MOCKUP_MINIMAL_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MockupUi.h)
+
+add_executable(mfd_mockup_minimal ${MFD_MOCKUP_MINIMAL_HEADERS} ${MFD_MOCKUP_MINIMAL_SOURCES})
 
 target_link_libraries(mfd_mockup_minimal PRIVATE mfd::api)
 
