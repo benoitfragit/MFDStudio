@@ -272,6 +272,20 @@ struct LogicalBounds
     bool valid = false;
 };
 
+struct PageMinimapState
+{
+    ImVec2 frameMin {};
+    ImVec2 frameMax {};
+    ImVec2 contentMin {};
+    ImVec2 contentMax {};
+    ImVec2 contentCenter {};
+    mfd::Vec2 logicalMin {};
+    mfd::Vec2 logicalMax {};
+    mfd::Vec2 logicalCenter {};
+    float pixelsPerLogicalUnit = 1.0f;
+    bool valid = false;
+};
+
 void IncludeLogicalPoint(LogicalBounds& bounds, const mfd::Vec2 point)
 {
     if (!bounds.valid)
@@ -298,6 +312,17 @@ void FinalizeLogicalBounds(LogicalBounds& bounds)
     bounds.center = {
         (bounds.min.x + bounds.max.x) * 0.5f,
         (bounds.min.y + bounds.max.y) * 0.5f};
+}
+
+void IncludeLogicalBounds(LogicalBounds& bounds, const LogicalBounds& other)
+{
+    if (!other.valid)
+    {
+        return;
+    }
+
+    IncludeLogicalPoint(bounds, other.min);
+    IncludeLogicalPoint(bounds, other.max);
 }
 
 LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
@@ -427,6 +452,30 @@ mfd::Vec2 ReticleVisualCenterLocal(const mfd::ReticleGroup& reticle)
 {
     const LogicalBounds bounds = ComputeReticleLocalBounds(reticle);
     return bounds.valid ? bounds.center : mfd::Vec2 {};
+}
+
+LogicalBounds ComputeReticleWorldBounds(const mfd::ReticleGroup& reticle)
+{
+    const LogicalBounds localBounds = ComputeReticleLocalBounds(reticle);
+    if (!localBounds.valid)
+    {
+        return {};
+    }
+
+    LogicalBounds worldBounds;
+    const std::array<mfd::Vec2, 4> corners {{
+        {localBounds.min.x, localBounds.min.y},
+        {localBounds.max.x, localBounds.min.y},
+        {localBounds.max.x, localBounds.max.y},
+        {localBounds.min.x, localBounds.max.y},
+    }};
+    for (const mfd::Vec2& corner : corners)
+    {
+        IncludeLogicalPoint(worldBounds, mfd::ApplyTransform(corner, reticle.transform));
+    }
+
+    FinalizeLogicalBounds(worldBounds);
+    return worldBounds;
 }
 
 mfd::Transform2D BuildTransformKeepingLocalPointWorldPosition(const mfd::Transform2D& startTransform,
@@ -764,6 +813,128 @@ bool IsReticleVisibleInEditor(const mfd::PageDefinition& page, const mfd::Reticl
     }
 
     return true;
+}
+
+template <typename ViewportStateT>
+LogicalBounds ComputeViewportLogicalBounds(const ViewportStateT& viewport)
+{
+    LogicalBounds bounds;
+    if (!viewport.valid)
+    {
+        return bounds;
+    }
+
+    const std::array<ImVec2, 4> corners {{
+        viewport.origin,
+        ImVec2(viewport.origin.x + viewport.size.x, viewport.origin.y),
+        ImVec2(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y),
+        ImVec2(viewport.origin.x, viewport.origin.y + viewport.size.y),
+    }};
+    for (const ImVec2& corner : corners)
+    {
+        IncludeLogicalPoint(bounds, viewport.ToLogical(corner));
+    }
+
+    FinalizeLogicalBounds(bounds);
+    return bounds;
+}
+
+template <typename ViewportStateT>
+PageMinimapState ComputePageMinimapState(const mfd::PageDefinition& page, const ViewportStateT& viewport)
+{
+    PageMinimapState state;
+    if (!viewport.valid)
+    {
+        return state;
+    }
+
+    LogicalBounds logicalBounds;
+    for (const auto& reticle : page.staticReticles)
+    {
+        if (!IsReticleVisibleInEditor(page, reticle))
+        {
+            continue;
+        }
+
+        IncludeLogicalBounds(logicalBounds, ComputeReticleWorldBounds(reticle));
+    }
+
+    if (page.strobe.has_value())
+    {
+        IncludeLogicalBounds(logicalBounds, ComputeReticleWorldBounds(page.strobe->reticle));
+    }
+
+    IncludeLogicalBounds(logicalBounds, ComputeViewportLogicalBounds(viewport));
+    if (!logicalBounds.valid)
+    {
+        IncludeLogicalPoint(logicalBounds, mfd::Vec2 {-1.0f, -1.0f});
+        IncludeLogicalPoint(logicalBounds, mfd::Vec2 {1.0f, 1.0f});
+    }
+
+    FinalizeLogicalBounds(logicalBounds);
+
+    const float width = std::max(logicalBounds.max.x - logicalBounds.min.x, 0.001f);
+    const float height = std::max(logicalBounds.max.y - logicalBounds.min.y, 0.001f);
+    const float logicalPadding = std::max({0.20f, width * 0.12f, height * 0.12f});
+    logicalBounds.min.x -= logicalPadding;
+    logicalBounds.min.y -= logicalPadding;
+    logicalBounds.max.x += logicalPadding;
+    logicalBounds.max.y += logicalPadding;
+    FinalizeLogicalBounds(logicalBounds);
+
+    const float paddedWidth = std::max(logicalBounds.max.x - logicalBounds.min.x, 0.001f);
+    const float paddedHeight = std::max(logicalBounds.max.y - logicalBounds.min.y, 0.001f);
+    const ImVec2 frameSize(
+        std::clamp(viewport.size.x * 0.24f, 150.0f, 240.0f),
+        std::clamp(viewport.size.y * 0.24f, 120.0f, 210.0f));
+    constexpr float kFrameMargin = 16.0f;
+    constexpr float kInnerPadding = 12.0f;
+
+    state.frameMin = ImVec2(
+        viewport.origin.x + viewport.size.x - frameSize.x - kFrameMargin,
+        viewport.origin.y + viewport.size.y - frameSize.y - kFrameMargin);
+    state.frameMax = ImVec2(state.frameMin.x + frameSize.x, state.frameMin.y + frameSize.y);
+    state.contentCenter = ImVec2(
+        (state.frameMin.x + state.frameMax.x) * 0.5f,
+        (state.frameMin.y + state.frameMax.y) * 0.5f);
+
+    const float usableWidth = std::max(8.0f, frameSize.x - kInnerPadding * 2.0f);
+    const float usableHeight = std::max(8.0f, frameSize.y - kInnerPadding * 2.0f);
+    state.pixelsPerLogicalUnit = std::min(usableWidth / paddedWidth, usableHeight / paddedHeight);
+
+    const ImVec2 contentSize(paddedWidth * state.pixelsPerLogicalUnit, paddedHeight * state.pixelsPerLogicalUnit);
+    state.contentMin = ImVec2(
+        state.contentCenter.x - contentSize.x * 0.5f,
+        state.contentCenter.y - contentSize.y * 0.5f);
+    state.contentMax = ImVec2(
+        state.contentCenter.x + contentSize.x * 0.5f,
+        state.contentCenter.y + contentSize.y * 0.5f);
+    state.logicalMin = logicalBounds.min;
+    state.logicalMax = logicalBounds.max;
+    state.logicalCenter = logicalBounds.center;
+    state.valid = true;
+    return state;
+}
+
+bool IsPointInsideRect(const ImVec2 point, const ImVec2 min, const ImVec2 max)
+{
+    return point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y;
+}
+
+ImVec2 ToMinimapScreen(const PageMinimapState& minimap, const mfd::Vec2 logical)
+{
+    return ImVec2(
+        minimap.contentCenter.x + (logical.x - minimap.logicalCenter.x) * minimap.pixelsPerLogicalUnit,
+        minimap.contentCenter.y - (logical.y - minimap.logicalCenter.y) * minimap.pixelsPerLogicalUnit);
+}
+
+mfd::Vec2 ToMinimapLogical(const PageMinimapState& minimap, const ImVec2 screen)
+{
+    const float clampedX = std::clamp(screen.x, minimap.contentMin.x, minimap.contentMax.x);
+    const float clampedY = std::clamp(screen.y, minimap.contentMin.y, minimap.contentMax.y);
+    return {
+        minimap.logicalCenter.x + (clampedX - minimap.contentCenter.x) / minimap.pixelsPerLogicalUnit,
+        minimap.logicalCenter.y - (clampedY - minimap.contentCenter.y) / minimap.pixelsPerLogicalUnit};
 }
 
 std::size_t CountEditorLayerAssignments(const mfd::PageDefinition& page, const std::string_view layerId)
@@ -2092,6 +2263,99 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
     }
 
     const mfd::PageDefinition* page = ActivePage();
+    if (page != nullptr)
+    {
+        const PageMinimapState minimap = ComputePageMinimapState(*page, viewport);
+        if (minimap.valid)
+        {
+            drawList->AddRectFilled(minimap.frameMin, minimap.frameMax, IM_COL32(7, 15, 23, 224), 8.0f);
+            drawList->AddRect(minimap.frameMin, minimap.frameMax, IM_COL32(68, 118, 152, 255), 8.0f, 0, 1.5f);
+            drawList->AddRectFilled(minimap.contentMin, minimap.contentMax, IM_COL32(12, 24, 34, 220), 6.0f);
+
+            if (minimap.logicalMin.x <= 0.0f && minimap.logicalMax.x >= 0.0f)
+            {
+                const ImVec2 axisBottom = ToMinimapScreen(minimap, mfd::Vec2 {0.0f, minimap.logicalMin.y});
+                const ImVec2 axisTop = ToMinimapScreen(minimap, mfd::Vec2 {0.0f, minimap.logicalMax.y});
+                drawList->AddLine(axisBottom, axisTop, IM_COL32(52, 79, 96, 255), 1.0f);
+            }
+
+            if (minimap.logicalMin.y <= 0.0f && minimap.logicalMax.y >= 0.0f)
+            {
+                const ImVec2 axisLeft = ToMinimapScreen(minimap, mfd::Vec2 {minimap.logicalMin.x, 0.0f});
+                const ImVec2 axisRight = ToMinimapScreen(minimap, mfd::Vec2 {minimap.logicalMax.x, 0.0f});
+                drawList->AddLine(axisLeft, axisRight, IM_COL32(52, 79, 96, 255), 1.0f);
+            }
+
+            const std::vector<int> selectedIndices = SelectedPageReticleIndices();
+            for (int reticleIndex = 0; reticleIndex < static_cast<int>(page->staticReticles.size()); ++reticleIndex)
+            {
+                const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+                if (!IsReticleVisibleInEditor(*page, reticle))
+                {
+                    continue;
+                }
+
+                const LogicalBounds worldBounds = ComputeReticleWorldBounds(reticle);
+                if (!worldBounds.valid)
+                {
+                    continue;
+                }
+
+                const ImVec2 rectPointA = ToMinimapScreen(minimap, worldBounds.min);
+                const ImVec2 rectPointB = ToMinimapScreen(minimap, worldBounds.max);
+                ImVec2 rectMin(std::min(rectPointA.x, rectPointB.x), std::min(rectPointA.y, rectPointB.y));
+                ImVec2 rectMax(std::max(rectPointA.x, rectPointB.x), std::max(rectPointA.y, rectPointB.y));
+                const bool selected =
+                    std::find(selectedIndices.begin(), selectedIndices.end(), reticleIndex) != selectedIndices.end();
+
+                if (rectMax.x - rectMin.x < 4.0f || rectMax.y - rectMin.y < 4.0f)
+                {
+                    const ImVec2 center = ToMinimapScreen(minimap, worldBounds.center);
+                    drawList->AddCircleFilled(center, selected ? 3.5f : 2.5f, selected ? IM_COL32(84, 219, 201, 255)
+                                                                                       : IM_COL32(174, 200, 214, 230),
+                                              12);
+                    continue;
+                }
+
+                drawList->AddRectFilled(
+                    rectMin,
+                    rectMax,
+                    selected ? IM_COL32(84, 219, 201, 70) : IM_COL32(174, 200, 214, 34),
+                    2.0f);
+                drawList->AddRect(
+                    rectMin,
+                    rectMax,
+                    selected ? IM_COL32(84, 219, 201, 255) : IM_COL32(174, 200, 214, 190),
+                    2.0f,
+                    0,
+                    selected ? 1.8f : 1.0f);
+            }
+
+            const LogicalBounds viewBounds = ComputeViewportLogicalBounds(viewport);
+            if (viewBounds.valid)
+            {
+                const ImVec2 viewA = ToMinimapScreen(minimap, viewBounds.min);
+                const ImVec2 viewB = ToMinimapScreen(minimap, viewBounds.max);
+                const ImVec2 viewMin(std::min(viewA.x, viewB.x), std::min(viewA.y, viewB.y));
+                const ImVec2 viewMax(std::max(viewA.x, viewB.x), std::max(viewA.y, viewB.y));
+                drawList->AddRectFilled(viewMin, viewMax, IM_COL32(110, 180, 250, 38), 4.0f);
+                drawList->AddRect(viewMin, viewMax, IM_COL32(110, 180, 250, 255), 4.0f, 0, 1.8f);
+            }
+
+            const char* minimapLabel = "Minimap";
+            const ImVec2 textSize = ImGui::CalcTextSize(minimapLabel);
+            drawList->AddText(
+                ImVec2(minimap.frameMin.x + 10.0f, minimap.frameMin.y + 8.0f),
+                IM_COL32(216, 233, 246, 255),
+                minimapLabel);
+            drawList->AddLine(
+                ImVec2(minimap.frameMin.x + 10.0f, minimap.frameMin.y + textSize.y + 12.0f),
+                ImVec2(minimap.frameMax.x - 10.0f, minimap.frameMin.y + textSize.y + 12.0f),
+                IM_COL32(36, 63, 78, 255),
+                1.0f);
+        }
+    }
+
     const std::vector<int> selectedIndices = SelectedPageReticleIndices();
     if (page == nullptr || selectedIndices.empty() || selection_.kind != SelectionKind::PageReticle)
     {
@@ -2213,9 +2477,13 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         return;
     }
 
+    const bool leftMouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    const bool rightMouseDown = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
     if (!ImGui::IsItemHovered())
     {
-        if (interactionMode_ != InteractionMode::None && !IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        const bool interactionButtonReleased =
+            interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
+        if (interactionMode_ != InteractionMode::None && interactionButtonReleased)
         {
             interactionMode_ = InteractionMode::None;
             interactionReticleIndex_ = -1;
@@ -2248,10 +2516,45 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         }
     }
 
+    const PageMinimapState minimap = ComputePageMinimapState(*page, viewport);
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const bool mouseInsideMinimap = minimap.valid && IsPointInsideRect(mouse, minimap.frameMin, minimap.frameMax);
+    if (interactionMode_ == InteractionMode::None && mouseInsideMinimap && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    {
+        PushUndoSnapshot();
+        interactionMode_ = InteractionMode::NavigateMinimap;
+        interactionReticleIndex_ = -1;
+    }
+
+    if (interactionMode_ == InteractionMode::NavigateMinimap)
+    {
+        if (!minimap.valid)
+        {
+            interactionMode_ = InteractionMode::None;
+            return;
+        }
+
+        page->view.center = ToMinimapLogical(minimap, mouse);
+        if (!leftMouseDown)
+        {
+            interactionMode_ = InteractionMode::None;
+        }
+        return;
+    }
+
+    if (interactionMode_ == InteractionMode::None && rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+    {
+        PushUndoSnapshot();
+        interactionMode_ = InteractionMode::PanPage;
+        interactionReticleIndex_ = -1;
+    }
+
     if (interactionMode_ != InteractionMode::None)
     {
         ApplyMouseTransform(viewport);
-        if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        const bool interactionButtonReleased =
+            interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
+        if (interactionButtonReleased)
         {
             interactionMode_ = InteractionMode::None;
             interactionReticleIndex_ = -1;
@@ -2265,7 +2568,6 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     }
 
     const bool additiveSelection = ImGui::GetIO().KeyCtrl;
-    const ImVec2 mouse = ImGui::GetMousePos();
     if (!additiveSelection && page != nullptr && SelectedPageReticleCount() == 1)
     {
         mfd::ReticleGroup* selectedReticle = SelectedPageReticle();
@@ -3534,12 +3836,28 @@ std::optional<int> EditorApplication::FindNearestLibraryPrimitive(const Viewport
 
 void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 {
+    mfd::PageDefinition* page = ActivePage();
+    if (interactionMode_ == InteractionMode::PanPage)
+    {
+        const float scale = viewport.LogicalScale();
+        if (page == nullptr || !viewport.valid || scale <= 0.0f)
+        {
+            interactionMode_ = InteractionMode::None;
+            return;
+        }
+
+        const float zoom = mfd::SanitizeZoom(page->view.zoom);
+        const ImVec2 mouseDelta = ImGui::GetIO().MouseDelta;
+        page->view.center.x -= mouseDelta.x / (scale * zoom);
+        page->view.center.y += mouseDelta.y / (scale * zoom);
+        return;
+    }
+
     if (interactionReticleIndex_ < 0)
     {
         return;
     }
 
-    mfd::PageDefinition* page = ActivePage();
     if (page == nullptr || interactionReticleIndex_ >= static_cast<int>(page->staticReticles.size()))
     {
         interactionMode_ = InteractionMode::None;
@@ -3551,6 +3869,9 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 
     switch (interactionMode_)
     {
+    case InteractionMode::PanPage:
+        break;
+
     case InteractionMode::MoveReticle:
         reticle.transform.position = interactionStartTransform_.position + (mouseLogical - interactionStartMouseLogical_);
         break;

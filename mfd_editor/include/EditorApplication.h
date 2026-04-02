@@ -60,6 +60,8 @@ private:
     enum class InteractionMode
     {
         None,
+        PanPage,
+        NavigateMinimap,
         MoveReticle,
         RotateReticle,
         ScaleReticle,
