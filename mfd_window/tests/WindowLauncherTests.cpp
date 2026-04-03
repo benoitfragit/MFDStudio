@@ -3,6 +3,9 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+#include <array>
+#include <cstddef>
+#include <span>
 #include <gtest/gtest.h>
 
 #include <string>
@@ -84,4 +87,26 @@ TEST(WindowLauncherTests, ParseCommandLineRejectsInvalidArgumentCombinations)
     error.clear();
     EXPECT_FALSE(mfd::window::ParseLauncherCommandLine(3, extraArgv, config, options, error));
     EXPECT_NE(error.find("Only one window JSON path"), std::string::npos);
+}
+
+TEST(WindowLauncherTests, FramebufferCallbackReceivesDimensionsAndByteSpan)
+{
+    int receivedWidth = 0;
+    int receivedHeight = 0;
+    std::size_t receivedByteCount = 0;
+
+    mfd::window::LauncherFramebufferCallback callback =
+        [&](const int width, const int height, const std::span<const std::byte> rgba32Bytes)
+    {
+        receivedWidth = width;
+        receivedHeight = height;
+        receivedByteCount = rgba32Bytes.size();
+    };
+
+    const std::array<std::byte, 16> pixels {};
+    callback(2, 2, pixels);
+
+    EXPECT_EQ(receivedWidth, 2);
+    EXPECT_EQ(receivedHeight, 2);
+    EXPECT_EQ(receivedByteCount, pixels.size());
 }

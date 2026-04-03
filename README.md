@@ -523,6 +523,45 @@ The returned buffer contains:
 `Bytes()` exposes the framebuffer as a raw `std::byte` span, which is useful
 when the next stage is byte-oriented, for example a shared-memory writer.
 
+If you host a window through `mfd::window::RunLauncher`, you can also attach an
+optional callback that receives the final `RGBA32` buffer every frame:
+
+```cpp
+#include <cstddef>
+#include <iostream>
+#include <span>
+
+#include "mfd/window/WindowLauncher.h"
+
+int main(int argc, char** argv)
+{
+    mfd::window::LauncherConfig config;
+    config.applicationName = "mfd_demo_minimal";
+    config.defaultWindowFile = "assets/windows/demo_pages_minimal.json";
+
+    return mfd::window::RunLauncher(
+        argc,
+        argv,
+        config,
+        [](int width, int height, std::span<const std::byte> pixels)
+        {
+            static bool printed = false;
+            if (!printed)
+            {
+                std::cout << "Here we receive the pixel buffer." << '\n';
+                printed = true;
+            }
+
+            (void)width;
+            (void)height;
+            (void)pixels;
+        });
+}
+```
+
+The byte span is only valid during the callback. Copy it if another stage must
+keep the buffer after the callback returns.
+
 See the full workflow in [docs/tutorials/07_framebuffer_rgba32_capture.md](./docs/tutorials/07_framebuffer_rgba32_capture.md).
 
 ## Tools

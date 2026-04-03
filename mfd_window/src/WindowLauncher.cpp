@@ -31,6 +31,7 @@
 #include "mfd/control/UdpRuntimeBridge.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/render/MfdRenderer.h"
+#include "mfd/render/OpenGlFramebufferReader.h"
 #include "mfd/runtime/SceneRegistry.h"
 
 #if defined(_WIN32)
@@ -141,9 +142,12 @@ void ReportFatalError(const std::string_view applicationName, const std::string&
 class GenericWindowApplication
 {
 public:
-    GenericWindowApplication(std::string applicationName, std::filesystem::path windowFile) :
+    GenericWindowApplication(std::string applicationName,
+                             std::filesystem::path windowFile,
+                             mfd::window::LauncherFramebufferCallback framebufferCallback) :
         applicationName_(std::move(applicationName)),
         windowFile_(std::move(windowFile)),
+        framebufferCallback_(std::move(framebufferCallback)),
         commandProcessor_(scene_)
     {
     }
@@ -190,6 +194,7 @@ public:
             {
                 ClearBackground(ToRayColor(scene_.ActiveBackgroundColor()));
                 renderer_.DrawActivePage(scene_);
+                PublishFramebuffer();
             }
             catch (const std::exception& exception)
             {
@@ -400,8 +405,27 @@ private:
         std::cout << "Shortcuts: R reloads, 1..9 switch pages\n";
     }
 
+    void PublishFramebuffer()
+    {
+        if (!framebufferCallback_)
+        {
+            return;
+        }
+
+        const int renderWidth = GetRenderWidth();
+        const int renderHeight = GetRenderHeight();
+        if (renderWidth <= 0 || renderHeight <= 0)
+        {
+            return;
+        }
+
+        const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
+        framebufferCallback_(framebuffer.width, framebuffer.height, framebuffer.Bytes());
+    }
+
     std::string applicationName_;
     std::filesystem::path windowFile_;
+    mfd::window::LauncherFramebufferCallback framebufferCallback_ {};
     mfd::JsonLoader loader_ {};
     mfd::SceneRegistry scene_ {};
     mfd::CommandProcessor commandProcessor_;
@@ -452,7 +476,7 @@ bool ParseLauncherCommandLine(const int argc,
     return parsed;
 }
 
-int RunLauncher(int argc, char** argv, const LauncherConfig& config)
+int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFramebufferCallback framebufferCallback)
 {
     const std::string applicationName = config.applicationName.empty() ? std::string {"mfd_window"} : config.applicationName;
     const std::filesystem::path defaultWindowFile =
@@ -463,27 +487,33 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config)
     if (!ParseLauncherCommandLine(argc, argv, config, options, error))
     {
         std::cerr << error << '\n';
-        std::cerr << BuildUsageText(LauncherConfig {applicationName, defaultWindowFile});
+        LauncherConfig usageConfig;
+        usageConfig.applicationName = applicationName;
+        usageConfig.defaultWindowFile = defaultWindowFile;
+        std::cerr << BuildUsageText(usageConfig);
         return 1;
     }
 
     if (options.showHelp)
     {
-        std::cout << BuildUsageText(LauncherConfig {applicationName, defaultWindowFile});
+        LauncherConfig usageConfig;
+        usageConfig.applicationName = applicationName;
+        usageConfig.defaultWindowFile = defaultWindowFile;
+        std::cout << BuildUsageText(usageConfig);
         return 0;
     }
 
 #if defined(_WIN32)
     if (::IsDebuggerPresent() != 0)
     {
-        GenericWindowApplication application(applicationName, options.windowFile);
+        GenericWindowApplication application(applicationName, options.windowFile, std::move(framebufferCallback));
         return application.Run();
     }
 #endif
 
     try
     {
-        GenericWindowApplication application(applicationName, options.windowFile);
+        GenericWindowApplication application(applicationName, options.windowFile, std::move(framebufferCallback));
         return application.Run();
     }
     catch (const std::exception& exception)
