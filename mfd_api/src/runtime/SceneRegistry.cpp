@@ -187,6 +187,7 @@ struct SceneRegistry::PageComponent
     std::string normalizedDefaultBlinkTypeName;
     std::uint32_t defaultBlinkDurationMs = 0;
     BlinkClock::time_point blinkEpoch = BlinkClock::now();
+    std::vector<entt::entity> orderedReticleEntities;
     bool hasStrobe = false;
     bool active = false;
 };
@@ -398,6 +399,7 @@ void SceneRegistry::LoadDocument(MfdDocument document)
             registry_.emplace<PageMembership>(reticleEntity, PageMembership {page.normalizedName});
             registry_.emplace<StaticTag>(reticleEntity);
             IndexReticle(page.normalizedName, page.staticReticles[index], reticleEntity);
+            InsertReticleIntoPageDrawList(page.normalizedName, reticleEntity);
         }
 
         if (page.strobe.has_value())
@@ -410,6 +412,7 @@ void SceneRegistry::LoadDocument(MfdDocument document)
             registry_.emplace<StrobeTag>(strobeEntity);
             strobeEntities_.emplace(page.normalizedName, strobeEntity);
             IndexReticle(page.normalizedName, page.strobe->reticle, strobeEntity);
+            InsertReticleIntoPageDrawList(page.normalizedName, strobeEntity);
         }
     }
 
@@ -499,33 +502,24 @@ void SceneRegistry::SetActivePage(const std::string_view pageName) noexcept
 
 std::string SceneRegistry::ActivePageName() const
 {
-    for (const auto& page : document_.pages)
-    {
-        if (page.normalizedName == activePage_)
-        {
-            return page.name;
-        }
-    }
-
-    return {};
+    const PageComponent* page = FindPage(activePage_);
+    return page == nullptr ? std::string {} : page->name;
 }
 
 std::optional<PageSummary> SceneRegistry::ActivePageSummary() const
 {
-    for (const auto& page : document_.pages)
+    const PageComponent* page = FindPage(activePage_);
+    if (page == nullptr)
     {
-        if (page.normalizedName == activePage_)
-        {
-            return PageSummary {
-                page.name,
-                page.title,
-                page.backgroundColor,
-                page.strobe.has_value(),
-                true};
-        }
+        return std::nullopt;
     }
 
-    return std::nullopt;
+    return PageSummary {
+        page->name,
+        page->title,
+        page->backgroundColor,
+        page->hasStrobe,
+        true};
 }
 
 std::optional<PageViewState> SceneRegistry::ViewForPage(const std::string_view pageName) const noexcept
@@ -574,18 +568,8 @@ std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_v
 
     const BlinkClock::time_point now = BlinkClock::now();
 
-    std::string displayPageName = std::string(pageName);
-    for (const auto& pageDefinition : document_.pages)
-    {
-        if (pageDefinition.normalizedName == pageName)
-        {
-            displayPageName = pageDefinition.name;
-            break;
-        }
-    }
-
     return StrobeSummary {
-        displayPageName,
+        page->name,
         reticle->group.id,
         reticle->group.transform.position,
         behavior->capture,
@@ -668,8 +652,8 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
 
 ColorRgba SceneRegistry::ActiveBackgroundColor() const noexcept
 {
-    const auto activePage = ActivePageSummary();
-    return activePage.has_value() ? activePage->backgroundColor : ColorRgba {6, 14, 20, 255};
+    const PageComponent* page = FindPage(activePage_);
+    return page == nullptr ? ColorRgba {6, 14, 20, 255} : page->backgroundColor;
 }
 
 WindowDisplayState SceneRegistry::WindowDisplay() const noexcept
@@ -684,25 +668,51 @@ std::vector<ReticleGroup> SceneRegistry::CollectPageReticles(const std::string_v
 
 std::vector<ReticleGroup> SceneRegistry::CollectPageReticlesByKey(const std::string_view pageName) const
 {
+    const std::vector<ReticleRenderView> reticleViews = CollectPageReticleViewsByKey(pageName);
+    std::vector<ReticleGroup> result;
+    result.reserve(reticleViews.size());
+
+    for (const ReticleRenderView& reticleView : reticleViews)
+    {
+        if (reticleView.group != nullptr)
+        {
+            ReticleGroup copy = *reticleView.group;
+            copy.visible = reticleView.visible;
+            result.push_back(std::move(copy));
+        }
+    }
+
+    return result;
+}
+
+std::vector<ReticleRenderView> SceneRegistry::CollectPageReticleViews(const std::string_view pageName) const
+{
+    return CollectPageReticleViewsByKey(NormalizePageName(pageName));
+}
+
+std::vector<ReticleRenderView> SceneRegistry::CollectPageReticleViewsByKey(const std::string_view pageName) const
+{
     const PageComponent* page = FindPage(pageName);
     if (page == nullptr)
     {
         return {};
     }
 
-    const std::vector<const ReticleGroup*> pointers = CollectPageReticlePointersByKey(pageName);
-    std::vector<ReticleGroup> result;
-    result.reserve(pointers.size());
+    std::vector<ReticleRenderView> result;
+    result.reserve(page->orderedReticleEntities.size());
     const BlinkClock::time_point now = BlinkClock::now();
 
-    for (const ReticleGroup* reticle : pointers)
+    for (const entt::entity entity : page->orderedReticleEntities)
     {
-        if (reticle != nullptr)
+        const ReticleComponent* reticle = registry_.try_get<ReticleComponent>(entity);
+        if (reticle == nullptr)
         {
-            ReticleGroup copy = *reticle;
-            copy.visible = IsReticleVisibleNow(*page, copy, now);
-            result.push_back(std::move(copy));
+            continue;
         }
+
+        result.push_back(ReticleRenderView {
+            &reticle->group,
+            IsReticleVisibleNow(*page, reticle->group, now)});
     }
 
     return result;
@@ -715,62 +725,21 @@ std::vector<const ReticleGroup*> SceneRegistry::CollectPageReticlePointers(const
 
 std::vector<const ReticleGroup*> SceneRegistry::CollectPageReticlePointersByKey(const std::string_view pageName) const
 {
-    struct OrderedReticle
+    const PageComponent* page = FindPage(pageName);
+    if (page == nullptr)
     {
-        std::size_t drawOrder = 0;
-        const ReticleGroup* group = nullptr;
-    };
-
-    std::vector<OrderedReticle> orderedReticles;
-
-    auto staticView = registry_.view<ReticleComponent, PageMembership, StaticTag>();
-    for (const entt::entity entity : staticView)
-    {
-        const auto& membership = staticView.get<PageMembership>(entity);
-        if (membership.pageName != pageName)
-        {
-            continue;
-        }
-
-        const auto& reticle = staticView.get<ReticleComponent>(entity);
-        orderedReticles.push_back(OrderedReticle {reticle.drawOrder, &reticle.group});
+        return {};
     }
-
-    auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
-    for (const entt::entity entity : dynamicView)
-    {
-        const auto& membership = dynamicView.get<PageMembership>(entity);
-        if (membership.pageName != pageName)
-        {
-            continue;
-        }
-
-        const auto& reticle = dynamicView.get<ReticleComponent>(entity);
-        orderedReticles.push_back(OrderedReticle {reticle.drawOrder, &reticle.group});
-    }
-
-    const auto strobeIterator = strobeEntities_.find(pageName);
-    if (strobeIterator != strobeEntities_.end())
-    {
-        if (const auto* strobe = registry_.try_get<ReticleComponent>(strobeIterator->second))
-        {
-            orderedReticles.push_back(OrderedReticle {strobe->drawOrder, &strobe->group});
-        }
-    }
-
-    std::sort(orderedReticles.begin(),
-              orderedReticles.end(),
-              [](const OrderedReticle& lhs, const OrderedReticle& rhs)
-              {
-                  return lhs.drawOrder < rhs.drawOrder;
-              });
 
     std::vector<const ReticleGroup*> result;
-    result.reserve(orderedReticles.size());
+    result.reserve(page->orderedReticleEntities.size());
 
-    for (const auto& reticle : orderedReticles)
+    for (const entt::entity entity : page->orderedReticleEntities)
     {
-        result.push_back(reticle.group);
+        if (const ReticleComponent* reticle = registry_.try_get<ReticleComponent>(entity); reticle != nullptr)
+        {
+            result.push_back(&reticle->group);
+        }
     }
 
     return result;
@@ -779,6 +748,11 @@ std::vector<const ReticleGroup*> SceneRegistry::CollectPageReticlePointersByKey(
 std::vector<ReticleGroup> SceneRegistry::CollectActiveReticles() const
 {
     return CollectPageReticlesByKey(activePage_);
+}
+
+std::vector<ReticleRenderView> SceneRegistry::CollectActiveReticleViews() const
+{
+    return CollectPageReticleViewsByKey(activePage_);
 }
 
 std::vector<const ReticleGroup*> SceneRegistry::CollectActiveReticlePointers() const
@@ -1255,16 +1229,6 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
         return std::nullopt;
     }
 
-    std::string displayPageName = std::string(pageName);
-    for (const auto& pageDefinition : document_.pages)
-    {
-        if (pageDefinition.normalizedName == pageName)
-        {
-            displayPageName = pageDefinition.name;
-            break;
-        }
-    }
-
     std::optional<StrobeCaptureResult> bestCapture;
     float bestDistanceSquared = std::numeric_limits<float>::max();
 
@@ -1297,7 +1261,7 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
 
         bestDistanceSquared = distanceSquared;
         bestCapture = StrobeCaptureResult {
-            displayPageName,
+            page->name,
             strobe->group.id,
             reticle.id,
             reticle.sourceTemplateId,
@@ -1342,6 +1306,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
     registry_.emplace<PageMembership>(entity, PageMembership {normalizedPageName});
     registry_.emplace<DynamicTag>(entity);
     IndexReticle(normalizedPageName, registry_.get<ReticleComponent>(entity).group, entity);
+    InsertReticleIntoPageDrawList(normalizedPageName, entity);
 }
 
 bool SceneRegistry::RemoveDynamicReticle(const std::string_view pageName, const std::string_view reticleId)
@@ -1354,6 +1319,7 @@ bool SceneRegistry::RemoveDynamicReticle(const std::string_view pageName, const 
     }
 
     RemoveReticleIndex(normalizedPageName, reticleId);
+    RemoveReticleFromPageDrawList(normalizedPageName, entity);
     registry_.destroy(entity);
     return true;
 }
@@ -1378,6 +1344,7 @@ void SceneRegistry::ClearDynamicReticles(const std::string_view pageName)
         const auto& membership = registry_.get<PageMembership>(entity);
         const auto& reticle = registry_.get<ReticleComponent>(entity).group;
         RemoveReticleIndex(membership.pageName, reticle.id);
+        RemoveReticleFromPageDrawList(membership.pageName, entity);
         registry_.destroy(entity);
     }
 }
@@ -1397,6 +1364,7 @@ void SceneRegistry::ClearAllDynamicReticles()
         const auto& membership = registry_.get<PageMembership>(entity);
         const auto& reticle = registry_.get<ReticleComponent>(entity).group;
         RemoveReticleIndex(membership.pageName, reticle.id);
+        RemoveReticleFromPageDrawList(membership.pageName, entity);
         registry_.destroy(entity);
     }
 }
@@ -1465,6 +1433,45 @@ void SceneRegistry::IndexReticle(const std::string_view normalizedPageName,
 void SceneRegistry::RemoveReticleIndex(const std::string_view normalizedPageName, const std::string_view reticleId)
 {
     reticleEntities_.erase(MakeReticleLookupKey(normalizedPageName, reticleId));
+}
+
+void SceneRegistry::InsertReticleIntoPageDrawList(const std::string_view normalizedPageName, const entt::entity entity)
+{
+    PageComponent* page = FindPage(normalizedPageName);
+    const ReticleComponent* reticle = registry_.try_get<ReticleComponent>(entity);
+    if (page == nullptr || reticle == nullptr)
+    {
+        return;
+    }
+
+    auto& drawList = page->orderedReticleEntities;
+    if (std::find(drawList.begin(), drawList.end(), entity) != drawList.end())
+    {
+        return;
+    }
+
+    const auto insertionPoint = std::lower_bound(
+        drawList.begin(),
+        drawList.end(),
+        reticle->drawOrder,
+        [this](const entt::entity candidate, const std::size_t drawOrder)
+        {
+            const ReticleComponent* candidateReticle = registry_.try_get<ReticleComponent>(candidate);
+            return candidateReticle != nullptr && candidateReticle->drawOrder < drawOrder;
+        });
+    drawList.insert(insertionPoint, entity);
+}
+
+void SceneRegistry::RemoveReticleFromPageDrawList(const std::string_view normalizedPageName, const entt::entity entity)
+{
+    PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    auto& drawList = page->orderedReticleEntities;
+    drawList.erase(std::remove(drawList.begin(), drawList.end(), entity), drawList.end());
 }
 
 void SceneRegistry::SetActiveFlag(const std::string_view pageName, const bool active)

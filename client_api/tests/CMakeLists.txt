@@ -4,7 +4,8 @@
 include(GoogleTest)
 
 set(CLIENT_API_TEST_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/AnimationTests.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/AnimationTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LatestBatchPublisherTests.cpp)
 
 add_executable(client_api_tests ${CLIENT_API_TEST_SOURCES})
 

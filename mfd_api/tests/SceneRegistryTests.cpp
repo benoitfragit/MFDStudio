@@ -251,6 +251,67 @@ TEST(SceneRegistryTests, ReticlesWithSameEffectiveDurationStaySynchronized)
     }
 }
 
+TEST(SceneRegistryTests, ReticleViewsMatchCopyPathOrderPointersAndResolvedVisibility)
+{
+    mfd::PageDefinition page = MakeRuntimePage();
+    page.staticReticles[0].blink = {};
+    page.staticReticles[1].blink = {};
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup dynamicReticle = MakeTextReticle("track_alpha");
+    dynamicReticle.transform.position = {0.15f, -0.10f};
+    registry.UpsertDynamicReticle("Radar", std::move(dynamicReticle));
+
+    const auto pointers = registry.CollectPageReticlePointers("Radar");
+    const auto views = registry.CollectPageReticleViews("Radar");
+    const auto copies = registry.CollectPageReticles("Radar");
+
+    ASSERT_EQ(pointers.size(), views.size());
+    ASSERT_EQ(copies.size(), views.size());
+
+    for (std::size_t index = 0; index < views.size(); ++index)
+    {
+        ASSERT_NE(views[index].group, nullptr);
+        EXPECT_EQ(views[index].group, pointers[index]);
+        EXPECT_EQ(views[index].group->id, copies[index].id);
+        EXPECT_EQ(views[index].visible, copies[index].visible);
+    }
+}
+
+TEST(SceneRegistryTests, UpsertingExistingDynamicReticleKeepsSingleOrderedEntry)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup firstVersion = MakeTextReticle("track_alpha");
+    firstVersion.transform.position = {0.1f, 0.2f};
+    registry.UpsertDynamicReticle("Radar", firstVersion);
+
+    mfd::ReticleGroup secondVersion = MakeTextReticle("track_alpha");
+    secondVersion.transform.position = {-0.3f, 0.4f};
+    registry.UpsertDynamicReticle("Radar", secondVersion);
+
+    const auto views = registry.CollectPageReticleViews("Radar");
+    std::size_t matchCount = 0;
+    for (const mfd::ReticleRenderView& view : views)
+    {
+        if (view.group != nullptr && view.group->id == "track_alpha")
+        {
+            ++matchCount;
+            EXPECT_FLOAT_EQ(view.group->transform.position.x, -0.3f);
+            EXPECT_FLOAT_EQ(view.group->transform.position.y, 0.4f);
+        }
+    }
+
+    EXPECT_EQ(matchCount, 1U);
+}
+
 TEST(SceneRegistryTests, WindowDisplayPatchClampsBrightnessAndRejectsNonFiniteValues)
 {
     mfd::MfdDocument document;
@@ -448,6 +509,56 @@ TEST(SceneRegistryTests, DynamicReticlesSupportLifecyclePatchingAndOrdering)
     secondRegistry.ClearAllDynamicReticles();
     EXPECT_FALSE(secondRegistry.HasDynamicReticle("Radar", "track_delta"));
     EXPECT_FALSE(secondRegistry.HasDynamicReticle("Nav", "ghost"));
+}
+
+TEST(SceneRegistryTests, ActiveReticleViewsTrackPerPageDynamicLifecycle)
+{
+    mfd::PageDefinition radarPage = MakeRuntimePage();
+    radarPage.staticReticles[0].blink = {};
+    radarPage.staticReticles[1].blink = {};
+
+    mfd::PageDefinition navPage;
+    navPage.name = "Nav";
+    navPage.normalizedName = "nav";
+    navPage.title = "Navigation";
+    navPage.staticReticles.push_back(MakeReticle("nav_symbol"));
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(radarPage));
+    document.pages.push_back(std::move(navPage));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    registry.UpsertDynamicReticle("Radar", MakeTextReticle("track_alpha"));
+    registry.UpsertDynamicReticle("Nav", MakeTextReticle("ghost"));
+
+    const auto radarViews = registry.CollectActiveReticleViews();
+    ASSERT_EQ(radarViews.size(), 5U);
+    EXPECT_EQ(radarViews[0].group->id, "default");
+    EXPECT_EQ(radarViews[1].group->id, "caution");
+    EXPECT_EQ(radarViews[2].group->id, "textual");
+    EXPECT_EQ(radarViews[3].group->id, "track_alpha");
+    EXPECT_EQ(radarViews[4].group->id, "strobe");
+
+    registry.SetActivePage("Nav");
+
+    const auto navViews = registry.CollectActiveReticleViews();
+    ASSERT_EQ(navViews.size(), 2U);
+    EXPECT_EQ(navViews[0].group->id, "nav_symbol");
+    EXPECT_EQ(navViews[1].group->id, "ghost");
+
+    EXPECT_TRUE(registry.RemoveDynamicReticle("Nav", "ghost"));
+
+    const auto navViewsAfterRemoval = registry.CollectActiveReticleViews();
+    ASSERT_EQ(navViewsAfterRemoval.size(), 1U);
+    EXPECT_EQ(navViewsAfterRemoval[0].group->id, "nav_symbol");
+
+    registry.SetActivePage("Radar");
+
+    const auto radarViewsAfterSwitchBack = registry.CollectActiveReticleViews();
+    ASSERT_EQ(radarViewsAfterSwitchBack.size(), 5U);
+    EXPECT_EQ(radarViewsAfterSwitchBack[3].group->id, "track_alpha");
+    EXPECT_EQ(radarViewsAfterSwitchBack[4].group->id, "strobe");
 }
 
 TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamicReticle)

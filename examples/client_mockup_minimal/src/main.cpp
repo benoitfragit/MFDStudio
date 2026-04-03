@@ -280,7 +280,7 @@ void StepCockpitSimulation(CockpitSimulationState& simulation, const float delta
  * @param simulation Aircraft and radar state sampled for this frame.
  * @return Batched typed commands ready to be sent through `CommandClient`.
  */
-std::vector<mfd::UserCommand> BuildCockpitBatch(mockup_ui::CockpitMockupUi& ui, CockpitSimulationState& simulation)
+void PopulateCockpitBatch(mockup_ui::CockpitMockupUi& ui, CockpitSimulationState& simulation)
 {
     static constexpr mfd::ColorRgba kHudNominal {46, 255, 162, 255};
     static constexpr mfd::ColorRgba kHudWarning {255, 198, 109, 255};
@@ -415,17 +415,6 @@ std::vector<mfd::UserCommand> BuildCockpitBatch(mockup_ui::CockpitMockupUi& ui, 
         }
     }
 
-    return ui.BuildBatch();
-}
-
-/**
- * @brief Builds the final batch sent when the example stops.
- * @param ui Typed cockpit helper tree used by the example client.
- * @return Final commands clearing dynamic contacts and updating the status line.
- */
-std::vector<mfd::UserCommand> BuildShutdownBatch(mockup_ui::CockpitMockupUi& ui)
-{
-    return ui.BuildShutdownBatch("CLI API stopped | restart client_mockup_minimal");
 }
 } // namespace
 
@@ -443,6 +432,12 @@ int main()
         if (!client.IsReady())
         {
             throw std::runtime_error("Unable to create the cockpit UDP client: " + client.LastError());
+        }
+
+        mfd::client::LatestBatchPublisher publisher(config.transport);
+        if (!publisher.IsReady())
+        {
+            throw std::runtime_error("Unable to create the realtime cockpit publisher: " + publisher.LastError());
         }
 
         mockup_ui::CockpitMockupUi ui;
@@ -467,10 +462,17 @@ int main()
 
         while (gStopRequested == 0)
         {
-            StepCockpitSimulation(simulation, kSimulationTickSeconds);
+            if (const std::string publisherError = publisher.LastError(); !publisherError.empty())
+            {
+                throw std::runtime_error("Unable to send the cockpit batch: " + publisherError);
+            }
 
-            const std::vector<mfd::UserCommand> commands = BuildCockpitBatch(ui, simulation);
-            Require(client.SendBatch(commands, simulation.sequence), client, "Unable to send the cockpit batch");
+            StepCockpitSimulation(simulation, kSimulationTickSeconds);
+            PopulateCockpitBatch(ui, simulation);
+            if (!ui.SubmitLatest(publisher, simulation.sequence))
+            {
+                throw std::runtime_error("Unable to queue the cockpit batch: " + publisher.LastError());
+            }
 
             const auto now = clock::now();
             if (now - lastReport >= std::chrono::seconds(1))
@@ -499,8 +501,19 @@ int main()
             }
         }
 
-        const std::vector<mfd::UserCommand> shutdownCommands = BuildShutdownBatch(ui);
-        (void)client.SendBatch(shutdownCommands, simulation.sequence);
+        if (!ui.SubmitShutdown(
+                publisher,
+                simulation.sequence,
+                "CLI API stopped | restart client_mockup_minimal"))
+        {
+            throw std::runtime_error("Unable to queue the cockpit shutdown batch: " + publisher.LastError());
+        }
+
+        publisher.Flush();
+        if (const std::string publisherError = publisher.LastError(); !publisherError.empty())
+        {
+            throw std::runtime_error("Unable to send the cockpit shutdown batch: " + publisherError);
+        }
 
         std::cout << "client_mockup_minimal stopped.\n";
         return 0;

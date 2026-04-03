@@ -73,6 +73,59 @@ bool Equal(const mfd::WindowDisplayPatch& lhs, const mfd::WindowDisplayPatch& rh
            EqualOptional(lhs.disabled, rhs.disabled);
 }
 
+template <typename T>
+void CopyChangedOptionalField(const std::optional<T>& desired,
+                              const std::optional<T>& previous,
+                              std::optional<T>& destination)
+{
+    if (!EqualOptional(desired, previous))
+    {
+        destination = desired;
+    }
+}
+
+template <typename T>
+void CopyChangedMapFields(const std::unordered_map<std::string, T>& desired,
+                          const std::unordered_map<std::string, T>& previous,
+                          std::unordered_map<std::string, T>& destination)
+{
+    for (const auto& [key, value] : desired)
+    {
+        const auto previousIt = previous.find(key);
+        if (previousIt == previous.end() || previousIt->second != value)
+        {
+            destination.emplace(key, value);
+        }
+    }
+}
+
+mfd::ReticlePatch BuildDeltaPatch(const mfd::ReticlePatch& desired, const mfd::ReticlePatch& previous)
+{
+    mfd::ReticlePatch delta;
+    CopyChangedOptionalField(desired.visible, previous.visible, delta.visible);
+    CopyChangedOptionalField(desired.blinkEnabled, previous.blinkEnabled, delta.blinkEnabled);
+    CopyChangedOptionalField(desired.blinkType, previous.blinkType, delta.blinkType);
+    CopyChangedOptionalField(desired.position, previous.position, delta.position);
+    CopyChangedOptionalField(desired.rotationDegrees, previous.rotationDegrees, delta.rotationDegrees);
+    CopyChangedOptionalField(desired.color, previous.color, delta.color);
+    CopyChangedOptionalField(desired.thickness, previous.thickness, delta.thickness);
+    CopyChangedOptionalField(desired.text, previous.text, delta.text);
+    CopyChangedMapFields(desired.texts, previous.texts, delta.texts);
+    CopyChangedOptionalField(desired.letterSpacing, previous.letterSpacing, delta.letterSpacing);
+    CopyChangedMapFields(desired.letterSpacings, previous.letterSpacings, delta.letterSpacings);
+    return delta;
+}
+
+mfd::WindowDisplayPatch BuildDeltaPatch(const mfd::WindowDisplayPatch& desired,
+                                        const mfd::WindowDisplayPatch& previous)
+{
+    mfd::WindowDisplayPatch delta;
+    CopyChangedOptionalField(desired.invertColors, previous.invertColors, delta.invertColors);
+    CopyChangedOptionalField(desired.brightness, previous.brightness, delta.brightness);
+    CopyChangedOptionalField(desired.disabled, previous.disabled, delta.disabled);
+    return delta;
+}
+
 void PatchSetVisible(mfd::ReticlePatch& patch, const bool visible)
 {
     patch.visible = visible;
@@ -315,9 +368,10 @@ bool Reticle::AppendCommands(std::vector<mfd::UserCommand>& commands)
         return false;
     }
 
+    const mfd::ReticlePatch deltaPatch = BuildDeltaPatch(desiredPatch_, lastSentPatch_);
     commands.emplace_back(mfd::UpdateReticleCommand {
         mfd::ReticleHandle {pageName_, reticleId_},
-        desiredPatch_});
+        deltaPatch});
     lastSentPatch_ = desiredPatch_;
     return true;
 }
@@ -463,9 +517,17 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
     {
         if (reticle->seenThisCycle_)
         {
-            if (!reticle->published_ || !Equal(reticle->desiredPatch_, reticle->lastSentPatch_))
+            if (!reticle->published_)
             {
                 updates.push_back(mfd::DynamicReticleState {reticle->reticleId_, reticle->desiredPatch_});
+                reticle->lastSentPatch_ = reticle->desiredPatch_;
+                ++count;
+            }
+            else if (!Equal(reticle->desiredPatch_, reticle->lastSentPatch_))
+            {
+                updates.push_back(mfd::DynamicReticleState {
+                    reticle->reticleId_,
+                    BuildDeltaPatch(reticle->desiredPatch_, reticle->lastSentPatch_)});
                 reticle->lastSentPatch_ = reticle->desiredPatch_;
                 ++count;
             }
@@ -563,7 +625,7 @@ bool WindowDisplay::AppendCommands(std::vector<mfd::UserCommand>& commands)
         return false;
     }
 
-    commands.emplace_back(mfd::UpdateWindowDisplayCommand {desiredPatch_});
+    commands.emplace_back(mfd::UpdateWindowDisplayCommand {BuildDeltaPatch(desiredPatch_, lastSentPatch_)});
     lastSentPatch_ = desiredPatch_;
     return true;
 }

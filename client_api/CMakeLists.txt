@@ -3,10 +3,12 @@
 # Repository: https://github.com/benoitfragit/MFDStudio
 set(CLIENT_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/Animation.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/LatestBatchPublisher.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/ClientExport.h)
 
 set(CLIENT_API_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Animation.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Animation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/LatestBatchPublisher.cpp)
 
 add_library(client_api SHARED
     ${CLIENT_API_PUBLIC_HEADERS}

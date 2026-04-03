@@ -29,6 +29,7 @@
 #include "CockpitDemoMockupUi.h"
 #include "FullDemoMockupUi.h"
 #include "MinimalRadarMockupUi.h"
+#include "mfd/client/LatestBatchPublisher.h"
 #include "mfd/control/CommandClient.h"
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/control/StrobeFeedback.h"
@@ -353,7 +354,7 @@ void AppendCockpitContactRemovalCommands(std::vector<mfd::UserCommand>& commands
 }
 
 template <typename WindowUi>
-std::vector<mfd::UserCommand> BuildRadarSimulationCommands(WindowUi& ui, const float elapsedSeconds)
+void PopulateRadarSimulationUi(WindowUi& ui, const float elapsedSeconds)
 {
     static constexpr std::array<mfd::ColorRgba, 4> kTrackPalette {{
         mfd::ColorRgba {0, 255, 0, 255},
@@ -400,11 +401,10 @@ std::vector<mfd::UserCommand> BuildRadarSimulationCommands(WindowUi& ui, const f
         }
     }
 
-    return ui.BuildBatch();
 }
 
 template <typename WindowUi>
-std::vector<mfd::UserCommand> BuildCockpitSimulationCommands(WindowUi& ui, const CockpitSimulationState& simulation)
+void PopulateCockpitSimulationUi(WindowUi& ui, const CockpitSimulationState& simulation)
 {
     static constexpr mfd::ColorRgba kHudNominal {46, 255, 162, 255};
     static constexpr mfd::ColorRgba kHudWarning {255, 198, 109, 255};
@@ -530,7 +530,6 @@ std::vector<mfd::UserCommand> BuildCockpitSimulationCommands(WindowUi& ui, const
         }
     }
 
-    return ui.BuildBatch();
 }
 
 /** @brief Converts a runtime RGBA color to an ImGui color vector. */
@@ -677,6 +676,8 @@ private:
     mfd::LoadedWindowConfiguration loaded_ {};
     /** @brief Public outbound command client targeting the selected window. */
     std::unique_ptr<mfd::CommandClient> client_ {};
+    /** @brief Dedicated realtime publisher used by the built-in simulators. */
+    std::unique_ptr<mfd::client::LatestBatchPublisher> realtimePublisher_ {};
     /** @brief Optional inbound receiver for live strobe feedback. */
     std::unique_ptr<mfd::IExchangeChannel> feedbackReceiver_ {};
     /** @brief Reticle template ids offered by the currently loaded library. */
@@ -998,6 +999,7 @@ bool MockupApplication::ReloadConfiguration()
     {
         loaded_ = {};
         templateIds_.clear();
+        realtimePublisher_.reset();
         client_.reset();
         SetStatus("Unable to load '" + windowFile_.string() + "': " + exception.what(), true);
         return false;
@@ -1006,6 +1008,7 @@ bool MockupApplication::ReloadConfiguration()
 
 void MockupApplication::RecreateClient()
 {
+    realtimePublisher_.reset();
     client_.reset();
 
     if (!loaded_.window.commandTransports.udp.has_value() ||
@@ -1024,6 +1027,8 @@ void MockupApplication::RecreateClient()
         SetStatus("UDP command transport unavailable: " + error, true);
         return;
     }
+
+    realtimePublisher_ = std::make_unique<mfd::client::LatestBatchPublisher>(loaded_.window.commandTransports);
 
     SetStatus("Connected through UDP to '" + loaded_.window.title + "'.", false);
 }
@@ -1608,28 +1613,24 @@ void MockupApplication::UpdateRadarSimulation(const float deltaSeconds)
         radarSimulation_.accumulatorSeconds + std::max(deltaSeconds, 0.0f),
         kRadarSimulationIntervalSeconds * 5.0f);
 
-    int batchesSentThisFrame = 0;
-
-    while (radarSimulation_.enabled &&
-           radarSimulation_.accumulatorSeconds >= kRadarSimulationIntervalSeconds &&
-           batchesSentThisFrame < 4)
+    if (radarSimulation_.accumulatorSeconds < kRadarSimulationIntervalSeconds)
     {
-        radarSimulation_.accumulatorSeconds -= kRadarSimulationIntervalSeconds;
-
-        if (!SendRadarSimulationBatch(false, true))
-        {
-            radarSimulation_.enabled = false;
-            radarSimulation_.accumulatorSeconds = 0.0f;
-            return;
-        }
-
-        radarSimulation_.elapsedSeconds += kRadarSimulationIntervalSeconds;
-        ++batchesSentThisFrame;
+        return;
     }
 
-    if (batchesSentThisFrame >= 4 && radarSimulation_.accumulatorSeconds >= kRadarSimulationIntervalSeconds)
+    const int simulatedSteps = std::max(
+        1,
+        static_cast<int>(radarSimulation_.accumulatorSeconds / kRadarSimulationIntervalSeconds));
+    radarSimulation_.accumulatorSeconds =
+        std::fmod(radarSimulation_.accumulatorSeconds, kRadarSimulationIntervalSeconds);
+    radarSimulation_.elapsedSeconds +=
+        static_cast<float>(simulatedSteps) * kRadarSimulationIntervalSeconds;
+
+    if (!SendRadarSimulationBatch(false, true))
     {
-        radarSimulation_.accumulatorSeconds = std::fmod(radarSimulation_.accumulatorSeconds, kRadarSimulationIntervalSeconds);
+        radarSimulation_.enabled = false;
+        radarSimulation_.accumulatorSeconds = 0.0f;
+        return;
     }
 }
 
@@ -1696,37 +1697,34 @@ void MockupApplication::UpdateCockpitSimulation(const float deltaSeconds)
         cockpitSimulation_.accumulatorSeconds + std::max(deltaSeconds, 0.0f),
         kCockpitSimulationIntervalSeconds * 5.0f);
 
-    int batchesSentThisFrame = 0;
-
-    while (cockpitSimulation_.enabled &&
-           cockpitSimulation_.accumulatorSeconds >= kCockpitSimulationIntervalSeconds &&
-           batchesSentThisFrame < 4)
+    if (cockpitSimulation_.accumulatorSeconds < kCockpitSimulationIntervalSeconds)
     {
-        cockpitSimulation_.accumulatorSeconds -= kCockpitSimulationIntervalSeconds;
-        StepCockpitSimulation(kCockpitSimulationIntervalSeconds);
-
-        if (!SendCockpitSimulationBatch(true))
-        {
-            cockpitSimulation_.enabled = false;
-            cockpitSimulation_.accumulatorSeconds = 0.0f;
-            return;
-        }
-
-        ++batchesSentThisFrame;
+        return;
     }
 
-    if (batchesSentThisFrame >= 4 && cockpitSimulation_.accumulatorSeconds >= kCockpitSimulationIntervalSeconds)
+    const int simulatedSteps = std::max(
+        1,
+        static_cast<int>(cockpitSimulation_.accumulatorSeconds / kCockpitSimulationIntervalSeconds));
+    cockpitSimulation_.accumulatorSeconds =
+        std::fmod(cockpitSimulation_.accumulatorSeconds, kCockpitSimulationIntervalSeconds);
+
+    for (int stepIndex = 0; stepIndex < simulatedSteps; ++stepIndex)
     {
-        cockpitSimulation_.accumulatorSeconds =
-            std::fmod(cockpitSimulation_.accumulatorSeconds, kCockpitSimulationIntervalSeconds);
+        StepCockpitSimulation(kCockpitSimulationIntervalSeconds);
+    }
+
+    if (!SendCockpitSimulationBatch(true))
+    {
+        cockpitSimulation_.enabled = false;
+        cockpitSimulation_.accumulatorSeconds = 0.0f;
     }
 }
 
 bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const bool quiet)
 {
-    if (client_ == nullptr || !client_->IsReady())
+    if (realtimePublisher_ == nullptr || !realtimePublisher_->IsReady())
     {
-        SetStatus("Command client is not ready for the radar simulator.", true);
+        SetStatus("Realtime publisher is not ready for the radar simulator.", true);
         return false;
     }
 
@@ -1763,13 +1761,15 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
         case WindowPresetKind::FullDemo:
             {
                 full_demo_ui::FullDemoMockupUi ui;
-                commands = BuildRadarSimulationCommands(ui, radarSimulation_.elapsedSeconds);
+                PopulateRadarSimulationUi(ui, radarSimulation_.elapsedSeconds);
+                commands = ui.BuildBatch();
             }
             break;
         case WindowPresetKind::MinimalRadar:
             {
                 minimal_radar_ui::MinimalRadarMockupUi ui;
-                commands = BuildRadarSimulationCommands(ui, radarSimulation_.elapsedSeconds);
+                PopulateRadarSimulationUi(ui, radarSimulation_.elapsedSeconds);
+                commands = ui.BuildBatch();
             }
             break;
         default:
@@ -1779,11 +1779,12 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
     }
 
     const double sendStart = GetTime();
-    const bool sent = client_->SendBatch(commands, radarSimulation_.nextSequence);
+    const int commandCount = static_cast<int>(commands.size());
+    const bool submitted = realtimePublisher_->SubmitLatest(std::move(commands), radarSimulation_.nextSequence);
     const double sendEnd = GetTime();
 
     radarSimulation_.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
-    radarSimulation_.lastCommandCount = static_cast<int>(commands.size());
+    radarSimulation_.lastCommandCount = commandCount;
 
     if (radarSimulation_.previousSendTimestamp > 0.0)
     {
@@ -1793,12 +1794,12 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
 
     radarSimulation_.previousSendTimestamp = sendStart;
 
-    if (!sent)
+    if (!submitted)
     {
         SetStatus(
             clearOnly
-                ? "Unable to clear simulated radar tracks: " + client_->LastError()
-                : "Unable to send the radar batch: " + client_->LastError(),
+                ? "Unable to clear simulated radar tracks: " + realtimePublisher_->LastError()
+                : "Unable to queue the radar batch: " + realtimePublisher_->LastError(),
             true);
         return false;
     }
@@ -1825,9 +1826,9 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
 
 bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
 {
-    if (client_ == nullptr || !client_->IsReady())
+    if (realtimePublisher_ == nullptr || !realtimePublisher_->IsReady())
     {
-        SetStatus("Command client is not ready for the cockpit simulator.", true);
+        SetStatus("Realtime publisher is not ready for the cockpit simulator.", true);
         return false;
     }
 
@@ -1845,7 +1846,8 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
 
     CockpitSimulationState& simulation = cockpitSimulation_;
     cockpit_demo_ui::CockpitDemoMockupUi ui;
-    std::vector<mfd::UserCommand> commands = BuildCockpitSimulationCommands(ui, simulation);
+    PopulateCockpitSimulationUi(ui, simulation);
+    std::vector<mfd::UserCommand> commands = ui.BuildBatch();
     bool contactsPublishedNext = simulation.radarEnabled;
 
     if (!simulation.radarEnabled && simulation.contactsPublished)
@@ -1855,11 +1857,12 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
     }
 
     const double sendStart = GetTime();
-    const bool sent = client_->SendBatch(commands, simulation.nextSequence);
+    const int commandCount = static_cast<int>(commands.size());
+    const bool submitted = realtimePublisher_->SubmitLatest(std::move(commands), simulation.nextSequence);
     const double sendEnd = GetTime();
 
     simulation.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
-    simulation.lastCommandCount = static_cast<int>(commands.size());
+    simulation.lastCommandCount = commandCount;
 
     if (simulation.previousSendTimestamp > 0.0)
     {
@@ -1869,9 +1872,9 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
 
     simulation.previousSendTimestamp = sendStart;
 
-    if (!sent)
+    if (!submitted)
     {
-        SetStatus("Unable to send the cockpit batch: " + client_->LastError(), true);
+        SetStatus("Unable to queue the cockpit batch: " + realtimePublisher_->LastError(), true);
         return false;
     }
 
@@ -3036,6 +3039,11 @@ void MockupApplication::DrawStatusBar()
     if (client_ != nullptr && !client_->LastError().empty())
     {
         ImGui::TextDisabled("UDP detail: %s", client_->LastError().c_str());
+    }
+
+    if (realtimePublisher_ != nullptr && !realtimePublisher_->LastError().empty())
+    {
+        ImGui::TextDisabled("Realtime detail: %s", realtimePublisher_->LastError().c_str());
     }
 
     if (!lastFeedbackStatus_.empty())

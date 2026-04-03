@@ -63,6 +63,13 @@ TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
     ASSERT_TRUE(blinkDisable->patch.blinkType.has_value());
     EXPECT_FALSE(*blinkDisable->patch.blinkEnabled);
     EXPECT_TRUE(blinkDisable->patch.blinkType->empty());
+    EXPECT_FALSE(blinkDisable->patch.visible.has_value());
+    EXPECT_FALSE(blinkDisable->patch.position.has_value());
+    EXPECT_FALSE(blinkDisable->patch.rotationDegrees.has_value());
+    EXPECT_FALSE(blinkDisable->patch.color.has_value());
+    EXPECT_FALSE(blinkDisable->patch.thickness.has_value());
+    EXPECT_TRUE(blinkDisable->patch.texts.empty());
+    EXPECT_TRUE(blinkDisable->patch.letterSpacings.empty());
 }
 
 TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingReticles)
@@ -113,6 +120,11 @@ TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingRe
     EXPECT_EQ(updateBatch->reticles[0].reticleId, "alpha");
     EXPECT_FLOAT_EQ(updateBatch->reticles[0].patch.position->x, 0.40f);
     EXPECT_FLOAT_EQ(updateBatch->reticles[0].patch.position->y, -0.15f);
+    EXPECT_FALSE(updateBatch->reticles[0].patch.color.has_value());
+    EXPECT_FALSE(updateBatch->reticles[0].patch.blinkEnabled.has_value());
+    EXPECT_FALSE(updateBatch->reticles[0].patch.blinkType.has_value());
+    EXPECT_TRUE(updateBatch->reticles[0].patch.texts.empty());
+    EXPECT_TRUE(updateBatch->reticles[0].patch.letterSpacings.empty());
 }
 
 TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownRemoval)
@@ -152,4 +164,15 @@ TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownR
     commands.clear();
     EXPECT_FALSE(display.AppendCommands(commands));
     EXPECT_TRUE(commands.empty());
+
+    display.SetBrightness(0.60f);
+    EXPECT_TRUE(display.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* brightnessOnly = std::get_if<mfd::UpdateWindowDisplayCommand>(&commands.front());
+    ASSERT_NE(brightnessOnly, nullptr);
+    EXPECT_FALSE(brightnessOnly->patch.invertColors.has_value());
+    EXPECT_TRUE(brightnessOnly->patch.brightness.has_value());
+    EXPECT_FALSE(brightnessOnly->patch.disabled.has_value());
+    EXPECT_FLOAT_EQ(*brightnessOnly->patch.brightness, 0.60f);
 }

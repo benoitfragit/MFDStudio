@@ -69,9 +69,12 @@ void DrawActivePageContent(const SceneRegistry& scene,
 
     Canvas2D canvas(width, height, scene.ActivePageView(), textFont);
 
-    for (const ReticleGroup& reticle : scene.CollectActiveReticles())
+    for (const ReticleRenderView& reticle : scene.CollectActiveReticleViews())
     {
-        canvas.DrawReticle(reticle);
+        if (reticle.group != nullptr)
+        {
+            canvas.DrawReticle(*reticle.group, reticle.visible);
+        }
     }
 
     const std::string title =

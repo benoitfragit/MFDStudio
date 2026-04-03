@@ -10,6 +10,7 @@
  * @brief Low-level 2D canvas used to render reticles with raylib.
  */
 
+#include <cstddef>
 #include <vector>
 
 #include <raylib.h>
@@ -39,6 +40,12 @@ public:
      * @param reticle Reticle to render.
      */
     void DrawReticle(const ReticleGroup& reticle) const;
+    /**
+     * @brief Draws one full reticle group with externally resolved visibility.
+     * @param reticle Reticle to render.
+     * @param visible Blink-resolved visibility to apply for this draw call.
+     */
+    void DrawReticle(const ReticleGroup& reticle, bool visible) const;
 
 private:
     Font TextFont() const noexcept;
@@ -46,14 +53,20 @@ private:
     float ToPixels(float logicalValue) const noexcept;
     Vector2 ToScreen(const Vec2& logical) const noexcept;
     Vec2 TransformPoint(const Vec2& point, const Primitive& primitive, const ReticleGroup& group) const noexcept;
-    std::vector<Vector2> BuildScreenPoints(const std::vector<Vec2>& points,
-                                           const Primitive& primitive,
-                                           const ReticleGroup& group) const;
+    void BuildScreenPointsInto(const Vec2* points,
+                               std::size_t pointCount,
+                               const Primitive& primitive,
+                               const ReticleGroup& group,
+                               std::vector<Vector2>& destination) const;
     void DrawPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
 
     int width_ = 0;
     int height_ = 0;
     PageViewState view_ {};
     const Font* textFont_ = nullptr;
+    mutable std::vector<Vec2> logicalScratchA_ {};
+    mutable std::vector<Vec2> logicalScratchB_ {};
+    mutable std::vector<Vector2> screenScratchA_ {};
+    mutable std::vector<Vector2> screenScratchB_ {};
 };
 } // namespace mfd

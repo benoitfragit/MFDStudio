@@ -123,6 +123,17 @@ struct WindowDisplayState
 };
 
 /**
+ * @brief Lightweight render view over one reticle with blink-resolved visibility.
+ */
+struct ReticleRenderView
+{
+    /** @brief Reticle payload owned by the scene registry. */
+    const ReticleGroup* group = nullptr;
+    /** @brief Visibility resolved for the current frame, including blink state. */
+    bool visible = false;
+};
+
+/**
  * @brief Runtime scene built on top of EnTT for pages, reticles and strobes.
  *
  * @note `SceneRegistry` is the central state container used by the renderer,
@@ -186,6 +197,10 @@ public:
     std::vector<ReticleGroup> CollectPageReticles(std::string_view pageName) const;
     /** @brief Collects all reticles rendered on the active page with blink-resolved visibility. */
     std::vector<ReticleGroup> CollectActiveReticles() const;
+    /** @brief Collects non-owning render views on a given page with blink-resolved visibility. */
+    std::vector<ReticleRenderView> CollectPageReticleViews(std::string_view pageName) const;
+    /** @brief Collects non-owning render views on the active page with blink-resolved visibility. */
+    std::vector<ReticleRenderView> CollectActiveReticleViews() const;
     /** @brief Collects pointers to all reticles on a given page without copying them. */
     std::vector<const ReticleGroup*> CollectPageReticlePointers(std::string_view pageName) const;
     /** @brief Collects pointers to all reticles on the active page without copying them. */
@@ -304,6 +319,8 @@ private:
     std::optional<StrobeCaptureResult> CaptureWithStrobeKey(std::string_view pageName) const;
     /** @brief Collects copied reticles for one normalized page key. */
     std::vector<ReticleGroup> CollectPageReticlesByKey(std::string_view pageName) const;
+    /** @brief Collects non-owning render views for one normalized page key. */
+    std::vector<ReticleRenderView> CollectPageReticleViewsByKey(std::string_view pageName) const;
     /** @brief Collects reticle pointers for one normalized page key without copying. */
     std::vector<const ReticleGroup*> CollectPageReticlePointersByKey(std::string_view pageName) const;
     /** @brief Builds the composite lookup key used by the reticle entity index. */
@@ -322,6 +339,10 @@ private:
     void IndexReticle(std::string_view normalizedPageName, const ReticleGroup& reticle, entt::entity entity);
     /** @brief Removes one reticle entry from the fast lookup map. */
     void RemoveReticleIndex(std::string_view normalizedPageName, std::string_view reticleId);
+    /** @brief Inserts one reticle entity into the ordered draw list of a page. */
+    void InsertReticleIntoPageDrawList(std::string_view normalizedPageName, entt::entity entity);
+    /** @brief Removes one reticle entity from the ordered draw list of a page. */
+    void RemoveReticleFromPageDrawList(std::string_view normalizedPageName, entt::entity entity);
     /** @brief Synchronizes the active flag of a page entity with the current active-page selection. */
     void SetActiveFlag(std::string_view pageName, bool active);
 
