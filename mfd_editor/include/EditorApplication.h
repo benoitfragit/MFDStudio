@@ -194,10 +194,6 @@ private:
     void DrawLibraryReticleInspector();
     /** @brief Draws the inspector for one primitive inside a library reticle. */
     void DrawLibraryPrimitiveInspector();
-    /** @brief Draws a JSON preview of the currently selected reticle. */
-    void DrawReticleJsonPreview();
-    /** @brief Draws a C++ snippet showing how to control the selected page reticle. */
-    void DrawReticleControlSnippet();
 
     /** @brief Draws the current page into the main preview viewport. */
     void DrawPagePreview(const ViewportState& viewport);
@@ -216,6 +212,10 @@ private:
     void EnsurePreviewTexture(int width, int height);
     /** @brief Releases the off-screen preview texture. */
     void ReleasePreviewTexture();
+    /** @brief Ensures the hover-preview texture matches the requested size. */
+    void EnsureTooltipPreviewTexture(int width, int height);
+    /** @brief Releases the hover-preview texture. */
+    void ReleaseTooltipPreviewTexture();
     /** @brief Applies the font file declared by the loaded window configuration. */
     void ApplyPreviewFontFile(std::filesystem::path fontFile);
     /** @brief Lazily loads the configured preview font once raylib is ready. */
@@ -224,6 +224,10 @@ private:
     void ReleasePreviewFont() noexcept;
     /** @brief Returns the preview font override when one is currently loaded. */
     const Font* PreviewTextFont() const noexcept;
+    /** @brief Resets the page preview camera from the currently active authored page view. */
+    void ResetPagePreviewView() noexcept;
+    /** @brief Resets the library preview camera to its neutral editor-only view. */
+    void ResetLibraryPreviewView() noexcept;
     /** @brief Updates the footer status message. */
     void RebuildStatus(std::string message, bool isError);
 
@@ -272,6 +276,10 @@ private:
     mfd::Primitive* SelectedLibraryPrimitive() noexcept;
     /** @brief Returns the selected primitive when available. */
     const mfd::Primitive* SelectedLibraryPrimitive() const noexcept;
+    /** @brief Draws a hover tooltip preview for one reticle item inside the tree views. */
+    void DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& reticle,
+                                        std::string_view label,
+                                        Color backgroundColor);
     /** @brief Returns `true` when one page reticle is part of the current selection. */
     bool HasSelectedPageReticle(int pageIndex, int reticleIndex) const noexcept;
     /** @brief Returns the selected page reticle indices on the active page. */
@@ -311,11 +319,6 @@ private:
     static std::string MakeUniqueReticleId(const std::vector<mfd::ReticleGroup>& groups, std::string_view baseId);
     /** @brief Generates a unique editor layer id inside one page. */
     static std::string MakeUniqueLayerId(const mfd::PageDefinition& page, std::string_view baseId);
-    /** @brief Builds a JSON preview string for the currently selected reticle. */
-    std::string BuildSelectedReticleJsonPreview() const;
-    /** @brief Builds a C++ snippet showing how to control the selected page reticle. */
-    std::string BuildSelectedReticleControlSnippet() const;
-
     /** @brief Root window file currently open in the editor. */
     std::filesystem::path windowFile_ {"assets/windows/demo_pages.json"};
     /** @brief Loader used to resolve the root window file and its referenced assets. */
@@ -332,6 +335,10 @@ private:
     RenderTexture2D previewTexture_ {};
     /** @brief Indicates whether the preview texture currently owns GPU resources. */
     bool previewTextureReady_ = false;
+    /** @brief Off-screen texture dedicated to tree-item hover previews. */
+    RenderTexture2D tooltipPreviewTexture_ {};
+    /** @brief Indicates whether the hover-preview texture currently owns GPU resources. */
+    bool tooltipPreviewTextureReady_ = false;
     /** @brief Font file declared by the current window configuration. */
     std::filesystem::path previewFontFile_ {};
     /** @brief GPU font override used by the preview canvases when available. */
@@ -398,4 +405,10 @@ private:
     float inspectorWidth_ = 360.0f;
     /** @brief Split ratio used by the library-studio sub-layout. */
     float libraryStudioPageWidth_ = 0.0f;
+    /** @brief Editor-only page preview camera independent from the authored page view. */
+    mfd::PageViewState pagePreviewView_ {};
+    /** @brief Editor-only reticle-studio preview camera. */
+    mfd::PageViewState libraryPreviewView_ {};
+    /** @brief Logical offset preserved while dragging the viewport rectangle inside the minimap. */
+    mfd::Vec2 minimapDragOffsetLogical_ {};
 };
