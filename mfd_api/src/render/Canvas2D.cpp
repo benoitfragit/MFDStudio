@@ -14,6 +14,10 @@
 #include <string>
 #include <utility>
 
+#include <rlgl.h>
+
+#include "OpenGlCompat.h"
+
 namespace mfd
 {
 namespace
@@ -198,11 +202,18 @@ void DrawCenteredText(const std::string& text,
 }
 } // namespace
 
-Canvas2D::Canvas2D(const int width, const int height, const PageViewState view, const Font* textFont)
+Canvas2D::Canvas2D(const int width,
+                   const int height,
+                   const PageViewState view,
+                   const Font* textFont,
+                   const Color backgroundColor,
+                   const bool clippingEnabled)
     : width_(width)
     , height_(height)
     , view_(view)
     , textFont_(textFont)
+    , backgroundColor_(backgroundColor)
+    , clippingEnabled_(clippingEnabled)
 {
 }
 
@@ -233,6 +244,20 @@ void Canvas2D::DrawReticle(const ReticleGroup& reticle, const bool visible) cons
         return;
     }
 
+    if (clippingEnabled_)
+    {
+        if (const Primitive* clipPrimitive = ResolveClipPrimitive(reticle);
+            clipPrimitive != nullptr && detail::OpenGlStencilApiAvailable())
+        {
+            ApplyClipMask(*clipPrimitive, reticle);
+        }
+    }
+
+    DrawReticlePrimitives(reticle);
+}
+
+void Canvas2D::DrawReticlePrimitives(const ReticleGroup& reticle) const
+{
     for (const auto& primitive : reticle.primitives)
     {
         if (!primitive.style.visible)
@@ -241,6 +266,100 @@ void Canvas2D::DrawReticle(const ReticleGroup& reticle, const bool visible) cons
         }
 
         DrawPrimitive(primitive, reticle);
+    }
+}
+
+void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const
+{
+    rlDrawRenderBatchActive();
+    detail::OpenGlSetStencilEnabled(true);
+    detail::OpenGlSetStencilMask(0xFF);
+    detail::OpenGlClearStencilValue(0);
+    detail::OpenGlClearStencilBuffer();
+
+    detail::OpenGlSetColorWriteMask(false, false, false, false);
+    detail::OpenGlSetStencilFunction(detail::GlStencilCompare::Always, 1, 0xFF);
+    detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Replace,
+                                      detail::GlStencilOperation::Replace,
+                                      detail::GlStencilOperation::Replace);
+    DrawClipMaskPrimitive(primitive, group);
+
+    rlDrawRenderBatchActive();
+    detail::OpenGlSetColorWriteMask(true, true, true, true);
+    detail::OpenGlSetStencilMask(0x00);
+    detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Keep,
+                                      detail::GlStencilOperation::Keep,
+                                      detail::GlStencilOperation::Keep);
+    detail::OpenGlSetStencilFunction(group.clipping.mode == ReticleClipMode::Inner
+                                         ? detail::GlStencilCompare::NotEqual
+                                         : detail::GlStencilCompare::Equal,
+                                     0,
+                                     0xFF);
+
+    DrawRectangle(0, 0, width_, height_, backgroundColor_);
+
+    rlDrawRenderBatchActive();
+    detail::OpenGlSetStencilMask(0xFF);
+    detail::OpenGlSetStencilEnabled(false);
+}
+
+void Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGroup& group) const
+{
+    constexpr Color kClipMaskColor {255, 255, 255, 255};
+
+    switch (primitive.type)
+    {
+    case PrimitiveType::Circle:
+    {
+        const auto& circle = std::get<CircleGeometry>(primitive.geometry);
+        const float radius = std::max(0.0f,
+                                      std::abs(ToPixels(circle.radius * AverageScale(group.transform,
+                                                                                     primitive.transform))));
+        const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
+        DrawCircleV(center, radius, kClipMaskColor);
+        break;
+    }
+    case PrimitiveType::Rectangle:
+    {
+        const auto& rectangle = std::get<RectangleGeometry>(primitive.geometry);
+        const std::array<Vec2, 4> logicalPoints { {
+            {-rectangle.width * 0.5f, -rectangle.height * 0.5f},
+            {rectangle.width * 0.5f, -rectangle.height * 0.5f},
+            {rectangle.width * 0.5f, rectangle.height * 0.5f},
+            {-rectangle.width * 0.5f, rectangle.height * 0.5f}} };
+        BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
+        FillConvexPolygon(screenScratchA_, kClipMaskColor);
+        break;
+    }
+    case PrimitiveType::Ellipse:
+    {
+        const auto& ellipse = std::get<EllipseGeometry>(primitive.geometry);
+        SampleEllipseInto(ellipse, 64, logicalScratchA_);
+        BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
+        FillConvexPolygon(screenScratchA_, kClipMaskColor);
+        break;
+    }
+    case PrimitiveType::Square:
+    {
+        const auto& square = std::get<SquareGeometry>(primitive.geometry);
+        const std::array<Vec2, 4> logicalPoints { {
+            {-square.width * 0.5f, -square.height * 0.5f},
+            {square.width * 0.5f, -square.height * 0.5f},
+            {square.width * 0.5f, square.height * 0.5f},
+            {-square.width * 0.5f, square.height * 0.5f}} };
+        BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
+        FillConvexPolygon(screenScratchA_, kClipMaskColor);
+        break;
+    }
+    case PrimitiveType::Triangle:
+    {
+        const auto& triangle = std::get<TriangleGeometry>(primitive.geometry);
+        BuildScreenPointsInto(triangle.points.data(), triangle.points.size(), primitive, group, screenScratchA_);
+        FillConvexPolygon(screenScratchA_, kClipMaskColor);
+        break;
+    }
+    default:
+        break;
     }
 }
 

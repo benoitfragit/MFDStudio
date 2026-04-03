@@ -249,6 +249,28 @@ struct ReticleEditorState
 };
 
 /**
+ * @brief Local clipping mode applied to one reticle instance.
+ *
+ * @note `Inner` clips the inside of the mask shape, while `Outer` clips
+ * everything outside of the mask shape.
+ */
+enum class ReticleClipMode
+{
+    None,
+    Inner,
+    Outer
+};
+
+/**
+ * @brief Optional clipping state applied locally to one reticle.
+ */
+struct ReticleClipState
+{
+    ReticleClipMode mode = ReticleClipMode::None;
+    std::string primitiveId;
+};
+
+/**
  * @brief Single drawable element inside a reticle.
  */
 struct Primitive
@@ -275,6 +297,8 @@ struct ReticleGroup
     ReticleStyleOverride overrides {};
     /** @brief Editor-only state ignored by the runtime. */
     ReticleEditorState editor {};
+    /** @brief Optional local clipping state resolved against one primitive id. */
+    ReticleClipState clipping {};
     std::vector<Primitive> primitives;
 };
 
@@ -327,6 +351,30 @@ MFD_API Primitive* FindPrimitive(ReticleGroup& reticle, std::string_view primiti
  * @return Pointer to the primitive, or `nullptr` if it does not exist.
  */
 MFD_API const Primitive* FindPrimitive(const ReticleGroup& reticle, std::string_view primitiveId) noexcept;
+
+/**
+ * @brief Returns whether a primitive can be used as a convex reticle clip mask.
+ * @param primitive Primitive to inspect.
+ * @return `true` for supported convex shapes such as circle, rectangle,
+ * ellipse, square or triangle.
+ */
+MFD_API bool SupportsReticleClipPrimitive(const Primitive& primitive) noexcept;
+
+/**
+ * @brief Resolves the effective clip primitive referenced by a reticle.
+ * @param reticle Reticle to inspect.
+ * @return Mutable pointer to the supported clip primitive, or `nullptr` when
+ * clipping is disabled or invalid.
+ */
+MFD_API Primitive* ResolveClipPrimitive(ReticleGroup& reticle) noexcept;
+
+/**
+ * @brief Resolves the effective clip primitive referenced by a const reticle.
+ * @param reticle Reticle to inspect.
+ * @return Pointer to the supported clip primitive, or `nullptr` when clipping
+ * is disabled or invalid.
+ */
+MFD_API const Primitive* ResolveClipPrimitive(const ReticleGroup& reticle) noexcept;
 
 /**
  * @brief Updates the text value of a named text primitive.

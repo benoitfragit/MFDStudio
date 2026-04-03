@@ -32,8 +32,14 @@ public:
      * @param height Viewport height in pixels.
      * @param view Page view center and zoom.
      * @param textFont Optional font override used for text-like primitives.
+     * @param backgroundColor Color restored when one clipping primitive erases part of the page.
      */
-    Canvas2D(int width, int height, PageViewState view = {}, const Font* textFont = nullptr);
+    Canvas2D(int width,
+             int height,
+             PageViewState view = {},
+             const Font* textFont = nullptr,
+             Color backgroundColor = BLACK,
+             bool clippingEnabled = false);
 
     /**
      * @brief Draws one full reticle group.
@@ -58,12 +64,17 @@ private:
                                const Primitive& primitive,
                                const ReticleGroup& group,
                                std::vector<Vector2>& destination) const;
+    void DrawReticlePrimitives(const ReticleGroup& reticle) const;
+    void ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const;
+    void DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
     void DrawPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
 
     int width_ = 0;
     int height_ = 0;
     PageViewState view_ {};
     const Font* textFont_ = nullptr;
+    Color backgroundColor_ = BLACK;
+    bool clippingEnabled_ = false;
     mutable std::vector<Vec2> logicalScratchA_ {};
     mutable std::vector<Vec2> logicalScratchB_ {};
     mutable std::vector<Vector2> screenScratchA_ {};

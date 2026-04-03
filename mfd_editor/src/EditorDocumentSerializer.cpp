@@ -28,6 +28,10 @@ namespace
 {
 using json = nlohmann::json;
 
+std::optional<json> SerializeReticleClipping(const mfd::ReticleClipState& clipping);
+std::optional<json> SerializeReticleClippingOverride(const mfd::ReticleClipState& clipping,
+                                                     const mfd::ReticleClipState& inherited);
+
 std::string Lowercase(std::string_view value)
 {
     std::string lowered;
@@ -500,6 +504,10 @@ json SerializeInlineReticle(const mfd::ReticleGroup& reticle)
 
     WriteTransformFields(node, reticle.transform);
     WriteReticleOverrideFields(node, reticle.overrides);
+    if (const auto clipping = SerializeReticleClipping(reticle.clipping); clipping.has_value())
+    {
+        node["clipping"] = *clipping;
+    }
 
     json elements = json::array();
     for (const auto& primitive : reticle.primitives)
@@ -544,6 +552,13 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle, const mfd::ReticleLi
             node["blink"] = *blink;
         }
 
+        if (const auto clipping =
+                SerializeReticleClippingOverride(reticle.clipping, library.at(reticle.sourceTemplateId).clipping);
+            clipping.has_value())
+        {
+            node["clipping"] = *clipping;
+        }
+
         return node;
     }
 
@@ -572,6 +587,10 @@ json SerializeStrobe(const mfd::PageStrobeDefinition& strobe)
     if (const auto blink = SerializeBlinkBinding(strobe.reticle.blink); blink.has_value())
     {
         node["blink"] = *blink;
+    }
+    if (const auto clipping = SerializeReticleClipping(strobe.reticle.clipping); clipping.has_value())
+    {
+        node["clipping"] = *clipping;
     }
 
     json capture = json::object();
@@ -710,6 +729,36 @@ json SerializeWindow(const mfd::WindowAssetDefinition& window,
     }
 
     return node;
+}
+
+std::optional<json> SerializeReticleClipping(const mfd::ReticleClipState& clipping)
+{
+    if (clipping.mode == mfd::ReticleClipMode::None)
+    {
+        return std::nullopt;
+    }
+
+    json node = json::object();
+    node["mode"] = clipping.mode == mfd::ReticleClipMode::Inner ? "inner" : "outer";
+    node["primitive"] = clipping.primitiveId;
+    return node;
+}
+
+std::optional<json> SerializeReticleClippingOverride(const mfd::ReticleClipState& clipping,
+                                                     const mfd::ReticleClipState& inherited)
+{
+    if (clipping.mode == inherited.mode && clipping.primitiveId == inherited.primitiveId)
+    {
+        return std::nullopt;
+    }
+
+    if (clipping.mode == mfd::ReticleClipMode::None)
+    {
+        return json {
+            {"mode", "none"}};
+    }
+
+    return SerializeReticleClipping(clipping);
 }
 
 void WriteJsonFile(const std::filesystem::path& path, const json& value)

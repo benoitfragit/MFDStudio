@@ -15,12 +15,14 @@
 #include <functional>
 #include <limits>
 #include <stdexcept>
+#include <unordered_set>
 #include <utility>
 
 #include <rlImGui.h>
 
 #include "mfd/model/Types.h"
 #include "mfd/render/Canvas2D.h"
+#include "mfd/render/RenderTextureUtils.h"
 
 namespace
 {
@@ -223,6 +225,80 @@ std::string PrimitiveTypeLabel(const mfd::PrimitiveType type)
     }
 
     return "Primitive";
+}
+
+const char* ReticleClipModeLabel(const mfd::ReticleClipMode mode) noexcept
+{
+    switch (mode)
+    {
+    case mfd::ReticleClipMode::Inner:
+        return "Inner clipping";
+    case mfd::ReticleClipMode::Outer:
+        return "Outer clipping";
+    case mfd::ReticleClipMode::None:
+    default:
+        return "Disabled";
+    }
+}
+
+struct ClipPrimitiveOption
+{
+    std::string primitiveId;
+    std::string label;
+};
+
+std::vector<ClipPrimitiveOption> CollectClipPrimitiveOptions(const mfd::ReticleGroup& reticle)
+{
+    std::vector<ClipPrimitiveOption> options;
+    std::unordered_set<std::string> seenPrimitiveIds;
+
+    for (int index = 0; index < static_cast<int>(reticle.primitives.size()); ++index)
+    {
+        const auto& primitive = reticle.primitives[static_cast<std::size_t>(index)];
+        if (primitive.id.empty() || !mfd::SupportsReticleClipPrimitive(primitive))
+        {
+            continue;
+        }
+
+        if (!seenPrimitiveIds.insert(primitive.id).second)
+        {
+            continue;
+        }
+
+        options.push_back(ClipPrimitiveOption {
+            primitive.id,
+            primitive.id + " (" + PrimitiveTypeLabel(primitive.type) + ")"});
+    }
+
+    return options;
+}
+
+bool IsPointInsidePolygon(const std::vector<ImVec2>& polygon, const ImVec2 point) noexcept
+{
+    if (polygon.size() < 3)
+    {
+        return false;
+    }
+
+    bool inside = false;
+    std::size_t previous = polygon.size() - 1U;
+    for (std::size_t current = 0; current < polygon.size(); ++current)
+    {
+        const ImVec2& a = polygon[current];
+        const ImVec2& b = polygon[previous];
+
+        const bool intersects =
+            ((a.y > point.y) != (b.y > point.y)) &&
+            (point.x < (b.x - a.x) * (point.y - a.y) / ((b.y - a.y) + 0.00001f) + a.x);
+        if (intersects)
+        {
+            inside = !inside;
+        }
+
+        previous = current;
+    }
+
+    return inside;
 }
 
 float EstimatedTextHalfWidth(const std::string_view text, const float fontSize, const float letterSpacing)
@@ -1711,6 +1787,7 @@ void EditorApplication::DrawWorkspace()
                 DrawPreviewOverlays(pageViewport);
                 HandlePreviewInteraction(pageViewport);
             }
+            DrawPageReticleContextMenu();
         }
         else
         {
@@ -1770,6 +1847,7 @@ void EditorApplication::DrawWorkspace()
         DrawPagePreview(viewport);
         DrawPreviewOverlays(viewport);
         HandlePreviewInteraction(viewport);
+        DrawPageReticleContextMenu();
     }
     else
     {
@@ -1982,7 +2060,8 @@ void EditorApplication::EnsurePreviewTexture(const int width, const int height)
     }
 
     ReleasePreviewTexture();
-    previewTexture_ = LoadRenderTexture(width, height);
+    previewTextureStencilReady_ = false;
+    previewTexture_ = mfd::LoadRenderTextureWithStencil(width, height, &previewTextureStencilReady_);
     previewTextureReady_ = previewTexture_.texture.id != 0;
 }
 
@@ -1991,9 +2070,11 @@ void EditorApplication::ReleasePreviewTexture()
     if (previewTextureReady_)
     {
         UnloadRenderTexture(previewTexture_);
-        previewTextureReady_ = false;
         previewTexture_ = {};
     }
+
+    previewTextureReady_ = false;
+    previewTextureStencilReady_ = false;
 }
 
 void EditorApplication::EnsureTooltipPreviewTexture(const int width, const int height)
@@ -2006,7 +2087,9 @@ void EditorApplication::EnsureTooltipPreviewTexture(const int width, const int h
     }
 
     ReleaseTooltipPreviewTexture();
-    tooltipPreviewTexture_ = LoadRenderTexture(width, height);
+    tooltipPreviewTextureStencilReady_ = false;
+    tooltipPreviewTexture_ =
+        mfd::LoadRenderTextureWithStencil(width, height, &tooltipPreviewTextureStencilReady_);
     tooltipPreviewTextureReady_ = tooltipPreviewTexture_.texture.id != 0;
 }
 
@@ -2015,9 +2098,11 @@ void EditorApplication::ReleaseTooltipPreviewTexture()
     if (tooltipPreviewTextureReady_)
     {
         UnloadRenderTexture(tooltipPreviewTexture_);
-        tooltipPreviewTextureReady_ = false;
         tooltipPreviewTexture_ = {};
     }
+
+    tooltipPreviewTextureReady_ = false;
+    tooltipPreviewTextureStencilReady_ = false;
 }
 
 void EditorApplication::ApplyPreviewFontFile(std::filesystem::path fontFile)
@@ -2109,7 +2194,9 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             previewTexture_.texture.width,
             previewTexture_.texture.height,
             viewport.view,
-            PreviewTextFont());
+            PreviewTextFont(),
+            ToRayColor(page->backgroundColor),
+            previewTextureStencilReady_);
         for (const auto& reticle : page->staticReticles)
         {
             if (!IsReticleVisibleInEditor(*page, reticle))
@@ -2139,6 +2226,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         "Editor-only page preview.\n"
         "Mouse wheel zooms the editor camera only.\n"
         "Right-drag pans the editor camera.\n"
+        "Right-click a convex page primitive to open its clipping menu.\n"
         "Left-drag the minimap viewport to navigate without changing authored reticle data.");
 
     if (ImGui::BeginDragDropTarget())
@@ -2174,7 +2262,9 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
             previewTexture_.texture.width,
             previewTexture_.texture.height,
             viewport.view,
-            PreviewTextFont());
+            PreviewTextFont(),
+            Color {10, 18, 24, 255},
+            previewTextureStencilReady_);
         canvas.DrawReticle(*reticle);
     }
     EndTextureMode();
@@ -2686,6 +2776,20 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         return;
     }
 
+    if (interactionMode_ == InteractionMode::None &&
+        !mouseInsideMinimap &&
+        IsMouseButtonReleased(MOUSE_BUTTON_RIGHT) &&
+        !ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+    {
+        if (const auto clipTarget = FindNearestPageClipPrimitive(interactiveViewport, mouse); clipTarget.has_value())
+        {
+            SelectPageReticle(selection_.pageIndex, clipTarget->reticleIndex);
+            pagePreviewContextReticleIndex_ = clipTarget->reticleIndex;
+            pagePreviewContextPrimitiveIndex_ = clipTarget->primitiveIndex;
+            ImGui::OpenPopup("PageReticleContextMenu");
+        }
+    }
+
     if (interactionMode_ == InteractionMode::None && rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
     {
         interactionMode_ = InteractionMode::PanPage;
@@ -2847,6 +2951,129 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         interactionMode_ = InteractionMode::None;
         interactionReticleIndex_ = -1;
     }
+}
+
+bool EditorApplication::ApplyPageReticleClipping(const int reticleIndex,
+                                                 const mfd::ReticleClipMode mode,
+                                                 std::string primitiveId)
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr ||
+        reticleIndex < 0 ||
+        reticleIndex >= static_cast<int>(page->staticReticles.size()))
+    {
+        return false;
+    }
+
+    mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+    if (primitiveId.empty())
+    {
+        primitiveId = reticle.clipping.primitiveId;
+    }
+
+    if (reticle.clipping.mode == mode && reticle.clipping.primitiveId == primitiveId)
+    {
+        return false;
+    }
+
+    PushUndoSnapshot();
+    reticle.clipping.mode = mode;
+    reticle.clipping.primitiveId = std::move(primitiveId);
+    pagePreviewContextReticleIndex_ = reticleIndex;
+    pagePreviewContextPrimitiveIndex_ = -1;
+    for (int primitiveIndex = 0; primitiveIndex < static_cast<int>(reticle.primitives.size()); ++primitiveIndex)
+    {
+        if (reticle.primitives[static_cast<std::size_t>(primitiveIndex)].id == reticle.clipping.primitiveId)
+        {
+            pagePreviewContextPrimitiveIndex_ = primitiveIndex;
+            break;
+        }
+    }
+    SelectPageReticle(selection_.pageIndex, reticleIndex);
+
+    if (mode == mfd::ReticleClipMode::None)
+    {
+        RebuildStatus("Clipping disabled for page reticle '" + reticle.id + "'.", false);
+    }
+    else
+    {
+        RebuildStatus(std::string(ReticleClipModeLabel(mode)) + " enabled on primitive '" + reticle.clipping.primitiveId +
+                          "' for page reticle '" + reticle.id + "'.",
+                      false);
+    }
+
+    return true;
+}
+
+void EditorApplication::DrawPageReticleContextMenu()
+{
+    if (!ImGui::BeginPopup("PageReticleContextMenu"))
+    {
+        return;
+    }
+
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr ||
+        pagePreviewContextReticleIndex_ < 0 ||
+        pagePreviewContextReticleIndex_ >= static_cast<int>(page->staticReticles.size()))
+    {
+        ImGui::TextDisabled("No convex page primitive selected.");
+        ImGui::EndPopup();
+        return;
+    }
+
+    mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(pagePreviewContextReticleIndex_)];
+    if (pagePreviewContextPrimitiveIndex_ < 0 ||
+        pagePreviewContextPrimitiveIndex_ >= static_cast<int>(reticle.primitives.size()))
+    {
+        ImGui::TextDisabled("No convex page primitive selected.");
+        ImGui::EndPopup();
+        return;
+    }
+
+    mfd::Primitive& primitive = reticle.primitives[static_cast<std::size_t>(pagePreviewContextPrimitiveIndex_)];
+    if (primitive.id.empty() || !mfd::SupportsReticleClipPrimitive(primitive))
+    {
+        ImGui::TextDisabled("The selected primitive does not support clipping.");
+        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
+        ImGui::EndPopup();
+        return;
+    }
+
+    ImGui::TextUnformatted(reticle.id.c_str());
+    ImGui::TextDisabled("%s", (primitive.id + " (" + PrimitiveTypeLabel(primitive.type) + ")").c_str());
+    ImGui::Separator();
+
+    if (ImGui::MenuItem("Clip inside",
+                        nullptr,
+                        reticle.clipping.mode == mfd::ReticleClipMode::Inner &&
+                            reticle.clipping.primitiveId == primitive.id))
+    {
+        ApplyPageReticleClipping(pagePreviewContextReticleIndex_, mfd::ReticleClipMode::Inner, primitive.id);
+    }
+    ShowItemTooltip("Erase the inside of this convex primitive toward the page background color.");
+
+    if (ImGui::MenuItem("Clip outside",
+                        nullptr,
+                        reticle.clipping.mode == mfd::ReticleClipMode::Outer &&
+                            reticle.clipping.primitiveId == primitive.id))
+    {
+        ApplyPageReticleClipping(pagePreviewContextReticleIndex_, mfd::ReticleClipMode::Outer, primitive.id);
+    }
+    ShowItemTooltip("Erase everything outside this convex primitive toward the page background color.");
+
+    if (ImGui::MenuItem("Disable clipping",
+                        nullptr,
+                        reticle.clipping.mode == mfd::ReticleClipMode::None))
+    {
+        ApplyPageReticleClipping(pagePreviewContextReticleIndex_, mfd::ReticleClipMode::None, reticle.clipping.primitiveId);
+    }
+    ShowItemTooltip("Disable clipping for this page reticle.");
+
+    ImGui::Separator();
+    ImGui::TextDisabled("Right-click a convex page primitive to clip through that exact shape.");
+
+    ImGui::EndPopup();
 }
 
 void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& viewport)
@@ -3555,7 +3782,12 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
     ClearBackground(backgroundColor);
     {
         EnsurePreviewFont();
-        mfd::Canvas2D canvas(kTooltipPreviewWidth, kTooltipPreviewHeight, previewView, PreviewTextFont());
+        mfd::Canvas2D canvas(kTooltipPreviewWidth,
+                             kTooltipPreviewHeight,
+                             previewView,
+                             PreviewTextFont(),
+                             backgroundColor,
+                             tooltipPreviewTextureStencilReady_);
         canvas.DrawReticle(previewReticle);
     }
     EndTextureMode();
@@ -3948,6 +4180,10 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
     if (points.size() > 2)
     {
         bestDistance = std::min(bestDistance, distanceToSegment(points.back(), points.front()));
+        if (IsPointInsidePolygon(points, mousePosition))
+        {
+            bestDistance = std::min(bestDistance, 2.0f);
+        }
     }
 
     return bestDistance;
@@ -4037,6 +4273,47 @@ std::optional<int> EditorApplication::FindNearestPageReticle(const ViewportState
     }
 
     return bestIndex;
+}
+
+std::optional<EditorApplication::PageClipTarget> EditorApplication::FindNearestPageClipPrimitive(
+    const ViewportState& viewport,
+    const ImVec2 mousePosition) const
+{
+    const mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    float bestDistance = 10.0f;
+    std::optional<PageClipTarget> bestTarget;
+
+    for (int reticleIndex = static_cast<int>(page->staticReticles.size()) - 1; reticleIndex >= 0; --reticleIndex)
+    {
+        const auto& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+        if (!IsReticleVisibleInEditor(*page, reticle))
+        {
+            continue;
+        }
+
+        for (int primitiveIndex = static_cast<int>(reticle.primitives.size()) - 1; primitiveIndex >= 0; --primitiveIndex)
+        {
+            const auto& primitive = reticle.primitives[static_cast<std::size_t>(primitiveIndex)];
+            if (primitive.id.empty() || !mfd::SupportsReticleClipPrimitive(primitive) || !primitive.style.visible)
+            {
+                continue;
+            }
+
+            float distance = PrimitiveHitDistancePixels(reticle, primitive, viewport, mousePosition);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestTarget = PageClipTarget {reticleIndex, primitiveIndex};
+            }
+        }
+    }
+
+    return bestTarget;
 }
 
 std::optional<int> EditorApplication::FindNearestLibraryPrimitive(const ViewportState& viewport,
@@ -5139,6 +5416,83 @@ void EditorApplication::DrawPageReticleInspector()
     }
 
     DrawPageReticleBlinkInspector(*page, *reticle);
+
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Clipping");
+    const std::vector<ClipPrimitiveOption> clipOptions = CollectClipPrimitiveOptions(*reticle);
+    if (clipOptions.empty())
+    {
+        ImGui::TextDisabled("No supported convex primitive with an id is available for clipping.");
+        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
+    }
+    else
+    {
+        std::string currentClipPrimitiveLabel = reticle->clipping.primitiveId.empty()
+                                                    ? std::string {"<select primitive>"}
+                                                    : std::string {"<missing primitive>"};
+        for (const auto& option : clipOptions)
+        {
+            if (option.primitiveId == reticle->clipping.primitiveId)
+            {
+                currentClipPrimitiveLabel = option.label;
+                break;
+            }
+        }
+
+        if (ImGui::BeginCombo("Clip primitive", currentClipPrimitiveLabel.c_str()))
+        {
+            for (const auto& option : clipOptions)
+            {
+                const bool selected = option.primitiveId == reticle->clipping.primitiveId;
+                if (ImGui::Selectable(option.label.c_str(), selected))
+                {
+                    ApplyPageReticleClipping(selection_.pageReticleIndex, reticle->clipping.mode, option.primitiveId);
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Choose which convex primitive erases the inside or the outside toward the page background.");
+
+        const char* currentModeLabel = ReticleClipModeLabel(reticle->clipping.mode);
+        if (ImGui::BeginCombo("Clip mode", currentModeLabel))
+        {
+            const std::array modes {
+                mfd::ReticleClipMode::None,
+                mfd::ReticleClipMode::Inner,
+                mfd::ReticleClipMode::Outer};
+
+            for (const mfd::ReticleClipMode mode : modes)
+            {
+                const bool selected = reticle->clipping.mode == mode;
+                if (ImGui::Selectable(ReticleClipModeLabel(mode), selected))
+                {
+                    const std::string primitiveId =
+                        reticle->clipping.primitiveId.empty() ? clipOptions.front().primitiveId : reticle->clipping.primitiveId;
+                    ApplyPageReticleClipping(selection_.pageReticleIndex, mode, primitiveId);
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip(
+            "Inner clipping erases the inside of the selected shape. Outer clipping erases everything outside it.");
+
+        if (reticle->clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(*reticle) == nullptr)
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.42f, 1.0f), "The current clip primitive is missing or unsupported.");
+        }
+
+        ImGui::TextDisabled("The selected primitive erases toward the page background when this reticle is drawn.");
+    }
 
     const bool positionChanged = ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f");
     ShowItemTooltip("Logical position of this page reticle on the active page.");

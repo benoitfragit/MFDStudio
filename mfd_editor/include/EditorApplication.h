@@ -118,6 +118,13 @@ private:
         bool valid = false;
     };
 
+    /** @brief Primitive-level target used by the page clipping context menu. */
+    struct PageClipTarget
+    {
+        int reticleIndex = -1;
+        int primitiveIndex = -1;
+    };
+
     /** @brief Full undo snapshot storing the loaded document, file layout and current selection. */
     struct UndoSnapshot
     {
@@ -203,6 +210,8 @@ private:
     void DrawPreviewOverlays(const ViewportState& viewport);
     /** @brief Handles drag interactions in the page preview. */
     void HandlePreviewInteraction(const ViewportState& viewport);
+    /** @brief Draws the page-preview context menu for reticle-specific actions. */
+    void DrawPageReticleContextMenu();
     /** @brief Draws overlays specific to the library-studio preview. */
     void DrawLibraryPreviewOverlays(const ViewportState& viewport);
     /** @brief Handles drag interactions in the library-studio preview. */
@@ -295,6 +304,8 @@ private:
     void UpdateReticleSelectionFromClick(const ViewportState& viewport, bool additiveSelection);
     /** @brief Finds the nearest page reticle to the mouse for hit-testing. */
     std::optional<int> FindNearestPageReticle(const ViewportState& viewport, ImVec2 mousePosition) const;
+    /** @brief Finds the nearest supported convex page primitive to the mouse for clipping actions. */
+    std::optional<PageClipTarget> FindNearestPageClipPrimitive(const ViewportState& viewport, ImVec2 mousePosition) const;
     /** @brief Finds the nearest library primitive to the mouse for hit-testing. */
     std::optional<int> FindNearestLibraryPrimitive(const ViewportState& viewport, ImVec2 mousePosition) const;
     /** @brief Applies the current direct-manipulation transform from mouse movement. */
@@ -312,6 +323,8 @@ private:
                                      const mfd::Primitive& primitive,
                                      const ViewportState& viewport,
                                      ImVec2 mousePosition) const;
+    /** @brief Applies one clipping mode change to a page reticle and reports status. */
+    bool ApplyPageReticleClipping(int reticleIndex, mfd::ReticleClipMode mode, std::string primitiveId);
 
     /** @brief Builds a minimal reticle template containing one primitive of the requested type. */
     static mfd::ReticleGroup MakePrimitiveReticle(std::string id, mfd::PrimitiveType primitiveType);
@@ -335,10 +348,14 @@ private:
     RenderTexture2D previewTexture_ {};
     /** @brief Indicates whether the preview texture currently owns GPU resources. */
     bool previewTextureReady_ = false;
+    /** @brief Indicates whether the preview texture was successfully created with stencil support. */
+    bool previewTextureStencilReady_ = false;
     /** @brief Off-screen texture dedicated to tree-item hover previews. */
     RenderTexture2D tooltipPreviewTexture_ {};
     /** @brief Indicates whether the hover-preview texture currently owns GPU resources. */
     bool tooltipPreviewTextureReady_ = false;
+    /** @brief Indicates whether the hover-preview texture was successfully created with stencil support. */
+    bool tooltipPreviewTextureStencilReady_ = false;
     /** @brief Font file declared by the current window configuration. */
     std::filesystem::path previewFontFile_ {};
     /** @brief GPU font override used by the preview canvases when available. */
@@ -411,4 +428,8 @@ private:
     mfd::PageViewState libraryPreviewView_ {};
     /** @brief Logical offset preserved while dragging the viewport rectangle inside the minimap. */
     mfd::Vec2 minimapDragOffsetLogical_ {};
+    /** @brief Reticle currently targeted by the page-preview context menu. */
+    int pagePreviewContextReticleIndex_ = -1;
+    /** @brief Primitive currently targeted by the page-preview clipping context menu. */
+    int pagePreviewContextPrimitiveIndex_ = -1;
 };

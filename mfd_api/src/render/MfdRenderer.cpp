@@ -14,6 +14,7 @@
 #include <raylib.h>
 
 #include "mfd/render/Canvas2D.h"
+#include "mfd/render/RenderTextureUtils.h"
 
 namespace mfd
 {
@@ -56,10 +57,24 @@ bool NeedsWindowPostProcess(const WindowDisplayState& display) noexcept
     return display.invertColors || display.brightness < 0.9995f;
 }
 
+bool ActiveSceneUsesReticleClipping(const SceneRegistry& scene)
+{
+    for (const ReticleRenderView& reticle : scene.CollectActiveReticleViews())
+    {
+        if (reticle.group != nullptr && reticle.visible && ResolveClipPrimitive(*reticle.group) != nullptr)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void DrawActivePageContent(const SceneRegistry& scene,
                            const int width,
                            const int height,
-                           const Font* textFont)
+                           const Font* textFont,
+                           const bool clippingEnabled)
 {
     const auto activePage = scene.ActivePageSummary();
     if (!activePage.has_value())
@@ -67,7 +82,13 @@ void DrawActivePageContent(const SceneRegistry& scene,
         return;
     }
 
-    Canvas2D canvas(width, height, scene.ActivePageView(), textFont);
+    Canvas2D canvas(
+        width,
+        height,
+        scene.ActivePageView(),
+        textFont,
+        ToRayColor(scene.ActiveBackgroundColor()),
+        clippingEnabled);
 
     for (const ReticleRenderView& reticle : scene.CollectActiveReticleViews())
     {
@@ -95,6 +116,7 @@ struct MfdRenderer::Impl
     RenderTexture2D renderTarget {};
     Shader shader {};
     bool renderTargetReady = false;
+    bool renderTargetStencilReady = false;
     bool shaderReady = false;
     int brightnessLocation = -1;
     int invertColorsLocation = -1;
@@ -129,6 +151,7 @@ struct MfdRenderer::Impl
             UnloadRenderTexture(renderTarget);
             renderTarget = {};
             renderTargetReady = false;
+            renderTargetStencilReady = false;
         }
 
         if (shaderReady)
@@ -160,9 +183,11 @@ struct MfdRenderer::Impl
             UnloadRenderTexture(renderTarget);
             renderTarget = {};
             renderTargetReady = false;
+            renderTargetStencilReady = false;
         }
 
-        renderTarget = LoadRenderTexture(width, height);
+        renderTargetStencilReady = false;
+        renderTarget = LoadRenderTextureWithStencil(width, height, &renderTargetStencilReady);
         renderTargetReady = renderTarget.id != 0;
         return renderTargetReady;
     }
@@ -294,15 +319,16 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
     }
 
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();
-    if (!NeedsWindowPostProcess(display))
+    const bool needsRenderTarget = NeedsWindowPostProcess(display) || ActiveSceneUsesReticleClipping(scene);
+    if (!needsRenderTarget)
     {
-        DrawActivePageContent(scene, screenWidth, screenHeight, textFont);
+        DrawActivePageContent(scene, screenWidth, screenHeight, textFont, false);
         return;
     }
 
     if (impl_ == nullptr || !impl_->EnsureShader() || !impl_->EnsureRenderTarget(screenWidth, screenHeight))
     {
-        DrawActivePageContent(scene, screenWidth, screenHeight, textFont);
+        DrawActivePageContent(scene, screenWidth, screenHeight, textFont, false);
 
         if (display.brightness < 0.9995f)
         {
@@ -316,13 +342,8 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
 
     BeginTextureMode(impl_->renderTarget);
     ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
-    DrawActivePageContent(scene, screenWidth, screenHeight, textFont);
+    DrawActivePageContent(scene, screenWidth, screenHeight, textFont, impl_->renderTargetStencilReady);
     EndTextureMode();
-
-    const float brightness = std::clamp(display.brightness, 0.0f, 1.0f);
-    const float invertColors = display.invertColors ? 1.0f : 0.0f;
-    SetShaderValue(impl_->shader, impl_->brightnessLocation, &brightness, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(impl_->shader, impl_->invertColorsLocation, &invertColors, SHADER_UNIFORM_FLOAT);
 
     const Rectangle source {
         0.0f,
@@ -330,6 +351,17 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
         static_cast<float>(impl_->renderTarget.texture.width),
         -static_cast<float>(impl_->renderTarget.texture.height)};
     const Rectangle destination {0.0f, 0.0f, static_cast<float>(screenWidth), static_cast<float>(screenHeight)};
+
+    if (!NeedsWindowPostProcess(display))
+    {
+        DrawTexturePro(impl_->renderTarget.texture, source, destination, Vector2 {0.0f, 0.0f}, 0.0f, WHITE);
+        return;
+    }
+
+    const float brightness = std::clamp(display.brightness, 0.0f, 1.0f);
+    const float invertColors = display.invertColors ? 1.0f : 0.0f;
+    SetShaderValue(impl_->shader, impl_->brightnessLocation, &brightness, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(impl_->shader, impl_->invertColorsLocation, &invertColors, SHADER_UNIFORM_FLOAT);
 
     BeginShaderMode(impl_->shader);
     DrawTexturePro(impl_->renderTarget.texture, source, destination, Vector2 {0.0f, 0.0f}, 0.0f, WHITE);

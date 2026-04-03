@@ -21,6 +21,7 @@ set(MFD_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/Canvas2D.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/OpenGlFramebufferReader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/MfdRenderer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/RenderTextureUtils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/SceneRegistry.h)
 
 set(MFD_API_SOURCES
@@ -39,7 +40,9 @@ set(MFD_API_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/SceneRegistry.cpp)
 
 set(MFD_API_PROTO_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -104,7 +107,7 @@ target_compile_definitions(mfd_api
         MFD_API_EXPORTS)
 
 if(WIN32)
-    target_link_libraries(mfd_api PUBLIC ws2_32)
+    target_link_libraries(mfd_api PUBLIC ws2_32 opengl32)
     target_compile_definitions(mfd_api PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 

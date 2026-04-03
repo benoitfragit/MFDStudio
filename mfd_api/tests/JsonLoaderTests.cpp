@@ -414,6 +414,79 @@ TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliases
     EXPECT_EQ(loadedDocument.pages.front().staticReticles.front().sourceTemplateId, "filename_marker");
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesInlineAndTemplateReticleClipping)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "mask_template.json",
+                  R"json({
+  "id": "mask_template",
+  "clipping": {
+    "mode": "outer",
+    "primitive": "body"
+  },
+  "elements": [
+    { "id": "body", "type": "rectangle", "width": 0.12, "height": 0.08 },
+    { "id": "mark", "type": "line", "start": [-0.04, 0.0], "end": [0.04, 0.0] }
+  ]
+})json");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Radar",
+      "staticReticles": [
+        {
+          "id": "template_instance",
+          "template": "mask_template",
+          "clipping": {
+            "mode": "inner",
+            "primitive": "body"
+          }
+        },
+        {
+          "id": "template_inherited",
+          "template": "mask_template"
+        },
+        {
+          "id": "inline_instance",
+          "clipping": {
+            "mode": "outer",
+            "primitive": "clip"
+          },
+          "elements": [
+            { "id": "clip", "type": "ellipse", "width": 0.10, "height": 0.06 },
+            { "id": "label", "type": "text", "text": "T", "size": 0.03 }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument loaded = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(loaded.reticleLibrary.size(), 1U);
+    const auto templateIt = loaded.reticleLibrary.find("mask_template");
+    ASSERT_NE(templateIt, loaded.reticleLibrary.end());
+    EXPECT_EQ(templateIt->second.clipping.mode, mfd::ReticleClipMode::Outer);
+    EXPECT_EQ(templateIt->second.clipping.primitiveId, "body");
+
+    ASSERT_EQ(loaded.pages.size(), 1U);
+    ASSERT_EQ(loaded.pages.front().staticReticles.size(), 3U);
+    EXPECT_EQ(loaded.pages.front().staticReticles[0].clipping.mode, mfd::ReticleClipMode::Inner);
+    EXPECT_EQ(loaded.pages.front().staticReticles[0].clipping.primitiveId, "body");
+    EXPECT_EQ(loaded.pages.front().staticReticles[1].clipping.mode, mfd::ReticleClipMode::Outer);
+    EXPECT_EQ(loaded.pages.front().staticReticles[1].clipping.primitiveId, "body");
+    EXPECT_EQ(loaded.pages.front().staticReticles[2].clipping.mode, mfd::ReticleClipMode::Outer);
+    EXPECT_EQ(loaded.pages.front().staticReticles[2].clipping.primitiveId, "clip");
+}
+
 TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUnknownDefaultPageName)
 {
     TemporaryFolder workspace;

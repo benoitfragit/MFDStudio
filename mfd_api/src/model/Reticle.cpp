@@ -118,6 +118,43 @@ const Primitive* FindPrimitive(const ReticleGroup& reticle, const std::string_vi
     return iterator == reticle.primitives.end() ? nullptr : &(*iterator);
 }
 
+bool SupportsReticleClipPrimitive(const Primitive& primitive) noexcept
+{
+    switch (primitive.type)
+    {
+    case PrimitiveType::Circle:
+    case PrimitiveType::Rectangle:
+    case PrimitiveType::Ellipse:
+    case PrimitiveType::Square:
+    case PrimitiveType::Triangle:
+        return true;
+    default:
+        return false;
+    }
+}
+
+Primitive* ResolveClipPrimitive(ReticleGroup& reticle) noexcept
+{
+    if (reticle.clipping.mode == ReticleClipMode::None || reticle.clipping.primitiveId.empty())
+    {
+        return nullptr;
+    }
+
+    Primitive* primitive = FindPrimitive(reticle, reticle.clipping.primitiveId);
+    return primitive != nullptr && SupportsReticleClipPrimitive(*primitive) ? primitive : nullptr;
+}
+
+const Primitive* ResolveClipPrimitive(const ReticleGroup& reticle) noexcept
+{
+    if (reticle.clipping.mode == ReticleClipMode::None || reticle.clipping.primitiveId.empty())
+    {
+        return nullptr;
+    }
+
+    const Primitive* primitive = FindPrimitive(reticle, reticle.clipping.primitiveId);
+    return primitive != nullptr && SupportsReticleClipPrimitive(*primitive) ? primitive : nullptr;
+}
+
 bool SetTextPrimitive(ReticleGroup& reticle, const std::string_view primitiveId, std::string value)
 {
     Primitive* primitive = FindPrimitive(reticle, primitiveId);

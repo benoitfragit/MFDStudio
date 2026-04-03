@@ -29,6 +29,7 @@ using json = nlohmann::json;
 ReticleInfo ParseReticleInfo(const json& node);
 ReticleBlinkState ParseReticleBlinkState(const json& node);
 ReticleEditorState ParseReticleEditorState(const json& node);
+ReticleClipState ParseReticleClipState(const json& node);
 std::vector<PageBlinkDefinition> ParsePageBlinkDefinitions(const json& node);
 PageEditorState ParsePageEditorState(const json& node);
 StrobeCaptureConfig ParseStrobeCaptureConfig(const json& node);
@@ -1302,6 +1303,7 @@ ReticleGroup ParseInlineReticle(const json& node)
     group.transform = ParseTransform(node);
     group.overrides = ParseReticleOverrides(node);
     group.editor = ParseReticleEditorState(node);
+    group.clipping = ParseReticleClipState(node);
 
     for (const auto& element : node.at("elements"))
     {
@@ -1343,6 +1345,10 @@ ReticleGroup ParseReticle(const json& node, const ReticleLibrary& library)
         group.blink = ParseReticleBlinkState(node);
         group.visible = ParseVisibleFlag(node).value_or(group.visible);
         group.editor = ParseReticleEditorState(node);
+        if (FindField(node, {"clipping", "clip"}) != nullptr)
+        {
+            group.clipping = ParseReticleClipState(node);
+        }
         ApplyReticleTextOverrides(node, group);
         return group;
     }
@@ -1566,6 +1572,64 @@ ReticleEditorState ParseReticleEditorState(const json& node)
     }
 
     return editorState;
+}
+
+ReticleClipState ParseReticleClipState(const json& node)
+{
+    ReticleClipState clipping;
+
+    const json* clippingNode = FindField(node, {"clipping", "clip"});
+    if (clippingNode == nullptr || clippingNode->is_null())
+    {
+        return clipping;
+    }
+
+    if (!clippingNode->is_object())
+    {
+        throw std::runtime_error("clipping must be a JSON object");
+    }
+
+    const json* modeNode = FindField(*clippingNode, {"mode", "type"});
+    if (modeNode == nullptr || !modeNode->is_string())
+    {
+        throw std::runtime_error("clipping.mode must be a string");
+    }
+
+    const std::string modeToken = CanonicalToken(modeNode->get<std::string>());
+    if (modeToken.empty() || modeToken == "none" || modeToken == "disabled" || modeToken == "off")
+    {
+        clipping.mode = ReticleClipMode::None;
+    }
+    else if (modeToken == "inner" || modeToken == "clipinner" || modeToken == "inside" || modeToken == "clipinside")
+    {
+        clipping.mode = ReticleClipMode::Inner;
+    }
+    else if (modeToken == "outer" || modeToken == "clipouter" || modeToken == "outside" || modeToken == "clipoutside")
+    {
+        clipping.mode = ReticleClipMode::Outer;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported clipping mode: " + modeNode->get<std::string>());
+    }
+
+    if (const json* primitiveNode = FindField(*clippingNode, {"primitive", "primitiveId", "mask"});
+        primitiveNode != nullptr && !primitiveNode->is_null())
+    {
+        if (!primitiveNode->is_string())
+        {
+            throw std::runtime_error("clipping.primitive must be a string");
+        }
+
+        clipping.primitiveId = primitiveNode->get<std::string>();
+    }
+
+    if (clipping.mode != ReticleClipMode::None && clipping.primitiveId.empty())
+    {
+        throw std::runtime_error("clipping requires a primitive id when enabled");
+    }
+
+    return clipping;
 }
 
 std::vector<PageBlinkDefinition> ParsePageBlinkDefinitions(const json& node)
