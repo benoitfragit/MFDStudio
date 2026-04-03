@@ -167,6 +167,24 @@ TEST(SceneRegistryTests, ActivatesFirstPageAndIgnoresUnknownPage)
     EXPECT_EQ(registry.ActivePageName(), "Navigation");
 }
 
+TEST(SceneRegistryTests, ActivatesMarkedDefaultPageWhenPresent)
+{
+    mfd::PageDefinition firstPage = MakeBlinkPage();
+    mfd::PageDefinition secondPage;
+    secondPage.name = "Navigation";
+    secondPage.normalizedName = "navigation";
+    secondPage.title = "Navigation";
+    secondPage.defaultPage = true;
+    secondPage.staticReticles.push_back(MakeReticle("nav_symbol"));
+
+    mfd::MfdDocument document;
+    document.pages = {std::move(firstPage), std::move(secondPage)};
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    EXPECT_EQ(registry.ActivePageName(), "Navigation");
+}
+
 TEST(SceneRegistryTests, BlinkTypeChangesUpdateDurationAndClearFallsBackToPageDefault)
 {
     mfd::MfdDocument document;

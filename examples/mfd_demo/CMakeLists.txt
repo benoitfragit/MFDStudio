@@ -1,34 +1,14 @@
 # This file is part of MFDStudio.
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
-set(MFD_DEMO_SHARED_HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/DemoTrackFeed.h
-)
-
-set(MFD_DEMO_SHARED_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/DemoTrackFeed.cpp
-)
-
-set(MFD_DEMO_HEADERS
-    ${MFD_DEMO_SHARED_HEADERS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/MfdApplication.h)
-
 set(MFD_DEMO_SOURCES
-    ${MFD_DEMO_SHARED_SOURCES}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdApplication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
-add_executable(mfd_demo ${MFD_DEMO_HEADERS} ${MFD_DEMO_SOURCES})
-
-target_include_directories(mfd_demo
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_executable(mfd_demo ${MFD_DEMO_SOURCES})
 
 target_link_libraries(mfd_demo
     PRIVATE
-        mfd::api
-        imgui
-        rlimgui)
+        mfd::window_launcher)
 
 set_target_properties(mfd_demo PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_demo>")

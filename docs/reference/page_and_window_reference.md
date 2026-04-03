@@ -40,6 +40,7 @@ Canonical example:
       "maxPacketSize": 4096
     }
   },
+  "defaultPage": "Radar",
   "pages": [
     "../pages/pfd.json",
     "../pages/radar.json"
@@ -63,6 +64,7 @@ Canonical example:
 | `reticleLibraryFolder` | string | recommended | Folder containing reticle templates. | `reticles`, `reticleFolder` |
 | `commands` | object | no | Command transport configuration. | `commandTransport`, `commandTransports` |
 | `feedback` | object | no | Feedback transport configuration. | `feedbackTransport`, `feedbackTransports`, `strobeFeedback`, `events` |
+| `defaultPage` | string | no | Page name opened by default when the window loads. | none |
 | `pages` | array | yes | Page JSON files loaded by this window. | `pageFiles`, `pageJsons` |
 
 Notes:
@@ -109,10 +111,15 @@ Example:
 
 ```json
 "pages": [
-  "../pages/radar.json",
-  { "file": "../pages/navigation.json" }
+  "../pages/navigation.json",
+  { "file": "../pages/radar.json" }
 ]
 ```
+
+Rules:
+
+- if `defaultPage` is omitted, the runtime opens the first page in the list
+- if `defaultPage` is provided, it must match one page name in the loaded window
 
 ## 2. UDP Command Transport
 

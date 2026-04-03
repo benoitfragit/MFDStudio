@@ -1,0 +1,495 @@
+/*
+ * This file is part of MFDStudio.
+ * Project author: Benoit Fra
+ * Repository: https://github.com/benoitfragit/MFDStudio
+ */
+#include "mfd/window/WindowLauncher.h"
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <exception>
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <sstream>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include <raylib.h>
+
+#include "mfd/control/CommandProcessor.h"
+#include "mfd/control/StrobeFeedback.h"
+#include "mfd/control/UdpRuntimeBridge.h"
+#include "mfd/io/JsonLoader.h"
+#include "mfd/render/MfdRenderer.h"
+#include "mfd/runtime/SceneRegistry.h"
+
+#if defined(_WIN32)
+extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
+#endif
+
+namespace
+{
+constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
+
+struct CommandLineOptions
+{
+    std::filesystem::path windowFile;
+    bool showHelp = false;
+};
+
+Color ToRayColor(const mfd::ColorRgba& color)
+{
+    return Color {color.r, color.g, color.b, color.a};
+}
+
+mfd::StrobeFeedbackCapture ToFeedbackCapture(const mfd::StrobeCaptureResult& capture)
+{
+    return mfd::StrobeFeedbackCapture {
+        capture.reticleId,
+        capture.sourceTemplateId,
+        capture.label,
+        capture.category,
+        capture.position,
+        capture.distance,
+        capture.metadata};
+}
+
+mfd::StrobeFeedbackMagnet ToFeedbackMagnet(const std::optional<mfd::StrobeMagnetSummary>& magnetSummary)
+{
+    if (!magnetSummary.has_value())
+    {
+        return {};
+    }
+
+    return mfd::StrobeFeedbackMagnet {
+        magnetSummary->enabled,
+        magnetSummary->radius,
+        magnetSummary->strength,
+        magnetSummary->magnetized,
+        magnetSummary->reticleId,
+        magnetSummary->targetPosition,
+        magnetSummary->distance};
+}
+
+bool ParseCommandLine(const int argc,
+                      char** argv,
+                      const mfd::window::LauncherConfig& config,
+                      CommandLineOptions& options,
+                      std::string& error)
+{
+    options.windowFile =
+        config.defaultWindowFile.empty() ? std::filesystem::path {"assets/windows/demo_pages.json"} : config.defaultWindowFile;
+    bool positionalWindowConsumed = false;
+
+    for (int index = 1; index < argc; ++index)
+    {
+        const std::string_view argument = argv[index] != nullptr ? std::string_view {argv[index]} : std::string_view {};
+
+        if (argument == "--help" || argument == "-h")
+        {
+            options.showHelp = true;
+            return true;
+        }
+
+        if (argument == "--window" || argument == "-w")
+        {
+            if (index + 1 >= argc || argv[index + 1] == nullptr)
+            {
+                error = "Missing path after '--window'.";
+                return false;
+            }
+
+            options.windowFile = argv[++index];
+            positionalWindowConsumed = true;
+            continue;
+        }
+
+        if (!argument.empty() && argument.front() == '-')
+        {
+            error = "Unknown option: " + std::string(argument);
+            return false;
+        }
+
+        if (positionalWindowConsumed)
+        {
+            error = "Only one window JSON path can be provided.";
+            return false;
+        }
+
+        options.windowFile = std::filesystem::path {std::string(argument)};
+        positionalWindowConsumed = true;
+    }
+
+    return true;
+}
+
+void ReportFatalError(const std::string_view applicationName, const std::string& message)
+{
+    std::cerr << applicationName << " fatal error: " << message << '\n';
+}
+
+class GenericWindowApplication
+{
+public:
+    GenericWindowApplication(std::string applicationName, std::filesystem::path windowFile) :
+        applicationName_(std::move(applicationName)),
+        windowFile_(std::move(windowFile)),
+        commandProcessor_(scene_)
+    {
+    }
+
+    int Run()
+    {
+        if (!ReloadConfiguration())
+        {
+            throw std::runtime_error("Unable to load window JSON '" + windowFile_.string() + "': " + lastReloadError_);
+        }
+
+        SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+        InitWindow(windowDefinition_.width, windowDefinition_.height, windowDefinition_.title.c_str());
+        SetWindowPosition(windowDefinition_.positionX, windowDefinition_.positionY);
+
+        if (windowDefinition_.targetFps > 0)
+        {
+            SetTargetFPS(windowDefinition_.targetFps);
+        }
+
+        PrintStartupSummary();
+
+        while (!WindowShouldClose())
+        {
+            const float deltaSeconds = GetFrameTime();
+
+            try
+            {
+                HandleShortcuts();
+                Update(deltaSeconds);
+            }
+            catch (const std::exception& exception)
+            {
+                lastRuntimeError_ = exception.what();
+            }
+            catch (...)
+            {
+                lastRuntimeError_ = "Unknown exception during update";
+            }
+
+            BeginDrawing();
+
+            try
+            {
+                ClearBackground(ToRayColor(scene_.ActiveBackgroundColor()));
+                renderer_.DrawActivePage(scene_);
+            }
+            catch (const std::exception& exception)
+            {
+                lastRuntimeError_ = exception.what();
+            }
+            catch (...)
+            {
+                lastRuntimeError_ = "Unknown exception during rendering";
+            }
+
+            EndDrawing();
+
+            if (windowDefinition_.targetFps <= 0)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds {1});
+            }
+        }
+
+        CloseWindow();
+        return 0;
+    }
+
+private:
+    bool ReloadConfiguration()
+    {
+        try
+        {
+            const std::string previousPage = scene_.ActivePageName();
+            mfd::LoadedWindowConfiguration loaded = loader_.LoadWindowConfiguration(windowFile_);
+            if (loaded.document.pages.empty())
+            {
+                throw std::runtime_error("The window JSON does not contain any page.");
+            }
+
+            windowDefinition_ = loaded.window;
+            scene_.LoadDocument(std::move(loaded.document));
+            renderer_.SetTextFontFile(windowDefinition_.fontFile);
+            udpRuntimeBridge_ = std::make_unique<mfd::UdpRuntimeBridge>(
+                windowDefinition_.commandTransports,
+                windowDefinition_.feedbackTransports);
+            (void)udpRuntimeBridge_->Start();
+
+            if (scene_.HasPage(previousPage))
+            {
+                scene_.SetActivePage(previousPage);
+            }
+
+            strobeFeedbackAccumulator_ = 0.0f;
+            nextStrobeFeedbackSequence_ = 1;
+            lastRuntimeError_.clear();
+
+            if (udpRuntimeBridge_ == nullptr || !udpRuntimeBridge_->HasCommandReceiver())
+            {
+                lastCommandStatus_ = "No UDP command transport configured in the window JSON.";
+            }
+            else
+            {
+                lastCommandStatus_ = udpRuntimeBridge_->LastCommandStatus();
+            }
+
+            if (udpRuntimeBridge_ == nullptr || !udpRuntimeBridge_->HasFeedbackSender())
+            {
+                lastFeedbackStatus_ = "No UDP feedback transport configured in the window JSON.";
+            }
+            else
+            {
+                lastFeedbackStatus_ = udpRuntimeBridge_->LastFeedbackStatus();
+            }
+
+            if (IsWindowReady())
+            {
+                SetWindowTitle(windowDefinition_.title.c_str());
+                SetWindowSize(windowDefinition_.width, windowDefinition_.height);
+                SetWindowPosition(windowDefinition_.positionX, windowDefinition_.positionY);
+
+                if (windowDefinition_.targetFps > 0)
+                {
+                    SetTargetFPS(windowDefinition_.targetFps);
+                }
+            }
+
+            lastReloadError_.clear();
+            return true;
+        }
+        catch (const std::exception& exception)
+        {
+            lastReloadError_ = exception.what();
+            return false;
+        }
+    }
+
+    void HandleShortcuts()
+    {
+        if (IsKeyPressed(KEY_R))
+        {
+            if (!ReloadConfiguration())
+            {
+                throw std::runtime_error(lastReloadError_);
+            }
+        }
+
+        static constexpr std::array<int, 9> keyBindings {
+            KEY_ONE,
+            KEY_TWO,
+            KEY_THREE,
+            KEY_FOUR,
+            KEY_FIVE,
+            KEY_SIX,
+            KEY_SEVEN,
+            KEY_EIGHT,
+            KEY_NINE};
+
+        const auto pages = scene_.Pages();
+        for (std::size_t index = 0; index < pages.size() && index < keyBindings.size(); ++index)
+        {
+            if (IsKeyPressed(keyBindings[index]))
+            {
+                scene_.SetActivePage(pages[index].name);
+            }
+        }
+    }
+
+    void Update(const float deltaSeconds)
+    {
+        if (udpRuntimeBridge_ != nullptr)
+        {
+            pendingCommands_.clear();
+            const std::size_t drainedCommands = udpRuntimeBridge_->DrainReceivedCommands(pendingCommands_);
+            if (drainedCommands > 0)
+            {
+                if (commandProcessor_.Submit(
+                        std::span<const mfd::UserCommand>(pendingCommands_.data(), pendingCommands_.size())))
+                {
+                    lastCommandStatus_ =
+                        "Applied " + std::to_string(drainedCommands) + " command(s) from the UDP I/O thread.";
+                }
+                else if (!commandProcessor_.LastError().empty())
+                {
+                    lastCommandStatus_ = commandProcessor_.LastError();
+                }
+            }
+            else if (!udpRuntimeBridge_->LastCommandStatus().empty())
+            {
+                lastCommandStatus_ = udpRuntimeBridge_->LastCommandStatus();
+            }
+        }
+
+        PublishStrobeFeedbacks(deltaSeconds);
+    }
+
+    void PublishStrobeFeedbacks(const float deltaSeconds)
+    {
+        if (udpRuntimeBridge_ == nullptr || !udpRuntimeBridge_->FeedbackTransportReady())
+        {
+            return;
+        }
+
+        strobeFeedbackAccumulator_ += std::max(deltaSeconds, 0.0f);
+        if (strobeFeedbackAccumulator_ < kStrobeFeedbackIntervalSeconds)
+        {
+            return;
+        }
+
+        strobeFeedbackAccumulator_ = std::fmod(strobeFeedbackAccumulator_, kStrobeFeedbackIntervalSeconds);
+
+        for (const mfd::PageSummary& page : scene_.Pages())
+        {
+            if (!page.hasStrobe)
+            {
+                continue;
+            }
+
+            const auto strobe = scene_.StrobeForPage(page.name);
+            if (!strobe.has_value())
+            {
+                continue;
+            }
+
+            mfd::StrobeStatusFeedback feedback;
+            feedback.sequence = nextStrobeFeedbackSequence_++;
+            feedback.pageName = strobe->pageName;
+            feedback.strobeId = strobe->reticleId;
+            feedback.active = strobe->visible;
+            feedback.position = strobe->position;
+            feedback.capture = strobe->capture;
+            feedback.magnet = ToFeedbackMagnet(scene_.StrobeMagnetForPage(page.name));
+
+            if (const auto capture = scene_.CaptureWithStrobe(page.name); capture.has_value())
+            {
+                feedback.captureResult = ToFeedbackCapture(*capture);
+            }
+
+            udpRuntimeBridge_->EnqueueStrobeFeedback(std::move(feedback));
+        }
+
+        if (!udpRuntimeBridge_->LastFeedbackStatus().empty())
+        {
+            lastFeedbackStatus_ = udpRuntimeBridge_->LastFeedbackStatus();
+        }
+    }
+
+    void PrintStartupSummary() const
+    {
+        std::cout << applicationName_ << '\n';
+        std::cout << "Window JSON: " << windowFile_.string() << '\n';
+        std::cout << "Window title: " << windowDefinition_.title << '\n';
+        std::cout << "Pages: " << scene_.Pages().size() << '\n';
+        std::cout << "Shortcuts: R reloads, 1..9 switch pages\n";
+    }
+
+    std::string applicationName_;
+    std::filesystem::path windowFile_;
+    mfd::JsonLoader loader_ {};
+    mfd::SceneRegistry scene_ {};
+    mfd::CommandProcessor commandProcessor_;
+    mfd::MfdRenderer renderer_ {};
+    mfd::WindowAssetDefinition windowDefinition_ {};
+    std::unique_ptr<mfd::UdpRuntimeBridge> udpRuntimeBridge_ {};
+    std::vector<mfd::UserCommand> pendingCommands_ {};
+    float strobeFeedbackAccumulator_ = 0.0f;
+    std::uint32_t nextStrobeFeedbackSequence_ = 1;
+    std::string lastCommandStatus_ {};
+    std::string lastFeedbackStatus_ {};
+    std::string lastReloadError_ {};
+    std::string lastRuntimeError_ {};
+};
+} // namespace
+
+namespace mfd::window
+{
+std::string BuildUsageText(const LauncherConfig& config)
+{
+    const std::string applicationName = config.applicationName.empty() ? std::string {"mfd_window"} : config.applicationName;
+    const std::filesystem::path defaultWindowFile =
+        config.defaultWindowFile.empty() ? std::filesystem::path {"assets/windows/demo_pages.json"} : config.defaultWindowFile;
+
+    std::ostringstream output;
+    output << "Usage:\n";
+    output << "  " << applicationName << " <window.json>\n";
+    output << "  " << applicationName << " --window <window.json>\n";
+    output << "  " << applicationName << " --help\n";
+    output << '\n';
+    output << "If no window JSON is provided, the launcher defaults to '" << defaultWindowFile.string() << "'.\n";
+    output << "Shortcuts:\n";
+    output << "  R reloads the current window JSON from disk\n";
+    output << "  1..9 activate the first nine authored pages\n";
+    return output.str();
+}
+
+bool ParseLauncherCommandLine(const int argc,
+                              char** argv,
+                              const LauncherConfig& config,
+                              LauncherOptions& options,
+                              std::string& error)
+{
+    CommandLineOptions internalOptions;
+    const bool parsed = ParseCommandLine(argc, argv, config, internalOptions, error);
+    options.windowFile = std::move(internalOptions.windowFile);
+    options.showHelp = internalOptions.showHelp;
+    return parsed;
+}
+
+int RunLauncher(int argc, char** argv, const LauncherConfig& config)
+{
+    const std::string applicationName = config.applicationName.empty() ? std::string {"mfd_window"} : config.applicationName;
+    const std::filesystem::path defaultWindowFile =
+        config.defaultWindowFile.empty() ? std::filesystem::path {"assets/windows/demo_pages.json"} : config.defaultWindowFile;
+
+    LauncherOptions options;
+    std::string error;
+    if (!ParseLauncherCommandLine(argc, argv, config, options, error))
+    {
+        std::cerr << error << '\n';
+        std::cerr << BuildUsageText(LauncherConfig {applicationName, defaultWindowFile});
+        return 1;
+    }
+
+    if (options.showHelp)
+    {
+        std::cout << BuildUsageText(LauncherConfig {applicationName, defaultWindowFile});
+        return 0;
+    }
+
+#if defined(_WIN32)
+    if (::IsDebuggerPresent() != 0)
+    {
+        GenericWindowApplication application(applicationName, options.windowFile);
+        return application.Run();
+    }
+#endif
+
+    try
+    {
+        GenericWindowApplication application(applicationName, options.windowFile);
+        return application.Run();
+    }
+    catch (const std::exception& exception)
+    {
+        ReportFatalError(applicationName, exception.what());
+        return 1;
+    }
+}
+} // namespace mfd::window

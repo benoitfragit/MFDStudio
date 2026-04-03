@@ -641,7 +641,9 @@ json SerializePage(const mfd::PageDefinition& page, const mfd::ReticleLibrary& l
     return node;
 }
 
-json SerializeWindow(const mfd::WindowAssetDefinition& window, const EditorFileLayout& layout)
+json SerializeWindow(const mfd::WindowAssetDefinition& window,
+                     const mfd::MfdDocument& document,
+                     const EditorFileLayout& layout)
 {
     const std::filesystem::path baseFolder = window.sourceFile.parent_path();
 
@@ -688,11 +690,25 @@ json SerializeWindow(const mfd::WindowAssetDefinition& window, const EditorFileL
     }
 
     json pages = json::array();
-    for (const auto& pageFile : layout.pageFiles)
+    std::optional<std::string> defaultPageName;
+    for (std::size_t index = 0; index < layout.pageFiles.size() && index < document.pages.size(); ++index)
     {
-        pages.push_back(std::filesystem::relative(pageFile, baseFolder).generic_string());
+        const std::string relativePageFile =
+            std::filesystem::relative(layout.pageFiles[index], baseFolder).generic_string();
+        pages.push_back(relativePageFile);
+
+        if (document.pages[index].defaultPage && !document.pages[index].name.empty())
+        {
+            defaultPageName = document.pages[index].name;
+        }
     }
     node["pages"] = std::move(pages);
+
+    if (defaultPageName.has_value())
+    {
+        node["defaultPage"] = *defaultPageName;
+    }
+
     return node;
 }
 
@@ -824,7 +840,7 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
             throw std::runtime_error("Page file layout does not match the number of pages");
         }
 
-        WriteJsonFile(loaded.window.sourceFile, SerializeWindow(loaded.window, layout));
+        WriteJsonFile(loaded.window.sourceFile, SerializeWindow(loaded.window, loaded.document, layout));
 
         for (std::size_t index = 0; index < loaded.document.pages.size(); ++index)
         {

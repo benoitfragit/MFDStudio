@@ -117,6 +117,8 @@ struct PageDefinition
     std::string normalizedName;
     /** @brief Human-readable title shown by tools and examples. */
     std::string title;
+    /** @brief Marks the page selected by default when its parent window first loads. */
+    bool defaultPage = false;
     /** @brief Page background color. */
     ColorRgba backgroundColor {6, 14, 20, 255};
     /** @brief Initial view center and zoom for the page. */

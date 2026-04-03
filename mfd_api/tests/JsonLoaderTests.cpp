@@ -131,6 +131,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
       "maxPacketSize": 1024
     }
   },
+  "defaultPage": "Main",
   "pages": [
     "pages/main.json"
   ]
@@ -145,6 +146,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
   "y": 40,
   "fps": 55,
   "reticles": "reticles",
+  "defaultPage": "Main",
   "pages": [
     {
       "path": "pages/main.json"
@@ -205,6 +207,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
     ASSERT_EQ(loaded.document.pages.size(), 1U);
     const mfd::PageDefinition& page = loaded.document.pages.front();
     EXPECT_EQ(page.name, "Main");
+    EXPECT_TRUE(page.defaultPage);
     EXPECT_EQ(page.defaultBlinkTypeName, "slow");
     ASSERT_EQ(page.blinkTypes.size(), 3U);
     ASSERT_EQ(page.staticReticles.size(), 2U);
@@ -354,6 +357,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliases
       "bufferSize": 1500
     }
   },
+  "defaultPage": "Main",
   "pageFiles": [
     {
       "path": "pages/main.json"
@@ -370,6 +374,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliases
   "y": 40,
   "fps": 55,
   "reticles": "reticles",
+  "defaultPage": "Main",
   "pages": [
     {
       "path": "pages/main.json"
@@ -395,6 +400,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliases
     ASSERT_EQ(loadedWindow.document.pages.size(), 1U);
     const mfd::PageDefinition& page = loadedWindow.document.pages.front();
     EXPECT_EQ(page.name, "Main");
+    EXPECT_TRUE(page.defaultPage);
     EXPECT_FLOAT_EQ(page.view.center.x, 0.25f);
     EXPECT_FLOAT_EQ(page.view.center.y, -0.5f);
     EXPECT_FLOAT_EQ(page.view.zoom, 1.0f);
@@ -404,7 +410,88 @@ TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliases
 
     const mfd::MfdDocument loadedDocument = loader.LoadDocument(documentWindowFile);
     ASSERT_EQ(loadedDocument.pages.size(), 1U);
+    EXPECT_TRUE(loadedDocument.pages.front().defaultPage);
     EXPECT_EQ(loadedDocument.pages.front().staticReticles.front().sourceTemplateId, "filename_marker");
+}
+
+TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUnknownDefaultPageName)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+    const std::filesystem::path pagesFolder = workspace.Path() / "pages";
+    const std::filesystem::path windowFile = workspace.Path() / "window.json";
+
+    WriteTextFile(reticleFolder / "marker.json",
+                  R"json({
+  "id": "marker",
+  "elements": [
+    { "id": "shape", "type": "circle", "radius": 0.05 }
+  ]
+})json");
+
+    WriteTextFile(pagesFolder / "main.json",
+                  R"json({
+  "name": "Main",
+  "staticReticles": [
+    { "id": "marker_1", "template": "marker" }
+  ]
+})json");
+
+    WriteTextFile(pagesFolder / "radar.json",
+                  R"json({
+  "name": "Radar",
+  "staticReticles": [
+    { "id": "marker_2", "template": "marker" }
+  ]
+})json");
+
+    WriteTextFile(windowFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "defaultPage": "Missing",
+  "pages": [
+    "pages/main.json",
+    "pages/radar.json"
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadWindowConfiguration(windowFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadWindowConfigurationRejectsLegacyPageEntryDefaultFlag)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+    const std::filesystem::path pagesFolder = workspace.Path() / "pages";
+    const std::filesystem::path windowFile = workspace.Path() / "window.json";
+
+    WriteTextFile(reticleFolder / "marker.json",
+                  R"json({
+  "id": "marker",
+  "elements": [
+    { "id": "shape", "type": "circle", "radius": 0.05 }
+  ]
+})json");
+
+    WriteTextFile(pagesFolder / "main.json",
+                  R"json({
+  "name": "Main",
+  "staticReticles": [
+    { "id": "marker_1", "template": "marker" }
+  ]
+})json");
+
+    WriteTextFile(windowFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    { "file": "pages/main.json", "default": true }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadWindowConfiguration(windowFile), std::runtime_error);
 }
 
 TEST(JsonLoaderTests, LoadDocumentRejectsDuplicateBlinkTypeNamesAfterNormalization)
@@ -582,4 +669,29 @@ TEST(JsonLoaderTests, LoadRepositoryCockpitWindowConfigurationSmokeTest)
     EXPECT_EQ(page.name, "Cockpit");
     EXPECT_FALSE(page.staticReticles.empty());
     EXPECT_FALSE(loaded.document.reticleLibrary.empty());
+}
+
+TEST(JsonLoaderTests, LoadRepositoryMinimalWindowConfigurationMarksRadarAsDefaultPage)
+{
+    mfd::JsonLoader loader;
+    const std::filesystem::path windowFile = RepositoryRoot() / "assets/windows/demo_pages_minimal.json";
+
+    const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
+
+    std::size_t defaultPageCount = 0U;
+    const mfd::PageDefinition* defaultPage = nullptr;
+    for (const auto& page : loaded.document.pages)
+    {
+        if (!page.defaultPage)
+        {
+            continue;
+        }
+
+        ++defaultPageCount;
+        defaultPage = &page;
+    }
+
+    ASSERT_EQ(defaultPageCount, 1U);
+    ASSERT_NE(defaultPage, nullptr);
+    EXPECT_EQ(defaultPage->name, "Radar");
 }

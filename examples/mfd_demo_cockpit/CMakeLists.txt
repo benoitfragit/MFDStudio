@@ -1,26 +1,14 @@
 # This file is part of MFDStudio.
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
-set(MFD_DEMO_COCKPIT_SHARED_HEADERS
-    ${MFD_ROOT_DIR}/examples/mfd_demo/include/DemoTrackFeed.h
-    ${MFD_ROOT_DIR}/examples/mfd_demo/include/MfdApplication.h)
-
 set(MFD_DEMO_COCKPIT_SOURCES
-    ${MFD_ROOT_DIR}/examples/mfd_demo/src/DemoTrackFeed.cpp
-    ${MFD_ROOT_DIR}/examples/mfd_demo/src/MfdApplication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
-add_executable(mfd_demo_cockpit ${MFD_DEMO_COCKPIT_SHARED_HEADERS} ${MFD_DEMO_COCKPIT_SOURCES})
-
-target_include_directories(mfd_demo_cockpit
-    PRIVATE
-        ${MFD_ROOT_DIR}/examples/mfd_demo/include)
+add_executable(mfd_demo_cockpit ${MFD_DEMO_COCKPIT_SOURCES})
 
 target_link_libraries(mfd_demo_cockpit
     PRIVATE
-        mfd::api
-        imgui
-        rlimgui)
+        mfd::window_launcher)
 
 set_target_properties(mfd_demo_cockpit PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_demo_cockpit>")

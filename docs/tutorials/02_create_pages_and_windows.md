@@ -78,6 +78,7 @@ The root window JSON defines:
 - UDP command transport
 - optional UDP feedback transport
 - list of page files
+- optional default page name
 
 Create `assets/windows/tutorial_window.json`:
 
@@ -148,6 +149,19 @@ const mfd::LoadedWindowConfiguration loaded =
 
 - reticle library
 - pages
+
+If a window contains several pages, mark the startup page directly in the
+window JSON:
+
+```json
+"defaultPage": "Radar",
+"pages": [
+  "../pages/pfd.json",
+  "../pages/radar.json"
+]
+```
+
+If `defaultPage` is omitted, the runtime starts on the first page.
 
 ## Step 6 - Activate the page in a runtime scene
 

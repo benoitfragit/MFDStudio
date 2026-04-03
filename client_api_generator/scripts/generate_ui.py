@@ -36,6 +36,11 @@ class PageSpec:
     status_member_name: str | None
 
 
+@dataclass(frozen=True)
+class PageEntry:
+    path: str
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate high-level client mockup UI code from one window JSON.")
     parser.add_argument("--window-json", required=True)
@@ -72,6 +77,10 @@ def split_words(value: str) -> list[str]:
     return words or ["Generated"]
 
 
+def normalize_name(value: str) -> str:
+    return re.sub(r"[^0-9A-Za-z]+", "", value).lower()
+
+
 def pascal_case(value: str) -> str:
     words = split_words(value)
     result = "".join(word[:1].upper() + word[1:] for word in words)
@@ -89,21 +98,25 @@ def cpp_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace("\"", "\\\"")
 
 
-def page_entries(window_root: dict) -> list[str]:
+def page_entries(window_root: dict) -> list[PageEntry]:
     pages = window_root.get("pages") or window_root.get("pageFiles") or window_root.get("pageJsons")
     if not isinstance(pages, list) or not pages:
         raise RuntimeError("Window JSON must define a non-empty pages array")
 
-    resolved: list[str] = []
+    resolved: list[PageEntry] = []
     for entry in pages:
         if isinstance(entry, str):
-            resolved.append(entry)
+            resolved.append(PageEntry(entry))
             continue
 
         if isinstance(entry, dict):
             file_value = entry.get("file") or entry.get("path") or entry.get("json")
             if isinstance(file_value, str):
-                resolved.append(file_value)
+                if "default" in entry:
+                    raise RuntimeError(
+                        "pages[].default is no longer supported; use the root-level defaultPage field instead")
+
+                resolved.append(PageEntry(file_value))
                 continue
 
         raise RuntimeError("Unsupported page entry in window JSON")
@@ -169,7 +182,7 @@ def build_page_specs(window_root: dict,
     page_specs: list[PageSpec] = []
 
     for page_entry in page_entries(window_root):
-        page_path = resolve_path(window_path.parent, page_entry)
+        page_path = resolve_path(window_path.parent, page_entry.path)
         page_root = extract_page_node(load_json(page_path))
 
         page_name = page_root.get("name") or page_root.get("id")
@@ -218,6 +231,22 @@ def build_page_specs(window_root: dict,
         ))
 
     return page_specs
+
+
+def resolve_startup_page(page_specs: list[PageSpec], window_root: dict) -> PageSpec:
+    default_page_name = window_root.get("defaultPage")
+    if default_page_name is None:
+        return page_specs[0]
+
+    if not isinstance(default_page_name, str):
+        raise RuntimeError("Window root defaultPage must be a string")
+
+    normalized = normalize_name(default_page_name)
+    for page in page_specs:
+        if normalize_name(page.page_name) == normalized:
+            return page
+
+    raise RuntimeError(f"Unknown defaultPage '{default_page_name}' in window JSON")
 
 
 def derive_ui_class_name(window_root: dict,
@@ -365,8 +394,8 @@ def emit_header(namespace_name: str,
 def emit_source(namespace_name: str,
                 header_include: str,
                 ui_class_name: str,
+                startup_page: PageSpec,
                 page_specs: list[PageSpec]) -> str:
-    startup_page = page_specs[0]
     lines: list[str] = [
         "/*",
         " * This file is part of MFDStudio.",
@@ -587,7 +616,7 @@ def collect_input_paths(window_path: Path) -> list[Path]:
     input_paths: set[Path] = {window_path}
 
     for page_entry in page_entries(window_root):
-        input_paths.add(resolve_path(window_path.parent, page_entry))
+        input_paths.add(resolve_path(window_path.parent, page_entry.path))
 
     raw_folder = window_root.get("reticleLibraryFolder") or window_root.get("reticles") or window_root.get("reticleFolder")
     folder = resolve_path(window_path.parent, raw_folder or ".")
@@ -624,7 +653,8 @@ def main() -> int:
         window_json)
 
     header_text = emit_header(args.namespace, ui_class_name, window_json, page_specs)
-    source_text = emit_source(args.namespace, args.header_include, ui_class_name, page_specs)
+    startup_page = resolve_startup_page(page_specs, window_root)
+    source_text = emit_source(args.namespace, args.header_include, ui_class_name, startup_page, page_specs)
 
     output_header = Path(args.output_header)
     output_source = Path(args.output_source)

@@ -20,6 +20,7 @@
       "maxPacketSize": 4096
     }
   },
+  "defaultPage": "Radar",
   "pages": [
     "../pages/pfd.json",
     "../pages/navigation.json",

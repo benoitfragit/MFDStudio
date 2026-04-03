@@ -574,6 +574,19 @@ constexpr std::array<mfd::PrimitiveType, 11> kPrimitiveTypes {
 
 constexpr std::size_t kInvalidBlinkTypeIndex = std::numeric_limits<std::size_t>::max();
 
+int DefaultPageIndex(const std::vector<mfd::PageDefinition>& pages) noexcept
+{
+    for (int index = 0; index < static_cast<int>(pages.size()); ++index)
+    {
+        if (pages[static_cast<std::size_t>(index)].defaultPage)
+        {
+            return index;
+        }
+    }
+
+    return 0;
+}
+
 std::size_t FindBlinkTypeIndex(const mfd::PageDefinition& page, const std::string_view blinkTypeName)
 {
     const std::string normalizedBlinkTypeName = mfd::NormalizePageName(blinkTypeName);
@@ -1111,7 +1124,7 @@ int EditorApplication::Run()
     }
 
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
-    InitWindow(1720, 980, "MFD Editor");
+    InitWindow(1720, 980, "MFDStudio");
     SetWindowMinSize(1320, 760);
     SetTargetFPS(60);
 
@@ -1179,7 +1192,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
 
         ApplyPreviewFontFile(loaded_.window.fontFile);
         selection_ = {};
-        SelectPage(0);
+        SelectPage(DefaultPageIndex(loaded_.document.pages));
         undoStack_.clear();
         windowFile_ = path;
         lastRuntimeError_.clear();
@@ -4319,6 +4332,23 @@ void EditorApplication::DrawPageInspector()
     {
         page->view.zoom = mfd::SanitizeZoom(page->view.zoom);
     }
+
+    bool defaultPage = page->defaultPage;
+    if (ImGui::Checkbox("Default page for this window", &defaultPage))
+    {
+        PushUndoSnapshot();
+        if (defaultPage)
+        {
+            for (auto& candidate : loaded_.document.pages)
+            {
+                candidate.defaultPage = false;
+            }
+        }
+
+        page->defaultPage = defaultPage;
+    }
+
+    ImGui::TextDisabled("If no page is marked default, the runtime opens the first page in the window JSON.");
 
     DrawPageBlinkInspector(*page);
     DrawPageLayerInspector(*page);

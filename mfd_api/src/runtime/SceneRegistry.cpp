@@ -415,7 +415,18 @@ void SceneRegistry::LoadDocument(MfdDocument document)
 
     if (!document_.pages.empty())
     {
-        activePage_ = document_.pages.front().normalizedName;
+        const auto defaultPageIterator = std::find_if(
+            document_.pages.begin(),
+            document_.pages.end(),
+            [](const PageDefinition& page)
+            {
+                return page.defaultPage;
+            });
+
+        activePage_ =
+            defaultPageIterator != document_.pages.end()
+                ? defaultPageIterator->normalizedName
+                : document_.pages.front().normalizedName;
         SetActiveFlag(activePage_, true);
     }
 }

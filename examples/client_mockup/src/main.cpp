@@ -1285,6 +1285,15 @@ void MockupApplication::SelectDefaultPage()
         return;
     }
 
+    for (int index = 0; index < static_cast<int>(loaded_.document.pages.size()); ++index)
+    {
+        if (loaded_.document.pages[static_cast<std::size_t>(index)].defaultPage)
+        {
+            SelectPage(index);
+            return;
+        }
+    }
+
     SelectPage(0);
 }
 

@@ -34,12 +34,15 @@ include(RuntimePackaging)
 add_subdirectory(mfd_api)
 add_subdirectory(client_api)
 add_subdirectory(client_api_generator)
+add_subdirectory(mfd_window)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/client_api_generator/ClientApiGenerator.cmake)
 
 if(MFD_BUILD_TESTS)
     enable_testing()
     add_subdirectory(mfd_api/tests)
+    add_subdirectory(client_api/tests)
+    add_subdirectory(mfd_window/tests)
 endif()
 
 if(MFD_BUILD_DEMO)

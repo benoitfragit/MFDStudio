@@ -1,20 +1,12 @@
 # This file is part of MFDStudio.
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
-set(MFD_DEMO_MINIMAL_HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/DemoTrackFeed.h)
-
 set(MFD_DEMO_MINIMAL_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/DemoTrackFeed.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
-add_executable(mfd_demo_minimal ${MFD_DEMO_MINIMAL_HEADERS} ${MFD_DEMO_MINIMAL_SOURCES})
+add_executable(mfd_demo_minimal ${MFD_DEMO_MINIMAL_SOURCES})
 
-target_include_directories(mfd_demo_minimal
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-target_link_libraries(mfd_demo_minimal PRIVATE mfd::api)
+target_link_libraries(mfd_demo_minimal PRIVATE mfd::window_launcher)
 
 set_target_properties(mfd_demo_minimal PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_demo_minimal>")

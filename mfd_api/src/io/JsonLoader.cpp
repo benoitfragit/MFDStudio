@@ -314,6 +314,22 @@ std::uint32_t ParseDurationMilliseconds(const json& value, const char* fieldName
     return static_cast<std::uint32_t>(durationMs);
 }
 
+std::optional<std::string> ParseDefaultPageName(const json& root, const char* sourceLabel)
+{
+    const json* defaultPage = FindField(root, {"defaultPage"});
+    if (defaultPage == nullptr || defaultPage->is_null())
+    {
+        return std::nullopt;
+    }
+
+    if (!defaultPage->is_string())
+    {
+        throw std::runtime_error(std::string(sourceLabel) + " defaultPage must be a string");
+    }
+
+    return defaultPage->get<std::string>();
+}
+
 std::vector<std::filesystem::path> ParsePageFileList(const json& root,
                                                      const std::filesystem::path& baseFolder)
 {
@@ -339,12 +355,19 @@ std::vector<std::filesystem::path> ParsePageFileList(const json& root,
             const json* file = FindField(entry, {"file", "path", "json"});
             if (file != nullptr && file->is_string())
             {
+                if (FindField(entry, {"default"}) != nullptr)
+                {
+                    throw std::runtime_error(
+                        "pages[].default is no longer supported; use the root-level defaultPage field instead");
+                }
+
                 pageFiles.push_back(ResolvePath(baseFolder, file->get<std::string>()));
                 continue;
             }
         }
 
-        throw std::runtime_error("Each page entry must be a JSON filename or an object containing file/path/json");
+        throw std::runtime_error(
+            "Each page entry must be a JSON filename or an object containing file/path/json");
     }
 
     if (pageFiles.empty())
@@ -353,6 +376,34 @@ std::vector<std::filesystem::path> ParsePageFileList(const json& root,
     }
 
     return pageFiles;
+}
+
+void ApplyDefaultPageName(MfdDocument& document,
+                          const std::optional<std::string>& defaultPageName,
+                          const std::string_view sourceLabel)
+{
+    for (auto& page : document.pages)
+    {
+        page.defaultPage = false;
+    }
+
+    if (!defaultPageName.has_value())
+    {
+        return;
+    }
+
+    const std::string normalizedDefaultPageName = NormalizePageName(*defaultPageName);
+    for (auto& page : document.pages)
+    {
+        if (page.normalizedName == normalizedDefaultPageName)
+        {
+            page.defaultPage = true;
+            return;
+        }
+    }
+
+    throw std::runtime_error(
+        "Unknown defaultPage '" + *defaultPageName + "' in " + std::string(sourceLabel));
 }
 
 std::uint8_t ParseChannelNumber(const json& value)
@@ -2096,6 +2147,7 @@ LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesys
         loaded.document.pages.push_back(std::move(page));
     }
 
+    ApplyDefaultPageName(loaded.document, ParseDefaultPageName(root, "Window JSON"), "window JSON");
     return loaded;
 }
 
@@ -2125,6 +2177,7 @@ MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) con
     document.sourceFile = resolvedPagesFile;
     document.reticleLibraryFolder = libraryFolder;
     document.reticleLibrary = LoadReticleLibrary(libraryFolder);
+    const auto defaultPageName = ParseDefaultPageName(root, "Pages JSON");
     std::unordered_set<std::string> pageNames;
 
     for (const auto& pageNode : root.at("pages"))
@@ -2138,6 +2191,7 @@ MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) con
         document.pages.push_back(std::move(page));
     }
 
+    ApplyDefaultPageName(document, defaultPageName, "pages JSON");
     return document;
 }
 } // namespace mfd

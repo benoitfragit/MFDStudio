@@ -52,6 +52,7 @@ With the toolkit you can:
 - load a window and its pages from JSON
 - define one window-level text font from the root window JSON
 - create reusable reticles from primitives
+- mark one page as the default startup page with `defaultPage`
 - activate a page by name
 - black out the whole rendered window without clearing runtime state
 - update reticle visibility, position, rotation, color, thickness, text, and letter spacing
@@ -175,10 +176,14 @@ This means that inside one page:
 
 - `mfd_api`
   Public API library and runtime core.
+- `mfd_window`
+  Generic top-level window host loading any window JSON from the command line.
 - `examples/mfd_demo`
-  Full demo application.
+  Preset launcher for `assets/windows/demo_pages.json`.
 - `examples/mfd_demo_minimal`
-  Minimal radar-focused demo.
+  Preset launcher for `assets/windows/demo_pages_minimal.json`.
+- `examples/mfd_demo_cockpit`
+  Preset launcher for `assets/windows/demo_pages_cockpit.json`.
 - `examples/client_mockup_minimal`
   Headless cockpit client showing the public UDP API from one plain `main` loop.
 - `examples/client_mockup`
@@ -259,6 +264,7 @@ A root window file defines:
 - UDP command transport
 - optional UDP feedback transport
 - list of page JSON files
+- optional `defaultPage` field naming the startup page
 
 Example:
 
@@ -286,6 +292,7 @@ Example:
       "maxPacketSize": 4096
     }
   },
+  "defaultPage": "Radar",
   "pages": [
     "../pages/pfd.json",
     "../pages/navigation.json",
@@ -521,9 +528,13 @@ See the full workflow in [docs/tutorials/07_framebuffer_rgba32_capture.md](./doc
 ## Tools
 
 - `examples/mfd_demo`
-  Full runtime example.
+  Thin preset launcher built on top of `mfd_window`.
+- `examples/mfd_demo_cockpit`
+  Thin cockpit preset launcher built on top of `mfd_window`.
 - `examples/mfd_demo_minimal`
-  Minimal window example.
+  Thin minimal preset launcher built on top of `mfd_window`.
+- `mfd_window`
+  Generic runtime launcher accepting `--window <json>`.
 - `examples/client_mockup_minimal`
   Minimal headless client feeding the cockpit demo over the public API.
 - `examples/client_mockup`
