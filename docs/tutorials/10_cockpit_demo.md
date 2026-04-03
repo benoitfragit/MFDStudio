@@ -37,7 +37,7 @@ This window loads `assets/windows/demo_pages_cockpit.json`, which references:
 
 ## Step 3 - Start the mockup
 
-Launch `mfd_mockup.exe`.
+Launch `client_mockup.exe`.
 
 In the `Window target` combo box, select `Cockpit Demo`.
 
@@ -45,7 +45,7 @@ The mockup now switches to a simplified pilot-station style UI oriented around
 live control of one composite page.
 
 If you want the smallest possible client example instead of the full operator
-UI, launch `mfd_mockup_minimal.exe`.
+UI, launch `client_mockup_minimal.exe`.
 
 This headless sample loads `assets/windows/demo_pages_cockpit.json`, creates a
 `CommandClient`, activates page `Cockpit`, then publishes one dummy cockpit

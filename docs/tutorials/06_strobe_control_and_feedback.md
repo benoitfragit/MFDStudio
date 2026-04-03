@@ -161,7 +161,7 @@ Important fields are:
 
 You do not need to write the client first.
 
-Use `mfd_mockup`:
+Use `client_mockup`:
 
 1. select a page with a strobe
 2. send a strobe update

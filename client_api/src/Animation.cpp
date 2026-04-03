@@ -1,10 +1,15 @@
-#include "MockupUi.h"
+/*
+ * This file is part of MFDStudio.
+ * Project author: Benoit Fra
+ * Repository: https://github.com/benoitfragit/MFDStudio
+ */
+#include "mfd/client/Animation.h"
 
 #include <algorithm>
 #include <optional>
 #include <utility>
 
-namespace mockup_ui
+namespace mfd::client
 {
 namespace
 {
@@ -562,183 +567,4 @@ bool WindowDisplay::AppendCommands(std::vector<mfd::UserCommand>& commands)
     lastSentPatch_ = desiredPatch_;
     return true;
 }
-
-CockpitMockupPage::CockpitMockupPage() :
-    adiBallSky(Name(), "adi_ball_sky"),
-    adiBallGround(Name(), "adi_ball_ground"),
-    adiBallHorizon(Name(), "adi_ball_horizon"),
-    adiBallLadder(Name(), "adi_ball_ladder"),
-    adiHeadingBox(Name(), "adi_heading_box"),
-    adiHeadingCard(Name(), "adi_heading_card"),
-    adiHeadingCommandBug(Name(), "adi_heading_command_bug"),
-    adiPitchBox(Name(), "adi_pitch_box", "pitch_value"),
-    adiRollBox(Name(), "adi_roll_box", "roll_value"),
-    hudPitchLadder(Name(), "hud_pitch_ladder"),
-    hudVelocityVector(Name(), "hud_velocity_vector"),
-    hudSpeedBox(Name(), "hud_speed_box", "speed_value"),
-    hudMachBox(Name(), "hud_mach_box", "mach_value"),
-    hudHeadingBox(Name(), "hud_heading_box", "heading_value"),
-    hudFpaBox(Name(), "hud_fpa_box", "fpa_value"),
-    hudThrottleBox(Name(), "hud_throttle_box", "throttle_value"),
-    hudRadarBox(Name(), "hud_radar_box", "radar_value"),
-    radarScope(Name(), "radar_scope"),
-    radarSweep(Name(), "radar_sweep"),
-    radarOwnship(Name(), "radar_ownship"),
-    radarHeadingBox(Name(), "radar_heading_box", "heading_value"),
-    radarSpeedBox(Name(), "radar_speed_box", "speed_value"),
-    radarStatusBox(Name(), "radar_status_box", "status_value"),
-    radarOffOverlay(Name(), "radar_off_overlay"),
-    cockpitStatus(Name(), "cockpit_status", "status_caption"),
-    radarContacts(Name(), RadarTemplateId())
-{
-}
-
-void CockpitMockupPage::Reset() noexcept
-{
-    adiBallSky.Reset();
-    adiBallGround.Reset();
-    adiBallHorizon.Reset();
-    adiBallLadder.Reset();
-    adiHeadingBox.Reset();
-    adiHeadingCard.Reset();
-    adiHeadingCommandBug.Reset();
-    adiPitchBox.Reset();
-    adiRollBox.Reset();
-
-    hudPitchLadder.Reset();
-    hudVelocityVector.Reset();
-    hudSpeedBox.Reset();
-    hudMachBox.Reset();
-    hudHeadingBox.Reset();
-    hudFpaBox.Reset();
-    hudThrottleBox.Reset();
-    hudRadarBox.Reset();
-
-    radarScope.Reset();
-    radarSweep.Reset();
-    radarOwnship.Reset();
-    radarHeadingBox.Reset();
-    radarSpeedBox.Reset();
-    radarStatusBox.Reset();
-    radarOffOverlay.Reset();
-    cockpitStatus.Reset();
-
-    radarContacts.Reset();
-}
-
-std::size_t CockpitMockupPage::AppendCommands(std::vector<mfd::UserCommand>& commands)
-{
-    std::size_t count = 0;
-
-    count += adiBallSky.AppendCommands(commands) ? 1U : 0U;
-    count += adiBallGround.AppendCommands(commands) ? 1U : 0U;
-    count += adiBallHorizon.AppendCommands(commands) ? 1U : 0U;
-    count += adiBallLadder.AppendCommands(commands) ? 1U : 0U;
-    count += adiHeadingBox.AppendCommands(commands) ? 1U : 0U;
-    count += adiHeadingCard.AppendCommands(commands) ? 1U : 0U;
-    count += adiHeadingCommandBug.AppendCommands(commands) ? 1U : 0U;
-    count += adiPitchBox.AppendCommands(commands) ? 1U : 0U;
-    count += adiRollBox.AppendCommands(commands) ? 1U : 0U;
-
-    count += hudPitchLadder.AppendCommands(commands) ? 1U : 0U;
-    count += hudVelocityVector.AppendCommands(commands) ? 1U : 0U;
-    count += hudSpeedBox.AppendCommands(commands) ? 1U : 0U;
-    count += hudMachBox.AppendCommands(commands) ? 1U : 0U;
-    count += hudHeadingBox.AppendCommands(commands) ? 1U : 0U;
-    count += hudFpaBox.AppendCommands(commands) ? 1U : 0U;
-    count += hudThrottleBox.AppendCommands(commands) ? 1U : 0U;
-    count += hudRadarBox.AppendCommands(commands) ? 1U : 0U;
-
-    count += radarScope.AppendCommands(commands) ? 1U : 0U;
-    count += radarSweep.AppendCommands(commands) ? 1U : 0U;
-    count += radarOwnship.AppendCommands(commands) ? 1U : 0U;
-    count += radarHeadingBox.AppendCommands(commands) ? 1U : 0U;
-    count += radarSpeedBox.AppendCommands(commands) ? 1U : 0U;
-    count += radarStatusBox.AppendCommands(commands) ? 1U : 0U;
-    count += radarOffOverlay.AppendCommands(commands) ? 1U : 0U;
-    count += cockpitStatus.AppendCommands(commands) ? 1U : 0U;
-
-    count += radarContacts.AppendCommands(commands);
-    return count;
-}
-
-std::size_t CockpitMockupPage::AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText)
-{
-    std::size_t count = 0;
-
-    cockpitStatus.SetValue(std::move(statusText));
-    count += cockpitStatus.AppendCommands(commands) ? 1U : 0U;
-    count += radarContacts.AppendRemovalCommands(commands);
-    return count;
-}
-
-void CockpitMockupPage::SetStatusCaption(std::string value)
-{
-    cockpitStatus.SetValue(std::move(value));
-}
-
-CockpitMockupUi::CockpitMockupUi()
-{
-    window_.SetColorInverted(false);
-    window_.SetBrightness(1.0f);
-    window_.SetDisabled(false);
-}
-
-bool CockpitMockupUi::SendStartup(mfd::CommandClient& client,
-                                  const mfd::PageViewState& view,
-                                  std::string statusText)
-{
-    if (!client.ActivatePage(CockpitMockupPage::Name()))
-    {
-        return false;
-    }
-
-    if (!client.SetPageView(CockpitMockupPage::Name(), view.center, view.zoom))
-    {
-        return false;
-    }
-
-    std::vector<mfd::UserCommand> commands;
-    commands.reserve(2);
-
-    window_.AppendCommands(commands);
-    cockpit_.SetStatusCaption(std::move(statusText));
-    cockpit_.cockpitStatus.AppendCommands(commands);
-
-    return commands.empty() || client.SendBatch(commands, 0);
-}
-
-void CockpitMockupUi::Reset() noexcept
-{
-    window_.Reset();
-    cockpit_.Reset();
-}
-
-std::vector<mfd::UserCommand> CockpitMockupUi::BuildBatch()
-{
-    std::vector<mfd::UserCommand> commands;
-    commands.reserve(28);
-
-    window_.AppendCommands(commands);
-    cockpit_.AppendCommands(commands);
-    return commands;
-}
-
-std::vector<mfd::UserCommand> CockpitMockupUi::BuildShutdownBatch(std::string statusText)
-{
-    std::vector<mfd::UserCommand> commands;
-    commands.reserve(8);
-    cockpit_.AppendShutdownCommands(commands, std::move(statusText));
-    return commands;
-}
-
-WindowDisplay& CockpitMockupUi::Window() noexcept
-{
-    return window_;
-}
-
-CockpitMockupPage& CockpitMockupUi::Cockpit() noexcept
-{
-    return cockpit_;
-}
-} // namespace mockup_ui
+} // namespace mfd::client

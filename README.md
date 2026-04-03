@@ -179,9 +179,9 @@ This means that inside one page:
   Full demo application.
 - `examples/mfd_demo_minimal`
   Minimal radar-focused demo.
-- `examples/mfd_mockup_minimal`
+- `examples/client_mockup_minimal`
   Headless cockpit client showing the public UDP API from one plain `main` loop.
-- `mfd_mockup`
+- `examples/client_mockup`
   GUI client used to send commands and inspect strobe feedback.
 - `mfd_editor`
   Visual editor for pages and reticles.
@@ -524,9 +524,9 @@ See the full workflow in [docs/tutorials/07_framebuffer_rgba32_capture.md](./doc
   Full runtime example.
 - `examples/mfd_demo_minimal`
   Minimal window example.
-- `examples/mfd_mockup_minimal`
+- `examples/client_mockup_minimal`
   Minimal headless client feeding the cockpit demo over the public API.
-- `mfd_mockup`
+- `examples/client_mockup`
   Manual test client and radar simulator.
 - `mfd_editor`
   Visual authoring tool for templates and pages.

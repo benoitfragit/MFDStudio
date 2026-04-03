@@ -1,6 +1,6 @@
 # Use The Mockup As A Client API Reference
 
-This tutorial explains how `mfd_mockup` maps its visible controls to the public
+This tutorial explains how `client_mockup` maps its visible controls to the public
 client API in `mfd_api/include/mfd/control/CommandClient.h`.
 
 The goal is simple:
@@ -10,7 +10,7 @@ The goal is simple:
 
 ## Why The Mockup Matters
 
-`mfd_mockup` is intentionally useful as both:
+`client_mockup` is intentionally useful as both:
 
 - a manual validation tool
 - an executable reference implementation of a UDP client
@@ -495,5 +495,5 @@ You now have a precise mapping between:
 - the public client API
 - the command payloads sent at runtime
 
-That makes `mfd_mockup` a practical reference implementation for your own
+That makes `client_mockup` a practical reference implementation for your own
 real-time client.

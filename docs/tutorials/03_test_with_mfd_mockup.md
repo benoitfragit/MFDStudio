@@ -3,7 +3,7 @@
 This tutorial shows how to validate a window without writing any custom client
 code.
 
-It also introduces the most important idea behind `mfd_mockup`:
+It also introduces the most important idea behind `client_mockup`:
 
 - it is not a special internal tool
 - it is a normal UDP client built on the same public API as any external
@@ -18,7 +18,7 @@ to
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant M as mfd_mockup
+    participant M as client_mockup
     participant W as Window
 
     U->>M: Select window / page / reticle / strobe
@@ -26,7 +26,7 @@ sequenceDiagram
     W->>M: Optional strobe feedback
 ```
 
-`mfd_mockup` is the fastest way to:
+`client_mockup` is the fastest way to:
 
 - test whole-window inversion and brightness
 - test whole-window blackout
@@ -83,9 +83,9 @@ Launch one of:
 The window must load a root JSON file that contains a valid `commands.udp`
 configuration.
 
-## Step 3 - Start `mfd_mockup`
+## Step 3 - Start `client_mockup`
 
-Launch `mfd_mockup.exe`.
+Launch `client_mockup.exe`.
 
 At startup it can target:
 

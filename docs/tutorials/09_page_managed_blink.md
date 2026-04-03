@@ -115,7 +115,7 @@ patch.text = std::string {"T42"};
 client.UpsertDynamicReticle("Radar", "track_42", "radar_track", patch);
 ```
 
-## Step 7 - Validate it with `mfd_mockup`
+## Step 7 - Validate it with `client_mockup`
 
 The mockup now shows:
 

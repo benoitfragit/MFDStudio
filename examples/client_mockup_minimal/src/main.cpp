@@ -41,6 +41,7 @@ constexpr float kCockpitHudCenterX = 0.00f;
 constexpr float kCockpitHudCenterY = 0.00f;
 constexpr float kCockpitRadarCenterX = 1.03f;
 constexpr float kCockpitRadarCenterY = -0.02f;
+constexpr std::string_view kCockpitRadarTemplateId = "cockpit_radar_contact";
 
 volatile std::sig_atomic_t gStopRequested = 0;
 
@@ -190,7 +191,7 @@ ExampleConfig LoadExampleConfig()
         throw std::runtime_error("The cockpit window JSON does not expose a page named 'Cockpit'");
     }
 
-    if (!loaded.document.reticleLibrary.contains(std::string(mockup_ui::CockpitMockupPage::RadarTemplateId())))
+    if (!loaded.document.reticleLibrary.contains(std::string(kCockpitRadarTemplateId)))
     {
         throw std::runtime_error("The cockpit reticle library does not expose the 'cockpit_radar_contact' template");
     }
@@ -374,6 +375,7 @@ std::vector<mfd::UserCommand> BuildCockpitBatch(mockup_ui::CockpitMockupUi& ui, 
 
     if (simulation.radarEnabled)
     {
+        mockup_ui::DynamicReticleSet& radarContacts = cockpit.Dynamic(kCockpitRadarTemplateId);
         const float headingRadians = simulation.headingDegrees * kDegreesToRadians;
         const float cosine = std::cos(headingRadians);
         const float sine = std::sin(headingRadians);
@@ -395,7 +397,7 @@ std::vector<mfd::UserCommand> BuildCockpitBatch(mockup_ui::CockpitMockupUi& ui, 
             const float normalizedY = std::clamp(forward / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
             const float contactHeadingDegrees = std::atan2(right, forward) * kRadiansToDegrees;
 
-            mockup_ui::DynamicReticle& contact = cockpit.radarContacts.Upsert(target.id);
+            mockup_ui::DynamicReticle& contact = radarContacts.Upsert(target.id);
             contact.SetVisible(visible);
             contact.SetPosition(mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY});
             contact.SetRotationDegrees(contactHeadingDegrees);
@@ -423,7 +425,7 @@ std::vector<mfd::UserCommand> BuildCockpitBatch(mockup_ui::CockpitMockupUi& ui, 
  */
 std::vector<mfd::UserCommand> BuildShutdownBatch(mockup_ui::CockpitMockupUi& ui)
 {
-    return ui.BuildShutdownBatch("CLI API stopped | restart mfd_mockup_minimal");
+    return ui.BuildShutdownBatch("CLI API stopped | restart client_mockup_minimal");
 }
 } // namespace
 
@@ -452,7 +454,7 @@ int main()
 
         CockpitSimulationState simulation;
 
-        std::cout << "mfd_mockup_minimal\n";
+        std::cout << "client_mockup_minimal\n";
         std::cout << "Window JSON: " << mockup_ui::CockpitMockupUi::WindowFile() << '\n';
         std::cout << "UDP target: " << config.transport.address << ':' << config.transport.port << '\n';
         std::cout << "Driving page '" << mockup_ui::CockpitMockupPage::Name() << "' every " << kSimulationTick.count()
@@ -500,7 +502,7 @@ int main()
         const std::vector<mfd::UserCommand> shutdownCommands = BuildShutdownBatch(ui);
         (void)client.SendBatch(shutdownCommands, simulation.sequence);
 
-        std::cout << "mfd_mockup_minimal stopped.\n";
+        std::cout << "client_mockup_minimal stopped.\n";
         return 0;
     }
     catch (const std::exception& exception)

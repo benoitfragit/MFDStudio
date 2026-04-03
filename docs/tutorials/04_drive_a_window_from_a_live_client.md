@@ -3,7 +3,7 @@
 This tutorial shows how an external application can animate reticles in real
 time without knowing anything about the window UI implementation.
 
-If you already explored `mfd_mockup`, this tutorial is the natural next step:
+If you already explored `client_mockup`, this tutorial is the natural next step:
 
 - the mockup showed the API from an operator UI
 - this page shows the same API from a standalone application loop

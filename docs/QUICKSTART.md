@@ -50,7 +50,7 @@ For a first run, `examples/mfd_demo` is the easiest option.
 
 ## Step 3 - Start the mockup
 
-Launch `mfd_mockup`.
+Launch `client_mockup`.
 
 The mockup is your control panel. It lets you test:
 
@@ -96,7 +96,7 @@ You have already exercised the full runtime loop:
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant M as mfd_mockup
+    participant M as client_mockup
     participant N as UDP I/O worker
     participant W as Render thread
     participant P as CommandProcessor / EnTT

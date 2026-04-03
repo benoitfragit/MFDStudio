@@ -26,6 +26,9 @@
 #include <raylib.h>
 #include <rlImGui.h>
 
+#include "CockpitDemoMockupUi.h"
+#include "FullDemoMockupUi.h"
+#include "MinimalRadarMockupUi.h"
 #include "mfd/control/CommandClient.h"
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/control/StrobeFeedback.h"
@@ -67,6 +70,17 @@ constexpr float kCockpitHudCenterX = 0.00f;
 constexpr float kCockpitHudCenterY = 0.00f;
 constexpr float kCockpitRadarCenterX = 1.03f;
 constexpr float kCockpitRadarCenterY = -0.02f;
+constexpr std::string_view kFullDemoWindowFile = "assets/windows/demo_pages.json";
+constexpr std::string_view kCockpitDemoWindowFile = "assets/windows/demo_pages_cockpit.json";
+constexpr std::string_view kMinimalRadarWindowFile = "assets/windows/demo_pages_minimal.json";
+
+enum class WindowPresetKind
+{
+    Unknown,
+    FullDemo,
+    CockpitDemo,
+    MinimalRadar
+};
 
 /** @brief High-level object type currently selected in the navigation tree. */
 enum class SelectionKind
@@ -293,6 +307,232 @@ const std::array<CockpitTargetSeed, 6> kCockpitTargets {{
     {"cockpit_contact_06", "T55", -3.2f, -7.6f, 0.9f, 0.28f, 1.9f, mfd::ColorRgba {255, 176, 98, 255}, true},
 }};
 
+WindowPresetKind DetectWindowPresetKind(const std::filesystem::path& windowFile)
+{
+    const std::string normalized = windowFile.lexically_normal().generic_string();
+
+    if (normalized == kFullDemoWindowFile)
+    {
+        return WindowPresetKind::FullDemo;
+    }
+
+    if (normalized == kCockpitDemoWindowFile)
+    {
+        return WindowPresetKind::CockpitDemo;
+    }
+
+    if (normalized == kMinimalRadarWindowFile)
+    {
+        return WindowPresetKind::MinimalRadar;
+    }
+
+    return WindowPresetKind::Unknown;
+}
+
+std::vector<mfd::UserCommand> BuildRadarRemovalCommands()
+{
+    std::vector<mfd::UserCommand> commands;
+    commands.reserve(static_cast<std::size_t>(kRadarSimulationTrackCount));
+
+    for (int index = 0; index < kRadarSimulationTrackCount; ++index)
+    {
+        commands.emplace_back(mfd::RemoveDynamicReticleCommand {
+            mfd::ReticleHandle {std::string(kRadarSimulationPageName), RadarTrackId(index)}});
+    }
+
+    return commands;
+}
+
+void AppendCockpitContactRemovalCommands(std::vector<mfd::UserCommand>& commands)
+{
+    for (const CockpitTargetSeed& target : kCockpitTargets)
+    {
+        commands.emplace_back(mfd::RemoveDynamicReticleCommand {
+            mfd::ReticleHandle {std::string(kCockpitPageName), std::string(target.id)}});
+    }
+}
+
+template <typename WindowUi>
+std::vector<mfd::UserCommand> BuildRadarSimulationCommands(WindowUi& ui, const float elapsedSeconds)
+{
+    static constexpr std::array<mfd::ColorRgba, 4> kTrackPalette {{
+        mfd::ColorRgba {0, 255, 0, 255},
+        mfd::ColorRgba {72, 220, 255, 255},
+        mfd::ColorRgba {255, 191, 0, 255},
+        mfd::ColorRgba {255, 96, 96, 255},
+    }};
+
+    constexpr float kPi = 3.14159265359f;
+    constexpr float kTwoPi = kPi * 2.0f;
+
+    ui.Reset();
+    auto& radar = ui.Radar();
+    auto& tracks = radar.Dynamic(kRadarSimulationTemplateId);
+
+    for (int index = 0; index < kRadarSimulationTrackCount; ++index)
+    {
+        const float normalizedIndex = static_cast<float>(index) / static_cast<float>(kRadarSimulationTrackCount);
+        const float ringIndex = static_cast<float>(index % 10) / 9.0f;
+        const float speed = 0.35f + normalizedIndex * 1.15f;
+        const float baseAngle = normalizedIndex * kTwoPi;
+        const float angle = baseAngle + elapsedSeconds * speed;
+        const float radiusPulse = 0.035f * std::sin(elapsedSeconds * 0.85f + normalizedIndex * 11.0f);
+        const float radius = std::clamp(0.18f + ringIndex * 0.62f + radiusPulse, 0.12f, 0.93f);
+        const float x = std::cos(angle) * radius;
+        const float y = std::sin(angle) * radius;
+        const float headingDegrees = angle * kRadiansToDegrees + 90.0f;
+
+        mfd::client::DynamicReticle& track = tracks.Upsert(RadarTrackId(index));
+        track.SetPosition(mfd::Vec2 {x, y});
+        track.SetRotationDegrees(headingDegrees);
+        track.SetColor(kTrackPalette[static_cast<std::size_t>(index) % kTrackPalette.size()]);
+        track.SetText("track_label", RadarTrackLabel(index));
+        track.SetLetterSpacing("track_label", 0.0080f);
+        track.SetBlinkEnabled(true);
+
+        if (index % 3 == 0)
+        {
+            track.Blink = radar.fast;
+        }
+        else
+        {
+            track.Blink = radar.caution;
+        }
+    }
+
+    return ui.BuildBatch();
+}
+
+template <typename WindowUi>
+std::vector<mfd::UserCommand> BuildCockpitSimulationCommands(WindowUi& ui, const CockpitSimulationState& simulation)
+{
+    static constexpr mfd::ColorRgba kHudNominal {46, 255, 162, 255};
+    static constexpr mfd::ColorRgba kHudWarning {255, 198, 109, 255};
+    static constexpr mfd::ColorRgba kRadarSearch {86, 244, 162, 255};
+    static constexpr mfd::ColorRgba kRadarStandby {255, 198, 109, 255};
+
+    const bool overspeed = simulation.speedKts > 700.0f;
+    const float adiPitchOffset = std::clamp(-simulation.pitchDegrees * 0.0063f, -0.60f, 0.60f);
+    const float hudPitchOffset = std::clamp(-simulation.pitchDegrees * 0.0080f, -0.24f, 0.24f);
+    const float hudFpmX = std::clamp(simulation.bankDegrees * 0.0032f, -0.14f, 0.14f);
+    const float hudFpmY = std::clamp(
+        (simulation.flightPathAngleDegrees - simulation.pitchDegrees) * 0.014f - 0.03f,
+        -0.18f,
+        0.18f);
+    const float radarSweepDegrees = WrapDegrees(std::fmod(simulation.elapsedSeconds * 90.0f, 360.0f));
+    const std::string headingText = FormatHeadingValue(simulation.headingDegrees);
+    const std::string selectedHeadingText = FormatHeadingValue(simulation.selectedHeadingDegrees);
+    const std::string speedText = FormatSpeedValue(simulation.speedKts);
+    const std::string machText = FormatSignedFloat(simulation.speedKts / kKnotsPerMach, "%.2f");
+    const std::string pitchText = FormatSignedFloat(simulation.pitchDegrees, "%+04.1f");
+    const std::string rollText = FormatSignedFloat(simulation.bankDegrees, "%+03.0f");
+    const std::string fpaText = FormatSignedFloat(simulation.flightPathAngleDegrees, "%+04.1f");
+    const std::string throttleText = FormatPercentValue(simulation.throttle);
+    const float headingBugRelativeDegrees =
+        std::remainder(simulation.selectedHeadingDegrees - simulation.headingDegrees, 360.0f);
+
+    ui.Reset();
+    auto& cockpit = ui.Cockpit();
+
+    const mfd::Vec2 adiBallPosition {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
+    cockpit.adiBallSky.SetPosition(adiBallPosition);
+    cockpit.adiBallSky.SetRotationDegrees(simulation.bankDegrees);
+    cockpit.adiBallGround.SetPosition(adiBallPosition);
+    cockpit.adiBallGround.SetRotationDegrees(simulation.bankDegrees);
+    cockpit.adiBallHorizon.SetPosition(adiBallPosition);
+    cockpit.adiBallHorizon.SetRotationDegrees(simulation.bankDegrees);
+    cockpit.adiBallLadder.SetPosition(adiBallPosition);
+    cockpit.adiBallLadder.SetRotationDegrees(simulation.bankDegrees);
+
+    cockpit.adiHeadingBox.SetText("heading_value", headingText);
+    cockpit.adiHeadingBox.SetText("command_value", selectedHeadingText);
+    cockpit.adiHeadingCard.SetRotationDegrees(-simulation.headingDegrees);
+    cockpit.adiHeadingCommandBug.SetRotationDegrees(headingBugRelativeDegrees);
+    cockpit.adiPitchBox.SetValue(pitchText);
+    cockpit.adiRollBox.SetValue(rollText);
+
+    cockpit.hudPitchLadder.SetPosition(mfd::Vec2 {kCockpitHudCenterX, kCockpitHudCenterY + hudPitchOffset});
+    cockpit.hudPitchLadder.SetRotationDegrees(simulation.bankDegrees * 0.88f);
+    cockpit.hudVelocityVector.SetPosition(mfd::Vec2 {kCockpitHudCenterX + hudFpmX, kCockpitHudCenterY + hudFpmY});
+
+    cockpit.hudSpeedBox.SetValue(speedText);
+    cockpit.hudSpeedBox.SetColor(overspeed ? kHudWarning : kHudNominal);
+    cockpit.hudMachBox.SetValue(machText);
+    cockpit.hudMachBox.SetColor(overspeed ? kHudWarning : kHudNominal);
+
+    if (overspeed)
+    {
+        cockpit.hudSpeedBox.Blink = cockpit.overspeed;
+        cockpit.hudMachBox.Blink = cockpit.overspeed;
+    }
+    else
+    {
+        cockpit.hudSpeedBox.Blink = nullptr;
+        cockpit.hudMachBox.Blink = nullptr;
+    }
+
+    cockpit.hudHeadingBox.SetValue(headingText);
+    cockpit.hudFpaBox.SetValue(fpaText);
+    cockpit.hudThrottleBox.SetValue(throttleText);
+    cockpit.hudRadarBox.SetValue(simulation.radarEnabled ? std::string {"EMIT"} : std::string {"STBY"});
+    cockpit.hudRadarBox.SetColor(simulation.radarEnabled ? kHudNominal : kHudWarning);
+
+    cockpit.radarScope.SetVisible(simulation.radarEnabled);
+    cockpit.radarSweep.SetVisible(simulation.radarEnabled);
+    cockpit.radarSweep.SetPosition(mfd::Vec2 {kCockpitRadarCenterX, kCockpitRadarCenterY});
+    cockpit.radarSweep.SetRotationDegrees(-radarSweepDegrees);
+    cockpit.radarOwnship.SetVisible(simulation.radarEnabled);
+    cockpit.radarHeadingBox.SetValue(headingText);
+    cockpit.radarSpeedBox.SetValue(speedText);
+    cockpit.radarStatusBox.SetValue(simulation.radarEnabled ? std::string {"SEARCH"} : std::string {"STANDBY"});
+    cockpit.radarStatusBox.SetColor(simulation.radarEnabled ? kRadarSearch : kRadarStandby);
+    cockpit.radarOffOverlay.SetVisible(!simulation.radarEnabled);
+
+    if (simulation.radarEnabled)
+    {
+        auto& contacts = cockpit.Dynamic(kCockpitRadarTemplateId);
+        const float headingRadians = simulation.headingDegrees * kDegreesToRadians;
+        const float cosine = std::cos(headingRadians);
+        const float sine = std::sin(headingRadians);
+        constexpr float kRadarRangeWorldUnits = 10.5f;
+        constexpr float kRadarRadius = 0.33f;
+
+        for (const CockpitTargetSeed& target : kCockpitTargets)
+        {
+            const float orbitAngle = simulation.elapsedSeconds * target.orbitRate + target.orbitPhase;
+            const float worldX = target.baseX + std::cos(orbitAngle) * target.orbitRadius;
+            const float worldY = target.baseY + std::sin(orbitAngle) * target.orbitRadius;
+            const float deltaX = worldX - simulation.ownshipX;
+            const float deltaY = worldY - simulation.ownshipY;
+            const float right = deltaX * cosine - deltaY * sine;
+            const float forward = deltaX * sine + deltaY * cosine;
+            const float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+            const bool visible = distance <= kRadarRangeWorldUnits;
+            const float normalizedX = std::clamp(right / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
+            const float normalizedY = std::clamp(forward / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
+            const float contactHeadingDegrees = std::atan2(right, forward) * kRadiansToDegrees;
+
+            mfd::client::DynamicReticle& contact = contacts.Upsert(target.id);
+            contact.SetVisible(visible);
+            contact.SetPosition(mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY});
+            contact.SetRotationDegrees(contactHeadingDegrees);
+            contact.SetColor(target.color);
+            contact.SetText("contact_label", std::string {target.label});
+
+            if (target.blink)
+            {
+                contact.Blink = cockpit.threat;
+            }
+            else
+            {
+                contact.Blink = nullptr;
+            }
+        }
+    }
+
+    return ui.BuildBatch();
+}
+
 /** @brief Converts a runtime RGBA color to an ImGui color vector. */
 ImVec4 ToImGuiColor(const mfd::ColorRgba& color);
 /** @brief Converts an ImGui color vector to a runtime RGBA color. */
@@ -424,13 +664,13 @@ private:
 
     /** @brief Built-in target presets exposed by the window-target combo box. */
     const std::array<WindowFilePreset, 3> knownWindowFiles_ {{
-        {"Full Demo", "assets/windows/demo_pages.json"},
-        {"Cockpit Demo", "assets/windows/demo_pages_cockpit.json"},
-        {"Minimal Radar", "assets/windows/demo_pages_minimal.json"},
+        {"Full Demo", std::filesystem::path {kFullDemoWindowFile}},
+        {"Cockpit Demo", std::filesystem::path {kCockpitDemoWindowFile}},
+        {"Minimal Radar", std::filesystem::path {kMinimalRadarWindowFile}},
     }};
 
     /** @brief Root window file currently targeted by the mockup. */
-    std::filesystem::path windowFile_ = "assets/windows/demo_pages.json";
+    std::filesystem::path windowFile_ = std::filesystem::path {kFullDemoWindowFile};
     /** @brief JSON loader used to inspect the target window description locally. */
     mfd::JsonLoader loader_ {};
     /** @brief Loaded authored configuration used to populate the operator UI. */
@@ -645,7 +885,7 @@ int MockupApplication::Run()
     }
 
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
-    InitWindow(1500, 920, "MFD Mockup");
+    InitWindow(1500, 920, "Client Mockup");
     SetWindowMinSize(1180, 720);
     SetTargetFPS(60);
 
@@ -1495,105 +1735,63 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
         return false;
     }
 
-    const std::string templateId(kRadarSimulationTemplateId);
-    if (!clearOnly && !loaded_.document.reticleLibrary.contains(templateId))
+    if (!clearOnly && !loaded_.document.reticleLibrary.contains(std::string(kRadarSimulationTemplateId)))
     {
         SetStatus("The reticle library does not expose the 'radar_track' template.", true);
         return false;
     }
 
+    std::vector<mfd::UserCommand> commands;
+
     if (clearOnly)
     {
-        std::vector<mfd::UserCommand> commands;
-        commands.reserve(static_cast<std::size_t>(kRadarSimulationTrackCount));
-
-        for (int index = 0; index < kRadarSimulationTrackCount; ++index)
-        {
-            commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-                mfd::ReticleHandle {std::string(kRadarSimulationPageName), RadarTrackId(index)}});
-        }
-
-        const double sendStart = GetTime();
-        const bool sent = client_->SendBatch(commands, radarSimulation_.nextSequence);
-        const double sendEnd = GetTime();
-
-        radarSimulation_.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
-        radarSimulation_.lastCommandCount = static_cast<int>(commands.size());
-
-        if (radarSimulation_.previousSendTimestamp > 0.0)
-        {
-            radarSimulation_.lastObservedCycleMs =
-                static_cast<float>((sendStart - radarSimulation_.previousSendTimestamp) * 1000.0);
-        }
-
-        radarSimulation_.previousSendTimestamp = sendStart;
-
-        if (!sent)
-        {
-            SetStatus("Unable to clear simulated radar tracks: " + client_->LastError(), true);
-            return false;
-        }
+        commands = BuildRadarRemovalCommands();
     }
     else
     {
-        std::vector<mfd::DynamicReticleState> reticles;
-        reticles.reserve(static_cast<std::size_t>(kRadarSimulationTrackCount));
-
-        static constexpr std::array<mfd::ColorRgba, 4> kTrackPalette {{
-            mfd::ColorRgba {0, 255, 0, 255},
-            mfd::ColorRgba {72, 220, 255, 255},
-            mfd::ColorRgba {255, 191, 0, 255},
-            mfd::ColorRgba {255, 96, 96, 255},
-        }};
-
-        constexpr float kPi = 3.14159265359f;
-        constexpr float kTwoPi = kPi * 2.0f;
-
-        for (int index = 0; index < kRadarSimulationTrackCount; ++index)
+        switch (DetectWindowPresetKind(windowFile_))
         {
-            const float normalizedIndex = static_cast<float>(index) / static_cast<float>(kRadarSimulationTrackCount);
-            const float ringIndex = static_cast<float>(index % 10) / 9.0f;
-            const float speed = 0.35f + normalizedIndex * 1.15f;
-            const float baseAngle = normalizedIndex * kTwoPi;
-            const float angle = baseAngle + radarSimulation_.elapsedSeconds * speed;
-            const float radiusPulse = 0.035f * std::sin(radarSimulation_.elapsedSeconds * 0.85f + normalizedIndex * 11.0f);
-            const float radius = std::clamp(0.18f + ringIndex * 0.62f + radiusPulse, 0.12f, 0.93f);
-            const float x = std::cos(angle) * radius;
-            const float y = std::sin(angle) * radius;
-            const float headingDegrees = angle * kRadiansToDegrees + 90.0f;
-
-            mfd::ReticlePatch patch;
-            patch.position = mfd::Vec2 {x, y};
-            patch.rotationDegrees = headingDegrees;
-            patch.color = kTrackPalette[static_cast<std::size_t>(index) % kTrackPalette.size()];
-            patch.text = RadarTrackLabel(index);
-            patch.letterSpacing = 0.0080f;
-            patch.blinkEnabled = true;
-            patch.blinkType = (index % 3 == 0) ? std::string {"fast"} : std::string {"caution"};
-
-            reticles.push_back(mfd::DynamicReticleState {RadarTrackId(index), std::move(patch)});
-        }
-
-        const double sendStart = GetTime();
-        const bool sent = client_->UpsertDynamicReticles(kRadarSimulationPageName, templateId, reticles);
-        const double sendEnd = GetTime();
-
-        radarSimulation_.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
-        radarSimulation_.lastCommandCount = static_cast<int>(reticles.size());
-
-        if (radarSimulation_.previousSendTimestamp > 0.0)
-        {
-            radarSimulation_.lastObservedCycleMs =
-                static_cast<float>((sendStart - radarSimulation_.previousSendTimestamp) * 1000.0);
-        }
-
-        radarSimulation_.previousSendTimestamp = sendStart;
-
-        if (!sent)
-        {
-            SetStatus("Unable to send the radar batch: " + client_->LastError(), true);
+        case WindowPresetKind::FullDemo:
+            {
+                full_demo_ui::FullDemoMockupUi ui;
+                commands = BuildRadarSimulationCommands(ui, radarSimulation_.elapsedSeconds);
+            }
+            break;
+        case WindowPresetKind::MinimalRadar:
+            {
+                minimal_radar_ui::MinimalRadarMockupUi ui;
+                commands = BuildRadarSimulationCommands(ui, radarSimulation_.elapsedSeconds);
+            }
+            break;
+        default:
+            SetStatus("No generated radar client API is available for the selected window preset.", true);
             return false;
         }
+    }
+
+    const double sendStart = GetTime();
+    const bool sent = client_->SendBatch(commands, radarSimulation_.nextSequence);
+    const double sendEnd = GetTime();
+
+    radarSimulation_.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
+    radarSimulation_.lastCommandCount = static_cast<int>(commands.size());
+
+    if (radarSimulation_.previousSendTimestamp > 0.0)
+    {
+        radarSimulation_.lastObservedCycleMs =
+            static_cast<float>((sendStart - radarSimulation_.previousSendTimestamp) * 1000.0);
+    }
+
+    radarSimulation_.previousSendTimestamp = sendStart;
+
+    if (!sent)
+    {
+        SetStatus(
+            clearOnly
+                ? "Unable to clear simulated radar tracks: " + client_->LastError()
+                : "Unable to send the radar batch: " + client_->LastError(),
+            true);
+        return false;
     }
 
     ++radarSimulation_.nextSequence;
@@ -1636,260 +1834,14 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
         return false;
     }
 
-    static constexpr mfd::ColorRgba kHudNominal {46, 255, 162, 255};
-    static constexpr mfd::ColorRgba kHudWarning {255, 198, 109, 255};
-    static constexpr mfd::ColorRgba kRadarSearch {86, 244, 162, 255};
-    static constexpr mfd::ColorRgba kRadarStandby {255, 198, 109, 255};
-
     CockpitSimulationState& simulation = cockpitSimulation_;
-    const bool overspeed = simulation.speedKts > 700.0f;
-    const float adiPitchOffset = std::clamp(-simulation.pitchDegrees * 0.0063f, -0.60f, 0.60f);
-    const float hudPitchOffset = std::clamp(-simulation.pitchDegrees * 0.0080f, -0.24f, 0.24f);
-    const float hudFpmX = std::clamp(simulation.bankDegrees * 0.0032f, -0.14f, 0.14f);
-    const float hudFpmY = std::clamp(
-        (simulation.flightPathAngleDegrees - simulation.pitchDegrees) * 0.014f - 0.03f,
-        -0.18f,
-        0.18f);
-    const float radarSweepDegrees = WrapDegrees(std::fmod(simulation.elapsedSeconds * 90.0f, 360.0f));
-    const std::string headingText = FormatHeadingValue(simulation.headingDegrees);
-    const std::string selectedHeadingText = FormatHeadingValue(simulation.selectedHeadingDegrees);
-    const std::string speedText = FormatSpeedValue(simulation.speedKts);
-    const std::string machText = FormatSignedFloat(simulation.speedKts / kKnotsPerMach, "%.2f");
-    const std::string pitchText = FormatSignedFloat(simulation.pitchDegrees, "%+04.1f");
-    const std::string rollText = FormatSignedFloat(simulation.bankDegrees, "%+03.0f");
-    const std::string fpaText = FormatSignedFloat(simulation.flightPathAngleDegrees, "%+04.1f");
-    const std::string throttleText = FormatPercentValue(simulation.throttle);
-    const float headingBugRelativeDegrees =
-        std::remainder(simulation.selectedHeadingDegrees - simulation.headingDegrees, 360.0f);
+    cockpit_demo_ui::CockpitDemoMockupUi ui;
+    std::vector<mfd::UserCommand> commands = BuildCockpitSimulationCommands(ui, simulation);
+    bool contactsPublishedNext = simulation.radarEnabled;
 
-    std::vector<mfd::UserCommand> commands;
-    commands.reserve(24);
-
-    auto pushReticlePatch = [&commands](const std::string_view reticleId, mfd::ReticlePatch patch)
+    if (!simulation.radarEnabled && simulation.contactsPublished)
     {
-        commands.emplace_back(mfd::UpdateReticleCommand {
-            mfd::ReticleHandle {std::string(kCockpitPageName), std::string(reticleId)},
-            std::move(patch)});
-    };
-
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees;
-        pushReticlePatch("adi_ball_sky", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees;
-        pushReticlePatch("adi_ball_ground", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees;
-        pushReticlePatch("adi_ball_horizon", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees;
-        pushReticlePatch("adi_ball_ladder", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("heading_value", headingText);
-        patch.texts.emplace("command_value", selectedHeadingText);
-        pushReticlePatch("adi_heading_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.rotationDegrees = -simulation.headingDegrees;
-        pushReticlePatch("adi_heading_card", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.rotationDegrees = headingBugRelativeDegrees;
-        pushReticlePatch("adi_heading_command_bug", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("pitch_value", pitchText);
-        pushReticlePatch("adi_pitch_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("roll_value", rollText);
-        pushReticlePatch("adi_roll_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitHudCenterX, kCockpitHudCenterY + hudPitchOffset};
-        patch.rotationDegrees = simulation.bankDegrees * 0.88f;
-        pushReticlePatch("hud_pitch_ladder", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.position = mfd::Vec2 {kCockpitHudCenterX + hudFpmX, kCockpitHudCenterY + hudFpmY};
-        pushReticlePatch("hud_velocity_vector", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("speed_value", speedText);
-        patch.color = overspeed ? kHudWarning : kHudNominal;
-        patch.blinkEnabled = overspeed;
-        patch.blinkType = overspeed ? std::string {"overspeed"} : std::string {};
-        pushReticlePatch("hud_speed_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("mach_value", machText);
-        patch.color = overspeed ? kHudWarning : kHudNominal;
-        patch.blinkEnabled = overspeed;
-        patch.blinkType = overspeed ? std::string {"overspeed"} : std::string {};
-        pushReticlePatch("hud_mach_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("heading_value", headingText);
-        pushReticlePatch("hud_heading_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("fpa_value", fpaText);
-        pushReticlePatch("hud_fpa_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("throttle_value", throttleText);
-        pushReticlePatch("hud_throttle_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("radar_value", simulation.radarEnabled ? std::string {"EMIT"} : std::string {"STBY"});
-        patch.color = simulation.radarEnabled ? kHudNominal : kHudWarning;
-        pushReticlePatch("hud_radar_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.visible = simulation.radarEnabled;
-        pushReticlePatch("radar_scope", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.visible = simulation.radarEnabled;
-        patch.position = mfd::Vec2 {kCockpitRadarCenterX, kCockpitRadarCenterY};
-        patch.rotationDegrees = -radarSweepDegrees;
-        pushReticlePatch("radar_sweep", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.visible = simulation.radarEnabled;
-        pushReticlePatch("radar_ownship", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("heading_value", headingText);
-        pushReticlePatch("radar_heading_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("speed_value", speedText);
-        pushReticlePatch("radar_speed_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.texts.emplace("status_value", simulation.radarEnabled ? std::string {"SEARCH"} : std::string {"STANDBY"});
-        patch.color = simulation.radarEnabled ? kRadarSearch : kRadarStandby;
-        pushReticlePatch("radar_status_box", std::move(patch));
-    }
-
-    {
-        mfd::ReticlePatch patch;
-        patch.visible = !simulation.radarEnabled;
-        pushReticlePatch("radar_off_overlay", std::move(patch));
-    }
-
-    bool contactsPublishedNext = simulation.contactsPublished;
-
-    if (simulation.radarEnabled)
-    {
-        std::vector<mfd::DynamicReticleState> contacts;
-        contacts.reserve(kCockpitTargets.size());
-
-        const float headingRadians = simulation.headingDegrees * kDegreesToRadians;
-        const float cosine = std::cos(headingRadians);
-        const float sine = std::sin(headingRadians);
-        constexpr float kRadarRangeWorldUnits = 10.5f;
-        constexpr float kRadarRadius = 0.33f;
-
-        for (const CockpitTargetSeed& target : kCockpitTargets)
-        {
-            const float orbitAngle = simulation.elapsedSeconds * target.orbitRate + target.orbitPhase;
-            const float worldX = target.baseX + std::cos(orbitAngle) * target.orbitRadius;
-            const float worldY = target.baseY + std::sin(orbitAngle) * target.orbitRadius;
-            const float deltaX = worldX - simulation.ownshipX;
-            const float deltaY = worldY - simulation.ownshipY;
-            const float right = deltaX * cosine - deltaY * sine;
-            const float forward = deltaX * sine + deltaY * cosine;
-            const float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
-            const bool visible = distance <= kRadarRangeWorldUnits;
-            const float normalizedX = std::clamp(right / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
-            const float normalizedY = std::clamp(forward / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
-            const float contactHeadingDegrees = std::atan2(right, forward) * kRadiansToDegrees;
-
-            mfd::ReticlePatch patch;
-            patch.visible = visible;
-            patch.position = mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY};
-            patch.rotationDegrees = contactHeadingDegrees;
-            patch.color = target.color;
-            patch.texts.emplace("contact_label", target.label);
-            patch.blinkEnabled = target.blink;
-
-            if (target.blink)
-            {
-                patch.blinkType = std::string {"threat"};
-            }
-
-            contacts.push_back(mfd::DynamicReticleState {target.id, std::move(patch)});
-        }
-
-        commands.emplace_back(mfd::UpsertDynamicReticlesCommand {
-            std::string(kCockpitPageName),
-            std::string(kCockpitRadarTemplateId),
-            std::move(contacts)});
-        contactsPublishedNext = true;
-    }
-    else if (simulation.contactsPublished)
-    {
-        for (const CockpitTargetSeed& target : kCockpitTargets)
-        {
-            commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-                mfd::ReticleHandle {std::string(kCockpitPageName), std::string(target.id)}});
-        }
-
+        AppendCockpitContactRemovalCommands(commands);
         contactsPublishedNext = false;
     }
 
@@ -1971,7 +1923,7 @@ void MockupApplication::DrawUi()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin(
-        "MFD Mockup Root",
+        "Client Mockup Root",
         nullptr,
         ImGuiWindowFlags_NoDecoration |
             ImGuiWindowFlags_NoMove |
@@ -2009,7 +1961,7 @@ void MockupApplication::DrawUi()
 
 void MockupApplication::DrawHeaderBar()
 {
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.00f), "MFD Mockup Control");
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.00f), "Client Mockup Control");
     ImGui::SameLine();
     ImGui::TextDisabled("|");
     ImGui::SameLine();
