@@ -232,6 +232,16 @@ float Canvas2D::ToPixels(const float logicalValue) const noexcept
     return logicalValue * LogicalScale();
 }
 
+float Canvas2D::ViewZoom() const noexcept
+{
+    return SanitizeZoom(view_.zoom);
+}
+
+float Canvas2D::ToViewPixels(const float logicalValue) const noexcept
+{
+    return ToPixels(logicalValue * ViewZoom());
+}
+
 void Canvas2D::DrawReticle(const ReticleGroup& reticle) const
 {
     DrawReticle(reticle, reticle.visible);
@@ -313,8 +323,8 @@ void Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGr
     {
         const auto& circle = std::get<CircleGeometry>(primitive.geometry);
         const float radius = std::max(0.0f,
-                                      std::abs(ToPixels(circle.radius * AverageScale(group.transform,
-                                                                                     primitive.transform))));
+                                      std::abs(ToViewPixels(circle.radius * AverageScale(group.transform,
+                                                                                         primitive.transform))));
         const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
         DrawCircleV(center, radius, kClipMaskColor);
         break;
@@ -398,7 +408,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     const PrimitiveStyle style = MergeStyle(primitive.style, group.overrides);
     const Color strokeColor = ToRayColor(style.color);
     const Color fillColor = ToRayColor(style.fillColor);
-    const float strokeThickness = std::max(1.0f, std::abs(ToPixels(style.thickness)));
+    const float strokeThickness = std::max(1.0f, std::abs(ToViewPixels(style.thickness)));
     const Transform2D combinedTransform = CombineTransforms(group.transform, primitive.transform);
 
     switch (primitive.type)
@@ -409,10 +419,10 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         const Font font = TextFont();
         const float textScale = AverageScale(group.transform, primitive.transform);
         const float fontSize = std::max(1.0f,
-                                        std::abs(ToPixels(text.fontSize * textScale)));
+                                        std::abs(ToViewPixels(text.fontSize * textScale)));
         const float letterSpacing = std::isfinite(text.letterSpacing)
-                                        ? ToPixels(text.letterSpacing * textScale)
-                                        : ToPixels(kDefaultTextLetterSpacing * textScale);
+                                        ? ToViewPixels(text.letterSpacing * textScale)
+                                        : ToViewPixels(kDefaultTextLetterSpacing * textScale);
         const Vector2 screenPosition = ToScreen(TransformPoint({}, primitive, group));
         const Vector2 textSize = MeasureTextEx(font, text.text.c_str(), fontSize, letterSpacing);
         const Vector2 origin {textSize.x * 0.5f, textSize.y * 0.5f};
@@ -434,10 +444,10 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         const Font font = TextFont();
         const float textScale = AverageScale(group.transform, primitive.transform);
         const float fontSize = std::max(1.0f,
-                                        std::abs(ToPixels(time.fontSize * textScale)));
+                                        std::abs(ToViewPixels(time.fontSize * textScale)));
         const float letterSpacing = std::isfinite(time.letterSpacing)
-                                        ? ToPixels(time.letterSpacing * textScale)
-                                        : ToPixels(kDefaultTextLetterSpacing * textScale);
+                                        ? ToViewPixels(time.letterSpacing * textScale)
+                                        : ToViewPixels(kDefaultTextLetterSpacing * textScale);
         const Vector2 screenPosition = ToScreen(TransformPoint({}, primitive, group));
         const Vector2 textSize = MeasureTextEx(font, text.c_str(), fontSize, letterSpacing);
         const Vector2 origin {textSize.x * 0.5f, textSize.y * 0.5f};
@@ -464,8 +474,8 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     {
         const auto& circle = std::get<CircleGeometry>(primitive.geometry);
         const float radius = std::max(0.0f,
-                                      std::abs(ToPixels(circle.radius * AverageScale(group.transform,
-                                                                                     primitive.transform))));
+                                      std::abs(ToViewPixels(circle.radius * AverageScale(group.transform,
+                                                                                         primitive.transform))));
         const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
 
         if (style.filled)

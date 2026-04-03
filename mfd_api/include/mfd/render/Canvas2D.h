@@ -57,6 +57,8 @@ private:
     Font TextFont() const noexcept;
     float LogicalScale() const noexcept;
     float ToPixels(float logicalValue) const noexcept;
+    float ViewZoom() const noexcept;
+    float ToViewPixels(float logicalValue) const noexcept;
     Vector2 ToScreen(const Vec2& logical) const noexcept;
     Vec2 TransformPoint(const Vec2& point, const Primitive& primitive, const ReticleGroup& group) const noexcept;
     void BuildScreenPointsInto(const Vec2* points,
