@@ -26,8 +26,11 @@ namespace mfd::client
  * @brief Asynchronously publishes realtime command batches while coalescing stale pending states.
  *
  * @note This helper is intended for state-streaming workloads such as radar or
- * cockpit mockups where only the latest state matters. Do not use it for
- * one-shot actions that must never be dropped.
+ * cockpit mockups where only the latest state matters.
+ *
+ * @note Dynamic reticle lifecycle actions (create/update from template and remove)
+ * are preserved across pending-batch replacement to keep a coherent dynamic
+ * reticle state between sends.
  */
 class MFD_CLIENT_API LatestBatchPublisher
 {

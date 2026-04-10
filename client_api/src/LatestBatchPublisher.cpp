@@ -7,10 +7,15 @@
 
 #include <condition_variable>
 #include <exception>
+#include <cstddef>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <thread>
+#include <type_traits>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "mfd/control/CommandClient.h"
 
@@ -34,6 +39,146 @@ struct LatestBatchPublisher::Impl
 
 namespace
 {
+using DynamicOperationMap = std::unordered_map<std::string, std::size_t>;
+
+std::string MakeDynamicReticleKey(const std::string& page, const std::string& reticle)
+{
+    return page + '\x1F' + reticle;
+}
+
+void PutDynamicLifecycleCommand(std::vector<mfd::UserCommand>& operations,
+                                DynamicOperationMap& operationIndexes,
+                                mfd::UserCommand command)
+{
+    auto key = std::visit(
+        [](const auto& value) -> std::string
+        {
+            using Command = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
+            {
+                return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+            }
+            else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
+            {
+                return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+            }
+            else
+            {
+                return {};
+            }
+        },
+        command);
+
+    if (key.empty())
+    {
+        return;
+    }
+
+    const auto indexIt = operationIndexes.find(key);
+    if (indexIt == operationIndexes.end())
+    {
+        operationIndexes.emplace(std::move(key), operations.size());
+        operations.push_back(std::move(command));
+        return;
+    }
+
+    operations[indexIt->second] = std::move(command);
+}
+
+void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source,
+                                     std::vector<mfd::UserCommand>& operations,
+                                     DynamicOperationMap& operationIndexes)
+{
+    for (const mfd::UserCommand& command : source)
+    {
+        std::visit(
+            [&operations, &operationIndexes](const auto& value)
+            {
+                using Command = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
+                {
+                    PutDynamicLifecycleCommand(operations, operationIndexes, value);
+                }
+                else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
+                {
+                    PutDynamicLifecycleCommand(operations, operationIndexes, value);
+                }
+                else if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticlesCommand>)
+                {
+                    for (const mfd::DynamicReticleState& state : value.reticles)
+                    {
+                        PutDynamicLifecycleCommand(
+                            operations,
+                            operationIndexes,
+                            mfd::UpsertDynamicReticleCommand {
+                                mfd::ReticleHandle {value.page, state.reticleId},
+                                value.templateId,
+                                state.patch});
+                    }
+                }
+            },
+            command);
+    }
+}
+
+void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandBatch>& pendingBatch,
+                                                     mfd::CommandBatch&& newestBatch)
+{
+    if (!pendingBatch.has_value())
+    {
+        pendingBatch = std::move(newestBatch);
+        return;
+    }
+
+    std::vector<mfd::UserCommand> pendingDynamicOperations;
+    DynamicOperationMap pendingIndexes;
+    CollectDynamicLifecycleCommands(pendingBatch->commands, pendingDynamicOperations, pendingIndexes);
+
+    std::vector<mfd::UserCommand> newestDynamicOperations;
+    DynamicOperationMap newestIndexes;
+    CollectDynamicLifecycleCommands(newestBatch.commands, newestDynamicOperations, newestIndexes);
+
+    std::vector<mfd::UserCommand> carriedOperations;
+    carriedOperations.reserve(pendingDynamicOperations.size());
+
+    for (const mfd::UserCommand& command : pendingDynamicOperations)
+    {
+        const auto key = std::visit(
+            [](const auto& value) -> std::string
+            {
+                using Command = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
+                {
+                    return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+                }
+                else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
+                {
+                    return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+                }
+                else
+                {
+                    return {};
+                }
+            },
+            command);
+
+        if (!key.empty() && newestIndexes.find(key) == newestIndexes.end())
+        {
+            carriedOperations.push_back(command);
+        }
+    }
+
+    if (carriedOperations.empty())
+    {
+        pendingBatch = std::move(newestBatch);
+        return;
+    }
+
+    mfd::CommandBatch mergedBatch = std::move(newestBatch);
+    mergedBatch.commands.insert(mergedBatch.commands.begin(), carriedOperations.begin(), carriedOperations.end());
+    pendingBatch = std::move(mergedBatch);
+}
+
 void StartWorker(auto& impl)
 {
     if (!impl.ready || !impl.sendFunction)
@@ -214,7 +359,7 @@ bool LatestBatchPublisher::SubmitLatest(mfd::CommandBatch batch)
             return false;
         }
 
-        impl_->pendingBatch = std::move(batch);
+        MergePendingBatchKeepingDynamicReticleLifecycle(impl_->pendingBatch, std::move(batch));
     }
 
     impl_->wakeCondition.notify_one();
