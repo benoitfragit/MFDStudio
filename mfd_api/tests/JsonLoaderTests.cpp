@@ -768,3 +768,86 @@ TEST(JsonLoaderTests, LoadRepositoryMinimalWindowConfigurationMarksRadarAsDefaul
     ASSERT_NE(defaultPage, nullptr);
     EXPECT_EQ(defaultPage->name, "Radar");
 }
+
+TEST(JsonLoaderTests, LoadWindowConfigurationRejectsNonPositiveUdpPacketSizes)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path windowFile = workspace.Path() / "window.json";
+    const std::filesystem::path pageFile = workspace.Path() / "page.json";
+
+    WriteTextFile(pageFile, R"json({ "name": "Main" })json");
+    WriteTextFile(windowFile,
+                  R"json({
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "maxPacketSize": 0
+    }
+  },
+  "pages": ["page.json"]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadWindowConfiguration(windowFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsTriangleWithMoreThanThreePoints)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "pages": [
+    {
+      "name": "Main",
+      "staticReticles": [
+        {
+          "id": "shape",
+          "elements": [
+            {
+              "id": "tri",
+              "type": "triangle",
+              "points": [[0,0], [1,0], [0,1], [1,1]]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsBezierWithAmbiguousPointFields)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "pages": [
+    {
+      "name": "Main",
+      "staticReticles": [
+        {
+          "id": "shape",
+          "elements": [
+            {
+              "id": "curve",
+              "type": "bezier",
+              "controlPoints": [[0,0], [1,0], [1,1]],
+              "points": [[0,0], [0.5,1], [1,1]]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
