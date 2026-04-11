@@ -62,10 +62,18 @@ public:
             return std::nullopt;
         }
 
+        if (!pboSupportChecked_)
+        {
+            pboSupportChecked_ = true;
+            pboAvailable_ = rlGetVersion() >= RL_OPENGL_33;
+        }
+
         if (!EnsureResources(renderWidth, renderHeight))
         {
             pboAvailable_ = false;
-            return mfd::OpenGlFramebufferReader::ReadRgba32();
+            latestFramebuffer_ = mfd::OpenGlFramebufferReader::ReadRgba32();
+            hasLatestFramebuffer_ = !latestFramebuffer_.Empty();
+            return latestFramebuffer_;
         }
 
         rlDrawRenderBatchActive();
@@ -81,6 +89,17 @@ public:
         }
 
         ++frameIndex_;
+        if (readyFrame.has_value())
+        {
+            hasLatestFramebuffer_ = true;
+            return readyFrame;
+        }
+
+        if (hasLatestFramebuffer_)
+        {
+            return latestFramebuffer_;
+        }
+
         return readyFrame;
     }
 
@@ -258,7 +277,9 @@ private:
     mfd::Rgba32Framebuffer latestFramebuffer_ {};
     std::size_t frameIndex_ = 0;
     bool initialized_ = false;
+    bool pboSupportChecked_ = false;
     bool pboAvailable_ = true;
+    bool hasLatestFramebuffer_ = false;
 };
 
 struct CommandLineOptions
