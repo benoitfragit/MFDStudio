@@ -9,6 +9,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
@@ -25,6 +26,7 @@
 #include <vector>
 
 #include <raylib.h>
+#include <rlgl.h>
 
 #include "mfd/control/CommandProcessor.h"
 #include "mfd/control/StrobeFeedback.h"
@@ -41,6 +43,244 @@ extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 namespace
 {
 constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
+constexpr unsigned int kCaptureRingSize = 2;
+
+class AsyncFramebufferCapture
+{
+public:
+    ~AsyncFramebufferCapture()
+    {
+        Release();
+    }
+
+    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> Capture()
+    {
+        const int renderWidth = GetRenderWidth();
+        const int renderHeight = GetRenderHeight();
+        if (renderWidth <= 0 || renderHeight <= 0)
+        {
+            return std::nullopt;
+        }
+
+        if (!pboSupportChecked_)
+        {
+            pboSupportChecked_ = true;
+            pboAvailable_ = rlGetVersion() >= RL_OPENGL_33;
+        }
+
+        if (!EnsureResources(renderWidth, renderHeight))
+        {
+            pboAvailable_ = false;
+            latestFramebuffer_ = mfd::OpenGlFramebufferReader::ReadRgba32();
+            hasLatestFramebuffer_ = !latestFramebuffer_.Empty();
+            return latestFramebuffer_;
+        }
+
+        rlDrawRenderBatchActive();
+
+        const unsigned int writeIndex = frameIndex_ % kCaptureRingSize;
+        SubmitReadback(writeIndex, renderWidth, renderHeight);
+
+        std::optional<mfd::Rgba32Framebuffer> readyFrame;
+        if (frameIndex_ + 1 >= kCaptureRingSize)
+        {
+            const unsigned int readIndex = (frameIndex_ + 1) % kCaptureRingSize;
+            readyFrame = TryConsume(readIndex);
+        }
+
+        ++frameIndex_;
+        if (readyFrame.has_value())
+        {
+            hasLatestFramebuffer_ = true;
+            return readyFrame;
+        }
+
+        if (hasLatestFramebuffer_)
+        {
+            return latestFramebuffer_;
+        }
+
+        return readyFrame;
+    }
+
+private:
+    struct CaptureSlot
+    {
+        unsigned int pboId = 0;
+        std::size_t capacityBytes = 0;
+        int width = 0;
+        int height = 0;
+    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+        GLsync fence = nullptr;
+    #endif
+    };
+
+    static void FlipRows(std::vector<mfd::Rgba8Pixel>& pixels, const int width, const int height)
+    {
+        if (width <= 0 || height <= 1)
+        {
+            return;
+        }
+
+        const std::size_t stride = static_cast<std::size_t>(width) * sizeof(mfd::Rgba8Pixel);
+        std::vector<mfd::Rgba8Pixel> scratchRow(static_cast<std::size_t>(width));
+
+        for (int top = 0, bottom = height - 1; top < bottom; ++top, --bottom)
+        {
+            mfd::Rgba8Pixel* topRow = pixels.data() + static_cast<std::size_t>(top) * static_cast<std::size_t>(width);
+            mfd::Rgba8Pixel* bottomRow = pixels.data() + static_cast<std::size_t>(bottom) * static_cast<std::size_t>(width);
+            std::memcpy(scratchRow.data(), topRow, stride);
+            std::memcpy(topRow, bottomRow, stride);
+            std::memcpy(bottomRow, scratchRow.data(), stride);
+        }
+    }
+
+    bool EnsureResources(const int width, const int height)
+    {
+        if (!pboAvailable_)
+        {
+            return false;
+        }
+
+        const std::size_t requiredBytes =
+            static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * sizeof(mfd::Rgba8Pixel);
+        if (requiredBytes == 0)
+        {
+            return false;
+        }
+
+        if (!initialized_)
+        {
+            for (CaptureSlot& slot : slots_)
+            {
+                glGenBuffers(1, &slot.pboId);
+                if (slot.pboId == 0)
+                {
+                    Release();
+                    return false;
+                }
+            }
+            initialized_ = true;
+            frameIndex_ = 0;
+        }
+
+        for (CaptureSlot& slot : slots_)
+        {
+            if (slot.capacityBytes == requiredBytes && slot.width == width && slot.height == height)
+            {
+                continue;
+            }
+
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, slot.pboId);
+            glBufferData(GL_PIXEL_PACK_BUFFER, static_cast<GLsizeiptr>(requiredBytes), nullptr, GL_STREAM_READ);
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+            slot.capacityBytes = requiredBytes;
+            slot.width = width;
+            slot.height = height;
+        }
+
+        return true;
+    }
+
+    void SubmitReadback(const unsigned int slotIndex, const int width, const int height)
+    {
+        CaptureSlot& slot = slots_[slotIndex];
+    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+        if (slot.fence != nullptr)
+        {
+            glDeleteSync(slot.fence);
+            slot.fence = nullptr;
+        }
+    #endif
+
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, slot.pboId);
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+
+    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+        slot.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    #endif
+    }
+
+    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> TryConsume(const unsigned int slotIndex)
+    {
+        CaptureSlot& slot = slots_[slotIndex];
+        if (slot.pboId == 0 || slot.capacityBytes == 0)
+        {
+            return std::nullopt;
+        }
+
+    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+        if (slot.fence == nullptr)
+        {
+            return std::nullopt;
+        }
+
+        const GLenum waitResult = glClientWaitSync(slot.fence, 0, 0);
+        if (waitResult != GL_ALREADY_SIGNALED && waitResult != GL_CONDITION_SATISFIED)
+        {
+            return std::nullopt;
+        }
+    #endif
+
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, slot.pboId);
+        void* mappedBuffer = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+        if (mappedBuffer == nullptr)
+        {
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+            return std::nullopt;
+        }
+
+        latestFramebuffer_.width = slot.width;
+        latestFramebuffer_.height = slot.height;
+        latestFramebuffer_.pixels.resize(static_cast<std::size_t>(slot.width) * static_cast<std::size_t>(slot.height));
+        std::memcpy(latestFramebuffer_.pixels.data(), mappedBuffer, slot.capacityBytes);
+        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+
+    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+        glDeleteSync(slot.fence);
+        slot.fence = nullptr;
+    #endif
+
+        FlipRows(latestFramebuffer_.pixels, latestFramebuffer_.width, latestFramebuffer_.height);
+        return latestFramebuffer_;
+    }
+
+    void Release()
+    {
+        for (CaptureSlot& slot : slots_)
+        {
+    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+            if (slot.fence != nullptr)
+            {
+                glDeleteSync(slot.fence);
+                slot.fence = nullptr;
+            }
+    #endif
+            if (slot.pboId != 0)
+            {
+                glDeleteBuffers(1, &slot.pboId);
+                slot.pboId = 0;
+            }
+
+            slot.capacityBytes = 0;
+            slot.width = 0;
+            slot.height = 0;
+        }
+
+        initialized_ = false;
+        frameIndex_ = 0;
+    }
+
+    std::array<CaptureSlot, kCaptureRingSize> slots_ {};
+    mfd::Rgba32Framebuffer latestFramebuffer_ {};
+    std::size_t frameIndex_ = 0;
+    bool initialized_ = false;
+    bool pboSupportChecked_ = false;
+    bool pboAvailable_ = true;
+    bool hasLatestFramebuffer_ = false;
+};
 
 struct CommandLineOptions
 {
@@ -419,8 +659,13 @@ private:
             return;
         }
 
-        const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
-        framebufferCallback_(framebuffer.width, framebuffer.height, framebuffer.Bytes());
+        const std::optional<mfd::Rgba32Framebuffer> framebuffer = framebufferCapture_.Capture();
+        if (!framebuffer.has_value())
+        {
+            return;
+        }
+
+        framebufferCallback_(framebuffer->width, framebuffer->height, framebuffer->Bytes());
     }
 
     std::string applicationName_;
@@ -430,6 +675,7 @@ private:
     mfd::SceneRegistry scene_ {};
     mfd::CommandProcessor commandProcessor_;
     mfd::MfdRenderer renderer_ {};
+    AsyncFramebufferCapture framebufferCapture_ {};
     mfd::WindowAssetDefinition windowDefinition_ {};
     std::unique_ptr<mfd::UdpRuntimeBridge> udpRuntimeBridge_ {};
     std::vector<mfd::UserCommand> pendingCommands_ {};
