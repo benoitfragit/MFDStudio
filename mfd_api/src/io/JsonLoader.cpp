@@ -304,6 +304,17 @@ std::uint16_t ParsePortNumber(const json& value, const char* fieldName)
     return static_cast<std::uint16_t>(port);
 }
 
+std::size_t ParsePositivePacketSize(const json& value, const char* fieldName)
+{
+    const int packetSize = ParsePixelNumber(value, fieldName);
+    if (packetSize <= 0)
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be strictly positive");
+    }
+
+    return static_cast<std::size_t>(packetSize);
+}
+
 std::uint32_t ParseDurationMilliseconds(const json& value, const char* fieldName)
 {
     const int durationMs = ParsePixelNumber(value, fieldName);
@@ -1254,6 +1265,11 @@ Primitive ParsePrimitive(const json& node)
     case PrimitiveType::Triangle:
     {
         TriangleGeometry geometry;
+        if (!node.contains("points") || !node.at("points").is_array() || node.at("points").size() != 3)
+        {
+            throw std::runtime_error("triangle.points must contain exactly three points");
+        }
+
         const auto points = ParsePointList(node.at("points"), 3);
         geometry.points = {points.at(0), points.at(1), points.at(2)};
         primitive.geometry = std::move(geometry);
@@ -1270,13 +1286,24 @@ Primitive ParsePrimitive(const json& node)
     case PrimitiveType::Bezier:
     {
         BezierGeometry geometry;
-        if (node.contains("controlPoints"))
+        const bool hasControlPoints = node.contains("controlPoints");
+        const bool hasPoints = node.contains("points");
+        if (hasControlPoints && hasPoints)
+        {
+            throw std::runtime_error("bezier cannot define both controlPoints and points");
+        }
+
+        if (hasControlPoints)
         {
             geometry.controlPoints = ParsePointList(node.at("controlPoints"), 2);
         }
-        else
+        else if (hasPoints)
         {
             geometry.controlPoints = ParsePointList(node.at("points"), 2);
+        }
+        else
+        {
+            throw std::runtime_error("bezier requires controlPoints or points");
         }
 
         geometry.segments = node.value("segments", 32);
@@ -1911,7 +1938,7 @@ WindowUdpCommandTransport ParseWindowUdpCommandTransport(const json& node)
 
     if (const json* maxPacketSize = FindField(node, {"maxPacketSize", "packetSize", "bufferSize"}))
     {
-        config.maxPacketSize = static_cast<std::size_t>(ParsePixelNumber(*maxPacketSize, "commands.udp.maxPacketSize"));
+        config.maxPacketSize = ParsePositivePacketSize(*maxPacketSize, "commands.udp.maxPacketSize");
     }
 
     return config;
@@ -1957,7 +1984,7 @@ WindowUdpFeedbackTransport ParseWindowUdpFeedbackTransport(const json& node)
 
     if (const json* maxPacketSize = FindField(node, {"maxPacketSize", "packetSize", "bufferSize"}))
     {
-        config.maxPacketSize = static_cast<std::size_t>(ParsePixelNumber(*maxPacketSize, "feedback.udp.maxPacketSize"));
+        config.maxPacketSize = ParsePositivePacketSize(*maxPacketSize, "feedback.udp.maxPacketSize");
     }
 
     return config;
