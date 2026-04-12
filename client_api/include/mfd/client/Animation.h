@@ -162,6 +162,8 @@ public:
     DynamicReticleSet& operator=(DynamicReticleSet&&) = delete;
 
     void Reset() noexcept;
+    /** @brief Enables or disables all dynamic reticles of this page/template set at runtime. */
+    void SetVisible(bool visible);
     DynamicReticle& Upsert(std::string_view reticleId);
     std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);
     std::size_t AppendRemovalCommands(std::vector<mfd::UserCommand>& commands);
@@ -172,6 +174,9 @@ private:
     std::string pageName_;
     std::string templateId_;
     std::vector<std::unique_ptr<DynamicReticle>> reticles_ {};
+    bool desiredVisible_ = true;
+    bool lastSentVisible_ = true;
+    bool visibilityDirty_ = false;
 };
 
 class MFD_CLIENT_API WindowDisplay

@@ -180,6 +180,19 @@ struct UpsertDynamicReticlesCommand
 };
 
 /**
+ * @brief Command toggling visibility for all dynamic reticles of one page/template set.
+ */
+struct SetDynamicReticleSetVisibilityCommand
+{
+    /** @brief Target page receiving the dynamic reticles. */
+    std::string page;
+    /** @brief Dynamic reticle template id defining the set. */
+    std::string templateId;
+    /** @brief Visibility applied to every dynamic reticle of the set. */
+    bool visible = true;
+};
+
+/**
  * @brief Command removing a dynamic reticle from a page.
  */
 struct RemoveDynamicReticleCommand
@@ -198,6 +211,7 @@ using UserCommand = std::variant<ActivatePageCommand,
                                  UpdateStrobeCommand,
                                  UpsertDynamicReticleCommand,
                                  UpsertDynamicReticlesCommand,
+                                 SetDynamicReticleSetVisibilityCommand,
                                  RemoveDynamicReticleCommand>;
 
 /**

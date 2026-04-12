@@ -87,13 +87,32 @@ client.UpsertDynamicReticles("Radar", "radar_track", updates);
 If the target page declares several blink types with the same effective
 duration, those dynamic reticles blink in phase automatically.
 
-## Step 4 - Remove one dynamic reticle
+## Step 4 - Declutter one full dynamic template set
+
+When your generated UI exposes one dynamic set (for example `tracks`), you can
+toggle all its children at once:
+
+```cpp
+auto& tracks = ui.Radar().Dynamic("radar_track");
+tracks.SetVisible(false); // hides every dynamic reticle created from radar_track
+```
+
+The runtime keeps dynamic instances alive and masks rendering until visibility
+is enabled again.
+
+At the low-level API, this maps to:
+
+```cpp
+client.SetDynamicReticleSetVisible("Radar", "radar_track", false);
+```
+
+## Step 5 - Remove one dynamic reticle
 
 ```cpp
 client.RemoveDynamicReticle("Radar", "track_42");
 ```
 
-## Step 5 - Remove reticles that disappeared from your source
+## Step 6 - Remove reticles that disappeared from your source
 
 Typical pattern:
 
@@ -103,7 +122,7 @@ Typical pattern:
 
 This is the standard radar-track lifecycle.
 
-## Step 6 - Important naming rule
+## Step 7 - Important naming rule
 
 A dynamic reticle is uniquely addressed by:
 
@@ -136,4 +155,5 @@ You now know how to:
 
 - create dynamic reticles
 - update them every cycle
+- declutter one full dynamic template set
 - remove them cleanly
