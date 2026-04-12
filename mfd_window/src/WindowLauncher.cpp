@@ -40,6 +40,13 @@
 extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 #endif
 
+// NOTE:
+// CI Visual Studio builds can expose a raylib graphics backend where low-level
+// OpenGL PBO/sync symbols (GLsync, glBindBuffer, glFenceSync, etc.) are not
+// declared at compile time. To keep builds portable/reliable, keep async PBO
+// capture disabled and use the synchronous framebuffer fallback path.
+#define MFD_HAS_GL_PBO_API 0
+
 namespace
 {
 constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
@@ -65,7 +72,7 @@ public:
         if (!pboSupportChecked_)
         {
             pboSupportChecked_ = true;
-            pboAvailable_ = rlGetVersion() >= RL_OPENGL_33;
+            pboAvailable_ = (MFD_HAS_GL_PBO_API == 1) && (rlGetVersion() >= RL_OPENGL_33);
         }
 
         if (!EnsureResources(renderWidth, renderHeight))
@@ -110,7 +117,7 @@ private:
         std::size_t capacityBytes = 0;
         int width = 0;
         int height = 0;
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         GLsync fence = nullptr;
     #endif
     };
@@ -137,6 +144,11 @@ private:
 
     bool EnsureResources(const int width, const int height)
     {
+#if MFD_HAS_GL_PBO_API == 0
+        (void) width;
+        (void) height;
+        return false;
+#else
         if (!pboAvailable_)
         {
             return false;
@@ -180,12 +192,19 @@ private:
         }
 
         return true;
+#endif
     }
 
     void SubmitReadback(const unsigned int slotIndex, const int width, const int height)
     {
+#if MFD_HAS_GL_PBO_API == 0
+        (void) slotIndex;
+        (void) width;
+        (void) height;
+        return;
+#else
         CaptureSlot& slot = slots_[slotIndex];
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         if (slot.fence != nullptr)
         {
             glDeleteSync(slot.fence);
@@ -197,20 +216,25 @@ private:
         glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         slot.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     #endif
+#endif
     }
 
     [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> TryConsume(const unsigned int slotIndex)
     {
+#if MFD_HAS_GL_PBO_API == 0
+        (void) slotIndex;
+        return std::nullopt;
+#else
         CaptureSlot& slot = slots_[slotIndex];
         if (slot.pboId == 0 || slot.capacityBytes == 0)
         {
             return std::nullopt;
         }
 
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         if (slot.fence == nullptr)
         {
             return std::nullopt;
@@ -238,20 +262,26 @@ private:
         glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         glDeleteSync(slot.fence);
         slot.fence = nullptr;
     #endif
 
         FlipRows(latestFramebuffer_.pixels, latestFramebuffer_.width, latestFramebuffer_.height);
         return latestFramebuffer_;
+#endif
     }
 
     void Release()
     {
+#if MFD_HAS_GL_PBO_API == 0
+        initialized_ = false;
+        frameIndex_ = 0;
+        return;
+#else
         for (CaptureSlot& slot : slots_)
         {
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
             if (slot.fence != nullptr)
             {
                 glDeleteSync(slot.fence);
@@ -271,6 +301,7 @@ private:
 
         initialized_ = false;
         frameIndex_ = 0;
+#endif
     }
 
     std::array<CaptureSlot, kCaptureRingSize> slots_ {};

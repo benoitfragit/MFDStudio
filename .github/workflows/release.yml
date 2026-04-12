@@ -1,0 +1,74 @@
+name: Build and Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release-assets:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - configure_preset: vs2022-x64
+            build_preset: release-x64
+            exec_platform: x64
+          - configure_preset: vs2022-win32
+            build_preset: release-win32
+            exec_platform: win32
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure (${{ matrix.configure_preset }})
+        run: cmake --preset ${{ matrix.configure_preset }}
+
+      - name: Build (${{ matrix.build_preset }})
+        run: cmake --build --preset ${{ matrix.build_preset }}
+
+      - name: Create archive (${{ matrix.exec_platform }})
+        id: create_archive
+        shell: pwsh
+        run: |
+          $toolsetDir = Get-ChildItem -Path "_Exec" -Directory | Select-Object -First 1
+          if (-not $toolsetDir) {
+            Write-Error "No staged runtime found under _Exec"
+          }
+
+          $stageDir = Join-Path $toolsetDir.FullName "${{ matrix.exec_platform }}/Release"
+          if (-not (Test-Path $stageDir)) {
+            Write-Error "Expected stage directory not found: $stageDir"
+          }
+
+          $archiveName = "mfd-${{ github.ref_name }}-${{ matrix.exec_platform }}.zip"
+          Compress-Archive -Path "$stageDir/*" -DestinationPath $archiveName
+          "archive_name=$archiveName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.create_archive.outputs.archive_name }}
+          path: ${{ steps.create_archive.outputs.archive_name }}
+
+  publish-release:
+    needs: build-release-assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_artifacts
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_artifacts/**/*.zip
+          generate_release_notes: true

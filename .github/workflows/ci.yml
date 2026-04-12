@@ -1,0 +1,39 @@
+name: PR Build and Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - configure_preset: vs2022-x64
+            build_preset: debug-x64
+            run_tests: true
+          - configure_preset: vs2022-x64
+            build_preset: release-x64
+            run_tests: false
+          - configure_preset: vs2022-win32
+            build_preset: debug-win32
+            run_tests: true
+          - configure_preset: vs2022-win32
+            build_preset: release-win32
+            run_tests: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure (${{ matrix.configure_preset }})
+        run: cmake --preset ${{ matrix.configure_preset }}
+
+      - name: Build (${{ matrix.build_preset }})
+        run: cmake --build --preset ${{ matrix.build_preset }}
+
+      - name: Run GoogleTest suite (ctest)
+        if: matrix.run_tests
+        run: ctest --test-dir build/${{ matrix.configure_preset }} -C Debug --output-on-failure
