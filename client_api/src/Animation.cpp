@@ -494,6 +494,12 @@ void DynamicReticleSet::Reset() noexcept
     }
 }
 
+void DynamicReticleSet::SetVisible(const bool visible)
+{
+    desiredVisible_ = visible;
+    visibilityDirty_ = true;
+}
+
 DynamicReticle& DynamicReticleSet::Upsert(const std::string_view reticleId)
 {
     if (DynamicReticle* existing = Find(reticleId); existing != nullptr)
@@ -512,6 +518,16 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
     std::vector<mfd::DynamicReticleState> updates;
     updates.reserve(reticles_.size());
     std::size_t count = 0;
+
+    if (visibilityDirty_ && desiredVisible_ != lastSentVisible_)
+    {
+        commands.emplace_back(mfd::SetDynamicReticleSetVisibilityCommand {
+            pageName_,
+            templateId_,
+            desiredVisible_});
+        lastSentVisible_ = desiredVisible_;
+        ++count;
+    }
 
     for (const auto& reticle : reticles_)
     {
@@ -555,6 +571,7 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
             std::move(updates)});
     }
 
+    visibilityDirty_ = false;
     return count;
 }
 

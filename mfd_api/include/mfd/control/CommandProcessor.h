@@ -107,6 +107,7 @@ private:
     void OnUpdateStrobe(const UpdateStrobeCommand& command);
     void OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command);
     void OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command);
+    void OnSetDynamicReticleSetVisibility(const SetDynamicReticleSetVisibilityCommand& command);
     void OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
 
     void SetFailure(std::string message);

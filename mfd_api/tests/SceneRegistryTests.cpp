@@ -364,6 +364,23 @@ TEST(SceneRegistryTests, WindowDisplayPatchSerializationRoundTripsDisabledFlag)
     EXPECT_TRUE(*update->patch.disabled);
 }
 
+TEST(SceneRegistryTests, DynamicTemplateVisibilityCommandSerializationRoundTrips)
+{
+    const mfd::UserCommand command = mfd::SetDynamicReticleSetVisibilityCommand {
+        "Radar",
+        "radar_tracks",
+        false};
+    const std::string payload = mfd::SerializeUserCommand(command);
+    const auto decoded = mfd::DeserializeUserCommand(payload);
+
+    ASSERT_TRUE(decoded.has_value());
+    const auto* visibility = std::get_if<mfd::SetDynamicReticleSetVisibilityCommand>(&*decoded);
+    ASSERT_NE(visibility, nullptr);
+    EXPECT_EQ(visibility->page, "Radar");
+    EXPECT_EQ(visibility->templateId, "radar_tracks");
+    EXPECT_FALSE(visibility->visible);
+}
+
 TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
 {
     mfd::MfdDocument document;
@@ -621,4 +638,39 @@ TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamic
     ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
     EXPECT_FALSE(registry.ActiveStrobeSummary()->visible);
     EXPECT_FALSE(registry.CaptureActivePageStrobe().has_value());
+}
+
+TEST(SceneRegistryTests, DynamicTemplateVisibilityMasksOnlyMatchingDynamicReticles)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeTextReticle("track_alpha");
+    track.sourceTemplateId = "radar_tracks";
+    mfd::ReticleGroup waypoint = MakeTextReticle("wp_alpha");
+    waypoint.sourceTemplateId = "waypoints";
+
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+    registry.UpsertDynamicReticle("Radar", std::move(waypoint));
+
+    auto views = registry.CollectPageReticleViews("Radar");
+    ASSERT_EQ(views.size(), 6U);
+    EXPECT_EQ(views[3].group->id, "track_alpha");
+    EXPECT_EQ(views[4].group->id, "wp_alpha");
+    EXPECT_TRUE(views[3].visible);
+    EXPECT_TRUE(views[4].visible);
+
+    EXPECT_TRUE(registry.SetDynamicReticleSetVisible("Radar", "radar_tracks", false));
+    views = registry.CollectPageReticleViews("Radar");
+    ASSERT_EQ(views.size(), 6U);
+    EXPECT_FALSE(views[3].visible);
+    EXPECT_TRUE(views[4].visible);
+
+    EXPECT_TRUE(registry.SetDynamicReticleSetVisible("Radar", "radar_tracks", true));
+    views = registry.CollectPageReticleViews("Radar");
+    ASSERT_EQ(views.size(), 6U);
+    EXPECT_TRUE(views[3].visible);
+    EXPECT_TRUE(views[4].visible);
 }

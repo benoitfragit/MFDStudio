@@ -46,6 +46,11 @@ std::string MakeDynamicReticleKey(const std::string& page, const std::string& re
     return page + '\x1F' + reticle;
 }
 
+std::string MakeDynamicTemplateKey(const std::string& page, const std::string& templateId)
+{
+    return page + '\x1E' + templateId;
+}
+
 void PutDynamicLifecycleCommand(std::vector<mfd::UserCommand>& operations,
                                 DynamicOperationMap& operationIndexes,
                                 mfd::UserCommand command)
@@ -61,6 +66,10 @@ void PutDynamicLifecycleCommand(std::vector<mfd::UserCommand>& operations,
             else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
             {
                 return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+            }
+            else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
+            {
+                return MakeDynamicTemplateKey(value.page, value.templateId);
             }
             else
             {
@@ -116,6 +125,10 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
                                 state.patch});
                     }
                 }
+                else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
+                {
+                    PutDynamicLifecycleCommand(operations, operationIndexes, value);
+                }
             },
             command);
     }
@@ -154,6 +167,10 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
                 else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
                 {
                     return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+                }
+                else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
+                {
+                    return MakeDynamicTemplateKey(value.page, value.templateId);
                 }
                 else
                 {

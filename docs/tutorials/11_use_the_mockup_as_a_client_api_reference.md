@@ -165,6 +165,7 @@ your own client.
 | `Upsert dynamic reticle` | `UpsertDynamicReticle(page, id, template, patch)` | `UpsertDynamicReticleCommand` |
 | `Remove dynamic reticle` | `RemoveDynamicReticle(page, id)` | `RemoveDynamicReticleCommand` |
 | `Send one radar batch` | `UpsertDynamicReticles(page, template, states)` | `UpsertDynamicReticlesCommand` |
+| `Declutter one dynamic set` | `SetDynamicReticleSetVisible(page, template, visible)` | `SetDynamicReticleSetVisibilityCommand` |
 | `Send one cockpit frame` | `SendBatch(commands, sequence)` | `CommandBatch` |
 
 ## Pattern 1 - Recreate The Targeted Connection

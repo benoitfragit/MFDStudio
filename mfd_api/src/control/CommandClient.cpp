@@ -402,6 +402,16 @@ bool CommandClient::UpsertDynamicReticles(const std::string_view page,
     return Send(command);
 }
 
+bool CommandClient::SetDynamicReticleSetVisible(const std::string_view page,
+                                                const std::string_view templateId,
+                                                const bool visible)
+{
+    return Send(SetDynamicReticleSetVisibilityCommand {
+        std::string(page),
+        std::string(templateId),
+        visible});
+}
+
 bool CommandClient::RemoveDynamicReticle(const std::string_view page, const std::string_view reticle)
 {
     return Send(RemoveDynamicReticleCommand {ReticleHandle {std::string(page), std::string(reticle)}});
