@@ -263,6 +263,10 @@ public:
     bool ApplyDynamicReticlePatch(std::string_view pageName,
                                   std::string_view reticleId,
                                   const ReticlePatch& patch) noexcept;
+    /** @brief Sets visibility for all dynamic reticles matching one page/template set. */
+    bool SetDynamicReticleSetVisible(std::string_view pageName,
+                                     std::string_view templateId,
+                                     bool visible) noexcept;
 
     /** @brief Enables or disables a page strobe. */
     bool SetStrobeActive(std::string_view pageName, bool active) noexcept;
@@ -339,6 +343,10 @@ private:
     void IndexReticle(std::string_view normalizedPageName, const ReticleGroup& reticle, entt::entity entity);
     /** @brief Removes one reticle entry from the fast lookup map. */
     void RemoveReticleIndex(std::string_view normalizedPageName, std::string_view reticleId);
+    /** @brief Builds the composite lookup key used by dynamic template visibility overrides. */
+    std::string MakeDynamicTemplateLookupKey(std::string_view normalizedPageName, std::string_view templateId) const;
+    /** @brief Returns whether one dynamic template set is currently visible on one page. */
+    bool IsDynamicTemplateVisible(std::string_view normalizedPageName, std::string_view templateId) const noexcept;
     /** @brief Inserts one reticle entity into the ordered draw list of a page. */
     void InsertReticleIntoPageDrawList(std::string_view normalizedPageName, entt::entity entity);
     /** @brief Removes one reticle entity from the ordered draw list of a page. */
@@ -356,6 +364,8 @@ private:
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> strobeEntities_ {};
     /** @brief Fast lookup from page-plus-reticle key to reticle entity. */
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> reticleEntities_ {};
+    /** @brief Optional per-page visibility overrides indexed by dynamic template id. */
+    std::unordered_map<std::string, bool, TransparentStringHash, TransparentStringEqual> dynamicTemplateVisibility_ {};
     /** @brief Monotonic ordering counter used to place dynamic reticles after authored content. */
     std::size_t nextDynamicOrder_ = 10000;
     /** @brief Normalized name of the currently active page. */

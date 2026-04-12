@@ -351,6 +351,7 @@ void SceneRegistry::LoadDocument(MfdDocument document)
     pageEntities_.clear();
     strobeEntities_.clear();
     reticleEntities_.clear();
+    dynamicTemplateVisibility_.clear();
     nextDynamicOrder_ = 10000;
     activePage_.clear();
     windowDisplay_ = {};
@@ -629,7 +630,8 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
         }
 
         const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity).group;
-        if (!IsReticleVisibleNow(*page, dynamicReticle, now))
+        if (!IsReticleVisibleNow(*page, dynamicReticle, now) ||
+            !IsDynamicTemplateVisible(pageName, dynamicReticle.sourceTemplateId))
         {
             continue;
         }
@@ -710,9 +712,15 @@ std::vector<ReticleRenderView> SceneRegistry::CollectPageReticleViewsByKey(const
             continue;
         }
 
+        bool visible = IsReticleVisibleNow(*page, reticle->group, now);
+        if (visible && registry_.all_of<DynamicTag>(entity))
+        {
+            visible = IsDynamicTemplateVisible(pageName, reticle->group.sourceTemplateId);
+        }
+
         result.push_back(ReticleRenderView {
             &reticle->group,
-            IsReticleVisibleNow(*page, reticle->group, now)});
+            visible});
     }
 
     return result;
@@ -1099,6 +1107,30 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
     return applied || IsEmptyPatch(patch);
 }
 
+bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
+                                                const std::string_view templateId,
+                                                const bool visible) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const std::string normalizedTemplateId = NormalizePageName(templateId);
+    if (!HasNormalizedPage(normalizedPageName) || normalizedTemplateId.empty())
+    {
+        return false;
+    }
+
+    const std::string key = MakeDynamicTemplateLookupKey(normalizedPageName, normalizedTemplateId);
+    if (visible)
+    {
+        dynamicTemplateVisibility_.erase(key);
+    }
+    else
+    {
+        dynamicTemplateVisibility_[key] = false;
+    }
+
+    return true;
+}
+
 bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool active) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
@@ -1150,7 +1182,8 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
                 }
 
                 const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity).group;
-                if (!IsReticleVisibleNow(*page, dynamicReticle, now))
+                if (!IsReticleVisibleNow(*page, dynamicReticle, now) ||
+                    !IsDynamicTemplateVisible(normalizedPageName, dynamicReticle.sourceTemplateId))
                 {
                     continue;
                 }
@@ -1242,7 +1275,8 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
         }
 
         const auto& reticle = dynamicView.get<ReticleComponent>(entity).group;
-        if (!IsReticleVisibleNow(*page, reticle, now))
+        if (!IsReticleVisibleNow(*page, reticle, now) ||
+            !IsDynamicTemplateVisible(pageName, reticle.sourceTemplateId))
         {
             continue;
         }
@@ -1433,6 +1467,31 @@ void SceneRegistry::IndexReticle(const std::string_view normalizedPageName,
 void SceneRegistry::RemoveReticleIndex(const std::string_view normalizedPageName, const std::string_view reticleId)
 {
     reticleEntities_.erase(MakeReticleLookupKey(normalizedPageName, reticleId));
+}
+
+std::string SceneRegistry::MakeDynamicTemplateLookupKey(const std::string_view normalizedPageName,
+                                                        const std::string_view templateId) const
+{
+    return std::string(normalizedPageName) + '\x1F' + std::string(templateId);
+}
+
+bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPageName,
+                                             const std::string_view templateId) const noexcept
+{
+    const std::string normalizedTemplateId = NormalizePageName(templateId);
+    if (normalizedTemplateId.empty())
+    {
+        return true;
+    }
+
+    const auto iterator = dynamicTemplateVisibility_.find(
+        MakeDynamicTemplateLookupKey(normalizedPageName, normalizedTemplateId));
+    if (iterator == dynamicTemplateVisibility_.end())
+    {
+        return true;
+    }
+
+    return iterator->second;
 }
 
 void SceneRegistry::InsertReticleIntoPageDrawList(const std::string_view normalizedPageName, const entt::entity entity)

@@ -176,3 +176,40 @@ TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownR
     EXPECT_FALSE(brightnessOnly->patch.disabled.has_value());
     EXPECT_FLOAT_EQ(*brightnessOnly->patch.brightness, 0.60f);
 }
+
+TEST(AnimationTests, DynamicReticleSetVisibilityEmitsDedicatedTemplateCommand)
+{
+    mfd::client::DynamicReticleSet set("Radar", "radar_track");
+    set.SetVisible(false);
+
+    mfd::client::DynamicReticle& track = set.Upsert("alpha");
+    track.SetPosition({0.2f, 0.3f});
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 2U);
+    ASSERT_EQ(commands.size(), 2U);
+
+    const auto* visibility = std::get_if<mfd::SetDynamicReticleSetVisibilityCommand>(&commands[0]);
+    ASSERT_NE(visibility, nullptr);
+    EXPECT_EQ(visibility->page, "Radar");
+    EXPECT_EQ(visibility->templateId, "radar_track");
+    EXPECT_FALSE(visibility->visible);
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands[1]);
+    ASSERT_NE(upsert, nullptr);
+    ASSERT_EQ(upsert->reticles.size(), 1U);
+    EXPECT_EQ(upsert->reticles[0].reticleId, "alpha");
+
+    commands.clear();
+    EXPECT_EQ(set.AppendCommands(commands), 0U);
+    EXPECT_TRUE(commands.empty());
+
+    set.SetVisible(true);
+    commands.clear();
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* showVisibility = std::get_if<mfd::SetDynamicReticleSetVisibilityCommand>(&commands[0]);
+    ASSERT_NE(showVisibility, nullptr);
+    EXPECT_TRUE(showVisibility->visible);
+}

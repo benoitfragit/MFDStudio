@@ -176,6 +176,8 @@ public:
     bool UpsertDynamicReticles(std::string_view page,
                                std::string_view templateId,
                                std::span<const DynamicReticleState> reticles);
+    /** @brief Enables or disables all dynamic reticles belonging to one page/template set. */
+    bool SetDynamicReticleSetVisible(std::string_view page, std::string_view templateId, bool visible);
 
     /**
      * @brief Removes a dynamic reticle from a page.

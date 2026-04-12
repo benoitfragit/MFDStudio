@@ -31,6 +31,7 @@ CommandProcessor::CommandProcessor(SceneRegistry& scene)
     dispatcher_.sink<UpdateStrobeCommand>().connect<&CommandProcessor::OnUpdateStrobe>(*this);
     dispatcher_.sink<UpsertDynamicReticleCommand>().connect<&CommandProcessor::OnUpsertDynamicReticle>(*this);
     dispatcher_.sink<UpsertDynamicReticlesCommand>().connect<&CommandProcessor::OnUpsertDynamicReticles>(*this);
+    dispatcher_.sink<SetDynamicReticleSetVisibilityCommand>().connect<&CommandProcessor::OnSetDynamicReticleSetVisibility>(*this);
     dispatcher_.sink<RemoveDynamicReticleCommand>().connect<&CommandProcessor::OnRemoveDynamicReticle>(*this);
 }
 
@@ -295,6 +296,15 @@ void CommandProcessor::OnRemoveDynamicReticle(const RemoveDynamicReticleCommand&
     {
         SetFailure("Unable to remove dynamic reticle '" + command.target.reticle +
                    "' from page '" + command.target.page + "'");
+    }
+}
+
+void CommandProcessor::OnSetDynamicReticleSetVisibility(const SetDynamicReticleSetVisibilityCommand& command)
+{
+    if (!scene_.SetDynamicReticleSetVisible(command.page, command.templateId, command.visible))
+    {
+        SetFailure("Unable to update dynamic reticle set visibility for template '" + command.templateId +
+                   "' on page '" + command.page + "'");
     }
 }
 

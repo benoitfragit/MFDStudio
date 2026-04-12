@@ -89,6 +89,13 @@ message UpsertDynamicReticlesCommand
   repeated DynamicReticleState reticles = 3;
 }
 
+message SetDynamicReticleSetVisibilityCommand
+{
+  string page = 1;
+  string template_id = 2;
+  bool visible = 3;
+}
+
 message RemoveDynamicReticleCommand
 {
   ReticleHandle target = 1;
@@ -106,6 +113,7 @@ message UserCommand
     UpsertDynamicReticleCommand upsert_dynamic_reticle = 6;
     UpsertDynamicReticlesCommand upsert_dynamic_reticles = 7;
     RemoveDynamicReticleCommand remove_dynamic_reticle = 8;
+    SetDynamicReticleSetVisibilityCommand set_dynamic_reticle_set_visibility = 9;
   }
 }
 

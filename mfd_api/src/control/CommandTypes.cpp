@@ -298,6 +298,13 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
                     FillProtoDynamicReticleState(reticle, message->add_reticles());
                 }
             }
+            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
+            {
+                auto* message = target->mutable_set_dynamic_reticle_set_visibility();
+                message->set_page(value.page);
+                message->set_template_id(value.templateId);
+                message->set_visible(value.visible);
+            }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
                 FillProtoHandle(value.target, target->mutable_remove_dynamic_reticle()->mutable_target());
@@ -389,6 +396,15 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
             command.reticles.push_back(FromProtoDynamicReticleState(reticle));
         }
 
+        return command;
+    }
+
+    case pb::UserCommand::kSetDynamicReticleSetVisibility:
+    {
+        SetDynamicReticleSetVisibilityCommand command;
+        command.page = value.set_dynamic_reticle_set_visibility().page();
+        command.templateId = value.set_dynamic_reticle_set_visibility().template_id();
+        command.visible = value.set_dynamic_reticle_set_visibility().visible();
         return command;
     }
 
