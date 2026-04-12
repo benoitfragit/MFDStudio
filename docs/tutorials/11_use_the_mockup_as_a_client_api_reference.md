@@ -168,6 +168,65 @@ your own client.
 | `Declutter one dynamic set` | `SetDynamicReticleSetVisible(page, template, visible)` | `SetDynamicReticleSetVisibilityCommand` |
 | `Send one cockpit frame` | `SendBatch(commands, sequence)` | `CommandBatch` |
 
+## Generated Client UI In 2 Minutes
+
+If you prefer typed client-side accessors (instead of string ids everywhere),
+generate a UI wrapper from your window JSON.
+
+### Step A - Generate code from CMake
+
+```cmake
+client_api_generate_ui(
+    WINDOW_JSON "assets/windows/demo_pages_cockpit.json"
+    OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.h"
+    OUTPUT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.cpp"
+    NAMESPACE "mockup_ui"
+    UI_CLASS_NAME "CockpitMockupUi"
+    HEADER_INCLUDE "MockupUi.h")
+```
+
+This is exactly how `examples/client_mockup` and
+`examples/client_mockup_minimal` are wired.
+
+### Step B - Use the generated types in your runtime client
+
+```cpp
+#include "MockupUi.h"
+#include "mfd/control/CommandClient.h"
+
+mfd::WindowUdpCommandTransport transport;
+transport.enabled = true;
+transport.address = "127.0.0.1";
+transport.port = 47220;
+transport.maxPacketSize = 16384;
+
+mfd::CommandClient client(transport);
+if (!client.IsReady())
+{
+    // inspect client.LastError()
+}
+
+mockup_ui::CockpitMockupUi ui;
+client.ActivatePage(mockup_ui::CockpitMockupPage::Name());
+
+// One generated dynamic set accessor, then one low-level send
+auto& contacts = ui.Cockpit().Dynamic("cockpit_radar_contact");
+contacts.SetVisible(true);
+
+mfd::ReticlePatch patch;
+patch.visible = true;
+patch.text = std::string {"B21"};
+patch.position = mfd::Vec2 {0.15f, -0.10f};
+client.UpsertDynamicReticle("Cockpit", "contact_01", "cockpit_radar_contact", patch);
+```
+
+### Step C - Know when to use generated UI vs low-level API
+
+- Use generated accessors for discoverability and safer page/reticle navigation.
+- Keep `CommandClient` calls for the final command emission.
+- For high-rate loops, keep batching (`SendBatch`, `UpsertDynamicReticles`) even
+  when your inputs come from generated helpers.
+
 ## Pattern 1 - Recreate The Targeted Connection
 
 The mockup reads the target UDP settings from the selected window JSON, then

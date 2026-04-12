@@ -44,6 +44,50 @@ If you already know what you want:
 - drive the cockpit showcase: [10 Drive The Cockpit Demo](./docs/tutorials/10_cockpit_demo.md)
 - use the mockup as a client API reference: [11 Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md)
 - run the automated runtime tests: [12 Run The Automated Runtime Tests](./docs/tutorials/12_run_the_automated_runtime_tests.md)
+- generate typed client UI code and use it in your app: [11 Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md#generated-client-ui-in-2-minutes)
+
+## Generated Client UI In 2 Minutes
+
+If you want generated client-facing code (typed page and reticle accessors), use
+`client_api_generator` from CMake:
+
+```cmake
+client_api_generate_ui(
+    WINDOW_JSON "assets/windows/demo_pages_cockpit.json"
+    OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.h"
+    OUTPUT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.cpp"
+    NAMESPACE "mockup_ui"
+    UI_CLASS_NAME "CockpitMockupUi"
+    HEADER_INCLUDE "MockupUi.h")
+```
+
+This is the same pattern used by the shipped mockup executables.
+
+Then use the generated API from your client loop:
+
+```cpp
+#include "MockupUi.h"
+#include "mfd/control/CommandClient.h"
+
+mfd::WindowUdpCommandTransport transport;
+transport.enabled = true;
+transport.address = "127.0.0.1";
+transport.port = 47220;
+transport.maxPacketSize = 16384;
+
+mfd::CommandClient client(transport);
+client.ActivatePage(mockup_ui::CockpitMockupPage::Name());
+
+// Dynamic reticle set generated from the cockpit window JSON
+mockup_ui::CockpitMockupUi ui;
+auto& contacts = ui.Cockpit().Dynamic("cockpit_radar_contact");
+contacts.SetVisible(true);
+```
+
+For the complete generated-client walkthrough (including dynamic reticles and
+batch patterns), read tutorial 11:
+
+- [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md#generated-client-ui-in-2-minutes)
 
 ## What You Can Do
 
@@ -190,6 +234,8 @@ This means that inside one page:
   GUI client used to send commands and inspect strobe feedback.
 - `mfd_editor`
   Visual editor for pages and reticles.
+- `client_api_generator`
+  CMake + Python generator that emits typed client UI wrappers from a window JSON.
 - `mfd_api/tests`
   GoogleTest-based automated tests for JSON loading and runtime rules.
 - `assets/windows`
