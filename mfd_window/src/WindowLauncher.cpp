@@ -40,6 +40,12 @@
 extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 #endif
 
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+#define MFD_HAS_GL_PBO_API 1
+#else
+#define MFD_HAS_GL_PBO_API 0
+#endif
+
 namespace
 {
 constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
@@ -65,7 +71,7 @@ public:
         if (!pboSupportChecked_)
         {
             pboSupportChecked_ = true;
-            pboAvailable_ = rlGetVersion() >= RL_OPENGL_33;
+            pboAvailable_ = (MFD_HAS_GL_PBO_API == 1) && (rlGetVersion() >= RL_OPENGL_33);
         }
 
         if (!EnsureResources(renderWidth, renderHeight))
@@ -137,6 +143,11 @@ private:
 
     bool EnsureResources(const int width, const int height)
     {
+#if MFD_HAS_GL_PBO_API == 0
+        (void) width;
+        (void) height;
+        return false;
+#else
         if (!pboAvailable_)
         {
             return false;
@@ -180,10 +191,17 @@ private:
         }
 
         return true;
+#endif
     }
 
     void SubmitReadback(const unsigned int slotIndex, const int width, const int height)
     {
+#if MFD_HAS_GL_PBO_API == 0
+        (void) slotIndex;
+        (void) width;
+        (void) height;
+        return;
+#else
         CaptureSlot& slot = slots_[slotIndex];
     #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
         if (slot.fence != nullptr)
@@ -200,10 +218,15 @@ private:
     #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
         slot.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     #endif
+#endif
     }
 
     [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> TryConsume(const unsigned int slotIndex)
     {
+#if MFD_HAS_GL_PBO_API == 0
+        (void) slotIndex;
+        return std::nullopt;
+#else
         CaptureSlot& slot = slots_[slotIndex];
         if (slot.pboId == 0 || slot.capacityBytes == 0)
         {
@@ -245,10 +268,16 @@ private:
 
         FlipRows(latestFramebuffer_.pixels, latestFramebuffer_.width, latestFramebuffer_.height);
         return latestFramebuffer_;
+#endif
     }
 
     void Release()
     {
+#if MFD_HAS_GL_PBO_API == 0
+        initialized_ = false;
+        frameIndex_ = 0;
+        return;
+#else
         for (CaptureSlot& slot : slots_)
         {
     #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
@@ -271,6 +300,7 @@ private:
 
         initialized_ = false;
         frameIndex_ = 0;
+#endif
     }
 
     std::array<CaptureSlot, kCaptureRingSize> slots_ {};
