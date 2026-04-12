@@ -40,11 +40,12 @@
 extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 #endif
 
-#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
-#define MFD_HAS_GL_PBO_API 1
-#else
+// NOTE:
+// CI Visual Studio builds can expose a raylib graphics backend where low-level
+// OpenGL PBO/sync symbols (GLsync, glBindBuffer, glFenceSync, etc.) are not
+// declared at compile time. To keep builds portable/reliable, keep async PBO
+// capture disabled and use the synchronous framebuffer fallback path.
 #define MFD_HAS_GL_PBO_API 0
-#endif
 
 namespace
 {
@@ -116,7 +117,7 @@ private:
         std::size_t capacityBytes = 0;
         int width = 0;
         int height = 0;
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         GLsync fence = nullptr;
     #endif
     };
@@ -203,7 +204,7 @@ private:
         return;
 #else
         CaptureSlot& slot = slots_[slotIndex];
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         if (slot.fence != nullptr)
         {
             glDeleteSync(slot.fence);
@@ -215,7 +216,7 @@ private:
         glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         slot.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     #endif
 #endif
@@ -233,7 +234,7 @@ private:
             return std::nullopt;
         }
 
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         if (slot.fence == nullptr)
         {
             return std::nullopt;
@@ -261,7 +262,7 @@ private:
         glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
         glDeleteSync(slot.fence);
         slot.fence = nullptr;
     #endif
@@ -280,7 +281,7 @@ private:
 #else
         for (CaptureSlot& slot : slots_)
         {
-    #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_11)
+    #if MFD_HAS_GL_PBO_API == 1
             if (slot.fence != nullptr)
             {
                 glDeleteSync(slot.fence);
