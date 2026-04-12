@@ -193,7 +193,7 @@ This means that inside one page:
 - `mfd_api/tests`
   GoogleTest-based automated tests for JSON loading and runtime rules.
 - `assets/windows`
-  Root window JSON files.
+  Root window JSON files, including `demo_pages_f16_inspired.json` (multi-page inspired layout).
 - `assets/pages`
   Page JSON files.
 - `assets/reticles`

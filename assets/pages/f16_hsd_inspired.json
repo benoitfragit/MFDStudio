@@ -1,0 +1,14 @@
+{
+  "name": "F16_HSD_INSPIRED",
+  "title": "HSD Inspired",
+  "bg": "#071507FF",
+  "staticReticles": [
+    { "id": "osb", "template": "f16_osb_ring", "stroke": "hud" },
+    { "id": "compass", "template": "f16_hsd_compass", "stroke": "hud" },
+    { "id": "ownship", "template": "aircraft_symbol", "at": [0.0, 0.0], "stroke": "radar" },
+    { "id": "wp_steer", "template": "f16_steering_cue", "at": [0.18, 0.21], "angle": 35.0, "stroke": "hud" },
+    { "id": "label_top", "stroke": "ghost", "elements": [
+      { "id": "t", "type": "text", "text": "INSPIRE F-16 / HSD", "at": [0.0, 0.80], "size": 0.04 }
+    ]}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "f16_hsd_compass",
+  "style": {
+    "lineWidth": 0.0031
+  },
+  "elements": [
+    { "id": "ring", "type": "circle", "radius": 0.61 },
+    { "id": "north", "type": "text", "text": "N", "at": [0.0, 0.66], "size": 0.05 },
+    { "id": "east", "type": "text", "text": "E", "at": [0.66, 0.0], "size": 0.05 },
+    { "id": "south", "type": "text", "text": "S", "at": [0.0, -0.66], "size": 0.05 },
+    { "id": "west", "type": "text", "text": "W", "at": [-0.66, 0.0], "size": 0.05 },
+    { "id": "up", "type": "line", "start": [0.0, 0.61], "end": [0.0, 0.70] },
+    { "id": "right", "type": "line", "start": [0.61, 0.0], "end": [0.70, 0.0] },
+    { "id": "down", "type": "line", "start": [0.0, -0.61], "end": [0.0, -0.70] },
+    { "id": "left", "type": "line", "start": [-0.61, 0.0], "end": [-0.70, 0.0] }
+  ]
+}

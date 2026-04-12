@@ -1,0 +1,14 @@
+{
+  "name": "F16_FCR_INSPIRED",
+  "title": "FCR Inspired",
+  "bg": "#061306FF",
+  "staticReticles": [
+    { "id": "osb", "template": "f16_osb_ring", "stroke": "hud" },
+    { "id": "grid", "template": "radar_grid", "stroke": "hud" },
+    { "id": "tgt_1", "template": "f16_target_bracket", "at": [-0.22, 0.18], "stroke": "radar" },
+    { "id": "tgt_2", "template": "f16_target_bracket", "at": [0.31, -0.24], "stroke": "warning" },
+    { "id": "scan", "stroke": "ghost", "elements": [
+      { "id": "txt", "type": "text", "text": "RWS 40NM", "at": [-0.58, 0.80], "size": 0.04 }
+    ]}
+  ]
+}

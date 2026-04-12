@@ -1,0 +1,16 @@
+{
+  "name": "F16_SMS_INSPIRED",
+  "title": "SMS Inspired",
+  "bg": "#081808FF",
+  "staticReticles": [
+    { "id": "osb", "template": "f16_osb_ring", "stroke": "hud" },
+    { "id": "jet", "template": "aircraft_symbol", "at": [0.0, -0.03], "stroke": "radar", "scale": 0.5 },
+    { "id": "stores", "stroke": "hud", "elements": [
+      { "id": "l1", "type": "text", "text": "AIM-120", "at": [-0.45, 0.35], "size": 0.035 },
+      { "id": "l2", "type": "text", "text": "AIM-9", "at": [-0.45, 0.15], "size": 0.035 },
+      { "id": "r1", "type": "text", "text": "GBU-12", "at": [0.45, 0.35], "size": 0.035 },
+      { "id": "r2", "type": "text", "text": "TANK", "at": [0.45, 0.15], "size": 0.035 },
+      { "id": "m", "type": "text", "text": "MASTER ARM: SIM", "at": [0.0, -0.70], "size": 0.04 }
+    ]}
+  ]
+}

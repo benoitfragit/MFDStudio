@@ -1,0 +1,13 @@
+{
+  "title": "MFD F16 Inspired Demo",
+  "size": [1280, 900],
+  "position": [120, 80],
+  "targetFps": 60,
+  "reticleLibraryFolder": "../reticles",
+  "pages": [
+    "../pages/f16_hsd_inspired.json",
+    "../pages/f16_fcr_inspired.json",
+    "../pages/f16_sms_inspired.json"
+  ],
+  "defaultPage": "F16_HSD_INSPIRED"
+}
