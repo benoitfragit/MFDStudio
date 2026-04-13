@@ -4762,138 +4762,19 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         return stream.good();
     };
 
-    const std::filesystem::path windowFile {"assets/windows/mfd_tutorial.json"};
-    const std::filesystem::path page1File {"assets/pages/mfd_tutorial_page1.json"};
-    const std::filesystem::path page2File {"assets/pages/mfd_tutorial_page2.json"};
-    const std::filesystem::path radarTrackFile {"assets/reticles/mfd_tutorial_radar_track.json"};
-    const std::filesystem::path circleFile {"assets/reticles/mfd_tutorial_circle.json"};
-    const std::filesystem::path textFile {"assets/reticles/mfd_tutorial_text.json"};
-
     bool success = true;
     switch (tutorialStepIndex_)
     {
     case 0:
-        success = writeFile(windowFile,
-                            "{\n"
-                            "  \"title\": \"MFD Tutorial\",\n"
-                            "  \"size\": [480, 480],\n"
-                            "  \"position\": [150, 120],\n"
-                            "  \"targetFps\": 60,\n"
-                            "  \"reticleLibraryFolder\": \"../reticles\",\n"
-                            "  \"commands\": {\n"
-                            "    \"udp\": {\n"
-                            "      \"enabled\": true,\n"
-                            "      \"address\": \"127.0.0.1\",\n"
-                            "      \"port\": 49000,\n"
-                            "      \"maxPacketSize\": 16384\n"
-                            "    }\n"
-                            "  },\n"
-                            "  \"feedback\": {\n"
-                            "    \"udp\": {\n"
-                            "      \"enabled\": true,\n"
-                            "      \"address\": \"127.0.0.1\",\n"
-                            "      \"port\": 49001,\n"
-                            "      \"maxPacketSize\": 4096\n"
-                            "    }\n"
-                            "  },\n"
-                            "  \"defaultPage\": \"Page1\",\n"
-                            "  \"pages\": [\n"
-                            "    \"../pages/mfd_tutorial_page1.json\",\n"
-                            "    \"../pages/mfd_tutorial_page2.json\"\n"
-                            "  ]\n"
-                            "}\n");
-        break;
     case 1:
-        success = writeFile(radarTrackFile,
-                            "{\n"
-                            "  \"id\": \"mfd_tutorial_radar_track\",\n"
-                            "  \"style\": {\n"
-                            "    \"lineWidth\": 0.0042\n"
-                            "  },\n"
-                            "  \"elements\": [\n"
-                            "    {\"id\": \"track_ring\", \"type\": \"circle\", \"radius\": 0.048},\n"
-                            "    {\"id\": \"track_cross_h\", \"type\": \"line\", \"start\": [-0.06, 0.0], \"end\": [0.06, 0.0]},\n"
-                            "    {\"id\": \"track_cross_v\", \"type\": \"line\", \"start\": [0.0, -0.06], \"end\": [0.0, 0.06]},\n"
-                            "    {\"id\": \"track_label\", \"type\": \"text\", \"text\": \"TRK\", \"at\": [0.07, 0.04], \"size\": 0.034}\n"
-                            "  ]\n"
-                            "}\n");
-        break;
     case 2:
-        success = writeFile(circleFile,
-                            "{\n"
-                            "  \"id\": \"mfd_tutorial_circle\",\n"
-                            "  \"style\": {\"lineWidth\": 0.0060, \"stroke\": \"hud\"},\n"
-                            "  \"elements\": [\n"
-                            "    {\"id\": \"outer_circle\", \"type\": \"circle\", \"radius\": 0.92},\n"
-                            "    {\"id\": \"center_dot\", \"type\": \"circle\", \"radius\": 0.02}\n"
-                            "  ]\n"
-                            "}\n");
-        break;
     case 3:
     case 4:
-    case 6:
-    case 8:
-        success = writeFile(page1File,
-                            "{\n"
-                            "  \"name\": \"Page1\",\n"
-                            "  \"title\": \"Tutorial Page1\",\n"
-                            "  \"bg\": \"#0033AAFF\",\n"
-                            "  \"strobe\": {\n"
-                            "    \"id\": \"tutorial_strobe\",\n"
-                            "    \"template\": \"strobe_cursor\",\n"
-                            "    \"at\": [0.0, 0.0],\n"
-                            "    \"stroke\": \"white\",\n"
-                            "    \"capture\": {\"shape\": \"circle\", \"radius\": 0.11},\n"
-                            "    \"magnet\": {\"enabled\": true, \"radius\": 0.09, \"strength\": 1.0}\n"
-                            "  },\n"
-                            "  \"editor\": {\n"
-                            "    \"layers\": [\n"
-                            "      {\"id\": \"background\", \"visible\": true},\n"
-                            "      {\"id\": \"target\", \"visible\": true},\n"
-                            "      {\"id\": \"text\", \"visible\": false}\n"
-                            "    ]\n"
-                            "  },\n"
-                            "  \"staticReticles\": [\n"
-                            "    {\"id\": \"tutorial_circle_full\", \"template\": \"mfd_tutorial_circle\", \"editor\": {\"layer\": \"target\"}, \"lineWidth\": 0.0042},\n"
-                            "    {\"id\": \"tutorial_text_hidden\", \"template\": \"mfd_tutorial_text\", \"editor\": {\"layer\": \"text\"}, \"stroke\": \"ghost\"}\n"
-                            "  ]\n"
-                            "}\n");
-        if (success)
-        {
-            success = writeFile(textFile,
-                                "{\n"
-                                "  \"id\": \"mfd_tutorial_text\",\n"
-                                "  \"elements\": [\n"
-                                "    {\"id\": \"tutorial_note\", \"type\": \"text\", \"text\": \"Hidden layer tutorial text\", \"at\": [0.0, -0.82], \"size\": 0.04}\n"
-                                "  ]\n"
-                                "}\n");
-        }
-        break;
     case 5:
-        success = writeFile(circleFile,
-                            "{\n"
-                            "  \"id\": \"mfd_tutorial_circle\",\n"
-                            "  \"style\": {\"lineWidth\": 0.0060, \"stroke\": \"hud\"},\n"
-                            "  \"clipMode\": \"outer\",\n"
-                            "  \"clipPrimitive\": \"outer_circle\",\n"
-                            "  \"elements\": [\n"
-                            "    {\"id\": \"outer_circle\", \"type\": \"circle\", \"radius\": 0.92},\n"
-                            "    {\"id\": \"center_dot\", \"type\": \"circle\", \"radius\": 0.02}\n"
-                            "  ]\n"
-                            "}\n");
-        break;
+    case 6:
     case 7:
-        success = writeFile(page2File,
-                            "{\n"
-                            "  \"name\": \"Page2\",\n"
-                            "  \"title\": \"Tutorial Page2\",\n"
-                            "  \"bg\": \"#101010FF\",\n"
-                            "  \"staticReticles\": [\n"
-                            "    {\"id\": \"tutorial_page2_title\", \"elements\": [\n"
-                            "      {\"id\": \"title\", \"type\": \"text\", \"text\": \"Page2 - simple title\", \"at\": [0.0, 0.0], \"size\": 0.07}\n"
-                            "    ]}\n"
-                            "  ]\n"
-                            "}\n");
+    case 8:
+        success = true;
         break;
     case 9:
     {
@@ -4980,7 +4861,14 @@ bool EditorApplication::ApplyCurrentTutorialStep()
 
     if (success)
     {
-        RebuildStatus("Tutorial step applied. Click OK for next step.", false);
+        if (tutorialStepIndex_ <= 8)
+        {
+            RebuildStatus("Tutorial step validated. Perform this action manually in the editor UI, then click OK to continue.", false);
+        }
+        else
+        {
+            RebuildStatus("Tutorial step applied. Click OK for next step.", false);
+        }
     }
     else
     {
