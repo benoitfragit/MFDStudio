@@ -57,7 +57,7 @@ struct TutorialStepDefinition
     const char* targetId;
 };
 
-constexpr std::array<TutorialStepDefinition, 13> kTutorialSteps {{
+constexpr std::array<TutorialStepDefinition, 14> kTutorialSteps {{
     {"Create tutorial window", "Use File/Open preset workflow as reference, then create window mfd_tutorial (480x480, black bg, UDP 127.0.0.1:49000).", "menu_file"},
     {"Create radar-track reticle", "Create a library reticle template based on a primitive and name it tutorial_radar_track.", "popup_reticle_primitive"},
     {"Create circular target reticle", "Create a simple circular target reticle that will be layered on Page1.", "popup_reticle_primitive"},
@@ -67,6 +67,7 @@ constexpr std::array<TutorialStepDefinition, 13> kTutorialSteps {{
     {"Add text reticle layer", "Add a third layer with a text reticle and then hide this layer from the layer inspector.", "inspector_layers"},
     {"Add Page2", "Create a second page named Page2 with a simple title.", "menu_page_new"},
     {"Add strobe", "Configure a page strobe and explain that it will jump to each newly created track.", "coach_ok"},
+    {"Save tutorial assets", "Save the tutorial assets from the File menu so window/page/reticle edits are persisted to disk.", "menu_file_save"},
     {"Use generated API in client", "Add a client_tutorial step showing how to include and use generated UI API types/functions.", "code_generated_api"},
     {"Strobe feedback in client", "Show where the client receives strobe feedback packets (client_tutorial main loop).", "code_feedback"},
     {"RGBA32 pixel buffer", "Show where RGBA32 pixel buffer callback is read (mfd_tutorial main).", "code_pixels"},
@@ -137,21 +138,26 @@ void DrawTutorialFileHints(const int stepIndex)
                   "\"strobe\": {\"id\":\"tutorial_strobe\", \"capture\": {\"shape\":\"circle\"}}"});
         break;
     case 9:
+        drawEdit({"assets/windows/mfd_tutorial.json + assets/pages/*.json + assets/reticles/*.json",
+                  "Use File > Save to persist all editor-side tutorial assets.",
+                  "File -> Save (Ctrl+S)"});
+        break;
+    case 10:
         drawEdit({"examples/client_tutorial/src/main.cpp",
                   "Include generated API header and call generated helpers/types when available.",
                   "#if __has_include(\"TutorialUi.h\")\n#include \"TutorialUi.h\"\n#endif"});
         break;
-    case 10:
+    case 11:
         drawEdit({"examples/client_tutorial/src/main.cpp",
                   "Poll feedback transport and decode strobe feedback packets.",
                   "const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);"});
         break;
-    case 11:
+    case 12:
         drawEdit({"examples/mfd_tutorial/src/main.cpp",
                   "Read RGBA32 framebuffer callback in window launcher.",
                   "[](int width, int height, std::span<const std::byte> pixels) { ... }"});
         break;
-    case 12:
+    case 13:
         drawEdit({"CMakeLists.txt",
                   "Training step only: add tutorial targets once generated code exists.",
                   "add_subdirectory(examples/mfd_tutorial)\nadd_subdirectory(examples/client_tutorial)"});
@@ -1656,6 +1662,7 @@ void EditorApplication::DrawMenuBar()
         DrawTutorialHalo("menu_file", "Tutorial: this menu groups save/reload/preset actions.");
         const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S");
         ShowItemTooltip("Write the window file, page files and reticle template files back to disk.");
+        DrawTutorialHalo("menu_file_save", "Tutorial: click Save to persist all tutorial assets before code steps.");
         if (saveRequested)
         {
             SaveAll();
@@ -4774,9 +4781,10 @@ bool EditorApplication::ApplyCurrentTutorialStep()
     case 6:
     case 7:
     case 8:
+    case 9:
         success = true;
         break;
-    case 9:
+    case 10:
     {
         const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
         std::ifstream input(clientFile);
@@ -4804,7 +4812,7 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         success = writeFile(clientFile, content);
         break;
     }
-    case 10:
+    case 11:
     {
         const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
         std::ifstream input(clientFile);
@@ -4817,7 +4825,7 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         success = content.find("DeserializeStrobeStatusFeedback") != std::string::npos;
         break;
     }
-    case 11:
+    case 12:
     {
         const std::filesystem::path launcherFile {"examples/mfd_tutorial/src/main.cpp"};
         std::ifstream input(launcherFile);
@@ -4830,7 +4838,7 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         success = content.find("std::span<const std::byte> pixels") != std::string::npos;
         break;
     }
-    case 12:
+    case 13:
     {
         const std::filesystem::path cmakeFile {"CMakeLists.txt"};
         std::ifstream input(cmakeFile);
@@ -4861,7 +4869,7 @@ bool EditorApplication::ApplyCurrentTutorialStep()
 
     if (success)
     {
-        if (tutorialStepIndex_ <= 8)
+        if (tutorialStepIndex_ <= 9)
         {
             RebuildStatus("Tutorial step validated. Perform this action manually in the editor UI, then click OK to continue.", false);
         }
