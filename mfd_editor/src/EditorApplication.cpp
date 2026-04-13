@@ -57,7 +57,7 @@ struct TutorialStepDefinition
     const char* targetId;
 };
 
-constexpr std::array<TutorialStepDefinition, 14> kTutorialSteps {{
+constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
     {"Create tutorial window", "Use File/Open preset workflow as reference, then create window mfd_tutorial (480x480, black bg, UDP 127.0.0.1:49000).", "menu_file"},
     {"Create radar-track reticle", "Create a library reticle template based on a primitive and name it tutorial_radar_track.", "popup_reticle_primitive"},
     {"Create circular target reticle", "Create a simple circular target reticle that will be layered on Page1.", "popup_reticle_primitive"},
@@ -68,6 +68,12 @@ constexpr std::array<TutorialStepDefinition, 14> kTutorialSteps {{
     {"Add Page2", "Create a second page named Page2 with a simple title.", "menu_page_new"},
     {"Add strobe", "Configure a page strobe and explain that it will jump to each newly created track.", "coach_ok"},
     {"Save tutorial assets", "Save the tutorial assets from the File menu so window/page/reticle edits are persisted to disk.", "menu_file_save"},
+    {"Change active page in code", "Show how the client switches between Page1 and Page2 (timer-based ActivatePage).", "code_page_switch"},
+    {"Add dynamic reticle in code", "Show how to add/update a dynamic reticle from a template with UpsertDynamicReticle.", "code_dynamic_add"},
+    {"Remove dynamic reticle in code", "Show how to remove the oldest dynamic reticle with RemoveDynamicReticle.", "code_dynamic_remove"},
+    {"Modify static reticle attrs", "Show how to modify a static reticle (color/position/visibility) with SetReticle* commands.", "code_static_attrs"},
+    {"Modify dynamic reticle", "Show how to update an existing dynamic reticle by re-upserting it with a patch.", "code_dynamic_modify"},
+    {"Declutter dynamic reticles", "Show dynamic declutter by toggling visibility of one template set via SetDynamicReticleSetVisible.", "code_declutter"},
     {"Use generated API in client", "Add a client_tutorial step showing how to include and use generated UI API types/functions.", "code_generated_api"},
     {"Strobe feedback in client", "Show where the client receives strobe feedback packets (client_tutorial main loop).", "code_feedback"},
     {"RGBA32 pixel buffer", "Show where RGBA32 pixel buffer callback is read (mfd_tutorial main).", "code_pixels"},
@@ -144,20 +150,50 @@ void DrawTutorialFileHints(const int stepIndex)
         break;
     case 10:
         drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Switch pages in code with ActivatePage and a timer.",
+                  "activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);\nclient.ActivatePage(activePage);"});
+        break;
+    case 11:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Add/update one dynamic reticle with a patch.",
+                  "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);"});
+        break;
+    case 12:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Remove the oldest dynamic reticle id.",
+                  "client.RemoveDynamicReticle(kPage1, trackIds.front());"});
+        break;
+    case 13:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Modify static reticle attributes.",
+                  "client.SetReticleColor(kPage1, \"tutorial_circle_full\", {0,255,0,255});\nclient.SetReticlePosition(kPage1, \"tutorial_circle_full\", {0.0f,0.0f});\nclient.SetReticleVisible(kPage1, \"tutorial_circle_full\", true);"});
+        break;
+    case 14:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Modify an existing dynamic reticle by re-upserting same id with a new patch.",
+                  "client.UpsertDynamicReticle(kPage1, existingId, kTrackTemplate, updatedPatch);"});
+        break;
+    case 15:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Declutter all dynamics of one template by toggling template-set visibility.",
+                  "client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, false);\nclient.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, true);"});
+        break;
+    case 16:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
                   "Include generated API header and call generated helpers/types when available.",
                   "#if __has_include(\"TutorialUi.h\")\n#include \"TutorialUi.h\"\n#endif"});
         break;
-    case 11:
+    case 17:
         drawEdit({"examples/client_tutorial/src/main.cpp",
                   "Poll feedback transport and decode strobe feedback packets.",
                   "const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);"});
         break;
-    case 12:
+    case 18:
         drawEdit({"examples/mfd_tutorial/src/main.cpp",
                   "Read RGBA32 framebuffer callback in window launcher.",
                   "[](int width, int height, std::span<const std::byte> pixels) { ... }"});
         break;
-    case 13:
+    case 19:
         drawEdit({"CMakeLists.txt",
                   "Training step only: add tutorial targets once generated code exists.",
                   "add_subdirectory(examples/mfd_tutorial)\nadd_subdirectory(examples/client_tutorial)"});
@@ -4768,6 +4804,21 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         stream << content;
         return stream.good();
     };
+    const auto ensureClientSnippet = [&](const std::string_view marker, const std::string_view snippet) -> bool
+    {
+        const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
+        std::ifstream input(clientFile);
+        if (!input.good())
+        {
+            return false;
+        }
+        std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        if (content.find(marker) == std::string::npos)
+        {
+            content.append("\n").append(snippet).append("\n");
+        }
+        return writeFile(clientFile, content);
+    };
 
     bool success = true;
     switch (tutorialStepIndex_)
@@ -4785,6 +4836,54 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         success = true;
         break;
     case 10:
+        success = ensureClientSnippet(
+            "TUTORIAL_PAGE_SWITCH_SNIPPET",
+            "// TUTORIAL_PAGE_SWITCH_SNIPPET\n"
+            "// Switch pages (manual/timer example).\n"
+            "// activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);\n"
+            "// client.ActivatePage(activePage);");
+        break;
+    case 11:
+        success = ensureClientSnippet(
+            "TUTORIAL_DYNAMIC_ADD_SNIPPET",
+            "// TUTORIAL_DYNAMIC_ADD_SNIPPET\n"
+            "// Add or update a dynamic reticle.\n"
+            "// mfd::ReticlePatch patch; patch.position = {0.0f, 0.0f};\n"
+            "// client.UpsertDynamicReticle(kPage1, \"track_id\", kTrackTemplate, patch);");
+        break;
+    case 12:
+        success = ensureClientSnippet(
+            "TUTORIAL_DYNAMIC_REMOVE_SNIPPET",
+            "// TUTORIAL_DYNAMIC_REMOVE_SNIPPET\n"
+            "// Remove one dynamic reticle by id.\n"
+            "// client.RemoveDynamicReticle(kPage1, \"track_id\");");
+        break;
+    case 13:
+        success = ensureClientSnippet(
+            "TUTORIAL_STATIC_ATTR_SNIPPET",
+            "// TUTORIAL_STATIC_ATTR_SNIPPET\n"
+            "// Modify static reticle attributes.\n"
+            "// client.SetReticleColor(kPage1, \"tutorial_circle_full\", {0, 255, 0, 255});\n"
+            "// client.SetReticlePosition(kPage1, \"tutorial_circle_full\", {0.05f, -0.03f});\n"
+            "// client.SetReticleVisible(kPage1, \"tutorial_circle_full\", true);");
+        break;
+    case 14:
+        success = ensureClientSnippet(
+            "TUTORIAL_DYNAMIC_MODIFY_SNIPPET",
+            "// TUTORIAL_DYNAMIC_MODIFY_SNIPPET\n"
+            "// Modify an existing dynamic reticle by re-upserting same id with new patch values.\n"
+            "// mfd::ReticlePatch updated; updated.strokeColor = mfd::ColorRgba {255, 196, 64, 255};\n"
+            "// client.UpsertDynamicReticle(kPage1, \"existing_dynamic_id\", kTrackTemplate, updated);");
+        break;
+    case 15:
+        success = ensureClientSnippet(
+            "TUTORIAL_DYNAMIC_DECLUTTER_SNIPPET",
+            "// TUTORIAL_DYNAMIC_DECLUTTER_SNIPPET\n"
+            "// Declutter dynamic reticles by template set visibility.\n"
+            "// client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, false);\n"
+            "// client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, true);");
+        break;
+    case 16:
     {
         const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
         std::ifstream input(clientFile);
@@ -4812,7 +4911,7 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         success = writeFile(clientFile, content);
         break;
     }
-    case 11:
+    case 17:
     {
         const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
         std::ifstream input(clientFile);
@@ -4825,7 +4924,7 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         success = content.find("DeserializeStrobeStatusFeedback") != std::string::npos;
         break;
     }
-    case 12:
+    case 18:
     {
         const std::filesystem::path launcherFile {"examples/mfd_tutorial/src/main.cpp"};
         std::ifstream input(launcherFile);
@@ -4838,7 +4937,7 @@ bool EditorApplication::ApplyCurrentTutorialStep()
         success = content.find("std::span<const std::byte> pixels") != std::string::npos;
         break;
     }
-    case 13:
+    case 19:
     {
         const std::filesystem::path cmakeFile {"CMakeLists.txt"};
         std::ifstream input(cmakeFile);
