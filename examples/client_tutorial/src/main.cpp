@@ -18,6 +18,18 @@
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/io/JsonLoader.h"
 
+#if __has_include("MfdTutorialMockupUi.h")
+#include "MfdTutorialMockupUi.h"
+#define MFD_HAS_GENERATED_TUTORIAL_UI 1
+using GeneratedTutorialUi = mockup_ui::MfdTutorialMockupUi;
+#elif __has_include("TutorialUi.h")
+#include "TutorialUi.h"
+#define MFD_HAS_GENERATED_TUTORIAL_UI 1
+using GeneratedTutorialUi = tutorial_ui::TutorialUi;
+#else
+#define MFD_HAS_GENERATED_TUTORIAL_UI 0
+#endif
+
 namespace
 {
 constexpr std::string_view kWindowFile = "assets/windows/mfd_tutorial.json";
@@ -55,6 +67,12 @@ int mainImpl()
     std::vector<std::string> trackIds;
     trackIds.reserve(kMaxTracks);
 
+#if MFD_HAS_GENERATED_TUTORIAL_UI
+    GeneratedTutorialUi generatedUi;
+    auto& generatedDynamicTracks = generatedUi.Page1().Dynamic(kTrackTemplate);
+    bool generatedDeclutterVisible = true;
+#endif
+
     std::string activePage(kPage1);
     client.ActivatePage(activePage);
 
@@ -84,10 +102,29 @@ int mainImpl()
             const std::string trackId = "tutorial_track_" + std::to_string(serial++);
             mfd::ReticlePatch patch;
             patch.position = mfd::Vec2 {axis(rng), axis(rng)};
-            patch.strokeColor = mfd::ColorRgba {80, 255, 185, 255};
-            patch.strokeThickness = 0.0038f;
+            patch.color = mfd::ColorRgba {80, 255, 185, 255};
+            patch.thickness = 0.0038f;
             patch.text = std::string("T") + std::to_string(serial);
+
+#if MFD_HAS_GENERATED_TUTORIAL_UI
+            auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);
+            generatedTrack.SetPosition(*patch.position);
+            generatedTrack.SetColor(*patch.color);
+            generatedTrack.SetThickness(*patch.thickness);
+            generatedTrack.SetText(*patch.text);
+            if ((serial % 5U) == 0U)
+            {
+                generatedDeclutterVisible = !generatedDeclutterVisible;
+            }
+            generatedDynamicTracks.SetVisible(generatedDeclutterVisible);
+            const auto commands = generatedUi.BuildBatch();
+            if (!commands.empty())
+            {
+                client.SendBatch(commands);
+            }
+#else
             client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);
+#endif
             trackIds.push_back(trackId);
 
             // Tutorial strobe behavior: move strobe to each new track.
