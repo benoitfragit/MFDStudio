@@ -13,7 +13,10 @@
 #include <cstdio>
 #include <exception>
 #include <functional>
+#include <fstream>
+#include <iterator>
 #include <limits>
+#include <random>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
@@ -46,6 +49,117 @@ constexpr std::array<EditorWindowPreset, 3> kEditorWindowPresets {{
     {"Cockpit Demo", "assets/windows/demo_pages_cockpit.json"},
     {"Minimal Demo", "assets/windows/demo_pages_minimal.json"},
 }};
+
+struct TutorialStepDefinition
+{
+    const char* title;
+    const char* instruction;
+    const char* targetId;
+};
+
+constexpr std::array<TutorialStepDefinition, 13> kTutorialSteps {{
+    {"Create tutorial window", "Use File/Open preset workflow as reference, then create window mfd_tutorial (480x480, black bg, UDP 127.0.0.1:49000).", "menu_file"},
+    {"Create radar-track reticle", "Create a library reticle template based on a primitive and name it tutorial_radar_track.", "popup_reticle_primitive"},
+    {"Create circular target reticle", "Create a simple circular target reticle that will be layered on Page1.", "popup_reticle_primitive"},
+    {"Create Page1", "Create Page1 and set layer 1 background to blue.", "menu_page_new"},
+    {"Overlay full-page circular reticle", "Add the circular reticle on a second layer above the blue background.", "menu_page_new"},
+    {"Enable outer clipping", "Right-click the circular reticle in preview and choose Clip outside.", "context_clip_outer"},
+    {"Add text reticle layer", "Add a third layer with a text reticle and then hide this layer from the layer inspector.", "inspector_layers"},
+    {"Add Page2", "Create a second page named Page2 with a simple title.", "menu_page_new"},
+    {"Add strobe", "Configure a page strobe and explain that it will jump to each newly created track.", "coach_ok"},
+    {"Use generated API in client", "Add a client_tutorial step showing how to include and use generated UI API types/functions.", "code_generated_api"},
+    {"Strobe feedback in client", "Show where the client receives strobe feedback packets (client_tutorial main loop).", "code_feedback"},
+    {"RGBA32 pixel buffer", "Show where RGBA32 pixel buffer callback is read (mfd_tutorial main).", "code_pixels"},
+    {"Enable tutorial targets", "Add tutorial targets in root CMakeLists once generated code exists.", "code_cmake"},
+}};
+
+struct TutorialFileEditHint
+{
+    const char* filePath;
+    const char* changeSummary;
+    const char* snippet;
+};
+
+void DrawTutorialFileHints(const int stepIndex)
+{
+    const auto drawEdit = [](const TutorialFileEditHint& hint)
+    {
+        ImGui::BulletText("%s", hint.filePath);
+        ImGui::TextWrapped("Expected change: %s", hint.changeSummary);
+        if (hint.snippet != nullptr && hint.snippet[0] != '\0')
+        {
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.06f, 0.10f, 0.14f, 1.0f));
+            ImGui::BeginChild(
+                std::string("##hint_").append(hint.filePath).c_str(),
+                ImVec2(0.0f, 86.0f),
+                true,
+                ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::TextUnformatted(hint.snippet);
+            ImGui::EndChild();
+            ImGui::PopStyleColor();
+        }
+    };
+
+    ImGui::SeparatorText("File modification view");
+    switch (stepIndex)
+    {
+    case 0:
+        drawEdit({"assets/windows/mfd_tutorial.json",
+                  "Create a new window file (480x480, black background) and configure UDP command transport.",
+                  "{ \"title\":\"MFD Tutorial\", \"size\":[480,480], \"commands\":{\"udp\":{\"address\":\"127.0.0.1\",\"port\":49000}} }"});
+        break;
+    case 1:
+    case 2:
+        drawEdit({"assets/reticles/mfd_tutorial_*.json",
+                  "Create new reticle template JSON files from the editor reticle library.",
+                  "{ \"id\":\"tutorial_radar_track\", \"elements\":[ ... ] }"});
+        break;
+    case 3:
+    case 4:
+    case 7:
+        drawEdit({"assets/pages/mfd_tutorial_page1.json / mfd_tutorial_page2.json",
+                  "Create Page1/Page2 and wire layers/reticles through editor actions.",
+                  "{ \"name\":\"Page1\", \"editor\":{\"layers\":[...]}, \"staticReticles\":[...] }"});
+        break;
+    case 5:
+        drawEdit({"assets/reticles/mfd_tutorial_circle.json",
+                  "Set reticle clipping mode to outer and choose the clipping primitive.",
+                  "{ \"clipMode\":\"outer\", \"clipPrimitive\":\"outer_circle\" }"});
+        break;
+    case 6:
+        drawEdit({"assets/pages/mfd_tutorial_page1.json",
+                  "Add a text layer and keep it hidden in the editor layer manager.",
+                  "\"layers\": [{\"id\":\"text\", \"visible\":false}]"});
+        break;
+    case 8:
+        drawEdit({"assets/pages/mfd_tutorial_page1.json",
+                  "Add strobe configuration so runtime can move it across tracks.",
+                  "\"strobe\": {\"id\":\"tutorial_strobe\", \"capture\": {\"shape\":\"circle\"}}"});
+        break;
+    case 9:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Include generated API header and call generated helpers/types when available.",
+                  "#if __has_include(\"TutorialUi.h\")\n#include \"TutorialUi.h\"\n#endif"});
+        break;
+    case 10:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Poll feedback transport and decode strobe feedback packets.",
+                  "const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);"});
+        break;
+    case 11:
+        drawEdit({"examples/mfd_tutorial/src/main.cpp",
+                  "Read RGBA32 framebuffer callback in window launcher.",
+                  "[](int width, int height, std::span<const std::byte> pixels) { ... }"});
+        break;
+    case 12:
+        drawEdit({"CMakeLists.txt",
+                  "Training step only: add tutorial targets once generated code exists.",
+                  "add_subdirectory(examples/mfd_tutorial)\nadd_subdirectory(examples/client_tutorial)"});
+        break;
+    default:
+        break;
+    }
+}
 
 template <std::size_t N>
 void CopyTextBuffer(std::array<char, N>& destination, const std::string_view value)
@@ -1149,6 +1263,7 @@ EditorApplication::EditorApplication()
     CopyTextBuffer(duplicateLibraryReticleDraft_.id, "reticle_copy");
     ResetPagePreviewView();
     ResetLibraryPreviewView();
+    LoadTutorialProgress();
 }
 
 EditorApplication::~EditorApplication()
@@ -1216,6 +1331,7 @@ int EditorApplication::Run()
             HandleShortcuts();
             DrawMenuBar();
             DrawRootLayout();
+            DrawTutorialCoach();
             DrawPopups();
         }
         catch (const std::exception& exception)
@@ -1537,6 +1653,7 @@ void EditorApplication::DrawMenuBar()
 
     if (ImGui::BeginMenu("File"))
     {
+        DrawTutorialHalo("menu_file", "Tutorial: this menu groups save/reload/preset actions.");
         const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S");
         ShowItemTooltip("Write the window file, page files and reticle template files back to disk.");
         if (saveRequested)
@@ -1604,6 +1721,7 @@ void EditorApplication::DrawMenuBar()
     {
         const bool newPageRequested = ImGui::MenuItem("New page");
         ShowItemTooltip("Create a new page and its backing JSON file.");
+        DrawTutorialHalo("menu_page_new", "Tutorial: click here to create Page1 then Page2.");
         if (newPageRequested)
         {
             OpenNewPagePopup();
@@ -1622,6 +1740,7 @@ void EditorApplication::DrawMenuBar()
     {
         const bool newLibraryReticleRequested = ImGui::MenuItem("New library reticle from primitive");
         ShowItemTooltip("Create a new shared reticle template.");
+        DrawTutorialHalo("menu_reticle_new", "Tutorial: create tutorial_radar_track and tutorial_circle reticles from here.");
         if (newLibraryReticleRequested)
         {
             OpenNewLibraryReticlePopup();
@@ -1645,6 +1764,17 @@ void EditorApplication::DrawMenuBar()
         if (deleteReticleRequested)
         {
             DeleteSelectedLibraryReticle();
+        }
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Help"))
+    {
+        const bool tutorialRequested = ImGui::MenuItem("Tutorial", nullptr, showTutorialCoach_);
+        ShowItemTooltip("Open the guided discovery mode for the editor and tutorial assets.");
+        if (tutorialRequested)
+        {
+            OpenTutorialFlow();
         }
         ImGui::EndMenu();
     }
@@ -3061,6 +3191,8 @@ void EditorApplication::DrawPageReticleContextMenu()
         ApplyPageReticleClipping(pagePreviewContextReticleIndex_, mfd::ReticleClipMode::Outer, primitive.id);
     }
     ShowItemTooltip("Erase everything outside this convex primitive toward the page background color.");
+    DrawTutorialHalo("context_clip_outer",
+                     "Tutorial: click this entry after right-clicking the circular reticle in the preview.");
 
     if (ImGui::MenuItem("Disable clipping",
                         nullptr,
@@ -4452,6 +4584,12 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 
 void EditorApplication::DrawPopups()
 {
+    if (tutorialActive_ && tutorialStepIndex_ == 5 && tutorialLastHintPopupStep_ != tutorialStepIndex_)
+    {
+        ImGui::OpenPopup("Tutorial clipping hint");
+        tutorialLastHintPopupStep_ = tutorialStepIndex_;
+    }
+
     if (showNewPagePopup_)
     {
         ImGui::OpenPopup("Create new page");
@@ -4468,6 +4606,46 @@ void EditorApplication::DrawPopups()
     {
         ImGui::OpenPopup("Duplicate library reticle");
         showDuplicateLibraryReticlePopup_ = false;
+    }
+
+    if (showTutorialResumePopup_)
+    {
+        ImGui::OpenPopup("Tutorial progress");
+        showTutorialResumePopup_ = false;
+    }
+
+    if (ImGui::BeginPopupModal("Tutorial progress", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextWrapped("A tutorial progress snapshot already exists. Continue where you stopped or restart from scratch?");
+        if (AccentButton("Continue"))
+        {
+            tutorialActive_ = true;
+            showTutorialCoach_ = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Restart from scratch"))
+        {
+            RestartTutorialFromScratch();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (ImGui::BeginPopupModal("Tutorial clipping hint", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextWrapped("Tutorial tip: right-click the circular reticle in the page preview.");
+        ImGui::TextWrapped("Then click \"Clip outside\" (highlighted with a halo) in the context menu.");
+        if (AccentButton("OK"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
     }
 
     if (ImGui::BeginPopupModal("Create new page", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -4500,6 +4678,7 @@ void EditorApplication::DrawPopups()
     {
         ImGui::InputText("Reticle id", newLibraryReticleDraft_.id.data(), newLibraryReticleDraft_.id.size());
         ShowItemTooltip("Template id used by the shared reticle library.");
+        DrawTutorialHalo("popup_reticle_id", "Tutorial: name the reticle template before creating it.");
         if (ImGui::BeginCombo("Primitive", PrimitiveTypeLabel(kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)]).c_str()))
         {
             for (int index = 0; index < static_cast<int>(kPrimitiveTypes.size()); ++index)
@@ -4513,6 +4692,8 @@ void EditorApplication::DrawPopups()
             ImGui::EndCombo();
         }
         ShowItemTooltip("Choose the first primitive that will seed the new reticle template.");
+        DrawTutorialHalo("popup_reticle_primitive",
+                         "Tutorial: choose the primitive type needed for this reticle (track or circle).");
 
         if (AccentButton("Create reticle"))
         {
@@ -4520,6 +4701,7 @@ void EditorApplication::DrawPopups()
             ImGui::CloseCurrentPopup();
         }
         ShowItemTooltip("Create the new library reticle and open it in the reticle studio.");
+        DrawTutorialHalo("popup_reticle_create", "Tutorial: confirm reticle creation after id + primitive are set.");
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
@@ -4547,6 +4729,409 @@ void EditorApplication::DrawPopups()
         ShowItemTooltip("Close this dialog without duplicating the reticle.");
         ImGui::EndPopup();
     }
+}
+
+void EditorApplication::OpenTutorialFlow()
+{
+    LoadTutorialProgress();
+    showTutorialCoach_ = true;
+    tutorialLastHintPopupStep_ = -1;
+    if (tutorialStepIndex_ > 0 && tutorialStepIndex_ < static_cast<int>(kTutorialSteps.size()))
+    {
+        showTutorialResumePopup_ = true;
+        return;
+    }
+
+    tutorialActive_ = true;
+    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, 0, static_cast<int>(kTutorialSteps.size()) - 1);
+    SaveTutorialProgress();
+}
+
+bool EditorApplication::ApplyCurrentTutorialStep()
+{
+    const auto writeFile = [](const std::filesystem::path& filePath, const std::string_view content) -> bool
+    {
+        std::error_code error;
+        std::filesystem::create_directories(filePath.parent_path(), error);
+        std::ofstream stream(filePath, std::ios::trunc);
+        if (!stream.good())
+        {
+            return false;
+        }
+        stream << content;
+        return stream.good();
+    };
+
+    const std::filesystem::path windowFile {"assets/windows/mfd_tutorial.json"};
+    const std::filesystem::path page1File {"assets/pages/mfd_tutorial_page1.json"};
+    const std::filesystem::path page2File {"assets/pages/mfd_tutorial_page2.json"};
+    const std::filesystem::path radarTrackFile {"assets/reticles/mfd_tutorial_radar_track.json"};
+    const std::filesystem::path circleFile {"assets/reticles/mfd_tutorial_circle.json"};
+    const std::filesystem::path textFile {"assets/reticles/mfd_tutorial_text.json"};
+
+    bool success = true;
+    switch (tutorialStepIndex_)
+    {
+    case 0:
+        success = writeFile(windowFile,
+                            "{\n"
+                            "  \"title\": \"MFD Tutorial\",\n"
+                            "  \"size\": [480, 480],\n"
+                            "  \"position\": [150, 120],\n"
+                            "  \"targetFps\": 60,\n"
+                            "  \"reticleLibraryFolder\": \"../reticles\",\n"
+                            "  \"commands\": {\n"
+                            "    \"udp\": {\n"
+                            "      \"enabled\": true,\n"
+                            "      \"address\": \"127.0.0.1\",\n"
+                            "      \"port\": 49000,\n"
+                            "      \"maxPacketSize\": 16384\n"
+                            "    }\n"
+                            "  },\n"
+                            "  \"feedback\": {\n"
+                            "    \"udp\": {\n"
+                            "      \"enabled\": true,\n"
+                            "      \"address\": \"127.0.0.1\",\n"
+                            "      \"port\": 49001,\n"
+                            "      \"maxPacketSize\": 4096\n"
+                            "    }\n"
+                            "  },\n"
+                            "  \"defaultPage\": \"Page1\",\n"
+                            "  \"pages\": [\n"
+                            "    \"../pages/mfd_tutorial_page1.json\",\n"
+                            "    \"../pages/mfd_tutorial_page2.json\"\n"
+                            "  ]\n"
+                            "}\n");
+        break;
+    case 1:
+        success = writeFile(radarTrackFile,
+                            "{\n"
+                            "  \"id\": \"mfd_tutorial_radar_track\",\n"
+                            "  \"style\": {\n"
+                            "    \"lineWidth\": 0.0042\n"
+                            "  },\n"
+                            "  \"elements\": [\n"
+                            "    {\"id\": \"track_ring\", \"type\": \"circle\", \"radius\": 0.048},\n"
+                            "    {\"id\": \"track_cross_h\", \"type\": \"line\", \"start\": [-0.06, 0.0], \"end\": [0.06, 0.0]},\n"
+                            "    {\"id\": \"track_cross_v\", \"type\": \"line\", \"start\": [0.0, -0.06], \"end\": [0.0, 0.06]},\n"
+                            "    {\"id\": \"track_label\", \"type\": \"text\", \"text\": \"TRK\", \"at\": [0.07, 0.04], \"size\": 0.034}\n"
+                            "  ]\n"
+                            "}\n");
+        break;
+    case 2:
+        success = writeFile(circleFile,
+                            "{\n"
+                            "  \"id\": \"mfd_tutorial_circle\",\n"
+                            "  \"style\": {\"lineWidth\": 0.0060, \"stroke\": \"hud\"},\n"
+                            "  \"elements\": [\n"
+                            "    {\"id\": \"outer_circle\", \"type\": \"circle\", \"radius\": 0.92},\n"
+                            "    {\"id\": \"center_dot\", \"type\": \"circle\", \"radius\": 0.02}\n"
+                            "  ]\n"
+                            "}\n");
+        break;
+    case 3:
+    case 4:
+    case 6:
+    case 8:
+        success = writeFile(page1File,
+                            "{\n"
+                            "  \"name\": \"Page1\",\n"
+                            "  \"title\": \"Tutorial Page1\",\n"
+                            "  \"bg\": \"#0033AAFF\",\n"
+                            "  \"strobe\": {\n"
+                            "    \"id\": \"tutorial_strobe\",\n"
+                            "    \"template\": \"strobe_cursor\",\n"
+                            "    \"at\": [0.0, 0.0],\n"
+                            "    \"stroke\": \"white\",\n"
+                            "    \"capture\": {\"shape\": \"circle\", \"radius\": 0.11},\n"
+                            "    \"magnet\": {\"enabled\": true, \"radius\": 0.09, \"strength\": 1.0}\n"
+                            "  },\n"
+                            "  \"editor\": {\n"
+                            "    \"layers\": [\n"
+                            "      {\"id\": \"background\", \"visible\": true},\n"
+                            "      {\"id\": \"target\", \"visible\": true},\n"
+                            "      {\"id\": \"text\", \"visible\": false}\n"
+                            "    ]\n"
+                            "  },\n"
+                            "  \"staticReticles\": [\n"
+                            "    {\"id\": \"tutorial_circle_full\", \"template\": \"mfd_tutorial_circle\", \"editor\": {\"layer\": \"target\"}, \"lineWidth\": 0.0042},\n"
+                            "    {\"id\": \"tutorial_text_hidden\", \"template\": \"mfd_tutorial_text\", \"editor\": {\"layer\": \"text\"}, \"stroke\": \"ghost\"}\n"
+                            "  ]\n"
+                            "}\n");
+        if (success)
+        {
+            success = writeFile(textFile,
+                                "{\n"
+                                "  \"id\": \"mfd_tutorial_text\",\n"
+                                "  \"elements\": [\n"
+                                "    {\"id\": \"tutorial_note\", \"type\": \"text\", \"text\": \"Hidden layer tutorial text\", \"at\": [0.0, -0.82], \"size\": 0.04}\n"
+                                "  ]\n"
+                                "}\n");
+        }
+        break;
+    case 5:
+        success = writeFile(circleFile,
+                            "{\n"
+                            "  \"id\": \"mfd_tutorial_circle\",\n"
+                            "  \"style\": {\"lineWidth\": 0.0060, \"stroke\": \"hud\"},\n"
+                            "  \"clipMode\": \"outer\",\n"
+                            "  \"clipPrimitive\": \"outer_circle\",\n"
+                            "  \"elements\": [\n"
+                            "    {\"id\": \"outer_circle\", \"type\": \"circle\", \"radius\": 0.92},\n"
+                            "    {\"id\": \"center_dot\", \"type\": \"circle\", \"radius\": 0.02}\n"
+                            "  ]\n"
+                            "}\n");
+        break;
+    case 7:
+        success = writeFile(page2File,
+                            "{\n"
+                            "  \"name\": \"Page2\",\n"
+                            "  \"title\": \"Tutorial Page2\",\n"
+                            "  \"bg\": \"#101010FF\",\n"
+                            "  \"staticReticles\": [\n"
+                            "    {\"id\": \"tutorial_page2_title\", \"elements\": [\n"
+                            "      {\"id\": \"title\", \"type\": \"text\", \"text\": \"Page2 - simple title\", \"at\": [0.0, 0.0], \"size\": 0.07}\n"
+                            "    ]}\n"
+                            "  ]\n"
+                            "}\n");
+        break;
+    case 9:
+    {
+        const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
+        std::ifstream input(clientFile);
+        if (!input.good())
+        {
+            success = false;
+            break;
+        }
+        std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        constexpr std::string_view kMarker = "TUTORIAL_GENERATED_API_SNIPPET";
+        if (content.find(kMarker) == std::string::npos)
+        {
+            const std::string snippet =
+                "\n// TUTORIAL_GENERATED_API_SNIPPET\n"
+                "// Example: use generated API when available.\n"
+                "#if __has_include(\"TutorialUi.h\")\n"
+                "#include \"TutorialUi.h\"\n"
+                "using TutorialGeneratedUi = tutorial_ui::TutorialUi;\n"
+                "#endif\n";
+            if (const std::size_t includePos = content.find("#include \"mfd/io/JsonLoader.h\""); includePos != std::string::npos)
+            {
+                content.insert(includePos + std::string("#include \"mfd/io/JsonLoader.h\"").size(), snippet);
+            }
+        }
+        success = writeFile(clientFile, content);
+        break;
+    }
+    case 10:
+    {
+        const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
+        std::ifstream input(clientFile);
+        if (!input.good())
+        {
+            success = false;
+            break;
+        }
+        const std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        success = content.find("DeserializeStrobeStatusFeedback") != std::string::npos;
+        break;
+    }
+    case 11:
+    {
+        const std::filesystem::path launcherFile {"examples/mfd_tutorial/src/main.cpp"};
+        std::ifstream input(launcherFile);
+        if (!input.good())
+        {
+            success = false;
+            break;
+        }
+        const std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        success = content.find("std::span<const std::byte> pixels") != std::string::npos;
+        break;
+    }
+    case 12:
+    {
+        const std::filesystem::path cmakeFile {"CMakeLists.txt"};
+        std::ifstream input(cmakeFile);
+        if (!input.good())
+        {
+            success = false;
+            break;
+        }
+        std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        if (content.find("add_subdirectory(examples/mfd_tutorial)") == std::string::npos)
+        {
+            const std::string needle = "    add_subdirectory(examples/client_mockup_minimal)\n";
+            const std::size_t pos = content.find(needle);
+            if (pos != std::string::npos)
+            {
+                content.insert(pos + needle.size(),
+                               "    add_subdirectory(examples/mfd_tutorial)\n"
+                               "    add_subdirectory(examples/client_tutorial)\n");
+            }
+        }
+        success = writeFile(cmakeFile, content);
+        break;
+    }
+    default:
+        success = true;
+        break;
+    }
+
+    if (success)
+    {
+        RebuildStatus("Tutorial step applied. Click OK for next step.", false);
+    }
+    else
+    {
+        RebuildStatus("Unable to apply tutorial step changes on disk.", true);
+    }
+    return success;
+}
+
+void EditorApplication::RestartTutorialFromScratch()
+{
+    CleanupGeneratedTutorialFiles();
+    tutorialStepIndex_ = 0;
+    tutorialLastHintPopupStep_ = -1;
+    tutorialActive_ = true;
+    showTutorialCoach_ = true;
+    SaveTutorialProgress();
+    RebuildStatus("Tutorial reset: generated tutorial assets and sample code were cleaned.", false);
+}
+
+void EditorApplication::AdvanceTutorialStep()
+{
+    tutorialStepIndex_ = std::min(tutorialStepIndex_ + 1, static_cast<int>(kTutorialSteps.size()) - 1);
+    tutorialLastHintPopupStep_ = -1;
+    SaveTutorialProgress();
+}
+
+void EditorApplication::LoadTutorialProgress()
+{
+    tutorialStepIndex_ = 0;
+    std::ifstream stream(tutorialProgressFile_);
+    if (!stream.good())
+    {
+        return;
+    }
+
+    int savedStep = 0;
+    stream >> savedStep;
+    tutorialStepIndex_ = std::clamp(savedStep, 0, static_cast<int>(kTutorialSteps.size()) - 1);
+}
+
+void EditorApplication::SaveTutorialProgress() const
+{
+    std::error_code error;
+    std::filesystem::create_directories(tutorialProgressFile_.parent_path(), error);
+    std::ofstream stream(tutorialProgressFile_, std::ios::trunc);
+    if (!stream.good())
+    {
+        return;
+    }
+    stream << tutorialStepIndex_ << '\n';
+}
+
+void EditorApplication::ClearTutorialProgress()
+{
+    std::error_code error;
+    std::filesystem::remove(tutorialProgressFile_, error);
+}
+
+void EditorApplication::CleanupGeneratedTutorialFiles()
+{
+    const std::array<std::filesystem::path, 6> generatedFiles {{
+        std::filesystem::path {"assets/windows/mfd_tutorial.json"},
+        std::filesystem::path {"assets/pages/mfd_tutorial_page1.json"},
+        std::filesystem::path {"assets/pages/mfd_tutorial_page2.json"},
+        std::filesystem::path {"assets/reticles/mfd_tutorial_radar_track.json"},
+        std::filesystem::path {"assets/reticles/mfd_tutorial_circle.json"},
+        std::filesystem::path {"assets/reticles/mfd_tutorial_text.json"},
+    }};
+
+    std::error_code error;
+    for (const auto& path : generatedFiles)
+    {
+        std::filesystem::remove(path, error);
+    }
+}
+
+void EditorApplication::DrawTutorialHalo(const char* targetId, const char* tooltip)
+{
+    if (!tutorialActive_ || tutorialStepIndex_ < 0 || tutorialStepIndex_ >= static_cast<int>(kTutorialSteps.size()))
+    {
+        return;
+    }
+
+    if (targetId == nullptr || kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)].targetId != std::string_view(targetId))
+    {
+        return;
+    }
+
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max = ImGui::GetItemRectMax();
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    drawList->AddRect(min - ImVec2(4.0f, 4.0f), max + ImVec2(4.0f, 4.0f), IM_COL32(84, 224, 255, 255), 10.0f, 0, 2.5f);
+    drawList->AddRect(min - ImVec2(8.0f, 8.0f), max + ImVec2(8.0f, 8.0f), IM_COL32(84, 224, 255, 110), 12.0f, 0, 3.5f);
+    ShowItemTooltip(tooltip);
+}
+
+void EditorApplication::DrawTutorialCoach()
+{
+    if (!showTutorialCoach_)
+    {
+        return;
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(530.0f, 0.0f), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Tutorial coach", &showTutorialCoach_))
+    {
+        ImGui::End();
+        return;
+    }
+
+    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, 0, static_cast<int>(kTutorialSteps.size()) - 1);
+    const TutorialStepDefinition& step = kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
+    ImGui::Text("Step %d / %d", tutorialStepIndex_ + 1, static_cast<int>(kTutorialSteps.size()));
+    ImGui::Separator();
+    ImGui::TextUnformatted(step.title);
+    ImGui::Spacing();
+    ImGui::TextWrapped("%s", step.instruction);
+    ImGui::Spacing();
+    ImGui::BulletText("Files to update in this walkthrough:");
+    ImGui::BulletText("assets/windows/mfd_tutorial.json");
+    ImGui::BulletText("assets/pages/mfd_tutorial_page1.json + mfd_tutorial_page2.json");
+    ImGui::BulletText("assets/reticles/mfd_tutorial_*.json");
+    ImGui::BulletText("examples/mfd_tutorial (CMakeLists.txt + src/main.cpp)");
+    ImGui::BulletText("examples/client_tutorial (CMakeLists.txt + src/main.cpp)");
+    ImGui::BulletText("root CMakeLists.txt (add tutorial targets only when generated code exists)");
+    ImGui::TextWrapped("Note: tutorial assets are intentionally not bundled in the repository; create them from the editor UI during this guided flow.");
+    ImGui::TextWrapped("Training step: add the tutorial targets in CMakeLists.txt after generator output is available.");
+    DrawTutorialFileHints(tutorialStepIndex_);
+
+    if (AccentButton("OK"))
+    {
+        tutorialActive_ = true;
+        if (ApplyCurrentTutorialStep())
+        {
+            AdvanceTutorialStep();
+        }
+    }
+    DrawTutorialHalo("coach_ok", "Tutorial: click OK to apply the strobe configuration for this step.");
+    ImGui::SameLine();
+    if (ImGui::Button("Restart from scratch"))
+    {
+        RestartTutorialFromScratch();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Mark complete"))
+    {
+        tutorialActive_ = false;
+        ClearTutorialProgress();
+        RebuildStatus("Tutorial marked complete.", false);
+    }
+    ImGui::End();
 }
 
 void EditorApplication::CreateNewPage()
@@ -4955,6 +5540,7 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             layer.visible = visible;
         }
         ShowItemTooltip("Show or hide this layer in the editor preview only.");
+        DrawTutorialHalo("inspector_layers", "Tutorial: toggle this checkbox to hide the tutorial text layer.");
 
         ImGui::SameLine();
         ImGui::TextDisabled("%zu reticle%s", assignedReticles, assignedReticles == 1U ? "" : "s");
