@@ -180,8 +180,9 @@ class GenerateUiTests(unittest.TestCase):
             )
 
             output_lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
-            self.assertIn(str(window.resolve()), output_lines)
-            self.assertIn(str(page.resolve()), output_lines)
+            normalized_lines = {line.replace("\\", "/") for line in output_lines}
+            self.assertIn(str(window.resolve()).replace("\\", "/"), normalized_lines)
+            self.assertIn(str(page.resolve()).replace("\\", "/"), normalized_lines)
 
 
 if __name__ == "__main__":
