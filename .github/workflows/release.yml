@@ -99,11 +99,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release_artifacts
+          merge-multiple: true
 
       - name: Generate checksums
         run: |
-          shopt -s globstar
-          sha256sum release_artifacts/**/*.zip > release_artifacts/SHA256SUMS.txt
+          shopt -s nullglob
+          zips=(release_artifacts/*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "No zip artifacts found in release_artifacts" >&2
+            exit 1
+          fi
+          sha256sum "${zips[@]}" > release_artifacts/SHA256SUMS.txt
 
       - name: Build release notes
         id: notes
