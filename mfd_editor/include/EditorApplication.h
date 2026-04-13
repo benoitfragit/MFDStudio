@@ -248,6 +248,26 @@ private:
     void OpenDuplicateLibraryReticlePopup();
     /** @brief Draws and resolves all modal popups owned by the editor. */
     void DrawPopups();
+    /** @brief Draws the guided tutorial coach panel. */
+    void DrawTutorialCoach();
+    /** @brief Opens the tutorial flow from the Help menu. */
+    void OpenTutorialFlow();
+    /** @brief Restarts the tutorial and cleans generated tutorial files. */
+    void RestartTutorialFromScratch();
+    /** @brief Advances to the next tutorial step and persists progress. */
+    void AdvanceTutorialStep();
+    /** @brief Applies filesystem/code changes associated with the current tutorial step. */
+    bool ApplyCurrentTutorialStep();
+    /** @brief Loads persisted tutorial progress from disk. */
+    void LoadTutorialProgress();
+    /** @brief Saves persisted tutorial progress to disk. */
+    void SaveTutorialProgress() const;
+    /** @brief Clears persisted tutorial progress from disk. */
+    void ClearTutorialProgress();
+    /** @brief Cleans generated tutorial files from the repository tree. */
+    void CleanupGeneratedTutorialFiles();
+    /** @brief Draws a halo around the current ImGui item when selected by the tutorial step. */
+    void DrawTutorialHalo(const char* targetId, const char* tooltip);
 
     /** @brief Creates a new page from the popup draft. */
     void CreateNewPage();
@@ -376,6 +396,20 @@ private:
     bool showNewLibraryReticlePopup_ = false;
     /** @brief Popup visibility flag for library reticle duplication. */
     bool showDuplicateLibraryReticlePopup_ = false;
+    /** @brief Popup visibility flag for tutorial resume/restart choice. */
+    bool showTutorialResumePopup_ = false;
+    /** @brief Indicates whether the tutorial coach panel is visible. */
+    bool showTutorialCoach_ = false;
+    /** @brief Indicates whether guided tutorial mode is active. */
+    bool tutorialActive_ = false;
+    /** @brief Index of the current tutorial step. */
+    int tutorialStepIndex_ = 0;
+    /** @brief Current UI target id highlighted by the tutorial halo. */
+    std::string tutorialHaloTarget_ {};
+    /** @brief Last tutorial step index for which the contextual popup hint was opened. */
+    int tutorialLastHintPopupStep_ = -1;
+    /** @brief Small progress file used to resume tutorial state across launches. */
+    std::filesystem::path tutorialProgressFile_ {"assets/tutorial/.editor_tutorial_progress"};
     /** @brief Page-creation draft values. */
     NewPageDraft newPageDraft_ {};
     /** @brief Reticle-creation draft values. */

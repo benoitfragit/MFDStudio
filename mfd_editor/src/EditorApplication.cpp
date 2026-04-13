@@ -13,7 +13,10 @@
 #include <cstdio>
 #include <exception>
 #include <functional>
+#include <fstream>
+#include <iterator>
 #include <limits>
+#include <random>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
@@ -46,6 +49,159 @@ constexpr std::array<EditorWindowPreset, 3> kEditorWindowPresets {{
     {"Cockpit Demo", "assets/windows/demo_pages_cockpit.json"},
     {"Minimal Demo", "assets/windows/demo_pages_minimal.json"},
 }};
+
+struct TutorialStepDefinition
+{
+    const char* title;
+    const char* instruction;
+    const char* targetId;
+};
+
+constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
+    {"Create tutorial window", "Use File/Open preset workflow as reference, then create window mfd_tutorial (480x480, black bg, UDP 127.0.0.1:49000).", "menu_file"},
+    {"Create radar-track reticle", "Create a library reticle template based on a primitive and name it tutorial_radar_track.", "popup_reticle_primitive"},
+    {"Create circular target reticle", "Create a simple circular target reticle that will be layered on Page1.", "popup_reticle_primitive"},
+    {"Create Page1", "Create Page1 and set layer 1 background to blue.", "menu_page_new"},
+    {"Overlay full-page circular reticle", "Add the circular reticle on a second layer above the blue background.", "menu_page_new"},
+    {"Enable outer clipping", "Right-click the circular reticle in preview and choose Clip outside.", "context_clip_outer"},
+    {"Add text reticle layer", "Add a third layer with a text reticle and then hide this layer from the layer inspector.", "inspector_layers"},
+    {"Add Page2", "Create a second page named Page2 with a simple title.", "menu_page_new"},
+    {"Add strobe", "Configure a page strobe and explain that it will jump to each newly created track.", "coach_ok"},
+    {"Save tutorial assets", "Save the tutorial assets from the File menu so window/page/reticle edits are persisted to disk.", "menu_file_save"},
+    {"Change active page in code", "Show how the client switches between Page1 and Page2 (timer-based ActivatePage).", "code_page_switch"},
+    {"Add dynamic reticle in code", "Show how to add/update a dynamic reticle from a template with UpsertDynamicReticle.", "code_dynamic_add"},
+    {"Remove dynamic reticle in code", "Show how to remove the oldest dynamic reticle with RemoveDynamicReticle.", "code_dynamic_remove"},
+    {"Modify static reticle attrs", "Show how to modify a static reticle (color/position/visibility) with SetReticle* commands.", "code_static_attrs"},
+    {"Modify dynamic reticle", "Show how to update an existing dynamic reticle by re-upserting it with a patch.", "code_dynamic_modify"},
+    {"Declutter dynamic reticles", "Show dynamic declutter by toggling visibility of one template set via SetDynamicReticleSetVisible.", "code_declutter"},
+    {"Use generated API in client", "Add a client_tutorial step showing how to include and use generated UI API types/functions.", "code_generated_api"},
+    {"Strobe feedback in client", "Show where the client receives strobe feedback packets (client_tutorial main loop).", "code_feedback"},
+    {"RGBA32 pixel buffer", "Show where RGBA32 pixel buffer callback is read (mfd_tutorial main).", "code_pixels"},
+    {"Enable tutorial targets", "Add tutorial targets in root CMakeLists once generated code exists.", "code_cmake"},
+}};
+
+struct TutorialFileEditHint
+{
+    const char* filePath;
+    const char* changeSummary;
+    const char* snippet;
+};
+
+void DrawTutorialFileHints(const int stepIndex)
+{
+    const auto drawEdit = [](const TutorialFileEditHint& hint)
+    {
+        ImGui::BulletText("%s", hint.filePath);
+        ImGui::TextWrapped("Expected change: %s", hint.changeSummary);
+        if (hint.snippet != nullptr && hint.snippet[0] != '\0')
+        {
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.06f, 0.10f, 0.14f, 1.0f));
+            ImGui::BeginChild(
+                std::string("##hint_").append(hint.filePath).c_str(),
+                ImVec2(0.0f, 86.0f),
+                true,
+                ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::TextUnformatted(hint.snippet);
+            ImGui::EndChild();
+            ImGui::PopStyleColor();
+        }
+    };
+
+    ImGui::SeparatorText("File modification view");
+    switch (stepIndex)
+    {
+    case 0:
+        drawEdit({"assets/windows/mfd_tutorial.json",
+                  "Create a new window file (480x480, black background) and configure UDP command transport.",
+                  "{ \"title\":\"MFD Tutorial\", \"size\":[480,480], \"commands\":{\"udp\":{\"address\":\"127.0.0.1\",\"port\":49000}} }"});
+        break;
+    case 1:
+    case 2:
+        drawEdit({"assets/reticles/mfd_tutorial_*.json",
+                  "Create new reticle template JSON files from the editor reticle library.",
+                  "{ \"id\":\"tutorial_radar_track\", \"elements\":[ ... ] }"});
+        break;
+    case 3:
+    case 4:
+    case 7:
+        drawEdit({"assets/pages/mfd_tutorial_page1.json / mfd_tutorial_page2.json",
+                  "Create Page1/Page2 and wire layers/reticles through editor actions.",
+                  "{ \"name\":\"Page1\", \"editor\":{\"layers\":[...]}, \"staticReticles\":[...] }"});
+        break;
+    case 5:
+        drawEdit({"assets/reticles/mfd_tutorial_circle.json",
+                  "Set reticle clipping mode to outer and choose the clipping primitive.",
+                  "{ \"clipMode\":\"outer\", \"clipPrimitive\":\"outer_circle\" }"});
+        break;
+    case 6:
+        drawEdit({"assets/pages/mfd_tutorial_page1.json",
+                  "Add a text layer and keep it hidden in the editor layer manager.",
+                  "\"layers\": [{\"id\":\"text\", \"visible\":false}]"});
+        break;
+    case 8:
+        drawEdit({"assets/pages/mfd_tutorial_page1.json",
+                  "Add strobe configuration so runtime can move it across tracks.",
+                  "\"strobe\": {\"id\":\"tutorial_strobe\", \"capture\": {\"shape\":\"circle\"}}"});
+        break;
+    case 9:
+        drawEdit({"assets/windows/mfd_tutorial.json + assets/pages/*.json + assets/reticles/*.json",
+                  "Use File > Save to persist all editor-side tutorial assets.",
+                  "File -> Save (Ctrl+S)"});
+        break;
+    case 10:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Switch pages in code with ActivatePage and a timer.",
+                  "activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);\nclient.ActivatePage(activePage);"});
+        break;
+    case 11:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Add/update one dynamic reticle with a patch.",
+                  "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);"});
+        break;
+    case 12:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Remove the oldest dynamic reticle id.",
+                  "client.RemoveDynamicReticle(kPage1, trackIds.front());"});
+        break;
+    case 13:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Modify static reticle attributes.",
+                  "client.SetReticleColor(kPage1, \"tutorial_circle_full\", {0,255,0,255});\nclient.SetReticlePosition(kPage1, \"tutorial_circle_full\", {0.0f,0.0f});\nclient.SetReticleVisible(kPage1, \"tutorial_circle_full\", true);"});
+        break;
+    case 14:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Modify an existing dynamic reticle by re-upserting same id with a new patch.",
+                  "client.UpsertDynamicReticle(kPage1, existingId, kTrackTemplate, updatedPatch);"});
+        break;
+    case 15:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Declutter all dynamics of one template by toggling template-set visibility.",
+                  "client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, false);\nclient.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, true);"});
+        break;
+    case 16:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Include generated API header and call generated helpers/types when available.",
+                  "#if __has_include(\"TutorialUi.h\")\n#include \"TutorialUi.h\"\n#endif"});
+        break;
+    case 17:
+        drawEdit({"examples/client_tutorial/src/main.cpp",
+                  "Poll feedback transport and decode strobe feedback packets.",
+                  "const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);"});
+        break;
+    case 18:
+        drawEdit({"examples/mfd_tutorial/src/main.cpp",
+                  "Read RGBA32 framebuffer callback in window launcher.",
+                  "[](int width, int height, std::span<const std::byte> pixels) { ... }"});
+        break;
+    case 19:
+        drawEdit({"CMakeLists.txt",
+                  "Training step only: add tutorial targets once generated code exists.",
+                  "add_subdirectory(examples/mfd_tutorial)\nadd_subdirectory(examples/client_tutorial)"});
+        break;
+    default:
+        break;
+    }
+}
 
 template <std::size_t N>
 void CopyTextBuffer(std::array<char, N>& destination, const std::string_view value)
@@ -1149,6 +1305,7 @@ EditorApplication::EditorApplication()
     CopyTextBuffer(duplicateLibraryReticleDraft_.id, "reticle_copy");
     ResetPagePreviewView();
     ResetLibraryPreviewView();
+    LoadTutorialProgress();
 }
 
 EditorApplication::~EditorApplication()
@@ -1216,6 +1373,7 @@ int EditorApplication::Run()
             HandleShortcuts();
             DrawMenuBar();
             DrawRootLayout();
+            DrawTutorialCoach();
             DrawPopups();
         }
         catch (const std::exception& exception)
@@ -1537,8 +1695,10 @@ void EditorApplication::DrawMenuBar()
 
     if (ImGui::BeginMenu("File"))
     {
+        DrawTutorialHalo("menu_file", "Tutorial: this menu groups save/reload/preset actions.");
         const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S");
         ShowItemTooltip("Write the window file, page files and reticle template files back to disk.");
+        DrawTutorialHalo("menu_file_save", "Tutorial: click Save to persist all tutorial assets before code steps.");
         if (saveRequested)
         {
             SaveAll();
@@ -1604,6 +1764,7 @@ void EditorApplication::DrawMenuBar()
     {
         const bool newPageRequested = ImGui::MenuItem("New page");
         ShowItemTooltip("Create a new page and its backing JSON file.");
+        DrawTutorialHalo("menu_page_new", "Tutorial: click here to create Page1 then Page2.");
         if (newPageRequested)
         {
             OpenNewPagePopup();
@@ -1622,6 +1783,7 @@ void EditorApplication::DrawMenuBar()
     {
         const bool newLibraryReticleRequested = ImGui::MenuItem("New library reticle from primitive");
         ShowItemTooltip("Create a new shared reticle template.");
+        DrawTutorialHalo("menu_reticle_new", "Tutorial: create tutorial_radar_track and tutorial_circle reticles from here.");
         if (newLibraryReticleRequested)
         {
             OpenNewLibraryReticlePopup();
@@ -1645,6 +1807,17 @@ void EditorApplication::DrawMenuBar()
         if (deleteReticleRequested)
         {
             DeleteSelectedLibraryReticle();
+        }
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Help"))
+    {
+        const bool tutorialRequested = ImGui::MenuItem("Tutorial", nullptr, showTutorialCoach_);
+        ShowItemTooltip("Open the guided discovery mode for the editor and tutorial assets.");
+        if (tutorialRequested)
+        {
+            OpenTutorialFlow();
         }
         ImGui::EndMenu();
     }
@@ -3061,6 +3234,8 @@ void EditorApplication::DrawPageReticleContextMenu()
         ApplyPageReticleClipping(pagePreviewContextReticleIndex_, mfd::ReticleClipMode::Outer, primitive.id);
     }
     ShowItemTooltip("Erase everything outside this convex primitive toward the page background color.");
+    DrawTutorialHalo("context_clip_outer",
+                     "Tutorial: click this entry after right-clicking the circular reticle in the preview.");
 
     if (ImGui::MenuItem("Disable clipping",
                         nullptr,
@@ -4452,6 +4627,12 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 
 void EditorApplication::DrawPopups()
 {
+    if (tutorialActive_ && tutorialStepIndex_ == 5 && tutorialLastHintPopupStep_ != tutorialStepIndex_)
+    {
+        ImGui::OpenPopup("Tutorial clipping hint");
+        tutorialLastHintPopupStep_ = tutorialStepIndex_;
+    }
+
     if (showNewPagePopup_)
     {
         ImGui::OpenPopup("Create new page");
@@ -4468,6 +4649,46 @@ void EditorApplication::DrawPopups()
     {
         ImGui::OpenPopup("Duplicate library reticle");
         showDuplicateLibraryReticlePopup_ = false;
+    }
+
+    if (showTutorialResumePopup_)
+    {
+        ImGui::OpenPopup("Tutorial progress");
+        showTutorialResumePopup_ = false;
+    }
+
+    if (ImGui::BeginPopupModal("Tutorial progress", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextWrapped("A tutorial progress snapshot already exists. Continue where you stopped or restart from scratch?");
+        if (AccentButton("Continue"))
+        {
+            tutorialActive_ = true;
+            showTutorialCoach_ = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Restart from scratch"))
+        {
+            RestartTutorialFromScratch();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (ImGui::BeginPopupModal("Tutorial clipping hint", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextWrapped("Tutorial tip: right-click the circular reticle in the page preview.");
+        ImGui::TextWrapped("Then click \"Clip outside\" (highlighted with a halo) in the context menu.");
+        if (AccentButton("OK"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
     }
 
     if (ImGui::BeginPopupModal("Create new page", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -4500,6 +4721,7 @@ void EditorApplication::DrawPopups()
     {
         ImGui::InputText("Reticle id", newLibraryReticleDraft_.id.data(), newLibraryReticleDraft_.id.size());
         ShowItemTooltip("Template id used by the shared reticle library.");
+        DrawTutorialHalo("popup_reticle_id", "Tutorial: name the reticle template before creating it.");
         if (ImGui::BeginCombo("Primitive", PrimitiveTypeLabel(kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)]).c_str()))
         {
             for (int index = 0; index < static_cast<int>(kPrimitiveTypes.size()); ++index)
@@ -4513,6 +4735,8 @@ void EditorApplication::DrawPopups()
             ImGui::EndCombo();
         }
         ShowItemTooltip("Choose the first primitive that will seed the new reticle template.");
+        DrawTutorialHalo("popup_reticle_primitive",
+                         "Tutorial: choose the primitive type needed for this reticle (track or circle).");
 
         if (AccentButton("Create reticle"))
         {
@@ -4520,6 +4744,7 @@ void EditorApplication::DrawPopups()
             ImGui::CloseCurrentPopup();
         }
         ShowItemTooltip("Create the new library reticle and open it in the reticle studio.");
+        DrawTutorialHalo("popup_reticle_create", "Tutorial: confirm reticle creation after id + primitive are set.");
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
@@ -4547,6 +4772,365 @@ void EditorApplication::DrawPopups()
         ShowItemTooltip("Close this dialog without duplicating the reticle.");
         ImGui::EndPopup();
     }
+}
+
+void EditorApplication::OpenTutorialFlow()
+{
+    LoadTutorialProgress();
+    showTutorialCoach_ = true;
+    tutorialLastHintPopupStep_ = -1;
+    if (tutorialStepIndex_ > 0 && tutorialStepIndex_ < static_cast<int>(kTutorialSteps.size()))
+    {
+        showTutorialResumePopup_ = true;
+        return;
+    }
+
+    tutorialActive_ = true;
+    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, 0, static_cast<int>(kTutorialSteps.size()) - 1);
+    SaveTutorialProgress();
+}
+
+bool EditorApplication::ApplyCurrentTutorialStep()
+{
+    const auto writeFile = [](const std::filesystem::path& filePath, const std::string_view content) -> bool
+    {
+        std::error_code error;
+        std::filesystem::create_directories(filePath.parent_path(), error);
+        std::ofstream stream(filePath, std::ios::trunc);
+        if (!stream.good())
+        {
+            return false;
+        }
+        stream << content;
+        return stream.good();
+    };
+    const auto ensureClientSnippet = [&](const std::string_view marker, const std::string_view snippet) -> bool
+    {
+        const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
+        std::ifstream input(clientFile);
+        if (!input.good())
+        {
+            return false;
+        }
+        std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        if (content.find(marker) == std::string::npos)
+        {
+            content.append("\n").append(snippet).append("\n");
+        }
+        return writeFile(clientFile, content);
+    };
+
+    bool success = true;
+    switch (tutorialStepIndex_)
+    {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+        success = true;
+        break;
+    case 10:
+        success = ensureClientSnippet(
+            "TUTORIAL_PAGE_SWITCH_SNIPPET",
+            "// TUTORIAL_PAGE_SWITCH_SNIPPET\n"
+            "// Switch pages (manual/timer example).\n"
+            "// activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);\n"
+            "// client.ActivatePage(activePage);");
+        break;
+    case 11:
+        success = ensureClientSnippet(
+            "TUTORIAL_DYNAMIC_ADD_SNIPPET",
+            "// TUTORIAL_DYNAMIC_ADD_SNIPPET\n"
+            "// Add or update a dynamic reticle.\n"
+            "// mfd::ReticlePatch patch; patch.position = {0.0f, 0.0f};\n"
+            "// client.UpsertDynamicReticle(kPage1, \"track_id\", kTrackTemplate, patch);");
+        break;
+    case 12:
+        success = ensureClientSnippet(
+            "TUTORIAL_DYNAMIC_REMOVE_SNIPPET",
+            "// TUTORIAL_DYNAMIC_REMOVE_SNIPPET\n"
+            "// Remove one dynamic reticle by id.\n"
+            "// client.RemoveDynamicReticle(kPage1, \"track_id\");");
+        break;
+    case 13:
+        success = ensureClientSnippet(
+            "TUTORIAL_STATIC_ATTR_SNIPPET",
+            "// TUTORIAL_STATIC_ATTR_SNIPPET\n"
+            "// Modify static reticle attributes.\n"
+            "// client.SetReticleColor(kPage1, \"tutorial_circle_full\", {0, 255, 0, 255});\n"
+            "// client.SetReticlePosition(kPage1, \"tutorial_circle_full\", {0.05f, -0.03f});\n"
+            "// client.SetReticleVisible(kPage1, \"tutorial_circle_full\", true);");
+        break;
+    case 14:
+        success = ensureClientSnippet(
+            "TUTORIAL_DYNAMIC_MODIFY_SNIPPET",
+            "// TUTORIAL_DYNAMIC_MODIFY_SNIPPET\n"
+            "// Modify an existing dynamic reticle by re-upserting same id with new patch values.\n"
+            "// mfd::ReticlePatch updated; updated.strokeColor = mfd::ColorRgba {255, 196, 64, 255};\n"
+            "// client.UpsertDynamicReticle(kPage1, \"existing_dynamic_id\", kTrackTemplate, updated);");
+        break;
+    case 15:
+        success = ensureClientSnippet(
+            "TUTORIAL_DYNAMIC_DECLUTTER_SNIPPET",
+            "// TUTORIAL_DYNAMIC_DECLUTTER_SNIPPET\n"
+            "// Declutter dynamic reticles by template set visibility.\n"
+            "// client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, false);\n"
+            "// client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, true);");
+        break;
+    case 16:
+    {
+        const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
+        std::ifstream input(clientFile);
+        if (!input.good())
+        {
+            success = false;
+            break;
+        }
+        std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        constexpr std::string_view kMarker = "TUTORIAL_GENERATED_API_SNIPPET";
+        if (content.find(kMarker) == std::string::npos)
+        {
+            const std::string snippet =
+                "\n// TUTORIAL_GENERATED_API_SNIPPET\n"
+                "// Example: use generated API when available.\n"
+                "#if __has_include(\"TutorialUi.h\")\n"
+                "#include \"TutorialUi.h\"\n"
+                "using TutorialGeneratedUi = tutorial_ui::TutorialUi;\n"
+                "#endif\n";
+            if (const std::size_t includePos = content.find("#include \"mfd/io/JsonLoader.h\""); includePos != std::string::npos)
+            {
+                content.insert(includePos + std::string("#include \"mfd/io/JsonLoader.h\"").size(), snippet);
+            }
+        }
+        success = writeFile(clientFile, content);
+        break;
+    }
+    case 17:
+    {
+        const std::filesystem::path clientFile {"examples/client_tutorial/src/main.cpp"};
+        std::ifstream input(clientFile);
+        if (!input.good())
+        {
+            success = false;
+            break;
+        }
+        const std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        success = content.find("DeserializeStrobeStatusFeedback") != std::string::npos;
+        break;
+    }
+    case 18:
+    {
+        const std::filesystem::path launcherFile {"examples/mfd_tutorial/src/main.cpp"};
+        std::ifstream input(launcherFile);
+        if (!input.good())
+        {
+            success = false;
+            break;
+        }
+        const std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        success = content.find("std::span<const std::byte> pixels") != std::string::npos;
+        break;
+    }
+    case 19:
+    {
+        const std::filesystem::path cmakeFile {"CMakeLists.txt"};
+        std::ifstream input(cmakeFile);
+        if (!input.good())
+        {
+            success = false;
+            break;
+        }
+        std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        if (content.find("add_subdirectory(examples/mfd_tutorial)") == std::string::npos)
+        {
+            const std::string needle = "    add_subdirectory(examples/client_mockup_minimal)\n";
+            const std::size_t pos = content.find(needle);
+            if (pos != std::string::npos)
+            {
+                content.insert(pos + needle.size(),
+                               "    add_subdirectory(examples/mfd_tutorial)\n"
+                               "    add_subdirectory(examples/client_tutorial)\n");
+            }
+        }
+        success = writeFile(cmakeFile, content);
+        break;
+    }
+    default:
+        success = true;
+        break;
+    }
+
+    if (success)
+    {
+        if (tutorialStepIndex_ <= 9)
+        {
+            RebuildStatus("Tutorial step validated. Perform this action manually in the editor UI, then click OK to continue.", false);
+        }
+        else
+        {
+            RebuildStatus("Tutorial step applied. Click OK for next step.", false);
+        }
+    }
+    else
+    {
+        RebuildStatus("Unable to apply tutorial step changes on disk.", true);
+    }
+    return success;
+}
+
+void EditorApplication::RestartTutorialFromScratch()
+{
+    CleanupGeneratedTutorialFiles();
+    tutorialStepIndex_ = 0;
+    tutorialLastHintPopupStep_ = -1;
+    tutorialActive_ = true;
+    showTutorialCoach_ = true;
+    SaveTutorialProgress();
+    RebuildStatus("Tutorial reset: generated tutorial assets and sample code were cleaned.", false);
+}
+
+void EditorApplication::AdvanceTutorialStep()
+{
+    tutorialStepIndex_ = std::min(tutorialStepIndex_ + 1, static_cast<int>(kTutorialSteps.size()) - 1);
+    tutorialLastHintPopupStep_ = -1;
+    SaveTutorialProgress();
+}
+
+void EditorApplication::LoadTutorialProgress()
+{
+    tutorialStepIndex_ = 0;
+    std::ifstream stream(tutorialProgressFile_);
+    if (!stream.good())
+    {
+        return;
+    }
+
+    int savedStep = 0;
+    stream >> savedStep;
+    tutorialStepIndex_ = std::clamp(savedStep, 0, static_cast<int>(kTutorialSteps.size()) - 1);
+}
+
+void EditorApplication::SaveTutorialProgress() const
+{
+    std::error_code error;
+    std::filesystem::create_directories(tutorialProgressFile_.parent_path(), error);
+    std::ofstream stream(tutorialProgressFile_, std::ios::trunc);
+    if (!stream.good())
+    {
+        return;
+    }
+    stream << tutorialStepIndex_ << '\n';
+}
+
+void EditorApplication::ClearTutorialProgress()
+{
+    std::error_code error;
+    std::filesystem::remove(tutorialProgressFile_, error);
+}
+
+void EditorApplication::CleanupGeneratedTutorialFiles()
+{
+    const std::array<std::filesystem::path, 6> generatedFiles {{
+        std::filesystem::path {"assets/windows/mfd_tutorial.json"},
+        std::filesystem::path {"assets/pages/mfd_tutorial_page1.json"},
+        std::filesystem::path {"assets/pages/mfd_tutorial_page2.json"},
+        std::filesystem::path {"assets/reticles/mfd_tutorial_radar_track.json"},
+        std::filesystem::path {"assets/reticles/mfd_tutorial_circle.json"},
+        std::filesystem::path {"assets/reticles/mfd_tutorial_text.json"},
+    }};
+
+    std::error_code error;
+    for (const auto& path : generatedFiles)
+    {
+        std::filesystem::remove(path, error);
+    }
+}
+
+void EditorApplication::DrawTutorialHalo(const char* targetId, const char* tooltip)
+{
+    if (!tutorialActive_ || tutorialStepIndex_ < 0 || tutorialStepIndex_ >= static_cast<int>(kTutorialSteps.size()))
+    {
+        return;
+    }
+
+    if (targetId == nullptr || kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)].targetId != std::string_view(targetId))
+    {
+        return;
+    }
+
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max = ImGui::GetItemRectMax();
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    const ImVec2 innerMin(min.x - 4.0f, min.y - 4.0f);
+    const ImVec2 innerMax(max.x + 4.0f, max.y + 4.0f);
+    const ImVec2 outerMin(min.x - 8.0f, min.y - 8.0f);
+    const ImVec2 outerMax(max.x + 8.0f, max.y + 8.0f);
+    drawList->AddRect(innerMin, innerMax, IM_COL32(84, 224, 255, 255), 10.0f, 0, 2.5f);
+    drawList->AddRect(outerMin, outerMax, IM_COL32(84, 224, 255, 110), 12.0f, 0, 3.5f);
+    ShowItemTooltip(tooltip);
+}
+
+void EditorApplication::DrawTutorialCoach()
+{
+    if (!showTutorialCoach_)
+    {
+        return;
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(530.0f, 0.0f), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Tutorial coach", &showTutorialCoach_))
+    {
+        ImGui::End();
+        return;
+    }
+
+    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, 0, static_cast<int>(kTutorialSteps.size()) - 1);
+    const TutorialStepDefinition& step = kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
+    ImGui::Text("Step %d / %d", tutorialStepIndex_ + 1, static_cast<int>(kTutorialSteps.size()));
+    ImGui::Separator();
+    ImGui::TextUnformatted(step.title);
+    ImGui::Spacing();
+    ImGui::TextWrapped("%s", step.instruction);
+    ImGui::Spacing();
+    ImGui::BulletText("Files to update in this walkthrough:");
+    ImGui::BulletText("assets/windows/mfd_tutorial.json");
+    ImGui::BulletText("assets/pages/mfd_tutorial_page1.json + mfd_tutorial_page2.json");
+    ImGui::BulletText("assets/reticles/mfd_tutorial_*.json");
+    ImGui::BulletText("examples/mfd_tutorial (CMakeLists.txt + src/main.cpp)");
+    ImGui::BulletText("examples/client_tutorial (CMakeLists.txt + src/main.cpp)");
+    ImGui::BulletText("root CMakeLists.txt (add tutorial targets only when generated code exists)");
+    ImGui::TextWrapped("Note: tutorial assets are intentionally not bundled in the repository; create them from the editor UI during this guided flow.");
+    ImGui::TextWrapped("Training step: add the tutorial targets in CMakeLists.txt after generator output is available.");
+    DrawTutorialFileHints(tutorialStepIndex_);
+
+    if (AccentButton("OK"))
+    {
+        tutorialActive_ = true;
+        if (ApplyCurrentTutorialStep())
+        {
+            AdvanceTutorialStep();
+        }
+    }
+    DrawTutorialHalo("coach_ok", "Tutorial: click OK to apply the strobe configuration for this step.");
+    ImGui::SameLine();
+    if (ImGui::Button("Restart from scratch"))
+    {
+        RestartTutorialFromScratch();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Mark complete"))
+    {
+        tutorialActive_ = false;
+        ClearTutorialProgress();
+        RebuildStatus("Tutorial marked complete.", false);
+    }
+    ImGui::End();
 }
 
 void EditorApplication::CreateNewPage()
@@ -4955,6 +5539,7 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             layer.visible = visible;
         }
         ShowItemTooltip("Show or hide this layer in the editor preview only.");
+        DrawTutorialHalo("inspector_layers", "Tutorial: toggle this checkbox to hide the tutorial text layer.");
 
         ImGui::SameLine();
         ImGui::TextDisabled("%zu reticle%s", assignedReticles, assignedReticles == 1U ? "" : "s");
