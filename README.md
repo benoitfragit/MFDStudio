@@ -263,6 +263,33 @@ cmake --build --preset release-win32
 
 Dependencies are fetched by CMake.
 
+## First GitHub Release (GitHub Actions)
+
+The repository contains a release workflow in `.github/workflows/release.yml`.
+
+Recommended first release flow:
+
+1. Ensure `main` is green on CI.
+2. Create and push a semantic tag (`MAJOR.MINOR.PATCH` or `vMAJOR.MINOR.PATCH`), for example:
+
+```bash
+git tag 1.0.0
+git push origin 1.0.0
+```
+
+3. GitHub Actions builds Win32 + x64 archives and publishes a GitHub Release.
+
+Manual release is also available from **Actions → Build and Publish Release**:
+
+- optional `tag` input (for example `1.0.0`, `v1.0.0` or `v1.1.0-rc.1`)
+- optional `prerelease` checkbox
+
+Published assets include:
+
+- `mfd-<tag>-x64.zip`
+- `mfd-<tag>-win32.zip`
+- `SHA256SUMS.txt` for checksum verification
+
 ## Automated Tests
 
 `GoogleTest` is integrated into the default build through the `mfd_api_tests`
