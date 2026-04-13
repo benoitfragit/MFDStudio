@@ -5067,8 +5067,12 @@ void EditorApplication::DrawTutorialHalo(const char* targetId, const char* toolt
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max = ImGui::GetItemRectMax();
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
-    drawList->AddRect(min - ImVec2(4.0f, 4.0f), max + ImVec2(4.0f, 4.0f), IM_COL32(84, 224, 255, 255), 10.0f, 0, 2.5f);
-    drawList->AddRect(min - ImVec2(8.0f, 8.0f), max + ImVec2(8.0f, 8.0f), IM_COL32(84, 224, 255, 110), 12.0f, 0, 3.5f);
+    const ImVec2 innerMin(min.x - 4.0f, min.y - 4.0f);
+    const ImVec2 innerMax(max.x + 4.0f, max.y + 4.0f);
+    const ImVec2 outerMin(min.x - 8.0f, min.y - 8.0f);
+    const ImVec2 outerMax(max.x + 8.0f, max.y + 8.0f);
+    drawList->AddRect(innerMin, innerMax, IM_COL32(84, 224, 255, 255), 10.0f, 0, 2.5f);
+    drawList->AddRect(outerMin, outerMax, IM_COL32(84, 224, 255, 110), 12.0f, 0, 3.5f);
     ShowItemTooltip(tooltip);
 }
 
