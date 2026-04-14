@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for CommandTypes.
+ */
+
 #include "mfd/control/CommandTypes.h"
 
 #include <cstdint>

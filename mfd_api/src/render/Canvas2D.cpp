@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for Canvas2D.
+ */
+
 #include "mfd/render/Canvas2D.h"
 
 #include <algorithm>
