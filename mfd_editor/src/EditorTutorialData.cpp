@@ -50,7 +50,7 @@ constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
 }};
 } // namespace
 
-std::span<const TutorialStepDefinition> Steps() noexcept
+mfd::ArrayView<const TutorialStepDefinition> Steps() noexcept
 {
     return kTutorialSteps;
 }
@@ -164,7 +164,7 @@ void DrawTutorialFileHints(const int stepIndex)
     case 18:
         drawEdit({"examples/mfd_tutorial/src/main.cpp",
                   "Read RGBA32 framebuffer callback in window launcher.",
-                  "[](int width, int height, std::span<const std::byte> pixels) { ... }"});
+                  "[](int width, int height, mfd::ByteView pixels) { ... }"});
         break;
     case 19:
         drawEdit({"CMakeLists.txt",

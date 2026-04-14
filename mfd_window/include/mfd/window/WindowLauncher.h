@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <functional>
-#include <span>
+#include "mfd/core/ArrayView.h"
 #include <string>
 
 namespace mfd::window
@@ -27,7 +27,7 @@ struct LauncherConfig
  */
 using LauncherFramebufferCallback = std::function<void(int width,
                                                        int height,
-                                                       std::span<const std::byte> rgba32Bytes)>;
+                                                       mfd::ByteView rgba32Bytes)>;
 
 struct LauncherOptions
 {

@@ -485,12 +485,12 @@ bool SceneRegistry::ActivePageHasStrobe() const noexcept
 
 bool SceneRegistry::HasNormalizedPage(const std::string_view pageName) const noexcept
 {
-    return pageEntities_.contains(pageName);
+    return pageEntities_.find(std::string(pageName)) != pageEntities_.end();
 }
 
 bool SceneRegistry::HasNormalizedStrobe(const std::string_view pageName) const noexcept
 {
-    return strobeEntities_.contains(pageName);
+    return strobeEntities_.find(std::string(pageName)) != strobeEntities_.end();
 }
 
 void SceneRegistry::SetActivePage(const std::string_view pageName) noexcept
@@ -558,7 +558,7 @@ std::optional<StrobeSummary> SceneRegistry::ActiveStrobeSummary() const
 
 std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_view pageName) const
 {
-    const auto iterator = strobeEntities_.find(pageName);
+    const auto iterator = strobeEntities_.find(std::string(pageName));
     if (iterator == strobeEntities_.end())
     {
         return std::nullopt;
@@ -595,7 +595,7 @@ std::optional<StrobeMagnetSummary> SceneRegistry::ActiveStrobeMagnetSummary() co
 
 std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const std::string_view pageName) const
 {
-    const auto iterator = strobeEntities_.find(pageName);
+    const auto iterator = strobeEntities_.find(std::string(pageName));
     if (iterator == strobeEntities_.end())
     {
         return std::nullopt;
@@ -1139,7 +1139,7 @@ bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
 bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool active) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    const auto iterator = strobeEntities_.find(normalizedPageName);
+    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
     if (iterator == strobeEntities_.end())
     {
         return false;
@@ -1157,7 +1157,7 @@ bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool 
 bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec2 position) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    const auto iterator = strobeEntities_.find(normalizedPageName);
+    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
     if (iterator == strobeEntities_.end())
     {
         return false;
@@ -1221,7 +1221,7 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
 bool SceneRegistry::OffsetStrobe(const std::string_view pageName, const Vec2 delta) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    const auto iterator = strobeEntities_.find(normalizedPageName);
+    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
     if (iterator == strobeEntities_.end())
     {
         return false;
@@ -1247,7 +1247,7 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureActivePageStrobe() cons
 
 std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std::string_view pageName) const
 {
-    const auto strobeIterator = strobeEntities_.find(pageName);
+    const auto strobeIterator = strobeEntities_.find(std::string(pageName));
     if (strobeIterator == strobeEntities_.end())
     {
         return std::nullopt;
@@ -1441,13 +1441,13 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindReticle(const std::str
 
 SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_view normalizedPageName) noexcept
 {
-    const auto iterator = pageEntities_.find(normalizedPageName);
+    const auto iterator = pageEntities_.find(std::string(normalizedPageName));
     return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
 }
 
 const SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_view normalizedPageName) const noexcept
 {
-    const auto iterator = pageEntities_.find(normalizedPageName);
+    const auto iterator = pageEntities_.find(std::string(normalizedPageName));
     return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
 }
 
@@ -1540,7 +1540,7 @@ void SceneRegistry::RemoveReticleFromPageDrawList(const std::string_view normali
 
 void SceneRegistry::SetActiveFlag(const std::string_view pageName, const bool active)
 {
-    const auto iterator = pageEntities_.find(pageName);
+    const auto iterator = pageEntities_.find(std::string(pageName));
     if (iterator == pageEntities_.end())
     {
         return;

@@ -10,7 +10,7 @@
  * @brief Tutorial metadata and helper rendering used by the editor coaching panel.
  */
 
-#include <span>
+#include "mfd/core/ArrayView.h"
 
 namespace editor::tutorial
 {
@@ -27,7 +27,7 @@ struct TutorialStepDefinition
 /**
  * @brief Returns the static set of tutorial steps displayed by the editor.
  */
-std::span<const TutorialStepDefinition> Steps() noexcept;
+mfd::ArrayView<const TutorialStepDefinition> Steps() noexcept;
 
 /**
  * @brief Returns the number of tutorial steps.

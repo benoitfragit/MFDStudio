@@ -28,7 +28,7 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_api/src/model/Reticle.cpp
         ${MFD_ROOT_DIR}/mfd_api/src/model/Types.cpp)
 
-target_compile_features(mfd_editor_tests PRIVATE cxx_std_20)
+target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)
 
 if(MSVC)
     target_compile_options(mfd_editor_tests

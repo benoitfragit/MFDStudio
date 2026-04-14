@@ -10,7 +10,6 @@
 
 #include <array>
 #include <cstddef>
-#include <span>
 #include <gtest/gtest.h>
 
 #include <string>
@@ -101,7 +100,7 @@ TEST(WindowLauncherTests, FramebufferCallbackReceivesDimensionsAndByteSpan)
     std::size_t receivedByteCount = 0;
 
     mfd::window::LauncherFramebufferCallback callback =
-        [&](const int width, const int height, const std::span<const std::byte> rgba32Bytes)
+        [&](const int width, const int height, const mfd::ByteView rgba32Bytes)
     {
         receivedWidth = width;
         receivedHeight = height;

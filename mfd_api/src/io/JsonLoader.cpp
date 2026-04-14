@@ -460,11 +460,16 @@ std::uint8_t ParseOpacityNumber(const json& value)
     return ClampByte(static_cast<int>(std::lround(rawValue)));
 }
 
+bool BeginsWith(const std::string_view value, const std::string_view prefix) noexcept
+{
+    return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
+}
+
 bool LooksLikeHexColor(std::string_view value)
 {
     value = TrimAsciiWhitespace(value);
 
-    if (value.starts_with('#'))
+    if (BeginsWith(value, "#"))
     {
         value.remove_prefix(1);
     }
@@ -528,7 +533,7 @@ ColorRgba ParseHexColor(std::string_view value)
 {
     value = TrimAsciiWhitespace(value);
 
-    if (value.starts_with('#'))
+    if (BeginsWith(value, "#"))
     {
         value.remove_prefix(1);
     }
@@ -628,8 +633,8 @@ std::optional<ColorRgba> TryParseRgbFunction(const std::string_view value)
     const std::string_view trimmed = TrimAsciiWhitespace(value);
     const std::string lowered = Lowercase(trimmed);
 
-    const bool hasAlpha = lowered.starts_with("rgba(");
-    if (!hasAlpha && !lowered.starts_with("rgb("))
+    const bool hasAlpha = BeginsWith(lowered, "rgba(");
+    if (!hasAlpha && !BeginsWith(lowered, "rgb("))
     {
         return std::nullopt;
     }
@@ -2186,7 +2191,7 @@ PageDefinition ParsePage(const json& node, const ReticleLibrary& library)
             throw std::runtime_error("Static reticles must define a non-empty id on page: " + page.name);
         }
 
-        if (!reticle.editor.layerId.empty() && !pageLayerIds.contains(reticle.editor.layerId))
+        if (!reticle.editor.layerId.empty() && pageLayerIds.find(reticle.editor.layerId) == pageLayerIds.end())
         {
             throw std::runtime_error(
                 "Unknown editor layer '" + reticle.editor.layerId + "' for reticle '" + reticle.id +

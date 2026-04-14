@@ -10,7 +10,6 @@
 
 #include <cstddef>
 #include <iostream>
-#include <span>
 
 #include "mfd/window/WindowLauncher.h"
 
@@ -23,7 +22,7 @@ int main(int argc, char** argv)
         argc,
         argv,
         config,
-        [](int width, int height, std::span<const std::byte> pixels)
+        [](int width, int height, mfd::ByteView pixels)
         {
             static bool printed = false;
             if (!printed)

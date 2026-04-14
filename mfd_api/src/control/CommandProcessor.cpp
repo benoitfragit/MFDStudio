@@ -66,7 +66,7 @@ bool CommandProcessor::Submit(const UserCommand& command)
     return lastCommandSucceeded_;
 }
 
-bool CommandProcessor::Submit(const std::span<const UserCommand> commands)
+bool CommandProcessor::Submit(const ArrayView<const UserCommand> commands)
 {
     bool success = true;
     for (const UserCommand& command : commands)
@@ -96,7 +96,7 @@ bool CommandProcessor::Submit(const std::string_view payload)
     return success;
 }
 
-bool CommandProcessor::Submit(const std::span<const std::byte> payload)
+bool CommandProcessor::Submit(const ByteView payload)
 {
     if (payload.empty())
     {

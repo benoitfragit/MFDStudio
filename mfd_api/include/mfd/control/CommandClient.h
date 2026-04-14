@@ -11,7 +11,7 @@
  */
 
 #include <memory>
-#include <span>
+#include "mfd/core/ArrayView.h"
 #include <string>
 #include <string_view>
 #include <vector>
@@ -81,7 +81,7 @@ public:
      * datagrams when the serialized payload would exceed the configured UDP
      * packet size.
      */
-    bool SendBatch(std::span<const UserCommand> commands, std::uint32_t sequence = 0);
+    bool SendBatch(ArrayView<const UserCommand> commands, std::uint32_t sequence = 0);
 
     /**
      * @brief Sends a pre-built command batch.
@@ -175,7 +175,7 @@ public:
      */
     bool UpsertDynamicReticles(std::string_view page,
                                std::string_view templateId,
-                               std::span<const DynamicReticleState> reticles);
+                               ArrayView<const DynamicReticleState> reticles);
     /** @brief Enables or disables all dynamic reticles belonging to one page/template set. */
     bool SetDynamicReticleSetVisible(std::string_view page, std::string_view templateId, bool visible);
 

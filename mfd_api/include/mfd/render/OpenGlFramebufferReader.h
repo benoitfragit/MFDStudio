@@ -12,7 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <span>
+#include "mfd/core/ArrayView.h"
 #include <vector>
 
 #include "mfd/MfdExport.h"
@@ -81,9 +81,9 @@ struct MFD_API Rgba32Framebuffer
     /** @brief Returns the total size in bytes of the buffer. */
     std::size_t ByteSize() const noexcept;
     /** @brief Returns a read-only span over the pixel array. */
-    std::span<const Rgba8Pixel> Pixels() const noexcept;
+    ArrayView<const Rgba8Pixel> Pixels() const noexcept;
     /** @brief Returns a mutable span over the pixel array. */
-    std::span<Rgba8Pixel> Pixels() noexcept;
+    ArrayView<Rgba8Pixel> Pixels() noexcept;
     /**
      * @brief Returns a read-only raw byte view over the pixel buffer.
      *
@@ -91,14 +91,14 @@ struct MFD_API Rgba32Framebuffer
      * framebuffer to a generic byte-oriented transport such as shared memory,
      * an IPC pipe or an external image-processing stage.
      */
-    std::span<const std::byte> Bytes() const noexcept;
+    ByteView Bytes() const noexcept;
     /**
      * @brief Returns a mutable raw byte view over the pixel buffer.
      *
      * @note This is the mutable counterpart of the shared-memory-friendly byte
      * API exposed by the framebuffer snapshot.
      */
-    std::span<std::byte> Bytes() noexcept;
+    ArrayView<std::byte> Bytes() noexcept;
 };
 
 /**

@@ -492,7 +492,7 @@ bridge.Start();
 std::vector<mfd::UserCommand> commands;
 commands.clear();
 bridge.DrainReceivedCommands(commands);
-processor.Submit(std::span<const mfd::UserCommand>(commands.data(), commands.size()));
+processor.Submit(mfd::ArrayView<const mfd::UserCommand>(commands.data(), commands.size()));
 ```
 
 ### Send dynamic reticles in bulk
@@ -603,7 +603,6 @@ optional callback that receives the final `RGBA32` buffer every frame:
 ```cpp
 #include <cstddef>
 #include <iostream>
-#include <span>
 
 #include "mfd/window/WindowLauncher.h"
 
@@ -617,7 +616,7 @@ int main(int argc, char** argv)
         argc,
         argv,
         config,
-        [](int width, int height, std::span<const std::byte> pixels)
+        [](int width, int height, mfd::ByteView pixels)
         {
             static bool printed = false;
             if (!printed)

@@ -14,7 +14,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <span>
 #include <string>
 #include <vector>
 
@@ -62,7 +61,7 @@ public:
     /** @copydoc IExchangeChannel::IsReady */
     bool IsReady() const noexcept override;
     /** @copydoc IExchangeChannel::Send */
-    bool Send(std::span<const std::byte> buffer) override;
+    bool Send(ByteView buffer) override;
     /** @copydoc IExchangeChannel::TryReceive */
     std::optional<std::vector<std::byte>> TryReceive() override;
     /** @copydoc IExchangeChannel::LastError */

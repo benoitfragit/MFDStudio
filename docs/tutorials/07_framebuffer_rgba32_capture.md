@@ -46,7 +46,7 @@ if (!capture.Empty())
 ## Step 4 - Access raw bytes
 
 ```cpp
-std::span<const std::byte> raw = capture.Bytes();
+mfd::ByteView raw = capture.Bytes();
 ```
 
 This is useful when another system expects a generic byte buffer, for example:
@@ -99,7 +99,6 @@ window buffer every frame through the optional launcher callback:
 ```cpp
 #include <cstddef>
 #include <iostream>
-#include <span>
 
 #include "mfd/window/WindowLauncher.h"
 
@@ -113,7 +112,7 @@ int main(int argc, char** argv)
         argc,
         argv,
         config,
-        [](int width, int height, std::span<const std::byte> pixels)
+        [](int width, int height, mfd::ByteView pixels)
         {
             static bool printed = false;
             if (!printed)
@@ -133,7 +132,7 @@ The callback receives:
 
 - `width`
 - `height`
-- `std::span<const std::byte>` over the same `RGBA32` data
+- `mfd::ByteView` over the same `RGBA32` data
 
 Copy the byte span inside the callback if another system needs to keep it after
 the function returns.

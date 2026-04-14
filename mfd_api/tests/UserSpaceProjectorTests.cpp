@@ -12,16 +12,20 @@
 
 #include <cmath>
 #include <limits>
-#include <numbers>
 
 #include "mfd/control/UserSpaceProjector.h"
+
+namespace
+{
+constexpr float kPi = 3.14159265358979323846f;
+}
 
 TEST(UserSpaceProjectorTests, ProjectsPositionWithAnchorScaleAndOriginRotation)
 {
     mfd::UserSpaceFrame frame;
     frame.userOrigin = {10.0f, 20.0f};
     frame.pageAnchor = {1.0f, -1.0f};
-    frame.originRotationRadians = std::numbers::pi_v<float> * 0.5f;
+    frame.originRotationRadians = kPi * 0.5f;
     frame.pageUnitsPerUserUnit = 0.5f;
 
     mfd::UserSpaceProjector projector(frame);
@@ -30,7 +34,7 @@ TEST(UserSpaceProjectorTests, ProjectsPositionWithAnchorScaleAndOriginRotation)
     EXPECT_FLOAT_EQ(pagePosition.x, 2.0f);
     EXPECT_FLOAT_EQ(pagePosition.y, -1.0f);
 
-    const float pageRotation = projector.ToPageRotationDegrees(std::numbers::pi_v<float>);
+    const float pageRotation = projector.ToPageRotationDegrees(kPi);
     EXPECT_NEAR(pageRotation, 90.0f, 1.0e-4f);
 }
 
@@ -51,7 +55,7 @@ TEST(UserSpaceProjectorTests, UsesConfiguredBasisForOffsetsAndRotations)
     EXPECT_NEAR(pageRotation, 90.0f, 1.0e-4f);
 
     const mfd::Transform2D transform =
-        projector.ToPageTransform({1.0f, 2.0f}, std::numbers::pi_v<float> * 0.5f, {0.25f, 0.75f});
+        projector.ToPageTransform({1.0f, 2.0f}, kPi * 0.5f, {0.25f, 0.75f});
     EXPECT_FLOAT_EQ(transform.position.x, 4.0f);
     EXPECT_FLOAT_EQ(transform.position.y, 2.0f);
     EXPECT_NEAR(transform.rotationDegrees, 0.0f, 1.0e-4f);

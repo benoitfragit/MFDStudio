@@ -14,7 +14,7 @@ target_link_libraries(client_api_tests
         mfd::client
         GTest::gtest_main)
 
-target_compile_features(client_api_tests PRIVATE cxx_std_20)
+target_compile_features(client_api_tests PRIVATE cxx_std_17)
 
 if(MSVC)
     target_compile_options(client_api_tests
