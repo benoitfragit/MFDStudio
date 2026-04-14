@@ -44,6 +44,7 @@ If you already know what you want:
 - drive the cockpit showcase: [10 Drive The Cockpit Demo](./docs/tutorials/10_cockpit_demo.md)
 - use the mockup as a client API reference: [11 Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md)
 - run the automated runtime tests: [12 Run The Automated Runtime Tests](./docs/tutorials/12_run_the_automated_runtime_tests.md)
+- create a full window directly from the editor wizard: [13 Create A Window From Scratch In The Editor](./docs/tutorials/13_create_window_from_editor.md)
 - generate typed client UI code and use it in your app: [11 Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md#generated-client-ui-in-2-minutes)
 
 ## Generated Client UI In 2 Minutes
