@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for CommandTransport.
+ */
+
 #include "mfd/control/CommandTransport.h"
 
 #include "mfd/ipc/UdpChannel.h"

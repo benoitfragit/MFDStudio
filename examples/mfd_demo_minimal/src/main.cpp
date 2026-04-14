@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Executable entry point.
+ */
+
 #include <cstddef>
 #include <iostream>
 #include <span>

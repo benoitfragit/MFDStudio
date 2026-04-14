@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Executable entry point.
+ */
+
 #include "mfd/window/WindowLauncher.h"
 
 int main(int argc, char** argv)

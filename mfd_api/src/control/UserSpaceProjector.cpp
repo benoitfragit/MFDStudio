@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for UserSpaceProjector.
+ */
+
 #include "mfd/control/UserSpaceProjector.h"
 
 #include <cmath>

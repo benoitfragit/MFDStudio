@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for FeedbackTransport.
+ */
+
 #include "mfd/control/FeedbackTransport.h"
 
 #include "mfd/ipc/UdpChannel.h"

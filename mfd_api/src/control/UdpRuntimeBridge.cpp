@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for UdpRuntimeBridge.
+ */
+
 #include "mfd/control/UdpRuntimeBridge.h"
 
 #include <algorithm>

@@ -5,6 +5,11 @@
  */
 #include "EditorDocumentSerializer.h"
 
+/**
+ * @file
+ * @brief JSON serializer used by the editor save workflow for windows, pages and reticle templates.
+ */
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
