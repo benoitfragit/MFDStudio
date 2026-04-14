@@ -201,7 +201,8 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
     pendingBatch = std::move(mergedBatch);
 }
 
-void StartWorker(LatestBatchPublisher::Impl& impl)
+template<typename ImplType>
+void StartWorker(ImplType& impl)
 {
     if (!impl.ready || !impl.sendFunction)
     {
@@ -271,6 +272,8 @@ void StartWorker(LatestBatchPublisher::Impl& impl)
         });
 }
 
+} // namespace
+
 std::unique_ptr<mfd::CommandClient> MakeOwnedClient(const mfd::WindowCommandTransportConfig& config)
 {
     return std::make_unique<mfd::CommandClient>(config);
@@ -280,7 +283,6 @@ std::unique_ptr<mfd::CommandClient> MakeOwnedClient(const mfd::WindowUdpCommandT
 {
     return std::make_unique<mfd::CommandClient>(config);
 }
-} // namespace
 
 LatestBatchPublisher::LatestBatchPublisher(const mfd::WindowCommandTransportConfig& config)
     : impl_(std::make_unique<Impl>())
