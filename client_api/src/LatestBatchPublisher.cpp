@@ -201,7 +201,7 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
     pendingBatch = std::move(mergedBatch);
 }
 
-void StartWorker(auto& impl)
+void StartWorker(LatestBatchPublisher::Impl& impl)
 {
     if (!impl.ready || !impl.sendFunction)
     {
@@ -216,7 +216,7 @@ void StartWorker(auto& impl)
                 mfd::CommandBatch batch;
 
                 {
-                    std::unique_lock lock(impl.mutex);
+                    std::unique_lock<std::mutex> lock(impl.mutex);
                     impl.wakeCondition.wait(
                         lock,
                         [&impl]()
@@ -259,7 +259,7 @@ void StartWorker(auto& impl)
                 }
 
                 {
-                    std::lock_guard lock(impl.mutex);
+                    std::lock_guard<std::mutex> lock(impl.mutex);
                     impl.sending = false;
                     impl.lastError = success ? std::string {} : std::move(error);
                 }
@@ -364,7 +364,7 @@ bool LatestBatchPublisher::SubmitLatest(mfd::CommandBatch batch)
     {
         if (impl_ != nullptr)
         {
-            std::lock_guard lock(impl_->mutex);
+            std::lock_guard<std::mutex> lock(impl_->mutex);
             if (impl_->lastError.empty())
             {
                 impl_->lastError = "Latest batch publisher is not ready";
@@ -374,7 +374,7 @@ bool LatestBatchPublisher::SubmitLatest(mfd::CommandBatch batch)
     }
 
     {
-        std::lock_guard lock(impl_->mutex);
+        std::lock_guard<std::mutex> lock(impl_->mutex);
         if (impl_->stopRequested)
         {
             impl_->lastError = "Latest batch publisher has been stopped";
@@ -403,7 +403,7 @@ void LatestBatchPublisher::Flush()
         return;
     }
 
-    std::unique_lock lock(impl_->mutex);
+    std::unique_lock<std::mutex> lock(impl_->mutex);
     impl_->idleCondition.wait(
         lock,
         [this]()
@@ -420,7 +420,7 @@ void LatestBatchPublisher::Stop()
     }
 
     {
-        std::lock_guard lock(impl_->mutex);
+        std::lock_guard<std::mutex> lock(impl_->mutex);
         impl_->stopRequested = true;
         impl_->pendingBatch.reset();
     }
@@ -441,7 +441,7 @@ std::string LatestBatchPublisher::LastError() const
         return {};
     }
 
-    std::lock_guard lock(impl_->mutex);
+    std::lock_guard<std::mutex> lock(impl_->mutex);
     return impl_->lastError;
 }
 } // namespace mfd::client
