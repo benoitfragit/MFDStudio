@@ -58,7 +58,7 @@ struct TutorialStepDefinition
 };
 
 constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
-    {"Create tutorial window", "Use File/Open preset workflow as reference, then create window mfd_tutorial (480x480, black bg, UDP 127.0.0.1:49000).", "menu_file"},
+    {"Create tutorial window", "Use File/New window from scratch, then create window mfd_tutorial (480x480, black bg, UDP 127.0.0.1:49000).", "menu_file_new_window"},
     {"Create radar-track reticle", "Create a library reticle template based on a primitive and name it tutorial_radar_track.", "popup_reticle_primitive"},
     {"Create circular target reticle", "Create a simple circular target reticle that will be layered on Page1.", "popup_reticle_primitive"},
     {"Create Page1", "Create Page1 and set layer 1 background to blue.", "menu_page_new"},
@@ -112,8 +112,8 @@ void DrawTutorialFileHints(const int stepIndex)
     {
     case 0:
         drawEdit({"assets/windows/mfd_tutorial.json",
-                  "Create a new window file (480x480, black background) and configure UDP command transport.",
-                  "{ \"title\":\"MFD Tutorial\", \"size\":[480,480], \"commands\":{\"udp\":{\"address\":\"127.0.0.1\",\"port\":49000}} }"});
+                  "Create a new window from the editor popup and configure size, position, font path, default page and UDP transport.",
+                  "{ \"title\":\"MFD Tutorial\", \"size\":[480,480], \"position\":[120,80], \"commands\":{\"udp\":{\"address\":\"127.0.0.1\",\"port\":49000}}, \"feedback\":{\"udp\":{\"enabled\":false}} }"});
         break;
     case 1:
     case 2:
@@ -1301,6 +1301,14 @@ EditorApplication::EditorApplication()
     CopyTextBuffer(newPageDraft_.name, "NewPage");
     CopyTextBuffer(newPageDraft_.title, "New Page");
     CopyTextBuffer(newPageDraft_.fileName, "new_page.json");
+    CopyTextBuffer(newWindowDraft_.windowFile, "assets/windows/new_window.json");
+    CopyTextBuffer(newWindowDraft_.title, "New MFD Window");
+    CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, "assets/reticles");
+    CopyTextBuffer(newWindowDraft_.commandAddress, "127.0.0.1");
+    CopyTextBuffer(newWindowDraft_.feedbackAddress, "127.0.0.1");
+    CopyTextBuffer(newWindowDraft_.firstPageName, "Page1");
+    CopyTextBuffer(newWindowDraft_.firstPageTitle, "Page 1");
+    CopyTextBuffer(newWindowDraft_.firstPageFile, "assets/pages/page1.json");
     CopyTextBuffer(newLibraryReticleDraft_.id, "new_reticle");
     CopyTextBuffer(duplicateLibraryReticleDraft_.id, "reticle_copy");
     ResetPagePreviewView();
@@ -1696,6 +1704,15 @@ void EditorApplication::DrawMenuBar()
     if (ImGui::BeginMenu("File"))
     {
         DrawTutorialHalo("menu_file", "Tutorial: this menu groups save/reload/preset actions.");
+        const bool newWindowRequested = ImGui::MenuItem("New window from scratch");
+        ShowItemTooltip("Create a brand-new window JSON and optional first page directly from the editor.");
+        DrawTutorialHalo("menu_file_new_window", "Tutorial: start by creating mfd_tutorial from this wizard.");
+        if (newWindowRequested)
+        {
+            OpenNewWindowPopup();
+        }
+
+        ImGui::Separator();
         const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S");
         ShowItemTooltip("Write the window file, page files and reticle template files back to disk.");
         DrawTutorialHalo("menu_file_save", "Tutorial: click Save to persist all tutorial assets before code steps.");
@@ -2198,6 +2215,11 @@ void EditorApplication::DrawLibraryTree()
 void EditorApplication::OpenNewPagePopup()
 {
     showNewPagePopup_ = true;
+}
+
+void EditorApplication::OpenNewWindowPopup()
+{
+    showNewWindowPopup_ = true;
 }
 
 void EditorApplication::OpenNewLibraryReticlePopup()
@@ -4638,6 +4660,11 @@ void EditorApplication::DrawPopups()
         ImGui::OpenPopup("Create new page");
         showNewPagePopup_ = false;
     }
+    if (showNewWindowPopup_)
+    {
+        ImGui::OpenPopup("Create new window");
+        showNewWindowPopup_ = false;
+    }
 
     if (showNewLibraryReticlePopup_)
     {
@@ -4685,6 +4712,64 @@ void EditorApplication::DrawPopups()
         ImGui::TextWrapped("Tutorial tip: right-click the circular reticle in the page preview.");
         ImGui::TextWrapped("Then click \"Clip outside\" (highlighted with a halo) in the context menu.");
         if (AccentButton("OK"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (ImGui::BeginPopupModal("Create new window", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextDisabled("Window file and runtime parameters");
+        ImGui::InputText("Window file", newWindowDraft_.windowFile.data(), newWindowDraft_.windowFile.size());
+        ImGui::InputText("Window title", newWindowDraft_.title.data(), newWindowDraft_.title.size());
+        int windowSize[2] {newWindowDraft_.width, newWindowDraft_.height};
+        if (ImGui::InputInt2("Size (px)", windowSize))
+        {
+            newWindowDraft_.width = windowSize[0];
+            newWindowDraft_.height = windowSize[1];
+        }
+        int windowPosition[2] {newWindowDraft_.positionX, newWindowDraft_.positionY};
+        if (ImGui::InputInt2("Position (px)", windowPosition))
+        {
+            newWindowDraft_.positionX = windowPosition[0];
+            newWindowDraft_.positionY = windowPosition[1];
+        }
+        ImGui::InputText("Font file (optional)", newWindowDraft_.fontFile.data(), newWindowDraft_.fontFile.size());
+        ImGui::InputText("Reticle library folder", newWindowDraft_.reticleLibraryFolder.data(), newWindowDraft_.reticleLibraryFolder.size());
+
+        ImGui::SeparatorText("Commands UDP (incoming)");
+        ImGui::Checkbox("Enable command UDP", &newWindowDraft_.commandUdpEnabled);
+        ImGui::InputText("Command address", newWindowDraft_.commandAddress.data(), newWindowDraft_.commandAddress.size());
+        ImGui::InputInt("Command port", &newWindowDraft_.commandPort);
+        ImGui::InputInt("Command max packet", &newWindowDraft_.commandMaxPacketSize);
+
+        ImGui::SeparatorText("Feedback UDP (outgoing)");
+        ImGui::Checkbox("Enable feedback UDP", &newWindowDraft_.feedbackUdpEnabled);
+        ImGui::InputText("Feedback address", newWindowDraft_.feedbackAddress.data(), newWindowDraft_.feedbackAddress.size());
+        ImGui::InputInt("Feedback port", &newWindowDraft_.feedbackPort);
+        ImGui::InputInt("Feedback max packet", &newWindowDraft_.feedbackMaxPacketSize);
+
+        ImGui::SeparatorText("Initial content");
+        ImGui::Checkbox("Create one initial page", &newWindowDraft_.createInitialPage);
+        if (newWindowDraft_.createInitialPage)
+        {
+            ImGui::InputText("First page name", newWindowDraft_.firstPageName.data(), newWindowDraft_.firstPageName.size());
+            ImGui::InputText("First page title", newWindowDraft_.firstPageTitle.data(), newWindowDraft_.firstPageTitle.size());
+            ImGui::InputText("First page file", newWindowDraft_.firstPageFile.data(), newWindowDraft_.firstPageFile.size());
+            ImGui::ColorEdit4("First page background", &newWindowDraft_.firstPageBackground.x);
+        }
+
+        if (AccentButton("Create window"))
+        {
+            if (CreateNewWindow())
+            {
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ShowItemTooltip("Build a new in-memory window definition, optionally with one page, then use Save to write JSON files.");
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
         {
             ImGui::CloseCurrentPopup();
         }
@@ -5131,6 +5216,108 @@ void EditorApplication::DrawTutorialCoach()
         RebuildStatus("Tutorial marked complete.", false);
     }
     ImGui::End();
+}
+
+bool EditorApplication::CreateNewWindow()
+{
+    const std::filesystem::path windowFile = std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
+    if (windowFile.empty())
+    {
+        RebuildStatus("Window file cannot be empty.", true);
+        return false;
+    }
+
+    const std::string windowTitle = newWindowDraft_.title.data();
+    if (windowTitle.empty())
+    {
+        RebuildStatus("Window title cannot be empty.", true);
+        return false;
+    }
+
+    if (newWindowDraft_.width <= 0 || newWindowDraft_.height <= 0)
+    {
+        RebuildStatus("Window size must be strictly positive.", true);
+        return false;
+    }
+
+    const std::filesystem::path windowBaseFolder = windowFile.parent_path();
+
+    mfd::LoadedWindowConfiguration next {};
+    next.window.sourceFile = windowFile;
+    next.window.title = windowTitle;
+    next.window.width = std::max(1, newWindowDraft_.width);
+    next.window.height = std::max(1, newWindowDraft_.height);
+    next.window.positionX = newWindowDraft_.positionX;
+    next.window.positionY = newWindowDraft_.positionY;
+    next.window.targetFps = 60;
+
+    const std::filesystem::path fontPath = std::filesystem::path(newWindowDraft_.fontFile.data()).lexically_normal();
+    if (!fontPath.empty())
+    {
+        next.window.fontFile = fontPath.is_relative() ? (windowBaseFolder / fontPath).lexically_normal() : fontPath;
+    }
+
+    const std::filesystem::path reticleFolder =
+        std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal();
+    const std::filesystem::path effectiveReticleFolder = reticleFolder.empty() ? std::filesystem::path {"assets/reticles"} : reticleFolder;
+    next.window.reticleLibraryFolder = effectiveReticleFolder.is_relative()
+                                           ? (windowBaseFolder / effectiveReticleFolder).lexically_normal()
+                                           : effectiveReticleFolder;
+
+    mfd::WindowUdpCommandTransport commandUdp {};
+    commandUdp.enabled = newWindowDraft_.commandUdpEnabled;
+    commandUdp.address = newWindowDraft_.commandAddress.data();
+    commandUdp.port = std::max(0, newWindowDraft_.commandPort);
+    commandUdp.maxPacketSize = std::max(512, newWindowDraft_.commandMaxPacketSize);
+    next.window.commandTransports.udp = commandUdp;
+
+    mfd::WindowUdpFeedbackTransport feedbackUdp {};
+    feedbackUdp.enabled = newWindowDraft_.feedbackUdpEnabled;
+    feedbackUdp.address = newWindowDraft_.feedbackAddress.data();
+    feedbackUdp.port = std::max(0, newWindowDraft_.feedbackPort);
+    feedbackUdp.maxPacketSize = std::max(512, newWindowDraft_.feedbackMaxPacketSize);
+    next.window.feedbackTransports.udp = feedbackUdp;
+
+    editor::EditorFileLayout nextFiles {};
+    if (newWindowDraft_.createInitialPage)
+    {
+        const std::string pageName = newWindowDraft_.firstPageName.data();
+        if (pageName.empty())
+        {
+            RebuildStatus("Initial page name cannot be empty.", true);
+            return false;
+        }
+
+        mfd::PageDefinition page {};
+        page.name = pageName;
+        page.normalizedName = mfd::NormalizePageName(pageName);
+        page.title = newWindowDraft_.firstPageTitle.data();
+        page.backgroundColor = ToColorRgba(newWindowDraft_.firstPageBackground);
+        page.defaultPage = true;
+        page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
+        next.document.pages.push_back(page);
+
+        std::filesystem::path pageFile = std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal();
+        if (pageFile.empty())
+        {
+            pageFile = editor::DefaultPageFilePath(windowFile, page.name);
+        }
+        if (pageFile.is_relative())
+        {
+            pageFile = (windowBaseFolder / pageFile).lexically_normal();
+        }
+        nextFiles.pageFiles.push_back(pageFile);
+        next.window.pageFiles = nextFiles.pageFiles;
+    }
+
+    PushUndoSnapshot();
+    loaded_ = std::move(next);
+    files_ = std::move(nextFiles);
+    windowFile_ = loaded_.window.sourceFile;
+    ApplyPreviewFontFile(loaded_.window.fontFile);
+    SelectPage(DefaultPageIndex(loaded_.document.pages));
+    RebuildStatus("New window draft created. Use File > Save to write JSON files on disk.", false);
+    return true;
 }
 
 void EditorApplication::CreateNewPage()

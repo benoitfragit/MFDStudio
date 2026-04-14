@@ -26,6 +26,7 @@ These pages give you the mental model and vocabulary used by the tutorials.
 10. [Drive The Cockpit Demo](./10_cockpit_demo.md)
 11. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
 12. [Run The Automated Runtime Tests](./12_run_the_automated_runtime_tests.md)
+13. [Create A Window From Scratch In The Editor](./13_create_window_from_editor.md)
 
 ## Fast Reading Paths
 

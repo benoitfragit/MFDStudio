@@ -142,6 +142,32 @@ private:
         ImVec4 background {0.03f, 0.10f, 0.03f, 1.0f};
     };
 
+    /** @brief Draft values used by the "new window" popup before a window is created from scratch. */
+    struct NewWindowDraft
+    {
+        std::array<char, 128> windowFile {};
+        std::array<char, 64> title {};
+        int width = 640;
+        int height = 480;
+        int positionX = 120;
+        int positionY = 80;
+        std::array<char, 128> fontFile {};
+        std::array<char, 128> reticleLibraryFolder {};
+        bool commandUdpEnabled = true;
+        std::array<char, 64> commandAddress {};
+        int commandPort = 49000;
+        int commandMaxPacketSize = 65507;
+        bool feedbackUdpEnabled = false;
+        std::array<char, 64> feedbackAddress {};
+        int feedbackPort = 49001;
+        int feedbackMaxPacketSize = 65507;
+        bool createInitialPage = true;
+        std::array<char, 64> firstPageName {};
+        std::array<char, 64> firstPageTitle {};
+        std::array<char, 128> firstPageFile {};
+        ImVec4 firstPageBackground {0.03f, 0.10f, 0.03f, 1.0f};
+    };
+
     /** @brief Draft values used by the "new library reticle" popup. */
     struct NewLibraryReticleDraft
     {
@@ -242,6 +268,8 @@ private:
 
     /** @brief Opens the "new page" popup and seeds its draft values. */
     void OpenNewPagePopup();
+    /** @brief Opens the "new window" popup and seeds its draft values. */
+    void OpenNewWindowPopup();
     /** @brief Opens the "new library reticle" popup and seeds its draft values. */
     void OpenNewLibraryReticlePopup();
     /** @brief Opens the "duplicate reticle" popup and seeds its draft values. */
@@ -271,6 +299,8 @@ private:
 
     /** @brief Creates a new page from the popup draft. */
     void CreateNewPage();
+    /** @brief Creates a brand-new window document from the popup draft. */
+    bool CreateNewWindow();
     /** @brief Creates a new reticle template initialized with one primitive. */
     void CreateNewLibraryReticleFromPrimitive();
     /** @brief Duplicates the selected library reticle under a new id. */
@@ -392,6 +422,8 @@ private:
     std::string lastRuntimeError_ {};
     /** @brief Popup visibility flag for page creation. */
     bool showNewPagePopup_ = false;
+    /** @brief Popup visibility flag for window creation. */
+    bool showNewWindowPopup_ = false;
     /** @brief Popup visibility flag for library reticle creation. */
     bool showNewLibraryReticlePopup_ = false;
     /** @brief Popup visibility flag for library reticle duplication. */
@@ -412,6 +444,8 @@ private:
     std::filesystem::path tutorialProgressFile_ {"assets/tutorial/.editor_tutorial_progress"};
     /** @brief Page-creation draft values. */
     NewPageDraft newPageDraft_ {};
+    /** @brief Window-creation draft values. */
+    NewWindowDraft newWindowDraft_ {};
     /** @brief Reticle-creation draft values. */
     NewLibraryReticleDraft newLibraryReticleDraft_ {};
     /** @brief Reticle-duplication draft values. */

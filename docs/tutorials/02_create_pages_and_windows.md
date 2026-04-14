@@ -6,6 +6,8 @@ This tutorial shows how to:
 - create a window JSON file
 - connect them together
 
+If you prefer visual authoring first, start with the optional editor bootstrap in **Step 0**.
+
 For the exact page and window field reference, see:
 
 - [Common JSON Syntax](../reference/common_json_syntax.md)
@@ -20,6 +22,18 @@ flowchart TD
     A --> D[Page file N]
     A --> E[Reticle library folder]
 ```
+
+## Step 0 - (Optional) Bootstrap from `mfd_editor`
+
+You can create the same window shell directly in the editor UI before editing JSON manually:
+
+1. Open `mfd_editor`.
+2. Click **File > New window from scratch**.
+3. Set window file, size, position, font, default page, and UDP transports.
+4. Click **Create window**.
+5. Click **File > Save**.
+
+Then continue below to understand the exact JSON fields produced by that workflow.
 
 ## Step 1 - Create a page file
 
