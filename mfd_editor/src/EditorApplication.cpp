@@ -4942,7 +4942,8 @@ void EditorApplication::DrawTutorialCoach()
     }
 
     tutorialStepIndex_ = std::clamp(tutorialStepIndex_, kTutorialStepMin, editor::tutorial::StepCount() - 1);
-    const TutorialStepDefinition& step = kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
+    const editor::tutorial::TutorialStepDefinition& step =
+        kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
     ImGui::Text("Step %d / %d", tutorialStepIndex_ + 1, editor::tutorial::StepCount());
     ImGui::Separator();
     ImGui::TextUnformatted(step.title);

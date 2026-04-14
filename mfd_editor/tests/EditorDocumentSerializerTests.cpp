@@ -11,6 +11,7 @@
 
 #include "EditorDocumentSerializer.h"
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -25,8 +26,9 @@ class ScopedTempDir
 public:
     ScopedTempDir()
     {
+        const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
         path_ = std::filesystem::temp_directory_path() /
-                std::filesystem::unique_path("mfd_editor_tests_%%%%-%%%%-%%%%");
+                std::filesystem::path("mfd_editor_tests_" + std::to_string(ticks));
         std::filesystem::create_directories(path_);
     }
 

@@ -12,7 +12,8 @@ add_executable(mfd_editor_tests ${MFD_EDITOR_TEST_SOURCES})
 target_link_libraries(mfd_editor_tests
     PRIVATE
         GTest::gtest_main
-        nlohmann_json::nlohmann_json)
+        nlohmann_json::nlohmann_json
+        imgui)
 
 target_include_directories(mfd_editor_tests
     PRIVATE
