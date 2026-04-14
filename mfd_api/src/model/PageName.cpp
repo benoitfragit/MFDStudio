@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for PageName.
+ */
+
 #include "mfd/model/PageName.h"
 
 #include <cctype>

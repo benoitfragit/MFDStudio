@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for LatestBatchPublisher.
+ */
+
 #include "mfd/client/LatestBatchPublisher.h"
 
 #include <condition_variable>

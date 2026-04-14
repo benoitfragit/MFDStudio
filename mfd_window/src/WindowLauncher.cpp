@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for WindowLauncher.
+ */
+
 #include "mfd/window/WindowLauncher.h"
 
 #include <algorithm>

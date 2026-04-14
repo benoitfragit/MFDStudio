@@ -5,6 +5,11 @@
  */
 #pragma once
 
+/**
+ * @file
+ * @brief Implementation for OpenGlCompat.
+ */
+
 #include <cstdint>
 
 namespace mfd::detail

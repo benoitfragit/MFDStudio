@@ -5,6 +5,11 @@
  */
 #include "EditorApplication.h"
 
+/**
+ * @file
+ * @brief Entry point of the MFD editor executable.
+ */
+
 #include <exception>
 
 #if defined(_WIN32)

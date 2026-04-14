@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief GoogleTest coverage for ReticleTests.
+ */
+
 #include <gtest/gtest.h>
 
 #include "mfd/model/Reticle.h"

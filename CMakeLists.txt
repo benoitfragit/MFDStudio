@@ -44,6 +44,7 @@ if(MFD_BUILD_TESTS)
     add_subdirectory(client_api/tests)
     add_subdirectory(client_api_generator/tests)
     add_subdirectory(mfd_window/tests)
+    add_subdirectory(mfd_editor/tests)
 endif()
 
 if(MFD_BUILD_DEMO)
