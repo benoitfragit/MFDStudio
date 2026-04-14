@@ -526,7 +526,7 @@ json SerializeInlineReticle(const mfd::ReticleGroup& reticle)
 
 json SerializePageReticle(const mfd::ReticleGroup& reticle, const mfd::ReticleLibrary& library)
 {
-    if (!reticle.sourceTemplateId.empty() && library.contains(reticle.sourceTemplateId))
+    if (!reticle.sourceTemplateId.empty() && library.find(reticle.sourceTemplateId) != library.end())
     {
         json node = json::object();
         node["id"] = reticle.id;
@@ -930,7 +930,7 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
         const std::unordered_set<std::filesystem::path> currentPageFiles(layout.pageFiles.begin(), layout.pageFiles.end());
         for (const auto& removedPageFile : layout.removedPageFiles)
         {
-            if (!currentPageFiles.contains(removedPageFile))
+            if (currentPageFiles.find(removedPageFile) == currentPageFiles.end())
             {
                 DeleteFileIfPresent(removedPageFile);
             }
@@ -946,7 +946,7 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
 
         for (const auto& removedTemplateFile : layout.removedTemplateFiles)
         {
-            if (!currentTemplateFiles.contains(removedTemplateFile))
+            if (currentTemplateFiles.find(removedTemplateFile) == currentTemplateFiles.end())
             {
                 DeleteFileIfPresent(removedTemplateFile);
             }

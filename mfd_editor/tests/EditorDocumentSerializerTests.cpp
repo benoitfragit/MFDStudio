@@ -87,7 +87,7 @@ TEST(EditorDocumentSerializerTests, DiscoverReticleTemplateFilesLoadsValidJsonTe
     ASSERT_TRUE(ok);
     ASSERT_TRUE(error.empty());
     ASSERT_EQ(layout.templateFiles.size(), 1U);
-    ASSERT_TRUE(layout.templateFiles.contains("radar_track"));
+    ASSERT_TRUE(layout.templateFiles.find("radar_track") != layout.templateFiles.end());
     EXPECT_EQ(layout.templateFiles.at("radar_track"), validTemplate.lexically_normal());
 }
 

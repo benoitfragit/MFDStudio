@@ -162,7 +162,7 @@ bool UdpChannel::IsReady() const noexcept
     return impl_ != nullptr && impl_->ready;
 }
 
-bool UdpChannel::Send(const std::span<const std::byte> buffer)
+bool UdpChannel::Send(const ByteView buffer)
 {
     if (!IsReady())
     {

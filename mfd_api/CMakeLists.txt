@@ -3,6 +3,7 @@
 # Repository: https://github.com/benoitfragit/MFDStudio
 set(MFD_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/MfdExport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/core/ArrayView.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandClient.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandProcessor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandTransport.h

@@ -191,7 +191,7 @@ ExampleConfig LoadExampleConfig()
         throw std::runtime_error("The cockpit window JSON does not expose a page named 'Cockpit'");
     }
 
-    if (!loaded.document.reticleLibrary.contains(std::string(kCockpitRadarTemplateId)))
+    if (loaded.document.reticleLibrary.find(std::string(kCockpitRadarTemplateId)) == loaded.document.reticleLibrary.end())
     {
         throw std::runtime_error("The cockpit reticle library does not expose the 'cockpit_radar_contact' template");
     }

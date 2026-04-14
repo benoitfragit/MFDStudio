@@ -11,7 +11,6 @@
 #include "mfd/control/UserSpaceProjector.h"
 
 #include <cmath>
-#include <numbers>
 #include <utility>
 
 namespace mfd
@@ -19,7 +18,8 @@ namespace mfd
 namespace
 {
 constexpr float kMinBasisLengthSquared = 1.0e-8f;
-constexpr float kRadiansToDegrees = 180.0f / std::numbers::pi_v<float>;
+constexpr float kPi = 3.14159265358979323846f;
+constexpr float kRadiansToDegrees = 180.0f / kPi;
 
 float Dot(const Vec2& lhs, const Vec2& rhs) noexcept
 {

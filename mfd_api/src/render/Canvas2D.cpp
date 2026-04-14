@@ -14,7 +14,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <span>
+#include "mfd/core/ArrayView.h"
 #include <ctime>
 #include <string>
 #include <utility>
@@ -32,7 +32,7 @@ Color ToRayColor(const ColorRgba& color)
     return Color {color.r, color.g, color.b, color.a};
 }
 
-void FillConvexPolygon(const std::span<const Vector2> points, const Color color)
+void FillConvexPolygon(const ArrayView<const Vector2> points, const Color color)
 {
     if (points.size() < 3)
     {
@@ -45,7 +45,7 @@ void FillConvexPolygon(const std::span<const Vector2> points, const Color color)
     }
 }
 
-void DrawPolylineStroke(const std::span<const Vector2> points,
+void DrawPolylineStroke(const ArrayView<const Vector2> points,
                         const bool closed,
                         const float thickness,
                         const Color color)
@@ -66,8 +66,8 @@ void DrawPolylineStroke(const std::span<const Vector2> points,
     }
 }
 
-void FillRing(const std::span<const Vector2> outerPoints,
-              const std::span<const Vector2> innerPoints,
+void FillRing(const ArrayView<const Vector2> outerPoints,
+              const ArrayView<const Vector2> innerPoints,
               const Color color)
 {
     if (outerPoints.size() < 3 || outerPoints.size() != innerPoints.size())

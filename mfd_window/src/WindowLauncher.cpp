@@ -22,7 +22,6 @@
 #include <memory>
 #include <optional>
 #include <sstream>
-#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -602,7 +601,7 @@ private:
             if (drainedCommands > 0)
             {
                 if (commandProcessor_.Submit(
-                        std::span<const mfd::UserCommand>(pendingCommands_.data(), pendingCommands_.size())))
+                        mfd::ArrayView<const mfd::UserCommand>(pendingCommands_.data(), pendingCommands_.size())))
                 {
                     lastCommandStatus_ =
                         "Applied " + std::to_string(drainedCommands) + " command(s) from the UDP I/O thread.";

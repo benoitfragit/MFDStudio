@@ -94,7 +94,7 @@ function(mfd_fetch_dependencies)
             "${imgui_SOURCE_DIR}/imgui_widgets.cpp")
 
         target_include_directories(imgui PUBLIC "${imgui_SOURCE_DIR}")
-        target_compile_features(imgui PUBLIC cxx_std_20)
+        target_compile_features(imgui PUBLIC cxx_std_17)
     endif()
 
     set(rlimgui_SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/rlimgui-src")
@@ -116,7 +116,7 @@ function(mfd_fetch_dependencies)
         add_library(rlimgui STATIC "${rlimgui_cpp}")
         target_include_directories(rlimgui PUBLIC "${rlimgui_include_dir}")
         target_link_libraries(rlimgui PUBLIC raylib imgui)
-        target_compile_features(rlimgui PUBLIC cxx_std_20)
+        target_compile_features(rlimgui PUBLIC cxx_std_17)
     endif()
 
     if(MFD_BUILD_TESTS)

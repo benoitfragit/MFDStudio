@@ -74,22 +74,22 @@ std::size_t Rgba32Framebuffer::ByteSize() const noexcept
     return pixels.size() * sizeof(Rgba8Pixel);
 }
 
-std::span<const Rgba8Pixel> Rgba32Framebuffer::Pixels() const noexcept
+ArrayView<const Rgba8Pixel> Rgba32Framebuffer::Pixels() const noexcept
 {
     return pixels;
 }
 
-std::span<Rgba8Pixel> Rgba32Framebuffer::Pixels() noexcept
+ArrayView<Rgba8Pixel> Rgba32Framebuffer::Pixels() noexcept
 {
     return pixels;
 }
 
-std::span<const std::byte> Rgba32Framebuffer::Bytes() const noexcept
+ByteView Rgba32Framebuffer::Bytes() const noexcept
 {
     return {reinterpret_cast<const std::byte*>(pixels.data()), ByteSize()};
 }
 
-std::span<std::byte> Rgba32Framebuffer::Bytes() noexcept
+ArrayView<std::byte> Rgba32Framebuffer::Bytes() noexcept
 {
     return {reinterpret_cast<std::byte*>(pixels.data()), ByteSize()};
 }

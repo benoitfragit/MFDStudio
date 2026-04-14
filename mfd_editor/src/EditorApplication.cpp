@@ -4785,7 +4785,7 @@ bool EditorApplication::ApplyCurrentTutorialStep()
             break;
         }
         const std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-        success = content.find("std::span<const std::byte> pixels") != std::string::npos;
+        success = content.find("mfd::ByteView pixels") != std::string::npos;
         break;
     }
     case 19:
@@ -5833,19 +5833,19 @@ void EditorApplication::DrawPageReticleInspector()
     ImGui::EndDisabled();
 
     if (!reticle->sourceTemplateId.empty() &&
-        loaded_.document.reticleLibrary.contains(reticle->sourceTemplateId) &&
+        loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end() &&
         ImGui::Button("Edit source template"))
     {
         SelectLibraryReticle(reticle->sourceTemplateId);
         RebuildStatus("Editing template '" + reticle->sourceTemplateId + "' in the reticle studio.", false);
         return;
     }
-    if (!reticle->sourceTemplateId.empty() && loaded_.document.reticleLibrary.contains(reticle->sourceTemplateId))
+    if (!reticle->sourceTemplateId.empty() && loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end())
     {
         ShowItemTooltip("Open the shared template that this page reticle instance was created from.");
     }
 
-    if (!reticle->sourceTemplateId.empty() && loaded_.document.reticleLibrary.contains(reticle->sourceTemplateId))
+    if (!reticle->sourceTemplateId.empty() && loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end())
     {
         ImGui::SameLine();
     }

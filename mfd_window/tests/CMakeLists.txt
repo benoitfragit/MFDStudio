@@ -13,7 +13,7 @@ target_link_libraries(mfd_window_tests
         mfd::window_launcher
         GTest::gtest_main)
 
-target_compile_features(mfd_window_tests PRIVATE cxx_std_20)
+target_compile_features(mfd_window_tests PRIVATE cxx_std_17)
 
 if(MSVC)
     target_compile_options(mfd_window_tests

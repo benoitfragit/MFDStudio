@@ -12,7 +12,7 @@
 
 #include <cstddef>
 #include <optional>
-#include <span>
+#include "mfd/core/ArrayView.h"
 #include <string>
 #include <vector>
 
@@ -39,7 +39,7 @@ public:
      * @param buffer Payload bytes to send.
      * @return `true` if the payload was accepted by the channel.
      */
-    virtual bool Send(std::span<const std::byte> buffer) = 0;
+    virtual bool Send(ByteView buffer) = 0;
 
     /**
      * @brief Attempts to receive one payload without blocking indefinitely.

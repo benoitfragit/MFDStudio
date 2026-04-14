@@ -4,6 +4,7 @@
 include(GoogleTest)
 
 set(MFD_API_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/ArrayViewTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ReticleTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SceneRegistryTests.cpp
@@ -16,7 +17,7 @@ target_link_libraries(mfd_api_tests
         mfd::api
         GTest::gtest_main)
 
-target_compile_features(mfd_api_tests PRIVATE cxx_std_20)
+target_compile_features(mfd_api_tests PRIVATE cxx_std_17)
 
 if(MSVC)
     target_compile_options(mfd_api_tests

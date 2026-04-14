@@ -11,7 +11,7 @@
  */
 
 #include <cstddef>
-#include <span>
+#include "mfd/core/ArrayView.h"
 #include <string>
 #include <string_view>
 
@@ -56,7 +56,7 @@ public:
      * @param commands Commands to dispatch in order.
      * @return `true` if every command was accepted and applied.
      */
-    bool Submit(std::span<const UserCommand> commands);
+    bool Submit(ArrayView<const UserCommand> commands);
 
     /**
      * @brief Submits a serialized Protocol Buffers command payload.
@@ -70,7 +70,7 @@ public:
      * @param payload Raw byte payload.
      * @return `true` if the payload was valid and the command was applied.
      */
-    bool Submit(std::span<const std::byte> payload);
+    bool Submit(ByteView payload);
 
     /**
      * @brief Polls a transport and dispatches all commands received during this call.

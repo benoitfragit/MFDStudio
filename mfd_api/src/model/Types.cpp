@@ -11,7 +11,6 @@
 #include "mfd/model/Types.h"
 
 #include <cmath>
-#include <numbers>
 
 namespace mfd
 {
@@ -37,7 +36,8 @@ Vec2 Scale(const Vec2& value, const Vec2& scale) noexcept
 
 Vec2 Rotate(const Vec2& value, const float degrees) noexcept
 {
-    const float radians = degrees * std::numbers::pi_v<float> / 180.0f;
+    constexpr float kPi = 3.14159265358979323846f;
+    const float radians = degrees * kPi / 180.0f;
     const float cosine = std::cos(radians);
     const float sine = std::sin(radians);
 

@@ -206,7 +206,7 @@ bool CommandClient::Send(const UserCommand& command)
     return SendBatchedPayloads(batch);
 }
 
-bool CommandClient::SendBatch(const std::span<const UserCommand> commands, const std::uint32_t sequence)
+bool CommandClient::SendBatch(const ArrayView<const UserCommand> commands, const std::uint32_t sequence)
 {
     CommandBatch batch;
     batch.sequence = sequence;
@@ -398,7 +398,7 @@ bool CommandClient::UpsertDynamicReticle(const std::string_view page,
 
 bool CommandClient::UpsertDynamicReticles(const std::string_view page,
                                           const std::string_view templateId,
-                                          const std::span<const DynamicReticleState> reticles)
+                                          const ArrayView<const DynamicReticleState> reticles)
 {
     UpsertDynamicReticlesCommand command;
     command.page = std::string(page);
@@ -433,7 +433,7 @@ bool CommandClient::SendPayload(const std::string_view payload)
     try
     {
         const auto* payloadBytes = reinterpret_cast<const std::byte*>(payload.data());
-        const std::span<const std::byte> payloadView(payloadBytes, payload.size());
+        const ByteView payloadView(payloadBytes, payload.size());
 
         if (!channel_->Send(payloadView))
         {

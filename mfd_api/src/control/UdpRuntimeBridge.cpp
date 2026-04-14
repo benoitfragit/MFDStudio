@@ -203,7 +203,7 @@ bool UdpRuntimeBridge::Start()
                     {
                         const std::string payload = SerializeStrobeStatusFeedback(feedback);
                         const auto* payloadBytes = reinterpret_cast<const std::byte*>(payload.data());
-                        if (!impl->feedbackSender->Send(std::span<const std::byte>(payloadBytes, payload.size())))
+                        if (!impl->feedbackSender->Send(ByteView(payloadBytes, payload.size())))
                         {
                             impl->SetFeedbackStatus(impl->feedbackSender->LastError());
                             continue;

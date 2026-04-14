@@ -8,10 +8,11 @@ project(MFD
     DESCRIPTION "2D Multi-Function Display framework with JSON pages and reusable reticles"
     LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(MFD_BUILD_DEMO "Build the demo MFD executable" ON)
 option(MFD_BUILD_TESTS "Build GoogleTest-based runtime and loading tests" ON)

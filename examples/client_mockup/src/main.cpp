@@ -1742,7 +1742,7 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
         return false;
     }
 
-    if (!clearOnly && !loaded_.document.reticleLibrary.contains(std::string(kRadarSimulationTemplateId)))
+    if (!clearOnly && loaded_.document.reticleLibrary.find(std::string(kRadarSimulationTemplateId)) == loaded_.document.reticleLibrary.end())
     {
         SetStatus("The reticle library does not expose the 'radar_track' template.", true);
         return false;
@@ -1838,7 +1838,7 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
         return false;
     }
 
-    if (!loaded_.document.reticleLibrary.contains(std::string(kCockpitRadarTemplateId)))
+    if (loaded_.document.reticleLibrary.find(std::string(kCockpitRadarTemplateId)) == loaded_.document.reticleLibrary.end())
     {
         SetStatus("The reticle library does not expose the 'cockpit_radar_contact' template.", true);
         return false;
@@ -2734,7 +2734,7 @@ void MockupApplication::DrawRadarSimulationPanel()
         {
             return mfd::PageNamesEqual(page.name, kRadarSimulationPageName);
         });
-    const bool hasRadarTemplate = loaded_.document.reticleLibrary.contains(std::string(kRadarSimulationTemplateId));
+    const bool hasRadarTemplate = loaded_.document.reticleLibrary.find(std::string(kRadarSimulationTemplateId)) != loaded_.document.reticleLibrary.end();
     const bool clientReady = client_ != nullptr && client_->IsReady();
 
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Radar batch simulator");
@@ -2829,7 +2829,7 @@ void MockupApplication::DrawRadarSimulationPanel()
 void MockupApplication::DrawCockpitSimulationPanel()
 {
     const bool hasCockpitPage = IsCockpitDemoWindow();
-    const bool hasRadarTemplate = loaded_.document.reticleLibrary.contains(std::string(kCockpitRadarTemplateId));
+    const bool hasRadarTemplate = loaded_.document.reticleLibrary.find(std::string(kCockpitRadarTemplateId)) != loaded_.document.reticleLibrary.end();
     const bool clientReady = client_ != nullptr && client_->IsReady();
     int pitchCommand = (IsKeyDown(KEY_UP) ? 1 : 0) - (IsKeyDown(KEY_DOWN) ? 1 : 0);
     int rollCommand = (IsKeyDown(KEY_RIGHT) ? 1 : 0) - (IsKeyDown(KEY_LEFT) ? 1 : 0);
