@@ -30,17 +30,19 @@ target_sources(mfd_editor_tests
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)
 
-if(MSVC)
-    target_compile_options(mfd_editor_tests
-        PRIVATE
-            /W4
-            /permissive-
-            /Zc:__cplusplus
-            /EHsc
-            /wd4251
-            /wd4275)
-else()
-    target_compile_options(mfd_editor_tests PRIVATE -Wall -Wextra -Wpedantic)
+if(MFD_ENABLE_WARNINGS)
+    if(MSVC)
+        target_compile_options(mfd_editor_tests
+            PRIVATE
+                /W4
+                /permissive-
+                /Zc:__cplusplus
+                /EHsc
+                /wd4251
+                /wd4275)
+    else()
+        target_compile_options(mfd_editor_tests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
 endif()
 
 gtest_discover_tests(mfd_editor_tests DISCOVERY_TIMEOUT 60)

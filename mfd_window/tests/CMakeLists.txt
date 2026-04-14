@@ -15,17 +15,19 @@ target_link_libraries(mfd_window_tests
 
 target_compile_features(mfd_window_tests PRIVATE cxx_std_17)
 
-if(MSVC)
-    target_compile_options(mfd_window_tests
-        PRIVATE
-            /W4
-            /permissive-
-            /Zc:__cplusplus
-            /EHsc
-            /wd4251
-            /wd4275)
-else()
-    target_compile_options(mfd_window_tests PRIVATE -Wall -Wextra -Wpedantic)
+if(MFD_ENABLE_WARNINGS)
+    if(MSVC)
+        target_compile_options(mfd_window_tests
+            PRIVATE
+                /W4
+                /permissive-
+                /Zc:__cplusplus
+                /EHsc
+                /wd4251
+                /wd4275)
+    else()
+        target_compile_options(mfd_window_tests PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
 endif()
 
 set_target_properties(mfd_window_tests PROPERTIES

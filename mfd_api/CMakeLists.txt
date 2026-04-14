@@ -112,17 +112,19 @@ if(WIN32)
     target_compile_definitions(mfd_api PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
-if(MSVC)
-    target_compile_options(mfd_api
-        PRIVATE
-            /W4
-            /permissive-
-            /Zc:__cplusplus
-            /EHsc
-            /wd4251
-            /wd4275)
-else()
-    target_compile_options(mfd_api PRIVATE -Wall -Wextra -Wpedantic)
+if(MFD_ENABLE_WARNINGS)
+    if(MSVC)
+        target_compile_options(mfd_api
+            PRIVATE
+                /W4
+                /permissive-
+                /Zc:__cplusplus
+                /EHsc
+                /wd4251
+                /wd4275)
+    else()
+        target_compile_options(mfd_api PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
 endif()
 
 mfd_stage_runtime(mfd_api WITH_RUNTIME_DLLS)
