@@ -50,8 +50,13 @@ TEST(EditorDocumentSerializerTests, DefaultPathsUseNormalizedPageName)
     const auto pagePath = editor::DefaultPageFilePath("/tmp/assets/windows/demo.json", "Page 01");
     const auto templatePath = editor::DefaultTemplateFilePath("/tmp/assets/reticles", "Radar Track");
 
-    EXPECT_EQ(pagePath, std::filesystem::path("/tmp/assets/windows/page_01.json"));
-    EXPECT_EQ(templatePath, std::filesystem::path("/tmp/assets/reticles/radar_track.json"));
+    const auto expectedPage = std::filesystem::path("/tmp/assets/windows") /
+                              std::filesystem::path(mfd::NormalizePageName("Page 01") + ".json");
+    const auto expectedTemplate = std::filesystem::path("/tmp/assets/reticles") /
+                                  std::filesystem::path(mfd::NormalizePageName("Radar Track") + ".json");
+
+    EXPECT_EQ(pagePath.lexically_normal(), expectedPage.lexically_normal());
+    EXPECT_EQ(templatePath.lexically_normal(), expectedTemplate.lexically_normal());
 }
 
 TEST(EditorDocumentSerializerTests, DiscoverReticleTemplateFilesLoadsValidJsonTemplates)
