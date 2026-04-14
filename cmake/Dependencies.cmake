@@ -102,7 +102,9 @@ function(mfd_fetch_dependencies)
         FetchContent_Declare(
             rlimgui
             GIT_REPOSITORY https://github.com/raylib-extras/rlImGui.git
-            GIT_TAG main)
+            # Pinned commit built against Dear ImGui 1.92.1 (matches the imgui dependency above).
+            # Source: rlImGui README at this commit.
+            GIT_TAG 286e11acd6c785004c9550c7ed3762add2ae3d47)
         FetchContent_GetProperties(rlimgui)
         if(NOT rlimgui_POPULATED)
             FetchContent_Populate(rlimgui)

@@ -52,6 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ui-class-suffix", default="MockupUi")
     parser.add_argument("--header-include", default="MockupUi.h")
     parser.add_argument("--print-inputs", action="store_true")
+    parser.add_argument("--force-overwrite", action="store_true")
     return parser.parse_args()
 
 
@@ -96,6 +97,57 @@ def camel_case(value: str) -> str:
 
 def cpp_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace("\"", "\\\"")
+
+
+def validate_cpp_namespace(namespace_name: str) -> None:
+    if not isinstance(namespace_name, str) or not namespace_name:
+        raise RuntimeError("The namespace must be a non-empty string")
+
+    if namespace_name.startswith("::") or namespace_name.endswith("::"):
+        raise RuntimeError(f"Invalid C++ namespace '{namespace_name}'")
+
+    identifiers = namespace_name.split("::")
+    if any(not identifier for identifier in identifiers):
+        raise RuntimeError(f"Invalid C++ namespace '{namespace_name}'")
+
+    identifier_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+    for identifier in identifiers:
+        if not identifier_pattern.match(identifier):
+            raise RuntimeError(f"Invalid C++ namespace '{namespace_name}'")
+
+
+def ensure_unique_page_spec_names(page_specs: list[PageSpec]) -> None:
+    class_names = [page.page_class_name for page in page_specs]
+    accessors = [page.accessor_name for page in page_specs]
+    members = [page.ui_member_name for page in page_specs]
+
+    for field_name, values in (
+        ("page class name", class_names),
+        ("page accessor name", accessors),
+        ("UI member name", members),
+    ):
+        counts: dict[str, int] = {}
+        for value in values:
+            counts[value] = counts.get(value, 0) + 1
+        duplicates = sorted([value for value, count in counts.items() if count > 1])
+        if duplicates:
+            duplicate_list = ", ".join(duplicates)
+            raise RuntimeError(f"Duplicate generated {field_name}(s): {duplicate_list}")
+
+
+def ensure_output_paths(output_header: Path, output_source: Path, force_overwrite: bool) -> None:
+    if output_header.resolve() == output_source.resolve():
+        raise RuntimeError("Output header and output source must be different files")
+
+    if force_overwrite:
+        return
+
+    existing_paths = [path.as_posix() for path in (output_header, output_source) if path.exists()]
+    if existing_paths:
+        raise RuntimeError(
+            "Refusing to overwrite existing output file(s): "
+            + ", ".join(existing_paths)
+            + " (pass --force-overwrite to allow overwrite)")
 
 
 def page_entries(window_root: dict) -> list[PageEntry]:
@@ -656,9 +708,11 @@ def main() -> int:
         return 0
 
     window_root = load_json(window_path)
+    validate_cpp_namespace(args.namespace)
     page_specs = build_page_specs(window_root, window_path, args.page_class_suffix)
     if not page_specs:
         raise RuntimeError("The window JSON does not expose any page to generate")
+    ensure_unique_page_spec_names(page_specs)
 
     ui_class_name = derive_ui_class_name(
         window_root,
@@ -674,6 +728,7 @@ def main() -> int:
 
     output_header = Path(args.output_header)
     output_source = Path(args.output_source)
+    ensure_output_paths(output_header, output_source, args.force_overwrite)
     output_header.parent.mkdir(parents=True, exist_ok=True)
     output_source.parent.mkdir(parents=True, exist_ok=True)
     output_header.write_text(header_text, encoding="utf-8")

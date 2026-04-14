@@ -184,6 +184,110 @@ class GenerateUiTests(unittest.TestCase):
             self.assertIn(str(window.resolve()).replace("\\", "/"), normalized_lines)
             self.assertIn(str(page.resolve()).replace("\\", "/"), normalized_lines)
 
+    def test_rejects_invalid_namespace(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(json.dumps({"name": "Main"}), encoding="utf-8")
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                    "--namespace",
+                    "invalid-namespace",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Invalid C++ namespace", completed.stderr)
+
+    def test_rejects_duplicate_generated_page_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page_one = root / "page_one.json"
+            page_two = root / "page_two.json"
+            page_one.write_text(json.dumps({"name": "Radar Main"}), encoding="utf-8")
+            page_two.write_text(json.dumps({"name": "Radar_Main"}), encoding="utf-8")
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page_one.name, page_two.name]}), encoding="utf-8")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Duplicate generated page class name", completed.stderr)
+
+    def test_requires_force_flag_to_overwrite_existing_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(json.dumps({"name": "Main"}), encoding="utf-8")
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_header.write_text("// existing", encoding="utf-8")
+            output_source.write_text("// existing", encoding="utf-8")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Refusing to overwrite existing output file(s)", completed.stderr)
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--force-overwrite",
+                ],
+                check=True,
+            )
+
 
 if __name__ == "__main__":
     parsed_args = parse_args()
