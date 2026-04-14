@@ -5,6 +5,11 @@
  */
 #include "EditorApplication.h"
 
+/**
+ * @file
+ * @brief Main editor shell implementation (layout, interaction, preview, tutorial and persistence wiring).
+ */
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -23,20 +28,28 @@
 
 #include <rlImGui.h>
 
+#include "EditorTutorialData.h"
+#include "EditorUiTheme.h"
 #include "mfd/model/Types.h"
 #include "mfd/render/Canvas2D.h"
 #include "mfd/render/RenderTextureUtils.h"
 
 namespace
 {
+using editor::ui::AccentButton;
+using editor::ui::ApplyEditorTheme;
+using editor::ui::DrawVerticalSplitter;
+using editor::ui::ShowItemTooltip;
+
 constexpr float kSidebarWidth = 320.0f;
 constexpr float kInspectorWidth = 360.0f;
-constexpr float kPaneSplitterWidth = 8.0f;
 constexpr float kMinSidebarWidth = 220.0f;
 constexpr float kMinInspectorWidth = 280.0f;
 constexpr float kMinWorkspaceWidth = 420.0f;
 constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
+const auto kTutorialSteps = editor::tutorial::Steps();
+constexpr int kTutorialStepMin = 0;
 
 struct EditorWindowPreset
 {
@@ -50,157 +63,9 @@ constexpr std::array<EditorWindowPreset, 3> kEditorWindowPresets {{
     {"Minimal Demo", "assets/windows/demo_pages_minimal.json"},
 }};
 
-struct TutorialStepDefinition
-{
-    const char* title;
-    const char* instruction;
-    const char* targetId;
-};
-
-constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
-    {"Create tutorial window", "Use File/New window from scratch, then create window mfd_tutorial (480x480, black bg, UDP 127.0.0.1:49000).", "menu_file_new_window"},
-    {"Create radar-track reticle", "Create a library reticle template based on a primitive and name it tutorial_radar_track.", "popup_reticle_primitive"},
-    {"Create circular target reticle", "Create a simple circular target reticle that will be layered on Page1.", "popup_reticle_primitive"},
-    {"Create Page1", "Create Page1 and set layer 1 background to blue.", "menu_page_new"},
-    {"Overlay full-page circular reticle", "Add the circular reticle on a second layer above the blue background.", "menu_page_new"},
-    {"Enable outer clipping", "Right-click the circular reticle in preview and choose Clip outside.", "context_clip_outer"},
-    {"Add text reticle layer", "Add a third layer with a text reticle and then hide this layer from the layer inspector.", "inspector_layers"},
-    {"Add Page2", "Create a second page named Page2 with a simple title.", "menu_page_new"},
-    {"Add strobe", "Configure a page strobe and explain that it will jump to each newly created track.", "coach_ok"},
-    {"Save tutorial assets", "Save the tutorial assets from the File menu so window/page/reticle edits are persisted to disk.", "menu_file_save"},
-    {"Change active page in code", "Show how the client switches between Page1 and Page2 (timer-based ActivatePage).", "code_page_switch"},
-    {"Add dynamic reticle in code", "Show how to add/update a dynamic reticle from a template with UpsertDynamicReticle.", "code_dynamic_add"},
-    {"Remove dynamic reticle in code", "Show how to remove the oldest dynamic reticle with RemoveDynamicReticle.", "code_dynamic_remove"},
-    {"Modify static reticle attrs", "Show how to modify a static reticle (color/position/visibility) with SetReticle* commands.", "code_static_attrs"},
-    {"Modify dynamic reticle", "Show how to update an existing dynamic reticle by re-upserting it with a patch.", "code_dynamic_modify"},
-    {"Declutter dynamic reticles", "Show dynamic declutter by toggling visibility of one template set via SetDynamicReticleSetVisible.", "code_declutter"},
-    {"Use generated API in client", "Add a client_tutorial step showing how to include and use generated UI API types/functions.", "code_generated_api"},
-    {"Strobe feedback in client", "Show where the client receives strobe feedback packets (client_tutorial main loop).", "code_feedback"},
-    {"RGBA32 pixel buffer", "Show where RGBA32 pixel buffer callback is read (mfd_tutorial main).", "code_pixels"},
-    {"Enable tutorial targets", "Add tutorial targets in root CMakeLists once generated code exists.", "code_cmake"},
-}};
-
-struct TutorialFileEditHint
-{
-    const char* filePath;
-    const char* changeSummary;
-    const char* snippet;
-};
-
 void DrawTutorialFileHints(const int stepIndex)
 {
-    const auto drawEdit = [](const TutorialFileEditHint& hint)
-    {
-        ImGui::BulletText("%s", hint.filePath);
-        ImGui::TextWrapped("Expected change: %s", hint.changeSummary);
-        if (hint.snippet != nullptr && hint.snippet[0] != '\0')
-        {
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.06f, 0.10f, 0.14f, 1.0f));
-            ImGui::BeginChild(
-                std::string("##hint_").append(hint.filePath).c_str(),
-                ImVec2(0.0f, 86.0f),
-                true,
-                ImGuiWindowFlags_HorizontalScrollbar);
-            ImGui::TextUnformatted(hint.snippet);
-            ImGui::EndChild();
-            ImGui::PopStyleColor();
-        }
-    };
-
-    ImGui::SeparatorText("File modification view");
-    switch (stepIndex)
-    {
-    case 0:
-        drawEdit({"assets/windows/mfd_tutorial.json",
-                  "Create a new window from the editor popup and configure size, position, font path, default page and UDP transport.",
-                  "{ \"title\":\"MFD Tutorial\", \"size\":[480,480], \"position\":[120,80], \"commands\":{\"udp\":{\"address\":\"127.0.0.1\",\"port\":49000}}, \"feedback\":{\"udp\":{\"enabled\":false}} }"});
-        break;
-    case 1:
-    case 2:
-        drawEdit({"assets/reticles/mfd_tutorial_*.json",
-                  "Create new reticle template JSON files from the editor reticle library.",
-                  "{ \"id\":\"tutorial_radar_track\", \"elements\":[ ... ] }"});
-        break;
-    case 3:
-    case 4:
-    case 7:
-        drawEdit({"assets/pages/mfd_tutorial_page1.json / mfd_tutorial_page2.json",
-                  "Create Page1/Page2 and wire layers/reticles through editor actions.",
-                  "{ \"name\":\"Page1\", \"editor\":{\"layers\":[...]}, \"staticReticles\":[...] }"});
-        break;
-    case 5:
-        drawEdit({"assets/reticles/mfd_tutorial_circle.json",
-                  "Set reticle clipping mode to outer and choose the clipping primitive.",
-                  "{ \"clipMode\":\"outer\", \"clipPrimitive\":\"outer_circle\" }"});
-        break;
-    case 6:
-        drawEdit({"assets/pages/mfd_tutorial_page1.json",
-                  "Add a text layer and keep it hidden in the editor layer manager.",
-                  "\"layers\": [{\"id\":\"text\", \"visible\":false}]"});
-        break;
-    case 8:
-        drawEdit({"assets/pages/mfd_tutorial_page1.json",
-                  "Add strobe configuration so runtime can move it across tracks.",
-                  "\"strobe\": {\"id\":\"tutorial_strobe\", \"capture\": {\"shape\":\"circle\"}}"});
-        break;
-    case 9:
-        drawEdit({"assets/windows/mfd_tutorial.json + assets/pages/*.json + assets/reticles/*.json",
-                  "Use File > Save to persist all editor-side tutorial assets.",
-                  "File -> Save (Ctrl+S)"});
-        break;
-    case 10:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Switch pages in code with ActivatePage and a timer.",
-                  "activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);\nclient.ActivatePage(activePage);"});
-        break;
-    case 11:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Add/update one dynamic reticle with a patch.",
-                  "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);"});
-        break;
-    case 12:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Remove the oldest dynamic reticle id.",
-                  "client.RemoveDynamicReticle(kPage1, trackIds.front());"});
-        break;
-    case 13:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Modify static reticle attributes.",
-                  "client.SetReticleColor(kPage1, \"tutorial_circle_full\", {0,255,0,255});\nclient.SetReticlePosition(kPage1, \"tutorial_circle_full\", {0.0f,0.0f});\nclient.SetReticleVisible(kPage1, \"tutorial_circle_full\", true);"});
-        break;
-    case 14:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Modify an existing dynamic reticle by re-upserting same id with a new patch.",
-                  "client.UpsertDynamicReticle(kPage1, existingId, kTrackTemplate, updatedPatch);"});
-        break;
-    case 15:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Declutter all dynamics of one template by toggling template-set visibility.",
-                  "client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, false);\nclient.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, true);"});
-        break;
-    case 16:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Include generated API header and call generated helpers/types when available.",
-                  "#if __has_include(\"TutorialUi.h\")\n#include \"TutorialUi.h\"\n#endif"});
-        break;
-    case 17:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Poll feedback transport and decode strobe feedback packets.",
-                  "const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);"});
-        break;
-    case 18:
-        drawEdit({"examples/mfd_tutorial/src/main.cpp",
-                  "Read RGBA32 framebuffer callback in window launcher.",
-                  "[](int width, int height, std::span<const std::byte> pixels) { ... }"});
-        break;
-    case 19:
-        drawEdit({"CMakeLists.txt",
-                  "Training step only: add tutorial targets once generated code exists.",
-                  "add_subdirectory(examples/mfd_tutorial)\nadd_subdirectory(examples/client_tutorial)"});
-        break;
-    default:
-        break;
-    }
+    editor::tutorial::DrawTutorialFileHints(stepIndex);
 }
 
 template <std::size_t N>
@@ -235,105 +100,6 @@ mfd::ColorRgba ToColorRgba(const ImVec4& color)
         toByte(color.y),
         toByte(color.z),
         toByte(color.w)};
-}
-
-void ApplyEditorTheme()
-{
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 10.0f;
-    style.ChildRounding = 10.0f;
-    style.FrameRounding = 8.0f;
-    style.PopupRounding = 8.0f;
-    style.ScrollbarRounding = 10.0f;
-    style.GrabRounding = 8.0f;
-    style.WindowPadding = ImVec2(14.0f, 14.0f);
-    style.FramePadding = ImVec2(10.0f, 8.0f);
-    style.ItemSpacing = ImVec2(10.0f, 8.0f);
-    style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
-    style.IndentSpacing = 18.0f;
-
-    ImVec4* colors = style.Colors;
-    colors[ImGuiCol_Text] = ImVec4(0.92f, 0.96f, 0.98f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.53f, 0.62f, 0.69f, 1.00f);
-    colors[ImGuiCol_WindowBg] = ImVec4(0.05f, 0.08f, 0.11f, 1.00f);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.07f, 0.10f, 0.14f, 1.00f);
-    colors[ImGuiCol_PopupBg] = ImVec4(0.08f, 0.11f, 0.15f, 0.98f);
-    colors[ImGuiCol_Border] = ImVec4(0.16f, 0.24f, 0.29f, 1.00f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.11f, 0.16f, 0.20f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.16f, 0.25f, 0.31f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.19f, 0.31f, 0.38f, 1.00f);
-    colors[ImGuiCol_Button] = ImVec4(0.12f, 0.22f, 0.28f, 1.00f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.18f, 0.33f, 0.40f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.22f, 0.40f, 0.48f, 1.00f);
-    colors[ImGuiCol_Header] = ImVec4(0.11f, 0.22f, 0.27f, 1.00f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.16f, 0.31f, 0.37f, 1.00f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.20f, 0.39f, 0.46f, 1.00f);
-    colors[ImGuiCol_CheckMark] = ImVec4(0.33f, 0.86f, 0.78f, 1.00f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.24f, 0.72f, 0.83f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.33f, 0.86f, 0.78f, 1.00f);
-    colors[ImGuiCol_Separator] = ImVec4(0.18f, 0.28f, 0.34f, 1.00f);
-    colors[ImGuiCol_Tab] = ImVec4(0.10f, 0.18f, 0.23f, 1.00f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.17f, 0.31f, 0.38f, 1.00f);
-    colors[ImGuiCol_TabActive] = ImVec4(0.15f, 0.27f, 0.34f, 1.00f);
-}
-
-bool AccentButton(const char* label)
-{
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.54f, 0.61f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.66f, 0.73f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.12f, 0.44f, 0.52f, 1.00f));
-    const bool pressed = ImGui::Button(label);
-    ImGui::PopStyleColor(3);
-    return pressed;
-}
-
-bool DrawVerticalSplitter(const char* id, const float height)
-{
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.10f, 0.16f, 0.21f, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.41f, 0.49f, 0.18f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.24f, 0.56f, 0.66f, 0.28f));
-    const bool pressed = ImGui::Button(id, ImVec2(kPaneSplitterWidth, height));
-    const bool hovered = ImGui::IsItemHovered();
-    const bool active = ImGui::IsItemActive();
-    ImGui::PopStyleColor(3);
-
-    if (hovered || active)
-    {
-        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
-    }
-
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    const ImVec2 min = ImGui::GetItemRectMin();
-    const ImVec2 max = ImGui::GetItemRectMax();
-    const ImU32 color =
-        ImGui::GetColorU32(active
-                               ? ImVec4(0.33f, 0.86f, 0.78f, 0.95f)
-                               : hovered
-                                   ? ImVec4(0.24f, 0.72f, 0.83f, 0.70f)
-                                   : ImVec4(0.16f, 0.28f, 0.34f, 0.75f));
-    const float centerX = (min.x + max.x) * 0.5f;
-    drawList->AddLine(ImVec2(centerX, min.y + 4.0f), ImVec2(centerX, max.y - 4.0f), color, 2.0f);
-
-    return pressed || active;
-}
-
-void ShowItemTooltip(const char* text)
-{
-    if (text == nullptr || text[0] == '\0')
-    {
-        return;
-    }
-
-    if (!ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort | ImGuiHoveredFlags_NoSharedDelay))
-    {
-        return;
-    }
-
-    ImGui::BeginTooltip();
-    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32.0f);
-    ImGui::TextUnformatted(text);
-    ImGui::PopTextWrapPos();
-    ImGui::EndTooltip();
 }
 
 void ShowHoveredRegionTooltip(const bool hovered, const char* text)
@@ -1868,11 +1634,11 @@ void EditorApplication::DrawRootLayout()
     const float totalWidth = ImGui::GetContentRegionAvail().x;
     const float totalHeight = ImGui::GetContentRegionAvail().y;
     const float maxSidebarWidth = std::max(kMinSidebarWidth,
-                                           totalWidth - inspectorWidth_ - kMinWorkspaceWidth - 2.0f * kPaneSplitterWidth);
+                                           totalWidth - inspectorWidth_ - kMinWorkspaceWidth - 2.0f * editor::ui::kPaneSplitterWidth);
     sidebarWidth_ = std::clamp(sidebarWidth_, kMinSidebarWidth, maxSidebarWidth);
 
     const float maxInspectorWidth = std::max(kMinInspectorWidth,
-                                             totalWidth - sidebarWidth_ - kMinWorkspaceWidth - 2.0f * kPaneSplitterWidth);
+                                             totalWidth - sidebarWidth_ - kMinWorkspaceWidth - 2.0f * editor::ui::kPaneSplitterWidth);
     inspectorWidth_ = std::clamp(inspectorWidth_, kMinInspectorWidth, maxInspectorWidth);
 
     ImGui::BeginChild("Sidebar", ImVec2(sidebarWidth_, 0.0f), true);
@@ -1885,14 +1651,14 @@ void EditorApplication::DrawRootLayout()
         const float nextSidebarWidth = sidebarWidth_ + ImGui::GetIO().MouseDelta.x;
         const float nextMaxSidebarWidth = std::max(kMinSidebarWidth,
                                                    totalWidth - inspectorWidth_ - kMinWorkspaceWidth -
-                                                       2.0f * kPaneSplitterWidth);
+                                                       2.0f * editor::ui::kPaneSplitterWidth);
         sidebarWidth_ = std::clamp(nextSidebarWidth, kMinSidebarWidth, nextMaxSidebarWidth);
     }
 
     ImGui::SameLine();
 
     const float workspaceWidth =
-        std::max(kMinWorkspaceWidth, totalWidth - sidebarWidth_ - inspectorWidth_ - 2.0f * kPaneSplitterWidth);
+        std::max(kMinWorkspaceWidth, totalWidth - sidebarWidth_ - inspectorWidth_ - 2.0f * editor::ui::kPaneSplitterWidth);
     ImGui::BeginChild("Workspace", ImVec2(workspaceWidth, 0.0f), true);
     DrawWorkspace();
     ImGui::EndChild();
@@ -1903,7 +1669,7 @@ void EditorApplication::DrawRootLayout()
         const float nextInspectorWidth = inspectorWidth_ - ImGui::GetIO().MouseDelta.x;
         const float nextMaxInspectorWidth = std::max(kMinInspectorWidth,
                                                      totalWidth - sidebarWidth_ - kMinWorkspaceWidth -
-                                                         2.0f * kPaneSplitterWidth);
+                                                         2.0f * editor::ui::kPaneSplitterWidth);
         inspectorWidth_ = std::clamp(nextInspectorWidth, kMinInspectorWidth, nextMaxInspectorWidth);
     }
 
@@ -1951,7 +1717,7 @@ void EditorApplication::DrawWorkspace()
         }
 
         const float maxPageWidth = std::max(kMinPageContextWidth,
-                                            totalWidth - kMinReticleStudioWidth - kPaneSplitterWidth);
+                                            totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
         libraryStudioPageWidth_ = std::clamp(libraryStudioPageWidth_, kMinPageContextWidth, maxPageWidth);
         const float pageWidth = libraryStudioPageWidth_;
 
@@ -1990,7 +1756,7 @@ void EditorApplication::DrawWorkspace()
         {
             const float nextPageWidth = libraryStudioPageWidth_ + ImGui::GetIO().MouseDelta.x;
             const float nextMaxPageWidth = std::max(kMinPageContextWidth,
-                                                    totalWidth - kMinReticleStudioWidth - kPaneSplitterWidth);
+                                                    totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
             libraryStudioPageWidth_ = std::clamp(nextPageWidth, kMinPageContextWidth, nextMaxPageWidth);
         }
 
@@ -4864,14 +4630,14 @@ void EditorApplication::OpenTutorialFlow()
     LoadTutorialProgress();
     showTutorialCoach_ = true;
     tutorialLastHintPopupStep_ = -1;
-    if (tutorialStepIndex_ > 0 && tutorialStepIndex_ < static_cast<int>(kTutorialSteps.size()))
+    if (tutorialStepIndex_ > kTutorialStepMin && tutorialStepIndex_ < editor::tutorial::StepCount())
     {
         showTutorialResumePopup_ = true;
         return;
     }
 
     tutorialActive_ = true;
-    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, 0, static_cast<int>(kTutorialSteps.size()) - 1);
+    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, kTutorialStepMin, editor::tutorial::StepCount() - 1);
     SaveTutorialProgress();
 }
 
@@ -5082,7 +4848,7 @@ void EditorApplication::RestartTutorialFromScratch()
 
 void EditorApplication::AdvanceTutorialStep()
 {
-    tutorialStepIndex_ = std::min(tutorialStepIndex_ + 1, static_cast<int>(kTutorialSteps.size()) - 1);
+    tutorialStepIndex_ = std::min(tutorialStepIndex_ + 1, editor::tutorial::StepCount() - 1);
     tutorialLastHintPopupStep_ = -1;
     SaveTutorialProgress();
 }
@@ -5098,7 +4864,7 @@ void EditorApplication::LoadTutorialProgress()
 
     int savedStep = 0;
     stream >> savedStep;
-    tutorialStepIndex_ = std::clamp(savedStep, 0, static_cast<int>(kTutorialSteps.size()) - 1);
+    tutorialStepIndex_ = std::clamp(savedStep, kTutorialStepMin, editor::tutorial::StepCount() - 1);
 }
 
 void EditorApplication::SaveTutorialProgress() const
@@ -5139,7 +4905,7 @@ void EditorApplication::CleanupGeneratedTutorialFiles()
 
 void EditorApplication::DrawTutorialHalo(const char* targetId, const char* tooltip)
 {
-    if (!tutorialActive_ || tutorialStepIndex_ < 0 || tutorialStepIndex_ >= static_cast<int>(kTutorialSteps.size()))
+    if (!tutorialActive_ || tutorialStepIndex_ < kTutorialStepMin || tutorialStepIndex_ >= editor::tutorial::StepCount())
     {
         return;
     }
@@ -5175,9 +4941,10 @@ void EditorApplication::DrawTutorialCoach()
         return;
     }
 
-    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, 0, static_cast<int>(kTutorialSteps.size()) - 1);
-    const TutorialStepDefinition& step = kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
-    ImGui::Text("Step %d / %d", tutorialStepIndex_ + 1, static_cast<int>(kTutorialSteps.size()));
+    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, kTutorialStepMin, editor::tutorial::StepCount() - 1);
+    const editor::tutorial::TutorialStepDefinition& step =
+        kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
+    ImGui::Text("Step %d / %d", tutorialStepIndex_ + 1, editor::tutorial::StepCount());
     ImGui::Separator();
     ImGui::TextUnformatted(step.title);
     ImGui::Spacing();

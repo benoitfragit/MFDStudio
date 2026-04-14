@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief GoogleTest coverage for LatestBatchPublisherTests.
+ */
+
 #include <gtest/gtest.h>
 
 #include <chrono>

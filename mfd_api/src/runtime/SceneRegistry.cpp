@@ -3,6 +3,11 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+/**
+ * @file
+ * @brief Implementation for SceneRegistry.
+ */
+
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "mfd/control/CommandTypes.h"
