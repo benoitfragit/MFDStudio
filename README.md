@@ -524,6 +524,16 @@ client.UpsertDynamicReticles("Radar", "radar_track", tracks);
 `CommandClient` uses compact Protocol Buffers payloads and automatically splits
 oversized batches according to the configured UDP packet size.
 
+For a full runtime restore, the client can also request:
+
+```cpp
+client.ResetWindow();
+```
+
+This reset returns the target window to the document-defined initial runtime
+state (default page, page views, strobe state, window display state and dynamic
+reticles).
+
 ### Project client-side user space to page space
 
 ```cpp

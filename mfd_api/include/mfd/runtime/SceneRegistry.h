@@ -287,6 +287,13 @@ public:
     void ClearDynamicReticles(std::string_view pageName);
     /** @brief Removes every dynamic reticle from every page. */
     void ClearAllDynamicReticles();
+    /**
+     * @brief Restores the runtime scene to the exact initial state of the loaded document.
+     *
+     * @note This operation restores the default active page, page views,
+     * strobe state, whole-window display state and clears all dynamic reticles.
+     */
+    void ResetToInitialState();
 
     /** @brief Returns the underlying EnTT registry. */
     entt::registry& Raw() noexcept;

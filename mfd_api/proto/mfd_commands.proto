@@ -101,6 +101,10 @@ message RemoveDynamicReticleCommand
   ReticleHandle target = 1;
 }
 
+message ResetWindowCommand
+{
+}
+
 message UserCommand
 {
   oneof command
@@ -114,6 +118,7 @@ message UserCommand
     UpsertDynamicReticlesCommand upsert_dynamic_reticles = 7;
     RemoveDynamicReticleCommand remove_dynamic_reticle = 8;
     SetDynamicReticleSetVisibilityCommand set_dynamic_reticle_set_visibility = 9;
+    ResetWindowCommand reset_window = 10;
   }
 }
 

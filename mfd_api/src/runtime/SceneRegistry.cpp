@@ -1408,6 +1408,11 @@ void SceneRegistry::ClearAllDynamicReticles()
     }
 }
 
+void SceneRegistry::ResetToInitialState()
+{
+    LoadDocument(document_);
+}
+
 entt::registry& SceneRegistry::Raw() noexcept
 {
     return registry_;

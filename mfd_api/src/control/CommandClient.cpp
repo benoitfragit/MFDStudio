@@ -422,6 +422,11 @@ bool CommandClient::RemoveDynamicReticle(const std::string_view page, const std:
     return Send(RemoveDynamicReticleCommand {ReticleHandle {std::string(page), std::string(reticle)}});
 }
 
+bool CommandClient::ResetWindow()
+{
+    return Send(ResetWindowCommand {});
+}
+
 bool CommandClient::SendPayload(const std::string_view payload)
 {
     if (!IsReady())

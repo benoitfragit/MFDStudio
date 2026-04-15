@@ -38,6 +38,7 @@ CommandProcessor::CommandProcessor(SceneRegistry& scene)
     dispatcher_.sink<UpsertDynamicReticlesCommand>().connect<&CommandProcessor::OnUpsertDynamicReticles>(*this);
     dispatcher_.sink<SetDynamicReticleSetVisibilityCommand>().connect<&CommandProcessor::OnSetDynamicReticleSetVisibility>(*this);
     dispatcher_.sink<RemoveDynamicReticleCommand>().connect<&CommandProcessor::OnRemoveDynamicReticle>(*this);
+    dispatcher_.sink<ResetWindowCommand>().connect<&CommandProcessor::OnResetWindow>(*this);
 }
 
 bool CommandProcessor::Submit(const UserCommand& command)
@@ -311,6 +312,11 @@ void CommandProcessor::OnSetDynamicReticleSetVisibility(const SetDynamicReticleS
         SetFailure("Unable to update dynamic reticle set visibility for template '" + command.templateId +
                    "' on page '" + command.page + "'");
     }
+}
+
+void CommandProcessor::OnResetWindow(const ResetWindowCommand&)
+{
+    scene_.ResetToInitialState();
 }
 
 void CommandProcessor::SetFailure(std::string message)

@@ -186,6 +186,8 @@ public:
      * @return `true` if the command was sent successfully.
      */
     bool RemoveDynamicReticle(std::string_view page, std::string_view reticle);
+    /** @brief Requests a full reset of the target window runtime state. */
+    bool ResetWindow();
 
 private:
     bool SendPayload(std::string_view payload);

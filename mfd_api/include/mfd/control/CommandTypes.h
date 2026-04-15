@@ -202,6 +202,16 @@ struct RemoveDynamicReticleCommand
 };
 
 /**
+ * @brief Command restoring one window runtime to its document-defined initial state.
+ *
+ * @note This command resets active page selection, page views, whole-window
+ * display parameters, all dynamic reticles and strobe runtime state.
+ */
+struct ResetWindowCommand
+{
+};
+
+/**
  * @brief Variant containing every command accepted by the user command API.
  */
 using UserCommand = std::variant<ActivatePageCommand,
@@ -212,7 +222,8 @@ using UserCommand = std::variant<ActivatePageCommand,
                                  UpsertDynamicReticleCommand,
                                  UpsertDynamicReticlesCommand,
                                  SetDynamicReticleSetVisibilityCommand,
-                                 RemoveDynamicReticleCommand>;
+                                 RemoveDynamicReticleCommand,
+                                 ResetWindowCommand>;
 
 /**
  * @brief Batch of user commands sent during the same external update cycle.
