@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -327,4 +328,91 @@ TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingS
     EXPECT_EQ(deliveredBatches[1].commands.size(), 1U);
     EXPECT_TRUE(ContainsCommandType<mfd::UpsertDynamicReticleCommand>(deliveredBatches[1]));
     EXPECT_FALSE(ContainsCommandType<mfd::RemoveDynamicReticleCommand>(deliveredBatches[1]));
+}
+
+
+/**
+ * @brief Verifies the vector overload forwards both sequence and command payload unchanged.
+ */
+TEST(LatestBatchPublisherTests, SubmitLatestVectorOverloadPreservesSequenceAndCommands)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    mfd::CommandBatch delivered;
+    bool deliveredReady = false;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &delivered, &deliveredReady](const mfd::CommandBatch& batch)
+        {
+            {
+                std::lock_guard lock(mutex);
+                delivered = batch;
+                deliveredReady = true;
+            }
+            condition.notify_all();
+            return true;
+        });
+
+    std::vector<mfd::UserCommand> commands;
+    commands.push_back(mfd::ActivatePageCommand {"radar"});
+
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(commands), 77U));
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_TRUE(deliveredReady);
+    EXPECT_EQ(delivered.sequence, 77U);
+    ASSERT_EQ(delivered.commands.size(), 1U);
+    const auto* activate = std::get_if<mfd::ActivatePageCommand>(&delivered.commands.front());
+    ASSERT_NE(activate, nullptr);
+    EXPECT_EQ(activate->page, "radar");
+}
+
+/**
+ * @brief Ensures construction without a send callback is rejected with a stable readiness error.
+ */
+TEST(LatestBatchPublisherTests, ReportsNotReadyWhenSendCallbackIsMissing)
+{
+    mfd::client::LatestBatchPublisher publisher({}, {});
+
+    EXPECT_FALSE(publisher.IsReady());
+    EXPECT_EQ(publisher.LastError(), "Latest batch publisher requires a valid send callback");
+
+    EXPECT_FALSE(publisher.SubmitLatest(MakeBatch(1U)));
+    EXPECT_EQ(publisher.LastError(), "Latest batch publisher requires a valid send callback");
+}
+
+/**
+ * @brief Falls back to the default send-failure error when no transport-specific error callback exists.
+ */
+TEST(LatestBatchPublisherTests, TurnsSendFailureIntoDefaultErrorWhenNoErrorCallbackIsProvided)
+{
+    mfd::client::LatestBatchPublisher publisher(
+        [](const mfd::CommandBatch&)
+        {
+            return false;
+        });
+
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(13U)));
+    publisher.Flush();
+
+    EXPECT_EQ(publisher.LastError(), "Unable to send the latest command batch");
+}
+
+/**
+ * @brief Propagates std::exception messages thrown by the send callback into LastError().
+ */
+TEST(LatestBatchPublisherTests, CapturesThrownExceptionsFromSendCallback)
+{
+    mfd::client::LatestBatchPublisher publisher(
+        [](const mfd::CommandBatch&)
+        {
+            throw std::runtime_error("simulated send crash");
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(55U)));
+    publisher.Flush();
+
+    EXPECT_EQ(publisher.LastError(), "simulated send crash");
 }

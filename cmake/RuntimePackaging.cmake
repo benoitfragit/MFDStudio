@@ -40,7 +40,7 @@ function(mfd_stage_runtime target_name)
     set(stage_dir "${MFD_ROOT_DIR}/_Exec/${MFD_EXEC_COMPILER_DIR}/${MFD_EXEC_PLATFORM_DIR}/$<CONFIG>")
 
     set(runtime_dll_commands)
-    if(copy_runtime_dlls)
+    if(copy_runtime_dlls AND WIN32)
         list(APPEND runtime_dll_commands
             COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:${target_name}> "${stage_dir}")
     endif()

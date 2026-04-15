@@ -218,3 +218,131 @@ TEST(AnimationTests, DynamicReticleSetVisibilityEmitsDedicatedTemplateCommand)
     ASSERT_NE(showVisibility, nullptr);
     EXPECT_TRUE(showVisibility->visible);
 }
+
+
+/**
+ * @brief Covers Reticle blink API variants and global text/letter spacing fields.
+ */
+TEST(AnimationTests, ReticleBlinkApiVariantsEmitExpectedDeltaFields)
+{
+    mfd::client::BlinkType slow("slow");
+    mfd::client::Reticle reticle("HUD", "waterline");
+
+    reticle.SetBlinkEnabled(true);
+    reticle.SetBlink(false, slow);
+    reticle.SetBlinkType(slow);
+    reticle.ClearBlinkType();
+    reticle.SetText("GLOBAL");
+    reticle.SetLetterSpacing(0.11f);
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    ASSERT_TRUE(update->patch.blinkEnabled.has_value());
+    ASSERT_TRUE(update->patch.blinkType.has_value());
+    ASSERT_TRUE(update->patch.text.has_value());
+    ASSERT_TRUE(update->patch.letterSpacing.has_value());
+    EXPECT_TRUE(*update->patch.blinkEnabled);
+    EXPECT_TRUE(update->patch.blinkType->empty());
+    EXPECT_EQ(*update->patch.text, "GLOBAL");
+    EXPECT_FLOAT_EQ(*update->patch.letterSpacing, 0.11f);
+}
+
+/**
+ * @brief Ensures Reset() only clears dirty state and therefore suppresses redundant emissions.
+ */
+TEST(AnimationTests, ReticleResetSuppressesEmissionUntilANewMutation)
+{
+    mfd::client::Reticle reticle("HUD", "waterline");
+    reticle.SetVisible(true);
+    reticle.Reset();
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
+
+    reticle.SetVisible(false);
+    EXPECT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    ASSERT_TRUE(update->patch.visible.has_value());
+    EXPECT_FALSE(*update->patch.visible);
+}
+
+/**
+ * @brief Validates dynamic reticle updates emit only field deltas after first publish.
+ */
+TEST(AnimationTests, DynamicReticleSetEmitsOnlyChangedFieldsOnSecondPublish)
+{
+    mfd::client::DynamicReticleSet set("Radar", "radar_track");
+    mfd::client::DynamicReticle& track = set.Upsert("trk_01");
+    track.SetPosition({0.2f, 0.1f});
+    track.SetColor({10, 20, 30, 255});
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    set.Reset();
+    mfd::client::DynamicReticle& sameTrack = set.Upsert("trk_01");
+    sameTrack.SetPosition({0.6f, -0.4f});
+
+    commands.clear();
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands.front());
+    ASSERT_NE(upsert, nullptr);
+    ASSERT_EQ(upsert->reticles.size(), 1U);
+    const auto& patch = upsert->reticles.front().patch;
+    ASSERT_TRUE(patch.position.has_value());
+    EXPECT_FLOAT_EQ(patch.position->x, 0.6f);
+    EXPECT_FLOAT_EQ(patch.position->y, -0.4f);
+    EXPECT_FALSE(patch.color.has_value());
+}
+
+/**
+ * @brief Confirms Reset() on dynamic set does not delete published reticles until removal cycle.
+ */
+TEST(AnimationTests, DynamicReticleSetResetThenNoUpsertProducesRemoval)
+{
+    mfd::client::DynamicReticleSet set("Radar", "radar_track");
+    set.Upsert("trk_09").SetVisible(true);
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+
+    set.Reset();
+    commands.clear();
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+    const auto* remove = std::get_if<mfd::RemoveDynamicReticleCommand>(&commands.front());
+    ASSERT_NE(remove, nullptr);
+    EXPECT_EQ(remove->target.reticle, "trk_09");
+}
+
+/**
+ * @brief Ensures WindowDisplay Reset() suppresses an unsent mutation exactly like Reticle Reset().
+ */
+TEST(AnimationTests, WindowDisplayResetSuppressesEmissionUntilNextMutation)
+{
+    mfd::client::WindowDisplay display;
+    display.SetDisabled(true);
+    display.Reset();
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_FALSE(display.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
+
+    display.SetDisabled(false);
+    EXPECT_TRUE(display.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+    const auto* update = std::get_if<mfd::UpdateWindowDisplayCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    ASSERT_TRUE(update->patch.disabled.has_value());
+    EXPECT_FALSE(*update->patch.disabled);
+}

@@ -38,13 +38,15 @@ endif()
 set_target_properties(mfd_api_tests PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_api_tests>")
 
-add_custom_command(
-    TARGET mfd_api_tests
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_RUNTIME_DLLS:mfd_api_tests>
-        "$<TARGET_FILE_DIR:mfd_api_tests>"
-    COMMAND_EXPAND_LISTS)
+if(WIN32)
+    add_custom_command(
+        TARGET mfd_api_tests
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:mfd_api_tests>
+            "$<TARGET_FILE_DIR:mfd_api_tests>"
+        COMMAND_EXPAND_LISTS)
+endif()
 
 mfd_stage_runtime(mfd_api_tests WITH_RUNTIME_DLLS)
 
