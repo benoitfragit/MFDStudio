@@ -603,6 +603,8 @@ private:
     bool SendPageView();
     /** @brief Sends the current whole-window display draft. */
     bool SendWindowDisplayUpdate();
+    /** @brief Sends a full runtime reset command to the connected target window. */
+    bool SendResetWindow();
     /** @brief Sends the current static-reticle draft as a reticle patch. */
     bool SendReticleUpdate();
     /** @brief Sends the current strobe draft. */
@@ -1404,6 +1406,40 @@ bool MockupApplication::SendWindowDisplayUpdate()
     }
 
     SetStatus("Whole-window display updated on '" + loaded_.window.title + "'.", false);
+    return true;
+}
+
+bool MockupApplication::SendResetWindow()
+{
+    if (client_ == nullptr || !client_->IsReady())
+    {
+        SetStatus("Command client is not ready.", true);
+        return false;
+    }
+
+    if (!client_->ResetWindow())
+    {
+        SetStatus("Unable to reset target window: " + client_->LastError(), true);
+        return false;
+    }
+
+    ResetWindowDisplayDraft();
+    ResetDynamicDraft();
+
+    switch (selection_.kind)
+    {
+    case SelectionKind::Page:
+    case SelectionKind::Strobe:
+        ResetSelectedPageDraft();
+        break;
+    case SelectionKind::Reticle:
+        ResetSelectedReticleDraft();
+        break;
+    default:
+        break;
+    }
+
+    SetStatus("Target window reset command sent.", false);
     return true;
 }
 
@@ -2259,6 +2295,12 @@ void MockupApplication::DrawWindowDisplayInspector()
     if (AccentButton("Send window display"))
     {
         SendWindowDisplayUpdate();
+    }
+
+    ImGui::SameLine();
+    if (AccentButton("Reset window"))
+    {
+        SendResetWindow();
     }
 
     ImGui::SameLine();

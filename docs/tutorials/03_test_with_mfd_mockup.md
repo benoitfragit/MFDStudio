@@ -124,6 +124,11 @@ Under the hood this panel sends one `UpdateWindowDisplayCommand` through
 When `Disable output` is enabled, the target window keeps its runtime state but
 renders a black screen.
 
+The same section also exposes `Reset window`, which sends
+`client.ResetWindow()`. Use it when you want to restore the full runtime state
+to the JSON-defined initial state (default page, page views, strobe state,
+window display state, and dynamic reticles).
+
 ## Step 5 - Activate the target page
 
 In the tree on the left:
@@ -334,6 +339,7 @@ in your own application.
 | --- | --- | --- |
 | `Window target` + `Reload` | create a `CommandClient` from the target UDP config | retarget one running window |
 | `Send window display` | `UpdateWindowDisplay`, `SetWindowColorInverted`, `SetWindowBrightness`, `SetWindowDisabled` | host-driven inversion, dimming, and blackout |
+| `Reset window` | `ResetWindow()` | restore runtime to authored initial state |
 | `Activate page now` | `ActivatePage(page)` | page selection |
 | `Send page view` | `SetPageView(page, center, zoom)` | panning and zoom |
 | `Send reticle update` | `UpdateReticle(page, reticle, patch)` | patch one static reticle |

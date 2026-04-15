@@ -314,6 +314,10 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             {
                 FillProtoHandle(value.target, target->mutable_remove_dynamic_reticle()->mutable_target());
             }
+            else if constexpr (std::is_same_v<Command, ResetWindowCommand>)
+            {
+                target->mutable_reset_window();
+            }
             else
             {
                 static_assert(kUnsupportedCommand<Command>, "Unsupported user command type");
@@ -415,6 +419,9 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
 
     case pb::UserCommand::kRemoveDynamicReticle:
         return RemoveDynamicReticleCommand {FromProtoHandle(value.remove_dynamic_reticle().target())};
+
+    case pb::UserCommand::kResetWindow:
+        return ResetWindowCommand {};
 
     case pb::UserCommand::COMMAND_NOT_SET:
         break;

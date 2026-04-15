@@ -82,6 +82,7 @@ Examples:
 - `client.SetWindowColorInverted(enabled)`
 - `client.SetWindowBrightness(brightness)`
 - `client.SetWindowDisabled(enabled)`
+- `client.ResetWindow()`
 
 Use these when one UI action maps to one semantic command.
 
@@ -157,6 +158,7 @@ your own client.
 | --- | --- | --- |
 | `Window target` | `CommandClient(WindowUdpCommandTransport)` | connection creation |
 | `Send window display` | `UpdateWindowDisplay` or convenience helpers such as `SetWindowDisabled` | `WindowDisplayPatch` |
+| `Reset window` | `ResetWindow()` | `ResetWindowCommand` |
 | `Activate selected page` | `ActivatePage(page)` | `ActivatePageCommand` |
 | `Send page view` | `SetPageView(page, center, zoom)` | `SetPageViewCommand` |
 | `Send reticle update` | `UpdateReticle(page, reticle, patch)` | `UpdateReticleCommand` |

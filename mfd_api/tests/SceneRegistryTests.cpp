@@ -19,6 +19,7 @@
 #include <thread>
 #include <utility>
 
+#include "mfd/control/CommandProcessor.h"
 #include "mfd/control/CommandTypes.h"
 #include "mfd/model/PageDefinition.h"
 #include "mfd/model/Reticle.h"
@@ -386,6 +387,16 @@ TEST(SceneRegistryTests, DynamicTemplateVisibilityCommandSerializationRoundTrips
     EXPECT_FALSE(visibility->visible);
 }
 
+TEST(SceneRegistryTests, ResetWindowCommandSerializationRoundTrips)
+{
+    const mfd::UserCommand command = mfd::ResetWindowCommand {};
+    const std::string payload = mfd::SerializeUserCommand(command);
+    const auto decoded = mfd::DeserializeUserCommand(payload);
+
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_NE(std::get_if<mfd::ResetWindowCommand>(&*decoded), nullptr);
+}
+
 TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
 {
     mfd::MfdDocument document;
@@ -678,4 +689,86 @@ TEST(SceneRegistryTests, DynamicTemplateVisibilityMasksOnlyMatchingDynamicReticl
     ASSERT_EQ(views.size(), 6U);
     EXPECT_TRUE(views[3].visible);
     EXPECT_TRUE(views[4].visible);
+}
+
+TEST(SceneRegistryTests, ResetToInitialStateRestoresDefaultPageWindowAndViewsAndClearsDynamics)
+{
+    mfd::PageDefinition radarPage = MakeRuntimePage();
+    radarPage.defaultPage = true;
+
+    mfd::PageDefinition navPage;
+    navPage.name = "Nav";
+    navPage.normalizedName = "nav";
+    navPage.title = "Navigation";
+    navPage.view.center = {0.35f, 0.1f};
+    navPage.view.zoom = 1.75f;
+    navPage.staticReticles.push_back(MakeReticle("nav_symbol"));
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(radarPage));
+    document.pages.push_back(std::move(navPage));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    EXPECT_TRUE(registry.SetPageViewCenter("Radar", {0.7f, 0.8f}));
+    EXPECT_TRUE(registry.SetPageZoom("Radar", 2.4f));
+    EXPECT_TRUE(registry.SetPageViewCenter("Nav", {-0.6f, -0.4f}));
+    EXPECT_TRUE(registry.SetPageZoom("Nav", 2.9f));
+    EXPECT_TRUE(registry.SetWindowColorInverted(true));
+    EXPECT_TRUE(registry.SetWindowBrightness(0.15f));
+    EXPECT_TRUE(registry.SetWindowDisabled(true));
+    registry.UpsertDynamicReticle("Radar", MakeTextReticle("track_alpha"));
+    registry.UpsertDynamicReticle("Nav", MakeTextReticle("ghost"));
+    registry.SetActivePage("Nav");
+
+    registry.ResetToInitialState();
+
+    EXPECT_EQ(registry.ActivePageName(), "Radar");
+    ASSERT_TRUE(registry.ViewForPage("Radar").has_value());
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Radar")->center.x, 0.1f);
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Radar")->center.y, -0.2f);
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Radar")->zoom, 1.25f);
+    ASSERT_TRUE(registry.ViewForPage("Nav").has_value());
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Nav")->center.x, 0.35f);
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Nav")->center.y, 0.1f);
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Nav")->zoom, 1.75f);
+    EXPECT_FALSE(registry.WindowDisplay().invertColors);
+    EXPECT_FLOAT_EQ(registry.WindowDisplay().brightness, 1.0f);
+    EXPECT_FALSE(registry.WindowDisplay().disabled);
+    EXPECT_FALSE(registry.HasDynamicReticle("Radar", "track_alpha"));
+    EXPECT_FALSE(registry.HasDynamicReticle("Nav", "ghost"));
+
+    const auto strobe = registry.StrobeForPage("Radar");
+    ASSERT_TRUE(strobe.has_value());
+    EXPECT_TRUE(strobe->visible);
+    EXPECT_FLOAT_EQ(strobe->position.x, 0.0f);
+    EXPECT_FLOAT_EQ(strobe->position.y, 0.0f);
+}
+
+TEST(SceneRegistryTests, CommandProcessorResetWindowCommandResetsRuntimeState)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+    mfd::CommandProcessor processor(registry);
+
+    EXPECT_TRUE(registry.SetPageViewCenter("Radar", {0.4f, 0.5f}));
+    EXPECT_TRUE(registry.SetWindowDisabled(true));
+    registry.UpsertDynamicReticle("Radar", MakeTextReticle("track_alpha"));
+    EXPECT_TRUE(registry.SetStrobeActive("Radar", false));
+
+    EXPECT_TRUE(processor.Submit(mfd::UserCommand {mfd::ResetWindowCommand {}}));
+    EXPECT_TRUE(processor.LastError().empty());
+    EXPECT_EQ(registry.ActivePageName(), "Radar");
+    EXPECT_FALSE(registry.WindowDisplay().disabled);
+    ASSERT_TRUE(registry.ViewForPage("Radar").has_value());
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Radar")->center.x, 0.1f);
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Radar")->center.y, -0.2f);
+    EXPECT_FLOAT_EQ(registry.ViewForPage("Radar")->zoom, 1.25f);
+    EXPECT_FALSE(registry.HasDynamicReticle("Radar", "track_alpha"));
+    ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
+    EXPECT_TRUE(registry.ActiveStrobeSummary()->visible);
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.0f);
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.y, 0.0f);
 }
