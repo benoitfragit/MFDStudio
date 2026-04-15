@@ -365,7 +365,7 @@ TEST(LatestBatchPublisherTests, SubmitLatestVectorOverloadPreservesSequenceAndCo
     ASSERT_EQ(delivered.commands.size(), 1U);
     const auto* activate = std::get_if<mfd::ActivatePageCommand>(&delivered.commands.front());
     ASSERT_NE(activate, nullptr);
-    EXPECT_EQ(activate->pageName, "radar");
+    EXPECT_EQ(activate->page, "radar");
 }
 
 /**
