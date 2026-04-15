@@ -16,6 +16,9 @@
 
 #include "mfd/window/WindowLauncher.h"
 
+/**
+ * @brief Verifies custom config values are reflected in usage text.
+ */
 TEST(WindowLauncherTests, BuildUsageTextReflectsConfiguredApplicationAndWindow)
 {
     mfd::window::LauncherConfig config;
@@ -29,6 +32,24 @@ TEST(WindowLauncherTests, BuildUsageTextReflectsConfiguredApplicationAndWindow)
     EXPECT_NE(usage.find("1..9 activate the first nine authored pages"), std::string::npos);
 }
 
+/**
+ * @brief Ensures usage text falls back to hardcoded defaults when config is empty.
+ */
+TEST(WindowLauncherTests, BuildUsageTextFallsBackToBuiltInDefaults)
+{
+    mfd::window::LauncherConfig config;
+    config.applicationName.clear();
+    config.defaultWindowFile.clear();
+
+    const std::string usage = mfd::window::BuildUsageText(config);
+
+    EXPECT_NE(usage.find("mfd_window <window.json>"), std::string::npos);
+    EXPECT_NE(usage.find("assets/windows/demo_pages.json"), std::string::npos);
+}
+
+/**
+ * @brief Parses no arguments and keeps the configured default JSON path.
+ */
 TEST(WindowLauncherTests, ParseCommandLineUsesConfiguredDefaultWindow)
 {
     mfd::window::LauncherConfig config;
@@ -45,6 +66,9 @@ TEST(WindowLauncherTests, ParseCommandLineUsesConfiguredDefaultWindow)
     EXPECT_EQ(options.windowFile.generic_string(), "assets/windows/demo_pages_minimal.json");
 }
 
+/**
+ * @brief Parses the explicit --window long option.
+ */
 TEST(WindowLauncherTests, ParseCommandLineAcceptsWindowFlagAndHelp)
 {
     mfd::window::LauncherConfig config;
@@ -67,6 +91,92 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsWindowFlagAndHelp)
     EXPECT_TRUE(options.showHelp);
 }
 
+/**
+ * @brief Parses short aliases -w and -h as valid options.
+ */
+TEST(WindowLauncherTests, ParseCommandLineAcceptsShortAliases)
+{
+    mfd::window::LauncherConfig config;
+
+    char program[] = "mfd_window";
+    char shortWindow[] = "-w";
+    char windowPath[] = "short/path.json";
+    char* windowArgv[] = {program, shortWindow, windowPath, nullptr};
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(3, windowArgv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "short/path.json");
+    EXPECT_FALSE(options.showHelp);
+
+    char shortHelp[] = "-h";
+    char* helpArgv[] = {program, shortHelp, nullptr};
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(2, helpArgv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_TRUE(options.showHelp);
+}
+
+/**
+ * @brief Supports one positional window path argument.
+ */
+TEST(WindowLauncherTests, ParseCommandLineAcceptsPositionalWindowPath)
+{
+    mfd::window::LauncherConfig config;
+
+    char program[] = "mfd_window";
+    char positional[] = "assets/windows/radar.json";
+    char* argv[] = {program, positional, nullptr};
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(2, argv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "assets/windows/radar.json");
+    EXPECT_FALSE(options.showHelp);
+}
+
+/**
+ * @brief Prefers the last explicit path when positional and --window are mixed.
+ */
+TEST(WindowLauncherTests, ParseCommandLineAllowsMixingPositionalAndWindowFlag)
+{
+    mfd::window::LauncherConfig config;
+
+    char program[] = "mfd_window";
+    char positional[] = "first.json";
+    char flag[] = "--window";
+    char explicitPath[] = "second.json";
+    char* argv[] = {program, positional, flag, explicitPath, nullptr};
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(4, argv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "second.json");
+}
+
+/**
+ * @brief Handles null argument slots as empty positional arguments.
+ */
+TEST(WindowLauncherTests, ParseCommandLineTreatsNullEntryAsEmptyPath)
+{
+    mfd::window::LauncherConfig config;
+
+    char program[] = "mfd_window";
+    char* argv[] = {program, nullptr, nullptr};
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(2, argv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_TRUE(options.windowFile.empty());
+    EXPECT_FALSE(options.showHelp);
+}
+
+/**
+ * @brief Rejects malformed command line combinations and reports precise errors.
+ */
 TEST(WindowLauncherTests, ParseCommandLineRejectsInvalidArgumentCombinations)
 {
     mfd::window::LauncherConfig config;
@@ -93,6 +203,9 @@ TEST(WindowLauncherTests, ParseCommandLineRejectsInvalidArgumentCombinations)
     EXPECT_NE(error.find("Only one window JSON path"), std::string::npos);
 }
 
+/**
+ * @brief Validates the framebuffer callback signature can observe dimensions and byte span size.
+ */
 TEST(WindowLauncherTests, FramebufferCallbackReceivesDimensionsAndByteSpan)
 {
     int receivedWidth = 0;
