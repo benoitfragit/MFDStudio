@@ -44,6 +44,7 @@ set(MFD_API_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/SceneReticleMutator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/SceneRegistry.cpp)
 
 set(MFD_API_PROTO_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)

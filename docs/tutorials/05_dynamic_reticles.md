@@ -43,7 +43,7 @@ patch.position = mfd::Vec2 {0.25f, 0.10f};
 patch.rotationDegrees = 15.0f;
 patch.color = mfd::ColorRgba {77, 224, 255, 255};
 patch.thickness = 0.004f;
-patch.text = std::string {"T42"};
+patch.texts.emplace("label", "T42");
 
 client.UpsertDynamicReticle("Radar", "track_42", "radar_track", patch);
 ```
@@ -64,7 +64,7 @@ updates.push_back({
         .position = mfd::Vec2 {0.20f, 0.35f},
         .rotationDegrees = 15.0f,
         .color = mfd::ColorRgba {77, 224, 255, 255},
-        .text = std::string {"AF001"}
+        .texts = {{"label", "AF001"}}
     }});
 
 updates.push_back({
@@ -76,7 +76,7 @@ updates.push_back({
         .position = mfd::Vec2 {-0.40f, 0.10f},
         .rotationDegrees = -30.0f,
         .color = mfd::ColorRgba {255, 191, 0, 255},
-        .text = std::string {"AF002"}
+        .texts = {{"label", "AF002"}}
     }});
 
 client.UpsertDynamicReticles("Radar", "radar_track", updates);
@@ -133,6 +133,20 @@ Example:
 
 - page: `Radar`
 - reticle id: `track_042`
+
+When upserting an already-existing dynamic reticle, keep the **exact same id**
+(same spelling and casing). If the id changes, the update is rejected.
+
+Also avoid reusing an id already used by a static reticle on that page: dynamic
+upsert is rejected in that case.
+
+## Step 8 - Patch validation rule
+
+Dynamic reticle patches are validated before being applied:
+
+- any invalid float (`NaN` / `Inf`) is rejected
+- invalid primitive targets are rejected
+- rejected patches do not partially update runtime state
 
 ## What You Should See
 

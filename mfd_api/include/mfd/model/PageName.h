@@ -66,6 +66,13 @@ struct TransparentStringEqual
 MFD_API std::string NormalizePageName(std::string_view value);
 
 /**
+ * @brief Normalizes a generic identifier for runtime lookup.
+ * @param value Raw identifier provided by JSON or by user code.
+ * @return Lower-cased normalized name with stable comparison semantics.
+ */
+MFD_API std::string NormalizeIdentifier(std::string_view value);
+
+/**
  * @brief Compares two page names after normalization.
  * @param lhs First page name.
  * @param rhs Second page name.

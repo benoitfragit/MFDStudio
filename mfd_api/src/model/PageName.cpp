@@ -51,6 +51,11 @@ std::string NormalizePageName(const std::string_view value)
     return normalized;
 }
 
+std::string NormalizeIdentifier(const std::string_view value)
+{
+    return NormalizePageName(value);
+}
+
 bool PageNamesEqual(const std::string_view lhs, const std::string_view rhs)
 {
     return NormalizePageName(lhs) == NormalizePageName(rhs);

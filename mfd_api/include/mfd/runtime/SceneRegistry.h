@@ -28,6 +28,34 @@ struct ReticlePatch;
 struct WindowDisplayPatch;
 
 /**
+ * @brief Enumerates mutation failure reasons reported by @ref SceneRegistry.
+ */
+enum class SceneErrorCode
+{
+    None,
+    PageNotFound,
+    ReticleNotFound,
+    StrobeNotFound,
+    InvalidFloat,
+    InvalidPatch,
+    InvalidPrimitiveTarget,
+    AmbiguousTextTarget,
+    DynamicIdentityMismatch,
+    NotDynamicReticle
+};
+
+/**
+ * @brief Structured runtime error returned by @ref SceneRegistry::LastError.
+ */
+struct SceneError
+{
+    /** @brief High-level category for the last failed mutation. */
+    SceneErrorCode code = SceneErrorCode::None;
+    /** @brief Human-readable detail message for logging and debugging. */
+    std::string message;
+};
+
+/**
  * @brief Lightweight description of one page exposed by the runtime scene.
  */
 struct PageSummary
@@ -192,6 +220,8 @@ public:
     ColorRgba ActiveBackgroundColor() const noexcept;
     /** @brief Returns the whole-window display state currently applied by the runtime. */
     WindowDisplayState WindowDisplay() const noexcept;
+    /** @brief Returns the last mutation error emitted by the registry. */
+    SceneError LastError() const;
 
     /** @brief Collects all reticles rendered on a given page with blink-resolved visibility. */
     std::vector<ReticleGroup> CollectPageReticles(std::string_view pageName) const;
@@ -239,14 +269,20 @@ public:
     bool SetReticleColor(std::string_view pageName, std::string_view reticleId, ColorRgba color) noexcept;
     /** @brief Sets a reticle stroke thickness override. */
     bool SetReticleThickness(std::string_view pageName, std::string_view reticleId, float thickness) noexcept;
-    /** @brief Sets the first text primitive value found in a reticle. */
+    /**
+     * @brief Sets text when the reticle contains exactly one text primitive.
+     * @note Use the overload with `primitiveId` to avoid ambiguous targeting.
+     */
     bool SetReticleText(std::string_view pageName, std::string_view reticleId, std::string value) noexcept;
     /** @brief Sets the text of a named text primitive inside a reticle. */
     bool SetReticleText(std::string_view pageName,
                         std::string_view reticleId,
                         std::string_view primitiveId,
                         std::string value) noexcept;
-    /** @brief Sets the first text primitive letter spacing found in a reticle. */
+    /**
+     * @brief Sets letter spacing when the reticle contains exactly one text-like primitive.
+     * @note Use the overload with `primitiveId` to avoid ambiguous targeting.
+     */
     bool SetReticleLetterSpacing(std::string_view pageName,
                                  std::string_view reticleId,
                                  float letterSpacing) noexcept;
@@ -279,7 +315,12 @@ public:
     /** @brief Attempts to capture a dynamic reticle with the active page strobe. */
     std::optional<StrobeCaptureResult> CaptureActivePageStrobe() const;
 
-    /** @brief Creates or updates a dynamic reticle on a page. */
+    /**
+     * @brief Creates or updates a dynamic reticle on a page.
+     *
+     * @note If the dynamic reticle already exists, the upsert path updates it
+     * only when the incoming reticle keeps the exact same `id`.
+     */
     void UpsertDynamicReticle(std::string_view pageName, ReticleGroup reticle);
     /** @brief Removes one dynamic reticle from a page. */
     bool RemoveDynamicReticle(std::string_view pageName, std::string_view reticleId);
@@ -317,6 +358,10 @@ private:
     struct StrobeTag;
     /** @brief Runtime behavior configuration attached to a strobe entity. */
     struct StrobeBehaviorComponent;
+    /** @brief Composite key used by the reticle entity lookup table. */
+    struct ReticleKey;
+    /** @brief Hash function for @ref ReticleKey. */
+    struct ReticleKeyHash;
 
     /** @brief Returns `true` when a normalized page key exists in the scene indexes. */
     bool HasNormalizedPage(std::string_view pageName) const noexcept;
@@ -334,8 +379,8 @@ private:
     std::vector<ReticleRenderView> CollectPageReticleViewsByKey(std::string_view pageName) const;
     /** @brief Collects reticle pointers for one normalized page key without copying. */
     std::vector<const ReticleGroup*> CollectPageReticlePointersByKey(std::string_view pageName) const;
-    /** @brief Builds the composite lookup key used by the reticle entity index. */
-    std::string MakeReticleLookupKey(std::string_view normalizedPageName, std::string_view reticleId) const;
+    /** @brief Builds the typed lookup key used by the reticle entity index. */
+    ReticleKey MakeReticleLookupKey(std::string_view normalizedPageName, std::string_view reticleId) const;
     /** @brief Finds the entity of one static or dynamic reticle. */
     entt::entity FindReticleEntity(std::string_view normalizedPageName, std::string_view reticleId) const noexcept;
     /** @brief Returns mutable access to one reticle component. */
@@ -360,6 +405,10 @@ private:
     void RemoveReticleFromPageDrawList(std::string_view normalizedPageName, entt::entity entity);
     /** @brief Synchronizes the active flag of a page entity with the current active-page selection. */
     void SetActiveFlag(std::string_view pageName, bool active);
+    /** @brief Clears the last mutation error after a successful operation. */
+    void ClearLastError() noexcept;
+    /** @brief Stores the latest mutation error. */
+    void SetLastError(SceneErrorCode code, std::string message) noexcept;
 
     /** @brief Authored document currently backing the runtime scene. */
     MfdDocument document_ {};
@@ -369,8 +418,8 @@ private:
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> pageEntities_ {};
     /** @brief Fast lookup from normalized page name to strobe entity. */
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> strobeEntities_ {};
-    /** @brief Fast lookup from page-plus-reticle key to reticle entity. */
-    std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> reticleEntities_ {};
+    /** @brief Fast lookup from typed page-plus-reticle key to reticle entity. */
+    std::unordered_map<ReticleKey, entt::entity, ReticleKeyHash> reticleEntities_ {};
     /** @brief Optional per-page visibility overrides indexed by dynamic template id. */
     std::unordered_map<std::string, bool, TransparentStringHash, TransparentStringEqual> dynamicTemplateVisibility_ {};
     /** @brief Monotonic ordering counter used to place dynamic reticles after authored content. */
@@ -379,5 +428,7 @@ private:
     std::string activePage_ {};
     /** @brief Whole-window display post-process state. */
     WindowDisplayState windowDisplay_ {};
+    /** @brief Last mutation error emitted by runtime update operations. */
+    SceneError lastError_ {};
 };
 } // namespace mfd

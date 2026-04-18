@@ -456,9 +456,13 @@ scene.SetReticlePosition("Radar", "fixed_track_alpha", {0.25f, 0.10f});
 scene.SetReticleRotation("Radar", "fixed_track_alpha", 18.0f);
 scene.SetReticleColor("Radar", "fixed_track_alpha", {0, 255, 0, 255});
 scene.SetReticleThickness("Radar", "fixed_track_alpha", 0.004f);
-scene.SetReticleText("Radar", "fixed_track_alpha", "T01");
-scene.SetReticleLetterSpacing("Radar", "fixed_track_alpha", 0.012f);
+scene.SetReticleText("Radar", "fixed_track_alpha", "label", "T01");
+scene.SetReticleLetterSpacing("Radar", "fixed_track_alpha", "label", 0.012f);
 ```
+
+Prefer the `primitiveId` overloads for text mutations. The shortcut overload
+without `primitiveId` now succeeds only when the target reticle has exactly one
+text (or text-like) primitive.
 
 ### Drive a window remotely
 
@@ -523,6 +527,20 @@ client.UpsertDynamicReticles("Radar", "radar_track", tracks);
 
 `CommandClient` uses compact Protocol Buffers payloads and automatically splits
 oversized batches according to the configured UDP packet size.
+
+Runtime safety guarantees on dynamic upserts and patches:
+
+- upsert updates an existing dynamic reticle only when the incoming id is
+  exactly identical to the stored id
+- dynamic upsert is rejected when the id matches a static reticle on the page
+- invalid floating-point values (`NaN` / `Inf`) are rejected by runtime
+  mutation setters and patch application
+- reticle patches are validated before apply, so invalid patch payloads do not
+  partially mutate runtime state
+- runtime mutation failures can be inspected with `SceneRegistry::LastError()`
+  to avoid silent failure debugging
+- successful global maintenance operations (`ClearAllDynamicReticles`,
+  `ResetToInitialState`) clear previous runtime errors
 
 For a full runtime restore, the client can also request:
 

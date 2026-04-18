@@ -318,6 +318,37 @@ TEST(SceneRegistryTests, UpsertingExistingDynamicReticleKeepsSingleOrderedEntry)
     EXPECT_EQ(matchCount, 1U);
 }
 
+TEST(SceneRegistryTests, UpsertingDynamicReticleRejectsIdentifierChangeOnExistingEntity)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup original = MakeTextReticle("track_alpha");
+    original.transform.position = {0.1f, 0.2f};
+    registry.UpsertDynamicReticle("Radar", original);
+
+    mfd::ReticleGroup changedIdentifier = MakeTextReticle("TRACK_ALPHA");
+    changedIdentifier.transform.position = {-0.7f, 0.9f};
+    registry.UpsertDynamicReticle("Radar", changedIdentifier);
+
+    const auto views = registry.CollectPageReticleViews("Radar");
+    std::size_t matchCount = 0;
+    for (const mfd::ReticleRenderView& view : views)
+    {
+        if (view.group != nullptr && view.group->id == "track_alpha")
+        {
+            ++matchCount;
+            EXPECT_FLOAT_EQ(view.group->transform.position.x, 0.1f);
+            EXPECT_FLOAT_EQ(view.group->transform.position.y, 0.2f);
+        }
+    }
+
+    EXPECT_EQ(matchCount, 1U);
+    EXPECT_FALSE(registry.HasDynamicReticle("Radar", "TRACK_ALPHA"));
+}
+
 TEST(SceneRegistryTests, WindowDisplayPatchClampsBrightnessAndRejectsNonFiniteValues)
 {
     mfd::MfdDocument document;
@@ -421,7 +452,9 @@ TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
     EXPECT_FLOAT_EQ(view->zoom, 1.0f);
 
     EXPECT_TRUE(registry.SetReticleVisible("Radar", "textual", false));
+    EXPECT_FALSE(registry.SetReticlePosition("Radar", "textual", {std::numeric_limits<float>::infinity(), 0.0f}));
     EXPECT_TRUE(registry.SetReticlePosition("Radar", "textual", {0.25f, 0.35f}));
+    EXPECT_FALSE(registry.SetReticleRotation("Radar", "textual", std::numeric_limits<float>::quiet_NaN()));
     EXPECT_TRUE(registry.SetReticleRotation("Radar", "textual", 18.0f));
     EXPECT_TRUE(registry.SetReticleColor("Radar", "textual", {9, 10, 11, 255}));
     EXPECT_FALSE(registry.SetReticleThickness("Radar", "textual", 0.0f));
@@ -432,6 +465,7 @@ TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
     EXPECT_TRUE(registry.SetReticleLetterSpacing("Radar", "textual", 0.015f));
     EXPECT_TRUE(registry.SetReticleLetterSpacing("Radar", "textual", "value", 0.025f));
     EXPECT_FALSE(registry.SetReticlePosition("Radar", "missing", {0.0f, 0.0f}));
+    EXPECT_FALSE(registry.SetStrobePosition("Radar", {std::numeric_limits<float>::quiet_NaN(), 0.0f}));
 
     mfd::ReticlePatch patch;
     patch.visible = true;
@@ -467,6 +501,120 @@ TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
     EXPECT_EQ(value->text, "789");
     EXPECT_FLOAT_EQ(title->letterSpacing, 0.015f);
     EXPECT_FLOAT_EQ(value->letterSpacing, 0.03f);
+}
+
+TEST(SceneRegistryTests, AmbiguousTextMutationRequiresExplicitPrimitiveIdAndReportsError)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+    mfd::SceneRegistry registry(std::move(document));
+
+    EXPECT_FALSE(registry.SetReticleText("Radar", "textual", "AMBIGUOUS"));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::AmbiguousTextTarget);
+
+    EXPECT_TRUE(registry.SetReticleText("Radar", "textual", "value", "EXPLICIT"));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::None);
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    const mfd::ReticleGroup* textual = FindReticle(reticles, "textual");
+    ASSERT_NE(textual, nullptr);
+    const mfd::TextGeometry* value = FindTextGeometry(*textual, "value");
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(value->text, "EXPLICIT");
+}
+
+TEST(SceneRegistryTests, LastErrorReportsValidationAndLookupFailures)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+    mfd::SceneRegistry registry(std::move(document));
+
+    EXPECT_FALSE(registry.SetReticleRotation("Radar", "textual", std::numeric_limits<float>::quiet_NaN()));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::InvalidFloat);
+
+    EXPECT_FALSE(registry.SetReticleColor("Radar", "missing", {255, 0, 0, 255}));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::ReticleNotFound);
+
+    EXPECT_FALSE(registry.SetStrobeActive("UnknownPage", true));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::StrobeNotFound);
+
+    EXPECT_TRUE(registry.SetReticleColor("Radar", "textual", {255, 0, 0, 255}));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::None);
+}
+
+TEST(SceneRegistryTests, LastErrorReportsDynamicRemovalAndClearFailures)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+    mfd::SceneRegistry registry(std::move(document));
+
+    EXPECT_FALSE(registry.RemoveDynamicReticle("Radar", "missing_dynamic"));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::NotDynamicReticle);
+
+    registry.ClearDynamicReticles("UnknownPage");
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::PageNotFound);
+
+    registry.UpsertDynamicReticle("Radar", MakeTextReticle("track_alpha"));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::None);
+
+    EXPECT_TRUE(registry.RemoveDynamicReticle("Radar", "track_alpha"));
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::None);
+}
+
+TEST(SceneRegistryTests, UpsertingDynamicReticleConflictingWithStaticReticleReportsError)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup conflicting = MakeTextReticle("textual");
+    registry.UpsertDynamicReticle("Radar", std::move(conflicting));
+
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::NotDynamicReticle);
+    EXPECT_FALSE(registry.HasDynamicReticle("Radar", "textual"));
+}
+
+TEST(SceneRegistryTests, ClearAllAndResetClearLastErrorState)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+    mfd::SceneRegistry registry(std::move(document));
+
+    registry.ClearDynamicReticles("UnknownPage");
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::PageNotFound);
+
+    registry.ClearAllDynamicReticles();
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::None);
+
+    registry.ClearDynamicReticles("UnknownPage");
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::PageNotFound);
+
+    registry.ResetToInitialState();
+    EXPECT_EQ(registry.LastError().code, mfd::SceneErrorCode::None);
+}
+
+TEST(SceneRegistryTests, ReticlePatchIsAtomicWhenValidationFails)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticlePatch patch;
+    patch.position = mfd::Vec2 {0.25f, 0.35f};
+    patch.texts.emplace("missing_text_primitive", "SHOULD_NOT_APPLY");
+
+    EXPECT_FALSE(registry.ApplyReticlePatch("Radar", "textual", patch));
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    const mfd::ReticleGroup* textual = FindReticle(reticles, "textual");
+    ASSERT_NE(textual, nullptr);
+    EXPECT_FLOAT_EQ(textual->transform.position.x, 0.0f);
+    EXPECT_FLOAT_EQ(textual->transform.position.y, 0.0f);
+
+    const mfd::TextGeometry* title = FindTextGeometry(*textual, "title");
+    ASSERT_NE(title, nullptr);
+    EXPECT_EQ(title->text, "INIT");
 }
 
 TEST(SceneRegistryTests, DynamicReticlesSupportLifecyclePatchingAndOrdering)
