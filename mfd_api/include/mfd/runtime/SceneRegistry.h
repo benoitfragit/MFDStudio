@@ -26,7 +26,6 @@ namespace mfd
 {
 struct ReticlePatch;
 struct WindowDisplayPatch;
-struct UserCommand;
 
 /**
  * @brief Lightweight description of one page exposed by the runtime scene.
