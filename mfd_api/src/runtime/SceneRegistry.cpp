@@ -56,6 +56,59 @@ bool IsInsideCaptureArea(const Vec2& strobePosition,
     return false;
 }
 
+/**
+ * @brief Returns `true` when the value is finite.
+ */
+bool IsFinite(const float value) noexcept
+{
+    return std::isfinite(value);
+}
+
+/**
+ * @brief Returns `true` when both vector coordinates are finite.
+ */
+bool IsFinite(const Vec2& value) noexcept
+{
+    return IsFinite(value.x) && IsFinite(value.y);
+}
+
+/**
+ * @brief Returns whether a reticle patch payload is numerically valid.
+ */
+Result ValidateReticlePatchPayload(const ReticlePatch& patch)
+{
+    if (patch.position.has_value() && !IsFinite(*patch.position))
+    {
+        return Result::Error("Invalid reticle patch: position must be finite");
+    }
+
+    if (patch.rotationDegrees.has_value() && !IsFinite(*patch.rotationDegrees))
+    {
+        return Result::Error("Invalid reticle patch: rotationDegrees must be finite");
+    }
+
+    if (patch.thickness.has_value() && (!IsFinite(*patch.thickness) || *patch.thickness <= 0.0f))
+    {
+        return Result::Error("Invalid reticle patch: thickness must be finite and > 0");
+    }
+
+    if (patch.letterSpacing.has_value() && !IsFinite(*patch.letterSpacing))
+    {
+        return Result::Error("Invalid reticle patch: letterSpacing must be finite");
+    }
+
+    for (const auto& [primitiveId, spacing] : patch.letterSpacings)
+    {
+        (void)primitiveId;
+        if (!IsFinite(spacing))
+        {
+            return Result::Error("Invalid reticle patch: letterSpacings values must be finite");
+        }
+    }
+
+    return Result::Ok();
+}
+
 bool IsEmptyPatch(const ReticlePatch& patch) noexcept
 {
     return !patch.visible.has_value() &&
@@ -129,14 +182,21 @@ bool ApplyPatchToReticleGroup(ReticleGroup& reticle, const ReticlePatch& patch)
 
     if (patch.text.has_value())
     {
+        TextGeometry* singleTextGeometry = nullptr;
+        std::size_t textCount = 0;
         for (auto& primitive : reticle.primitives)
         {
             if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))
             {
-                geometry->text = *patch.text;
-                applied = true;
-                break;
+                singleTextGeometry = geometry;
+                ++textCount;
             }
+        }
+
+        if (textCount == 1U && singleTextGeometry != nullptr)
+        {
+            singleTextGeometry->text = *patch.text;
+            applied = true;
         }
     }
 
@@ -147,14 +207,21 @@ bool ApplyPatchToReticleGroup(ReticleGroup& reticle, const ReticlePatch& patch)
 
     if (patch.letterSpacing.has_value())
     {
+        float* singleLetterSpacing = nullptr;
+        std::size_t textLikeCount = 0;
         for (auto& primitive : reticle.primitives)
         {
             if (float* letterSpacing = FindTextLikeLetterSpacing(primitive))
             {
-                *letterSpacing = *patch.letterSpacing;
-                applied = true;
-                break;
+                singleLetterSpacing = letterSpacing;
+                ++textLikeCount;
             }
+        }
+
+        if (textLikeCount == 1U && singleLetterSpacing != nullptr)
+        {
+            *singleLetterSpacing = *patch.letterSpacing;
+            applied = true;
         }
     }
 
@@ -910,13 +977,21 @@ bool SceneRegistry::SetReticlePosition(const std::string_view pageName,
                                        const std::string_view reticleId,
                                        const Vec2 position) noexcept
 {
+    if (!IsFinite(position))
+    {
+        lastError_ = "SetReticlePosition rejected non-finite position";
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
     {
         reticle->group.transform.position = position;
+        lastError_.clear();
         return true;
     }
 
+    lastError_ = "SetReticlePosition target reticle not found";
     return false;
 }
 
@@ -924,13 +999,21 @@ bool SceneRegistry::SetReticleRotation(const std::string_view pageName,
                                        const std::string_view reticleId,
                                        const float rotationDegrees) noexcept
 {
+    if (!IsFinite(rotationDegrees))
+    {
+        lastError_ = "SetReticleRotation rejected non-finite rotation";
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
     {
         reticle->group.transform.rotationDegrees = rotationDegrees;
+        lastError_.clear();
         return true;
     }
 
+    lastError_ = "SetReticleRotation target reticle not found";
     return false;
 }
 
@@ -952,8 +1035,9 @@ bool SceneRegistry::SetReticleThickness(const std::string_view pageName,
                                         const std::string_view reticleId,
                                         const float thickness) noexcept
 {
-    if (!std::isfinite(thickness) || thickness <= 0.0f)
+    if (!IsFinite(thickness) || thickness <= 0.0f)
     {
+        lastError_ = "SetReticleThickness rejected invalid thickness";
         return false;
     }
 
@@ -961,9 +1045,11 @@ bool SceneRegistry::SetReticleThickness(const std::string_view pageName,
     if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
     {
         reticle->group.overrides.thickness = thickness;
+        lastError_.clear();
         return true;
     }
 
+    lastError_ = "SetReticleThickness target reticle not found";
     return false;
 }
 
@@ -975,18 +1061,30 @@ bool SceneRegistry::SetReticleText(const std::string_view pageName,
     ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
     if (reticle == nullptr)
     {
+        lastError_ = "SetReticleText target reticle not found";
         return false;
     }
 
+    TextGeometry* singleTextGeometry = nullptr;
+    std::size_t textCount = 0;
     for (auto& primitive : reticle->group.primitives)
     {
         if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))
         {
-            geometry->text = std::move(value);
-            return true;
+            singleTextGeometry = geometry;
+            ++textCount;
         }
     }
 
+    if (textCount == 1U && singleTextGeometry != nullptr)
+    {
+        singleTextGeometry->text = std::move(value);
+        lastError_.clear();
+        return true;
+    }
+
+    lastError_ = textCount == 0U ? "SetReticleText found no text primitive"
+                                 : "SetReticleText requires explicit primitive id when multiple text primitives exist";
     return false;
 }
 
@@ -997,15 +1095,24 @@ bool SceneRegistry::SetReticleText(const std::string_view pageName,
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
     ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
-    return reticle != nullptr && SetTextPrimitive(reticle->group, primitiveId, std::move(value));
+    if (reticle == nullptr)
+    {
+        lastError_ = "SetReticleText target reticle not found";
+        return false;
+    }
+
+    const bool updated = SetTextPrimitive(reticle->group, primitiveId, std::move(value));
+    lastError_ = updated ? std::string {} : "SetReticleText primitive id not found or not text";
+    return updated;
 }
 
 bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
                                             const std::string_view reticleId,
                                             const float letterSpacing) noexcept
 {
-    if (!std::isfinite(letterSpacing))
+    if (!IsFinite(letterSpacing))
     {
+        lastError_ = "SetReticleLetterSpacing rejected non-finite value";
         return false;
     }
 
@@ -1013,18 +1120,31 @@ bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
     ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
     if (reticle == nullptr)
     {
+        lastError_ = "SetReticleLetterSpacing target reticle not found";
         return false;
     }
 
+    float* singleLetterSpacing = nullptr;
+    std::size_t textLikeCount = 0;
     for (auto& primitive : reticle->group.primitives)
     {
         if (float* primitiveLetterSpacing = FindTextLikeLetterSpacing(primitive))
         {
-            *primitiveLetterSpacing = letterSpacing;
-            return true;
+            singleLetterSpacing = primitiveLetterSpacing;
+            ++textLikeCount;
         }
     }
 
+    if (textLikeCount == 1U && singleLetterSpacing != nullptr)
+    {
+        *singleLetterSpacing = letterSpacing;
+        lastError_.clear();
+        return true;
+    }
+
+    lastError_ = textLikeCount == 0U
+                     ? "SetReticleLetterSpacing found no text-like primitive"
+                     : "SetReticleLetterSpacing requires explicit primitive id when multiple text-like primitives exist";
     return false;
 }
 
@@ -1033,42 +1153,68 @@ bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
                                             const std::string_view primitiveId,
                                             const float letterSpacing) noexcept
 {
-    if (!std::isfinite(letterSpacing))
+    if (!IsFinite(letterSpacing))
     {
+        lastError_ = "SetReticleLetterSpacing rejected non-finite value";
         return false;
     }
 
     const std::string normalizedPageName = NormalizePageName(pageName);
     ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
-    return reticle != nullptr && SetTextPrimitiveLetterSpacing(reticle->group, primitiveId, letterSpacing);
+    if (reticle == nullptr)
+    {
+        lastError_ = "SetReticleLetterSpacing target reticle not found";
+        return false;
+    }
+
+    const bool updated = SetTextPrimitiveLetterSpacing(reticle->group, primitiveId, letterSpacing);
+    lastError_ = updated ? std::string {} : "SetReticleLetterSpacing primitive id not found or not text-like";
+    return updated;
 }
 
 bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
                                       const std::string_view reticleId,
                                       const ReticlePatch& patch) noexcept
 {
+    if (const Result validation = ValidateReticlePatchPayload(patch); !validation.ok)
+    {
+        lastError_ = validation.error;
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
     if (page == nullptr || reticle == nullptr)
     {
+        lastError_ = "ApplyReticlePatch target page or reticle not found";
         return false;
     }
 
     const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Invalid)
     {
+        lastError_ = "ApplyReticlePatch invalid blink selection";
         return false;
     }
 
-    bool applied = ApplyPatchToReticleGroup(reticle->group, patch);
+    ReticleGroup candidate = reticle->group;
+    bool applied = ApplyPatchToReticleGroup(candidate, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Applied)
     {
-        reticle->group.blink = blinkResult.blink;
+        candidate.blink = blinkResult.blink;
         applied = true;
     }
 
-    return applied || IsEmptyPatch(patch);
+    if (!applied && !IsEmptyPatch(patch))
+    {
+        lastError_ = "ApplyReticlePatch rejected ambiguous or invalid primitive targeting";
+        return false;
+    }
+
+    reticle->group = std::move(candidate);
+    lastError_.clear();
+    return true;
 }
 
 bool SceneRegistry::HasDynamicReticle(const std::string_view pageName, const std::string_view reticleId) const noexcept
@@ -1082,34 +1228,52 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
                                              const std::string_view reticleId,
                                              const ReticlePatch& patch) noexcept
 {
+    if (const Result validation = ValidateReticlePatchPayload(patch); !validation.ok)
+    {
+        lastError_ = validation.error;
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
     if (page == nullptr || entity == entt::null || !registry_.all_of<DynamicTag>(entity))
     {
+        lastError_ = "ApplyDynamicReticlePatch target page or dynamic reticle not found";
         return false;
     }
 
     ReticleComponent* reticle = registry_.try_get<ReticleComponent>(entity);
     if (reticle == nullptr)
     {
+        lastError_ = "ApplyDynamicReticlePatch missing reticle component";
         return false;
     }
 
     const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Invalid)
     {
+        lastError_ = "ApplyDynamicReticlePatch invalid blink selection";
         return false;
     }
 
-    bool applied = ApplyPatchToReticleGroup(reticle->group, patch);
+    ReticleGroup candidate = reticle->group;
+    bool applied = ApplyPatchToReticleGroup(candidate, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Applied)
     {
-        reticle->group.blink = blinkResult.blink;
+        candidate.blink = blinkResult.blink;
         applied = true;
     }
 
-    return applied || IsEmptyPatch(patch);
+    if (!applied && !IsEmptyPatch(patch))
+    {
+        lastError_ = "ApplyDynamicReticlePatch rejected ambiguous or invalid primitive targeting";
+        return false;
+    }
+
+    reticle->group = std::move(candidate);
+    lastError_.clear();
+    return true;
 }
 
 bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
@@ -1120,10 +1284,11 @@ bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
     const std::string normalizedTemplateId = NormalizePageName(templateId);
     if (!HasNormalizedPage(normalizedPageName) || normalizedTemplateId.empty())
     {
+        lastError_ = "SetDynamicReticleSetVisible invalid page or template id";
         return false;
     }
 
-    const std::string key = MakeDynamicTemplateLookupKey(normalizedPageName, normalizedTemplateId);
+    const DynamicTemplateKey key = MakeDynamicTemplateKey(normalizedPageName, normalizedTemplateId);
     if (visible)
     {
         dynamicTemplateVisibility_.erase(key);
@@ -1133,6 +1298,7 @@ bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
         dynamicTemplateVisibility_[key] = false;
     }
 
+    lastError_.clear();
     return true;
 }
 
@@ -1156,10 +1322,17 @@ bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool 
 
 bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec2 position) noexcept
 {
+    if (!IsFinite(position))
+    {
+        lastError_ = "SetStrobePosition rejected non-finite position";
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
     if (iterator == strobeEntities_.end())
     {
+        lastError_ = "SetStrobePosition page has no strobe";
         return false;
     }
 
@@ -1212,9 +1385,11 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
         }
 
         reticle->group.transform.position = resolvedPosition;
+        lastError_.clear();
         return true;
     }
 
+    lastError_ = "SetStrobePosition missing strobe reticle component";
     return false;
 }
 
@@ -1317,8 +1492,10 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
 void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, ReticleGroup reticle)
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    if (!HasNormalizedPage(normalizedPageName) || NormalizeReticleId(reticle.id).empty())
+    if (!HasNormalizedPage(normalizedPageName) || NormalizeReticleId(reticle.id).empty() ||
+        !IsFinite(reticle.transform.position) || !IsFinite(reticle.transform.rotationDegrees))
     {
+        lastError_ = "UpsertDynamicReticle rejected invalid page, id or non-finite transform";
         return;
     }
 
@@ -1334,7 +1511,9 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
         {
             if (auto* component = registry_.try_get<ReticleComponent>(existingEntity))
             {
+                reticle.id = component->group.id;
                 component->group = std::move(reticle);
+                lastError_.clear();
             }
         }
         return;
@@ -1346,6 +1525,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
     registry_.emplace<DynamicTag>(entity);
     IndexReticle(normalizedPageName, registry_.get<ReticleComponent>(entity).group, entity);
     InsertReticleIntoPageDrawList(normalizedPageName, entity);
+    lastError_.clear();
 }
 
 bool SceneRegistry::RemoveDynamicReticle(const std::string_view pageName, const std::string_view reticleId)
@@ -1423,10 +1603,15 @@ const entt::registry& SceneRegistry::Raw() const noexcept
     return registry_;
 }
 
+const std::string& SceneRegistry::LastError() const noexcept
+{
+    return lastError_;
+}
+
 entt::entity SceneRegistry::FindReticleEntity(const std::string_view normalizedPageName,
                                               const std::string_view reticleId) const noexcept
 {
-    const auto iterator = reticleEntities_.find(MakeReticleLookupKey(normalizedPageName, reticleId));
+    const auto iterator = reticleEntities_.find(MakeReticleKey(normalizedPageName, reticleId));
     return iterator == reticleEntities_.end() ? entt::null : iterator->second;
 }
 
@@ -1456,33 +1641,28 @@ const SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_vi
     return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
 }
 
-std::string SceneRegistry::MakeReticleLookupKey(const std::string_view normalizedPageName,
-                                                const std::string_view reticleId) const
+ReticleKey SceneRegistry::MakeReticleKey(const std::string_view normalizedPageName,
+                                         const std::string_view reticleId) const
 {
-    std::string key;
-    key.reserve(normalizedPageName.size() + reticleId.size() + 1U);
-    key.append(normalizedPageName);
-    key.push_back(':');
-    key.append(NormalizeReticleId(reticleId));
-    return key;
+    return ReticleKey {std::string(normalizedPageName), NormalizeReticleId(reticleId)};
 }
 
 void SceneRegistry::IndexReticle(const std::string_view normalizedPageName,
                                  const ReticleGroup& reticle,
                                  const entt::entity entity)
 {
-    reticleEntities_.insert_or_assign(MakeReticleLookupKey(normalizedPageName, reticle.id), entity);
+    reticleEntities_.insert_or_assign(MakeReticleKey(normalizedPageName, reticle.id), entity);
 }
 
 void SceneRegistry::RemoveReticleIndex(const std::string_view normalizedPageName, const std::string_view reticleId)
 {
-    reticleEntities_.erase(MakeReticleLookupKey(normalizedPageName, reticleId));
+    reticleEntities_.erase(MakeReticleKey(normalizedPageName, reticleId));
 }
 
-std::string SceneRegistry::MakeDynamicTemplateLookupKey(const std::string_view normalizedPageName,
-                                                        const std::string_view templateId) const
+SceneRegistry::DynamicTemplateKey SceneRegistry::MakeDynamicTemplateKey(const std::string_view normalizedPageName,
+                                                                        const std::string_view templateId) const
 {
-    return std::string(normalizedPageName) + '\x1F' + std::string(templateId);
+    return DynamicTemplateKey {std::string(normalizedPageName), std::string(templateId)};
 }
 
 bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPageName,
@@ -1494,8 +1674,7 @@ bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPa
         return true;
     }
 
-    const auto iterator = dynamicTemplateVisibility_.find(
-        MakeDynamicTemplateLookupKey(normalizedPageName, normalizedTemplateId));
+    const auto iterator = dynamicTemplateVisibility_.find(MakeDynamicTemplateKey(normalizedPageName, normalizedTemplateId));
     if (iterator == dynamicTemplateVisibility_.end())
     {
         return true;

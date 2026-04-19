@@ -370,6 +370,46 @@ TEST(SceneRegistryTests, WindowDisplayPatchSerializationRoundTripsDisabledFlag)
     EXPECT_TRUE(*update->patch.disabled);
 }
 
+TEST(SceneRegistryTests, ReticlePatchRejectsNonFiniteValuesAtomically)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+    ASSERT_TRUE(registry.SetReticlePosition("Radar", "textual", {0.2f, 0.3f}));
+
+    mfd::ReticlePatch patch;
+    patch.position = mfd::Vec2 {0.9f, -0.8f};
+    patch.rotationDegrees = std::numeric_limits<float>::infinity();
+    patch.texts.emplace("value", "SHOULD_NOT_APPLY");
+
+    EXPECT_FALSE(registry.ApplyReticlePatch("Radar", "textual", patch));
+    EXPECT_FALSE(registry.LastError().empty());
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    const mfd::ReticleGroup* textual = FindReticle(reticles, "textual");
+    ASSERT_NE(textual, nullptr);
+    EXPECT_FLOAT_EQ(textual->transform.position.x, 0.2f);
+    EXPECT_FLOAT_EQ(textual->transform.position.y, 0.3f);
+    const mfd::TextGeometry* value = FindTextGeometry(*textual, "value");
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(value->text, "0");
+}
+
+TEST(SceneRegistryTests, UpsertDynamicReticleRejectsNonFiniteTransform)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+    mfd::ReticleGroup dynamic = MakeTextReticle("track_invalid");
+    dynamic.transform.position = {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+
+    registry.UpsertDynamicReticle("Radar", std::move(dynamic));
+    EXPECT_FALSE(registry.HasDynamicReticle("Radar", "track_invalid"));
+    EXPECT_FALSE(registry.LastError().empty());
+}
+
 TEST(SceneRegistryTests, DynamicTemplateVisibilityCommandSerializationRoundTrips)
 {
     const mfd::UserCommand command = mfd::SetDynamicReticleSetVisibilityCommand {
@@ -426,10 +466,11 @@ TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
     EXPECT_TRUE(registry.SetReticleColor("Radar", "textual", {9, 10, 11, 255}));
     EXPECT_FALSE(registry.SetReticleThickness("Radar", "textual", 0.0f));
     EXPECT_TRUE(registry.SetReticleThickness("Radar", "textual", 0.012f));
-    EXPECT_TRUE(registry.SetReticleText("Radar", "textual", "PRIMARY"));
+    EXPECT_FALSE(registry.SetReticleText("Radar", "textual", "PRIMARY"));
     EXPECT_TRUE(registry.SetReticleText("Radar", "textual", "value", "456"));
     EXPECT_FALSE(registry.SetReticleLetterSpacing("Radar", "textual", std::numeric_limits<float>::infinity()));
-    EXPECT_TRUE(registry.SetReticleLetterSpacing("Radar", "textual", 0.015f));
+    EXPECT_FALSE(registry.SetReticleLetterSpacing("Radar", "textual", 0.015f));
+    EXPECT_TRUE(registry.SetReticleLetterSpacing("Radar", "textual", "title", 0.015f));
     EXPECT_TRUE(registry.SetReticleLetterSpacing("Radar", "textual", "value", 0.025f));
     EXPECT_FALSE(registry.SetReticlePosition("Radar", "missing", {0.0f, 0.0f}));
 

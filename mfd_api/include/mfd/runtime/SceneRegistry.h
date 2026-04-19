@@ -13,9 +13,11 @@
 #include <entt/entt.hpp>
 
 #include <optional>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "mfd/MfdExport.h"
@@ -26,6 +28,39 @@ namespace mfd
 {
 struct ReticlePatch;
 struct WindowDisplayPatch;
+
+/**
+ * @brief Structured result returned by validated runtime mutations.
+ */
+struct Result
+{
+    /** @brief Indicates whether the operation succeeded. */
+    bool ok = true;
+    /** @brief Human-readable error message when `ok == false`. */
+    std::string error {};
+
+    /** @brief Creates a successful result. */
+    static Result Ok() { return {}; }
+    /** @brief Creates a failed result with an explanatory message. */
+    static Result Error(std::string message) { return Result {false, std::move(message)}; }
+};
+
+/**
+ * @brief Strongly-typed reticle lookup key.
+ */
+struct ReticleKey
+{
+    /** @brief Normalized page name. */
+    std::string page;
+    /** @brief Normalized reticle identifier. */
+    std::string id;
+
+    /** @brief Equality operator used by hashed containers. */
+    bool operator==(const ReticleKey& other) const noexcept
+    {
+        return page == other.page && id == other.id;
+    }
+};
 
 /**
  * @brief Lightweight description of one page exposed by the runtime scene.
@@ -299,6 +334,8 @@ public:
     entt::registry& Raw() noexcept;
     /** @brief Returns the underlying EnTT registry. */
     const entt::registry& Raw() const noexcept;
+    /** @brief Returns the last structured runtime error emitted by a mutation command. */
+    const std::string& LastError() const noexcept;
 
 private:
     friend class CommandProcessor;
@@ -334,8 +371,8 @@ private:
     std::vector<ReticleRenderView> CollectPageReticleViewsByKey(std::string_view pageName) const;
     /** @brief Collects reticle pointers for one normalized page key without copying. */
     std::vector<const ReticleGroup*> CollectPageReticlePointersByKey(std::string_view pageName) const;
-    /** @brief Builds the composite lookup key used by the reticle entity index. */
-    std::string MakeReticleLookupKey(std::string_view normalizedPageName, std::string_view reticleId) const;
+    /** @brief Builds a strongly typed reticle lookup key used by the reticle entity index. */
+    ReticleKey MakeReticleKey(std::string_view normalizedPageName, std::string_view reticleId) const;
     /** @brief Finds the entity of one static or dynamic reticle. */
     entt::entity FindReticleEntity(std::string_view normalizedPageName, std::string_view reticleId) const noexcept;
     /** @brief Returns mutable access to one reticle component. */
@@ -350,8 +387,21 @@ private:
     void IndexReticle(std::string_view normalizedPageName, const ReticleGroup& reticle, entt::entity entity);
     /** @brief Removes one reticle entry from the fast lookup map. */
     void RemoveReticleIndex(std::string_view normalizedPageName, std::string_view reticleId);
-    /** @brief Builds the composite lookup key used by dynamic template visibility overrides. */
-    std::string MakeDynamicTemplateLookupKey(std::string_view normalizedPageName, std::string_view templateId) const;
+    /** @brief Strong key identifying one dynamic template visibility override. */
+    struct DynamicTemplateKey
+    {
+        /** @brief Normalized page key. */
+        std::string page;
+        /** @brief Normalized template id key. */
+        std::string templateId;
+        /** @brief Equality operator used by hashed containers. */
+        bool operator==(const DynamicTemplateKey& other) const noexcept
+        {
+            return page == other.page && templateId == other.templateId;
+        }
+    };
+    /** @brief Builds the typed lookup key used by dynamic template visibility overrides. */
+    DynamicTemplateKey MakeDynamicTemplateKey(std::string_view normalizedPageName, std::string_view templateId) const;
     /** @brief Returns whether one dynamic template set is currently visible on one page. */
     bool IsDynamicTemplateVisible(std::string_view normalizedPageName, std::string_view templateId) const noexcept;
     /** @brief Inserts one reticle entity into the ordered draw list of a page. */
@@ -369,15 +419,39 @@ private:
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> pageEntities_ {};
     /** @brief Fast lookup from normalized page name to strobe entity. */
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> strobeEntities_ {};
-    /** @brief Fast lookup from page-plus-reticle key to reticle entity. */
-    std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> reticleEntities_ {};
-    /** @brief Optional per-page visibility overrides indexed by dynamic template id. */
-    std::unordered_map<std::string, bool, TransparentStringHash, TransparentStringEqual> dynamicTemplateVisibility_ {};
+    /** @brief Hash helper for `ReticleKey`. */
+    struct ReticleKeyHash
+    {
+        /** @brief Hashes one `ReticleKey`. */
+        std::size_t operator()(const ReticleKey& key) const noexcept
+        {
+            const std::size_t pageHash = std::hash<std::string> {}(key.page);
+            const std::size_t idHash = std::hash<std::string> {}(key.id);
+            return pageHash ^ (idHash << 1U);
+        }
+    };
+    /** @brief Hash helper for `DynamicTemplateKey`. */
+    struct DynamicTemplateKeyHash
+    {
+        /** @brief Hashes one `DynamicTemplateKey`. */
+        std::size_t operator()(const DynamicTemplateKey& key) const noexcept
+        {
+            const std::size_t pageHash = std::hash<std::string> {}(key.page);
+            const std::size_t templateHash = std::hash<std::string> {}(key.templateId);
+            return pageHash ^ (templateHash << 1U);
+        }
+    };
+    /** @brief Fast lookup from page-plus-reticle typed key to reticle entity. */
+    std::unordered_map<ReticleKey, entt::entity, ReticleKeyHash> reticleEntities_ {};
+    /** @brief Optional per-page visibility overrides indexed by typed dynamic-template key. */
+    std::unordered_map<DynamicTemplateKey, bool, DynamicTemplateKeyHash> dynamicTemplateVisibility_ {};
     /** @brief Monotonic ordering counter used to place dynamic reticles after authored content. */
     std::size_t nextDynamicOrder_ = 10000;
     /** @brief Normalized name of the currently active page. */
     std::string activePage_ {};
     /** @brief Whole-window display post-process state. */
     WindowDisplayState windowDisplay_ {};
+    /** @brief Most recent structured error produced by a mutating command. */
+    std::string lastError_ {};
 };
 } // namespace mfd

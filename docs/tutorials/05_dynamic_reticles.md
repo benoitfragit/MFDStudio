@@ -43,7 +43,7 @@ patch.position = mfd::Vec2 {0.25f, 0.10f};
 patch.rotationDegrees = 15.0f;
 patch.color = mfd::ColorRgba {77, 224, 255, 255};
 patch.thickness = 0.004f;
-patch.text = std::string {"T42"};
+patch.texts.emplace("label", "T42"); // explicit primitive target (recommended)
 
 client.UpsertDynamicReticle("Radar", "track_42", "radar_track", patch);
 ```
@@ -83,6 +83,11 @@ client.UpsertDynamicReticles("Radar", "radar_track", updates);
 ```
 
 `CommandClient` automatically splits oversized UDP payloads when needed.
+
+Runtime validation rejects non-finite values (`NaN`/`INF`) for dynamic
+positions, rotations and patch numeric fields. Use `SceneRegistry::LastError()`
+on runtime-side integrations to retrieve the structured reason when a command is
+rejected.
 
 If the target page declares several blink types with the same effective
 duration, those dynamic reticles blink in phase automatically.

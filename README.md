@@ -101,6 +101,8 @@ With the toolkit you can:
 - activate a page by name
 - black out the whole rendered window without clearing runtime state
 - update reticle visibility, position, rotation, color, thickness, text, and letter spacing
+- reject non-finite runtime inputs (`NaN`/`INF`) on reticle/strobe numeric updates
+- retrieve structured runtime mutation errors with `SceneRegistry::LastError()`
 - declare page-local blink types and switch reticles between synchronized blink groups
 - add, update, and remove dynamic reticles
 - control an optional page strobe
