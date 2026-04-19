@@ -112,6 +112,66 @@ With the toolkit you can:
 
 ## High-Level Architecture
 
+This project is organized as a set of runtime/editor/networking responsibilities
+that should remain explicitly separated.
+
+### Runtime State Boundaries (Must Stay Separate)
+
+The architecture relies on three distinct state domains:
+
+1. **DocumentModel (immutable)**
+   - source of truth loaded from JSON assets
+   - includes window/page/reticle authoring definitions
+   - not mutated by live runtime commands
+
+2. **RuntimeState (mutable)**
+   - live execution state applied frame-by-frame
+   - page activation, dynamic reticles, strobe, view, display state
+   - owned by the runtime/renderer thread
+
+3. **EditorState (UI-only)**
+   - current selection, inspectors, transient UI interactions
+   - should not directly mutate renderer internals
+   - sends explicit commands to runtime/document services
+
+### Module Responsibilities
+
+The intended module split is:
+
+- `mfd_model`
+  - pure data model + validation
+  - no rendering, no network I/O
+- `mfd_runtime`
+  - scene runtime orchestration and command execution
+  - `SceneRegistry` and runtime mutation logic
+- `mfd_render`
+  - raylib/OpenGL rendering only
+- `mfd_transport`
+  - UDP/protobuf command/feedback transport
+- `mfd_codegen`
+  - generated client APIs from JSON window model
+- `mfd_editor` (application layer)
+  - ImGui UI and editor workflows only
+
+`SceneRegistry` stays as a façade and internally delegates to focused
+submodules (`ScenePages`, `SceneReticles`, `ScenePatch`, `SceneStrobe`) to
+reduce coupling.
+
+### Runtime Mutation Contract
+
+Every runtime mutation should follow this deterministic pipeline:
+
+1. **Command**: transport/editor emits typed command intent
+2. **Validate**: reject invalid payloads (`NaN`/`INF`, unknown targets, etc.)
+3. **Apply**: commit atomically, or reject entirely
+
+Invariants:
+
+- non-finite numeric values are rejected
+- patches are atomic (no partial commit)
+- dynamic reticle identity stays stable on upsert
+- runtime rejection reason is observable with `SceneRegistry::LastError()`
+
 ```mermaid
 flowchart LR
     A[Window JSON] --> B[JsonLoader]
@@ -140,6 +200,20 @@ Read this as:
 - the renderer draws only the active page
 - strobe feedback can go back to the client without blocking rendering
 - the framebuffer can be captured as `RGBA32`
+
+### Public API vs Internal Runtime Details
+
+Public API should expose intent-level operations (`SetReticlePosition`,
+`ApplyReticlePatch`, `UpsertDynamicReticle`, etc.) and avoid leaking internal
+indexing/layout structures.
+
+Internal implementation details such as:
+
+- EnTT entities/components
+- typed runtime index maps (`ReticleKey`, dynamic template keys)
+- submodule delegation internals
+
+must remain private to preserve API stability and refactor freedom.
 
 ## Threading Model
 
