@@ -39,10 +39,38 @@ struct WindowUdpCommandTransport
 /**
  * @brief Optional command transports exposed by a window.
  */
+struct WindowShmCommandTransport
+{
+    /** @brief Enables or disables SHM transport. */
+    bool enabled = false;
+    /** @brief Communication mode token, expected value: "shm". */
+    std::string type = "shm";
+    /** @brief Shared memory name used for Client -> MFD packet flow. */
+    std::string inMemoryName;
+    /** @brief CanWrite event name used for Client -> MFD packet flow. */
+    std::string inCanWriteEventName;
+    /** @brief HasData event name used for Client -> MFD packet flow. */
+    std::string inHasDataEventName;
+    /** @brief Shared memory name used for MFD -> Client packet flow. */
+    std::string outMemoryName;
+    /** @brief CanWrite event name used for MFD -> Client packet flow. */
+    std::string outCanWriteEventName;
+    /** @brief HasData event name used for MFD -> Client packet flow. */
+    std::string outHasDataEventName;
+    /** @brief Timeout in milliseconds used by WaitForSingleObject operations. */
+    std::uint32_t timeoutMs = 5U;
+    /** @brief Shared-library path used to load the MFD-side SHM adapter plugin. */
+    std::string pluginPath;
+    /** @brief Symbol exported by the plugin to create the adapter instance. */
+    std::string factorySymbol;
+};
+
 struct WindowCommandTransportConfig
 {
     /** @brief Optional UDP command transport settings. */
     std::optional<WindowUdpCommandTransport> udp;
+    /** @brief Optional SHM command transport settings. */
+    std::optional<WindowShmCommandTransport> shm;
 };
 
 /**
@@ -72,4 +100,13 @@ MFD_API std::unique_ptr<IExchangeChannel> CreateCommandReceiverChannel(const Win
  * @return Client-side exchange channel, or `nullptr` if UDP is unavailable.
  */
 MFD_API std::unique_ptr<IExchangeChannel> CreateCommandClientChannel(const WindowCommandTransportConfig& config);
+/**
+ * @brief Creates a receiver channel from SHM mono-slot settings.
+ */
+MFD_API std::unique_ptr<IExchangeChannel> CreateCommandReceiverChannel(const WindowShmCommandTransport& config);
+
+/**
+ * @brief Creates a client channel from SHM mono-slot settings.
+ */
+MFD_API std::unique_ptr<IExchangeChannel> CreateCommandClientChannel(const WindowShmCommandTransport& config);
 } // namespace mfd

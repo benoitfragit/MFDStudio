@@ -26,7 +26,7 @@ namespace mfd
 /**
  * @brief High-level client API used to send user commands to a running window.
  *
- * @note `CommandClient` uses the UDP command transport configured by the target
+ * @note `CommandClient` uses the selected command transport (UDP or SHM) configured by the target
  * window JSON.
  */
 class MFD_API CommandClient

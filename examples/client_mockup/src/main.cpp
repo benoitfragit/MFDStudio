@@ -1013,10 +1013,11 @@ void MockupApplication::RecreateClient()
     realtimePublisher_.reset();
     client_.reset();
 
-    if (!loaded_.window.commandTransports.udp.has_value() ||
-        !loaded_.window.commandTransports.udp->enabled)
+    const bool hasUdp = loaded_.window.commandTransports.udp.has_value() && loaded_.window.commandTransports.udp->enabled;
+    const bool hasShm = loaded_.window.commandTransports.shm.has_value() && loaded_.window.commandTransports.shm->enabled;
+    if (!hasUdp && !hasShm)
     {
-        SetStatus("No UDP command transport is configured in the selected window JSON.", true);
+        SetStatus("No command transport (UDP/SHM) is configured in the selected window JSON.", true);
         return;
     }
 
@@ -1026,7 +1027,7 @@ void MockupApplication::RecreateClient()
     {
         const std::string error =
             client_ == nullptr ? "Unable to create the command client" : client_->LastError();
-        SetStatus("UDP command transport unavailable: " + error, true);
+        SetStatus("Command transport unavailable: " + error, true);
         return;
     }
 

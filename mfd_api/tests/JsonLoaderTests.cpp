@@ -856,3 +856,58 @@ TEST(JsonLoaderTests, LoadDocumentRejectsBezierWithAmbiguousPointFields)
     mfd::JsonLoader loader;
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
+
+TEST(JsonLoaderTests, LoadWindowConfigurationParsesShmCommandTransport)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path windowFile = workspace.Path() / "window_shm.json";
+    const std::filesystem::path pageFile = workspace.Path() / "page.json";
+
+    WriteTextFile(pageFile,
+                  R"json({
+  "name": "Main"
+})json");
+
+    WriteTextFile(windowFile,
+                  R"json({
+  "commands": {
+    "shm": {
+      "enabled": true,
+      "type": "shm",
+      "inMemoryName": "MFD_CMD_IN",
+      "inCanWriteEventName": "MFD_CMD_IN_CANWRITE",
+      "inHasDataEventName": "MFD_CMD_IN_HASDATA",
+      "outMemoryName": "MFD_CMD_OUT",
+      "outCanWriteEventName": "MFD_CMD_OUT_CANWRITE",
+      "outHasDataEventName": "MFD_CMD_OUT_HASDATA",
+      "timeoutMs": 7,
+      "pluginPath": "adapter_plugin.dll",
+      "factorySymbol": "CreateMfdShmAdapterPlugin"
+    }
+  },
+  "pages": ["page.json"]
+})json");
+
+    mfd::JsonLoader loader;
+    const auto loaded = loader.LoadWindowConfiguration(windowFile);
+
+    ASSERT_TRUE(loaded.window.commandTransports.shm.has_value());
+    EXPECT_EQ(loaded.window.commandTransports.shm->type, "shm");
+    EXPECT_EQ(loaded.window.commandTransports.shm->inMemoryName, "MFD_CMD_IN");
+    EXPECT_EQ(loaded.window.commandTransports.shm->timeoutMs, 7U);
+    EXPECT_EQ(loaded.window.commandTransports.shm->factorySymbol, "CreateMfdShmAdapterPlugin");
+}
+
+TEST(JsonLoaderTests, RepositoryCockpitShmAssetParsesShmTransport)
+{
+    const std::filesystem::path windowFile =
+        RepositoryRoot() / "assets" / "windows" / "demo_pages_cockpit_shm.json";
+
+    mfd::JsonLoader loader;
+    const auto loaded = loader.LoadWindowConfiguration(windowFile);
+
+    ASSERT_TRUE(loaded.window.commandTransports.shm.has_value());
+    EXPECT_TRUE(loaded.window.commandTransports.shm->enabled);
+    EXPECT_EQ(loaded.window.commandTransports.shm->type, "shm");
+    EXPECT_EQ(loaded.window.commandTransports.shm->factorySymbol, "CreateMfdShmAdapterPlugin");
+}

@@ -26,6 +26,7 @@
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/ipc/ExchangeChannel.h"
+#include "mfd/plugin/MfdPluginLoader.h"
 
 namespace mfd
 {
@@ -47,6 +48,7 @@ struct UdpRuntimeBridge::Impl
 
     std::unique_ptr<IExchangeChannel> commandReceiver {};
     std::unique_ptr<IExchangeChannel> feedbackSender {};
+    std::unique_ptr<MfdPluginLoader> shmPluginLoader {};
 
     std::deque<UserCommand> inboundCommands;
     std::deque<StrobeStatusFeedback> outboundFeedback;
@@ -138,9 +140,33 @@ bool UdpRuntimeBridge::Start()
     impl_->commandReceiver = impl_->commandReceiverFactory ? impl_->commandReceiverFactory() : nullptr;
     impl_->feedbackSender = impl_->feedbackSenderFactory ? impl_->feedbackSenderFactory() : nullptr;
 
-    const bool hasCommandReceiver = impl_->commandReceiver != nullptr;
+    if (impl_->commandConfig.shm.has_value() && !impl_->commandConfig.shm->pluginPath.empty())
+    {
+        impl_->shmPluginLoader = std::make_unique<MfdPluginLoader>();
+        if (!impl_->shmPluginLoader->Load(impl_->commandConfig.shm->pluginPath,
+                                          impl_->commandConfig.shm->factorySymbol.empty()
+                                              ? std::string{"CreateMfdShmAdapterPlugin"}
+                                              : impl_->commandConfig.shm->factorySymbol))
+        {
+            impl_->SetCommandStatus(impl_->shmPluginLoader->LastError());
+        }
+        else if (impl_->shmPluginLoader->Plugin() != nullptr)
+        {
+            if (!impl_->shmPluginLoader->Plugin()->Initialize(*impl_->commandConfig.shm))
+            {
+                impl_->SetCommandStatus(impl_->shmPluginLoader->Plugin()->LastError());
+            }
+            else
+            {
+                impl_->SetCommandStatus("SHM plugin adapter initialized");
+            }
+        }
+    }
+
+    const bool hasCommandReceiver = impl_->commandReceiver != nullptr || impl_->shmPluginLoader != nullptr;
     const bool hasFeedbackSender = impl_->feedbackSender != nullptr;
-    const bool commandReady = hasCommandReceiver && impl_->commandReceiver->IsReady();
+    const bool commandReady = (impl_->commandReceiver != nullptr && impl_->commandReceiver->IsReady()) ||
+                              (impl_->shmPluginLoader != nullptr && impl_->shmPluginLoader->Plugin() != nullptr);
     const bool feedbackReady = hasFeedbackSender && impl_->feedbackSender->IsReady();
     {
         std::lock_guard lock(impl_->stateMutex);
@@ -160,7 +186,14 @@ bool UdpRuntimeBridge::Start()
     }
     else
     {
-        impl_->SetCommandStatus(impl_->commandReceiver->LastError());
+        if (impl_->commandReceiver != nullptr)
+        {
+            impl_->SetCommandStatus(impl_->commandReceiver->LastError());
+        }
+        else if (impl_->shmPluginLoader != nullptr)
+        {
+            impl_->SetCommandStatus(impl_->shmPluginLoader->LastError());
+        }
     }
 
     if (!hasFeedbackSender)
@@ -272,12 +305,28 @@ bool UdpRuntimeBridge::Start()
 
             auto pumpCommands = [impl, &pushCommands]() -> bool
             {
-                if (!impl->IsCommandReady() || impl->commandReceiver == nullptr)
+                if (!impl->IsCommandReady())
                 {
                     return false;
                 }
 
                 bool receivedAny = false;
+
+                if (impl->shmPluginLoader != nullptr && impl->shmPluginLoader->Plugin() != nullptr)
+                {
+                    std::vector<UserCommand> pluginCommands;
+                    if (!impl->shmPluginLoader->Plugin()->Poll(pluginCommands))
+                    {
+                        impl->SetCommandStatus(impl->shmPluginLoader->Plugin()->LastError());
+                    }
+                    else if (!pluginCommands.empty())
+                    {
+                        pushCommands(std::move(pluginCommands));
+                        receivedAny = true;
+                    }
+                }
+
+                if (impl->commandReceiver != nullptr)
                 for (std::size_t packetIndex = 0; packetIndex < kMaxPacketsPerPump; ++packetIndex)
                 {
                     try

@@ -53,6 +53,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--header-include", default="MockupUi.h")
     parser.add_argument("--print-inputs", action="store_true")
     parser.add_argument("--force-overwrite", action="store_true")
+    parser.add_argument("--output-shm-header")
+    parser.add_argument("--output-shm-source")
     return parser.parse_args()
 
 
@@ -345,6 +347,7 @@ def emit_header(namespace_name: str,
         "#include <string>",
         "#include <string_view>",
         "#include <vector>",
+        "#include <string>",
         "",
         '#include "mfd/client/Animation.h"',
         '#include "mfd/client/LatestBatchPublisher.h"',
@@ -694,6 +697,120 @@ def collect_input_paths(window_path: Path) -> list[Path]:
     return sorted(input_paths)
 
 
+
+def emit_shm_header(namespace_name: str) -> str:
+    return "\n".join([
+        "#pragma once",
+        "",
+        "#include <array>",
+        "#include <cstdint>",
+        "#include <cstring>",
+        "#include <vector>",
+        "#include <string>",
+        "",
+        "#include \"mfd/control/CommandTypes.h\"",
+        "#include \"mfd/control/CommandTransport.h\"",
+        "#include \"mfd/ipc/ShmPacket.h\"",
+        "#include \"mfd/ipc/windows/NamedShmMonoSlot.h\"",
+        "#include \"mfd/plugin/IMfdShmAdapterPlugin.h\"",
+        "",
+        f"namespace {namespace_name}",
+        "{",
+        "class ShmClientPublisher",
+        "{",
+        "public:",
+        "    bool Initialize(const mfd::WindowShmCommandTransport& config);",
+        "    bool PublishRadarFrame(const mfd::RadarFrame& frame);",
+        "    std::string LastError() const;",
+        "private:",
+        "    mfd::ipc::windows::NamedShmMonoSlot slot_ {};",
+        "    std::string lastError_ {};",
+        "};",
+        "",
+        "class MfdRadarShmAdapterPlugin final : public mfd::IMfdShmAdapterPlugin",
+        "{",
+        "public:",
+        "    bool Initialize(const mfd::WindowShmCommandTransport& config) override;",
+        "    bool Poll(std::vector<mfd::UserCommand>& outCommands) override;",
+        "    std::string LastError() const override;",
+        "private:",
+        "    mfd::ipc::windows::NamedShmMonoSlot slot_ {};",
+        "    std::string lastError_ {};",
+        "};",
+        "",
+        "extern \"C\" mfd::IMfdShmAdapterPlugin* CreateMfdShmAdapterPlugin();",
+        "}",
+    ])
+
+
+def emit_shm_source(namespace_name: str, header_include: str) -> str:
+    return "\n".join([
+        f'#include "{header_include}"',
+        "",
+        f"namespace {namespace_name}",
+        "{",
+        "bool ShmClientPublisher::Initialize(const mfd::WindowShmCommandTransport& config)",
+        "{",
+        "    mfd::ipc::windows::NamedShmMonoSlotConfig c;",
+        "    c.sharedMemoryName = config.inMemoryName;",
+        "    c.canWriteEventName = config.inCanWriteEventName;",
+        "    c.hasDataEventName = config.inHasDataEventName;",
+        "    c.timeoutMs = config.timeoutMs;",
+        "    return slot_.Open(c, mfd::ipc::windows::MonoSlotRole::Writer);",
+        "}",
+        "bool ShmClientPublisher::PublishRadarFrame(const mfd::RadarFrame& frame)",
+        "{",
+        "    mfd::ShmPacket packet;",
+        "    packet.payloadSize = sizeof(mfd::RadarFrame);",
+        "    std::memcpy(packet.payload.data(), &frame, sizeof(mfd::RadarFrame));",
+        "    return slot_.Write(packet);",
+        "}",
+        "std::string ShmClientPublisher::LastError() const { return lastError_; }",
+        "",
+        "bool MfdRadarShmAdapterPlugin::Initialize(const mfd::WindowShmCommandTransport& config)",
+        "{",
+        "    mfd::ipc::windows::NamedShmMonoSlotConfig c;",
+        "    c.sharedMemoryName = config.inMemoryName;",
+        "    c.canWriteEventName = config.inCanWriteEventName;",
+        "    c.hasDataEventName = config.inHasDataEventName;",
+        "    c.timeoutMs = config.timeoutMs;",
+        "    return slot_.Open(c, mfd::ipc::windows::MonoSlotRole::Reader);",
+        "}",
+        "bool MfdRadarShmAdapterPlugin::Poll(std::vector<mfd::UserCommand>& outCommands)",
+        "{",
+        "    mfd::ShmPacket packet;",
+        "    if (!slot_.Read(packet))",
+        "    {",
+        "        return true;",
+        "    }",
+        "    if (packet.payloadSize < sizeof(mfd::RadarFrame))",
+        "    {",
+        "        return false;",
+        "    }",
+        "    mfd::RadarFrame frame;",
+        "    std::memcpy(&frame, packet.payload.data(), sizeof(mfd::RadarFrame));",
+        "    for (std::uint32_t index = 0; index < frame.count && index < 256U; ++index)",
+        "    {",
+        "        mfd::DynamicReticleState state;",
+        "        state.reticleId = std::string(frame.tracks[index].label);",
+        "        state.patch.position = mfd::Vec2{frame.tracks[index].x, frame.tracks[index].y};",
+        "        mfd::UpsertDynamicReticlesCommand cmd;",
+        "        cmd.page = \"radar\";",
+        "        cmd.templateId = \"radar_track\";",
+        "        cmd.reticles.push_back(std::move(state));",
+        "        outCommands.emplace_back(std::move(cmd));",
+        "    }",
+        "    return true;",
+        "}",
+        "std::string MfdRadarShmAdapterPlugin::LastError() const { return lastError_; }",
+        "",
+        "extern \"C\" mfd::IMfdShmAdapterPlugin* CreateMfdShmAdapterPlugin()",
+        "{",
+        "    return new MfdRadarShmAdapterPlugin();",
+        "}",
+        "}",
+    ])
+
 def main() -> int:
     args = parse_args()
 
@@ -733,6 +850,14 @@ def main() -> int:
     output_source.parent.mkdir(parents=True, exist_ok=True)
     output_header.write_text(header_text, encoding="utf-8")
     output_source.write_text(source_text, encoding="utf-8")
+
+    if args.output_shm_header and args.output_shm_source:
+        shm_header = Path(args.output_shm_header)
+        shm_source = Path(args.output_shm_source)
+        shm_header.parent.mkdir(parents=True, exist_ok=True)
+        shm_source.parent.mkdir(parents=True, exist_ok=True)
+        shm_header.write_text(emit_shm_header(args.namespace), encoding="utf-8")
+        shm_source.write_text(emit_shm_source(args.namespace, shm_header.name), encoding="utf-8")
     return 0
 
 

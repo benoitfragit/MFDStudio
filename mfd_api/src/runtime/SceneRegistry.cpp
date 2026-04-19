@@ -20,6 +20,7 @@
 
 namespace mfd
 {
+// SceneRegistry intentionally stays IPC-agnostic; SHM plugins emit generic UserCommand values.
 namespace
 {
 constexpr std::size_t kStrobeDrawOrder = std::numeric_limits<std::size_t>::max() - 1U;

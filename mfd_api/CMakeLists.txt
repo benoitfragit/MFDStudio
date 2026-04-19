@@ -4,6 +4,13 @@
 set(MFD_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/MfdExport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/core/ArrayView.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/core/Validation.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/ShmPacket.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/windows/NamedEvent.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/windows/NamedSharedMemory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/windows/NamedShmMonoSlot.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/plugin/IMfdShmAdapterPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/plugin/MfdPluginLoader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandClient.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandProcessor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandTransport.h
@@ -27,6 +34,11 @@ set(MFD_API_PUBLIC_HEADERS
 
 set(MFD_API_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandClient.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/Validation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/windows/NamedEvent.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/windows/NamedSharedMemory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/windows/NamedShmMonoSlot.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin/MfdPluginLoader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandProcessor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandTransport.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandTypes.cpp
@@ -104,6 +116,7 @@ target_link_libraries(mfd_api
 target_compile_definitions(mfd_api
     PUBLIC
         MFD_API_DLL
+        $<$<BOOL:${MFD_ENABLE_WINDOWS_SHM}>:MFD_ENABLE_WINDOWS_SHM>
     PRIVATE
         MFD_API_EXPORTS)
 
@@ -128,3 +141,7 @@ if(MFD_ENABLE_WARNINGS)
 endif()
 
 mfd_stage_runtime(mfd_api WITH_RUNTIME_DLLS)
+
+if(NOT WIN32)
+    target_link_libraries(mfd_api PRIVATE ${CMAKE_DL_LIBS})
+endif()

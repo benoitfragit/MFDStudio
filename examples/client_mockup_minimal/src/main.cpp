@@ -198,7 +198,7 @@ ExampleConfig LoadExampleConfig()
 
     if (!loaded.window.commandTransports.udp.has_value() || !loaded.window.commandTransports.udp->enabled)
     {
-        throw std::runtime_error("The cockpit window JSON does not expose an enabled UDP command transport");
+        throw std::runtime_error("The cockpit window JSON must expose an enabled UDP command transport for this minimal example");
     }
 
     ExampleConfig config;

@@ -13,7 +13,9 @@ function(client_api_generate_ui)
         UI_CLASS_NAME
         PAGE_CLASS_SUFFIX
         UI_CLASS_SUFFIX
-        HEADER_INCLUDE)
+        HEADER_INCLUDE
+        OUTPUT_SHM_HEADER
+        OUTPUT_SHM_SOURCE)
     set(multiValueArgs CONFIGURE_DEPENDS)
     cmake_parse_arguments(CAG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -100,6 +102,11 @@ function(client_api_generate_ui)
 
     if(CAG_UI_CLASS_NAME)
         list(APPEND generator_command --ui-class-name "${CAG_UI_CLASS_NAME}")
+    endif()
+
+    if(CAG_OUTPUT_SHM_HEADER AND CAG_OUTPUT_SHM_SOURCE)
+        list(APPEND generator_command --output-shm-header "${CAG_OUTPUT_SHM_HEADER}")
+        list(APPEND generator_command --output-shm-source "${CAG_OUTPUT_SHM_SOURCE}")
     endif()
 
     execute_process(

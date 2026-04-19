@@ -133,3 +133,5 @@ function(mfd_fetch_dependencies)
         FetchContent_MakeAvailable(googletest)
     endif()
 endfunction()
+
+# Windows named SHM backend uses only Win32 API; no extra third-party dependency needed.
