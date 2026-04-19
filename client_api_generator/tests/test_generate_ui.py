@@ -160,6 +160,7 @@ class GenerateUiTests(unittest.TestCase):
                 self.assertIn(expected, shm_header_content)
 
             self.assertIn('extern "C" mfd::IMfdShmAdapterPlugin* CreateMfdShmAdapterPlugin()', shm_source_content)
+            self.assertIn("#include <utility>", shm_source_content)
 
             for expected in [
                 "SystemMockupPage::SetStatusCaption(std::string value)",

@@ -747,6 +747,8 @@ def emit_shm_source(namespace_name: str, header_include: str) -> str:
     return "\n".join([
         f'#include "{header_include}"',
         "",
+        "#include <utility>",
+        "",
         f"namespace {namespace_name}",
         "{",
         "bool ShmClientPublisher::Initialize(const mfd::WindowShmCommandTransport& config)",
