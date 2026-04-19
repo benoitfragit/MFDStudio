@@ -7,6 +7,8 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/ArrayViewTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CommandClientTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ShmValidationTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/NamedShmMonoSlotTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ReticleTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SceneRegistryTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/UdpRuntimeBridgeTests.cpp

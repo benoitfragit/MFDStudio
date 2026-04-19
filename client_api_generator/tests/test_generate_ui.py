@@ -102,6 +102,8 @@ class GenerateUiTests(unittest.TestCase):
 
             output_header = root / "GeneratedUi.h"
             output_source = root / "GeneratedUi.cpp"
+            output_shm_header = root / "GeneratedShm.h"
+            output_shm_source = root / "GeneratedShm.cpp"
 
             subprocess.run(
                 [
@@ -117,12 +119,18 @@ class GenerateUiTests(unittest.TestCase):
                     "generated_ui",
                     "--header-include",
                     "GeneratedUi.h",
+                    "--output-shm-header",
+                    str(output_shm_header),
+                    "--output-shm-source",
+                    str(output_shm_source),
                 ],
                 check=True,
             )
 
             header_content = output_header.read_text(encoding="utf-8")
             source_content = output_source.read_text(encoding="utf-8")
+            shm_header_content = output_shm_header.read_text(encoding="utf-8")
+            shm_source_content = output_shm_source.read_text(encoding="utf-8")
 
             for expected in [
                 "class RadarMockupPage",
@@ -143,6 +151,16 @@ class GenerateUiTests(unittest.TestCase):
                 "TextReticle systemStatus;",
             ]:
                 self.assertIn(expected, header_content)
+
+            for expected in [
+                "class ShmClientPublisher",
+                "class MfdRadarShmAdapterPlugin",
+                "CreateMfdShmAdapterPlugin",
+            ]:
+                self.assertIn(expected, shm_header_content)
+
+            self.assertIn('extern "C" mfd::IMfdShmAdapterPlugin* CreateMfdShmAdapterPlugin()', shm_source_content)
+            self.assertIn("#include <utility>", shm_source_content)
 
             for expected in [
                 "SystemMockupPage::SetStatusCaption(std::string value)",
@@ -251,6 +269,8 @@ class GenerateUiTests(unittest.TestCase):
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
             output_header = root / "GeneratedUi.h"
             output_source = root / "GeneratedUi.cpp"
+            output_shm_header = root / "GeneratedShm.h"
+            output_shm_source = root / "GeneratedShm.cpp"
             output_header.write_text("// existing", encoding="utf-8")
             output_source.write_text("// existing", encoding="utf-8")
 

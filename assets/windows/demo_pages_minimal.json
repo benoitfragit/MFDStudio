@@ -1,7 +1,13 @@
 {
   "title": "MFD Minimal Radar",
-  "size": [480, 480],
-  "position": [120, 120],
+  "size": [
+    480,
+    480
+  ],
+  "position": [
+    120,
+    120
+  ],
   "targetFps": 60,
   "reticleLibraryFolder": "../reticles",
   "commands": {
@@ -10,6 +16,19 @@
       "address": "127.0.0.1",
       "port": 47230,
       "maxPacketSize": 16384
+    },
+    "shm": {
+      "enabled": false,
+      "type": "shm",
+      "inMemoryName": "MFD_CMD_IN",
+      "inCanWriteEventName": "MFD_CMD_IN_CANWRITE",
+      "inHasDataEventName": "MFD_CMD_IN_HASDATA",
+      "outMemoryName": "MFD_CMD_OUT",
+      "outCanWriteEventName": "MFD_CMD_OUT_CANWRITE",
+      "outHasDataEventName": "MFD_CMD_OUT_HASDATA",
+      "timeoutMs": 5,
+      "pluginPath": "",
+      "factorySymbol": "CreateMfdShmAdapterPlugin"
     }
   },
   "feedback": {

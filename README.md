@@ -682,3 +682,44 @@ An inventory of external dependencies and the copied third-party license texts
 used by the current build is available in:
 
 - [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
+
+
+## SHM command transport (Windows)
+
+Window JSON now supports a shared-memory command backend:
+
+```json
+{
+  "commands": {
+    "shm": {
+      "enabled": true,
+      "type": "shm",
+      "inMemoryName": "MFD_CMD_IN",
+      "inCanWriteEventName": "MFD_CMD_IN_CANWRITE",
+      "inHasDataEventName": "MFD_CMD_IN_HASDATA",
+      "outMemoryName": "MFD_CMD_OUT",
+      "outCanWriteEventName": "MFD_CMD_OUT_CANWRITE",
+      "outHasDataEventName": "MFD_CMD_OUT_HASDATA",
+      "timeoutMs": 5,
+      "pluginPath": "mfd_radar_shm_adapter.dll",
+      "factorySymbol": "CreateMfdShmAdapterPlugin"
+    }
+  }
+}
+```
+
+
+### Generated SHM end-to-end example
+
+This repository now includes a full generated SHM chain:
+
+- MFD window: `examples/mfd_demo_cockpit_shm` (loads `assets/windows/demo_pages_cockpit_shm.json`)
+- Generated plugin: `generated_cockpit_shm_plugin`
+- Generated client: `examples/client_generated_shm`
+
+Run the MFD and client from their build output directories to validate:
+
+1. start `mfd_demo_cockpit_shm`
+2. start `client_generated_shm`
+
+The client publishes fixed-size `RadarFrame` payloads through named SHM, and the generated plugin converts them to generic `UserCommand` updates.

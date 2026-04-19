@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "mfd/ipc/ExchangeChannel.h"
+#include "mfd/ipc/ShmPacket.h"
 
 namespace mfd
 {
@@ -168,7 +169,11 @@ CommandClient::CommandClient(std::unique_ptr<IExchangeChannel> channel)
 CommandClient::CommandClient(const WindowCommandTransportConfig& config)
     : CommandClient(CreateCommandClientChannel(config))
 {
-    if (config.udp.has_value())
+    if (config.shm.has_value() && config.shm->enabled)
+    {
+        maxPayloadBytes_ = kShmPayloadBytes;
+    }
+    else if (config.udp.has_value())
     {
         maxPayloadBytes_ = std::clamp(config.udp->maxPacketSize,
                                       std::size_t {1},

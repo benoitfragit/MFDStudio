@@ -7,7 +7,7 @@
 
 /**
  * @file
- * @brief Background UDP I/O bridge decoupling command reception from rendering.
+ * @brief Background command/feedback I/O bridge decoupling command reception from rendering.
  */
 
 #include <cstddef>
@@ -25,9 +25,9 @@
 namespace mfd
 {
 /**
- * @brief Background UDP I/O bridge used by a window application.
+ * @brief Background command/feedback I/O bridge used by a window application.
  *
- * @note The bridge owns a dedicated worker thread for UDP receive/send work.
+ * @note The bridge owns a dedicated worker thread for configured transport receive/send work.
  * The render thread remains responsible for applying commands to the scene and
  * for producing strobe feedback snapshots.
  */
@@ -60,8 +60,8 @@ public:
     UdpRuntimeBridge& operator=(const UdpRuntimeBridge&) = delete;
 
     /**
-     * @brief Starts the background worker thread when at least one UDP channel is available.
-     * @return `true` when the bridge is running or when no UDP transport is configured.
+     * @brief Starts the background worker thread when at least one command or feedback transport is available.
+     * @return `true` when the bridge is running or when no transport is configured.
      */
     bool Start();
 

@@ -41,6 +41,7 @@ StrobeCaptureConfig ParseStrobeCaptureConfig(const json& node);
 StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node);
 PageStrobeDefinition ParsePageStrobe(const json& node, const ReticleLibrary& library);
 PageViewState ParsePageViewState(const json& node);
+WindowShmCommandTransport ParseWindowShmCommandTransport(const json& node);
 WindowCommandTransportConfig ParseWindowCommandTransportConfig(const json& root);
 WindowFeedbackTransportConfig ParseWindowFeedbackTransportConfig(const json& root);
 void ApplyReticleTextOverrides(const json& node, ReticleGroup& group);
@@ -1954,6 +1955,29 @@ WindowUdpCommandTransport ParseWindowUdpCommandTransport(const json& node)
     return config;
 }
 
+WindowShmCommandTransport ParseWindowShmCommandTransport(const json& node)
+{
+    if (!node.is_object())
+    {
+        throw std::runtime_error("commands.shm must be a JSON object");
+    }
+
+    WindowShmCommandTransport config;
+    config.enabled = node.value("enabled", true);
+    config.type = node.value("type", std::string{"shm"});
+    config.inMemoryName = node.value("inMemoryName", std::string{});
+    config.inCanWriteEventName = node.value("inCanWriteEventName", std::string{});
+    config.inHasDataEventName = node.value("inHasDataEventName", std::string{});
+    config.outMemoryName = node.value("outMemoryName", std::string{});
+    config.outCanWriteEventName = node.value("outCanWriteEventName", std::string{});
+    config.outHasDataEventName = node.value("outHasDataEventName", std::string{});
+    config.timeoutMs = node.value("timeoutMs", config.timeoutMs);
+    config.pluginPath = node.value("pluginPath", std::string{});
+    config.factorySymbol = node.value("factorySymbol", std::string{});
+
+    return config;
+}
+
 WindowCommandTransportConfig ParseWindowCommandTransportConfig(const json& root)
 {
     WindowCommandTransportConfig config;
@@ -1971,6 +1995,11 @@ WindowCommandTransportConfig ParseWindowCommandTransportConfig(const json& root)
     if (const json* udp = FindField(*commands, {"udp"}))
     {
         config.udp = ParseWindowUdpCommandTransport(*udp);
+    }
+
+    if (const json* shm = FindField(*commands, {"shm"}))
+    {
+        config.shm = ParseWindowShmCommandTransport(*shm);
     }
 
     return config;

@@ -1,0 +1,33 @@
+{
+  "title": "MFD Cockpit Demo SHM",
+  "size": [1680, 980],
+  "position": [60, 40],
+  "targetFps": 60,
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "shm": {
+      "enabled": true,
+      "type": "shm",
+      "inMemoryName": "MFD_COCKPIT_CMD_IN",
+      "inCanWriteEventName": "MFD_COCKPIT_CMD_IN_CANWRITE",
+      "inHasDataEventName": "MFD_COCKPIT_CMD_IN_HASDATA",
+      "outMemoryName": "MFD_COCKPIT_CMD_OUT",
+      "outCanWriteEventName": "MFD_COCKPIT_CMD_OUT_CANWRITE",
+      "outHasDataEventName": "MFD_COCKPIT_CMD_OUT_HASDATA",
+      "timeoutMs": 5,
+      "pluginPath": "generated_cockpit_shm_plugin",
+      "factorySymbol": "CreateMfdShmAdapterPlugin"
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47221,
+      "maxPacketSize": 4096
+    }
+  },
+  "pages": [
+    "../pages/cockpit.json"
+  ]
+}

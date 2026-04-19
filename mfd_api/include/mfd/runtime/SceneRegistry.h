@@ -136,8 +136,9 @@ struct ReticleRenderView
 /**
  * @brief Runtime scene built on top of EnTT for pages, reticles and strobes.
  *
- * @note `SceneRegistry` is the central state container used by the renderer,
- * the command processor and the editor/runtime helpers.
+ * @note `SceneRegistry` is transport-agnostic and remains independent from IPC backends.
+ * Plugins and transports must convert business data to generic UserCommand objects before
+ * interacting with the runtime state.
  */
 class MFD_API SceneRegistry
 {
