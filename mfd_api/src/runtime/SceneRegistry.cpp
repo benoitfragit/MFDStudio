@@ -191,18 +191,6 @@ struct BlinkPatchResult
 };
 } // namespace
 
-std::size_t SceneRegistry::KeyHasher::operator()(const ReticleKey& key) const noexcept
-{
-    return std::hash<std::string> {}(key.normalizedPageName) ^
-           (std::hash<std::string> {}(key.normalizedReticleId) << 1U);
-}
-
-std::size_t SceneRegistry::KeyHasher::operator()(const DynamicTemplateKey& key) const noexcept
-{
-    return std::hash<std::string> {}(key.normalizedPageName) ^
-           (std::hash<std::string> {}(key.normalizedTemplateId) << 1U);
-}
-
 struct SceneRegistry::PageComponent
 {
     std::string name;

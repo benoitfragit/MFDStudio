@@ -12,6 +12,7 @@
 
 #include <entt/entt.hpp>
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -342,12 +343,35 @@ private:
     /**
      * @brief Hash helper used by typed runtime lookup keys.
      */
-    struct KeyHasher
+    struct ReticleKeyHash
     {
-        /** @brief Hashes one reticle key. */
-        std::size_t operator()(const ReticleKey& key) const noexcept;
-        /** @brief Hashes one dynamic-template key. */
-        std::size_t operator()(const DynamicTemplateKey& key) const noexcept;
+        /**
+         * @brief Hashes one reticle lookup key.
+         * @param key Key combining normalized page and reticle ids.
+         * @return Stable hash suitable for unordered containers.
+         */
+        std::size_t operator()(const ReticleKey& key) const noexcept
+        {
+            return std::hash<std::string> {}(key.normalizedPageName) ^
+                   (std::hash<std::string> {}(key.normalizedReticleId) << 1U);
+        }
+    };
+
+    /**
+     * @brief Hash helper used by dynamic template visibility keys.
+     */
+    struct DynamicTemplateKeyHash
+    {
+        /**
+         * @brief Hashes one page+template visibility key.
+         * @param key Key combining normalized page and template ids.
+         * @return Stable hash suitable for unordered containers.
+         */
+        std::size_t operator()(const DynamicTemplateKey& key) const noexcept
+        {
+            return std::hash<std::string> {}(key.normalizedPageName) ^
+                   (std::hash<std::string> {}(key.normalizedTemplateId) << 1U);
+        }
     };
 
     /** @brief Returns `true` when a float contains a finite value. */
@@ -426,9 +450,9 @@ private:
     /** @brief Fast lookup from normalized page name to strobe entity. */
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> strobeEntities_ {};
     /** @brief Fast lookup from page-plus-reticle key to reticle entity. */
-    std::unordered_map<ReticleKey, entt::entity, KeyHasher> reticleEntities_ {};
+    std::unordered_map<ReticleKey, entt::entity, ReticleKeyHash> reticleEntities_ {};
     /** @brief Optional per-page visibility overrides indexed by dynamic template id. */
-    std::unordered_map<DynamicTemplateKey, bool, KeyHasher> dynamicTemplateVisibility_ {};
+    std::unordered_map<DynamicTemplateKey, bool, DynamicTemplateKeyHash> dynamicTemplateVisibility_ {};
     /** @brief Monotonic ordering counter used to place dynamic reticles after authored content. */
     std::size_t nextDynamicOrder_ = 10000;
     /** @brief Normalized name of the currently active page. */
