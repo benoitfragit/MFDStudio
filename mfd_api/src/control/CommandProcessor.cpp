@@ -12,6 +12,8 @@
 
 #include <cstddef>
 #include <cstring>
+#include <cmath>
+#include <type_traits>
 #include <utility>
 
 #include "mfd/ipc/ExchangeChannel.h"
@@ -43,8 +45,15 @@ CommandProcessor::CommandProcessor(SceneRegistry& scene)
 
 bool CommandProcessor::Submit(const UserCommand& command)
 {
-    lastCommandSucceeded_ = true;
-    lastError_.clear();
+    SetSuccess();
+
+    if (const auto validation = ValidateCommand(command); validation.has_value())
+    {
+        lastResult_ = *validation;
+        lastCommandSucceeded_ = false;
+        lastError_ = lastResult_.message;
+        return false;
+    }
 
     try
     {
@@ -57,11 +66,11 @@ bool CommandProcessor::Submit(const UserCommand& command)
     }
     catch (const std::exception& exception)
     {
-        SetFailure(exception.what());
+        SetFailure("dispatch_exception", exception.what());
     }
     catch (...)
     {
-        SetFailure("Unknown exception while dispatching a command");
+        SetFailure("dispatch_unknown_exception", "Unknown exception while dispatching a command");
     }
 
     return lastCommandSucceeded_;
@@ -84,7 +93,7 @@ bool CommandProcessor::Submit(const std::string_view payload)
     const auto commands = DeserializeUserCommands(payload, &error);
     if (!commands.has_value())
     {
-        SetFailure(std::move(error));
+        SetFailure("deserialize_error", std::move(error));
         return false;
     }
 
@@ -101,7 +110,7 @@ bool CommandProcessor::Submit(const ByteView payload)
 {
     if (payload.empty())
     {
-        SetFailure("Command payload is empty");
+        SetFailure("empty_payload", "Command payload is empty");
         return false;
     }
 
@@ -130,12 +139,12 @@ bool CommandProcessor::Poll(IExchangeChannel& channel)
         }
         catch (const std::exception& exception)
         {
-            SetFailure(exception.what());
+            SetFailure("poll_exception", exception.what());
             break;
         }
         catch (...)
         {
-            SetFailure("Unknown exception while polling a command transport");
+            SetFailure("poll_unknown_exception", "Unknown exception while polling a command transport");
             break;
         }
     }
@@ -158,6 +167,11 @@ std::string CommandProcessor::LastError() const
     return lastError_;
 }
 
+CommandResult CommandProcessor::LastResult() const
+{
+    return lastResult_;
+}
+
 entt::dispatcher& CommandProcessor::Dispatcher() noexcept
 {
     return dispatcher_;
@@ -172,7 +186,7 @@ void CommandProcessor::OnActivatePage(const ActivatePageCommand& command)
 {
     if (!scene_.HasPage(command.page))
     {
-        SetFailure("Unknown page: " + command.page);
+        SetFailure("unknown_page", "Unknown page: " + command.page);
         return;
     }
 
@@ -183,7 +197,7 @@ void CommandProcessor::OnSetPageView(const SetPageViewCommand& command)
 {
     if (!scene_.SetPageView(command.page, command.view))
     {
-        SetFailure("Unable to update page view for page: " + command.page);
+        SetFailure("page_view_update_failed", "Unable to update page view for page: " + command.page);
     }
 }
 
@@ -191,7 +205,7 @@ void CommandProcessor::OnUpdateWindowDisplay(const UpdateWindowDisplayCommand& c
 {
     if (!scene_.ApplyWindowDisplayPatch(command.patch))
     {
-        SetFailure("Unable to update whole-window display properties");
+        SetFailure("window_patch_failed", "Unable to update whole-window display properties");
     }
 }
 
@@ -199,7 +213,7 @@ void CommandProcessor::OnUpdateReticle(const UpdateReticleCommand& command)
 {
     if (!scene_.ApplyReticlePatch(command.target.page, command.target.reticle, command.patch))
     {
-        SetFailure("Unable to update reticle '" + command.target.reticle + "' on page '" + command.target.page + "'");
+        SetFailure("reticle_patch_failed", "Unable to update reticle '" + command.target.reticle + "' on page '" + command.target.page + "'");
     }
 }
 
@@ -219,7 +233,7 @@ void CommandProcessor::OnUpdateStrobe(const UpdateStrobeCommand& command)
 
     if (!success)
     {
-        SetFailure("Unable to update strobe on page '" + command.page + "'");
+        SetFailure("strobe_update_failed", "Unable to update strobe on page '" + command.page + "'");
     }
 }
 
@@ -227,14 +241,14 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
 {
     if (!scene_.HasPage(command.target.page))
     {
-        SetFailure("Unknown page: " + command.target.page);
+        SetFailure("unknown_page", "Unknown page: " + command.target.page);
         return;
     }
 
     const auto templateIterator = scene_.Library().find(command.templateId);
     if (templateIterator == scene_.Library().end())
     {
-        SetFailure("Unknown reticle template: " + command.templateId);
+        SetFailure("unknown_template", "Unknown reticle template: " + command.templateId);
         return;
     }
 
@@ -242,7 +256,7 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
     {
         if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticle, command.patch))
         {
-            SetFailure("Unable to update dynamic reticle '" + command.target.reticle + "'");
+            SetFailure("dynamic_reticle_update_failed", "Unable to update dynamic reticle '" + command.target.reticle + "'");
         }
 
         return;
@@ -253,7 +267,7 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
 
     if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticle, command.patch))
     {
-        SetFailure("Unable to initialize dynamic reticle '" + command.target.reticle + "'");
+        SetFailure("dynamic_reticle_init_failed", "Unable to initialize dynamic reticle '" + command.target.reticle + "'");
     }
 }
 
@@ -261,14 +275,14 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
 {
     if (!scene_.HasPage(command.page))
     {
-        SetFailure("Unknown page: " + command.page);
+        SetFailure("unknown_page", "Unknown page: " + command.page);
         return;
     }
 
     const auto templateIterator = scene_.Library().find(command.templateId);
     if (templateIterator == scene_.Library().end())
     {
-        SetFailure("Unknown reticle template: " + command.templateId);
+        SetFailure("unknown_template", "Unknown reticle template: " + command.templateId);
         return;
     }
 
@@ -278,7 +292,7 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
         {
             if (!scene_.ApplyDynamicReticlePatch(command.page, state.reticleId, state.patch))
             {
-                SetFailure("Unable to update dynamic reticle '" + state.reticleId + "'");
+                SetFailure("dynamic_reticle_update_failed", "Unable to update dynamic reticle '" + state.reticleId + "'");
                 return;
             }
 
@@ -290,7 +304,7 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
 
         if (!scene_.ApplyDynamicReticlePatch(command.page, state.reticleId, state.patch))
         {
-            SetFailure("Unable to initialize dynamic reticle '" + state.reticleId + "'");
+            SetFailure("dynamic_reticle_init_failed", "Unable to initialize dynamic reticle '" + state.reticleId + "'");
             return;
         }
     }
@@ -300,7 +314,7 @@ void CommandProcessor::OnRemoveDynamicReticle(const RemoveDynamicReticleCommand&
 {
     if (!scene_.RemoveDynamicReticle(command.target.page, command.target.reticle))
     {
-        SetFailure("Unable to remove dynamic reticle '" + command.target.reticle +
+        SetFailure("dynamic_reticle_remove_failed", "Unable to remove dynamic reticle '" + command.target.reticle +
                    "' from page '" + command.target.page + "'");
     }
 }
@@ -309,7 +323,7 @@ void CommandProcessor::OnSetDynamicReticleSetVisibility(const SetDynamicReticleS
 {
     if (!scene_.SetDynamicReticleSetVisible(command.page, command.templateId, command.visible))
     {
-        SetFailure("Unable to update dynamic reticle set visibility for template '" + command.templateId +
+        SetFailure("dynamic_template_visibility_failed", "Unable to update dynamic reticle set visibility for template '" + command.templateId +
                    "' on page '" + command.page + "'");
     }
 }
@@ -319,9 +333,57 @@ void CommandProcessor::OnResetWindow(const ResetWindowCommand&)
     scene_.ResetToInitialState();
 }
 
-void CommandProcessor::SetFailure(std::string message)
+std::optional<CommandResult> CommandProcessor::ValidateCommand(const UserCommand& command) const
+{
+    auto makeFailure = [](std::string code, std::string message)
+    {
+        return std::optional<CommandResult> {CommandResult {false, std::move(code), std::move(message)}};
+    };
+
+    return std::visit(
+        [&makeFailure](const auto& value) -> std::optional<CommandResult>
+        {
+            using Command = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Command, ActivatePageCommand>)
+            {
+                if (value.page.empty())
+                {
+                    return makeFailure("invalid_activate_page", "ActivatePageCommand requires a non-empty page");
+                }
+            }
+            else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
+            {
+                if (!std::isfinite(value.view.center.x) || !std::isfinite(value.view.center.y) ||
+                    !std::isfinite(value.view.zoom))
+                {
+                    return makeFailure("invalid_page_view", "SetPageViewCommand contains non-finite coordinates");
+                }
+            }
+            else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
+            {
+                if (value.position.has_value() &&
+                    (!std::isfinite(value.position->x) || !std::isfinite(value.position->y)))
+                {
+                    return makeFailure("invalid_strobe_position", "UpdateStrobeCommand contains non-finite coordinates");
+                }
+            }
+
+            return std::nullopt;
+        },
+        command);
+}
+
+void CommandProcessor::SetFailure(std::string code, std::string message)
 {
     lastCommandSucceeded_ = false;
+    lastResult_ = CommandResult {false, std::move(code), message};
     lastError_ = std::move(message);
+}
+
+void CommandProcessor::SetSuccess()
+{
+    lastCommandSucceeded_ = true;
+    lastResult_ = CommandResult {};
+    lastError_.clear();
 }
 } // namespace mfd

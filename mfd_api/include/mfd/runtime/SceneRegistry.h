@@ -26,6 +26,7 @@ namespace mfd
 {
 struct ReticlePatch;
 struct WindowDisplayPatch;
+struct UserCommand;
 
 /**
  * @brief Lightweight description of one page exposed by the runtime scene.
@@ -303,6 +304,62 @@ public:
 private:
     friend class CommandProcessor;
 
+    /**
+     * @brief Typed key used by the page+reticle runtime index.
+     */
+    struct ReticleKey
+    {
+        /** @brief Normalized page name. */
+        std::string normalizedPageName;
+        /** @brief Normalized reticle id. */
+        std::string normalizedReticleId;
+
+        /** @brief Equality operator for associative containers. */
+        bool operator==(const ReticleKey& other) const noexcept
+        {
+            return normalizedPageName == other.normalizedPageName &&
+                   normalizedReticleId == other.normalizedReticleId;
+        }
+    };
+
+    /**
+     * @brief Typed key used by per-page dynamic template visibility overrides.
+     */
+    struct DynamicTemplateKey
+    {
+        /** @brief Normalized page name. */
+        std::string normalizedPageName;
+        /** @brief Normalized template id. */
+        std::string normalizedTemplateId;
+
+        /** @brief Equality operator for associative containers. */
+        bool operator==(const DynamicTemplateKey& other) const noexcept
+        {
+            return normalizedPageName == other.normalizedPageName &&
+                   normalizedTemplateId == other.normalizedTemplateId;
+        }
+    };
+
+    /**
+     * @brief Hash helper used by typed runtime lookup keys.
+     */
+    struct KeyHasher
+    {
+        /** @brief Hashes one reticle key. */
+        std::size_t operator()(const ReticleKey& key) const noexcept;
+        /** @brief Hashes one dynamic-template key. */
+        std::size_t operator()(const DynamicTemplateKey& key) const noexcept;
+    };
+
+    /** @brief Returns `true` when a float contains a finite value. */
+    static bool IsFinite(float value) noexcept;
+    /** @brief Returns `true` when both vector components are finite. */
+    static bool IsFinite(const Vec2& value) noexcept;
+    /** @brief Returns `true` when a reticle patch can be applied safely. */
+    static bool ValidatePatch(const ReticlePatch& patch) noexcept;
+    /** @brief Returns `true` when a window patch can be applied safely. */
+    static bool ValidatePatch(const WindowDisplayPatch& patch) noexcept;
+
     /** @brief Per-page runtime component stored in the EnTT registry. */
     struct PageComponent;
     /** @brief Link between one reticle entity and its owning page. */
@@ -334,8 +391,8 @@ private:
     std::vector<ReticleRenderView> CollectPageReticleViewsByKey(std::string_view pageName) const;
     /** @brief Collects reticle pointers for one normalized page key without copying. */
     std::vector<const ReticleGroup*> CollectPageReticlePointersByKey(std::string_view pageName) const;
-    /** @brief Builds the composite lookup key used by the reticle entity index. */
-    std::string MakeReticleLookupKey(std::string_view normalizedPageName, std::string_view reticleId) const;
+    /** @brief Builds one typed lookup key used by the reticle entity index. */
+    ReticleKey MakeReticleKey(std::string_view normalizedPageName, std::string_view reticleId) const;
     /** @brief Finds the entity of one static or dynamic reticle. */
     entt::entity FindReticleEntity(std::string_view normalizedPageName, std::string_view reticleId) const noexcept;
     /** @brief Returns mutable access to one reticle component. */
@@ -350,8 +407,8 @@ private:
     void IndexReticle(std::string_view normalizedPageName, const ReticleGroup& reticle, entt::entity entity);
     /** @brief Removes one reticle entry from the fast lookup map. */
     void RemoveReticleIndex(std::string_view normalizedPageName, std::string_view reticleId);
-    /** @brief Builds the composite lookup key used by dynamic template visibility overrides. */
-    std::string MakeDynamicTemplateLookupKey(std::string_view normalizedPageName, std::string_view templateId) const;
+    /** @brief Builds one typed key used by dynamic template visibility overrides. */
+    DynamicTemplateKey MakeDynamicTemplateKey(std::string_view normalizedPageName, std::string_view templateId) const;
     /** @brief Returns whether one dynamic template set is currently visible on one page. */
     bool IsDynamicTemplateVisible(std::string_view normalizedPageName, std::string_view templateId) const noexcept;
     /** @brief Inserts one reticle entity into the ordered draw list of a page. */
@@ -370,9 +427,9 @@ private:
     /** @brief Fast lookup from normalized page name to strobe entity. */
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> strobeEntities_ {};
     /** @brief Fast lookup from page-plus-reticle key to reticle entity. */
-    std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> reticleEntities_ {};
+    std::unordered_map<ReticleKey, entt::entity, KeyHasher> reticleEntities_ {};
     /** @brief Optional per-page visibility overrides indexed by dynamic template id. */
-    std::unordered_map<std::string, bool, TransparentStringHash, TransparentStringEqual> dynamicTemplateVisibility_ {};
+    std::unordered_map<DynamicTemplateKey, bool, KeyHasher> dynamicTemplateVisibility_ {};
     /** @brief Monotonic ordering counter used to place dynamic reticles after authored content. */
     std::size_t nextDynamicOrder_ = 10000;
     /** @brief Normalized name of the currently active page. */

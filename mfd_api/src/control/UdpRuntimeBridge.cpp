@@ -36,6 +36,144 @@ constexpr std::size_t kMaxQueuedCommands = 8192;
 constexpr std::size_t kMaxQueuedFeedback = 256;
 constexpr auto kIdleWait = std::chrono::milliseconds(2);
 
+/**
+ * @brief Bounded FIFO queue dropping oldest entries when capacity is reached.
+ */
+template<typename T>
+class BoundedQueue
+{
+public:
+    /**
+     * @brief Creates a bounded queue with a fixed maximum element count.
+     * @param capacity Maximum number of retained elements.
+     */
+    explicit BoundedQueue(const std::size_t capacity)
+        : capacity_(capacity)
+    {
+    }
+
+    /**
+     * @brief Pushes one element, dropping oldest entries on overflow.
+     * @param value Element to enqueue.
+     * @return Number of dropped oldest elements.
+     */
+    std::size_t Push(T value)
+    {
+        std::lock_guard lock(mutex_);
+        std::size_t dropped = 0;
+        while (capacity_ > 0 && queue_.size() >= capacity_)
+        {
+            queue_.pop_front();
+            ++dropped;
+        }
+
+        queue_.push_back(std::move(value));
+        return dropped;
+    }
+
+    /**
+     * @brief Pops up to `count` elements into a destination vector.
+     * @param destination Vector receiving popped elements.
+     * @param count Maximum number of elements to pop.
+     * @return Number of popped elements.
+     */
+    std::size_t PopMany(std::vector<T>& destination, const std::size_t count)
+    {
+        std::lock_guard lock(mutex_);
+        const std::size_t poppedCount = std::min(count, queue_.size());
+        destination.reserve(destination.size() + poppedCount);
+        for (std::size_t index = 0; index < poppedCount; ++index)
+        {
+            destination.push_back(std::move(queue_.front()));
+            queue_.pop_front();
+        }
+
+        return poppedCount;
+    }
+
+    /**
+     * @brief Swaps all currently queued entries with a caller-provided deque.
+     * @param destination Deque receiving all queued entries.
+     * @return `true` when at least one element was queued.
+     */
+    bool DrainTo(std::deque<T>& destination)
+    {
+        std::lock_guard lock(mutex_);
+        if (queue_.empty())
+        {
+            return false;
+        }
+
+        destination.swap(queue_);
+        return true;
+    }
+
+    /**
+     * @brief Clears every queued entry.
+     */
+    void Clear()
+    {
+        std::lock_guard lock(mutex_);
+        queue_.clear();
+    }
+
+private:
+    std::size_t capacity_ = 0;
+    mutable std::mutex mutex_ {};
+    std::deque<T> queue_ {};
+};
+
+/**
+ * @brief Small worker-loop helper managing one thread start/stop lifecycle.
+ */
+class WorkerLoop
+{
+public:
+    template<typename Fn>
+    void Start(Fn&& fn)
+    {
+        Stop();
+        stopRequested_ = false;
+        worker_ = std::thread([this, fn = std::forward<Fn>(fn)]() mutable { fn(*this); });
+    }
+
+    void Stop()
+    {
+        {
+            std::lock_guard lock(waitMutex_);
+            stopRequested_ = true;
+        }
+        waitCondition_.notify_all();
+        if (worker_.joinable())
+        {
+            worker_.join();
+        }
+    }
+
+    bool StopRequested() const
+    {
+        std::lock_guard lock(waitMutex_);
+        return stopRequested_;
+    }
+
+    void Notify()
+    {
+        waitCondition_.notify_all();
+    }
+
+    void WaitForIdle()
+    {
+        std::unique_lock lock(waitMutex_);
+        waitCondition_.wait_for(lock, kIdleWait, [this]() { return stopRequested_; });
+    }
+
+private:
+    mutable std::mutex waitMutex_ {};
+    std::condition_variable waitCondition_ {};
+    std::thread worker_ {};
+    bool stopRequested_ = false;
+};
+
 } // namespace
 
 struct UdpRuntimeBridge::Impl
@@ -46,17 +184,11 @@ struct UdpRuntimeBridge::Impl
     std::unique_ptr<IExchangeChannel> commandReceiver {};
     std::unique_ptr<IExchangeChannel> feedbackSender {};
 
-    std::deque<UserCommand> inboundCommands;
-    std::deque<StrobeStatusFeedback> outboundFeedback;
-
-    mutable std::mutex inboundMutex;
-    mutable std::mutex outboundMutex;
+    BoundedQueue<UserCommand> inboundCommands {kMaxQueuedCommands};
+    BoundedQueue<StrobeStatusFeedback> outboundFeedback {kMaxQueuedFeedback};
     mutable std::mutex statusMutex;
-    mutable std::mutex waitMutex;
-    std::condition_variable waitCondition;
 
-    std::thread worker;
-    std::atomic<bool> stopRequested {false};
+    WorkerLoop worker;
     std::atomic<bool> running {false};
     std::atomic<bool> hasCommandReceiver {false};
     std::atomic<bool> hasFeedbackSender {false};
@@ -140,10 +272,9 @@ bool UdpRuntimeBridge::Start()
         return !impl_->hasCommandReceiver.load() && !impl_->hasFeedbackSender.load();
     }
 
-    impl_->stopRequested.store(false);
     impl_->running.store(true);
-    impl_->worker = std::thread(
-        [impl = impl_.get()]()
+    impl_->worker.Start(
+        [impl = impl_.get()](WorkerLoop& loop)
         {
             auto pushCommands = [impl](std::vector<UserCommand>&& commands)
             {
@@ -152,26 +283,13 @@ bool UdpRuntimeBridge::Start()
                     return;
                 }
 
-                std::lock_guard lock(impl->inboundMutex);
-
-                const std::size_t overflow =
-                    impl->inboundCommands.size() + commands.size() > kMaxQueuedCommands
-                        ? impl->inboundCommands.size() + commands.size() - kMaxQueuedCommands
-                        : 0;
-
-                for (std::size_t index = 0; index < overflow && !impl->inboundCommands.empty(); ++index)
-                {
-                    impl->inboundCommands.pop_front();
-                }
-
-                if (overflow > 0)
-                {
-                    impl->SetCommandStatus("UDP command queue overflow, dropping oldest commands");
-                }
-
                 for (auto& command : commands)
                 {
-                    impl->inboundCommands.push_back(std::move(command));
+                    const std::size_t dropped = impl->inboundCommands.Push(std::move(command));
+                    if (dropped > 0)
+                    {
+                        impl->SetCommandStatus("UDP command queue overflow, dropping oldest commands");
+                    }
                 }
             };
 
@@ -183,14 +301,9 @@ bool UdpRuntimeBridge::Start()
                 }
 
                 std::deque<StrobeStatusFeedback> localQueue;
+                if (!impl->outboundFeedback.DrainTo(localQueue))
                 {
-                    std::lock_guard lock(impl->outboundMutex);
-                    if (impl->outboundFeedback.empty())
-                    {
-                        return false;
-                    }
-
-                    localQueue.swap(impl->outboundFeedback);
+                    return false;
                 }
 
                 bool sentAny = false;
@@ -280,12 +393,9 @@ bool UdpRuntimeBridge::Start()
 
             while (true)
             {
+                if (loop.StopRequested())
                 {
-                    std::lock_guard lock(impl->waitMutex);
-                    if (impl->stopRequested.load())
-                    {
-                        break;
-                    }
+                    break;
                 }
 
                 const bool receivedCommands = pumpCommands();
@@ -293,14 +403,7 @@ bool UdpRuntimeBridge::Start()
 
                 if (!receivedCommands && !sentFeedback)
                 {
-                    std::unique_lock lock(impl->waitMutex);
-                    impl->waitCondition.wait_for(
-                        lock,
-                        kIdleWait,
-                        [impl]()
-                        {
-                            return impl->stopRequested.load();
-                        });
+                    loop.WaitForIdle();
                 }
             }
 
@@ -318,16 +421,7 @@ void UdpRuntimeBridge::Stop() noexcept
         return;
     }
 
-    {
-        std::lock_guard lock(impl_->waitMutex);
-        impl_->stopRequested.store(true);
-    }
-    impl_->waitCondition.notify_all();
-
-    if (impl_->worker.joinable())
-    {
-        impl_->worker.join();
-    }
+    impl_->worker.Stop();
 
     impl_->running.store(false);
     impl_->commandReady.store(false);
@@ -337,15 +431,8 @@ void UdpRuntimeBridge::Stop() noexcept
     impl_->commandReceiver.reset();
     impl_->feedbackSender.reset();
 
-    {
-        std::lock_guard lock(impl_->inboundMutex);
-        impl_->inboundCommands.clear();
-    }
-
-    {
-        std::lock_guard lock(impl_->outboundMutex);
-        impl_->outboundFeedback.clear();
-    }
+    impl_->inboundCommands.Clear();
+    impl_->outboundFeedback.Clear();
 }
 
 bool UdpRuntimeBridge::IsRunning() const noexcept
@@ -381,17 +468,9 @@ std::size_t UdpRuntimeBridge::DrainReceivedCommands(std::vector<UserCommand>& de
         return 0;
     }
 
-    std::lock_guard lock(impl_->inboundMutex);
-    const std::size_t commandCount = std::min(maxCommands, impl_->inboundCommands.size());
-    destination.reserve(destination.size() + commandCount);
-
-    for (std::size_t index = 0; index < commandCount; ++index)
-    {
-        destination.push_back(std::move(impl_->inboundCommands.front()));
-        impl_->inboundCommands.pop_front();
-    }
-
-    return commandCount;
+    const std::size_t previousSize = destination.size();
+    (void)impl_->inboundCommands.PopMany(destination, maxCommands);
+    return destination.size() - previousSize;
 }
 
 void UdpRuntimeBridge::EnqueueStrobeFeedback(StrobeStatusFeedback feedback)
@@ -401,18 +480,13 @@ void UdpRuntimeBridge::EnqueueStrobeFeedback(StrobeStatusFeedback feedback)
         return;
     }
 
+    const std::size_t dropped = impl_->outboundFeedback.Push(std::move(feedback));
+    if (dropped > 0)
     {
-        std::lock_guard lock(impl_->outboundMutex);
-        if (impl_->outboundFeedback.size() >= kMaxQueuedFeedback)
-        {
-            impl_->outboundFeedback.pop_front();
-            impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest strobe feedback");
-        }
-
-        impl_->outboundFeedback.push_back(std::move(feedback));
+        impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest strobe feedback");
     }
 
-    impl_->waitCondition.notify_all();
+    impl_->worker.Notify();
 }
 
 std::string UdpRuntimeBridge::LastCommandStatus() const

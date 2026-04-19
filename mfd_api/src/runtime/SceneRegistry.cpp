@@ -78,6 +78,16 @@ bool IsEmptyPatch(const WindowDisplayPatch& patch) noexcept
            !patch.disabled.has_value();
 }
 
+bool IsFiniteValue(const float value) noexcept
+{
+    return std::isfinite(value);
+}
+
+bool IsFiniteValue(const Vec2& value) noexcept
+{
+    return IsFiniteValue(value.x) && IsFiniteValue(value.y);
+}
+
 float* FindTextLikeLetterSpacing(Primitive& primitive) noexcept
 {
     if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))
@@ -179,6 +189,18 @@ struct BlinkPatchResult
     ReticleBlinkState blink {};
 };
 } // namespace
+
+std::size_t SceneRegistry::KeyHasher::operator()(const ReticleKey& key) const noexcept
+{
+    return std::hash<std::string> {}(key.normalizedPageName) ^
+           (std::hash<std::string> {}(key.normalizedReticleId) << 1U);
+}
+
+std::size_t SceneRegistry::KeyHasher::operator()(const DynamicTemplateKey& key) const noexcept
+{
+    return std::hash<std::string> {}(key.normalizedPageName) ^
+           (std::hash<std::string> {}(key.normalizedTemplateId) << 1U);
+}
 
 struct SceneRegistry::PageComponent
 {
@@ -775,6 +797,11 @@ std::vector<const ReticleGroup*> SceneRegistry::CollectActiveReticlePointers() c
 
 bool SceneRegistry::SetPageView(const std::string_view pageName, const PageViewState& view) noexcept
 {
+    if (!IsFinite(view.center) || !IsFinite(view.zoom))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr)
@@ -789,6 +816,11 @@ bool SceneRegistry::SetPageView(const std::string_view pageName, const PageViewS
 
 bool SceneRegistry::SetPageViewCenter(const std::string_view pageName, const Vec2 center) noexcept
 {
+    if (!IsFinite(center))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr)
@@ -802,6 +834,11 @@ bool SceneRegistry::SetPageViewCenter(const std::string_view pageName, const Vec
 
 bool SceneRegistry::SetPageZoom(const std::string_view pageName, const float zoom) noexcept
 {
+    if (!IsFinite(zoom))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr)
@@ -838,7 +875,7 @@ bool SceneRegistry::SetWindowDisabled(const bool disabled) noexcept
 
 bool SceneRegistry::ApplyWindowDisplayPatch(const WindowDisplayPatch& patch) noexcept
 {
-    if (patch.brightness.has_value() && !std::isfinite(*patch.brightness))
+    if (!ValidatePatch(patch))
     {
         return false;
     }
@@ -910,6 +947,11 @@ bool SceneRegistry::SetReticlePosition(const std::string_view pageName,
                                        const std::string_view reticleId,
                                        const Vec2 position) noexcept
 {
+    if (!IsFinite(position))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
     {
@@ -924,6 +966,11 @@ bool SceneRegistry::SetReticleRotation(const std::string_view pageName,
                                        const std::string_view reticleId,
                                        const float rotationDegrees) noexcept
 {
+    if (!IsFinite(rotationDegrees))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
     {
@@ -938,6 +985,11 @@ bool SceneRegistry::SetReticleColor(const std::string_view pageName,
                                     const std::string_view reticleId,
                                     const ColorRgba color) noexcept
 {
+    if (!ValidatePatch(patch))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
     {
@@ -1047,6 +1099,11 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
                                       const std::string_view reticleId,
                                       const ReticlePatch& patch) noexcept
 {
+    if (!ValidatePatch(patch))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
@@ -1061,11 +1118,17 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
         return false;
     }
 
-    bool applied = ApplyPatchToReticleGroup(reticle->group, patch);
+    ReticleGroup stagedGroup = reticle->group;
+    bool applied = ApplyPatchToReticleGroup(stagedGroup, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Applied)
     {
-        reticle->group.blink = blinkResult.blink;
+        stagedGroup.blink = blinkResult.blink;
         applied = true;
+    }
+
+    if (applied)
+    {
+        reticle->group = std::move(stagedGroup);
     }
 
     return applied || IsEmptyPatch(patch);
@@ -1082,6 +1145,11 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
                                              const std::string_view reticleId,
                                              const ReticlePatch& patch) noexcept
 {
+    if (!ValidatePatch(patch))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
@@ -1102,11 +1170,17 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
         return false;
     }
 
-    bool applied = ApplyPatchToReticleGroup(reticle->group, patch);
+    ReticleGroup stagedGroup = reticle->group;
+    bool applied = ApplyPatchToReticleGroup(stagedGroup, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Applied)
     {
-        reticle->group.blink = blinkResult.blink;
+        stagedGroup.blink = blinkResult.blink;
         applied = true;
+    }
+
+    if (applied)
+    {
+        reticle->group = std::move(stagedGroup);
     }
 
     return applied || IsEmptyPatch(patch);
@@ -1123,7 +1197,7 @@ bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
         return false;
     }
 
-    const std::string key = MakeDynamicTemplateLookupKey(normalizedPageName, normalizedTemplateId);
+    const DynamicTemplateKey key = MakeDynamicTemplateKey(normalizedPageName, normalizedTemplateId);
     if (visible)
     {
         dynamicTemplateVisibility_.erase(key);
@@ -1156,6 +1230,11 @@ bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool 
 
 bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec2 position) noexcept
 {
+    if (!IsFinite(position))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
     if (iterator == strobeEntities_.end())
@@ -1211,6 +1290,11 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
             }
         }
 
+        if (!IsFinite(resolvedPosition))
+        {
+            return false;
+        }
+
         reticle->group.transform.position = resolvedPosition;
         return true;
     }
@@ -1220,6 +1304,11 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
 
 bool SceneRegistry::OffsetStrobe(const std::string_view pageName, const Vec2 delta) noexcept
 {
+    if (!IsFinite(delta))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
     if (iterator == strobeEntities_.end())
@@ -1317,7 +1406,11 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
 void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, ReticleGroup reticle)
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    if (!HasNormalizedPage(normalizedPageName) || NormalizeReticleId(reticle.id).empty())
+    const std::string normalizedReticleId = NormalizeReticleId(reticle.id);
+    if (!HasNormalizedPage(normalizedPageName) ||
+        normalizedReticleId.empty() ||
+        !IsFinite(reticle.transform.position) ||
+        !IsFinite(reticle.transform.rotationDegrees))
     {
         return;
     }
@@ -1334,7 +1427,14 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
         {
             if (auto* component = registry_.try_get<ReticleComponent>(existingEntity))
             {
+                const std::string previousNormalizedId = NormalizeReticleId(component->group.id);
                 component->group = std::move(reticle);
+                const std::string updatedNormalizedId = NormalizeReticleId(component->group.id);
+                if (updatedNormalizedId != previousNormalizedId)
+                {
+                    RemoveReticleIndex(normalizedPageName, previousNormalizedId);
+                    IndexReticle(normalizedPageName, component->group, existingEntity);
+                }
             }
         }
         return;
@@ -1426,7 +1526,7 @@ const entt::registry& SceneRegistry::Raw() const noexcept
 entt::entity SceneRegistry::FindReticleEntity(const std::string_view normalizedPageName,
                                               const std::string_view reticleId) const noexcept
 {
-    const auto iterator = reticleEntities_.find(MakeReticleLookupKey(normalizedPageName, reticleId));
+    const auto iterator = reticleEntities_.find(MakeReticleKey(normalizedPageName, reticleId));
     return iterator == reticleEntities_.end() ? entt::null : iterator->second;
 }
 
@@ -1456,33 +1556,28 @@ const SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_vi
     return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
 }
 
-std::string SceneRegistry::MakeReticleLookupKey(const std::string_view normalizedPageName,
-                                                const std::string_view reticleId) const
+SceneRegistry::ReticleKey SceneRegistry::MakeReticleKey(const std::string_view normalizedPageName,
+                                                         const std::string_view reticleId) const
 {
-    std::string key;
-    key.reserve(normalizedPageName.size() + reticleId.size() + 1U);
-    key.append(normalizedPageName);
-    key.push_back(':');
-    key.append(NormalizeReticleId(reticleId));
-    return key;
+    return ReticleKey {std::string(normalizedPageName), NormalizeReticleId(reticleId)};
 }
 
 void SceneRegistry::IndexReticle(const std::string_view normalizedPageName,
                                  const ReticleGroup& reticle,
                                  const entt::entity entity)
 {
-    reticleEntities_.insert_or_assign(MakeReticleLookupKey(normalizedPageName, reticle.id), entity);
+    reticleEntities_.insert_or_assign(MakeReticleKey(normalizedPageName, reticle.id), entity);
 }
 
 void SceneRegistry::RemoveReticleIndex(const std::string_view normalizedPageName, const std::string_view reticleId)
 {
-    reticleEntities_.erase(MakeReticleLookupKey(normalizedPageName, reticleId));
+    reticleEntities_.erase(MakeReticleKey(normalizedPageName, reticleId));
 }
 
-std::string SceneRegistry::MakeDynamicTemplateLookupKey(const std::string_view normalizedPageName,
-                                                        const std::string_view templateId) const
+SceneRegistry::DynamicTemplateKey SceneRegistry::MakeDynamicTemplateKey(const std::string_view normalizedPageName,
+                                                                         const std::string_view templateId) const
 {
-    return std::string(normalizedPageName) + '\x1F' + std::string(templateId);
+    return DynamicTemplateKey {std::string(normalizedPageName), std::string(templateId)};
 }
 
 bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPageName,
@@ -1495,7 +1590,7 @@ bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPa
     }
 
     const auto iterator = dynamicTemplateVisibility_.find(
-        MakeDynamicTemplateLookupKey(normalizedPageName, normalizedTemplateId));
+        MakeDynamicTemplateKey(normalizedPageName, normalizedTemplateId));
     if (iterator == dynamicTemplateVisibility_.end())
     {
         return true;
@@ -1555,5 +1650,54 @@ void SceneRegistry::SetActiveFlag(const std::string_view pageName, const bool ac
     {
         page->active = active;
     }
+}
+
+bool SceneRegistry::IsFinite(const float value) noexcept
+{
+    return IsFiniteValue(value);
+}
+
+bool SceneRegistry::IsFinite(const Vec2& value) noexcept
+{
+    return IsFiniteValue(value);
+}
+
+bool SceneRegistry::ValidatePatch(const ReticlePatch& patch) noexcept
+{
+    if (patch.position.has_value() && !IsFinite(*patch.position))
+    {
+        return false;
+    }
+
+    if (patch.rotationDegrees.has_value() && !IsFinite(*patch.rotationDegrees))
+    {
+        return false;
+    }
+
+    if (patch.thickness.has_value() && (!IsFinite(*patch.thickness) || *patch.thickness <= 0.0f))
+    {
+        return false;
+    }
+
+    if (patch.letterSpacing.has_value() && !IsFinite(*patch.letterSpacing))
+    {
+        return false;
+    }
+
+    for (const auto& [primitiveId, letterSpacing] : patch.letterSpacings)
+    {
+        (void)primitiveId;
+        if (!IsFinite(letterSpacing))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool SceneRegistry::ValidatePatch(const WindowDisplayPatch& patch) noexcept
+{
+    return !patch.brightness.has_value() || IsFinite(*patch.brightness);
 }
 } // namespace mfd

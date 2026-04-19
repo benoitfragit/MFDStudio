@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -318,6 +319,24 @@ TEST(SceneRegistryTests, UpsertingExistingDynamicReticleKeepsSingleOrderedEntry)
     EXPECT_EQ(matchCount, 1U);
 }
 
+TEST(SceneRegistryTests, UpsertingDynamicReticleWithChangedIdReindexesLookup)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup firstVersion = MakeTextReticle("track_alpha");
+    registry.UpsertDynamicReticle("Radar", firstVersion);
+    ASSERT_TRUE(registry.HasDynamicReticle("Radar", "track_alpha"));
+
+    mfd::ReticleGroup renamedVersion = MakeTextReticle("track_beta");
+    registry.UpsertDynamicReticle("Radar", renamedVersion);
+
+    EXPECT_FALSE(registry.HasDynamicReticle("Radar", "track_alpha"));
+    EXPECT_TRUE(registry.HasDynamicReticle("Radar", "track_beta"));
+}
+
 TEST(SceneRegistryTests, WindowDisplayPatchClampsBrightnessAndRejectsNonFiniteValues)
 {
     mfd::MfdDocument document;
@@ -346,6 +365,49 @@ TEST(SceneRegistryTests, WindowDisplayPatchClampsBrightnessAndRejectsNonFiniteVa
     EXPECT_FALSE(registry.ApplyWindowDisplayPatch(patch));
     EXPECT_FLOAT_EQ(registry.WindowDisplay().brightness, 0.0f);
     EXPECT_FALSE(registry.WindowDisplay().disabled);
+}
+
+TEST(SceneRegistryTests, ReticlePatchRejectsNonFiniteValuesAtomically)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticlePatch baselinePatch;
+    baselinePatch.texts["title"] = "BASE";
+    ASSERT_TRUE(registry.ApplyReticlePatch("Radar", "textual", baselinePatch));
+
+    const auto before = registry.CollectPageReticles("Radar");
+    const auto beforeIt = std::find_if(
+        before.begin(),
+        before.end(),
+        [](const mfd::ReticleGroup& group)
+        {
+            return group.id == "textual";
+        });
+    ASSERT_NE(beforeIt, before.end());
+    ASSERT_FALSE(beforeIt->primitives.empty());
+
+    mfd::ReticlePatch invalidPatch;
+    invalidPatch.position = {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+    invalidPatch.texts["title"] = "MUST_NOT_APPLY";
+    EXPECT_FALSE(registry.ApplyReticlePatch("Radar", "textual", invalidPatch));
+
+    const auto after = registry.CollectPageReticles("Radar");
+    const auto afterIt = std::find_if(
+        after.begin(),
+        after.end(),
+        [](const mfd::ReticleGroup& group)
+        {
+            return group.id == "textual";
+        });
+    ASSERT_NE(afterIt, after.end());
+    EXPECT_EQ(afterIt->transform.position.x, beforeIt->transform.position.x);
+    EXPECT_EQ(afterIt->transform.position.y, beforeIt->transform.position.y);
+
+    const auto* textGeometry = std::get_if<mfd::TextGeometry>(&afterIt->primitives.front().geometry);
+    ASSERT_NE(textGeometry, nullptr);
+    EXPECT_EQ(textGeometry->text, "BASE");
 }
 
 TEST(SceneRegistryTests, WindowDisplayPatchSerializationRoundTripsDisabledFlag)
@@ -771,4 +833,24 @@ TEST(SceneRegistryTests, CommandProcessorResetWindowCommandResetsRuntimeState)
     EXPECT_TRUE(registry.ActiveStrobeSummary()->visible);
     EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.0f);
     EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.y, 0.0f);
+}
+
+TEST(SceneRegistryTests, CommandProcessorValidationReturnsStructuredFailure)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+    mfd::CommandProcessor processor(registry);
+
+    mfd::SetPageViewCommand invalidView;
+    invalidView.page = "Radar";
+    invalidView.view.center = {std::numeric_limits<float>::infinity(), 0.0f};
+    invalidView.view.zoom = 1.0f;
+
+    EXPECT_FALSE(processor.Submit(mfd::UserCommand {invalidView}));
+    EXPECT_FALSE(processor.LastError().empty());
+    const mfd::CommandResult result = processor.LastResult();
+    EXPECT_FALSE(result.ok);
+    EXPECT_EQ(result.code, "invalid_page_view");
 }

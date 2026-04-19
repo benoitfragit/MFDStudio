@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include "mfd/core/ArrayView.h"
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -24,6 +25,19 @@ namespace mfd
 {
 class IExchangeChannel;
 class SceneRegistry;
+
+/**
+ * @brief Structured result produced by one command validation/apply cycle.
+ */
+struct CommandResult
+{
+    /** @brief Indicates whether the command was accepted and applied. */
+    bool ok = true;
+    /** @brief Machine-readable error code describing a failure. */
+    std::string code;
+    /** @brief Human-readable failure message. */
+    std::string message;
+};
 
 /**
  * @brief Dispatches user commands to a scene registry.
@@ -86,6 +100,11 @@ public:
      * @return Error string, or an empty string if the last operation succeeded.
      */
     std::string LastError() const;
+    /**
+     * @brief Returns the last structured command result.
+     * @return Last validation/apply result.
+     */
+    CommandResult LastResult() const;
 
     /**
      * @brief Returns the underlying EnTT dispatcher.
@@ -111,10 +130,16 @@ private:
     void OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
     void OnResetWindow(const ResetWindowCommand& command);
 
-    void SetFailure(std::string message);
+    /** @brief Validates one command before dispatching to mutation handlers. */
+    std::optional<CommandResult> ValidateCommand(const UserCommand& command) const;
+    /** @brief Stores a command failure result. */
+    void SetFailure(std::string code, std::string message);
+    /** @brief Stores a command success result and clears previous errors. */
+    void SetSuccess();
 
     SceneRegistry& scene_;
     entt::dispatcher dispatcher_ {};
+    CommandResult lastResult_ {};
     std::string lastError_ {};
     bool lastCommandSucceeded_ = true;
 };
