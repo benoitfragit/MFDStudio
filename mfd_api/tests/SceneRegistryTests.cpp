@@ -697,6 +697,29 @@ TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamic
     EXPECT_FALSE(registry.CaptureActivePageStrobe().has_value());
 }
 
+TEST(SceneRegistryTests, StrobeMagnetStrengthInterpolatesTowardsTarget)
+{
+    mfd::PageDefinition page = MakeRuntimePage();
+    ASSERT_TRUE(page.strobe.has_value());
+    page.strobe->magnet.enabled = true;
+    page.strobe->magnet.radius = 1.0f;
+    page.strobe->magnet.strength = 0.5f;
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup dynamic = MakeTextReticle("magnet_target");
+    dynamic.transform.position = {0.4f, 0.0f};
+    registry.UpsertDynamicReticle("Radar", std::move(dynamic));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.0f, 0.0f}));
+    const auto strobe = registry.StrobeForPage("Radar");
+    ASSERT_TRUE(strobe.has_value());
+    EXPECT_FLOAT_EQ(strobe->position.x, 0.2f);
+    EXPECT_FLOAT_EQ(strobe->position.y, 0.0f);
+}
+
 TEST(SceneRegistryTests, DynamicTemplateVisibilityMasksOnlyMatchingDynamicReticles)
 {
     mfd::MfdDocument document;

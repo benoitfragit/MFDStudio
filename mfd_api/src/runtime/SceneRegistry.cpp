@@ -293,6 +293,318 @@ struct SceneRegistry::StrobeBehaviorComponent
     StrobeMagnetConfig magnet;
 };
 
+/**
+ * @brief Internal page submodule used by `SceneRegistry` to query page/strobe indexes.
+ */
+struct SceneRegistry::ScenePages
+{
+    /** @brief Returns whether one normalized page exists in the page index. */
+    static bool HasNormalizedPage(const SceneRegistry& owner, const std::string_view pageName) noexcept
+    {
+        return owner.pageEntities_.find(std::string(pageName)) != owner.pageEntities_.end();
+    }
+
+    /** @brief Returns whether one normalized page has a strobe entity index entry. */
+    static bool HasNormalizedStrobe(const SceneRegistry& owner, const std::string_view pageName) noexcept
+    {
+        return owner.strobeEntities_.find(std::string(pageName)) != owner.strobeEntities_.end();
+    }
+
+    /** @brief Returns mutable access to one page component. */
+    static PageComponent* FindPage(SceneRegistry& owner, const std::string_view normalizedPageName) noexcept
+    {
+        const auto iterator = owner.pageEntities_.find(std::string(normalizedPageName));
+        return iterator == owner.pageEntities_.end() ? nullptr : owner.registry_.try_get<PageComponent>(iterator->second);
+    }
+
+    /** @brief Returns read-only access to one page component. */
+    static const PageComponent* FindPage(const SceneRegistry& owner, const std::string_view normalizedPageName) noexcept
+    {
+        const auto iterator = owner.pageEntities_.find(std::string(normalizedPageName));
+        return iterator == owner.pageEntities_.end() ? nullptr : owner.registry_.try_get<PageComponent>(iterator->second);
+    }
+};
+
+template <typename PageLike>
+bool ResolveBlinkForReticle(const PageLike& page, ReticleGroup& reticle) noexcept;
+
+/**
+ * @brief Internal reticle submodule used by `SceneRegistry` for typed indexing and dynamic upserts.
+ */
+struct SceneRegistry::SceneReticles
+{
+    /** @brief Finds one reticle entity from a normalized page and reticle id. */
+    static entt::entity FindReticleEntity(const SceneRegistry& owner,
+                                          const std::string_view normalizedPageName,
+                                          const std::string_view reticleId) noexcept
+    {
+        const auto iterator = owner.reticleEntities_.find(owner.MakeReticleKey(normalizedPageName, reticleId));
+        return iterator == owner.reticleEntities_.end() ? entt::null : iterator->second;
+    }
+
+    /** @brief Returns mutable reticle component access. */
+    static ReticleComponent* FindReticle(SceneRegistry& owner,
+                                         const std::string_view normalizedPageName,
+                                         const std::string_view reticleId) noexcept
+    {
+        const entt::entity entity = FindReticleEntity(owner, normalizedPageName, reticleId);
+        return entity == entt::null ? nullptr : owner.registry_.try_get<ReticleComponent>(entity);
+    }
+
+    /** @brief Returns read-only reticle component access. */
+    static const ReticleComponent* FindReticle(const SceneRegistry& owner,
+                                               const std::string_view normalizedPageName,
+                                               const std::string_view reticleId) noexcept
+    {
+        const entt::entity entity = FindReticleEntity(owner, normalizedPageName, reticleId);
+        return entity == entt::null ? nullptr : owner.registry_.try_get<ReticleComponent>(entity);
+    }
+
+    /** @brief Indexes one reticle entity under its typed key. */
+    static void IndexReticle(SceneRegistry& owner,
+                             const std::string_view normalizedPageName,
+                             const ReticleGroup& reticle,
+                             const entt::entity entity)
+    {
+        owner.reticleEntities_.insert_or_assign(owner.MakeReticleKey(normalizedPageName, reticle.id), entity);
+    }
+
+    /** @brief Removes one reticle entity from the typed index. */
+    static void RemoveReticleIndex(SceneRegistry& owner,
+                                   const std::string_view normalizedPageName,
+                                   const std::string_view reticleId)
+    {
+        owner.reticleEntities_.erase(owner.MakeReticleKey(normalizedPageName, reticleId));
+    }
+
+    /** @brief Creates or updates one dynamic reticle while preserving stable identity for existing entries. */
+    static void UpsertDynamicReticle(SceneRegistry& owner, const std::string_view pageName, ReticleGroup reticle)
+    {
+        const std::string normalizedPageName = NormalizePageName(pageName);
+        if (!owner.HasNormalizedPage(normalizedPageName) || NormalizeReticleId(reticle.id).empty() ||
+            !IsFinite(reticle.transform.position) || !IsFinite(reticle.transform.rotationDegrees))
+        {
+            owner.lastError_ = "UpsertDynamicReticle rejected invalid page, id or non-finite transform";
+            return;
+        }
+
+        if (const PageComponent* page = owner.FindPage(normalizedPageName); page != nullptr)
+        {
+            (void)ResolveBlinkForReticle(*page, reticle);
+        }
+
+        const entt::entity existingEntity = FindReticleEntity(owner, normalizedPageName, reticle.id);
+        if (existingEntity != entt::null)
+        {
+            if (owner.registry_.all_of<DynamicTag>(existingEntity))
+            {
+                if (auto* component = owner.registry_.try_get<ReticleComponent>(existingEntity))
+                {
+                    reticle.id = component->group.id;
+                    component->group = std::move(reticle);
+                    owner.lastError_.clear();
+                }
+            }
+            return;
+        }
+
+        const entt::entity entity = owner.registry_.create();
+        owner.registry_.emplace<ReticleComponent>(entity, ReticleComponent {std::move(reticle), owner.nextDynamicOrder_++});
+        owner.registry_.emplace<PageMembership>(entity, PageMembership {normalizedPageName});
+        owner.registry_.emplace<DynamicTag>(entity);
+        IndexReticle(owner, normalizedPageName, owner.registry_.get<ReticleComponent>(entity).group, entity);
+        owner.InsertReticleIntoPageDrawList(normalizedPageName, entity);
+        owner.lastError_.clear();
+    }
+};
+
+/**
+ * @brief Internal patch submodule performing validated and atomic reticle patch application.
+ */
+struct SceneRegistry::ScenePatch
+{
+    /** @brief Applies one patch to a static or dynamic reticle atomically. */
+    static bool ApplyReticlePatch(SceneRegistry& owner,
+                                  const std::string_view pageName,
+                                  const std::string_view reticleId,
+                                  const ReticlePatch& patch) noexcept
+    {
+        if (const Result validation = ValidateReticlePatchPayload(patch); !validation.ok)
+        {
+            owner.lastError_ = validation.error;
+            return false;
+        }
+
+        const std::string normalizedPageName = NormalizePageName(pageName);
+        PageComponent* page = owner.FindPage(normalizedPageName);
+        ReticleComponent* reticle = owner.FindReticle(normalizedPageName, reticleId);
+        if (page == nullptr || reticle == nullptr)
+        {
+            owner.lastError_ = "ApplyReticlePatch target page or reticle not found";
+            return false;
+        }
+
+        const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
+        if (blinkResult.status == BlinkPatchResult::Status::Invalid)
+        {
+            owner.lastError_ = "ApplyReticlePatch invalid blink selection";
+            return false;
+        }
+
+        ReticleGroup candidate = reticle->group;
+        bool applied = ApplyPatchToReticleGroup(candidate, patch);
+        if (blinkResult.status == BlinkPatchResult::Status::Applied)
+        {
+            candidate.blink = blinkResult.blink;
+            applied = true;
+        }
+
+        if (!applied && !IsEmptyPatch(patch))
+        {
+            owner.lastError_ = "ApplyReticlePatch rejected ambiguous or invalid primitive targeting";
+            return false;
+        }
+
+        reticle->group = std::move(candidate);
+        owner.lastError_.clear();
+        return true;
+    }
+
+    /** @brief Applies one patch to an existing dynamic reticle atomically. */
+    static bool ApplyDynamicReticlePatch(SceneRegistry& owner,
+                                         const std::string_view pageName,
+                                         const std::string_view reticleId,
+                                         const ReticlePatch& patch) noexcept
+    {
+        if (const Result validation = ValidateReticlePatchPayload(patch); !validation.ok)
+        {
+            owner.lastError_ = validation.error;
+            return false;
+        }
+
+        const std::string normalizedPageName = NormalizePageName(pageName);
+        PageComponent* page = owner.FindPage(normalizedPageName);
+        const entt::entity entity = owner.FindReticleEntity(normalizedPageName, reticleId);
+        if (page == nullptr || entity == entt::null || !owner.registry_.all_of<DynamicTag>(entity))
+        {
+            owner.lastError_ = "ApplyDynamicReticlePatch target page or dynamic reticle not found";
+            return false;
+        }
+
+        ReticleComponent* reticle = owner.registry_.try_get<ReticleComponent>(entity);
+        if (reticle == nullptr)
+        {
+            owner.lastError_ = "ApplyDynamicReticlePatch missing reticle component";
+            return false;
+        }
+
+        const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
+        if (blinkResult.status == BlinkPatchResult::Status::Invalid)
+        {
+            owner.lastError_ = "ApplyDynamicReticlePatch invalid blink selection";
+            return false;
+        }
+
+        ReticleGroup candidate = reticle->group;
+        bool applied = ApplyPatchToReticleGroup(candidate, patch);
+        if (blinkResult.status == BlinkPatchResult::Status::Applied)
+        {
+            candidate.blink = blinkResult.blink;
+            applied = true;
+        }
+
+        if (!applied && !IsEmptyPatch(patch))
+        {
+            owner.lastError_ = "ApplyDynamicReticlePatch rejected ambiguous or invalid primitive targeting";
+            return false;
+        }
+
+        reticle->group = std::move(candidate);
+        owner.lastError_.clear();
+        return true;
+    }
+};
+
+/**
+ * @brief Internal strobe submodule handling strobe mutations.
+ */
+struct SceneRegistry::SceneStrobe
+{
+    /** @brief Sets one strobe position and applies magnet snapping when configured. */
+    static bool SetStrobePosition(SceneRegistry& owner, const std::string_view pageName, const Vec2 position) noexcept
+    {
+        if (!IsFinite(position))
+        {
+            owner.lastError_ = "SetStrobePosition rejected non-finite position";
+            return false;
+        }
+
+        const std::string normalizedPageName = NormalizePageName(pageName);
+        const auto iterator = owner.strobeEntities_.find(std::string(normalizedPageName));
+        if (iterator == owner.strobeEntities_.end())
+        {
+            owner.lastError_ = "SetStrobePosition page has no strobe";
+            return false;
+        }
+
+        auto* reticle = owner.registry_.try_get<ReticleComponent>(iterator->second);
+        const auto* behavior = owner.registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+        const PageComponent* page = owner.FindPage(normalizedPageName);
+        if (reticle != nullptr)
+        {
+            Vec2 resolvedPosition = position;
+
+            if (page != nullptr && behavior != nullptr && behavior->magnet.enabled && behavior->magnet.radius > 0.0f)
+            {
+                const float radiusSquared = behavior->magnet.radius * behavior->magnet.radius;
+                float bestDistanceSquared = radiusSquared;
+                std::optional<Vec2> targetPosition;
+                const BlinkClock::time_point now = BlinkClock::now();
+
+                auto dynamicView = owner.registry_.view<ReticleComponent, PageMembership, DynamicTag>();
+                for (const entt::entity entity : dynamicView)
+                {
+                    const auto& membership = dynamicView.get<PageMembership>(entity);
+                    if (membership.pageName != normalizedPageName)
+                    {
+                        continue;
+                    }
+
+                    const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity).group;
+                    if (!IsReticleVisibleNow(*page, dynamicReticle, now) ||
+                        !owner.IsDynamicTemplateVisible(normalizedPageName, dynamicReticle.sourceTemplateId))
+                    {
+                        continue;
+                    }
+
+                    const float distanceSquared = DistanceSquared(position, dynamicReticle.transform.position);
+                    if (distanceSquared > radiusSquared || distanceSquared >= bestDistanceSquared)
+                    {
+                        continue;
+                    }
+
+                    bestDistanceSquared = distanceSquared;
+                    targetPosition = dynamicReticle.transform.position;
+                }
+
+                if (targetPosition.has_value())
+                {
+                    const float strength = std::clamp(behavior->magnet.strength, 0.0f, 1.0f);
+                    resolvedPosition.x += (targetPosition->x - resolvedPosition.x) * strength;
+                    resolvedPosition.y += (targetPosition->y - resolvedPosition.y) * strength;
+                }
+            }
+
+            reticle->group.transform.position = resolvedPosition;
+            owner.lastError_.clear();
+            return true;
+        }
+
+        owner.lastError_ = "SetStrobePosition missing strobe reticle component";
+        return false;
+    }
+};
+
 namespace
 {
 template <typename PageLike>
@@ -552,12 +864,12 @@ bool SceneRegistry::ActivePageHasStrobe() const noexcept
 
 bool SceneRegistry::HasNormalizedPage(const std::string_view pageName) const noexcept
 {
-    return pageEntities_.find(std::string(pageName)) != pageEntities_.end();
+    return ScenePages::HasNormalizedPage(*this, pageName);
 }
 
 bool SceneRegistry::HasNormalizedStrobe(const std::string_view pageName) const noexcept
 {
-    return strobeEntities_.find(std::string(pageName)) != strobeEntities_.end();
+    return ScenePages::HasNormalizedStrobe(*this, pageName);
 }
 
 void SceneRegistry::SetActivePage(const std::string_view pageName) noexcept
@@ -1176,45 +1488,7 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
                                       const std::string_view reticleId,
                                       const ReticlePatch& patch) noexcept
 {
-    if (const Result validation = ValidateReticlePatchPayload(patch); !validation.ok)
-    {
-        lastError_ = validation.error;
-        return false;
-    }
-
-    const std::string normalizedPageName = NormalizePageName(pageName);
-    PageComponent* page = FindPage(normalizedPageName);
-    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
-    if (page == nullptr || reticle == nullptr)
-    {
-        lastError_ = "ApplyReticlePatch target page or reticle not found";
-        return false;
-    }
-
-    const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
-    if (blinkResult.status == BlinkPatchResult::Status::Invalid)
-    {
-        lastError_ = "ApplyReticlePatch invalid blink selection";
-        return false;
-    }
-
-    ReticleGroup candidate = reticle->group;
-    bool applied = ApplyPatchToReticleGroup(candidate, patch);
-    if (blinkResult.status == BlinkPatchResult::Status::Applied)
-    {
-        candidate.blink = blinkResult.blink;
-        applied = true;
-    }
-
-    if (!applied && !IsEmptyPatch(patch))
-    {
-        lastError_ = "ApplyReticlePatch rejected ambiguous or invalid primitive targeting";
-        return false;
-    }
-
-    reticle->group = std::move(candidate);
-    lastError_.clear();
-    return true;
+    return ScenePatch::ApplyReticlePatch(*this, pageName, reticleId, patch);
 }
 
 bool SceneRegistry::HasDynamicReticle(const std::string_view pageName, const std::string_view reticleId) const noexcept
@@ -1228,52 +1502,7 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
                                              const std::string_view reticleId,
                                              const ReticlePatch& patch) noexcept
 {
-    if (const Result validation = ValidateReticlePatchPayload(patch); !validation.ok)
-    {
-        lastError_ = validation.error;
-        return false;
-    }
-
-    const std::string normalizedPageName = NormalizePageName(pageName);
-    PageComponent* page = FindPage(normalizedPageName);
-    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
-    if (page == nullptr || entity == entt::null || !registry_.all_of<DynamicTag>(entity))
-    {
-        lastError_ = "ApplyDynamicReticlePatch target page or dynamic reticle not found";
-        return false;
-    }
-
-    ReticleComponent* reticle = registry_.try_get<ReticleComponent>(entity);
-    if (reticle == nullptr)
-    {
-        lastError_ = "ApplyDynamicReticlePatch missing reticle component";
-        return false;
-    }
-
-    const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
-    if (blinkResult.status == BlinkPatchResult::Status::Invalid)
-    {
-        lastError_ = "ApplyDynamicReticlePatch invalid blink selection";
-        return false;
-    }
-
-    ReticleGroup candidate = reticle->group;
-    bool applied = ApplyPatchToReticleGroup(candidate, patch);
-    if (blinkResult.status == BlinkPatchResult::Status::Applied)
-    {
-        candidate.blink = blinkResult.blink;
-        applied = true;
-    }
-
-    if (!applied && !IsEmptyPatch(patch))
-    {
-        lastError_ = "ApplyDynamicReticlePatch rejected ambiguous or invalid primitive targeting";
-        return false;
-    }
-
-    reticle->group = std::move(candidate);
-    lastError_.clear();
-    return true;
+    return ScenePatch::ApplyDynamicReticlePatch(*this, pageName, reticleId, patch);
 }
 
 bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
@@ -1322,75 +1551,7 @@ bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool 
 
 bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec2 position) noexcept
 {
-    if (!IsFinite(position))
-    {
-        lastError_ = "SetStrobePosition rejected non-finite position";
-        return false;
-    }
-
-    const std::string normalizedPageName = NormalizePageName(pageName);
-    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
-    if (iterator == strobeEntities_.end())
-    {
-        lastError_ = "SetStrobePosition page has no strobe";
-        return false;
-    }
-
-    auto* reticle = registry_.try_get<ReticleComponent>(iterator->second);
-    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
-    const PageComponent* page = FindPage(normalizedPageName);
-    if (reticle != nullptr)
-    {
-        Vec2 resolvedPosition = position;
-
-        if (page != nullptr && behavior != nullptr && behavior->magnet.enabled && behavior->magnet.radius > 0.0f)
-        {
-            const float radiusSquared = behavior->magnet.radius * behavior->magnet.radius;
-            float bestDistanceSquared = radiusSquared;
-            std::optional<Vec2> targetPosition;
-            const BlinkClock::time_point now = BlinkClock::now();
-
-            auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
-            for (const entt::entity entity : dynamicView)
-            {
-                const auto& membership = dynamicView.get<PageMembership>(entity);
-                if (membership.pageName != normalizedPageName)
-                {
-                    continue;
-                }
-
-                const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity).group;
-                if (!IsReticleVisibleNow(*page, dynamicReticle, now) ||
-                    !IsDynamicTemplateVisible(normalizedPageName, dynamicReticle.sourceTemplateId))
-                {
-                    continue;
-                }
-
-                const float distanceSquared = DistanceSquared(position, dynamicReticle.transform.position);
-                if (distanceSquared > radiusSquared || distanceSquared >= bestDistanceSquared)
-                {
-                    continue;
-                }
-
-                bestDistanceSquared = distanceSquared;
-                targetPosition = dynamicReticle.transform.position;
-            }
-
-            if (targetPosition.has_value())
-            {
-                const float strength = std::clamp(behavior->magnet.strength, 0.0f, 1.0f);
-                resolvedPosition.x += (targetPosition->x - resolvedPosition.x) * strength;
-                resolvedPosition.y += (targetPosition->y - resolvedPosition.y) * strength;
-            }
-        }
-
-        reticle->group.transform.position = resolvedPosition;
-        lastError_.clear();
-        return true;
-    }
-
-    lastError_ = "SetStrobePosition missing strobe reticle component";
-    return false;
+    return SceneStrobe::SetStrobePosition(*this, pageName, position);
 }
 
 bool SceneRegistry::OffsetStrobe(const std::string_view pageName, const Vec2 delta) noexcept
@@ -1491,41 +1652,7 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
 
 void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, ReticleGroup reticle)
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
-    if (!HasNormalizedPage(normalizedPageName) || NormalizeReticleId(reticle.id).empty() ||
-        !IsFinite(reticle.transform.position) || !IsFinite(reticle.transform.rotationDegrees))
-    {
-        lastError_ = "UpsertDynamicReticle rejected invalid page, id or non-finite transform";
-        return;
-    }
-
-    if (const PageComponent* page = FindPage(normalizedPageName); page != nullptr)
-    {
-        (void)ResolveBlinkForReticle(*page, reticle);
-    }
-
-    const entt::entity existingEntity = FindReticleEntity(normalizedPageName, reticle.id);
-    if (existingEntity != entt::null)
-    {
-        if (registry_.all_of<DynamicTag>(existingEntity))
-        {
-            if (auto* component = registry_.try_get<ReticleComponent>(existingEntity))
-            {
-                reticle.id = component->group.id;
-                component->group = std::move(reticle);
-                lastError_.clear();
-            }
-        }
-        return;
-    }
-
-    const entt::entity entity = registry_.create();
-    registry_.emplace<ReticleComponent>(entity, ReticleComponent {std::move(reticle), nextDynamicOrder_++});
-    registry_.emplace<PageMembership>(entity, PageMembership {normalizedPageName});
-    registry_.emplace<DynamicTag>(entity);
-    IndexReticle(normalizedPageName, registry_.get<ReticleComponent>(entity).group, entity);
-    InsertReticleIntoPageDrawList(normalizedPageName, entity);
-    lastError_.clear();
+    SceneReticles::UpsertDynamicReticle(*this, pageName, std::move(reticle));
 }
 
 bool SceneRegistry::RemoveDynamicReticle(const std::string_view pageName, const std::string_view reticleId)
@@ -1611,34 +1738,29 @@ const std::string& SceneRegistry::LastError() const noexcept
 entt::entity SceneRegistry::FindReticleEntity(const std::string_view normalizedPageName,
                                               const std::string_view reticleId) const noexcept
 {
-    const auto iterator = reticleEntities_.find(MakeReticleKey(normalizedPageName, reticleId));
-    return iterator == reticleEntities_.end() ? entt::null : iterator->second;
+    return SceneReticles::FindReticleEntity(*this, normalizedPageName, reticleId);
 }
 
 SceneRegistry::ReticleComponent* SceneRegistry::FindReticle(const std::string_view normalizedPageName,
                                                             const std::string_view reticleId) noexcept
 {
-    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
-    return entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
+    return SceneReticles::FindReticle(*this, normalizedPageName, reticleId);
 }
 
 const SceneRegistry::ReticleComponent* SceneRegistry::FindReticle(const std::string_view normalizedPageName,
                                                                   const std::string_view reticleId) const noexcept
 {
-    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
-    return entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
+    return SceneReticles::FindReticle(*this, normalizedPageName, reticleId);
 }
 
 SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_view normalizedPageName) noexcept
 {
-    const auto iterator = pageEntities_.find(std::string(normalizedPageName));
-    return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
+    return ScenePages::FindPage(*this, normalizedPageName);
 }
 
 const SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_view normalizedPageName) const noexcept
 {
-    const auto iterator = pageEntities_.find(std::string(normalizedPageName));
-    return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
+    return ScenePages::FindPage(*this, normalizedPageName);
 }
 
 ReticleKey SceneRegistry::MakeReticleKey(const std::string_view normalizedPageName,
@@ -1651,12 +1773,12 @@ void SceneRegistry::IndexReticle(const std::string_view normalizedPageName,
                                  const ReticleGroup& reticle,
                                  const entt::entity entity)
 {
-    reticleEntities_.insert_or_assign(MakeReticleKey(normalizedPageName, reticle.id), entity);
+    SceneReticles::IndexReticle(*this, normalizedPageName, reticle, entity);
 }
 
 void SceneRegistry::RemoveReticleIndex(const std::string_view normalizedPageName, const std::string_view reticleId)
 {
-    reticleEntities_.erase(MakeReticleKey(normalizedPageName, reticleId));
+    SceneReticles::RemoveReticleIndex(*this, normalizedPageName, reticleId);
 }
 
 SceneRegistry::DynamicTemplateKey SceneRegistry::MakeDynamicTemplateKey(const std::string_view normalizedPageName,

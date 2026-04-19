@@ -354,6 +354,14 @@ private:
     struct StrobeTag;
     /** @brief Runtime behavior configuration attached to a strobe entity. */
     struct StrobeBehaviorComponent;
+    /** @brief Page-focused runtime submodule for page and strobe entity resolution. */
+    struct ScenePages;
+    /** @brief Reticle-focused runtime submodule for indexing and dynamic upserts. */
+    struct SceneReticles;
+    /** @brief Patch-focused runtime submodule for validated/atomic patch application. */
+    struct ScenePatch;
+    /** @brief Strobe-focused runtime submodule for strobe mutations. */
+    struct SceneStrobe;
 
     /** @brief Returns `true` when a normalized page key exists in the scene indexes. */
     bool HasNormalizedPage(std::string_view pageName) const noexcept;

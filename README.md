@@ -134,6 +134,7 @@ Read this as:
 
 - JSON files define the authoring model
 - `SceneRegistry` holds the runtime state
+- internally, `SceneRegistry` is split by responsibility (`ScenePages`, `SceneReticles`, `ScenePatch`, `SceneStrobe`) to keep mutation, lookup, and validation logic isolated
 - a background UDP I/O worker receives commands and sends feedback
 - the render thread drains queued commands and dispatches them through `CommandProcessor`
 - the renderer draws only the active page
