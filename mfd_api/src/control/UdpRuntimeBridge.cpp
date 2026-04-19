@@ -20,6 +20,7 @@
 #include <mutex>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "mfd/control/CommandTransport.h"
 #include "mfd/control/CommandTypes.h"

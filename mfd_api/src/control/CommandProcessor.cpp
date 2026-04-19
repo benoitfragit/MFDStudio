@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstring>
 #include <cmath>
+#include <exception>
 #include <type_traits>
 #include <utility>
 
