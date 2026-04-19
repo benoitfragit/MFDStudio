@@ -9,6 +9,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ReticleTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SceneRegistryTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/UdpRuntimeBridgeTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/UserSpaceProjectorTests.cpp)
 
 add_executable(mfd_api_tests ${MFD_API_TEST_SOURCES})
