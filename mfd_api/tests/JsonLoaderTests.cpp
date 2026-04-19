@@ -856,3 +856,49 @@ TEST(JsonLoaderTests, LoadDocumentRejectsBezierWithAmbiguousPointFields)
     mfd::JsonLoader loader;
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
+
+TEST(JsonLoaderTests, LoadDocumentKeepsNonZeroRingBandWhenOnlyOuterRadiusIsProvided)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "small_ring.json",
+                  R"json({
+  "id": "small_ring",
+  "elements": [
+    {
+      "id": "ring_small",
+      "type": "ring",
+      "radius": 0.01
+    }
+  ]
+})json");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "staticReticles": [
+        {
+          "id": "shape",
+          "template": "small_ring"
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(document.pages.size(), 1U);
+    ASSERT_EQ(document.pages.front().staticReticles.size(), 1U);
+    ASSERT_EQ(document.pages.front().staticReticles.front().primitives.size(), 1U);
+    const mfd::Primitive& primitive = document.pages.front().staticReticles.front().primitives.front();
+    const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry);
+    ASSERT_NE(ring, nullptr);
+    EXPECT_LT(ring->innerRadius, ring->outerRadius);
+}

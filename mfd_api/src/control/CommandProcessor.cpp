@@ -113,6 +113,7 @@ bool CommandProcessor::Poll(IExchangeChannel& channel)
 {
     bool processedAny = false;
     std::size_t processedCount = 0;
+    bool dispatchFailed = false;
 
     while (processedCount < kMaxCommandsPerPoll)
     {
@@ -126,26 +127,31 @@ bool CommandProcessor::Poll(IExchangeChannel& channel)
 
             processedAny = true;
             ++processedCount;
-            Submit(*payload);
+            if (!Submit(*payload))
+            {
+                dispatchFailed = true;
+            }
         }
         catch (const std::exception& exception)
         {
             SetFailure(exception.what());
+            dispatchFailed = true;
             break;
         }
         catch (...)
         {
             SetFailure("Unknown exception while polling a command transport");
+            dispatchFailed = true;
             break;
         }
     }
 
-    if (processedCount == kMaxCommandsPerPoll)
+    if (processedCount == kMaxCommandsPerPoll && !dispatchFailed)
     {
         lastError_ = "Command polling was throttled to keep the frame responsive";
     }
 
-    if (!channel.LastError().empty())
+    if (!processedAny && !dispatchFailed && !channel.LastError().empty())
     {
         lastError_ = channel.LastError();
     }

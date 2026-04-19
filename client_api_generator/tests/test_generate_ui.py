@@ -151,8 +151,57 @@ class GenerateUiTests(unittest.TestCase):
                 "if (!client.SetPageView(SystemMockupPage::Name(), view.center, view.zoom))",
                 "return publisher.SubmitLatest(BuildBatch(), sequence);",
                 "return publisher.SubmitLatest(BuildShutdownBatch(std::move(statusText)), sequence);",
+                "radar_.AppendShutdownCommands(commands, std::string {});",
+                "system_.AppendShutdownCommands(commands, std::move(statusText));",
             ]:
                 self.assertIn(expected, source_content)
+
+
+
+    def test_detects_single_text_primitive_without_suffix_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Main",
+                        "staticReticles": [
+                            {
+                                "id": "multi_element_status",
+                                "elements": [
+                                    {"id": "label", "type": "text"},
+                                    {"id": "shape_one", "type": "line"},
+                                    {"id": "shape_two", "type": "line"},
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+            self.assertIn("TextReticle multiElementStatus;", header_content)
 
     def test_print_inputs_lists_window_and_page_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

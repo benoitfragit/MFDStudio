@@ -1220,7 +1220,8 @@ Primitive ParsePrimitive(const json& node)
     {
         RingGeometry geometry;
         const float outerRadius = node.value("outerRadius", node.value("radius", geometry.outerRadius));
-        const float bandWidth = node.value("bandWidth", node.value("ringWidth", outerRadius - geometry.innerRadius));
+        const float defaultBandWidth = std::max(0.0f, geometry.outerRadius - geometry.innerRadius);
+        const float bandWidth = node.value("bandWidth", node.value("ringWidth", defaultBandWidth));
         geometry.outerRadius = std::max(0.0f, outerRadius);
         geometry.innerRadius = std::max(0.0f,
                                         node.value("innerRadius",
