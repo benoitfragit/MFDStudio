@@ -11,6 +11,7 @@
  */
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -34,12 +35,24 @@ class MFD_API UdpRuntimeBridge
 {
 public:
     /**
+     * @brief Factory creating one exchange channel instance.
+     */
+    using ChannelFactory = std::function<std::unique_ptr<IExchangeChannel>()>;
+
+    /**
      * @brief Creates a bridge from window command and feedback transport settings.
      * @param commandConfig UDP command transport configuration.
      * @param feedbackConfig UDP feedback transport configuration.
      */
     UdpRuntimeBridge(WindowCommandTransportConfig commandConfig = {},
                      WindowFeedbackTransportConfig feedbackConfig = {});
+
+    /**
+     * @brief Creates a bridge from channel factories (useful for custom transports and tests).
+     * @param commandReceiverFactory Factory creating the command receiver channel.
+     * @param feedbackSenderFactory Factory creating the feedback sender channel.
+     */
+    UdpRuntimeBridge(ChannelFactory commandReceiverFactory, ChannelFactory feedbackSenderFactory);
 
     ~UdpRuntimeBridge();
 

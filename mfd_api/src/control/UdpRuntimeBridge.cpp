@@ -11,12 +11,12 @@
 #include "mfd/control/UdpRuntimeBridge.h"
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <deque>
 #include <exception>
+#include <functional>
 #include <mutex>
 #include <thread>
 #include <utility>
@@ -42,6 +42,8 @@ struct UdpRuntimeBridge::Impl
 {
     WindowCommandTransportConfig commandConfig {};
     WindowFeedbackTransportConfig feedbackConfig {};
+    ChannelFactory commandReceiverFactory {};
+    ChannelFactory feedbackSenderFactory {};
 
     std::unique_ptr<IExchangeChannel> commandReceiver {};
     std::unique_ptr<IExchangeChannel> feedbackSender {};
@@ -49,33 +51,50 @@ struct UdpRuntimeBridge::Impl
     std::deque<UserCommand> inboundCommands;
     std::deque<StrobeStatusFeedback> outboundFeedback;
 
+    mutable std::mutex stateMutex;
     mutable std::mutex inboundMutex;
     mutable std::mutex outboundMutex;
-    mutable std::mutex statusMutex;
-    mutable std::mutex waitMutex;
     std::condition_variable waitCondition;
 
     std::thread worker;
-    std::atomic<bool> stopRequested {false};
-    std::atomic<bool> running {false};
-    std::atomic<bool> hasCommandReceiver {false};
-    std::atomic<bool> hasFeedbackSender {false};
-    std::atomic<bool> commandReady {false};
-    std::atomic<bool> feedbackReady {false};
+    bool stopRequested = false;
+    bool running = false;
+    bool hasCommandReceiver = false;
+    bool hasFeedbackSender = false;
+    bool commandReady = false;
+    bool feedbackReady = false;
 
     std::string lastCommandStatus;
     std::string lastFeedbackStatus;
 
     void SetCommandStatus(std::string status)
     {
-        std::lock_guard lock(statusMutex);
+        std::lock_guard lock(stateMutex);
         lastCommandStatus = std::move(status);
     }
 
     void SetFeedbackStatus(std::string status)
     {
-        std::lock_guard lock(statusMutex);
+        std::lock_guard lock(stateMutex);
         lastFeedbackStatus = std::move(status);
+    }
+
+    bool ShouldStop() const
+    {
+        std::lock_guard lock(stateMutex);
+        return stopRequested;
+    }
+
+    bool IsCommandReady() const
+    {
+        std::lock_guard lock(stateMutex);
+        return commandReady;
+    }
+
+    bool IsFeedbackReady() const
+    {
+        std::lock_guard lock(stateMutex);
+        return feedbackReady;
     }
 };
 
@@ -85,6 +104,21 @@ UdpRuntimeBridge::UdpRuntimeBridge(WindowCommandTransportConfig commandConfig,
 {
     impl_->commandConfig = std::move(commandConfig);
     impl_->feedbackConfig = std::move(feedbackConfig);
+    impl_->commandReceiverFactory = [config = impl_->commandConfig]()
+    {
+        return CreateCommandReceiverChannel(config);
+    };
+    impl_->feedbackSenderFactory = [config = impl_->feedbackConfig]()
+    {
+        return CreateFeedbackSenderChannel(config);
+    };
+}
+
+UdpRuntimeBridge::UdpRuntimeBridge(ChannelFactory commandReceiverFactory, ChannelFactory feedbackSenderFactory)
+    : impl_(std::make_unique<Impl>())
+{
+    impl_->commandReceiverFactory = std::move(commandReceiverFactory);
+    impl_->feedbackSenderFactory = std::move(feedbackSenderFactory);
 }
 
 UdpRuntimeBridge::~UdpRuntimeBridge()
@@ -101,19 +135,26 @@ bool UdpRuntimeBridge::Start()
 
     Stop();
 
-    impl_->commandReceiver = CreateCommandReceiverChannel(impl_->commandConfig);
-    impl_->feedbackSender = CreateFeedbackSenderChannel(impl_->feedbackConfig);
+    impl_->commandReceiver = impl_->commandReceiverFactory ? impl_->commandReceiverFactory() : nullptr;
+    impl_->feedbackSender = impl_->feedbackSenderFactory ? impl_->feedbackSenderFactory() : nullptr;
 
-    impl_->hasCommandReceiver.store(impl_->commandReceiver != nullptr);
-    impl_->hasFeedbackSender.store(impl_->feedbackSender != nullptr);
-    impl_->commandReady.store(impl_->commandReceiver != nullptr && impl_->commandReceiver->IsReady());
-    impl_->feedbackReady.store(impl_->feedbackSender != nullptr && impl_->feedbackSender->IsReady());
+    const bool hasCommandReceiver = impl_->commandReceiver != nullptr;
+    const bool hasFeedbackSender = impl_->feedbackSender != nullptr;
+    const bool commandReady = hasCommandReceiver && impl_->commandReceiver->IsReady();
+    const bool feedbackReady = hasFeedbackSender && impl_->feedbackSender->IsReady();
+    {
+        std::lock_guard lock(impl_->stateMutex);
+        impl_->hasCommandReceiver = hasCommandReceiver;
+        impl_->hasFeedbackSender = hasFeedbackSender;
+        impl_->commandReady = commandReady;
+        impl_->feedbackReady = feedbackReady;
+    }
 
-    if (!impl_->hasCommandReceiver.load())
+    if (!hasCommandReceiver)
     {
         impl_->SetCommandStatus("UDP command bridge disabled in the window JSON");
     }
-    else if (impl_->commandReady.load())
+    else if (commandReady)
     {
         impl_->SetCommandStatus("UDP command receiver thread ready");
     }
@@ -122,11 +163,11 @@ bool UdpRuntimeBridge::Start()
         impl_->SetCommandStatus(impl_->commandReceiver->LastError());
     }
 
-    if (!impl_->hasFeedbackSender.load())
+    if (!hasFeedbackSender)
     {
         impl_->SetFeedbackStatus("UDP strobe feedback sender disabled in the window JSON");
     }
-    else if (impl_->feedbackReady.load())
+    else if (feedbackReady)
     {
         impl_->SetFeedbackStatus("UDP strobe feedback sender thread ready");
     }
@@ -135,13 +176,16 @@ bool UdpRuntimeBridge::Start()
         impl_->SetFeedbackStatus(impl_->feedbackSender->LastError());
     }
 
-    if (!impl_->commandReady.load() && !impl_->feedbackReady.load())
+    if (!commandReady && !feedbackReady)
     {
-        return !impl_->hasCommandReceiver.load() && !impl_->hasFeedbackSender.load();
+        return !hasCommandReceiver && !hasFeedbackSender;
     }
 
-    impl_->stopRequested.store(false);
-    impl_->running.store(true);
+    {
+        std::lock_guard lock(impl_->stateMutex);
+        impl_->stopRequested = false;
+        impl_->running = true;
+    }
     impl_->worker = std::thread(
         [impl = impl_.get()]()
         {
@@ -177,7 +221,7 @@ bool UdpRuntimeBridge::Start()
 
             auto flushFeedback = [impl]() -> bool
             {
-                if (!impl->feedbackReady.load() || impl->feedbackSender == nullptr)
+                if (!impl->IsFeedbackReady() || impl->feedbackSender == nullptr)
                 {
                     return false;
                 }
@@ -228,7 +272,7 @@ bool UdpRuntimeBridge::Start()
 
             auto pumpCommands = [impl, &pushCommands]() -> bool
             {
-                if (!impl->commandReady.load() || impl->commandReceiver == nullptr)
+                if (!impl->IsCommandReady() || impl->commandReceiver == nullptr)
                 {
                     return false;
                 }
@@ -281,8 +325,7 @@ bool UdpRuntimeBridge::Start()
             while (true)
             {
                 {
-                    std::lock_guard lock(impl->waitMutex);
-                    if (impl->stopRequested.load())
+                    if (impl->ShouldStop())
                     {
                         break;
                     }
@@ -293,19 +336,22 @@ bool UdpRuntimeBridge::Start()
 
                 if (!receivedCommands && !sentFeedback)
                 {
-                    std::unique_lock lock(impl->waitMutex);
+                    std::unique_lock lock(impl->stateMutex);
                     impl->waitCondition.wait_for(
                         lock,
                         kIdleWait,
                         [impl]()
                         {
-                            return impl->stopRequested.load();
+                            return impl->stopRequested;
                         });
                 }
             }
 
             (void)flushFeedback();
-            impl->running.store(false);
+            {
+                std::lock_guard lock(impl->stateMutex);
+                impl->running = false;
+            }
         });
 
     return true;
@@ -319,8 +365,8 @@ void UdpRuntimeBridge::Stop() noexcept
     }
 
     {
-        std::lock_guard lock(impl_->waitMutex);
-        impl_->stopRequested.store(true);
+        std::lock_guard lock(impl_->stateMutex);
+        impl_->stopRequested = true;
     }
     impl_->waitCondition.notify_all();
 
@@ -329,11 +375,14 @@ void UdpRuntimeBridge::Stop() noexcept
         impl_->worker.join();
     }
 
-    impl_->running.store(false);
-    impl_->commandReady.store(false);
-    impl_->feedbackReady.store(false);
-    impl_->hasCommandReceiver.store(false);
-    impl_->hasFeedbackSender.store(false);
+    {
+        std::lock_guard lock(impl_->stateMutex);
+        impl_->running = false;
+        impl_->commandReady = false;
+        impl_->feedbackReady = false;
+        impl_->hasCommandReceiver = false;
+        impl_->hasFeedbackSender = false;
+    }
     impl_->commandReceiver.reset();
     impl_->feedbackSender.reset();
 
@@ -350,27 +399,57 @@ void UdpRuntimeBridge::Stop() noexcept
 
 bool UdpRuntimeBridge::IsRunning() const noexcept
 {
-    return impl_ != nullptr && impl_->running.load();
+    if (impl_ == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard lock(impl_->stateMutex);
+    return impl_->running;
 }
 
 bool UdpRuntimeBridge::HasCommandReceiver() const noexcept
 {
-    return impl_ != nullptr && impl_->hasCommandReceiver.load();
+    if (impl_ == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard lock(impl_->stateMutex);
+    return impl_->hasCommandReceiver;
 }
 
 bool UdpRuntimeBridge::HasFeedbackSender() const noexcept
 {
-    return impl_ != nullptr && impl_->hasFeedbackSender.load();
+    if (impl_ == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard lock(impl_->stateMutex);
+    return impl_->hasFeedbackSender;
 }
 
 bool UdpRuntimeBridge::CommandTransportReady() const noexcept
 {
-    return impl_ != nullptr && impl_->commandReady.load();
+    if (impl_ == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard lock(impl_->stateMutex);
+    return impl_->commandReady;
 }
 
 bool UdpRuntimeBridge::FeedbackTransportReady() const noexcept
 {
-    return impl_ != nullptr && impl_->feedbackReady.load();
+    if (impl_ == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard lock(impl_->stateMutex);
+    return impl_->feedbackReady;
 }
 
 std::size_t UdpRuntimeBridge::DrainReceivedCommands(std::vector<UserCommand>& destination,
@@ -396,7 +475,7 @@ std::size_t UdpRuntimeBridge::DrainReceivedCommands(std::vector<UserCommand>& de
 
 void UdpRuntimeBridge::EnqueueStrobeFeedback(StrobeStatusFeedback feedback)
 {
-    if (impl_ == nullptr || !impl_->hasFeedbackSender.load())
+    if (impl_ == nullptr || !HasFeedbackSender())
     {
         return;
     }
@@ -422,7 +501,7 @@ std::string UdpRuntimeBridge::LastCommandStatus() const
         return {};
     }
 
-    std::lock_guard lock(impl_->statusMutex);
+    std::lock_guard lock(impl_->stateMutex);
     return impl_->lastCommandStatus;
 }
 
@@ -433,7 +512,7 @@ std::string UdpRuntimeBridge::LastFeedbackStatus() const
         return {};
     }
 
-    std::lock_guard lock(impl_->statusMutex);
+    std::lock_guard lock(impl_->stateMutex);
     return impl_->lastFeedbackStatus;
 }
 } // namespace mfd
