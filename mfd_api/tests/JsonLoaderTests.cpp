@@ -861,22 +861,30 @@ TEST(JsonLoaderTests, LoadDocumentKeepsNonZeroRingBandWhenOnlyOuterRadiusIsProvi
 {
     TemporaryFolder workspace;
     const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "small_ring.json",
+                  R"json({
+  "id": "small_ring",
+  "elements": [
+    {
+      "id": "ring_small",
+      "type": "ring",
+      "radius": 0.01
+    }
+  ]
+})json");
 
     WriteTextFile(pagesFile,
                   R"json({
+  "reticleLibraryFolder": "reticles",
   "pages": [
     {
       "name": "Main",
       "staticReticles": [
         {
           "id": "shape",
-          "elements": [
-            {
-              "id": "ring_small",
-              "type": "ring",
-              "radius": 0.01
-            }
-          ]
+          "template": "small_ring"
         }
       ]
     }
