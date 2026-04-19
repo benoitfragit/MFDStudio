@@ -216,12 +216,13 @@ def text_primitive_ids(reticle_node: dict, template_library: dict[str, dict]) ->
 
 
 def choose_text_binding(primitive_ids: list[str], element_count: int) -> str | None:
+    _ = element_count
     for suffix in ("_value", "_caption", "_text"):
         for primitive_id in primitive_ids:
             if primitive_id.endswith(suffix):
                 return primitive_id
 
-    if len(primitive_ids) == 1 and element_count <= 2:
+    if len(primitive_ids) == 1:
         return primitive_ids[0]
 
     return None
@@ -641,8 +642,8 @@ def emit_source(namespace_name: str,
         "{",
         "    std::vector<mfd::UserCommand> commands;",
     ])
-    for index, page in enumerate(page_specs):
-        if index == 0:
+    for page in page_specs:
+        if page.page_name == startup_page.page_name:
             lines.append(f"    {page.ui_member_name}.AppendShutdownCommands(commands, std::move(statusText));")
         else:
             lines.append(f"    {page.ui_member_name}.AppendShutdownCommands(commands, std::string {{}});")

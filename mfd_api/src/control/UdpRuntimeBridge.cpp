@@ -314,7 +314,7 @@ bool UdpRuntimeBridge::Start()
                     }
                 }
 
-                if (impl->commandReceiver != nullptr && !impl->commandReceiver->LastError().empty())
+                if (!receivedAny && impl->commandReceiver != nullptr && !impl->commandReceiver->LastError().empty())
                 {
                     impl->SetCommandStatus(impl->commandReceiver->LastError());
                 }

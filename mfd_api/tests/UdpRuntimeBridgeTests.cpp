@@ -214,3 +214,37 @@ TEST(UdpRuntimeBridgeTests, SendsQueuedStrobeFeedbackFromWorkerThread)
     bridge.Stop();
     EXPECT_FALSE(bridge.IsRunning());
 }
+
+TEST(UdpRuntimeBridgeTests, DoesNotReplaceReadyStatusWithStaleReceiverErrorAfterReceivingCommands)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(mfd::ResetWindowCommand {});
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+    receiverState->lastError = "stale receiver error";
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+
+    std::vector<mfd::UserCommand> drained;
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge, &drained]()
+        {
+            return bridge.DrainReceivedCommands(drained, 4) > 0;
+        }));
+
+    EXPECT_EQ(bridge.LastCommandStatus(), "UDP command receiver thread ready");
+    bridge.Stop();
+}

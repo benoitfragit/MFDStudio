@@ -207,6 +207,17 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive)
         return;
     }
 
+    if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
+    {
+        node["outerRadius"] = ring->outerRadius;
+        node["innerRadius"] = ring->innerRadius;
+        if (ring->segments != 64)
+        {
+            node["segments"] = ring->segments;
+        }
+        return;
+    }
+
     if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
     {
         if (std::abs(rectangle->width - rectangle->height) < 0.0001f)
@@ -311,6 +322,8 @@ std::string PrimitiveTypeName(const mfd::PrimitiveType type)
         return "line";
     case mfd::PrimitiveType::Circle:
         return "circle";
+    case mfd::PrimitiveType::Ring:
+        return "ring";
     case mfd::PrimitiveType::Rectangle:
         return "rectangle";
     case mfd::PrimitiveType::Ellipse:

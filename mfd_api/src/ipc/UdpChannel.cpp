@@ -189,6 +189,7 @@ bool UdpChannel::Send(const ByteView buffer)
         return false;
     }
 
+    impl_->lastError.clear();
     return true;
 #else
     return false;
@@ -219,6 +220,7 @@ std::optional<std::vector<std::byte>> UdpChannel::TryReceive()
         const int socketError = WSAGetLastError();
         if (socketError == WSAEWOULDBLOCK)
         {
+            impl_->lastError.clear();
             return std::nullopt;
         }
 
@@ -227,6 +229,7 @@ std::optional<std::vector<std::byte>> UdpChannel::TryReceive()
     }
 
     buffer.resize(static_cast<std::size_t>(receivedBytes));
+    impl_->lastError.clear();
     return buffer;
 #else
     return std::nullopt;

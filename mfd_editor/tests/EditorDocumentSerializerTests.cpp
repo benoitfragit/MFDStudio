@@ -129,3 +129,29 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateIncludesTemplateId)
     ASSERT_TRUE(jsonNode.contains("id"));
     EXPECT_EQ(jsonNode.at("id").get<std::string>(), "demo_track");
 }
+
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplatePreservesRingPrimitiveTypeAndGeometry)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "ring_template";
+
+    mfd::Primitive ring;
+    ring.id = "scan_ring";
+    ring.type = mfd::PrimitiveType::Ring;
+    ring.geometry = mfd::RingGeometry {.innerRadius = 0.012f, .outerRadius = 0.02f, .segments = 72};
+    reticle.primitives.push_back(std::move(ring));
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_TRUE(jsonNode.contains("elements"));
+    ASSERT_TRUE(jsonNode.at("elements").is_array());
+    ASSERT_EQ(jsonNode.at("elements").size(), 1U);
+
+    const auto& element = jsonNode.at("elements").at(0);
+    ASSERT_TRUE(element.contains("type"));
+    EXPECT_EQ(element.at("type").get<std::string>(), "ring");
+    EXPECT_FLOAT_EQ(element.at("innerRadius").get<float>(), 0.012f);
+    EXPECT_FLOAT_EQ(element.at("outerRadius").get<float>(), 0.02f);
+    EXPECT_EQ(element.at("segments").get<int>(), 72);
+}
