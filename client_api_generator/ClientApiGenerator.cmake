@@ -93,6 +93,8 @@ function(client_api_generate_ui)
         --window-json "${CAG_WINDOW_JSON}"
         --output-header "${CAG_OUTPUT_HEADER}"
         --output-source "${CAG_OUTPUT_SOURCE}"
+        # CMake regenerates tracked mockup helpers in place during configure.
+        --force-overwrite
         --namespace "${CAG_NAMESPACE}"
         --page-class-suffix "${CAG_PAGE_CLASS_SUFFIX}"
         --ui-class-suffix "${CAG_UI_CLASS_SUFFIX}"

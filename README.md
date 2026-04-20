@@ -1,56 +1,143 @@
-# MFD
+# MFDStudio
 
-`MFD` is a C++/CMake toolkit for building 2D multi-function display windows.
+`MFDStudio` is a C++/CMake toolkit for authoring and operating 2D
+multi-function display windows from JSON.
 
-It combines:
+In the codebase, the historical technical prefix remains `mfd`
+(namespaces, targets, folders, and APIs).
 
-- `raylib`
-- `ImGui`
-- `rlImGui`
-- `EnTT`
-- `nlohmann_json`
-- Protocol Buffers over UDP for runtime control
+It is built for projects that need:
 
-The project is built around one simple workflow:
+- a data-driven display model
+- a real-time runtime API
+- reusable reticle templates
+- local or remote control over UDP
+- optional feedback and framebuffer capture
+
+The project combines `raylib`, `ImGui`, `rlImGui`, `EnTT`,
+`nlohmann_json`, and Protocol Buffers over UDP into one workflow:
 
 1. describe a window, its pages, and reusable reticles in JSON
-2. render the active page in 2D
-3. drive the window locally or from an external client
-4. receive strobe feedback and framebuffer readback when needed
+2. launch a runtime window that renders the active page
+3. drive the scene locally or from an external client
+4. receive strobe feedback or framebuffer readback when required
 
-Automated runtime and JSON-loading checks are also built with the project
-through `GoogleTest`.
+## Highlights
+
+- JSON-authored windows, pages, and reusable reticle templates
+- runtime control of visibility, position, rotation, color, thickness, text,
+  and letter spacing
+- dynamic reticles that can be added, updated, and removed at runtime
+- page-managed blink groups and optional strobe feedback
+- RGBA32 framebuffer capture
+- typed client UI generation through `client_api_generate_ui(...)`
+- example launchers, mockup clients, editor tooling, and automated tests
 
 ## Start Here
 
-If you are new to the project, use this order:
+If you are new to the project, use this reading order:
 
 1. [Quick Start](./docs/QUICKSTART.md)
 2. [Core Concepts](./docs/CONCEPTS.md)
 3. [JSON Reference](./docs/reference/README.md)
 4. [Tutorial Index](./docs/tutorials/README.md)
 
-If you already know what you want:
+If you already know your goal, these are the fastest paths:
 
-- create reticles: [01 Create Reticles From Primitives](./docs/tutorials/01_create_reticles_from_primitives.md)
-- create pages and windows: [02 Create Pages And Windows](./docs/tutorials/02_create_pages_and_windows.md)
-- test without writing code: [03 Test A Window With The Mockup](./docs/tutorials/03_test_with_mfd_mockup.md)
-- drive a window from an external app: [04 Drive A Window From A Live Client Over UDP](./docs/tutorials/04_drive_a_window_from_a_live_client.md)
-- add and remove tracks or symbols at runtime: [05 Dynamic Reticles](./docs/tutorials/05_dynamic_reticles.md)
-- use strobe control and feedback: [06 Strobe Control And Feedback](./docs/tutorials/06_strobe_control_and_feedback.md)
-- capture the framebuffer as RGBA32: [07 Framebuffer RGBA32 Capture](./docs/tutorials/07_framebuffer_rgba32_capture.md)
-- project nautical-mile and radian data to page space on the client: [08 Project User Space To Page Space](./docs/tutorials/08_project_user_space_to_page_space.md)
-- manage synchronized page-local blinking: [09 Page-Managed Blink](./docs/tutorials/09_page_managed_blink.md)
-- drive the cockpit showcase: [10 Drive The Cockpit Demo](./docs/tutorials/10_cockpit_demo.md)
-- use the mockup as a client API reference: [11 Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md)
-- run the automated runtime tests: [12 Run The Automated Runtime Tests](./docs/tutorials/12_run_the_automated_runtime_tests.md)
-- create a full window directly from the editor wizard: [13 Create A Window From Scratch In The Editor](./docs/tutorials/13_create_window_from_editor.md)
-- generate typed client UI code and use it in your app: [11 Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md#generated-client-ui-in-2-minutes)
+- Author JSON and validate it visually:
+  [Create Reticles From Primitives](./docs/tutorials/01_create_reticles_from_primitives.md),
+  [Create Pages And Windows](./docs/tutorials/02_create_pages_and_windows.md),
+  [Test A Window With The Mockup](./docs/tutorials/03_test_with_mfd_mockup.md)
+- Integrate an external client:
+  [Drive A Window From A Live Client Over UDP](./docs/tutorials/04_drive_a_window_from_a_live_client.md),
+  [Add And Remove Dynamic Reticles](./docs/tutorials/05_dynamic_reticles.md),
+  [Project User Space To Page Space](./docs/tutorials/08_project_user_space_to_page_space.md)
+- Drive the cockpit showcase:
+  [Drive The Cockpit Demo](./docs/tutorials/10_cockpit_demo.md)
+- Understand the generated client-side API:
+  [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md)
+- Work on reliability and validation:
+  [Run The Automated Runtime Tests](./docs/tutorials/12_run_the_automated_runtime_tests.md)
 
-## Generated Client UI In 2 Minutes
+## Quick Build
 
-If you want generated client-facing code (typed page and reticle accessors), use
-`client_api_generator` from CMake:
+### Requirements
+
+- Visual Studio 2022
+- CMake 3.26 or newer
+- Python 3
+
+The repository currently ships Visual Studio 2022 presets for `x64` and
+`Win32`.
+
+The first configure fetches third-party dependencies automatically, so expect
+the initial build to take longer than incremental builds.
+
+### Configure and build
+
+```powershell
+cmake --preset vs2022-x64
+cmake --build --preset debug-x64
+cmake --build --preset release-x64
+
+cmake --preset vs2022-win32
+cmake --build --preset debug-win32
+cmake --build --preset release-win32
+```
+
+### Common build options
+
+- `MFD_BUILD_DEMO=ON`
+  Builds the example applications and editor.
+- `MFD_BUILD_TESTS=ON`
+  Builds the GoogleTest-based validation suite.
+- `MFD_ENABLE_WARNINGS=ON`
+  Enables stricter compiler warnings.
+
+## Run A First End-to-End Demo
+
+For a quick first run, build the standard demo window and GUI mockup:
+
+```powershell
+cmake --preset vs2022-x64
+cmake --build --preset debug-x64 --target mfd_demo client_mockup
+```
+
+Then:
+
+1. launch `mfd_demo`
+2. launch `client_mockup`
+3. activate a page from the mockup
+4. move or recolor a reticle and watch the window update immediately
+
+For a cockpit-oriented end-to-end flow, use:
+
+```powershell
+cmake --build --preset debug-x64 --target mfd_demo_cockpit client_mockup_minimal
+```
+
+The full walkthrough is documented in
+[Quick Start](./docs/QUICKSTART.md) and
+[Drive The Cockpit Demo](./docs/tutorials/10_cockpit_demo.md).
+
+## Shipped Applications
+
+| Application | Purpose |
+| --- | --- |
+| `mfd_window` | Generic runtime launcher that accepts a window JSON file. |
+| `examples/mfd_demo` | Ready-to-run demo window based on `assets/windows/demo_pages.json`. |
+| `examples/mfd_demo_minimal` | Minimal demo window based on `assets/windows/demo_pages_minimal.json`. |
+| `examples/mfd_demo_cockpit` | Cockpit showcase window based on `assets/windows/demo_pages_cockpit.json`. |
+| `examples/client_mockup` | GUI client for page control, reticle updates, dynamic reticles, and feedback inspection. |
+| `examples/client_mockup_minimal` | Headless cockpit client showing the public API from one plain `main` loop. |
+| `mfd_editor` | Visual authoring tool for windows, pages, and reticles. |
+
+## Generated Client UI
+
+If you want typed page and reticle accessors on the client side,
+`client_api_generator` can generate them directly from a window JSON file.
+
+Use the CMake helper:
 
 ```cmake
 client_api_generate_ui(
@@ -64,7 +151,7 @@ client_api_generate_ui(
 
 This is the same pattern used by the shipped mockup executables.
 
-Then use the generated API from your client loop:
+Example client-side usage:
 
 ```cpp
 #include "MockupUi.h"
@@ -79,36 +166,32 @@ transport.maxPacketSize = 16384;
 mfd::CommandClient client(transport);
 client.ActivatePage(mockup_ui::CockpitMockupPage::Name());
 
-// Dynamic reticle set generated from the cockpit window JSON
 mockup_ui::CockpitMockupUi ui;
 auto& contacts = ui.Cockpit().Dynamic("cockpit_radar_contact");
 contacts.SetVisible(true);
 ```
 
-For the complete generated-client walkthrough (including dynamic reticles and
-batch patterns), read tutorial 11:
+For the full generated-client workflow, including batch submission and dynamic
+reticles, see:
 
 - [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md#generated-client-ui-in-2-minutes)
 
-## What You Can Do
+## What You Can Build
 
-With the toolkit you can:
+With `MFDStudio`, you can:
 
 - load a window and its pages from JSON
-- define one window-level text font from the root window JSON
-- create reusable reticles from primitives
-- mark one page as the default startup page with `defaultPage`
-- activate a page by name
-- black out the whole rendered window without clearing runtime state
-- update reticle visibility, position, rotation, color, thickness, text, and letter spacing
-- declare page-local blink types and switch reticles between synchronized blink groups
-- add, update, and remove dynamic reticles
-- control an optional page strobe
-- receive strobe state and capture feedback from the window
-- capture the current framebuffer as a typed `RGBA32` CPU buffer
-- project physical or user-space coordinates on the client without changing the window runtime
+- define reusable reticle templates from drawable primitives
+- activate pages and update page view state at runtime
+- patch static reticles or manage dynamic reticles in bulk
+- synchronize reticles through page-managed blink groups
+- drive a window from an external client over compact UDP protobuf messages
+- receive strobe state and capture feedback back from the runtime
+- capture the final framebuffer as typed `RGBA32`
+- keep client-side physical coordinates and project them to page space only
+  when sending commands
 
-## High-Level Architecture
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -128,204 +211,35 @@ flowchart LR
     K --> M[OpenGlFramebufferReader]
 ```
 
-Read this as:
+In practice:
 
-- JSON files define the authoring model
-- `SceneRegistry` holds the runtime state
-- a background UDP I/O worker receives commands and sends feedback
-- the render thread drains queued commands and dispatches them through `CommandProcessor`
+- JSON files define what exists
+- `SceneRegistry` owns the runtime state
+- a background worker receives UDP commands and sends feedback
+- the render thread drains queued commands and updates the scene
 - the renderer draws only the active page
-- strobe feedback can go back to the client without blocking rendering
-- the framebuffer can be captured as `RGBA32`
+- framebuffer capture stays available as a downstream integration point
 
-## Threading Model
+### Threading model
 
-The default runtime architecture now uses two threads inside the window:
+The default window runtime uses two threads:
 
 - one render thread
-  runs at the window frame rate, owns `SceneRegistry`, `CommandProcessor`, `EnTT`, and rendering
+  owns `SceneRegistry`, `CommandProcessor`, `EnTT`, and rendering
 - one UDP I/O worker thread
-  owns the UDP sockets, receives command packets, and sends strobe feedback packets
+  owns sockets, receives command packets, and emits feedback packets
 
 Important rule:
 
-- the UDP worker thread does not modify the scene directly
+- the UDP worker never mutates the scene directly
 - it only pushes decoded commands into a thread-safe queue
-- the render thread drains that queue and applies the commands
-- command application per frame is intentionally bounded to avoid frame stalls under UDP floods
-- thread lifecycle/transport readiness coordination uses mutex + condition variable guards (no mixed atomic/mutex state)
+- the render thread drains that queue and applies updates
+- per-frame command application is intentionally bounded to avoid frame stalls
 
-This keeps `raylib`, `OpenGL`, and the scene state on the same thread while
-still decoupling network I/O from rendering.
+This keeps `raylib`, `OpenGL`, and runtime state on one thread while still
+decoupling network I/O from rendering.
 
-## Supported Primitive Types
-
-The reticle model supports:
-
-- `text`
-- `time`
-- `line`
-- `circle`
-- `rectangle`
-- `ellipse`
-- `square`
-- `diamond`
-- `triangle`
-- `polyline`
-- `bezier`
-
-Notes:
-
-- `type: "heure"` is accepted as an alias for `time`
-- `time` is a text-like primitive that formats the current clock value
-- `rectangle` and `ellipse` are dedicated primitives, separate from `square`
-
-## Coordinate System
-
-Authoring and runtime work in normalized logical coordinates, not pixels.
-
-```text
-          y = +1
-            ^
-            |
- x = -1 <---+---> x = +1
-            |
-            v
-          y = -1
-```
-
-Rules:
-
-- logical space is `[-1, 1]`
-- `(0, 0)` is the center of the page
-- `x > 0` goes right
-- `y > 0` goes up
-- reticles are authored independently from the window pixel size
-
-This means a page remains valid when the window is resized.
-
-## Blink Model
-
-Blink is page-managed.
-
-- each page can declare several named blink types
-- each blink type has one effective duration in milliseconds
-- reticles can opt in to blinking and optionally request one named type
-- the runtime resolves the type once, then synchronizes by effective duration
-
-This means that inside one page:
-
-- two reticles using two different type names with the same duration blink in phase
-- they appear and disappear at the same time
-- changing a reticle from `slow` to `fast` immediately re-attaches it to the new synchronized group
-
-## Project Layout
-
-- `mfd_api`
-  Public API library and runtime core.
-- `mfd_window`
-  Generic top-level window host loading any window JSON from the command line.
-- `examples/mfd_demo`
-  Preset launcher for `assets/windows/demo_pages.json`.
-- `examples/mfd_demo_minimal`
-  Preset launcher for `assets/windows/demo_pages_minimal.json`.
-- `examples/mfd_demo_cockpit`
-  Preset launcher for `assets/windows/demo_pages_cockpit.json`.
-- `examples/client_mockup_minimal`
-  Headless cockpit client showing the public UDP API from one plain `main` loop.
-- `examples/client_mockup`
-  GUI client used to send commands and inspect strobe feedback.
-- `mfd_editor`
-  Visual editor for pages and reticles.
-- `client_api_generator`
-  CMake + Python generator that emits typed client UI wrappers from a window JSON.
-- `mfd_api/tests`
-  GoogleTest-based automated tests for JSON loading and runtime rules.
-- `assets/windows`
-  Root window JSON files.
-- `assets/pages`
-  Page JSON files.
-- `assets/reticles`
-  Reusable reticle templates.
-- `docs`
-  Quick start, concept pages, and tutorials.
-
-## Build
-
-Visual Studio 2022 presets are provided for `x64` and `Win32`.
-
-```powershell
-cmake --preset vs2022-x64
-cmake --build --preset debug-x64
-cmake --build --preset release-x64
-
-cmake --preset vs2022-win32
-cmake --build --preset debug-win32
-cmake --build --preset release-win32
-```
-
-Dependencies are fetched by CMake.
-
-## First GitHub Release (GitHub Actions)
-
-The repository contains a release workflow in `.github/workflows/release.yml`.
-
-Recommended first release flow:
-
-1. Ensure `main` is green on CI.
-2. Create and push a semantic tag (`MAJOR.MINOR.PATCH` or `vMAJOR.MINOR.PATCH`), for example:
-
-```bash
-git tag 1.0.0
-git push origin 1.0.0
-```
-
-3. GitHub Actions builds Win32 + x64 archives and publishes a GitHub Release.
-
-Manual release is also available from **Actions → Build and Publish Release**:
-
-- optional `tag` input (for example `1.0.0`, `v1.0.0` or `v1.1.0-rc.1`)
-- optional `prerelease` checkbox
-
-Published assets include:
-
-- `mfd-<tag>-x64.zip`
-- `mfd-<tag>-win32.zip`
-- `SHA256SUMS.txt` for checksum verification
-
-## Automated Tests
-
-`GoogleTest` is integrated into the default build through the `mfd_api_tests`
-target.
-
-Default behavior:
-
-- `MFD_BUILD_TESTS=ON`
-- the regular build compiles `mfd_api_tests`
-- the suite focuses on `JsonLoader` and `SceneRegistry`
-
-Commands:
-
-```powershell
-cmake --preset vs2022-win32
-cmake --build --preset debug-win32
-
-.\build\vs2022-win32\mfd_api\tests\Debug\mfd_api_tests.exe
-```
-
-There is also a convenience target:
-
-```powershell
-cmake --build --preset debug-win32 --target mfd_api_tests_run
-```
-
-## JSON Model
-
-For the exact field reference, use:
-
-- [Common JSON Syntax](./docs/reference/common_json_syntax.md)
-- [Primitive Reference](./docs/reference/primitive_reference.md)
-- [Page And Window Reference](./docs/reference/page_and_window_reference.md)
+## Authoring Model
 
 ### Window JSON
 
@@ -335,18 +249,18 @@ A root window file defines:
 - pixel size
 - initial screen position
 - target FPS
-- optional text font file
+- optional text font
 - reticle library folder
-- UDP command transport
-- optional UDP feedback transport
-- list of page JSON files
-- optional `defaultPage` field naming the startup page
+- command transport
+- optional feedback transport
+- list of page files
+- optional `defaultPage`
 
 Example:
 
 ```json
 {
-  "title": "MFD EnTT Demo",
+  "title": "MFDStudio EnTT Demo",
   "size": [1600, 960],
   "position": [80, 60],
   "targetFps": 60,
@@ -372,16 +286,23 @@ Example:
   "pages": [
     "../pages/pfd.json",
     "../pages/navigation.json",
-    "../pages/aircraft_centric.json",
-    "../pages/radar.json",
-    "../pages/tactical.json"
+    "../pages/radar.json"
   ]
 }
 ```
 
 ### Page JSON
 
-Each page is defined in its own file.
+A page defines one named view inside the window.
+
+Typical page data includes:
+
+- a page name and optional title
+- a background color
+- a page view center and zoom
+- optional blink types
+- static reticle instances
+- optional strobe behavior
 
 Example:
 
@@ -392,10 +313,8 @@ Example:
   "backgroundColor": "#061306FF",
   "blinkTypes": [
     { "name": "slow", "durationMs": 1000 },
-    { "name": "fast", "durationMs": 320 },
-    { "name": "caution", "durationMs": 1000 }
+    { "name": "fast", "durationMs": 320 }
   ],
-  "defaultBlink": "slow",
   "view": {
     "center": [0.0, 0.0],
     "zoom": 1.0
@@ -405,21 +324,6 @@ Example:
       "id": "fixed_track_alpha",
       "template": "radar_track",
       "blink": "slow"
-    },
-    {
-      "id": "fixed_track_bravo",
-      "template": "radar_track",
-      "blink": "caution"
-    },
-    {
-      "id": "radar_caption",
-      "blink": "fast",
-      "elements": [
-        {
-          "type": "text",
-          "text": "Synchronized page blink"
-        }
-      ]
     }
   ]
 }
@@ -427,12 +331,74 @@ Example:
 
 ### Reticle JSON
 
-Reusable templates live in `assets/reticles`.
+Reticle templates live in `assets/reticles` and are reused by pages.
 
-The project ships a working example using `rectangle`, `ellipse`, `text`, and
-`time` in `assets/reticles/status_clock.json`.
+A reticle is made of one or more primitives. Supported primitive types are:
 
-## Public API Entry Points
+- `text`
+- `time`
+- `line`
+- `circle`
+- `rectangle`
+- `ellipse`
+- `square`
+- `diamond`
+- `triangle`
+- `polyline`
+- `bezier`
+
+For the exact field reference, aliases, and JSON rules, see:
+
+- [Common JSON Syntax](./docs/reference/common_json_syntax.md)
+- [Primitive Reference](./docs/reference/primitive_reference.md)
+- [Page And Window Reference](./docs/reference/page_and_window_reference.md)
+
+### Coordinate system
+
+Authoring and runtime both use normalized logical coordinates, not pixels.
+
+```text
+          y = +1
+            ^
+            |
+ x = -1 <---+---> x = +1
+            |
+            v
+          y = -1
+```
+
+Rules:
+
+- logical space is `[-1, 1]`
+- `(0, 0)` is the center of the page
+- positive `x` goes right
+- positive `y` goes up
+- authored layouts stay stable when the window is resized
+
+### Blink model
+
+Blink is page-managed.
+
+- each page may declare several named blink types
+- each blink type resolves to one duration in milliseconds
+- reticles opt in to blinking at the page level
+- reticles using different names but the same duration blink in phase
+
+## Public API At A Glance
+
+| Use case | Main entry point |
+| --- | --- |
+| Load authored content | `mfd/io/JsonLoader.h` |
+| Drive the scene locally | `mfd/runtime/SceneRegistry.h` |
+| Drive a window remotely | `mfd/control/CommandClient.h` |
+| Host a window with UDP I/O | `mfd/control/UdpRuntimeBridge.h` |
+| Send dynamic reticles in bulk | `mfd::DynamicReticleState` with `CommandClient` |
+| Project user space to page space | `mfd/control/UserSpaceProjector.h` |
+| Receive strobe feedback | `mfd::CreateFeedbackReceiverChannel(...)` and `mfd::DeserializeStrobeStatusFeedback(...)` |
+| Capture the framebuffer | `mfd/render/OpenGlFramebufferReader.h` |
+| Attach a capture callback to the launcher | `mfd/window/WindowLauncher.h` |
+
+Representative examples:
 
 ### Load a window
 
@@ -452,14 +418,8 @@ const mfd::LoadedWindowConfiguration loaded =
 mfd::SceneRegistry scene(loaded.document);
 scene.SetActivePage("Radar");
 scene.SetPageView("Radar", {{0.15f, -0.05f}, 1.8f});
-scene.SetReticleVisible("Radar", "fixed_track_alpha", true);
-scene.SetReticleBlinkType("Radar", "fixed_track_alpha", "fast");
 scene.SetReticlePosition("Radar", "fixed_track_alpha", {0.25f, 0.10f});
-scene.SetReticleRotation("Radar", "fixed_track_alpha", 18.0f);
-scene.SetReticleColor("Radar", "fixed_track_alpha", {0, 255, 0, 255});
-scene.SetReticleThickness("Radar", "fixed_track_alpha", 0.004f);
 scene.SetReticleText("Radar", "fixed_track_alpha", "T01");
-scene.SetReticleLetterSpacing("Radar", "fixed_track_alpha", 0.012f);
 ```
 
 ### Drive a window remotely
@@ -475,26 +435,9 @@ udp.maxPacketSize = 16384;
 
 mfd::CommandClient client(udp);
 client.ActivatePage("Radar");
-client.SetReticleBlinkType("Radar", "fixed_track_alpha", "fast");
 client.SetReticlePosition("Radar", "fixed_track_alpha", {0.20f, 0.35f});
 client.SetReticleColor("Radar", "fixed_track_alpha", {77, 224, 255, 255});
 client.SetReticleVisible("Radar", "fixed_track_alpha", true);
-```
-
-### Host a window with background UDP I/O
-
-```cpp
-#include "mfd/control/UdpRuntimeBridge.h"
-
-mfd::CommandProcessor processor(scene);
-mfd::UdpRuntimeBridge bridge(loaded.window.commandTransports,
-                             loaded.window.feedbackTransports);
-bridge.Start();
-
-std::vector<mfd::UserCommand> commands;
-commands.clear();
-bridge.DrainReceivedCommands(commands);
-processor.Submit(mfd::ArrayView<const mfd::UserCommand>(commands.data(), commands.size()));
 ```
 
 ### Send dynamic reticles in bulk
@@ -511,30 +454,17 @@ tracks.push_back({
         .text = std::string {"AF001"}
     }});
 
-tracks.push_back({
-    "track_002",
-    mfd::ReticlePatch {
-        .visible = true,
-        .position = mfd::Vec2 {-0.40f, 0.10f},
-        .rotationDegrees = -30.0f,
-        .text = std::string {"AF002"}
-    }});
-
 client.UpsertDynamicReticles("Radar", "radar_track", tracks);
 ```
 
-`CommandClient` uses compact Protocol Buffers payloads and automatically splits
-oversized batches according to the configured UDP packet size.
+`CommandClient` automatically splits oversized batches according to the
+configured UDP packet size.
 
-For a full runtime restore, the client can also request:
+For a full runtime reset, a client can also request:
 
 ```cpp
 client.ResetWindow();
 ```
-
-This reset returns the target window to the document-defined initial runtime
-state (default page, page views, strobe state, window display state and dynamic
-reticles).
 
 ### Project client-side user space to page space
 
@@ -542,55 +472,16 @@ reticles).
 #include "mfd/control/UserSpaceProjector.h"
 
 mfd::UserSpaceFrame frame;
-frame.userOrigin = aircraftPositionNm;
 frame.pageAnchor = {0.0f, -0.3f};
-frame.originRotationRadians = aircraftHeadingRadians;
-frame.pageUnitsPerUserUnit = 0.04f;     // 1 user unit becomes 0.04 page units
-frame.userXAxisInPage = {0.0f, 1.0f};   // physical X -> page Y
-frame.userYAxisInPage = {1.0f, 0.0f};   // physical Y -> page X
+frame.pageUnitsPerUserUnit = 0.04f;
+frame.userXAxisInPage = {0.0f, 1.0f};
+frame.userYAxisInPage = {1.0f, 0.0f};
 
 mfd::UserSpaceProjector projector(frame);
-
-const mfd::Vec2 trackPagePosition = projector.ToPagePosition(trackWorldPositionNm);
-const float trackPageRotationDegrees = projector.ToPageRotationDegrees(trackHeadingRadians);
+const mfd::Vec2 pagePosition = projector.ToPagePosition(trackWorldPositionNm);
 ```
 
-This keeps the window unchanged:
-
-- the page still uses `[-1, 1]`
-- the client can keep nautical miles and radians internally
-- only the helper performs the conversion before sending the command
-- if you do not need such a conversion, skip the helper and keep using page
-  coordinates directly
-
-## Strobe
-
-A page can expose an optional strobe.
-
-The client can:
-
-- enable or disable it
-- move it
-
-The window can send feedback back to the client, including:
-
-- active state
-- actual position
-- capture configuration
-- magnetization state
-- optional captured reticle information
-
-Main APIs:
-
-- `mfd::CommandClient`
-- `mfd::CreateFeedbackReceiverChannel(...)`
-- `mfd::DeserializeStrobeStatusFeedback(...)`
-
-See the full workflow in [docs/tutorials/06_strobe_control_and_feedback.md](./docs/tutorials/06_strobe_control_and_feedback.md).
-
-## Framebuffer Capture
-
-The renderer side exposes `mfd::OpenGlFramebufferReader`.
+### Capture the framebuffer as `RGBA32`
 
 ```cpp
 #include "mfd/render/OpenGlFramebufferReader.h"
@@ -598,7 +489,7 @@ The renderer side exposes `mfd::OpenGlFramebufferReader`.
 mfd::Rgba32Framebuffer capture = mfd::OpenGlFramebufferReader::ReadRgba32();
 ```
 
-The returned buffer contains:
+The returned buffer exposes:
 
 - `width`
 - `height`
@@ -606,80 +497,102 @@ The returned buffer contains:
 - `Pixels()`
 - `Bytes()`
 
-`Bytes()` exposes the framebuffer as a raw `std::byte` span, which is useful
-when the next stage is byte-oriented, for example a shared-memory writer.
+If you host a window through `mfd::window::RunLauncher`, you can also attach a
+callback that receives the final byte span every frame. See:
 
-If you host a window through `mfd::window::RunLauncher`, you can also attach an
-optional callback that receives the final `RGBA32` buffer every frame:
+- [Capture The Window As RGBA32](./docs/tutorials/07_framebuffer_rgba32_capture.md)
 
-```cpp
-#include <cstddef>
-#include <iostream>
+### Strobe control and feedback
 
-#include "mfd/window/WindowLauncher.h"
+A page may expose an optional strobe that can be enabled, moved, and queried
+through feedback channels.
 
-int main(int argc, char** argv)
-{
-    mfd::window::LauncherConfig config;
-    config.applicationName = "mfd_demo_minimal";
-    config.defaultWindowFile = "assets/windows/demo_pages_minimal.json";
+See:
 
-    return mfd::window::RunLauncher(
-        argc,
-        argv,
-        config,
-        [](int width, int height, mfd::ByteView pixels)
-        {
-            static bool printed = false;
-            if (!printed)
-            {
-                std::cout << "Here we receive the pixel buffer." << '\n';
-                printed = true;
-            }
+- [Control The Strobe And Receive Feedback](./docs/tutorials/06_strobe_control_and_feedback.md)
 
-            (void)width;
-            (void)height;
-            (void)pixels;
-        });
-}
+## Tests
+
+The default build includes GoogleTest-based validation through
+`mfd_api_tests`.
+
+Default behavior:
+
+- `MFD_BUILD_TESTS=ON`
+- the regular build compiles the test suite
+- the suite focuses on JSON loading and runtime rules
+
+Commands:
+
+```powershell
+cmake --preset vs2022-win32
+cmake --build --preset debug-win32
+
+.\build\vs2022-win32\mfd_api\tests\Debug\mfd_api_tests.exe
 ```
 
-The byte span is only valid during the callback. Copy it if another stage must
-keep the buffer after the callback returns.
+There is also a convenience target:
 
-See the full workflow in [docs/tutorials/07_framebuffer_rgba32_capture.md](./docs/tutorials/07_framebuffer_rgba32_capture.md).
+```powershell
+cmake --build --preset debug-win32 --target mfd_api_tests_run
+```
 
-## Tools
+## Release Workflow
 
-- `examples/mfd_demo`
-  Thin preset launcher built on top of `mfd_window`.
-- `examples/mfd_demo_cockpit`
-  Thin cockpit preset launcher built on top of `mfd_window`.
-- `examples/mfd_demo_minimal`
-  Thin minimal preset launcher built on top of `mfd_window`.
-- `mfd_window`
-  Generic runtime launcher accepting `--window <json>`.
-- `examples/client_mockup_minimal`
-  Minimal headless client feeding the cockpit demo over the public API.
-- `examples/client_mockup`
-  Manual test client and radar simulator.
-- `mfd_editor`
-  Visual authoring tool for templates and pages.
+The repository includes a release pipeline in
+`.github/workflows/release.yml`.
 
-## Documentation Style
+Recommended first release flow:
 
-The public headers in `mfd_api/include/mfd` are documented with Doxygen using:
+1. ensure `main` is green on CI
+2. create and push a semantic tag such as `1.0.0` or `v1.0.0`
+3. let GitHub Actions build Win32 and x64 archives and publish the release
 
-- `@brief`
-- `@param`
-- `@return`
-- `@note`
+Example:
 
-This makes the API readable from the IDE in addition to the Markdown guides.
+```bash
+git tag 1.0.0
+git push origin 1.0.0
+```
+
+Published assets include:
+
+- `mfd-<tag>-x64.zip`
+- `mfd-<tag>-win32.zip`
+- `SHA256SUMS.txt`
+
+Manual release is also available from the GitHub Actions UI.
+
+## Project Layout
+
+| Path | Role |
+| --- | --- |
+| `mfd_api` | Public API library and runtime core. |
+| `client_api` | Client-side helper library used by manual and generated clients. |
+| `client_api_generator` | CMake + Python generator for typed client UI wrappers. |
+| `mfd_window` | Generic window host application. |
+| `mfd_editor` | Visual authoring tool. |
+| `examples` | Demo launchers and sample clients. |
+| `assets/windows` | Root window JSON files. |
+| `assets/pages` | Page JSON files. |
+| `assets/reticles` | Reusable reticle templates. |
+| `docs` | Quick start, concepts, tutorials, and JSON reference. |
+
+## Documentation
+
+Documentation is organized into four layers:
+
+- [Quick Start](./docs/QUICKSTART.md)
+- [Core Concepts](./docs/CONCEPTS.md)
+- [Tutorial Index](./docs/tutorials/README.md)
+- [JSON Reference](./docs/reference/README.md)
+
+The public headers in `mfd_api/include/mfd` are also documented with Doxygen
+using `@brief`, `@param`, `@return`, and `@note`, so the API remains readable
+from the IDE as well as from the Markdown guides.
 
 ## Third-Party Licenses
 
-An inventory of external dependencies and the copied third-party license texts
-used by the current build is available in:
+An inventory of external dependencies and copied license texts is available in:
 
 - [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
