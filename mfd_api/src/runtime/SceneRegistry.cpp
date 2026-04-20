@@ -642,7 +642,18 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
         }
 
         const float distanceSquared = DistanceSquared(reticle->group.transform.position, dynamicReticle.transform.position);
+        if (!std::isfinite(distanceSquared))
+        {
+            continue;
+        }
+
         if (distanceSquared > radiusSquared || distanceSquared >= bestDistanceSquared)
+        {
+            continue;
+        }
+
+        const float distance = std::sqrt(distanceSquared);
+        if (!std::isfinite(distance))
         {
             continue;
         }
@@ -651,7 +662,7 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
         summary.magnetized = true;
         summary.reticleId = dynamicReticle.id;
         summary.targetPosition = dynamicReticle.transform.position;
-        summary.distance = std::sqrt(distanceSquared);
+        summary.distance = distance;
     }
 
     return summary;

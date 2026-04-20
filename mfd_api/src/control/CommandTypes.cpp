@@ -22,6 +22,7 @@ namespace mfd
 namespace
 {
 namespace pb = ::mfd::transport;
+constexpr std::size_t kMaxCommandPayloadBytes = 1024U * 1024U;
 
 template <typename>
 inline constexpr bool kUnsupportedCommand = false;
@@ -485,6 +486,26 @@ std::optional<UserCommand> DeserializeUserCommand(const std::string_view payload
 
 std::optional<std::vector<UserCommand>> DeserializeUserCommands(const std::string_view payload, std::string* error)
 {
+    if (payload.empty())
+    {
+        if (error != nullptr)
+        {
+            *error = "Protocol Buffers command payload is empty";
+        }
+
+        return std::nullopt;
+    }
+
+    if (payload.size() > kMaxCommandPayloadBytes)
+    {
+        if (error != nullptr)
+        {
+            *error = "Protocol Buffers command payload exceeds safety size limit";
+        }
+
+        return std::nullopt;
+    }
+
     try
     {
         pb::CommandEnvelope envelope;

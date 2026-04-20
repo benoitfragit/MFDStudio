@@ -55,6 +55,7 @@ namespace
 {
 constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
 constexpr unsigned int kCaptureRingSize = 2;
+constexpr std::size_t kMaxCommandsPerFrame = 512;
 
 class AsyncFramebufferCapture
 {
@@ -600,11 +601,22 @@ private:
             const std::size_t drainedCommands = udpRuntimeBridge_->DrainReceivedCommands(pendingCommands_);
             if (drainedCommands > 0)
             {
+                std::size_t submittedCommands = drainedCommands;
+                if (pendingCommands_.size() > kMaxCommandsPerFrame)
+                {
+                    pendingCommands_.resize(kMaxCommandsPerFrame);
+                    submittedCommands = kMaxCommandsPerFrame;
+                }
+
                 if (commandProcessor_.Submit(
                         mfd::ArrayView<const mfd::UserCommand>(pendingCommands_.data(), pendingCommands_.size())))
                 {
-                    lastCommandStatus_ =
-                        "Applied " + std::to_string(drainedCommands) + " command(s) from the UDP I/O thread.";
+                    lastCommandStatus_ = submittedCommands < drainedCommands
+                                             ? "Applied " + std::to_string(submittedCommands) +
+                                                   " command(s) from the UDP I/O thread (truncated from " +
+                                                   std::to_string(drainedCommands) + ")."
+                                             : "Applied " + std::to_string(drainedCommands) +
+                                                   " command(s) from the UDP I/O thread.";
                 }
                 else if (!commandProcessor_.LastError().empty())
                 {

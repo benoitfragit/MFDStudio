@@ -11,6 +11,7 @@
  */
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <type_traits>
 #include <vector>
@@ -122,15 +123,25 @@ public:
         return size_ == 0;
     }
 
-    /** @brief Returns first element (undefined for empty views). */
+    /**
+     * @brief Returns a reference to the first element.
+     * @pre The view must not be empty.
+     * @note Calling this method on an empty view is undefined behavior.
+     */
     constexpr reference front() const noexcept
     {
+        assert(size_ > 0 && "ArrayView::front() called on an empty view");
         return data_[0];
     }
 
-    /** @brief Returns last element (undefined for empty views). */
+    /**
+     * @brief Returns a reference to the last element.
+     * @pre The view must not be empty.
+     * @note Calling this method on an empty view is undefined behavior.
+     */
     constexpr reference back() const noexcept
     {
+        assert(size_ > 0 && "ArrayView::back() called on an empty view");
         return data_[size_ - 1];
     }
 
