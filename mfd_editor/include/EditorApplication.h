@@ -22,6 +22,7 @@
 #include <raylib.h>
 
 #include "EditorDocumentSerializer.h"
+#include "EditorTutorialData.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 
@@ -280,12 +281,22 @@ private:
     void DrawTutorialCoach();
     /** @brief Opens the tutorial flow from the Help menu. */
     void OpenTutorialFlow();
+    /** @brief Seeds the editor state expected by the current tutorial step. */
+    void PrepareTutorialStep();
     /** @brief Restarts the tutorial and cleans generated tutorial files. */
     void RestartTutorialFromScratch();
     /** @brief Advances to the next tutorial step and persists progress. */
     void AdvanceTutorialStep();
-    /** @brief Applies filesystem/code changes associated with the current tutorial step. */
-    bool ApplyCurrentTutorialStep();
+    /** @brief Marks the current tutorial step as completed and advances the flow. */
+    void CompleteTutorialStep();
+    /** @brief Ends the tutorial and clears persisted progress. */
+    void FinishTutorial();
+    /** @brief Returns the currently expected tutorial target id for UI-driven steps. */
+    std::string_view CurrentTutorialTargetId() const noexcept;
+    /** @brief Returns a short summary of the current tutorial action. */
+    std::string_view CurrentTutorialActionLabel() const noexcept;
+    /** @brief Returns `true` when the current tutorial target matches the provided id. */
+    bool TutorialTargetMatches(std::string_view targetId) const noexcept;
     /** @brief Loads persisted tutorial progress from disk. */
     void LoadTutorialProgress();
     /** @brief Saves persisted tutorial progress to disk. */
@@ -294,19 +305,21 @@ private:
     void ClearTutorialProgress();
     /** @brief Cleans generated tutorial files from the repository tree. */
     void CleanupGeneratedTutorialFiles();
-    /** @brief Draws a halo around the current ImGui item when selected by the tutorial step. */
-    void DrawTutorialHalo(const char* targetId, const char* tooltip);
+    /** @brief Draws the synchronized file review UI used by tutorial file steps. */
+    void DrawTutorialFileReview(const editor::tutorial::TutorialStepDefinition& step);
+    /** @brief Draws a persistent callout and halo around the current tutorial target. */
+    void DrawTutorialHalo(const char* targetId, const char* title, const char* reason);
 
     /** @brief Creates a new page from the popup draft. */
-    void CreateNewPage();
+    bool CreateNewPage();
     /** @brief Creates a brand-new window document from the popup draft. */
     bool CreateNewWindow();
     /** @brief Creates a new reticle template initialized with one primitive. */
-    void CreateNewLibraryReticleFromPrimitive();
+    bool CreateNewLibraryReticleFromPrimitive();
     /** @brief Duplicates the selected library reticle under a new id. */
     void DuplicateSelectedLibraryReticle();
     /** @brief Instantiates one page reticle from a library template at a logical position. */
-    void CreatePageReticleInstanceFromTemplate(std::string_view templateId, mfd::Vec2 position);
+    bool CreatePageReticleInstanceFromTemplate(std::string_view templateId, mfd::Vec2 position);
 
     /** @brief Selects one page and updates the inspector focus accordingly. */
     void SelectPage(int pageIndex);
@@ -436,12 +449,20 @@ private:
     bool tutorialActive_ = false;
     /** @brief Index of the current tutorial step. */
     int tutorialStepIndex_ = 0;
-    /** @brief Current UI target id highlighted by the tutorial halo. */
-    std::string tutorialHaloTarget_ {};
-    /** @brief Last tutorial step index for which the contextual popup hint was opened. */
-    int tutorialLastHintPopupStep_ = -1;
+    /** @brief Micro-step index inside the current tutorial step. */
+    int tutorialStepPhase_ = 0;
     /** @brief Small progress file used to resume tutorial state across launches. */
     std::filesystem::path tutorialProgressFile_ {"assets/tutorial/.editor_tutorial_progress"};
+    /** @brief Reticle instance created by the tutorial and reused by later guidance. */
+    std::string tutorialTrackedReticleId_ {};
+    /** @brief Editor layer currently highlighted by the tutorial, when applicable. */
+    std::string tutorialFocusLayerId_ {};
+    /** @brief Shared zoom used by both tutorial file panes. */
+    float tutorialFileViewZoom_ = 1.0f;
+    /** @brief Shared horizontal scroll used by both tutorial file panes. */
+    float tutorialFileViewScrollX_ = 0.0f;
+    /** @brief Shared vertical scroll used by both tutorial file panes. */
+    float tutorialFileViewScrollY_ = 0.0f;
     /** @brief Page-creation draft values. */
     NewPageDraft newPageDraft_ {};
     /** @brief Window-creation draft values. */

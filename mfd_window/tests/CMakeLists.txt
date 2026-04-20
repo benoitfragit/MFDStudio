@@ -39,6 +39,7 @@ if(WIN32)
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_RUNTIME_DLLS:mfd_window_tests>
+            $<TARGET_RUNTIME_DLLS:mfd_api>
             "$<TARGET_FILE_DIR:mfd_window_tests>"
         COMMAND_EXPAND_LISTS)
 endif()

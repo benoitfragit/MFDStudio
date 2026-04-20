@@ -53,6 +53,24 @@ set(MFD_API_PROTO_FILES
 
 set(MFD_API_PROTO_HEADERS)
 set(MFD_API_PROTO_SOURCES)
+set(MFD_API_PROTOC_ENV_ARGS
+    --modify
+    "PATH=path_list_prepend:$<TARGET_FILE_DIR:protobuf::protoc>")
+set(MFD_API_PROTO_DEPENDS protobuf::protoc)
+
+if(TARGET abseil_dll)
+    list(APPEND MFD_API_PROTOC_ENV_ARGS
+        --modify
+        "PATH=path_list_prepend:$<TARGET_FILE_DIR:abseil_dll>")
+    list(APPEND MFD_API_PROTO_DEPENDS abseil_dll)
+endif()
+
+if(TARGET utf8_validity)
+    list(APPEND MFD_API_PROTOC_ENV_ARGS
+        --modify
+        "PATH=path_list_prepend:$<TARGET_FILE_DIR:utf8_validity>")
+    list(APPEND MFD_API_PROTO_DEPENDS utf8_validity)
+endif()
 
 foreach(MFD_API_PROTO_FILE IN LISTS MFD_API_PROTO_FILES)
     get_filename_component(MFD_API_PROTO_NAME ${MFD_API_PROTO_FILE} NAME_WE)
@@ -65,6 +83,8 @@ foreach(MFD_API_PROTO_FILE IN LISTS MFD_API_PROTO_FILES)
             ${MFD_API_PROTO_SOURCE}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${MFD_API_PROTO_OUTPUT_DIR}
         COMMAND
+            ${CMAKE_COMMAND} -E env
+            ${MFD_API_PROTOC_ENV_ARGS}
             $<TARGET_FILE:protobuf::protoc>
             --cpp_out=${MFD_API_PROTO_OUTPUT_DIR}
             --proto_path=${CMAKE_CURRENT_SOURCE_DIR}/proto
@@ -72,7 +92,8 @@ foreach(MFD_API_PROTO_FILE IN LISTS MFD_API_PROTO_FILES)
         DEPENDS
             ${MFD_API_PROTO_FILE}
             ${CMAKE_CURRENT_SOURCE_DIR}/proto/mfd_commands.proto
-            protobuf::protoc
+            ${MFD_API_PROTO_DEPENDS}
+        COMMAND_EXPAND_LISTS
         VERBATIM)
 
     list(APPEND MFD_API_PROTO_HEADERS ${MFD_API_PROTO_HEADER})

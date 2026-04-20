@@ -7,46 +7,343 @@
 
 /**
  * @file
- * @brief Tutorial step definitions and helper rendering for editor coaching hints.
+ * @brief Tutorial step metadata for validated editor guidance and file review.
  */
 
 #include <array>
-#include <string>
-
-#include <imgui.h>
 
 namespace editor::tutorial
 {
 namespace
 {
-struct TutorialFileEditHint
-{
-    const char* filePath;
-    const char* changeSummary;
-    const char* snippet;
-};
-
 constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
-    {"Create tutorial window", "Use File/New window from scratch, then create window mfd_tutorial (480x480, black bg, UDP 127.0.0.1:49000).", "menu_file_new_window"},
-    {"Create radar-track reticle", "Create a library reticle template based on a primitive and name it tutorial_radar_track.", "popup_reticle_primitive"},
-    {"Create circular target reticle", "Create a simple circular target reticle that will be layered on Page1.", "popup_reticle_primitive"},
-    {"Create Page1", "Create Page1 and set layer 1 background to blue.", "menu_page_new"},
-    {"Overlay full-page circular reticle", "Add the circular reticle on a second layer above the blue background.", "menu_page_new"},
-    {"Enable outer clipping", "Right-click the circular reticle in preview and choose Clip outside.", "context_clip_outer"},
-    {"Add text reticle layer", "Add a third layer with a text reticle and then hide this layer from the layer inspector.", "inspector_layers"},
-    {"Add Page2", "Create a second page named Page2 with a simple title.", "menu_page_new"},
-    {"Add strobe", "Configure a page strobe and explain that it will jump to each newly created track.", "coach_ok"},
-    {"Save tutorial assets", "Save the tutorial assets from the File menu so window/page/reticle edits are persisted to disk.", "menu_file_save"},
-    {"Change active page in code", "Show how the client switches between Page1 and Page2 (timer-based ActivatePage).", "code_page_switch"},
-    {"Add dynamic reticle in code", "Show how to add/update a dynamic reticle from a template with UpsertDynamicReticle.", "code_dynamic_add"},
-    {"Remove dynamic reticle in code", "Show how to remove the oldest dynamic reticle with RemoveDynamicReticle.", "code_dynamic_remove"},
-    {"Modify static reticle attrs", "Show how to modify a static reticle (color/position/visibility) with SetReticle* commands.", "code_static_attrs"},
-    {"Modify dynamic reticle", "Show how to update an existing dynamic reticle by re-upserting it with a patch.", "code_dynamic_modify"},
-    {"Declutter dynamic reticles", "Show dynamic declutter by toggling visibility of one template set via SetDynamicReticleSetVisible.", "code_declutter"},
-    {"Use generated API in client", "Add a client_tutorial step showing how to include and use generated UI API types/functions.", "code_generated_api"},
-    {"Strobe feedback in client", "Show where the client receives strobe feedback packets (client_tutorial main loop).", "code_feedback"},
-    {"RGBA32 pixel buffer", "Show where RGBA32 pixel buffer callback is read (mfd_tutorial main).", "code_pixels"},
-    {"Enable tutorial targets", "Add tutorial targets in root CMakeLists once generated code exists.", "code_cmake"},
+    {TutorialStepKind::UiAction,
+     "Create the tutorial window",
+     "Build a clean tutorial window from scratch so the rest of the walkthrough starts from a predictable document.",
+     "menu_file",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Create the radar-track reticle",
+     "Create the shared reticle template used later by the client when it spawns dynamic tutorial tracks.",
+     "menu_reticle",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Create the circle reticle",
+     "Create a second template that will become the large circular mask on Page1.",
+     "menu_reticle",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Create Page1",
+     "Author the first page of the tutorial so the runtime has a main working page to display.",
+     "menu_page",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Add the circle reticle to Page1",
+     "Instantiate the circle template on Page1 so you can immediately see how library templates become page reticles.",
+     "library_add_to_page",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Clip the reticle from the outside",
+     "Open the clipping context menu on the circle reticle and keep only the outside region to discover page-local masking.",
+     "page_preview_clip_source",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Add and hide an editor layer",
+     "Create one extra editor-only layer and hide it to understand that authoring layers never affect runtime rendering.",
+     "inspector_add_layer",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Create Page2",
+     "Add a second page so the tutorial client can demonstrate page switching.",
+     "menu_page",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Save the tutorial assets",
+     "Write the authored tutorial files to disk before moving to the code-focused part of the walkthrough.",
+     "menu_file",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::FileReview,
+     "Review the Page1 strobe JSON",
+     "This step explains the JSON block that adds a page strobe so the runtime can jump to each newly created track.",
+     "",
+     "assets/pages/mfd_tutorial_page1.json",
+     "{\n"
+     "  \"name\": \"Page1\",\n"
+     "  \"title\": \"Page 1\",\n"
+     "  \"backgroundColor\": [0, 32, 96, 255],\n"
+     "  \"staticReticles\": []\n"
+     "}",
+     "{\n"
+     "  \"name\": \"Page1\",\n"
+     "  \"title\": \"Page 1\",\n"
+     "  \"backgroundColor\": [0, 32, 96, 255],\n"
+     "  \"strobe\": {\n"
+     "    \"reticle\": {\n"
+     "      \"id\": \"tutorial_strobe\",\n"
+     "      \"sourceTemplateId\": \"mfd_tutorial_circle\"\n"
+     "    },\n"
+     "    \"capture\": {\n"
+     "      \"shape\": \"circle\"\n"
+     "    }\n"
+     "  },\n"
+     "  \"staticReticles\": []\n"
+     "}",
+     "The strobe block declares a page-owned reticle and the capture shape used by the runtime when the client moves the strobe over new tracks.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review page switching in the client",
+     "The client alternates between Page1 and Page2 on a timer so the user sees both authored pages without manual input.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "constexpr std::string_view kPage1 = \"Page1\";\n"
+     "\n"
+     "std::string activePage(kPage1);\n"
+     "client.ActivatePage(activePage);",
+     "constexpr std::string_view kPage1 = \"Page1\";\n"
+     "constexpr std::string_view kPage2 = \"Page2\";\n"
+     "constexpr auto kPageSwitchInterval = std::chrono::seconds(30);\n"
+     "\n"
+     "std::string activePage(kPage1);\n"
+     "client.ActivatePage(activePage);\n"
+     "\n"
+     "auto nextPageTime = std::chrono::steady_clock::now() + kPageSwitchInterval;\n"
+     "if (now >= nextPageTime)\n"
+     "{\n"
+     "    activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);\n"
+     "    client.ActivatePage(activePage);\n"
+     "    nextPageTime += kPageSwitchInterval;\n"
+     "}",
+     "Switching pages in code demonstrates that authored pages stay data-driven while the client decides when each page becomes active.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review dynamic reticle creation",
+     "The client builds one patch per new track and upserts it from the shared radar-track template.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "const std::string trackId = \"tutorial_track_\" + std::to_string(serial++);\n"
+     "mfd::ReticlePatch patch;\n"
+     "patch.position = mfd::Vec2 {axis(rng), axis(rng)};",
+     "const std::string trackId = \"tutorial_track_\" + std::to_string(serial++);\n"
+     "mfd::ReticlePatch patch;\n"
+     "patch.position = mfd::Vec2 {axis(rng), axis(rng)};\n"
+     "patch.color = mfd::ColorRgba {80, 255, 185, 255};\n"
+     "patch.thickness = 0.0038f;\n"
+     "patch.text = std::string(\"T\") + std::to_string(serial);\n"
+     "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);",
+     "Upsert keeps the client logic simple: the same call handles first creation and later refreshes of the same dynamic reticle id.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review dynamic reticle removal",
+     "When the client reaches the maximum track count it removes the oldest track before adding a new one.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "if (trackIds.size() >= kMaxTracks)\n"
+     "{\n"
+     "    trackIds.erase(trackIds.begin());\n"
+     "}",
+     "if (trackIds.size() >= kMaxTracks)\n"
+     "{\n"
+     "    client.RemoveDynamicReticle(kPage1, trackIds.front());\n"
+     "    trackIds.erase(trackIds.begin());\n"
+     "}",
+     "The explicit remove call keeps the runtime scene bounded and shows how dynamic ids stay under client ownership.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review static reticle commands",
+     "Static reticles can still be animated from code without recreating them, which is useful for highlights, declutter and emphasis.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "// Page1 keeps its authored static reticles unchanged.",
+     "client.SetReticleColor(kPage1, \"mfd_tutorial_circle\", {0, 255, 0, 255});\n"
+     "client.SetReticlePosition(kPage1, \"mfd_tutorial_circle\", {0.0f, 0.0f});\n"
+     "client.SetReticleVisible(kPage1, \"mfd_tutorial_circle\", true);",
+     "These commands target one authored page reticle directly, which is different from dynamic reticles that are created from a template id plus a runtime-owned instance id.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review dynamic reticle updates",
+     "Updating a dynamic reticle means sending a new patch with the same runtime id and the new values you want to keep.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);",
+     "mfd::ReticlePatch updatedPatch = patch;\n"
+     "updatedPatch.color = mfd::ColorRgba {255, 196, 64, 255};\n"
+     "updatedPatch.position = mfd::Vec2 {0.15f, -0.10f};\n"
+     "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, updatedPatch);",
+     "Re-using the same id preserves the logical identity of the track while still changing its appearance or position.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review dynamic declutter",
+     "Declutter is expressed as a visibility toggle on one dynamic template set so the client can hide or restore a whole family of tracks at once.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);",
+     "bool tracksVisible = true;\n"
+     "if ((serial % 5U) == 0U)\n"
+     "{\n"
+     "    tracksVisible = !tracksVisible;\n"
+     "}\n"
+     "client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, tracksVisible);",
+     "Template-set visibility is a compact way to declutter the page without deleting runtime objects or rebuilding the authored content.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review generated UI integration",
+     "When generated bindings are available the client can build higher-level commands instead of calling the low-level API directly.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "#include \"mfd/control/CommandClient.h\"\n"
+     "#include \"mfd/control/FeedbackTransport.h\"\n"
+     "#include \"mfd/control/StrobeFeedback.h\"",
+     "#if __has_include(\"MfdTutorialMockupUi.h\")\n"
+     "#include \"MfdTutorialMockupUi.h\"\n"
+     "#define MFD_HAS_GENERATED_TUTORIAL_UI 1\n"
+     "using GeneratedTutorialUi = mockup_ui::MfdTutorialMockupUi;\n"
+     "#elif __has_include(\"TutorialUi.h\")\n"
+     "#include \"TutorialUi.h\"\n"
+     "#define MFD_HAS_GENERATED_TUTORIAL_UI 1\n"
+     "using GeneratedTutorialUi = tutorial_ui::TutorialUi;\n"
+     "#else\n"
+     "#define MFD_HAS_GENERATED_TUTORIAL_UI 0\n"
+     "#endif",
+     "The generated API keeps page names, template names and field setters strongly typed, which reduces drift between authored JSON and client code.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review strobe feedback handling",
+     "The client can subscribe to feedback packets and decode them to monitor the runtime strobe state.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "std::unique_ptr<mfd::IExchangeChannel> feedbackChannel;",
+     "std::unique_ptr<mfd::IExchangeChannel> feedbackChannel;\n"
+     "if (loaded.window.feedbackTransports.udp.has_value())\n"
+     "{\n"
+     "    feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);\n"
+     "}\n"
+     "\n"
+     "const auto payload = feedbackChannel->TryReceive();\n"
+     "const std::string_view raw(reinterpret_cast<const char*>(payload->data()), payload->size());\n"
+     "std::string error;\n"
+     "const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);",
+     "Feedback decoding closes the loop between authored strobe behavior in the window and the external application driving it.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review RGBA32 framebuffer capture",
+     "The launcher can expose raw RGBA32 pixels so the tutorial can verify what the runtime is rendering.",
+     "",
+     "examples/mfd_tutorial/src/main.cpp",
+     "return mfd::window::RunLauncher(argc, argv, config);",
+     "return mfd::window::RunLauncher(\n"
+     "    argc,\n"
+     "    argv,\n"
+     "    config,\n"
+     "    [](int width, int height, mfd::ByteView pixels)\n"
+     "    {\n"
+     "        std::cout << \"RGBA32 framebuffer callback active: \" << width << \"x\" << height\n"
+     "                  << \" pixels=\" << pixels.size() << '\\n';\n"
+     "    });",
+     "This callback is the simplest bridge between the runtime window and any external validation or capture workflow.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review tutorial target registration",
+     "The repository root must register the tutorial executables so the authored assets and the client walkthrough can both be built.",
+     "",
+     "CMakeLists.txt",
+     "if(MFD_BUILD_DEMO)\n"
+     "{\n"
+     "    add_subdirectory(examples/mfd_demo)\n"
+     "    add_subdirectory(examples/mfd_demo_cockpit)\n"
+     "    add_subdirectory(examples/mfd_demo_minimal)\n"
+     "    add_subdirectory(examples/client_mockup)\n"
+     "    add_subdirectory(examples/client_mockup_minimal)\n"
+     "    add_subdirectory(mfd_editor)\n"
+     "endif()",
+     "if(MFD_BUILD_DEMO)\n"
+     "{\n"
+     "    add_subdirectory(examples/mfd_demo)\n"
+     "    add_subdirectory(examples/mfd_demo_cockpit)\n"
+     "    add_subdirectory(examples/mfd_demo_minimal)\n"
+     "    add_subdirectory(examples/client_mockup)\n"
+     "    add_subdirectory(examples/client_mockup_minimal)\n"
+     "    add_subdirectory(examples/mfd_tutorial)\n"
+     "    add_subdirectory(examples/client_tutorial)\n"
+     "    add_subdirectory(mfd_editor)\n"
+     "endif()",
+     "Registering both tutorial targets ensures the authoring walkthrough and the code walkthrough stay buildable from the same root project.",
+     "Finish",
+     1,
+     1},
 }};
 } // namespace
 
@@ -60,119 +357,13 @@ int StepCount() noexcept
     return static_cast<int>(kTutorialSteps.size());
 }
 
-void DrawTutorialFileHints(const int stepIndex)
+bool IsUiStep(const TutorialStepDefinition& step) noexcept
 {
-    const auto drawEdit = [](const TutorialFileEditHint& hint)
-    {
-        ImGui::BulletText("%s", hint.filePath);
-        ImGui::TextWrapped("Expected change: %s", hint.changeSummary);
-        if (hint.snippet != nullptr && hint.snippet[0] != '\0')
-        {
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.06f, 0.10f, 0.14f, 1.0f));
-            ImGui::BeginChild(
-                std::string("##hint_").append(hint.filePath).c_str(),
-                ImVec2(0.0f, 86.0f),
-                true,
-                ImGuiWindowFlags_HorizontalScrollbar);
-            ImGui::TextUnformatted(hint.snippet);
-            ImGui::EndChild();
-            ImGui::PopStyleColor();
-        }
-    };
+    return step.kind == TutorialStepKind::UiAction;
+}
 
-    ImGui::SeparatorText("File modification view");
-    switch (stepIndex)
-    {
-    case 0:
-        drawEdit({"assets/windows/mfd_tutorial.json",
-                  "Create a new window file (480x480, black background) and configure UDP command transport.",
-                  "{ \"title\":\"MFD Tutorial\", \"size\":[480,480], \"commands\":{\"udp\":{\"address\":\"127.0.0.1\",\"port\":49000}} }"});
-        break;
-    case 1:
-    case 2:
-        drawEdit({"assets/reticles/mfd_tutorial_*.json",
-                  "Create new reticle template JSON files from the editor reticle library.",
-                  "{ \"id\":\"tutorial_radar_track\", \"elements\":[ ... ] }"});
-        break;
-    case 3:
-    case 4:
-    case 7:
-        drawEdit({"assets/pages/mfd_tutorial_page1.json / mfd_tutorial_page2.json",
-                  "Create Page1/Page2 and wire layers/reticles through editor actions.",
-                  "{ \"name\":\"Page1\", \"editor\":{\"layers\":[...]}, \"staticReticles\":[...] }"});
-        break;
-    case 5:
-        drawEdit({"assets/reticles/mfd_tutorial_circle.json",
-                  "Set reticle clipping mode to outer and choose the clipping primitive.",
-                  "{ \"clipMode\":\"outer\", \"clipPrimitive\":\"outer_circle\" }"});
-        break;
-    case 6:
-        drawEdit({"assets/pages/mfd_tutorial_page1.json",
-                  "Add a text layer and keep it hidden in the editor layer manager.",
-                  "\"layers\": [{\"id\":\"text\", \"visible\":false}]"});
-        break;
-    case 8:
-        drawEdit({"assets/pages/mfd_tutorial_page1.json",
-                  "Add strobe configuration so runtime can move it across tracks.",
-                  "\"strobe\": {\"id\":\"tutorial_strobe\", \"capture\": {\"shape\":\"circle\"}}"});
-        break;
-    case 9:
-        drawEdit({"assets/windows/mfd_tutorial.json + assets/pages/*.json + assets/reticles/*.json",
-                  "Use File > Save to persist all editor-side tutorial assets.",
-                  "File -> Save (Ctrl+S)"});
-        break;
-    case 10:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Switch pages in code with ActivatePage and a timer.",
-                  "activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);\nclient.ActivatePage(activePage);"});
-        break;
-    case 11:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Add/update one dynamic reticle with a patch.",
-                  "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);"});
-        break;
-    case 12:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Remove the oldest dynamic reticle id.",
-                  "client.RemoveDynamicReticle(kPage1, trackIds.front());"});
-        break;
-    case 13:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Modify static reticle attributes.",
-                  "client.SetReticleColor(kPage1, \"tutorial_circle_full\", {0,255,0,255});\nclient.SetReticlePosition(kPage1, \"tutorial_circle_full\", {0.0f,0.0f});\nclient.SetReticleVisible(kPage1, \"tutorial_circle_full\", true);"});
-        break;
-    case 14:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Modify an existing dynamic reticle by re-upserting same id with a new patch.",
-                  "client.UpsertDynamicReticle(kPage1, existingId, kTrackTemplate, updatedPatch);"});
-        break;
-    case 15:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Declutter all dynamics of one template by toggling template-set visibility.",
-                  "client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, false);\nclient.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, true);"});
-        break;
-    case 16:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Include generated API header and call generated helpers/types when available.",
-                  "#if __has_include(\"TutorialUi.h\")\n#include \"TutorialUi.h\"\n#endif"});
-        break;
-    case 17:
-        drawEdit({"examples/client_tutorial/src/main.cpp",
-                  "Poll feedback transport and decode strobe feedback packets.",
-                  "const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);"});
-        break;
-    case 18:
-        drawEdit({"examples/mfd_tutorial/src/main.cpp",
-                  "Read RGBA32 framebuffer callback in window launcher.",
-                  "[](int width, int height, mfd::ByteView pixels) { ... }"});
-        break;
-    case 19:
-        drawEdit({"CMakeLists.txt",
-                  "Training step only: add tutorial targets once generated code exists.",
-                  "add_subdirectory(examples/mfd_tutorial)\nadd_subdirectory(examples/client_tutorial)"});
-        break;
-    default:
-        break;
-    }
+bool IsFileReviewStep(const TutorialStepDefinition& step) noexcept
+{
+    return step.kind == TutorialStepKind::FileReview;
 }
 } // namespace editor::tutorial

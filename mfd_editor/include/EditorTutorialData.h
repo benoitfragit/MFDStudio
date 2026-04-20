@@ -14,14 +14,28 @@
 
 namespace editor::tutorial
 {
+enum class TutorialStepKind
+{
+    UiAction,
+    FileReview
+};
+
 /**
  * @brief Immutable description of one guided tutorial step.
  */
 struct TutorialStepDefinition
 {
+    TutorialStepKind kind;
     const char* title;
     const char* instruction;
     const char* targetId;
+    const char* filePath;
+    const char* beforeText;
+    const char* afterText;
+    const char* explanation;
+    const char* advanceLabel;
+    int beforeFirstLine;
+    int afterFirstLine;
 };
 
 /**
@@ -35,8 +49,12 @@ mfd::ArrayView<const TutorialStepDefinition> Steps() noexcept;
 int StepCount() noexcept;
 
 /**
- * @brief Draws file-edit hints associated with one tutorial step.
- * @param stepIndex Zero-based tutorial step index.
+ * @brief Returns `true` when the provided step is a UI-driven action.
  */
-void DrawTutorialFileHints(int stepIndex);
+bool IsUiStep(const TutorialStepDefinition& step) noexcept;
+
+/**
+ * @brief Returns `true` when the provided step is a file-review step.
+ */
+bool IsFileReviewStep(const TutorialStepDefinition& step) noexcept;
 } // namespace editor::tutorial
