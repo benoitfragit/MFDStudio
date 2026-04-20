@@ -152,6 +152,7 @@ Important rule:
 - the UDP worker thread does not modify the scene directly
 - it only pushes decoded commands into a thread-safe queue
 - the render thread drains that queue and applies the commands
+- command application per frame is intentionally bounded to avoid frame stalls under UDP floods
 - thread lifecycle/transport readiness coordination uses mutex + condition variable guards (no mixed atomic/mutex state)
 
 This keeps `raylib`, `OpenGL`, and the scene state on the same thread while

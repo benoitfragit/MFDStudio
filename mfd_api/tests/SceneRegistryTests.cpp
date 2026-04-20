@@ -656,6 +656,27 @@ TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamic
     EXPECT_FALSE(registry.CaptureActivePageStrobe().has_value());
 }
 
+TEST(SceneRegistryTests, StrobeMagnetizationIgnoresNonFiniteDynamicPositions)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup invalidTrack = MakeTextReticle("invalid_track");
+    invalidTrack.transform.position = {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+    registry.UpsertDynamicReticle("Radar", std::move(invalidTrack));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.0f, 0.0f}));
+
+    const auto magnet = registry.ActiveStrobeMagnetSummary();
+    ASSERT_TRUE(magnet.has_value());
+    EXPECT_TRUE(magnet->enabled);
+    EXPECT_FALSE(magnet->magnetized);
+    EXPECT_TRUE(magnet->reticleId.empty());
+    EXPECT_TRUE(std::isfinite(magnet->distance));
+}
+
 TEST(SceneRegistryTests, DynamicTemplateVisibilityMasksOnlyMatchingDynamicReticles)
 {
     mfd::MfdDocument document;

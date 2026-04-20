@@ -49,3 +49,27 @@ TEST(ArrayViewTests, SupportsArrayConstruction)
     EXPECT_EQ(byteView.size(), bytes.size());
     EXPECT_EQ(byteView.data(), bytes.data());
 }
+
+#if defined(GTEST_HAS_DEATH_TEST) && !defined(NDEBUG)
+TEST(ArrayViewTests, FrontOnEmptyViewTriggersDebugAssertion)
+{
+    const mfd::ArrayView<int> empty;
+    EXPECT_DEATH(
+        {
+            const volatile int* value = &empty.front();
+            (void)value;
+        },
+        "ArrayView::front\\(\\) called on an empty view");
+}
+
+TEST(ArrayViewTests, BackOnEmptyViewTriggersDebugAssertion)
+{
+    const mfd::ArrayView<int> empty;
+    EXPECT_DEATH(
+        {
+            const volatile int* value = &empty.back();
+            (void)value;
+        },
+        "ArrayView::back\\(\\) called on an empty view");
+}
+#endif

@@ -291,6 +291,36 @@ TEST(JsonLoaderTests, LoadDocumentRejectsUnknownReticleBlinkType)
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
 
+TEST(JsonLoaderTests, LoadDocumentReportsInvalidJsonPathAndParseContext)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Broken"
+    }
+  ]
+)json");
+
+    mfd::JsonLoader loader;
+    try
+    {
+        (void)loader.LoadDocument(pagesFile);
+        FAIL() << "Expected std::runtime_error for malformed JSON";
+    }
+    catch (const std::runtime_error& exception)
+    {
+        const std::string message = exception.what();
+        EXPECT_NE(message.find("Unable to parse JSON file"), std::string::npos);
+        EXPECT_NE(message.find(pagesFile.string()), std::string::npos);
+        EXPECT_NE(message.find("byte"), std::string::npos);
+    }
+}
+
 TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliasesAndPageWrapper)
 {
     TemporaryFolder workspace;

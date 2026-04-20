@@ -133,9 +133,23 @@ json LoadJsonFile(const std::filesystem::path& path)
         throw std::runtime_error("Unable to open JSON file: " + path.string());
     }
 
-    json document;
-    stream >> document;
-    return document;
+    try
+    {
+        json document;
+        stream >> document;
+        return document;
+    }
+    catch (const nlohmann::json::parse_error& exception)
+    {
+        throw std::runtime_error("Unable to parse JSON file '" + path.string() +
+                                 "' at byte " + std::to_string(exception.byte) +
+                                 ": " + exception.what());
+    }
+    catch (const nlohmann::json::exception& exception)
+    {
+        throw std::runtime_error("Unable to read JSON file '" + path.string() +
+                                 "': " + exception.what());
+    }
 }
 
 std::filesystem::path NormalizePath(const std::filesystem::path& path)
