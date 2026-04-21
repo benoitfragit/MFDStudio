@@ -42,19 +42,24 @@ set_target_properties(client_mockup_minimal PROPERTIES
 add_custom_command(
     TARGET client_mockup_minimal
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${MFD_ROOT_DIR}/assets"
-        "$<TARGET_FILE_DIR:client_mockup_minimal>/assets"
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+        "-DDEST_DIR=$<TARGET_FILE_DIR:client_mockup_minimal>/assets"
+        -P
+        "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_RUNTIME_DLLS:client_mockup_minimal>
+        $<TARGET_RUNTIME_DLLS:mfd_api>
         "$<TARGET_FILE_DIR:client_mockup_minimal>"
     COMMAND_EXPAND_LISTS)
 
 mfd_stage_runtime(client_mockup_minimal WITH_ASSETS WITH_RUNTIME_DLLS)
 
 if(MFD_BUILD_TESTS)
-    add_test(
-        NAME client_mockup_minimal_build_smoke
-        COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config "$<CONFIG>" --target client_mockup_minimal)
-    set_tests_properties(client_mockup_minimal_build_smoke PROPERTIES LABELS "smoke;examples")
+    mfd_add_runtime_layout_smoke_test(
+        client_mockup_minimal
+        EXTRA_RUNTIME_TARGETS mfd_api
+        VERIFY_ASSETS
+        LABELS examples)
 endif()

@@ -37,20 +37,27 @@ if(WIN32)
     add_custom_command(
         TARGET mfd_window
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${MFD_ROOT_DIR}/assets"
-            "$<TARGET_FILE_DIR:mfd_window>/assets"
+        COMMAND
+            ${CMAKE_COMMAND}
+            "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+            "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/assets"
+            -P
+            "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_RUNTIME_DLLS:mfd_window>
+            $<TARGET_RUNTIME_DLLS:mfd_api>
             "$<TARGET_FILE_DIR:mfd_window>"
         COMMAND_EXPAND_LISTS)
 else()
     add_custom_command(
         TARGET mfd_window
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${MFD_ROOT_DIR}/assets"
-            "$<TARGET_FILE_DIR:mfd_window>/assets")
+        COMMAND
+            ${CMAKE_COMMAND}
+            "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+            "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/assets"
+            -P
+            "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake")
 endif()
 
 mfd_stage_runtime(mfd_window WITH_ASSETS WITH_RUNTIME_DLLS)

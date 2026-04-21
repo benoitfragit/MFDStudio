@@ -40,11 +40,15 @@ set_target_properties(mfd_editor PROPERTIES
 add_custom_command(
     TARGET mfd_editor
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${MFD_ROOT_DIR}/assets"
-        "$<TARGET_FILE_DIR:mfd_editor>/assets"
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+        "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_editor>/assets"
+        -P
+        "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_RUNTIME_DLLS:mfd_editor>
+        $<TARGET_RUNTIME_DLLS:mfd_api>
         "$<TARGET_FILE_DIR:mfd_editor>"
     COMMAND_EXPAND_LISTS)
 

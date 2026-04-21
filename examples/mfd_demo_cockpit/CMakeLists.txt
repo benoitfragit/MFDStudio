@@ -16,11 +16,15 @@ set_target_properties(mfd_demo_cockpit PROPERTIES
 add_custom_command(
     TARGET mfd_demo_cockpit
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${MFD_ROOT_DIR}/assets"
-        "$<TARGET_FILE_DIR:mfd_demo_cockpit>/assets"
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+        "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_demo_cockpit>/assets"
+        -P
+        "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_RUNTIME_DLLS:mfd_demo_cockpit>
+        $<TARGET_RUNTIME_DLLS:mfd_api>
         "$<TARGET_FILE_DIR:mfd_demo_cockpit>"
     COMMAND_EXPAND_LISTS)
 

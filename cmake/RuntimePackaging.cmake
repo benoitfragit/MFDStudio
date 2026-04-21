@@ -48,7 +48,12 @@ function(mfd_stage_runtime target_name)
     set(asset_commands)
     if(copy_assets)
         list(APPEND asset_commands
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${MFD_ROOT_DIR}/assets" "${stage_dir}/assets")
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+                "-DDEST_DIR=${stage_dir}/assets"
+                -P
+                "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake")
     endif()
 
     add_custom_command(
@@ -59,4 +64,49 @@ function(mfd_stage_runtime target_name)
         ${runtime_dll_commands}
         ${asset_commands}
         COMMAND_EXPAND_LISTS)
+endfunction()
+
+function(mfd_add_runtime_layout_smoke_test target_name)
+    if(NOT WIN32 OR NOT MFD_BUILD_TESTS)
+        return()
+    endif()
+
+    set(options VERIFY_ASSETS)
+    set(one_value_args NAME)
+    set(multi_value_args EXTRA_RUNTIME_TARGETS LABELS)
+    cmake_parse_arguments(MFD_RUNTIME_SMOKE
+        "${options}"
+        "${one_value_args}"
+        "${multi_value_args}"
+        ${ARGN})
+
+    if(NOT MFD_RUNTIME_SMOKE_NAME)
+        set(MFD_RUNTIME_SMOKE_NAME "${target_name}_runtime_layout_smoke")
+    endif()
+
+    set(expected_runtime_dlls "$<JOIN:$<TARGET_RUNTIME_DLLS:${target_name}>,|>")
+    foreach(runtime_target IN LISTS MFD_RUNTIME_SMOKE_EXTRA_RUNTIME_TARGETS)
+        string(APPEND expected_runtime_dlls "|$<JOIN:$<TARGET_RUNTIME_DLLS:${runtime_target}>,|>")
+    endforeach()
+
+    add_test(
+        NAME ${MFD_RUNTIME_SMOKE_NAME}
+        COMMAND
+            ${CMAKE_COMMAND}
+            "-DBUILD_DIRECTORY=${CMAKE_BINARY_DIR}"
+            "-DBUILD_CONFIG=$<CONFIG>"
+            "-DTARGET_NAME=${target_name}"
+            "-DTARGET_DIRECTORY=$<TARGET_FILE_DIR:${target_name}>"
+            "-DEXPECTED_RUNTIME_DLLS=${expected_runtime_dlls}"
+            "$<$<BOOL:${MFD_RUNTIME_SMOKE_VERIFY_ASSETS}>:-DASSET_SOURCE_DIR=${MFD_ROOT_DIR}/assets>"
+            "$<$<BOOL:${MFD_RUNTIME_SMOKE_VERIFY_ASSETS}>:-DASSET_TARGET_DIR=$<TARGET_FILE_DIR:${target_name}>/assets>"
+            -P
+            "${MFD_ROOT_DIR}/cmake/VerifyRuntimeLayout.cmake")
+
+    set(test_labels "smoke;runtime")
+    if(MFD_RUNTIME_SMOKE_LABELS)
+        list(APPEND test_labels ${MFD_RUNTIME_SMOKE_LABELS})
+    endif()
+
+    set_tests_properties(${MFD_RUNTIME_SMOKE_NAME} PROPERTIES LABELS "${test_labels}")
 endfunction()

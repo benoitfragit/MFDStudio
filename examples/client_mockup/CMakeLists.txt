@@ -78,19 +78,24 @@ set_target_properties(client_mockup PROPERTIES
 add_custom_command(
     TARGET client_mockup
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${MFD_ROOT_DIR}/assets"
-        "$<TARGET_FILE_DIR:client_mockup>/assets"
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+        "-DDEST_DIR=$<TARGET_FILE_DIR:client_mockup>/assets"
+        -P
+        "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_RUNTIME_DLLS:client_mockup>
+        $<TARGET_RUNTIME_DLLS:mfd_api>
         "$<TARGET_FILE_DIR:client_mockup>"
     COMMAND_EXPAND_LISTS)
 
 mfd_stage_runtime(client_mockup WITH_ASSETS WITH_RUNTIME_DLLS)
 
 if(MFD_BUILD_TESTS)
-    add_test(
-        NAME client_mockup_build_smoke
-        COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config "$<CONFIG>" --target client_mockup)
-    set_tests_properties(client_mockup_build_smoke PROPERTIES LABELS "smoke;examples")
+    mfd_add_runtime_layout_smoke_test(
+        client_mockup
+        EXTRA_RUNTIME_TARGETS mfd_api
+        VERIFY_ASSETS
+        LABELS examples)
 endif()

@@ -779,6 +779,22 @@ TEST(JsonLoaderTests, LoadRepositoryCockpitWindowConfigurationSmokeTest)
     EXPECT_FALSE(loaded.document.reticleLibrary.empty());
 }
 
+TEST(JsonLoaderTests, LoadRepositoryDemoWindowConfigurationSmokeTest)
+{
+    mfd::JsonLoader loader;
+    const std::filesystem::path windowFile = RepositoryRoot() / "assets/windows/demo_pages.json";
+
+    const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
+
+    ASSERT_EQ(loaded.document.pages.size(), 5U);
+    EXPECT_EQ(loaded.document.pages[0].name, "Pfd");
+    EXPECT_EQ(loaded.document.pages[1].name, "Navigation");
+    EXPECT_EQ(loaded.document.pages[2].name, "AircraftCentric");
+    EXPECT_EQ(loaded.document.pages[3].name, "Radar");
+    EXPECT_EQ(loaded.document.pages[4].name, "Tactical");
+    EXPECT_FALSE(loaded.document.reticleLibrary.empty());
+}
+
 TEST(JsonLoaderTests, LoadRepositoryMinimalWindowConfigurationMarksRadarAsDefaultPage)
 {
     mfd::JsonLoader loader;

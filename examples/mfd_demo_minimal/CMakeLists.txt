@@ -14,11 +14,15 @@ set_target_properties(mfd_demo_minimal PROPERTIES
 add_custom_command(
     TARGET mfd_demo_minimal
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${MFD_ROOT_DIR}/assets"
-        "$<TARGET_FILE_DIR:mfd_demo_minimal>/assets"
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+        "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_demo_minimal>/assets"
+        -P
+        "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_RUNTIME_DLLS:mfd_demo_minimal>
+        $<TARGET_RUNTIME_DLLS:mfd_api>
         "$<TARGET_FILE_DIR:mfd_demo_minimal>"
     COMMAND_EXPAND_LISTS)
 

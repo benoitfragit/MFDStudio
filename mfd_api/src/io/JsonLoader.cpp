@@ -1498,24 +1498,32 @@ ReticleLibrary LoadReticleLibrary(const std::filesystem::path& folder)
 
     for (const auto& file : jsonFiles)
     {
-        const json templateJson = LoadJsonFile(file);
-        if (templateJson.contains("template"))
+        try
         {
-            throw std::runtime_error("Template chaining is not supported in reticle library files: " + file.string());
-        }
+            const json templateJson = LoadJsonFile(file);
+            if (templateJson.contains("template"))
+            {
+                throw std::runtime_error("Template chaining is not supported in reticle library files");
+            }
 
-        ReticleGroup group = ParseInlineReticle(templateJson);
-        if (group.id.empty())
+            ReticleGroup group = ParseInlineReticle(templateJson);
+            if (group.id.empty())
+            {
+                group.id = file.stem().string();
+            }
+
+            if (group.sourceTemplateId.empty())
+            {
+                group.sourceTemplateId = group.id;
+            }
+
+            library[group.id] = std::move(group);
+        }
+        catch (const std::exception& exception)
         {
-            group.id = file.stem().string();
+            throw std::runtime_error(
+                "Unable to load reticle library asset '" + file.string() + "': " + exception.what());
         }
-
-        if (group.sourceTemplateId.empty())
-        {
-            group.sourceTemplateId = group.id;
-        }
-
-        library[group.id] = std::move(group);
     }
 
     return library;
@@ -2514,8 +2522,17 @@ LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesys
 
     for (const auto& pageFile : loaded.window.pageFiles)
     {
-        const json pageRoot = LoadJsonFile(pageFile);
-        PageDefinition page = ParsePage(ExtractPageNode(pageRoot), loaded.document.reticleLibrary);
+        PageDefinition page;
+
+        try
+        {
+            const json pageRoot = LoadJsonFile(pageFile);
+            page = ParsePage(ExtractPageNode(pageRoot), loaded.document.reticleLibrary);
+        }
+        catch (const std::exception& exception)
+        {
+            throw std::runtime_error("Unable to load page asset '" + pageFile.string() + "': " + exception.what());
+        }
 
         if (!pageNames.insert(page.normalizedName).second)
         {

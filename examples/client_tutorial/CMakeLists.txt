@@ -69,19 +69,24 @@ set_target_properties(client_tutorial PROPERTIES
 add_custom_command(
     TARGET client_tutorial
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${MFD_ROOT_DIR}/assets"
-        "$<TARGET_FILE_DIR:client_tutorial>/assets"
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+        "-DDEST_DIR=$<TARGET_FILE_DIR:client_tutorial>/assets"
+        -P
+        "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_RUNTIME_DLLS:client_tutorial>
+        $<TARGET_RUNTIME_DLLS:mfd_api>
         "$<TARGET_FILE_DIR:client_tutorial>"
     COMMAND_EXPAND_LISTS)
 
 mfd_stage_runtime(client_tutorial WITH_ASSETS WITH_RUNTIME_DLLS)
 
 if(MFD_BUILD_TESTS)
-    add_test(
-        NAME client_tutorial_build_smoke
-        COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config "$<CONFIG>" --target client_tutorial)
-    set_tests_properties(client_tutorial_build_smoke PROPERTIES LABELS "smoke;examples")
+    mfd_add_runtime_layout_smoke_test(
+        client_tutorial
+        EXTRA_RUNTIME_TARGETS mfd_api
+        VERIFY_ASSETS
+        LABELS examples)
 endif()
