@@ -15,6 +15,14 @@
 
 #include <gtest/gtest.h>
 
+namespace
+{
+const editor::tutorial::TutorialStepDefinition& Step(const editor::tutorial::TutorialStepId id)
+{
+    return editor::tutorial::Steps()[static_cast<std::size_t>(id)];
+}
+} // namespace
+
 TEST(EditorTutorialDataTests, StepCountMatchesExposedSpanSize)
 {
     const auto steps = editor::tutorial::Steps();
@@ -60,4 +68,23 @@ TEST(EditorTutorialDataTests, StepsExposeNonEmptyTextFields)
 
     EXPECT_GT(uiStepCount, 0);
     EXPECT_GT(fileStepCount, 0);
+}
+
+TEST(EditorTutorialDataTests, TutorialSnippetsPreferGeneratedHandlesWithoutUserManagedIds)
+{
+    const std::string_view creationAfter = Step(editor::tutorial::TutorialStepId::ReviewDynamicReticleCreation).afterText;
+    EXPECT_NE(creationAfter.find("generatedDynamicTracks.Create()"), std::string_view::npos);
+    EXPECT_EQ(creationAfter.find("Upsert("), std::string_view::npos);
+    EXPECT_EQ(creationAfter.find("trackId"), std::string_view::npos);
+
+    const std::string_view removalAfter = Step(editor::tutorial::TutorialStepId::ReviewDynamicReticleRemoval).afterText;
+    EXPECT_NE(removalAfter.find("generatedDynamicTracks.Remove"), std::string_view::npos);
+    EXPECT_EQ(removalAfter.find("RemoveDynamicReticle"), std::string_view::npos);
+
+    const std::string_view staticAfter = Step(editor::tutorial::TutorialStepId::ReviewStaticReticleCommands).afterText;
+    EXPECT_NE(staticAfter.find("page1Circle.Primitive01().SetRadius"), std::string_view::npos);
+
+    const std::string_view integrationAfter = Step(editor::tutorial::TutorialStepId::ReviewGeneratedUiIntegration).afterText;
+    EXPECT_NE(integrationAfter.find("DynamicMfdTutorialRadarTrack()"), std::string_view::npos);
+    EXPECT_NE(integrationAfter.find("page1.strobe"), std::string_view::npos);
 }

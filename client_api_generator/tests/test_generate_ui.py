@@ -249,6 +249,38 @@ class GenerateUiTests(unittest.TestCase):
             self.assertIn("MainMultiElementStatusReticle multiElementStatus;", header_content)
             self.assertIn("TextHandle& Label() noexcept;", header_content)
 
+    def test_mapping_does_not_invent_default_page_when_window_json_omits_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(json.dumps({"name": "Main"}), encoding="utf-8")
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            map_content = json.loads(output_map.read_text(encoding="utf-8"))
+            self.assertEqual(len(map_content["pages"]), 1)
+            self.assertFalse(map_content["pages"][0]["defaultPage"])
+
     def test_print_inputs_lists_window_and_page_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

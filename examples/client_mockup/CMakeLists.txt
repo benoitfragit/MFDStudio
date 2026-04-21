@@ -87,3 +87,10 @@ add_custom_command(
     COMMAND_EXPAND_LISTS)
 
 mfd_stage_runtime(client_mockup WITH_ASSETS WITH_RUNTIME_DLLS)
+
+if(MFD_BUILD_TESTS)
+    add_test(
+        NAME client_mockup_build_smoke
+        COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config "$<CONFIG>" --target client_mockup)
+    set_tests_properties(client_mockup_build_smoke PROPERTIES LABELS "smoke;examples")
+endif()

@@ -1190,9 +1190,10 @@ def mapping_document(window_root: dict,
         for page in sorted(page_specs, key=lambda entry: entry.canonical_key)
     ]
 
-    default_page = resolve_startup_page(page_specs, window_root)
-    for page in pages:
-        page["defaultPage"] = page["name"] == default_page.page_name
+    if window_root.get("defaultPage") is not None:
+        default_page = resolve_startup_page(page_specs, window_root)
+        for page in pages:
+            page["defaultPage"] = page["name"] == default_page.page_name
 
     reticles = []
     primitives = []
