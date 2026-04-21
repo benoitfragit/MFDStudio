@@ -12,6 +12,7 @@
 
 #include <array>
 #include <filesystem>
+#include <future>
 #include <memory>
 #include <optional>
 #include <string>
@@ -291,6 +292,10 @@ private:
     void CompleteTutorialStep();
     /** @brief Ends the tutorial and clears persisted progress. */
     void FinishTutorial();
+    /** @brief Starts the asynchronous build of the tutorial runtime and client targets. */
+    void StartTutorialTargetBuild();
+    /** @brief Polls the asynchronous tutorial build and refreshes the footer status once it completes. */
+    void PollTutorialTargetBuild();
     /** @brief Returns the currently expected tutorial target id for UI-driven steps. */
     std::string_view CurrentTutorialTargetId() const noexcept;
     /** @brief Returns a short summary of the current tutorial action. */
@@ -303,7 +308,7 @@ private:
     void SaveTutorialProgress() const;
     /** @brief Clears persisted tutorial progress from disk. */
     void ClearTutorialProgress();
-    /** @brief Cleans generated tutorial files from the repository tree. */
+    /** @brief Cleans generated tutorial files plus root-project tutorial registrations. */
     void CleanupGeneratedTutorialFiles();
     /** @brief Draws the synchronized file review UI used by tutorial file steps. */
     void DrawTutorialFileReview(const editor::tutorial::TutorialStepDefinition& step);
@@ -475,6 +480,16 @@ private:
     std::vector<mfd::ReticleGroup> pageReticleClipboard_ {};
     /** @brief Paste counter used to offset successive pasted copies. */
     int pageReticlePasteSerial_ = 0;
+    /** @brief Result payload returned by the asynchronous tutorial build worker. */
+    struct TutorialBuildResult
+    {
+        bool success = false;
+        std::string message {};
+    };
+    /** @brief Background future used to build the tutorial targets after the walkthrough finishes. */
+    std::future<TutorialBuildResult> tutorialBuildFuture_ {};
+    /** @brief Indicates whether the tutorial target build is currently running. */
+    bool tutorialBuildInProgress_ = false;
     /** @brief Current direct-manipulation mode active in the preview. */
     InteractionMode interactionMode_ = InteractionMode::None;
     /** @brief Reticle currently manipulated by the user, when relevant. */

@@ -12,9 +12,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <exception>
 #include <functional>
@@ -22,6 +25,7 @@
 #include <iterator>
 #include <limits>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
@@ -50,6 +54,17 @@ constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
 const auto kTutorialSteps = editor::tutorial::Steps();
 constexpr int kTutorialStepMin = 0;
+constexpr std::string_view kEditorDefaultWindowFile = "assets/windows/demo_pages.json";
+constexpr std::string_view kTutorialWindowFile = "assets/windows/mfd_tutorial.json";
+constexpr std::array<std::string_view, 4> kBuildConfigurations {
+    "Debug",
+    "Release",
+    "RelWithDebInfo",
+    "MinSizeRel"};
+constexpr std::array<std::string_view, 2> kTutorialRootTargetRegistrations {{
+    "add_subdirectory(examples/mfd_tutorial)",
+    "add_subdirectory(examples/client_tutorial)",
+}};
 
 struct EditorWindowPreset
 {
@@ -62,6 +77,565 @@ constexpr std::array<EditorWindowPreset, 3> kEditorWindowPresets {{
     {"Cockpit Demo", "assets/windows/demo_pages_cockpit.json"},
     {"Minimal Demo", "assets/windows/demo_pages_minimal.json"},
 }};
+
+struct TutorialBuildContext
+{
+    std::filesystem::path projectRoot;
+    std::filesystem::path buildDirectory;
+    std::string configuration;
+};
+
+void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot);
+
+std::string ToLowerAscii(std::string value)
+{
+    std::transform(value.begin(),
+                   value.end(),
+                   value.begin(),
+                   [](const unsigned char ch)
+                   {
+                       return static_cast<char>(std::tolower(ch));
+                   });
+    return value;
+}
+
+std::string_view TrimAsciiWhitespace(std::string_view value) noexcept
+{
+    std::size_t first = 0;
+    while (first < value.size() &&
+           std::isspace(static_cast<unsigned char>(value[first])) != 0)
+    {
+        ++first;
+    }
+
+    std::size_t last = value.size();
+    while (last > first &&
+           std::isspace(static_cast<unsigned char>(value[last - 1])) != 0)
+    {
+        --last;
+    }
+
+    return value.substr(first, last - first);
+}
+
+std::string LeadingWhitespace(std::string_view value)
+{
+    std::size_t count = 0;
+    while (count < value.size() &&
+           (value[count] == ' ' || value[count] == '\t'))
+    {
+        ++count;
+    }
+
+    return std::string(value.substr(0, count));
+}
+
+std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
+{
+    std::filesystem::path current = std::filesystem::absolute(start);
+
+    while (true)
+    {
+        if (std::filesystem::exists(current / "CMakeLists.txt") &&
+            std::filesystem::exists(current / "mfd_editor") &&
+            std::filesystem::exists(current / "examples"))
+        {
+            return current;
+        }
+
+        if (current == current.root_path())
+        {
+            break;
+        }
+
+        current = current.parent_path();
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::filesystem::path> FindEnclosingBuildDirectory(const std::filesystem::path& start)
+{
+    std::filesystem::path current = std::filesystem::absolute(start);
+
+    while (true)
+    {
+        if (std::filesystem::exists(current / "CMakeCache.txt"))
+        {
+            return current;
+        }
+
+        if (current == current.root_path())
+        {
+            break;
+        }
+
+        current = current.parent_path();
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> DetectBuildConfiguration(const std::filesystem::path& start)
+{
+    std::filesystem::path current = std::filesystem::absolute(start);
+
+    while (true)
+    {
+        const std::string component = ToLowerAscii(current.filename().string());
+        for (const std::string_view configuration : kBuildConfigurations)
+        {
+            if (component == ToLowerAscii(std::string(configuration)))
+            {
+                return std::string(configuration);
+            }
+        }
+
+        if (current == current.root_path())
+        {
+            break;
+        }
+
+        current = current.parent_path();
+    }
+
+    return std::nullopt;
+}
+
+std::string DetectBuildPlatformHint(const std::filesystem::path& start)
+{
+    std::filesystem::path current = std::filesystem::absolute(start);
+
+    while (true)
+    {
+        const std::string component = ToLowerAscii(current.filename().string());
+        if (component == "x64" || component == "win32")
+        {
+            return component;
+        }
+
+        if (current == current.root_path())
+        {
+            break;
+        }
+
+        current = current.parent_path();
+    }
+
+    return {};
+}
+
+std::vector<std::filesystem::path> EnumerateConfiguredBuildDirectories(const std::filesystem::path& projectRoot)
+{
+    std::vector<std::filesystem::path> buildDirectories;
+    const std::filesystem::path buildRoot = projectRoot / "build";
+    if (!std::filesystem::is_directory(buildRoot))
+    {
+        return buildDirectories;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(buildRoot))
+    {
+        if (!entry.is_directory())
+        {
+            continue;
+        }
+
+        const std::filesystem::path buildDirectory = entry.path();
+        if (std::filesystem::exists(buildDirectory / "CMakeCache.txt"))
+        {
+            buildDirectories.push_back(buildDirectory);
+        }
+    }
+
+    std::sort(buildDirectories.begin(), buildDirectories.end());
+    return buildDirectories;
+}
+
+std::optional<TutorialBuildContext> ResolveTutorialBuildContext(const std::filesystem::path& start)
+{
+    const auto projectRoot = FindProjectRoot(start);
+    if (!projectRoot.has_value())
+    {
+        return std::nullopt;
+    }
+
+    TutorialBuildContext context;
+    context.projectRoot = *projectRoot;
+    context.configuration = DetectBuildConfiguration(start).value_or("Debug");
+
+    if (const auto enclosingBuild = FindEnclosingBuildDirectory(start); enclosingBuild.has_value())
+    {
+        context.buildDirectory = *enclosingBuild;
+        return context;
+    }
+
+    const std::vector<std::filesystem::path> buildDirectories = EnumerateConfiguredBuildDirectories(*projectRoot);
+    if (buildDirectories.empty())
+    {
+        return std::nullopt;
+    }
+
+    const std::string platformHint = DetectBuildPlatformHint(start);
+    int bestScore = std::numeric_limits<int>::min();
+    for (const auto& candidate : buildDirectories)
+    {
+        int score = 0;
+        const std::string candidateLower = ToLowerAscii(candidate.string());
+        if (!platformHint.empty() && candidateLower.find(platformHint) != std::string::npos)
+        {
+            score += 4;
+        }
+        if (candidateLower.find("vs2022") != std::string::npos)
+        {
+            score += 1;
+        }
+
+        if (score > bestScore)
+        {
+            bestScore = score;
+            context.buildDirectory = candidate;
+        }
+    }
+
+    return context.buildDirectory.empty() ? std::nullopt : std::optional<TutorialBuildContext> {context};
+}
+
+std::string QuoteShellArgument(const std::string_view value)
+{
+    std::string quoted;
+    quoted.reserve(value.size() + 2U);
+    quoted.push_back('"');
+    for (const char ch : value)
+    {
+        if (ch == '"')
+        {
+            quoted += "\\\"";
+        }
+        else
+        {
+            quoted.push_back(ch);
+        }
+    }
+    quoted.push_back('"');
+    return quoted;
+}
+
+std::string QuoteShellArgument(const std::filesystem::path& value)
+{
+    const std::string pathString = value.string();
+    return QuoteShellArgument(std::string_view {pathString.data(), pathString.size()});
+}
+
+std::pair<bool, std::string> BuildTutorialTargets(const TutorialBuildContext& context)
+{
+    EnsureTutorialTargetRegistration(context.projectRoot);
+
+    std::ostringstream configureCommand;
+    configureCommand << "cmake -S " << QuoteShellArgument(context.projectRoot)
+                     << " -B " << QuoteShellArgument(context.buildDirectory);
+
+    if (std::system(configureCommand.str().c_str()) != 0)
+    {
+        return {
+            false,
+            "Tutorial completed, but CMake reconfiguration failed for '" + context.buildDirectory.string() + "'."};
+    }
+
+    std::ostringstream buildCommand;
+    buildCommand << "cmake --build " << QuoteShellArgument(context.buildDirectory)
+                 << " --config " << context.configuration
+                 << " --target mfd_tutorial client_tutorial";
+
+    if (std::system(buildCommand.str().c_str()) != 0)
+    {
+        return {
+            false,
+            "Tutorial completed, but building 'mfd_tutorial' and 'client_tutorial' failed in '" +
+                context.buildDirectory.string() + "'."};
+    }
+
+    return {
+        true,
+        "Tutorial completed. Built 'mfd_tutorial' and 'client_tutorial' in configuration '" +
+            context.configuration + "'."};
+}
+
+void RemovePathQuietly(const std::filesystem::path& path)
+{
+    std::error_code error;
+    std::filesystem::remove_all(path, error);
+}
+
+void RemoveTutorialGeneratedSourceFiles(const std::filesystem::path& projectRoot)
+{
+    const std::array<std::filesystem::path, 10> generatedFiles {{
+        projectRoot / "assets/windows/mfd_tutorial.json",
+        projectRoot / "assets/pages/mfd_tutorial_page1.json",
+        projectRoot / "assets/pages/mfd_tutorial_page2.json",
+        projectRoot / "assets/reticles/mfd_tutorial_radar_track.json",
+        projectRoot / "assets/reticles/mfd_tutorial_circle.json",
+        projectRoot / "assets/reticles/mfd_tutorial_text.json",
+        projectRoot / "examples/client_tutorial/generated/TutorialUi.h",
+        projectRoot / "examples/client_tutorial/generated/TutorialUi.cpp",
+        projectRoot / "examples/client_tutorial/generated/MfdTutorialMockupUi.h",
+        projectRoot / "examples/client_tutorial/generated/MfdTutorialMockupUi.cpp",
+    }};
+
+    for (const auto& path : generatedFiles)
+    {
+        RemovePathQuietly(path);
+    }
+}
+
+void RemoveTutorialBuildOutputs(const std::filesystem::path& projectRoot)
+{
+    const std::vector<std::filesystem::path> buildDirectories = EnumerateConfiguredBuildDirectories(projectRoot);
+    for (const auto& buildDirectory : buildDirectories)
+    {
+        for (const std::string_view targetName : {"mfd_tutorial", "client_tutorial"})
+        {
+            const std::filesystem::path targetRoot = buildDirectory / "examples" / std::string(targetName);
+            for (const std::string_view configuration : kBuildConfigurations)
+            {
+                RemovePathQuietly(targetRoot / std::string(configuration));
+                RemovePathQuietly(targetRoot / (std::string(targetName) + ".dir") / std::string(configuration));
+            }
+        }
+
+        RemovePathQuietly(buildDirectory / "examples/client_tutorial/generated");
+    }
+}
+
+void RemoveTutorialStageArtifacts(const std::filesystem::path& projectRoot)
+{
+    const std::filesystem::path stageRoot = projectRoot / "_Exec";
+    if (!std::filesystem::is_directory(stageRoot))
+    {
+        return;
+    }
+
+    const std::unordered_set<std::string> artifactNames {
+        "client_tutorial.exe",
+        "client_tutorial.ilk",
+        "client_tutorial.pdb",
+        "mfd_tutorial.exe",
+        "mfd_tutorial.ilk",
+        "mfd_tutorial.pdb",
+        "tutorialui.h",
+        "tutorialui.cpp",
+        "mfdtutorialmockupui.h",
+        "mfdtutorialmockupui.cpp",
+        "mfd_tutorial.json",
+        "mfd_tutorial_page1.json",
+        "mfd_tutorial_page2.json",
+        "mfd_tutorial_radar_track.json",
+        "mfd_tutorial_circle.json",
+        "mfd_tutorial_text.json"};
+
+    std::vector<std::filesystem::path> filesToRemove;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(stageRoot))
+    {
+        if (!entry.is_regular_file())
+        {
+            continue;
+        }
+
+        const std::string filename = ToLowerAscii(entry.path().filename().string());
+        if (artifactNames.find(filename) != artifactNames.end())
+        {
+            filesToRemove.push_back(entry.path());
+        }
+    }
+
+    for (const auto& path : filesToRemove)
+    {
+        RemovePathQuietly(path);
+    }
+}
+
+bool IsTutorialTargetRegistrationLine(std::string_view line) noexcept
+{
+    const std::string_view trimmed = TrimAsciiWhitespace(line);
+    return std::find(kTutorialRootTargetRegistrations.begin(),
+                     kTutorialRootTargetRegistrations.end(),
+                     trimmed) != kTutorialRootTargetRegistrations.end();
+}
+
+void RemoveTutorialTargetRegistration(const std::filesystem::path& projectRoot)
+{
+    const std::filesystem::path cmakeFile = projectRoot / "CMakeLists.txt";
+    std::ifstream input(cmakeFile, std::ios::binary);
+    if (!input.is_open())
+    {
+        return;
+    }
+
+    const std::string content(
+        std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>());
+    if (content.empty())
+    {
+        return;
+    }
+
+    const std::string newline = content.find("\r\n") != std::string::npos ? "\r\n" : "\n";
+    const bool hasTrailingNewline =
+        content.size() >= newline.size() &&
+        content.compare(content.size() - newline.size(), newline.size(), newline) == 0;
+
+    std::istringstream stream(content);
+    std::vector<std::string> keptLines;
+    keptLines.reserve(64);
+
+    bool removedLine = false;
+    for (std::string line; std::getline(stream, line);)
+    {
+        if (!line.empty() && line.back() == '\r')
+        {
+            line.pop_back();
+        }
+
+        if (IsTutorialTargetRegistrationLine(line))
+        {
+            removedLine = true;
+            continue;
+        }
+
+        keptLines.push_back(std::move(line));
+    }
+
+    if (!removedLine)
+    {
+        return;
+    }
+
+    std::ofstream output(cmakeFile, std::ios::binary | std::ios::trunc);
+    if (!output.is_open())
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < keptLines.size(); ++index)
+    {
+        if (index != 0)
+        {
+            output << newline;
+        }
+        output << keptLines[index];
+    }
+
+    if (hasTrailingNewline && !keptLines.empty())
+    {
+        output << newline;
+    }
+}
+
+void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
+{
+    const std::filesystem::path cmakeFile = projectRoot / "CMakeLists.txt";
+    std::ifstream input(cmakeFile, std::ios::binary);
+    if (!input.is_open())
+    {
+        return;
+    }
+
+    const std::string content(
+        std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>());
+    if (content.empty())
+    {
+        return;
+    }
+
+    const std::string newline = content.find("\r\n") != std::string::npos ? "\r\n" : "\n";
+    const bool hasTrailingNewline =
+        content.size() >= newline.size() &&
+        content.compare(content.size() - newline.size(), newline.size(), newline) == 0;
+
+    std::istringstream stream(content);
+    std::vector<std::string> lines;
+    lines.reserve(64);
+
+    bool hasMfdTutorial = false;
+    bool hasClientTutorial = false;
+    std::size_t insertionIndex = std::numeric_limits<std::size_t>::max();
+    std::string insertionIndentation;
+
+    for (std::string line; std::getline(stream, line);)
+    {
+        if (!line.empty() && line.back() == '\r')
+        {
+            line.pop_back();
+        }
+
+        const std::string_view trimmed = TrimAsciiWhitespace(line);
+        if (trimmed == kTutorialRootTargetRegistrations[0])
+        {
+            hasMfdTutorial = true;
+        }
+        else if (trimmed == kTutorialRootTargetRegistrations[1])
+        {
+            hasClientTutorial = true;
+        }
+        else if (trimmed == "add_subdirectory(mfd_editor)" &&
+                 insertionIndex == std::numeric_limits<std::size_t>::max())
+        {
+            insertionIndex = lines.size();
+            insertionIndentation = LeadingWhitespace(line);
+        }
+
+        lines.push_back(std::move(line));
+    }
+
+    if ((hasMfdTutorial && hasClientTutorial) ||
+        insertionIndex == std::numeric_limits<std::size_t>::max())
+    {
+        return;
+    }
+
+    std::vector<std::string> insertedLines;
+    insertedLines.reserve(2);
+    if (!hasMfdTutorial)
+    {
+        insertedLines.push_back(insertionIndentation + std::string(kTutorialRootTargetRegistrations[0]));
+    }
+    if (!hasClientTutorial)
+    {
+        insertedLines.push_back(insertionIndentation + std::string(kTutorialRootTargetRegistrations[1]));
+    }
+
+    lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insertionIndex),
+                 insertedLines.begin(),
+                 insertedLines.end());
+
+    std::ofstream output(cmakeFile, std::ios::binary | std::ios::trunc);
+    if (!output.is_open())
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < lines.size(); ++index)
+    {
+        if (index != 0)
+        {
+            output << newline;
+        }
+        output << lines[index];
+    }
+
+    if (hasTrailingNewline && !lines.empty())
+    {
+        output << newline;
+    }
+}
+
+std::filesystem::path NormalizeAgainstWorkingDirectory(const std::filesystem::path& path)
+{
+    return path.is_absolute()
+               ? path.lexically_normal()
+               : std::filesystem::absolute(path).lexically_normal();
+}
 
 int FindPageIndexByName(const mfd::LoadedWindowConfiguration& loaded, const std::string_view pageName)
 {
@@ -1201,8 +1775,9 @@ int EditorApplication::Run()
             HandleShortcuts();
             DrawMenuBar();
             DrawRootLayout();
-            DrawTutorialCoach();
             DrawPopups();
+            PollTutorialTargetBuild();
+            DrawTutorialCoach();
         }
         catch (const std::exception& exception)
         {
@@ -4928,7 +5503,23 @@ void EditorApplication::PrepareTutorialStep()
 
 void EditorApplication::RestartTutorialFromScratch()
 {
+    if (tutorialBuildInProgress_)
+    {
+        RebuildStatus("Tutorial reset is unavailable while the tutorial targets are still building.", true);
+        return;
+    }
+
     CleanupGeneratedTutorialFiles();
+    bool reloadedDefaultWindow = true;
+    const std::filesystem::path normalizedCurrentWindow = NormalizeAgainstWorkingDirectory(windowFile_);
+    const std::filesystem::path normalizedTutorialWindow =
+        NormalizeAgainstWorkingDirectory(std::filesystem::path {kTutorialWindowFile});
+    if (normalizedCurrentWindow == normalizedTutorialWindow ||
+        !std::filesystem::exists(normalizedCurrentWindow))
+    {
+        reloadedDefaultWindow = LoadWindowConfiguration(std::filesystem::path {kEditorDefaultWindowFile});
+    }
+
     tutorialTrackedReticleId_.clear();
     tutorialFocusLayerId_.clear();
     tutorialStepIndex_ = 0;
@@ -4936,6 +5527,14 @@ void EditorApplication::RestartTutorialFromScratch()
     showTutorialCoach_ = true;
     PrepareTutorialStep();
     SaveTutorialProgress();
+    if (!reloadedDefaultWindow)
+    {
+        RebuildStatus(
+            "Tutorial reset cleaned tutorial outputs, but the editor could not reload the default sample window.",
+            true);
+        return;
+    }
+
     RebuildStatus("Tutorial reset. The walkthrough now starts again from the first editor action.", false);
 }
 
@@ -4965,7 +5564,53 @@ void EditorApplication::FinishTutorial()
     tutorialFocusLayerId_.clear();
     showTutorialCoach_ = false;
     ClearTutorialProgress();
-    RebuildStatus("Tutorial completed.", false);
+    StartTutorialTargetBuild();
+}
+
+void EditorApplication::StartTutorialTargetBuild()
+{
+    if (tutorialBuildInProgress_)
+    {
+        return;
+    }
+
+    const auto buildContext = ResolveTutorialBuildContext(std::filesystem::current_path());
+    if (!buildContext.has_value())
+    {
+        RebuildStatus(
+            "Tutorial completed, but no configured CMake build directory was found for automatic tutorial target builds.",
+            true);
+        return;
+    }
+
+    tutorialBuildInProgress_ = true;
+    RebuildStatus(
+        "Tutorial completed. Building 'mfd_tutorial' and 'client_tutorial' in '" +
+            buildContext->buildDirectory.string() + "'...",
+        false);
+    tutorialBuildFuture_ = std::async(std::launch::async, [buildContext]()
+                                      {
+                                          auto [success, message] = BuildTutorialTargets(*buildContext);
+                                          return TutorialBuildResult {success, std::move(message)};
+                                      });
+}
+
+void EditorApplication::PollTutorialTargetBuild()
+{
+    if (!tutorialBuildInProgress_)
+    {
+        return;
+    }
+
+    using namespace std::chrono_literals;
+    if (tutorialBuildFuture_.wait_for(0ms) != std::future_status::ready)
+    {
+        return;
+    }
+
+    tutorialBuildInProgress_ = false;
+    const TutorialBuildResult result = tutorialBuildFuture_.get();
+    RebuildStatus(result.message, !result.success);
 }
 
 std::string_view EditorApplication::CurrentTutorialTargetId() const noexcept
@@ -5075,20 +5720,16 @@ void EditorApplication::ClearTutorialProgress()
 
 void EditorApplication::CleanupGeneratedTutorialFiles()
 {
-    const std::array<std::filesystem::path, 6> generatedFiles {{
-        std::filesystem::path {"assets/windows/mfd_tutorial.json"},
-        std::filesystem::path {"assets/pages/mfd_tutorial_page1.json"},
-        std::filesystem::path {"assets/pages/mfd_tutorial_page2.json"},
-        std::filesystem::path {"assets/reticles/mfd_tutorial_radar_track.json"},
-        std::filesystem::path {"assets/reticles/mfd_tutorial_circle.json"},
-        std::filesystem::path {"assets/reticles/mfd_tutorial_text.json"},
-    }};
-
-    std::error_code error;
-    for (const auto& path : generatedFiles)
+    const auto projectRoot = FindProjectRoot(std::filesystem::current_path());
+    if (!projectRoot.has_value())
     {
-        std::filesystem::remove(path, error);
+        return;
     }
+
+    RemoveTutorialGeneratedSourceFiles(*projectRoot);
+    RemoveTutorialBuildOutputs(*projectRoot);
+    RemoveTutorialStageArtifacts(*projectRoot);
+    RemoveTutorialTargetRegistration(*projectRoot);
 }
 
 void EditorApplication::DrawTutorialFileReview(const editor::tutorial::TutorialStepDefinition& step)
@@ -5177,24 +5818,35 @@ void EditorApplication::DrawTutorialFileReview(const editor::tutorial::TutorialS
     ImGui::TextDisabled("Zoom %.0f%%", tutorialFileViewZoom_ * 100.0f);
 
     const ImVec2 available = ImGui::GetContentRegionAvail();
-    const float paneWidth = std::max(180.0f, (available.x - ImGui::GetStyle().ItemSpacing.x) * 0.5f);
     const float paneHeight = std::max(260.0f, available.y - 110.0f);
 
-    const TutorialPaneResult beforePane = drawPane(
-        "##tutorial_before",
-        "Before",
-        ImVec4(0.95f, 0.68f, 0.28f, 1.0f),
-        step.beforeText,
-        std::max(1, step.beforeFirstLine),
-        ImVec2(paneWidth, paneHeight));
-    ImGui::SameLine();
-    const TutorialPaneResult afterPane = drawPane(
-        "##tutorial_after",
-        "After",
-        ImVec4(0.35f, 0.88f, 0.62f, 1.0f),
-        step.afterText,
-        std::max(1, step.afterFirstLine),
-        ImVec2(paneWidth, paneHeight));
+    TutorialPaneResult beforePane {};
+    TutorialPaneResult afterPane {};
+    if (ImGui::BeginTable(
+            "##tutorial_file_review",
+            2,
+            ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_NoSavedSettings))
+    {
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        beforePane = drawPane(
+            "##tutorial_before",
+            "Before",
+            ImVec4(0.95f, 0.68f, 0.28f, 1.0f),
+            step.beforeText,
+            std::max(1, step.beforeFirstLine),
+            ImVec2(0.0f, paneHeight));
+
+        ImGui::TableSetColumnIndex(1);
+        afterPane = drawPane(
+            "##tutorial_after",
+            "After",
+            ImVec4(0.35f, 0.88f, 0.62f, 1.0f),
+            step.afterText,
+            std::max(1, step.afterFirstLine),
+            ImVec2(0.0f, paneHeight));
+        ImGui::EndTable();
+    }
 
     if (beforePane.hovered)
     {
