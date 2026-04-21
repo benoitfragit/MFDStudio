@@ -12,7 +12,6 @@
 
 #include <array>
 #include <filesystem>
-#include <future>
 #include <memory>
 #include <optional>
 #include <string>
@@ -23,9 +22,10 @@
 #include <raylib.h>
 
 #include "EditorDocumentSerializer.h"
-#include "EditorTutorialData.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
+
+class EditorTutorialController;
 
 /**
  * @brief Interactive editor for authored MFD assets.
@@ -36,6 +36,8 @@
  */
 class EditorApplication
 {
+    friend class EditorTutorialController;
+
 public:
     /** @brief Builds the editor shell with its default startup file and UI state. */
     EditorApplication();
@@ -278,42 +280,8 @@ private:
     void OpenDuplicateLibraryReticlePopup();
     /** @brief Draws and resolves all modal popups owned by the editor. */
     void DrawPopups();
-    /** @brief Draws the guided tutorial coach panel. */
-    void DrawTutorialCoach();
-    /** @brief Opens the tutorial flow from the Help menu. */
-    void OpenTutorialFlow();
     /** @brief Seeds the editor state expected by the current tutorial step. */
     void PrepareTutorialStep();
-    /** @brief Restarts the tutorial and cleans generated tutorial files. */
-    void RestartTutorialFromScratch();
-    /** @brief Advances to the next tutorial step and persists progress. */
-    void AdvanceTutorialStep();
-    /** @brief Marks the current tutorial step as completed and advances the flow. */
-    void CompleteTutorialStep();
-    /** @brief Ends the tutorial and clears persisted progress. */
-    void FinishTutorial();
-    /** @brief Starts the asynchronous build of the tutorial runtime and client targets. */
-    void StartTutorialTargetBuild();
-    /** @brief Polls the asynchronous tutorial build and refreshes the footer status once it completes. */
-    void PollTutorialTargetBuild();
-    /** @brief Returns the currently expected tutorial target id for UI-driven steps. */
-    std::string_view CurrentTutorialTargetId() const noexcept;
-    /** @brief Returns a short summary of the current tutorial action. */
-    std::string_view CurrentTutorialActionLabel() const noexcept;
-    /** @brief Returns `true` when the current tutorial target matches the provided id. */
-    bool TutorialTargetMatches(std::string_view targetId) const noexcept;
-    /** @brief Loads persisted tutorial progress from disk. */
-    void LoadTutorialProgress();
-    /** @brief Saves persisted tutorial progress to disk. */
-    void SaveTutorialProgress() const;
-    /** @brief Clears persisted tutorial progress from disk. */
-    void ClearTutorialProgress();
-    /** @brief Cleans generated tutorial files plus root-project tutorial registrations. */
-    void CleanupGeneratedTutorialFiles();
-    /** @brief Draws the synchronized file review UI used by tutorial file steps. */
-    void DrawTutorialFileReview(const editor::tutorial::TutorialStepDefinition& step);
-    /** @brief Draws a persistent callout and halo around the current tutorial target. */
-    void DrawTutorialHalo(const char* targetId, const char* title, const char* reason);
 
     /** @brief Creates a new page from the popup draft. */
     bool CreateNewPage();
@@ -446,28 +414,6 @@ private:
     bool showNewLibraryReticlePopup_ = false;
     /** @brief Popup visibility flag for library reticle duplication. */
     bool showDuplicateLibraryReticlePopup_ = false;
-    /** @brief Popup visibility flag for tutorial resume/restart choice. */
-    bool showTutorialResumePopup_ = false;
-    /** @brief Indicates whether the tutorial coach panel is visible. */
-    bool showTutorialCoach_ = false;
-    /** @brief Indicates whether guided tutorial mode is active. */
-    bool tutorialActive_ = false;
-    /** @brief Index of the current tutorial step. */
-    int tutorialStepIndex_ = 0;
-    /** @brief Micro-step index inside the current tutorial step. */
-    int tutorialStepPhase_ = 0;
-    /** @brief Small progress file used to resume tutorial state across launches. */
-    std::filesystem::path tutorialProgressFile_ {"assets/tutorial/.editor_tutorial_progress"};
-    /** @brief Reticle instance created by the tutorial and reused by later guidance. */
-    std::string tutorialTrackedReticleId_ {};
-    /** @brief Editor layer currently highlighted by the tutorial, when applicable. */
-    std::string tutorialFocusLayerId_ {};
-    /** @brief Shared zoom used by both tutorial file panes. */
-    float tutorialFileViewZoom_ = 1.0f;
-    /** @brief Shared horizontal scroll used by both tutorial file panes. */
-    float tutorialFileViewScrollX_ = 0.0f;
-    /** @brief Shared vertical scroll used by both tutorial file panes. */
-    float tutorialFileViewScrollY_ = 0.0f;
     /** @brief Page-creation draft values. */
     NewPageDraft newPageDraft_ {};
     /** @brief Window-creation draft values. */
@@ -480,16 +426,8 @@ private:
     std::vector<mfd::ReticleGroup> pageReticleClipboard_ {};
     /** @brief Paste counter used to offset successive pasted copies. */
     int pageReticlePasteSerial_ = 0;
-    /** @brief Result payload returned by the asynchronous tutorial build worker. */
-    struct TutorialBuildResult
-    {
-        bool success = false;
-        std::string message {};
-    };
-    /** @brief Background future used to build the tutorial targets after the walkthrough finishes. */
-    std::future<TutorialBuildResult> tutorialBuildFuture_ {};
-    /** @brief Indicates whether the tutorial target build is currently running. */
-    bool tutorialBuildInProgress_ = false;
+    /** @brief Private controller that owns the guided tutorial state and workflow. */
+    std::unique_ptr<EditorTutorialController> tutorial_ {};
     /** @brief Current direct-manipulation mode active in the preview. */
     InteractionMode interactionMode_ = InteractionMode::None;
     /** @brief Reticle currently manipulated by the user, when relevant. */

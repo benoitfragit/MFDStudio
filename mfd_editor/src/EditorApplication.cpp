@@ -7,31 +7,25 @@
 
 /**
  * @file
- * @brief Main editor shell implementation (layout, interaction, preview, tutorial and persistence wiring).
+ * @brief Main editor shell implementation (layout, interaction, preview and persistence wiring).
  */
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
-#include <chrono>
 #include <cmath>
-#include <cstdlib>
 #include <cstdio>
 #include <exception>
 #include <functional>
-#include <fstream>
-#include <iterator>
-#include <limits>
 #include <random>
-#include <sstream>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
 
 #include <rlImGui.h>
 
+#include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorUiTheme.h"
 #include "mfd/model/Types.h"
@@ -52,19 +46,6 @@ constexpr float kMinInspectorWidth = 280.0f;
 constexpr float kMinWorkspaceWidth = 420.0f;
 constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
-const auto kTutorialSteps = editor::tutorial::Steps();
-constexpr int kTutorialStepMin = 0;
-constexpr std::string_view kEditorDefaultWindowFile = "assets/windows/demo_pages.json";
-constexpr std::string_view kTutorialWindowFile = "assets/windows/mfd_tutorial.json";
-constexpr std::array<std::string_view, 4> kBuildConfigurations {
-    "Debug",
-    "Release",
-    "RelWithDebInfo",
-    "MinSizeRel"};
-constexpr std::array<std::string_view, 2> kTutorialRootTargetRegistrations {{
-    "add_subdirectory(examples/mfd_tutorial)",
-    "add_subdirectory(examples/client_tutorial)",
-}};
 
 struct EditorWindowPreset
 {
@@ -77,566 +58,6 @@ constexpr std::array<EditorWindowPreset, 3> kEditorWindowPresets {{
     {"Cockpit Demo", "assets/windows/demo_pages_cockpit.json"},
     {"Minimal Demo", "assets/windows/demo_pages_minimal.json"},
 }};
-
-struct TutorialBuildContext
-{
-    std::filesystem::path projectRoot;
-    std::filesystem::path buildDirectory;
-    std::string configuration;
-};
-
-void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot);
-
-std::string ToLowerAscii(std::string value)
-{
-    std::transform(value.begin(),
-                   value.end(),
-                   value.begin(),
-                   [](const unsigned char ch)
-                   {
-                       return static_cast<char>(std::tolower(ch));
-                   });
-    return value;
-}
-
-std::string_view TrimAsciiWhitespace(std::string_view value) noexcept
-{
-    std::size_t first = 0;
-    while (first < value.size() &&
-           std::isspace(static_cast<unsigned char>(value[first])) != 0)
-    {
-        ++first;
-    }
-
-    std::size_t last = value.size();
-    while (last > first &&
-           std::isspace(static_cast<unsigned char>(value[last - 1])) != 0)
-    {
-        --last;
-    }
-
-    return value.substr(first, last - first);
-}
-
-std::string LeadingWhitespace(std::string_view value)
-{
-    std::size_t count = 0;
-    while (count < value.size() &&
-           (value[count] == ' ' || value[count] == '\t'))
-    {
-        ++count;
-    }
-
-    return std::string(value.substr(0, count));
-}
-
-std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
-{
-    std::filesystem::path current = std::filesystem::absolute(start);
-
-    while (true)
-    {
-        if (std::filesystem::exists(current / "CMakeLists.txt") &&
-            std::filesystem::exists(current / "mfd_editor") &&
-            std::filesystem::exists(current / "examples"))
-        {
-            return current;
-        }
-
-        if (current == current.root_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::filesystem::path> FindEnclosingBuildDirectory(const std::filesystem::path& start)
-{
-    std::filesystem::path current = std::filesystem::absolute(start);
-
-    while (true)
-    {
-        if (std::filesystem::exists(current / "CMakeCache.txt"))
-        {
-            return current;
-        }
-
-        if (current == current.root_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::string> DetectBuildConfiguration(const std::filesystem::path& start)
-{
-    std::filesystem::path current = std::filesystem::absolute(start);
-
-    while (true)
-    {
-        const std::string component = ToLowerAscii(current.filename().string());
-        for (const std::string_view configuration : kBuildConfigurations)
-        {
-            if (component == ToLowerAscii(std::string(configuration)))
-            {
-                return std::string(configuration);
-            }
-        }
-
-        if (current == current.root_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return std::nullopt;
-}
-
-std::string DetectBuildPlatformHint(const std::filesystem::path& start)
-{
-    std::filesystem::path current = std::filesystem::absolute(start);
-
-    while (true)
-    {
-        const std::string component = ToLowerAscii(current.filename().string());
-        if (component == "x64" || component == "win32")
-        {
-            return component;
-        }
-
-        if (current == current.root_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return {};
-}
-
-std::vector<std::filesystem::path> EnumerateConfiguredBuildDirectories(const std::filesystem::path& projectRoot)
-{
-    std::vector<std::filesystem::path> buildDirectories;
-    const std::filesystem::path buildRoot = projectRoot / "build";
-    if (!std::filesystem::is_directory(buildRoot))
-    {
-        return buildDirectories;
-    }
-
-    for (const auto& entry : std::filesystem::directory_iterator(buildRoot))
-    {
-        if (!entry.is_directory())
-        {
-            continue;
-        }
-
-        const std::filesystem::path buildDirectory = entry.path();
-        if (std::filesystem::exists(buildDirectory / "CMakeCache.txt"))
-        {
-            buildDirectories.push_back(buildDirectory);
-        }
-    }
-
-    std::sort(buildDirectories.begin(), buildDirectories.end());
-    return buildDirectories;
-}
-
-std::optional<TutorialBuildContext> ResolveTutorialBuildContext(const std::filesystem::path& start)
-{
-    const auto projectRoot = FindProjectRoot(start);
-    if (!projectRoot.has_value())
-    {
-        return std::nullopt;
-    }
-
-    TutorialBuildContext context;
-    context.projectRoot = *projectRoot;
-    context.configuration = DetectBuildConfiguration(start).value_or("Debug");
-
-    if (const auto enclosingBuild = FindEnclosingBuildDirectory(start); enclosingBuild.has_value())
-    {
-        context.buildDirectory = *enclosingBuild;
-        return context;
-    }
-
-    const std::vector<std::filesystem::path> buildDirectories = EnumerateConfiguredBuildDirectories(*projectRoot);
-    if (buildDirectories.empty())
-    {
-        return std::nullopt;
-    }
-
-    const std::string platformHint = DetectBuildPlatformHint(start);
-    int bestScore = std::numeric_limits<int>::min();
-    for (const auto& candidate : buildDirectories)
-    {
-        int score = 0;
-        const std::string candidateLower = ToLowerAscii(candidate.string());
-        if (!platformHint.empty() && candidateLower.find(platformHint) != std::string::npos)
-        {
-            score += 4;
-        }
-        if (candidateLower.find("vs2022") != std::string::npos)
-        {
-            score += 1;
-        }
-
-        if (score > bestScore)
-        {
-            bestScore = score;
-            context.buildDirectory = candidate;
-        }
-    }
-
-    return context.buildDirectory.empty() ? std::nullopt : std::optional<TutorialBuildContext> {context};
-}
-
-std::string QuoteShellArgument(const std::string_view value)
-{
-    std::string quoted;
-    quoted.reserve(value.size() + 2U);
-    quoted.push_back('"');
-    for (const char ch : value)
-    {
-        if (ch == '"')
-        {
-            quoted += "\\\"";
-        }
-        else
-        {
-            quoted.push_back(ch);
-        }
-    }
-    quoted.push_back('"');
-    return quoted;
-}
-
-std::string QuoteShellArgument(const std::filesystem::path& value)
-{
-    const std::string pathString = value.string();
-    return QuoteShellArgument(std::string_view {pathString.data(), pathString.size()});
-}
-
-std::pair<bool, std::string> BuildTutorialTargets(const TutorialBuildContext& context)
-{
-    EnsureTutorialTargetRegistration(context.projectRoot);
-
-    std::ostringstream configureCommand;
-    configureCommand << "cmake -S " << QuoteShellArgument(context.projectRoot)
-                     << " -B " << QuoteShellArgument(context.buildDirectory);
-
-    if (std::system(configureCommand.str().c_str()) != 0)
-    {
-        return {
-            false,
-            "Tutorial completed, but CMake reconfiguration failed for '" + context.buildDirectory.string() + "'."};
-    }
-
-    std::ostringstream buildCommand;
-    buildCommand << "cmake --build " << QuoteShellArgument(context.buildDirectory)
-                 << " --config " << context.configuration
-                 << " --target mfd_tutorial client_tutorial";
-
-    if (std::system(buildCommand.str().c_str()) != 0)
-    {
-        return {
-            false,
-            "Tutorial completed, but building 'mfd_tutorial' and 'client_tutorial' failed in '" +
-                context.buildDirectory.string() + "'."};
-    }
-
-    return {
-        true,
-        "Tutorial completed. Built 'mfd_tutorial' and 'client_tutorial' in configuration '" +
-            context.configuration + "'."};
-}
-
-void RemovePathQuietly(const std::filesystem::path& path)
-{
-    std::error_code error;
-    std::filesystem::remove_all(path, error);
-}
-
-void RemoveTutorialGeneratedSourceFiles(const std::filesystem::path& projectRoot)
-{
-    const std::array<std::filesystem::path, 10> generatedFiles {{
-        projectRoot / "assets/windows/mfd_tutorial.json",
-        projectRoot / "assets/pages/mfd_tutorial_page1.json",
-        projectRoot / "assets/pages/mfd_tutorial_page2.json",
-        projectRoot / "assets/reticles/mfd_tutorial_radar_track.json",
-        projectRoot / "assets/reticles/mfd_tutorial_circle.json",
-        projectRoot / "assets/reticles/mfd_tutorial_text.json",
-        projectRoot / "examples/client_tutorial/generated/TutorialUi.h",
-        projectRoot / "examples/client_tutorial/generated/TutorialUi.cpp",
-        projectRoot / "examples/client_tutorial/generated/MfdTutorialMockupUi.h",
-        projectRoot / "examples/client_tutorial/generated/MfdTutorialMockupUi.cpp",
-    }};
-
-    for (const auto& path : generatedFiles)
-    {
-        RemovePathQuietly(path);
-    }
-}
-
-void RemoveTutorialBuildOutputs(const std::filesystem::path& projectRoot)
-{
-    const std::vector<std::filesystem::path> buildDirectories = EnumerateConfiguredBuildDirectories(projectRoot);
-    for (const auto& buildDirectory : buildDirectories)
-    {
-        for (const std::string_view targetName : {"mfd_tutorial", "client_tutorial"})
-        {
-            const std::filesystem::path targetRoot = buildDirectory / "examples" / std::string(targetName);
-            for (const std::string_view configuration : kBuildConfigurations)
-            {
-                RemovePathQuietly(targetRoot / std::string(configuration));
-                RemovePathQuietly(targetRoot / (std::string(targetName) + ".dir") / std::string(configuration));
-            }
-        }
-
-        RemovePathQuietly(buildDirectory / "examples/client_tutorial/generated");
-    }
-}
-
-void RemoveTutorialStageArtifacts(const std::filesystem::path& projectRoot)
-{
-    const std::filesystem::path stageRoot = projectRoot / "_Exec";
-    if (!std::filesystem::is_directory(stageRoot))
-    {
-        return;
-    }
-
-    const std::unordered_set<std::string> artifactNames {
-        "client_tutorial.exe",
-        "client_tutorial.ilk",
-        "client_tutorial.pdb",
-        "mfd_tutorial.exe",
-        "mfd_tutorial.ilk",
-        "mfd_tutorial.pdb",
-        "tutorialui.h",
-        "tutorialui.cpp",
-        "mfdtutorialmockupui.h",
-        "mfdtutorialmockupui.cpp",
-        "mfd_tutorial.json",
-        "mfd_tutorial_page1.json",
-        "mfd_tutorial_page2.json",
-        "mfd_tutorial_radar_track.json",
-        "mfd_tutorial_circle.json",
-        "mfd_tutorial_text.json"};
-
-    std::vector<std::filesystem::path> filesToRemove;
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(stageRoot))
-    {
-        if (!entry.is_regular_file())
-        {
-            continue;
-        }
-
-        const std::string filename = ToLowerAscii(entry.path().filename().string());
-        if (artifactNames.find(filename) != artifactNames.end())
-        {
-            filesToRemove.push_back(entry.path());
-        }
-    }
-
-    for (const auto& path : filesToRemove)
-    {
-        RemovePathQuietly(path);
-    }
-}
-
-bool IsTutorialTargetRegistrationLine(std::string_view line) noexcept
-{
-    const std::string_view trimmed = TrimAsciiWhitespace(line);
-    return std::find(kTutorialRootTargetRegistrations.begin(),
-                     kTutorialRootTargetRegistrations.end(),
-                     trimmed) != kTutorialRootTargetRegistrations.end();
-}
-
-void RemoveTutorialTargetRegistration(const std::filesystem::path& projectRoot)
-{
-    const std::filesystem::path cmakeFile = projectRoot / "CMakeLists.txt";
-    std::ifstream input(cmakeFile, std::ios::binary);
-    if (!input.is_open())
-    {
-        return;
-    }
-
-    const std::string content {
-        std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>()};
-    if (content.empty())
-    {
-        return;
-    }
-
-    const std::string newline = content.find("\r\n") != std::string::npos ? "\r\n" : "\n";
-    const bool hasTrailingNewline =
-        content.size() >= newline.size() &&
-        content.compare(content.size() - newline.size(), newline.size(), newline) == 0;
-
-    std::istringstream stream(content);
-    std::vector<std::string> keptLines;
-    keptLines.reserve(64);
-
-    bool removedLine = false;
-    for (std::string line; std::getline(stream, line);)
-    {
-        if (!line.empty() && line.back() == '\r')
-        {
-            line.pop_back();
-        }
-
-        if (IsTutorialTargetRegistrationLine(line))
-        {
-            removedLine = true;
-            continue;
-        }
-
-        keptLines.push_back(std::move(line));
-    }
-
-    if (!removedLine)
-    {
-        return;
-    }
-
-    std::ofstream output(cmakeFile, std::ios::binary | std::ios::trunc);
-    if (!output.is_open())
-    {
-        return;
-    }
-
-    for (std::size_t index = 0; index < keptLines.size(); ++index)
-    {
-        if (index != 0)
-        {
-            output << newline;
-        }
-        output << keptLines[index];
-    }
-
-    if (hasTrailingNewline && !keptLines.empty())
-    {
-        output << newline;
-    }
-}
-
-void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
-{
-    const std::filesystem::path cmakeFile = projectRoot / "CMakeLists.txt";
-    std::ifstream input(cmakeFile, std::ios::binary);
-    if (!input.is_open())
-    {
-        return;
-    }
-
-    const std::string content {
-        std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>()};
-    if (content.empty())
-    {
-        return;
-    }
-
-    const std::string newline = content.find("\r\n") != std::string::npos ? "\r\n" : "\n";
-    const bool hasTrailingNewline =
-        content.size() >= newline.size() &&
-        content.compare(content.size() - newline.size(), newline.size(), newline) == 0;
-
-    std::istringstream stream(content);
-    std::vector<std::string> lines;
-    lines.reserve(64);
-
-    bool hasMfdTutorial = false;
-    bool hasClientTutorial = false;
-    std::size_t insertionIndex = std::numeric_limits<std::size_t>::max();
-    std::string insertionIndentation;
-
-    for (std::string line; std::getline(stream, line);)
-    {
-        if (!line.empty() && line.back() == '\r')
-        {
-            line.pop_back();
-        }
-
-        const std::string_view trimmed = TrimAsciiWhitespace(line);
-        if (trimmed == kTutorialRootTargetRegistrations[0])
-        {
-            hasMfdTutorial = true;
-        }
-        else if (trimmed == kTutorialRootTargetRegistrations[1])
-        {
-            hasClientTutorial = true;
-        }
-        else if (trimmed == "add_subdirectory(mfd_editor)" &&
-                 insertionIndex == std::numeric_limits<std::size_t>::max())
-        {
-            insertionIndex = lines.size();
-            insertionIndentation = LeadingWhitespace(line);
-        }
-
-        lines.push_back(std::move(line));
-    }
-
-    if ((hasMfdTutorial && hasClientTutorial) ||
-        insertionIndex == std::numeric_limits<std::size_t>::max())
-    {
-        return;
-    }
-
-    std::vector<std::string> insertedLines;
-    insertedLines.reserve(2);
-    if (!hasMfdTutorial)
-    {
-        insertedLines.push_back(insertionIndentation + std::string(kTutorialRootTargetRegistrations[0]));
-    }
-    if (!hasClientTutorial)
-    {
-        insertedLines.push_back(insertionIndentation + std::string(kTutorialRootTargetRegistrations[1]));
-    }
-
-    lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insertionIndex),
-                 insertedLines.begin(),
-                 insertedLines.end());
-
-    std::ofstream output(cmakeFile, std::ios::binary | std::ios::trunc);
-    if (!output.is_open())
-    {
-        return;
-    }
-
-    for (std::size_t index = 0; index < lines.size(); ++index)
-    {
-        if (index != 0)
-        {
-            output << newline;
-        }
-        output << lines[index];
-    }
-
-    if (hasTrailingNewline && !lines.empty())
-    {
-        output << newline;
-    }
-}
-
-std::filesystem::path NormalizeAgainstWorkingDirectory(const std::filesystem::path& path)
-{
-    return path.is_absolute()
-               ? path.lexically_normal()
-               : std::filesystem::absolute(path).lexically_normal();
-}
-
 int FindPageIndexByName(const mfd::LoadedWindowConfiguration& loaded, const std::string_view pageName)
 {
     for (int index = 0; index < static_cast<int>(loaded.document.pages.size()); ++index)
@@ -662,38 +83,6 @@ int FindPageReticleIndexById(const mfd::PageDefinition& page, const std::string_
     }
 
     return -1;
-}
-
-template <typename Callback>
-void ForEachTutorialLine(const std::string_view text, Callback&& callback)
-{
-    std::size_t lineStart = 0;
-    int lineIndex = 0;
-
-    while (lineStart <= text.size())
-    {
-        const std::size_t lineEnd = text.find('\n', lineStart);
-        const std::size_t nextStart = lineEnd == std::string_view::npos ? text.size() : lineEnd;
-        callback(lineIndex++, text.substr(lineStart, nextStart - lineStart));
-        if (lineEnd == std::string_view::npos)
-        {
-            break;
-        }
-
-        lineStart = lineEnd + 1U;
-    }
-}
-
-int CountTutorialLines(const std::string_view text)
-{
-    int lineCount = 0;
-    ForEachTutorialLine(
-        text,
-        [&lineCount](const int, const std::string_view)
-        {
-            ++lineCount;
-        });
-    return std::max(1, lineCount);
 }
 
 template <std::size_t N>
@@ -1692,6 +1081,7 @@ EditorApplication::EditorApplication()
 {
     sidebarWidth_ = kSidebarWidth;
     inspectorWidth_ = kInspectorWidth;
+    tutorial_ = std::make_unique<EditorTutorialController>(*this);
     CopyTextBuffer(newPageDraft_.name, "NewPage");
     CopyTextBuffer(newPageDraft_.title, "New Page");
     CopyTextBuffer(newPageDraft_.fileName, "new_page.json");
@@ -1707,7 +1097,7 @@ EditorApplication::EditorApplication()
     CopyTextBuffer(duplicateLibraryReticleDraft_.id, "reticle_copy");
     ResetPagePreviewView();
     ResetLibraryPreviewView();
-    LoadTutorialProgress();
+    tutorial_->LoadProgress();
 }
 
 EditorApplication::~EditorApplication()
@@ -1776,8 +1166,8 @@ int EditorApplication::Run()
             DrawMenuBar();
             DrawRootLayout();
             DrawPopups();
-            PollTutorialTargetBuild();
-            DrawTutorialCoach();
+            tutorial_->PollBuild();
+            tutorial_->DrawCoach();
         }
         catch (const std::exception& exception)
         {
@@ -2097,24 +1487,24 @@ void EditorApplication::DrawMenuBar()
     }
 
     const bool fileMenuOpen = ImGui::BeginMenu("File");
-    DrawTutorialHalo("menu_file", "Click File", "Open the top-level document actions used by this tutorial step.");
-    if (ImGui::IsItemClicked() && TutorialTargetMatches("menu_file"))
+    tutorial_->DrawHalo("menu_file", "Click File", "Open the top-level document actions used by this tutorial step.");
+    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_file"))
     {
-        ++tutorialStepPhase_;
+        tutorial_->AdvancePhase();
     }
     if (fileMenuOpen)
     {
         const bool newWindowRequested = ImGui::MenuItem("New window from scratch");
         ShowItemTooltip("Create a brand-new window JSON and optional first page directly from the editor.");
-        DrawTutorialHalo(
+        tutorial_->DrawHalo(
             "menu_file_new_window",
             "Click New window from scratch",
             "Open the creation dialog prefilled with the tutorial window settings.");
         if (newWindowRequested)
         {
-            if (TutorialTargetMatches("menu_file_new_window"))
+            if (tutorial_->MatchesTarget("menu_file_new_window"))
             {
-                ++tutorialStepPhase_;
+                tutorial_->AdvancePhase();
             }
             OpenNewWindowPopup();
         }
@@ -2122,16 +1512,16 @@ void EditorApplication::DrawMenuBar()
         ImGui::Separator();
         const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S");
         ShowItemTooltip("Write the window file, page files and reticle template files back to disk.");
-        DrawTutorialHalo(
+        tutorial_->DrawHalo(
             "menu_file_save",
             "Click Save",
             "Persist the authored tutorial assets before moving to the code review steps.");
         if (saveRequested)
         {
-            const bool tutorialSaveMatched = TutorialTargetMatches("menu_file_save");
+            const bool tutorialSaveMatched = tutorial_->MatchesTarget("menu_file_save");
             if (SaveAll() && tutorialSaveMatched)
             {
-                CompleteTutorialStep();
+                tutorial_->CompleteStep();
             }
         }
 
@@ -2161,11 +1551,9 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
-    else if (tutorialActive_ &&
-             ((tutorialStepIndex_ == 0 && tutorialStepPhase_ == 1) ||
-              (tutorialStepIndex_ == 8 && tutorialStepPhase_ == 1)))
+    else if (tutorial_->IsStepPhase(0, 1) || tutorial_->IsStepPhase(8, 1))
     {
-        tutorialStepPhase_ = 0;
+        tutorial_->ResetPhase();
     }
 
     if (ImGui::BeginMenu("Edit"))
@@ -2198,24 +1586,24 @@ void EditorApplication::DrawMenuBar()
     }
 
     const bool pageMenuOpen = ImGui::BeginMenu("Page");
-    DrawTutorialHalo("menu_page", "Click Page", "Open the page-authoring actions used by the current tutorial step.");
-    if (ImGui::IsItemClicked() && TutorialTargetMatches("menu_page"))
+    tutorial_->DrawHalo("menu_page", "Click Page", "Open the page-authoring actions used by the current tutorial step.");
+    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_page"))
     {
-        ++tutorialStepPhase_;
+        tutorial_->AdvancePhase();
     }
     if (pageMenuOpen)
     {
         const bool newPageRequested = ImGui::MenuItem("New page");
         ShowItemTooltip("Create a new page and its backing JSON file.");
-        DrawTutorialHalo(
+        tutorial_->DrawHalo(
             "menu_page_new",
             "Click New page",
             "Open the page dialog with the tutorial page values already prepared for you.");
         if (newPageRequested)
         {
-            if (TutorialTargetMatches("menu_page_new"))
+            if (tutorial_->MatchesTarget("menu_page_new"))
             {
-                ++tutorialStepPhase_;
+                tutorial_->AdvancePhase();
             }
             OpenNewPagePopup();
         }
@@ -2228,32 +1616,30 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
-    else if (tutorialActive_ &&
-             ((tutorialStepIndex_ == 3 && tutorialStepPhase_ == 1) ||
-              (tutorialStepIndex_ == 7 && tutorialStepPhase_ == 1)))
+    else if (tutorial_->IsStepPhase(3, 1) || tutorial_->IsStepPhase(7, 1))
     {
-        tutorialStepPhase_ = 0;
+        tutorial_->ResetPhase();
     }
 
     const bool reticleMenuOpen = ImGui::BeginMenu("Reticle");
-    DrawTutorialHalo("menu_reticle", "Click Reticle", "Open the reticle-template actions used by the tutorial.");
-    if (ImGui::IsItemClicked() && TutorialTargetMatches("menu_reticle"))
+    tutorial_->DrawHalo("menu_reticle", "Click Reticle", "Open the reticle-template actions used by the tutorial.");
+    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_reticle"))
     {
-        ++tutorialStepPhase_;
+        tutorial_->AdvancePhase();
     }
     if (reticleMenuOpen)
     {
         const bool newLibraryReticleRequested = ImGui::MenuItem("New library reticle from primitive");
         ShowItemTooltip("Create a new shared reticle template.");
-        DrawTutorialHalo(
+        tutorial_->DrawHalo(
             "menu_reticle_new",
             "Click New library reticle from primitive",
             "Open the reticle dialog and create the tutorial template shown in this step.");
         if (newLibraryReticleRequested)
         {
-            if (TutorialTargetMatches("menu_reticle_new"))
+            if (tutorial_->MatchesTarget("menu_reticle_new"))
             {
-                ++tutorialStepPhase_;
+                tutorial_->AdvancePhase();
             }
             OpenNewLibraryReticlePopup();
         }
@@ -2279,20 +1665,18 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
-    else if (tutorialActive_ &&
-             ((tutorialStepIndex_ == 1 && tutorialStepPhase_ == 1) ||
-              (tutorialStepIndex_ == 2 && tutorialStepPhase_ == 1)))
+    else if (tutorial_->IsStepPhase(1, 1) || tutorial_->IsStepPhase(2, 1))
     {
-        tutorialStepPhase_ = 0;
+        tutorial_->ResetPhase();
     }
 
     if (ImGui::BeginMenu("Help"))
     {
-        const bool tutorialRequested = ImGui::MenuItem("Tutorial", nullptr, showTutorialCoach_);
+        const bool tutorialRequested = ImGui::MenuItem("Tutorial", nullptr, tutorial_->IsCoachVisible());
         ShowItemTooltip("Open the guided discovery mode for the editor and tutorial assets.");
         if (tutorialRequested)
         {
-            OpenTutorialFlow();
+            tutorial_->OpenFlow();
         }
         ImGui::EndMenu();
     }
@@ -2881,7 +2265,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         "Right-drag pans the editor camera.\n"
         "Right-click a convex page primitive to open its clipping menu.\n"
         "Left-drag the minimap viewport to navigate without changing authored reticle data.");
-    DrawTutorialHalo(
+    tutorial_->DrawHalo(
         "page_preview_clip_source",
         "Right-click the circle reticle",
         "Open the clipping context menu on the tutorial mask so you can keep only the outside region.");
@@ -2891,7 +2275,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MFD_LIBRARY_RETICLE"))
         {
             const char* templateId = static_cast<const char*>(payload->Data);
-            if (tutorialActive_ && tutorialStepIndex_ == 4)
+            if (tutorial_->IsStep(4))
             {
                 RebuildStatus("Tutorial: use the highlighted Add to active page button for this step.", true);
             }
@@ -3447,17 +2831,17 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     {
         if (const auto clipTarget = FindNearestPageClipPrimitive(interactiveViewport, mouse); clipTarget.has_value())
         {
-            if (tutorialActive_ && tutorialStepIndex_ == 5 && tutorialStepPhase_ == 0)
+            if (tutorial_->IsStepPhase(5, 0))
             {
                 const mfd::ReticleGroup& clipReticle =
                     page->staticReticles[static_cast<std::size_t>(clipTarget->reticleIndex)];
-                if (!tutorialTrackedReticleId_.empty() && clipReticle.id != tutorialTrackedReticleId_)
+                if (!tutorial_->TrackedReticleId().empty() && clipReticle.id != tutorial_->TrackedReticleId())
                 {
                     RebuildStatus("Tutorial: right-click the circle reticle created in the previous step.", true);
                     return;
                 }
 
-                tutorialStepPhase_ = 1;
+                tutorial_->AdvancePhase();
             }
 
             SelectPageReticle(selection_.pageIndex, clipTarget->reticleIndex);
@@ -3735,16 +3119,16 @@ void EditorApplication::DrawPageReticleContextMenu()
                         reticle.clipping.mode == mfd::ReticleClipMode::Outer &&
                             reticle.clipping.primitiveId == primitive.id))
     {
-        const bool tutorialClipMatched = TutorialTargetMatches("context_clip_outer");
+        const bool tutorialClipMatched = tutorial_->MatchesTarget("context_clip_outer");
         if (ApplyPageReticleClipping(pagePreviewContextReticleIndex_, mfd::ReticleClipMode::Outer, primitive.id) &&
             tutorialClipMatched &&
-            (tutorialTrackedReticleId_.empty() || reticle.id == tutorialTrackedReticleId_))
+            (tutorial_->TrackedReticleId().empty() || reticle.id == tutorial_->TrackedReticleId()))
         {
-            CompleteTutorialStep();
+            tutorial_->CompleteStep();
         }
     }
     ShowItemTooltip("Erase everything outside this convex primitive toward the page background color.");
-    DrawTutorialHalo(
+    tutorial_->DrawHalo(
         "context_clip_outer",
         "Click Clip outside",
         "Keep only the outside of the tutorial circle so you can discover page-level masking.");
@@ -5162,10 +4546,9 @@ void EditorApplication::DrawPopups()
         showDuplicateLibraryReticlePopup_ = false;
     }
 
-    if (showTutorialResumePopup_)
+    if (tutorial_->ConsumeResumePopupRequest())
     {
         ImGui::OpenPopup("Tutorial progress");
-        showTutorialResumePopup_ = false;
     }
 
     if (ImGui::BeginPopupModal("Tutorial progress", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -5173,15 +4556,13 @@ void EditorApplication::DrawPopups()
         ImGui::TextWrapped("A tutorial progress snapshot already exists. Continue where you stopped or restart from scratch?");
         if (AccentButton("Continue"))
         {
-            tutorialActive_ = true;
-            showTutorialCoach_ = true;
-            PrepareTutorialStep();
+            tutorial_->ResumeFromSavedProgress();
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
         if (ImGui::Button("Restart from scratch"))
         {
-            RestartTutorialFromScratch();
+            tutorial_->RestartFromScratch();
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
@@ -5236,27 +4617,27 @@ void EditorApplication::DrawPopups()
 
         if (AccentButton("Create window"))
         {
-            const bool tutorialCreateMatched = TutorialTargetMatches("popup_window_create");
+            const bool tutorialCreateMatched = tutorial_->MatchesTarget("popup_window_create");
             if (CreateNewWindow())
             {
                 if (tutorialCreateMatched)
                 {
-                    CompleteTutorialStep();
+                    tutorial_->CompleteStep();
                 }
                 ImGui::CloseCurrentPopup();
             }
         }
         ShowItemTooltip("Build a new in-memory window definition, optionally with one page, then use Save to write JSON files.");
-        DrawTutorialHalo(
+        tutorial_->DrawHalo(
             "popup_window_create",
             "Click Create window",
             "Commit the tutorial window using the prefilled authoring values shown in this dialog.");
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
-            if (tutorialActive_ && tutorialStepIndex_ == 0)
+            if (tutorial_->IsStep(0))
             {
-                tutorialStepPhase_ = 0;
+                tutorial_->ResetPhase();
             }
             ImGui::CloseCurrentPopup();
         }
@@ -5276,27 +4657,27 @@ void EditorApplication::DrawPopups()
 
         if (AccentButton("Create page"))
         {
-            const bool tutorialCreateMatched = TutorialTargetMatches("popup_page_create");
+            const bool tutorialCreateMatched = tutorial_->MatchesTarget("popup_page_create");
             if (CreateNewPage())
             {
                 if (tutorialCreateMatched)
                 {
-                    CompleteTutorialStep();
+                    tutorial_->CompleteStep();
                 }
                 ImGui::CloseCurrentPopup();
             }
         }
         ShowItemTooltip("Create the new page and add it to the current window.");
-        DrawTutorialHalo(
+        tutorial_->DrawHalo(
             "popup_page_create",
             "Click Create page",
             "Commit the tutorial page so the walkthrough can move to the next authoring action.");
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
-            if (tutorialActive_ && (tutorialStepIndex_ == 3 || tutorialStepIndex_ == 7))
+            if (tutorial_->IsStep(3) || tutorial_->IsStep(7))
             {
-                tutorialStepPhase_ = 0;
+                tutorial_->ResetPhase();
             }
             ImGui::CloseCurrentPopup();
         }
@@ -5324,27 +4705,27 @@ void EditorApplication::DrawPopups()
 
         if (AccentButton("Create reticle"))
         {
-            const bool tutorialCreateMatched = TutorialTargetMatches("popup_reticle_create");
+            const bool tutorialCreateMatched = tutorial_->MatchesTarget("popup_reticle_create");
             if (CreateNewLibraryReticleFromPrimitive())
             {
                 if (tutorialCreateMatched)
                 {
-                    CompleteTutorialStep();
+                    tutorial_->CompleteStep();
                 }
                 ImGui::CloseCurrentPopup();
             }
         }
         ShowItemTooltip("Create the new library reticle and open it in the reticle studio.");
-        DrawTutorialHalo(
+        tutorial_->DrawHalo(
             "popup_reticle_create",
             "Click Create reticle",
             "Create the tutorial template currently prepared in this dialog.");
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
-            if (tutorialActive_ && (tutorialStepIndex_ == 1 || tutorialStepIndex_ == 2))
+            if (tutorial_->IsStep(1) || tutorial_->IsStep(2))
             {
-                tutorialStepPhase_ = 0;
+                tutorial_->ResetPhase();
             }
             ImGui::CloseCurrentPopup();
         }
@@ -5372,30 +4753,12 @@ void EditorApplication::DrawPopups()
     }
 }
 
-void EditorApplication::OpenTutorialFlow()
-{
-    LoadTutorialProgress();
-    showTutorialCoach_ = true;
-    if (tutorialStepIndex_ > kTutorialStepMin && tutorialStepIndex_ < editor::tutorial::StepCount())
-    {
-        showTutorialResumePopup_ = true;
-        return;
-    }
-
-    tutorialActive_ = true;
-    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, kTutorialStepMin, editor::tutorial::StepCount() - 1);
-    PrepareTutorialStep();
-    SaveTutorialProgress();
-}
-
 void EditorApplication::PrepareTutorialStep()
 {
-    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, kTutorialStepMin, editor::tutorial::StepCount() - 1);
-    tutorialStepPhase_ = 0;
-    tutorialFocusLayerId_.clear();
-    tutorialFileViewZoom_ = 1.0f;
-    tutorialFileViewScrollX_ = 0.0f;
-    tutorialFileViewScrollY_ = 0.0f;
+    tutorial_->ClampStepIndex();
+    tutorial_->ResetPhase();
+    tutorial_->ClearFocusLayer();
+    tutorial_->ResetFileReviewView();
 
     const auto setPrimitiveDraft = [&](const mfd::PrimitiveType primitiveType)
     {
@@ -5409,17 +4772,18 @@ void EditorApplication::PrepareTutorialStep()
         }
     };
 
+    const auto tutorialSteps = editor::tutorial::Steps();
     const editor::tutorial::TutorialStepDefinition& step =
-        kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
+        tutorialSteps[static_cast<std::size_t>(tutorial_->StepIndex())];
     if (editor::tutorial::IsFileReviewStep(step))
     {
         return;
     }
 
-    switch (tutorialStepIndex_)
+    switch (tutorial_->StepIndex())
     {
     case 0:
-        tutorialTrackedReticleId_.clear();
+        tutorial_->ClearTrackedReticle();
         CopyTextBuffer(newWindowDraft_.windowFile, "assets/windows/mfd_tutorial.json");
         CopyTextBuffer(newWindowDraft_.title, "MFD Tutorial");
         newWindowDraft_.width = 480;
@@ -5473,10 +4837,10 @@ void EditorApplication::PrepareTutorialStep()
         if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
         {
             SelectPage(pageIndex);
-            if (!tutorialTrackedReticleId_.empty())
+            if (!tutorial_->TrackedReticleId().empty())
             {
                 const mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
-                if (const int reticleIndex = FindPageReticleIndexById(page, tutorialTrackedReticleId_); reticleIndex >= 0)
+                if (const int reticleIndex = FindPageReticleIndexById(page, tutorial_->TrackedReticleId()); reticleIndex >= 0)
                 {
                     SelectPageReticle(pageIndex, reticleIndex);
                 }
@@ -5499,495 +4863,6 @@ void EditorApplication::PrepareTutorialStep()
     default:
         break;
     }
-}
-
-void EditorApplication::RestartTutorialFromScratch()
-{
-    if (tutorialBuildInProgress_)
-    {
-        RebuildStatus("Tutorial reset is unavailable while the tutorial targets are still building.", true);
-        return;
-    }
-
-    CleanupGeneratedTutorialFiles();
-    bool reloadedDefaultWindow = true;
-    const std::filesystem::path normalizedCurrentWindow = NormalizeAgainstWorkingDirectory(windowFile_);
-    const std::filesystem::path normalizedTutorialWindow =
-        NormalizeAgainstWorkingDirectory(std::filesystem::path {kTutorialWindowFile});
-    if (normalizedCurrentWindow == normalizedTutorialWindow ||
-        !std::filesystem::exists(normalizedCurrentWindow))
-    {
-        reloadedDefaultWindow = LoadWindowConfiguration(std::filesystem::path {kEditorDefaultWindowFile});
-    }
-
-    tutorialTrackedReticleId_.clear();
-    tutorialFocusLayerId_.clear();
-    tutorialStepIndex_ = 0;
-    tutorialActive_ = true;
-    showTutorialCoach_ = true;
-    PrepareTutorialStep();
-    SaveTutorialProgress();
-    if (!reloadedDefaultWindow)
-    {
-        RebuildStatus(
-            "Tutorial reset cleaned tutorial outputs, but the editor could not reload the default sample window.",
-            true);
-        return;
-    }
-
-    RebuildStatus("Tutorial reset. The walkthrough now starts again from the first editor action.", false);
-}
-
-void EditorApplication::AdvanceTutorialStep()
-{
-    tutorialStepIndex_ = std::min(tutorialStepIndex_ + 1, editor::tutorial::StepCount() - 1);
-    PrepareTutorialStep();
-    SaveTutorialProgress();
-}
-
-void EditorApplication::CompleteTutorialStep()
-{
-    if (tutorialStepIndex_ >= editor::tutorial::StepCount() - 1)
-    {
-        FinishTutorial();
-        return;
-    }
-
-    RebuildStatus("Tutorial step completed. Moving to the next guided action.", false);
-    AdvanceTutorialStep();
-}
-
-void EditorApplication::FinishTutorial()
-{
-    tutorialActive_ = false;
-    tutorialStepPhase_ = 0;
-    tutorialFocusLayerId_.clear();
-    showTutorialCoach_ = false;
-    ClearTutorialProgress();
-    StartTutorialTargetBuild();
-}
-
-void EditorApplication::StartTutorialTargetBuild()
-{
-    if (tutorialBuildInProgress_)
-    {
-        return;
-    }
-
-    const auto buildContext = ResolveTutorialBuildContext(std::filesystem::current_path());
-    if (!buildContext.has_value())
-    {
-        RebuildStatus(
-            "Tutorial completed, but no configured CMake build directory was found for automatic tutorial target builds.",
-            true);
-        return;
-    }
-
-    tutorialBuildInProgress_ = true;
-    RebuildStatus(
-        "Tutorial completed. Building 'mfd_tutorial' and 'client_tutorial' in '" +
-            buildContext->buildDirectory.string() + "'...",
-        false);
-    tutorialBuildFuture_ = std::async(std::launch::async, [buildContext]()
-                                      {
-                                          auto [success, message] = BuildTutorialTargets(*buildContext);
-                                          return TutorialBuildResult {success, std::move(message)};
-                                      });
-}
-
-void EditorApplication::PollTutorialTargetBuild()
-{
-    if (!tutorialBuildInProgress_)
-    {
-        return;
-    }
-
-    using namespace std::chrono_literals;
-    if (tutorialBuildFuture_.wait_for(0ms) != std::future_status::ready)
-    {
-        return;
-    }
-
-    tutorialBuildInProgress_ = false;
-    const TutorialBuildResult result = tutorialBuildFuture_.get();
-    RebuildStatus(result.message, !result.success);
-}
-
-std::string_view EditorApplication::CurrentTutorialTargetId() const noexcept
-{
-    if (!tutorialActive_ ||
-        tutorialStepIndex_ < kTutorialStepMin ||
-        tutorialStepIndex_ >= editor::tutorial::StepCount())
-    {
-        return {};
-    }
-
-    const editor::tutorial::TutorialStepDefinition& step =
-        kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
-    if (editor::tutorial::IsFileReviewStep(step))
-    {
-        return {};
-    }
-
-    switch (tutorialStepIndex_)
-    {
-    case 0:
-        return tutorialStepPhase_ == 0 ? "menu_file" : (tutorialStepPhase_ == 1 ? "menu_file_new_window" : "popup_window_create");
-    case 1:
-    case 2:
-        return tutorialStepPhase_ == 0 ? "menu_reticle" :
-                                         (tutorialStepPhase_ == 1 ? "menu_reticle_new" : "popup_reticle_create");
-    case 3:
-    case 7:
-        return tutorialStepPhase_ == 0 ? "menu_page" : (tutorialStepPhase_ == 1 ? "menu_page_new" : "popup_page_create");
-    case 4:
-        return "library_add_to_page";
-    case 5:
-        return tutorialStepPhase_ == 0 ? "page_preview_clip_source" : "context_clip_outer";
-    case 6:
-        return tutorialStepPhase_ == 0 ? "inspector_add_layer" : "inspector_layer_visibility";
-    case 8:
-        return tutorialStepPhase_ == 0 ? "menu_file" : "menu_file_save";
-    default:
-        return {};
-    }
-}
-
-std::string_view EditorApplication::CurrentTutorialActionLabel() const noexcept
-{
-    switch (tutorialStepIndex_)
-    {
-    case 0:
-        return tutorialStepPhase_ == 0 ? "Click File." :
-                                         (tutorialStepPhase_ == 1 ? "Click New window from scratch." : "Click Create window.");
-    case 1:
-    case 2:
-        return tutorialStepPhase_ == 0 ? "Click Reticle." :
-                                         (tutorialStepPhase_ == 1 ? "Click New library reticle from primitive." : "Click Create reticle.");
-    case 3:
-    case 7:
-        return tutorialStepPhase_ == 0 ? "Click Page." :
-                                         (tutorialStepPhase_ == 1 ? "Click New page." : "Click Create page.");
-    case 4:
-        return "Click Add to active page.";
-    case 5:
-        return tutorialStepPhase_ == 0 ? "Right-click the circle reticle in the page preview." : "Click Clip outside.";
-    case 6:
-        return tutorialStepPhase_ == 0 ? "Click Add layer." : "Click Visible to hide the new layer.";
-    case 8:
-        return tutorialStepPhase_ == 0 ? "Click File." : "Click Save.";
-    default:
-        return {};
-    }
-}
-
-bool EditorApplication::TutorialTargetMatches(const std::string_view targetId) const noexcept
-{
-    return !targetId.empty() && CurrentTutorialTargetId() == targetId;
-}
-
-void EditorApplication::LoadTutorialProgress()
-{
-    tutorialStepIndex_ = 0;
-    std::ifstream stream(tutorialProgressFile_);
-    if (!stream.good())
-    {
-        return;
-    }
-
-    int savedStep = 0;
-    stream >> savedStep;
-    tutorialStepIndex_ = std::clamp(savedStep, kTutorialStepMin, editor::tutorial::StepCount() - 1);
-}
-
-void EditorApplication::SaveTutorialProgress() const
-{
-    std::error_code error;
-    std::filesystem::create_directories(tutorialProgressFile_.parent_path(), error);
-    std::ofstream stream(tutorialProgressFile_, std::ios::trunc);
-    if (!stream.good())
-    {
-        return;
-    }
-    stream << tutorialStepIndex_ << '\n';
-}
-
-void EditorApplication::ClearTutorialProgress()
-{
-    std::error_code error;
-    std::filesystem::remove(tutorialProgressFile_, error);
-}
-
-void EditorApplication::CleanupGeneratedTutorialFiles()
-{
-    const auto projectRoot = FindProjectRoot(std::filesystem::current_path());
-    if (!projectRoot.has_value())
-    {
-        return;
-    }
-
-    RemoveTutorialGeneratedSourceFiles(*projectRoot);
-    RemoveTutorialBuildOutputs(*projectRoot);
-    RemoveTutorialStageArtifacts(*projectRoot);
-    RemoveTutorialTargetRegistration(*projectRoot);
-}
-
-void EditorApplication::DrawTutorialFileReview(const editor::tutorial::TutorialStepDefinition& step)
-{
-    struct TutorialPaneResult
-    {
-        bool hovered = false;
-        float scrollX = 0.0f;
-        float scrollY = 0.0f;
-    };
-
-    auto drawPane = [&](const char* childId,
-                        const char* label,
-                        const ImVec4 color,
-                        const char* content,
-                        const int firstLine,
-                        const ImVec2 size) -> TutorialPaneResult
-    {
-        ImGui::TextColored(color, "%s", label);
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.05f, 0.08f, 0.11f, 1.0f));
-        ImGui::BeginChild(childId, size, true, ImGuiWindowFlags_HorizontalScrollbar);
-        ImGui::SetWindowFontScale(tutorialFileViewZoom_);
-        ImGui::SetScrollX(tutorialFileViewScrollX_);
-        ImGui::SetScrollY(tutorialFileViewScrollY_);
-
-        const std::string_view contentView = content == nullptr ? std::string_view {} : std::string_view(content);
-        const int lineCount = CountTutorialLines(contentView);
-        const int lastLine = std::max(firstLine, firstLine + lineCount - 1);
-        char numberWidthBuffer[32] {};
-        std::snprintf(numberWidthBuffer, sizeof(numberWidthBuffer), "%d", lastLine);
-        const float lineNumberWidth = ImGui::CalcTextSize(numberWidthBuffer).x + 20.0f;
-
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 2.0f));
-        ForEachTutorialLine(
-            contentView,
-            [&](const int lineOffset, const std::string_view line)
-            {
-                const int lineNumber = firstLine + lineOffset;
-                char numberBuffer[32] {};
-                std::snprintf(numberBuffer, sizeof(numberBuffer), "%d", lineNumber);
-                ImGui::TextDisabled("%s", numberBuffer);
-                ImGui::SameLine(lineNumberWidth);
-                if (line.empty())
-                {
-                    ImGui::TextUnformatted("");
-                }
-                else
-                {
-                    ImGui::TextUnformatted(line.data(), line.data() + line.size());
-                }
-            });
-        ImGui::PopStyleVar();
-
-        TutorialPaneResult result {};
-        result.hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-        result.scrollX = ImGui::GetScrollX();
-        result.scrollY = ImGui::GetScrollY();
-
-        ImGui::SetWindowFontScale(1.0f);
-        ImGui::EndChild();
-        ImGui::PopStyleColor();
-        return result;
-    };
-
-    ImGui::TextDisabled("Path");
-    ImGui::SameLine();
-    ImGui::TextUnformatted(step.filePath);
-    ImGui::SameLine();
-    if (ImGui::Button("A-"))
-    {
-        tutorialFileViewZoom_ = std::max(0.75f, tutorialFileViewZoom_ - 0.10f);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("A+"))
-    {
-        tutorialFileViewZoom_ = std::min(2.25f, tutorialFileViewZoom_ + 0.10f);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Reset view"))
-    {
-        tutorialFileViewZoom_ = 1.0f;
-        tutorialFileViewScrollX_ = 0.0f;
-        tutorialFileViewScrollY_ = 0.0f;
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("Zoom %.0f%%", tutorialFileViewZoom_ * 100.0f);
-
-    const ImVec2 available = ImGui::GetContentRegionAvail();
-    const float paneHeight = std::max(260.0f, available.y - 110.0f);
-
-    TutorialPaneResult beforePane {};
-    TutorialPaneResult afterPane {};
-    if (ImGui::BeginTable(
-            "##tutorial_file_review",
-            2,
-            ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_NoSavedSettings))
-    {
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0);
-        beforePane = drawPane(
-            "##tutorial_before",
-            "Before",
-            ImVec4(0.95f, 0.68f, 0.28f, 1.0f),
-            step.beforeText,
-            std::max(1, step.beforeFirstLine),
-            ImVec2(0.0f, paneHeight));
-
-        ImGui::TableSetColumnIndex(1);
-        afterPane = drawPane(
-            "##tutorial_after",
-            "After",
-            ImVec4(0.35f, 0.88f, 0.62f, 1.0f),
-            step.afterText,
-            std::max(1, step.afterFirstLine),
-            ImVec2(0.0f, paneHeight));
-        ImGui::EndTable();
-    }
-
-    if (beforePane.hovered)
-    {
-        tutorialFileViewScrollX_ = beforePane.scrollX;
-        tutorialFileViewScrollY_ = beforePane.scrollY;
-    }
-    else if (afterPane.hovered)
-    {
-        tutorialFileViewScrollX_ = afterPane.scrollX;
-        tutorialFileViewScrollY_ = afterPane.scrollY;
-    }
-
-    ImGui::Spacing();
-    ImGui::TextWrapped("%s", step.explanation);
-    ImGui::Spacing();
-    if (AccentButton(step.advanceLabel))
-    {
-        CompleteTutorialStep();
-    }
-}
-
-void EditorApplication::DrawTutorialHalo(const char* targetId, const char* title, const char* reason)
-{
-    if (!tutorialActive_ || tutorialStepIndex_ < kTutorialStepMin || tutorialStepIndex_ >= editor::tutorial::StepCount())
-    {
-        return;
-    }
-
-    if (targetId == nullptr || title == nullptr || reason == nullptr || !TutorialTargetMatches(targetId))
-    {
-        return;
-    }
-
-    const ImVec2 min = ImGui::GetItemRectMin();
-    const ImVec2 max = ImGui::GetItemRectMax();
-    ImDrawList* drawList = ImGui::GetForegroundDrawList();
-    const ImVec2 innerMin(min.x - 4.0f, min.y - 4.0f);
-    const ImVec2 innerMax(max.x + 4.0f, max.y + 4.0f);
-    const ImVec2 outerMin(min.x - 8.0f, min.y - 8.0f);
-    const ImVec2 outerMax(max.x + 8.0f, max.y + 8.0f);
-    drawList->AddRect(innerMin, innerMax, IM_COL32(84, 224, 255, 255), 10.0f, 0, 2.5f);
-    drawList->AddRect(outerMin, outerMax, IM_COL32(84, 224, 255, 110), 12.0f, 0, 3.5f);
-
-    constexpr float kWrapWidth = 260.0f;
-    const ImVec2 titleSize = ImGui::CalcTextSize(title, nullptr, false, kWrapWidth);
-    const ImVec2 reasonSize = ImGui::CalcTextSize(reason, nullptr, false, kWrapWidth);
-    const ImGuiViewport* viewport = ImGui::GetMainViewport();
-
-    ImVec2 bubbleMin(max.x + 18.0f, min.y - 4.0f);
-    const float bubbleWidth = std::max(titleSize.x, reasonSize.x) + 24.0f;
-    const float bubbleHeight = titleSize.y + reasonSize.y + 28.0f;
-    if (bubbleMin.x + bubbleWidth > viewport->WorkPos.x + viewport->WorkSize.x - 8.0f)
-    {
-        bubbleMin.x = min.x - bubbleWidth - 18.0f;
-    }
-    if (bubbleMin.x < viewport->WorkPos.x + 8.0f)
-    {
-        bubbleMin.x = viewport->WorkPos.x + 8.0f;
-    }
-    if (bubbleMin.y + bubbleHeight > viewport->WorkPos.y + viewport->WorkSize.y - 8.0f)
-    {
-        bubbleMin.y = viewport->WorkPos.y + viewport->WorkSize.y - bubbleHeight - 8.0f;
-    }
-    if (bubbleMin.y < viewport->WorkPos.y + 8.0f)
-    {
-        bubbleMin.y = viewport->WorkPos.y + 8.0f;
-    }
-
-    const ImVec2 bubbleMax(bubbleMin.x + bubbleWidth, bubbleMin.y + bubbleHeight);
-    drawList->AddRectFilled(bubbleMin, bubbleMax, IM_COL32(11, 26, 34, 235), 12.0f);
-    drawList->AddRect(bubbleMin, bubbleMax, IM_COL32(84, 224, 255, 255), 12.0f, 0, 2.0f);
-
-    const ImVec2 itemCenter((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f);
-    const ImVec2 bubbleAnchor =
-        bubbleMin.x > itemCenter.x ? ImVec2(bubbleMin.x, bubbleMin.y + 20.0f) : ImVec2(bubbleMax.x, bubbleMin.y + 20.0f);
-    drawList->AddLine(itemCenter, bubbleAnchor, IM_COL32(84, 224, 255, 255), 2.0f);
-    drawList->AddCircleFilled(itemCenter, 4.0f, IM_COL32(84, 224, 255, 255));
-
-    const ImVec2 textPos(bubbleMin.x + 12.0f, bubbleMin.y + 10.0f);
-    drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), textPos, IM_COL32(255, 255, 255, 255), title, nullptr, kWrapWidth);
-    drawList->AddText(
-        ImGui::GetFont(),
-        ImGui::GetFontSize(),
-        ImVec2(textPos.x, textPos.y + titleSize.y + 6.0f),
-        IM_COL32(181, 216, 228, 255),
-        reason,
-        nullptr,
-        kWrapWidth);
-}
-
-void EditorApplication::DrawTutorialCoach()
-{
-    if (!showTutorialCoach_)
-    {
-        return;
-    }
-
-    tutorialStepIndex_ = std::clamp(tutorialStepIndex_, kTutorialStepMin, editor::tutorial::StepCount() - 1);
-    const editor::tutorial::TutorialStepDefinition& step =
-        kTutorialSteps[static_cast<std::size_t>(tutorialStepIndex_)];
-    const ImVec2 defaultSize =
-        editor::tutorial::IsFileReviewStep(step) ? ImVec2(1100.0f, 780.0f) : ImVec2(640.0f, 360.0f);
-    ImGui::SetNextWindowSize(defaultSize, ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("Tutorial coach", &showTutorialCoach_))
-    {
-        ImGui::End();
-        return;
-    }
-
-    ImGui::Text("Step %d / %d", tutorialStepIndex_ + 1, editor::tutorial::StepCount());
-    ImGui::Separator();
-    ImGui::TextUnformatted(step.title);
-    ImGui::Spacing();
-    ImGui::TextWrapped("%s", step.instruction);
-    ImGui::Spacing();
-
-    if (editor::tutorial::IsFileReviewStep(step))
-    {
-        DrawTutorialFileReview(step);
-    }
-    else
-    {
-        ImGui::TextDisabled("This step stays blocked until the highlighted click succeeds.");
-        const std::string_view actionLabel = CurrentTutorialActionLabel();
-        if (!actionLabel.empty())
-        {
-            ImGui::TextWrapped("Current action: %.*s", static_cast<int>(actionLabel.size()), actionLabel.data());
-        }
-    }
-
-    ImGui::Spacing();
-    if (ImGui::Button("Restart from scratch"))
-    {
-        RestartTutorialFromScratch();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Mark complete"))
-    {
-        FinishTutorial();
-    }
-    ImGui::End();
 }
 
 bool EditorApplication::CreateNewWindow()
@@ -6473,18 +5348,18 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
 
     if (AccentButton("Add layer"))
     {
-        const bool tutorialAddLayerMatched = TutorialTargetMatches("inspector_add_layer");
+        const bool tutorialAddLayerMatched = tutorial_->MatchesTarget("inspector_add_layer");
         PushUndoSnapshot();
         page.editor.layers.push_back(mfd::EditorLayerDefinition {MakeUniqueLayerId(page, "layer"), true});
         if (tutorialAddLayerMatched)
         {
-            tutorialFocusLayerId_ = page.editor.layers.back().id;
-            ++tutorialStepPhase_;
+            tutorial_->SetFocusLayerId(page.editor.layers.back().id);
+            tutorial_->AdvancePhase();
         }
         RebuildStatus("Editor layer added to page '" + page.name + "'.", false);
     }
     ShowItemTooltip("Create an editor-only visibility layer to group reticles while authoring.");
-    DrawTutorialHalo(
+    tutorial_->DrawHalo(
         "inspector_add_layer",
         "Click Add layer",
         "Create one extra editor-only layer so the tutorial can show how authoring visibility works.");
@@ -6509,17 +5384,17 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
         {
             PushUndoSnapshot();
             layer.visible = visible;
-            if (TutorialTargetMatches("inspector_layer_visibility") &&
-                layer.id == tutorialFocusLayerId_ &&
+            if (tutorial_->MatchesTarget("inspector_layer_visibility") &&
+                layer.id == tutorial_->FocusLayerId() &&
                 !layer.visible)
             {
-                CompleteTutorialStep();
+                tutorial_->CompleteStep();
             }
         }
         ShowItemTooltip("Show or hide this layer in the editor preview only.");
-        if (layer.id == tutorialFocusLayerId_)
+        if (layer.id == tutorial_->FocusLayerId())
         {
-            DrawTutorialHalo(
+            tutorial_->DrawHalo(
                 "inspector_layer_visibility",
                 "Click Visible",
                 "Hide the layer you just created to confirm that editor layers only affect authoring visibility.");
@@ -7318,20 +6193,20 @@ void EditorApplication::DrawLibraryReticleInspector()
     }
     if (AccentButton("Add to active page"))
     {
-        const bool tutorialAddMatched = TutorialTargetMatches("library_add_to_page");
+        const bool tutorialAddMatched = tutorial_->MatchesTarget("library_add_to_page");
         const mfd::PageDefinition* page = ActivePage();
         const mfd::Vec2 dropPosition = page == nullptr ? mfd::Vec2 {} : pagePreviewView_.center;
         if (CreatePageReticleInstanceFromTemplate(reticle->id, dropPosition) && tutorialAddMatched)
         {
             if (const mfd::ReticleGroup* createdReticle = SelectedPageReticle(); createdReticle != nullptr)
             {
-                tutorialTrackedReticleId_ = createdReticle->id;
+                tutorial_->SetTrackedReticleId(createdReticle->id);
             }
-            CompleteTutorialStep();
+            tutorial_->CompleteStep();
         }
     }
     ShowItemTooltip("Instantiate this template on the active page at the current editor camera center.");
-    DrawTutorialHalo(
+    tutorial_->DrawHalo(
         "library_add_to_page",
         "Click Add to active page",
         "Instantiate the prepared tutorial circle on Page1 so clipping can be demonstrated next.");

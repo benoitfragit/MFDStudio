@@ -5,12 +5,14 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialData.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorUiTheme.cpp)
 
 set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorApplication.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h)
 
