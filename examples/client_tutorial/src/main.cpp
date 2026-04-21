@@ -22,18 +22,7 @@
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/io/JsonLoader.h"
-
-#if __has_include("MfdTutorialMockupUi.h")
-#include "MfdTutorialMockupUi.h"
-#define MFD_HAS_GENERATED_TUTORIAL_UI 1
-using GeneratedTutorialUi = mockup_ui::MfdTutorialMockupUi;
-#elif __has_include("TutorialUi.h")
 #include "TutorialUi.h"
-#define MFD_HAS_GENERATED_TUTORIAL_UI 1
-using GeneratedTutorialUi = tutorial_ui::TutorialUi;
-#else
-#define MFD_HAS_GENERATED_TUTORIAL_UI 0
-#endif
 
 namespace
 {
@@ -72,11 +61,9 @@ int mainImpl()
     std::vector<std::string> trackIds;
     trackIds.reserve(kMaxTracks);
 
-#if MFD_HAS_GENERATED_TUTORIAL_UI
-    GeneratedTutorialUi generatedUi;
+    tutorial_ui::TutorialUi generatedUi;
     auto& generatedDynamicTracks = generatedUi.Page1().Dynamic(kTrackTemplate);
     bool generatedDeclutterVisible = true;
-#endif
 
     std::string activePage(kPage1);
     client.ActivatePage(activePage);
@@ -111,7 +98,6 @@ int mainImpl()
             patch.thickness = 0.0038f;
             patch.text = std::string("T") + std::to_string(serial);
 
-#if MFD_HAS_GENERATED_TUTORIAL_UI
             auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);
             generatedTrack.SetPosition(*patch.position);
             generatedTrack.SetColor(*patch.color);
@@ -127,9 +113,6 @@ int mainImpl()
             {
                 client.SendBatch(commands);
             }
-#else
-            client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);
-#endif
             trackIds.push_back(trackId);
 
             // Tutorial strobe behavior: move strobe to each new track.

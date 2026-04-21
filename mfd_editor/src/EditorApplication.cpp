@@ -27,6 +27,7 @@
 
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
+#include "EditorFileDialogs.h"
 #include "EditorUiTheme.h"
 #include "mfd/model/Types.h"
 #include "mfd/render/Canvas2D.h"
@@ -46,18 +47,125 @@ constexpr float kMinInspectorWidth = 280.0f;
 constexpr float kMinWorkspaceWidth = 420.0f;
 constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
+constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
 
-struct EditorWindowPreset
+std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
 {
-    const char* label;
-    const char* path;
-};
+    std::filesystem::path current = std::filesystem::absolute(start);
 
-constexpr std::array<EditorWindowPreset, 3> kEditorWindowPresets {{
-    {"Demo", "assets/windows/demo_pages.json"},
-    {"Cockpit Demo", "assets/windows/demo_pages_cockpit.json"},
-    {"Minimal Demo", "assets/windows/demo_pages_minimal.json"},
-}};
+    while (true)
+    {
+        if (std::filesystem::exists(current / "CMakeLists.txt") &&
+            std::filesystem::exists(current / "assets") &&
+            std::filesystem::exists(current / "mfd_editor"))
+        {
+            return current;
+        }
+
+        if (current == current.root_path())
+        {
+            break;
+        }
+
+        current = current.parent_path();
+    }
+
+    return std::nullopt;
+}
+
+std::filesystem::path DefaultProjectAssetFolder(const std::string_view relativeAssetFolder)
+{
+    if (const auto projectRoot = FindProjectRoot(std::filesystem::current_path()); projectRoot.has_value())
+    {
+        return (*projectRoot / std::filesystem::path(relativeAssetFolder)).lexically_normal();
+    }
+
+    return std::filesystem::absolute(std::filesystem::path(relativeAssetFolder)).lexically_normal();
+}
+
+std::filesystem::path DefaultSiblingAssetFile(const std::filesystem::path& anchorFile,
+                                              const std::string_view siblingFolder,
+                                              const std::string_view fileName)
+{
+    if (anchorFile.empty())
+    {
+        return (DefaultProjectAssetFolder(std::string("assets/") + std::string(siblingFolder)) /
+                std::filesystem::path(fileName))
+            .lexically_normal();
+    }
+
+    const std::filesystem::path anchorFolder = anchorFile.parent_path();
+    const std::filesystem::path candidateRoot =
+        anchorFolder.filename() == std::filesystem::path(siblingFolder)
+            ? anchorFolder
+            : (anchorFolder.has_parent_path() ? anchorFolder.parent_path() / std::filesystem::path(siblingFolder)
+                                              : anchorFolder / std::filesystem::path(siblingFolder));
+    return (candidateRoot / std::filesystem::path(fileName)).lexically_normal();
+}
+
+std::filesystem::path JsonFileNameOrFallback(const std::filesystem::path& candidate, const std::string_view fallbackFileName)
+{
+    std::filesystem::path fileName = candidate.filename();
+    if (fileName.empty() || fileName == "." || fileName == "..")
+    {
+        fileName = std::filesystem::path(fallbackFileName);
+    }
+
+    if (fileName.extension().empty())
+    {
+        fileName += ".json";
+    }
+
+    return fileName;
+}
+
+bool PathContainsSegment(const std::filesystem::path& path, const std::string_view segment)
+{
+    if (segment.empty())
+    {
+        return false;
+    }
+
+    std::string normalizedSegment(segment);
+    std::transform(normalizedSegment.begin(),
+                   normalizedSegment.end(),
+                   normalizedSegment.begin(),
+                   [](const unsigned char ch)
+                   {
+                       return static_cast<char>(std::tolower(ch));
+                   });
+
+    for (const auto& part : path)
+    {
+        std::string candidate = part.string();
+        std::transform(candidate.begin(),
+                       candidate.end(),
+                       candidate.begin(),
+                       [](const unsigned char ch)
+                       {
+                           return static_cast<char>(std::tolower(ch));
+                       });
+        if (candidate == normalizedSegment)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool IsExecStagingPath(const std::filesystem::path& path)
+{
+    if (path.empty())
+    {
+        return false;
+    }
+
+    const std::filesystem::path absolutePath =
+        path.is_absolute() ? path.lexically_normal() : std::filesystem::absolute(path).lexically_normal();
+    return PathContainsSegment(absolutePath, "_Exec");
+}
+
 int FindPageIndexByName(const mfd::LoadedWindowConfiguration& loaded, const std::string_view pageName)
 {
     for (int index = 0; index < static_cast<int>(loaded.document.pages.size()); ++index)
@@ -582,6 +690,26 @@ constexpr std::array<mfd::PrimitiveType, 11> kPrimitiveTypes {
 
 constexpr std::size_t kInvalidBlinkTypeIndex = std::numeric_limits<std::size_t>::max();
 
+bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool vertical) noexcept
+{
+    if (primitive.type != mfd::PrimitiveType::Line)
+    {
+        return false;
+    }
+
+    auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry);
+    if (line == nullptr)
+    {
+        return false;
+    }
+
+    primitive.id = vertical ? "vertical_line" : "horizontal_line";
+    primitive.style.thickness = 0.0038f;
+    line->start = vertical ? mfd::Vec2 {0.0f, -0.055f} : mfd::Vec2 {-0.055f, 0.0f};
+    line->end = vertical ? mfd::Vec2 {0.0f, 0.055f} : mfd::Vec2 {0.055f, 0.0f};
+    return true;
+}
+
 int DefaultPageIndex(const std::vector<mfd::PageDefinition>& pages) noexcept
 {
     for (int index = 0; index < static_cast<int>(pages.size()); ++index)
@@ -1084,19 +1212,20 @@ EditorApplication::EditorApplication()
     tutorial_ = std::make_unique<EditorTutorialController>(*this);
     CopyTextBuffer(newPageDraft_.name, "NewPage");
     CopyTextBuffer(newPageDraft_.title, "New Page");
-    CopyTextBuffer(newPageDraft_.fileName, "new_page.json");
-    CopyTextBuffer(newWindowDraft_.windowFile, "assets/windows/new_window.json");
+    CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/new_page.json").string());
+    CopyTextBuffer(newWindowDraft_.windowFile, DefaultProjectAssetFolder("assets/windows/new_window.json").string());
     CopyTextBuffer(newWindowDraft_.title, "New MFD Window");
-    CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, "assets/reticles");
+    CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, DefaultProjectAssetFolder("assets/reticles").string());
     CopyTextBuffer(newWindowDraft_.commandAddress, "127.0.0.1");
     CopyTextBuffer(newWindowDraft_.feedbackAddress, "127.0.0.1");
     CopyTextBuffer(newWindowDraft_.firstPageName, "Page1");
     CopyTextBuffer(newWindowDraft_.firstPageTitle, "Page 1");
-    CopyTextBuffer(newWindowDraft_.firstPageFile, "assets/pages/page1.json");
+    CopyTextBuffer(newWindowDraft_.firstPageFile, DefaultProjectAssetFolder("assets/pages/page1.json").string());
     CopyTextBuffer(newLibraryReticleDraft_.id, "new_reticle");
     CopyTextBuffer(duplicateLibraryReticleDraft_.id, "reticle_copy");
     ResetPagePreviewView();
     ResetLibraryPreviewView();
+    RebuildStatus("Open one window asset or create assets to begin authoring.", false);
     tutorial_->LoadProgress();
 }
 
@@ -1139,11 +1268,6 @@ mfd::Vec2 EditorApplication::ViewportState::ToLogical(const ImVec2 screen) const
 
 int EditorApplication::Run()
 {
-    if (!LoadWindowConfiguration(windowFile_))
-    {
-        throw std::runtime_error("Unable to load editor configuration: " + windowFile_.string());
-    }
-
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(1720, 980, "MFDStudio");
     SetWindowMinSize(1320, 760);
@@ -1166,7 +1290,6 @@ int EditorApplication::Run()
             DrawMenuBar();
             DrawRootLayout();
             DrawPopups();
-            tutorial_->PollBuild();
             tutorial_->DrawCoach();
         }
         catch (const std::exception& exception)
@@ -1233,6 +1356,12 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
 
 bool EditorApplication::SaveAll()
 {
+    if (!HasOpenWindow())
+    {
+        RebuildStatus("No window asset is open yet. Create or open one before saving.", true);
+        return false;
+    }
+
     std::string error;
     if (!editor::SaveEditorDocument(loaded_, files_, &error))
     {
@@ -1481,6 +1610,9 @@ void EditorApplication::DeleteSelectedLibraryReticle()
 
 void EditorApplication::DrawMenuBar()
 {
+    using editor::tutorial::TutorialStepId;
+    const bool hasOpenWindow = HasOpenWindow();
+
     if (!ImGui::BeginMainMenuBar())
     {
         return;
@@ -1509,8 +1641,15 @@ void EditorApplication::DrawMenuBar()
             OpenNewWindowPopup();
         }
 
+        const bool openWindowRequested = ImGui::MenuItem("Open window asset...");
+        ShowItemTooltip("Browse to one authored window JSON through the native file explorer.");
+        if (openWindowRequested)
+        {
+            OpenWindowAssetFromFileExplorer();
+        }
+
         ImGui::Separator();
-        const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S");
+        const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S", false, hasOpenWindow);
         ShowItemTooltip("Write the window file, page files and reticle template files back to disk.");
         tutorial_->DrawHalo(
             "menu_file_save",
@@ -1525,33 +1664,17 @@ void EditorApplication::DrawMenuBar()
             }
         }
 
-        const bool reloadRequested = ImGui::MenuItem("Reload current");
-        ShowItemTooltip("Reload the current preset from disk and discard unsaved editor changes.");
+        const bool canReloadCurrent = hasOpenWindow && std::filesystem::exists(windowFile_);
+        const bool reloadRequested = ImGui::MenuItem("Reload current", nullptr, false, canReloadCurrent);
+        ShowItemTooltip("Reload the current window asset from disk and discard unsaved editor changes.");
         if (reloadRequested)
         {
             LoadWindowConfiguration(windowFile_);
         }
-
-        if (ImGui::BeginMenu("Open preset"))
-        {
-            const std::filesystem::path normalizedCurrentWindow = windowFile_.lexically_normal();
-            for (const auto& preset : kEditorWindowPresets)
-            {
-                const std::filesystem::path presetPath = std::filesystem::path(preset.path).lexically_normal();
-                const bool selected = presetPath == normalizedCurrentWindow;
-                const bool openPreset = ImGui::MenuItem(preset.label, nullptr, selected);
-                ShowItemTooltip("Open this bundled sample window in the editor.");
-                if (openPreset)
-                {
-                    LoadWindowConfiguration(presetPath);
-                }
-            }
-
-            ImGui::EndMenu();
-        }
         ImGui::EndMenu();
     }
-    else if (tutorial_->IsStepPhase(0, 1) || tutorial_->IsStepPhase(8, 1))
+    else if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreateWindow), 1) ||
+             tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::SaveTutorialAssets), 1))
     {
         tutorial_->ResetPhase();
     }
@@ -1585,7 +1708,7 @@ void EditorApplication::DrawMenuBar()
         ImGui::EndMenu();
     }
 
-    const bool pageMenuOpen = ImGui::BeginMenu("Page");
+    const bool pageMenuOpen = ImGui::BeginMenu("Page", hasOpenWindow);
     tutorial_->DrawHalo("menu_page", "Click Page", "Open the page-authoring actions used by the current tutorial step.");
     if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_page"))
     {
@@ -1616,12 +1739,13 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
-    else if (tutorial_->IsStepPhase(3, 1) || tutorial_->IsStepPhase(7, 1))
+    else if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreatePage1), 1) ||
+             tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreatePage2), 1))
     {
         tutorial_->ResetPhase();
     }
 
-    const bool reticleMenuOpen = ImGui::BeginMenu("Reticle");
+    const bool reticleMenuOpen = ImGui::BeginMenu("Reticle", hasOpenWindow);
     tutorial_->DrawHalo("menu_reticle", "Click Reticle", "Open the reticle-template actions used by the tutorial.");
     if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_reticle"))
     {
@@ -1665,7 +1789,9 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
-    else if (tutorial_->IsStepPhase(1, 1) || tutorial_->IsStepPhase(2, 1))
+    else if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreateRadarTrackReticle), 1) ||
+             tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreateCircleReticle), 1) ||
+             tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle), 1))
     {
         tutorial_->ResetPhase();
     }
@@ -1682,9 +1808,13 @@ void EditorApplication::DrawMenuBar()
     }
 
     ImGui::TextDisabled("|");
-    ImGui::Text("%s", loaded_.window.title.c_str());
-    ImGui::SameLine();
-    ImGui::TextDisabled("[%s]", windowFile_.filename().string().c_str());
+    const char* titleLabel = hasOpenWindow && !loaded_.window.title.empty() ? loaded_.window.title.c_str() : "No asset open";
+    ImGui::Text("%s", titleLabel);
+    if (hasOpenWindow)
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("[%s]", windowFile_.filename().string().c_str());
+    }
     ImGui::SameLine();
     ImGui::TextDisabled("%s", statusMessage_.c_str());
 
@@ -1763,6 +1893,21 @@ void EditorApplication::DrawSidebar()
     ImGui::TextDisabled("Work directly in the page visualization.");
     ImGui::Separator();
 
+    if (!HasOpenWindow())
+    {
+        ImGui::TextWrapped("No authored window is open yet.");
+        ImGui::Spacing();
+        ImGui::TextDisabled("Use File > Open window asset... or File > New window from scratch.");
+
+        if (!lastRuntimeError_.empty())
+        {
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "Runtime: %s", lastRuntimeError_.c_str());
+        }
+        return;
+    }
+
     DrawPageTree();
     ImGui::Spacing();
     ImGui::Separator();
@@ -1779,6 +1924,12 @@ void EditorApplication::DrawSidebar()
 
 void EditorApplication::DrawWorkspace()
 {
+    if (!HasOpenWindow())
+    {
+        DrawEmptyWorkspacePlaceholder();
+        return;
+    }
+
     const bool libraryStudioVisible =
         selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive;
 
@@ -1887,8 +2038,56 @@ void EditorApplication::DrawWorkspace()
     }
 }
 
+void EditorApplication::DrawEmptyWorkspacePlaceholder()
+{
+    const ImVec2 available = ImGui::GetContentRegionAvail();
+    if (available.x <= 8.0f || available.y <= 8.0f)
+    {
+        return;
+    }
+
+    const char* headline = "Open or create assets";
+    const char* description =
+        "Start with a new authored window or browse to an existing window JSON.\n"
+        "Nothing is loaded automatically when the editor starts.";
+
+    const ImVec2 headlineSize = ImGui::CalcTextSize(headline);
+    const ImVec2 descriptionSize = ImGui::CalcTextSize(description);
+    const float buttonRowWidth = 420.0f;
+    const float totalHeight = headlineSize.y + descriptionSize.y + 92.0f;
+    const ImVec2 start(
+        std::max(0.0f, (available.x - std::max(std::max(headlineSize.x, descriptionSize.x), buttonRowWidth)) * 0.5f),
+        std::max(0.0f, (available.y - totalHeight) * 0.5f));
+
+    ImGui::SetCursorPos(start);
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "%s", headline);
+    ImGui::SetCursorPosX(start.x);
+    ImGui::TextDisabled("%s", description);
+    ImGui::Spacing();
+    ImGui::Spacing();
+
+    ImGui::SetCursorPosX(start.x);
+    if (AccentButton("Open window asset..."))
+    {
+        OpenWindowAssetFromFileExplorer();
+    }
+
+    ImGui::SetCursorPosX(start.x);
+    if (ImGui::Button("New window from scratch", ImVec2(220.0f, 0.0f)))
+    {
+        OpenNewWindowPopup();
+    }
+}
+
 void EditorApplication::DrawInspector()
 {
+    if (!HasOpenWindow())
+    {
+        ImGui::TextDisabled("No asset is open.");
+        ImGui::TextWrapped("Open one existing window asset or create a new window to edit pages, reticles and strobe settings.");
+        return;
+    }
+
     switch (selection_.kind)
     {
     case SelectionKind::Page:
@@ -2056,12 +2255,98 @@ void EditorApplication::DrawLibraryTree()
 
 void EditorApplication::OpenNewPagePopup()
 {
+    SeedNewPageAssetDraftPath();
     showNewPagePopup_ = true;
 }
 
 void EditorApplication::OpenNewWindowPopup()
 {
+    SeedNewWindowAssetDraftPaths();
     showNewWindowPopup_ = true;
+}
+
+bool EditorApplication::OpenWindowAssetFromFileExplorer()
+{
+    const std::filesystem::path initialFolder =
+        HasOpenWindow() && windowFile_.has_parent_path() ? windowFile_.parent_path() : DefaultProjectAssetFolder("assets/windows");
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFile = editor::OpenWindowAssetFileDialog(initialFolder, &error);
+    if (!selectedFile.has_value())
+    {
+        if (!error.empty())
+        {
+            RebuildStatus(error, true);
+        }
+        return false;
+    }
+
+    return LoadWindowConfiguration(*selectedFile);
+}
+
+void EditorApplication::OpenAssetFolderPicker(const AssetFolderPickerTarget target)
+{
+    assetFolderPickerTarget_ = target;
+
+    auto folderFromConfiguredPath = [](const std::filesystem::path& configuredPath) -> std::filesystem::path
+    {
+        if (configuredPath.empty())
+        {
+            return {};
+        }
+
+        return configuredPath.has_extension() ? configuredPath.parent_path() : configuredPath;
+    };
+
+    switch (target)
+    {
+    case AssetFolderPickerTarget::WindowFile:
+        assetFolderPickerCurrentFolder_ =
+            folderFromConfiguredPath(std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal());
+        if (assetFolderPickerCurrentFolder_.empty())
+        {
+            assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/windows");
+        }
+        break;
+
+    case AssetFolderPickerTarget::ReticleLibraryFolder:
+        assetFolderPickerCurrentFolder_ =
+            folderFromConfiguredPath(std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal());
+        if (assetFolderPickerCurrentFolder_.empty())
+        {
+            assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/reticles");
+        }
+        break;
+
+    case AssetFolderPickerTarget::FirstPageFile:
+        assetFolderPickerCurrentFolder_ =
+            folderFromConfiguredPath(std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal());
+        if (assetFolderPickerCurrentFolder_.empty())
+        {
+            assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/pages");
+        }
+        break;
+
+    case AssetFolderPickerTarget::NewPageFile:
+        assetFolderPickerCurrentFolder_ =
+            folderFromConfiguredPath(std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal());
+        if (assetFolderPickerCurrentFolder_.empty())
+        {
+            assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/pages");
+        }
+        break;
+
+    case AssetFolderPickerTarget::None:
+    default:
+        assetFolderPickerCurrentFolder_.clear();
+        break;
+    }
+
+    if (assetFolderPickerCurrentFolder_.is_relative())
+    {
+        assetFolderPickerCurrentFolder_ = std::filesystem::absolute(assetFolderPickerCurrentFolder_).lexically_normal();
+    }
+
+    showAssetFolderPickerPopup_ = true;
 }
 
 void EditorApplication::OpenNewLibraryReticlePopup()
@@ -2211,6 +2496,8 @@ void EditorApplication::ResetLibraryPreviewView() noexcept
 
 void EditorApplication::DrawPagePreview(const ViewportState& viewport)
 {
+    using editor::tutorial::TutorialStepId;
+
     const mfd::PageDefinition* page = ActivePage();
     if (page == nullptr)
     {
@@ -2275,7 +2562,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MFD_LIBRARY_RETICLE"))
         {
             const char* templateId = static_cast<const char*>(payload->Data);
-            if (tutorial_->IsStep(4))
+            if (tutorial_->IsStep(static_cast<int>(TutorialStepId::AddCircleReticleToPage1)))
             {
                 RebuildStatus("Tutorial: use the highlighted Add to active page button for this step.", true);
             }
@@ -2723,6 +3010,8 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
 
 void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 {
+    using editor::tutorial::TutorialStepId;
+
     mfd::PageDefinition* page = ActivePage();
     if (page == nullptr)
     {
@@ -2831,7 +3120,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     {
         if (const auto clipTarget = FindNearestPageClipPrimitive(interactiveViewport, mouse); clipTarget.has_value())
         {
-            if (tutorial_->IsStepPhase(5, 0))
+            if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ClipCircleOutside), 0))
             {
                 const mfd::ReticleGroup& clipReticle =
                     page->staticReticles[static_cast<std::size_t>(clipTarget->reticleIndex)];
@@ -3702,6 +3991,11 @@ int EditorApplication::SelectedPageReticleCount() const
     return static_cast<int>(SelectedPageReticleIndices().size());
 }
 
+bool EditorApplication::HasOpenWindow() const noexcept
+{
+    return !loaded_.window.sourceFile.empty();
+}
+
 void EditorApplication::CopySelectedPageReticles()
 {
     mfd::PageDefinition* page = ActivePage();
@@ -4523,6 +4817,8 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 
 void EditorApplication::DrawPopups()
 {
+    using editor::tutorial::TutorialStepId;
+
     if (showNewPagePopup_)
     {
         ImGui::OpenPopup("Create new page");
@@ -4532,6 +4828,11 @@ void EditorApplication::DrawPopups()
     {
         ImGui::OpenPopup("Create new window");
         showNewWindowPopup_ = false;
+    }
+    if (showAssetFolderPickerPopup_)
+    {
+        ImGui::OpenPopup("Choose asset folder");
+        showAssetFolderPickerPopup_ = false;
     }
 
     if (showNewLibraryReticlePopup_)
@@ -4577,6 +4878,12 @@ void EditorApplication::DrawPopups()
     {
         ImGui::TextDisabled("Window file and runtime parameters");
         ImGui::InputText("Window file", newWindowDraft_.windowFile.data(), newWindowDraft_.windowFile.size());
+        ImGui::SameLine();
+        if (ImGui::Button("Browse window folder..."))
+        {
+            OpenAssetFolderPicker(AssetFolderPickerTarget::WindowFile);
+        }
+        ShowItemTooltip("Choose the folder that will receive the new window JSON. Prefer the source repo assets folder, not _Exec.");
         ImGui::InputText("Window title", newWindowDraft_.title.data(), newWindowDraft_.title.size());
         int windowSize[2] {newWindowDraft_.width, newWindowDraft_.height};
         if (ImGui::InputInt2("Size (px)", windowSize))
@@ -4592,6 +4899,12 @@ void EditorApplication::DrawPopups()
         }
         ImGui::InputText("Font file (optional)", newWindowDraft_.fontFile.data(), newWindowDraft_.fontFile.size());
         ImGui::InputText("Reticle library folder", newWindowDraft_.reticleLibraryFolder.data(), newWindowDraft_.reticleLibraryFolder.size());
+        ImGui::SameLine();
+        if (ImGui::Button("Browse reticle folder..."))
+        {
+            OpenAssetFolderPicker(AssetFolderPickerTarget::ReticleLibraryFolder);
+        }
+        ShowItemTooltip("Choose where new reticle template JSON files should be saved.");
 
         ImGui::SeparatorText("Commands UDP (incoming)");
         ImGui::Checkbox("Enable command UDP", &newWindowDraft_.commandUdpEnabled);
@@ -4612,8 +4925,16 @@ void EditorApplication::DrawPopups()
             ImGui::InputText("First page name", newWindowDraft_.firstPageName.data(), newWindowDraft_.firstPageName.size());
             ImGui::InputText("First page title", newWindowDraft_.firstPageTitle.data(), newWindowDraft_.firstPageTitle.size());
             ImGui::InputText("First page file", newWindowDraft_.firstPageFile.data(), newWindowDraft_.firstPageFile.size());
+            ImGui::SameLine();
+            if (ImGui::Button("Browse page folder..."))
+            {
+                OpenAssetFolderPicker(AssetFolderPickerTarget::FirstPageFile);
+            }
+            ShowItemTooltip("Choose the folder that will receive the first page JSON.");
             ImGui::ColorEdit4("First page background", &newWindowDraft_.firstPageBackground.x);
         }
+
+        ImGui::TextDisabled("Use the repo source assets folders, not the staged runtime copy under _Exec.");
 
         if (AccentButton("Create window"))
         {
@@ -4635,7 +4956,7 @@ void EditorApplication::DrawPopups()
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
-            if (tutorial_->IsStep(0))
+            if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateWindow)))
             {
                 tutorial_->ResetPhase();
             }
@@ -4651,9 +4972,16 @@ void EditorApplication::DrawPopups()
         ImGui::InputText("Title", newPageDraft_.title.data(), newPageDraft_.title.size());
         ShowItemTooltip("Optional human-readable title shown in the editor and runtime UI.");
         ImGui::InputText("File", newPageDraft_.fileName.data(), newPageDraft_.fileName.size());
-        ShowItemTooltip("Relative JSON file written for this page. The .json extension is added automatically when missing.");
+        ShowItemTooltip("JSON file path written for this page. The .json extension is added automatically when missing.");
+        ImGui::SameLine();
+        if (ImGui::Button("Browse page folder..."))
+        {
+            OpenAssetFolderPicker(AssetFolderPickerTarget::NewPageFile);
+        }
+        ShowItemTooltip("Choose the folder that will receive the new page JSON. Prefer the source repo assets folder, not _Exec.");
         ImGui::ColorEdit4("Background", &newPageDraft_.background.x);
         ShowItemTooltip("Initial page background color.");
+        ImGui::TextDisabled("Use the repo source assets folders, not the staged runtime copy under _Exec.");
 
         if (AccentButton("Create page"))
         {
@@ -4675,7 +5003,8 @@ void EditorApplication::DrawPopups()
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
-            if (tutorial_->IsStep(3) || tutorial_->IsStep(7))
+            if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreatePage1)) ||
+                tutorial_->IsStep(static_cast<int>(TutorialStepId::CreatePage2)))
             {
                 tutorial_->ResetPhase();
             }
@@ -4684,6 +5013,8 @@ void EditorApplication::DrawPopups()
         ShowItemTooltip("Close this dialog without creating a page.");
         ImGui::EndPopup();
     }
+
+    DrawAssetFolderPickerPopup();
 
     if (ImGui::BeginPopupModal("Create new library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
@@ -4710,7 +5041,14 @@ void EditorApplication::DrawPopups()
             {
                 if (tutorialCreateMatched)
                 {
-                    tutorial_->CompleteStep();
+                    if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
+                    {
+                        tutorial_->AdvancePhase();
+                    }
+                    else
+                    {
+                        tutorial_->CompleteStep();
+                    }
                 }
                 ImGui::CloseCurrentPopup();
             }
@@ -4723,7 +5061,9 @@ void EditorApplication::DrawPopups()
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
-            if (tutorial_->IsStep(1) || tutorial_->IsStep(2))
+            if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateRadarTrackReticle)) ||
+                tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateCircleReticle)) ||
+                tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
             {
                 tutorial_->ResetPhase();
             }
@@ -4753,8 +5093,207 @@ void EditorApplication::DrawPopups()
     }
 }
 
+void EditorApplication::DrawAssetFolderPickerPopup()
+{
+    if (!ImGui::BeginPopupModal("Choose asset folder", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    const auto defaultFolderForTarget = [this]() -> std::filesystem::path
+    {
+        switch (assetFolderPickerTarget_)
+        {
+        case AssetFolderPickerTarget::WindowFile:
+            return DefaultProjectAssetFolder("assets/windows");
+        case AssetFolderPickerTarget::ReticleLibraryFolder:
+            return DefaultProjectAssetFolder("assets/reticles");
+        case AssetFolderPickerTarget::FirstPageFile:
+        case AssetFolderPickerTarget::NewPageFile:
+            return DefaultProjectAssetFolder("assets/pages");
+        case AssetFolderPickerTarget::None:
+        default:
+            return DefaultProjectAssetFolder("assets");
+        }
+    };
+
+    if (assetFolderPickerCurrentFolder_.empty())
+    {
+        assetFolderPickerCurrentFolder_ = defaultFolderForTarget();
+    }
+    if (assetFolderPickerCurrentFolder_.is_relative())
+    {
+        assetFolderPickerCurrentFolder_ = std::filesystem::absolute(assetFolderPickerCurrentFolder_).lexically_normal();
+    }
+
+    ImGui::TextWrapped("Choose where the new asset should be written. Keep authored JSON files in the source assets tree, not in _Exec.");
+    ImGui::Separator();
+    ImGui::TextDisabled("Current folder");
+    ImGui::TextWrapped("%s", assetFolderPickerCurrentFolder_.string().c_str());
+
+    if (ImGui::Button("Project assets"))
+    {
+        assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Windows"))
+    {
+        assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/windows");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Pages"))
+    {
+        assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/pages");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Reticles"))
+    {
+        assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/reticles");
+    }
+
+    const bool canGoUp = assetFolderPickerCurrentFolder_.has_parent_path() &&
+                         assetFolderPickerCurrentFolder_ != assetFolderPickerCurrentFolder_.root_path();
+    ImGui::BeginDisabled(!canGoUp);
+    if (ImGui::Button("Up"))
+    {
+        assetFolderPickerCurrentFolder_ = assetFolderPickerCurrentFolder_.parent_path();
+    }
+    ImGui::EndDisabled();
+
+    ImGui::Spacing();
+    ImGui::BeginChild("AssetFolderList", ImVec2(560.0f, 260.0f), true);
+    std::vector<std::filesystem::path> childFolders;
+    std::error_code directoryError;
+    if (std::filesystem::is_directory(assetFolderPickerCurrentFolder_, directoryError))
+    {
+        for (const auto& entry : std::filesystem::directory_iterator(assetFolderPickerCurrentFolder_, directoryError))
+        {
+            if (entry.is_directory())
+            {
+                childFolders.push_back(entry.path());
+            }
+        }
+    }
+    std::sort(childFolders.begin(), childFolders.end());
+    for (const std::filesystem::path& childFolder : childFolders)
+    {
+        const std::string label = childFolder.filename().string();
+        if (ImGui::Selectable(label.c_str(), false))
+        {
+            assetFolderPickerCurrentFolder_ = childFolder.lexically_normal();
+        }
+    }
+    if (childFolders.empty())
+    {
+        ImGui::TextDisabled("No subfolders in this directory.");
+    }
+    ImGui::EndChild();
+
+    const bool blockedFolder = IsExecStagingPath(assetFolderPickerCurrentFolder_);
+    if (blockedFolder)
+    {
+        ImGui::TextColored(
+            ImVec4(0.95f, 0.38f, 0.38f, 1.0f),
+            "This folder is inside _Exec. Choose the source assets tree instead.");
+    }
+
+    if (AccentButton("Use this folder"))
+    {
+        if (!blockedFolder)
+        {
+            switch (assetFolderPickerTarget_)
+            {
+            case AssetFolderPickerTarget::WindowFile:
+            {
+                const std::filesystem::path fileName = JsonFileNameOrFallback(
+                    std::filesystem::path(newWindowDraft_.windowFile.data()),
+                    "new_window.json");
+                CopyTextBuffer(newWindowDraft_.windowFile, (assetFolderPickerCurrentFolder_ / fileName).lexically_normal().string());
+                break;
+            }
+
+            case AssetFolderPickerTarget::ReticleLibraryFolder:
+                CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, assetFolderPickerCurrentFolder_.lexically_normal().string());
+                break;
+
+            case AssetFolderPickerTarget::FirstPageFile:
+            {
+                const std::filesystem::path fileName = JsonFileNameOrFallback(
+                    std::filesystem::path(newWindowDraft_.firstPageFile.data()),
+                    "page1.json");
+                CopyTextBuffer(newWindowDraft_.firstPageFile, (assetFolderPickerCurrentFolder_ / fileName).lexically_normal().string());
+                break;
+            }
+
+            case AssetFolderPickerTarget::NewPageFile:
+            {
+                const std::filesystem::path fileName = JsonFileNameOrFallback(
+                    std::filesystem::path(newPageDraft_.fileName.data()),
+                    "new_page.json");
+                CopyTextBuffer(newPageDraft_.fileName, (assetFolderPickerCurrentFolder_ / fileName).lexically_normal().string());
+                break;
+            }
+
+            case AssetFolderPickerTarget::None:
+            default:
+                break;
+            }
+
+            assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
+        ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::EndPopup();
+}
+
+void EditorApplication::SeedNewWindowAssetDraftPaths()
+{
+    const std::filesystem::path windowFile = std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
+    if (windowFile.empty() || !windowFile.is_absolute() || IsExecStagingPath(windowFile))
+    {
+        CopyTextBuffer(newWindowDraft_.windowFile, DefaultProjectAssetFolder("assets/windows/new_window.json").string());
+    }
+
+    const std::filesystem::path resolvedWindowFile = std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
+    const std::filesystem::path reticleFolder = std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal();
+    if (reticleFolder.empty() || !reticleFolder.is_absolute() || IsExecStagingPath(reticleFolder))
+    {
+        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, DefaultSiblingAssetFile(resolvedWindowFile, "reticles", "").string());
+    }
+
+    const std::filesystem::path firstPageFile = std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal();
+    if (firstPageFile.empty() || !firstPageFile.is_absolute() || IsExecStagingPath(firstPageFile))
+    {
+        CopyTextBuffer(newWindowDraft_.firstPageFile, DefaultSiblingAssetFile(resolvedWindowFile, "pages", "page1.json").string());
+    }
+}
+
+void EditorApplication::SeedNewPageAssetDraftPath()
+{
+    const std::filesystem::path pageFile = std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal();
+    if (!pageFile.empty() && pageFile.is_absolute() && !IsExecStagingPath(pageFile))
+    {
+        return;
+    }
+
+    const std::filesystem::path windowFile = loaded_.window.sourceFile.empty()
+                                                 ? DefaultProjectAssetFolder("assets/windows/new_window.json")
+                                                 : loaded_.window.sourceFile;
+    const std::filesystem::path defaultFileName = JsonFileNameOrFallback(pageFile, "new_page.json");
+    CopyTextBuffer(newPageDraft_.fileName, DefaultSiblingAssetFile(windowFile, "pages", defaultFileName.string()).string());
+}
+
 void EditorApplication::PrepareTutorialStep()
 {
+    using editor::tutorial::TutorialStepId;
+
     tutorial_->ClampStepIndex();
     tutorial_->ResetPhase();
     tutorial_->ClearFocusLayer();
@@ -4782,16 +5321,16 @@ void EditorApplication::PrepareTutorialStep()
 
     switch (tutorial_->StepIndex())
     {
-    case 0:
+    case static_cast<int>(TutorialStepId::CreateWindow):
         tutorial_->ClearTrackedReticle();
-        CopyTextBuffer(newWindowDraft_.windowFile, "assets/windows/mfd_tutorial.json");
+        CopyTextBuffer(newWindowDraft_.windowFile, DefaultProjectAssetFolder("assets/windows/mfd_tutorial.json").string());
         CopyTextBuffer(newWindowDraft_.title, "MFD Tutorial");
         newWindowDraft_.width = 480;
         newWindowDraft_.height = 480;
         newWindowDraft_.positionX = 120;
         newWindowDraft_.positionY = 80;
         CopyTextBuffer(newWindowDraft_.fontFile, "");
-        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, "assets/reticles");
+        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, DefaultProjectAssetFolder("assets/reticles").string());
         newWindowDraft_.commandUdpEnabled = true;
         CopyTextBuffer(newWindowDraft_.commandAddress, "127.0.0.1");
         newWindowDraft_.commandPort = 49000;
@@ -4803,24 +5342,34 @@ void EditorApplication::PrepareTutorialStep()
         newWindowDraft_.createInitialPage = false;
         CopyTextBuffer(newWindowDraft_.firstPageName, "Page1");
         CopyTextBuffer(newWindowDraft_.firstPageTitle, "Page 1");
-        CopyTextBuffer(newWindowDraft_.firstPageFile, "assets/pages/mfd_tutorial_page1.json");
+        CopyTextBuffer(newWindowDraft_.firstPageFile, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page1.json").string());
         newWindowDraft_.firstPageBackground = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
-    case 1:
+    case static_cast<int>(TutorialStepId::CreateRadarTrackReticle):
         CopyTextBuffer(newLibraryReticleDraft_.id, "mfd_tutorial_radar_track");
         setPrimitiveDraft(mfd::PrimitiveType::Diamond);
         break;
-    case 2:
+    case static_cast<int>(TutorialStepId::CreateCircleReticle):
         CopyTextBuffer(newLibraryReticleDraft_.id, "mfd_tutorial_circle");
         setPrimitiveDraft(mfd::PrimitiveType::Circle);
         break;
-    case 3:
+    case static_cast<int>(TutorialStepId::CreateStrobeCursorReticle):
+        CopyTextBuffer(newLibraryReticleDraft_.id, kTutorialStrobeCursorTemplateId);
+        setPrimitiveDraft(mfd::PrimitiveType::Line);
+        break;
+    case static_cast<int>(TutorialStepId::CreatePage1):
         CopyTextBuffer(newPageDraft_.name, "Page1");
         CopyTextBuffer(newPageDraft_.title, "Page 1");
-        CopyTextBuffer(newPageDraft_.fileName, "mfd_tutorial_page1.json");
+        CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page1.json").string());
         newPageDraft_.background = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
-    case 4:
+    case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        break;
+    case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
     {
         if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
         {
@@ -4832,7 +5381,7 @@ void EditorApplication::PrepareTutorialStep()
         }
         break;
     }
-    case 5:
+    case static_cast<int>(TutorialStepId::ClipCircleOutside):
     {
         if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
         {
@@ -4848,16 +5397,16 @@ void EditorApplication::PrepareTutorialStep()
         }
         break;
     }
-    case 6:
+    case static_cast<int>(TutorialStepId::AddAndHideEditorLayer):
         if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
         {
             SelectPage(pageIndex);
         }
         break;
-    case 7:
+    case static_cast<int>(TutorialStepId::CreatePage2):
         CopyTextBuffer(newPageDraft_.name, "Page2");
         CopyTextBuffer(newPageDraft_.title, "Page 2");
-        CopyTextBuffer(newPageDraft_.fileName, "mfd_tutorial_page2.json");
+        CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page2.json").string());
         newPageDraft_.background = ImVec4(0.04f, 0.08f, 0.14f, 1.0f);
         break;
     default:
@@ -4871,6 +5420,11 @@ bool EditorApplication::CreateNewWindow()
     if (windowFile.empty())
     {
         RebuildStatus("Window file cannot be empty.", true);
+        return false;
+    }
+    if (IsExecStagingPath(windowFile))
+    {
+        RebuildStatus("Choose a source assets folder for the window JSON, not a staged _Exec folder.", true);
         return false;
     }
 
@@ -4906,7 +5460,13 @@ bool EditorApplication::CreateNewWindow()
 
     const std::filesystem::path reticleFolder =
         std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal();
-    const std::filesystem::path effectiveReticleFolder = reticleFolder.empty() ? std::filesystem::path {"assets/reticles"} : reticleFolder;
+    const std::filesystem::path effectiveReticleFolder =
+        reticleFolder.empty() ? DefaultSiblingAssetFile(windowFile, "reticles", "") : reticleFolder;
+    if (IsExecStagingPath(effectiveReticleFolder))
+    {
+        RebuildStatus("Choose a source assets folder for the reticle library, not a staged _Exec folder.", true);
+        return false;
+    }
     next.window.reticleLibraryFolder = effectiveReticleFolder.is_relative()
                                            ? (windowBaseFolder / effectiveReticleFolder).lexically_normal()
                                            : effectiveReticleFolder;
@@ -4953,6 +5513,11 @@ bool EditorApplication::CreateNewWindow()
         {
             pageFile = (windowBaseFolder / pageFile).lexically_normal();
         }
+        if (IsExecStagingPath(pageFile))
+        {
+            RebuildStatus("Choose a source assets folder for the first page JSON, not a staged _Exec folder.", true);
+            return false;
+        }
         nextFiles.pageFiles.push_back(pageFile);
         next.window.pageFiles = nextFiles.pageFiles;
     }
@@ -4976,6 +5541,25 @@ bool EditorApplication::CreateNewPage()
         return false;
     }
 
+    std::filesystem::path pageFile = std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal();
+    if (pageFile.empty())
+    {
+        pageFile = editor::DefaultPageFilePath(loaded_.window.sourceFile, pageName);
+    }
+    if (pageFile.is_relative())
+    {
+        pageFile = (loaded_.window.sourceFile.parent_path() / pageFile).lexically_normal();
+    }
+    if (pageFile.extension().empty())
+    {
+        pageFile += ".json";
+    }
+    if (IsExecStagingPath(pageFile))
+    {
+        RebuildStatus("Choose a source assets folder for the page JSON, not a staged _Exec folder.", true);
+        return false;
+    }
+
     PushUndoSnapshot();
 
     mfd::PageDefinition page;
@@ -4986,12 +5570,6 @@ bool EditorApplication::CreateNewPage()
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
 
     loaded_.document.pages.push_back(page);
-
-    std::filesystem::path pageFile = loaded_.window.sourceFile.parent_path() / newPageDraft_.fileName.data();
-    if (pageFile.extension().empty())
-    {
-        pageFile += ".json";
-    }
     files_.pageFiles.push_back(pageFile.lexically_normal());
     loaded_.window.pageFiles = files_.pageFiles;
 
@@ -5002,6 +5580,8 @@ bool EditorApplication::CreateNewPage()
 
 bool EditorApplication::CreateNewLibraryReticleFromPrimitive()
 {
+    using editor::tutorial::TutorialStepId;
+
     const std::string reticleId = newLibraryReticleDraft_.id.data();
     if (reticleId.empty())
     {
@@ -5009,10 +5589,33 @@ bool EditorApplication::CreateNewLibraryReticleFromPrimitive()
         return false;
     }
 
+    const mfd::PrimitiveType primitiveType =
+        kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)];
+    if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
+    {
+        if (reticleId != kTutorialStrobeCursorTemplateId)
+        {
+            RebuildStatus("Tutorial: keep the reticle id set to 'mfd_tutorial_strobe_cursor'.", true);
+            return false;
+        }
+
+        if (primitiveType != mfd::PrimitiveType::Line)
+        {
+            RebuildStatus("Tutorial: create the strobe cursor from a Line primitive.", true);
+            return false;
+        }
+    }
+
     PushUndoSnapshot();
     mfd::ReticleGroup reticle = MakePrimitiveReticle(
         reticleId,
-        kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)]);
+        primitiveType);
+    if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)) &&
+        reticle.id == kTutorialStrobeCursorTemplateId &&
+        !reticle.primitives.empty())
+    {
+        (void)ConfigureTutorialStrobeLinePrimitive(reticle.primitives.front(), false);
+    }
     loaded_.document.reticleLibrary[reticle.id] = reticle;
     files_.templateFiles[reticle.id] = editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, reticle.id);
     SelectLibraryReticle(reticle.id);
@@ -5145,6 +5748,35 @@ mfd::ReticleGroup EditorApplication::MakePrimitiveReticle(std::string id, const 
 
     reticle.primitives.push_back(std::move(primitive));
     return reticle;
+}
+
+mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
+    const mfd::PageDefinition& page,
+    const mfd::ReticleGroup& templ,
+    const std::optional<mfd::PageStrobeDefinition>& previousStrobe)
+{
+    const std::string baseId =
+        previousStrobe.has_value() && !previousStrobe->reticle.id.empty()
+            ? previousStrobe->reticle.id
+            : (templ.id.empty() ? std::string {"strobe"} : templ.id + "_strobe");
+
+    mfd::PageStrobeDefinition strobe;
+    strobe.reticle = mfd::InstantiateReticle(templ, MakeUniqueReticleId(page.staticReticles, baseId));
+    strobe.reticle.visible = true;
+
+    if (previousStrobe.has_value())
+    {
+        strobe.reticle.visible = previousStrobe->reticle.visible;
+        strobe.reticle.transform = previousStrobe->reticle.transform;
+        strobe.reticle.overrides = previousStrobe->reticle.overrides;
+        strobe.reticle.blink = previousStrobe->reticle.blink;
+        strobe.reticle.clipping = previousStrobe->reticle.clipping;
+        strobe.reticle.editor = previousStrobe->reticle.editor;
+        strobe.capture = previousStrobe->capture;
+        strobe.magnet = previousStrobe->magnet;
+    }
+
+    return strobe;
 }
 
 std::string EditorApplication::MakeUniqueReticleId(const std::vector<mfd::ReticleGroup>& groups, const std::string_view baseId)
@@ -5321,6 +5953,7 @@ void EditorApplication::DrawPageInspector()
     ImGui::TextDisabled("If no page is marked default, the runtime opens the first page in the window JSON.");
 
     DrawPageBlinkInspector(*page);
+    DrawPageStrobeInspector(*page);
     DrawPageLayerInspector(*page);
 
     ImGui::Spacing();
@@ -5333,9 +5966,205 @@ void EditorApplication::DrawPageInspector()
             return IsReticleVisibleInEditor(*page, reticle);
         }));
     ImGui::TextDisabled("Visible in editor: %d", editorVisibleReticleCount);
-    if (page->strobe.has_value())
+}
+
+void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
+{
+    using editor::tutorial::TutorialStepId;
+
+    constexpr std::string_view kTutorialStrobeTargetId = "page_strobe_template";
+    constexpr std::string_view kTutorialStrobeReticleId = "tutorial_strobe";
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Strobe");
+    ImGui::TextDisabled("Assign one library reticle template as the optional page strobe.");
+    ImGui::TextDisabled("Each page can expose at most one strobe.");
+
+    std::vector<std::string> templateIds;
+    templateIds.reserve(loaded_.document.reticleLibrary.size());
+    for (const auto& [templateId, reticle] : loaded_.document.reticleLibrary)
     {
-        ImGui::TextDisabled("Strobe: %s", page->strobe->reticle.id.c_str());
+        (void)reticle;
+        templateIds.push_back(templateId);
+    }
+    std::sort(templateIds.begin(), templateIds.end());
+
+    const std::string currentTemplateId =
+        page.strobe.has_value() ? page.strobe->reticle.sourceTemplateId : std::string {};
+    const char* currentTemplateLabel =
+        !page.strobe.has_value() ? "None" : (currentTemplateId.empty() ? "<custom strobe>" : currentTemplateId.c_str());
+
+    if (ImGui::BeginCombo("Strobe template", currentTemplateLabel))
+    {
+        const bool noneSelected = !page.strobe.has_value();
+        if (ImGui::Selectable("None", noneSelected) && page.strobe.has_value())
+        {
+            PushUndoSnapshot();
+            page.strobe.reset();
+            RebuildStatus("Strobe removed from page '" + page.name + "'.", false);
+        }
+        if (noneSelected)
+        {
+            ImGui::SetItemDefaultFocus();
+        }
+
+        for (const std::string& templateId : templateIds)
+        {
+            const bool selected = page.strobe.has_value() && currentTemplateId == templateId;
+            if (ImGui::Selectable(templateId.c_str(), selected) && !selected)
+            {
+                if (tutorial_->MatchesTarget(kTutorialStrobeTargetId) && templateId != kTutorialStrobeCursorTemplateId)
+                {
+                    RebuildStatus("Tutorial: choose 'mfd_tutorial_strobe_cursor' as the Page1 strobe template.", true);
+                    continue;
+                }
+
+                const auto iterator = loaded_.document.reticleLibrary.find(templateId);
+                if (iterator != loaded_.document.reticleLibrary.end())
+                {
+                    PushUndoSnapshot();
+                    page.strobe = MakePageStrobeFromTemplate(page, iterator->second, page.strobe);
+                    if (tutorial_->MatchesTarget(kTutorialStrobeTargetId))
+                    {
+                        page.strobe->reticle.id = std::string(kTutorialStrobeReticleId);
+                    }
+                    RefreshBlinkBindingForEditor(page, page.strobe->reticle.blink);
+                    RebuildStatus("Strobe template '" + templateId + "' assigned to page '" + page.name + "'.", false);
+                    if (tutorial_->MatchesTarget(kTutorialStrobeTargetId))
+                    {
+                        tutorial_->CompleteStep();
+                    }
+                }
+            }
+            if (selected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+    ShowItemTooltip("Choose which shared reticle template is instantiated as the page strobe.");
+    tutorial_->DrawHalo(
+        kTutorialStrobeTargetId.data(),
+        "Choose mfd_tutorial_strobe_cursor",
+        "Assign the cross cursor as the real Page1 strobe before the tutorial client starts driving it.");
+
+    ImGui::BeginDisabled(!page.strobe.has_value());
+    if (ImGui::Button("Remove strobe") && page.strobe.has_value())
+    {
+        PushUndoSnapshot();
+        page.strobe.reset();
+        RebuildStatus("Strobe removed from page '" + page.name + "'.", false);
+    }
+    ImGui::EndDisabled();
+    ShowItemTooltip("Remove the optional strobe definition from this page.");
+
+    if (!page.strobe.has_value())
+    {
+        if (templateIds.empty())
+        {
+            ImGui::TextDisabled("No library reticle is available yet. Create one first.");
+        }
+        else
+        {
+            ImGui::TextDisabled("No strobe assigned to this page.");
+        }
+        return;
+    }
+
+    ImGui::TextDisabled("Strobe id: %s", page.strobe->reticle.id.c_str());
+    if (!currentTemplateId.empty())
+    {
+        ImGui::TextDisabled("Source template: %s", currentTemplateId.c_str());
+    }
+
+    const char* captureShapeLabel =
+        page.strobe->capture.shape == mfd::StrobeCaptureShape::Circle ? "Circle" : "Rectangle";
+    if (ImGui::BeginCombo("Capture shape", captureShapeLabel))
+    {
+        const bool circleSelected = page.strobe->capture.shape == mfd::StrobeCaptureShape::Circle;
+        if (ImGui::Selectable("Circle", circleSelected) && !circleSelected)
+        {
+            PushUndoSnapshot();
+            page.strobe->capture.shape = mfd::StrobeCaptureShape::Circle;
+        }
+        if (circleSelected)
+        {
+            ImGui::SetItemDefaultFocus();
+        }
+
+        const bool rectangleSelected = page.strobe->capture.shape == mfd::StrobeCaptureShape::Rectangle;
+        if (ImGui::Selectable("Rectangle", rectangleSelected) && !rectangleSelected)
+        {
+            PushUndoSnapshot();
+            page.strobe->capture.shape = mfd::StrobeCaptureShape::Rectangle;
+        }
+        if (rectangleSelected)
+        {
+            ImGui::SetItemDefaultFocus();
+        }
+
+        ImGui::EndCombo();
+    }
+    ShowItemTooltip("Choose the capture area shape used by the page strobe.");
+
+    if (page.strobe->capture.shape == mfd::StrobeCaptureShape::Circle)
+    {
+        if (ImGui::DragFloat("Capture radius", &page.strobe->capture.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            page.strobe->capture.radius = std::max(0.001f, page.strobe->capture.radius);
+        }
+        ShowItemTooltip("Radius of the circular capture area around the strobe.");
+    }
+    else
+    {
+        if (ImGui::DragFloat2("Capture size", &page.strobe->capture.size.x, 0.002f, 0.001f, 2.0f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            page.strobe->capture.size.x = std::max(0.001f, page.strobe->capture.size.x);
+            page.strobe->capture.size.y = std::max(0.001f, page.strobe->capture.size.y);
+        }
+        ShowItemTooltip("Width and height of the rectangular capture area around the strobe.");
+    }
+
+    bool magnetEnabled = page.strobe->magnet.enabled;
+    if (ImGui::Checkbox("Magnet enabled", &magnetEnabled))
+    {
+        PushUndoSnapshot();
+        page.strobe->magnet.enabled = magnetEnabled;
+    }
+    ShowItemTooltip("Enable attraction toward nearby dynamic reticles when the strobe moves.");
+
+    if (page.strobe->magnet.enabled)
+    {
+        if (ImGui::DragFloat("Magnet radius", &page.strobe->magnet.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            page.strobe->magnet.radius = std::max(0.001f, page.strobe->magnet.radius);
+        }
+        ShowItemTooltip("Maximum distance used to snap the strobe toward nearby targets.");
+
+        if (ImGui::DragFloat("Magnet strength", &page.strobe->magnet.strength, 0.01f, 0.0f, 1.0f, "%.2f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            page.strobe->magnet.strength = std::clamp(page.strobe->magnet.strength, 0.0f, 1.0f);
+        }
+        ShowItemTooltip("Blend factor applied when the strobe is attracted toward one target.");
     }
 }
 
@@ -6327,14 +7156,44 @@ void EditorApplication::DrawLibraryReticleInspector()
 
     if (AccentButton("Append primitive"))
     {
+        const bool tutorialAppendMatched = tutorial_->MatchesTarget("library_append_primitive");
+        const mfd::PrimitiveType primitiveType =
+            kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)];
+        if (tutorialAppendMatched)
+        {
+            if (reticle->id != kTutorialStrobeCursorTemplateId)
+            {
+                RebuildStatus("Tutorial: append the second line inside 'mfd_tutorial_strobe_cursor'.", true);
+                return;
+            }
+
+            if (primitiveType != mfd::PrimitiveType::Line)
+            {
+                RebuildStatus("Tutorial: keep the Add primitive selector on 'Line' for the strobe cursor.", true);
+                return;
+            }
+        }
+
         PushUndoSnapshot();
-        mfd::ReticleGroup seed = MakePrimitiveReticle("seed", kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)]);
+        mfd::ReticleGroup seed = MakePrimitiveReticle("seed", primitiveType);
         mfd::Primitive primitive = seed.primitives.front();
         primitive.id = "primitive_" + std::to_string(reticle->primitives.size() + 1);
+        if (tutorialAppendMatched)
+        {
+            (void)ConfigureTutorialStrobeLinePrimitive(primitive, true);
+        }
         reticle->primitives.push_back(std::move(primitive));
         SelectLibraryPrimitive(reticle->id, static_cast<int>(reticle->primitives.size()) - 1);
+        if (tutorialAppendMatched)
+        {
+            tutorial_->CompleteStep();
+        }
     }
     ShowItemTooltip("Append a new primitive of the selected type to this reticle.");
+    tutorial_->DrawHalo(
+        "library_append_primitive",
+        "Click Append primitive",
+        "Append the second line so the tutorial strobe cursor becomes a simple cross.");
 
     ImGui::SameLine();
     if (ImGui::Button("Remove selected primitive"))

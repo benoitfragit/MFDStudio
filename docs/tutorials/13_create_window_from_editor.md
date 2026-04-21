@@ -13,7 +13,9 @@ You will learn how to:
 ## Step 1 - Open the window wizard
 
 1. Launch `mfd_editor`.
-2. Open the top menu: **File > New window from scratch**.
+2. The editor starts empty, without auto-loading any staged `_Exec` asset copy.
+3. Use **Open window asset...** if you want to browse to one existing window JSON from the file explorer.
+4. For this tutorial, open the top menu: **File > New window from scratch**.
 
 The popup creates an in-memory window draft. Nothing is written on disk until you click **File > Save**.
 
@@ -28,6 +30,10 @@ In **Create new window**, set:
 - **Reticle library folder** (usually `assets/reticles`)
 
 These fields map directly to the root window JSON.
+
+Use the **Browse ... folder** buttons when creating new assets. The editor now guides you toward the source `assets/` tree and blocks `_Exec` staging folders, because `_Exec/assets` is only a runtime copy and would break later CMake-generated client API steps.
+
+This also matters for the integrated tutorial: `client_tutorial` is only configured once the authored tutorial window, page, and reticle JSON files exist under the repository `assets/` tree.
 
 ## Step 3 - Configure UDP communication
 

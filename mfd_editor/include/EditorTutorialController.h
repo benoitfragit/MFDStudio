@@ -11,7 +11,6 @@
  */
 
 #include <filesystem>
-#include <future>
 #include <string>
 #include <string_view>
 
@@ -46,8 +45,6 @@ public:
     void CompleteStep();
     /** @brief Ends the tutorial and clears persisted progress. */
     void Finish();
-    /** @brief Polls the asynchronous tutorial build and refreshes the footer status once it completes. */
-    void PollBuild();
     /** @brief Draws the guided tutorial coach panel. */
     void DrawCoach();
     /** @brief Draws a persistent callout and halo around the current tutorial target. */
@@ -91,17 +88,8 @@ public:
     bool ConsumeResumePopupRequest() noexcept;
 
 private:
-    /** @brief Result payload returned by the asynchronous tutorial build worker. */
-    struct TutorialBuildResult
-    {
-        bool success = false;
-        std::string message {};
-    };
-
     /** @brief Advances to the next tutorial step and persists progress. */
     void AdvanceStep();
-    /** @brief Starts the asynchronous build of the tutorial runtime and client targets. */
-    void StartTargetBuild();
     /** @brief Returns the currently expected tutorial target id for UI-driven steps. */
     std::string_view CurrentTargetId() const noexcept;
     /** @brief Returns a short summary of the current tutorial action. */
@@ -139,8 +127,4 @@ private:
     float fileViewScrollX_ = 0.0f;
     /** @brief Shared vertical scroll used by both tutorial file panes. */
     float fileViewScrollY_ = 0.0f;
-    /** @brief Background future used to build the tutorial targets after the walkthrough finishes. */
-    std::future<TutorialBuildResult> buildFuture_ {};
-    /** @brief Indicates whether the tutorial target build is currently running. */
-    bool buildInProgress_ = false;
 };

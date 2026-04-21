@@ -63,6 +63,10 @@ Example:
 
 The window will send one feedback stream for the strobe state.
 
+If you author the page in `mfd_editor`, select the page and use
+`Page inspector > Strobe > Strobe template` to assign one of the library
+reticles as the page strobe before saving.
+
 In the recommended runtime model:
 
 - the UDP worker thread receives strobe commands

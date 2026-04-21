@@ -51,6 +51,9 @@ public:
     int Run();
 
 private:
+    /** @brief Input buffer capacity used for editable filesystem paths in the editor UI. */
+    static constexpr std::size_t kPathTextCapacity = 512;
+
     /** @brief Current high-level selection type shown in the inspector. */
     enum class SelectionKind
     {
@@ -81,6 +84,16 @@ private:
         Radius,
         RectangleCorner,
         DiamondAxis
+    };
+
+    /** @brief Asset path field currently driven by the folder-picker popup. */
+    enum class AssetFolderPickerTarget
+    {
+        None,
+        WindowFile,
+        ReticleLibraryFolder,
+        FirstPageFile,
+        NewPageFile
     };
 
     /** @brief Current tree selection routed to the inspector and the preview overlays. */
@@ -142,21 +155,21 @@ private:
     {
         std::array<char, 64> name {};
         std::array<char, 64> title {};
-        std::array<char, 64> fileName {};
+        std::array<char, kPathTextCapacity> fileName {};
         ImVec4 background {0.03f, 0.10f, 0.03f, 1.0f};
     };
 
     /** @brief Draft values used by the "new window" popup before a window is created from scratch. */
     struct NewWindowDraft
     {
-        std::array<char, 128> windowFile {};
+        std::array<char, kPathTextCapacity> windowFile {};
         std::array<char, 64> title {};
         int width = 640;
         int height = 480;
         int positionX = 120;
         int positionY = 80;
-        std::array<char, 128> fontFile {};
-        std::array<char, 128> reticleLibraryFolder {};
+        std::array<char, kPathTextCapacity> fontFile {};
+        std::array<char, kPathTextCapacity> reticleLibraryFolder {};
         bool commandUdpEnabled = true;
         std::array<char, 64> commandAddress {};
         int commandPort = 49000;
@@ -168,7 +181,7 @@ private:
         bool createInitialPage = true;
         std::array<char, 64> firstPageName {};
         std::array<char, 64> firstPageTitle {};
-        std::array<char, 128> firstPageFile {};
+        std::array<char, kPathTextCapacity> firstPageFile {};
         ImVec4 firstPageBackground {0.03f, 0.10f, 0.03f, 1.0f};
     };
 
@@ -210,6 +223,8 @@ private:
     void DrawSidebar();
     /** @brief Draws the central preview workspace. */
     void DrawWorkspace();
+    /** @brief Draws the empty-state placeholder when no authored window is open. */
+    void DrawEmptyWorkspacePlaceholder();
     /** @brief Draws the right-hand inspector for the current selection. */
     void DrawInspector();
 
@@ -219,6 +234,8 @@ private:
     void DrawLibraryTree();
     /** @brief Draws page-level properties such as view and blink types. */
     void DrawPageInspector();
+    /** @brief Draws the page-level strobe selector and its basic configuration. */
+    void DrawPageStrobeInspector(mfd::PageDefinition& page);
     /** @brief Draws the editor-only layer manager for the active page. */
     void DrawPageLayerInspector(mfd::PageDefinition& page);
     /** @brief Draws the inspector for one page reticle instance. */
@@ -274,12 +291,18 @@ private:
     void OpenNewPagePopup();
     /** @brief Opens the "new window" popup and seeds its draft values. */
     void OpenNewWindowPopup();
+    /** @brief Opens a native file-explorer dialog to load one existing window asset. */
+    bool OpenWindowAssetFromFileExplorer();
     /** @brief Opens the "new library reticle" popup and seeds its draft values. */
     void OpenNewLibraryReticlePopup();
     /** @brief Opens the "duplicate reticle" popup and seeds its draft values. */
     void OpenDuplicateLibraryReticlePopup();
+    /** @brief Opens the guided folder-picker popup for one asset-location field. */
+    void OpenAssetFolderPicker(AssetFolderPickerTarget target);
     /** @brief Draws and resolves all modal popups owned by the editor. */
     void DrawPopups();
+    /** @brief Draws the guided folder-picker popup used by new-asset dialogs. */
+    void DrawAssetFolderPickerPopup();
     /** @brief Seeds the editor state expected by the current tutorial step. */
     void PrepareTutorialStep();
 
@@ -293,6 +316,10 @@ private:
     void DuplicateSelectedLibraryReticle();
     /** @brief Instantiates one page reticle from a library template at a logical position. */
     bool CreatePageReticleInstanceFromTemplate(std::string_view templateId, mfd::Vec2 position);
+    /** @brief Seeds default save locations for the window-creation popup. */
+    void SeedNewWindowAssetDraftPaths();
+    /** @brief Seeds a default save location for the page-creation popup. */
+    void SeedNewPageAssetDraftPath();
 
     /** @brief Selects one page and updates the inspector focus accordingly. */
     void SelectPage(int pageIndex);
@@ -331,6 +358,8 @@ private:
     std::vector<int> SelectedPageReticleIndices() const;
     /** @brief Returns the current number of selected page reticles. */
     int SelectedPageReticleCount() const;
+    /** @brief Returns `true` when a window document is currently open in the editor. */
+    bool HasOpenWindow() const noexcept;
     /** @brief Copies the selected page reticles into the editor clipboard. */
     void CopySelectedPageReticles();
     /** @brief Pastes the page-reticle clipboard into the active page. */
@@ -364,12 +393,16 @@ private:
 
     /** @brief Builds a minimal reticle template containing one primitive of the requested type. */
     static mfd::ReticleGroup MakePrimitiveReticle(std::string id, mfd::PrimitiveType primitiveType);
+    /** @brief Instantiates or replaces one page strobe from the selected library template. */
+    static mfd::PageStrobeDefinition MakePageStrobeFromTemplate(const mfd::PageDefinition& page,
+                                                                const mfd::ReticleGroup& templ,
+                                                                const std::optional<mfd::PageStrobeDefinition>& previousStrobe);
     /** @brief Generates a reticle id that does not collide inside the provided container. */
     static std::string MakeUniqueReticleId(const std::vector<mfd::ReticleGroup>& groups, std::string_view baseId);
     /** @brief Generates a unique editor layer id inside one page. */
     static std::string MakeUniqueLayerId(const mfd::PageDefinition& page, std::string_view baseId);
-    /** @brief Root window file currently open in the editor. */
-    std::filesystem::path windowFile_ {"assets/windows/demo_pages.json"};
+    /** @brief Root window file currently open in the editor, or empty when no asset is loaded yet. */
+    std::filesystem::path windowFile_ {};
     /** @brief Loader used to resolve the root window file and its referenced assets. */
     mfd::JsonLoader loader_ {};
     /** @brief In-memory authored document currently being edited. */
@@ -414,6 +447,8 @@ private:
     bool showNewLibraryReticlePopup_ = false;
     /** @brief Popup visibility flag for library reticle duplication. */
     bool showDuplicateLibraryReticlePopup_ = false;
+    /** @brief Popup visibility flag for the guided asset-folder picker. */
+    bool showAssetFolderPickerPopup_ = false;
     /** @brief Page-creation draft values. */
     NewPageDraft newPageDraft_ {};
     /** @brief Window-creation draft values. */
@@ -422,6 +457,10 @@ private:
     NewLibraryReticleDraft newLibraryReticleDraft_ {};
     /** @brief Reticle-duplication draft values. */
     DuplicateLibraryReticleDraft duplicateLibraryReticleDraft_ {};
+    /** @brief Asset field currently edited through the guided folder picker. */
+    AssetFolderPickerTarget assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
+    /** @brief Current folder displayed by the guided asset-folder picker. */
+    std::filesystem::path assetFolderPickerCurrentFolder_ {};
     /** @brief Internal clipboard used by copy/paste on page reticles. */
     std::vector<mfd::ReticleGroup> pageReticleClipboard_ {};
     /** @brief Paste counter used to offset successive pasted copies. */

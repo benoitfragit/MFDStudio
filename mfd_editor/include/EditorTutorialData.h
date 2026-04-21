@@ -14,6 +14,39 @@
 
 namespace editor::tutorial
 {
+/**
+ * @brief Stable identifiers for the integrated editor tutorial steps.
+ *
+ * @note The order of the enumerators matches the order of the immutable step
+ * table returned by `Steps()`.
+ */
+enum class TutorialStepId : int
+{
+    CreateWindow = 0,
+    CreateRadarTrackReticle,
+    CreateCircleReticle,
+    CreateStrobeCursorReticle,
+    CreatePage1,
+    AssignPage1StrobeTemplate,
+    AddCircleReticleToPage1,
+    ClipCircleOutside,
+    AddAndHideEditorLayer,
+    CreatePage2,
+    SaveTutorialAssets,
+    ReviewPage1StrobeJson,
+    ReviewPageSwitchingInClient,
+    ReviewDynamicReticleCreation,
+    ReviewDynamicReticleRemoval,
+    ReviewStaticReticleCommands,
+    ReviewDynamicReticleUpdates,
+    ReviewDynamicDeclutter,
+    ReviewGeneratedUiIntegration,
+    ReviewStrobeFeedbackHandling,
+    ReviewRgba32FramebufferCapture,
+    ReviewTutorialTargetRegistration,
+    Count
+};
+
 enum class TutorialStepKind
 {
     UiAction,

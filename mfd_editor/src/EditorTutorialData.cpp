@@ -11,12 +11,13 @@
  */
 
 #include <array>
+#include <cstddef>
 
 namespace editor::tutorial
 {
 namespace
 {
-constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
+constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialStepId::Count)> kTutorialSteps {{
     {TutorialStepKind::UiAction,
      "Create the tutorial window",
      "Build a clean tutorial window from scratch so the rest of the walkthrough starts from a predictable document.",
@@ -51,9 +52,31 @@ constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
      0,
      0},
     {TutorialStepKind::UiAction,
+     "Create the strobe cursor reticle",
+     "Create a small cross-shaped reticle from one horizontal line, then append a vertical line so Page1 can later use it as a strobe cursor.",
+     "menu_reticle",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
      "Create Page1",
      "Author the first page of the tutorial so the runtime has a main working page to display.",
      "menu_page",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Assign the Page1 strobe template",
+     "On Page1, choose the small cross cursor as the page strobe so the runtime and the client both target a real authored strobe.",
+     "page_strobe_template",
      nullptr,
      nullptr,
      nullptr,
@@ -118,7 +141,7 @@ constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
      0},
     {TutorialStepKind::FileReview,
      "Review the Page1 strobe JSON",
-     "This step explains the JSON block that adds a page strobe so the runtime can jump to each newly created track.",
+     "This step reviews the JSON block written by the editor when Page1 was configured with its strobe cursor.",
      "",
      "assets/pages/mfd_tutorial_page1.json",
      "{\n"
@@ -132,17 +155,16 @@ constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
      "  \"title\": \"Page 1\",\n"
      "  \"backgroundColor\": [0, 32, 96, 255],\n"
      "  \"strobe\": {\n"
-     "    \"reticle\": {\n"
-     "      \"id\": \"tutorial_strobe\",\n"
-     "      \"sourceTemplateId\": \"mfd_tutorial_circle\"\n"
-     "    },\n"
+     "    \"id\": \"tutorial_strobe\",\n"
+     "    \"template\": \"mfd_tutorial_strobe_cursor\",\n"
      "    \"capture\": {\n"
-     "      \"shape\": \"circle\"\n"
+     "      \"shape\": \"circle\",\n"
+     "      \"radius\": 0.0875\n"
      "    }\n"
      "  },\n"
      "  \"staticReticles\": []\n"
      "}",
-     "The strobe block declares a page-owned reticle and the capture shape used by the runtime when the client moves the strobe over new tracks.",
+     "The strobe block now references the small cross cursor authored earlier in the editor, and still declares the capture shape used by the runtime when the client moves the strobe over new tracks.",
      "Next",
      1,
      1},
@@ -175,7 +197,7 @@ constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
      1},
     {TutorialStepKind::FileReview,
      "Review dynamic reticle creation",
-     "The client builds one patch per new track and upserts it from the shared radar-track template.",
+     "The client still builds one patch per track, but now maps it into the generated bindings instead of sending an untyped upsert directly.",
      "",
      "examples/client_tutorial/src/main.cpp",
      "const std::string trackId = \"tutorial_track_\" + std::to_string(serial++);\n"
@@ -187,8 +209,12 @@ constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
      "patch.color = mfd::ColorRgba {80, 255, 185, 255};\n"
      "patch.thickness = 0.0038f;\n"
      "patch.text = std::string(\"T\") + std::to_string(serial);\n"
-     "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);",
-     "Upsert keeps the client logic simple: the same call handles first creation and later refreshes of the same dynamic reticle id.",
+     "auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);\n"
+     "generatedTrack.SetPosition(*patch.position);\n"
+     "generatedTrack.SetColor(*patch.color);\n"
+     "generatedTrack.SetThickness(*patch.thickness);\n"
+     "generatedTrack.SetText(*patch.text);",
+     "The generated API still performs an upsert keyed by the runtime id, but it exposes typed setters anchored to the authored template fields.",
      "Next",
      1,
      1},
@@ -225,15 +251,17 @@ constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
      1},
     {TutorialStepKind::FileReview,
      "Review dynamic reticle updates",
-     "Updating a dynamic reticle means sending a new patch with the same runtime id and the new values you want to keep.",
+     "Updating a dynamic reticle still reuses the same runtime id, but the changes are now expressed through the generated setter surface.",
      "",
      "examples/client_tutorial/src/main.cpp",
-     "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);",
-     "mfd::ReticlePatch updatedPatch = patch;\n"
-     "updatedPatch.color = mfd::ColorRgba {255, 196, 64, 255};\n"
-     "updatedPatch.position = mfd::Vec2 {0.15f, -0.10f};\n"
-     "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, updatedPatch);",
-     "Re-using the same id preserves the logical identity of the track while still changing its appearance or position.",
+     "auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);\n"
+     "generatedTrack.SetPosition(*patch.position);",
+     "auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);\n"
+     "generatedTrack.SetPosition({0.15f, -0.10f});\n"
+     "generatedTrack.SetColor({255, 196, 64, 255});\n"
+     "generatedTrack.SetThickness(*patch.thickness);\n"
+     "generatedTrack.SetText(*patch.text);",
+     "Re-using the same generated object preserves the logical identity of the track while still changing its appearance or position.",
      "Next",
      1,
      1},
@@ -242,37 +270,32 @@ constexpr std::array<TutorialStepDefinition, 20> kTutorialSteps {{
      "Declutter is expressed as a visibility toggle on one dynamic template set so the client can hide or restore a whole family of tracks at once.",
      "",
      "examples/client_tutorial/src/main.cpp",
-     "client.UpsertDynamicReticle(kPage1, trackId, kTrackTemplate, patch);",
-     "bool tracksVisible = true;\n"
+     "auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);\n"
+     "generatedTrack.SetText(*patch.text);",
+     "bool generatedDeclutterVisible = true;\n"
      "if ((serial % 5U) == 0U)\n"
      "{\n"
-     "    tracksVisible = !tracksVisible;\n"
+     "    generatedDeclutterVisible = !generatedDeclutterVisible;\n"
      "}\n"
-     "client.SetDynamicReticleSetVisible(kPage1, kTrackTemplate, tracksVisible);",
-     "Template-set visibility is a compact way to declutter the page without deleting runtime objects or rebuilding the authored content.",
+     "generatedDynamicTracks.SetVisible(generatedDeclutterVisible);\n"
+     "const auto commands = generatedUi.BuildBatch();",
+     "Template-set visibility remains a compact way to declutter the page, and the generated batch builder keeps that toggle synchronized with the rest of the authored fields.",
      "Next",
      1,
      1},
     {TutorialStepKind::FileReview,
      "Review generated UI integration",
-     "When generated bindings are available the client can build higher-level commands instead of calling the low-level API directly.",
+     "The tutorial client should consume the generated bindings directly so higher-level commands stay aligned with the authored JSON.",
      "",
      "examples/client_tutorial/src/main.cpp",
      "#include \"mfd/control/CommandClient.h\"\n"
      "#include \"mfd/control/FeedbackTransport.h\"\n"
      "#include \"mfd/control/StrobeFeedback.h\"",
-     "#if __has_include(\"MfdTutorialMockupUi.h\")\n"
-     "#include \"MfdTutorialMockupUi.h\"\n"
-     "#define MFD_HAS_GENERATED_TUTORIAL_UI 1\n"
-     "using GeneratedTutorialUi = mockup_ui::MfdTutorialMockupUi;\n"
-     "#elif __has_include(\"TutorialUi.h\")\n"
      "#include \"TutorialUi.h\"\n"
-     "#define MFD_HAS_GENERATED_TUTORIAL_UI 1\n"
-     "using GeneratedTutorialUi = tutorial_ui::TutorialUi;\n"
-     "#else\n"
-     "#define MFD_HAS_GENERATED_TUTORIAL_UI 0\n"
-     "#endif",
-     "The generated API keeps page names, template names and field setters strongly typed, which reduces drift between authored JSON and client code.",
+     "\n"
+     "tutorial_ui::TutorialUi generatedUi;\n"
+     "auto& generatedDynamicTracks = generatedUi.Page1().Dynamic(kTrackTemplate);",
+     "The generated API keeps page names, template names and field setters strongly typed, which removes silent drift between the tutorial window JSON and client code.",
      "Next",
      1,
      1},

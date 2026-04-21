@@ -182,6 +182,8 @@ With `MFDStudio`, you can:
 
 - load a window and its pages from JSON
 - define reusable reticle templates from drawable primitives
+- assign one library reticle as a page-local strobe directly from the editor
+- choose source asset folders from guided editor popups instead of accidentally writing new JSON files under `_Exec`
 - activate pages and update page view state at runtime
 - patch static reticles or manage dynamic reticles in bulk
 - synchronize reticles through page-managed blink groups
@@ -574,12 +576,14 @@ Manual release is also available from the GitHub Actions UI.
 | `client_api` | Client-side helper library used by manual and generated clients. |
 | `client_api_generator` | CMake + Python generator for typed client UI wrappers. |
 | `mfd_window` | Generic window host application. |
-| `mfd_editor` | Visual authoring tool. |
+| `mfd_editor` | Visual authoring tool that starts empty and lets you open a chosen window asset or create assets on demand. |
 | `examples` | Demo launchers and sample clients. |
 | `assets/windows` | Root window JSON files. |
 | `assets/pages` | Page JSON files. |
 | `assets/reticles` | Reusable reticle templates. |
 | `docs` | Quick start, concepts, tutorials, and JSON reference. |
+
+Tutorial-generated example targets such as `client_tutorial` are only configured once the full tutorial asset set has been authored and saved under the repository `assets/` tree.
 
 ## Documentation
 

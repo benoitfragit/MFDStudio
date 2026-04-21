@@ -13,11 +13,8 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <chrono>
 #include <cstdio>
-#include <cstdlib>
 #include <fstream>
-#include <functional>
 #include <iterator>
 #include <limits>
 #include <optional>
@@ -48,13 +45,6 @@ constexpr std::array<std::string_view, 2> kTutorialRootTargetRegistrations {{
     "add_subdirectory(examples/mfd_tutorial)",
     "add_subdirectory(examples/client_tutorial)",
 }};
-
-struct TutorialBuildContext
-{
-    std::filesystem::path projectRoot;
-    std::filesystem::path buildDirectory;
-    std::string configuration;
-};
 
 std::string ToLowerAscii(std::string value)
 {
@@ -123,77 +113,6 @@ std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path
     return std::nullopt;
 }
 
-std::optional<std::filesystem::path> FindEnclosingBuildDirectory(const std::filesystem::path& start)
-{
-    std::filesystem::path current = std::filesystem::absolute(start);
-
-    while (true)
-    {
-        if (std::filesystem::exists(current / "CMakeCache.txt"))
-        {
-            return current;
-        }
-
-        if (current == current.root_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return std::nullopt;
-}
-
-std::optional<std::string> DetectBuildConfiguration(const std::filesystem::path& start)
-{
-    std::filesystem::path current = std::filesystem::absolute(start);
-
-    while (true)
-    {
-        const std::string component = ToLowerAscii(current.filename().string());
-        for (const std::string_view configuration : kBuildConfigurations)
-        {
-            if (component == ToLowerAscii(std::string(configuration)))
-            {
-                return std::string(configuration);
-            }
-        }
-
-        if (current == current.root_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return std::nullopt;
-}
-
-std::string DetectBuildPlatformHint(const std::filesystem::path& start)
-{
-    std::filesystem::path current = std::filesystem::absolute(start);
-
-    while (true)
-    {
-        const std::string component = ToLowerAscii(current.filename().string());
-        if (component == "x64" || component == "win32")
-        {
-            return component;
-        }
-
-        if (current == current.root_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return {};
-}
-
 std::vector<std::filesystem::path> EnumerateConfiguredBuildDirectories(const std::filesystem::path& projectRoot)
 {
     std::vector<std::filesystem::path> buildDirectories;
@@ -221,85 +140,30 @@ std::vector<std::filesystem::path> EnumerateConfiguredBuildDirectories(const std
     return buildDirectories;
 }
 
-std::optional<TutorialBuildContext> ResolveTutorialBuildContext(const std::filesystem::path& start)
-{
-    const auto projectRoot = FindProjectRoot(start);
-    if (!projectRoot.has_value())
-    {
-        return std::nullopt;
-    }
-
-    TutorialBuildContext context;
-    context.projectRoot = *projectRoot;
-    context.configuration = DetectBuildConfiguration(start).value_or("Debug");
-
-    if (const auto enclosingBuild = FindEnclosingBuildDirectory(start); enclosingBuild.has_value())
-    {
-        context.buildDirectory = *enclosingBuild;
-        return context;
-    }
-
-    const std::vector<std::filesystem::path> buildDirectories = EnumerateConfiguredBuildDirectories(*projectRoot);
-    if (buildDirectories.empty())
-    {
-        return std::nullopt;
-    }
-
-    const std::string platformHint = DetectBuildPlatformHint(start);
-    int bestScore = std::numeric_limits<int>::min();
-    for (const auto& candidate : buildDirectories)
-    {
-        int score = 0;
-        const std::string candidateLower = ToLowerAscii(candidate.string());
-        if (!platformHint.empty() && candidateLower.find(platformHint) != std::string::npos)
-        {
-            score += 4;
-        }
-        if (candidateLower.find("vs2022") != std::string::npos)
-        {
-            score += 1;
-        }
-
-        if (score > bestScore)
-        {
-            bestScore = score;
-            context.buildDirectory = candidate;
-        }
-    }
-
-    return context.buildDirectory.empty() ? std::nullopt : std::optional<TutorialBuildContext> {context};
-}
-
-std::string QuoteShellArgument(std::string_view value)
-{
-    std::string quoted;
-    quoted.reserve(value.size() + 2U);
-    quoted.push_back('"');
-    for (const char ch : value)
-    {
-        if (ch == '"')
-        {
-            quoted += "\\\"";
-        }
-        else
-        {
-            quoted.push_back(ch);
-        }
-    }
-    quoted.push_back('"');
-    return quoted;
-}
-
-std::string QuoteShellArgument(const std::filesystem::path& value)
-{
-    const std::string pathString = value.string();
-    return QuoteShellArgument(std::string_view {pathString.data(), pathString.size()});
-}
-
 void RemovePathQuietly(const std::filesystem::path& path)
 {
     std::error_code error;
     std::filesystem::remove_all(path, error);
+}
+
+void RemoveEmptyDirectoryChain(const std::filesystem::path& start, const std::filesystem::path& stopExclusive)
+{
+    std::error_code error;
+    std::filesystem::path current = start;
+    while (!current.empty() &&
+           current != stopExclusive &&
+           current.has_relative_path() &&
+           std::filesystem::exists(current, error) &&
+           std::filesystem::is_directory(current, error) &&
+           std::filesystem::is_empty(current, error))
+    {
+        std::filesystem::remove(current, error);
+        if (error)
+        {
+            return;
+        }
+        current = current.parent_path();
+    }
 }
 
 bool IsTutorialTargetRegistrationLine(std::string_view line) noexcept
@@ -478,49 +342,17 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
     }
 }
 
-std::pair<bool, std::string> BuildTutorialTargets(const TutorialBuildContext& context)
-{
-    EnsureTutorialTargetRegistration(context.projectRoot);
-
-    std::ostringstream configureCommand;
-    configureCommand << "cmake -S " << QuoteShellArgument(context.projectRoot)
-                     << " -B " << QuoteShellArgument(context.buildDirectory);
-
-    if (std::system(configureCommand.str().c_str()) != 0)
-    {
-        return {
-            false,
-            "Tutorial completed, but CMake reconfiguration failed for '" + context.buildDirectory.string() + "'."};
-    }
-
-    std::ostringstream buildCommand;
-    buildCommand << "cmake --build " << QuoteShellArgument(context.buildDirectory)
-                 << " --config " << context.configuration
-                 << " --target mfd_tutorial client_tutorial";
-
-    if (std::system(buildCommand.str().c_str()) != 0)
-    {
-        return {
-            false,
-            "Tutorial completed, but building 'mfd_tutorial' and 'client_tutorial' failed in '" +
-                context.buildDirectory.string() + "'."};
-    }
-
-    return {
-        true,
-        "Tutorial completed. Built 'mfd_tutorial' and 'client_tutorial' in configuration '" +
-            context.configuration + "'."};
-}
-
 void RemoveTutorialGeneratedSourceFiles(const std::filesystem::path& projectRoot)
 {
-    const std::array<std::filesystem::path, 10> generatedFiles {{
+    const std::array<std::filesystem::path, 12> generatedFiles {{
         projectRoot / "assets/windows/mfd_tutorial.json",
         projectRoot / "assets/pages/mfd_tutorial_page1.json",
         projectRoot / "assets/pages/mfd_tutorial_page2.json",
+        projectRoot / "assets/pages/mfd_tutor.json",
         projectRoot / "assets/reticles/mfd_tutorial_radar_track.json",
         projectRoot / "assets/reticles/mfd_tutorial_circle.json",
         projectRoot / "assets/reticles/mfd_tutorial_text.json",
+        projectRoot / "assets/reticles/mfd_tutorial_strobe_cursor.json",
         projectRoot / "examples/client_tutorial/generated/TutorialUi.h",
         projectRoot / "examples/client_tutorial/generated/TutorialUi.cpp",
         projectRoot / "examples/client_tutorial/generated/MfdTutorialMockupUi.h",
@@ -574,9 +406,11 @@ void RemoveTutorialStageArtifacts(const std::filesystem::path& projectRoot)
         "mfd_tutorial.json",
         "mfd_tutorial_page1.json",
         "mfd_tutorial_page2.json",
+        "mfd_tutor.json",
         "mfd_tutorial_radar_track.json",
         "mfd_tutorial_circle.json",
-        "mfd_tutorial_text.json"};
+        "mfd_tutorial_text.json",
+        "mfd_tutorial_strobe_cursor.json"};
 
     std::vector<std::filesystem::path> filesToRemove;
     for (const auto& entry : std::filesystem::recursive_directory_iterator(stageRoot))
@@ -596,6 +430,7 @@ void RemoveTutorialStageArtifacts(const std::filesystem::path& projectRoot)
     for (const auto& path : filesToRemove)
     {
         RemovePathQuietly(path);
+        RemoveEmptyDirectoryChain(path.parent_path(), stageRoot);
     }
 }
 
@@ -684,12 +519,6 @@ void EditorTutorialController::ResumeFromSavedProgress()
 
 void EditorTutorialController::RestartFromScratch()
 {
-    if (buildInProgress_)
-    {
-        app_.RebuildStatus("Tutorial reset is unavailable while the tutorial targets are still building.", true);
-        return;
-    }
-
     CleanupGeneratedFiles();
     bool reloadedDefaultWindow = true;
     const std::filesystem::path normalizedCurrentWindow = NormalizeAgainstWorkingDirectory(app_.windowFile_);
@@ -738,25 +567,14 @@ void EditorTutorialController::Finish()
     focusLayerId_.clear();
     showCoach_ = false;
     ClearProgress();
-    StartTargetBuild();
-}
-
-void EditorTutorialController::PollBuild()
-{
-    if (!buildInProgress_)
+    if (const auto projectRoot = FindProjectRoot(std::filesystem::current_path()); projectRoot.has_value())
     {
-        return;
+        EnsureTutorialTargetRegistration(*projectRoot);
     }
 
-    using namespace std::chrono_literals;
-    if (buildFuture_.wait_for(0ms) != std::future_status::ready)
-    {
-        return;
-    }
-
-    buildInProgress_ = false;
-    const TutorialBuildResult result = buildFuture_.get();
-    app_.RebuildStatus(result.message, !result.success);
+    app_.RebuildStatus(
+        "Tutorial completed. Reconfigure/rebuild the solution manually to generate and compile 'mfd_tutorial' and 'client_tutorial'.",
+        false);
 }
 
 void EditorTutorialController::DrawCoach()
@@ -973,36 +791,10 @@ void EditorTutorialController::AdvanceStep()
     SaveProgress();
 }
 
-void EditorTutorialController::StartTargetBuild()
-{
-    if (buildInProgress_)
-    {
-        return;
-    }
-
-    const auto buildContext = ResolveTutorialBuildContext(std::filesystem::current_path());
-    if (!buildContext.has_value())
-    {
-        app_.RebuildStatus(
-            "Tutorial completed, but no configured CMake build directory was found for automatic tutorial target builds.",
-            true);
-        return;
-    }
-
-    buildInProgress_ = true;
-    app_.RebuildStatus(
-        "Tutorial completed. Building 'mfd_tutorial' and 'client_tutorial' in '" +
-            buildContext->buildDirectory.string() + "'...",
-        false);
-    buildFuture_ = std::async(std::launch::async, [buildContext]()
-                              {
-                                  auto [success, message] = BuildTutorialTargets(*buildContext);
-                                  return TutorialBuildResult {success, std::move(message)};
-                              });
-}
-
 std::string_view EditorTutorialController::CurrentTargetId() const noexcept
 {
+    using editor::tutorial::TutorialStepId;
+
     if (!active_ ||
         stepIndex_ < kTutorialStepMin ||
         stepIndex_ >= editor::tutorial::StepCount())
@@ -1020,22 +812,28 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
 
     switch (stepIndex_)
     {
-    case 0:
+    case static_cast<int>(TutorialStepId::CreateWindow):
         return stepPhase_ == 0 ? "menu_file" : (stepPhase_ == 1 ? "menu_file_new_window" : "popup_window_create");
-    case 1:
-    case 2:
+    case static_cast<int>(TutorialStepId::CreateRadarTrackReticle):
+    case static_cast<int>(TutorialStepId::CreateCircleReticle):
         return stepPhase_ == 0 ? "menu_reticle" :
                                  (stepPhase_ == 1 ? "menu_reticle_new" : "popup_reticle_create");
-    case 3:
-    case 7:
+    case static_cast<int>(TutorialStepId::CreateStrobeCursorReticle):
+        return stepPhase_ == 0 ? "menu_reticle" :
+                                 (stepPhase_ == 1 ? "menu_reticle_new" :
+                                                    (stepPhase_ == 2 ? "popup_reticle_create" : "library_append_primitive"));
+    case static_cast<int>(TutorialStepId::CreatePage1):
+    case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "menu_page" : (stepPhase_ == 1 ? "menu_page_new" : "popup_page_create");
-    case 4:
+    case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
+        return "page_strobe_template";
+    case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
         return "library_add_to_page";
-    case 5:
+    case static_cast<int>(TutorialStepId::ClipCircleOutside):
         return stepPhase_ == 0 ? "page_preview_clip_source" : "context_clip_outer";
-    case 6:
+    case static_cast<int>(TutorialStepId::AddAndHideEditorLayer):
         return stepPhase_ == 0 ? "inspector_add_layer" : "inspector_layer_visibility";
-    case 8:
+    case static_cast<int>(TutorialStepId::SaveTutorialAssets):
         return stepPhase_ == 0 ? "menu_file" : "menu_file_save";
     default:
         return {};
@@ -1044,26 +842,34 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
 
 std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
 {
+    using editor::tutorial::TutorialStepId;
+
     switch (stepIndex_)
     {
-    case 0:
+    case static_cast<int>(TutorialStepId::CreateWindow):
         return stepPhase_ == 0 ? "Click File." :
                                  (stepPhase_ == 1 ? "Click New window from scratch." : "Click Create window.");
-    case 1:
-    case 2:
+    case static_cast<int>(TutorialStepId::CreateRadarTrackReticle):
+    case static_cast<int>(TutorialStepId::CreateCircleReticle):
         return stepPhase_ == 0 ? "Click Reticle." :
                                  (stepPhase_ == 1 ? "Click New library reticle from primitive." : "Click Create reticle.");
-    case 3:
-    case 7:
+    case static_cast<int>(TutorialStepId::CreateStrobeCursorReticle):
+        return stepPhase_ == 0 ? "Click Reticle." :
+                                 (stepPhase_ == 1 ? "Click New library reticle from primitive." :
+                                                    (stepPhase_ == 2 ? "Click Create reticle." : "Click Append primitive."));
+    case static_cast<int>(TutorialStepId::CreatePage1):
+    case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "Click Page." :
                                  (stepPhase_ == 1 ? "Click New page." : "Click Create page.");
-    case 4:
+    case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
+        return "Choose mfd_tutorial_strobe_cursor in Strobe template.";
+    case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
         return "Click Add to active page.";
-    case 5:
+    case static_cast<int>(TutorialStepId::ClipCircleOutside):
         return stepPhase_ == 0 ? "Right-click the circle reticle in the page preview." : "Click Clip outside.";
-    case 6:
+    case static_cast<int>(TutorialStepId::AddAndHideEditorLayer):
         return stepPhase_ == 0 ? "Click Add layer." : "Click Visible to hide the new layer.";
-    case 8:
+    case static_cast<int>(TutorialStepId::SaveTutorialAssets):
         return stepPhase_ == 0 ? "Click File." : "Click Save.";
     default:
         return {};

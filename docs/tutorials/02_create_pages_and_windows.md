@@ -28,7 +28,7 @@ flowchart TD
 You can create the same window shell directly in the editor UI before editing JSON manually:
 
 1. Open `mfd_editor`.
-2. Click **File > New window from scratch**.
+2. The editor starts empty. Use **File > Open window asset...** to browse an existing window JSON, or continue with **File > New window from scratch**.
 3. Set window file, size, position, font, default page, and UDP transports.
 4. Click **Create window**.
 5. Click **File > Save**.

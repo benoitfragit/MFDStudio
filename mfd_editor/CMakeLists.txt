@@ -5,6 +5,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialData.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorUiTheme.cpp)
@@ -12,6 +13,7 @@ set(MFD_EDITOR_SOURCES
 set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorApplication.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h)
@@ -27,6 +29,10 @@ target_link_libraries(mfd_editor
         mfd::api
         imgui
         rlimgui)
+
+if (WIN32)
+    target_link_libraries(mfd_editor PRIVATE Comdlg32)
+endif()
 
 set_target_properties(mfd_editor PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_editor>")
