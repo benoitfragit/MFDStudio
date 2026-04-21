@@ -42,5 +42,7 @@
 /.vs/*
 /_Exec/*
 /build/*
+/assets/windows/*.generated.map
 /examples/client_mockup/generated/*
 /examples/client_mockup_minimal/generated/*
+/examples/client_tutorial/generated/*

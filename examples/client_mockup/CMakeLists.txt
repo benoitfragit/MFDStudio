@@ -23,6 +23,7 @@ client_api_generate_ui(
     WINDOW_JSON "assets/windows/demo_pages.json"
     OUTPUT_HEADER "${MFD_MOCKUP_FULL_DEMO_HEADER}"
     OUTPUT_SOURCE "${MFD_MOCKUP_FULL_DEMO_SOURCE}"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/demo_pages.generated.map"
     NAMESPACE "full_demo_ui"
     UI_CLASS_NAME "FullDemoMockupUi"
     HEADER_INCLUDE "FullDemoMockupUi.h")
@@ -31,6 +32,7 @@ client_api_generate_ui(
     WINDOW_JSON "assets/windows/demo_pages_cockpit.json"
     OUTPUT_HEADER "${MFD_MOCKUP_COCKPIT_DEMO_HEADER}"
     OUTPUT_SOURCE "${MFD_MOCKUP_COCKPIT_DEMO_SOURCE}"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/demo_pages_cockpit.generated.map"
     NAMESPACE "cockpit_demo_ui"
     UI_CLASS_NAME "CockpitDemoMockupUi"
     HEADER_INCLUDE "CockpitDemoMockupUi.h")
@@ -39,6 +41,7 @@ client_api_generate_ui(
     WINDOW_JSON "assets/windows/demo_pages_minimal.json"
     OUTPUT_HEADER "${MFD_MOCKUP_MINIMAL_RADAR_HEADER}"
     OUTPUT_SOURCE "${MFD_MOCKUP_MINIMAL_RADAR_SOURCE}"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/demo_pages_minimal.generated.map"
     NAMESPACE "minimal_radar_ui"
     UI_CLASS_NAME "MinimalRadarMockupUi"
     HEADER_INCLUDE "MinimalRadarMockupUi.h")

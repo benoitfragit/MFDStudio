@@ -14,6 +14,7 @@ client_api_generate_ui(
     WINDOW_JSON "assets/windows/demo_pages_cockpit.json"
     OUTPUT_HEADER "${MFD_MOCKUP_MINIMAL_GENERATED_HEADER}"
     OUTPUT_SOURCE "${MFD_MOCKUP_MINIMAL_GENERATED_SOURCE}"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/demo_pages_cockpit.generated.map"
     NAMESPACE "mockup_ui"
     UI_CLASS_NAME "CockpitMockupUi"
     HEADER_INCLUDE "MockupUi.h")

@@ -182,6 +182,7 @@ client_api_generate_ui(
     WINDOW_JSON "assets/windows/demo_pages_cockpit.json"
     OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.h"
     OUTPUT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.cpp"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/demo_pages_cockpit.generated.map"
     NAMESPACE "mockup_ui"
     UI_CLASS_NAME "CockpitMockupUi"
     HEADER_INCLUDE "MockupUi.h")
@@ -211,23 +212,33 @@ if (!client.IsReady())
 mockup_ui::CockpitMockupUi ui;
 client.ActivatePage(mockup_ui::CockpitMockupPage::Name());
 
-// One generated dynamic set accessor, then one low-level send
-auto& contacts = ui.Cockpit().Dynamic("cockpit_radar_contact");
+auto& cockpit = ui.Cockpit();
+auto& contacts = cockpit.DynamicCockpitRadarContact();
 contacts.SetVisible(true);
 
-mfd::ReticlePatch patch;
-patch.visible = true;
-patch.text = std::string {"B21"};
-patch.position = mfd::Vec2 {0.15f, -0.10f};
-client.UpsertDynamicReticle("Cockpit", "contact_01", "cockpit_radar_contact", patch);
+auto& contact = contacts.Create();
+contact.SetVisible(true);
+contact.SetPosition({0.15f, -0.10f});
+contact.ContactLabel().SetText("B21");
+
+if (cockpit.strobe.IsValid())
+{
+    cockpit.strobe.SetActive(true);
+    cockpit.strobe.SetPosition({0.15f, -0.10f});
+}
+
+client.SendBatch(ui.BuildBatch());
 ```
 
 ### Step C - Know when to use generated UI vs low-level API
 
-- Use generated accessors for discoverability and safer page/reticle navigation.
-- Keep `CommandClient` calls for the final command emission.
-- For high-rate loops, keep batching (`SendBatch`, `UpsertDynamicReticles`) even
-  when your inputs come from generated helpers.
+- Use generated accessors for discoverability and safer page/reticle/primitive
+  navigation.
+- Let generated dynamic sets own the hidden runtime ids through `Create()` and
+  `Remove(...)`.
+- Keep `CommandClient` for the final send path.
+- For high-rate loops, prefer `BuildBatch()` or `BuildCommandBatch(sequence)`
+  after mutating the generated handles.
 
 ## Pattern 1 - Recreate The Targeted Connection
 
@@ -347,14 +358,39 @@ So if your own client exposes a strobe UI, copy the mockup behavior:
 
 ## Pattern 5 - Use Dynamic Reticles For Runtime-Owned Objects
 
-The `Dynamic reticle` panel shows the standard lifecycle:
+The manual `Dynamic reticle` panel in the mockup deliberately exposes the raw
+low-level lifecycle:
 
 1. choose a JSON-authored template
 2. choose a runtime id
 3. upsert with a patch
 4. remove later by id
 
-Minimal equivalent:
+That is useful for debugging because it lets an operator inspect the raw public
+commands directly.
+
+For normal generated client code, prefer the typed workflow instead:
+
+```cpp
+auto& tracks = ui.Radar().DynamicRadarTrack();
+auto& track = tracks.Create();
+
+track.SetVisible(true);
+track.SetPosition({-0.12f, 0.44f});
+track.SetColor({120, 255, 154, 255});
+track.TrackLabel().SetText("T42");
+
+client.SendBatch(ui.BuildBatch());
+
+tracks.Remove(track);
+client.SendBatch(ui.BuildBatch());
+```
+
+The generated set owns the hidden runtime identifier, so the application never
+has to invent or remember one.
+
+If you intentionally stay on the raw API, the equivalent low-level flow remains
+available:
 
 ```cpp
 mfd::ReticlePatch patch;
@@ -497,7 +533,13 @@ If you need to update one existing reticle:
 
 - use `UpdateReticle(page, reticle, patch)`
 
-If you need to create or update runtime-owned reticles:
+If you use generated UI wrappers for runtime-owned reticles:
+
+- keep the typed handle returned by `Create()`
+- mutate that handle directly
+- call `Remove(...)` when it disappears from your own domain model
+
+If you intentionally stay on the raw API:
 
 - use `UpsertDynamicReticle`
 - or `UpsertDynamicReticles` when there are many

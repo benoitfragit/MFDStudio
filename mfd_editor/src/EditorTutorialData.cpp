@@ -197,71 +197,72 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1},
     {TutorialStepKind::FileReview,
      "Review dynamic reticle creation",
-     "The client still builds one patch per track, but now maps it into the generated bindings instead of sending an untyped upsert directly.",
+     "The tutorial client now creates one generated dynamic handle per track and configures it through typed setters plus one authored primitive accessor.",
      "",
      "examples/client_tutorial/src/main.cpp",
-     "const std::string trackId = \"tutorial_track_\" + std::to_string(serial++);\n"
-     "mfd::ReticlePatch patch;\n"
-     "patch.position = mfd::Vec2 {axis(rng), axis(rng)};",
-     "const std::string trackId = \"tutorial_track_\" + std::to_string(serial++);\n"
-     "mfd::ReticlePatch patch;\n"
-     "patch.position = mfd::Vec2 {axis(rng), axis(rng)};\n"
-     "patch.color = mfd::ColorRgba {80, 255, 185, 255};\n"
-     "patch.thickness = 0.0038f;\n"
-     "patch.text = std::string(\"T\") + std::to_string(serial);\n"
-     "auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);\n"
-     "generatedTrack.SetPosition(*patch.position);\n"
-     "generatedTrack.SetColor(*patch.color);\n"
-     "generatedTrack.SetThickness(*patch.thickness);\n"
-     "generatedTrack.SetText(*patch.text);",
-     "The generated API still performs an upsert keyed by the runtime id, but it exposes typed setters anchored to the authored template fields.",
+     "const std::uint32_t trackSerial = serial++;\n"
+     "const mfd::Vec2 trackPosition {axis(rng), axis(rng)};",
+     "const std::uint32_t trackSerial = serial++;\n"
+     "const mfd::Vec2 trackPosition {axis(rng), axis(rng)};\n"
+     "const float trackSize = 0.18f + 0.01f * static_cast<float>(trackSerial % 3U);\n"
+     "\n"
+     "auto& generatedTrack = generatedDynamicTracks.Create();\n"
+     "generatedTrack.SetPosition(trackPosition);\n"
+     "generatedTrack.SetColor({80, 255, 185, 255});\n"
+     "generatedTrack.SetThickness(0.0038f);\n"
+     "generatedTrack.Primitive01().SetSize({trackSize, trackSize});\n"
+     "generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));",
+     "The generated set now owns the hidden runtime id. The tutorial only keeps the typed handle returned by `Create()` and drives the authored primitive through `Primitive01()`.",
      "Next",
      1,
      1},
     {TutorialStepKind::FileReview,
      "Review dynamic reticle removal",
-     "When the client reaches the maximum track count it removes the oldest track before adding a new one.",
+     "When the client reaches the maximum track count it removes the oldest generated handle before adding a new track.",
      "",
      "examples/client_tutorial/src/main.cpp",
-     "if (trackIds.size() >= kMaxTracks)\n"
+     "if (generatedTracks.size() >= kMaxTracks)\n"
      "{\n"
-     "    trackIds.erase(trackIds.begin());\n"
+     "    generatedTracks.erase(generatedTracks.begin());\n"
      "}",
-     "if (trackIds.size() >= kMaxTracks)\n"
+     "if (generatedTracks.size() >= kMaxTracks)\n"
      "{\n"
-     "    client.RemoveDynamicReticle(kPage1, trackIds.front());\n"
-     "    trackIds.erase(trackIds.begin());\n"
+     "    generatedDynamicTracks.Remove(*generatedTracks.front());\n"
+     "    generatedTracks.erase(generatedTracks.begin());\n"
      "}",
-     "The explicit remove call keeps the runtime scene bounded and shows how dynamic ids stay under client ownership.",
+     "The generated API still removes the runtime object explicitly, but the application never handles an MFD reticle id itself.",
      "Next",
      1,
      1},
     {TutorialStepKind::FileReview,
      "Review static reticle commands",
-     "Static reticles can still be animated from code without recreating them, which is useful for highlights, declutter and emphasis.",
+     "Static reticles are now addressed through generated page -> reticle -> primitive navigation instead of raw page/reticle strings.",
      "",
      "examples/client_tutorial/src/main.cpp",
      "// Page1 keeps its authored static reticles unchanged.",
-     "client.SetReticleColor(kPage1, \"mfd_tutorial_circle\", {0, 255, 0, 255});\n"
-     "client.SetReticlePosition(kPage1, \"mfd_tutorial_circle\", {0.0f, 0.0f});\n"
-     "client.SetReticleVisible(kPage1, \"mfd_tutorial_circle\", true);",
-     "These commands target one authored page reticle directly, which is different from dynamic reticles that are created from a template id plus a runtime-owned instance id.",
+     "page1Circle.SetVisible(true);\n"
+     "page1Circle.SetColor(\n"
+     "    generatedDeclutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});\n"
+     "page1Circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(generatedTracks.size() + 1U));\n"
+     "page1Circle.Primitive01().SetThickness(0.0045f);",
+     "The tutorial now animates one authored static reticle through generated accessors, which mirrors the target `page -> reticle -> primitive` navigation exactly.",
      "Next",
      1,
      1},
     {TutorialStepKind::FileReview,
      "Review dynamic reticle updates",
-     "Updating a dynamic reticle still reuses the same runtime id, but the changes are now expressed through the generated setter surface.",
+     "One generated dynamic handle can accumulate several field updates before the batch is emitted.",
      "",
      "examples/client_tutorial/src/main.cpp",
-     "auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);\n"
-     "generatedTrack.SetPosition(*patch.position);",
-     "auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);\n"
-     "generatedTrack.SetPosition({0.15f, -0.10f});\n"
-     "generatedTrack.SetColor({255, 196, 64, 255});\n"
-     "generatedTrack.SetThickness(*patch.thickness);\n"
-     "generatedTrack.SetText(*patch.text);",
-     "Re-using the same generated object preserves the logical identity of the track while still changing its appearance or position.",
+     "auto& generatedTrack = generatedDynamicTracks.Create();\n"
+     "generatedTrack.SetPosition(trackPosition);",
+     "auto& generatedTrack = generatedDynamicTracks.Create();\n"
+     "generatedTrack.SetPosition(trackPosition);\n"
+     "generatedTrack.SetColor({80, 255, 185, 255});\n"
+     "generatedTrack.SetThickness(0.0038f);\n"
+     "generatedTrack.Primitive01().SetSize({trackSize, trackSize});\n"
+     "generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));",
+     "Those typed setters build one coherent delta for the generated object before `BuildBatch()` serializes it.",
      "Next",
      1,
      1},
@@ -270,10 +271,10 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "Declutter is expressed as a visibility toggle on one dynamic template set so the client can hide or restore a whole family of tracks at once.",
      "",
      "examples/client_tutorial/src/main.cpp",
-     "auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);\n"
-     "generatedTrack.SetText(*patch.text);",
+     "auto& generatedTrack = generatedDynamicTracks.Create();\n"
+     "generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));",
      "bool generatedDeclutterVisible = true;\n"
-     "if ((serial % 5U) == 0U)\n"
+     "if ((trackSerial % 5U) == 0U)\n"
      "{\n"
      "    generatedDeclutterVisible = !generatedDeclutterVisible;\n"
      "}\n"
@@ -294,8 +295,11 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "#include \"TutorialUi.h\"\n"
      "\n"
      "tutorial_ui::TutorialUi generatedUi;\n"
-     "auto& generatedDynamicTracks = generatedUi.Page1().Dynamic(kTrackTemplate);",
-     "The generated API keeps page names, template names and field setters strongly typed, which removes silent drift between the tutorial window JSON and client code.",
+     "auto& page1 = generatedUi.Page1();\n"
+     "auto& generatedDynamicTracks = page1.DynamicMfdTutorialRadarTrack();\n"
+     "auto& page1Circle = page1.mfdTutorialCircle;\n"
+     "auto& page1Strobe = page1.strobe;",
+     "The generated API now exposes one typed dynamic accessor, one static reticle handle, and one generic page `strobe` handle without asking the user to manage ids.",
      "Next",
      1,
      1},

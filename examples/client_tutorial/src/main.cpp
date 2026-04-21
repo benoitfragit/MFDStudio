@@ -29,7 +29,6 @@ namespace
 constexpr std::string_view kWindowFile = "assets/windows/mfd_tutorial.json";
 constexpr std::string_view kPage1 = "Page1";
 constexpr std::string_view kPage2 = "Page2";
-constexpr std::string_view kTrackTemplate = "mfd_tutorial_radar_track";
 constexpr std::size_t kMaxTracks = 10;
 constexpr auto kTrackInterval = std::chrono::seconds(2);
 constexpr auto kPageSwitchInterval = std::chrono::seconds(30);
@@ -58,11 +57,13 @@ int mainImpl()
     std::mt19937 rng(42);
     std::uniform_real_distribution<float> axis(-0.85f, 0.85f);
 
-    std::vector<std::string> trackIds;
-    trackIds.reserve(kMaxTracks);
-
     tutorial_ui::TutorialUi generatedUi;
-    auto& generatedDynamicTracks = generatedUi.Page1().Dynamic(kTrackTemplate);
+    auto& page1 = generatedUi.Page1();
+    auto& generatedDynamicTracks = page1.DynamicMfdTutorialRadarTrack();
+    auto& page1Circle = page1.mfdTutorialCircle;
+    auto& page1Strobe = page1.strobe;
+    std::vector<tutorial_ui::MfdTutorialRadarTrackDynamicReticle*> generatedTracks;
+    generatedTracks.reserve(kMaxTracks);
     bool generatedDeclutterVisible = true;
 
     std::string activePage(kPage1);
@@ -85,39 +86,48 @@ int mainImpl()
 
         if (now >= nextTrackTime)
         {
-            if (trackIds.size() >= kMaxTracks)
+            if (generatedTracks.size() >= kMaxTracks)
             {
-                client.RemoveDynamicReticle(kPage1, trackIds.front());
-                trackIds.erase(trackIds.begin());
+                generatedDynamicTracks.Remove(*generatedTracks.front());
+                generatedTracks.erase(generatedTracks.begin());
             }
 
-            const std::string trackId = "tutorial_track_" + std::to_string(serial++);
-            mfd::ReticlePatch patch;
-            patch.position = mfd::Vec2 {axis(rng), axis(rng)};
-            patch.color = mfd::ColorRgba {80, 255, 185, 255};
-            patch.thickness = 0.0038f;
-            patch.text = std::string("T") + std::to_string(serial);
+            const std::uint32_t trackSerial = serial++;
+            const mfd::Vec2 trackPosition {axis(rng), axis(rng)};
+            const float trackSize = 0.18f + 0.01f * static_cast<float>(trackSerial % 3U);
 
-            auto& generatedTrack = generatedDynamicTracks.Upsert(trackId);
-            generatedTrack.SetPosition(*patch.position);
-            generatedTrack.SetColor(*patch.color);
-            generatedTrack.SetThickness(*patch.thickness);
-            generatedTrack.SetText(*patch.text);
-            if ((serial % 5U) == 0U)
+            auto& generatedTrack = generatedDynamicTracks.Create();
+            generatedTrack.SetPosition(trackPosition);
+            generatedTrack.SetColor({80, 255, 185, 255});
+            generatedTrack.SetThickness(0.0038f);
+            generatedTrack.Primitive01().SetSize({trackSize, trackSize});
+            generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));
+
+            if ((trackSerial % 5U) == 0U)
             {
                 generatedDeclutterVisible = !generatedDeclutterVisible;
             }
+
             generatedDynamicTracks.SetVisible(generatedDeclutterVisible);
+
+            page1Circle.SetVisible(true);
+            page1Circle.SetColor(
+                generatedDeclutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});
+            page1Circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(generatedTracks.size() + 1U));
+            page1Circle.Primitive01().SetThickness(0.0045f);
+
+            if (page1Strobe.IsValid())
+            {
+                page1Strobe.SetActive(true);
+                page1Strobe.SetPosition(trackPosition);
+            }
+
             const auto commands = generatedUi.BuildBatch();
             if (!commands.empty())
             {
                 client.SendBatch(commands);
             }
-            trackIds.push_back(trackId);
-
-            // Tutorial strobe behavior: move strobe to each new track.
-            client.SetStrobeActive(kPage1, true);
-            client.SetStrobePosition(kPage1, *patch.position);
+            generatedTracks.push_back(&generatedTrack);
 
             nextTrackTime += kTrackInterval;
         }

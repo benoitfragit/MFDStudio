@@ -41,6 +41,7 @@ client_api_generate_ui(
     WINDOW_JSON "${MFD_CLIENT_TUTORIAL_WINDOW_JSON}"
     OUTPUT_HEADER "${MFD_CLIENT_TUTORIAL_GENERATED_HEADER}"
     OUTPUT_SOURCE "${MFD_CLIENT_TUTORIAL_GENERATED_SOURCE}"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/mfd_tutorial.generated.map"
     NAMESPACE "tutorial_ui"
     UI_CLASS_NAME "TutorialUi"
     HEADER_INCLUDE "TutorialUi.h")
