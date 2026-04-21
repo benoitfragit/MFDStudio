@@ -134,6 +134,11 @@ The callback receives:
 - `height`
 - `mfd::ByteView` over the same `RGBA32` data
 
+When the runtime is hosted on a compatible desktop OpenGL backend, the launcher
+tries to keep this callback fed from an asynchronous PBO readback path. If the
+required entry points are not available, it falls back to the synchronous
+`OpenGlFramebufferReader` path automatically.
+
 Copy the byte span inside the callback if another system needs to keep it after
 the function returns.
 

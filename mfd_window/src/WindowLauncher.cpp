@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -28,6 +29,26 @@
 #include <thread>
 #include <utility>
 #include <vector>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef NOUSER
+#define NOUSER
+#endif
+#ifndef NOGDI
+#define NOGDI
+#endif
+#include <windows.h>
+#ifndef APIENTRY
+#define APIENTRY WINAPI
+#endif
+extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* name);
+#endif
 
 #include <raylib.h>
 #include <rlgl.h>
@@ -44,25 +65,291 @@
 extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 #endif
 
-// NOTE:
-// CI Visual Studio builds can expose a raylib graphics backend where low-level
-// OpenGL PBO/sync symbols (GLsync, glBindBuffer, glFenceSync, etc.) are not
-// declared at compile time. To keep builds portable/reliable, keep async PBO
-// capture disabled and use the synchronous framebuffer fallback path.
-#define MFD_HAS_GL_PBO_API 0
-
 namespace
 {
 constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
 constexpr unsigned int kCaptureRingSize = 2;
 constexpr std::size_t kMaxCommandsPerFrame = 512;
+using GlSyncHandle = void*;
+
+#if defined(_WIN32)
+using GLenum = unsigned int;
+using GLuint = unsigned int;
+using GLsizei = int;
+using GLbitfield = unsigned int;
+using GLboolean = unsigned char;
+
+#ifndef GL_TRUE
+#define GL_TRUE 1
+#endif
+#ifndef GL_RGBA
+#define GL_RGBA 0x1908
+#endif
+#ifndef GL_UNSIGNED_BYTE
+#define GL_UNSIGNED_BYTE 0x1401
+#endif
+#ifndef GL_PIXEL_PACK_BUFFER
+#define GL_PIXEL_PACK_BUFFER 0x88EB
+#endif
+#ifndef GL_STREAM_READ
+#define GL_STREAM_READ 0x88E1
+#endif
+#ifndef GL_READ_ONLY
+#define GL_READ_ONLY 0x88B8
+#endif
+#ifndef GL_SYNC_GPU_COMMANDS_COMPLETE
+#define GL_SYNC_GPU_COMMANDS_COMPLETE 0x9117
+#endif
+#ifndef GL_ALREADY_SIGNALED
+#define GL_ALREADY_SIGNALED 0x911A
+#endif
+#ifndef GL_CONDITION_SATISFIED
+#define GL_CONDITION_SATISFIED 0x911C
+#endif
+#endif
+
+class PboReadbackApi
+{
+public:
+    PboReadbackApi() noexcept;
+
+    static const PboReadbackApi& Instance() noexcept
+    {
+        static const PboReadbackApi api;
+        return api;
+    }
+
+    [[nodiscard]] bool Available() const noexcept;
+    void GenBuffers(int count, unsigned int* buffers) const noexcept;
+    void DeleteBuffers(int count, const unsigned int* buffers) const noexcept;
+    void BindPixelPackBuffer(unsigned int bufferId) const noexcept;
+    void AllocatePixelPackBuffer(std::size_t sizeInBytes) const noexcept;
+    void ReadPixelsRgba32(int width, int height) const noexcept;
+    [[nodiscard]] void* MapPixelPackBufferReadOnly() const noexcept;
+    [[nodiscard]] bool UnmapPixelPackBuffer() const noexcept;
+    [[nodiscard]] GlSyncHandle CreateFence() const noexcept;
+    [[nodiscard]] bool IsFenceReady(GlSyncHandle fence) const noexcept;
+    void DeleteFence(GlSyncHandle fence) const noexcept;
+
+private:
+#if defined(_WIN32)
+    using GlGenBuffersProc = void(APIENTRY*)(GLsizei, GLuint*);
+    using GlDeleteBuffersProc = void(APIENTRY*)(GLsizei, const GLuint*);
+    using GlBindBufferProc = void(APIENTRY*)(GLenum, GLuint);
+    using GlBufferDataProc = void(APIENTRY*)(GLenum, std::ptrdiff_t, const void*, GLenum);
+    using GlReadPixelsProc = void(APIENTRY*)(int, int, int, int, GLenum, GLenum, const void*);
+    using GlMapBufferProc = void*(APIENTRY*)(GLenum, GLenum);
+    using GlUnmapBufferProc = GLboolean(APIENTRY*)(GLenum);
+    using GlFenceSyncProc = GlSyncHandle(APIENTRY*)(GLenum, GLbitfield);
+    using GlClientWaitSyncProc = GLenum(APIENTRY*)(GlSyncHandle, GLbitfield, std::uint64_t);
+    using GlDeleteSyncProc = void(APIENTRY*)(GlSyncHandle);
+
+    GlGenBuffersProc genBuffers_ = nullptr;
+    GlDeleteBuffersProc deleteBuffers_ = nullptr;
+    GlBindBufferProc bindBuffer_ = nullptr;
+    GlBufferDataProc bufferData_ = nullptr;
+    GlReadPixelsProc readPixels_ = nullptr;
+    GlMapBufferProc mapBuffer_ = nullptr;
+    GlUnmapBufferProc unmapBuffer_ = nullptr;
+    GlFenceSyncProc fenceSync_ = nullptr;
+    GlClientWaitSyncProc clientWaitSync_ = nullptr;
+    GlDeleteSyncProc deleteSync_ = nullptr;
+#endif
+};
+
+#if defined(_WIN32)
+void* LoadGlProcAddress(const char* name) noexcept
+{
+    void* address = reinterpret_cast<void*>(wglGetProcAddress(name));
+    if (address != nullptr &&
+        address != reinterpret_cast<void*>(0x1) &&
+        address != reinterpret_cast<void*>(0x2) &&
+        address != reinterpret_cast<void*>(0x3) &&
+        address != reinterpret_cast<void*>(-1))
+    {
+        return address;
+    }
+
+    static HMODULE openglModule = GetModuleHandleA("opengl32.dll");
+    return openglModule == nullptr ? nullptr : reinterpret_cast<void*>(GetProcAddress(openglModule, name));
+}
+
+void* LoadFirstGlProcAddress(const std::initializer_list<const char*> names) noexcept
+{
+    for (const char* name : names)
+    {
+        if (void* address = LoadGlProcAddress(name); address != nullptr)
+        {
+            return address;
+        }
+    }
+
+    return nullptr;
+}
+#endif
+
+PboReadbackApi::PboReadbackApi() noexcept
+{
+#if defined(_WIN32)
+    genBuffers_ = reinterpret_cast<GlGenBuffersProc>(LoadFirstGlProcAddress({"glGenBuffers", "glGenBuffersARB"}));
+    deleteBuffers_ =
+        reinterpret_cast<GlDeleteBuffersProc>(LoadFirstGlProcAddress({"glDeleteBuffers", "glDeleteBuffersARB"}));
+    bindBuffer_ = reinterpret_cast<GlBindBufferProc>(LoadFirstGlProcAddress({"glBindBuffer", "glBindBufferARB"}));
+    bufferData_ = reinterpret_cast<GlBufferDataProc>(LoadFirstGlProcAddress({"glBufferData", "glBufferDataARB"}));
+    readPixels_ = reinterpret_cast<GlReadPixelsProc>(LoadGlProcAddress("glReadPixels"));
+    mapBuffer_ = reinterpret_cast<GlMapBufferProc>(LoadFirstGlProcAddress({"glMapBuffer", "glMapBufferARB"}));
+    unmapBuffer_ = reinterpret_cast<GlUnmapBufferProc>(LoadFirstGlProcAddress({"glUnmapBuffer", "glUnmapBufferARB"}));
+    fenceSync_ = reinterpret_cast<GlFenceSyncProc>(LoadGlProcAddress("glFenceSync"));
+    clientWaitSync_ = reinterpret_cast<GlClientWaitSyncProc>(LoadGlProcAddress("glClientWaitSync"));
+    deleteSync_ = reinterpret_cast<GlDeleteSyncProc>(LoadGlProcAddress("glDeleteSync"));
+#endif
+}
+
+bool PboReadbackApi::Available() const noexcept
+{
+#if defined(_WIN32)
+    return genBuffers_ != nullptr &&
+           deleteBuffers_ != nullptr &&
+           bindBuffer_ != nullptr &&
+           bufferData_ != nullptr &&
+           readPixels_ != nullptr &&
+           mapBuffer_ != nullptr &&
+           unmapBuffer_ != nullptr &&
+           fenceSync_ != nullptr &&
+           clientWaitSync_ != nullptr &&
+           deleteSync_ != nullptr;
+#else
+    return false;
+#endif
+}
+
+void PboReadbackApi::GenBuffers(const int count, unsigned int* buffers) const noexcept
+{
+#if defined(_WIN32)
+    if (genBuffers_ != nullptr && count > 0 && buffers != nullptr)
+    {
+        genBuffers_(static_cast<GLsizei>(count), reinterpret_cast<GLuint*>(buffers));
+    }
+#else
+    (void)count;
+    (void)buffers;
+#endif
+}
+
+void PboReadbackApi::DeleteBuffers(const int count, const unsigned int* buffers) const noexcept
+{
+#if defined(_WIN32)
+    if (deleteBuffers_ != nullptr && count > 0 && buffers != nullptr)
+    {
+        deleteBuffers_(static_cast<GLsizei>(count), reinterpret_cast<const GLuint*>(buffers));
+    }
+#else
+    (void)count;
+    (void)buffers;
+#endif
+}
+
+void PboReadbackApi::BindPixelPackBuffer(const unsigned int bufferId) const noexcept
+{
+#if defined(_WIN32)
+    if (bindBuffer_ != nullptr)
+    {
+        bindBuffer_(GL_PIXEL_PACK_BUFFER, static_cast<GLuint>(bufferId));
+    }
+#else
+    (void)bufferId;
+#endif
+}
+
+void PboReadbackApi::AllocatePixelPackBuffer(const std::size_t sizeInBytes) const noexcept
+{
+#if defined(_WIN32)
+    if (bufferData_ != nullptr)
+    {
+        bufferData_(GL_PIXEL_PACK_BUFFER, static_cast<std::ptrdiff_t>(sizeInBytes), nullptr, GL_STREAM_READ);
+    }
+#else
+    (void)sizeInBytes;
+#endif
+}
+
+void PboReadbackApi::ReadPixelsRgba32(const int width, const int height) const noexcept
+{
+#if defined(_WIN32)
+    if (readPixels_ != nullptr)
+    {
+        readPixels_(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
+#else
+    (void)width;
+    (void)height;
+#endif
+}
+
+void* PboReadbackApi::MapPixelPackBufferReadOnly() const noexcept
+{
+#if defined(_WIN32)
+    return mapBuffer_ == nullptr ? nullptr : mapBuffer_(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+#else
+    return nullptr;
+#endif
+}
+
+bool PboReadbackApi::UnmapPixelPackBuffer() const noexcept
+{
+#if defined(_WIN32)
+    return unmapBuffer_ != nullptr && unmapBuffer_(GL_PIXEL_PACK_BUFFER) == GL_TRUE;
+#else
+    return false;
+#endif
+}
+
+GlSyncHandle PboReadbackApi::CreateFence() const noexcept
+{
+#if defined(_WIN32)
+    return fenceSync_ == nullptr ? nullptr : fenceSync_(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+#else
+    return nullptr;
+#endif
+}
+
+bool PboReadbackApi::IsFenceReady(const GlSyncHandle fence) const noexcept
+{
+#if defined(_WIN32)
+    if (clientWaitSync_ == nullptr || fence == nullptr)
+    {
+        return false;
+    }
+
+    const GLenum waitResult = clientWaitSync_(fence, 0, 0);
+    return waitResult == GL_ALREADY_SIGNALED || waitResult == GL_CONDITION_SATISFIED;
+#else
+    (void)fence;
+    return false;
+#endif
+}
+
+void PboReadbackApi::DeleteFence(const GlSyncHandle fence) const noexcept
+{
+#if defined(_WIN32)
+    if (deleteSync_ != nullptr && fence != nullptr)
+    {
+        deleteSync_(fence);
+    }
+#else
+    (void)fence;
+#endif
+}
 
 class AsyncFramebufferCapture
 {
 public:
     ~AsyncFramebufferCapture()
     {
-        Release();
+        if (IsWindowReady())
+        {
+            Release();
+        }
     }
 
     [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> Capture()
@@ -77,27 +364,38 @@ public:
         if (!pboSupportChecked_)
         {
             pboSupportChecked_ = true;
-            pboAvailable_ = (MFD_HAS_GL_PBO_API == 1) && (rlGetVersion() >= RL_OPENGL_33);
+            pboAvailable_ = (rlGetVersion() >= RL_OPENGL_33) && PboReadbackApi::Instance().Available();
+        }
+
+        if (!pboAvailable_)
+        {
+            return CaptureSynchronously();
         }
 
         if (!EnsureResources(renderWidth, renderHeight))
         {
-            pboAvailable_ = false;
-            latestFramebuffer_ = mfd::OpenGlFramebufferReader::ReadRgba32();
-            hasLatestFramebuffer_ = !latestFramebuffer_.Empty();
-            return latestFramebuffer_;
+            DisablePbo();
+            return CaptureSynchronously();
         }
 
         rlDrawRenderBatchActive();
 
         const unsigned int writeIndex = frameIndex_ % kCaptureRingSize;
-        SubmitReadback(writeIndex, renderWidth, renderHeight);
+        if (!SubmitReadback(writeIndex, renderWidth, renderHeight))
+        {
+            DisablePbo();
+            return CaptureSynchronously();
+        }
 
         std::optional<mfd::Rgba32Framebuffer> readyFrame;
         if (frameIndex_ + 1 >= kCaptureRingSize)
         {
             const unsigned int readIndex = (frameIndex_ + 1) % kCaptureRingSize;
             readyFrame = TryConsume(readIndex);
+            if (!pboAvailable_)
+            {
+                return CaptureSynchronously();
+            }
         }
 
         ++frameIndex_;
@@ -122,9 +420,23 @@ private:
         std::size_t capacityBytes = 0;
         int width = 0;
         int height = 0;
-    #if MFD_HAS_GL_PBO_API == 1
-        GLsync fence = nullptr;
-    #endif
+        GlSyncHandle fence = nullptr;
+
+        void ReleaseFence(const PboReadbackApi& api) noexcept
+        {
+            if (fence != nullptr)
+            {
+                api.DeleteFence(fence);
+                fence = nullptr;
+            }
+        }
+
+        void ResetMetadata() noexcept
+        {
+            capacityBytes = 0;
+            width = 0;
+            height = 0;
+        }
     };
 
     static void FlipRows(std::vector<mfd::Rgba8Pixel>& pixels, const int width, const int height)
@@ -147,18 +459,27 @@ private:
         }
     }
 
+    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> CaptureSynchronously()
+    {
+        latestFramebuffer_ = mfd::OpenGlFramebufferReader::ReadRgba32();
+        hasLatestFramebuffer_ = !latestFramebuffer_.Empty();
+        return latestFramebuffer_;
+    }
+
+    void DisablePbo() noexcept
+    {
+        Release();
+        pboAvailable_ = false;
+    }
+
     bool EnsureResources(const int width, const int height)
     {
-#if MFD_HAS_GL_PBO_API == 0
-        (void) width;
-        (void) height;
-        return false;
-#else
         if (!pboAvailable_)
         {
             return false;
         }
 
+        const PboReadbackApi& api = PboReadbackApi::Instance();
         const std::size_t requiredBytes =
             static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * sizeof(mfd::Rgba8Pixel);
         if (requiredBytes == 0)
@@ -170,7 +491,7 @@ private:
         {
             for (CaptureSlot& slot : slots_)
             {
-                glGenBuffers(1, &slot.pboId);
+                api.GenBuffers(1, &slot.pboId);
                 if (slot.pboId == 0)
                 {
                     Release();
@@ -188,75 +509,57 @@ private:
                 continue;
             }
 
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, slot.pboId);
-            glBufferData(GL_PIXEL_PACK_BUFFER, static_cast<GLsizeiptr>(requiredBytes), nullptr, GL_STREAM_READ);
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+            slot.ReleaseFence(api);
+            api.BindPixelPackBuffer(slot.pboId);
+            api.AllocatePixelPackBuffer(requiredBytes);
+            api.BindPixelPackBuffer(0);
             slot.capacityBytes = requiredBytes;
             slot.width = width;
             slot.height = height;
         }
 
         return true;
-#endif
     }
 
-    void SubmitReadback(const unsigned int slotIndex, const int width, const int height)
+    bool SubmitReadback(const unsigned int slotIndex, const int width, const int height)
     {
-#if MFD_HAS_GL_PBO_API == 0
-        (void) slotIndex;
-        (void) width;
-        (void) height;
-        return;
-#else
+        const PboReadbackApi& api = PboReadbackApi::Instance();
         CaptureSlot& slot = slots_[slotIndex];
-    #if MFD_HAS_GL_PBO_API == 1
-        if (slot.fence != nullptr)
+        if (slot.pboId == 0 || slot.capacityBytes == 0 || slot.width != width || slot.height != height)
         {
-            glDeleteSync(slot.fence);
-            slot.fence = nullptr;
+            return false;
         }
-    #endif
 
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, slot.pboId);
-        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+        slot.ReleaseFence(api);
+        api.BindPixelPackBuffer(slot.pboId);
+        api.ReadPixelsRgba32(width, height);
+        api.BindPixelPackBuffer(0);
 
-    #if MFD_HAS_GL_PBO_API == 1
-        slot.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-    #endif
-#endif
+        slot.fence = api.CreateFence();
+        return slot.fence != nullptr;
     }
 
     [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> TryConsume(const unsigned int slotIndex)
     {
-#if MFD_HAS_GL_PBO_API == 0
-        (void) slotIndex;
-        return std::nullopt;
-#else
+        const PboReadbackApi& api = PboReadbackApi::Instance();
         CaptureSlot& slot = slots_[slotIndex];
-        if (slot.pboId == 0 || slot.capacityBytes == 0)
+        if (slot.pboId == 0 || slot.capacityBytes == 0 || slot.fence == nullptr)
         {
             return std::nullopt;
         }
 
-    #if MFD_HAS_GL_PBO_API == 1
-        if (slot.fence == nullptr)
+        if (!api.IsFenceReady(slot.fence))
         {
             return std::nullopt;
         }
 
-        const GLenum waitResult = glClientWaitSync(slot.fence, 0, 0);
-        if (waitResult != GL_ALREADY_SIGNALED && waitResult != GL_CONDITION_SATISFIED)
-        {
-            return std::nullopt;
-        }
-    #endif
-
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, slot.pboId);
-        void* mappedBuffer = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+        api.BindPixelPackBuffer(slot.pboId);
+        void* mappedBuffer = api.MapPixelPackBufferReadOnly();
         if (mappedBuffer == nullptr)
         {
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+            api.BindPixelPackBuffer(0);
+            slot.ReleaseFence(api);
+            DisablePbo();
             return std::nullopt;
         }
 
@@ -264,49 +567,37 @@ private:
         latestFramebuffer_.height = slot.height;
         latestFramebuffer_.pixels.resize(static_cast<std::size_t>(slot.width) * static_cast<std::size_t>(slot.height));
         std::memcpy(latestFramebuffer_.pixels.data(), mappedBuffer, slot.capacityBytes);
-        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
-    #if MFD_HAS_GL_PBO_API == 1
-        glDeleteSync(slot.fence);
-        slot.fence = nullptr;
-    #endif
+        const bool unmapSucceeded = api.UnmapPixelPackBuffer();
+        api.BindPixelPackBuffer(0);
+        slot.ReleaseFence(api);
+        if (!unmapSucceeded)
+        {
+            DisablePbo();
+            return std::nullopt;
+        }
 
         FlipRows(latestFramebuffer_.pixels, latestFramebuffer_.width, latestFramebuffer_.height);
         return latestFramebuffer_;
-#endif
     }
 
-    void Release()
+    void Release() noexcept
     {
-#if MFD_HAS_GL_PBO_API == 0
-        initialized_ = false;
-        frameIndex_ = 0;
-        return;
-#else
+        const PboReadbackApi& api = PboReadbackApi::Instance();
         for (CaptureSlot& slot : slots_)
         {
-    #if MFD_HAS_GL_PBO_API == 1
-            if (slot.fence != nullptr)
-            {
-                glDeleteSync(slot.fence);
-                slot.fence = nullptr;
-            }
-    #endif
+            slot.ReleaseFence(api);
             if (slot.pboId != 0)
             {
-                glDeleteBuffers(1, &slot.pboId);
+                api.DeleteBuffers(1, &slot.pboId);
                 slot.pboId = 0;
             }
 
-            slot.capacityBytes = 0;
-            slot.width = 0;
-            slot.height = 0;
+            slot.ResetMetadata();
         }
 
         initialized_ = false;
         frameIndex_ = 0;
-#endif
     }
 
     std::array<CaptureSlot, kCaptureRingSize> slots_ {};

@@ -498,7 +498,10 @@ The returned buffer exposes:
 - `Bytes()`
 
 If you host a window through `mfd::window::RunLauncher`, you can also attach a
-callback that receives the final byte span every frame. See:
+callback that receives the final byte span every frame. The launcher uses an
+asynchronous PBO readback path when the active desktop OpenGL backend exposes
+the required buffer and sync entry points, and falls back to synchronous
+`OpenGlFramebufferReader` capture otherwise. See:
 
 - [Capture The Window As RGBA32](./docs/tutorials/07_framebuffer_rgba32_capture.md)
 

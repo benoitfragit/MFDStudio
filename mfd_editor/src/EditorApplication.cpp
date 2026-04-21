@@ -471,9 +471,9 @@ void RemoveTutorialTargetRegistration(const std::filesystem::path& projectRoot)
         return;
     }
 
-    const std::string content(
+    const std::string content {
         std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>());
+        std::istreambuf_iterator<char>()};
     if (content.empty())
     {
         return;
@@ -540,9 +540,9 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
         return;
     }
 
-    const std::string content(
+    const std::string content {
         std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>());
+        std::istreambuf_iterator<char>()};
     if (content.empty())
     {
         return;
