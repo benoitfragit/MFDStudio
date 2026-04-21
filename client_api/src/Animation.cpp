@@ -1011,9 +1011,216 @@ void DynamicReticle::SetLetterSpacing(const std::string_view primitiveId, const 
     PatchSetLetterSpacing(desiredPatch_, primitiveId, letterSpacing);
 }
 
+mfd::ReticlePatch& DynamicReticle::MutableDesiredPatch() noexcept
+{
+    return desiredPatch_;
+}
+
+bool* DynamicReticle::DirtyFlag() noexcept
+{
+    return &dirty_;
+}
+
+std::unordered_map<std::string, mfd::TransportId>* DynamicReticle::PrimitiveTransportIds() noexcept
+{
+    return &primitiveTransportIds_;
+}
+
 const mfd::ReticlePatch& DynamicReticle::DesiredPatch() const noexcept
 {
     return desiredPatch_;
+}
+
+void DynamicReticle::PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch) const
+{
+    for (const auto& [primitiveId, text] : patch.texts)
+    {
+        const auto iterator = primitiveTransportIds_.find(primitiveId);
+        if (iterator != primitiveTransportIds_.end())
+        {
+            patch.textsById.emplace(iterator->second, text);
+        }
+    }
+
+    for (const auto& [primitiveId, letterSpacing] : patch.letterSpacings)
+    {
+        const auto iterator = primitiveTransportIds_.find(primitiveId);
+        if (iterator != primitiveTransportIds_.end())
+        {
+            patch.letterSpacingsById.emplace(iterator->second, letterSpacing);
+        }
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
+    {
+        const auto iterator = primitiveTransportIds_.find(primitiveId);
+        if (iterator != primitiveTransportIds_.end())
+        {
+            patch.primitivePatchesById.emplace(iterator->second, primitivePatch);
+        }
+    }
+}
+
+GeneratedDynamicReticleSet::GeneratedDynamicReticleSet(const std::string_view pageName,
+                                                       const std::string_view templateId,
+                                                       const mfd::TransportId pageTransportId,
+                                                       const mfd::TransportId templateTransportId) :
+    pageName_(pageName),
+    templateId_(templateId),
+    pageTransportId_(pageTransportId),
+    templateTransportId_(templateTransportId)
+{
+}
+
+void GeneratedDynamicReticleSet::Reset() noexcept
+{
+    for (DynamicEntry& entry : reticles_)
+    {
+        entry.reticle->Reset();
+    }
+}
+
+void GeneratedDynamicReticleSet::SetVisible(const bool visible)
+{
+    desiredVisible_ = visible;
+    visibilityDirty_ = true;
+}
+
+DynamicReticle& GeneratedDynamicReticleSet::Create()
+{
+    DynamicEntry entry;
+    entry.reticle = CreateReticle(NextReticleId());
+    reticles_.push_back(std::move(entry));
+    return *reticles_.back().reticle;
+}
+
+void GeneratedDynamicReticleSet::Remove(DynamicReticle& reticle)
+{
+    if (DynamicEntry* entry = FindEntry(reticle); entry != nullptr)
+    {
+        entry->removeRequested = true;
+    }
+}
+
+std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& commands)
+{
+    std::vector<mfd::DynamicReticleState> updates;
+    updates.reserve(reticles_.size());
+    std::size_t count = 0;
+
+    if (visibilityDirty_ && desiredVisible_ != lastSentVisible_)
+    {
+        mfd::SetDynamicReticleSetVisibilityCommand command;
+        command.page = pageName_;
+        command.pageId = pageTransportId_;
+        command.templateId = templateId_;
+        command.templateTransportId = templateTransportId_;
+        command.visible = desiredVisible_;
+        commands.emplace_back(std::move(command));
+        lastSentVisible_ = desiredVisible_;
+        ++count;
+    }
+
+    for (DynamicEntry& entry : reticles_)
+    {
+        DynamicReticle& reticle = *entry.reticle;
+
+        if (entry.removeRequested)
+        {
+            if (reticle.published_)
+            {
+                commands.emplace_back(mfd::RemoveDynamicReticleCommand {
+                    mfd::ReticleHandle {pageName_, reticle.reticleId_, pageTransportId_, 0}});
+                reticle.published_ = false;
+                ++count;
+            }
+            continue;
+        }
+
+        if (!reticle.published_)
+        {
+            mfd::ReticlePatch patch = reticle.desiredPatch_;
+            reticle.PopulateGeneratedIdentifiers(patch);
+            updates.push_back(mfd::DynamicReticleState {reticle.reticleId_, std::move(patch)});
+            reticle.lastSentPatch_ = reticle.desiredPatch_;
+            reticle.published_ = true;
+            ++count;
+            continue;
+        }
+
+        if (!Equal(reticle.desiredPatch_, reticle.lastSentPatch_))
+        {
+            mfd::ReticlePatch patch = BuildDeltaPatch(reticle.desiredPatch_, reticle.lastSentPatch_);
+            reticle.PopulateGeneratedIdentifiers(patch);
+            updates.push_back(mfd::DynamicReticleState {reticle.reticleId_, std::move(patch)});
+            reticle.lastSentPatch_ = reticle.desiredPatch_;
+            ++count;
+        }
+    }
+
+    if (!updates.empty())
+    {
+        mfd::UpsertDynamicReticlesCommand command;
+        command.page = pageName_;
+        command.pageId = pageTransportId_;
+        command.templateId = templateId_;
+        command.templateTransportId = templateTransportId_;
+        command.reticles = std::move(updates);
+        commands.emplace_back(std::move(command));
+    }
+
+    visibilityDirty_ = false;
+
+    reticles_.erase(
+        std::remove_if(
+            reticles_.begin(),
+            reticles_.end(),
+            [](const DynamicEntry& entry)
+            {
+                return entry.removeRequested;
+            }),
+        reticles_.end());
+
+    return count;
+}
+
+std::size_t GeneratedDynamicReticleSet::AppendRemovalCommands(std::vector<mfd::UserCommand>& commands)
+{
+    std::size_t count = 0;
+
+    for (DynamicEntry& entry : reticles_)
+    {
+        DynamicReticle& reticle = *entry.reticle;
+        if (!reticle.published_)
+        {
+            continue;
+        }
+
+        commands.emplace_back(mfd::RemoveDynamicReticleCommand {
+            mfd::ReticleHandle {pageName_, reticle.reticleId_, pageTransportId_, 0}});
+        reticle.published_ = false;
+        ++count;
+    }
+
+    reticles_.clear();
+    return count;
+}
+
+std::string GeneratedDynamicReticleSet::NextReticleId()
+{
+    return "__generated_dynamic_" + std::to_string(nextReticleSequence_++);
+}
+
+GeneratedDynamicReticleSet::DynamicEntry* GeneratedDynamicReticleSet::FindEntry(const DynamicReticle& reticle) noexcept
+{
+    const auto iterator = std::find_if(
+        reticles_.begin(),
+        reticles_.end(),
+        [&reticle](const DynamicEntry& entry)
+        {
+            return entry.reticle.get() == &reticle;
+        });
+    return iterator == reticles_.end() ? nullptr : &(*iterator);
 }
 
 DynamicReticleSet::DynamicReticleSet(const std::string_view pageName,
@@ -1079,15 +1286,19 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
         {
             if (!reticle->published_)
             {
-                updates.push_back(mfd::DynamicReticleState {reticle->reticleId_, reticle->desiredPatch_});
+                mfd::ReticlePatch patch = reticle->desiredPatch_;
+                reticle->PopulateGeneratedIdentifiers(patch);
+                updates.push_back(mfd::DynamicReticleState {reticle->reticleId_, std::move(patch)});
                 reticle->lastSentPatch_ = reticle->desiredPatch_;
                 ++count;
             }
             else if (!Equal(reticle->desiredPatch_, reticle->lastSentPatch_))
             {
+                mfd::ReticlePatch patch = BuildDeltaPatch(reticle->desiredPatch_, reticle->lastSentPatch_);
+                reticle->PopulateGeneratedIdentifiers(patch);
                 updates.push_back(mfd::DynamicReticleState {
                     reticle->reticleId_,
-                    BuildDeltaPatch(reticle->desiredPatch_, reticle->lastSentPatch_)});
+                    std::move(patch)});
                 reticle->lastSentPatch_ = reticle->desiredPatch_;
                 ++count;
             }

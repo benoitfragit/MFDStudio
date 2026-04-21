@@ -133,6 +133,8 @@ class GenerateUiTests(unittest.TestCase):
                 "class RadarMockupPage",
                 "class SystemMockupPage",
                 "class CockpitMockupUi",
+                "class StatusTemplateDynamicReticle final : public DynamicReticle",
+                "class StatusTemplateDynamicReticleSet final : public GeneratedDynamicReticleSet",
                 "class RadarRadarStatusReticle final : public Reticle",
                 "class RadarTrackBoxReticle final : public Reticle",
                 "class SystemSystemStatusReticle final : public Reticle",
@@ -150,6 +152,7 @@ class GenerateUiTests(unittest.TestCase):
                 "RadarMockupPage& Radar() noexcept;",
                 "SystemMockupPage& System() noexcept;",
                 "BlinkType attention {\"attention\",",
+                "StatusTemplateDynamicReticleSet& DynamicStatusTemplate() noexcept;",
                 "TextHandle& StatusValue() noexcept;",
                 "LineHandle& Shape() noexcept;",
                 "TextHandle& SystemStatusValue() noexcept;",
@@ -160,7 +163,13 @@ class GenerateUiTests(unittest.TestCase):
             ]:
                 self.assertIn(expected, header_content)
 
+            self.assertNotIn("DynamicReticleSet& Dynamic(std::string_view templateId);", header_content)
+
             for expected in [
+                "StatusTemplateDynamicReticle::StatusTemplateDynamicReticle(std::string_view reticleId)",
+                "StatusTemplateDynamicReticleSet::StatusTemplateDynamicReticleSet(std::string_view pageName, const mfd::TransportId pageTransportId)",
+                "GeneratedDynamicReticleSet(pageName, \"status_template\", pageTransportId, ",
+                "StatusTemplateDynamicReticleSet& RadarMockupPage::DynamicStatusTemplate() noexcept",
                 "SystemMockupPage::SetStatusCaption(std::string value)",
                 "RadarRadarStatusReticle::SetValue(std::string value)",
                 "systemStatus.SystemStatusValue().SetText(std::move(value));",

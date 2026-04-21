@@ -173,7 +173,6 @@ struct CockpitSimulationState
 {
     bool enabled = false;
     bool radarEnabled = true;
-    bool contactsPublished = false;
     float accumulatorSeconds = 0.0f;
     float elapsedSeconds = 0.0f;
     float pitchDegrees = 2.0f;
@@ -330,31 +329,35 @@ WindowPresetKind DetectWindowPresetKind(const std::filesystem::path& windowFile)
     return WindowPresetKind::Unknown;
 }
 
-std::vector<mfd::UserCommand> BuildRadarRemovalCommands()
+template <typename DynamicSet, typename DynamicReticle>
+void EnsureGeneratedDynamicReticles(DynamicSet& set,
+                                    std::vector<DynamicReticle*>& reticles,
+                                    const std::size_t count)
 {
-    std::vector<mfd::UserCommand> commands;
-    commands.reserve(static_cast<std::size_t>(kRadarSimulationTrackCount));
-
-    for (int index = 0; index < kRadarSimulationTrackCount; ++index)
+    while (reticles.size() < count)
     {
-        commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-            mfd::ReticleHandle {std::string(kRadarSimulationPageName), RadarTrackId(index)}});
-    }
-
-    return commands;
-}
-
-void AppendCockpitContactRemovalCommands(std::vector<mfd::UserCommand>& commands)
-{
-    for (const CockpitTargetSeed& target : kCockpitTargets)
-    {
-        commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-            mfd::ReticleHandle {std::string(kCockpitPageName), std::string(target.id)}});
+        reticles.push_back(&set.Create());
     }
 }
 
-template <typename WindowUi>
-void PopulateRadarSimulationUi(WindowUi& ui, const float elapsedSeconds)
+template <typename DynamicSet, typename DynamicReticle>
+void RemoveGeneratedDynamicReticles(DynamicSet& set, std::vector<DynamicReticle*>& reticles)
+{
+    for (DynamicReticle* reticle : reticles)
+    {
+        if (reticle != nullptr)
+        {
+            set.Remove(*reticle);
+        }
+    }
+
+    reticles.clear();
+}
+
+template <typename WindowUi, typename DynamicTrack>
+void PopulateRadarSimulationUi(WindowUi& ui,
+                               std::vector<DynamicTrack*>& generatedTracks,
+                               const float elapsedSeconds)
 {
     static constexpr std::array<mfd::ColorRgba, 4> kTrackPalette {{
         mfd::ColorRgba {0, 255, 0, 255},
@@ -368,7 +371,8 @@ void PopulateRadarSimulationUi(WindowUi& ui, const float elapsedSeconds)
 
     ui.Reset();
     auto& radar = ui.Radar();
-    auto& tracks = radar.Dynamic(kRadarSimulationTemplateId);
+    auto& tracks = radar.DynamicRadarTrack();
+    EnsureGeneratedDynamicReticles(tracks, generatedTracks, static_cast<std::size_t>(kRadarSimulationTrackCount));
 
     for (int index = 0; index < kRadarSimulationTrackCount; ++index)
     {
@@ -383,12 +387,12 @@ void PopulateRadarSimulationUi(WindowUi& ui, const float elapsedSeconds)
         const float y = std::sin(angle) * radius;
         const float headingDegrees = angle * kRadiansToDegrees + 90.0f;
 
-        mfd::client::DynamicReticle& track = tracks.Upsert(RadarTrackId(index));
+        DynamicTrack& track = *generatedTracks[static_cast<std::size_t>(index)];
         track.SetPosition(mfd::Vec2 {x, y});
         track.SetRotationDegrees(headingDegrees);
         track.SetColor(kTrackPalette[static_cast<std::size_t>(index) % kTrackPalette.size()]);
-        track.SetText("track_label", RadarTrackLabel(index));
-        track.SetLetterSpacing("track_label", 0.0080f);
+        track.TrackLabel().SetText(RadarTrackLabel(index));
+        track.TrackLabel().SetLetterSpacing(0.0080f);
         track.SetBlinkEnabled(true);
 
         if (index % 3 == 0)
@@ -403,8 +407,10 @@ void PopulateRadarSimulationUi(WindowUi& ui, const float elapsedSeconds)
 
 }
 
-template <typename WindowUi>
-void PopulateCockpitSimulationUi(WindowUi& ui, const CockpitSimulationState& simulation)
+template <typename WindowUi, typename DynamicContact>
+void PopulateCockpitSimulationUi(WindowUi& ui,
+                                 std::vector<DynamicContact*>& generatedContacts,
+                                 const CockpitSimulationState& simulation)
 {
     static constexpr mfd::ColorRgba kHudNominal {46, 255, 162, 255};
     static constexpr mfd::ColorRgba kHudWarning {255, 198, 109, 255};
@@ -433,6 +439,8 @@ void PopulateCockpitSimulationUi(WindowUi& ui, const CockpitSimulationState& sim
 
     ui.Reset();
     auto& cockpit = ui.Cockpit();
+    auto& contacts = cockpit.DynamicCockpitRadarContact();
+    EnsureGeneratedDynamicReticles(contacts, generatedContacts, kCockpitTargets.size());
 
     const mfd::Vec2 adiBallPosition {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
     cockpit.adiBallSky.SetPosition(adiBallPosition);
@@ -444,8 +452,8 @@ void PopulateCockpitSimulationUi(WindowUi& ui, const CockpitSimulationState& sim
     cockpit.adiBallLadder.SetPosition(adiBallPosition);
     cockpit.adiBallLadder.SetRotationDegrees(simulation.bankDegrees);
 
-    cockpit.adiHeadingBox.SetText("heading_value", headingText);
-    cockpit.adiHeadingBox.SetText("command_value", selectedHeadingText);
+    cockpit.adiHeadingBox.HeadingValue().SetText(headingText);
+    cockpit.adiHeadingBox.CommandValue().SetText(selectedHeadingText);
     cockpit.adiHeadingCard.SetRotationDegrees(-simulation.headingDegrees);
     cockpit.adiHeadingCommandBug.SetRotationDegrees(headingBugRelativeDegrees);
     cockpit.adiPitchBox.SetValue(pitchText);
@@ -488,45 +496,42 @@ void PopulateCockpitSimulationUi(WindowUi& ui, const CockpitSimulationState& sim
     cockpit.radarStatusBox.SetColor(simulation.radarEnabled ? kRadarSearch : kRadarStandby);
     cockpit.radarOffOverlay.SetVisible(!simulation.radarEnabled);
 
-    if (simulation.radarEnabled)
+    for (std::size_t index = 0; index < generatedContacts.size(); ++index)
     {
-        auto& contacts = cockpit.Dynamic(kCockpitRadarTemplateId);
         const float headingRadians = simulation.headingDegrees * kDegreesToRadians;
         const float cosine = std::cos(headingRadians);
         const float sine = std::sin(headingRadians);
         constexpr float kRadarRangeWorldUnits = 10.5f;
         constexpr float kRadarRadius = 0.33f;
+        const CockpitTargetSeed& target = kCockpitTargets[index];
+        DynamicContact& contact = *generatedContacts[index];
 
-        for (const CockpitTargetSeed& target : kCockpitTargets)
+        const float orbitAngle = simulation.elapsedSeconds * target.orbitRate + target.orbitPhase;
+        const float worldX = target.baseX + std::cos(orbitAngle) * target.orbitRadius;
+        const float worldY = target.baseY + std::sin(orbitAngle) * target.orbitRadius;
+        const float deltaX = worldX - simulation.ownshipX;
+        const float deltaY = worldY - simulation.ownshipY;
+        const float right = deltaX * cosine - deltaY * sine;
+        const float forward = deltaX * sine + deltaY * cosine;
+        const float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+        const bool visible = simulation.radarEnabled && distance <= kRadarRangeWorldUnits;
+        const float normalizedX = std::clamp(right / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
+        const float normalizedY = std::clamp(forward / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
+        const float contactHeadingDegrees = std::atan2(right, forward) * kRadiansToDegrees;
+
+        contact.SetVisible(visible);
+        contact.SetPosition(mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY});
+        contact.SetRotationDegrees(contactHeadingDegrees);
+        contact.SetColor(target.color);
+        contact.ContactLabel().SetText(std::string {target.label});
+
+        if (target.blink && simulation.radarEnabled)
         {
-            const float orbitAngle = simulation.elapsedSeconds * target.orbitRate + target.orbitPhase;
-            const float worldX = target.baseX + std::cos(orbitAngle) * target.orbitRadius;
-            const float worldY = target.baseY + std::sin(orbitAngle) * target.orbitRadius;
-            const float deltaX = worldX - simulation.ownshipX;
-            const float deltaY = worldY - simulation.ownshipY;
-            const float right = deltaX * cosine - deltaY * sine;
-            const float forward = deltaX * sine + deltaY * cosine;
-            const float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
-            const bool visible = distance <= kRadarRangeWorldUnits;
-            const float normalizedX = std::clamp(right / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
-            const float normalizedY = std::clamp(forward / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
-            const float contactHeadingDegrees = std::atan2(right, forward) * kRadiansToDegrees;
-
-            mfd::client::DynamicReticle& contact = contacts.Upsert(target.id);
-            contact.SetVisible(visible);
-            contact.SetPosition(mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY});
-            contact.SetRotationDegrees(contactHeadingDegrees);
-            contact.SetColor(target.color);
-            contact.SetText("contact_label", std::string {target.label});
-
-            if (target.blink)
-            {
-                contact.Blink = cockpit.threat;
-            }
-            else
-            {
-                contact.Blink = nullptr;
-            }
+            contact.Blink = cockpit.threat;
+        }
+        else
+        {
+            contact.Blink = nullptr;
         }
     }
 
@@ -680,8 +685,20 @@ private:
     std::unique_ptr<mfd::CommandClient> client_ {};
     /** @brief Dedicated realtime publisher used by the built-in simulators. */
     std::unique_ptr<mfd::client::LatestBatchPublisher> realtimePublisher_ {};
+    /** @brief Persistent generated UI used by the full-demo radar simulator. */
+    std::unique_ptr<full_demo_ui::FullDemoMockupUi> fullDemoGeneratedUi_ {};
+    /** @brief Persistent generated UI used by the minimal-radar simulator. */
+    std::unique_ptr<minimal_radar_ui::MinimalRadarMockupUi> minimalRadarGeneratedUi_ {};
+    /** @brief Persistent generated UI used by the cockpit simulator. */
+    std::unique_ptr<cockpit_demo_ui::CockpitDemoMockupUi> cockpitGeneratedUi_ {};
     /** @brief Optional inbound receiver for live strobe feedback. */
     std::unique_ptr<mfd::IExchangeChannel> feedbackReceiver_ {};
+    /** @brief Hidden generated handles used by the full-demo radar simulator. */
+    std::vector<full_demo_ui::RadarTrackDynamicReticle*> fullDemoRadarTracks_ {};
+    /** @brief Hidden generated handles used by the minimal-radar simulator. */
+    std::vector<minimal_radar_ui::RadarTrackDynamicReticle*> minimalRadarRadarTracks_ {};
+    /** @brief Hidden generated handles used by the cockpit simulator. */
+    std::vector<cockpit_demo_ui::CockpitRadarContactDynamicReticle*> cockpitRadarContacts_ {};
     /** @brief Reticle template ids offered by the currently loaded library. */
     std::vector<std::string> templateIds_ {};
     /** @brief Per-page editable drafts keyed by normalized page name. */
@@ -974,6 +991,12 @@ bool MockupApplication::ReloadConfiguration()
         ResetDynamicDraft();
         radarSimulation_ = {};
         cockpitSimulation_ = {};
+        fullDemoGeneratedUi_ = std::make_unique<full_demo_ui::FullDemoMockupUi>();
+        minimalRadarGeneratedUi_ = std::make_unique<minimal_radar_ui::MinimalRadarMockupUi>();
+        cockpitGeneratedUi_ = std::make_unique<cockpit_demo_ui::CockpitDemoMockupUi>();
+        fullDemoRadarTracks_.clear();
+        minimalRadarRadarTracks_.clear();
+        cockpitRadarContacts_.clear();
         SelectDefaultPage();
         RecreateClient();
         RecreateFeedbackReceiver();
@@ -1003,6 +1026,12 @@ bool MockupApplication::ReloadConfiguration()
         templateIds_.clear();
         realtimePublisher_.reset();
         client_.reset();
+        fullDemoGeneratedUi_.reset();
+        minimalRadarGeneratedUi_.reset();
+        cockpitGeneratedUi_.reset();
+        fullDemoRadarTracks_.clear();
+        minimalRadarRadarTracks_.clear();
+        cockpitRadarContacts_.clear();
         SetStatus("Unable to load '" + windowFile_.string() + "': " + exception.what(), true);
         return false;
     }
@@ -1787,32 +1816,51 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
 
     std::vector<mfd::UserCommand> commands;
 
-    if (clearOnly)
+    switch (DetectWindowPresetKind(windowFile_))
     {
-        commands = BuildRadarRemovalCommands();
-    }
-    else
-    {
-        switch (DetectWindowPresetKind(windowFile_))
+    case WindowPresetKind::FullDemo:
+        if (fullDemoGeneratedUi_ == nullptr)
         {
-        case WindowPresetKind::FullDemo:
-            {
-                full_demo_ui::FullDemoMockupUi ui;
-                PopulateRadarSimulationUi(ui, radarSimulation_.elapsedSeconds);
-                commands = ui.BuildBatch();
-            }
-            break;
-        case WindowPresetKind::MinimalRadar:
-            {
-                minimal_radar_ui::MinimalRadarMockupUi ui;
-                PopulateRadarSimulationUi(ui, radarSimulation_.elapsedSeconds);
-                commands = ui.BuildBatch();
-            }
-            break;
-        default:
-            SetStatus("No generated radar client API is available for the selected window preset.", true);
-            return false;
+            fullDemoGeneratedUi_ = std::make_unique<full_demo_ui::FullDemoMockupUi>();
         }
+        if (clearOnly)
+        {
+            RemoveGeneratedDynamicReticles(
+                fullDemoGeneratedUi_->Radar().DynamicRadarTrack(),
+                fullDemoRadarTracks_);
+        }
+        else
+        {
+            PopulateRadarSimulationUi(
+                *fullDemoGeneratedUi_,
+                fullDemoRadarTracks_,
+                radarSimulation_.elapsedSeconds);
+        }
+        commands = fullDemoGeneratedUi_->BuildBatch();
+        break;
+    case WindowPresetKind::MinimalRadar:
+        if (minimalRadarGeneratedUi_ == nullptr)
+        {
+            minimalRadarGeneratedUi_ = std::make_unique<minimal_radar_ui::MinimalRadarMockupUi>();
+        }
+        if (clearOnly)
+        {
+            RemoveGeneratedDynamicReticles(
+                minimalRadarGeneratedUi_->Radar().DynamicRadarTrack(),
+                minimalRadarRadarTracks_);
+        }
+        else
+        {
+            PopulateRadarSimulationUi(
+                *minimalRadarGeneratedUi_,
+                minimalRadarRadarTracks_,
+                radarSimulation_.elapsedSeconds);
+        }
+        commands = minimalRadarGeneratedUi_->BuildBatch();
+        break;
+    default:
+        SetStatus("No generated radar client API is available for the selected window preset.", true);
+        return false;
     }
 
     const double sendStart = GetTime();
@@ -1882,16 +1930,12 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
     }
 
     CockpitSimulationState& simulation = cockpitSimulation_;
-    cockpit_demo_ui::CockpitDemoMockupUi ui;
-    PopulateCockpitSimulationUi(ui, simulation);
-    std::vector<mfd::UserCommand> commands = ui.BuildBatch();
-    bool contactsPublishedNext = simulation.radarEnabled;
-
-    if (!simulation.radarEnabled && simulation.contactsPublished)
+    if (cockpitGeneratedUi_ == nullptr)
     {
-        AppendCockpitContactRemovalCommands(commands);
-        contactsPublishedNext = false;
+        cockpitGeneratedUi_ = std::make_unique<cockpit_demo_ui::CockpitDemoMockupUi>();
     }
+    PopulateCockpitSimulationUi(*cockpitGeneratedUi_, cockpitRadarContacts_, simulation);
+    std::vector<mfd::UserCommand> commands = cockpitGeneratedUi_->BuildBatch();
 
     const double sendStart = GetTime();
     const int commandCount = static_cast<int>(commands.size());
@@ -1915,7 +1959,6 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
         return false;
     }
 
-    simulation.contactsPublished = contactsPublishedNext;
     ++simulation.nextSequence;
 
     if (!quiet)

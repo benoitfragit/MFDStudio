@@ -85,6 +85,11 @@ class TemplateSpec:
     canonical_key: str
     transport_id: int
     primitives: list[PrimitiveSpec]
+    dynamic_reticle_class_name: str
+    dynamic_set_class_name: str
+    dynamic_accessor_name: str
+    dynamic_member_name: str
+    status_primitive_accessor_name: str | None
 
 
 @dataclass(frozen=True)
@@ -262,6 +267,27 @@ def ensure_unique_page_spec_names(page_specs: list[PageSpec]) -> None:
             raise RuntimeError(f"Duplicate generated {field_name}(s): {duplicate_list}")
 
 
+def ensure_unique_template_spec_names(template_specs: list[TemplateSpec]) -> None:
+    class_names = [template.dynamic_reticle_class_name for template in template_specs]
+    set_class_names = [template.dynamic_set_class_name for template in template_specs]
+    accessors = [template.dynamic_accessor_name for template in template_specs]
+    members = [template.dynamic_member_name for template in template_specs]
+
+    for field_name, values in (
+        ("dynamic reticle class name", class_names),
+        ("dynamic set class name", set_class_names),
+        ("dynamic accessor name", accessors),
+        ("dynamic member name", members),
+    ):
+        counts: dict[str, int] = {}
+        for value in values:
+            counts[value] = counts.get(value, 0) + 1
+        duplicates = sorted([value for value, count in counts.items() if count > 1])
+        if duplicates:
+            duplicate_list = ", ".join(duplicates)
+            raise RuntimeError(f"Duplicate generated {field_name}(s): {duplicate_list}")
+
+
 def ensure_output_paths(output_header: Path,
                         output_source: Path,
                         output_map: Path | None,
@@ -343,14 +369,14 @@ def resolved_elements(reticle_node: dict, template_library: dict[str, dict]) -> 
 
 
 def choose_status_primitive(primitives: list[PrimitiveSpec]) -> PrimitiveSpec | None:
-    text_like = [primitive for primitive in primitives if primitive.primitive_type in TEXT_TYPES]
+    text_primitives = [primitive for primitive in primitives if primitive.primitive_type == "text"]
     for suffix in ("_value", "_caption", "_text"):
-        for primitive in text_like:
+        for primitive in text_primitives:
             if primitive.primitive_id.endswith(suffix):
                 return primitive
 
-    if len(text_like) == 1:
-        return text_like[0]
+    if len(text_primitives) == 1:
+        return text_primitives[0]
 
     return None
 
@@ -439,12 +465,19 @@ def build_template_specs(template_library: dict[str, dict]) -> list[TemplateSpec
         seen_ids.add(transport_id)
 
         primitives = build_primitive_specs("template", template_id, resolved_elements(template_node, template_library))
+        status_primitive = choose_status_primitive(primitives)
+        template_base_name = pascal_case(template_id)
         templates.append(TemplateSpec(
             template_id=template_id,
             normalized_template_id=normalize_lookup_name(template_id),
             canonical_key=canonical_key,
             transport_id=transport_id,
             primitives=primitives,
+            dynamic_reticle_class_name=f"{template_base_name}DynamicReticle",
+            dynamic_set_class_name=f"{template_base_name}DynamicReticleSet",
+            dynamic_accessor_name=f"Dynamic{template_base_name}",
+            dynamic_member_name=f"dynamic{template_base_name}_",
+            status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
         ))
 
     return templates
@@ -607,7 +640,8 @@ def emit_header(namespace_name: str,
                 ui_class_name: str,
                 window_json: str,
                 mapping_hash: str,
-                page_specs: list[PageSpec]) -> str:
+                page_specs: list[PageSpec],
+                template_specs: list[TemplateSpec]) -> str:
     lines: list[str] = [
         "/*",
         " * This file is part of MFDStudio.",
@@ -636,6 +670,7 @@ def emit_header(namespace_name: str,
         "using BlinkType = mfd::client::BlinkType;",
         "using DynamicReticle = mfd::client::DynamicReticle;",
         "using DynamicReticleSet = mfd::client::DynamicReticleSet;",
+        "using GeneratedDynamicReticleSet = mfd::client::GeneratedDynamicReticleSet;",
         "using CircleHandle = mfd::client::CircleHandle;",
         "using DiamondHandle = mfd::client::DiamondHandle;",
         "using EllipseHandle = mfd::client::EllipseHandle;",
@@ -653,6 +688,47 @@ def emit_header(namespace_name: str,
         "using WindowDisplay = mfd::client::WindowDisplay;",
         "",
     ]
+
+    for template in template_specs:
+        lines.extend([
+            f"class {template.dynamic_reticle_class_name} final : public DynamicReticle",
+            "{",
+            "public:",
+            f"    explicit {template.dynamic_reticle_class_name}(std::string_view reticleId);",
+        ])
+
+        if template.status_primitive_accessor_name is not None:
+            lines.append("    void SetValue(std::string value);")
+
+        for primitive in template.primitives:
+            lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
+
+        lines.extend([
+            "",
+            "private:",
+        ])
+
+        for primitive in template.primitives:
+            lines.append(f"    {primitive.cpp_type} {primitive.member_name};")
+
+        if not template.primitives:
+            lines.append("    // No exposed primitive for this authored template.")
+
+        lines.extend([
+            "};",
+            "",
+            f"class {template.dynamic_set_class_name} final : public GeneratedDynamicReticleSet",
+            "{",
+            "public:",
+            f"    explicit {template.dynamic_set_class_name}(std::string_view pageName, mfd::TransportId pageTransportId = 0);",
+            f"    {template.dynamic_reticle_class_name}& Create();",
+            f"    void Remove({template.dynamic_reticle_class_name}& reticle);",
+            "",
+            "protected:",
+            "    std::unique_ptr<DynamicReticle> CreateReticle(std::string_view reticleId) override;",
+            "};",
+            "",
+        ])
 
     for page in page_specs:
         for reticle in page.reticles:
@@ -700,9 +776,14 @@ def emit_header(namespace_name: str,
             "    std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);",
             "    std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText);",
             "    void SetStatusCaption(std::string value);",
-            "    DynamicReticleSet& Dynamic(std::string_view templateId);",
             "",
         ])
+
+        for template in template_specs:
+            lines.append(f"    {template.dynamic_set_class_name}& {template.dynamic_accessor_name}() noexcept;")
+
+        if template_specs:
+            lines.append("")
 
         for blink in page.blink_members:
             lines.append(
@@ -719,14 +800,12 @@ def emit_header(namespace_name: str,
         lines.extend([
             "",
             "private:",
-            "    struct DynamicTemplateSet",
-            "    {",
-            "        std::string templateId;",
-            "        std::unique_ptr<DynamicReticleSet> set;",
-            "    };",
-            "",
-            "    DynamicTemplateSet* FindDynamicSet(std::string_view templateId) noexcept;",
-            "    std::vector<DynamicTemplateSet> dynamicReticleSets_ {};",
+        ])
+
+        for template in template_specs:
+            lines.append(f"    {template.dynamic_set_class_name} {template.dynamic_member_name};")
+
+        lines.extend([
             "};",
             "",
         ])
@@ -786,7 +865,6 @@ def emit_source(namespace_name: str,
                 startup_page: PageSpec,
                 page_specs: list[PageSpec],
                 template_specs: list[TemplateSpec]) -> str:
-    template_rows = [(template.template_id, template.transport_id) for template in sorted(template_specs, key=lambda entry: entry.canonical_key)]
     lines: list[str] = [
         "/*",
         " * This file is part of MFDStudio.",
@@ -806,6 +884,59 @@ def emit_source(namespace_name: str,
         f"namespace {namespace_name}",
         "{",
     ]
+
+    for template in template_specs:
+        ctor_initializers = ["    DynamicReticle(reticleId)"]
+        for primitive in template.primitives:
+            ctor_initializers.append(
+                f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
+
+        lines.append(f"{template.dynamic_reticle_class_name}::{template.dynamic_reticle_class_name}(std::string_view reticleId) :")
+        lines.append(",\n".join(ctor_initializers))
+        lines.append("{")
+        lines.append("}")
+        lines.append("")
+
+        if template.status_primitive_accessor_name is not None:
+            lines.extend([
+                f"void {template.dynamic_reticle_class_name}::SetValue(std::string value)",
+                "{",
+                f"    {template.status_primitive_accessor_name}().SetText(std::move(value));",
+                "}",
+                "",
+            ])
+
+        for primitive in template.primitives:
+            lines.extend([
+                f"{primitive.cpp_type}& {template.dynamic_reticle_class_name}::{primitive.accessor_name}() noexcept",
+                "{",
+                f"    return {primitive.member_name};",
+                "}",
+                "",
+            ])
+
+        lines.extend([
+            f"{template.dynamic_set_class_name}::{template.dynamic_set_class_name}(std::string_view pageName, const mfd::TransportId pageTransportId) :",
+            f'    GeneratedDynamicReticleSet(pageName, "{cpp_string(template.template_id)}", pageTransportId, {template.transport_id}U)',
+            "{",
+            "}",
+            "",
+            f"{template.dynamic_reticle_class_name}& {template.dynamic_set_class_name}::Create()",
+            "{",
+            f"    return static_cast<{template.dynamic_reticle_class_name}&>(GeneratedDynamicReticleSet::Create());",
+            "}",
+            "",
+            f"void {template.dynamic_set_class_name}::Remove({template.dynamic_reticle_class_name}& reticle)",
+            "{",
+            "    GeneratedDynamicReticleSet::Remove(reticle);",
+            "}",
+            "",
+            f"std::unique_ptr<DynamicReticle> {template.dynamic_set_class_name}::CreateReticle(std::string_view reticleId)",
+            "{",
+            f"    return std::make_unique<{template.dynamic_reticle_class_name}>(reticleId);",
+            "}",
+            "",
+        ])
 
     for page in page_specs:
         for reticle in page.reticles:
@@ -844,6 +975,8 @@ def emit_source(namespace_name: str,
         ]
         for reticle in page.reticles:
             page_ctor_initializers.append(f"    {reticle.member_name}()")
+        for template in template_specs:
+            page_ctor_initializers.append(f"    {template.dynamic_member_name}(Name(), {page.transport_id}U)")
 
         lines.append(f"{page.page_class_name}::{page.page_class_name}() :")
         lines.append(",\n".join(page_ctor_initializers))
@@ -858,11 +991,9 @@ def emit_source(namespace_name: str,
         ])
         for reticle in page.reticles:
             lines.append(f"    {reticle.member_name}.Reset();")
+        for template in template_specs:
+            lines.append(f"    {template.dynamic_member_name}.Reset();")
         lines.extend([
-            "    for (auto& dynamicSet : dynamicReticleSets_)",
-            "    {",
-            "        dynamicSet.set->Reset();",
-            "    }",
             "}",
             "",
             f"std::size_t {page.page_class_name}::AppendCommands(std::vector<mfd::UserCommand>& commands)",
@@ -873,12 +1004,9 @@ def emit_source(namespace_name: str,
         ])
         for reticle in page.reticles:
             lines.append(f"    count += {reticle.member_name}.AppendCommands(commands) ? 1U : 0U;")
+        for template in template_specs:
+            lines.append(f"    count += {template.dynamic_member_name}.AppendCommands(commands);")
         lines.extend([
-            "",
-            "    for (auto& dynamicSet : dynamicReticleSets_)",
-            "    {",
-            "        count += dynamicSet.set->AppendCommands(commands);",
-            "    }",
             "",
             "    return count;",
             "}",
@@ -895,12 +1023,10 @@ def emit_source(namespace_name: str,
             ])
         else:
             lines.append("    (void)statusText;")
+        lines.append("")
+        for template in template_specs:
+            lines.append(f"    count += {template.dynamic_member_name}.AppendRemovalCommands(commands);")
         lines.extend([
-            "",
-            "    for (auto& dynamicSet : dynamicReticleSets_)",
-            "    {",
-            "        count += dynamicSet.set->AppendRemovalCommands(commands);",
-            "    }",
             "",
             "    return count;",
             "}",
@@ -916,55 +1042,15 @@ def emit_source(namespace_name: str,
         lines.extend([
             "}",
             "",
-            f"DynamicReticleSet& {page.page_class_name}::Dynamic(std::string_view templateId)",
-            "{",
-            "    if (DynamicTemplateSet* dynamicSet = FindDynamicSet(templateId); dynamicSet != nullptr)",
-            "    {",
-            "        return *dynamicSet->set;",
-            "    }",
-            "",
-            "    DynamicTemplateSet entry;",
-            "    entry.templateId = std::string(templateId);",
-            f"    entry.set = std::make_unique<DynamicReticleSet>(Name(), templateId, {page.transport_id}U",
         ])
-        if template_rows:
+        for template in template_specs:
             lines.extend([
-                "        , [&templateId]() -> mfd::TransportId",
-                "        {",
+                f"{template.dynamic_set_class_name}& {page.page_class_name}::{template.dynamic_accessor_name}() noexcept",
+                "{",
+                f"    return {template.dynamic_member_name};",
+                "}",
+                "",
             ])
-            for template_id, transport_id in template_rows:
-                lines.extend([
-                    f'            if (templateId == "{cpp_string(template_id)}")',
-                    "            {",
-                    f"                return {transport_id}U;",
-                    "            }",
-                ])
-            lines.extend([
-                "            return 0;",
-                "        }())",
-            ])
-        else:
-            lines.append("        , 0)")
-        lines.extend([
-            "    ;",
-            "    dynamicReticleSets_.push_back(std::move(entry));",
-            "    return *dynamicReticleSets_.back().set;",
-            "}",
-            "",
-            f"{page.page_class_name}::DynamicTemplateSet* {page.page_class_name}::FindDynamicSet(std::string_view templateId) noexcept",
-            "{",
-            "    const auto iterator = std::find_if(",
-            "        dynamicReticleSets_.begin(),",
-            "        dynamicReticleSets_.end(),",
-            "        [templateId](const DynamicTemplateSet& candidate)",
-            "        {",
-            "            return candidate.templateId == templateId;",
-            "        });",
-            "",
-            "    return iterator == dynamicReticleSets_.end() ? nullptr : &(*iterator);",
-            "}",
-            "",
-        ])
 
     lines.extend([
         f"{ui_class_name}::{ui_class_name}()",
@@ -1241,6 +1327,7 @@ def main() -> int:
     if not page_specs:
         raise RuntimeError("The window JSON does not expose any page to generate")
     ensure_unique_page_spec_names(page_specs)
+    ensure_unique_template_spec_names(template_specs)
 
     ui_class_name = derive_ui_class_name(
         window_root,
@@ -1251,7 +1338,13 @@ def main() -> int:
         window_json)
 
     map_document = mapping_document(window_root, window_path, page_specs, template_specs)
-    header_text = emit_header(args.namespace, ui_class_name, window_json, map_document["mappingHash"], page_specs)
+    header_text = emit_header(
+        args.namespace,
+        ui_class_name,
+        window_json,
+        map_document["mappingHash"],
+        page_specs,
+        template_specs)
     startup_page = resolve_startup_page(page_specs, window_root)
     source_text = emit_source(
         args.namespace,

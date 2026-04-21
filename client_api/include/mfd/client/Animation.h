@@ -355,6 +355,7 @@ class MFD_CLIENT_API DynamicReticle
 {
 public:
     explicit DynamicReticle(std::string_view reticleId);
+    virtual ~DynamicReticle() = default;
     DynamicReticle(const DynamicReticle&) = delete;
     DynamicReticle& operator=(const DynamicReticle&) = delete;
     DynamicReticle(DynamicReticle&&) = delete;
@@ -378,12 +379,20 @@ public:
     void SetLetterSpacing(float letterSpacing);
     void SetLetterSpacing(std::string_view primitiveId, float letterSpacing);
 
+protected:
+    mfd::ReticlePatch& MutableDesiredPatch() noexcept;
+    bool* DirtyFlag() noexcept;
+    std::unordered_map<std::string, mfd::TransportId>* PrimitiveTransportIds() noexcept;
+
 private:
     friend class DynamicReticleSet;
+    friend class GeneratedDynamicReticleSet;
 
     const mfd::ReticlePatch& DesiredPatch() const noexcept;
+    void PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch) const;
 
     std::string reticleId_;
+    std::unordered_map<std::string, mfd::TransportId> primitiveTransportIds_ {};
     mfd::ReticlePatch desiredPatch_ {};
     mfd::ReticlePatch lastSentPatch_ {};
     bool dirty_ = false;
@@ -392,6 +401,54 @@ private:
 
 public:
     ReticleBlink Blink;
+};
+
+/**
+ * @brief Generated high-level dynamic-reticle set hiding internal instance identifiers.
+ */
+class MFD_CLIENT_API GeneratedDynamicReticleSet
+{
+public:
+    GeneratedDynamicReticleSet(std::string_view pageName,
+                               std::string_view templateId,
+                               mfd::TransportId pageTransportId = 0,
+                               mfd::TransportId templateTransportId = 0);
+    virtual ~GeneratedDynamicReticleSet() = default;
+    GeneratedDynamicReticleSet(const GeneratedDynamicReticleSet&) = delete;
+    GeneratedDynamicReticleSet& operator=(const GeneratedDynamicReticleSet&) = delete;
+    GeneratedDynamicReticleSet(GeneratedDynamicReticleSet&&) = delete;
+    GeneratedDynamicReticleSet& operator=(GeneratedDynamicReticleSet&&) = delete;
+
+    void Reset() noexcept;
+    /** @brief Enables or disables all generated dynamic reticles of this page/template set at runtime. */
+    void SetVisible(bool visible);
+    DynamicReticle& Create();
+    void Remove(DynamicReticle& reticle);
+    std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);
+    std::size_t AppendRemovalCommands(std::vector<mfd::UserCommand>& commands);
+
+protected:
+    virtual std::unique_ptr<DynamicReticle> CreateReticle(std::string_view reticleId) = 0;
+
+private:
+    struct DynamicEntry
+    {
+        std::unique_ptr<DynamicReticle> reticle {};
+        bool removeRequested = false;
+    };
+
+    std::string NextReticleId();
+    DynamicEntry* FindEntry(const DynamicReticle& reticle) noexcept;
+
+    std::string pageName_;
+    std::string templateId_;
+    mfd::TransportId pageTransportId_ = 0;
+    mfd::TransportId templateTransportId_ = 0;
+    std::vector<DynamicEntry> reticles_ {};
+    bool desiredVisible_ = true;
+    bool lastSentVisible_ = true;
+    bool visibilityDirty_ = false;
+    std::uint64_t nextReticleSequence_ = 1;
 };
 
 class MFD_CLIENT_API DynamicReticleSet

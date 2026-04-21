@@ -73,6 +73,7 @@ struct CockpitSimulationState
     float ownshipX = 0.0f;
     float ownshipY = 0.0f;
     std::uint32_t sequence = 1;
+    std::vector<mockup_ui::CockpitRadarContactDynamicReticle*> radarContacts {};
 };
 
 /**
@@ -310,6 +311,16 @@ void PopulateCockpitBatch(mockup_ui::CockpitMockupUi& ui, CockpitSimulationState
 
     ui.Reset();
     mockup_ui::CockpitMockupPage& cockpit = ui.Cockpit();
+    auto& radarContacts = cockpit.DynamicCockpitRadarContact();
+
+    if (simulation.radarContacts.empty())
+    {
+        simulation.radarContacts.reserve(kCockpitTargets.size());
+        for (std::size_t index = 0; index < kCockpitTargets.size(); ++index)
+        {
+            simulation.radarContacts.push_back(&radarContacts.Create());
+        }
+    }
 
     // ADI updates.
     const mfd::Vec2 adiBallPosition {kCockpitAdiCenterX, kCockpitAdiCenterY + adiPitchOffset};
@@ -325,8 +336,8 @@ void PopulateCockpitBatch(mockup_ui::CockpitMockupUi& ui, CockpitSimulationState
     cockpit.adiBallLadder.SetPosition(adiBallPosition);
     cockpit.adiBallLadder.SetRotationDegrees(simulation.bankDegrees);
 
-    cockpit.adiHeadingBox.SetText("heading_value", headingText);
-    cockpit.adiHeadingBox.SetText("command_value", selectedHeadingText);
+    cockpit.adiHeadingBox.HeadingValue().SetText(headingText);
+    cockpit.adiHeadingBox.CommandValue().SetText(selectedHeadingText);
     cockpit.adiHeadingCard.SetRotationDegrees(-simulation.headingDegrees);
     cockpit.adiHeadingCommandBug.SetRotationDegrees(headingBugRelativeDegrees);
     cockpit.adiPitchBox.SetValue(pitchText);
@@ -373,45 +384,42 @@ void PopulateCockpitBatch(mockup_ui::CockpitMockupUi& ui, CockpitSimulationState
     cockpit.radarOffOverlay.SetVisible(!simulation.radarEnabled);
     cockpit.SetStatusCaption(statusCaption);
 
-    if (simulation.radarEnabled)
+    for (std::size_t index = 0; index < simulation.radarContacts.size(); ++index)
     {
-        mockup_ui::DynamicReticleSet& radarContacts = cockpit.Dynamic(kCockpitRadarTemplateId);
         const float headingRadians = simulation.headingDegrees * kDegreesToRadians;
         const float cosine = std::cos(headingRadians);
         const float sine = std::sin(headingRadians);
         constexpr float kRadarRangeWorldUnits = 10.5f;
         constexpr float kRadarRadius = 0.33f;
+        const CockpitTargetSeed& target = kCockpitTargets[index];
+        mockup_ui::CockpitRadarContactDynamicReticle& contact = *simulation.radarContacts[index];
 
-        for (const CockpitTargetSeed& target : kCockpitTargets)
+        const float orbitAngle = simulation.elapsedSeconds * target.orbitRate + target.orbitPhase;
+        const float worldX = target.baseX + std::cos(orbitAngle) * target.orbitRadius;
+        const float worldY = target.baseY + std::sin(orbitAngle) * target.orbitRadius;
+        const float deltaX = worldX - simulation.ownshipX;
+        const float deltaY = worldY - simulation.ownshipY;
+        const float right = deltaX * cosine - deltaY * sine;
+        const float forward = deltaX * sine + deltaY * cosine;
+        const float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+        const bool visible = simulation.radarEnabled && distance <= kRadarRangeWorldUnits;
+        const float normalizedX = std::clamp(right / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
+        const float normalizedY = std::clamp(forward / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
+        const float contactHeadingDegrees = std::atan2(right, forward) * kRadiansToDegrees;
+
+        contact.SetVisible(visible);
+        contact.SetPosition(mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY});
+        contact.SetRotationDegrees(contactHeadingDegrees);
+        contact.SetColor(target.color);
+        contact.ContactLabel().SetText(std::string {target.label});
+
+        if (target.blink && simulation.radarEnabled)
         {
-            const float orbitAngle = simulation.elapsedSeconds * target.orbitRate + target.orbitPhase;
-            const float worldX = target.baseX + std::cos(orbitAngle) * target.orbitRadius;
-            const float worldY = target.baseY + std::sin(orbitAngle) * target.orbitRadius;
-            const float deltaX = worldX - simulation.ownshipX;
-            const float deltaY = worldY - simulation.ownshipY;
-            const float right = deltaX * cosine - deltaY * sine;
-            const float forward = deltaX * sine + deltaY * cosine;
-            const float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
-            const bool visible = distance <= kRadarRangeWorldUnits;
-            const float normalizedX = std::clamp(right / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
-            const float normalizedY = std::clamp(forward / kRadarRangeWorldUnits, -1.0f, 1.0f) * kRadarRadius;
-            const float contactHeadingDegrees = std::atan2(right, forward) * kRadiansToDegrees;
-
-            mockup_ui::DynamicReticle& contact = radarContacts.Upsert(target.id);
-            contact.SetVisible(visible);
-            contact.SetPosition(mfd::Vec2 {kCockpitRadarCenterX + normalizedX, kCockpitRadarCenterY + normalizedY});
-            contact.SetRotationDegrees(contactHeadingDegrees);
-            contact.SetColor(target.color);
-            contact.SetText("contact_label", std::string {target.label});
-
-            if (target.blink)
-            {
-                contact.Blink = cockpit.threat;
-            }
-            else
-            {
-                contact.Blink = nullptr;
-            }
+            contact.Blink = cockpit.threat;
+        }
+        else
+        {
+            contact.Blink = nullptr;
         }
     }
 

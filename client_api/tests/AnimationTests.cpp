@@ -10,7 +10,9 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "mfd/client/Animation.h"
@@ -46,6 +48,43 @@ public:
 
     mfd::client::BlinkType slow {"slow", 44U};
     mfd::client::TextHandle headingValue;
+};
+
+class GeneratedDynamicFixtureReticle final : public mfd::client::DynamicReticle
+{
+public:
+    explicit GeneratedDynamicFixtureReticle(const std::string_view reticleId)
+        : mfd::client::DynamicReticle(reticleId),
+          label(MutableDesiredPatch(), DirtyFlag(), "track_label", 33U, PrimitiveTransportIds())
+    {
+    }
+
+    mfd::client::TextHandle label;
+};
+
+class GeneratedDynamicFixtureSet final : public mfd::client::GeneratedDynamicReticleSet
+{
+public:
+    GeneratedDynamicFixtureSet()
+        : mfd::client::GeneratedDynamicReticleSet("Radar", "radar_track", 11U, 77U)
+    {
+    }
+
+    GeneratedDynamicFixtureReticle& Create()
+    {
+        return static_cast<GeneratedDynamicFixtureReticle&>(mfd::client::GeneratedDynamicReticleSet::Create());
+    }
+
+    void Remove(GeneratedDynamicFixtureReticle& reticle)
+    {
+        mfd::client::GeneratedDynamicReticleSet::Remove(reticle);
+    }
+
+protected:
+    std::unique_ptr<mfd::client::DynamicReticle> CreateReticle(const std::string_view reticleId) override
+    {
+        return std::make_unique<GeneratedDynamicFixtureReticle>(reticleId);
+    }
 };
 } // namespace
 
@@ -288,6 +327,47 @@ TEST(AnimationTests, DynamicReticleSetCarriesGeneratedPageAndTemplateIdsWhenKnow
     const auto* removal = std::get_if<mfd::RemoveDynamicReticleCommand>(&commands.front());
     ASSERT_NE(removal, nullptr);
     EXPECT_EQ(removal->target.pageId, 11U);
+}
+
+TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUserIds)
+{
+    GeneratedDynamicFixtureSet set;
+    GeneratedDynamicFixtureReticle& track = set.Create();
+
+    track.label.SetText("A1");
+    track.SetPosition({0.12f, -0.08f});
+
+    std::vector<mfd::UserCommand> commands;
+    const std::size_t firstCount = set.AppendCommands(commands);
+    ASSERT_EQ(firstCount, 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands.front());
+    ASSERT_NE(upsert, nullptr);
+    EXPECT_EQ(upsert->pageId, 11U);
+    EXPECT_EQ(upsert->templateTransportId, 77U);
+    ASSERT_EQ(upsert->reticles.size(), 1U);
+    EXPECT_FALSE(upsert->reticles.front().reticleId.empty());
+    ASSERT_NE(upsert->reticles.front().patch.primitivePatches.find("track_label"),
+              upsert->reticles.front().patch.primitivePatches.end());
+    ASSERT_NE(upsert->reticles.front().patch.primitivePatchesById.find(33U),
+              upsert->reticles.front().patch.primitivePatchesById.end());
+    ASSERT_TRUE(upsert->reticles.front().patch.primitivePatchesById.at(33U).text.has_value());
+    EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(33U).text, "A1");
+
+    commands.clear();
+    EXPECT_EQ(set.AppendCommands(commands), 0U);
+    EXPECT_TRUE(commands.empty());
+
+    set.Remove(track);
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* remove = std::get_if<mfd::RemoveDynamicReticleCommand>(&commands.front());
+    ASSERT_NE(remove, nullptr);
+    EXPECT_EQ(remove->target.page, "Radar");
+    EXPECT_EQ(remove->target.pageId, 11U);
+    EXPECT_FALSE(remove->target.reticle.empty());
 }
 
 TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownRemoval)
