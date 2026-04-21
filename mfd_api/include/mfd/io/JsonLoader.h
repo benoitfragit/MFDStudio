@@ -11,6 +11,7 @@
  */
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/MfdExport.h"
 #include "mfd/model/PageDefinition.h"
+#include "mfd/runtime/GeneratedTransportMap.h"
 
 namespace mfd
 {
@@ -61,6 +63,8 @@ struct LoadedWindowConfiguration
     WindowAssetDefinition window;
     /** @brief Document containing the pages and the reticle library. */
     MfdDocument document;
+    /** @brief Optional generated transport map loaded next to the window JSON. */
+    std::optional<GeneratedTransportMap> generatedTransportMap;
 };
 
 /**

@@ -45,6 +45,10 @@ WindowCommandTransportConfig ParseWindowCommandTransportConfig(const json& root)
 WindowFeedbackTransportConfig ParseWindowFeedbackTransportConfig(const json& root);
 void ApplyReticleTextOverrides(const json& node, ReticleGroup& group);
 bool ResolveReticleBlinkState(const PageDefinition& page, ReticleGroup& reticle);
+void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& map,
+                                                  const std::filesystem::path& windowFile,
+                                                  const WindowAssetDefinition& window,
+                                                  const MfdDocument& document);
 
 std::string_view TrimAsciiWhitespace(std::string_view value) noexcept
 {
@@ -2235,6 +2239,264 @@ PageDefinition ParsePage(const json& node, const ReticleLibrary& library)
 
     return page;
 }
+
+const ReticleGroup* FindStaticReticle(const PageDefinition& page, const std::string_view reticleId) noexcept
+{
+    const std::string normalizedReticleId = NormalizePageName(reticleId);
+
+    for (const ReticleGroup& reticle : page.staticReticles)
+    {
+        if (NormalizePageName(reticle.id) == normalizedReticleId)
+        {
+            return &reticle;
+        }
+    }
+
+    return nullptr;
+}
+
+std::string PrimitiveTypeToGeneratedName(const PrimitiveType type)
+{
+    switch (type)
+    {
+    case PrimitiveType::Text:
+        return "text";
+    case PrimitiveType::Time:
+        return "time";
+    case PrimitiveType::Line:
+        return "line";
+    case PrimitiveType::Circle:
+        return "circle";
+    case PrimitiveType::Ring:
+        return "ring";
+    case PrimitiveType::Rectangle:
+        return "rectangle";
+    case PrimitiveType::Ellipse:
+        return "ellipse";
+    case PrimitiveType::Square:
+        return "square";
+    case PrimitiveType::Diamond:
+        return "diamond";
+    case PrimitiveType::Triangle:
+        return "triangle";
+    case PrimitiveType::Polyline:
+        return "polyline";
+    case PrimitiveType::Bezier:
+        return "bezier";
+    }
+
+    return {};
+}
+
+void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& map,
+                                                  const std::filesystem::path& windowFile,
+                                                  const WindowAssetDefinition& window,
+                                                  const MfdDocument& document)
+{
+    const std::filesystem::path expectedSourceFile = windowFile.filename();
+    if (map.window.source != expectedSourceFile.string())
+    {
+        throw std::runtime_error(
+            "Generated transport map source mismatch for '" + windowFile.string() +
+            "': expected '" + expectedSourceFile.string() + "' but found '" + map.window.source + "'");
+    }
+
+    if (map.window.name != windowFile.stem().string())
+    {
+        throw std::runtime_error(
+            "Generated transport map window name mismatch for '" + windowFile.string() +
+            "': expected '" + windowFile.stem().string() + "' but found '" + map.window.name + "'");
+    }
+
+    if (map.window.title != window.title)
+    {
+        throw std::runtime_error(
+            "Generated transport map title mismatch for '" + windowFile.string() +
+            "': expected '" + window.title + "' but found '" + map.window.title + "'");
+    }
+
+    std::unordered_map<TransportId, const TransportMapPageEntry*> pagesById;
+    for (const auto& pageEntry : map.pages)
+    {
+        const PageDefinition* page = FindPageDefinition(document, pageEntry.name);
+        if (page == nullptr)
+        {
+            throw std::runtime_error(
+                "Generated transport map references unknown page '" + pageEntry.name + "'");
+        }
+
+        if (page->normalizedName != pageEntry.normalizedName)
+        {
+            throw std::runtime_error(
+                "Generated transport map page normalization mismatch for '" + pageEntry.name + "'");
+        }
+
+        if (page->strobe.has_value() != pageEntry.hasStrobe)
+        {
+            throw std::runtime_error(
+                "Generated transport map strobe flag mismatch for page '" + pageEntry.name + "'");
+        }
+
+        if (page->defaultPage != pageEntry.defaultPage)
+        {
+            throw std::runtime_error(
+                "Generated transport map defaultPage mismatch for page '" + pageEntry.name + "'");
+        }
+
+        pagesById.emplace(pageEntry.id, &pageEntry);
+    }
+
+    std::unordered_map<TransportId, const TransportMapReticleEntry*> reticlesById;
+    for (const auto& reticleEntry : map.reticles)
+    {
+        const auto pageIt = pagesById.find(reticleEntry.pageId);
+        if (pageIt == pagesById.end())
+        {
+            throw std::runtime_error(
+                "Generated transport map reticle '" + reticleEntry.reticleId +
+                "' references unknown page id " + std::to_string(reticleEntry.pageId));
+        }
+
+        const PageDefinition* page = FindPageDefinition(document, pageIt->second->name);
+        const ReticleGroup* reticle = page == nullptr ? nullptr : FindStaticReticle(*page, reticleEntry.reticleId);
+        if (reticle == nullptr)
+        {
+            throw std::runtime_error(
+                "Generated transport map references unknown static reticle '" + reticleEntry.reticleId +
+                "' on page '" + pageIt->second->name + "'");
+        }
+
+        if (NormalizePageName(reticle->id) != reticleEntry.normalizedReticleId)
+        {
+            throw std::runtime_error(
+                "Generated transport map reticle normalization mismatch for '" + reticleEntry.reticleId +
+                "' on page '" + pageIt->second->name + "'");
+        }
+
+        reticlesById.emplace(reticleEntry.id, &reticleEntry);
+    }
+
+    std::unordered_map<TransportId, const TransportMapTemplateEntry*> templatesById;
+    for (const auto& templateEntry : map.templates)
+    {
+        const auto iterator = document.reticleLibrary.find(templateEntry.templateId);
+        if (iterator == document.reticleLibrary.end())
+        {
+            throw std::runtime_error(
+                "Generated transport map references unknown template '" + templateEntry.templateId + "'");
+        }
+
+        if (NormalizePageName(templateEntry.templateId) != templateEntry.normalizedTemplateId)
+        {
+            throw std::runtime_error(
+                "Generated transport map template normalization mismatch for '" + templateEntry.templateId + "'");
+        }
+
+        templatesById.emplace(templateEntry.id, &templateEntry);
+    }
+
+    for (const auto& primitiveEntry : map.primitives)
+    {
+        const ReticleGroup* owner = nullptr;
+
+        switch (primitiveEntry.ownerKind)
+        {
+        case TransportPrimitiveOwnerKind::Reticle:
+        {
+            const auto reticleIt = reticlesById.find(primitiveEntry.ownerId);
+            if (reticleIt == reticlesById.end())
+            {
+                throw std::runtime_error(
+                    "Generated transport map primitive '" + primitiveEntry.primitiveId +
+                    "' references unknown reticle owner id " + std::to_string(primitiveEntry.ownerId));
+            }
+
+            const auto pageIt = pagesById.find(reticleIt->second->pageId);
+            const PageDefinition* page = pageIt == pagesById.end() ? nullptr : FindPageDefinition(document, pageIt->second->name);
+            owner = page == nullptr ? nullptr : FindStaticReticle(*page, reticleIt->second->reticleId);
+            break;
+        }
+
+        case TransportPrimitiveOwnerKind::Template:
+        {
+            const auto templateIt = templatesById.find(primitiveEntry.ownerId);
+            if (templateIt == templatesById.end())
+            {
+                throw std::runtime_error(
+                    "Generated transport map primitive '" + primitiveEntry.primitiveId +
+                    "' references unknown template owner id " + std::to_string(primitiveEntry.ownerId));
+            }
+
+            const auto libraryIt = document.reticleLibrary.find(templateIt->second->templateId);
+            if (libraryIt != document.reticleLibrary.end())
+            {
+                owner = &libraryIt->second;
+            }
+            break;
+        }
+        }
+
+        if (owner == nullptr)
+        {
+            throw std::runtime_error(
+                "Generated transport map primitive '" + primitiveEntry.primitiveId + "' owner could not be resolved");
+        }
+
+        const Primitive* primitive = FindPrimitive(*owner, primitiveEntry.primitiveId);
+        if (primitive == nullptr)
+        {
+            throw std::runtime_error(
+                "Generated transport map references unknown primitive '" + primitiveEntry.primitiveId + "'");
+        }
+
+        if (NormalizePageName(primitive->id) != primitiveEntry.normalizedPrimitiveId)
+        {
+            throw std::runtime_error(
+                "Generated transport map primitive normalization mismatch for '" + primitiveEntry.primitiveId + "'");
+        }
+
+        if (PrimitiveTypeToGeneratedName(primitive->type) != primitiveEntry.primitiveType)
+        {
+            throw std::runtime_error(
+                "Generated transport map primitive type mismatch for '" + primitiveEntry.primitiveId + "'");
+        }
+    }
+
+    for (const auto& blinkTypeEntry : map.blinkTypes)
+    {
+        const auto pageIt = pagesById.find(blinkTypeEntry.pageId);
+        if (pageIt == pagesById.end())
+        {
+            throw std::runtime_error(
+                "Generated transport map blink type '" + blinkTypeEntry.blinkType +
+                "' references unknown page id " + std::to_string(blinkTypeEntry.pageId));
+        }
+
+        const PageDefinition* page = FindPageDefinition(document, pageIt->second->name);
+        const PageBlinkDefinition* blinkType =
+            page == nullptr ? nullptr : FindPageBlinkDefinition(*page, blinkTypeEntry.blinkType);
+        if (blinkType == nullptr)
+        {
+            throw std::runtime_error(
+                "Generated transport map references unknown blink type '" + blinkTypeEntry.blinkType +
+                "' on page '" + pageIt->second->name + "'");
+        }
+
+        if (blinkType->normalizedName != blinkTypeEntry.normalizedBlinkType)
+        {
+            throw std::runtime_error(
+                "Generated transport map blink normalization mismatch for '" + blinkTypeEntry.blinkType +
+                "' on page '" + pageIt->second->name + "'");
+        }
+
+        if (blinkType->durationMs != blinkTypeEntry.durationMs)
+        {
+            throw std::runtime_error(
+                "Generated transport map blink duration mismatch for '" + blinkTypeEntry.blinkType +
+                "' on page '" + pageIt->second->name + "'");
+        }
+    }
+}
 } // namespace
 
 LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesystem::path& windowFile) const
@@ -2264,6 +2526,22 @@ LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesys
     }
 
     ApplyDefaultPageName(loaded.document, ParseDefaultPageName(root, "Window JSON"), "window JSON");
+
+    std::string generatedMapError;
+    loaded.generatedTransportMap = TryLoadGeneratedTransportMap(resolvedWindowFile, &generatedMapError);
+    if (!generatedMapError.empty())
+    {
+        throw std::runtime_error(generatedMapError);
+    }
+
+    if (loaded.generatedTransportMap.has_value())
+    {
+        ValidateGeneratedTransportMapAgainstDocument(*loaded.generatedTransportMap,
+                                                    resolvedWindowFile,
+                                                    loaded.window,
+                                                    loaded.document);
+    }
+
     return loaded;
 }
 

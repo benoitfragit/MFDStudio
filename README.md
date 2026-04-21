@@ -149,6 +149,9 @@ Open it with `mfd_window assets/windows/demo_pages_inspired.json` or through
 
 If you want typed page and reticle accessors on the client side,
 `client_api_generator` can generate them directly from a window JSON file.
+The same generation step can also emit a companion
+`assets/windows/<window>.generated.map` file that the runtime loads
+automatically when it is present next to the root window JSON.
 
 Use the CMake helper:
 
@@ -157,6 +160,7 @@ client_api_generate_ui(
     WINDOW_JSON "assets/windows/demo_pages_cockpit.json"
     OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.h"
     OUTPUT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.cpp"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/demo_pages_cockpit.generated.map"
     NAMESPACE "mockup_ui"
     UI_CLASS_NAME "CockpitMockupUi"
     HEADER_INCLUDE "MockupUi.h")

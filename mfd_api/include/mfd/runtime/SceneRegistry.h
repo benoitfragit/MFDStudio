@@ -21,6 +21,7 @@
 #include "mfd/MfdExport.h"
 #include "mfd/model/PageDefinition.h"
 #include "mfd/model/Types.h"
+#include "mfd/runtime/GeneratedTransportMap.h"
 
 namespace mfd
 {
@@ -149,15 +150,31 @@ public:
      * @param document Document to load.
      */
     explicit SceneRegistry(MfdDocument document);
+    /**
+     * @brief Creates a scene and immediately loads a document and its optional generated transport map.
+     * @param document Document to load.
+     * @param transportMap Optional generated transport map resolved for the same window.
+     */
+    SceneRegistry(MfdDocument document, std::optional<GeneratedTransportMap> transportMap);
 
     /**
      * @brief Replaces the current scene content with a new document.
      * @param document Document to load.
      */
     void LoadDocument(MfdDocument document);
+    /**
+     * @brief Replaces the current scene content with a new document and optional generated transport map.
+     * @param document Document to load.
+     * @param transportMap Optional generated transport map resolved for the same window.
+     */
+    void LoadDocument(MfdDocument document, std::optional<GeneratedTransportMap> transportMap);
 
     /** @brief Returns the document currently backing the scene. */
     const MfdDocument& Document() const noexcept;
+    /** @brief Returns the generated transport map currently attached to the scene, when available. */
+    const std::optional<GeneratedTransportMap>& TransportMap() const noexcept;
+    /** @brief Indicates whether the scene currently owns a generated transport map. */
+    bool HasTransportMap() const noexcept;
     /** @brief Returns the loaded reticle template library. */
     const ReticleLibrary& Library() const noexcept;
 
@@ -363,6 +380,8 @@ private:
 
     /** @brief Authored document currently backing the runtime scene. */
     MfdDocument document_ {};
+    /** @brief Optional generated companion map loaded with the current document. */
+    std::optional<GeneratedTransportMap> transportMap_ {};
     /** @brief EnTT registry owning all runtime entities and components. */
     entt::registry registry_ {};
     /** @brief Fast lookup from normalized page name to page entity. */

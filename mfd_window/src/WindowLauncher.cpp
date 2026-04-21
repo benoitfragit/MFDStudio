@@ -797,7 +797,7 @@ private:
             }
 
             windowDefinition_ = loaded.window;
-            scene_.LoadDocument(std::move(loaded.document));
+            scene_.LoadDocument(std::move(loaded.document), std::move(loaded.generatedTransportMap));
             renderer_.SetTextFontFile(windowDefinition_.fontFile);
             udpRuntimeBridge_ = std::make_unique<mfd::UdpRuntimeBridge>(
                 windowDefinition_.commandTransports,

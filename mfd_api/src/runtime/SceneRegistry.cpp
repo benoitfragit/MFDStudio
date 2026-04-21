@@ -349,9 +349,20 @@ SceneRegistry::SceneRegistry(MfdDocument document)
     LoadDocument(std::move(document));
 }
 
+SceneRegistry::SceneRegistry(MfdDocument document, std::optional<GeneratedTransportMap> transportMap)
+{
+    LoadDocument(std::move(document), std::move(transportMap));
+}
+
 void SceneRegistry::LoadDocument(MfdDocument document)
 {
+    LoadDocument(std::move(document), std::nullopt);
+}
+
+void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTransportMap> transportMap)
+{
     document_ = std::move(document);
+    transportMap_ = std::move(transportMap);
     registry_.clear();
     pageEntities_.clear();
     strobeEntities_.clear();
@@ -443,6 +454,16 @@ void SceneRegistry::LoadDocument(MfdDocument document)
 const MfdDocument& SceneRegistry::Document() const noexcept
 {
     return document_;
+}
+
+const std::optional<GeneratedTransportMap>& SceneRegistry::TransportMap() const noexcept
+{
+    return transportMap_;
+}
+
+bool SceneRegistry::HasTransportMap() const noexcept
+{
+    return transportMap_.has_value();
 }
 
 const ReticleLibrary& SceneRegistry::Library() const noexcept
