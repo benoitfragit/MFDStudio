@@ -35,6 +35,47 @@ struct ReticleHandle
 };
 
 /**
+ * @brief Partial primitive update payload nested inside a reticle patch.
+ *
+ * @note Fields left empty are ignored by the runtime.
+ */
+struct PrimitivePatch
+{
+    /** @brief Optional primitive visibility override. */
+    std::optional<bool> visible;
+    /** @brief Optional primitive position override in local reticle space. */
+    std::optional<Vec2> position;
+    /** @brief Optional primitive rotation override in degrees. */
+    std::optional<float> rotationDegrees;
+    /** @brief Optional primitive non-uniform scale override. */
+    std::optional<Vec2> scale;
+    /** @brief Optional primitive stroke color override. */
+    std::optional<ColorRgba> color;
+    /** @brief Optional primitive line thickness override. */
+    std::optional<float> thickness;
+    /** @brief Optional text payload for text-like primitives. */
+    std::optional<std::string> text;
+    /** @brief Optional letter spacing override for text-like primitives. */
+    std::optional<float> letterSpacing;
+    /** @brief Optional line start override for line primitives. */
+    std::optional<Vec2> lineStart;
+    /** @brief Optional line end override for line primitives. */
+    std::optional<Vec2> lineEnd;
+    /** @brief Optional radius override for circle-like primitives. */
+    std::optional<float> radius;
+    /** @brief Optional inner radius override for ring primitives. */
+    std::optional<float> innerRadius;
+    /** @brief Optional outer radius override for ring primitives. */
+    std::optional<float> outerRadius;
+    /** @brief Optional width override for rectangular primitives. */
+    std::optional<float> width;
+    /** @brief Optional height override for rectangular primitives. */
+    std::optional<float> height;
+    /** @brief Optional combined size override for two-axis primitives. */
+    std::optional<Vec2> size;
+};
+
+/**
  * @brief Partial reticle update payload used by user commands.
  *
  * @note Fields left empty are ignored by the runtime.
@@ -68,6 +109,8 @@ struct ReticlePatch
     std::optional<float> letterSpacing;
     /** @brief Per-primitive character spacing overrides indexed by primitive id. */
     std::unordered_map<std::string, float> letterSpacings;
+    /** @brief Rich primitive overrides indexed by primitive id. */
+    std::unordered_map<std::string, PrimitivePatch> primitivePatches;
 };
 
 /**

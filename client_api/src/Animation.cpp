@@ -56,6 +56,26 @@ bool EqualOptional(const std::optional<mfd::ColorRgba>& lhs, const std::optional
     return !lhs.has_value() || Equal(*lhs, *rhs);
 }
 
+bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs)
+{
+    return EqualOptional(lhs.visible, rhs.visible) &&
+           EqualOptional(lhs.position, rhs.position) &&
+           EqualOptional(lhs.rotationDegrees, rhs.rotationDegrees) &&
+           EqualOptional(lhs.scale, rhs.scale) &&
+           EqualOptional(lhs.color, rhs.color) &&
+           EqualOptional(lhs.thickness, rhs.thickness) &&
+           EqualOptional(lhs.text, rhs.text) &&
+           EqualOptional(lhs.letterSpacing, rhs.letterSpacing) &&
+           EqualOptional(lhs.lineStart, rhs.lineStart) &&
+           EqualOptional(lhs.lineEnd, rhs.lineEnd) &&
+           EqualOptional(lhs.radius, rhs.radius) &&
+           EqualOptional(lhs.innerRadius, rhs.innerRadius) &&
+           EqualOptional(lhs.outerRadius, rhs.outerRadius) &&
+           EqualOptional(lhs.width, rhs.width) &&
+           EqualOptional(lhs.height, rhs.height) &&
+           EqualOptional(lhs.size, rhs.size);
+}
+
 bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
 {
     return EqualOptional(lhs.visible, rhs.visible) &&
@@ -68,7 +88,30 @@ bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
            EqualOptional(lhs.text, rhs.text) &&
            lhs.texts == rhs.texts &&
            EqualOptional(lhs.letterSpacing, rhs.letterSpacing) &&
-           lhs.letterSpacings == rhs.letterSpacings;
+           lhs.letterSpacings == rhs.letterSpacings &&
+           [&lhs, &rhs]() -> bool
+           {
+               if (lhs.primitivePatches.size() != rhs.primitivePatches.size())
+               {
+                   return false;
+               }
+
+               for (const auto& [primitiveId, primitivePatch] : lhs.primitivePatches)
+               {
+                   const auto rightIt = rhs.primitivePatches.find(primitiveId);
+                   if (rightIt == rhs.primitivePatches.end())
+                   {
+                       return false;
+                   }
+
+                   if (!Equal(primitivePatch, rightIt->second))
+                   {
+                       return false;
+                   }
+               }
+
+               return true;
+           }();
 }
 
 bool Equal(const mfd::WindowDisplayPatch& lhs, const mfd::WindowDisplayPatch& rhs)
@@ -104,6 +147,51 @@ void CopyChangedMapFields(const std::unordered_map<std::string, T>& desired,
     }
 }
 
+mfd::PrimitivePatch BuildDeltaPrimitivePatch(const mfd::PrimitivePatch& desired,
+                                            const mfd::PrimitivePatch& previous)
+{
+    mfd::PrimitivePatch delta;
+    CopyChangedOptionalField(desired.visible, previous.visible, delta.visible);
+    CopyChangedOptionalField(desired.position, previous.position, delta.position);
+    CopyChangedOptionalField(desired.rotationDegrees, previous.rotationDegrees, delta.rotationDegrees);
+    CopyChangedOptionalField(desired.scale, previous.scale, delta.scale);
+    CopyChangedOptionalField(desired.color, previous.color, delta.color);
+    CopyChangedOptionalField(desired.thickness, previous.thickness, delta.thickness);
+    CopyChangedOptionalField(desired.text, previous.text, delta.text);
+    CopyChangedOptionalField(desired.letterSpacing, previous.letterSpacing, delta.letterSpacing);
+    CopyChangedOptionalField(desired.lineStart, previous.lineStart, delta.lineStart);
+    CopyChangedOptionalField(desired.lineEnd, previous.lineEnd, delta.lineEnd);
+    CopyChangedOptionalField(desired.radius, previous.radius, delta.radius);
+    CopyChangedOptionalField(desired.innerRadius, previous.innerRadius, delta.innerRadius);
+    CopyChangedOptionalField(desired.outerRadius, previous.outerRadius, delta.outerRadius);
+    CopyChangedOptionalField(desired.width, previous.width, delta.width);
+    CopyChangedOptionalField(desired.height, previous.height, delta.height);
+    CopyChangedOptionalField(desired.size, previous.size, delta.size);
+    return delta;
+}
+
+void CopyChangedPrimitiveMapFields(const std::unordered_map<std::string, mfd::PrimitivePatch>& desired,
+                                   const std::unordered_map<std::string, mfd::PrimitivePatch>& previous,
+                                   std::unordered_map<std::string, mfd::PrimitivePatch>& destination)
+{
+    for (const auto& [key, value] : desired)
+    {
+        const auto previousIt = previous.find(key);
+        if (previousIt == previous.end())
+        {
+            destination.emplace(key, value);
+            continue;
+        }
+
+        const mfd::PrimitivePatch delta = BuildDeltaPrimitivePatch(value, previousIt->second);
+        const mfd::PrimitivePatch empty {};
+        if (!Equal(delta, empty))
+        {
+            destination.emplace(key, delta);
+        }
+    }
+}
+
 mfd::ReticlePatch BuildDeltaPatch(const mfd::ReticlePatch& desired, const mfd::ReticlePatch& previous)
 {
     mfd::ReticlePatch delta;
@@ -118,6 +206,7 @@ mfd::ReticlePatch BuildDeltaPatch(const mfd::ReticlePatch& desired, const mfd::R
     CopyChangedMapFields(desired.texts, previous.texts, delta.texts);
     CopyChangedOptionalField(desired.letterSpacing, previous.letterSpacing, delta.letterSpacing);
     CopyChangedMapFields(desired.letterSpacings, previous.letterSpacings, delta.letterSpacings);
+    CopyChangedPrimitiveMapFields(desired.primitivePatches, previous.primitivePatches, delta.primitivePatches);
     return delta;
 }
 
@@ -199,6 +288,11 @@ void PatchSetLetterSpacing(mfd::ReticlePatch& patch,
 {
     patch.letterSpacings[std::string(primitiveId)] = letterSpacing;
 }
+
+mfd::PrimitivePatch& PatchPrimitive(mfd::ReticlePatch& patch, const std::string_view primitiveId)
+{
+    return patch.primitivePatches[std::string(primitiveId)];
+}
 } // namespace
 
 BlinkType::BlinkType(const std::string_view name) :
@@ -273,6 +367,232 @@ void ReticleBlink::MarkDirty() noexcept
     {
         *dirty_ = true;
     }
+}
+
+PrimitiveHandle::PrimitiveHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    patch_(&patch),
+    dirty_(dirty),
+    primitiveId_(primitiveId)
+{
+}
+
+const std::string& PrimitiveHandle::Id() const noexcept
+{
+    return primitiveId_;
+}
+
+void PrimitiveHandle::SetVisible(const bool visible)
+{
+    Patch().visible = visible;
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetPosition(const mfd::Vec2 position)
+{
+    Patch().position = position;
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetRotationDegrees(const float rotationDegrees)
+{
+    Patch().rotationDegrees = rotationDegrees;
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetScale(const mfd::Vec2 scale)
+{
+    Patch().scale = scale;
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetColor(const mfd::ColorRgba color)
+{
+    Patch().color = color;
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetThickness(const float thickness)
+{
+    Patch().thickness = thickness;
+    MarkDirty();
+}
+
+mfd::PrimitivePatch& PrimitiveHandle::Patch() noexcept
+{
+    return PatchPrimitive(*patch_, primitiveId_);
+}
+
+void PrimitiveHandle::MarkDirty() noexcept
+{
+    if (dirty_ != nullptr)
+    {
+        *dirty_ = true;
+    }
+}
+
+TextHandle::TextHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void TextHandle::SetText(std::string value)
+{
+    Patch().text = std::move(value);
+    MarkDirty();
+}
+
+void TextHandle::SetLetterSpacing(const float letterSpacing)
+{
+    Patch().letterSpacing = letterSpacing;
+    MarkDirty();
+}
+
+TimeHandle::TimeHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void TimeHandle::SetLetterSpacing(const float letterSpacing)
+{
+    Patch().letterSpacing = letterSpacing;
+    MarkDirty();
+}
+
+LineHandle::LineHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void LineHandle::SetStart(const mfd::Vec2 start)
+{
+    Patch().lineStart = start;
+    MarkDirty();
+}
+
+void LineHandle::SetEnd(const mfd::Vec2 end)
+{
+    Patch().lineEnd = end;
+    MarkDirty();
+}
+
+CircleHandle::CircleHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void CircleHandle::SetRadius(const float radius)
+{
+    Patch().radius = radius;
+    MarkDirty();
+}
+
+RingHandle::RingHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void RingHandle::SetInnerRadius(const float radius)
+{
+    Patch().innerRadius = radius;
+    MarkDirty();
+}
+
+void RingHandle::SetOuterRadius(const float radius)
+{
+    Patch().outerRadius = radius;
+    MarkDirty();
+}
+
+RectangleHandle::RectangleHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void RectangleHandle::SetWidth(const float width)
+{
+    Patch().width = width;
+    MarkDirty();
+}
+
+void RectangleHandle::SetHeight(const float height)
+{
+    Patch().height = height;
+    MarkDirty();
+}
+
+void RectangleHandle::SetSize(const mfd::Vec2 size)
+{
+    Patch().size = size;
+    MarkDirty();
+}
+
+EllipseHandle::EllipseHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void EllipseHandle::SetWidth(const float width)
+{
+    Patch().width = width;
+    MarkDirty();
+}
+
+void EllipseHandle::SetHeight(const float height)
+{
+    Patch().height = height;
+    MarkDirty();
+}
+
+void EllipseHandle::SetSize(const mfd::Vec2 size)
+{
+    Patch().size = size;
+    MarkDirty();
+}
+
+SquareHandle::SquareHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void SquareHandle::SetWidth(const float width)
+{
+    Patch().width = width;
+    MarkDirty();
+}
+
+void SquareHandle::SetHeight(const float height)
+{
+    Patch().height = height;
+    MarkDirty();
+}
+
+void SquareHandle::SetSize(const mfd::Vec2 size)
+{
+    Patch().size = size;
+    MarkDirty();
+}
+
+DiamondHandle::DiamondHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+    PrimitiveHandle(patch, dirty, primitiveId)
+{
+}
+
+void DiamondHandle::SetWidth(const float width)
+{
+    Patch().width = width;
+    MarkDirty();
+}
+
+void DiamondHandle::SetHeight(const float height)
+{
+    Patch().height = height;
+    MarkDirty();
+}
+
+void DiamondHandle::SetSize(const mfd::Vec2 size)
+{
+    Patch().size = size;
+    MarkDirty();
 }
 
 Reticle::Reticle(const std::string_view pageName, const std::string_view reticleId) :
@@ -386,6 +706,16 @@ const mfd::ReticlePatch& Reticle::DesiredPatch() const noexcept
     return desiredPatch_;
 }
 
+mfd::ReticlePatch& Reticle::MutableDesiredPatch() noexcept
+{
+    return desiredPatch_;
+}
+
+bool* Reticle::DirtyFlag() noexcept
+{
+    return &dirty_;
+}
+
 TextReticle::TextReticle(const std::string_view pageName,
                          const std::string_view reticleId,
                          const std::string_view primitiveId) :
@@ -397,6 +727,88 @@ TextReticle::TextReticle(const std::string_view pageName,
 void TextReticle::SetValue(std::string value)
 {
     SetText(primitiveId_, std::move(value));
+}
+
+StrobeHandle::StrobeHandle(const std::string_view pageName, StrobeInfo info) :
+    pageName_(pageName),
+    info_(std::move(info))
+{
+}
+
+void StrobeHandle::Reset() noexcept
+{
+    dirty_ = false;
+}
+
+bool StrobeHandle::IsValid() const noexcept
+{
+    return info_.valid;
+}
+
+std::string_view StrobeHandle::PageName() const noexcept
+{
+    return pageName_;
+}
+
+const StrobeInfo& StrobeHandle::Info() const noexcept
+{
+    return info_;
+}
+
+void StrobeHandle::SetActive(const bool active)
+{
+    if (!IsValid())
+    {
+        return;
+    }
+
+    desiredActive_ = active;
+    dirty_ = true;
+}
+
+void StrobeHandle::SetPosition(const mfd::Vec2 position)
+{
+    if (!IsValid())
+    {
+        return;
+    }
+
+    desiredPosition_ = position;
+    dirty_ = true;
+}
+
+bool StrobeHandle::AppendCommands(std::vector<mfd::UserCommand>& commands)
+{
+    if (!IsValid() || !dirty_)
+    {
+        return false;
+    }
+
+    bool emitted = false;
+    mfd::UpdateStrobeCommand command;
+    command.page = pageName_;
+
+    if (!EqualOptional(desiredActive_, lastSentActive_))
+    {
+        command.active = desiredActive_;
+        lastSentActive_ = desiredActive_;
+        emitted = true;
+    }
+
+    if (!EqualOptional(desiredPosition_, lastSentPosition_))
+    {
+        command.position = desiredPosition_;
+        lastSentPosition_ = desiredPosition_;
+        emitted = true;
+    }
+
+    if (!emitted)
+    {
+        return false;
+    }
+
+    commands.emplace_back(std::move(command));
+    return true;
 }
 
 DynamicReticle::DynamicReticle(const std::string_view reticleId) :

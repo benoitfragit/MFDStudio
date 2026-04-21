@@ -15,6 +15,27 @@
 
 #include "mfd/client/Animation.h"
 
+namespace
+{
+class PrimitiveFixtureReticle final : public mfd::client::Reticle
+{
+public:
+    PrimitiveFixtureReticle()
+        : mfd::client::Reticle("Radar", "fixture"),
+          headingValue(MutableDesiredPatch(), DirtyFlag(), "heading_value"),
+          horizonLine(MutableDesiredPatch(), DirtyFlag(), "horizon_line"),
+          compassRing(MutableDesiredPatch(), DirtyFlag(), "compass_ring"),
+          lockBox(MutableDesiredPatch(), DirtyFlag(), "lock_box")
+    {
+    }
+
+    mfd::client::TextHandle headingValue;
+    mfd::client::LineHandle horizonLine;
+    mfd::client::RingHandle compassRing;
+    mfd::client::RectangleHandle lockBox;
+};
+} // namespace
+
 TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
 {
     mfd::client::BlinkType fast("fast");
@@ -75,6 +96,73 @@ TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
     EXPECT_FALSE(blinkDisable->patch.thickness.has_value());
     EXPECT_TRUE(blinkDisable->patch.texts.empty());
     EXPECT_TRUE(blinkDisable->patch.letterSpacings.empty());
+}
+
+TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta)
+{
+    PrimitiveFixtureReticle reticle;
+
+    reticle.headingValue.SetVisible(true);
+    reticle.headingValue.SetPosition({0.10f, -0.15f});
+    reticle.headingValue.SetScale({1.2f, 0.8f});
+    reticle.headingValue.SetColor({10, 20, 30, 255});
+    reticle.headingValue.SetThickness(0.005f);
+    reticle.headingValue.SetText("123");
+    reticle.headingValue.SetLetterSpacing(0.02f);
+    reticle.horizonLine.SetStart({-0.5f, 0.0f});
+    reticle.horizonLine.SetEnd({0.5f, 0.0f});
+    reticle.compassRing.SetInnerRadius(0.15f);
+    reticle.compassRing.SetOuterRadius(0.2f);
+    reticle.lockBox.SetWidth(0.30f);
+    reticle.lockBox.SetHeight(0.12f);
+    reticle.lockBox.SetSize({0.32f, 0.14f});
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    ASSERT_EQ(update->patch.primitivePatches.size(), 4U);
+
+    const auto& textPatch = update->patch.primitivePatches.at("heading_value");
+    ASSERT_TRUE(textPatch.visible.has_value());
+    ASSERT_TRUE(textPatch.position.has_value());
+    ASSERT_TRUE(textPatch.scale.has_value());
+    ASSERT_TRUE(textPatch.color.has_value());
+    ASSERT_TRUE(textPatch.thickness.has_value());
+    ASSERT_TRUE(textPatch.text.has_value());
+    ASSERT_TRUE(textPatch.letterSpacing.has_value());
+    EXPECT_TRUE(*textPatch.visible);
+    EXPECT_FLOAT_EQ(textPatch.position->x, 0.10f);
+    EXPECT_FLOAT_EQ(textPatch.position->y, -0.15f);
+    EXPECT_FLOAT_EQ(textPatch.scale->x, 1.2f);
+    EXPECT_FLOAT_EQ(textPatch.scale->y, 0.8f);
+    EXPECT_EQ(textPatch.color->r, 10U);
+    EXPECT_FLOAT_EQ(*textPatch.thickness, 0.005f);
+    EXPECT_EQ(*textPatch.text, "123");
+    EXPECT_FLOAT_EQ(*textPatch.letterSpacing, 0.02f);
+
+    const auto& linePatch = update->patch.primitivePatches.at("horizon_line");
+    ASSERT_TRUE(linePatch.lineStart.has_value());
+    ASSERT_TRUE(linePatch.lineEnd.has_value());
+    EXPECT_FLOAT_EQ(linePatch.lineStart->x, -0.5f);
+    EXPECT_FLOAT_EQ(linePatch.lineEnd->x, 0.5f);
+
+    const auto& ringPatch = update->patch.primitivePatches.at("compass_ring");
+    ASSERT_TRUE(ringPatch.innerRadius.has_value());
+    ASSERT_TRUE(ringPatch.outerRadius.has_value());
+    EXPECT_FLOAT_EQ(*ringPatch.innerRadius, 0.15f);
+    EXPECT_FLOAT_EQ(*ringPatch.outerRadius, 0.2f);
+
+    const auto& rectanglePatch = update->patch.primitivePatches.at("lock_box");
+    ASSERT_TRUE(rectanglePatch.width.has_value());
+    ASSERT_TRUE(rectanglePatch.height.has_value());
+    ASSERT_TRUE(rectanglePatch.size.has_value());
+    EXPECT_FLOAT_EQ(*rectanglePatch.width, 0.30f);
+    EXPECT_FLOAT_EQ(*rectanglePatch.height, 0.12f);
+    EXPECT_FLOAT_EQ(rectanglePatch.size->x, 0.32f);
+    EXPECT_FLOAT_EQ(rectanglePatch.size->y, 0.14f);
 }
 
 TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingReticles)
@@ -217,6 +305,56 @@ TEST(AnimationTests, DynamicReticleSetVisibilityEmitsDedicatedTemplateCommand)
     const auto* showVisibility = std::get_if<mfd::SetDynamicReticleSetVisibilityCommand>(&commands[0]);
     ASSERT_NE(showVisibility, nullptr);
     EXPECT_TRUE(showVisibility->visible);
+}
+
+TEST(AnimationTests, StrobeHandleReportsValidityAndEmitsPageScopedCommands)
+{
+    mfd::client::StrobeInfo info;
+    info.valid = true;
+    info.capture.shape = mfd::StrobeCaptureShape::Rectangle;
+    info.capture.size = {0.4f, 0.2f};
+    info.magnet.enabled = true;
+    info.magnet.radius = 0.3f;
+    info.magnet.strength = 0.6f;
+
+    mfd::client::StrobeHandle strobe("Radar", info);
+    EXPECT_TRUE(strobe.IsValid());
+    EXPECT_EQ(strobe.PageName(), "Radar");
+    EXPECT_EQ(strobe.Info().capture.shape, mfd::StrobeCaptureShape::Rectangle);
+    EXPECT_TRUE(strobe.Info().magnet.enabled);
+
+    strobe.SetActive(false);
+    strobe.SetPosition({0.25f, -0.35f});
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(strobe.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateStrobeCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->page, "Radar");
+    ASSERT_TRUE(update->active.has_value());
+    ASSERT_TRUE(update->position.has_value());
+    EXPECT_FALSE(*update->active);
+    EXPECT_FLOAT_EQ(update->position->x, 0.25f);
+    EXPECT_FLOAT_EQ(update->position->y, -0.35f);
+
+    commands.clear();
+    EXPECT_FALSE(strobe.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
+}
+
+TEST(AnimationTests, InvalidStrobeHandleSuppressesMutationsAndCommands)
+{
+    mfd::client::StrobeHandle strobe("System", {});
+    EXPECT_FALSE(strobe.IsValid());
+
+    strobe.SetActive(true);
+    strobe.SetPosition({0.1f, 0.2f});
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_FALSE(strobe.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
 }
 
 
