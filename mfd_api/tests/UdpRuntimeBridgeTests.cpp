@@ -146,12 +146,14 @@ std::vector<std::byte> ToBytes(const std::string& payload)
 }
 } // namespace
 
-TEST(UdpRuntimeBridgeTests, DrainsReceivedCommandsFromWorkerQueue)
+TEST(UdpRuntimeBridgeTests, DrainsReceivedBatchesFromWorkerQueue)
 {
     auto receiverState = std::make_shared<FakeChannelState>();
     auto senderState = std::make_shared<FakeChannelState>();
 
     mfd::CommandBatch batch;
+    batch.sequence = 17U;
+    batch.mappingHash = "map_hash";
     batch.commands.push_back(mfd::ResetWindowCommand {});
     receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
 
@@ -168,16 +170,19 @@ TEST(UdpRuntimeBridgeTests, DrainsReceivedCommandsFromWorkerQueue)
     ASSERT_TRUE(bridge.Start());
     ASSERT_TRUE(bridge.IsRunning());
 
-    std::vector<mfd::UserCommand> drained;
+    std::vector<mfd::CommandBatch> drained;
     ASSERT_TRUE(WaitUntil(
         std::chrono::milliseconds(300),
         [&bridge, &drained]()
         {
-            return bridge.DrainReceivedCommands(drained, 4) > 0;
+            return bridge.DrainReceivedBatches(drained, 4) > 0;
         }));
 
     EXPECT_EQ(drained.size(), 1U);
-    EXPECT_NE(std::get_if<mfd::ResetWindowCommand>(&drained.front()), nullptr);
+    EXPECT_EQ(drained.front().sequence, 17U);
+    EXPECT_EQ(drained.front().mappingHash, "map_hash");
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+    EXPECT_NE(std::get_if<mfd::ResetWindowCommand>(&drained.front().commands.front()), nullptr);
     bridge.Stop();
 }
 

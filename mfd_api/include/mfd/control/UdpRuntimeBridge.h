@@ -101,10 +101,23 @@ public:
     bool FeedbackTransportReady() const noexcept;
 
     /**
+     * @brief Drains received command batches into a caller-owned vector.
+     * @param destination Vector receiving the drained batches. New batches are appended.
+     * @param maxBatches Maximum number of batches drained during this call.
+     * @return Number of batches appended to the destination vector.
+     */
+    std::size_t DrainReceivedBatches(std::vector<CommandBatch>& destination,
+                                     std::size_t maxBatches = 256);
+
+    /**
      * @brief Drains received commands into a caller-owned vector.
      * @param destination Vector receiving the drained commands. New commands are appended.
      * @param maxCommands Maximum number of commands drained during this call.
      * @return Number of commands appended to the destination vector.
+     *
+     * @note This compatibility helper flattens received command batches and
+     * therefore drops `sequence` and `mappingHash`. Prefer `DrainReceivedBatches`
+     * when the caller needs the full protocol envelope.
      */
     std::size_t DrainReceivedCommands(std::vector<UserCommand>& destination,
                                       std::size_t maxCommands = 256);

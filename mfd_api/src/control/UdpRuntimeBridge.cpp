@@ -48,7 +48,7 @@ struct UdpRuntimeBridge::Impl
     std::unique_ptr<IExchangeChannel> commandReceiver {};
     std::unique_ptr<IExchangeChannel> feedbackSender {};
 
-    std::deque<UserCommand> inboundCommands;
+    std::deque<CommandBatch> inboundBatches;
     std::deque<StrobeStatusFeedback> outboundFeedback;
 
     mutable std::mutex stateMutex;
@@ -189,9 +189,9 @@ bool UdpRuntimeBridge::Start()
     impl_->worker = std::thread(
         [impl = impl_.get()]()
         {
-            auto pushCommands = [impl](std::vector<UserCommand>&& commands)
+            auto pushBatch = [impl](CommandBatch&& batch)
             {
-                if (commands.empty())
+                if (batch.commands.empty())
                 {
                     return;
                 }
@@ -199,13 +199,13 @@ bool UdpRuntimeBridge::Start()
                 std::lock_guard lock(impl->inboundMutex);
 
                 const std::size_t overflow =
-                    impl->inboundCommands.size() + commands.size() > kMaxQueuedCommands
-                        ? impl->inboundCommands.size() + commands.size() - kMaxQueuedCommands
+                    impl->inboundBatches.size() + 1U > kMaxQueuedCommands
+                        ? impl->inboundBatches.size() + 1U - kMaxQueuedCommands
                         : 0;
 
-                for (std::size_t index = 0; index < overflow && !impl->inboundCommands.empty(); ++index)
+                for (std::size_t index = 0; index < overflow && !impl->inboundBatches.empty(); ++index)
                 {
-                    impl->inboundCommands.pop_front();
+                    impl->inboundBatches.pop_front();
                 }
 
                 if (overflow > 0)
@@ -213,10 +213,7 @@ bool UdpRuntimeBridge::Start()
                     impl->SetCommandStatus("UDP command queue overflow, dropping oldest commands");
                 }
 
-                for (auto& command : commands)
-                {
-                    impl->inboundCommands.push_back(std::move(command));
-                }
+                impl->inboundBatches.push_back(std::move(batch));
             };
 
             auto flushFeedback = [impl]() -> bool
@@ -270,7 +267,7 @@ bool UdpRuntimeBridge::Start()
                 return sentAny;
             };
 
-            auto pumpCommands = [impl, &pushCommands]() -> bool
+            auto pumpCommands = [impl, &pushBatch]() -> bool
             {
                 if (!impl->IsCommandReady() || impl->commandReceiver == nullptr)
                 {
@@ -292,15 +289,14 @@ bool UdpRuntimeBridge::Start()
 
                         const auto* raw = reinterpret_cast<const char*>(payload->data());
                         std::string error;
-                        auto commands =
-                            DeserializeUserCommands(std::string_view(raw, payload->size()), &error);
-                        if (!commands.has_value())
+                        auto batch = DeserializeCommandBatch(std::string_view(raw, payload->size()), &error);
+                        if (!batch.has_value())
                         {
                             impl->SetCommandStatus(error);
                             continue;
                         }
 
-                        pushCommands(std::move(*commands));
+                        pushBatch(std::move(*batch));
                     }
                     catch (const std::exception& exception)
                     {
@@ -388,7 +384,7 @@ void UdpRuntimeBridge::Stop() noexcept
 
     {
         std::lock_guard lock(impl_->inboundMutex);
-        impl_->inboundCommands.clear();
+        impl_->inboundBatches.clear();
     }
 
     {
@@ -452,6 +448,27 @@ bool UdpRuntimeBridge::FeedbackTransportReady() const noexcept
     return impl_->feedbackReady;
 }
 
+std::size_t UdpRuntimeBridge::DrainReceivedBatches(std::vector<CommandBatch>& destination,
+                                                   const std::size_t maxBatches)
+{
+    if (impl_ == nullptr || maxBatches == 0)
+    {
+        return 0;
+    }
+
+    std::lock_guard lock(impl_->inboundMutex);
+    const std::size_t batchCount = std::min(maxBatches, impl_->inboundBatches.size());
+    destination.reserve(destination.size() + batchCount);
+
+    for (std::size_t index = 0; index < batchCount; ++index)
+    {
+        destination.push_back(std::move(impl_->inboundBatches.front()));
+        impl_->inboundBatches.pop_front();
+    }
+
+    return batchCount;
+}
+
 std::size_t UdpRuntimeBridge::DrainReceivedCommands(std::vector<UserCommand>& destination,
                                                     const std::size_t maxCommands)
 {
@@ -461,13 +478,33 @@ std::size_t UdpRuntimeBridge::DrainReceivedCommands(std::vector<UserCommand>& de
     }
 
     std::lock_guard lock(impl_->inboundMutex);
-    const std::size_t commandCount = std::min(maxCommands, impl_->inboundCommands.size());
-    destination.reserve(destination.size() + commandCount);
+    std::size_t commandCount = 0;
 
-    for (std::size_t index = 0; index < commandCount; ++index)
+    while (!impl_->inboundBatches.empty() && commandCount < maxCommands)
     {
-        destination.push_back(std::move(impl_->inboundCommands.front()));
-        impl_->inboundCommands.pop_front();
+        CommandBatch batch = std::move(impl_->inboundBatches.front());
+        impl_->inboundBatches.pop_front();
+        std::size_t consumedInBatch = 0;
+
+        for (UserCommand& command : batch.commands)
+        {
+            if (commandCount >= maxCommands)
+            {
+                break;
+            }
+
+            destination.push_back(std::move(command));
+            ++commandCount;
+            ++consumedInBatch;
+        }
+
+        if (consumedInBatch < batch.commands.size())
+        {
+            batch.commands.erase(batch.commands.begin(),
+                                 batch.commands.begin() + static_cast<std::ptrdiff_t>(consumedInBatch));
+            impl_->inboundBatches.push_front(std::move(batch));
+            break;
+        }
     }
 
     return commandCount;

@@ -888,25 +888,45 @@ private:
     {
         if (udpRuntimeBridge_ != nullptr)
         {
-            pendingCommands_.clear();
-            const std::size_t drainedCommands = udpRuntimeBridge_->DrainReceivedCommands(pendingCommands_);
-            if (drainedCommands > 0)
+            pendingCommandBatches_.clear();
+            const std::size_t drainedBatches = udpRuntimeBridge_->DrainReceivedBatches(pendingCommandBatches_);
+            if (drainedBatches > 0)
             {
-                std::size_t submittedCommands = drainedCommands;
-                if (pendingCommands_.size() > kMaxCommandsPerFrame)
+                std::size_t drainedCommands = 0;
+                bool success = true;
+                bool truncated = false;
+
+                for (const mfd::CommandBatch& batch : pendingCommandBatches_)
                 {
-                    pendingCommands_.resize(kMaxCommandsPerFrame);
-                    submittedCommands = kMaxCommandsPerFrame;
+                    drainedCommands += batch.commands.size();
                 }
 
-                if (commandProcessor_.Submit(
-                        mfd::ArrayView<const mfd::UserCommand>(pendingCommands_.data(), pendingCommands_.size())))
+                std::size_t appliedCommands = 0;
+                for (const mfd::CommandBatch& batch : pendingCommandBatches_)
                 {
-                    lastCommandStatus_ = submittedCommands < drainedCommands
-                                             ? "Applied " + std::to_string(submittedCommands) +
+                    if (appliedCommands >= kMaxCommandsPerFrame)
+                    {
+                        break;
+                    }
+
+                    const std::size_t batchCommandCount = batch.commands.size();
+                    if (appliedCommands + batchCommandCount > kMaxCommandsPerFrame)
+                    {
+                        truncated = true;
+                        break;
+                    }
+
+                    success = commandProcessor_.Submit(batch) && success;
+                    appliedCommands += batchCommandCount;
+                }
+
+                if (success)
+                {
+                    lastCommandStatus_ = truncated
+                                             ? "Applied " + std::to_string(appliedCommands) +
                                                    " command(s) from the UDP I/O thread (truncated from " +
                                                    std::to_string(drainedCommands) + ")."
-                                             : "Applied " + std::to_string(drainedCommands) +
+                                             : "Applied " + std::to_string(appliedCommands) +
                                                    " command(s) from the UDP I/O thread.";
                 }
                 else if (!commandProcessor_.LastError().empty())
@@ -1016,7 +1036,7 @@ private:
     AsyncFramebufferCapture framebufferCapture_ {};
     mfd::WindowAssetDefinition windowDefinition_ {};
     std::unique_ptr<mfd::UdpRuntimeBridge> udpRuntimeBridge_ {};
-    std::vector<mfd::UserCommand> pendingCommands_ {};
+    std::vector<mfd::CommandBatch> pendingCommandBatches_ {};
     float strobeFeedbackAccumulator_ = 0.0f;
     std::uint32_t nextStrobeFeedbackSequence_ = 1;
     std::string lastCommandStatus_ {};

@@ -938,10 +938,11 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
 
     if (visibilityDirty_ && desiredVisible_ != lastSentVisible_)
     {
-        commands.emplace_back(mfd::SetDynamicReticleSetVisibilityCommand {
-            pageName_,
-            templateId_,
-            desiredVisible_});
+        mfd::SetDynamicReticleSetVisibilityCommand command;
+        command.page = pageName_;
+        command.templateId = templateId_;
+        command.visible = desiredVisible_;
+        commands.emplace_back(std::move(command));
         lastSentVisible_ = desiredVisible_;
         ++count;
     }
@@ -982,10 +983,11 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
 
     if (!updates.empty())
     {
-        commands.emplace_back(mfd::UpsertDynamicReticlesCommand {
-            pageName_,
-            templateId_,
-            std::move(updates)});
+        mfd::UpsertDynamicReticlesCommand command;
+        command.page = pageName_;
+        command.templateId = templateId_;
+        command.reticles = std::move(updates);
+        commands.emplace_back(std::move(command));
     }
 
     visibilityDirty_ = false;

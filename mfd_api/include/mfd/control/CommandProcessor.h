@@ -52,6 +52,13 @@ public:
     bool Submit(const UserCommand& command);
 
     /**
+     * @brief Submits one typed command batch directly.
+     * @param batch Batch to dispatch in order.
+     * @return `true` if every command was accepted and applied.
+     */
+    bool Submit(const CommandBatch& batch);
+
+    /**
      * @brief Submits a sequence of typed commands directly.
      * @param commands Commands to dispatch in order.
      * @return `true` if every command was accepted and applied.
@@ -110,6 +117,9 @@ private:
     void OnSetDynamicReticleSetVisibility(const SetDynamicReticleSetVisibilityCommand& command);
     void OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
     void OnResetWindow(const ResetWindowCommand& command);
+
+    bool SubmitResolved(UserCommand command, std::string_view mappingHash);
+    bool ResolveCommandIdentifiers(UserCommand& command, std::string_view mappingHash);
 
     void SetFailure(std::string message);
 

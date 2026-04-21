@@ -55,6 +55,176 @@ Vec2 FromProtoVec2(const pb::Vec2& value) noexcept
     return Vec2 {value.x(), value.y()};
 }
 
+void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* target)
+{
+    if (patch.visible.has_value())
+    {
+        target->set_visible(*patch.visible);
+    }
+
+    if (patch.position.has_value())
+    {
+        FillProtoVec2(*patch.position, target->mutable_position());
+    }
+
+    if (patch.rotationDegrees.has_value())
+    {
+        target->set_rotation_degrees(*patch.rotationDegrees);
+    }
+
+    if (patch.scale.has_value())
+    {
+        FillProtoVec2(*patch.scale, target->mutable_scale());
+    }
+
+    if (patch.color.has_value())
+    {
+        target->set_packed_rgba(PackColor(*patch.color));
+    }
+
+    if (patch.thickness.has_value())
+    {
+        target->set_thickness(*patch.thickness);
+    }
+
+    if (patch.text.has_value())
+    {
+        target->set_text(*patch.text);
+    }
+
+    if (patch.letterSpacing.has_value())
+    {
+        target->set_letter_spacing(*patch.letterSpacing);
+    }
+
+    if (patch.lineStart.has_value())
+    {
+        FillProtoVec2(*patch.lineStart, target->mutable_line_start());
+    }
+
+    if (patch.lineEnd.has_value())
+    {
+        FillProtoVec2(*patch.lineEnd, target->mutable_line_end());
+    }
+
+    if (patch.radius.has_value())
+    {
+        target->set_radius(*patch.radius);
+    }
+
+    if (patch.innerRadius.has_value())
+    {
+        target->set_inner_radius(*patch.innerRadius);
+    }
+
+    if (patch.outerRadius.has_value())
+    {
+        target->set_outer_radius(*patch.outerRadius);
+    }
+
+    if (patch.width.has_value())
+    {
+        target->set_width(*patch.width);
+    }
+
+    if (patch.height.has_value())
+    {
+        target->set_height(*patch.height);
+    }
+
+    if (patch.size.has_value())
+    {
+        FillProtoVec2(*patch.size, target->mutable_size());
+    }
+}
+
+PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
+{
+    PrimitivePatch patch;
+
+    if (value.has_visible())
+    {
+        patch.visible = value.visible();
+    }
+
+    if (value.has_position())
+    {
+        patch.position = FromProtoVec2(value.position());
+    }
+
+    if (value.has_rotation_degrees())
+    {
+        patch.rotationDegrees = value.rotation_degrees();
+    }
+
+    if (value.has_scale())
+    {
+        patch.scale = FromProtoVec2(value.scale());
+    }
+
+    if (value.has_packed_rgba())
+    {
+        patch.color = UnpackColor(value.packed_rgba());
+    }
+
+    if (value.has_thickness())
+    {
+        patch.thickness = value.thickness();
+    }
+
+    if (value.has_text())
+    {
+        patch.text = value.text();
+    }
+
+    if (value.has_letter_spacing())
+    {
+        patch.letterSpacing = value.letter_spacing();
+    }
+
+    if (value.has_line_start())
+    {
+        patch.lineStart = FromProtoVec2(value.line_start());
+    }
+
+    if (value.has_line_end())
+    {
+        patch.lineEnd = FromProtoVec2(value.line_end());
+    }
+
+    if (value.has_radius())
+    {
+        patch.radius = value.radius();
+    }
+
+    if (value.has_inner_radius())
+    {
+        patch.innerRadius = value.inner_radius();
+    }
+
+    if (value.has_outer_radius())
+    {
+        patch.outerRadius = value.outer_radius();
+    }
+
+    if (value.has_width())
+    {
+        patch.width = value.width();
+    }
+
+    if (value.has_height())
+    {
+        patch.height = value.height();
+    }
+
+    if (value.has_size())
+    {
+        patch.size = FromProtoVec2(value.size());
+    }
+
+    return patch;
+}
+
 void FillProtoWindowDisplayPatch(const WindowDisplayPatch& patch, pb::WindowDisplayPatch* target)
 {
     if (patch.invertColors.has_value())
@@ -112,6 +282,11 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         target->set_blink_type(*patch.blinkType);
     }
 
+    if (patch.blinkTypeId.has_value())
+    {
+        target->set_blink_type_id(*patch.blinkTypeId);
+    }
+
     if (patch.position.has_value())
     {
         FillProtoVec2(*patch.position, target->mutable_position());
@@ -142,6 +317,11 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         (*target->mutable_texts())[primitiveId] = text;
     }
 
+    for (const auto& [primitiveId, text] : patch.textsById)
+    {
+        (*target->mutable_texts_by_id())[primitiveId] = text;
+    }
+
     if (patch.letterSpacing.has_value())
     {
         target->set_letter_spacing(*patch.letterSpacing);
@@ -150,6 +330,21 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
     for (const auto& [primitiveId, spacing] : patch.letterSpacings)
     {
         (*target->mutable_letter_spacings())[primitiveId] = spacing;
+    }
+
+    for (const auto& [primitiveId, spacing] : patch.letterSpacingsById)
+    {
+        (*target->mutable_letter_spacings_by_id())[primitiveId] = spacing;
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
+    {
+        FillProtoPrimitivePatch(primitivePatch, &(*target->mutable_primitive_patches())[primitiveId]);
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatchesById)
+    {
+        FillProtoPrimitivePatch(primitivePatch, &(*target->mutable_primitive_patches_by_id())[primitiveId]);
     }
 }
 
@@ -170,6 +365,11 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
     if (value.has_blink_type())
     {
         patch.blinkType = value.blink_type();
+    }
+
+    if (value.has_blink_type_id())
+    {
+        patch.blinkTypeId = value.blink_type_id();
     }
 
     if (value.has_position())
@@ -202,6 +402,11 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
         patch.texts.emplace(primitiveId, text);
     }
 
+    for (const auto& [primitiveId, text] : value.texts_by_id())
+    {
+        patch.textsById.emplace(primitiveId, text);
+    }
+
     if (value.has_letter_spacing())
     {
         patch.letterSpacing = value.letter_spacing();
@@ -212,6 +417,21 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
         patch.letterSpacings.emplace(primitiveId, spacing);
     }
 
+    for (const auto& [primitiveId, spacing] : value.letter_spacings_by_id())
+    {
+        patch.letterSpacingsById.emplace(primitiveId, spacing);
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : value.primitive_patches())
+    {
+        patch.primitivePatches.emplace(primitiveId, FromProtoPrimitivePatch(primitivePatch));
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : value.primitive_patches_by_id())
+    {
+        patch.primitivePatchesById.emplace(primitiveId, FromProtoPrimitivePatch(primitivePatch));
+    }
+
     return patch;
 }
 
@@ -219,11 +439,18 @@ void FillProtoHandle(const ReticleHandle& handle, pb::ReticleHandle* target)
 {
     target->set_page(handle.page);
     target->set_reticle(handle.reticle);
+    target->set_page_id(handle.pageId);
+    target->set_reticle_id(handle.reticleId);
 }
 
 ReticleHandle FromProtoHandle(const pb::ReticleHandle& value)
 {
-    return ReticleHandle {value.page(), value.reticle()};
+    ReticleHandle handle;
+    handle.page = value.page();
+    handle.reticle = value.reticle();
+    handle.pageId = value.page_id();
+    handle.reticleId = value.reticle_id();
+    return handle;
 }
 
 void FillProtoDynamicReticleState(const DynamicReticleState& state, pb::DynamicReticleState* target)
@@ -252,7 +479,9 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
 
             if constexpr (std::is_same_v<Command, ActivatePageCommand>)
             {
-                target->mutable_activate_page()->set_page(value.page);
+                auto* message = target->mutable_activate_page();
+                message->set_page(value.page);
+                message->set_page_id(value.pageId);
             }
             else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
             {
@@ -260,6 +489,7 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
                 message->set_page(value.page);
                 FillProtoVec2(value.view.center, message->mutable_center());
                 message->set_zoom(value.view.zoom);
+                message->set_page_id(value.pageId);
             }
             else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand>)
             {
@@ -275,6 +505,7 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             {
                 auto* message = target->mutable_update_strobe();
                 message->set_page(value.page);
+                message->set_page_id(value.pageId);
 
                 if (value.active.has_value())
                 {
@@ -292,12 +523,15 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
                 FillProtoHandle(value.target, message->mutable_target());
                 message->set_template_id(value.templateId);
                 FillProtoReticlePatch(value.patch, message->mutable_patch());
+                message->set_template_transport_id(value.templateTransportId);
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
             {
                 auto* message = target->mutable_upsert_dynamic_reticles();
                 message->set_page(value.page);
                 message->set_template_id(value.templateId);
+                message->set_page_id(value.pageId);
+                message->set_template_transport_id(value.templateTransportId);
 
                 for (const DynamicReticleState& reticle : value.reticles)
                 {
@@ -310,6 +544,8 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
                 message->set_page(value.page);
                 message->set_template_id(value.templateId);
                 message->set_visible(value.visible);
+                message->set_page_id(value.pageId);
+                message->set_template_transport_id(value.templateTransportId);
             }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
@@ -332,7 +568,12 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     switch (value.command_case())
     {
     case pb::UserCommand::kActivatePage:
-        return ActivatePageCommand {value.activate_page().page()};
+    {
+        ActivatePageCommand command;
+        command.page = value.activate_page().page();
+        command.pageId = value.activate_page().page_id();
+        return command;
+    }
 
     case pb::UserCommand::kSetPageView:
     {
@@ -343,6 +584,7 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
             command.view.center = FromProtoVec2(value.set_page_view().center());
         }
         command.view.zoom = value.set_page_view().zoom();
+        command.pageId = value.set_page_view().page_id();
         return command;
     }
 
@@ -371,6 +613,7 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     {
         UpdateStrobeCommand command;
         command.page = value.update_strobe().page();
+        command.pageId = value.update_strobe().page_id();
         if (value.update_strobe().has_active())
         {
             command.active = value.update_strobe().active();
@@ -387,6 +630,7 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
         UpsertDynamicReticleCommand command;
         command.target = FromProtoHandle(value.upsert_dynamic_reticle().target());
         command.templateId = value.upsert_dynamic_reticle().template_id();
+        command.templateTransportId = value.upsert_dynamic_reticle().template_transport_id();
         if (value.upsert_dynamic_reticle().has_patch())
         {
             command.patch = FromProtoReticlePatch(value.upsert_dynamic_reticle().patch());
@@ -399,6 +643,8 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
         UpsertDynamicReticlesCommand command;
         command.page = value.upsert_dynamic_reticles().page();
         command.templateId = value.upsert_dynamic_reticles().template_id();
+        command.pageId = value.upsert_dynamic_reticles().page_id();
+        command.templateTransportId = value.upsert_dynamic_reticles().template_transport_id();
         command.reticles.reserve(value.upsert_dynamic_reticles().reticles_size());
 
         for (const pb::DynamicReticleState& reticle : value.upsert_dynamic_reticles().reticles())
@@ -415,6 +661,8 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
         command.page = value.set_dynamic_reticle_set_visibility().page();
         command.templateId = value.set_dynamic_reticle_set_visibility().template_id();
         command.visible = value.set_dynamic_reticle_set_visibility().visible();
+        command.pageId = value.set_dynamic_reticle_set_visibility().page_id();
+        command.templateTransportId = value.set_dynamic_reticle_set_visibility().template_transport_id();
         return command;
     }
 
@@ -435,6 +683,7 @@ pb::CommandEnvelope BuildEnvelope(const CommandBatch& batch)
 {
     pb::CommandEnvelope envelope;
     envelope.set_sequence(batch.sequence);
+    envelope.set_mapping_hash(batch.mappingHash);
 
     for (const UserCommand& command : batch.commands)
     {
@@ -466,13 +715,13 @@ std::string SerializeCommandBatch(const CommandBatch& batch)
 
 std::optional<UserCommand> DeserializeUserCommand(const std::string_view payload, std::string* error)
 {
-    const auto commands = DeserializeUserCommands(payload, error);
-    if (!commands.has_value())
+    const auto batch = DeserializeCommandBatch(payload, error);
+    if (!batch.has_value())
     {
         return std::nullopt;
     }
 
-    if (commands->size() != 1U)
+    if (batch->commands.size() != 1U)
     {
         if (error != nullptr)
         {
@@ -481,10 +730,10 @@ std::optional<UserCommand> DeserializeUserCommand(const std::string_view payload
         return std::nullopt;
     }
 
-    return commands->front();
+    return batch->commands.front();
 }
 
-std::optional<std::vector<UserCommand>> DeserializeUserCommands(const std::string_view payload, std::string* error)
+std::optional<CommandBatch> DeserializeCommandBatch(const std::string_view payload, std::string* error)
 {
     if (payload.empty())
     {
@@ -514,15 +763,17 @@ std::optional<std::vector<UserCommand>> DeserializeUserCommands(const std::strin
             throw std::runtime_error("Unable to parse Protocol Buffers command payload");
         }
 
-        std::vector<UserCommand> commands;
-        commands.reserve(envelope.commands_size());
+        CommandBatch batch;
+        batch.sequence = envelope.sequence();
+        batch.mappingHash = envelope.mapping_hash();
+        batch.commands.reserve(envelope.commands_size());
 
         for (const pb::UserCommand& command : envelope.commands())
         {
-            commands.push_back(FromProtoUserCommand(command));
+            batch.commands.push_back(FromProtoUserCommand(command));
         }
 
-        return commands;
+        return batch;
     }
     catch (const std::exception& exception)
     {
@@ -533,5 +784,16 @@ std::optional<std::vector<UserCommand>> DeserializeUserCommands(const std::strin
 
         return std::nullopt;
     }
+}
+
+std::optional<std::vector<UserCommand>> DeserializeUserCommands(const std::string_view payload, std::string* error)
+{
+    const auto batch = DeserializeCommandBatch(payload, error);
+    if (!batch.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return batch->commands;
 }
 } // namespace mfd

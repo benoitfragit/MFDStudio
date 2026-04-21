@@ -334,6 +334,26 @@ private:
     struct StrobeTag;
     /** @brief Runtime behavior configuration attached to a strobe entity. */
     struct StrobeBehaviorComponent;
+    /** @brief Transport lookup row for one generated static reticle. */
+    struct TransportReticleLookup
+    {
+        TransportId pageId = 0;
+        std::string pageName;
+        std::string reticleId;
+    };
+    /** @brief Transport lookup row for one generated primitive. */
+    struct TransportPrimitiveLookup
+    {
+        TransportPrimitiveOwnerKind ownerKind = TransportPrimitiveOwnerKind::Reticle;
+        TransportId ownerId = 0;
+        std::string primitiveId;
+    };
+    /** @brief Transport lookup row for one generated blink type. */
+    struct TransportBlinkLookup
+    {
+        TransportId pageId = 0;
+        std::string blinkType;
+    };
 
     /** @brief Returns `true` when a normalized page key exists in the scene indexes. */
     bool HasNormalizedPage(std::string_view pageName) const noexcept;
@@ -377,6 +397,22 @@ private:
     void RemoveReticleFromPageDrawList(std::string_view normalizedPageName, entt::entity entity);
     /** @brief Synchronizes the active flag of a page entity with the current active-page selection. */
     void SetActiveFlag(std::string_view pageName, bool active);
+    /** @brief Rebuilds generated transport lookup indexes from the current companion map. */
+    void RebuildTransportIndexes();
+    /** @brief Returns whether the current scene can validate a mapping hash. */
+    bool HasMatchingTransportMap(std::string_view mappingHash) const noexcept;
+    /** @brief Resolves a generated page transport id to an authored page name. */
+    const std::string* ResolvePageName(TransportId pageId) const noexcept;
+    /** @brief Resolves a generated static reticle transport id. */
+    const TransportReticleLookup* ResolveStaticReticle(TransportId reticleId) const noexcept;
+    /** @brief Resolves a generated template transport id. */
+    const std::string* ResolveTemplateId(TransportId templateId) const noexcept;
+    /** @brief Resolves one generated blink type transport id within a page. */
+    const std::string* ResolveBlinkType(TransportId pageId, TransportId blinkTypeId) const noexcept;
+    /** @brief Resolves one generated primitive transport id for a static reticle owner. */
+    const std::string* ResolvePrimitiveIdForReticle(TransportId reticleId, TransportId primitiveId) const noexcept;
+    /** @brief Resolves one generated primitive transport id for a template owner. */
+    const std::string* ResolvePrimitiveIdForTemplate(TransportId templateId, TransportId primitiveId) const noexcept;
 
     /** @brief Authored document currently backing the runtime scene. */
     MfdDocument document_ {};
@@ -392,6 +428,16 @@ private:
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> reticleEntities_ {};
     /** @brief Optional per-page visibility overrides indexed by dynamic template id. */
     std::unordered_map<std::string, bool, TransparentStringHash, TransparentStringEqual> dynamicTemplateVisibility_ {};
+    /** @brief Generated page-name lookup indexed by generated transport id. */
+    std::unordered_map<TransportId, std::string> transportPageNames_ {};
+    /** @brief Generated static-reticle lookup indexed by generated transport id. */
+    std::unordered_map<TransportId, TransportReticleLookup> transportReticles_ {};
+    /** @brief Generated template lookup indexed by generated transport id. */
+    std::unordered_map<TransportId, std::string> transportTemplates_ {};
+    /** @brief Generated primitive lookup indexed by generated transport id. */
+    std::unordered_map<TransportId, TransportPrimitiveLookup> transportPrimitives_ {};
+    /** @brief Generated blink lookup indexed by generated transport id. */
+    std::unordered_map<TransportId, TransportBlinkLookup> transportBlinks_ {};
     /** @brief Monotonic ordering counter used to place dynamic reticles after authored content. */
     std::size_t nextDynamicOrder_ = 10000;
     /** @brief Normalized name of the currently active page. */

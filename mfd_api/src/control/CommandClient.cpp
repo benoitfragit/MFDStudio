@@ -29,10 +29,13 @@ namespace
 constexpr std::size_t kUdpHardPayloadLimit = 65507;
 constexpr std::size_t kDefaultCommandPayloadLimit = 4096;
 
-CommandBatch MakeBatch(const std::uint32_t sequence, std::vector<UserCommand> commands)
+CommandBatch MakeBatch(const std::uint32_t sequence,
+                       std::string mappingHash,
+                       std::vector<UserCommand> commands)
 {
     CommandBatch batch;
     batch.sequence = sequence;
+    batch.mappingHash = std::move(mappingHash);
     batch.commands = std::move(commands);
     return batch;
 }
@@ -57,13 +60,14 @@ std::optional<std::string> TrySerializeBatch(const CommandBatch& batch, std::str
 
 std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand& command,
                                                               const std::uint32_t sequence,
+                                                              const std::string_view mappingHash,
                                                               const std::size_t maxPayloadBytes,
                                                               std::string& error)
 {
     const auto fitsAsSingleCommand =
-        [&command, sequence, maxPayloadBytes, &error]() -> bool
+        [&command, sequence, mappingHash, maxPayloadBytes, &error]() -> bool
     {
-        auto payload = TrySerializeBatch(MakeBatch(sequence, std::vector<UserCommand> {command}), error);
+        auto payload = TrySerializeBatch(MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {command}), error);
         return payload.has_value() && payload->size() <= maxPayloadBytes;
     };
 
@@ -73,7 +77,7 @@ std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand&
     }
 
     return std::visit(
-        [sequence, maxPayloadBytes, &error](const auto& value) -> std::optional<std::vector<UserCommand>>
+        [sequence, mappingHash, maxPayloadBytes, &error](const auto& value) -> std::optional<std::vector<UserCommand>>
         {
             using Command = std::decay_t<decltype(value)>;
 
@@ -107,7 +111,9 @@ std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand&
                                                   value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + middle));
 
                         auto payload = TrySerializeBatch(
-                            MakeBatch(sequence, std::vector<UserCommand> {UserCommand {std::move(candidate)}}),
+                            MakeBatch(sequence,
+                                      std::string(mappingHash),
+                                      std::vector<UserCommand> {UserCommand {std::move(candidate)}}),
                             error);
 
                         if (payload.has_value() && payload->size() <= maxPayloadBytes)
@@ -377,12 +383,18 @@ bool CommandClient::SetReticleLetterSpacing(const std::string_view page,
 
 bool CommandClient::SetStrobeActive(const std::string_view page, const bool active)
 {
-    return Send(UpdateStrobeCommand {std::string(page), active, std::nullopt});
+    UpdateStrobeCommand command;
+    command.page = std::string(page);
+    command.active = active;
+    return Send(command);
 }
 
 bool CommandClient::SetStrobePosition(const std::string_view page, const Vec2 position)
 {
-    return Send(UpdateStrobeCommand {std::string(page), std::nullopt, position});
+    UpdateStrobeCommand command;
+    command.page = std::string(page);
+    command.position = position;
+    return Send(command);
 }
 
 bool CommandClient::UpsertDynamicReticle(const std::string_view page,
@@ -390,10 +402,11 @@ bool CommandClient::UpsertDynamicReticle(const std::string_view page,
                                          const std::string_view templateId,
                                          const ReticlePatch& patch)
 {
-    return Send(UpsertDynamicReticleCommand {
-        ReticleHandle {std::string(page), std::string(reticle)},
-        std::string(templateId),
-        patch});
+    UpsertDynamicReticleCommand command;
+    command.target = ReticleHandle {std::string(page), std::string(reticle)};
+    command.templateId = std::string(templateId);
+    command.patch = patch;
+    return Send(command);
 }
 
 bool CommandClient::UpsertDynamicReticles(const std::string_view page,
@@ -411,10 +424,11 @@ bool CommandClient::SetDynamicReticleSetVisible(const std::string_view page,
                                                 const std::string_view templateId,
                                                 const bool visible)
 {
-    return Send(SetDynamicReticleSetVisibilityCommand {
-        std::string(page),
-        std::string(templateId),
-        visible});
+    SetDynamicReticleSetVisibilityCommand command;
+    command.page = std::string(page);
+    command.templateId = std::string(templateId);
+    command.visible = visible;
+    return Send(command);
 }
 
 bool CommandClient::RemoveDynamicReticle(const std::string_view page, const std::string_view reticle)
@@ -476,7 +490,7 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
 
     for (const UserCommand& command : batch.commands)
     {
-        const auto splitCommands = SplitOversizedCommand(command, batch.sequence, maxPayloadBytes, error);
+        const auto splitCommands = SplitOversizedCommand(command, batch.sequence, batch.mappingHash, maxPayloadBytes, error);
         if (!splitCommands.has_value())
         {
             lastError_ = std::move(error);
@@ -488,6 +502,7 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
 
     CommandBatch currentChunk;
     currentChunk.sequence = batch.sequence;
+    currentChunk.mappingHash = batch.mappingHash;
 
     auto flushCurrentChunk = [this, &currentChunk, &error]() -> bool
     {
@@ -537,6 +552,7 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
 
         CommandBatch singleCommandChunk;
         singleCommandChunk.sequence = batch.sequence;
+        singleCommandChunk.mappingHash = batch.mappingHash;
         singleCommandChunk.commands.push_back(command);
 
         const auto singlePayload = TrySerializeBatch(singleCommandChunk, error);

@@ -20,6 +20,7 @@
 
 #include "mfd/MfdExport.h"
 #include "mfd/model/Types.h"
+#include "mfd/runtime/GeneratedTransportMap.h"
 
 namespace mfd
 {
@@ -32,6 +33,10 @@ struct ReticleHandle
     std::string page;
     /** @brief Target reticle id unique within the page. */
     std::string reticle;
+    /** @brief Optional generated transport id of the target page. */
+    TransportId pageId = 0;
+    /** @brief Optional generated transport id of the target static reticle. */
+    TransportId reticleId = 0;
 };
 
 /**
@@ -93,6 +98,13 @@ struct ReticlePatch
      * and falls back to the page default when blinking stays enabled.
      */
     std::optional<std::string> blinkType;
+    /**
+     * @brief Optional generated transport id of the target blink type.
+     *
+     * @note A value of `0` explicitly clears the reticle-specific blink type
+     * when the field is present.
+     */
+    std::optional<TransportId> blinkTypeId;
     /** @brief Optional reticle position override in logical coordinates. */
     std::optional<Vec2> position;
     /** @brief Optional reticle rotation override in degrees. */
@@ -105,12 +117,18 @@ struct ReticlePatch
     std::optional<std::string> text;
     /** @brief Per-primitive text overrides indexed by primitive id. */
     std::unordered_map<std::string, std::string> texts;
+    /** @brief Per-primitive text overrides indexed by generated primitive transport id. */
+    std::unordered_map<TransportId, std::string> textsById;
     /** @brief Optional character spacing applied to the first text primitive. */
     std::optional<float> letterSpacing;
     /** @brief Per-primitive character spacing overrides indexed by primitive id. */
     std::unordered_map<std::string, float> letterSpacings;
+    /** @brief Per-primitive character spacing overrides indexed by generated primitive transport id. */
+    std::unordered_map<TransportId, float> letterSpacingsById;
     /** @brief Rich primitive overrides indexed by primitive id. */
     std::unordered_map<std::string, PrimitivePatch> primitivePatches;
+    /** @brief Rich primitive overrides indexed by generated primitive transport id. */
+    std::unordered_map<TransportId, PrimitivePatch> primitivePatchesById;
 };
 
 /**
@@ -139,6 +157,8 @@ struct ActivatePageCommand
 {
     /** @brief Page name to activate. */
     std::string page;
+    /** @brief Optional generated transport id of the page to activate. */
+    TransportId pageId = 0;
 };
 
 /**
@@ -150,6 +170,8 @@ struct SetPageViewCommand
     std::string page;
     /** @brief New center and zoom applied to the page. */
     PageViewState view {};
+    /** @brief Optional generated transport id of the page to update. */
+    TransportId pageId = 0;
 };
 
 /**
@@ -179,6 +201,8 @@ struct UpdateStrobeCommand
 {
     /** @brief Page owning the strobe to update. */
     std::string page;
+    /** @brief Optional generated transport id of the page owning the strobe. */
+    TransportId pageId = 0;
     /** @brief Optional activation flag for the strobe. */
     std::optional<bool> active;
     /** @brief Optional logical position override for the strobe. */
@@ -194,6 +218,8 @@ struct UpsertDynamicReticleCommand
     ReticleHandle target;
     /** @brief Template id used when the dynamic reticle must be created. */
     std::string templateId;
+    /** @brief Optional generated transport id of the authored template used for creation. */
+    TransportId templateTransportId = 0;
     /** @brief Properties applied after creation or update. */
     ReticlePatch patch;
 };
@@ -216,8 +242,12 @@ struct UpsertDynamicReticlesCommand
 {
     /** @brief Target page receiving the dynamic reticles. */
     std::string page;
+    /** @brief Optional generated transport id of the target page. */
+    TransportId pageId = 0;
     /** @brief Template id used when missing reticles must be created. */
     std::string templateId;
+    /** @brief Optional generated transport id of the authored template used for creation. */
+    TransportId templateTransportId = 0;
     /** @brief Dynamic reticle updates applied during the same cycle. */
     std::vector<DynamicReticleState> reticles;
 };
@@ -229,8 +259,12 @@ struct SetDynamicReticleSetVisibilityCommand
 {
     /** @brief Target page receiving the dynamic reticles. */
     std::string page;
+    /** @brief Optional generated transport id of the target page. */
+    TransportId pageId = 0;
     /** @brief Dynamic reticle template id defining the set. */
     std::string templateId;
+    /** @brief Optional generated transport id of the authored template defining the set. */
+    TransportId templateTransportId = 0;
     /** @brief Visibility applied to every dynamic reticle of the set. */
     bool visible = true;
 };
@@ -278,6 +312,8 @@ struct CommandBatch
 {
     /** @brief Optional external cycle identifier. */
     std::uint32_t sequence = 0;
+    /** @brief Optional generation hash validating the authored-name to transport-id mapping. */
+    std::string mappingHash;
     /** @brief Commands carried by the batch. */
     std::vector<UserCommand> commands;
 };
@@ -295,6 +331,14 @@ MFD_API std::string SerializeUserCommand(const UserCommand& command);
  * @return Binary payload ready to be sent through UDP.
  */
 MFD_API std::string SerializeCommandBatch(const CommandBatch& batch);
+
+/**
+ * @brief Deserializes a Protocol Buffers envelope into one typed command batch.
+ * @param payload Raw binary Protocol Buffers payload containing a command batch.
+ * @param error Optional output string receiving the parsing error.
+ * @return Parsed batch, or `std::nullopt` if the payload is invalid.
+ */
+MFD_API std::optional<CommandBatch> DeserializeCommandBatch(std::string_view payload, std::string* error = nullptr);
 
 /**
  * @brief Deserializes a Protocol Buffers envelope into a typed command.

@@ -61,14 +61,174 @@ bool IsEmptyPatch(const ReticlePatch& patch) noexcept
     return !patch.visible.has_value() &&
            !patch.blinkEnabled.has_value() &&
            !patch.blinkType.has_value() &&
+           !patch.blinkTypeId.has_value() &&
            !patch.position.has_value() &&
            !patch.rotationDegrees.has_value() &&
            !patch.color.has_value() &&
            !patch.thickness.has_value() &&
            !patch.text.has_value() &&
            patch.texts.empty() &&
+           patch.textsById.empty() &&
            !patch.letterSpacing.has_value() &&
-           patch.letterSpacings.empty();
+           patch.letterSpacings.empty() &&
+           patch.letterSpacingsById.empty() &&
+           patch.primitivePatches.empty() &&
+           patch.primitivePatchesById.empty();
+}
+
+template <typename Geometry>
+bool ApplyBoxPrimitivePatch(Geometry& geometry, const PrimitivePatch& patch)
+{
+    bool applied = false;
+
+    if (patch.width.has_value())
+    {
+        geometry.width = *patch.width;
+        applied = true;
+    }
+
+    if (patch.height.has_value())
+    {
+        geometry.height = *patch.height;
+        applied = true;
+    }
+
+    if (patch.size.has_value())
+    {
+        geometry.width = patch.size->x;
+        geometry.height = patch.size->y;
+        applied = true;
+    }
+
+    return applied;
+}
+
+bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
+{
+    bool applied = false;
+
+    if (patch.visible.has_value())
+    {
+        primitive.style.visible = *patch.visible;
+        applied = true;
+    }
+
+    if (patch.position.has_value())
+    {
+        primitive.transform.position = *patch.position;
+        applied = true;
+    }
+
+    if (patch.rotationDegrees.has_value())
+    {
+        primitive.transform.rotationDegrees = *patch.rotationDegrees;
+        applied = true;
+    }
+
+    if (patch.scale.has_value())
+    {
+        primitive.transform.scale = *patch.scale;
+        applied = true;
+    }
+
+    if (patch.color.has_value())
+    {
+        primitive.style.color = *patch.color;
+        applied = true;
+    }
+
+    if (patch.thickness.has_value())
+    {
+        primitive.style.thickness = *patch.thickness;
+        applied = true;
+    }
+
+    if (patch.text.has_value())
+    {
+        if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))
+        {
+            geometry->text = *patch.text;
+            applied = true;
+        }
+    }
+
+    if (patch.letterSpacing.has_value())
+    {
+        if (TextGeometry* textGeometry = std::get_if<TextGeometry>(&primitive.geometry))
+        {
+            textGeometry->letterSpacing = *patch.letterSpacing;
+            applied = true;
+        }
+        else if (TimeGeometry* timeGeometry = std::get_if<TimeGeometry>(&primitive.geometry))
+        {
+            timeGeometry->letterSpacing = *patch.letterSpacing;
+            applied = true;
+        }
+    }
+
+    if (patch.lineStart.has_value())
+    {
+        if (LineGeometry* geometry = std::get_if<LineGeometry>(&primitive.geometry))
+        {
+            geometry->start = *patch.lineStart;
+            applied = true;
+        }
+    }
+
+    if (patch.lineEnd.has_value())
+    {
+        if (LineGeometry* geometry = std::get_if<LineGeometry>(&primitive.geometry))
+        {
+            geometry->end = *patch.lineEnd;
+            applied = true;
+        }
+    }
+
+    if (patch.radius.has_value())
+    {
+        if (CircleGeometry* geometry = std::get_if<CircleGeometry>(&primitive.geometry))
+        {
+            geometry->radius = *patch.radius;
+            applied = true;
+        }
+    }
+
+    if (patch.innerRadius.has_value() || patch.outerRadius.has_value())
+    {
+        if (RingGeometry* geometry = std::get_if<RingGeometry>(&primitive.geometry))
+        {
+            if (patch.innerRadius.has_value())
+            {
+                geometry->innerRadius = *patch.innerRadius;
+                applied = true;
+            }
+
+            if (patch.outerRadius.has_value())
+            {
+                geometry->outerRadius = *patch.outerRadius;
+                applied = true;
+            }
+        }
+    }
+
+    if (RectangleGeometry* rectangleGeometry = std::get_if<RectangleGeometry>(&primitive.geometry))
+    {
+        applied = ApplyBoxPrimitivePatch(*rectangleGeometry, patch) || applied;
+    }
+    else if (EllipseGeometry* ellipseGeometry = std::get_if<EllipseGeometry>(&primitive.geometry))
+    {
+        applied = ApplyBoxPrimitivePatch(*ellipseGeometry, patch) || applied;
+    }
+    else if (SquareGeometry* squareGeometry = std::get_if<SquareGeometry>(&primitive.geometry))
+    {
+        applied = ApplyBoxPrimitivePatch(*squareGeometry, patch) || applied;
+    }
+    else if (DiamondGeometry* diamondGeometry = std::get_if<DiamondGeometry>(&primitive.geometry))
+    {
+        applied = ApplyBoxPrimitivePatch(*diamondGeometry, patch) || applied;
+    }
+
+    return applied;
 }
 
 bool IsEmptyPatch(const WindowDisplayPatch& patch) noexcept
@@ -161,6 +321,15 @@ bool ApplyPatchToReticleGroup(ReticleGroup& reticle, const ReticlePatch& patch)
     for (const auto& [primitiveId, letterSpacing] : patch.letterSpacings)
     {
         applied = SetTextPrimitiveLetterSpacing(reticle, primitiveId, letterSpacing) || applied;
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
+    {
+        Primitive* primitive = FindPrimitive(reticle, primitiveId);
+        if (primitive != nullptr)
+        {
+            applied = ApplyPatchToPrimitive(*primitive, primitivePatch) || applied;
+        }
     }
 
     return applied;
@@ -368,6 +537,11 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
     strobeEntities_.clear();
     reticleEntities_.clear();
     dynamicTemplateVisibility_.clear();
+    transportPageNames_.clear();
+    transportReticles_.clear();
+    transportTemplates_.clear();
+    transportPrimitives_.clear();
+    transportBlinks_.clear();
     nextDynamicOrder_ = 10000;
     activePage_.clear();
     windowDisplay_ = {};
@@ -449,6 +623,8 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
                 : document_.pages.front().normalizedName;
         SetActiveFlag(activePage_, true);
     }
+
+    RebuildTransportIndexes();
 }
 
 const MfdDocument& SceneRegistry::Document() const noexcept
@@ -464,6 +640,113 @@ const std::optional<GeneratedTransportMap>& SceneRegistry::TransportMap() const 
 bool SceneRegistry::HasTransportMap() const noexcept
 {
     return transportMap_.has_value();
+}
+
+void SceneRegistry::RebuildTransportIndexes()
+{
+    transportPageNames_.clear();
+    transportReticles_.clear();
+    transportTemplates_.clear();
+    transportPrimitives_.clear();
+    transportBlinks_.clear();
+
+    if (!transportMap_.has_value())
+    {
+        return;
+    }
+
+    for (const auto& page : transportMap_->pages)
+    {
+        transportPageNames_.emplace(page.id, page.name);
+    }
+
+    for (const auto& reticle : transportMap_->reticles)
+    {
+        transportReticles_.emplace(
+            reticle.id,
+            TransportReticleLookup {reticle.pageId, reticle.pageId == 0 ? std::string {} : transportPageNames_[reticle.pageId], reticle.reticleId});
+    }
+
+    for (const auto& templ : transportMap_->templates)
+    {
+        transportTemplates_.emplace(templ.id, templ.templateId);
+    }
+
+    for (const auto& primitive : transportMap_->primitives)
+    {
+        transportPrimitives_.emplace(
+            primitive.id,
+            TransportPrimitiveLookup {primitive.ownerKind, primitive.ownerId, primitive.primitiveId});
+    }
+
+    for (const auto& blink : transportMap_->blinkTypes)
+    {
+        transportBlinks_.emplace(blink.id, TransportBlinkLookup {blink.pageId, blink.blinkType});
+    }
+}
+
+bool SceneRegistry::HasMatchingTransportMap(const std::string_view mappingHash) const noexcept
+{
+    return !mappingHash.empty() &&
+           transportMap_.has_value() &&
+           transportMap_->mappingHash == mappingHash;
+}
+
+const std::string* SceneRegistry::ResolvePageName(const TransportId pageId) const noexcept
+{
+    const auto iterator = transportPageNames_.find(pageId);
+    return iterator == transportPageNames_.end() ? nullptr : &iterator->second;
+}
+
+const SceneRegistry::TransportReticleLookup* SceneRegistry::ResolveStaticReticle(const TransportId reticleId) const noexcept
+{
+    const auto iterator = transportReticles_.find(reticleId);
+    return iterator == transportReticles_.end() ? nullptr : &iterator->second;
+}
+
+const std::string* SceneRegistry::ResolveTemplateId(const TransportId templateId) const noexcept
+{
+    const auto iterator = transportTemplates_.find(templateId);
+    return iterator == transportTemplates_.end() ? nullptr : &iterator->second;
+}
+
+const std::string* SceneRegistry::ResolveBlinkType(const TransportId pageId, const TransportId blinkTypeId) const noexcept
+{
+    const auto iterator = transportBlinks_.find(blinkTypeId);
+    if (iterator == transportBlinks_.end() || iterator->second.pageId != pageId)
+    {
+        return nullptr;
+    }
+
+    return &iterator->second.blinkType;
+}
+
+const std::string* SceneRegistry::ResolvePrimitiveIdForReticle(const TransportId reticleId,
+                                                               const TransportId primitiveId) const noexcept
+{
+    const auto iterator = transportPrimitives_.find(primitiveId);
+    if (iterator == transportPrimitives_.end() ||
+        iterator->second.ownerKind != TransportPrimitiveOwnerKind::Reticle ||
+        iterator->second.ownerId != reticleId)
+    {
+        return nullptr;
+    }
+
+    return &iterator->second.primitiveId;
+}
+
+const std::string* SceneRegistry::ResolvePrimitiveIdForTemplate(const TransportId templateId,
+                                                                const TransportId primitiveId) const noexcept
+{
+    const auto iterator = transportPrimitives_.find(primitiveId);
+    if (iterator == transportPrimitives_.end() ||
+        iterator->second.ownerKind != TransportPrimitiveOwnerKind::Template ||
+        iterator->second.ownerId != templateId)
+    {
+        return nullptr;
+    }
+
+    return &iterator->second.primitiveId;
 }
 
 const ReticleLibrary& SceneRegistry::Library() const noexcept

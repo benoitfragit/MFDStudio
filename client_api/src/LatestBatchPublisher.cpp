@@ -121,13 +121,14 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
                 {
                     for (const mfd::DynamicReticleState& state : value.reticles)
                     {
+                        mfd::UpsertDynamicReticleCommand command;
+                        command.target = mfd::ReticleHandle {value.page, state.reticleId};
+                        command.templateId = value.templateId;
+                        command.patch = state.patch;
                         PutDynamicLifecycleCommand(
                             operations,
                             operationIndexes,
-                            mfd::UpsertDynamicReticleCommand {
-                                mfd::ReticleHandle {value.page, state.reticleId},
-                                value.templateId,
-                                state.patch});
+                            std::move(command));
                     }
                 }
                 else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
@@ -143,6 +144,12 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
                                                      mfd::CommandBatch&& newestBatch)
 {
     if (!pendingBatch.has_value())
+    {
+        pendingBatch = std::move(newestBatch);
+        return;
+    }
+
+    if (pendingBatch->mappingHash != newestBatch.mappingHash)
     {
         pendingBatch = std::move(newestBatch);
         return;

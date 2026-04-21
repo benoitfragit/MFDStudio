@@ -372,10 +372,11 @@ TEST(SceneRegistryTests, WindowDisplayPatchSerializationRoundTripsDisabledFlag)
 
 TEST(SceneRegistryTests, DynamicTemplateVisibilityCommandSerializationRoundTrips)
 {
-    const mfd::UserCommand command = mfd::SetDynamicReticleSetVisibilityCommand {
-        "Radar",
-        "radar_tracks",
-        false};
+    mfd::SetDynamicReticleSetVisibilityCommand original;
+    original.page = "Radar";
+    original.templateId = "radar_tracks";
+    original.visible = false;
+    const mfd::UserCommand command = original;
     const std::string payload = mfd::SerializeUserCommand(command);
     const auto decoded = mfd::DeserializeUserCommand(payload);
 
@@ -467,6 +468,77 @@ TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
     EXPECT_EQ(value->text, "789");
     EXPECT_FLOAT_EQ(title->letterSpacing, 0.015f);
     EXPECT_FLOAT_EQ(value->letterSpacing, 0.03f);
+}
+
+TEST(SceneRegistryTests, ApplyReticlePatchSupportsRichPrimitiveOverrides)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::PrimitivePatch valuePatch;
+    valuePatch.visible = false;
+    valuePatch.position = mfd::Vec2 {0.25f, -0.10f};
+    valuePatch.scale = mfd::Vec2 {1.5f, 0.75f};
+    valuePatch.color = mfd::ColorRgba {10, 20, 30, 255};
+    valuePatch.thickness = 0.01f;
+    valuePatch.text = "LOCK";
+    valuePatch.letterSpacing = 0.04f;
+
+    mfd::PrimitivePatch linePatch;
+    linePatch.lineStart = mfd::Vec2 {-0.25f, -0.02f};
+    linePatch.lineEnd = mfd::Vec2 {0.30f, -0.02f};
+
+    mfd::ReticlePatch textualPatch;
+    textualPatch.primitivePatches.emplace("value", valuePatch);
+    textualPatch.primitivePatches.emplace("shape", linePatch);
+
+    EXPECT_TRUE(registry.ApplyReticlePatch("Radar", "textual", textualPatch));
+
+    mfd::PrimitivePatch circlePatch;
+    circlePatch.radius = 0.12f;
+
+    mfd::ReticlePatch defaultPatch;
+    defaultPatch.primitivePatches.emplace("shape", circlePatch);
+    EXPECT_TRUE(registry.ApplyReticlePatch("Radar", "default", defaultPatch));
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    const mfd::ReticleGroup* textual = FindReticle(reticles, "textual");
+    const mfd::ReticleGroup* defaultReticle = FindReticle(reticles, "default");
+    ASSERT_NE(textual, nullptr);
+    ASSERT_NE(defaultReticle, nullptr);
+
+    const mfd::Primitive* valuePrimitive = mfd::FindPrimitive(*textual, "value");
+    ASSERT_NE(valuePrimitive, nullptr);
+    const auto* valueGeometry = std::get_if<mfd::TextGeometry>(&valuePrimitive->geometry);
+    ASSERT_NE(valueGeometry, nullptr);
+    EXPECT_FALSE(valuePrimitive->style.visible);
+    EXPECT_FLOAT_EQ(valuePrimitive->transform.position.x, 0.25f);
+    EXPECT_FLOAT_EQ(valuePrimitive->transform.position.y, -0.10f);
+    EXPECT_FLOAT_EQ(valuePrimitive->transform.scale.x, 1.5f);
+    EXPECT_FLOAT_EQ(valuePrimitive->transform.scale.y, 0.75f);
+    EXPECT_EQ(valuePrimitive->style.color.r, 10U);
+    EXPECT_EQ(valuePrimitive->style.color.g, 20U);
+    EXPECT_EQ(valuePrimitive->style.color.b, 30U);
+    EXPECT_FLOAT_EQ(valuePrimitive->style.thickness, 0.01f);
+    EXPECT_EQ(valueGeometry->text, "LOCK");
+    EXPECT_FLOAT_EQ(valueGeometry->letterSpacing, 0.04f);
+
+    const mfd::Primitive* linePrimitive = mfd::FindPrimitive(*textual, "shape");
+    ASSERT_NE(linePrimitive, nullptr);
+    const auto* lineGeometry = std::get_if<mfd::LineGeometry>(&linePrimitive->geometry);
+    ASSERT_NE(lineGeometry, nullptr);
+    EXPECT_FLOAT_EQ(lineGeometry->start.x, -0.25f);
+    EXPECT_FLOAT_EQ(lineGeometry->start.y, -0.02f);
+    EXPECT_FLOAT_EQ(lineGeometry->end.x, 0.30f);
+    EXPECT_FLOAT_EQ(lineGeometry->end.y, -0.02f);
+
+    const mfd::Primitive* circlePrimitive = mfd::FindPrimitive(*defaultReticle, "shape");
+    ASSERT_NE(circlePrimitive, nullptr);
+    const auto* circleGeometry = std::get_if<mfd::CircleGeometry>(&circlePrimitive->geometry);
+    ASSERT_NE(circleGeometry, nullptr);
+    EXPECT_FLOAT_EQ(circleGeometry->radius, 0.12f);
 }
 
 TEST(SceneRegistryTests, DynamicReticlesSupportLifecyclePatchingAndOrdering)

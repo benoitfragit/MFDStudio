@@ -83,9 +83,30 @@ mfd::SceneRegistry MakeRegistry()
     page.normalizedName = "radar";
     page.title = "Radar";
 
+    mfd::ReticleGroup reticle;
+    reticle.id = "heading_box";
+
+    mfd::Primitive primitive;
+    primitive.id = "heading_value";
+    primitive.type = mfd::PrimitiveType::Text;
+    primitive.geometry = mfd::TextGeometry {"000", 0.04f, 0.002f};
+    reticle.primitives.push_back(std::move(primitive));
+    page.staticReticles.push_back(std::move(reticle));
+
+    page.blinkTypes.push_back({"slow", "slow", 750U});
+
     mfd::MfdDocument document;
     document.pages.push_back(std::move(page));
-    return mfd::SceneRegistry(std::move(document));
+
+    mfd::GeneratedTransportMap map;
+    map.mappingHash = "map_hash";
+    map.pages.push_back({11U, "Radar", "radar", false, false});
+    map.reticles.push_back({22U, 11U, "heading_box", "heading_box", "static"});
+    map.primitives.push_back(
+        {33U, mfd::TransportPrimitiveOwnerKind::Reticle, 22U, "heading_value", "heading_value", "text", true});
+    map.blinkTypes.push_back({44U, 11U, "slow", "slow", 750U});
+
+    return mfd::SceneRegistry(std::move(document), std::move(map));
 }
 } // namespace
 
@@ -113,4 +134,47 @@ TEST(CommandProcessorTests, PollReportsTransportErrorWhenNoPayloadWasProcessed)
 
     EXPECT_FALSE(processor.Poll(channel));
     EXPECT_EQ(processor.LastError(), "transport unavailable");
+}
+
+TEST(CommandProcessorTests, SubmitsIdBasedBatchWhenMappingHashMatchesLoadedTransportMap)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::PrimitivePatch primitivePatch;
+    primitivePatch.text = "123";
+
+    mfd::ReticlePatch patch;
+    patch.blinkTypeId = 44U;
+    patch.primitivePatchesById.emplace(33U, primitivePatch);
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::ReticleHandle {"", "", 11U, 22U}, patch});
+
+    EXPECT_TRUE(processor.Submit(batch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "123");
+    EXPECT_TRUE(reticles.front()->blink.enabled);
+    EXPECT_EQ(reticles.front()->blink.typeName, "slow");
+}
+
+TEST(CommandProcessorTests, RejectsIdBasedBatchWhenMappingHashDoesNotMatchLoadedTransportMap)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "other_hash";
+    batch.commands.push_back(
+        mfd::ActivatePageCommand {"", 11U});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_EQ(processor.LastError(), "Generated transport map hash mismatch between the client batch and the runtime window");
 }

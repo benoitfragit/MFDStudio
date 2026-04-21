@@ -311,8 +311,11 @@ TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingS
     patch.visible = true;
     mfd::CommandBatch thirdBatch;
     thirdBatch.sequence = 3U;
-    thirdBatch.commands.push_back(
-        mfd::UpsertDynamicReticleCommand {mfd::ReticleHandle {"radar", "trk_02"}, "radar_track", patch});
+    mfd::UpsertDynamicReticleCommand command;
+    command.target = mfd::ReticleHandle {"radar", "trk_02"};
+    command.templateId = "radar_track";
+    command.patch = patch;
+    thirdBatch.commands.push_back(std::move(command));
     ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
 
     {

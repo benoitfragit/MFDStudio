@@ -1522,10 +1522,11 @@ bool MockupApplication::SendStrobeUpdate()
     draft.strobePosition[0] = std::clamp(draft.strobePosition[0], -1.0f, 1.0f);
     draft.strobePosition[1] = std::clamp(draft.strobePosition[1], -1.0f, 1.0f);
 
-    if (!client_->Send(mfd::UpdateStrobeCommand {
-            page->name,
-            draft.strobeEnabled,
-            mfd::Vec2 {draft.strobePosition[0], draft.strobePosition[1]}}))
+    mfd::UpdateStrobeCommand command;
+    command.page = page->name;
+    command.active = draft.strobeEnabled;
+    command.position = mfd::Vec2 {draft.strobePosition[0], draft.strobePosition[1]};
+    if (!client_->Send(command))
     {
         SetStatus("Unable to update strobe on page '" + page->name + "': " + client_->LastError(), true);
         return false;
