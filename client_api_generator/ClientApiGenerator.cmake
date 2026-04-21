@@ -8,6 +8,7 @@ function(client_api_generate_ui)
     set(oneValueArgs
         WINDOW_JSON
         OUTPUT_HEADER
+        OUTPUT_MAP
         OUTPUT_SOURCE
         NAMESPACE
         UI_CLASS_NAME
@@ -102,6 +103,13 @@ function(client_api_generate_ui)
 
     if(CAG_UI_CLASS_NAME)
         list(APPEND generator_command --ui-class-name "${CAG_UI_CLASS_NAME}")
+    endif()
+
+    if(CAG_OUTPUT_MAP)
+        get_filename_component(output_map_dir "${CAG_OUTPUT_MAP}" DIRECTORY)
+        file(MAKE_DIRECTORY "${output_map_dir}")
+        list(APPEND generator_command --output-map "${CAG_OUTPUT_MAP}")
+        set_source_files_properties("${CAG_OUTPUT_MAP}" PROPERTIES GENERATED TRUE)
     endif()
 
     execute_process(

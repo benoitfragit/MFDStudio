@@ -102,6 +102,7 @@ class GenerateUiTests(unittest.TestCase):
 
             output_header = root / "GeneratedUi.h"
             output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
 
             subprocess.run(
                 [
@@ -113,6 +114,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(output_header),
                     "--output-source",
                     str(output_source),
+                    "--output-map",
+                    str(output_map),
                     "--namespace",
                     "generated_ui",
                     "--header-include",
@@ -123,11 +126,16 @@ class GenerateUiTests(unittest.TestCase):
 
             header_content = output_header.read_text(encoding="utf-8")
             source_content = output_source.read_text(encoding="utf-8")
+            map_content = json.loads(output_map.read_text(encoding="utf-8"))
 
             for expected in [
+                "AUTO-GENERATED FILE.",
                 "class RadarMockupPage",
                 "class SystemMockupPage",
                 "class CockpitMockupUi",
+                "class RadarRadarStatusReticle final : public Reticle",
+                "class RadarTrackBoxReticle final : public Reticle",
+                "class SystemSystemStatusReticle final : public Reticle",
                 "bool SendStartup(mfd::CommandClient& client, const mfd::PageViewState& view, std::string statusText);",
                 "void Reset() noexcept;",
                 "std::vector<mfd::UserCommand> BuildBatch();",
@@ -138,23 +146,42 @@ class GenerateUiTests(unittest.TestCase):
                 "RadarMockupPage& Radar() noexcept;",
                 "SystemMockupPage& System() noexcept;",
                 "BlinkType attention {\"attention\"};",
-                "TextReticle radarStatus;",
-                "Reticle trackBox;",
-                "TextReticle systemStatus;",
+                "TextHandle& StatusValue() noexcept;",
+                "LineHandle& Shape() noexcept;",
+                "TextHandle& SystemStatusValue() noexcept;",
+                "StrobeHandle strobe;",
+                "RadarRadarStatusReticle radarStatus;",
+                "RadarTrackBoxReticle trackBox;",
+                "SystemSystemStatusReticle systemStatus;",
             ]:
                 self.assertIn(expected, header_content)
 
             for expected in [
                 "SystemMockupPage::SetStatusCaption(std::string value)",
-                "systemStatus.SetValue(std::move(value));",
+                "systemStatus.SystemStatusValue().SetText(std::move(value));",
                 "if (!client.ActivatePage(SystemMockupPage::Name()))",
                 "if (!client.SetPageView(SystemMockupPage::Name(), view.center, view.zoom))",
                 "return publisher.SubmitLatest(BuildBatch(), sequence);",
                 "return publisher.SubmitLatest(BuildShutdownBatch(std::move(statusText)), sequence);",
                 "radar_.AppendShutdownCommands(commands, std::string {});",
                 "system_.AppendShutdownCommands(commands, std::move(statusText));",
+                "count += strobe.AppendCommands(commands) ? 1U : 0U;",
             ]:
                 self.assertIn(expected, source_content)
+
+            self.assertEqual(map_content["schemaVersion"], 1)
+            self.assertTrue(map_content["mappingHash"])
+            self.assertEqual(map_content["window"]["source"], "window.json")
+            self.assertEqual(len(map_content["pages"]), 2)
+            self.assertEqual(len(map_content["reticles"]), 3)
+            self.assertEqual(len(map_content["templates"]), 1)
+            self.assertEqual(len(map_content["blinkTypes"]), 1)
+            self.assertEqual(len(map_content["primitives"]), 4)
+            self.assertTrue(all("strobe" not in row for row in map_content["pages"]))
+            primitive_ids = [row["primitiveId"] for row in map_content["primitives"]]
+            self.assertEqual(primitive_ids.count("status_value"), 2)
+            self.assertIn("shape", primitive_ids)
+            self.assertIn("systemStatus_value", primitive_ids)
 
 
 
@@ -201,7 +228,8 @@ class GenerateUiTests(unittest.TestCase):
             )
 
             header_content = output_header.read_text(encoding="utf-8")
-            self.assertIn("TextReticle multiElementStatus;", header_content)
+            self.assertIn("MainMultiElementStatusReticle multiElementStatus;", header_content)
+            self.assertIn("TextHandle& Label() noexcept;", header_content)
 
     def test_print_inputs_lists_window_and_page_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -15,14 +16,39 @@ from pathlib import Path
 
 
 TEXT_TYPES = {"text", "time"}
+PRIMITIVE_HANDLE_TYPES = {
+    "text": "TextHandle",
+    "time": "TimeHandle",
+    "line": "LineHandle",
+    "circle": "CircleHandle",
+    "ring": "RingHandle",
+    "rectangle": "RectangleHandle",
+    "ellipse": "EllipseHandle",
+    "square": "SquareHandle",
+    "diamond": "DiamondHandle",
+}
+
+
+@dataclass(frozen=True)
+class PrimitiveSpec:
+    primitive_id: str
+    member_name: str
+    accessor_name: str
+    cpp_type: str
+    primitive_type: str
+    canonical_key: str
+    transport_id: int
 
 
 @dataclass(frozen=True)
 class ReticleSpec:
     reticle_id: str
     member_name: str
-    cpp_type: str
-    text_primitive_id: str | None
+    wrapper_class_name: str
+    canonical_key: str
+    transport_id: int
+    primitives: list[PrimitiveSpec]
+    status_primitive_accessor_name: str | None
 
 
 @dataclass(frozen=True)
@@ -31,9 +57,43 @@ class PageSpec:
     page_class_name: str
     accessor_name: str
     ui_member_name: str
-    blink_members: list[tuple[str, str]]
+    canonical_key: str
+    transport_id: int
+    blink_members: list["BlinkSpec"]
     reticles: list[ReticleSpec]
     status_member_name: str | None
+    status_primitive_accessor_name: str | None
+    strobe: "StrobeSpec"
+
+
+@dataclass(frozen=True)
+class StrobeSpec:
+    valid: bool
+    capture_shape: str
+    capture_radius: float
+    capture_size_x: float
+    capture_size_y: float
+    magnet_enabled: bool
+    magnet_radius: float
+    magnet_strength: float
+
+
+@dataclass(frozen=True)
+class TemplateSpec:
+    template_id: str
+    normalized_template_id: str
+    canonical_key: str
+    transport_id: int
+    primitives: list[PrimitiveSpec]
+
+
+@dataclass(frozen=True)
+class BlinkSpec:
+    member_name: str
+    blink_name: str
+    duration_ms: int
+    canonical_key: str
+    transport_id: int
 
 
 @dataclass(frozen=True)
@@ -46,6 +106,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--window-json", required=True)
     parser.add_argument("--output-header", required=True)
     parser.add_argument("--output-source", required=True)
+    parser.add_argument("--output-map")
     parser.add_argument("--namespace", default="mockup_ui")
     parser.add_argument("--ui-class-name")
     parser.add_argument("--page-class-suffix", default="MockupPage")
@@ -82,6 +143,10 @@ def normalize_name(value: str) -> str:
     return re.sub(r"[^0-9A-Za-z]+", "", value).lower()
 
 
+def normalize_lookup_name(value: str) -> str:
+    return value.strip().lower()
+
+
 def pascal_case(value: str) -> str:
     words = split_words(value)
     result = "".join(word[:1].upper() + word[1:] for word in words)
@@ -97,6 +162,65 @@ def camel_case(value: str) -> str:
 
 def cpp_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace("\"", "\\\"")
+
+
+def stable_transport_id(canonical_key: str) -> int:
+    digest = hashlib.sha256(canonical_key.encode("utf-8")).digest()
+    return int.from_bytes(digest[-8:], byteorder="big", signed=False)
+
+
+def float_literal(value: float) -> str:
+    return f"{value:.8g}f"
+
+
+def explicit_exposure(element: dict) -> bool:
+    direct_keys = ("expose", "exposed", "public", "clientExpose", "runtimeControl")
+    for key in direct_keys:
+        if isinstance(element.get(key), bool):
+            return bool(element[key])
+
+    client_node = element.get("client")
+    if isinstance(client_node, dict):
+        if isinstance(client_node.get("expose"), bool):
+            return bool(client_node["expose"])
+        if isinstance(client_node.get("public"), bool):
+            return bool(client_node["public"])
+
+    return False
+
+
+def collect_named_elements(elements: list[dict]) -> list[dict]:
+    result: list[dict] = []
+    for element in elements:
+        primitive_id = element.get("id")
+        if isinstance(primitive_id, str) and primitive_id:
+            result.append(element)
+    return result
+
+
+def should_expose_primitive(element: dict, elements: list[dict]) -> bool:
+    primitive_id = element.get("id")
+    if not isinstance(primitive_id, str) or not primitive_id:
+        return False
+
+    if explicit_exposure(element):
+        return True
+
+    primitive_type = str(element.get("type", "")).lower()
+    if primitive_type in TEXT_TYPES:
+        return True
+
+    return len(collect_named_elements(elements)) == 1
+
+
+def primitive_cpp_type(primitive_type: str) -> str:
+    return PRIMITIVE_HANDLE_TYPES.get(primitive_type, "PrimitiveHandle")
+
+
+def primitive_canonical_key(owner_kind: str,
+                            owner_name: str,
+                            primitive_id: str) -> str:
+    return f"{owner_kind}/{normalize_lookup_name(owner_name)}/primitive/{normalize_lookup_name(primitive_id)}"
 
 
 def validate_cpp_namespace(namespace_name: str) -> None:
@@ -135,14 +259,26 @@ def ensure_unique_page_spec_names(page_specs: list[PageSpec]) -> None:
             raise RuntimeError(f"Duplicate generated {field_name}(s): {duplicate_list}")
 
 
-def ensure_output_paths(output_header: Path, output_source: Path, force_overwrite: bool) -> None:
+def ensure_output_paths(output_header: Path,
+                        output_source: Path,
+                        output_map: Path | None,
+                        force_overwrite: bool) -> None:
     if output_header.resolve() == output_source.resolve():
         raise RuntimeError("Output header and output source must be different files")
+
+    if output_map is not None:
+        output_map_resolved = output_map.resolve()
+        if output_map_resolved == output_header.resolve() or output_map_resolved == output_source.resolve():
+            raise RuntimeError("Output map must be different from generated C++ outputs")
 
     if force_overwrite:
         return
 
-    existing_paths = [path.as_posix() for path in (output_header, output_source) if path.exists()]
+    candidate_paths = [output_header, output_source]
+    if output_map is not None:
+        candidate_paths.append(output_map)
+
+    existing_paths = [path.as_posix() for path in candidate_paths if path.exists()]
     if existing_paths:
         raise RuntimeError(
             "Refusing to overwrite existing output file(s): "
@@ -203,36 +339,120 @@ def resolved_elements(reticle_node: dict, template_library: dict[str, dict]) -> 
     return [element for element in elements if isinstance(element, dict)]
 
 
-def text_primitive_ids(reticle_node: dict, template_library: dict[str, dict]) -> tuple[list[str], int]:
-    elements = resolved_elements(reticle_node, template_library)
-    result: list[str] = []
-    for element in elements:
-        primitive_id = element.get("id")
-        primitive_type = str(element.get("type", "")).lower()
-        if isinstance(primitive_id, str) and primitive_type in TEXT_TYPES:
-            result.append(primitive_id)
-
-    return result, len(elements)
-
-
-def choose_text_binding(primitive_ids: list[str], element_count: int) -> str | None:
-    _ = element_count
+def choose_status_primitive(primitives: list[PrimitiveSpec]) -> PrimitiveSpec | None:
+    text_like = [primitive for primitive in primitives if primitive.primitive_type in TEXT_TYPES]
     for suffix in ("_value", "_caption", "_text"):
-        for primitive_id in primitive_ids:
-            if primitive_id.endswith(suffix):
-                return primitive_id
+        for primitive in text_like:
+            if primitive.primitive_id.endswith(suffix):
+                return primitive
 
-    if len(primitive_ids) == 1:
-        return primitive_ids[0]
+    if len(text_like) == 1:
+        return text_like[0]
 
     return None
 
 
+def build_primitive_specs(owner_kind: str,
+                          owner_name: str,
+                          elements: list[dict]) -> list[PrimitiveSpec]:
+    primitive_specs: list[PrimitiveSpec] = []
+
+    for element in elements:
+        primitive_id = element.get("id")
+        primitive_type = str(element.get("type", "")).lower()
+        if not should_expose_primitive(element, elements):
+            continue
+        if not isinstance(primitive_id, str) or not primitive_id:
+            continue
+
+        canonical_key = primitive_canonical_key(owner_kind, owner_name, primitive_id)
+        primitive_specs.append(PrimitiveSpec(
+            primitive_id=primitive_id,
+            member_name=f"{camel_case(primitive_id)}_",
+            accessor_name=pascal_case(primitive_id),
+            cpp_type=primitive_cpp_type(primitive_type),
+            primitive_type=primitive_type,
+            canonical_key=canonical_key,
+            transport_id=stable_transport_id(canonical_key),
+        ))
+
+    return primitive_specs
+
+
+def resolve_strobe_spec(page_root: dict) -> StrobeSpec:
+    strobe_node = page_root.get("strobe")
+    if not isinstance(strobe_node, dict):
+        return StrobeSpec(False, "circle", 0.0875, 0.175, 0.175, False, 0.075, 1.0)
+
+    capture_node = strobe_node.get("capture")
+    magnet_node = strobe_node.get("magnet")
+
+    capture_shape = "circle"
+    capture_radius = 0.0875
+    capture_size_x = 0.175
+    capture_size_y = 0.175
+    if isinstance(capture_node, dict):
+        if isinstance(capture_node.get("shape"), str):
+            capture_shape = capture_node["shape"]
+        if isinstance(capture_node.get("radius"), (int, float)):
+            capture_radius = float(capture_node["radius"])
+        size_value = capture_node.get("size")
+        if isinstance(size_value, list) and len(size_value) == 2:
+            capture_size_x = float(size_value[0])
+            capture_size_y = float(size_value[1])
+
+    magnet_enabled = False
+    magnet_radius = 0.075
+    magnet_strength = 1.0
+    if isinstance(magnet_node, dict):
+        if isinstance(magnet_node.get("enabled"), bool):
+            magnet_enabled = bool(magnet_node["enabled"])
+        if isinstance(magnet_node.get("radius"), (int, float)):
+            magnet_radius = float(magnet_node["radius"])
+        if isinstance(magnet_node.get("strength"), (int, float)):
+            magnet_strength = float(magnet_node["strength"])
+
+    return StrobeSpec(
+        valid=True,
+        capture_shape=capture_shape,
+        capture_radius=capture_radius,
+        capture_size_x=capture_size_x,
+        capture_size_y=capture_size_y,
+        magnet_enabled=magnet_enabled,
+        magnet_radius=magnet_radius,
+        magnet_strength=magnet_strength,
+    )
+
+
+def build_template_specs(template_library: dict[str, dict]) -> list[TemplateSpec]:
+    templates: list[TemplateSpec] = []
+    seen_ids: set[int] = set()
+
+    for template_id, template_node in sorted(template_library.items()):
+        canonical_key = f"template/{normalize_lookup_name(template_id)}"
+        transport_id = stable_transport_id(canonical_key)
+        if transport_id in seen_ids:
+            raise RuntimeError(f"Transport ID collision detected for template '{template_id}'")
+        seen_ids.add(transport_id)
+
+        primitives = build_primitive_specs("template", template_id, resolved_elements(template_node, template_library))
+        templates.append(TemplateSpec(
+            template_id=template_id,
+            normalized_template_id=normalize_lookup_name(template_id),
+            canonical_key=canonical_key,
+            transport_id=transport_id,
+            primitives=primitives,
+        ))
+
+    return templates
+
+
 def build_page_specs(window_root: dict,
                      window_path: Path,
-                     page_class_suffix: str) -> list[PageSpec]:
+                     page_class_suffix: str) -> tuple[list[PageSpec], list[TemplateSpec]]:
     template_library = load_reticle_library(window_root, window_path)
     page_specs: list[PageSpec] = []
+    seen_ids: set[int] = set()
 
     for page_entry in page_entries(window_root):
         page_path = resolve_path(window_path.parent, page_entry.path)
@@ -243,6 +463,12 @@ def build_page_specs(window_root: dict,
             raise RuntimeError(f"Page file '{page_path}' does not define a valid name")
 
         page_base_name = pascal_case(page_name)
+        page_canonical_key = f"page/{normalize_lookup_name(page_name)}"
+        page_transport_id = stable_transport_id(page_canonical_key)
+        if page_transport_id in seen_ids:
+            raise RuntimeError(f"Transport ID collision detected for page '{page_name}'")
+        seen_ids.add(page_transport_id)
+
         reticles: list[ReticleSpec] = []
         for reticle in page_root.get("staticReticles", []):
             if not isinstance(reticle, dict):
@@ -253,24 +479,54 @@ def build_page_specs(window_root: dict,
                 continue
 
             member_name = camel_case(reticle_id)
-            primitive_ids, element_count = text_primitive_ids(reticle, template_library)
-            text_binding = choose_text_binding(primitive_ids, element_count)
-            cpp_type = "TextReticle" if text_binding is not None else "Reticle"
-            reticles.append(ReticleSpec(reticle_id, member_name, cpp_type, text_binding))
+            canonical_key = f"page/{normalize_lookup_name(page_name)}/reticle/{normalize_lookup_name(reticle_id)}"
+            transport_id = stable_transport_id(canonical_key)
+            if transport_id in seen_ids:
+                raise RuntimeError(f"Transport ID collision detected for reticle '{reticle_id}'")
+            seen_ids.add(transport_id)
 
-        blink_members: list[tuple[str, str]] = []
+            primitives = build_primitive_specs("reticle", f"{page_name}/{reticle_id}", resolved_elements(reticle, template_library))
+            status_primitive = choose_status_primitive(primitives)
+            reticles.append(ReticleSpec(
+                reticle_id=reticle_id,
+                member_name=member_name,
+                wrapper_class_name=f"{page_base_name}{pascal_case(reticle_id)}Reticle",
+                canonical_key=canonical_key,
+                transport_id=transport_id,
+                primitives=primitives,
+                status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
+            ))
+
+        blink_members: list[BlinkSpec] = []
         for blink_type in page_root.get("blinkTypes", []):
             if not isinstance(blink_type, dict):
                 continue
             blink_name = blink_type.get("name") or blink_type.get("id") or blink_type.get("type")
             if isinstance(blink_name, str) and blink_name:
-                blink_members.append((camel_case(blink_name), blink_name))
+                canonical_key = f"page/{normalize_lookup_name(page_name)}/blink/{normalize_lookup_name(blink_name)}"
+                transport_id = stable_transport_id(canonical_key)
+                if transport_id in seen_ids:
+                    raise RuntimeError(f"Transport ID collision detected for blink type '{blink_name}'")
+                seen_ids.add(transport_id)
+
+                duration_value = blink_type.get("durationMs")
+                if not isinstance(duration_value, int):
+                    duration_value = blink_type.get("duration")
+                blink_members.append(BlinkSpec(
+                    member_name=camel_case(blink_name),
+                    blink_name=blink_name,
+                    duration_ms=1000 if not isinstance(duration_value, int) else duration_value,
+                    canonical_key=canonical_key,
+                    transport_id=transport_id,
+                ))
 
         expected_status_name = f"{camel_case(page_name)}Status"
         status_member_name = None
+        status_primitive_accessor_name = None
         for reticle in reticles:
-            if reticle.member_name == expected_status_name and reticle.cpp_type == "TextReticle":
+            if reticle.member_name == expected_status_name and reticle.status_primitive_accessor_name is not None:
                 status_member_name = reticle.member_name
+                status_primitive_accessor_name = reticle.status_primitive_accessor_name
                 break
 
         page_specs.append(PageSpec(
@@ -278,12 +534,16 @@ def build_page_specs(window_root: dict,
             page_class_name=f"{page_base_name}{page_class_suffix}",
             accessor_name=page_base_name,
             ui_member_name=f"{camel_case(page_name)}_",
+            canonical_key=page_canonical_key,
+            transport_id=page_transport_id,
             blink_members=blink_members,
             reticles=reticles,
             status_member_name=status_member_name,
+            status_primitive_accessor_name=status_primitive_accessor_name,
+            strobe=resolve_strobe_spec(page_root),
         ))
 
-    return page_specs
+    return page_specs, build_template_specs(template_library)
 
 
 def resolve_startup_page(page_specs: list[PageSpec], window_root: dict) -> PageSpec:
@@ -326,6 +586,20 @@ def derive_ui_class_name(window_root: dict,
     return f"{pascal_case(Path(window_json).stem)}{ui_class_suffix}"
 
 
+def emit_strobe_initializer(strobe: StrobeSpec) -> str:
+    capture_shape = "mfd::StrobeCaptureShape::Rectangle" if strobe.capture_shape.strip().lower() == "rectangle" else "mfd::StrobeCaptureShape::Circle"
+    valid = "true" if strobe.valid else "false"
+    magnet_enabled = "true" if strobe.magnet_enabled else "false"
+    return (
+        "StrobeInfo {"
+        f"{valid}, "
+        f"mfd::StrobeCaptureConfig {{{capture_shape}, {float_literal(strobe.capture_radius)}, "
+        f"mfd::Vec2 {{{float_literal(strobe.capture_size_x)}, {float_literal(strobe.capture_size_y)}}}}}, "
+        f"mfd::StrobeMagnetConfig {{{magnet_enabled}, {float_literal(strobe.magnet_radius)}, {float_literal(strobe.magnet_strength)}}}"
+        "}"
+    )
+
+
 def emit_header(namespace_name: str,
                 ui_class_name: str,
                 window_json: str,
@@ -336,6 +610,8 @@ def emit_header(namespace_name: str,
         " * Project author: Benoit Fra",
         " * Repository: https://github.com/benoitfragit/MFDStudio",
         " *",
+        " * AUTO-GENERATED FILE.",
+        " * DO NOT EDIT MANUALLY.",
         " * This file was generated by client_api_generator.",
         " */",
         "#pragma once",
@@ -356,14 +632,51 @@ def emit_header(namespace_name: str,
         "using BlinkType = mfd::client::BlinkType;",
         "using DynamicReticle = mfd::client::DynamicReticle;",
         "using DynamicReticleSet = mfd::client::DynamicReticleSet;",
+        "using DiamondHandle = mfd::client::DiamondHandle;",
+        "using EllipseHandle = mfd::client::EllipseHandle;",
+        "using LineHandle = mfd::client::LineHandle;",
+        "using PrimitiveHandle = mfd::client::PrimitiveHandle;",
         "using Reticle = mfd::client::Reticle;",
         "using ReticleBlink = mfd::client::ReticleBlink;",
-        "using TextReticle = mfd::client::TextReticle;",
+        "using RingHandle = mfd::client::RingHandle;",
+        "using RectangleHandle = mfd::client::RectangleHandle;",
+        "using SquareHandle = mfd::client::SquareHandle;",
+        "using StrobeHandle = mfd::client::StrobeHandle;",
+        "using StrobeInfo = mfd::client::StrobeInfo;",
+        "using TextHandle = mfd::client::TextHandle;",
+        "using TimeHandle = mfd::client::TimeHandle;",
         "using WindowDisplay = mfd::client::WindowDisplay;",
         "",
     ]
 
     for page in page_specs:
+        for reticle in page.reticles:
+            lines.extend([
+                f"class {reticle.wrapper_class_name} final : public Reticle",
+                "{",
+                "public:",
+                f"    {reticle.wrapper_class_name}();",
+            ])
+
+            for primitive in reticle.primitives:
+                lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
+
+            lines.extend([
+                "",
+                "private:",
+            ])
+
+            for primitive in reticle.primitives:
+                lines.append(f"    {primitive.cpp_type} {primitive.member_name};")
+
+            if not reticle.primitives:
+                lines.append("    // No exposed primitive for this authored reticle.")
+
+            lines.extend([
+                "};",
+                "",
+            ])
+
         lines.extend([
             f"class {page.page_class_name}",
             "{",
@@ -383,14 +696,16 @@ def emit_header(namespace_name: str,
             "",
         ])
 
-        for blink_member_name, blink_name in page.blink_members:
-            lines.append(f'    BlinkType {blink_member_name} {{"{cpp_string(blink_name)}"}};')
+        for blink in page.blink_members:
+            lines.append(f'    BlinkType {blink.member_name} {{"{cpp_string(blink.blink_name)}"}};')
 
         if page.blink_members:
             lines.append("")
 
+        lines.append("    StrobeHandle strobe;")
+
         for reticle in page.reticles:
-            lines.append(f"    {reticle.cpp_type} {reticle.member_name};")
+            lines.append(f"    {reticle.wrapper_class_name} {reticle.member_name};")
 
         lines.extend([
             "",
@@ -459,6 +774,8 @@ def emit_source(namespace_name: str,
         " * Project author: Benoit Fra",
         " * Repository: https://github.com/benoitfragit/MFDStudio",
         " *",
+        " * AUTO-GENERATED FILE.",
+        " * DO NOT EDIT MANUALLY.",
         " * This file was generated by client_api_generator.",
         " */",
         f'#include "{header_include}"',
@@ -472,30 +789,43 @@ def emit_source(namespace_name: str,
     ]
 
     for page in page_specs:
-        ctor_initializers: list[str] = []
         for reticle in page.reticles:
-            if reticle.text_primitive_id is None:
+            ctor_initializers = [f'    Reticle("{cpp_string(page.page_name)}", "{cpp_string(reticle.reticle_id)}")']
+            for primitive in reticle.primitives:
                 ctor_initializers.append(
-                    f'    {reticle.member_name}(Name(), "{cpp_string(reticle.reticle_id)}")')
-            else:
-                ctor_initializers.append(
-                    f'    {reticle.member_name}(Name(), "{cpp_string(reticle.reticle_id)}", "{cpp_string(reticle.text_primitive_id)}")')
+                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}")')
 
-        if ctor_initializers:
-            lines.append(f"{page.page_class_name}::{page.page_class_name}() :")
+            lines.append(f"{reticle.wrapper_class_name}::{reticle.wrapper_class_name}() :")
             lines.append(",\n".join(ctor_initializers))
             lines.append("{")
             lines.append("}")
             lines.append("")
-        else:
-            lines.extend([
-                f"{page.page_class_name}::{page.page_class_name}() = default;",
-                "",
-            ])
+
+            for primitive in reticle.primitives:
+                lines.extend([
+                    f"{primitive.cpp_type}& {reticle.wrapper_class_name}::{primitive.accessor_name}() noexcept",
+                    "{",
+                    f"    return {primitive.member_name};",
+                    "}",
+                    "",
+                ])
+
+        page_ctor_initializers: list[str] = [
+            f"    strobe(Name(), {emit_strobe_initializer(page.strobe)})",
+        ]
+        for reticle in page.reticles:
+            page_ctor_initializers.append(f"    {reticle.member_name}()")
+
+        lines.append(f"{page.page_class_name}::{page.page_class_name}() :")
+        lines.append(",\n".join(page_ctor_initializers))
+        lines.append("{")
+        lines.append("}")
+        lines.append("")
 
         lines.extend([
             f"void {page.page_class_name}::Reset() noexcept",
             "{",
+            "    strobe.Reset();",
         ])
         for reticle in page.reticles:
             lines.append(f"    {reticle.member_name}.Reset();")
@@ -510,6 +840,7 @@ def emit_source(namespace_name: str,
             "{",
             "    std::size_t count = 0;",
             "",
+            "    count += strobe.AppendCommands(commands) ? 1U : 0U;",
         ])
         for reticle in page.reticles:
             lines.append(f"    count += {reticle.member_name}.AppendCommands(commands) ? 1U : 0U;")
@@ -548,8 +879,9 @@ def emit_source(namespace_name: str,
             f"void {page.page_class_name}::SetStatusCaption(std::string value)",
             "{",
         ])
-        if page.status_member_name is not None:
-            lines.append(f"    {page.status_member_name}.SetValue(std::move(value));")
+        if page.status_member_name is not None and page.status_primitive_accessor_name is not None:
+            lines.append(
+                f"    {page.status_member_name}.{page.status_primitive_accessor_name}().SetText(std::move(value));")
         else:
             lines.append("    (void)value;")
         lines.extend([
@@ -680,6 +1012,128 @@ def emit_source(namespace_name: str,
     return "\n".join(lines)
 
 
+def mapping_document(window_root: dict,
+                     window_path: Path,
+                     page_specs: list[PageSpec],
+                     template_specs: list[TemplateSpec]) -> dict:
+    pages = [
+        {
+            "id": page.transport_id,
+            "name": page.page_name,
+            "normalizedName": normalize_lookup_name(page.page_name),
+            "hasStrobe": page.strobe.valid,
+            "defaultPage": False,
+        }
+        for page in sorted(page_specs, key=lambda entry: entry.canonical_key)
+    ]
+
+    default_page = resolve_startup_page(page_specs, window_root)
+    for page in pages:
+        page["defaultPage"] = page["name"] == default_page.page_name
+
+    reticles = []
+    primitives = []
+    for page in sorted(page_specs, key=lambda entry: entry.canonical_key):
+        for reticle in sorted(page.reticles, key=lambda entry: entry.canonical_key):
+            reticles.append({
+                "id": reticle.transport_id,
+                "pageId": page.transport_id,
+                "reticleId": reticle.reticle_id,
+                "normalizedReticleId": normalize_lookup_name(reticle.reticle_id),
+                "source": "static",
+            })
+
+            for primitive in sorted(reticle.primitives, key=lambda entry: entry.canonical_key):
+                primitives.append({
+                    "id": primitive.transport_id,
+                    "ownerKind": "reticle",
+                    "ownerId": reticle.transport_id,
+                    "primitiveId": primitive.primitive_id,
+                    "normalizedPrimitiveId": normalize_lookup_name(primitive.primitive_id),
+                    "primitiveType": primitive.primitive_type,
+                    "exposed": True,
+                })
+
+    templates = []
+    for template in sorted(template_specs, key=lambda entry: entry.canonical_key):
+        templates.append({
+            "id": template.transport_id,
+            "templateId": template.template_id,
+            "normalizedTemplateId": template.normalized_template_id,
+        })
+        for primitive in sorted(template.primitives, key=lambda entry: entry.canonical_key):
+            primitives.append({
+                "id": primitive.transport_id,
+                "ownerKind": "template",
+                "ownerId": template.transport_id,
+                "primitiveId": primitive.primitive_id,
+                "normalizedPrimitiveId": normalize_lookup_name(primitive.primitive_id),
+                "primitiveType": primitive.primitive_type,
+                "exposed": True,
+            })
+
+    blink_types = []
+    for page in sorted(page_specs, key=lambda entry: entry.canonical_key):
+        for blink in sorted(page.blink_members, key=lambda entry: entry.canonical_key):
+            blink_types.append({
+                "id": blink.transport_id,
+                "pageId": page.transport_id,
+                "blinkType": blink.blink_name,
+                "normalizedBlinkType": normalize_lookup_name(blink.blink_name),
+                "durationMs": blink.duration_ms,
+            })
+
+    seen_ids: dict[int, str] = {}
+    for table_name, rows, id_field in (
+        ("pages", pages, "id"),
+        ("reticles", reticles, "id"),
+        ("primitives", primitives, "id"),
+        ("templates", templates, "id"),
+        ("blinkTypes", blink_types, "id"),
+    ):
+        for row in rows:
+            row_id = row[id_field]
+            existing = seen_ids.get(row_id)
+            if existing is not None:
+                raise RuntimeError(f"Transport ID collision detected between {existing} and {table_name}:{row}")
+            seen_ids[row_id] = f"{table_name}:{row}"
+
+    mapping_without_hash = {
+        "schemaVersion": 1,
+        "window": {
+            "name": window_path.stem,
+            "title": window_root.get("title", ""),
+            "source": window_path.name,
+        },
+        "pages": pages,
+        "reticles": reticles,
+        "primitives": primitives,
+        "templates": templates,
+        "blinkTypes": blink_types,
+    }
+
+    canonical_payload = json.dumps(mapping_without_hash, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+    mapping_hash = hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
+    return {
+        "schemaVersion": 1,
+        "mappingHash": mapping_hash,
+        "window": mapping_without_hash["window"],
+        "pages": pages,
+        "reticles": reticles,
+        "primitives": primitives,
+        "templates": templates,
+        "blinkTypes": blink_types,
+    }
+
+
+def emit_map(window_root: dict,
+             window_path: Path,
+             page_specs: list[PageSpec],
+             template_specs: list[TemplateSpec]) -> str:
+    document = mapping_document(window_root, window_path, page_specs, template_specs)
+    return json.dumps(document, indent=2) + "\n"
+
+
 def collect_input_paths(window_path: Path) -> list[Path]:
     window_root = load_json(window_path)
     input_paths: set[Path] = {window_path}
@@ -710,7 +1164,7 @@ def main() -> int:
 
     window_root = load_json(window_path)
     validate_cpp_namespace(args.namespace)
-    page_specs = build_page_specs(window_root, window_path, args.page_class_suffix)
+    page_specs, template_specs = build_page_specs(window_root, window_path, args.page_class_suffix)
     if not page_specs:
         raise RuntimeError("The window JSON does not expose any page to generate")
     ensure_unique_page_spec_names(page_specs)
@@ -726,14 +1180,19 @@ def main() -> int:
     header_text = emit_header(args.namespace, ui_class_name, window_json, page_specs)
     startup_page = resolve_startup_page(page_specs, window_root)
     source_text = emit_source(args.namespace, args.header_include, ui_class_name, startup_page, page_specs)
+    map_text = None if args.output_map is None else emit_map(window_root, window_path, page_specs, template_specs)
 
     output_header = Path(args.output_header)
     output_source = Path(args.output_source)
-    ensure_output_paths(output_header, output_source, args.force_overwrite)
+    output_map = None if args.output_map is None else Path(args.output_map)
+    ensure_output_paths(output_header, output_source, output_map, args.force_overwrite)
     output_header.parent.mkdir(parents=True, exist_ok=True)
     output_source.parent.mkdir(parents=True, exist_ok=True)
     output_header.write_text(header_text, encoding="utf-8")
     output_source.write_text(source_text, encoding="utf-8")
+    if output_map is not None and map_text is not None:
+        output_map.parent.mkdir(parents=True, exist_ok=True)
+        output_map.write_text(map_text, encoding="utf-8")
     return 0
 
 
