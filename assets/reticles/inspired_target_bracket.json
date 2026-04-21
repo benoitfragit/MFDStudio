@@ -1,0 +1,17 @@
+{
+  "id": "inspired_target_bracket",
+  "style": {
+    "lineWidth": 0.0038
+  },
+  "elements": [
+    { "id": "tl_h", "type": "line", "start": [-0.06, 0.05], "end": [-0.02, 0.05] },
+    { "id": "tl_v", "type": "line", "start": [-0.06, 0.05], "end": [-0.06, 0.01] },
+    { "id": "tr_h", "type": "line", "start": [0.02, 0.05], "end": [0.06, 0.05] },
+    { "id": "tr_v", "type": "line", "start": [0.06, 0.05], "end": [0.06, 0.01] },
+    { "id": "bl_h", "type": "line", "start": [-0.06, -0.05], "end": [-0.02, -0.05] },
+    { "id": "bl_v", "type": "line", "start": [-0.06, -0.05], "end": [-0.06, -0.01] },
+    { "id": "br_h", "type": "line", "start": [0.02, -0.05], "end": [0.06, -0.05] },
+    { "id": "br_v", "type": "line", "start": [0.06, -0.05], "end": [0.06, -0.01] },
+    { "id": "center", "type": "circle", "radius": 0.008 }
+  ]
+}

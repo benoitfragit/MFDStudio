@@ -7,7 +7,7 @@ set(MFD_WINDOW_LAUNCHER_HEADERS
 set(MFD_WINDOW_LAUNCHER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/WindowLauncher.cpp)
 
-add_library(mfd_window_launcher
+add_library(mfd_window_launcher STATIC
     ${MFD_WINDOW_LAUNCHER_HEADERS}
     ${MFD_WINDOW_LAUNCHER_SOURCES})
 

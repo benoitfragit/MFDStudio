@@ -804,6 +804,40 @@ TEST(JsonLoaderTests, LoadRepositoryMinimalWindowConfigurationMarksRadarAsDefaul
     EXPECT_EQ(defaultPage->name, "Radar");
 }
 
+TEST(JsonLoaderTests, LoadRepositoryInspiredWindowConfigurationSmokeTest)
+{
+    mfd::JsonLoader loader;
+    const std::filesystem::path windowFile = RepositoryRoot() / "assets/windows/demo_pages_inspired.json";
+
+    const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
+
+    ASSERT_EQ(loaded.document.pages.size(), 6U);
+    EXPECT_EQ(loaded.document.pages[0].name, "HSD_INSPIRED");
+    EXPECT_EQ(loaded.document.pages[1].name, "FCR_INSPIRED");
+    EXPECT_EQ(loaded.document.pages[2].name, "HAD_INSPIRED");
+    EXPECT_EQ(loaded.document.pages[3].name, "TGP_INSPIRED");
+    EXPECT_EQ(loaded.document.pages[4].name, "SMS_INSPIRED");
+    EXPECT_EQ(loaded.document.pages[5].name, "FLCS_INSPIRED");
+
+    std::size_t defaultPageCount = 0U;
+    const mfd::PageDefinition* defaultPage = nullptr;
+    for (const auto& page : loaded.document.pages)
+    {
+        if (!page.defaultPage)
+        {
+            continue;
+        }
+
+        ++defaultPageCount;
+        defaultPage = &page;
+    }
+
+    ASSERT_EQ(defaultPageCount, 1U);
+    ASSERT_NE(defaultPage, nullptr);
+    EXPECT_EQ(defaultPage->name, "HSD_INSPIRED");
+    EXPECT_FALSE(loaded.document.reticleLibrary.empty());
+}
+
 TEST(JsonLoaderTests, LoadWindowConfigurationRejectsNonPositiveUdpPacketSizes)
 {
     TemporaryFolder workspace;

@@ -1,0 +1,14 @@
+{
+  "id": "inspired_sensor_crosshair",
+  "style": {
+    "lineWidth": 0.0034
+  },
+  "elements": [
+    { "id": "h_left", "type": "line", "start": [-0.14, 0.0], "end": [-0.04, 0.0] },
+    { "id": "h_right", "type": "line", "start": [0.04, 0.0], "end": [0.14, 0.0] },
+    { "id": "v_top", "type": "line", "start": [0.0, 0.14], "end": [0.0, 0.04] },
+    { "id": "v_bottom", "type": "line", "start": [0.0, -0.04], "end": [0.0, -0.14] },
+    { "id": "inner_box", "type": "rect", "width": 0.08, "height": 0.08 },
+    { "id": "center_dot", "type": "circle", "radius": 0.010 }
+  ]
+}

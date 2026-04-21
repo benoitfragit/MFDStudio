@@ -132,6 +132,19 @@ The full walkthrough is documented in
 | `examples/client_mockup_minimal` | Headless cockpit client showing the public API from one plain `main` loop. |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles. |
 
+A data-only inspired sample pack is also shipped under:
+
+- `assets/windows/demo_pages_inspired.json`
+- `assets/pages/hsd_inspired.json`
+- `assets/pages/fcr_inspired.json`
+- `assets/pages/had_inspired.json`
+- `assets/pages/tgp_inspired.json`
+- `assets/pages/sms_inspired.json`
+- `assets/pages/flcs_inspired.json`
+
+Open it with `mfd_window assets/windows/demo_pages_inspired.json` or through
+`mfd_editor` using **Open window asset...**.
+
 ## Generated Client UI
 
 If you want typed page and reticle accessors on the client side,
