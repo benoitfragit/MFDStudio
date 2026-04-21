@@ -184,8 +184,22 @@ mfd::CommandClient client(transport);
 client.ActivatePage(mockup_ui::CockpitMockupPage::Name());
 
 mockup_ui::CockpitMockupUi ui;
-auto& contacts = ui.Cockpit().Dynamic("cockpit_radar_contact");
+auto& cockpit = ui.Cockpit();
+auto& contacts = cockpit.DynamicCockpitRadarContact();
 contacts.SetVisible(true);
+
+auto& contact = contacts.Create();
+contact.SetVisible(true);
+contact.SetPosition({0.15f, -0.10f});
+contact.ContactLabel().SetText("B21");
+
+if (cockpit.strobe.IsValid())
+{
+    cockpit.strobe.SetActive(true);
+    cockpit.strobe.SetPosition({0.15f, -0.10f});
+}
+
+client.SendBatch(ui.BuildBatch());
 ```
 
 For the full generated-client workflow, including batch submission and dynamic

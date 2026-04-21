@@ -169,11 +169,30 @@ The `StrobeHandle` is a lightweight page capability wrapper exposing:
 
 ## Dynamic Reticles
 
-Dynamic reticles keep their current page/template model. They are not addressed
-through the static primitive generation tree because they are runtime-created.
+Dynamic reticles are runtime-created, so they do not appear as fixed authored
+page members. The generated page surface instead exposes one typed dynamic-set
+accessor per authored template:
 
-Dynamic reticle patches may still carry primitive updates internally, but their
-public surface remains template-driven and string-free at the generated level.
+```cpp
+auto& tracks = ui.Radar().DynamicRadarTrack();
+auto& track = tracks.Create();
+track.TrackLabel().SetText("AF001");
+tracks.Remove(track);
+```
+
+Dynamic-reticle invariants:
+
+- generated page APIs do not expose `Dynamic(std::string_view templateId)`
+- generated client code does not ask the user for a runtime reticle id
+- `Create()` allocates one hidden runtime id inside the generated set
+- `Remove(...)` removes that generated instance by handle
+- application code keeps the returned typed handle or pointer while the domain
+  object is alive
+- primitive-level typed access is still available on the generated dynamic
+  reticle handle when the authored template exposes primitives
+
+Low-level dynamic reticle patches may still carry primitive updates internally,
+but the normal generated workflow is now handle-based rather than id-based.
 
 ## Compatibility Strategy
 

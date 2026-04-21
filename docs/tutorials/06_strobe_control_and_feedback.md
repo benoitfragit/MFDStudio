@@ -75,6 +75,21 @@ In the recommended runtime model:
 
 ## Step 3 - Control the strobe from the client
 
+With generated client bindings, the preferred API is the generic page-scoped
+handle:
+
+```cpp
+auto& radar = ui.Radar();
+if (radar.strobe.IsValid())
+{
+    radar.strobe.SetActive(true);
+    radar.strobe.SetPosition({0.15f, -0.08f});
+    client.SendBatch(ui.BuildBatch());
+}
+```
+
+If you intentionally stay on raw `CommandClient`, the low-level equivalent is:
+
 ```cpp
 client.SetStrobeActive("Radar", true);
 client.SetStrobePosition("Radar", {0.15f, -0.08f});
@@ -161,6 +176,9 @@ Important fields are:
 - distance
 - metadata
 
+`strobeId` is informational feedback from the runtime. When you use generated
+client bindings, control remains page-scoped through `page.strobe`.
+
 ## Step 7 - Test quickly with the mockup
 
 You do not need to write the client first.
@@ -204,6 +222,8 @@ This distinction is important:
 You now have:
 
 - a command path from client to window
+- one generated page-scoped `strobe` accessor that does not require a user
+  managed id
 - a feedback path from window to client
 - support for strobe magnetization and capture feedback
 - a clean split between UDP I/O and render-thread scene ownership
