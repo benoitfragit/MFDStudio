@@ -170,7 +170,10 @@ def stable_transport_id(canonical_key: str) -> int:
 
 
 def float_literal(value: float) -> str:
-    return f"{value:.8g}f"
+    text = f"{value:.8g}"
+    if "." not in text and "e" not in text and "E" not in text:
+        text += ".0"
+    return f"{text}f"
 
 
 def explicit_exposure(element: dict) -> bool:
@@ -603,6 +606,7 @@ def emit_strobe_initializer(strobe: StrobeSpec) -> str:
 def emit_header(namespace_name: str,
                 ui_class_name: str,
                 window_json: str,
+                mapping_hash: str,
                 page_specs: list[PageSpec]) -> str:
     lines: list[str] = [
         "/*",
@@ -632,6 +636,7 @@ def emit_header(namespace_name: str,
         "using BlinkType = mfd::client::BlinkType;",
         "using DynamicReticle = mfd::client::DynamicReticle;",
         "using DynamicReticleSet = mfd::client::DynamicReticleSet;",
+        "using CircleHandle = mfd::client::CircleHandle;",
         "using DiamondHandle = mfd::client::DiamondHandle;",
         "using EllipseHandle = mfd::client::EllipseHandle;",
         "using LineHandle = mfd::client::LineHandle;",
@@ -657,6 +662,9 @@ def emit_header(namespace_name: str,
                 "public:",
                 f"    {reticle.wrapper_class_name}();",
             ])
+
+            if reticle.status_primitive_accessor_name is not None:
+                lines.append("    void SetValue(std::string value);")
 
             for primitive in reticle.primitives:
                 lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
@@ -697,7 +705,8 @@ def emit_header(namespace_name: str,
         ])
 
         for blink in page.blink_members:
-            lines.append(f'    BlinkType {blink.member_name} {{"{cpp_string(blink.blink_name)}"}};')
+            lines.append(
+                f'    BlinkType {blink.member_name} {{"{cpp_string(blink.blink_name)}", {blink.transport_id}U}};')
 
         if page.blink_members:
             lines.append("")
@@ -731,13 +740,20 @@ def emit_header(namespace_name: str,
         f'        return "{cpp_string(window_json)}";',
         "    }",
         "",
+        "    static constexpr std::string_view MappingHash() noexcept",
+        "    {",
+        f'        return "{mapping_hash}";',
+        "    }",
+        "",
         f"    {ui_class_name}();",
         "",
         "    bool SendStartup(mfd::CommandClient& client, const mfd::PageViewState& view, std::string statusText);",
         "    void Reset() noexcept;",
         "    std::vector<mfd::UserCommand> BuildBatch();",
+        "    mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);",
         "    bool SubmitLatest(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence = 0);",
         "    std::vector<mfd::UserCommand> BuildShutdownBatch(std::string statusText);",
+        "    mfd::CommandBatch BuildShutdownCommandBatch(std::uint32_t sequence, std::string statusText);",
         "    bool SubmitShutdown(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence, std::string statusText);",
         "",
         "    WindowDisplay& Window() noexcept;",
@@ -766,8 +782,11 @@ def emit_header(namespace_name: str,
 def emit_source(namespace_name: str,
                 header_include: str,
                 ui_class_name: str,
+                mapping_hash: str,
                 startup_page: PageSpec,
-                page_specs: list[PageSpec]) -> str:
+                page_specs: list[PageSpec],
+                template_specs: list[TemplateSpec]) -> str:
+    template_rows = [(template.template_id, template.transport_id) for template in sorted(template_specs, key=lambda entry: entry.canonical_key)]
     lines: list[str] = [
         "/*",
         " * This file is part of MFDStudio.",
@@ -790,16 +809,26 @@ def emit_source(namespace_name: str,
 
     for page in page_specs:
         for reticle in page.reticles:
-            ctor_initializers = [f'    Reticle("{cpp_string(page.page_name)}", "{cpp_string(reticle.reticle_id)}")']
+            ctor_initializers = [
+                f'    Reticle("{cpp_string(page.page_name)}", "{cpp_string(reticle.reticle_id)}", {page.transport_id}U, {reticle.transport_id}U)']
             for primitive in reticle.primitives:
                 ctor_initializers.append(
-                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}")')
+                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
 
             lines.append(f"{reticle.wrapper_class_name}::{reticle.wrapper_class_name}() :")
             lines.append(",\n".join(ctor_initializers))
             lines.append("{")
             lines.append("}")
             lines.append("")
+
+            if reticle.status_primitive_accessor_name is not None:
+                lines.extend([
+                    f"void {reticle.wrapper_class_name}::SetValue(std::string value)",
+                    "{",
+                    f"    {reticle.status_primitive_accessor_name}().SetText(std::move(value));",
+                    "}",
+                    "",
+                ])
 
             for primitive in reticle.primitives:
                 lines.extend([
@@ -811,7 +840,7 @@ def emit_source(namespace_name: str,
                 ])
 
         page_ctor_initializers: list[str] = [
-            f"    strobe(Name(), {emit_strobe_initializer(page.strobe)})",
+            f"    strobe(Name(), {emit_strobe_initializer(page.strobe)}, {page.transport_id}U)",
         ]
         for reticle in page.reticles:
             page_ctor_initializers.append(f"    {reticle.member_name}()")
@@ -896,7 +925,28 @@ def emit_source(namespace_name: str,
             "",
             "    DynamicTemplateSet entry;",
             "    entry.templateId = std::string(templateId);",
-            "    entry.set = std::make_unique<DynamicReticleSet>(Name(), templateId);",
+            f"    entry.set = std::make_unique<DynamicReticleSet>(Name(), templateId, {page.transport_id}U",
+        ])
+        if template_rows:
+            lines.extend([
+                "        , [&templateId]() -> mfd::TransportId",
+                "        {",
+            ])
+            for template_id, transport_id in template_rows:
+                lines.extend([
+                    f'            if (templateId == "{cpp_string(template_id)}")',
+                    "            {",
+                    f"                return {transport_id}U;",
+                    "            }",
+                ])
+            lines.extend([
+                "            return 0;",
+                "        }())",
+            ])
+        else:
+            lines.append("        , 0)")
+        lines.extend([
+            "    ;",
             "    dynamicReticleSets_.push_back(std::move(entry));",
             "    return *dynamicReticleSets_.back().set;",
             "}",
@@ -942,7 +992,16 @@ def emit_source(namespace_name: str,
         "    window_.AppendCommands(commands);",
         f"    {startup_page.ui_member_name}.SetStatusCaption(std::move(statusText));",
         f"    {startup_page.ui_member_name}.AppendCommands(commands);",
-        "    return commands.empty() || client.SendBatch(commands, 0);",
+        "    if (commands.empty())",
+        "    {",
+        "        return true;",
+        "    }",
+        "",
+        "    mfd::CommandBatch batch;",
+        "    batch.sequence = 0;",
+        f'    batch.mappingHash = "{mapping_hash}";',
+        "    batch.commands = std::move(commands);",
+        "    return client.SendBatch(batch);",
         "}",
         "",
         f"void {ui_class_name}::Reset() noexcept",
@@ -965,9 +1024,18 @@ def emit_source(namespace_name: str,
         "    return commands;",
         "}",
         "",
+        f"mfd::CommandBatch {ui_class_name}::BuildCommandBatch(const std::uint32_t sequence)",
+        "{",
+        "    mfd::CommandBatch batch;",
+        "    batch.sequence = sequence;",
+        f'    batch.mappingHash = "{mapping_hash}";',
+        "    batch.commands = BuildBatch();",
+        "    return batch;",
+        "}",
+        "",
         f"bool {ui_class_name}::SubmitLatest(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence)",
         "{",
-        "    return publisher.SubmitLatest(BuildBatch(), sequence);",
+        "    return publisher.SubmitLatest(BuildCommandBatch(sequence));",
         "}",
         "",
         f"std::vector<mfd::UserCommand> {ui_class_name}::BuildShutdownBatch(std::string statusText)",
@@ -983,11 +1051,20 @@ def emit_source(namespace_name: str,
         "    return commands;",
         "}",
         "",
+        f"mfd::CommandBatch {ui_class_name}::BuildShutdownCommandBatch(const std::uint32_t sequence, std::string statusText)",
+        "{",
+        "    mfd::CommandBatch batch;",
+        "    batch.sequence = sequence;",
+        f'    batch.mappingHash = "{mapping_hash}";',
+        "    batch.commands = BuildShutdownBatch(std::move(statusText));",
+        "    return batch;",
+        "}",
+        "",
         f"bool {ui_class_name}::SubmitShutdown(mfd::client::LatestBatchPublisher& publisher,",
         "                              const std::uint32_t sequence,",
         "                              std::string statusText)",
         "{",
-        "    return publisher.SubmitLatest(BuildShutdownBatch(std::move(statusText)), sequence);",
+        "    return publisher.SubmitLatest(BuildShutdownCommandBatch(sequence, std::move(statusText)));",
         "}",
         "",
         f"WindowDisplay& {ui_class_name}::Window() noexcept",
@@ -1126,11 +1203,7 @@ def mapping_document(window_root: dict,
     }
 
 
-def emit_map(window_root: dict,
-             window_path: Path,
-             page_specs: list[PageSpec],
-             template_specs: list[TemplateSpec]) -> str:
-    document = mapping_document(window_root, window_path, page_specs, template_specs)
+def emit_map(document: dict) -> str:
     return json.dumps(document, indent=2) + "\n"
 
 
@@ -1177,10 +1250,18 @@ def main() -> int:
         args.ui_class_suffix,
         window_json)
 
-    header_text = emit_header(args.namespace, ui_class_name, window_json, page_specs)
+    map_document = mapping_document(window_root, window_path, page_specs, template_specs)
+    header_text = emit_header(args.namespace, ui_class_name, window_json, map_document["mappingHash"], page_specs)
     startup_page = resolve_startup_page(page_specs, window_root)
-    source_text = emit_source(args.namespace, args.header_include, ui_class_name, startup_page, page_specs)
-    map_text = None if args.output_map is None else emit_map(window_root, window_path, page_specs, template_specs)
+    source_text = emit_source(
+        args.namespace,
+        args.header_include,
+        ui_class_name,
+        map_document["mappingHash"],
+        startup_page,
+        page_specs,
+        template_specs)
+    map_text = None if args.output_map is None else emit_map(map_document)
 
     output_header = Path(args.output_header)
     output_source = Path(args.output_source)

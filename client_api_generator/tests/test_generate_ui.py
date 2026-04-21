@@ -136,16 +136,20 @@ class GenerateUiTests(unittest.TestCase):
                 "class RadarRadarStatusReticle final : public Reticle",
                 "class RadarTrackBoxReticle final : public Reticle",
                 "class SystemSystemStatusReticle final : public Reticle",
+                "void SetValue(std::string value);",
+                "static constexpr std::string_view MappingHash() noexcept",
                 "bool SendStartup(mfd::CommandClient& client, const mfd::PageViewState& view, std::string statusText);",
                 "void Reset() noexcept;",
                 "std::vector<mfd::UserCommand> BuildBatch();",
+                "mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);",
                 "bool SubmitLatest(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence = 0);",
                 "std::vector<mfd::UserCommand> BuildShutdownBatch(std::string statusText);",
+                "mfd::CommandBatch BuildShutdownCommandBatch(std::uint32_t sequence, std::string statusText);",
                 "bool SubmitShutdown(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence, std::string statusText);",
                 "WindowDisplay& Window() noexcept;",
                 "RadarMockupPage& Radar() noexcept;",
                 "SystemMockupPage& System() noexcept;",
-                "BlinkType attention {\"attention\"};",
+                "BlinkType attention {\"attention\",",
                 "TextHandle& StatusValue() noexcept;",
                 "LineHandle& Shape() noexcept;",
                 "TextHandle& SystemStatusValue() noexcept;",
@@ -158,16 +162,21 @@ class GenerateUiTests(unittest.TestCase):
 
             for expected in [
                 "SystemMockupPage::SetStatusCaption(std::string value)",
+                "RadarRadarStatusReticle::SetValue(std::string value)",
                 "systemStatus.SystemStatusValue().SetText(std::move(value));",
                 "if (!client.ActivatePage(SystemMockupPage::Name()))",
                 "if (!client.SetPageView(SystemMockupPage::Name(), view.center, view.zoom))",
-                "return publisher.SubmitLatest(BuildBatch(), sequence);",
-                "return publisher.SubmitLatest(BuildShutdownBatch(std::move(statusText)), sequence);",
+                "batch.mappingHash = ",
+                "return publisher.SubmitLatest(BuildCommandBatch(sequence));",
+                "return publisher.SubmitLatest(BuildShutdownCommandBatch(sequence, std::move(statusText)));",
                 "radar_.AppendShutdownCommands(commands, std::string {});",
                 "system_.AppendShutdownCommands(commands, std::move(statusText));",
                 "count += strobe.AppendCommands(commands) ? 1U : 0U;",
             ]:
                 self.assertIn(expected, source_content)
+
+            self.assertIn(map_content["mappingHash"], header_content)
+            self.assertIn(map_content["mappingHash"], source_content)
 
             self.assertEqual(map_content["schemaVersion"], 1)
             self.assertTrue(map_content["mappingHash"])

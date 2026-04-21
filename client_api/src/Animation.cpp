@@ -81,6 +81,7 @@ bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
     return EqualOptional(lhs.visible, rhs.visible) &&
            EqualOptional(lhs.blinkEnabled, rhs.blinkEnabled) &&
            EqualOptional(lhs.blinkType, rhs.blinkType) &&
+           EqualOptional(lhs.blinkTypeId, rhs.blinkTypeId) &&
            EqualOptional(lhs.position, rhs.position) &&
            EqualOptional(lhs.rotationDegrees, rhs.rotationDegrees) &&
            EqualOptional(lhs.color, rhs.color) &&
@@ -198,6 +199,7 @@ mfd::ReticlePatch BuildDeltaPatch(const mfd::ReticlePatch& desired, const mfd::R
     CopyChangedOptionalField(desired.visible, previous.visible, delta.visible);
     CopyChangedOptionalField(desired.blinkEnabled, previous.blinkEnabled, delta.blinkEnabled);
     CopyChangedOptionalField(desired.blinkType, previous.blinkType, delta.blinkType);
+    CopyChangedOptionalField(desired.blinkTypeId, previous.blinkTypeId, delta.blinkTypeId);
     CopyChangedOptionalField(desired.position, previous.position, delta.position);
     CopyChangedOptionalField(desired.rotationDegrees, previous.rotationDegrees, delta.rotationDegrees);
     CopyChangedOptionalField(desired.color, previous.color, delta.color);
@@ -295,14 +297,20 @@ mfd::PrimitivePatch& PatchPrimitive(mfd::ReticlePatch& patch, const std::string_
 }
 } // namespace
 
-BlinkType::BlinkType(const std::string_view name) :
-    name_(name)
+BlinkType::BlinkType(const std::string_view name, const mfd::TransportId transportId) :
+    name_(name),
+    transportId_(transportId)
 {
 }
 
 const std::string& BlinkType::Name() const noexcept
 {
     return name_;
+}
+
+mfd::TransportId BlinkType::GeneratedId() const noexcept
+{
+    return transportId_;
 }
 
 ReticleBlink::ReticleBlink(mfd::ReticlePatch& patch, bool* dirty) noexcept :
@@ -334,10 +342,14 @@ void ReticleBlink::Set(const bool enabled, const BlinkType& blinkType)
     if (enabled)
     {
         PatchSetBlink(*patch_, true, blinkType.Name());
+        patch_->blinkTypeId = blinkType.GeneratedId() == 0
+                                  ? std::optional<mfd::TransportId> {}
+                                  : std::optional<mfd::TransportId> {blinkType.GeneratedId()};
     }
     else
     {
         PatchSetBlink(*patch_, false, {});
+        patch_->blinkTypeId = mfd::TransportId {0};
     }
 
     MarkDirty();
@@ -346,18 +358,23 @@ void ReticleBlink::Set(const bool enabled, const BlinkType& blinkType)
 void ReticleBlink::Use(const BlinkType& blinkType)
 {
     PatchSetBlinkType(*patch_, blinkType.Name());
+    patch_->blinkTypeId = blinkType.GeneratedId() == 0
+                              ? std::optional<mfd::TransportId> {}
+                              : std::optional<mfd::TransportId> {blinkType.GeneratedId()};
     MarkDirty();
 }
 
 void ReticleBlink::Disable()
 {
     PatchSetBlink(*patch_, false, {});
+    patch_->blinkTypeId = mfd::TransportId {0};
     MarkDirty();
 }
 
 void ReticleBlink::ClearType()
 {
     PatchClearBlinkType(*patch_);
+    patch_->blinkTypeId = mfd::TransportId {0};
     MarkDirty();
 }
 
@@ -369,16 +386,30 @@ void ReticleBlink::MarkDirty() noexcept
     }
 }
 
-PrimitiveHandle::PrimitiveHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
+PrimitiveHandle::PrimitiveHandle(mfd::ReticlePatch& patch,
+                                 bool* dirty,
+                                 const std::string_view primitiveId,
+                                 const mfd::TransportId transportId,
+                                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
     patch_(&patch),
     dirty_(dirty),
-    primitiveId_(primitiveId)
+    primitiveId_(primitiveId),
+    transportId_(transportId)
 {
+    if (primitiveTransportIds != nullptr && transportId_ != 0)
+    {
+        primitiveTransportIds->insert_or_assign(primitiveId_, transportId_);
+    }
 }
 
 const std::string& PrimitiveHandle::Id() const noexcept
 {
     return primitiveId_;
+}
+
+mfd::TransportId PrimitiveHandle::GeneratedId() const noexcept
+{
+    return transportId_;
 }
 
 void PrimitiveHandle::SetVisible(const bool visible)
@@ -430,8 +461,12 @@ void PrimitiveHandle::MarkDirty() noexcept
     }
 }
 
-TextHandle::TextHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+TextHandle::TextHandle(mfd::ReticlePatch& patch,
+                       bool* dirty,
+                       const std::string_view primitiveId,
+                       const mfd::TransportId transportId,
+                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -447,8 +482,12 @@ void TextHandle::SetLetterSpacing(const float letterSpacing)
     MarkDirty();
 }
 
-TimeHandle::TimeHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+TimeHandle::TimeHandle(mfd::ReticlePatch& patch,
+                       bool* dirty,
+                       const std::string_view primitiveId,
+                       const mfd::TransportId transportId,
+                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -458,8 +497,12 @@ void TimeHandle::SetLetterSpacing(const float letterSpacing)
     MarkDirty();
 }
 
-LineHandle::LineHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+LineHandle::LineHandle(mfd::ReticlePatch& patch,
+                       bool* dirty,
+                       const std::string_view primitiveId,
+                       const mfd::TransportId transportId,
+                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -475,8 +518,12 @@ void LineHandle::SetEnd(const mfd::Vec2 end)
     MarkDirty();
 }
 
-CircleHandle::CircleHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+CircleHandle::CircleHandle(mfd::ReticlePatch& patch,
+                           bool* dirty,
+                           const std::string_view primitiveId,
+                           const mfd::TransportId transportId,
+                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -486,8 +533,12 @@ void CircleHandle::SetRadius(const float radius)
     MarkDirty();
 }
 
-RingHandle::RingHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+RingHandle::RingHandle(mfd::ReticlePatch& patch,
+                       bool* dirty,
+                       const std::string_view primitiveId,
+                       const mfd::TransportId transportId,
+                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -503,8 +554,12 @@ void RingHandle::SetOuterRadius(const float radius)
     MarkDirty();
 }
 
-RectangleHandle::RectangleHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+RectangleHandle::RectangleHandle(mfd::ReticlePatch& patch,
+                                 bool* dirty,
+                                 const std::string_view primitiveId,
+                                 const mfd::TransportId transportId,
+                                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -526,8 +581,12 @@ void RectangleHandle::SetSize(const mfd::Vec2 size)
     MarkDirty();
 }
 
-EllipseHandle::EllipseHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+EllipseHandle::EllipseHandle(mfd::ReticlePatch& patch,
+                             bool* dirty,
+                             const std::string_view primitiveId,
+                             const mfd::TransportId transportId,
+                             std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -549,8 +608,12 @@ void EllipseHandle::SetSize(const mfd::Vec2 size)
     MarkDirty();
 }
 
-SquareHandle::SquareHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+SquareHandle::SquareHandle(mfd::ReticlePatch& patch,
+                           bool* dirty,
+                           const std::string_view primitiveId,
+                           const mfd::TransportId transportId,
+                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -572,8 +635,12 @@ void SquareHandle::SetSize(const mfd::Vec2 size)
     MarkDirty();
 }
 
-DiamondHandle::DiamondHandle(mfd::ReticlePatch& patch, bool* dirty, const std::string_view primitiveId) :
-    PrimitiveHandle(patch, dirty, primitiveId)
+DiamondHandle::DiamondHandle(mfd::ReticlePatch& patch,
+                             bool* dirty,
+                             const std::string_view primitiveId,
+                             const mfd::TransportId transportId,
+                             std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
 }
 
@@ -595,9 +662,14 @@ void DiamondHandle::SetSize(const mfd::Vec2 size)
     MarkDirty();
 }
 
-Reticle::Reticle(const std::string_view pageName, const std::string_view reticleId) :
+Reticle::Reticle(const std::string_view pageName,
+                 const std::string_view reticleId,
+                 const mfd::TransportId pageTransportId,
+                 const mfd::TransportId reticleTransportId) :
     pageName_(pageName),
     reticleId_(reticleId),
+    pageTransportId_(pageTransportId),
+    reticleTransportId_(reticleTransportId),
     Blink(desiredPatch_, &dirty_)
 {
 }
@@ -693,10 +765,11 @@ bool Reticle::AppendCommands(std::vector<mfd::UserCommand>& commands)
         return false;
     }
 
-    const mfd::ReticlePatch deltaPatch = BuildDeltaPatch(desiredPatch_, lastSentPatch_);
-    commands.emplace_back(mfd::UpdateReticleCommand {
-        mfd::ReticleHandle {pageName_, reticleId_},
-        deltaPatch});
+    mfd::UpdateReticleCommand command;
+    command.target = mfd::ReticleHandle {pageName_, reticleId_, pageTransportId_, reticleTransportId_};
+    command.patch = BuildDeltaPatch(desiredPatch_, lastSentPatch_);
+    PopulateGeneratedIdentifiers(command);
+    commands.emplace_back(std::move(command));
     lastSentPatch_ = desiredPatch_;
     return true;
 }
@@ -716,12 +789,54 @@ bool* Reticle::DirtyFlag() noexcept
     return &dirty_;
 }
 
+std::unordered_map<std::string, mfd::TransportId>* Reticle::PrimitiveTransportIds() noexcept
+{
+    return &primitiveTransportIds_;
+}
+
+void Reticle::PopulateGeneratedIdentifiers(mfd::UpdateReticleCommand& command) const
+{
+    for (const auto& [primitiveId, text] : command.patch.texts)
+    {
+        const auto iterator = primitiveTransportIds_.find(primitiveId);
+        if (iterator != primitiveTransportIds_.end())
+        {
+            command.patch.textsById.emplace(iterator->second, text);
+        }
+    }
+
+    for (const auto& [primitiveId, letterSpacing] : command.patch.letterSpacings)
+    {
+        const auto iterator = primitiveTransportIds_.find(primitiveId);
+        if (iterator != primitiveTransportIds_.end())
+        {
+            command.patch.letterSpacingsById.emplace(iterator->second, letterSpacing);
+        }
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : command.patch.primitivePatches)
+    {
+        const auto iterator = primitiveTransportIds_.find(primitiveId);
+        if (iterator != primitiveTransportIds_.end())
+        {
+            command.patch.primitivePatchesById.emplace(iterator->second, primitivePatch);
+        }
+    }
+}
+
 TextReticle::TextReticle(const std::string_view pageName,
                          const std::string_view reticleId,
-                         const std::string_view primitiveId) :
-    Reticle(pageName, reticleId),
+                         const std::string_view primitiveId,
+                         const mfd::TransportId pageTransportId,
+                         const mfd::TransportId reticleTransportId,
+                         const mfd::TransportId primitiveTransportId) :
+    Reticle(pageName, reticleId, pageTransportId, reticleTransportId),
     primitiveId_(primitiveId)
 {
+    if (primitiveTransportId != 0)
+    {
+        PrimitiveTransportIds()->insert_or_assign(primitiveId_, primitiveTransportId);
+    }
 }
 
 void TextReticle::SetValue(std::string value)
@@ -729,8 +844,11 @@ void TextReticle::SetValue(std::string value)
     SetText(primitiveId_, std::move(value));
 }
 
-StrobeHandle::StrobeHandle(const std::string_view pageName, StrobeInfo info) :
+StrobeHandle::StrobeHandle(const std::string_view pageName,
+                           StrobeInfo info,
+                           const mfd::TransportId pageTransportId) :
     pageName_(pageName),
+    pageTransportId_(pageTransportId),
     info_(std::move(info))
 {
 }
@@ -787,6 +905,7 @@ bool StrobeHandle::AppendCommands(std::vector<mfd::UserCommand>& commands)
     bool emitted = false;
     mfd::UpdateStrobeCommand command;
     command.page = pageName_;
+    command.pageId = pageTransportId_;
 
     if (!EqualOptional(desiredActive_, lastSentActive_))
     {
@@ -897,9 +1016,14 @@ const mfd::ReticlePatch& DynamicReticle::DesiredPatch() const noexcept
     return desiredPatch_;
 }
 
-DynamicReticleSet::DynamicReticleSet(const std::string_view pageName, const std::string_view templateId) :
+DynamicReticleSet::DynamicReticleSet(const std::string_view pageName,
+                                     const std::string_view templateId,
+                                     const mfd::TransportId pageTransportId,
+                                     const mfd::TransportId templateTransportId) :
     pageName_(pageName),
-    templateId_(templateId)
+    templateId_(templateId),
+    pageTransportId_(pageTransportId),
+    templateTransportId_(templateTransportId)
 {
 }
 
@@ -940,7 +1064,9 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
     {
         mfd::SetDynamicReticleSetVisibilityCommand command;
         command.page = pageName_;
+        command.pageId = pageTransportId_;
         command.templateId = templateId_;
+        command.templateTransportId = templateTransportId_;
         command.visible = desiredVisible_;
         commands.emplace_back(std::move(command));
         lastSentVisible_ = desiredVisible_;
@@ -976,7 +1102,7 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
         }
 
         commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-            mfd::ReticleHandle {pageName_, reticle->reticleId_}});
+            mfd::ReticleHandle {pageName_, reticle->reticleId_, pageTransportId_, 0}});
         reticle->published_ = false;
         ++count;
     }
@@ -985,7 +1111,9 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
     {
         mfd::UpsertDynamicReticlesCommand command;
         command.page = pageName_;
+        command.pageId = pageTransportId_;
         command.templateId = templateId_;
+        command.templateTransportId = templateTransportId_;
         command.reticles = std::move(updates);
         commands.emplace_back(std::move(command));
     }
@@ -1006,7 +1134,7 @@ std::size_t DynamicReticleSet::AppendRemovalCommands(std::vector<mfd::UserComman
         }
 
         commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-            mfd::ReticleHandle {pageName_, reticle->reticleId_}});
+            mfd::ReticleHandle {pageName_, reticle->reticleId_, pageTransportId_, 0}});
         reticle->published_ = false;
         ++count;
     }

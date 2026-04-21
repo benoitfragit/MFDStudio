@@ -14,6 +14,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "mfd/client/ClientExport.h"
@@ -25,12 +26,14 @@ namespace mfd::client
 class MFD_CLIENT_API BlinkType
 {
 public:
-    explicit BlinkType(std::string_view name);
+    explicit BlinkType(std::string_view name, mfd::TransportId transportId = 0);
 
     const std::string& Name() const noexcept;
+    mfd::TransportId GeneratedId() const noexcept;
 
 private:
     std::string name_;
+    mfd::TransportId transportId_ = 0;
 };
 
 class MFD_CLIENT_API ReticleBlink
@@ -77,9 +80,14 @@ struct StrobeInfo
 class MFD_CLIENT_API PrimitiveHandle
 {
 public:
-    PrimitiveHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    PrimitiveHandle(mfd::ReticlePatch& patch,
+                    bool* dirty,
+                    std::string_view primitiveId,
+                    mfd::TransportId transportId = 0,
+                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     const std::string& Id() const noexcept;
+    mfd::TransportId GeneratedId() const noexcept;
 
     void SetVisible(bool visible);
     void SetPosition(mfd::Vec2 position);
@@ -96,6 +104,7 @@ private:
     mfd::ReticlePatch* patch_ = nullptr;
     bool* dirty_ = nullptr;
     std::string primitiveId_;
+    mfd::TransportId transportId_ = 0;
 };
 
 /**
@@ -104,7 +113,11 @@ private:
 class MFD_CLIENT_API TextHandle : public PrimitiveHandle
 {
 public:
-    TextHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    TextHandle(mfd::ReticlePatch& patch,
+               bool* dirty,
+               std::string_view primitiveId,
+               mfd::TransportId transportId = 0,
+               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetText(std::string value);
     void SetLetterSpacing(float letterSpacing);
@@ -116,7 +129,11 @@ public:
 class MFD_CLIENT_API TimeHandle : public PrimitiveHandle
 {
 public:
-    TimeHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    TimeHandle(mfd::ReticlePatch& patch,
+               bool* dirty,
+               std::string_view primitiveId,
+               mfd::TransportId transportId = 0,
+               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetLetterSpacing(float letterSpacing);
 };
@@ -127,7 +144,11 @@ public:
 class MFD_CLIENT_API LineHandle : public PrimitiveHandle
 {
 public:
-    LineHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    LineHandle(mfd::ReticlePatch& patch,
+               bool* dirty,
+               std::string_view primitiveId,
+               mfd::TransportId transportId = 0,
+               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetStart(mfd::Vec2 start);
     void SetEnd(mfd::Vec2 end);
@@ -139,7 +160,11 @@ public:
 class MFD_CLIENT_API CircleHandle : public PrimitiveHandle
 {
 public:
-    CircleHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    CircleHandle(mfd::ReticlePatch& patch,
+                 bool* dirty,
+                 std::string_view primitiveId,
+                 mfd::TransportId transportId = 0,
+                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetRadius(float radius);
 };
@@ -150,7 +175,11 @@ public:
 class MFD_CLIENT_API RingHandle : public PrimitiveHandle
 {
 public:
-    RingHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    RingHandle(mfd::ReticlePatch& patch,
+               bool* dirty,
+               std::string_view primitiveId,
+               mfd::TransportId transportId = 0,
+               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetInnerRadius(float radius);
     void SetOuterRadius(float radius);
@@ -162,7 +191,11 @@ public:
 class MFD_CLIENT_API RectangleHandle : public PrimitiveHandle
 {
 public:
-    RectangleHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    RectangleHandle(mfd::ReticlePatch& patch,
+                    bool* dirty,
+                    std::string_view primitiveId,
+                    mfd::TransportId transportId = 0,
+                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetWidth(float width);
     void SetHeight(float height);
@@ -175,7 +208,11 @@ public:
 class MFD_CLIENT_API EllipseHandle : public PrimitiveHandle
 {
 public:
-    EllipseHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    EllipseHandle(mfd::ReticlePatch& patch,
+                  bool* dirty,
+                  std::string_view primitiveId,
+                  mfd::TransportId transportId = 0,
+                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetWidth(float width);
     void SetHeight(float height);
@@ -188,7 +225,11 @@ public:
 class MFD_CLIENT_API SquareHandle : public PrimitiveHandle
 {
 public:
-    SquareHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    SquareHandle(mfd::ReticlePatch& patch,
+                 bool* dirty,
+                 std::string_view primitiveId,
+                 mfd::TransportId transportId = 0,
+                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetWidth(float width);
     void SetHeight(float height);
@@ -201,7 +242,11 @@ public:
 class MFD_CLIENT_API DiamondHandle : public PrimitiveHandle
 {
 public:
-    DiamondHandle(mfd::ReticlePatch& patch, bool* dirty, std::string_view primitiveId);
+    DiamondHandle(mfd::ReticlePatch& patch,
+                  bool* dirty,
+                  std::string_view primitiveId,
+                  mfd::TransportId transportId = 0,
+                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetWidth(float width);
     void SetHeight(float height);
@@ -211,7 +256,10 @@ public:
 class MFD_CLIENT_API Reticle
 {
 public:
-    Reticle(std::string_view pageName, std::string_view reticleId);
+    Reticle(std::string_view pageName,
+            std::string_view reticleId,
+            mfd::TransportId pageTransportId = 0,
+            mfd::TransportId reticleTransportId = 0);
     Reticle(const Reticle&) = delete;
     Reticle& operator=(const Reticle&) = delete;
     Reticle(Reticle&&) = delete;
@@ -239,10 +287,16 @@ protected:
     const mfd::ReticlePatch& DesiredPatch() const noexcept;
     mfd::ReticlePatch& MutableDesiredPatch() noexcept;
     bool* DirtyFlag() noexcept;
+    std::unordered_map<std::string, mfd::TransportId>* PrimitiveTransportIds() noexcept;
 
 private:
+    void PopulateGeneratedIdentifiers(mfd::UpdateReticleCommand& command) const;
+
     std::string pageName_;
     std::string reticleId_;
+    mfd::TransportId pageTransportId_ = 0;
+    mfd::TransportId reticleTransportId_ = 0;
+    std::unordered_map<std::string, mfd::TransportId> primitiveTransportIds_ {};
     mfd::ReticlePatch desiredPatch_ {};
     mfd::ReticlePatch lastSentPatch_ {};
     bool dirty_ = false;
@@ -257,7 +311,7 @@ public:
 class MFD_CLIENT_API StrobeHandle
 {
 public:
-    StrobeHandle(std::string_view pageName, StrobeInfo info = {});
+    StrobeHandle(std::string_view pageName, StrobeInfo info = {}, mfd::TransportId pageTransportId = 0);
 
     void Reset() noexcept;
 
@@ -272,6 +326,7 @@ public:
 
 private:
     std::string pageName_;
+    mfd::TransportId pageTransportId_ = 0;
     StrobeInfo info_ {};
     std::optional<bool> desiredActive_ {};
     std::optional<bool> lastSentActive_ {};
@@ -283,7 +338,12 @@ private:
 class MFD_CLIENT_API TextReticle final : public Reticle
 {
 public:
-    TextReticle(std::string_view pageName, std::string_view reticleId, std::string_view primitiveId);
+    TextReticle(std::string_view pageName,
+                std::string_view reticleId,
+                std::string_view primitiveId,
+                mfd::TransportId pageTransportId = 0,
+                mfd::TransportId reticleTransportId = 0,
+                mfd::TransportId primitiveTransportId = 0);
 
     void SetValue(std::string value);
 
@@ -337,7 +397,10 @@ public:
 class MFD_CLIENT_API DynamicReticleSet
 {
 public:
-    DynamicReticleSet(std::string_view pageName, std::string_view templateId);
+    DynamicReticleSet(std::string_view pageName,
+                      std::string_view templateId,
+                      mfd::TransportId pageTransportId = 0,
+                      mfd::TransportId templateTransportId = 0);
     DynamicReticleSet(const DynamicReticleSet&) = delete;
     DynamicReticleSet& operator=(const DynamicReticleSet&) = delete;
     DynamicReticleSet(DynamicReticleSet&&) = delete;
@@ -355,6 +418,8 @@ private:
 
     std::string pageName_;
     std::string templateId_;
+    mfd::TransportId pageTransportId_ = 0;
+    mfd::TransportId templateTransportId_ = 0;
     std::vector<std::unique_ptr<DynamicReticle>> reticles_ {};
     bool desiredVisible_ = true;
     bool lastSentVisible_ = true;

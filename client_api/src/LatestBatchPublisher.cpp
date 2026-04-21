@@ -122,8 +122,9 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
                     for (const mfd::DynamicReticleState& state : value.reticles)
                     {
                         mfd::UpsertDynamicReticleCommand command;
-                        command.target = mfd::ReticleHandle {value.page, state.reticleId};
+                        command.target = mfd::ReticleHandle {value.page, state.reticleId, value.pageId, 0};
                         command.templateId = value.templateId;
+                        command.templateTransportId = value.templateTransportId;
                         command.patch = state.patch;
                         PutDynamicLifecycleCommand(
                             operations,

@@ -333,6 +333,94 @@ TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingS
     EXPECT_FALSE(ContainsCommandType<mfd::RemoveDynamicReticleCommand>(deliveredBatches[1]));
 }
 
+TEST(LatestBatchPublisherTests, PreservesGeneratedIdentifiersWhenFlatteningBulkDynamicUpdates)
+{
+    using namespace std::chrono_literals;
+
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            1s,
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::ReticlePatch patch;
+    patch.visible = true;
+
+    mfd::DynamicReticleState state;
+    state.reticleId = "trk_01";
+    state.patch = patch;
+
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    mfd::UpsertDynamicReticlesCommand bulkUpsert;
+    bulkUpsert.page = "radar";
+    bulkUpsert.pageId = 11U;
+    bulkUpsert.templateId = "radar_track";
+    bulkUpsert.templateTransportId = 77U;
+    bulkUpsert.reticles.push_back(std::move(state));
+    secondBatch.commands.push_back(std::move(bulkUpsert));
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.commands.push_back(mfd::ActivatePageCommand {"radar"});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    ASSERT_EQ(deliveredBatches[1].commands.size(), 2U);
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticleCommand>(&deliveredBatches[1].commands[0]);
+    ASSERT_NE(upsert, nullptr);
+    EXPECT_EQ(upsert->target.page, "radar");
+    EXPECT_EQ(upsert->target.pageId, 11U);
+    EXPECT_EQ(upsert->templateId, "radar_track");
+    EXPECT_EQ(upsert->templateTransportId, 77U);
+}
+
 
 /**
  * @brief Verifies the vector overload forwards both sequence and command payload unchanged.

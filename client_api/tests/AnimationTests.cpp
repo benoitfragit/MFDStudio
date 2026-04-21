@@ -34,6 +34,19 @@ public:
     mfd::client::RingHandle compassRing;
     mfd::client::RectangleHandle lockBox;
 };
+
+class GeneratedPrimitiveFixtureReticle final : public mfd::client::Reticle
+{
+public:
+    GeneratedPrimitiveFixtureReticle()
+        : mfd::client::Reticle("Radar", "fixture", 11U, 22U),
+          headingValue(MutableDesiredPatch(), DirtyFlag(), "heading_value", 33U, PrimitiveTransportIds())
+    {
+    }
+
+    mfd::client::BlinkType slow {"slow", 44U};
+    mfd::client::TextHandle headingValue;
+};
 } // namespace
 
 TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
@@ -165,6 +178,31 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     EXPECT_FLOAT_EQ(rectanglePatch.size->y, 0.14f);
 }
 
+TEST(AnimationTests, GeneratedStaticHandlesCarryTransportIdsAlongsideLegacyFields)
+{
+    GeneratedPrimitiveFixtureReticle reticle;
+
+    reticle.Blink = reticle.slow;
+    reticle.headingValue.SetText("123");
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->target.page, "Radar");
+    EXPECT_EQ(update->target.reticle, "fixture");
+    EXPECT_EQ(update->target.pageId, 11U);
+    EXPECT_EQ(update->target.reticleId, 22U);
+    ASSERT_TRUE(update->patch.blinkTypeId.has_value());
+    EXPECT_EQ(*update->patch.blinkTypeId, 44U);
+    ASSERT_NE(update->patch.primitivePatches.find("heading_value"), update->patch.primitivePatches.end());
+    ASSERT_NE(update->patch.primitivePatchesById.find(33U), update->patch.primitivePatchesById.end());
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(33U).text.has_value());
+    EXPECT_EQ(*update->patch.primitivePatchesById.at(33U).text, "123");
+}
+
 TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingReticles)
 {
     mfd::client::BlinkType caution("caution");
@@ -218,6 +256,38 @@ TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingRe
     EXPECT_FALSE(updateBatch->reticles[0].patch.blinkType.has_value());
     EXPECT_TRUE(updateBatch->reticles[0].patch.texts.empty());
     EXPECT_TRUE(updateBatch->reticles[0].patch.letterSpacings.empty());
+}
+
+TEST(AnimationTests, DynamicReticleSetCarriesGeneratedPageAndTemplateIdsWhenKnown)
+{
+    mfd::client::DynamicReticleSet set("Radar", "radar_track", 11U, 77U);
+    set.SetVisible(false);
+    set.Upsert("alpha").SetPosition({0.15f, -0.10f});
+
+    std::vector<mfd::UserCommand> commands;
+    const std::size_t count = set.AppendCommands(commands);
+    ASSERT_EQ(count, 2U);
+    ASSERT_EQ(commands.size(), 2U);
+
+    const auto* visibility = std::get_if<mfd::SetDynamicReticleSetVisibilityCommand>(&commands[0]);
+    ASSERT_NE(visibility, nullptr);
+    EXPECT_EQ(visibility->pageId, 11U);
+    EXPECT_EQ(visibility->templateTransportId, 77U);
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands[1]);
+    ASSERT_NE(upsert, nullptr);
+    EXPECT_EQ(upsert->pageId, 11U);
+    EXPECT_EQ(upsert->templateTransportId, 77U);
+
+    set.Reset();
+    commands.clear();
+    const std::size_t removalCount = set.AppendCommands(commands);
+    ASSERT_EQ(removalCount, 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* removal = std::get_if<mfd::RemoveDynamicReticleCommand>(&commands.front());
+    ASSERT_NE(removal, nullptr);
+    EXPECT_EQ(removal->target.pageId, 11U);
 }
 
 TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownRemoval)
@@ -342,6 +412,24 @@ TEST(AnimationTests, StrobeHandleReportsValidityAndEmitsPageScopedCommands)
     commands.clear();
     EXPECT_FALSE(strobe.AppendCommands(commands));
     EXPECT_TRUE(commands.empty());
+}
+
+TEST(AnimationTests, StrobeHandleUsesOnlyThePageScopeEvenWhenGeneratedPageIdsExist)
+{
+    mfd::client::StrobeInfo info;
+    info.valid = true;
+
+    mfd::client::StrobeHandle strobe("Radar", info, 11U);
+    strobe.SetActive(true);
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(strobe.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateStrobeCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->page, "Radar");
+    EXPECT_EQ(update->pageId, 11U);
 }
 
 TEST(AnimationTests, InvalidStrobeHandleSuppressesMutationsAndCommands)
