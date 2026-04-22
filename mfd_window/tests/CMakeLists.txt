@@ -46,6 +46,18 @@ endif()
 
 mfd_stage_runtime(mfd_window_tests WITH_RUNTIME_DLLS)
 
+mfd_add_runtime_layout_smoke_test(
+    mfd_window
+    EXTRA_RUNTIME_TARGETS mfd_api
+    EXTRA_FILES
+        Start-MfdWindow.bat
+        Start-MfdDemo.bat
+        Start-MfdCockpit.bat
+        Start-MfdMinimal.bat
+        Start-MfdTutorial.bat
+    VERIFY_ASSETS
+    LABELS runtime)
+
 gtest_discover_tests(mfd_window_tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_window_tests>"
     DISCOVERY_TIMEOUT 60)

@@ -73,7 +73,7 @@ function(mfd_add_runtime_layout_smoke_test target_name)
 
     set(options VERIFY_ASSETS)
     set(one_value_args NAME)
-    set(multi_value_args EXTRA_RUNTIME_TARGETS LABELS)
+    set(multi_value_args EXTRA_RUNTIME_TARGETS EXTRA_FILES LABELS)
     cmake_parse_arguments(MFD_RUNTIME_SMOKE
         "${options}"
         "${one_value_args}"
@@ -98,6 +98,7 @@ function(mfd_add_runtime_layout_smoke_test target_name)
             "-DTARGET_NAME=${target_name}"
             "-DTARGET_DIRECTORY=$<TARGET_FILE_DIR:${target_name}>"
             "-DEXPECTED_RUNTIME_DLLS=${expected_runtime_dlls}"
+            "-DEXPECTED_FILES=$<JOIN:${MFD_RUNTIME_SMOKE_EXTRA_FILES},|>"
             "$<$<BOOL:${MFD_RUNTIME_SMOKE_VERIFY_ASSETS}>:-DASSET_SOURCE_DIR=${MFD_ROOT_DIR}/assets>"
             "$<$<BOOL:${MFD_RUNTIME_SMOKE_VERIFY_ASSETS}>:-DASSET_TARGET_DIR=$<TARGET_FILE_DIR:${target_name}>/assets>"
             -P

@@ -25,5 +25,6 @@ Use the reference pages when you need answers such as:
 
 If you want a step-by-step guide first, start with:
 
+- [Documentation Guide](../README.md)
 - [Quick Start](../QUICKSTART.md)
 - [Tutorial Index](../tutorials/README.md)

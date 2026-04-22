@@ -66,6 +66,32 @@ if(missing_runtime_dlls)
         "  - ${missing_runtime_dlls_text}")
 endif()
 
+if(NOT DEFINED EXPECTED_FILES)
+    set(EXPECTED_FILES "")
+endif()
+
+string(REPLACE "|" ";" expected_files "${EXPECTED_FILES}")
+set(missing_support_files)
+
+foreach(expected_file IN LISTS expected_files)
+    if(expected_file STREQUAL "")
+        continue()
+    endif()
+
+    if(NOT EXISTS "${TARGET_DIRECTORY}/${expected_file}")
+        list(APPEND missing_support_files "${expected_file}")
+    endif()
+endforeach()
+
+list(REMOVE_DUPLICATES missing_support_files)
+
+if(missing_support_files)
+    string(JOIN "\n  - " missing_support_files_text ${missing_support_files})
+    message(FATAL_ERROR
+        "Missing support files in ${TARGET_DIRECTORY}:\n"
+        "  - ${missing_support_files_text}")
+endif()
+
 if(DEFINED ASSET_SOURCE_DIR OR DEFINED ASSET_TARGET_DIR)
     if(NOT DEFINED ASSET_SOURCE_DIR OR ASSET_SOURCE_DIR STREQUAL "")
         message(FATAL_ERROR "ASSET_SOURCE_DIR is required when verifying staged assets.")

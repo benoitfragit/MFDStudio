@@ -75,13 +75,18 @@ cmake --build --preset debug-win32
 
 Launch one of:
 
-- `examples/mfd_demo`
-- `examples/mfd_demo_cockpit`
-- `examples/mfd_demo_minimal`
-- your own window executable
+- `.\Start-MfdDemo.bat`
+- `.\Start-MfdCockpit.bat`
+- `.\Start-MfdMinimal.bat`
+- `.\Start-MfdTutorial.bat`
+- your own `mfd_window --window <window.json>` command
 
 The window must load a root JSON file that contains a valid `commands.udp`
 configuration.
+
+`Start-MfdMinimal.bat` and `Start-MfdTutorial.bat` also pass the sample
+framebuffer plugin DLL so you can see the callback wiring without compiling a
+custom host executable.
 
 ## Step 3 - Start `client_mockup`
 

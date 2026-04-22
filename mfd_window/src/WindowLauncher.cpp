@@ -612,6 +612,7 @@ private:
 struct CommandLineOptions
 {
     std::filesystem::path windowFile;
+    std::filesystem::path framebufferPluginFile;
     bool showHelp = false;
 };
 
@@ -649,6 +650,154 @@ mfd::StrobeFeedbackMagnet ToFeedbackMagnet(const std::optional<mfd::StrobeMagnet
         magnetSummary->distance};
 }
 
+#if defined(_WIN32)
+std::string NarrowWideString(const std::wstring_view text)
+{
+    if (text.empty())
+    {
+        return {};
+    }
+
+    const int outputSize = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        text.data(),
+        static_cast<int>(text.size()),
+        nullptr,
+        0,
+        nullptr,
+        nullptr);
+    if (outputSize <= 0)
+    {
+        return {};
+    }
+
+    std::string output(static_cast<std::size_t>(outputSize), '\0');
+    (void)WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        text.data(),
+        static_cast<int>(text.size()),
+        output.data(),
+        outputSize,
+        nullptr,
+        nullptr);
+    return output;
+}
+
+std::string FormatWindowsErrorMessage(const DWORD errorCode)
+{
+    LPWSTR rawBuffer = nullptr;
+    const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                        FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS;
+    const DWORD length = FormatMessageW(flags,
+                                        nullptr,
+                                        errorCode,
+                                        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                        reinterpret_cast<LPWSTR>(&rawBuffer),
+                                        0,
+                                        nullptr);
+    std::wstring message = (length > 0 && rawBuffer != nullptr)
+                               ? std::wstring(rawBuffer, rawBuffer + length)
+                               : std::wstring {L"Unknown Win32 error"};
+    if (rawBuffer != nullptr)
+    {
+        LocalFree(rawBuffer);
+    }
+
+    while (!message.empty() && (message.back() == L'\r' || message.back() == L'\n' || message.back() == L' '))
+    {
+        message.pop_back();
+    }
+
+    return NarrowWideString(message);
+}
+#endif
+
+class LoadedFramebufferPlugin
+{
+public:
+    ~LoadedFramebufferPlugin() noexcept
+    {
+        Unload();
+    }
+
+    LoadedFramebufferPlugin(const LoadedFramebufferPlugin&) = delete;
+    LoadedFramebufferPlugin& operator=(const LoadedFramebufferPlugin&) = delete;
+
+    LoadedFramebufferPlugin() = default;
+
+    [[nodiscard]] bool Load(const std::filesystem::path& pluginFile, std::string& error)
+    {
+        Unload();
+
+        if (pluginFile.empty())
+        {
+            error = "The framebuffer plugin DLL path is empty.";
+            return false;
+        }
+
+#if defined(_WIN32)
+        handle_ = ::LoadLibraryW(pluginFile.c_str());
+        if (handle_ == nullptr)
+        {
+            error = "Unable to load framebuffer plugin '" + pluginFile.string() +
+                    "': " + FormatWindowsErrorMessage(GetLastError());
+            return false;
+        }
+
+        const FARPROC symbol = ::GetProcAddress(handle_, mfd::window::kLauncherFramebufferPluginEntryPointName);
+        if (symbol == nullptr)
+        {
+            error = "The framebuffer plugin '" + pluginFile.string() +
+                    "' does not export '" + mfd::window::kLauncherFramebufferPluginEntryPointName + "'.";
+            Unload();
+            return false;
+        }
+
+        callback_ = reinterpret_cast<mfd::window::LauncherFramebufferPluginEntryPoint>(symbol);
+        return callback_ != nullptr;
+#else
+        (void)pluginFile;
+        error = "Framebuffer plugins are only supported on Windows.";
+        return false;
+#endif
+    }
+
+    [[nodiscard]] mfd::window::LauncherFramebufferCallback CreateCallback() const
+    {
+        if (callback_ == nullptr)
+        {
+            return {};
+        }
+
+        const mfd::window::LauncherFramebufferPluginEntryPoint callback = callback_;
+        return [callback](const int width, const int height, const mfd::ByteView rgba32Bytes)
+        {
+            callback(width, height, rgba32Bytes);
+        };
+    }
+
+private:
+    void Unload() noexcept
+    {
+#if defined(_WIN32)
+        if (handle_ != nullptr)
+        {
+            ::FreeLibrary(handle_);
+            handle_ = nullptr;
+        }
+#endif
+        callback_ = nullptr;
+    }
+
+#if defined(_WIN32)
+    HMODULE handle_ = nullptr;
+#endif
+    mfd::window::LauncherFramebufferPluginEntryPoint callback_ = nullptr;
+};
+
 bool ParseCommandLine(const int argc,
                       char** argv,
                       const mfd::window::LauncherConfig& config,
@@ -679,6 +828,18 @@ bool ParseCommandLine(const int argc,
 
             options.windowFile = argv[++index];
             positionalWindowConsumed = true;
+            continue;
+        }
+
+        if (argument == "--framebuffer-plugin" || argument == "-p")
+        {
+            if (index + 1 >= argc || argv[index + 1] == nullptr)
+            {
+                error = "Missing path after '--framebuffer-plugin'.";
+                return false;
+            }
+
+            options.framebufferPluginFile = argv[++index];
             continue;
         }
 
@@ -717,6 +878,10 @@ public:
         framebufferCallback_(std::move(framebufferCallback)),
         commandProcessor_(scene_)
     {
+        if (framebufferCallback_)
+        {
+            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>();
+        }
     }
 
     int Run()
@@ -780,6 +945,7 @@ public:
             }
         }
 
+        framebufferCapture_.reset();
         CloseWindow();
         return 0;
     }
@@ -1005,7 +1171,7 @@ private:
 
     void PublishFramebuffer()
     {
-        if (!framebufferCallback_)
+        if (!framebufferCallback_ || framebufferCapture_ == nullptr)
         {
             return;
         }
@@ -1017,7 +1183,7 @@ private:
             return;
         }
 
-        const std::optional<mfd::Rgba32Framebuffer> framebuffer = framebufferCapture_.Capture();
+        const std::optional<mfd::Rgba32Framebuffer> framebuffer = framebufferCapture_->Capture();
         if (!framebuffer.has_value())
         {
             return;
@@ -1033,7 +1199,7 @@ private:
     mfd::SceneRegistry scene_ {};
     mfd::CommandProcessor commandProcessor_;
     mfd::MfdRenderer renderer_ {};
-    AsyncFramebufferCapture framebufferCapture_ {};
+    std::unique_ptr<AsyncFramebufferCapture> framebufferCapture_ {};
     mfd::WindowAssetDefinition windowDefinition_ {};
     std::unique_ptr<mfd::UdpRuntimeBridge> udpRuntimeBridge_ {};
     std::vector<mfd::CommandBatch> pendingCommandBatches_ {};
@@ -1058,9 +1224,11 @@ std::string BuildUsageText(const LauncherConfig& config)
     output << "Usage:\n";
     output << "  " << applicationName << " <window.json>\n";
     output << "  " << applicationName << " --window <window.json>\n";
+    output << "  " << applicationName << " --window <window.json> --framebuffer-plugin <plugin.dll>\n";
     output << "  " << applicationName << " --help\n";
     output << '\n';
     output << "If no window JSON is provided, the launcher defaults to '" << defaultWindowFile.string() << "'.\n";
+    output << "Optional framebuffer plugins must export '" << kLauncherFramebufferPluginEntryPointName << "'.\n";
     output << "Shortcuts:\n";
     output << "  R reloads the current window JSON from disk\n";
     output << "  1..9 activate the first nine authored pages\n";
@@ -1076,6 +1244,7 @@ bool ParseLauncherCommandLine(const int argc,
     CommandLineOptions internalOptions;
     const bool parsed = ParseCommandLine(argc, argv, config, internalOptions, error);
     options.windowFile = std::move(internalOptions.windowFile);
+    options.framebufferPluginFile = std::move(internalOptions.framebufferPluginFile);
     options.showHelp = internalOptions.showHelp;
     return parsed;
 }
@@ -1107,17 +1276,39 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
         return 0;
     }
 
+    std::unique_ptr<LoadedFramebufferPlugin> framebufferPlugin;
+    LauncherFramebufferCallback effectiveFramebufferCallback = std::move(framebufferCallback);
+    if (!options.framebufferPluginFile.empty())
+    {
+        if (effectiveFramebufferCallback)
+        {
+            ReportFatalError(
+                applicationName,
+                "The launcher received both a direct framebuffer callback and '--framebuffer-plugin'. Choose one.");
+            return 1;
+        }
+
+        framebufferPlugin = std::make_unique<LoadedFramebufferPlugin>();
+        if (!framebufferPlugin->Load(options.framebufferPluginFile, error))
+        {
+            ReportFatalError(applicationName, error);
+            return 1;
+        }
+
+        effectiveFramebufferCallback = framebufferPlugin->CreateCallback();
+    }
+
 #if defined(_WIN32)
     if (::IsDebuggerPresent() != 0)
     {
-        GenericWindowApplication application(applicationName, options.windowFile, std::move(framebufferCallback));
+        GenericWindowApplication application(applicationName, options.windowFile, std::move(effectiveFramebufferCallback));
         return application.Run();
     }
 #endif
 
     try
     {
-        GenericWindowApplication application(applicationName, options.windowFile, std::move(framebufferCallback));
+        GenericWindowApplication application(applicationName, options.windowFile, std::move(effectiveFramebufferCallback));
         return application.Run();
     }
     catch (const std::exception& exception)

@@ -462,7 +462,7 @@ int main()
         std::cout << "UDP target: " << config.transport.address << ':' << config.transport.port << '\n';
         std::cout << "Driving page '" << mockup_ui::CockpitMockupPage::Name() << "' every " << kSimulationTick.count()
                   << " ms from one plain main loop.\n";
-        std::cout << "Start mfd_demo_cockpit separately and press Ctrl+C here to stop.\n";
+        std::cout << "Start Start-MfdCockpit.bat separately and press Ctrl+C here to stop.\n";
 
         using clock = std::chrono::steady_clock;
         auto nextTick = clock::now();

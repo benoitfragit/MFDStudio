@@ -6,9 +6,10 @@ This folder contains step-by-step tutorials for the MFD project.
 
 If you are new to the project, start with:
 
-1. [Quick Start](../QUICKSTART.md)
-2. [Core Concepts](../CONCEPTS.md)
-3. [JSON Reference](../reference/README.md)
+1. [Documentation Guide](../README.md)
+2. [Quick Start](../QUICKSTART.md)
+3. [Core Concepts](../CONCEPTS.md)
+4. [JSON Reference](../reference/README.md)
 
 These pages give you the mental model and vocabulary used by the tutorials.
 

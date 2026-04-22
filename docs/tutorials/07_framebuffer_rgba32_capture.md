@@ -91,10 +91,48 @@ Common use cases are:
 - image-based integration tests
 - shared processing pipelines after readback
 
-## Step 8 - Forward frames directly from `RunLauncher`
+## Step 8 - Forward frames from `mfd_window` through one DLL plugin
 
-If you are using the generic launcher, you can forward the final `RGBA32`
-window buffer every frame through the optional launcher callback:
+The generic runtime host now accepts one optional plugin DLL on the command
+line:
+
+```powershell
+.\Start-MfdMinimal.bat
+```
+
+Under the hood this launches:
+
+```powershell
+mfd_window --window assets/windows/demo_pages_minimal.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
+```
+
+The sample plugin target is `mfd_framebuffer_stdout_plugin`. It exports one
+symbol with the exact signature expected by the launcher:
+
+```cpp
+extern "C" __declspec(dllexport) void MfdWindowFramebufferCallback(
+    int width,
+    int height,
+    mfd::ByteView pixels)
+{
+    static bool printed = false;
+    if (!printed)
+    {
+        std::cout << "RGBA32 framebuffer callback active: " << width << "x" << height
+                  << " pixels=" << pixels.size() << '\n';
+        printed = true;
+    }
+}
+```
+
+If no callback is provided to `RunLauncher()` and no `--framebuffer-plugin`
+argument is passed to `mfd_window`, the launcher keeps the framebuffer capture
+path completely disabled.
+
+## Step 9 - Forward frames directly from `RunLauncher`
+
+If you embed the runtime in your own host executable, you can still pass the
+callback directly instead of going through a plugin DLL:
 
 ```cpp
 #include <cstddef>
@@ -105,7 +143,7 @@ window buffer every frame through the optional launcher callback:
 int main(int argc, char** argv)
 {
     mfd::window::LauncherConfig config;
-    config.applicationName = "mfd_demo_minimal";
+    config.applicationName = "my_window_host";
     config.defaultWindowFile = "assets/windows/demo_pages_minimal.json";
 
     return mfd::window::RunLauncher(
@@ -155,5 +193,6 @@ This is the right API when another system wants raw `RGBA32` pixel buffers.
 ## Result
 
 You now know how to pull an `RGBA32` framebuffer buffer from the window using
-the public API, either directly through `OpenGlFramebufferReader` or through
-the optional `RunLauncher` callback.
+the public API, either directly through `OpenGlFramebufferReader`, through
+`mfd_window --framebuffer-plugin`, or through the optional `RunLauncher`
+callback.

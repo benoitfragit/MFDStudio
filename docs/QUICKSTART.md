@@ -2,6 +2,9 @@
 
 This page is the fastest way to understand the project and get a visible result.
 
+If you want the full documentation map first, read [Documentation Guide](./README.md).
+If you want the contributor-oriented build and test view, read [Development Guide](./DEVELOPMENT.md).
+
 ## Goal
 
 In about 10 minutes you will:
@@ -33,7 +36,7 @@ Keep this simple model in mind:
 
 ```powershell
 cmake --preset vs2022-win32
-cmake --build --preset debug-win32
+cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin client_mockup
 ```
 
 This default build also compiles the `GoogleTest` suite used to validate the
@@ -41,12 +44,16 @@ runtime API and JSON loading rules.
 
 ## Step 2 - Start a ready-to-use window
 
-Launch one of the example windows:
+Launch one of the root launchers:
 
-- `examples/mfd_demo`
-- `examples/mfd_demo_minimal`
+- `.\Start-MfdDemo.bat`
+- `.\Start-MfdMinimal.bat`
 
-For a first run, `examples/mfd_demo` is the easiest option.
+For a first run, `.\Start-MfdDemo.bat` is the easiest option.
+
+These scripts are also copied into `_Exec/<toolset>/<platform>/<config>/`
+when `mfd_window` is built, so the same launch flow works from the staged
+runtime layout.
 
 ## Step 3 - Start the mockup
 

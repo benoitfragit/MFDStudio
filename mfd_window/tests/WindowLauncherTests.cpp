@@ -29,6 +29,8 @@ TEST(WindowLauncherTests, BuildUsageTextReflectsConfiguredApplicationAndWindow)
 
     EXPECT_NE(usage.find("cockpit_host --window <window.json>"), std::string::npos);
     EXPECT_NE(usage.find("assets/windows/demo_pages_cockpit.json"), std::string::npos);
+    EXPECT_NE(usage.find("--framebuffer-plugin <plugin.dll>"), std::string::npos);
+    EXPECT_NE(usage.find(mfd::window::kLauncherFramebufferPluginEntryPointName), std::string::npos);
     EXPECT_NE(usage.find("1..9 activate the first nine authored pages"), std::string::npos);
 }
 
@@ -45,6 +47,7 @@ TEST(WindowLauncherTests, BuildUsageTextFallsBackToBuiltInDefaults)
 
     EXPECT_NE(usage.find("mfd_window <window.json>"), std::string::npos);
     EXPECT_NE(usage.find("assets/windows/demo_pages.json"), std::string::npos);
+    EXPECT_NE(usage.find("--framebuffer-plugin <plugin.dll>"), std::string::npos);
 }
 
 /**
@@ -55,7 +58,7 @@ TEST(WindowLauncherTests, ParseCommandLineUsesConfiguredDefaultWindow)
     mfd::window::LauncherConfig config;
     config.defaultWindowFile = "assets/windows/demo_pages_minimal.json";
 
-    char program[] = "mfd_demo_minimal";
+    char program[] = "mfd_window";
     char* argv[] = {program, nullptr};
 
     mfd::window::LauncherOptions options;
@@ -64,6 +67,7 @@ TEST(WindowLauncherTests, ParseCommandLineUsesConfiguredDefaultWindow)
     EXPECT_TRUE(error.empty());
     EXPECT_FALSE(options.showHelp);
     EXPECT_EQ(options.windowFile.generic_string(), "assets/windows/demo_pages_minimal.json");
+    EXPECT_TRUE(options.framebufferPluginFile.empty());
 }
 
 /**
@@ -92,6 +96,29 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsWindowFlagAndHelp)
 }
 
 /**
+ * @brief Parses the framebuffer plugin option independently from the window path.
+ */
+TEST(WindowLauncherTests, ParseCommandLineAcceptsFramebufferPluginFlag)
+{
+    mfd::window::LauncherConfig config;
+
+    char program[] = "mfd_window";
+    char windowFlag[] = "--window";
+    char windowPath[] = "custom/window.json";
+    char pluginFlag[] = "--framebuffer-plugin";
+    char pluginPath[] = "plugins/framebuffer.dll";
+    char* argv[] = {program, windowFlag, windowPath, pluginFlag, pluginPath, nullptr};
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(5, argv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "custom/window.json");
+    EXPECT_EQ(options.framebufferPluginFile.generic_string(), "plugins/framebuffer.dll");
+    EXPECT_FALSE(options.showHelp);
+}
+
+/**
  * @brief Parses short aliases -w and -h as valid options.
  */
 TEST(WindowLauncherTests, ParseCommandLineAcceptsShortAliases)
@@ -108,6 +135,7 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsShortAliases)
     EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(3, windowArgv, config, options, error));
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(options.windowFile.generic_string(), "short/path.json");
+    EXPECT_TRUE(options.framebufferPluginFile.empty());
     EXPECT_FALSE(options.showHelp);
 
     char shortHelp[] = "-h";
@@ -115,6 +143,13 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsShortAliases)
     EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(2, helpArgv, config, options, error));
     EXPECT_TRUE(error.empty());
     EXPECT_TRUE(options.showHelp);
+
+    char shortPlugin[] = "-p";
+    char pluginPath[] = "short/plugin.dll";
+    char* pluginArgv[] = {program, shortPlugin, pluginPath, nullptr};
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(3, pluginArgv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.framebufferPluginFile.generic_string(), "short/plugin.dll");
 }
 
 /**
@@ -133,6 +168,7 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsPositionalWindowPath)
     EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(2, argv, config, options, error));
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(options.windowFile.generic_string(), "assets/windows/radar.json");
+    EXPECT_TRUE(options.framebufferPluginFile.empty());
     EXPECT_FALSE(options.showHelp);
 }
 
@@ -171,6 +207,7 @@ TEST(WindowLauncherTests, ParseCommandLineTreatsNullEntryAsEmptyPath)
     EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(2, argv, config, options, error));
     EXPECT_TRUE(error.empty());
     EXPECT_TRUE(options.windowFile.empty());
+    EXPECT_TRUE(options.framebufferPluginFile.empty());
     EXPECT_FALSE(options.showHelp);
 }
 
@@ -195,12 +232,27 @@ TEST(WindowLauncherTests, ParseCommandLineRejectsInvalidArgumentCombinations)
     EXPECT_FALSE(mfd::window::ParseLauncherCommandLine(2, missingArgv, config, options, error));
     EXPECT_NE(error.find("Missing path"), std::string::npos);
 
+    char pluginFlag[] = "--framebuffer-plugin";
+    char* missingPluginArgv[] = {program, pluginFlag, nullptr};
+    error.clear();
+    EXPECT_FALSE(mfd::window::ParseLauncherCommandLine(2, missingPluginArgv, config, options, error));
+    EXPECT_NE(error.find("Missing path"), std::string::npos);
+
     char first[] = "one.json";
     char second[] = "two.json";
     char* extraArgv[] = {program, first, second, nullptr};
     error.clear();
     EXPECT_FALSE(mfd::window::ParseLauncherCommandLine(3, extraArgv, config, options, error));
     EXPECT_NE(error.find("Only one window JSON path"), std::string::npos);
+}
+
+/**
+ * @brief Confirms the launcher can keep the framebuffer path completely disabled.
+ */
+TEST(WindowLauncherTests, FramebufferCallbackCanRemainEmpty)
+{
+    mfd::window::LauncherFramebufferCallback callback;
+    EXPECT_FALSE(static_cast<bool>(callback));
 }
 
 /**
