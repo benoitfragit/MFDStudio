@@ -148,6 +148,32 @@ void CopyChangedMapFields(const std::unordered_map<std::string, T>& desired,
     }
 }
 
+template <typename T>
+void MoveGeneratedPrimitiveEntries(std::unordered_map<std::string, T>& namedValues,
+                                   const std::unordered_map<std::string, mfd::TransportId>& primitiveTransportIds,
+                                   std::unordered_map<mfd::TransportId, T>& generatedValues)
+{
+    std::vector<std::string> consumedKeys;
+    consumedKeys.reserve(namedValues.size());
+
+    for (const auto& [primitiveId, value] : namedValues)
+    {
+        const auto iterator = primitiveTransportIds.find(primitiveId);
+        if (iterator == primitiveTransportIds.end())
+        {
+            continue;
+        }
+
+        generatedValues.insert_or_assign(iterator->second, value);
+        consumedKeys.push_back(primitiveId);
+    }
+
+    for (const std::string& primitiveId : consumedKeys)
+    {
+        namedValues.erase(primitiveId);
+    }
+}
+
 mfd::PrimitivePatch BuildDeltaPrimitivePatch(const mfd::PrimitivePatch& desired,
                                             const mfd::PrimitivePatch& previous)
 {
@@ -349,7 +375,10 @@ void ReticleBlink::Set(const bool enabled, const BlinkType& blinkType)
     else
     {
         PatchSetBlink(*patch_, false, {});
-        patch_->blinkTypeId = mfd::TransportId {0};
+        patch_->blinkTypeId =
+            (patch_->blinkTypeId.has_value() || blinkType.GeneratedId() != 0)
+                ? std::optional<mfd::TransportId> {mfd::TransportId {0}}
+                : std::optional<mfd::TransportId> {};
     }
 
     MarkDirty();
@@ -367,14 +396,18 @@ void ReticleBlink::Use(const BlinkType& blinkType)
 void ReticleBlink::Disable()
 {
     PatchSetBlink(*patch_, false, {});
-    patch_->blinkTypeId = mfd::TransportId {0};
+    patch_->blinkTypeId = patch_->blinkTypeId.has_value()
+                              ? std::optional<mfd::TransportId> {mfd::TransportId {0}}
+                              : std::optional<mfd::TransportId> {};
     MarkDirty();
 }
 
 void ReticleBlink::ClearType()
 {
     PatchClearBlinkType(*patch_);
-    patch_->blinkTypeId = mfd::TransportId {0};
+    patch_->blinkTypeId = patch_->blinkTypeId.has_value()
+                              ? std::optional<mfd::TransportId> {mfd::TransportId {0}}
+                              : std::optional<mfd::TransportId> {};
     MarkDirty();
 }
 
@@ -796,32 +829,20 @@ std::unordered_map<std::string, mfd::TransportId>* Reticle::PrimitiveTransportId
 
 void Reticle::PopulateGeneratedIdentifiers(mfd::UpdateReticleCommand& command) const
 {
-    for (const auto& [primitiveId, text] : command.patch.texts)
+    if (command.patch.blinkTypeId.has_value() && pageTransportId_ != 0)
     {
-        const auto iterator = primitiveTransportIds_.find(primitiveId);
-        if (iterator != primitiveTransportIds_.end())
-        {
-            command.patch.textsById.emplace(iterator->second, text);
-        }
+        command.patch.blinkType.reset();
     }
 
-    for (const auto& [primitiveId, letterSpacing] : command.patch.letterSpacings)
-    {
-        const auto iterator = primitiveTransportIds_.find(primitiveId);
-        if (iterator != primitiveTransportIds_.end())
-        {
-            command.patch.letterSpacingsById.emplace(iterator->second, letterSpacing);
-        }
-    }
-
-    for (const auto& [primitiveId, primitivePatch] : command.patch.primitivePatches)
-    {
-        const auto iterator = primitiveTransportIds_.find(primitiveId);
-        if (iterator != primitiveTransportIds_.end())
-        {
-            command.patch.primitivePatchesById.emplace(iterator->second, primitivePatch);
-        }
-    }
+    MoveGeneratedPrimitiveEntries(command.patch.texts, primitiveTransportIds_, command.patch.textsById);
+    MoveGeneratedPrimitiveEntries(
+        command.patch.letterSpacings,
+        primitiveTransportIds_,
+        command.patch.letterSpacingsById);
+    MoveGeneratedPrimitiveEntries(
+        command.patch.primitivePatches,
+        primitiveTransportIds_,
+        command.patch.primitivePatchesById);
 }
 
 TextReticle::TextReticle(const std::string_view pageName,
@@ -1031,34 +1052,16 @@ const mfd::ReticlePatch& DynamicReticle::DesiredPatch() const noexcept
     return desiredPatch_;
 }
 
-void DynamicReticle::PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch) const
+void DynamicReticle::PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, const bool useGeneratedBlinkTypeId) const
 {
-    for (const auto& [primitiveId, text] : patch.texts)
+    if (patch.blinkTypeId.has_value() && useGeneratedBlinkTypeId)
     {
-        const auto iterator = primitiveTransportIds_.find(primitiveId);
-        if (iterator != primitiveTransportIds_.end())
-        {
-            patch.textsById.emplace(iterator->second, text);
-        }
+        patch.blinkType.reset();
     }
 
-    for (const auto& [primitiveId, letterSpacing] : patch.letterSpacings)
-    {
-        const auto iterator = primitiveTransportIds_.find(primitiveId);
-        if (iterator != primitiveTransportIds_.end())
-        {
-            patch.letterSpacingsById.emplace(iterator->second, letterSpacing);
-        }
-    }
-
-    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
-    {
-        const auto iterator = primitiveTransportIds_.find(primitiveId);
-        if (iterator != primitiveTransportIds_.end())
-        {
-            patch.primitivePatchesById.emplace(iterator->second, primitivePatch);
-        }
-    }
+    MoveGeneratedPrimitiveEntries(patch.texts, primitiveTransportIds_, patch.textsById);
+    MoveGeneratedPrimitiveEntries(patch.letterSpacings, primitiveTransportIds_, patch.letterSpacingsById);
+    MoveGeneratedPrimitiveEntries(patch.primitivePatches, primitiveTransportIds_, patch.primitivePatchesById);
 }
 
 GeneratedDynamicReticleSet::GeneratedDynamicReticleSet(const std::string_view pageName,
@@ -1140,7 +1143,7 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
         if (!reticle.published_)
         {
             mfd::ReticlePatch patch = reticle.desiredPatch_;
-            reticle.PopulateGeneratedIdentifiers(patch);
+            reticle.PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
             updates.push_back(mfd::DynamicReticleState {reticle.reticleId_, std::move(patch)});
             reticle.lastSentPatch_ = reticle.desiredPatch_;
             reticle.published_ = true;
@@ -1151,7 +1154,7 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
         if (!Equal(reticle.desiredPatch_, reticle.lastSentPatch_))
         {
             mfd::ReticlePatch patch = BuildDeltaPatch(reticle.desiredPatch_, reticle.lastSentPatch_);
-            reticle.PopulateGeneratedIdentifiers(patch);
+            reticle.PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
             updates.push_back(mfd::DynamicReticleState {reticle.reticleId_, std::move(patch)});
             reticle.lastSentPatch_ = reticle.desiredPatch_;
             ++count;
@@ -1287,7 +1290,7 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
             if (!reticle->published_)
             {
                 mfd::ReticlePatch patch = reticle->desiredPatch_;
-                reticle->PopulateGeneratedIdentifiers(patch);
+                reticle->PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
                 updates.push_back(mfd::DynamicReticleState {reticle->reticleId_, std::move(patch)});
                 reticle->lastSentPatch_ = reticle->desiredPatch_;
                 ++count;
@@ -1295,7 +1298,7 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
             else if (!Equal(reticle->desiredPatch_, reticle->lastSentPatch_))
             {
                 mfd::ReticlePatch patch = BuildDeltaPatch(reticle->desiredPatch_, reticle->lastSentPatch_);
-                reticle->PopulateGeneratedIdentifiers(patch);
+                reticle->PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
                 updates.push_back(mfd::DynamicReticleState {
                     reticle->reticleId_,
                     std::move(patch)});

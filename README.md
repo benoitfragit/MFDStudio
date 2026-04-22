@@ -71,6 +71,10 @@ In practice:
 - clients send runtime updates through typed commands
 - the renderer draws only the active page
 
+For generated client workflows, fixed authored objects travel on the wire
+through transport IDs plus `mappingHash`; authored names remain only as a
+legacy fallback for raw low-level command construction.
+
 ## Choose Your Path
 
 ### I Want To Author JSON Assets

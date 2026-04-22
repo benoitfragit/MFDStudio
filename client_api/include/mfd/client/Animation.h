@@ -389,7 +389,7 @@ private:
     friend class GeneratedDynamicReticleSet;
 
     const mfd::ReticlePatch& DesiredPatch() const noexcept;
-    void PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch) const;
+    void PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, bool useGeneratedBlinkTypeId) const;
 
     std::string reticleId_;
     std::unordered_map<std::string, mfd::TransportId> primitiveTransportIds_ {};

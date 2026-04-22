@@ -236,7 +236,8 @@ TEST(AnimationTests, GeneratedStaticHandlesCarryTransportIdsAlongsideLegacyField
     EXPECT_EQ(update->target.reticleId, 22U);
     ASSERT_TRUE(update->patch.blinkTypeId.has_value());
     EXPECT_EQ(*update->patch.blinkTypeId, 44U);
-    ASSERT_NE(update->patch.primitivePatches.find("heading_value"), update->patch.primitivePatches.end());
+    EXPECT_FALSE(update->patch.blinkType.has_value());
+    ASSERT_EQ(update->patch.primitivePatches.find("heading_value"), update->patch.primitivePatches.end());
     ASSERT_NE(update->patch.primitivePatchesById.find(33U), update->patch.primitivePatchesById.end());
     ASSERT_TRUE(update->patch.primitivePatchesById.at(33U).text.has_value());
     EXPECT_EQ(*update->patch.primitivePatchesById.at(33U).text, "123");
@@ -348,7 +349,8 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     EXPECT_EQ(upsert->templateTransportId, 77U);
     ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_FALSE(upsert->reticles.front().reticleId.empty());
-    ASSERT_NE(upsert->reticles.front().patch.primitivePatches.find("track_label"),
+    EXPECT_FALSE(upsert->reticles.front().patch.blinkType.has_value());
+    ASSERT_EQ(upsert->reticles.front().patch.primitivePatches.find("track_label"),
               upsert->reticles.front().patch.primitivePatches.end());
     ASSERT_NE(upsert->reticles.front().patch.primitivePatchesById.find(33U),
               upsert->reticles.front().patch.primitivePatchesById.end());

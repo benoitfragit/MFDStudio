@@ -202,6 +202,8 @@ Compatibility is temporary and internal:
 - low-level string-based primitive patching may remain in raw `Reticle` helpers
 - generated code must move to typed primitive handles immediately
 - examples and tutorials must migrate to generated navigation
+- when generated transport IDs exist, serialized command payloads must omit the
+  duplicate authored-name fields and rely on `mappingHash` + transport IDs only
 
 Once migration is complete, string primitive addressing stops being a normal
 client-facing workflow.

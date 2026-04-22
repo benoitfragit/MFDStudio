@@ -29,9 +29,19 @@ namespace mfd
  */
 struct ReticleHandle
 {
-    /** @brief Target page name. */
+    /**
+     * @brief Target page name.
+     *
+     * @note This legacy fallback is only serialized when `pageId == 0`.
+     */
     std::string page;
-    /** @brief Target reticle id unique within the page. */
+    /**
+     * @brief Target reticle id unique within the page.
+     *
+     * @note For static authored reticles this legacy fallback is only serialized
+     * when `reticleId == 0`. Dynamic runtime reticle instance ids remain
+     * string-based and therefore still travel through this field.
+     */
     std::string reticle;
     /** @brief Optional generated transport id of the target page. */
     TransportId pageId = 0;
@@ -96,6 +106,9 @@ struct ReticlePatch
      *
      * @note An empty string explicitly clears the reticle-specific blink type
      * and falls back to the page default when blinking stays enabled.
+     *
+     * @note This legacy fallback is only serialized when `blinkTypeId` is not
+     * present.
      */
     std::optional<std::string> blinkType;
     /**
@@ -115,17 +128,32 @@ struct ReticlePatch
     std::optional<float> thickness;
     /** @brief Optional text value applied to the first text primitive. */
     std::optional<std::string> text;
-    /** @brief Per-primitive text overrides indexed by primitive id. */
+    /**
+     * @brief Per-primitive text overrides indexed by primitive id.
+     *
+     * @note Generated client code removes entries covered by `textsById` before
+     * sending the command batch.
+     */
     std::unordered_map<std::string, std::string> texts;
     /** @brief Per-primitive text overrides indexed by generated primitive transport id. */
     std::unordered_map<TransportId, std::string> textsById;
     /** @brief Optional character spacing applied to the first text primitive. */
     std::optional<float> letterSpacing;
-    /** @brief Per-primitive character spacing overrides indexed by primitive id. */
+    /**
+     * @brief Per-primitive character spacing overrides indexed by primitive id.
+     *
+     * @note Generated client code removes entries covered by
+     * `letterSpacingsById` before sending the command batch.
+     */
     std::unordered_map<std::string, float> letterSpacings;
     /** @brief Per-primitive character spacing overrides indexed by generated primitive transport id. */
     std::unordered_map<TransportId, float> letterSpacingsById;
-    /** @brief Rich primitive overrides indexed by primitive id. */
+    /**
+     * @brief Rich primitive overrides indexed by primitive id.
+     *
+     * @note Generated client code removes entries covered by
+     * `primitivePatchesById` before sending the command batch.
+     */
     std::unordered_map<std::string, PrimitivePatch> primitivePatches;
     /** @brief Rich primitive overrides indexed by generated primitive transport id. */
     std::unordered_map<TransportId, PrimitivePatch> primitivePatchesById;
@@ -151,11 +179,15 @@ struct WindowDisplayPatch
 };
 
 /**
- * @brief Command activating a page by name.
+ * @brief Command activating a page.
  */
 struct ActivatePageCommand
 {
-    /** @brief Page name to activate. */
+    /**
+     * @brief Page name to activate.
+     *
+     * @note This legacy fallback is only serialized when `pageId == 0`.
+     */
     std::string page;
     /** @brief Optional generated transport id of the page to activate. */
     TransportId pageId = 0;
@@ -166,7 +198,11 @@ struct ActivatePageCommand
  */
 struct SetPageViewCommand
 {
-    /** @brief Page name to update. */
+    /**
+     * @brief Page name to update.
+     *
+     * @note This legacy fallback is only serialized when `pageId == 0`.
+     */
     std::string page;
     /** @brief New center and zoom applied to the page. */
     PageViewState view {};
@@ -199,7 +235,11 @@ struct UpdateReticleCommand
  */
 struct UpdateStrobeCommand
 {
-    /** @brief Page owning the strobe to update. */
+    /**
+     * @brief Page owning the strobe to update.
+     *
+     * @note This legacy fallback is only serialized when `pageId == 0`.
+     */
     std::string page;
     /** @brief Optional generated transport id of the page owning the strobe. */
     TransportId pageId = 0;
@@ -216,7 +256,12 @@ struct UpsertDynamicReticleCommand
 {
     /** @brief Target dynamic reticle identified by page name and reticle id. */
     ReticleHandle target;
-    /** @brief Template id used when the dynamic reticle must be created. */
+    /**
+     * @brief Template id used when the dynamic reticle must be created.
+     *
+     * @note This legacy fallback is only serialized when
+     * `templateTransportId == 0`.
+     */
     std::string templateId;
     /** @brief Optional generated transport id of the authored template used for creation. */
     TransportId templateTransportId = 0;
@@ -240,11 +285,20 @@ struct DynamicReticleState
  */
 struct UpsertDynamicReticlesCommand
 {
-    /** @brief Target page receiving the dynamic reticles. */
+    /**
+     * @brief Target page receiving the dynamic reticles.
+     *
+     * @note This legacy fallback is only serialized when `pageId == 0`.
+     */
     std::string page;
     /** @brief Optional generated transport id of the target page. */
     TransportId pageId = 0;
-    /** @brief Template id used when missing reticles must be created. */
+    /**
+     * @brief Template id used when missing reticles must be created.
+     *
+     * @note This legacy fallback is only serialized when
+     * `templateTransportId == 0`.
+     */
     std::string templateId;
     /** @brief Optional generated transport id of the authored template used for creation. */
     TransportId templateTransportId = 0;
@@ -257,11 +311,20 @@ struct UpsertDynamicReticlesCommand
  */
 struct SetDynamicReticleSetVisibilityCommand
 {
-    /** @brief Target page receiving the dynamic reticles. */
+    /**
+     * @brief Target page receiving the dynamic reticles.
+     *
+     * @note This legacy fallback is only serialized when `pageId == 0`.
+     */
     std::string page;
     /** @brief Optional generated transport id of the target page. */
     TransportId pageId = 0;
-    /** @brief Dynamic reticle template id defining the set. */
+    /**
+     * @brief Dynamic reticle template id defining the set.
+     *
+     * @note This legacy fallback is only serialized when
+     * `templateTransportId == 0`.
+     */
     std::string templateId;
     /** @brief Optional generated transport id of the authored template defining the set. */
     TransportId templateTransportId = 0;

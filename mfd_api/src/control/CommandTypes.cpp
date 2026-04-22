@@ -277,14 +277,13 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         target->set_blink_enabled(*patch.blinkEnabled);
     }
 
-    if (patch.blinkType.has_value())
-    {
-        target->set_blink_type(*patch.blinkType);
-    }
-
     if (patch.blinkTypeId.has_value())
     {
         target->set_blink_type_id(*patch.blinkTypeId);
+    }
+    else if (patch.blinkType.has_value())
+    {
+        target->set_blink_type(*patch.blinkType);
     }
 
     if (patch.position.has_value())
@@ -437,10 +436,23 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
 
 void FillProtoHandle(const ReticleHandle& handle, pb::ReticleHandle* target)
 {
-    target->set_page(handle.page);
-    target->set_reticle(handle.reticle);
-    target->set_page_id(handle.pageId);
-    target->set_reticle_id(handle.reticleId);
+    if (handle.pageId != 0)
+    {
+        target->set_page_id(handle.pageId);
+    }
+    else if (!handle.page.empty())
+    {
+        target->set_page(handle.page);
+    }
+
+    if (handle.reticleId != 0)
+    {
+        target->set_reticle_id(handle.reticleId);
+    }
+    else if (!handle.reticle.empty())
+    {
+        target->set_reticle(handle.reticle);
+    }
 }
 
 ReticleHandle FromProtoHandle(const pb::ReticleHandle& value)
@@ -480,16 +492,28 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             if constexpr (std::is_same_v<Command, ActivatePageCommand>)
             {
                 auto* message = target->mutable_activate_page();
-                message->set_page(value.page);
-                message->set_page_id(value.pageId);
+                if (value.pageId != 0)
+                {
+                    message->set_page_id(value.pageId);
+                }
+                else if (!value.page.empty())
+                {
+                    message->set_page(value.page);
+                }
             }
             else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
             {
                 auto* message = target->mutable_set_page_view();
-                message->set_page(value.page);
                 FillProtoVec2(value.view.center, message->mutable_center());
                 message->set_zoom(value.view.zoom);
-                message->set_page_id(value.pageId);
+                if (value.pageId != 0)
+                {
+                    message->set_page_id(value.pageId);
+                }
+                else if (!value.page.empty())
+                {
+                    message->set_page(value.page);
+                }
             }
             else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand>)
             {
@@ -504,8 +528,14 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
             {
                 auto* message = target->mutable_update_strobe();
-                message->set_page(value.page);
-                message->set_page_id(value.pageId);
+                if (value.pageId != 0)
+                {
+                    message->set_page_id(value.pageId);
+                }
+                else if (!value.page.empty())
+                {
+                    message->set_page(value.page);
+                }
 
                 if (value.active.has_value())
                 {
@@ -521,17 +551,36 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             {
                 auto* message = target->mutable_upsert_dynamic_reticle();
                 FillProtoHandle(value.target, message->mutable_target());
-                message->set_template_id(value.templateId);
                 FillProtoReticlePatch(value.patch, message->mutable_patch());
-                message->set_template_transport_id(value.templateTransportId);
+                if (value.templateTransportId != 0)
+                {
+                    message->set_template_transport_id(value.templateTransportId);
+                }
+                else if (!value.templateId.empty())
+                {
+                    message->set_template_id(value.templateId);
+                }
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
             {
                 auto* message = target->mutable_upsert_dynamic_reticles();
-                message->set_page(value.page);
-                message->set_template_id(value.templateId);
-                message->set_page_id(value.pageId);
-                message->set_template_transport_id(value.templateTransportId);
+                if (value.pageId != 0)
+                {
+                    message->set_page_id(value.pageId);
+                }
+                else if (!value.page.empty())
+                {
+                    message->set_page(value.page);
+                }
+
+                if (value.templateTransportId != 0)
+                {
+                    message->set_template_transport_id(value.templateTransportId);
+                }
+                else if (!value.templateId.empty())
+                {
+                    message->set_template_id(value.templateId);
+                }
 
                 for (const DynamicReticleState& reticle : value.reticles)
                 {
@@ -541,11 +590,24 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
             {
                 auto* message = target->mutable_set_dynamic_reticle_set_visibility();
-                message->set_page(value.page);
-                message->set_template_id(value.templateId);
                 message->set_visible(value.visible);
-                message->set_page_id(value.pageId);
-                message->set_template_transport_id(value.templateTransportId);
+                if (value.pageId != 0)
+                {
+                    message->set_page_id(value.pageId);
+                }
+                else if (!value.page.empty())
+                {
+                    message->set_page(value.page);
+                }
+
+                if (value.templateTransportId != 0)
+                {
+                    message->set_template_transport_id(value.templateTransportId);
+                }
+                else if (!value.templateId.empty())
+                {
+                    message->set_template_id(value.templateId);
+                }
             }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {

@@ -304,6 +304,24 @@ The generated client code must:
 - never parse or load `.generated.map` at runtime
 - expose only high-level generated navigation to user code
 
+## Command Transport Rules
+
+When a command targets one fixed authored object covered by the mapping, the
+generated client path must send only generated IDs on the wire for:
+
+- page selection and page view updates
+- static reticle targeting
+- dynamic template targeting
+- blink type targeting
+- exposed primitive targeting
+
+Legacy authored-name fields remain in `mfd_commands.proto` only as a fallback
+for raw low-level clients that still build commands by name. They are not part
+of the normal generated transport path anymore.
+
+Dynamic runtime reticle instance IDs remain string-based because they are not
+fixed authored objects and therefore do not exist in the generated map.
+
 ## Explicit Non-Goals
 
 - no manual editing of `.generated.map`

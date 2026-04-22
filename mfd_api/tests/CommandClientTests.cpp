@@ -131,9 +131,9 @@ TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesGeneratedIdentifiers)
 
         const auto* splitCommand = std::get_if<mfd::UpsertDynamicReticlesCommand>(&decodedBatch->commands.front());
         ASSERT_NE(splitCommand, nullptr);
-        EXPECT_EQ(splitCommand->page, "Radar");
+        EXPECT_TRUE(splitCommand->page.empty());
         EXPECT_EQ(splitCommand->pageId, 11U);
-        EXPECT_EQ(splitCommand->templateId, "radar_track");
+        EXPECT_TRUE(splitCommand->templateId.empty());
         EXPECT_EQ(splitCommand->templateTransportId, 77U);
         EXPECT_FALSE(splitCommand->reticles.empty());
     }

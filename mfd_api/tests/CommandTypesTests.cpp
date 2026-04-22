@@ -63,8 +63,8 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
 
     const auto* update = std::get_if<mfd::UpdateReticleCommand>(&decoded->commands.front());
     ASSERT_NE(update, nullptr);
-    EXPECT_EQ(update->target.page, "Radar");
-    EXPECT_EQ(update->target.reticle, "heading_box");
+    EXPECT_TRUE(update->target.page.empty());
+    EXPECT_TRUE(update->target.reticle.empty());
     EXPECT_EQ(update->target.pageId, 11U);
     EXPECT_EQ(update->target.reticleId, 22U);
     ASSERT_TRUE(update->patch.blinkTypeId.has_value());
@@ -74,4 +74,25 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     ASSERT_EQ(update->patch.primitivePatchesById.size(), 1U);
     ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).text.has_value());
     EXPECT_EQ(*update->patch.primitivePatchesById.at(55U).text, "123");
+}
+
+TEST(CommandTypesTests, CommandBatchRoundTripsLegacyNamedTargetsWithoutGeneratedIds)
+{
+    mfd::CommandBatch batch;
+    batch.commands.push_back(mfd::UpdateReticleCommand {
+        mfd::ReticleHandle {"Radar", "heading_box"},
+        {}});
+
+    const std::string payload = mfd::SerializeCommandBatch(batch);
+    const auto decoded = mfd::DeserializeCommandBatch(payload);
+
+    ASSERT_TRUE(decoded.has_value());
+    ASSERT_EQ(decoded->commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&decoded->commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->target.page, "Radar");
+    EXPECT_EQ(update->target.reticle, "heading_box");
+    EXPECT_EQ(update->target.pageId, 0U);
+    EXPECT_EQ(update->target.reticleId, 0U);
 }
