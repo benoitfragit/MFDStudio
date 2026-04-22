@@ -108,6 +108,44 @@ mfd::SceneRegistry MakeRegistry()
 
     return mfd::SceneRegistry(std::move(document), std::move(map));
 }
+
+mfd::SceneRegistry MakeRuntimeRegistry()
+{
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.normalizedName = "radar";
+    page.title = "Radar";
+    page.defaultPage = true;
+
+    mfd::PageStrobeDefinition strobe;
+    strobe.reticle.id = "strobe";
+    strobe.capture.shape = mfd::StrobeCaptureShape::Circle;
+    strobe.capture.radius = 0.12f;
+    strobe.magnet.enabled = true;
+    strobe.magnet.radius = 0.15f;
+    strobe.magnet.strength = 1.0f;
+    page.strobe = strobe;
+
+    mfd::ReticleGroup templateReticle;
+    templateReticle.id = "radar_track";
+
+    mfd::Primitive label;
+    label.id = "track_label";
+    label.type = mfd::PrimitiveType::Text;
+    label.geometry = mfd::TextGeometry {"T", 0.04f, 0.002f};
+    templateReticle.primitives.push_back(std::move(label));
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+    document.reticleLibrary.emplace("radar_track", templateReticle);
+
+    mfd::GeneratedTransportMap map;
+    map.mappingHash = "map_hash";
+    map.pages.push_back({11U, "Radar", "radar", true, true});
+    map.templates.push_back({55U, "radar_track", "radar_track"});
+
+    return mfd::SceneRegistry(std::move(document), std::move(map));
+}
 } // namespace
 
 TEST(CommandProcessorTests, PollDoesNotOverrideSuccessfulDispatchWithStickyChannelError)
@@ -116,9 +154,10 @@ TEST(CommandProcessorTests, PollDoesNotOverrideSuccessfulDispatchWithStickyChann
     mfd::CommandProcessor processor(registry);
     ScriptedExchangeChannel channel;
 
-    mfd::ActivatePageCommand command;
-    command.page = "Radar";
-    channel.PushPayload(ToBytes(mfd::SerializeUserCommand(command)));
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(mfd::ActivatePageCommand {"Radar", 11U});
+    channel.PushPayload(ToBytes(mfd::SerializeCommandBatch(batch)));
     channel.SetLastError("stale transport error");
 
     EXPECT_TRUE(processor.Poll(channel));
@@ -151,7 +190,7 @@ TEST(CommandProcessorTests, SubmitsIdBasedBatchWhenMappingHashMatchesLoadedTrans
     mfd::CommandBatch batch;
     batch.mappingHash = "map_hash";
     batch.commands.push_back(
-        mfd::UpdateReticleCommand {mfd::ReticleHandle {"", "", 11U, 22U}, patch});
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
 
     EXPECT_TRUE(processor.Submit(batch));
     EXPECT_TRUE(processor.LastError().empty());
@@ -192,4 +231,52 @@ TEST(CommandProcessorTests, RejectsSerializedGeneratedTransportIdsWithoutMapping
 
     EXPECT_FALSE(processor.Submit(payload));
     EXPECT_EQ(processor.LastError(), "Generated transport ids require a non-empty batch mapping hash");
+}
+
+TEST(CommandProcessorTests, SerializedDynamicRuntimeIdsStillMagnetizeActiveStrobe)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::UpsertDynamicReticleCommand upsertCommand;
+    upsertCommand.target.pageId = 11U;
+    upsertCommand.target.runtimeReticleId = 9001U;
+    upsertCommand.templateTransportId = 55U;
+    upsertCommand.patch.visible = true;
+    upsertCommand.patch.position = mfd::Vec2 {0.1f, 0.0f};
+
+    mfd::CommandBatch dynamicBatch;
+    dynamicBatch.mappingHash = "map_hash";
+    dynamicBatch.commands.push_back(upsertCommand);
+    EXPECT_TRUE(processor.Submit(mfd::SerializeCommandBatch(dynamicBatch)));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    mfd::UpdateStrobeCommand strobeCommand;
+    strobeCommand.pageId = 11U;
+    strobeCommand.active = true;
+    strobeCommand.position = mfd::Vec2 {0.08f, 0.02f};
+
+    mfd::CommandBatch strobeBatch;
+    strobeBatch.mappingHash = "map_hash";
+    strobeBatch.commands.push_back(strobeCommand);
+    EXPECT_TRUE(processor.Submit(mfd::SerializeCommandBatch(strobeBatch)));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto strobeSummary = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeSummary.has_value());
+    EXPECT_TRUE(strobeSummary->visible);
+    EXPECT_FLOAT_EQ(strobeSummary->position.x, 0.1f);
+    EXPECT_FLOAT_EQ(strobeSummary->position.y, 0.0f);
+
+    const auto magnet = registry.ActiveStrobeMagnetSummary();
+    ASSERT_TRUE(magnet.has_value());
+    EXPECT_TRUE(magnet->enabled);
+    EXPECT_TRUE(magnet->magnetized);
+    EXPECT_EQ(magnet->reticleId, "__runtime_dynamic_9001");
+    EXPECT_FLOAT_EQ(magnet->targetPosition.x, 0.1f);
+    EXPECT_FLOAT_EQ(magnet->targetPosition.y, 0.0f);
+
+    const auto capture = registry.CaptureActivePageStrobe();
+    ASSERT_TRUE(capture.has_value());
+    EXPECT_EQ(capture->reticleId, "__runtime_dynamic_9001");
 }

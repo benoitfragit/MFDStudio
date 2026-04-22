@@ -46,9 +46,16 @@ namespace
 {
 using DynamicOperationMap = std::unordered_map<std::string, std::size_t>;
 
-std::string MakeDynamicReticleKey(const std::string& page, const std::string& reticle)
+std::string MakeDynamicReticleKey(const std::string& page,
+                                  const std::string& reticleId,
+                                  const mfd::RuntimeDynamicId runtimeReticleId = 0)
 {
-    return page + '\x1F' + reticle;
+    if (runtimeReticleId != 0)
+    {
+        return page + '\x1F' + std::to_string(runtimeReticleId);
+    }
+
+    return page + '\x1F' + reticleId;
 }
 
 std::string MakeDynamicTemplateKey(const std::string& page, const std::string& templateId)
@@ -66,11 +73,11 @@ void PutDynamicLifecycleCommand(std::vector<mfd::UserCommand>& operations,
             using Command = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
             {
-                return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+                return MakeDynamicReticleKey(value.target.page, value.target.reticleId, value.target.runtimeReticleId);
             }
             else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
             {
-                return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+                return MakeDynamicReticleKey(value.target.page, value.target.reticleId, value.target.runtimeReticleId);
             }
             else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
             {
@@ -122,7 +129,8 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
                     for (const mfd::DynamicReticleState& state : value.reticles)
                     {
                         mfd::UpsertDynamicReticleCommand command;
-                        command.target = mfd::ReticleHandle {value.page, state.reticleId, value.pageId, 0};
+                        command.target =
+                            mfd::DynamicReticleHandle {value.page, state.reticleId, value.pageId, state.runtimeReticleId};
                         command.templateId = value.templateId;
                         command.templateTransportId = value.templateTransportId;
                         command.patch = state.patch;
@@ -175,11 +183,11 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
                 using Command = std::decay_t<decltype(value)>;
                 if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
                 {
-                    return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+                    return MakeDynamicReticleKey(value.target.page, value.target.reticleId, value.target.runtimeReticleId);
                 }
                 else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
                 {
-                    return MakeDynamicReticleKey(value.target.page, value.target.reticle);
+                    return MakeDynamicReticleKey(value.target.page, value.target.reticleId, value.target.runtimeReticleId);
                 }
                 else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
                 {

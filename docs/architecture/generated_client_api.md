@@ -4,7 +4,7 @@
 
 This note freezes the target generated client API for the primitive-addressable
 refactor. It defines the public shape consumed by client applications, the
-authored exposure rules, and the temporary compatibility line.
+authored exposure rules, and the remaining low-level compatibility boundary.
 
 ## Goals
 
@@ -184,7 +184,7 @@ Dynamic-reticle invariants:
 
 - generated page APIs do not expose `Dynamic(std::string_view templateId)`
 - generated client code does not ask the user for a runtime reticle id
-- `Create()` allocates one hidden runtime id inside the generated set
+- `Create()` allocates one hidden runtime-scoped integer id inside the generated set
 - `Remove(...)` removes that generated instance by handle
 - application code keeps the returned typed handle or pointer while the domain
   object is alive
@@ -196,14 +196,15 @@ but the normal generated workflow is now handle-based rather than id-based.
 
 ## Compatibility Strategy
 
-Compatibility is temporary and internal:
+Compatibility stays low-level and explicit:
 
-- low-level string-based primitive patching may remain in `CommandClient`
-- low-level string-based primitive patching may remain in raw `Reticle` helpers
-- generated code must move to typed primitive handles immediately
-- examples and tutorials must migrate to generated navigation
-- when generated transport IDs exist, serialized command payloads must omit the
-  duplicate authored-name fields and rely on `mappingHash` + transport IDs only
+- raw `CommandClient` helpers may still accept authored names
+- those helpers must be constructed with the companion generated transport map
+- name-based primitive patching is resolved locally before serialization
+- generated code must continue to use typed page, reticle, primitive, strobe,
+  and dynamic-set handles
+- serialized command payloads must omit duplicate authored-name fields and rely
+  on `mappingHash` + transport IDs only
 
-Once migration is complete, string primitive addressing stops being a normal
+String-based addressing is therefore no longer part of the normal generated
 client-facing workflow.

@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -50,7 +51,7 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     batch.sequence = 9U;
     batch.mappingHash = "deadbeef";
     batch.commands.push_back(mfd::UpdateReticleCommand {
-        mfd::ReticleHandle {"Radar", "heading_box", 11U, 22U},
+        mfd::StaticReticleHandle {"Radar", "heading_box", 11U, 22U},
         patch});
 
     const std::string payload = mfd::SerializeCommandBatch(batch);
@@ -76,23 +77,12 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     EXPECT_EQ(*update->patch.primitivePatchesById.at(55U).text, "123");
 }
 
-TEST(CommandTypesTests, CommandBatchRoundTripsLegacyNamedTargetsWithoutGeneratedIds)
+TEST(CommandTypesTests, SerializeCommandBatchRejectsLegacyNamedTargetsWithoutGeneratedIds)
 {
     mfd::CommandBatch batch;
     batch.commands.push_back(mfd::UpdateReticleCommand {
-        mfd::ReticleHandle {"Radar", "heading_box"},
+        mfd::StaticReticleHandle {"Radar", "heading_box"},
         {}});
 
-    const std::string payload = mfd::SerializeCommandBatch(batch);
-    const auto decoded = mfd::DeserializeCommandBatch(payload);
-
-    ASSERT_TRUE(decoded.has_value());
-    ASSERT_EQ(decoded->commands.size(), 1U);
-
-    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&decoded->commands.front());
-    ASSERT_NE(update, nullptr);
-    EXPECT_EQ(update->target.page, "Radar");
-    EXPECT_EQ(update->target.reticle, "heading_box");
-    EXPECT_EQ(update->target.pageId, 0U);
-    EXPECT_EQ(update->target.reticleId, 0U);
+    EXPECT_THROW((void)mfd::SerializeCommandBatch(batch), std::runtime_error);
 }

@@ -33,9 +33,19 @@ bool PatchUsesGeneratedIdentifiers(const ReticlePatch& patch) noexcept
            !patch.primitivePatchesById.empty();
 }
 
-bool HandleUsesGeneratedIdentifiers(const ReticleHandle& handle) noexcept
+bool StaticHandleUsesGeneratedIdentifiers(const StaticReticleHandle& handle) noexcept
 {
     return handle.pageId != 0 || handle.reticleId != 0;
+}
+
+bool DynamicHandleUsesGeneratedIdentifiers(const DynamicReticleHandle& handle) noexcept
+{
+    return handle.pageId != 0;
+}
+
+std::string MakeRuntimeDynamicReticleAlias(const RuntimeDynamicId runtimeReticleId)
+{
+    return "__runtime_dynamic_" + std::to_string(runtimeReticleId);
 }
 
 bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
@@ -53,12 +63,12 @@ bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
             }
             else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
             {
-                return HandleUsesGeneratedIdentifiers(value.target) ||
+                return StaticHandleUsesGeneratedIdentifiers(value.target) ||
                        PatchUsesGeneratedIdentifiers(value.patch);
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
             {
-                return HandleUsesGeneratedIdentifiers(value.target) ||
+                return DynamicHandleUsesGeneratedIdentifiers(value.target) ||
                        value.templateTransportId != 0 ||
                        PatchUsesGeneratedIdentifiers(value.patch);
             }
@@ -85,7 +95,7 @@ bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
             }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
-                return HandleUsesGeneratedIdentifiers(value.target);
+                return DynamicHandleUsesGeneratedIdentifiers(value.target);
             }
             else
             {
@@ -314,7 +324,7 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
         return true;
     };
 
-    auto resolveStaticReticle = [this, &resolvePage](ReticleHandle& target) -> bool
+    auto resolveStaticReticle = [this, &resolvePage](StaticReticleHandle& target) -> bool
     {
         if (target.reticleId == 0)
         {
@@ -353,6 +363,26 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
         target.page = resolvedReticle->pageName;
         target.reticle = resolvedReticle->reticleId;
         return true;
+    };
+
+    auto resolveDynamicReticle = [&resolvePage](DynamicReticleHandle& target) -> bool
+    {
+        if (!resolvePage(target.page, target.pageId))
+        {
+            return false;
+        }
+
+        if (target.runtimeReticleId != 0)
+        {
+            if (target.reticleId.empty())
+            {
+                target.reticleId = MakeRuntimeDynamicReticleAlias(target.runtimeReticleId);
+            }
+
+            return true;
+        }
+
+        return !target.reticleId.empty();
     };
 
     auto resolveTemplate = [this](std::string& templateId, const TransportId templateTransportId) -> bool
@@ -497,7 +527,7 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
     };
 
     return std::visit(
-        [this, &resolvePage, &resolveStaticReticle, &resolveTemplate, &resolvePatchPrimitiveIds](auto& value) -> bool
+        [this, &resolvePage, &resolveStaticReticle, &resolveDynamicReticle, &resolveTemplate, &resolvePatchPrimitiveIds](auto& value) -> bool
         {
             using Command = std::decay_t<decltype(value)>;
 
@@ -525,9 +555,8 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
             {
-                return resolvePage(value.target.page, value.target.pageId) &&
+                return resolveDynamicReticle(value.target) &&
                        resolveTemplate(value.templateId, value.templateTransportId) &&
-                       !value.target.reticle.empty() &&
                        resolvePatchPrimitiveIds(value.patch, value.target.pageId, 0, value.templateTransportId);
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
@@ -540,7 +569,12 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
 
                 for (auto& state : value.reticles)
                 {
-                    if (state.reticleId.empty() ||
+                    if (state.runtimeReticleId != 0 && state.reticleId.empty())
+                    {
+                        state.reticleId = MakeRuntimeDynamicReticleAlias(state.runtimeReticleId);
+                    }
+
+                    if ((state.runtimeReticleId == 0 && state.reticleId.empty()) ||
                         !resolvePatchPrimitiveIds(state.patch, value.pageId, 0, value.templateTransportId))
                     {
                         return false;
@@ -556,7 +590,7 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
             }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
-                return resolvePage(value.target.page, value.target.pageId) && !value.target.reticle.empty();
+                return resolveDynamicReticle(value.target);
             }
             else
             {
@@ -636,22 +670,22 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
         return;
     }
 
-    if (scene_.HasDynamicReticle(command.target.page, command.target.reticle))
+    if (scene_.HasDynamicReticle(command.target.page, command.target.reticleId))
     {
-        if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticle, command.patch))
+        if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticleId, command.patch))
         {
-            SetFailure("Unable to update dynamic reticle '" + command.target.reticle + "'");
+            SetFailure("Unable to update dynamic reticle '" + command.target.reticleId + "'");
         }
 
         return;
     }
 
-    ReticleGroup reticle = InstantiateReticle(templateIterator->second, command.target.reticle);
+    ReticleGroup reticle = InstantiateReticle(templateIterator->second, command.target.reticleId);
     scene_.UpsertDynamicReticle(command.target.page, std::move(reticle));
 
-    if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticle, command.patch))
+    if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticleId, command.patch))
     {
-        SetFailure("Unable to initialize dynamic reticle '" + command.target.reticle + "'");
+        SetFailure("Unable to initialize dynamic reticle '" + command.target.reticleId + "'");
     }
 }
 
@@ -696,9 +730,9 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
 
 void CommandProcessor::OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command)
 {
-    if (!scene_.RemoveDynamicReticle(command.target.page, command.target.reticle))
+    if (!scene_.RemoveDynamicReticle(command.target.page, command.target.reticleId))
     {
-        SetFailure("Unable to remove dynamic reticle '" + command.target.reticle +
+        SetFailure("Unable to remove dynamic reticle '" + command.target.reticleId +
                    "' from page '" + command.target.page + "'");
     }
 }

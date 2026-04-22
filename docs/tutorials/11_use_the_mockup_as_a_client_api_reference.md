@@ -66,8 +66,12 @@ Your production client does not need to parse the window JSON if your
 application already knows:
 
 - the UDP endpoint
-- the page names
-- the runtime ids it wants to control
+- the transport IDs it wants to control
+- the matching `mappingHash`
+
+If you still want to use raw helper methods such as
+`UpdateReticle("Radar", "fixed_track_alpha", patch)`, load the companion
+generated transport map locally and pass it to `CommandClient`.
 
 ## The Public API Layers Used By The Mockup
 
@@ -93,6 +97,7 @@ Example:
 ```cpp
 client.Send(mfd::UpdateStrobeCommand {
     "Radar",
+    0U,
     true,
     mfd::Vec2 {0.15f, -0.10f}
 });
@@ -156,7 +161,7 @@ your own client.
 
 | Mockup area | Public API used | Payload shape |
 | --- | --- | --- |
-| `Window target` | `CommandClient(WindowUdpCommandTransport)` | connection creation |
+| `Window target` | `CommandClient(WindowUdpCommandTransport, GeneratedTransportMap)` | connection creation |
 | `Send window display` | `UpdateWindowDisplay` or convenience helpers such as `SetWindowDisabled` | `WindowDisplayPatch` |
 | `Reset window` | `ResetWindow()` | `ResetWindowCommand` |
 | `Activate selected page` | `ActivatePage(page)` | `ActivatePageCommand` |
@@ -196,14 +201,16 @@ This is exactly how `examples/client_mockup` and
 ```cpp
 #include "MockupUi.h"
 #include "mfd/control/CommandClient.h"
+#include "mfd/io/JsonLoader.h"
 
-mfd::WindowUdpCommandTransport transport;
-transport.enabled = true;
-transport.address = "127.0.0.1";
-transport.port = 47220;
-transport.maxPacketSize = 16384;
+mfd::JsonLoader loader;
+const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages_cockpit.json");
+if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
+{
+    return;
+}
 
-mfd::CommandClient client(transport);
+mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
 if (!client.IsReady())
 {
     // inspect client.LastError()
@@ -236,7 +243,8 @@ client.SendBatch(ui.BuildBatch());
   navigation.
 - Let generated dynamic sets own the hidden runtime ids through `Create()` and
   `Remove(...)`.
-- Keep `CommandClient` for the final send path.
+- Keep `CommandClient` for the final send path, with the generated transport
+  map whenever raw helper methods still address objects by authored names.
 - For high-rate loops, prefer `BuildBatch()` or `BuildCommandBatch(sequence)`
   after mutating the generated handles.
 
@@ -248,13 +256,17 @@ recreates a `CommandClient` when the operator changes target.
 Minimal equivalent:
 
 ```cpp
-mfd::WindowUdpCommandTransport transport;
-transport.enabled = true;
-transport.address = "127.0.0.1";
-transport.port = 47220;
-transport.maxPacketSize = 16384;
+#include "mfd/control/CommandClient.h"
+#include "mfd/io/JsonLoader.h"
 
-mfd::CommandClient client(transport);
+mfd::JsonLoader loader;
+const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages_cockpit.json");
+if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
+{
+    return;
+}
+
+mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
 
 if (!client.IsReady())
 {
@@ -335,6 +347,7 @@ Equivalent command:
 ```cpp
 client.Send(mfd::UpdateStrobeCommand {
     "Radar",
+    0U,
     true,
     mfd::Vec2 {0.05f, 0.22f}
 });
@@ -428,7 +441,10 @@ for (const Track& track : tracks)
     patch.blinkEnabled = track.threat;
     patch.blinkType = track.threat ? std::string {"caution"} : std::string {};
 
-    states.push_back(mfd::DynamicReticleState {track.id, std::move(patch)});
+    mfd::DynamicReticleState state;
+    state.reticleId = track.id;
+    state.patch = std::move(patch);
+    states.push_back(std::move(state));
 }
 
 client.UpsertDynamicReticles("Radar", "radar_track", states);
@@ -461,19 +477,20 @@ Skeleton:
 std::vector<mfd::UserCommand> commands;
 
 commands.push_back(mfd::UpdateReticleCommand {
-    mfd::ReticleHandle {"Cockpit", "adi_heading_box"},
+    mfd::StaticReticleHandle {"Cockpit", "adi_heading_box"},
     mfd::ReticlePatch {.texts = {{"heading_value", "275"}}}});
 
 commands.push_back(mfd::UpdateReticleCommand {
-    mfd::ReticleHandle {"Cockpit", "hud_speed_box"},
+    mfd::StaticReticleHandle {"Cockpit", "hud_speed_box"},
     mfd::ReticlePatch {.texts = {{"speed_value", "742"}},
                        .blinkEnabled = true,
                        .blinkType = std::string {"overspeed"}}});
 
-commands.push_back(mfd::UpsertDynamicReticlesCommand {
-    "Cockpit",
-    "cockpit_radar_contact",
-    std::move(contactStates)});
+mfd::UpsertDynamicReticlesCommand dynamicContacts;
+dynamicContacts.page = "Cockpit";
+dynamicContacts.templateId = "cockpit_radar_contact";
+dynamicContacts.reticles = std::move(contactStates);
+commands.push_back(std::move(dynamicContacts));
 
 client.SendBatch(commands, sequence);
 ```

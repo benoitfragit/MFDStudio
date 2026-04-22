@@ -373,8 +373,8 @@ TEST(SceneRegistryTests, WindowDisplayPatchSerializationRoundTripsDisabledFlag)
 TEST(SceneRegistryTests, DynamicTemplateVisibilityCommandSerializationRoundTrips)
 {
     mfd::SetDynamicReticleSetVisibilityCommand original;
-    original.page = "Radar";
-    original.templateId = "radar_tracks";
+    original.pageId = 11U;
+    original.templateTransportId = 77U;
     original.visible = false;
     const mfd::UserCommand command = original;
     const std::string payload = mfd::SerializeUserCommand(command);
@@ -383,8 +383,8 @@ TEST(SceneRegistryTests, DynamicTemplateVisibilityCommandSerializationRoundTrips
     ASSERT_TRUE(decoded.has_value());
     const auto* visibility = std::get_if<mfd::SetDynamicReticleSetVisibilityCommand>(&*decoded);
     ASSERT_NE(visibility, nullptr);
-    EXPECT_EQ(visibility->page, "Radar");
-    EXPECT_EQ(visibility->templateId, "radar_tracks");
+    EXPECT_EQ(visibility->pageId, 11U);
+    EXPECT_EQ(visibility->templateTransportId, 77U);
     EXPECT_FALSE(visibility->visible);
 }
 

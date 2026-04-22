@@ -71,9 +71,11 @@ In practice:
 - clients send runtime updates through typed commands
 - the renderer draws only the active page
 
-For generated client workflows, fixed authored objects travel on the wire
-through transport IDs plus `mappingHash`; authored names remain only as a
-legacy fallback for raw low-level command construction.
+On the wire, fixed authored objects now travel through transport IDs plus
+`mappingHash` only. Generated client APIs hide those IDs completely. Raw
+`CommandClient` helpers can still accept page, reticle, template, blink, and
+primitive names, but they must be constructed with the companion generated
+transport map so those names are resolved locally before serialization.
 
 ## Choose Your Path
 

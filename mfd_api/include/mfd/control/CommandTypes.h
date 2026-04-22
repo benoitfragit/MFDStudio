@@ -25,28 +25,53 @@
 namespace mfd
 {
 /**
- * @brief Public reticle identifier used by command transports.
+ * @brief Public identifier of one authored static reticle.
  */
-struct ReticleHandle
+struct StaticReticleHandle
 {
     /**
      * @brief Target page name.
      *
-     * @note This legacy fallback is only serialized when `pageId == 0`.
+     * @note This convenience field is resolved to `pageId` before
+     * serialization. Protocol Buffers transport carries only `pageId`.
      */
     std::string page;
     /**
-     * @brief Target reticle id unique within the page.
+     * @brief Target authored reticle id unique within the page.
      *
-     * @note For static authored reticles this legacy fallback is only serialized
-     * when `reticleId == 0`. Dynamic runtime reticle instance ids remain
-     * string-based and therefore still travel through this field.
+     * @note This convenience field is resolved to `reticleId` before
+     * serialization. Protocol Buffers transport carries only `reticleId`.
      */
     std::string reticle;
     /** @brief Optional generated transport id of the target page. */
     TransportId pageId = 0;
     /** @brief Optional generated transport id of the target static reticle. */
     TransportId reticleId = 0;
+};
+
+/**
+ * @brief Public identifier of one runtime dynamic reticle instance.
+ */
+struct DynamicReticleHandle
+{
+    /**
+     * @brief Target page name.
+     *
+     * @note This convenience field is resolved to `pageId` before
+     * serialization. Protocol Buffers transport carries only `pageId`.
+     */
+    std::string page;
+    /**
+     * @brief Optional human-readable alias of the dynamic reticle.
+     *
+     * @note This field is kept only for local client-side convenience. The
+     * command transport serializes `runtimeReticleId` instead.
+     */
+    std::string reticleId;
+    /** @brief Optional generated transport id of the target page. */
+    TransportId pageId = 0;
+    /** @brief Runtime-scoped identifier of the target dynamic reticle. */
+    RuntimeDynamicId runtimeReticleId = 0;
 };
 
 /**
@@ -107,8 +132,8 @@ struct ReticlePatch
      * @note An empty string explicitly clears the reticle-specific blink type
      * and falls back to the page default when blinking stays enabled.
      *
-     * @note This legacy fallback is only serialized when `blinkTypeId` is not
-     * present.
+     * @note This convenience field is resolved to `blinkTypeId` before
+     * serialization. Protocol Buffers transport carries only `blinkTypeId`.
      */
     std::optional<std::string> blinkType;
     /**
@@ -131,8 +156,8 @@ struct ReticlePatch
     /**
      * @brief Per-primitive text overrides indexed by primitive id.
      *
-     * @note Generated client code removes entries covered by `textsById` before
-     * sending the command batch.
+     * @note This convenience field is resolved to `textsById` before
+     * serialization. Protocol Buffers transport carries only `textsById`.
      */
     std::unordered_map<std::string, std::string> texts;
     /** @brief Per-primitive text overrides indexed by generated primitive transport id. */
@@ -142,8 +167,9 @@ struct ReticlePatch
     /**
      * @brief Per-primitive character spacing overrides indexed by primitive id.
      *
-     * @note Generated client code removes entries covered by
-     * `letterSpacingsById` before sending the command batch.
+     * @note This convenience field is resolved to `letterSpacingsById` before
+     * serialization. Protocol Buffers transport carries only
+     * `letterSpacingsById`.
      */
     std::unordered_map<std::string, float> letterSpacings;
     /** @brief Per-primitive character spacing overrides indexed by generated primitive transport id. */
@@ -151,8 +177,9 @@ struct ReticlePatch
     /**
      * @brief Rich primitive overrides indexed by primitive id.
      *
-     * @note Generated client code removes entries covered by
-     * `primitivePatchesById` before sending the command batch.
+     * @note This convenience field is resolved to `primitivePatchesById`
+     * before serialization. Protocol Buffers transport carries only
+     * `primitivePatchesById`.
      */
     std::unordered_map<std::string, PrimitivePatch> primitivePatches;
     /** @brief Rich primitive overrides indexed by generated primitive transport id. */
@@ -186,7 +213,8 @@ struct ActivatePageCommand
     /**
      * @brief Page name to activate.
      *
-     * @note This legacy fallback is only serialized when `pageId == 0`.
+     * @note This convenience field is resolved to `pageId` before
+     * serialization. Protocol Buffers transport carries only `pageId`.
      */
     std::string page;
     /** @brief Optional generated transport id of the page to activate. */
@@ -201,7 +229,8 @@ struct SetPageViewCommand
     /**
      * @brief Page name to update.
      *
-     * @note This legacy fallback is only serialized when `pageId == 0`.
+     * @note This convenience field is resolved to `pageId` before
+     * serialization. Protocol Buffers transport carries only `pageId`.
      */
     std::string page;
     /** @brief New center and zoom applied to the page. */
@@ -225,7 +254,7 @@ struct UpdateWindowDisplayCommand
 struct UpdateReticleCommand
 {
     /** @brief Target reticle identified by page name and reticle id. */
-    ReticleHandle target;
+    StaticReticleHandle target;
     /** @brief Properties to update on the target reticle. */
     ReticlePatch patch;
 };
@@ -238,7 +267,8 @@ struct UpdateStrobeCommand
     /**
      * @brief Page owning the strobe to update.
      *
-     * @note This legacy fallback is only serialized when `pageId == 0`.
+     * @note This convenience field is resolved to `pageId` before
+     * serialization. Protocol Buffers transport carries only `pageId`.
      */
     std::string page;
     /** @brief Optional generated transport id of the page owning the strobe. */
@@ -254,13 +284,14 @@ struct UpdateStrobeCommand
  */
 struct UpsertDynamicReticleCommand
 {
-    /** @brief Target dynamic reticle identified by page name and reticle id. */
-    ReticleHandle target;
+    /** @brief Target dynamic reticle identified by page and runtime instance id. */
+    DynamicReticleHandle target;
     /**
      * @brief Template id used when the dynamic reticle must be created.
      *
-     * @note This legacy fallback is only serialized when
-     * `templateTransportId == 0`.
+     * @note This convenience field is resolved to `templateTransportId`
+     * before serialization. Protocol Buffers transport carries only
+     * `templateTransportId`.
      */
     std::string templateId;
     /** @brief Optional generated transport id of the authored template used for creation. */
@@ -274,8 +305,15 @@ struct UpsertDynamicReticleCommand
  */
 struct DynamicReticleState
 {
-    /** @brief Public id of the dynamic reticle. */
+    /**
+     * @brief Optional local alias of the dynamic reticle.
+     *
+     * @note This field is kept only for local client-side convenience. The
+     * transport serializes `runtimeReticleId` instead.
+     */
     std::string reticleId;
+    /** @brief Runtime-scoped identifier of the dynamic reticle instance. */
+    RuntimeDynamicId runtimeReticleId = 0;
     /** @brief Properties applied to the target dynamic reticle. */
     ReticlePatch patch;
 };
@@ -288,7 +326,8 @@ struct UpsertDynamicReticlesCommand
     /**
      * @brief Target page receiving the dynamic reticles.
      *
-     * @note This legacy fallback is only serialized when `pageId == 0`.
+     * @note This convenience field is resolved to `pageId` before
+     * serialization. Protocol Buffers transport carries only `pageId`.
      */
     std::string page;
     /** @brief Optional generated transport id of the target page. */
@@ -296,8 +335,9 @@ struct UpsertDynamicReticlesCommand
     /**
      * @brief Template id used when missing reticles must be created.
      *
-     * @note This legacy fallback is only serialized when
-     * `templateTransportId == 0`.
+     * @note This convenience field is resolved to `templateTransportId`
+     * before serialization. Protocol Buffers transport carries only
+     * `templateTransportId`.
      */
     std::string templateId;
     /** @brief Optional generated transport id of the authored template used for creation. */
@@ -314,7 +354,8 @@ struct SetDynamicReticleSetVisibilityCommand
     /**
      * @brief Target page receiving the dynamic reticles.
      *
-     * @note This legacy fallback is only serialized when `pageId == 0`.
+     * @note This convenience field is resolved to `pageId` before
+     * serialization. Protocol Buffers transport carries only `pageId`.
      */
     std::string page;
     /** @brief Optional generated transport id of the target page. */
@@ -322,8 +363,9 @@ struct SetDynamicReticleSetVisibilityCommand
     /**
      * @brief Dynamic reticle template id defining the set.
      *
-     * @note This legacy fallback is only serialized when
-     * `templateTransportId == 0`.
+     * @note This convenience field is resolved to `templateTransportId`
+     * before serialization. Protocol Buffers transport carries only
+     * `templateTransportId`.
      */
     std::string templateId;
     /** @brief Optional generated transport id of the authored template defining the set. */
@@ -337,8 +379,8 @@ struct SetDynamicReticleSetVisibilityCommand
  */
 struct RemoveDynamicReticleCommand
 {
-    /** @brief Target dynamic reticle identified by page name and reticle id. */
-    ReticleHandle target;
+    /** @brief Target dynamic reticle identified by page and runtime instance id. */
+    DynamicReticleHandle target;
 };
 
 /**

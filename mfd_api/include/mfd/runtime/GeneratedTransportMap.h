@@ -22,6 +22,14 @@ namespace mfd
 {
 /** @brief Stable transport identifier emitted by the generator. */
 using TransportId = std::uint64_t;
+/**
+ * @brief Runtime-scoped identifier of one dynamic reticle instance.
+ *
+ * @note This identifier is distinct from `TransportId`:
+ * `TransportId` addresses authored fixed objects emitted by the generator,
+ * while `RuntimeDynamicId` addresses one runtime-created dynamic instance.
+ */
+using RuntimeDynamicId = std::uint64_t;
 
 /** @brief Ownership scope of one primitive entry inside the generated transport map. */
 enum class TransportPrimitiveOwnerKind

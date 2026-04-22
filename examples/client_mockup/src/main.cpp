@@ -1048,8 +1048,13 @@ void MockupApplication::RecreateClient()
         SetStatus("No UDP command transport is configured in the selected window JSON.", true);
         return;
     }
+    if (!loaded_.generatedTransportMap.has_value())
+    {
+        SetStatus("No generated transport map was found next to the selected window JSON.", true);
+        return;
+    }
 
-    client_ = std::make_unique<mfd::CommandClient>(loaded_.window.commandTransports);
+    client_ = std::make_unique<mfd::CommandClient>(loaded_.window.commandTransports, loaded_.generatedTransportMap);
 
     if (client_ == nullptr || !client_->IsReady())
     {

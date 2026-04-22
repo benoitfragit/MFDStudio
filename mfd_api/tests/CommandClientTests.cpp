@@ -68,6 +68,21 @@ private:
     std::string lastError_ {};
     std::vector<std::vector<std::byte>> sentPayloads_ {};
 };
+
+mfd::GeneratedTransportMap MakeTransportMap()
+{
+    mfd::GeneratedTransportMap map;
+    map.mappingHash = "map_hash";
+    map.pages.push_back({11U, "Radar", "radar", true, false});
+    map.reticles.push_back({22U, 11U, "heading_box", "heading_box", "static"});
+    map.primitives.push_back(
+        {33U, mfd::TransportPrimitiveOwnerKind::Reticle, 22U, "heading_value", "heading_value", "text", true});
+    map.templates.push_back({55U, "radar_track", "radar_track"});
+    map.primitives.push_back(
+        {66U, mfd::TransportPrimitiveOwnerKind::Template, 55U, "track_label", "track_label", "text", true});
+    map.blinkTypes.push_back({44U, 11U, "slow", "slow", 750U});
+    return map;
+}
 } // namespace
 
 TEST(CommandClientTests, ResetWindowHelperSendsResetWindowCommand)
@@ -137,4 +152,86 @@ TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesGeneratedIdentifiers)
         EXPECT_EQ(splitCommand->templateTransportId, 77U);
         EXPECT_FALSE(splitCommand->reticles.empty());
     }
+}
+
+TEST(CommandClientTests, NameBasedStaticHelpersResolveThroughConfiguredTransportMap)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::ReticlePatch patch;
+    patch.blinkType = "slow";
+    patch.texts.emplace("heading_value", "123");
+
+    ASSERT_TRUE(client.UpdateReticle("Radar", "heading_box", patch)) << client.LastError();
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 1U);
+
+    const std::vector<std::byte>& payloadBytes = rawChannel->SentPayloads().front();
+    const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
+    const auto batch = mfd::DeserializeCommandBatch(payload);
+
+    ASSERT_TRUE(batch.has_value());
+    EXPECT_EQ(batch->mappingHash, "map_hash");
+    ASSERT_EQ(batch->commands.size(), 1U);
+
+    const auto* command = std::get_if<mfd::UpdateReticleCommand>(&batch->commands.front());
+    ASSERT_NE(command, nullptr);
+    EXPECT_EQ(command->target.pageId, 11U);
+    EXPECT_EQ(command->target.reticleId, 22U);
+    EXPECT_TRUE(command->target.page.empty());
+    EXPECT_TRUE(command->target.reticle.empty());
+    EXPECT_EQ(command->patch.blinkTypeId, 44U);
+    EXPECT_TRUE(command->patch.texts.empty());
+    EXPECT_EQ(command->patch.textsById.size(), 1U);
+    EXPECT_EQ(command->patch.textsById.at(33U), "123");
+}
+
+TEST(CommandClientTests, DynamicHelpersDeriveStableHiddenRuntimeIdWhenTransportMapIsConfigured)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::ReticlePatch patch;
+    patch.text = "T42";
+
+    ASSERT_TRUE(client.UpsertDynamicReticle("Radar", "track_042", "radar_track", patch)) << client.LastError();
+    ASSERT_TRUE(client.RemoveDynamicReticle("Radar", "track_042")) << client.LastError();
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 2U);
+
+    auto decodeBatch = [](const std::vector<std::byte>& payloadBytes)
+    {
+        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
+        return mfd::DeserializeCommandBatch(payload);
+    };
+
+    const auto upsertBatch = decodeBatch(rawChannel->SentPayloads().front());
+    ASSERT_TRUE(upsertBatch.has_value());
+    EXPECT_EQ(upsertBatch->mappingHash, "map_hash");
+    ASSERT_EQ(upsertBatch->commands.size(), 1U);
+
+    const auto* upsertCommand = std::get_if<mfd::UpsertDynamicReticleCommand>(&upsertBatch->commands.front());
+    ASSERT_NE(upsertCommand, nullptr);
+    EXPECT_EQ(upsertCommand->target.pageId, 11U);
+    EXPECT_EQ(upsertCommand->templateTransportId, 55U);
+    EXPECT_NE(upsertCommand->target.runtimeReticleId, 0U);
+    EXPECT_TRUE(upsertCommand->target.page.empty());
+    EXPECT_TRUE(upsertCommand->target.reticleId.empty());
+
+    const auto removeBatch = decodeBatch(rawChannel->SentPayloads().back());
+    ASSERT_TRUE(removeBatch.has_value());
+    EXPECT_EQ(removeBatch->mappingHash, "map_hash");
+    ASSERT_EQ(removeBatch->commands.size(), 1U);
+
+    const auto* removeCommand = std::get_if<mfd::RemoveDynamicReticleCommand>(&removeBatch->commands.front());
+    ASSERT_NE(removeCommand, nullptr);
+    EXPECT_EQ(removeCommand->target.pageId, 11U);
+    EXPECT_EQ(removeCommand->target.runtimeReticleId, upsertCommand->target.runtimeReticleId);
+    EXPECT_TRUE(removeCommand->target.page.empty());
+    EXPECT_TRUE(removeCommand->target.reticleId.empty());
 }

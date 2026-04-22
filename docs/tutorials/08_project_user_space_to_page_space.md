@@ -189,7 +189,10 @@ for (const TrackSample& track : tracks)
     patch.thickness = 0.004f;
     patch.text = track.label;
 
-    states.push_back(mfd::DynamicReticleState {track.id, std::move(patch)});
+    mfd::DynamicReticleState state;
+    state.reticleId = track.id;
+    state.patch = std::move(patch);
+    states.push_back(std::move(state));
 }
 
 client.UpsertDynamicReticles("AircraftCentric", "radar_track", states);

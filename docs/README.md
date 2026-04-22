@@ -77,4 +77,5 @@ That sequence gives you:
 - treating page coordinates as pixels instead of logical `[-1, 1]` space
 - confusing reticle templates with page reticle instances
 - trying to use UDP commands before validating the target window and port
+- forgetting the companion `.generated.map` when using raw name-based `CommandClient` helpers
 - using the low-level API first when the mockup or generated client path would explain the workflow faster

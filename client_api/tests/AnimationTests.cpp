@@ -283,7 +283,7 @@ TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingRe
     const auto* remove = std::get_if<mfd::RemoveDynamicReticleCommand>(&commands[0]);
     ASSERT_NE(remove, nullptr);
     EXPECT_EQ(remove->target.page, "Radar");
-    EXPECT_EQ(remove->target.reticle, "bravo");
+    EXPECT_EQ(remove->target.reticleId, "bravo");
 
     const auto* updateBatch = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands[1]);
     ASSERT_NE(updateBatch, nullptr);
@@ -369,7 +369,8 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     ASSERT_NE(remove, nullptr);
     EXPECT_EQ(remove->target.page, "Radar");
     EXPECT_EQ(remove->target.pageId, 11U);
-    EXPECT_FALSE(remove->target.reticle.empty());
+    EXPECT_FALSE(remove->target.reticleId.empty());
+    EXPECT_NE(remove->target.runtimeReticleId, 0U);
 }
 
 TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownRemoval)
@@ -386,7 +387,7 @@ TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownR
     ASSERT_EQ(commands.size(), 1U);
     const auto* remove = std::get_if<mfd::RemoveDynamicReticleCommand>(&commands.front());
     ASSERT_NE(remove, nullptr);
-    EXPECT_EQ(remove->target.reticle, "shutdown");
+    EXPECT_EQ(remove->target.reticleId, "shutdown");
 
     mfd::client::WindowDisplay display;
     display.SetColorInverted(true);
@@ -630,7 +631,7 @@ TEST(AnimationTests, DynamicReticleSetResetThenNoUpsertProducesRemoval)
     ASSERT_EQ(commands.size(), 1U);
     const auto* remove = std::get_if<mfd::RemoveDynamicReticleCommand>(&commands.front());
     ASSERT_NE(remove, nullptr);
-    EXPECT_EQ(remove->target.reticle, "trk_09");
+    EXPECT_EQ(remove->target.reticleId, "trk_09");
 }
 
 /**

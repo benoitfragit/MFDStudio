@@ -11,13 +11,17 @@
 #include "mfd/client/Animation.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
+#include <random>
 #include <utility>
 
 namespace mfd::client
 {
 namespace
 {
+constexpr mfd::RuntimeDynamicId kGeneratedDynamicRuntimeIdBit = mfd::RuntimeDynamicId {1} << 63U;
+
 bool Equal(const mfd::Vec2& lhs, const mfd::Vec2& rhs) noexcept
 {
     return lhs.x == rhs.x && lhs.y == rhs.y;
@@ -799,7 +803,7 @@ bool Reticle::AppendCommands(std::vector<mfd::UserCommand>& commands)
     }
 
     mfd::UpdateReticleCommand command;
-    command.target = mfd::ReticleHandle {pageName_, reticleId_, pageTransportId_, reticleTransportId_};
+    command.target = mfd::StaticReticleHandle {pageName_, reticleId_, pageTransportId_, reticleTransportId_};
     command.patch = BuildDeltaPatch(desiredPatch_, lastSentPatch_);
     PopulateGeneratedIdentifiers(command);
     commands.emplace_back(std::move(command));
@@ -1093,6 +1097,7 @@ DynamicReticle& GeneratedDynamicReticleSet::Create()
 {
     DynamicEntry entry;
     entry.reticle = CreateReticle(NextReticleId());
+    entry.reticle->runtimeReticleId_ = NextRuntimeReticleId();
     reticles_.push_back(std::move(entry));
     return *reticles_.back().reticle;
 }
@@ -1133,7 +1138,11 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
             if (reticle.published_)
             {
                 commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-                    mfd::ReticleHandle {pageName_, reticle.reticleId_, pageTransportId_, 0}});
+                    mfd::DynamicReticleHandle {
+                        pageName_,
+                        reticle.reticleId_,
+                        pageTransportId_,
+                        reticle.runtimeReticleId_}});
                 reticle.published_ = false;
                 ++count;
             }
@@ -1144,7 +1153,8 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
         {
             mfd::ReticlePatch patch = reticle.desiredPatch_;
             reticle.PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
-            updates.push_back(mfd::DynamicReticleState {reticle.reticleId_, std::move(patch)});
+            updates.push_back(
+                mfd::DynamicReticleState {reticle.reticleId_, reticle.runtimeReticleId_, std::move(patch)});
             reticle.lastSentPatch_ = reticle.desiredPatch_;
             reticle.published_ = true;
             ++count;
@@ -1155,7 +1165,8 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
         {
             mfd::ReticlePatch patch = BuildDeltaPatch(reticle.desiredPatch_, reticle.lastSentPatch_);
             reticle.PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
-            updates.push_back(mfd::DynamicReticleState {reticle.reticleId_, std::move(patch)});
+            updates.push_back(
+                mfd::DynamicReticleState {reticle.reticleId_, reticle.runtimeReticleId_, std::move(patch)});
             reticle.lastSentPatch_ = reticle.desiredPatch_;
             ++count;
         }
@@ -1200,7 +1211,11 @@ std::size_t GeneratedDynamicReticleSet::AppendRemovalCommands(std::vector<mfd::U
         }
 
         commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-            mfd::ReticleHandle {pageName_, reticle.reticleId_, pageTransportId_, 0}});
+            mfd::DynamicReticleHandle {
+                pageName_,
+                reticle.reticleId_,
+                pageTransportId_,
+                reticle.runtimeReticleId_}});
         reticle.published_ = false;
         ++count;
     }
@@ -1212,6 +1227,24 @@ std::size_t GeneratedDynamicReticleSet::AppendRemovalCommands(std::vector<mfd::U
 std::string GeneratedDynamicReticleSet::NextReticleId()
 {
     return "__generated_dynamic_" + std::to_string(nextReticleSequence_++);
+}
+
+mfd::RuntimeDynamicId GeneratedDynamicReticleSet::NextRuntimeReticleId()
+{
+    if (runtimeIdSessionNonce_ == 0)
+    {
+        std::random_device device;
+        runtimeIdSessionNonce_ = device();
+        if (runtimeIdSessionNonce_ == 0)
+        {
+            runtimeIdSessionNonce_ = 1U;
+        }
+    }
+
+    const mfd::RuntimeDynamicId sequence = static_cast<mfd::RuntimeDynamicId>(nextReticleSequence_ - 1U);
+    return kGeneratedDynamicRuntimeIdBit |
+           (static_cast<mfd::RuntimeDynamicId>(runtimeIdSessionNonce_) << 32U) |
+           (sequence & 0xFFFFFFFFull);
 }
 
 GeneratedDynamicReticleSet::DynamicEntry* GeneratedDynamicReticleSet::FindEntry(const DynamicReticle& reticle) noexcept
@@ -1291,7 +1324,8 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
             {
                 mfd::ReticlePatch patch = reticle->desiredPatch_;
                 reticle->PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
-                updates.push_back(mfd::DynamicReticleState {reticle->reticleId_, std::move(patch)});
+                updates.push_back(
+                    mfd::DynamicReticleState {reticle->reticleId_, reticle->runtimeReticleId_, std::move(patch)});
                 reticle->lastSentPatch_ = reticle->desiredPatch_;
                 ++count;
             }
@@ -1301,6 +1335,7 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
                 reticle->PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
                 updates.push_back(mfd::DynamicReticleState {
                     reticle->reticleId_,
+                    reticle->runtimeReticleId_,
                     std::move(patch)});
                 reticle->lastSentPatch_ = reticle->desiredPatch_;
                 ++count;
@@ -1316,7 +1351,11 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
         }
 
         commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-            mfd::ReticleHandle {pageName_, reticle->reticleId_, pageTransportId_, 0}});
+            mfd::DynamicReticleHandle {
+                pageName_,
+                reticle->reticleId_,
+                pageTransportId_,
+                reticle->runtimeReticleId_}});
         reticle->published_ = false;
         ++count;
     }
@@ -1348,7 +1387,11 @@ std::size_t DynamicReticleSet::AppendRemovalCommands(std::vector<mfd::UserComman
         }
 
         commands.emplace_back(mfd::RemoveDynamicReticleCommand {
-            mfd::ReticleHandle {pageName_, reticle->reticleId_, pageTransportId_, 0}});
+            mfd::DynamicReticleHandle {
+                pageName_,
+                reticle->reticleId_,
+                pageTransportId_,
+                reticle->runtimeReticleId_}});
         reticle->published_ = false;
         ++count;
     }

@@ -11,9 +11,11 @@
  */
 
 #include <memory>
+#include <optional>
 #include "mfd/core/ArrayView.h"
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "mfd/MfdExport.h"
@@ -37,20 +39,29 @@ public:
     /**
      * @brief Creates a client from an already constructed exchange channel.
      * @param channel Concrete transport channel.
+     * @param transportMap Optional generated transport map used to resolve
+     * named authored identifiers before serialization.
      */
-    explicit CommandClient(std::unique_ptr<IExchangeChannel> channel);
+    explicit CommandClient(std::unique_ptr<IExchangeChannel> channel,
+                           std::optional<GeneratedTransportMap> transportMap = std::nullopt);
 
     /**
      * @brief Creates a client from a window transport configuration.
      * @param config Window transport configuration.
+     * @param transportMap Optional generated transport map used to resolve
+     * named authored identifiers before serialization.
      */
-    CommandClient(const WindowCommandTransportConfig& config);
+    CommandClient(const WindowCommandTransportConfig& config,
+                  std::optional<GeneratedTransportMap> transportMap = std::nullopt);
 
     /**
      * @brief Creates a client using a UDP transport.
      * @param config UDP transport configuration.
+     * @param transportMap Optional generated transport map used to resolve
+     * named authored identifiers before serialization.
      */
-    CommandClient(const WindowUdpCommandTransport& config);
+    CommandClient(const WindowUdpCommandTransport& config,
+                  std::optional<GeneratedTransportMap> transportMap = std::nullopt);
 
     /**
      * @brief Indicates whether the underlying transport is ready.
@@ -191,10 +202,12 @@ public:
     bool ResetWindow();
 
 private:
+    bool NormalizeBatchForTransport(const CommandBatch& sourceBatch, CommandBatch& normalizedBatch);
     bool SendPayload(std::string_view payload);
     bool SendBatchedPayloads(const CommandBatch& batch);
 
     std::unique_ptr<IExchangeChannel> channel_ {};
+    std::optional<GeneratedTransportMap> transportMap_ {};
     std::size_t maxPayloadBytes_ = 4096;
     std::string lastError_ {};
 };

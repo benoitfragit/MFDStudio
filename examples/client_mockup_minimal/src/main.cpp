@@ -52,6 +52,8 @@ struct ExampleConfig
 {
     /** @brief UDP command transport consumed by the headless client. */
     mfd::WindowUdpCommandTransport transport {};
+    /** @brief Generated transport map used by the raw command helpers. */
+    mfd::GeneratedTransportMap generatedTransportMap {};
     /** @brief Authored page view re-applied during startup. */
     mfd::PageViewState cockpitView {};
 };
@@ -201,9 +203,14 @@ ExampleConfig LoadExampleConfig()
     {
         throw std::runtime_error("The cockpit window JSON does not expose an enabled UDP command transport");
     }
+    if (!loaded.generatedTransportMap.has_value())
+    {
+        throw std::runtime_error("The cockpit window JSON does not expose a generated transport map sidecar");
+    }
 
     ExampleConfig config;
     config.transport = *loaded.window.commandTransports.udp;
+    config.generatedTransportMap = *loaded.generatedTransportMap;
     config.cockpitView = cockpitPage->view;
     return config;
 }
@@ -436,7 +443,7 @@ int main()
 #endif
 
         const ExampleConfig config = LoadExampleConfig();
-        mfd::CommandClient client(config.transport);
+        mfd::CommandClient client(config.transport, config.generatedTransportMap);
         if (!client.IsReady())
         {
             throw std::runtime_error("Unable to create the cockpit UDP client: " + client.LastError());

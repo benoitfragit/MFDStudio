@@ -50,7 +50,7 @@ auto& tracks = ui.Radar().DynamicRadarTrack();
 std::vector<minimal_radar_ui::RadarTrackDynamicReticle*> activeTracks;
 ```
 
-`tracks` owns the hidden runtime identifiers internally.
+`tracks` owns the hidden runtime-scoped integer identifiers internally.
 
 Your application only keeps the returned typed handles.
 
@@ -110,7 +110,9 @@ runtime id.
 ## Step 7 - Keep the raw API only for explicit low-level work
 
 If you intentionally stay on raw `CommandClient`, the low-level API still
-exists:
+exists. In that case, construct `CommandClient` with the companion generated
+transport map so the authored page and template names are resolved locally
+before serialization:
 
 ```cpp
 mfd::ReticlePatch patch;
@@ -123,7 +125,8 @@ client.RemoveDynamicReticle("Radar", "track_42");
 ```
 
 That path is still valid for tooling or transitional code, but it is no longer
-the normal generated-client workflow.
+the normal generated-client workflow. The resulting protobuf payload still
+contains only page IDs, template IDs, and runtime dynamic ids.
 
 ## What You Should See
 

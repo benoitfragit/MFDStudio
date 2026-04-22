@@ -95,12 +95,18 @@ client.SetStrobeActive("Radar", true);
 client.SetStrobePosition("Radar", {0.15f, -0.08f});
 ```
 
+That raw helper path now assumes `CommandClient` was constructed with the
+companion generated transport map so `Radar` can be resolved locally to its
+transport ID before serialization.
+
 ## Step 4 - Understand magnetization
 
 If magnetization is enabled:
 
 - the requested position is the input command
 - the returned position is the actual resolved position
+- nearby dynamic reticles remain valid magnet targets even though their
+  runtime instance ids are hidden behind generated handles in user code
 
 So the feedback position may differ from the command position.
 

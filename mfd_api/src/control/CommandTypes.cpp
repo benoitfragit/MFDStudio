@@ -277,13 +277,14 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         target->set_blink_enabled(*patch.blinkEnabled);
     }
 
+    if (patch.blinkType.has_value() && !patch.blinkTypeId.has_value())
+    {
+        throw std::runtime_error("ReticlePatch serialization requires blinkTypeId when blinkType is set");
+    }
+
     if (patch.blinkTypeId.has_value())
     {
         target->set_blink_type_id(*patch.blinkTypeId);
-    }
-    else if (patch.blinkType.has_value())
-    {
-        target->set_blink_type(*patch.blinkType);
     }
 
     if (patch.position.has_value())
@@ -311,9 +312,9 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         target->set_text(*patch.text);
     }
 
-    for (const auto& [primitiveId, text] : patch.texts)
+    if (!patch.texts.empty())
     {
-        (*target->mutable_texts())[primitiveId] = text;
+        throw std::runtime_error("ReticlePatch serialization requires textsById instead of named texts");
     }
 
     for (const auto& [primitiveId, text] : patch.textsById)
@@ -326,9 +327,10 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         target->set_letter_spacing(*patch.letterSpacing);
     }
 
-    for (const auto& [primitiveId, spacing] : patch.letterSpacings)
+    if (!patch.letterSpacings.empty())
     {
-        (*target->mutable_letter_spacings())[primitiveId] = spacing;
+        throw std::runtime_error(
+            "ReticlePatch serialization requires letterSpacingsById instead of named letterSpacings");
     }
 
     for (const auto& [primitiveId, spacing] : patch.letterSpacingsById)
@@ -336,9 +338,10 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         (*target->mutable_letter_spacings_by_id())[primitiveId] = spacing;
     }
 
-    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
+    if (!patch.primitivePatches.empty())
     {
-        FillProtoPrimitivePatch(primitivePatch, &(*target->mutable_primitive_patches())[primitiveId]);
+        throw std::runtime_error(
+            "ReticlePatch serialization requires primitivePatchesById instead of named primitivePatches");
     }
 
     for (const auto& [primitiveId, primitivePatch] : patch.primitivePatchesById)
@@ -359,11 +362,6 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
     if (value.has_blink_enabled())
     {
         patch.blinkEnabled = value.blink_enabled();
-    }
-
-    if (value.has_blink_type())
-    {
-        patch.blinkType = value.blink_type();
     }
 
     if (value.has_blink_type_id())
@@ -396,11 +394,6 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
         patch.text = value.text();
     }
 
-    for (const auto& [primitiveId, text] : value.texts())
-    {
-        patch.texts.emplace(primitiveId, text);
-    }
-
     for (const auto& [primitiveId, text] : value.texts_by_id())
     {
         patch.textsById.emplace(primitiveId, text);
@@ -411,19 +404,9 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
         patch.letterSpacing = value.letter_spacing();
     }
 
-    for (const auto& [primitiveId, spacing] : value.letter_spacings())
-    {
-        patch.letterSpacings.emplace(primitiveId, spacing);
-    }
-
     for (const auto& [primitiveId, spacing] : value.letter_spacings_by_id())
     {
         patch.letterSpacingsById.emplace(primitiveId, spacing);
-    }
-
-    for (const auto& [primitiveId, primitivePatch] : value.primitive_patches())
-    {
-        patch.primitivePatches.emplace(primitiveId, FromProtoPrimitivePatch(primitivePatch));
     }
 
     for (const auto& [primitiveId, primitivePatch] : value.primitive_patches_by_id())
@@ -434,47 +417,59 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
     return patch;
 }
 
-void FillProtoHandle(const ReticleHandle& handle, pb::ReticleHandle* target)
+void FillProtoStaticHandle(const StaticReticleHandle& handle, pb::StaticReticleHandle* target)
 {
-    if (handle.pageId != 0)
+    if (handle.pageId == 0 || handle.reticleId == 0)
     {
-        target->set_page_id(handle.pageId);
-    }
-    else if (!handle.page.empty())
-    {
-        target->set_page(handle.page);
+        throw std::runtime_error("Static reticle serialization requires generated pageId and reticleId");
     }
 
-    if (handle.reticleId != 0)
-    {
-        target->set_reticle_id(handle.reticleId);
-    }
-    else if (!handle.reticle.empty())
-    {
-        target->set_reticle(handle.reticle);
-    }
+    target->set_page_id(handle.pageId);
+    target->set_reticle_id(handle.reticleId);
 }
 
-ReticleHandle FromProtoHandle(const pb::ReticleHandle& value)
+StaticReticleHandle FromProtoStaticHandle(const pb::StaticReticleHandle& value)
 {
-    ReticleHandle handle;
-    handle.page = value.page();
-    handle.reticle = value.reticle();
+    StaticReticleHandle handle;
     handle.pageId = value.page_id();
     handle.reticleId = value.reticle_id();
     return handle;
 }
 
+void FillProtoDynamicHandle(const DynamicReticleHandle& handle, pb::DynamicReticleHandle* target)
+{
+    if (handle.pageId == 0 || handle.runtimeReticleId == 0)
+    {
+        throw std::runtime_error("Dynamic reticle serialization requires generated pageId and runtimeReticleId");
+    }
+
+    target->set_page_id(handle.pageId);
+    target->set_runtime_reticle_id(handle.runtimeReticleId);
+}
+
+DynamicReticleHandle FromProtoDynamicHandle(const pb::DynamicReticleHandle& value)
+{
+    DynamicReticleHandle handle;
+    handle.pageId = value.page_id();
+    handle.runtimeReticleId = value.runtime_reticle_id();
+    return handle;
+}
+
 void FillProtoDynamicReticleState(const DynamicReticleState& state, pb::DynamicReticleState* target)
 {
-    target->set_reticle(state.reticleId);
+    if (state.runtimeReticleId == 0)
+    {
+        throw std::runtime_error("Dynamic reticle serialization requires runtimeReticleId");
+    }
+
+    target->set_runtime_reticle_id(state.runtimeReticleId);
     FillProtoReticlePatch(state.patch, target->mutable_patch());
 }
 
 DynamicReticleState FromProtoDynamicReticleState(const pb::DynamicReticleState& value)
 {
     DynamicReticleState state;
-    state.reticleId = value.reticle();
+    state.runtimeReticleId = value.runtime_reticle_id();
     if (value.has_patch())
     {
         state.patch = FromProtoReticlePatch(value.patch());
@@ -492,28 +487,24 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             if constexpr (std::is_same_v<Command, ActivatePageCommand>)
             {
                 auto* message = target->mutable_activate_page();
-                if (value.pageId != 0)
+                if (value.pageId == 0)
                 {
-                    message->set_page_id(value.pageId);
+                    throw std::runtime_error("ActivatePageCommand serialization requires generated pageId");
                 }
-                else if (!value.page.empty())
-                {
-                    message->set_page(value.page);
-                }
+
+                message->set_page_id(value.pageId);
             }
             else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
             {
                 auto* message = target->mutable_set_page_view();
                 FillProtoVec2(value.view.center, message->mutable_center());
                 message->set_zoom(value.view.zoom);
-                if (value.pageId != 0)
+                if (value.pageId == 0)
                 {
-                    message->set_page_id(value.pageId);
+                    throw std::runtime_error("SetPageViewCommand serialization requires generated pageId");
                 }
-                else if (!value.page.empty())
-                {
-                    message->set_page(value.page);
-                }
+
+                message->set_page_id(value.pageId);
             }
             else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand>)
             {
@@ -522,20 +513,18 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
             {
                 auto* message = target->mutable_update_reticle();
-                FillProtoHandle(value.target, message->mutable_target());
+                FillProtoStaticHandle(value.target, message->mutable_target());
                 FillProtoReticlePatch(value.patch, message->mutable_patch());
             }
             else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
             {
                 auto* message = target->mutable_update_strobe();
-                if (value.pageId != 0)
+                if (value.pageId == 0)
                 {
-                    message->set_page_id(value.pageId);
+                    throw std::runtime_error("UpdateStrobeCommand serialization requires generated pageId");
                 }
-                else if (!value.page.empty())
-                {
-                    message->set_page(value.page);
-                }
+
+                message->set_page_id(value.pageId);
 
                 if (value.active.has_value())
                 {
@@ -550,37 +539,33 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
             {
                 auto* message = target->mutable_upsert_dynamic_reticle();
-                FillProtoHandle(value.target, message->mutable_target());
+                FillProtoDynamicHandle(value.target, message->mutable_target());
                 FillProtoReticlePatch(value.patch, message->mutable_patch());
-                if (value.templateTransportId != 0)
+                if (value.templateTransportId == 0)
                 {
-                    message->set_template_transport_id(value.templateTransportId);
+                    throw std::runtime_error(
+                        "UpsertDynamicReticleCommand serialization requires templateTransportId");
                 }
-                else if (!value.templateId.empty())
-                {
-                    message->set_template_id(value.templateId);
-                }
+
+                message->set_template_transport_id(value.templateTransportId);
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
             {
                 auto* message = target->mutable_upsert_dynamic_reticles();
-                if (value.pageId != 0)
+                if (value.pageId == 0)
                 {
-                    message->set_page_id(value.pageId);
-                }
-                else if (!value.page.empty())
-                {
-                    message->set_page(value.page);
+                    throw std::runtime_error(
+                        "UpsertDynamicReticlesCommand serialization requires generated pageId");
                 }
 
-                if (value.templateTransportId != 0)
+                if (value.templateTransportId == 0)
                 {
-                    message->set_template_transport_id(value.templateTransportId);
+                    throw std::runtime_error(
+                        "UpsertDynamicReticlesCommand serialization requires templateTransportId");
                 }
-                else if (!value.templateId.empty())
-                {
-                    message->set_template_id(value.templateId);
-                }
+
+                message->set_page_id(value.pageId);
+                message->set_template_transport_id(value.templateTransportId);
 
                 for (const DynamicReticleState& reticle : value.reticles)
                 {
@@ -591,27 +576,24 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             {
                 auto* message = target->mutable_set_dynamic_reticle_set_visibility();
                 message->set_visible(value.visible);
-                if (value.pageId != 0)
+                if (value.pageId == 0)
                 {
-                    message->set_page_id(value.pageId);
-                }
-                else if (!value.page.empty())
-                {
-                    message->set_page(value.page);
+                    throw std::runtime_error(
+                        "SetDynamicReticleSetVisibilityCommand serialization requires generated pageId");
                 }
 
-                if (value.templateTransportId != 0)
+                if (value.templateTransportId == 0)
                 {
-                    message->set_template_transport_id(value.templateTransportId);
+                    throw std::runtime_error(
+                        "SetDynamicReticleSetVisibilityCommand serialization requires templateTransportId");
                 }
-                else if (!value.templateId.empty())
-                {
-                    message->set_template_id(value.templateId);
-                }
+
+                message->set_page_id(value.pageId);
+                message->set_template_transport_id(value.templateTransportId);
             }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
-                FillProtoHandle(value.target, target->mutable_remove_dynamic_reticle()->mutable_target());
+                FillProtoDynamicHandle(value.target, target->mutable_remove_dynamic_reticle()->mutable_target());
             }
             else if constexpr (std::is_same_v<Command, ResetWindowCommand>)
             {
@@ -632,7 +614,6 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     case pb::UserCommand::kActivatePage:
     {
         ActivatePageCommand command;
-        command.page = value.activate_page().page();
         command.pageId = value.activate_page().page_id();
         return command;
     }
@@ -640,7 +621,6 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     case pb::UserCommand::kSetPageView:
     {
         SetPageViewCommand command;
-        command.page = value.set_page_view().page();
         if (value.set_page_view().has_center())
         {
             command.view.center = FromProtoVec2(value.set_page_view().center());
@@ -663,7 +643,7 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     case pb::UserCommand::kUpdateReticle:
     {
         UpdateReticleCommand command;
-        command.target = FromProtoHandle(value.update_reticle().target());
+        command.target = FromProtoStaticHandle(value.update_reticle().target());
         if (value.update_reticle().has_patch())
         {
             command.patch = FromProtoReticlePatch(value.update_reticle().patch());
@@ -674,7 +654,6 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     case pb::UserCommand::kUpdateStrobe:
     {
         UpdateStrobeCommand command;
-        command.page = value.update_strobe().page();
         command.pageId = value.update_strobe().page_id();
         if (value.update_strobe().has_active())
         {
@@ -690,8 +669,7 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     case pb::UserCommand::kUpsertDynamicReticle:
     {
         UpsertDynamicReticleCommand command;
-        command.target = FromProtoHandle(value.upsert_dynamic_reticle().target());
-        command.templateId = value.upsert_dynamic_reticle().template_id();
+        command.target = FromProtoDynamicHandle(value.upsert_dynamic_reticle().target());
         command.templateTransportId = value.upsert_dynamic_reticle().template_transport_id();
         if (value.upsert_dynamic_reticle().has_patch())
         {
@@ -703,8 +681,6 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     case pb::UserCommand::kUpsertDynamicReticles:
     {
         UpsertDynamicReticlesCommand command;
-        command.page = value.upsert_dynamic_reticles().page();
-        command.templateId = value.upsert_dynamic_reticles().template_id();
         command.pageId = value.upsert_dynamic_reticles().page_id();
         command.templateTransportId = value.upsert_dynamic_reticles().template_transport_id();
         command.reticles.reserve(value.upsert_dynamic_reticles().reticles_size());
@@ -720,8 +696,6 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     case pb::UserCommand::kSetDynamicReticleSetVisibility:
     {
         SetDynamicReticleSetVisibilityCommand command;
-        command.page = value.set_dynamic_reticle_set_visibility().page();
-        command.templateId = value.set_dynamic_reticle_set_visibility().template_id();
         command.visible = value.set_dynamic_reticle_set_visibility().visible();
         command.pageId = value.set_dynamic_reticle_set_visibility().page_id();
         command.templateTransportId = value.set_dynamic_reticle_set_visibility().template_transport_id();
@@ -729,7 +703,7 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     }
 
     case pb::UserCommand::kRemoveDynamicReticle:
-        return RemoveDynamicReticleCommand {FromProtoHandle(value.remove_dynamic_reticle().target())};
+        return RemoveDynamicReticleCommand {FromProtoDynamicHandle(value.remove_dynamic_reticle().target())};
 
     case pb::UserCommand::kResetWindow:
         return ResetWindowCommand {};

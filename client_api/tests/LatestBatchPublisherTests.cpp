@@ -232,7 +232,8 @@ TEST(LatestBatchPublisherTests, PreservesPendingDynamicReticleLifecycleCommands)
 
     mfd::CommandBatch secondBatch;
     secondBatch.sequence = 2U;
-    secondBatch.commands.push_back(mfd::RemoveDynamicReticleCommand {mfd::ReticleHandle {"radar", "trk_01"}});
+    secondBatch.commands.push_back(
+        mfd::RemoveDynamicReticleCommand {mfd::DynamicReticleHandle {"radar", "trk_01"}});
     ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
 
     mfd::CommandBatch thirdBatch;
@@ -304,7 +305,8 @@ TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingS
 
     mfd::CommandBatch secondBatch;
     secondBatch.sequence = 2U;
-    secondBatch.commands.push_back(mfd::RemoveDynamicReticleCommand {mfd::ReticleHandle {"radar", "trk_02"}});
+    secondBatch.commands.push_back(
+        mfd::RemoveDynamicReticleCommand {mfd::DynamicReticleHandle {"radar", "trk_02"}});
     ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
 
     mfd::ReticlePatch patch;
@@ -312,7 +314,7 @@ TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingS
     mfd::CommandBatch thirdBatch;
     thirdBatch.sequence = 3U;
     mfd::UpsertDynamicReticleCommand command;
-    command.target = mfd::ReticleHandle {"radar", "trk_02"};
+    command.target = mfd::DynamicReticleHandle {"radar", "trk_02"};
     command.templateId = "radar_track";
     command.patch = patch;
     thirdBatch.commands.push_back(std::move(command));
@@ -383,6 +385,7 @@ TEST(LatestBatchPublisherTests, PreservesGeneratedIdentifiersWhenFlatteningBulkD
 
     mfd::DynamicReticleState state;
     state.reticleId = "trk_01";
+    state.runtimeReticleId = 9001U;
     state.patch = patch;
 
     mfd::CommandBatch secondBatch;
@@ -417,6 +420,7 @@ TEST(LatestBatchPublisherTests, PreservesGeneratedIdentifiersWhenFlatteningBulkD
     ASSERT_NE(upsert, nullptr);
     EXPECT_EQ(upsert->target.page, "radar");
     EXPECT_EQ(upsert->target.pageId, 11U);
+    EXPECT_EQ(upsert->target.runtimeReticleId, 9001U);
     EXPECT_EQ(upsert->templateId, "radar_track");
     EXPECT_EQ(upsert->templateTransportId, 77U);
 }

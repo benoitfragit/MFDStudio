@@ -315,12 +315,27 @@ generated client path must send only generated IDs on the wire for:
 - blink type targeting
 - exposed primitive targeting
 
-Legacy authored-name fields remain in `mfd_commands.proto` only as a fallback
-for raw low-level clients that still build commands by name. They are not part
-of the normal generated transport path anymore.
+The normal generated transport path no longer duplicates authored names in
+`mfd_commands.proto`.
 
-Dynamic runtime reticle instance IDs remain string-based because they are not
-fixed authored objects and therefore do not exist in the generated map.
+Raw low-level `CommandClient` helpers may still accept authored names for:
+
+- page selection
+- static reticle targeting
+- dynamic template targeting
+- blink type targeting
+- exposed primitive targeting
+
+That compatibility path is local only:
+
+- the client must load the companion `.generated.map`
+- the client resolves authored names to transport IDs before serialization
+- the serialized Protocol Buffers payload still carries only IDs plus
+  `mappingHash`
+
+Dynamic runtime reticle instances are not fixed authored objects, so they do
+not appear in the generated map. They travel on the wire through runtime-scoped
+integer ids allocated by the client layer and hidden from generated user code.
 
 ## Explicit Non-Goals
 

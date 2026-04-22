@@ -392,6 +392,7 @@ private:
     void PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, bool useGeneratedBlinkTypeId) const;
 
     std::string reticleId_;
+    mfd::RuntimeDynamicId runtimeReticleId_ = 0;
     std::unordered_map<std::string, mfd::TransportId> primitiveTransportIds_ {};
     mfd::ReticlePatch desiredPatch_ {};
     mfd::ReticlePatch lastSentPatch_ {};
@@ -438,6 +439,7 @@ private:
     };
 
     std::string NextReticleId();
+    mfd::RuntimeDynamicId NextRuntimeReticleId();
     DynamicEntry* FindEntry(const DynamicReticle& reticle) noexcept;
 
     std::string pageName_;
@@ -448,6 +450,7 @@ private:
     bool desiredVisible_ = true;
     bool lastSentVisible_ = true;
     bool visibilityDirty_ = false;
+    std::uint32_t runtimeIdSessionNonce_ = 0;
     std::uint64_t nextReticleSequence_ = 1;
 };
 

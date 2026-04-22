@@ -41,8 +41,12 @@ int mainImpl()
     {
         throw std::runtime_error("Tutorial window must expose an UDP command transport");
     }
+    if (!loaded.generatedTransportMap.has_value())
+    {
+        throw std::runtime_error("Tutorial window must expose a generated transport map next to the JSON file");
+    }
 
-    mfd::CommandClient client(*loaded.window.commandTransports.udp);
+    mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
     if (!client.IsReady())
     {
         throw std::runtime_error("Unable to initialize command client: " + client.LastError());

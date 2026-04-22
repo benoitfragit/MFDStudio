@@ -21,13 +21,17 @@ flowchart LR
     C --> D[Reticles updated in real time]
 ```
 
-The external client only needs:
+The external client always needs:
 
 - the UDP address and port
-- the page name
-- the reticle ids
+- one transport-compatible way to address authored objects
 
-It does **not** need to load the window JSON.
+That can be either:
+
+- generated bindings
+- raw transport IDs already known by your application
+- or the companion `.generated.map` loaded locally so raw name-based
+  `CommandClient` helpers can resolve authored names before serialization
 
 This is the key idea:
 
@@ -61,14 +65,17 @@ Your external client can use those values directly.
 
 ```cpp
 #include "mfd/control/CommandClient.h"
+#include "mfd/io/JsonLoader.h"
 
-mfd::WindowUdpCommandTransport transport;
-transport.enabled = true;
-transport.address = "127.0.0.1";
-transport.port = 47220;
-transport.maxPacketSize = 16384;
+mfd::JsonLoader loader;
+const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages.json");
 
-mfd::CommandClient client(transport);
+if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
+{
+    return 1;
+}
+
+mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
 ```
 
 Recommended first check:
@@ -79,6 +86,9 @@ if (!client.IsReady())
     // Log client.LastError() and abort or retry.
 }
 ```
+
+If your application already knows transport IDs and `mappingHash`, it can skip
+JSON loading entirely and send typed id-based commands directly.
 
 ## Step 3 - Activate a page once
 
@@ -166,7 +176,7 @@ If several reticles must update together, prefer a batch:
 std::vector<mfd::UserCommand> commands;
 
 commands.push_back(mfd::UpdateReticleCommand {
-    mfd::ReticleHandle {"Radar", "track_a"},
+    mfd::StaticReticleHandle {"Radar", "track_a"},
     mfd::ReticlePatch {.position = mfd::Vec2 {-0.20f, 0.15f},
                        .blinkEnabled = true,
                        .blinkType = std::string {"caution"},
@@ -174,7 +184,7 @@ commands.push_back(mfd::UpdateReticleCommand {
                        .visible = true}});
 
 commands.push_back(mfd::UpdateReticleCommand {
-    mfd::ReticleHandle {"Radar", "track_b"},
+    mfd::StaticReticleHandle {"Radar", "track_b"},
     mfd::ReticlePatch {.position = mfd::Vec2 {0.32f, -0.10f},
                        .blinkEnabled = true,
                        .blinkType = std::string {"fast"},
@@ -224,13 +234,21 @@ for (const Track& track : tracks)
     patch.color = track.color;
     patch.text = track.label;
 
-    reticles.push_back(mfd::DynamicReticleState {track.id, std::move(patch)});
+    mfd::DynamicReticleState state;
+    state.reticleId = track.id;
+    state.patch = std::move(patch);
+    reticles.push_back(std::move(state));
 }
 
 client.UpsertDynamicReticles("Radar", "radar_track", reticles);
 ```
 
 This is the same public pattern as the mockup radar simulator.
+
+On the wire, those dynamic instance ids are serialized as runtime-scoped
+integers. Raw helper methods still let you call them by name because
+`CommandClient` resolves the local names before serialization when it owns the
+generated transport map.
 
 ## Step 8 - Know what the client API controls
 
