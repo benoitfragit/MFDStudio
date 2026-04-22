@@ -491,7 +491,8 @@ client.UpsertDynamicReticles("Radar", "radar_track", tracks);
 ```
 
 `CommandClient` automatically splits oversized batches according to the
-configured UDP packet size.
+configured UDP packet size while preserving `mappingHash` and generated
+transport ids already embedded in the batch.
 
 For a full runtime reset, a client can also request:
 

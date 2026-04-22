@@ -106,7 +106,9 @@ std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand&
 
                         UpsertDynamicReticlesCommand candidate;
                         candidate.page = value.page;
+                        candidate.pageId = value.pageId;
                         candidate.templateId = value.templateId;
+                        candidate.templateTransportId = value.templateTransportId;
                         candidate.reticles.assign(value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex),
                                                   value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + middle));
 
@@ -146,7 +148,9 @@ std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand&
 
                     UpsertDynamicReticlesCommand chunk;
                     chunk.page = value.page;
+                    chunk.pageId = value.pageId;
                     chunk.templateId = value.templateId;
+                    chunk.templateTransportId = value.templateTransportId;
                     chunk.reticles.assign(value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex),
                                           value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + bestCount));
                     splitCommands.emplace_back(std::move(chunk));

@@ -88,3 +88,53 @@ TEST(CommandClientTests, ResetWindowHelperSendsResetWindowCommand)
     ASSERT_TRUE(command.has_value());
     EXPECT_NE(std::get_if<mfd::ResetWindowCommand>(&*command), nullptr);
 }
+
+TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesGeneratedIdentifiers)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::UpsertDynamicReticlesCommand command;
+    command.page = "Radar";
+    command.pageId = 11U;
+    command.templateId = "radar_track";
+    command.templateTransportId = 77U;
+
+    for (std::size_t index = 0; index < 24U; ++index)
+    {
+        mfd::DynamicReticleState state;
+        state.reticleId = "track_" + std::to_string(index);
+        state.patch.text = std::string(256U, static_cast<char>('A' + (index % 26U)));
+        command.reticles.push_back(std::move(state));
+    }
+
+    mfd::CommandBatch batch;
+    batch.sequence = 42U;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(command);
+
+    ASSERT_TRUE(client.SendBatch(batch));
+    ASSERT_GT(rawChannel->SentPayloads().size(), 1U);
+
+    for (const std::vector<std::byte>& payloadBytes : rawChannel->SentPayloads())
+    {
+        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
+        const auto decodedBatch = mfd::DeserializeCommandBatch(payload);
+
+        ASSERT_TRUE(decodedBatch.has_value());
+        EXPECT_EQ(decodedBatch->sequence, 42U);
+        EXPECT_EQ(decodedBatch->mappingHash, "map_hash");
+        ASSERT_EQ(decodedBatch->commands.size(), 1U);
+
+        const auto* splitCommand = std::get_if<mfd::UpsertDynamicReticlesCommand>(&decodedBatch->commands.front());
+        ASSERT_NE(splitCommand, nullptr);
+        EXPECT_EQ(splitCommand->page, "Radar");
+        EXPECT_EQ(splitCommand->pageId, 11U);
+        EXPECT_EQ(splitCommand->templateId, "radar_track");
+        EXPECT_EQ(splitCommand->templateTransportId, 77U);
+        EXPECT_FALSE(splitCommand->reticles.empty());
+    }
+}

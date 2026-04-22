@@ -171,7 +171,8 @@ public:
      *
      * @note The client automatically splits this bulk command into several UDP
      * Protocol Buffers payloads when the serialized packet would exceed the
-     * configured `maxPacketSize`.
+     * configured `maxPacketSize`, while preserving `CommandBatch::mappingHash`
+     * and any generated transport ids already present in the command.
      */
     bool UpsertDynamicReticles(std::string_view page,
                                std::string_view templateId,
