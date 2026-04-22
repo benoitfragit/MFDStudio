@@ -235,3 +235,134 @@ TEST(CommandClientTests, DynamicHelpersDeriveStableHiddenRuntimeIdWhenTransportM
     EXPECT_TRUE(removeCommand->target.page.empty());
     EXPECT_TRUE(removeCommand->target.reticleId.empty());
 }
+
+TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTransportMapIsConfigured)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    ASSERT_TRUE(client.IsReady());
+
+    ASSERT_TRUE(client.ActivatePage("Radar")) << client.LastError();
+    ASSERT_TRUE(client.SetPageView("Radar", {0.25f, -0.5f}, 1.75f)) << client.LastError();
+    ASSERT_TRUE(client.SetStrobeActive("Radar", true)) << client.LastError();
+    ASSERT_TRUE(client.SetStrobePosition("Radar", {0.1f, -0.2f})) << client.LastError();
+    ASSERT_TRUE(client.SetDynamicReticleSetVisible("Radar", "radar_track", false)) << client.LastError();
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 5U);
+
+    auto decodeBatch = [](const std::vector<std::byte>& payloadBytes)
+    {
+        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
+        return mfd::DeserializeCommandBatch(payload);
+    };
+
+    const auto activateBatch = decodeBatch(rawChannel->SentPayloads()[0]);
+    ASSERT_TRUE(activateBatch.has_value());
+    EXPECT_EQ(activateBatch->mappingHash, "map_hash");
+    const auto* activate = std::get_if<mfd::ActivatePageCommand>(&activateBatch->commands.front());
+    ASSERT_NE(activate, nullptr);
+    EXPECT_EQ(activate->pageId, 11U);
+    EXPECT_TRUE(activate->page.empty());
+
+    const auto pageViewBatch = decodeBatch(rawChannel->SentPayloads()[1]);
+    ASSERT_TRUE(pageViewBatch.has_value());
+    EXPECT_EQ(pageViewBatch->mappingHash, "map_hash");
+    const auto* pageView = std::get_if<mfd::SetPageViewCommand>(&pageViewBatch->commands.front());
+    ASSERT_NE(pageView, nullptr);
+    EXPECT_EQ(pageView->pageId, 11U);
+    EXPECT_TRUE(pageView->page.empty());
+    EXPECT_FLOAT_EQ(pageView->view.center.x, 0.25f);
+    EXPECT_FLOAT_EQ(pageView->view.center.y, -0.5f);
+    EXPECT_FLOAT_EQ(pageView->view.zoom, 1.75f);
+
+    const auto strobeActiveBatch = decodeBatch(rawChannel->SentPayloads()[2]);
+    ASSERT_TRUE(strobeActiveBatch.has_value());
+    EXPECT_EQ(strobeActiveBatch->mappingHash, "map_hash");
+    const auto* strobeActive = std::get_if<mfd::UpdateStrobeCommand>(&strobeActiveBatch->commands.front());
+    ASSERT_NE(strobeActive, nullptr);
+    EXPECT_EQ(strobeActive->pageId, 11U);
+    EXPECT_TRUE(strobeActive->page.empty());
+    ASSERT_TRUE(strobeActive->active.has_value());
+    EXPECT_TRUE(*strobeActive->active);
+    EXPECT_FALSE(strobeActive->position.has_value());
+
+    const auto strobePositionBatch = decodeBatch(rawChannel->SentPayloads()[3]);
+    ASSERT_TRUE(strobePositionBatch.has_value());
+    EXPECT_EQ(strobePositionBatch->mappingHash, "map_hash");
+    const auto* strobePosition = std::get_if<mfd::UpdateStrobeCommand>(&strobePositionBatch->commands.front());
+    ASSERT_NE(strobePosition, nullptr);
+    EXPECT_EQ(strobePosition->pageId, 11U);
+    EXPECT_TRUE(strobePosition->page.empty());
+    EXPECT_FALSE(strobePosition->active.has_value());
+    ASSERT_TRUE(strobePosition->position.has_value());
+    EXPECT_FLOAT_EQ(strobePosition->position->x, 0.1f);
+    EXPECT_FLOAT_EQ(strobePosition->position->y, -0.2f);
+
+    const auto setVisibilityBatch = decodeBatch(rawChannel->SentPayloads()[4]);
+    ASSERT_TRUE(setVisibilityBatch.has_value());
+    EXPECT_EQ(setVisibilityBatch->mappingHash, "map_hash");
+    const auto* setVisibility =
+        std::get_if<mfd::SetDynamicReticleSetVisibilityCommand>(&setVisibilityBatch->commands.front());
+    ASSERT_NE(setVisibility, nullptr);
+    EXPECT_EQ(setVisibility->pageId, 11U);
+    EXPECT_EQ(setVisibility->templateTransportId, 55U);
+    EXPECT_TRUE(setVisibility->page.empty());
+    EXPECT_TRUE(setVisibility->templateId.empty());
+    EXPECT_FALSE(setVisibility->visible);
+}
+
+TEST(CommandClientTests, WindowDisplayHelpersSendWithoutTransportMap)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    ASSERT_TRUE(client.SetWindowColorInverted(true));
+    ASSERT_TRUE(client.SetWindowBrightness(0.55f));
+    ASSERT_TRUE(client.SetWindowDisabled(true));
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 3U);
+
+    auto decodeBatch = [](const std::vector<std::byte>& payloadBytes)
+    {
+        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
+        return mfd::DeserializeCommandBatch(payload);
+    };
+
+    const auto invertBatch = decodeBatch(rawChannel->SentPayloads()[0]);
+    ASSERT_TRUE(invertBatch.has_value());
+    EXPECT_TRUE(invertBatch->mappingHash.empty());
+    const auto* invert = std::get_if<mfd::UpdateWindowDisplayCommand>(&invertBatch->commands.front());
+    ASSERT_NE(invert, nullptr);
+    ASSERT_TRUE(invert->patch.invertColors.has_value());
+    EXPECT_TRUE(*invert->patch.invertColors);
+
+    const auto brightnessBatch = decodeBatch(rawChannel->SentPayloads()[1]);
+    ASSERT_TRUE(brightnessBatch.has_value());
+    const auto* brightness = std::get_if<mfd::UpdateWindowDisplayCommand>(&brightnessBatch->commands.front());
+    ASSERT_NE(brightness, nullptr);
+    ASSERT_TRUE(brightness->patch.brightness.has_value());
+    EXPECT_FLOAT_EQ(*brightness->patch.brightness, 0.55f);
+
+    const auto disabledBatch = decodeBatch(rawChannel->SentPayloads()[2]);
+    ASSERT_TRUE(disabledBatch.has_value());
+    const auto* disabled = std::get_if<mfd::UpdateWindowDisplayCommand>(&disabledBatch->commands.front());
+    ASSERT_NE(disabled, nullptr);
+    ASSERT_TRUE(disabled->patch.disabled.has_value());
+    EXPECT_TRUE(*disabled->patch.disabled);
+}
+
+TEST(CommandClientTests, NameBasedPageHelpersRequireConfiguredTransportMap)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    EXPECT_FALSE(client.ActivatePage("Radar"));
+    EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
+
+    EXPECT_FALSE(client.SetStrobeActive("Radar", true));
+    EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
+}

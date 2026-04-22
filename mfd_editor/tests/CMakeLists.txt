@@ -5,7 +5,8 @@ include(GoogleTest)
 
 set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp)
 
 add_executable(mfd_editor_tests ${MFD_EDITOR_TEST_SOURCES})
 
@@ -24,6 +25,7 @@ target_sources(mfd_editor_tests
     PRIVATE
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiTheme.cpp
         ${MFD_ROOT_DIR}/mfd_api/src/model/PageName.cpp
         ${MFD_ROOT_DIR}/mfd_api/src/model/Reticle.cpp
         ${MFD_ROOT_DIR}/mfd_api/src/model/Types.cpp)

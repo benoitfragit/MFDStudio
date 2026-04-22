@@ -129,3 +129,158 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateIncludesTemplateId)
     ASSERT_TRUE(jsonNode.contains("id"));
     EXPECT_EQ(jsonNode.at("id").get<std::string>(), "demo_track");
 }
+
+TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverridesBlinkAndClipReset)
+{
+    mfd::ReticleGroup templateReticle;
+    templateReticle.id = "radar_track";
+    templateReticle.clipping.mode = mfd::ReticleClipMode::Inner;
+    templateReticle.clipping.primitiveId = "mask";
+
+    mfd::ReticleLibrary library;
+    library.emplace(templateReticle.id, templateReticle);
+
+    mfd::ReticleGroup reticle;
+    reticle.id = "track_alpha";
+    reticle.sourceTemplateId = "radar_track";
+    reticle.info.label = "Alpha";
+    reticle.info.category = "friendly";
+    reticle.visible = false;
+    reticle.transform.position = {0.25f, -0.1f};
+    reticle.overrides.color = mfd::ColorRgba {1, 2, 3, 255};
+    reticle.overrides.thickness = 0.006f;
+    reticle.editor.layerId = "tracks";
+    reticle.blink.enabled = false;
+    reticle.blink.typeName = "slow";
+    reticle.clipping.mode = mfd::ReticleClipMode::None;
+
+    mfd::Primitive text;
+    text.id = "track_label";
+    text.type = mfd::PrimitiveType::Text;
+    text.geometry = mfd::TextGeometry {"T42", 0.04f, 0.01f};
+    reticle.primitives.push_back(std::move(text));
+
+    const std::string jsonText = editor::SerializePageReticleToJsonString(reticle, library);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    EXPECT_EQ(jsonNode.at("id").get<std::string>(), "track_alpha");
+    EXPECT_EQ(jsonNode.at("template").get<std::string>(), "radar_track");
+    EXPECT_EQ(jsonNode.at("label").get<std::string>(), "Alpha");
+    EXPECT_EQ(jsonNode.at("category").get<std::string>(), "friendly");
+    EXPECT_FALSE(jsonNode.at("visible").get<bool>());
+    EXPECT_EQ(jsonNode.at("at"), nlohmann::json::array({0.25f, -0.1f}));
+    EXPECT_EQ(jsonNode.at("stroke").get<std::string>(), "#010203FF");
+    EXPECT_FLOAT_EQ(jsonNode.at("lineWidth").get<float>(), 0.006f);
+    EXPECT_EQ(jsonNode.at("_editor").at("layer").get<std::string>(), "tracks");
+    EXPECT_FALSE(jsonNode.at("blink").at("enabled").get<bool>());
+    EXPECT_EQ(jsonNode.at("blink").at("type").get<std::string>(), "slow");
+    EXPECT_EQ(jsonNode.at("clipping").at("mode").get<std::string>(), "none");
+    EXPECT_EQ(jsonNode.at("texts").at("track_label").get<std::string>(), "T42");
+    EXPECT_FLOAT_EQ(jsonNode.at("letterSpacings").at("track_label").get<float>(), 0.01f);
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemovesObsoleteOnes)
+{
+    ScopedTempDir tempDir;
+
+    const auto windowFile = tempDir.Path() / "demo_window.json";
+    const auto pageFile = tempDir.Path() / "radar_page.json";
+    const auto stalePageFile = tempDir.Path() / "obsolete_page.json";
+    const auto reticleLibraryFolder = tempDir.Path() / "reticles";
+    const auto templateFile = reticleLibraryFolder / "radar_track.json";
+    const auto staleTemplateFile = reticleLibraryFolder / "obsolete_track.json";
+
+    std::filesystem::create_directories(reticleLibraryFolder);
+    {
+        std::ofstream stalePage(stalePageFile);
+        stalePage << "{}";
+    }
+    {
+        std::ofstream staleTemplate(staleTemplateFile);
+        staleTemplate << "{}";
+    }
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = windowFile;
+    loaded.window.title = "Demo";
+    loaded.window.width = 800;
+    loaded.window.height = 600;
+    loaded.window.positionX = 10;
+    loaded.window.positionY = 20;
+    loaded.window.targetFps = 75;
+    loaded.window.reticleLibraryFolder = reticleLibraryFolder;
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar Page";
+    page.defaultPage = true;
+    page.backgroundColor = mfd::ColorRgba {10, 20, 30, 255};
+
+    mfd::PageStrobeDefinition strobe;
+    strobe.reticle.id = "strobe";
+    strobe.reticle.sourceTemplateId = "strobe_cursor";
+    strobe.capture.shape = mfd::StrobeCaptureShape::Circle;
+    strobe.capture.radius = 0.12f;
+    strobe.magnet.enabled = true;
+    strobe.magnet.radius = 0.2f;
+    strobe.magnet.strength = 0.5f;
+    page.strobe = strobe;
+
+    mfd::ReticleGroup pageReticle;
+    pageReticle.id = "track_alpha";
+    pageReticle.sourceTemplateId = "radar_track";
+    pageReticle.transform.position = {0.1f, 0.2f};
+    page.staticReticles.push_back(std::move(pageReticle));
+
+    loaded.document.pages.push_back(std::move(page));
+
+    mfd::ReticleGroup templateReticle;
+    templateReticle.id = "radar_track";
+    mfd::Primitive primitive;
+    primitive.id = "track_label";
+    primitive.type = mfd::PrimitiveType::Text;
+    primitive.geometry = mfd::TextGeometry {"INIT", 0.04f, 0.002f};
+    templateReticle.primitives.push_back(std::move(primitive));
+    loaded.document.reticleLibrary.emplace("radar_track", std::move(templateReticle));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(pageFile);
+    layout.templateFiles.emplace("radar_track", templateFile);
+    layout.removedPageFiles.push_back(stalePageFile);
+    layout.removedTemplateFiles.push_back(staleTemplateFile);
+
+    std::string error;
+    ASSERT_TRUE(editor::SaveEditorDocument(loaded, layout, &error)) << error;
+    EXPECT_TRUE(error.empty());
+    EXPECT_TRUE(std::filesystem::exists(windowFile));
+    EXPECT_TRUE(std::filesystem::exists(pageFile));
+    EXPECT_TRUE(std::filesystem::exists(templateFile));
+    EXPECT_FALSE(std::filesystem::exists(stalePageFile));
+    EXPECT_FALSE(std::filesystem::exists(staleTemplateFile));
+
+    std::ifstream windowStream(windowFile);
+    ASSERT_TRUE(windowStream.is_open());
+    const auto windowJson = nlohmann::json::parse(windowStream);
+    EXPECT_EQ(windowJson.at("title").get<std::string>(), "Demo");
+    EXPECT_EQ(windowJson.at("pages").at(0).get<std::string>(), "radar_page.json");
+    EXPECT_EQ(windowJson.at("defaultPage").get<std::string>(), "Radar");
+    EXPECT_EQ(windowJson.at("reticleLibraryFolder").get<std::string>(), "reticles");
+
+    std::ifstream pageStream(pageFile);
+    ASSERT_TRUE(pageStream.is_open());
+    const auto pageJson = nlohmann::json::parse(pageStream);
+    EXPECT_EQ(pageJson.at("name").get<std::string>(), "Radar");
+    EXPECT_EQ(pageJson.at("title").get<std::string>(), "Radar Page");
+    EXPECT_EQ(pageJson.at("bg").get<std::string>(), "#0A141EFF");
+    ASSERT_TRUE(pageJson.contains("strobe"));
+    EXPECT_EQ(pageJson.at("strobe").at("template").get<std::string>(), "strobe_cursor");
+    EXPECT_TRUE(pageJson.at("strobe").at("magnet").at("enabled").get<bool>());
+    ASSERT_EQ(pageJson.at("staticReticles").size(), 1U);
+    EXPECT_EQ(pageJson.at("staticReticles").at(0).at("template").get<std::string>(), "radar_track");
+
+    std::ifstream templateStream(templateFile);
+    ASSERT_TRUE(templateStream.is_open());
+    const auto templateJson = nlohmann::json::parse(templateStream);
+    EXPECT_EQ(templateJson.at("id").get<std::string>(), "radar_track");
+    ASSERT_EQ(templateJson.at("elements").size(), 1U);
+}
