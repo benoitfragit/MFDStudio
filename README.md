@@ -138,16 +138,21 @@ Start with:
 | `Start-MfdDemo.bat` | Root and staged launcher opening `assets/windows/demo_pages.json` |
 | `Start-MfdCockpit.bat` | Root and staged launcher opening `assets/windows/demo_pages_cockpit.json` |
 | `Start-MfdMinimal.bat` | Root and staged launcher opening `assets/windows/demo_pages_minimal.json` with the sample framebuffer plugin |
-| `Start-MfdTutorial.bat` | Root and staged launcher opening `assets/windows/mfd_tutorial.json` with the sample framebuffer plugin |
+| `Start-MfdTutorial.bat` | Root and staged launcher for the tutorial window once `assets/windows/mfd_tutorial.json` has been authored; also passes the sample framebuffer plugin |
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
 | `client_mockup` | Interactive GUI client for page control, reticle updates, dynamic reticles, and feedback inspection |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json` |
+| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`; configured only once the tutorial assets exist |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 
 The repository also ships inspired sample assets under `assets/windows` and
 `assets/pages`. Open them with `mfd_window`, one of the root `Start-Mfd*.bat`
 scripts, or through `mfd_editor`.
+
+`Start-MfdTutorial.bat` and `client_tutorial` are intentionally gated behind the
+editor tutorial assets. Until `assets/windows/mfd_tutorial.json` and its page /
+reticle companions exist, the script exits with a clear message and CMake skips
+`client_tutorial`.
 
 ## Repository Layout
 

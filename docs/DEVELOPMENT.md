@@ -58,7 +58,7 @@ cmake --build --preset debug-x64
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting the framebuffer callback symbol expected by `mfd_window` |
 | `client_mockup` | Interactive GUI client used to exercise the public API |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json` |
+| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, built only after the tutorial asset set exists |
 | `mfd_editor` | Visual authoring tool |
 | `mfd_api_tests` | Runtime and JSON loading test executable |
 | `client_api_tests` | Client-side helper test executable |
@@ -80,8 +80,9 @@ When `mfd_window` builds on Windows, these scripts are copied both next to the
 built executable and into `_Exec/<toolset>/<platform>/<config>/`.
 
 Tutorial-oriented assets still feed `client_tutorial`, while the matching
-window is now launched through `Start-MfdTutorial.bat` or directly with
-`mfd_window --window assets/windows/mfd_tutorial.json`.
+window is launched through `Start-MfdTutorial.bat` or directly with
+`mfd_window --window assets/windows/mfd_tutorial.json` once the tutorial assets
+have been authored under `assets/`.
 
 ## Fast Onboarding Commands
 

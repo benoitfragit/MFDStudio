@@ -88,3 +88,18 @@ TEST(EditorTutorialDataTests, TutorialSnippetsPreferGeneratedHandlesWithoutUserM
     EXPECT_NE(integrationAfter.find("DynamicMfdTutorialRadarTrack()"), std::string_view::npos);
     EXPECT_NE(integrationAfter.find("page1.strobe"), std::string_view::npos);
 }
+
+TEST(EditorTutorialDataTests, TutorialMetadataReflectsSharedWindowLauncherFlow)
+{
+    const auto& framebufferStep = Step(editor::tutorial::TutorialStepId::ReviewRgba32FramebufferCapture);
+    EXPECT_STREQ(framebufferStep.filePath, "examples/mfd_framebuffer_stdout_plugin/src/FramebufferStdoutPlugin.cpp");
+    EXPECT_NE(std::string_view(framebufferStep.afterText).find("MfdWindowFramebufferCallback"), std::string_view::npos);
+    EXPECT_EQ(std::string_view(framebufferStep.afterText).find("RunLauncher"), std::string_view::npos);
+
+    const auto& registrationStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialTargetRegistration);
+    EXPECT_NE(std::string_view(registrationStep.afterText).find("add_subdirectory(examples/client_tutorial)"),
+              std::string_view::npos);
+    EXPECT_EQ(std::string_view(registrationStep.afterText).find("add_subdirectory(examples/mfd_tutorial)"),
+              std::string_view::npos);
+    EXPECT_NE(std::string_view(registrationStep.explanation).find("Start-MfdTutorial.bat"), std::string_view::npos);
+}

@@ -41,8 +41,7 @@ constexpr std::array<std::string_view, 4> kBuildConfigurations {
     "Release",
     "RelWithDebInfo",
     "MinSizeRel"};
-constexpr std::array<std::string_view, 2> kTutorialRootTargetRegistrations {{
-    "add_subdirectory(examples/mfd_tutorial)",
+constexpr std::array<std::string_view, 1> kTutorialRootTargetRegistrations {{
     "add_subdirectory(examples/client_tutorial)",
 }};
 
@@ -269,8 +268,7 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
     std::vector<std::string> lines;
     lines.reserve(64);
 
-    bool hasMfdTutorial = false;
-    bool hasClientTutorial = false;
+    std::array<bool, kTutorialRootTargetRegistrations.size()> hasTargetRegistrations {};
     std::size_t insertionIndex = std::numeric_limits<std::size_t>::max();
     std::string insertionIndentation;
 
@@ -282,16 +280,17 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
         }
 
         const std::string_view trimmed = TrimAsciiWhitespace(line);
-        if (trimmed == kTutorialRootTargetRegistrations[0])
+        for (std::size_t index = 0; index < kTutorialRootTargetRegistrations.size(); ++index)
         {
-            hasMfdTutorial = true;
+            if (trimmed == kTutorialRootTargetRegistrations[index])
+            {
+                hasTargetRegistrations[index] = true;
+                break;
+            }
         }
-        else if (trimmed == kTutorialRootTargetRegistrations[1])
-        {
-            hasClientTutorial = true;
-        }
-        else if (trimmed == "add_subdirectory(mfd_editor)" &&
-                 insertionIndex == std::numeric_limits<std::size_t>::max())
+
+        if (trimmed == "add_subdirectory(mfd_editor)" &&
+            insertionIndex == std::numeric_limits<std::size_t>::max())
         {
             insertionIndex = lines.size();
             insertionIndentation = LeadingWhitespace(line);
@@ -300,21 +299,21 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
         lines.push_back(std::move(line));
     }
 
-    if ((hasMfdTutorial && hasClientTutorial) ||
+    if (std::all_of(hasTargetRegistrations.begin(), hasTargetRegistrations.end(), [](const bool present)
+                    { return present; }) ||
         insertionIndex == std::numeric_limits<std::size_t>::max())
     {
         return;
     }
 
     std::vector<std::string> insertedLines;
-    insertedLines.reserve(2);
-    if (!hasMfdTutorial)
+    insertedLines.reserve(kTutorialRootTargetRegistrations.size());
+    for (std::size_t index = 0; index < kTutorialRootTargetRegistrations.size(); ++index)
     {
-        insertedLines.push_back(insertionIndentation + std::string(kTutorialRootTargetRegistrations[0]));
-    }
-    if (!hasClientTutorial)
-    {
-        insertedLines.push_back(insertionIndentation + std::string(kTutorialRootTargetRegistrations[1]));
+        if (!hasTargetRegistrations[index])
+        {
+            insertedLines.push_back(insertionIndentation + std::string(kTutorialRootTargetRegistrations[index]));
+        }
     }
 
     lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insertionIndex),
@@ -370,7 +369,7 @@ void RemoveTutorialBuildOutputs(const std::filesystem::path& projectRoot)
     const std::vector<std::filesystem::path> buildDirectories = EnumerateConfiguredBuildDirectories(projectRoot);
     for (const auto& buildDirectory : buildDirectories)
     {
-        for (const std::string_view targetName : {"mfd_tutorial", "client_tutorial"})
+        for (const std::string_view targetName : {"client_tutorial"})
         {
             const std::filesystem::path targetRoot = buildDirectory / "examples" / std::string(targetName);
             for (const std::string_view configuration : kBuildConfigurations)
@@ -396,9 +395,6 @@ void RemoveTutorialStageArtifacts(const std::filesystem::path& projectRoot)
         "client_tutorial.exe",
         "client_tutorial.ilk",
         "client_tutorial.pdb",
-        "mfd_tutorial.exe",
-        "mfd_tutorial.ilk",
-        "mfd_tutorial.pdb",
         "tutorialui.h",
         "tutorialui.cpp",
         "mfdtutorialmockupui.h",
@@ -573,7 +569,7 @@ void EditorTutorialController::Finish()
     }
 
     app_.RebuildStatus(
-        "Tutorial completed. Reconfigure/rebuild the solution manually to generate and compile 'mfd_tutorial' and 'client_tutorial'.",
+        "Tutorial completed. Reconfigure/rebuild the solution manually to generate and compile 'client_tutorial', then launch the authored window with 'Start-MfdTutorial.bat'.",
         false);
 }
 

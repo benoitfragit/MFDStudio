@@ -325,49 +325,53 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1},
     {TutorialStepKind::FileReview,
      "Review RGBA32 framebuffer capture",
-     "The launcher can expose raw RGBA32 pixels so the tutorial can verify what the runtime is rendering.",
+     "The launcher can expose raw RGBA32 pixels through a plugin callback so the tutorial can verify what the runtime is rendering.",
      "",
-     "examples/mfd_tutorial/src/main.cpp",
-     "return mfd::window::RunLauncher(argc, argv, config);",
-     "return mfd::window::RunLauncher(\n"
-     "    argc,\n"
-     "    argv,\n"
-     "    config,\n"
-     "    [](int width, int height, mfd::ByteView pixels)\n"
+     "examples/mfd_framebuffer_stdout_plugin/src/FramebufferStdoutPlugin.cpp",
+     "extern \"C\" __declspec(dllexport) void MfdWindowFramebufferCallback(\n"
+     "    const int width,\n"
+     "    const int height,\n"
+     "    const mfd::ByteView pixels)\n"
+     "{\n"
+     "}",
+     "extern \"C\" __declspec(dllexport) void MfdWindowFramebufferCallback(\n"
+     "    const int width,\n"
+     "    const int height,\n"
+     "    const mfd::ByteView pixels)\n"
+     "{\n"
+     "    static bool printed = false;\n"
+     "    if (!printed)\n"
      "    {\n"
      "        std::cout << \"RGBA32 framebuffer callback active: \" << width << \"x\" << height\n"
      "                  << \" pixels=\" << pixels.size() << '\\n';\n"
-     "    });",
-     "This callback is the simplest bridge between the runtime window and any external validation or capture workflow.",
+     "        printed = true;\n"
+     "    }\n"
+     "}",
+     "The framebuffer callback now lives in a dedicated DLL consumed by `mfd_window --framebuffer-plugin`, which keeps the generic launcher reusable.",
      "Next",
      1,
      1},
     {TutorialStepKind::FileReview,
      "Review tutorial target registration",
-     "The repository root must register the tutorial executables so the authored assets and the client walkthrough can both be built.",
+     "The repository root only needs to register the tutorial client because the authored tutorial window is now launched through `mfd_window` and `Start-MfdTutorial.bat`.",
      "",
      "CMakeLists.txt",
      "if(MFD_BUILD_DEMO)\n"
      "{\n"
-     "    add_subdirectory(examples/mfd_demo)\n"
-     "    add_subdirectory(examples/mfd_demo_cockpit)\n"
-     "    add_subdirectory(examples/mfd_demo_minimal)\n"
+     "    add_subdirectory(examples/mfd_framebuffer_stdout_plugin)\n"
      "    add_subdirectory(examples/client_mockup)\n"
      "    add_subdirectory(examples/client_mockup_minimal)\n"
      "    add_subdirectory(mfd_editor)\n"
      "endif()",
      "if(MFD_BUILD_DEMO)\n"
      "{\n"
-     "    add_subdirectory(examples/mfd_demo)\n"
-     "    add_subdirectory(examples/mfd_demo_cockpit)\n"
-     "    add_subdirectory(examples/mfd_demo_minimal)\n"
+     "    add_subdirectory(examples/mfd_framebuffer_stdout_plugin)\n"
      "    add_subdirectory(examples/client_mockup)\n"
      "    add_subdirectory(examples/client_mockup_minimal)\n"
-     "    add_subdirectory(examples/mfd_tutorial)\n"
      "    add_subdirectory(examples/client_tutorial)\n"
      "    add_subdirectory(mfd_editor)\n"
      "endif()",
-     "Registering both tutorial targets ensures the authoring walkthrough and the code walkthrough stay buildable from the same root project.",
+     "Registering `client_tutorial` is enough to build the generated API walkthrough, while `Start-MfdTutorial.bat` reuses the shared window host for the authored runtime.",
      "Finish",
      1,
      1},
