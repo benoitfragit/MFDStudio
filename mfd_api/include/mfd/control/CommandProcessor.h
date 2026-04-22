@@ -48,6 +48,8 @@ public:
      * @brief Submits a typed command directly.
      * @param command Command to dispatch.
      * @return `true` if the command was accepted and applied.
+     * @note Generated transport ids are rejected here because they require a
+     * matching `CommandBatch::mappingHash`.
      */
     bool Submit(const UserCommand& command);
 

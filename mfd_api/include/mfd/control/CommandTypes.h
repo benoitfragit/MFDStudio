@@ -312,7 +312,12 @@ struct CommandBatch
 {
     /** @brief Optional external cycle identifier. */
     std::uint32_t sequence = 0;
-    /** @brief Optional generation hash validating the authored-name to transport-id mapping. */
+    /**
+     * @brief Optional generation hash validating the authored-name to transport-id mapping.
+     *
+     * @note This field becomes required as soon as one command in the batch uses
+     * generated transport ids instead of authored names.
+     */
     std::string mappingHash;
     /** @brief Commands carried by the batch. */
     std::vector<UserCommand> commands;

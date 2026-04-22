@@ -178,3 +178,18 @@ TEST(CommandProcessorTests, RejectsIdBasedBatchWhenMappingHashDoesNotMatchLoaded
     EXPECT_FALSE(processor.Submit(batch));
     EXPECT_EQ(processor.LastError(), "Generated transport map hash mismatch between the client batch and the runtime window");
 }
+
+TEST(CommandProcessorTests, RejectsSerializedGeneratedTransportIdsWithoutMappingHash)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ActivatePageCommand command;
+    command.page = "Radar";
+    command.pageId = 11U;
+
+    const std::string payload = mfd::SerializeUserCommand(command);
+
+    EXPECT_FALSE(processor.Submit(payload));
+    EXPECT_EQ(processor.LastError(), "Generated transport ids require a non-empty batch mapping hash");
+}

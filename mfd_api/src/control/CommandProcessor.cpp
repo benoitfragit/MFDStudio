@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <type_traits>
 #include <utility>
 
 #include "mfd/ipc/ExchangeChannel.h"
@@ -23,6 +24,76 @@ namespace mfd
 namespace
 {
 constexpr std::size_t kMaxCommandsPerPoll = 64;
+
+bool PatchUsesGeneratedIdentifiers(const ReticlePatch& patch) noexcept
+{
+    return patch.blinkTypeId.has_value() ||
+           !patch.textsById.empty() ||
+           !patch.letterSpacingsById.empty() ||
+           !patch.primitivePatchesById.empty();
+}
+
+bool HandleUsesGeneratedIdentifiers(const ReticleHandle& handle) noexcept
+{
+    return handle.pageId != 0 || handle.reticleId != 0;
+}
+
+bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
+{
+    return std::visit(
+        [](const auto& value) noexcept -> bool
+        {
+            using Command = std::decay_t<decltype(value)>;
+
+            if constexpr (std::is_same_v<Command, ActivatePageCommand> ||
+                          std::is_same_v<Command, SetPageViewCommand> ||
+                          std::is_same_v<Command, UpdateStrobeCommand>)
+            {
+                return value.pageId != 0;
+            }
+            else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
+            {
+                return HandleUsesGeneratedIdentifiers(value.target) ||
+                       PatchUsesGeneratedIdentifiers(value.patch);
+            }
+            else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
+            {
+                return HandleUsesGeneratedIdentifiers(value.target) ||
+                       value.templateTransportId != 0 ||
+                       PatchUsesGeneratedIdentifiers(value.patch);
+            }
+            else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
+            {
+                if (value.pageId != 0 || value.templateTransportId != 0)
+                {
+                    return true;
+                }
+
+                for (const DynamicReticleState& state : value.reticles)
+                {
+                    if (PatchUsesGeneratedIdentifiers(state.patch))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
+            {
+                return value.pageId != 0 || value.templateTransportId != 0;
+            }
+            else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
+            {
+                return HandleUsesGeneratedIdentifiers(value.target);
+            }
+            else
+            {
+                return false;
+            }
+        },
+        command);
+}
 
 } // namespace
 
@@ -208,10 +279,14 @@ const entt::dispatcher& CommandProcessor::Dispatcher() const noexcept
 
 bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std::string_view mappingHash)
 {
-    (void)mappingHash;
-
     if (mappingHash.empty())
     {
+        if (CommandUsesGeneratedIdentifiers(command))
+        {
+            SetFailure("Generated transport ids require a non-empty batch mapping hash");
+            return false;
+        }
+
         return true;
     }
 
