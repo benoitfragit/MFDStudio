@@ -107,6 +107,15 @@ Start with:
 2. [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md)
 3. [Test A Window With The Mockup](./docs/tutorials/03_test_with_mfd_mockup.md)
 
+Editor page-preview essentials:
+
+- `Ctrl+click` adds or removes one page reticle from the current selection
+- `Esc` clears the current page-reticle selection
+- dragging one selected page reticle moves the whole selected group together
+- `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, and `Del` operate on the current page-reticle selection
+- right-click lists every hovered reticle, then exposes per-reticle clipping submenus so overlapping reticles stay reachable
+- `Undo` restores one whole paste, cut, delete, or drag gesture at a time
+
 ### I Want To Work On The Codebase
 
 Start with:

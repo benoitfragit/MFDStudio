@@ -77,6 +77,41 @@ After creation:
 2. Select a page in the tree.
 3. In the page inspector, toggle **Default page for this window** on the page that should open at startup.
 
+## Step 7 - Use the page-preview selection workflow
+
+Once a page contains several reticles, the page preview supports direct authoring gestures:
+
+- `Ctrl+click` on one page reticle to add it to the current selection
+- `Ctrl+click` again to remove it from the current selection
+- press `Esc` to clear the current page-reticle selection entirely
+- drag one selected reticle to move the full selected group with one gesture
+- use `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, or `Del` on the current page-reticle selection
+
+The inspector and the **Edit** menu mirror the same actions with explicit buttons.
+
+## Step 8 - Use the right-click menu on overlapping reticles
+
+When several reticles overlap in the page preview:
+
+1. right-click on the stacked area
+2. the popup lists every hovered reticle instead of forcing only the nearest one
+3. open the submenu of the reticle you actually want
+4. use the clipping submenu for the hovered convex primitive you want to mask through
+
+The same popup also exposes **Copy selection**, **Cut selection**, **Paste copies**, and **Delete selection** for the current page-reticle group.
+
+## Undo behavior
+
+The editor keeps one undo snapshot per page-modifying action:
+
+- one paste action
+- one cut action
+- one delete action
+- one completed drag gesture, including grouped reticle moves
+- one clipping change
+
+`Copy` alone does not create an undo step because it only updates the internal clipboard and does not modify the authored page.
+
 ## Result
 
 You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, pages, default page selection, and UDP runtime transport configuration.

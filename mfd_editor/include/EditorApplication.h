@@ -362,13 +362,19 @@ private:
     bool HasOpenWindow() const noexcept;
     /** @brief Copies the selected page reticles into the editor clipboard. */
     void CopySelectedPageReticles();
+    /** @brief Cuts the selected page reticles into the editor clipboard. */
+    void CutSelectedPageReticles();
     /** @brief Pastes the page-reticle clipboard into the active page. */
     void PasteCopiedPageReticles();
 
     /** @brief Updates the current selection from a click inside the page preview. */
     void UpdateReticleSelectionFromClick(const ViewportState& viewport, bool additiveSelection);
+    /** @brief Returns all page reticles hit by the mouse, ordered from the most specific to the broadest hit. */
+    std::vector<int> CollectPageReticlesAt(const ViewportState& viewport, ImVec2 mousePosition) const;
     /** @brief Finds the nearest page reticle to the mouse for hit-testing. */
     std::optional<int> FindNearestPageReticle(const ViewportState& viewport, ImVec2 mousePosition) const;
+    /** @brief Returns all clip-capable page primitives hit by the mouse, ordered by hit quality. */
+    std::vector<PageClipTarget> CollectPageClipTargetsAt(const ViewportState& viewport, ImVec2 mousePosition) const;
     /** @brief Finds the nearest supported convex page primitive to the mouse for clipping actions. */
     std::optional<PageClipTarget> FindNearestPageClipPrimitive(const ViewportState& viewport, ImVec2 mousePosition) const;
     /** @brief Finds the nearest library primitive to the mouse for hit-testing. */
@@ -471,6 +477,8 @@ private:
     InteractionMode interactionMode_ = InteractionMode::None;
     /** @brief Reticle currently manipulated by the user, when relevant. */
     int interactionReticleIndex_ = -1;
+    /** @brief Ordered list of reticles manipulated together during one group move gesture. */
+    std::vector<int> interactionReticleIndices_ {};
     /** @brief Primitive currently manipulated by the user, when relevant. */
     int interactionPrimitiveIndex_ = -1;
     /** @brief Handle index currently manipulated on the selected primitive. */
@@ -479,6 +487,8 @@ private:
     PrimitiveHandleKind interactionHandleKind_ = PrimitiveHandleKind::None;
     /** @brief Reticle transform snapshot captured at interaction start. */
     mfd::Transform2D interactionStartTransform_ {};
+    /** @brief Reticle transform snapshots captured for every moved reticle at gesture start. */
+    std::vector<mfd::Transform2D> interactionStartReticleTransforms_ {};
     /** @brief Primitive snapshot captured at interaction start. */
     mfd::Primitive interactionStartPrimitive_ {};
     /** @brief Mouse position in logical coordinates at interaction start. */
@@ -509,8 +519,8 @@ private:
     mfd::PageViewState libraryPreviewView_ {};
     /** @brief Logical offset preserved while dragging the viewport rectangle inside the minimap. */
     mfd::Vec2 minimapDragOffsetLogical_ {};
-    /** @brief Reticle currently targeted by the page-preview context menu. */
-    int pagePreviewContextReticleIndex_ = -1;
-    /** @brief Primitive currently targeted by the page-preview clipping context menu. */
-    int pagePreviewContextPrimitiveIndex_ = -1;
+    /** @brief Reticles currently listed by the page-preview context menu. */
+    std::vector<int> pagePreviewContextReticleIndices_ {};
+    /** @brief Clip-capable reticle primitives currently listed by the page-preview context menu. */
+    std::vector<PageClipTarget> pagePreviewContextTargets_ {};
 };
