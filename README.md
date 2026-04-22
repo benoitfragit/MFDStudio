@@ -55,6 +55,10 @@ If you want the full walkthrough, read [Quick Start](./docs/QUICKSTART.md).
 If you want the full build, test, and target reference, read
 [Development Guide](./docs/DEVELOPMENT.md).
 
+Every published GitHub release can also republish the generated Doxygen API
+reference to GitHub Pages once the repository Pages source is configured to use
+GitHub Actions.
+
 ## What The Project Does
 
 The normal workflow is:

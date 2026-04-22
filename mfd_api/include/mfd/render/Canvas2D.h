@@ -33,6 +33,7 @@ public:
      * @param view Page view center and zoom.
      * @param textFont Optional font override used for text-like primitives.
      * @param backgroundColor Color restored when one clipping primitive erases part of the page.
+     * @param clippingEnabled Enables clipping-mask evaluation for clipping primitives.
      */
     Canvas2D(int width,
              int height,

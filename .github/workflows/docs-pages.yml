@@ -1,0 +1,93 @@
+name: Publish API Docs
+
+on:
+  workflow_run:
+    workflows: ["Build and Publish Release"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to publish (tag, branch, or SHA). Leave empty to use the current ref.'
+        required: false
+        type: string
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build-docs:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      DOCS_REF: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.inputs.ref || github.ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.DOCS_REF }}
+
+      - name: Install Doxygen and Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Resolve published version label
+        id: version
+        run: |
+          tag="$(git tag --points-at HEAD | head -n 1)"
+          if [ -z "$tag" ]; then
+            tag="$(git rev-parse --short HEAD)"
+          fi
+          echo "docs_version=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp Doxygen project version
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          doxyfile = Path("docs/Doxyfile")
+          text = doxyfile.read_text(encoding="utf-8")
+          text = text.replace('PROJECT_NUMBER         = "release"',
+                              f'PROJECT_NUMBER         = "{os.environ["MFD_DOCS_VERSION"]}"',
+                              1)
+          doxyfile.write_text(text, encoding="utf-8")
+          PY
+        env:
+          MFD_DOCS_VERSION: ${{ steps.version.outputs.docs_version }}
+
+      - name: Create Doxygen output directory
+        run: mkdir -p build/docs/doxygen
+
+      - name: Generate Doxygen HTML
+        run: doxygen docs/Doxyfile
+
+      - name: Disable Jekyll processing
+        run: touch build/docs/doxygen/html/.nojekyll
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/docs/doxygen/html
+
+  deploy-docs:
+    needs: build-docs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -166,16 +166,40 @@ If you change public behavior, examples, or onboarding flow, update the
 relevant Markdown page in the same change. That includes the root launch
 scripts when the supported demo entry points change.
 
+## API Reference Docs
+
+The repository now carries a versioned Doxygen configuration in
+[`docs/Doxyfile`](./Doxyfile). It targets the public headers under:
+
+- `mfd_api/include`
+- `client_api/include`
+- `mfd_window/include`
+
+The generated HTML enables Graphviz-backed diagrams when the `dot` executable
+is available in `PATH`.
+
+Typical local generation flow:
+
+```powershell
+New-Item -ItemType Directory -Force build/docs/doxygen | Out-Null
+doxygen docs/Doxyfile
+```
+
+The generated site lands under `build/docs/doxygen/html/index.html`.
+
 ## Release Workflow
 
 The repository includes a release pipeline in
-`.github/workflows/release.yml`.
+`.github/workflows/release.yml` and a GitHub Pages publication workflow in
+`.github/workflows/docs-pages.yml`. The Pages workflow follows the successful
+release workflow automatically.
 
 Recommended release flow:
 
 1. ensure the main branch is green on CI
 2. create and push a semantic tag such as `1.0.0` or `v1.0.0`
 3. let GitHub Actions build the Win32 and x64 archives and publish the release
+4. let GitHub Actions regenerate and deploy the Doxygen HTML site to GitHub Pages
 
 Example:
 
@@ -189,3 +213,12 @@ Published assets include:
 - `mfd-<tag>-x64.zip`
 - `mfd-<tag>-win32.zip`
 - `SHA256SUMS.txt`
+
+Published documentation includes:
+
+- GitHub Pages deployment of the Doxygen HTML site generated with Graphviz
+
+Repository setting required once:
+
+1. open `Settings > Pages`
+2. choose `GitHub Actions` as the build and deployment source
