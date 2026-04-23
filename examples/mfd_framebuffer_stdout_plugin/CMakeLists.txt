@@ -18,13 +18,4 @@ set_target_properties(mfd_framebuffer_stdout_plugin PROPERTIES
     OUTPUT_NAME "mfd_framebuffer_stdout_plugin"
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_framebuffer_stdout_plugin>")
 
-if(WIN32)
-    add_custom_command(
-        TARGET mfd_framebuffer_stdout_plugin
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:mfd_framebuffer_stdout_plugin>"
-            "$<TARGET_FILE_DIR:mfd_window>")
-endif()
-
 mfd_stage_runtime(mfd_framebuffer_stdout_plugin)
