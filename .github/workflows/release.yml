@@ -172,18 +172,18 @@ jobs:
           $lines.Add("")
 
           if ($env:PRERELEASE -eq "true") {
-            $lines.Add("This is a pre-release build.")
+            $lines.Add('This is a pre-release build.')
             $lines.Add("")
           }
 
-          $lines.Add("### Assets")
-          $lines.Add("- Windows x64 and Win32 ZIP archives")
-          $lines.Add("- SHA256 checksums in `SHA256SUMS.txt`")
+          $lines.Add('### Assets')
+          $lines.Add('- Windows x64 and Win32 ZIP archives')
+          $lines.Add('- SHA256 checksums in `SHA256SUMS.txt`')
           $lines.Add("")
-          $lines.Add("### Quick start")
-          $lines.Add("1. Download the ZIP for your platform")
-          $lines.Add("2. Verify the checksum with `SHA256SUMS.txt`")
-          $lines.Add("3. Extract and run")
+          $lines.Add('### Quick start')
+          $lines.Add('1. Download the ZIP for your platform')
+          $lines.Add('2. Verify the checksum with `SHA256SUMS.txt`')
+          $lines.Add('3. Extract and run')
 
           $lines | Set-Content -Path "release_notes.md" -Encoding utf8
 
