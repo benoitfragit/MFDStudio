@@ -2092,12 +2092,12 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
     const char* headline = "Open or create assets";
     const char* description =
         "Start with a new authored window or browse to an existing window JSON.\n"
-        "Nothing is loaded automatically when the editor starts.";
+        "Nothing is loaded automatically when the editor starts, but you can launch the guided tutorial.";
 
     const ImVec2 headlineSize = ImGui::CalcTextSize(headline);
     const ImVec2 descriptionSize = ImGui::CalcTextSize(description);
     const float buttonRowWidth = 420.0f;
-    const float totalHeight = headlineSize.y + descriptionSize.y + 92.0f;
+    const float totalHeight = headlineSize.y + descriptionSize.y + 126.0f;
     const ImVec2 start(
         std::max(0.0f, (available.x - std::max(std::max(headlineSize.x, descriptionSize.x), buttonRowWidth)) * 0.5f),
         std::max(0.0f, (available.y - totalHeight) * 0.5f));
@@ -2120,6 +2120,16 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
     {
         OpenNewWindowPopup();
     }
+
+    ImGui::SetCursorPosX(start.x);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.54f, 0.61f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.66f, 0.73f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.12f, 0.44f, 0.52f, 1.00f));
+    if (ImGui::Button("Launch the tutorial", ImVec2(220.0f, 0.0f)))
+    {
+        tutorial_->OpenFlow();
+    }
+    ImGui::PopStyleColor(3);
 }
 
 void EditorApplication::DrawInspector()
