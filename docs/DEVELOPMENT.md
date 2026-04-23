@@ -156,7 +156,7 @@ name `client_api_generator_tests`.
 Use the documentation layers intentionally:
 
 - `README.md`: short landing page for newcomers
-- [`docs/README.md`](./README.md): documentation map and reading paths
+- [`docs/README.md`](../docs/README.md): documentation map and reading paths
 - [`docs/QUICKSTART.md`](./QUICKSTART.md): first visible result
 - [`docs/CONCEPTS.md`](./CONCEPTS.md): vocabulary and mental model
 - [`docs/reference`](./reference/README.md): exact JSON and authoring rules
@@ -168,21 +168,29 @@ scripts when the supported demo entry points change.
 
 ## API Reference Docs
 
-The repository now carries a versioned Doxygen configuration in
-[`docs/Doxyfile`](./Doxyfile). It targets the public headers under:
+The repository now carries a versioned Doxygen configuration in `docs/Doxyfile`
+plus a generation helper script in `docs/GenerateDocs.ps1`. The published
+portal includes the repository guides, tutorials, references, architecture
+notes, and the public headers under:
 
 - `mfd_api/include`
 - `client_api/include`
 - `mfd_window/include`
 
-The generated HTML enables Graphviz-backed diagrams when the `dot` executable
-is available in `PATH`.
+The generated HTML enables Graphviz-backed include and dependency diagrams plus
+PlantUML-driven architecture and tutorial diagrams.
+
+For local generation, ensure:
+
+- `doxygen` is installed and available in `PATH`
+- `dot` from Graphviz is available in `PATH`
+- PlantUML is installed or its jar path is known
+- Java 11 or newer is available for PlantUML execution
 
 Typical local generation flow:
 
 ```powershell
-New-Item -ItemType Directory -Force build/docs/doxygen | Out-Null
-doxygen docs/Doxyfile
+pwsh -File docs/GenerateDocs.ps1 -Version local -PlantUmlJarPath C:\path\to\plantuml.jar
 ```
 
 The generated site lands under `build/docs/doxygen/html/index.html`.
@@ -217,7 +225,8 @@ Published assets include:
 
 Published documentation includes:
 
-- GitHub Pages deployment of the Doxygen HTML site generated with Graphviz
+- GitHub Pages deployment of the Doxygen HTML portal generated with Graphviz
+  and PlantUML
 
 Repository setting required once:
 

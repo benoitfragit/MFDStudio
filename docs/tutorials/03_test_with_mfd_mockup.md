@@ -15,16 +15,15 @@ to
 
 ## At A Glance
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant M as client_mockup
-    participant W as Window
+\startuml
+actor User as U
+participant client_mockup as M
+participant Window as W
 
-    U->>M: Select window / page / reticle / strobe
-    M->>W: UDP protobuf command
-    W->>M: Optional strobe feedback
-```
+U -> M : Select window / page / reticle / strobe
+M -> W : UDP protobuf command
+W -> M : Optional strobe feedback
+\enduml
 
 `client_mockup` is the fastest way to:
 

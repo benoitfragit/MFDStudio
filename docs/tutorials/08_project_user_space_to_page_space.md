@@ -11,17 +11,26 @@ This is the recommended approach when your client already uses:
 
 ## At A Glance
 
-```mermaid
-flowchart LR
-    A[Aircraft position in NM] --> B[UserSpaceProjector]
-    C[Aircraft heading in radians] --> B
-    D[Track positions in NM] --> B
-    E[Track headings in radians] --> B
-    B --> F[Page positions in [-1, 1]]
-    B --> G[Page rotations in degrees]
-    F --> H[CommandClient]
-    G --> H
-```
+\startuml
+left to right direction
+rectangle "Aircraft position in NM" as AircraftPosition
+rectangle "Aircraft heading in radians" as AircraftHeading
+rectangle "Track positions in NM" as TrackPositions
+rectangle "Track headings in radians" as TrackHeadings
+rectangle "UserSpaceProjector" as Projector
+rectangle "Page positions in [-1, 1]" as PagePositions
+rectangle "Page rotations in degrees" as PageRotations
+rectangle "CommandClient" as CommandClient
+
+AircraftPosition --> Projector
+AircraftHeading --> Projector
+TrackPositions --> Projector
+TrackHeadings --> Projector
+Projector --> PagePositions
+Projector --> PageRotations
+PagePositions --> CommandClient
+PageRotations --> CommandClient
+\enduml
 
 Important idea:
 

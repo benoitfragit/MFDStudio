@@ -5,13 +5,19 @@ the OpenGL readback API.
 
 ## At A Glance
 
-```mermaid
-flowchart LR
-    A[Rendered OpenGL framebuffer] --> B[OpenGlFramebufferReader::ReadRgba32]
-    B --> C[Rgba32Framebuffer]
-    C --> D[Typed pixels]
-    C --> E[Raw bytes]
-```
+\startuml
+left to right direction
+rectangle "Rendered OpenGL framebuffer" as Framebuffer
+rectangle "OpenGlFramebufferReader::ReadRgba32" as ReadRgba32
+rectangle "Rgba32Framebuffer" as Rgba32Framebuffer
+rectangle "Typed pixels" as TypedPixels
+rectangle "Raw bytes" as RawBytes
+
+Framebuffer --> ReadRgba32
+ReadRgba32 --> Rgba32Framebuffer
+Rgba32Framebuffer --> TypedPixels
+Rgba32Framebuffer --> RawBytes
+\enduml
 
 The project exposes a typed `RGBA32` buffer:
 

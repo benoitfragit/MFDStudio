@@ -1,6 +1,6 @@
 PROJECT_NAME           = "MFDStudio"
 PROJECT_NUMBER         = "release"
-PROJECT_BRIEF          = "Public C++ API reference for the MFDStudio toolkit"
+PROJECT_BRIEF          = "Versioned documentation portal and C++ API reference for the MFDStudio toolkit"
 OUTPUT_DIRECTORY       = build/docs/doxygen
 OUTPUT_LANGUAGE        = English
 MARKDOWN_SUPPORT       = YES
@@ -34,7 +34,9 @@ RECURSIVE              = YES
 FILE_PATTERNS          = *.h \
                          *.hpp \
                          *.md
-INPUT                  = docs/API_REFERENCE_MAINPAGE.md \
+INPUT                  = README.md \
+                         THIRD_PARTY_NOTICES.md \
+                         docs \
                          mfd_api/include \
                          client_api/include \
                          mfd_window/include
@@ -42,6 +44,8 @@ USE_MDFILE_AS_MAINPAGE = docs/API_REFERENCE_MAINPAGE.md
 STRIP_FROM_PATH        = .
 FULL_PATH_NAMES        = YES
 TAB_SIZE               = 4
+TOC_INCLUDE_HEADINGS   = 3
+MARKDOWN_ID_STYLE      = GITHUB
 OPTIMIZE_OUTPUT_FOR_C  = NO
 TYPEDEF_HIDES_STRUCT   = NO
 SHOW_INCLUDE_FILES     = YES
@@ -61,6 +65,12 @@ DISABLE_INDEX          = NO
 HTML_DYNAMIC_MENUS     = YES
 SEARCHENGINE           = YES
 SERVER_BASED_SEARCH    = NO
+FULL_SIDEBAR           = YES
+HTML_COLORSTYLE        = LIGHT
+HTML_COLORSTYLE_HUE    = 190
+HTML_COLORSTYLE_SAT    = 78
+HTML_COLORSTYLE_GAMMA  = 92
+HTML_EXTRA_STYLESHEET  = docs/doxygen/custom.css
 GENERATE_LATEX         = NO
 GENERATE_XML           = NO
 GENERATE_RTF           = NO
@@ -83,5 +93,11 @@ DOT_MULTI_TARGETS      = YES
 DOT_GRAPH_MAX_NODES    = 80
 MAX_DOT_GRAPH_DEPTH    = 2
 DOT_CLEANUP            = YES
+IMAGE_PATH             = docs \
+                         docs/architecture \
+                         docs/reference \
+                         docs/tutorials
+PLANTUML_JAR_PATH      =
+PLANTUML_CFG_FILE      = docs/doxygen/plantuml-theme.puml
 PREDEFINED             = MFD_API= \
                          MFD_CLIENT_API=

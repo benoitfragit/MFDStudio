@@ -70,7 +70,7 @@ That sequence gives you:
 - [Tutorial Index](./tutorials/README.md): step-by-step workflows by topic
 - [JSON Reference](./reference/README.md): exact fields, aliases, and JSON rules
 - [Development Guide](./DEVELOPMENT.md): build, test, repository layout, and release workflow
-- [Architecture](./architecture): advanced design notes for generated client code and transport maps
+- [Architecture Notes](./architecture/README.md): advanced design notes for generated client code and transport maps
 
 ## Common First-Time Mistakes
 

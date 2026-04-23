@@ -26,13 +26,19 @@ There is no hidden backdoor API used by the mockup.
 
 ## Mental Model
 
-```mermaid
-flowchart LR
-    A[Window JSON loaded by mockup] --> B[Discover pages, ids, blink types, UDP endpoints]
-    B --> C[CommandClient]
-    C -->|UDP protobuf commands| D[Running MFD window]
-    D -->|optional UDP strobe feedback| E[Feedback receiver in mockup]
-```
+\startuml
+left to right direction
+rectangle "Window JSON loaded by mockup" as WindowJson
+rectangle "Discover pages, ids, blink types,\nUDP endpoints" as Discovery
+rectangle "CommandClient" as CommandClient
+rectangle "Running MFD window" as RunningWindow
+rectangle "Feedback receiver in mockup" as FeedbackReceiver
+
+WindowJson --> Discovery
+Discovery --> CommandClient
+CommandClient --> RunningWindow : UDP protobuf commands
+RunningWindow --> FeedbackReceiver : optional UDP strobe feedback
+\enduml
 
 Keep these roles separate:
 

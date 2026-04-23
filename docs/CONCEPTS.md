@@ -4,16 +4,23 @@ This page explains the project vocabulary before you dive into the tutorials.
 
 ## The Object Model
 
-```mermaid
-flowchart TD
-    A[Window] --> B[Pages]
-    B --> C[Static reticles]
-    B --> D[Optional strobe]
-    B --> E[Dynamic reticles at runtime]
-    C --> F[Primitives]
-    D --> F
-    E --> F
-```
+\startuml
+top to bottom direction
+rectangle "Window" as Window
+rectangle "Pages" as Pages
+rectangle "Static reticles" as StaticReticles
+rectangle "Optional strobe" as OptionalStrobe
+rectangle "Dynamic reticles\nat runtime" as DynamicReticles
+rectangle "Primitives" as Primitives
+
+Window --> Pages
+Pages --> StaticReticles
+Pages --> OptionalStrobe
+Pages --> DynamicReticles
+StaticReticles --> Primitives
+OptionalStrobe --> Primitives
+DynamicReticles --> Primitives
+\enduml
 
 ## Window
 
@@ -206,38 +213,36 @@ You do not need to know the internal project structure.
 
 ## Command Flow
 
-```mermaid
-sequenceDiagram
-    participant C as External client
-    participant U as UDP I/O worker
-    participant M as Render thread
-    participant P as CommandProcessor / EnTT
-    participant S as SceneRegistry
-    participant R as Renderer
+\startuml
+actor "External client" as C
+participant "UDP I/O worker" as U
+participant "Render thread" as M
+participant "CommandProcessor / EnTT" as P
+participant "SceneRegistry" as S
+participant "Renderer" as R
 
-    C->>U: protobuf command
-    U->>M: queue decoded commands
-    M->>P: submit commands
-    P->>S: apply page / reticle / strobe update
-    S->>R: expose active page state
-    R->>R: draw active page
-```
+C -> U : protobuf command
+U -> M : queue decoded commands
+M -> P : submit commands
+P -> S : apply page / reticle / strobe update
+S -> R : expose active page state
+R -> R : draw active page
+\enduml
 
 ## Feedback Flow
 
-```mermaid
-sequenceDiagram
-    participant C as External client
-    participant U as UDP I/O worker
-    participant M as Render thread
-    participant S as Strobe logic
+\startuml
+actor "External client" as C
+participant "UDP I/O worker" as U
+participant "Render thread" as M
+participant "Strobe logic" as S
 
-    C->>U: command packet
-    U->>M: queued strobe command
-    M->>S: resolve magnetization and capture
-    M->>U: queue feedback snapshot
-    U->>C: UDP protobuf feedback
-```
+C -> U : command packet
+U -> M : queued strobe command
+M -> S : resolve magnetization and capture
+M -> U : queue feedback snapshot
+U -> C : UDP protobuf feedback
+\enduml
 
 ## Threading Model
 

@@ -1,0 +1,30 @@
+# Architecture Notes
+
+This section gathers the deeper design notes that sit behind the onboarding
+guides, tutorials, and JSON reference.
+
+Use these pages when you already understand the normal runtime workflow and
+need the lower-level design constraints that shaped the generated client API or
+the transport mapping model.
+
+## Read This Section When
+
+- you are changing the generated client API surface
+- you need the exact authored-to-transport mapping rules
+- you are reviewing compatibility boundaries between generated helpers and the
+  low-level runtime commands
+- you want the architectural rationale behind a public API choice
+
+## Pages
+
+| Page | Use it when |
+| --- | --- |
+| [Generated Client API Architecture](./generated_client_api.md) | you are shaping the typed generated client layer exposed to applications |
+| [Generated Transport Map Specification](./generated_transport_map.md) | you need the stable rules mapping authored names to runtime transport IDs |
+
+If you are new to the project, start with:
+
+- [Project README](../../README.md)
+- [Documentation Guide](../README.md)
+- [Quick Start](../QUICKSTART.md)
+- [Core Concepts](../CONCEPTS.md)

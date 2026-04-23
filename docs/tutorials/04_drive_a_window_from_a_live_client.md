@@ -14,12 +14,17 @@ read
 
 ## At A Glance
 
-```mermaid
-flowchart LR
-    A[External application] -->|UDP protobuf commands| B[MFD window]
-    B --> C[Active page]
-    C --> D[Reticles updated in real time]
-```
+\startuml
+left to right direction
+rectangle "External application" as ExternalApplication
+rectangle "MFD window" as Window
+rectangle "Active page" as ActivePage
+rectangle "Reticles updated\nin real time" as UpdatedReticles
+
+ExternalApplication --> Window : UDP protobuf commands
+Window --> ActivePage
+ActivePage --> UpdatedReticles
+\enduml
 
 The external client always needs:
 

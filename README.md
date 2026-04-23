@@ -187,7 +187,7 @@ Documentation is intentionally split by job:
 | [Tutorial Index](./docs/tutorials/README.md) | you want step-by-step workflows |
 | [JSON Reference](./docs/reference/README.md) | you need exact authoring fields and syntax |
 | [Development Guide](./docs/DEVELOPMENT.md) | you are building, testing, or contributing to the repo |
-| [Architecture Notes](./docs/architecture) | you need advanced design details for generated APIs or transport maps |
+| [Architecture Notes](./docs/architecture/README.md) | you need advanced design details for generated APIs or transport maps |
 
 The public headers in `mfd_api/include/mfd` are also documented with Doxygen
 using `@brief`, `@param`, `@return`, and `@note`.

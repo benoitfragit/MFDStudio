@@ -15,13 +15,19 @@ For the exact page and window field reference, see:
 
 ## At A Glance
 
-```mermaid
-flowchart TD
-    A[Window JSON] --> B[Page file 1]
-    A --> C[Page file 2]
-    A --> D[Page file N]
-    A --> E[Reticle library folder]
-```
+\startuml
+top to bottom direction
+rectangle "Window JSON" as WindowJson
+rectangle "Page file 1" as Page1
+rectangle "Page file 2" as Page2
+rectangle "Page file N" as PageN
+rectangle "Reticle library folder" as ReticleLibrary
+
+WindowJson --> Page1
+WindowJson --> Page2
+WindowJson --> PageN
+WindowJson --> ReticleLibrary
+\enduml
 
 ## Step 0 - (Optional) Bootstrap from `mfd_editor`
 

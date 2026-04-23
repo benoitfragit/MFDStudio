@@ -12,12 +12,17 @@ For the exact list of primitive fields and aliases, see:
 
 ## At A Glance
 
-```mermaid
-flowchart LR
-    A[Primitive JSON] --> B[Reticle template]
-    B --> C[Page instance]
-    C --> D[Rendered page]
-```
+\startuml
+left to right direction
+rectangle "Primitive JSON" as PrimitiveJson
+rectangle "Reticle template" as ReticleTemplate
+rectangle "Page instance" as PageInstance
+rectangle "Rendered page" as RenderedPage
+
+PrimitiveJson --> ReticleTemplate
+ReticleTemplate --> PageInstance
+PageInstance --> RenderedPage
+\enduml
 
 ## What you will build
 

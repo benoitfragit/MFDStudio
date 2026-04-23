@@ -5,13 +5,19 @@ reticles between synchronized blink groups at runtime.
 
 ## At A Glance
 
-```mermaid
-flowchart LR
-    A[Page JSON] --> B[Blink types]
-    B --> C[Reticle instance]
-    C --> D[Runtime patch]
-    D --> E[Same duration = same phase]
-```
+\startuml
+left to right direction
+rectangle "Page JSON" as PageJson
+rectangle "Blink types" as BlinkTypes
+rectangle "Reticle instance" as ReticleInstance
+rectangle "Runtime patch" as RuntimePatch
+rectangle "Same duration = same phase" as SamePhase
+
+PageJson --> BlinkTypes
+BlinkTypes --> ReticleInstance
+ReticleInstance --> RuntimePatch
+RuntimePatch --> SamePhase
+\enduml
 
 ## The Core Rule
 

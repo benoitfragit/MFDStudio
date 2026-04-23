@@ -12,14 +12,21 @@ The important rule is now simple:
 
 ## At A Glance
 
-```mermaid
-flowchart LR
-    A[Template in library] --> B[Generated dynamic set accessor]
-    B --> C[Create typed handle]
-    C --> D[Mutate with typed setters]
-    D --> E[Build and send one batch]
-    E --> F[Remove handle when no longer needed]
-```
+\startuml
+left to right direction
+rectangle "Template in library" as TemplateLibrary
+rectangle "Generated dynamic\nset accessor" as DynamicAccessor
+rectangle "Create typed handle" as CreateHandle
+rectangle "Mutate with typed setters" as TypedSetters
+rectangle "Build and send\none batch" as SendBatch
+rectangle "Remove handle when\nno longer needed" as RemoveHandle
+
+TemplateLibrary --> DynamicAccessor
+DynamicAccessor --> CreateHandle
+CreateHandle --> TypedSetters
+TypedSetters --> SendBatch
+SendBatch --> RemoveHandle
+\enduml
 
 Dynamic reticles are ideal for:
 

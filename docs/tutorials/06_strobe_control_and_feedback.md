@@ -8,19 +8,18 @@ This tutorial shows how to:
 
 ## At A Glance
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant U as UDP I/O worker
-    participant W as Render thread
-    participant S as Strobe logic
+\startuml
+actor Client as C
+participant "UDP I/O worker" as U
+participant "Render thread" as W
+participant "Strobe logic" as S
 
-    C->>U: SetStrobeActive / SetStrobePosition
-    U->>W: Queue typed command
-    W->>S: Resolve capture and magnetization
-    W->>U: Queue strobe feedback snapshot
-    U->>C: Strobe status feedback
-```
+C -> U : SetStrobeActive / SetStrobePosition
+U -> W : Queue typed command
+W -> S : Resolve capture and magnetization
+W -> U : Queue strobe feedback snapshot
+U -> C : Strobe status feedback
+\enduml
 
 ## Step 1 - Define the strobe in the page JSON
 

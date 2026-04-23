@@ -2,7 +2,7 @@
 
 This page is the fastest way to understand the project and get a visible result.
 
-If you want the full documentation map first, read [Documentation Guide](./README.md).
+If you want the full documentation map first, read [Documentation Guide](../docs/README.md).
 If you want the contributor-oriented build and test view, read [Development Guide](./DEVELOPMENT.md).
 
 ## Goal
@@ -17,14 +17,20 @@ In about 10 minutes you will:
 
 ## Mental Model
 
-```mermaid
-flowchart LR
-    A[Reticle JSON files] --> B[Window JSON]
-    C[Page JSON files] --> B
-    B --> D[Window application]
-    E[Mockup or your own client] -->|UDP commands| D
-    D -->|UDP strobe feedback| E
-```
+\startuml
+left to right direction
+rectangle "Reticle JSON files" as ReticleJson
+rectangle "Page JSON files" as PageJson
+rectangle "Window JSON" as WindowJson
+rectangle "Window application" as WindowApp
+rectangle "Mockup or your own client" as Client
+
+ReticleJson --> WindowJson
+PageJson --> WindowJson
+WindowJson --> WindowApp
+Client --> WindowApp : UDP commands
+WindowApp --> Client : UDP strobe feedback
+\enduml
 
 Keep this simple model in mind:
 
@@ -100,22 +106,21 @@ In the radar tools section of the mockup:
 
 You have already exercised the full runtime loop:
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant M as client_mockup
-    participant N as UDP I/O worker
-    participant W as Render thread
-    participant P as CommandProcessor / EnTT
-    participant R as Renderer
+\startuml
+actor User as U
+participant client_mockup as M
+participant "UDP I/O worker" as N
+participant "Render thread" as W
+participant "CommandProcessor / EnTT" as P
+participant Renderer as R
 
-    U->>M: Edit page or reticle
-    M->>N: UDP protobuf command
-    N->>W: Queue typed commands
-    W->>P: Submit commands
-    P->>W: Update SceneRegistry
-    W->>R: Render active page
-```
+U -> M : Edit page or reticle
+M -> N : UDP protobuf command
+N -> W : Queue typed commands
+W -> P : Submit commands
+P -> W : Update SceneRegistry
+W -> R : Render active page
+\enduml
 
 ## What You Should Read Next
 
