@@ -18,7 +18,16 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h)
 
-add_executable(mfd_editor ${MFD_EDITOR_SOURCES} ${MFD_EDITOR_HEADERS})
+set(MFD_EDITOR_WINDOWS_RESOURCES)
+if(WIN32)
+    list(APPEND MFD_EDITOR_WINDOWS_RESOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/mfd_editor.rc)
+endif()
+
+add_executable(mfd_editor
+    ${MFD_EDITOR_SOURCES}
+    ${MFD_EDITOR_HEADERS}
+    ${MFD_EDITOR_WINDOWS_RESOURCES})
 
 target_include_directories(mfd_editor
     PRIVATE

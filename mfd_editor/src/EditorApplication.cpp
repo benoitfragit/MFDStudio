@@ -33,6 +33,7 @@
 #include "mfd/model/Types.h"
 #include "mfd/render/Canvas2D.h"
 #include "mfd/render/RenderTextureUtils.h"
+#include "mfd/render/WindowBranding.h"
 
 namespace
 {
@@ -165,6 +166,13 @@ bool IsExecStagingPath(const std::filesystem::path& path)
     const std::filesystem::path absolutePath =
         path.is_absolute() ? path.lexically_normal() : std::filesystem::absolute(path).lexically_normal();
     return PathContainsSegment(absolutePath, "_Exec");
+}
+
+void TryApplyEditorWindowIcon()
+{
+    std::string error;
+    const std::filesystem::path iconFile = mfd::ResolveWindowBrandingIconFile();
+    (void)mfd::ApplyWindowIconFile(iconFile, &error);
 }
 
 int FindPageIndexByName(const mfd::LoadedWindowConfiguration& loaded, const std::string_view pageName)
@@ -1271,6 +1279,7 @@ int EditorApplication::Run()
 {
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(1720, 980, "MFDStudio");
+    TryApplyEditorWindowIcon();
     SetWindowMinSize(1320, 760);
     SetTargetFPS(60);
 

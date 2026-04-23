@@ -59,6 +59,7 @@ extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* na
 #include "mfd/io/JsonLoader.h"
 #include "mfd/render/MfdRenderer.h"
 #include "mfd/render/OpenGlFramebufferReader.h"
+#include "mfd/render/WindowBranding.h"
 #include "mfd/runtime/SceneRegistry.h"
 
 #if defined(_WIN32)
@@ -621,6 +622,11 @@ Color ToRayColor(const mfd::ColorRgba& color)
     return Color {color.r, color.g, color.b, color.a};
 }
 
+bool TextureReady(const Texture2D& texture) noexcept
+{
+    return texture.id != 0 && texture.width > 0 && texture.height > 0;
+}
+
 mfd::StrobeFeedbackCapture ToFeedbackCapture(const mfd::StrobeCaptureResult& capture)
 {
     return mfd::StrobeFeedbackCapture {
@@ -893,6 +899,7 @@ public:
 
         SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
         InitWindow(windowDefinition_.width, windowDefinition_.height, windowDefinition_.title.c_str());
+        RefreshBranding();
         SetWindowPosition(windowDefinition_.positionX, windowDefinition_.positionY);
 
         if (windowDefinition_.targetFps > 0)
@@ -924,8 +931,15 @@ public:
 
             try
             {
-                ClearBackground(ToRayColor(scene_.ActiveBackgroundColor()));
-                renderer_.DrawActivePage(scene_);
+                if (ShouldDrawStartupSplash())
+                {
+                    DrawStartupSplash();
+                }
+                else
+                {
+                    ClearBackground(ToRayColor(scene_.ActiveBackgroundColor()));
+                    renderer_.DrawActivePage(scene_);
+                }
                 PublishFramebuffer();
             }
             catch (const std::exception& exception)
@@ -945,12 +959,120 @@ public:
             }
         }
 
+        UnloadBrandingResources();
         framebufferCapture_.reset();
         CloseWindow();
         return 0;
     }
 
 private:
+    void UnloadBrandingResources() noexcept
+    {
+        if (TextureReady(splashTexture_))
+        {
+            UnloadTexture(splashTexture_);
+        }
+
+        splashTexture_ = {};
+    }
+
+    void RefreshBranding()
+    {
+        resolvedIconFile_ = mfd::ResolveWindowBrandingIconFile(windowDefinition_.iconFile, windowFile_);
+        brandingStatus_.clear();
+
+        if (IsWindowReady() && !resolvedIconFile_.empty())
+        {
+            std::string iconError;
+            if (!mfd::ApplyWindowIconFile(resolvedIconFile_, &iconError) && !iconError.empty())
+            {
+                brandingStatus_ = iconError;
+            }
+        }
+
+        UnloadBrandingResources();
+        if (resolvedIconFile_.empty() || !std::filesystem::exists(resolvedIconFile_))
+        {
+            return;
+        }
+
+        splashTexture_ = LoadTexture(resolvedIconFile_.string().c_str());
+        if (!TextureReady(splashTexture_) && brandingStatus_.empty())
+        {
+            brandingStatus_ = "Unable to load the branding texture '" + resolvedIconFile_.string() + "'.";
+        }
+    }
+
+    [[nodiscard]] bool ShouldDrawStartupSplash() const noexcept
+    {
+        return TextureReady(splashTexture_) &&
+               udpRuntimeBridge_ != nullptr &&
+               udpRuntimeBridge_->HasCommandReceiver() &&
+               !receivedFirstClientCommand_;
+    }
+
+    void DrawStartupSplash() const
+    {
+        const int renderWidth = GetRenderWidth();
+        const int renderHeight = GetRenderHeight();
+        if (renderWidth <= 0 || renderHeight <= 0)
+        {
+            return;
+        }
+
+        DrawRectangleGradientV(0, 0, renderWidth, renderHeight, Color {7, 15, 21, 255}, Color {2, 7, 11, 255});
+
+        const float screenMin = static_cast<float>(std::min(renderWidth, renderHeight));
+        const float imageSize = std::clamp(screenMin * 0.42f, 180.0f, 520.0f);
+        const Rectangle imageBounds {
+            (static_cast<float>(renderWidth) - imageSize) * 0.5f,
+            std::max(30.0f, static_cast<float>(renderHeight) * 0.5f - imageSize * 0.68f),
+            imageSize,
+            imageSize};
+        const Rectangle cardBounds {
+            imageBounds.x - 28.0f,
+            imageBounds.y - 28.0f,
+            imageBounds.width + 56.0f,
+            imageBounds.height + 56.0f};
+
+        DrawRectangleRounded(cardBounds, 0.08f, 18, Color {9, 19, 26, 232});
+        DrawRectangleRoundedLinesEx(cardBounds, 0.08f, 18, 2.0f, Color {42, 86, 78, 255});
+        DrawTexturePro(
+            splashTexture_,
+            Rectangle {0.0f, 0.0f, static_cast<float>(splashTexture_.width), static_cast<float>(splashTexture_.height)},
+            imageBounds,
+            Vector2 {0.0f, 0.0f},
+            0.0f,
+            WHITE);
+
+        const std::string title = windowDefinition_.title.empty() ? applicationName_ : windowDefinition_.title;
+        const int titleFontSize = std::clamp(static_cast<int>(screenMin * 0.048f), 26, 42);
+        const int subtitleFontSize = std::clamp(static_cast<int>(screenMin * 0.022f), 16, 22);
+        const char* subtitle = "Waiting for the first client command...";
+
+        const int titleWidth = MeasureText(title.c_str(), titleFontSize);
+        const int subtitleWidth = MeasureText(subtitle, subtitleFontSize);
+        const int titleX = (renderWidth - titleWidth) / 2;
+        const int subtitleX = (renderWidth - subtitleWidth) / 2;
+        const int titleY = static_cast<int>(imageBounds.y + imageBounds.height + 28.0f);
+        const int subtitleY = titleY + titleFontSize + 12;
+
+        DrawText(title.c_str(), titleX, titleY, titleFontSize, Color {227, 242, 236, 255});
+        DrawText(subtitle, subtitleX, subtitleY, subtitleFontSize, Color {117, 198, 176, 255});
+
+        if (!brandingStatus_.empty())
+        {
+            const int statusFontSize = 16;
+            const int statusWidth = MeasureText(brandingStatus_.c_str(), statusFontSize);
+            DrawText(
+                brandingStatus_.c_str(),
+                (renderWidth - statusWidth) / 2,
+                subtitleY + subtitleFontSize + 14,
+                statusFontSize,
+                Color {250, 176, 96, 255});
+        }
+    }
+
     bool ReloadConfiguration()
     {
         try
@@ -977,6 +1099,7 @@ private:
 
             strobeFeedbackAccumulator_ = 0.0f;
             nextStrobeFeedbackSequence_ = 1;
+            receivedFirstClientCommand_ = false;
             lastRuntimeError_.clear();
 
             if (udpRuntimeBridge_ == nullptr || !udpRuntimeBridge_->HasCommandReceiver())
@@ -1007,6 +1130,8 @@ private:
                 {
                     SetTargetFPS(windowDefinition_.targetFps);
                 }
+
+                RefreshBranding();
             }
 
             lastReloadError_.clear();
@@ -1058,6 +1183,7 @@ private:
             const std::size_t drainedBatches = udpRuntimeBridge_->DrainReceivedBatches(pendingCommandBatches_);
             if (drainedBatches > 0)
             {
+                receivedFirstClientCommand_ = true;
                 std::size_t drainedCommands = 0;
                 bool success = true;
                 bool truncated = false;
@@ -1165,6 +1291,10 @@ private:
         std::cout << applicationName_ << '\n';
         std::cout << "Window JSON: " << windowFile_.string() << '\n';
         std::cout << "Window title: " << windowDefinition_.title << '\n';
+        if (!resolvedIconFile_.empty())
+        {
+            std::cout << "Branding icon: " << resolvedIconFile_.string() << '\n';
+        }
         std::cout << "Pages: " << scene_.Pages().size() << '\n';
         std::cout << "Shortcuts: R reloads, 1..9 switch pages\n";
     }
@@ -1203,8 +1333,12 @@ private:
     mfd::WindowAssetDefinition windowDefinition_ {};
     std::unique_ptr<mfd::UdpRuntimeBridge> udpRuntimeBridge_ {};
     std::vector<mfd::CommandBatch> pendingCommandBatches_ {};
+    Texture2D splashTexture_ {};
     float strobeFeedbackAccumulator_ = 0.0f;
     std::uint32_t nextStrobeFeedbackSequence_ = 1;
+    bool receivedFirstClientCommand_ = false;
+    std::filesystem::path resolvedIconFile_ {};
+    std::string brandingStatus_ {};
     std::string lastCommandStatus_ {};
     std::string lastFeedbackStatus_ {};
     std::string lastReloadError_ {};

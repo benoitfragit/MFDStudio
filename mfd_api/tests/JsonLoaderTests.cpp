@@ -75,6 +75,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
 {
     TemporaryFolder workspace;
     const std::filesystem::path fontFile = workspace.Path() / "fonts" / "demo.ttf";
+    const std::filesystem::path iconFile = workspace.Path() / "branding" / "demo_icon.png";
     const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
     const std::filesystem::path pagesFolder = workspace.Path() / "pages";
     const std::filesystem::path windowFile = workspace.Path() / "window.json";
@@ -111,6 +112,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
 })json");
 
     WriteTextFile(fontFile, "dummy font file");
+    WriteTextFile(iconFile, "dummy icon file");
 
     WriteTextFile(windowFile,
                   R"json({
@@ -119,6 +121,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
   "position": [10, 20],
   "targetFps": 40,
   "fontFile": "fonts/demo.ttf",
+  "iconFile": "branding/demo_icon.png",
   "reticleLibraryFolder": "reticles",
   "commands": {
     "udp": {
@@ -201,6 +204,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
     EXPECT_EQ(loaded.window.positionY, 20);
     EXPECT_EQ(loaded.window.targetFps, 40);
     EXPECT_EQ(loaded.window.fontFile.lexically_normal(), fontFile.lexically_normal());
+    EXPECT_EQ(loaded.window.iconFile.lexically_normal(), iconFile.lexically_normal());
     ASSERT_TRUE(loaded.window.commandTransports.udp.has_value());
     ASSERT_TRUE(loaded.window.feedbackTransports.udp.has_value());
     EXPECT_EQ(loaded.window.commandTransports.udp->port, 48000);

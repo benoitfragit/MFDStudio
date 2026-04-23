@@ -24,7 +24,15 @@ target_link_libraries(mfd_window_launcher
 set(MFD_WINDOW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 
-add_executable(mfd_window ${MFD_WINDOW_SOURCES})
+set(MFD_WINDOW_WINDOWS_RESOURCES)
+if(WIN32)
+    list(APPEND MFD_WINDOW_WINDOWS_RESOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/mfd_window.rc)
+endif()
+
+add_executable(mfd_window
+    ${MFD_WINDOW_SOURCES}
+    ${MFD_WINDOW_WINDOWS_RESOURCES})
 
 target_link_libraries(mfd_window
     PRIVATE

@@ -23,6 +23,7 @@ Canonical example:
   "position": [80, 60],
   "targetFps": 60,
   "fontFile": "../fonts/ocr_a.ttf",
+  "iconFile": "../branding/mfdstudio_app_icon.png",
   "reticleLibraryFolder": "../reticles",
   "commands": {
     "udp": {
@@ -61,6 +62,7 @@ Canonical example:
 | `y` | integer | no | Alternative direct Y position. | none |
 | `targetFps` | integer | no | Requested update rate. | `fps` |
 | `fontFile` | string | no | Optional font file used by the host renderer for text primitives and page overlays. | `font`, `fontPath` |
+| `iconFile` | string | no | Optional icon image used by the host window. In `mfd_window`, the same image is reused as a startup splash until the first client command arrives. | `icon`, `windowIcon`, `windowIconFile`, `iconPath` |
 | `reticleLibraryFolder` | string | recommended | Folder containing reticle templates. | `reticles`, `reticleFolder` |
 | `commands` | object | no | Command transport configuration. | `commandTransport`, `commandTransports` |
 | `feedback` | object | no | Feedback transport configuration. | `feedbackTransport`, `feedbackTransports`, `strobeFeedback`, `events` |
@@ -70,7 +72,24 @@ Canonical example:
 Notes:
 
 - `fontFile` is resolved relative to the root window JSON file
+- `iconFile` is resolved relative to the root window JSON file
 - the font choice is authoring-time configuration, not a runtime user command
+
+\startuml
+left to right direction
+rectangle "window.json" as WindowJson
+rectangle "fontFile" as FontFile
+rectangle "iconFile" as IconFile
+rectangle "mfd_window" as HostWindow
+rectangle "Startup splash" as Splash
+rectangle "Window taskbar/icon" as WindowIcon
+
+WindowJson --> FontFile : resolve relative path
+WindowJson --> IconFile : resolve relative path
+IconFile --> HostWindow : load branding image
+HostWindow --> Splash : reuse until first client command
+HostWindow --> WindowIcon : apply as runtime window icon
+\enduml
 
 ### `size` syntax
 

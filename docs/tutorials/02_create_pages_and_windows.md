@@ -95,6 +95,7 @@ The root window JSON defines:
 - window size in pixels
 - window screen position
 - optional text font file for text/time primitives and page overlays
+- optional window icon used by the runtime and the startup splash
 - UDP command transport
 - optional UDP feedback transport
 - list of page files
@@ -109,6 +110,7 @@ Create `assets/windows/tutorial_window.json`:
   "position": [80, 60],
   "targetFps": 60,
   "fontFile": "../fonts/ocr_a.ttf",
+  "iconFile": "../branding/mfdstudio_app_icon.png",
   "reticleLibraryFolder": "../reticles",
   "commands": {
     "udp": {

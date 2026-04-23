@@ -2104,6 +2104,16 @@ WindowAssetDefinition ParseWindowAssetDefinition(const json& root,
         window.fontFile = ResolvePath(windowFile.parent_path(), fontFile->get<std::string>());
     }
 
+    if (const json* iconFile = FindField(root, {"iconFile", "icon", "windowIcon", "windowIconFile", "iconPath"}))
+    {
+        if (!iconFile->is_string())
+        {
+            throw std::runtime_error("iconFile must be a string path");
+        }
+
+        window.iconFile = ResolvePath(windowFile.parent_path(), iconFile->get<std::string>());
+    }
+
     window.reticleLibraryFolder = windowFile.parent_path();
     if (const json* folder = FindField(root, {"reticleLibraryFolder", "reticles", "reticleFolder"}))
     {
