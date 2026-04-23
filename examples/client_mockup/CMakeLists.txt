@@ -75,6 +75,11 @@ target_link_libraries(client_mockup
 set_target_properties(client_mockup PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_mockup>")
 
+set(MFD_CLIENT_MOCKUP_STAGE_DIR
+    "${MFD_ROOT_DIR}/_Exec/${MFD_EXEC_COMPILER_DIR}/${MFD_EXEC_PLATFORM_DIR}/$<CONFIG>")
+set(MFD_CLIENT_MOCKUP_API_RUNTIME_DLLS_ARG
+    "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_api>,$<SEMICOLON>>")
+
 add_custom_command(
     TARGET client_mockup
     POST_BUILD
@@ -88,6 +93,18 @@ add_custom_command(
         ${CMAKE_COMMAND}
         "-DDEST_DIR=$<TARGET_FILE_DIR:client_mockup>"
         "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:client_mockup>,$<SEMICOLON>>"
+        -P
+        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DDEST_DIR=$<TARGET_FILE_DIR:client_mockup>"
+        "${MFD_CLIENT_MOCKUP_API_RUNTIME_DLLS_ARG}"
+        -P
+        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DDEST_DIR=${MFD_CLIENT_MOCKUP_STAGE_DIR}"
+        "${MFD_CLIENT_MOCKUP_API_RUNTIME_DLLS_ARG}"
         -P
         "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
     VERBATIM)
