@@ -50,16 +50,42 @@ public:
     mfd::client::TextHandle headingValue;
 };
 
+class GeneratedGeometryFixtureReticle final : public mfd::client::Reticle
+{
+public:
+    GeneratedGeometryFixtureReticle()
+        : mfd::client::Reticle("Radar", "geometry_fixture", 11U, 22U),
+          horizonLine(MutableDesiredPatch(), DirtyFlag(), "horizon_line", 101U, PrimitiveTransportIds()),
+          cursorCircle(MutableDesiredPatch(), DirtyFlag(), "cursor_circle", 102U, PrimitiveTransportIds()),
+          scopeRing(MutableDesiredPatch(), DirtyFlag(), "scope_ring", 103U, PrimitiveTransportIds()),
+          lockBox(MutableDesiredPatch(), DirtyFlag(), "lock_box", 104U, PrimitiveTransportIds()),
+          uncertaintyEllipse(MutableDesiredPatch(), DirtyFlag(), "uncertainty_ellipse", 105U, PrimitiveTransportIds()),
+          targetSquare(MutableDesiredPatch(), DirtyFlag(), "target_square", 106U, PrimitiveTransportIds()),
+          steerDiamond(MutableDesiredPatch(), DirtyFlag(), "steer_diamond", 107U, PrimitiveTransportIds())
+    {
+    }
+
+    mfd::client::LineHandle horizonLine;
+    mfd::client::CircleHandle cursorCircle;
+    mfd::client::RingHandle scopeRing;
+    mfd::client::RectangleHandle lockBox;
+    mfd::client::EllipseHandle uncertaintyEllipse;
+    mfd::client::SquareHandle targetSquare;
+    mfd::client::DiamondHandle steerDiamond;
+};
+
 class GeneratedDynamicFixtureReticle final : public mfd::client::DynamicReticle
 {
 public:
     explicit GeneratedDynamicFixtureReticle(const std::string_view reticleId)
         : mfd::client::DynamicReticle(reticleId),
-          label(MutableDesiredPatch(), DirtyFlag(), "track_label", 33U, PrimitiveTransportIds())
+          label(MutableDesiredPatch(), DirtyFlag(), "track_label", 33U, PrimitiveTransportIds()),
+          vectorLine(MutableDesiredPatch(), DirtyFlag(), "vector_line", 34U, PrimitiveTransportIds())
     {
     }
 
     mfd::client::TextHandle label;
+    mfd::client::LineHandle vectorLine;
 };
 
 class GeneratedDynamicFixtureSet final : public mfd::client::GeneratedDynamicReticleSet
@@ -243,6 +269,78 @@ TEST(AnimationTests, GeneratedStaticHandlesCarryTransportIdsAlongsideLegacyField
     EXPECT_EQ(*update->patch.primitivePatchesById.at(33U).text, "123");
 }
 
+TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatchesById)
+{
+    GeneratedGeometryFixtureReticle reticle;
+
+    reticle.horizonLine.SetStart({-0.5f, 0.0f});
+    reticle.horizonLine.SetEnd({0.5f, 0.0f});
+    reticle.cursorCircle.SetRadius(0.07f);
+    reticle.scopeRing.SetInnerRadius(0.15f);
+    reticle.scopeRing.SetOuterRadius(0.21f);
+    reticle.lockBox.SetWidth(0.30f);
+    reticle.lockBox.SetHeight(0.12f);
+    reticle.lockBox.SetSize({0.32f, 0.14f});
+    reticle.uncertaintyEllipse.SetWidth(0.40f);
+    reticle.uncertaintyEllipse.SetHeight(0.20f);
+    reticle.targetSquare.SetSize({0.11f, 0.11f});
+    reticle.steerDiamond.SetWidth(0.18f);
+    reticle.steerDiamond.SetHeight(0.24f);
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->target.pageId, 11U);
+    EXPECT_EQ(update->target.reticleId, 22U);
+    EXPECT_TRUE(update->patch.primitivePatches.empty());
+    ASSERT_EQ(update->patch.primitivePatchesById.size(), 7U);
+
+    const auto& linePatch = update->patch.primitivePatchesById.at(101U);
+    ASSERT_TRUE(linePatch.lineStart.has_value());
+    ASSERT_TRUE(linePatch.lineEnd.has_value());
+    EXPECT_FLOAT_EQ(linePatch.lineStart->x, -0.5f);
+    EXPECT_FLOAT_EQ(linePatch.lineEnd->x, 0.5f);
+
+    const auto& circlePatch = update->patch.primitivePatchesById.at(102U);
+    ASSERT_TRUE(circlePatch.radius.has_value());
+    EXPECT_FLOAT_EQ(*circlePatch.radius, 0.07f);
+
+    const auto& ringPatch = update->patch.primitivePatchesById.at(103U);
+    ASSERT_TRUE(ringPatch.innerRadius.has_value());
+    ASSERT_TRUE(ringPatch.outerRadius.has_value());
+    EXPECT_FLOAT_EQ(*ringPatch.innerRadius, 0.15f);
+    EXPECT_FLOAT_EQ(*ringPatch.outerRadius, 0.21f);
+
+    const auto& rectanglePatch = update->patch.primitivePatchesById.at(104U);
+    ASSERT_TRUE(rectanglePatch.width.has_value());
+    ASSERT_TRUE(rectanglePatch.height.has_value());
+    ASSERT_TRUE(rectanglePatch.size.has_value());
+    EXPECT_FLOAT_EQ(*rectanglePatch.width, 0.30f);
+    EXPECT_FLOAT_EQ(*rectanglePatch.height, 0.12f);
+    EXPECT_FLOAT_EQ(rectanglePatch.size->x, 0.32f);
+    EXPECT_FLOAT_EQ(rectanglePatch.size->y, 0.14f);
+
+    const auto& ellipsePatch = update->patch.primitivePatchesById.at(105U);
+    ASSERT_TRUE(ellipsePatch.width.has_value());
+    ASSERT_TRUE(ellipsePatch.height.has_value());
+    EXPECT_FLOAT_EQ(*ellipsePatch.width, 0.40f);
+    EXPECT_FLOAT_EQ(*ellipsePatch.height, 0.20f);
+
+    const auto& squarePatch = update->patch.primitivePatchesById.at(106U);
+    ASSERT_TRUE(squarePatch.size.has_value());
+    EXPECT_FLOAT_EQ(squarePatch.size->x, 0.11f);
+    EXPECT_FLOAT_EQ(squarePatch.size->y, 0.11f);
+
+    const auto& diamondPatch = update->patch.primitivePatchesById.at(107U);
+    ASSERT_TRUE(diamondPatch.width.has_value());
+    ASSERT_TRUE(diamondPatch.height.has_value());
+    EXPECT_FLOAT_EQ(*diamondPatch.width, 0.18f);
+    EXPECT_FLOAT_EQ(*diamondPatch.height, 0.24f);
+}
+
 TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingReticles)
 {
     mfd::client::BlinkType caution("caution");
@@ -336,6 +434,8 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     GeneratedDynamicFixtureReticle& track = set.Create();
 
     track.label.SetText("A1");
+    track.vectorLine.SetStart({-0.25f, 0.15f});
+    track.vectorLine.SetEnd({0.25f, 0.15f});
     track.SetPosition({0.12f, -0.08f});
 
     std::vector<mfd::UserCommand> commands;
@@ -356,6 +456,12 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
               upsert->reticles.front().patch.primitivePatchesById.end());
     ASSERT_TRUE(upsert->reticles.front().patch.primitivePatchesById.at(33U).text.has_value());
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(33U).text, "A1");
+    ASSERT_NE(upsert->reticles.front().patch.primitivePatchesById.find(34U),
+              upsert->reticles.front().patch.primitivePatchesById.end());
+    ASSERT_TRUE(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineStart.has_value());
+    ASSERT_TRUE(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineEnd.has_value());
+    EXPECT_FLOAT_EQ(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineStart->x, -0.25f);
+    EXPECT_FLOAT_EQ(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineEnd->x, 0.25f);
 
     commands.clear();
     EXPECT_EQ(set.AppendCommands(commands), 0U);

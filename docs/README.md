@@ -26,6 +26,7 @@ That sequence gives you:
 | Use `mfd_editor` to create or edit assets | [Quick Start](./QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md) |
 | Integrate a live external client over UDP | [Quick Start](./QUICKSTART.md) | [Drive A Window From A Live Client](./tutorials/04_drive_a_window_from_a_live_client.md), [Dynamic Reticles](./tutorials/05_dynamic_reticles.md), [Strobe And Feedback](./tutorials/06_strobe_control_and_feedback.md) |
 | Use the generated client-side API | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) | [Generated Client API Architecture](./architecture/generated_client_api.md) |
+| Build a third-party replacement client | [External Client Interoperability Specification](./standards/mfd_client_interoperability_specification.md) | [Generated Transport Map Specification](./architecture/generated_transport_map.md), then the live-client and strobe tutorials |
 | Need a hosted C++ API reference | [Development Guide](./DEVELOPMENT.md) | GitHub Pages site published automatically from Doxygen on each release |
 | Work on runtime safety or contributor workflows | [Development Guide](./DEVELOPMENT.md) | [Run The Automated Runtime Tests](./tutorials/12_run_the_automated_runtime_tests.md) |
 | Need exact JSON field syntax | [JSON Reference](./reference/README.md) | [Page And Window Reference](./reference/page_and_window_reference.md) and [Primitive Reference](./reference/primitive_reference.md) |
@@ -71,6 +72,7 @@ That sequence gives you:
 - [JSON Reference](./reference/README.md): exact fields, aliases, and JSON rules
 - [Development Guide](./DEVELOPMENT.md): build, test, repository layout, and release workflow
 - [Architecture Notes](./architecture/README.md): advanced design notes for generated client code and transport maps
+- [Interoperability Standards](./standards/README.md): replacement-client contract and future standardization candidate
 
 ## Common First-Time Mistakes
 

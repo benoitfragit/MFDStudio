@@ -27,6 +27,7 @@ Use the entry point that matches your goal:
 | I want to work on the repository itself | [Development Guide](./docs/DEVELOPMENT.md) |
 | I need the project vocabulary | [Core Concepts](./docs/CONCEPTS.md) |
 | I need exact JSON fields and syntax | [JSON Reference](./docs/reference/README.md) |
+| I need the third-party client replacement contract | [Interoperability Standards](./docs/standards/README.md) |
 | I want step-by-step workflows | [Tutorial Index](./docs/tutorials/README.md) |
 
 ## First 10 Minutes
@@ -188,6 +189,7 @@ Documentation is intentionally split by job:
 | [JSON Reference](./docs/reference/README.md) | you need exact authoring fields and syntax |
 | [Development Guide](./docs/DEVELOPMENT.md) | you are building, testing, or contributing to the repo |
 | [Architecture Notes](./docs/architecture/README.md) | you need advanced design details for generated APIs or transport maps |
+| [Interoperability Standards](./docs/standards/README.md) | you want the formal client replacement contract and conformance target |
 
 The public headers in `mfd_api/include/mfd` are also documented with Doxygen
 using `@brief`, `@param`, `@return`, and `@note`.

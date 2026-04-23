@@ -60,6 +60,7 @@ It now brings together:
 | the full tutorial ladder | [Tutorial Index](./tutorials/README.md) |
 | exact authoring syntax and JSON fields | [JSON Reference](./reference/README.md) |
 | deeper API and transport rationale | [Architecture Notes](./architecture/README.md) |
+| the formal replacement-client contract | [Interoperability Standards](./standards/README.md) |
 
 ## Documentation Lanes
 
@@ -67,6 +68,7 @@ It now brings together:
 | --- | --- | --- |
 | Asset author | [Core Concepts](./CONCEPTS.md) | JSON tutorials, authoring reference, and editor workflow pages |
 | Client integrator | [Quick Start](./QUICKSTART.md) | UDP control tutorials, dynamic reticles, strobe feedback, and projection helpers |
+| Third-party client implementer | [Interoperability Standards](./standards/README.md) | generated transport rules, command semantics, and conformance checks |
 | Contributor | [Development Guide](./DEVELOPMENT.md) | presets, tests, repository layout, release automation, and the published API surface |
 | API reviewer | [Architecture Notes](./architecture/README.md) | generated client API notes, transport mapping rules, and the header reference itself |
 

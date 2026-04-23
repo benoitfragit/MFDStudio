@@ -201,6 +201,125 @@ class GenerateUiTests(unittest.TestCase):
             self.assertIn("shape", primitive_ids)
             self.assertIn("systemStatus_value", primitive_ids)
 
+    def test_generates_primitive_specialized_accessors_for_static_and_dynamic_handles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "geometry_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "geometry_template",
+                        "elements": [
+                            {"id": "track_label", "type": "text"},
+                            {"id": "heading_line", "type": "line", "exposed": True},
+                            {"id": "cursor_circle", "type": "circle", "exposed": True},
+                            {"id": "scope_ring", "type": "ring", "exposed": True},
+                            {"id": "lock_box", "type": "rectangle", "exposed": True},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "staticReticles": [
+                            {
+                                "id": "geometry_widget",
+                                "template": "geometry_template",
+                            },
+                            {
+                                "id": "geometry_panel",
+                                "elements": [
+                                    {"id": "ellipse_zone", "type": "ellipse", "exposed": True},
+                                    {"id": "square_marker", "type": "square", "exposed": True},
+                                    {"id": "diamond_cue", "type": "diamond", "exposed": True},
+                                    {"id": "mission_time", "type": "time"},
+                                ],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps(
+                    {
+                        "title": "Cockpit",
+                        "reticleLibraryFolder": "reticles",
+                        "pages": [page.name],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                    "--namespace",
+                    "generated_ui",
+                    "--header-include",
+                    "GeneratedUi.h",
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+            source_content = output_source.read_text(encoding="utf-8")
+            map_content = json.loads(output_map.read_text(encoding="utf-8"))
+
+            for expected in [
+                "class GeometryTemplateDynamicReticle final : public DynamicReticle",
+                "TextHandle& TrackLabel() noexcept;",
+                "LineHandle& HeadingLine() noexcept;",
+                "CircleHandle& CursorCircle() noexcept;",
+                "RingHandle& ScopeRing() noexcept;",
+                "RectangleHandle& LockBox() noexcept;",
+                "class RadarGeometryWidgetReticle final : public Reticle",
+                "class RadarGeometryPanelReticle final : public Reticle",
+                "EllipseHandle& EllipseZone() noexcept;",
+                "SquareHandle& SquareMarker() noexcept;",
+                "DiamondHandle& DiamondCue() noexcept;",
+                "TimeHandle& MissionTime() noexcept;",
+            ]:
+                self.assertIn(expected, header_content)
+
+            for expected in [
+                'headingLine_(MutableDesiredPatch(), DirtyFlag(), "heading_line", ',
+                'cursorCircle_(MutableDesiredPatch(), DirtyFlag(), "cursor_circle", ',
+                'scopeRing_(MutableDesiredPatch(), DirtyFlag(), "scope_ring", ',
+                'lockBox_(MutableDesiredPatch(), DirtyFlag(), "lock_box", ',
+                'ellipseZone_(MutableDesiredPatch(), DirtyFlag(), "ellipse_zone", ',
+                'squareMarker_(MutableDesiredPatch(), DirtyFlag(), "square_marker", ',
+                'diamondCue_(MutableDesiredPatch(), DirtyFlag(), "diamond_cue", ',
+                'missionTime_(MutableDesiredPatch(), DirtyFlag(), "mission_time", ',
+            ]:
+                self.assertIn(expected, source_content)
+
+            self.assertEqual(len(map_content["templates"]), 1)
+            self.assertEqual(len(map_content["reticles"]), 2)
+            self.assertEqual(len(map_content["primitives"]), 14)
+
 
 
     def test_detects_single_text_primitive_without_suffix_hint(self) -> None:
