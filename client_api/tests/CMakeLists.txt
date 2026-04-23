@@ -38,11 +38,12 @@ if(WIN32)
     add_custom_command(
         TARGET client_api_tests
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:client_api_tests>
-            $<TARGET_RUNTIME_DLLS:mfd_api>
-            "$<TARGET_FILE_DIR:client_api_tests>"
-        COMMAND_EXPAND_LISTS)
+        COMMAND
+            ${CMAKE_COMMAND}
+            "-DDEST_DIR=$<TARGET_FILE_DIR:client_api_tests>"
+            "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:client_api_tests>,|>"
+            -P
+            "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
 endif()
 
 mfd_stage_runtime(client_api_tests WITH_RUNTIME_DLLS)

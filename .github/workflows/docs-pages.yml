@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref to publish (tag, branch, or SHA). Leave empty to use the current ref.'
+        description: "Git ref to publish (tag, branch, or SHA). Leave empty to use the current ref."
         required: false
         type: string
 
@@ -18,59 +18,91 @@ concurrency:
 jobs:
   build-docs:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       contents: read
-    env:
-      DOCS_REF: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.inputs.ref || github.ref }}
 
     steps:
+      - name: Resolve docs ref
+        id: docs_context
+        shell: pwsh
+        env:
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_REF: ${{ github.event.inputs.ref }}
+          CURRENT_REF: ${{ github.ref }}
+        run: |
+          $docsRef = $env:CURRENT_REF
+          if (-not [string]::IsNullOrWhiteSpace($env:INPUT_REF)) {
+            $docsRef = $env:INPUT_REF
+          }
+          if (-not [string]::IsNullOrWhiteSpace($env:WORKFLOW_RUN_HEAD_SHA)) {
+            $docsRef = $env:WORKFLOW_RUN_HEAD_SHA
+          }
+
+          if ([string]::IsNullOrWhiteSpace($docsRef)) {
+            throw "No documentation ref resolved."
+          }
+
+          "docs_ref=$docsRef" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ env.DOCS_REF }}
+          ref: ${{ steps.docs_context.outputs.docs_ref }}
 
       - name: Install Doxygen and Graphviz
+        shell: pwsh
         run: |
-          sudo apt-get update
-          sudo apt-get install -y doxygen graphviz
+          choco install doxygen.install graphviz -y --no-progress
+
+          $candidatePaths = @(
+            "${env:ProgramFiles}\doxygen\bin",
+            "${env:ProgramFiles}\Graphviz\bin"
+          )
+
+          foreach ($candidatePath in $candidatePaths) {
+            if (Test-Path $candidatePath) {
+              $candidatePath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
+          }
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
       - name: Resolve published version label
         id: version
+        shell: pwsh
         run: |
-          tag="$(git tag --points-at HEAD | head -n 1)"
-          if [ -z "$tag" ]; then
-            tag="$(git rev-parse --short HEAD)"
-          fi
-          echo "docs_version=$tag" >> "$GITHUB_OUTPUT"
+          $tag = (git tag --points-at HEAD | Select-Object -First 1)
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = (git rev-parse --short HEAD).Trim()
+          }
+
+          "docs_version=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Stamp Doxygen project version
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-          doxyfile = Path("docs/Doxyfile")
-          text = doxyfile.read_text(encoding="utf-8")
-          text = text.replace('PROJECT_NUMBER         = "release"',
-                              f'PROJECT_NUMBER         = "{os.environ["MFD_DOCS_VERSION"]}"',
-                              1)
-          doxyfile.write_text(text, encoding="utf-8")
-          PY
+        shell: pwsh
         env:
           MFD_DOCS_VERSION: ${{ steps.version.outputs.docs_version }}
+        run: |
+          $doxyfilePath = "docs/Doxyfile"
+          $doxyfileText = Get-Content -Path $doxyfilePath -Raw
+          $replacement = 'PROJECT_NUMBER         = "' + $env:MFD_DOCS_VERSION + '"'
+          $doxyfileText = $doxyfileText -replace 'PROJECT_NUMBER\s*=\s*"release"', $replacement
+          Set-Content -Path $doxyfilePath -Value $doxyfileText -Encoding utf8
 
       - name: Create Doxygen output directory
-        run: mkdir -p build/docs/doxygen
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force "build/docs/doxygen" | Out-Null
 
       - name: Generate Doxygen HTML
+        shell: pwsh
         run: doxygen docs/Doxyfile
 
       - name: Disable Jekyll processing
-        run: touch build/docs/doxygen/html/.nojekyll
+        shell: pwsh
+        run: New-Item -ItemType File -Force "build/docs/doxygen/html/.nojekyll" | Out-Null
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v4
@@ -79,7 +111,7 @@ jobs:
 
   deploy-docs:
     needs: build-docs
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       pages: write
       id-token: write

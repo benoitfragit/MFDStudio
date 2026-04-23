@@ -37,11 +37,12 @@ if(WIN32)
     add_custom_command(
         TARGET mfd_window_tests
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_RUNTIME_DLLS:mfd_window_tests>
-            $<TARGET_RUNTIME_DLLS:mfd_api>
-            "$<TARGET_FILE_DIR:mfd_window_tests>"
-        COMMAND_EXPAND_LISTS)
+        COMMAND
+            ${CMAKE_COMMAND}
+            "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window_tests>"
+            "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_window_tests>,|>"
+            -P
+            "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
 endif()
 
 mfd_stage_runtime(mfd_window_tests WITH_RUNTIME_DLLS)

@@ -84,11 +84,12 @@ add_custom_command(
         "-DDEST_DIR=$<TARGET_FILE_DIR:client_mockup>/assets"
         -P
         "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_RUNTIME_DLLS:client_mockup>
-        $<TARGET_RUNTIME_DLLS:mfd_api>
-        "$<TARGET_FILE_DIR:client_mockup>"
-    COMMAND_EXPAND_LISTS)
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DDEST_DIR=$<TARGET_FILE_DIR:client_mockup>"
+        "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:client_mockup>,|>"
+        -P
+        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
 
 mfd_stage_runtime(client_mockup WITH_ASSETS WITH_RUNTIME_DLLS)
 

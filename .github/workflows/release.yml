@@ -3,16 +3,16 @@ name: Build and Publish Release
 on:
   push:
     tags:
-      - 'v*'
-      - '[0-9]*.[0-9]*.[0-9]*'
+      - "v*"
+      - "[0-9]*.[0-9]*.[0-9]*"
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (example: v1.0.0). Leave empty to use the pushed tag.'
+        description: "Tag to release (example: v1.0.0). Leave empty to use the current ref when it is already a release tag."
         required: false
         type: string
       prerelease:
-        description: 'Mark release as pre-release'
+        description: "Mark release as pre-release"
         required: false
         default: false
         type: boolean
@@ -21,14 +21,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  group: release-${{ github.ref_name || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   build-release-assets:
     runs-on: windows-latest
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -41,22 +39,40 @@ jobs:
             exec_platform: win32
 
     steps:
+      - name: Resolve release context
+        id: release_context
+        shell: pwsh
+        env:
+          CURRENT_REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_PRERELEASE: ${{ github.event.inputs.prerelease }}
+        run: |
+          $tag = $env:CURRENT_REF_NAME
+          if (-not [string]::IsNullOrWhiteSpace($env:INPUT_TAG)) {
+            $tag = $env:INPUT_TAG
+          }
+
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            throw "No release tag resolved."
+          }
+
+          if ($tag -notmatch '^v?\d+\.\d+\.\d+([-.].+)?$') {
+            throw "Invalid release tag '$tag'. Expected semantic version format like 1.2.3, v1.2.3 or v1.2.3-rc.1."
+          }
+
+          $isPrerelease = "false"
+          if ($tag.Contains("-") -or $env:INPUT_PRERELEASE -eq "true") {
+            $isPrerelease = "true"
+          }
+
+          "release_tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "is_prerelease=$isPrerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ env.RELEASE_TAG }}
-
-      - name: Validate release tag
-        shell: pwsh
-        run: |
-          if (-not $env:RELEASE_TAG) {
-            Write-Error "No release tag resolved."
-          }
-
-          if ($env:RELEASE_TAG -notmatch '^v?\d+\.\d+\.\d+([-.].+)?$') {
-            Write-Error "Invalid release tag '$env:RELEASE_TAG'. Expected semantic version format like 1.2.3, v1.2.3 or v1.2.3-rc.1"
-          }
+          ref: ${{ steps.release_context.outputs.release_tag }}
 
       - name: Configure (${{ matrix.configure_preset }})
         run: cmake --preset ${{ matrix.configure_preset }}
@@ -67,15 +83,17 @@ jobs:
       - name: Create archive (${{ matrix.exec_platform }})
         id: create_archive
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_context.outputs.release_tag }}
         run: |
           $toolsetDir = Get-ChildItem -Path "_Exec" -Directory | Select-Object -First 1
           if (-not $toolsetDir) {
-            Write-Error "No staged runtime found under _Exec"
+            throw "No staged runtime found under _Exec"
           }
 
           $stageDir = Join-Path $toolsetDir.FullName "${{ matrix.exec_platform }}/Release"
           if (-not (Test-Path $stageDir)) {
-            Write-Error "Expected stage directory not found: $stageDir"
+            throw "Expected stage directory not found: $stageDir"
           }
 
           $archiveName = "mfd-$env:RELEASE_TAG-${{ matrix.exec_platform }}.zip"
@@ -90,11 +108,38 @@ jobs:
 
   publish-release:
     needs: build-release-assets
-    runs-on: ubuntu-latest
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    runs-on: windows-latest
 
     steps:
+      - name: Resolve release context
+        id: release_context
+        shell: pwsh
+        env:
+          CURRENT_REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_PRERELEASE: ${{ github.event.inputs.prerelease }}
+        run: |
+          $tag = $env:CURRENT_REF_NAME
+          if (-not [string]::IsNullOrWhiteSpace($env:INPUT_TAG)) {
+            $tag = $env:INPUT_TAG
+          }
+
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            throw "No release tag resolved."
+          }
+
+          if ($tag -notmatch '^v?\d+\.\d+\.\d+([-.].+)?$') {
+            throw "Invalid release tag '$tag'. Expected semantic version format like 1.2.3, v1.2.3 or v1.2.3-rc.1."
+          }
+
+          $isPrerelease = "false"
+          if ($tag.Contains("-") -or $env:INPUT_PRERELEASE -eq "true") {
+            $isPrerelease = "true"
+          }
+
+          "release_tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "is_prerelease=$isPrerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -102,44 +147,53 @@ jobs:
           merge-multiple: true
 
       - name: Generate checksums
+        shell: pwsh
         run: |
-          shopt -s nullglob
-          zips=(release_artifacts/*.zip)
-          if [ ${#zips[@]} -eq 0 ]; then
-            echo "No zip artifacts found in release_artifacts" >&2
-            exit 1
-          fi
-          sha256sum "${zips[@]}" > release_artifacts/SHA256SUMS.txt
+          $zipFiles = Get-ChildItem -Path "release_artifacts" -Filter "*.zip" -File
+          if ($zipFiles.Count -eq 0) {
+            throw "No zip artifacts found in release_artifacts"
+          }
+
+          $checksumLines = foreach ($zipFile in $zipFiles | Sort-Object Name) {
+            $hash = (Get-FileHash -Path $zipFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($zipFile.Name)"
+          }
+
+          $checksumLines | Set-Content -Path "release_artifacts/SHA256SUMS.txt" -Encoding utf8
 
       - name: Build release notes
-        id: notes
+        shell: pwsh
         env:
-          PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || contains((github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name), '-') }}
+          RELEASE_TAG: ${{ steps.release_context.outputs.release_tag }}
+          PRERELEASE: ${{ steps.release_context.outputs.is_prerelease }}
         run: |
-          {
-            echo "## 📦 Release ${RELEASE_TAG}"
-            echo
-            if [ "$PRERELEASE" = "true" ]; then
-              echo "⚠️ This is a pre-release build."
-              echo
-            fi
-            echo "### Assets"
-            echo "- Windows x64 + Win32 ZIP archives"
-            echo "- SHA256 checksums in \\`SHA256SUMS.txt\\`"
-            echo
-            echo "### Quick start"
-            echo "1. Download the ZIP for your platform"
-            echo "2. Verify checksum with \\`SHA256SUMS.txt\\`"
-            echo "3. Extract and run"
-          } > release_notes.md
+          $lines = New-Object System.Collections.Generic.List[string]
+          $lines.Add("## Release $env:RELEASE_TAG")
+          $lines.Add("")
+
+          if ($env:PRERELEASE -eq "true") {
+            $lines.Add("This is a pre-release build.")
+            $lines.Add("")
+          }
+
+          $lines.Add("### Assets")
+          $lines.Add("- Windows x64 and Win32 ZIP archives")
+          $lines.Add("- SHA256 checksums in `SHA256SUMS.txt`")
+          $lines.Add("")
+          $lines.Add("### Quick start")
+          $lines.Add("1. Download the ZIP for your platform")
+          $lines.Add("2. Verify the checksum with `SHA256SUMS.txt`")
+          $lines.Add("3. Extract and run")
+
+          $lines | Set-Content -Path "release_notes.md" -Encoding utf8
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ github.sha }}
-          prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || contains((github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name), '-') }}
-          files: release_artifacts/**/*.zip
+          tag_name: ${{ steps.release_context.outputs.release_tag }}
+          prerelease: ${{ steps.release_context.outputs.is_prerelease }}
+          files: |
+            release_artifacts/**/*.zip
             release_artifacts/SHA256SUMS.txt
           body_path: release_notes.md
           generate_release_notes: true

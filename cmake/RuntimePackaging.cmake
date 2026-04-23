@@ -42,7 +42,12 @@ function(mfd_stage_runtime target_name)
     set(runtime_dll_commands)
     if(copy_runtime_dlls AND WIN32)
         list(APPEND runtime_dll_commands
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:${target_name}> "${stage_dir}")
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DDEST_DIR=${stage_dir}"
+                "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:${target_name}>,|>"
+                -P
+                "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
     endif()
 
     set(asset_commands)

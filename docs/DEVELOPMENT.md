@@ -192,7 +192,8 @@ The generated site lands under `build/docs/doxygen/html/index.html`.
 The repository includes a release pipeline in
 `.github/workflows/release.yml` and a GitHub Pages publication workflow in
 `.github/workflows/docs-pages.yml`. The Pages workflow follows the successful
-release workflow automatically.
+release workflow automatically. The pull request CI, release packaging, and
+docs publication jobs all run on `windows-latest`.
 
 Recommended release flow:
 
