@@ -46,7 +46,7 @@ foreach(mfd_window_script_name IN LISTS MFD_WINDOW_LAUNCH_SCRIPT_NAMES)
     list(APPEND MFD_WINDOW_LAUNCH_SCRIPTS "${MFD_ROOT_DIR}/${mfd_window_script_name}")
 endforeach()
 
-string(JOIN "|" MFD_WINDOW_LAUNCH_SCRIPT_LIST ${MFD_WINDOW_LAUNCH_SCRIPT_NAMES})
+string(JOIN ";" MFD_WINDOW_LAUNCH_SCRIPT_LIST ${MFD_WINDOW_LAUNCH_SCRIPT_NAMES})
 
 set_source_files_properties(${MFD_WINDOW_LAUNCH_SCRIPTS} PROPERTIES HEADER_FILE_ONLY TRUE)
 target_sources(mfd_window PRIVATE ${MFD_WINDOW_LAUNCH_SCRIPTS})
@@ -64,7 +64,7 @@ if(WIN32)
         COMMAND
             ${CMAKE_COMMAND}
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>"
-            "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_window>,|>"
+            "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_window>,$<SEMICOLON>>"
             -P
             "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
         COMMAND
@@ -80,7 +80,8 @@ if(WIN32)
             "-DDEST_DIR=${MFD_WINDOW_STAGE_DIR}"
             "-DFILE_NAMES=${MFD_WINDOW_LAUNCH_SCRIPT_LIST}"
             -P
-            "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake")
+            "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake"
+        VERBATIM)
 else()
     add_custom_command(
         TARGET mfd_window
@@ -90,7 +91,8 @@ else()
             "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/assets"
             -P
-            "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake")
+            "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
+        VERBATIM)
 endif()
 
 mfd_stage_runtime(mfd_window WITH_ASSETS WITH_RUNTIME_DLLS)

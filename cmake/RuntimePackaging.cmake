@@ -38,6 +38,7 @@ function(mfd_stage_runtime target_name)
     endforeach()
 
     set(stage_dir "${MFD_ROOT_DIR}/_Exec/${MFD_EXEC_COMPILER_DIR}/${MFD_EXEC_PLATFORM_DIR}/$<CONFIG>")
+    set(runtime_dlls_arg "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:${target_name}>,$<SEMICOLON>>")
 
     set(runtime_dll_commands)
     if(copy_runtime_dlls AND WIN32)
@@ -45,7 +46,7 @@ function(mfd_stage_runtime target_name)
             COMMAND
                 ${CMAKE_COMMAND}
                 "-DDEST_DIR=${stage_dir}"
-                "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:${target_name}>,|>"
+                "${runtime_dlls_arg}"
                 -P
                 "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
     endif()
@@ -68,7 +69,7 @@ function(mfd_stage_runtime target_name)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${target_name}>" "${stage_dir}"
         ${runtime_dll_commands}
         ${asset_commands}
-        COMMAND_EXPAND_LISTS)
+        VERBATIM)
 endfunction()
 
 function(mfd_add_runtime_layout_smoke_test target_name)

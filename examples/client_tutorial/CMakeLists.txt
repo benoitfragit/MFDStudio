@@ -78,9 +78,10 @@ add_custom_command(
     COMMAND
         ${CMAKE_COMMAND}
         "-DDEST_DIR=$<TARGET_FILE_DIR:client_tutorial>"
-        "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:client_tutorial>,|>"
+        "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:client_tutorial>,$<SEMICOLON>>"
         -P
-        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
+        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
+    VERBATIM)
 
 mfd_stage_runtime(client_tutorial WITH_ASSETS WITH_RUNTIME_DLLS)
 

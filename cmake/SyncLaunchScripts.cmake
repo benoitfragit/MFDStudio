@@ -15,7 +15,7 @@ endif()
 
 file(MAKE_DIRECTORY "${DEST_DIR}")
 
-string(REPLACE "|" ";" launch_script_names "${FILE_NAMES}")
+set(launch_script_names ${FILE_NAMES})
 
 foreach(launch_script_name IN LISTS launch_script_names)
     if(launch_script_name STREQUAL "")

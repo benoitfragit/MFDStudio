@@ -11,7 +11,7 @@ if(NOT DEFINED RUNTIME_DLLS OR RUNTIME_DLLS STREQUAL "")
     return()
 endif()
 
-string(REPLACE "|" ";" runtime_dlls "${RUNTIME_DLLS}")
+set(runtime_dlls ${RUNTIME_DLLS})
 list(REMOVE_DUPLICATES runtime_dlls)
 
 foreach(runtime_dll IN LISTS runtime_dlls)

@@ -49,8 +49,9 @@ add_custom_command(
     COMMAND
         ${CMAKE_COMMAND}
         "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_editor>"
-        "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_editor>,|>"
+        "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_editor>,$<SEMICOLON>>"
         -P
-        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
+        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
+    VERBATIM)
 
 mfd_stage_runtime(mfd_editor WITH_ASSETS WITH_RUNTIME_DLLS)

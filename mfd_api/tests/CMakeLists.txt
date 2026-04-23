@@ -49,9 +49,10 @@ if(WIN32)
         COMMAND
             ${CMAKE_COMMAND}
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_api_tests>"
-            "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_api_tests>,|>"
+            "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_api_tests>,$<SEMICOLON>>"
             -P
-            "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
+            "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
+        VERBATIM)
 endif()
 
 mfd_stage_runtime(mfd_api_tests WITH_RUNTIME_DLLS)
