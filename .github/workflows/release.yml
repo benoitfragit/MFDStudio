@@ -44,6 +44,8 @@ jobs:
         shell: pwsh
         env:
           CURRENT_REF_NAME: ${{ github.ref_name }}
+          CURRENT_REF_TYPE: ${{ github.ref_type }}
+          CURRENT_SHA: ${{ github.sha }}
           INPUT_TAG: ${{ github.event.inputs.tag }}
           INPUT_PRERELEASE: ${{ github.event.inputs.prerelease }}
         run: |
@@ -65,14 +67,20 @@ jobs:
             $isPrerelease = "true"
           }
 
+          $checkoutRef = "refs/tags/$tag"
+          if ($env:CURRENT_REF_TYPE -eq "tag" -and -not [string]::IsNullOrWhiteSpace($env:CURRENT_SHA)) {
+            $checkoutRef = $env:CURRENT_SHA
+          }
+
           "release_tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "is_prerelease=$isPrerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "checkout_ref=$checkoutRef" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ steps.release_context.outputs.release_tag }}
+          ref: ${{ steps.release_context.outputs.checkout_ref }}
 
       - name: Configure (${{ matrix.configure_preset }})
         run: cmake --preset ${{ matrix.configure_preset }}
