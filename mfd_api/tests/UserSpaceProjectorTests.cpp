@@ -63,6 +63,26 @@ TEST(UserSpaceProjectorTests, UsesConfiguredBasisForOffsetsAndRotations)
     EXPECT_FLOAT_EQ(transform.scale.y, 0.75f);
 }
 
+TEST(UserSpaceProjectorTests, ConvertsDocumentedNauticalMilesAndRadiansToPageUnitsAndDegrees)
+{
+    mfd::UserSpaceFrame frame;
+    frame.pageUnitsPerUserUnit = 0.04f;
+
+    mfd::UserSpaceProjector projector(frame);
+
+    const mfd::Vec2 fiveNm = projector.ToPageOffset({5.0f, 0.0f});
+    EXPECT_FLOAT_EQ(fiveNm.x, 0.20f);
+    EXPECT_FLOAT_EQ(fiveNm.y, 0.0f);
+
+    const mfd::Vec2 tenNm = projector.ToPageOffset({0.0f, 10.0f});
+    EXPECT_FLOAT_EQ(tenNm.x, 0.0f);
+    EXPECT_FLOAT_EQ(tenNm.y, 0.40f);
+
+    EXPECT_NEAR(projector.ToPageRotationDegrees(0.0f), 0.0f, 1.0e-4f);
+    EXPECT_NEAR(projector.ToPageRotationDegrees(kPi * 0.5f), 90.0f, 1.0e-4f);
+    EXPECT_NEAR(projector.ToPageRotationDegrees(-kPi * 0.25f), -45.0f, 1.0e-4f);
+}
+
 TEST(UserSpaceProjectorTests, SanitizesInvalidFrameValuesToSafeDefaults)
 {
     mfd::UserSpaceFrame frame;

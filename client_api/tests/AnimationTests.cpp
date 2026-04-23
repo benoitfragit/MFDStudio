@@ -373,6 +373,53 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     EXPECT_NE(remove->target.runtimeReticleId, 0U);
 }
 
+TEST(AnimationTests, GeneratedDynamicReticleSetAppendRemovalCommandsClearsPublishedEntries)
+{
+    GeneratedDynamicFixtureSet set;
+    GeneratedDynamicFixtureReticle& alpha = set.Create();
+    GeneratedDynamicFixtureReticle& bravo = set.Create();
+
+    alpha.label.SetText("A1");
+    bravo.label.SetText("B2");
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 2U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    commands.clear();
+    EXPECT_EQ(set.AppendRemovalCommands(commands), 2U);
+    ASSERT_EQ(commands.size(), 2U);
+
+    std::vector<mfd::RuntimeDynamicId> runtimeIds;
+    for (const mfd::UserCommand& command : commands)
+    {
+        const auto* remove = std::get_if<mfd::RemoveDynamicReticleCommand>(&command);
+        ASSERT_NE(remove, nullptr);
+        EXPECT_EQ(remove->target.page, "Radar");
+        EXPECT_EQ(remove->target.pageId, 11U);
+        EXPECT_FALSE(remove->target.reticleId.empty());
+        EXPECT_NE(remove->target.runtimeReticleId, 0U);
+        runtimeIds.push_back(remove->target.runtimeReticleId);
+    }
+
+    ASSERT_EQ(runtimeIds.size(), 2U);
+    EXPECT_NE(runtimeIds[0], runtimeIds[1]);
+
+    commands.clear();
+    EXPECT_EQ(set.AppendRemovalCommands(commands), 0U);
+    EXPECT_TRUE(commands.empty());
+
+    GeneratedDynamicFixtureReticle& replacement = set.Create();
+    replacement.label.SetText("C3");
+
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands.front());
+    ASSERT_NE(upsert, nullptr);
+    ASSERT_EQ(upsert->reticles.size(), 1U);
+    EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(33U).text, "C3");
+}
+
 TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownRemoval)
 {
     mfd::client::DynamicReticleSet set("Radar", "radar_track");

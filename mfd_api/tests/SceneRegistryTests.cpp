@@ -749,6 +749,89 @@ TEST(SceneRegistryTests, StrobeMagnetizationIgnoresNonFiniteDynamicPositions)
     EXPECT_TRUE(std::isfinite(magnet->distance));
 }
 
+TEST(SceneRegistryTests, StrobeMagnetizationFollowsMovingDynamicReticle)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeTextReticle("track_alpha");
+    track.sourceTemplateId = "track_template";
+    track.transform.position = {0.10f, 0.00f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.01f}));
+    ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.10f);
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.y, 0.00f);
+
+    mfd::ReticlePatch patch;
+    patch.position = mfd::Vec2 {0.18f, -0.04f};
+    EXPECT_TRUE(registry.ApplyDynamicReticlePatch("Radar", "track_alpha", patch));
+
+    const auto strobe = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobe.has_value());
+    EXPECT_TRUE(strobe->visible);
+    EXPECT_FLOAT_EQ(strobe->position.x, 0.18f);
+    EXPECT_FLOAT_EQ(strobe->position.y, -0.04f);
+
+    const auto magnet = registry.ActiveStrobeMagnetSummary();
+    ASSERT_TRUE(magnet.has_value());
+    EXPECT_TRUE(magnet->enabled);
+    EXPECT_TRUE(magnet->magnetized);
+    EXPECT_EQ(magnet->reticleId, "track_alpha");
+    EXPECT_FLOAT_EQ(magnet->targetPosition.x, 0.18f);
+    EXPECT_FLOAT_EQ(magnet->targetPosition.y, -0.04f);
+    EXPECT_NEAR(magnet->distance, 0.0f, 1e-5f);
+
+    const auto capture = registry.CaptureActivePageStrobe();
+    ASSERT_TRUE(capture.has_value());
+    EXPECT_EQ(capture->reticleId, "track_alpha");
+    EXPECT_EQ(capture->sourceTemplateId, "track_template");
+    EXPECT_FLOAT_EQ(capture->position.x, 0.18f);
+    EXPECT_FLOAT_EQ(capture->position.y, -0.04f);
+}
+
+TEST(SceneRegistryTests, ManualStrobeMoveBreaksStickyMagnetization)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeTextReticle("track_alpha");
+    track.transform.position = {0.10f, 0.00f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.09f, 0.01f}));
+    ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.10f);
+
+    mfd::ReticlePatch patch;
+    patch.position = mfd::Vec2 {0.18f, -0.04f};
+    EXPECT_TRUE(registry.ApplyDynamicReticlePatch("Radar", "track_alpha", patch));
+    ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.18f);
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.y, -0.04f);
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.45f, 0.12f}));
+    ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.45f);
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.y, 0.12f);
+
+    const auto magnetAfterManualMove = registry.ActiveStrobeMagnetSummary();
+    ASSERT_TRUE(magnetAfterManualMove.has_value());
+    EXPECT_FALSE(magnetAfterManualMove->magnetized);
+    EXPECT_TRUE(magnetAfterManualMove->reticleId.empty());
+
+    patch.position = mfd::Vec2 {0.24f, -0.08f};
+    EXPECT_TRUE(registry.ApplyDynamicReticlePatch("Radar", "track_alpha", patch));
+    ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.45f);
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.y, 0.12f);
+}
+
 TEST(SceneRegistryTests, DynamicTemplateVisibilityMasksOnlyMatchingDynamicReticles)
 {
     mfd::MfdDocument document;

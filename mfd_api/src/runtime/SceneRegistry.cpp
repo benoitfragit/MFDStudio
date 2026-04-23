@@ -393,6 +393,7 @@ struct SceneRegistry::StrobeBehaviorComponent
 {
     StrobeCaptureConfig capture;
     StrobeMagnetConfig magnet;
+    std::string lockedReticleId;
 };
 
 namespace
@@ -877,11 +878,18 @@ std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_v
     }
 
     const BlinkClock::time_point now = BlinkClock::now();
+    Vec2 strobePosition = reticle->group.transform.position;
+    if (const ReticleComponent* lockedTarget =
+            FindLockedStrobeMagnetTarget(pageName, behavior->lockedReticleId);
+        lockedTarget != nullptr)
+    {
+        strobePosition = lockedTarget->group.transform.position;
+    }
 
     return StrobeSummary {
         page->name,
         reticle->group.id,
-        reticle->group.transform.position,
+        strobePosition,
         behavior->capture,
         behavior->magnet,
         IsReticleVisibleNow(*page, reticle->group, now)};
@@ -926,47 +934,26 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
         return summary;
     }
 
-    const float radiusSquared = behavior->magnet.radius * behavior->magnet.radius;
-    float bestDistanceSquared = radiusSquared;
-
-    auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
-    for (const entt::entity entity : dynamicView)
+    if (const ReticleComponent* lockedTarget =
+            FindLockedStrobeMagnetTarget(pageName, behavior->lockedReticleId);
+        lockedTarget != nullptr)
     {
-        const auto& membership = dynamicView.get<PageMembership>(entity);
-        if (membership.pageName != pageName)
-        {
-            continue;
-        }
-
-        const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity).group;
-        if (!IsReticleVisibleNow(*page, dynamicReticle, now) ||
-            !IsDynamicTemplateVisible(pageName, dynamicReticle.sourceTemplateId))
-        {
-            continue;
-        }
-
-        const float distanceSquared = DistanceSquared(reticle->group.transform.position, dynamicReticle.transform.position);
-        if (!std::isfinite(distanceSquared))
-        {
-            continue;
-        }
-
-        if (distanceSquared > radiusSquared || distanceSquared >= bestDistanceSquared)
-        {
-            continue;
-        }
-
-        const float distance = std::sqrt(distanceSquared);
-        if (!std::isfinite(distance))
-        {
-            continue;
-        }
-
-        bestDistanceSquared = distanceSquared;
         summary.magnetized = true;
-        summary.reticleId = dynamicReticle.id;
-        summary.targetPosition = dynamicReticle.transform.position;
-        summary.distance = distance;
+        summary.reticleId = lockedTarget->group.id;
+        summary.targetPosition = lockedTarget->group.transform.position;
+        summary.distance = 0.0f;
+        return summary;
+    }
+
+    if (const ReticleComponent* nearestTarget =
+            FindNearestStrobeMagnetTarget(pageName, reticle->group.transform.position, behavior->magnet.radius);
+        nearestTarget != nullptr)
+    {
+        summary.magnetized = true;
+        summary.reticleId = nearestTarget->group.id;
+        summary.targetPosition = nearestTarget->group.transform.position;
+        summary.distance = std::sqrt(
+            DistanceSquared(reticle->group.transform.position, nearestTarget->group.transform.position));
     }
 
     return summary;
@@ -1424,6 +1411,11 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
         applied = true;
     }
 
+    if (applied)
+    {
+        RefreshStickyStrobePosition(normalizedPageName);
+    }
+
     return applied || IsEmptyPatch(patch);
 }
 
@@ -1448,7 +1440,118 @@ bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
         dynamicTemplateVisibility_[key] = false;
     }
 
+    RefreshStickyStrobePosition(normalizedPageName);
     return true;
+}
+
+const SceneRegistry::ReticleComponent* SceneRegistry::FindLockedStrobeMagnetTarget(
+    const std::string_view normalizedPageName,
+    const std::string_view reticleId) const noexcept
+{
+    if (reticleId.empty())
+    {
+        return nullptr;
+    }
+
+    const PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr)
+    {
+        return nullptr;
+    }
+
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    if (entity == entt::null || !registry_.all_of<DynamicTag>(entity))
+    {
+        return nullptr;
+    }
+
+    const auto* membership = registry_.try_get<PageMembership>(entity);
+    const auto* reticle = registry_.try_get<ReticleComponent>(entity);
+    if (membership == nullptr || reticle == nullptr || membership->pageName != normalizedPageName)
+    {
+        return nullptr;
+    }
+
+    const BlinkClock::time_point now = BlinkClock::now();
+    if (!IsReticleVisibleNow(*page, reticle->group, now) ||
+        !IsDynamicTemplateVisible(normalizedPageName, reticle->group.sourceTemplateId))
+    {
+        return nullptr;
+    }
+
+    return reticle;
+}
+
+const SceneRegistry::ReticleComponent* SceneRegistry::FindNearestStrobeMagnetTarget(
+    const std::string_view normalizedPageName,
+    const Vec2 position,
+    const float radius) const noexcept
+{
+    const PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr || radius <= 0.0f)
+    {
+        return nullptr;
+    }
+
+    const float radiusSquared = radius * radius;
+    float bestDistanceSquared = radiusSquared;
+    const ReticleComponent* bestTarget = nullptr;
+    const BlinkClock::time_point now = BlinkClock::now();
+
+    auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
+    for (const entt::entity entity : dynamicView)
+    {
+        const auto& membership = dynamicView.get<PageMembership>(entity);
+        if (membership.pageName != normalizedPageName)
+        {
+            continue;
+        }
+
+        const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity);
+        if (!IsReticleVisibleNow(*page, dynamicReticle.group, now) ||
+            !IsDynamicTemplateVisible(normalizedPageName, dynamicReticle.group.sourceTemplateId))
+        {
+            continue;
+        }
+
+        const float distanceSquared = DistanceSquared(position, dynamicReticle.group.transform.position);
+        if (!std::isfinite(distanceSquared) ||
+            distanceSquared > radiusSquared ||
+            distanceSquared >= bestDistanceSquared)
+        {
+            continue;
+        }
+
+        bestDistanceSquared = distanceSquared;
+        bestTarget = &dynamicReticle;
+    }
+
+    return bestTarget;
+}
+
+void SceneRegistry::RefreshStickyStrobePosition(const std::string_view normalizedPageName) noexcept
+{
+    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
+    if (iterator == strobeEntities_.end())
+    {
+        return;
+    }
+
+    auto* strobe = registry_.try_get<ReticleComponent>(iterator->second);
+    auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+    if (strobe == nullptr || behavior == nullptr || behavior->lockedReticleId.empty())
+    {
+        return;
+    }
+
+    const ReticleComponent* target = FindLockedStrobeMagnetTarget(normalizedPageName, behavior->lockedReticleId);
+    if (target == nullptr)
+    {
+        behavior->lockedReticleId.clear();
+        return;
+    }
+
+    strobe->group.transform.position = target->group.transform.position;
 }
 
 bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool active) noexcept
@@ -1479,54 +1582,27 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
     }
 
     auto* reticle = registry_.try_get<ReticleComponent>(iterator->second);
-    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
-    const PageComponent* page = FindPage(normalizedPageName);
+    auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
     if (reticle != nullptr)
     {
-        Vec2 resolvedPosition = position;
-
-        if (page != nullptr && behavior != nullptr && behavior->magnet.enabled && behavior->magnet.radius > 0.0f)
+        if (behavior != nullptr)
         {
-            const float radiusSquared = behavior->magnet.radius * behavior->magnet.radius;
-            float bestDistanceSquared = radiusSquared;
-            std::optional<Vec2> targetPosition;
-            const BlinkClock::time_point now = BlinkClock::now();
+            behavior->lockedReticleId.clear();
 
-            auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
-            for (const entt::entity entity : dynamicView)
+            if (behavior->magnet.enabled && behavior->magnet.radius > 0.0f)
             {
-                const auto& membership = dynamicView.get<PageMembership>(entity);
-                if (membership.pageName != normalizedPageName)
+                if (const ReticleComponent* target =
+                        FindNearestStrobeMagnetTarget(normalizedPageName, position, behavior->magnet.radius);
+                    target != nullptr)
                 {
-                    continue;
+                    behavior->lockedReticleId = target->group.id;
+                    reticle->group.transform.position = target->group.transform.position;
+                    return true;
                 }
-
-                const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity).group;
-                if (!IsReticleVisibleNow(*page, dynamicReticle, now) ||
-                    !IsDynamicTemplateVisible(normalizedPageName, dynamicReticle.sourceTemplateId))
-                {
-                    continue;
-                }
-
-                const float distanceSquared = DistanceSquared(position, dynamicReticle.transform.position);
-                if (distanceSquared > radiusSquared || distanceSquared >= bestDistanceSquared)
-                {
-                    continue;
-                }
-
-                bestDistanceSquared = distanceSquared;
-                targetPosition = dynamicReticle.transform.position;
-            }
-
-            if (targetPosition.has_value())
-            {
-                const float strength = std::clamp(behavior->magnet.strength, 0.0f, 1.0f);
-                resolvedPosition.x += (targetPosition->x - resolvedPosition.x) * strength;
-                resolvedPosition.y += (targetPosition->y - resolvedPosition.y) * strength;
             }
         }
 
-        reticle->group.transform.position = resolvedPosition;
+        reticle->group.transform.position = position;
         return true;
     }
 
@@ -1582,6 +1658,14 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
         return std::nullopt;
     }
 
+    Vec2 strobePosition = strobe->group.transform.position;
+    if (const ReticleComponent* lockedTarget =
+            FindLockedStrobeMagnetTarget(pageName, behavior->lockedReticleId);
+        lockedTarget != nullptr)
+    {
+        strobePosition = lockedTarget->group.transform.position;
+    }
+
     std::optional<StrobeCaptureResult> bestCapture;
     float bestDistanceSquared = std::numeric_limits<float>::max();
 
@@ -1602,12 +1686,12 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
         }
 
         const Vec2 candidatePosition = reticle.transform.position;
-        if (!IsInsideCaptureArea(strobe->group.transform.position, candidatePosition, behavior->capture))
+        if (!IsInsideCaptureArea(strobePosition, candidatePosition, behavior->capture))
         {
             continue;
         }
 
-        const float distanceSquared = DistanceSquared(strobe->group.transform.position, candidatePosition);
+        const float distanceSquared = DistanceSquared(strobePosition, candidatePosition);
         if (distanceSquared >= bestDistanceSquared)
         {
             continue;
@@ -1650,6 +1734,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
             if (auto* component = registry_.try_get<ReticleComponent>(existingEntity))
             {
                 component->group = std::move(reticle);
+                RefreshStickyStrobePosition(normalizedPageName);
             }
         }
         return;
@@ -1661,6 +1746,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
     registry_.emplace<DynamicTag>(entity);
     IndexReticle(normalizedPageName, registry_.get<ReticleComponent>(entity).group, entity);
     InsertReticleIntoPageDrawList(normalizedPageName, entity);
+    RefreshStickyStrobePosition(normalizedPageName);
 }
 
 bool SceneRegistry::RemoveDynamicReticle(const std::string_view pageName, const std::string_view reticleId)
@@ -1675,6 +1761,7 @@ bool SceneRegistry::RemoveDynamicReticle(const std::string_view pageName, const 
     RemoveReticleIndex(normalizedPageName, reticleId);
     RemoveReticleFromPageDrawList(normalizedPageName, entity);
     registry_.destroy(entity);
+    RefreshStickyStrobePosition(normalizedPageName);
     return true;
 }
 
@@ -1700,6 +1787,7 @@ void SceneRegistry::ClearDynamicReticles(const std::string_view pageName)
         RemoveReticleIndex(membership.pageName, reticle.id);
         RemoveReticleFromPageDrawList(membership.pageName, entity);
         registry_.destroy(entity);
+        RefreshStickyStrobePosition(membership.pageName);
     }
 }
 
@@ -1720,6 +1808,7 @@ void SceneRegistry::ClearAllDynamicReticles()
         RemoveReticleIndex(membership.pageName, reticle.id);
         RemoveReticleFromPageDrawList(membership.pageName, entity);
         registry_.destroy(entity);
+        RefreshStickyStrobePosition(membership.pageName);
     }
 }
 

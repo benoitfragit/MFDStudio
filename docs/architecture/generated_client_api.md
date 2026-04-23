@@ -34,6 +34,25 @@ ui.Page1().headingBox.HeadingValue().SetText("123");
 The generated API is the normal client workflow. End users must not call
 string-based primitive setters in normal usage.
 
+\startuml
+left to right direction
+rectangle "Generated UI root" as Ui
+rectangle "Page handle" as Page
+rectangle "Reticle handle" as Reticle
+rectangle "Primitive handle" as Primitive
+rectangle "Strobe handle" as Strobe
+rectangle "Dynamic set handle" as DynamicSet
+rectangle "Dynamic reticle handle" as DynamicReticle
+
+Ui --> Page
+Page --> Reticle
+Reticle --> Primitive
+Page --> Strobe
+Page --> DynamicSet
+DynamicSet --> DynamicReticle
+DynamicReticle --> Primitive
+\enduml
+
 ## Naming Rules
 
 - page accessors keep the current generated PascalCase accessor pattern:
@@ -193,6 +212,25 @@ Dynamic-reticle invariants:
 
 Low-level dynamic reticle patches may still carry primitive updates internally,
 but the normal generated workflow is now handle-based rather than id-based.
+
+\startuml
+top to bottom direction
+actor "Client code" as Client
+rectangle "Generated page API" as PageApi
+rectangle "StrobeHandle" as StrobeHandle
+rectangle "DynamicTemplateSet" as DynamicSet
+rectangle "CommandClient" as Transport
+rectangle "SceneRegistry" as Scene
+
+Client --> PageApi : ui.Radar()
+PageApi --> StrobeHandle : .strobe
+PageApi --> DynamicSet : .DynamicRadarTrack()
+Client --> StrobeHandle : SetActive / SetPosition / Info
+Client --> DynamicSet : Create / Remove / mutate handles
+StrobeHandle --> Transport : page-scoped commands
+DynamicSet --> Transport : generated lifecycle + patches
+Transport --> Scene : apply runtime state
+\enduml
 
 ## Compatibility Strategy
 

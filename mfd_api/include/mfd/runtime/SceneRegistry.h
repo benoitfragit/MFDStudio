@@ -365,6 +365,15 @@ private:
     std::optional<StrobeMagnetSummary> StrobeMagnetForPageKey(std::string_view pageName) const;
     /** @brief Attempts one strobe capture using a normalized page key. */
     std::optional<StrobeCaptureResult> CaptureWithStrobeKey(std::string_view pageName) const;
+    /** @brief Returns the currently locked magnet target of one strobe when it is still valid. */
+    const ReticleComponent* FindLockedStrobeMagnetTarget(std::string_view normalizedPageName,
+                                                         std::string_view reticleId) const noexcept;
+    /** @brief Finds the nearest visible dynamic reticle eligible for strobe magnetization. */
+    const ReticleComponent* FindNearestStrobeMagnetTarget(std::string_view normalizedPageName,
+                                                          Vec2 position,
+                                                          float radius) const noexcept;
+    /** @brief Re-applies one sticky strobe lock after dynamic reticle changes. */
+    void RefreshStickyStrobePosition(std::string_view normalizedPageName) noexcept;
     /** @brief Collects copied reticles for one normalized page key. */
     std::vector<ReticleGroup> CollectPageReticlesByKey(std::string_view pageName) const;
     /** @brief Collects non-owning render views for one normalized page key. */
