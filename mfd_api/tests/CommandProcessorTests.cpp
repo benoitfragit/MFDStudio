@@ -280,3 +280,50 @@ TEST(CommandProcessorTests, SerializedDynamicRuntimeIdsStillMagnetizeActiveStrob
     ASSERT_TRUE(capture.has_value());
     EXPECT_EQ(capture->reticleId, "__runtime_dynamic_9001");
 }
+
+TEST(CommandProcessorTests, BulkDynamicRadarBatchSupportsOneHundredTracks)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::UpsertDynamicReticlesCommand command;
+    command.pageId = 11U;
+    command.templateTransportId = 55U;
+    command.reticles.reserve(100U);
+
+    for (std::uint32_t index = 0; index < 100U; ++index)
+    {
+        mfd::ReticlePatch patch;
+        patch.visible = true;
+        patch.position = mfd::Vec2 {
+            -0.95f + 0.019f * static_cast<float>(index),
+            -0.60f + 0.012f * static_cast<float>(index % 50U)};
+        patch.text = "T" + std::to_string(index);
+
+        mfd::DynamicReticleState state;
+        state.reticleId = "track_" + std::to_string(index);
+        state.runtimeReticleId = 1000U + index;
+        state.patch = std::move(patch);
+        command.reticles.push_back(std::move(state));
+    }
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(std::move(command));
+
+    EXPECT_TRUE(processor.Submit(mfd::SerializeCommandBatch(batch)));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    std::size_t dynamicTrackCount = 0;
+    for (const mfd::ReticleGroup* reticle : reticles)
+    {
+        if (reticle != nullptr && reticle->id.rfind("__runtime_dynamic_", 0U) == 0U)
+        {
+            ++dynamicTrackCount;
+        }
+    }
+
+    EXPECT_EQ(reticles.size(), 101U);
+    EXPECT_EQ(dynamicTrackCount, 100U);
+}

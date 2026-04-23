@@ -236,6 +236,72 @@ TEST(CommandClientTests, DynamicHelpersDeriveStableHiddenRuntimeIdWhenTransportM
     EXPECT_TRUE(removeCommand->target.reticleId.empty());
 }
 
+TEST(CommandClientTests, NameBasedBulkDynamicReticlesResolveThroughConfiguredTransportMap)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::ReticlePatch firstPatch;
+    firstPatch.visible = true;
+    firstPatch.blinkType = "slow";
+    firstPatch.texts.emplace("track_label", "T001");
+    firstPatch.letterSpacings.emplace("track_label", 0.008f);
+
+    mfd::ReticlePatch secondPatch;
+    secondPatch.visible = true;
+    secondPatch.texts.emplace("track_label", "T002");
+    secondPatch.letterSpacings.emplace("track_label", 0.010f);
+
+    mfd::UpsertDynamicReticlesCommand command;
+    command.page = "Radar";
+    command.templateId = "radar_track";
+    command.reticles.push_back(mfd::DynamicReticleState {"track_001", 0U, firstPatch});
+    command.reticles.push_back(mfd::DynamicReticleState {"track_002", 0U, secondPatch});
+
+    mfd::CommandBatch batch;
+    batch.sequence = 77U;
+    batch.commands.push_back(std::move(command));
+
+    ASSERT_TRUE(client.SendBatch(batch)) << client.LastError();
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 1U);
+
+    const std::vector<std::byte>& payloadBytes = rawChannel->SentPayloads().front();
+    const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
+    const auto decodedBatch = mfd::DeserializeCommandBatch(payload);
+
+    ASSERT_TRUE(decodedBatch.has_value());
+    EXPECT_EQ(decodedBatch->sequence, 77U);
+    EXPECT_EQ(decodedBatch->mappingHash, "map_hash");
+    ASSERT_EQ(decodedBatch->commands.size(), 1U);
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&decodedBatch->commands.front());
+    ASSERT_NE(upsert, nullptr);
+    EXPECT_TRUE(upsert->page.empty());
+    EXPECT_EQ(upsert->pageId, 11U);
+    EXPECT_TRUE(upsert->templateId.empty());
+    EXPECT_EQ(upsert->templateTransportId, 55U);
+    ASSERT_EQ(upsert->reticles.size(), 2U);
+
+    EXPECT_TRUE(upsert->reticles[0].reticleId.empty());
+    EXPECT_NE(upsert->reticles[0].runtimeReticleId, 0U);
+    EXPECT_EQ(upsert->reticles[0].patch.blinkTypeId, 44U);
+    EXPECT_TRUE(upsert->reticles[0].patch.texts.empty());
+    EXPECT_TRUE(upsert->reticles[0].patch.letterSpacings.empty());
+    EXPECT_EQ(upsert->reticles[0].patch.textsById.at(66U), "T001");
+    EXPECT_FLOAT_EQ(upsert->reticles[0].patch.letterSpacingsById.at(66U), 0.008f);
+
+    EXPECT_TRUE(upsert->reticles[1].reticleId.empty());
+    EXPECT_NE(upsert->reticles[1].runtimeReticleId, 0U);
+    EXPECT_NE(upsert->reticles[1].runtimeReticleId, upsert->reticles[0].runtimeReticleId);
+    EXPECT_TRUE(upsert->reticles[1].patch.texts.empty());
+    EXPECT_TRUE(upsert->reticles[1].patch.letterSpacings.empty());
+    EXPECT_EQ(upsert->reticles[1].patch.textsById.at(66U), "T002");
+    EXPECT_FLOAT_EQ(upsert->reticles[1].patch.letterSpacingsById.at(66U), 0.010f);
+}
+
 TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTransportMapIsConfigured)
 {
     auto channel = std::make_unique<CapturingExchangeChannel>();

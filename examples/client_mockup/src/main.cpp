@@ -1064,7 +1064,17 @@ void MockupApplication::RecreateClient()
         return;
     }
 
-    realtimePublisher_ = std::make_unique<mfd::client::LatestBatchPublisher>(loaded_.window.commandTransports);
+    mfd::CommandClient* const realtimeClient = client_.get();
+    realtimePublisher_ = std::make_unique<mfd::client::LatestBatchPublisher>(
+        [realtimeClient](const mfd::CommandBatch& batch)
+        {
+            return realtimeClient != nullptr && realtimeClient->SendBatch(batch);
+        },
+        [realtimeClient]()
+        {
+            return realtimeClient == nullptr ? std::string {"Realtime command client is unavailable"}
+                                             : realtimeClient->LastError();
+        });
 
     SetStatus("Connected through UDP to '" + loaded_.window.title + "'.", false);
 }
