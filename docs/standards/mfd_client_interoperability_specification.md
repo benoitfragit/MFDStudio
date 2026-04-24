@@ -1,7 +1,7 @@
 # MFDStudio External Client Interoperability Specification
 
 Status: Draft 0.1  
-Aligned release baseline: MFDStudio 1.1.6  
+Aligned release baseline: MFDStudio 1.1.7  
 Intended audience: external client implementers, integrators, reviewers, and future normalization work
 
 ## 1. Purpose

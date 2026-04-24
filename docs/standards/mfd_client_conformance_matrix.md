@@ -1,7 +1,7 @@
 # MFDStudio Client Conformance Matrix
 
 Status: Draft 0.1  
-Aligned release baseline: MFDStudio 1.1.6
+Aligned release baseline: MFDStudio 1.1.7
 
 ## Purpose
 

@@ -21,6 +21,7 @@
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "RuntimeDebugPreview.hpp"
+#include "RuntimeDebugInspectorFrameState.hpp"
 #include "RuntimeDebugState.hpp"
 
 namespace
@@ -94,6 +95,31 @@ const mfd::ReticleGroup* FindReticle(const mfd::SceneRegistry& scene,
     return nullptr;
 }
 } // namespace
+
+/**
+ * @brief Confirms the inspector frame starts with one valid snapshot.
+ */
+TEST(RuntimeDebugInspectorFrameStateTests, StartsWithValidSnapshot)
+{
+    mfd::window::debug::RuntimeDebugInspectorFrameState frameState;
+
+    EXPECT_TRUE(frameState.SnapshotValid());
+    EXPECT_EQ(
+        mfd::window::debug::RuntimeDebugInspectorFrameState::RefreshNotice(),
+        "The inspector state changed and will be refreshed on the next frame.");
+}
+
+/**
+ * @brief Confirms one local preview rebuild invalidates the remaining widgets for the current frame.
+ */
+TEST(RuntimeDebugInspectorFrameStateTests, InvalidatesSnapshotAfterPreviewMutation)
+{
+    mfd::window::debug::RuntimeDebugInspectorFrameState frameState;
+
+    frameState.InvalidateSnapshot();
+
+    EXPECT_FALSE(frameState.SnapshotValid());
+}
 
 /**
  * @brief Ensures deactivation clears only interactive debug overrides.

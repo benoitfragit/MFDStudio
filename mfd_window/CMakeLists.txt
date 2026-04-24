@@ -3,6 +3,7 @@
 # Repository: https://github.com/benoitfragit/MFDStudio
 set(MFD_WINDOW_LAUNCHER_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/WindowLauncher.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugInspectorFrameState.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugOverlay.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugPreview.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugState.hpp)
