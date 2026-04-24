@@ -46,6 +46,8 @@ The first test files are:
 
 - `mfd_api/tests/JsonLoaderTests.cpp`
 - `mfd_api/tests/SceneRegistryTests.cpp`
+- `mfd_api/tests/StrobeFeedbackTests.cpp`
+- `mfd_api/tests/CommandTransportTests.cpp`
 
 ## What Is Covered Today
 
@@ -66,6 +68,18 @@ The first test files are:
 - rejecting invalid blink type changes without mutating runtime state
 - synchronization of reticles that share the same effective blink duration
 - clamping and validating whole-window brightness patches
+
+`StrobeFeedbackTests.cpp` covers:
+
+- round-tripping full strobe feedback envelopes including capture metadata
+- preserving optional and defaulted strobe feedback fields
+- rejecting malformed or wrong-envelope Protocol Buffers payloads
+
+`CommandTransportTests.cpp` covers:
+
+- rejecting disabled or incomplete command and feedback UDP configs
+- loopback delivery through the real UDP transport factories
+- transport-level validation such as missing remote endpoints or invalid bind addresses
 
 ## Build The Tests
 
@@ -109,7 +123,6 @@ Prefer adding tests when one of these situations appears:
 
 Good candidates for future tests:
 
-- command serialization edge cases
 - bulk dynamic-reticle update behavior
 - additional asset smoke tests for demo windows
 
