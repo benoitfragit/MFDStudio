@@ -13,6 +13,7 @@ In about 10 minutes you will:
 - launch the mockup
 - activate a page
 - move a reticle
+- inspect the runtime from inside `mfd_window`
 - see how the client and the window talk to each other over UDP
 
 ## Mental Model
@@ -102,7 +103,20 @@ In the radar tools section of the mockup:
 2. watch the radar page update with many tracks
 3. watch the reported send time and UI FPS
 
-## Step 7 - Understand what just happened
+## Step 7 - Inspect the runtime from `mfd_window`
+
+In the `mfd_window` window itself:
+
+1. press `F1`
+2. inspect the transport panel and active page
+3. select one reticle in the tree
+4. change `Visible` or `Position` to create one local bypass
+5. clear `Bypassed` again to return immediately to the last UDP-driven state
+
+Press `F1` again, or close the overlay window, to leave debug mode. Every page
+and reticle then follows the normal live runtime state again.
+
+## Step 8 - Understand what just happened
 
 You have already exercised the full runtime loop:
 
@@ -133,6 +147,7 @@ Choose the path that matches your goal:
 - use dynamic radar-style tracks: [05 Dynamic Reticles](./tutorials/05_dynamic_reticles.md)
 - try the integrated showcase: [10 Drive The Cockpit Demo](./tutorials/10_cockpit_demo.md)
 - run the automated runtime tests: [12 Run The Automated Runtime Tests](./tutorials/12_run_the_automated_runtime_tests.md)
+- inspect the runtime overlay in detail: [14 Use The Integrated Runtime Debug Overlay](./tutorials/14_use_the_runtime_debug_overlay.md)
 
 ## Common First-Time Mistakes
 

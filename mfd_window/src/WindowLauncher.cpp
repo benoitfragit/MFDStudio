@@ -62,6 +62,8 @@ extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* na
 #include "mfd/render/WindowBranding.h"
 #include "mfd/runtime/SceneRegistry.h"
 
+#include "RuntimeDebugOverlay.hpp"
+
 #if defined(_WIN32)
 extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 #endif
@@ -899,6 +901,7 @@ public:
 
         SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
         InitWindow(windowDefinition_.width, windowDefinition_.height, windowDefinition_.title.c_str());
+        debugOverlay_.Initialize();
         RefreshBranding();
         SetWindowPosition(windowDefinition_.positionX, windowDefinition_.positionY);
 
@@ -931,15 +934,17 @@ public:
 
             try
             {
+                const mfd::SceneRegistry& renderScene = debugOverlay_.RenderScene(scene_);
                 if (ShouldDrawStartupSplash())
                 {
                     DrawStartupSplash();
                 }
                 else
                 {
-                    ClearBackground(ToRayColor(scene_.ActiveBackgroundColor()));
-                    renderer_.DrawActivePage(scene_);
+                    ClearBackground(ToRayColor(renderScene.ActiveBackgroundColor()));
+                    renderer_.DrawActivePage(renderScene);
                 }
+                debugOverlay_.Draw(scene_, windowDefinition_, applicationName_, lastRuntimeError_);
                 PublishFramebuffer();
             }
             catch (const std::exception& exception)
@@ -959,23 +964,13 @@ public:
             }
         }
 
-        UnloadBrandingResources();
+        debugOverlay_.Shutdown();
         framebufferCapture_.reset();
         CloseWindow();
         return 0;
     }
 
 private:
-    void UnloadBrandingResources() noexcept
-    {
-        if (TextureReady(splashTexture_))
-        {
-            UnloadTexture(splashTexture_);
-        }
-
-        splashTexture_ = {};
-    }
-
     void RefreshBranding()
     {
         resolvedIconFile_ = mfd::ResolveWindowBrandingIconFile(windowDefinition_.iconFile, windowFile_);
@@ -989,23 +984,11 @@ private:
                 brandingStatus_ = iconError;
             }
         }
-
-        UnloadBrandingResources();
-        if (resolvedIconFile_.empty() || !std::filesystem::exists(resolvedIconFile_))
-        {
-            return;
-        }
-
-        splashTexture_ = LoadTexture(resolvedIconFile_.string().c_str());
-        if (!TextureReady(splashTexture_) && brandingStatus_.empty())
-        {
-            brandingStatus_ = "Unable to load the branding texture '" + resolvedIconFile_.string() + "'.";
-        }
     }
 
     [[nodiscard]] bool ShouldDrawStartupSplash() const noexcept
     {
-        return TextureReady(splashTexture_) &&
+        return !debugOverlay_.SuppressStartupSplash() &&
                udpRuntimeBridge_ != nullptr &&
                udpRuntimeBridge_->HasCommandReceiver() &&
                !receivedFirstClientCommand_;
@@ -1023,53 +1006,45 @@ private:
         DrawRectangleGradientV(0, 0, renderWidth, renderHeight, Color {7, 15, 21, 255}, Color {2, 7, 11, 255});
 
         const float screenMin = static_cast<float>(std::min(renderWidth, renderHeight));
-        const float imageSize = std::clamp(screenMin * 0.42f, 180.0f, 520.0f);
-        const Rectangle imageBounds {
-            (static_cast<float>(renderWidth) - imageSize) * 0.5f,
-            std::max(30.0f, static_cast<float>(renderHeight) * 0.5f - imageSize * 0.68f),
-            imageSize,
-            imageSize};
         const Rectangle cardBounds {
-            imageBounds.x - 28.0f,
-            imageBounds.y - 28.0f,
-            imageBounds.width + 56.0f,
-            imageBounds.height + 56.0f};
+            std::max(36.0f, (static_cast<float>(renderWidth) - std::clamp(screenMin * 0.78f, 360.0f, 760.0f)) * 0.5f),
+            std::max(30.0f, static_cast<float>(renderHeight) * 0.5f - std::clamp(screenMin * 0.18f, 108.0f, 160.0f)),
+            std::clamp(screenMin * 0.78f, 360.0f, 760.0f),
+            std::clamp(screenMin * 0.36f, 216.0f, 320.0f)};
 
         DrawRectangleRounded(cardBounds, 0.08f, 18, Color {9, 19, 26, 232});
         DrawRectangleRoundedLinesEx(cardBounds, 0.08f, 18, 2.0f, Color {42, 86, 78, 255});
-        DrawTexturePro(
-            splashTexture_,
-            Rectangle {0.0f, 0.0f, static_cast<float>(splashTexture_.width), static_cast<float>(splashTexture_.height)},
-            imageBounds,
-            Vector2 {0.0f, 0.0f},
-            0.0f,
-            WHITE);
 
         const std::string title = windowDefinition_.title.empty() ? applicationName_ : windowDefinition_.title;
         const int titleFontSize = std::clamp(static_cast<int>(screenMin * 0.048f), 26, 42);
         const int subtitleFontSize = std::clamp(static_cast<int>(screenMin * 0.022f), 16, 22);
+        const int statusFontSize = 16;
         const char* subtitle = "Waiting for the first client command...";
+        const float accentHeight = 4.0f;
+        const float contentTop = cardBounds.y + 34.0f;
 
         const int titleWidth = MeasureText(title.c_str(), titleFontSize);
         const int subtitleWidth = MeasureText(subtitle, subtitleFontSize);
+        const int statusWidth = brandingStatus_.empty() ? 0 : MeasureText(brandingStatus_.c_str(), statusFontSize);
         const int titleX = (renderWidth - titleWidth) / 2;
         const int subtitleX = (renderWidth - subtitleWidth) / 2;
-        const int titleY = static_cast<int>(imageBounds.y + imageBounds.height + 28.0f);
+        const int statusX = (renderWidth - statusWidth) / 2;
+        const int titleY = static_cast<int>(contentTop + 42.0f);
         const int subtitleY = titleY + titleFontSize + 12;
+        const int statusY = subtitleY + subtitleFontSize + 18;
+
+        DrawRectangleRounded(
+            Rectangle {cardBounds.x + 28.0f, cardBounds.y + 18.0f, cardBounds.width - 56.0f, accentHeight},
+            1.0f,
+            8,
+            Color {78, 168, 142, 255});
 
         DrawText(title.c_str(), titleX, titleY, titleFontSize, Color {227, 242, 236, 255});
         DrawText(subtitle, subtitleX, subtitleY, subtitleFontSize, Color {117, 198, 176, 255});
 
         if (!brandingStatus_.empty())
         {
-            const int statusFontSize = 16;
-            const int statusWidth = MeasureText(brandingStatus_.c_str(), statusFontSize);
-            DrawText(
-                brandingStatus_.c_str(),
-                (renderWidth - statusWidth) / 2,
-                subtitleY + subtitleFontSize + 14,
-                statusFontSize,
-                Color {250, 176, 96, 255});
+            DrawText(brandingStatus_.c_str(), statusX, statusY, statusFontSize, Color {250, 176, 96, 255});
         }
     }
 
@@ -1134,6 +1109,7 @@ private:
                 RefreshBranding();
             }
 
+            debugOverlay_.OnRuntimeReloaded(scene_);
             lastReloadError_.clear();
             return true;
         }
@@ -1146,6 +1122,16 @@ private:
 
     void HandleShortcuts()
     {
+        if (debugOverlay_.HandleShortcut(scene_))
+        {
+            return;
+        }
+
+        if (debugOverlay_.ConsumeRuntimeShortcuts())
+        {
+            return;
+        }
+
         if (IsKeyPressed(KEY_R))
         {
             if (!ReloadConfiguration())
@@ -1177,6 +1163,8 @@ private:
 
     void Update(const float deltaSeconds)
     {
+        appliedCommandBatches_.clear();
+
         if (udpRuntimeBridge_ != nullptr)
         {
             pendingCommandBatches_.clear();
@@ -1210,6 +1198,7 @@ private:
 
                     success = commandProcessor_.Submit(batch) && success;
                     appliedCommands += batchCommandCount;
+                    appliedCommandBatches_.push_back(batch);
                 }
 
                 if (success)
@@ -1233,6 +1222,12 @@ private:
         }
 
         PublishStrobeFeedbacks(deltaSeconds);
+        debugOverlay_.Synchronize(
+            scene_,
+            udpRuntimeBridge_.get(),
+            lastCommandStatus_,
+            lastFeedbackStatus_,
+            appliedCommandBatches_);
     }
 
     void PublishStrobeFeedbacks(const float deltaSeconds)
@@ -1296,7 +1291,7 @@ private:
             std::cout << "Branding icon: " << resolvedIconFile_.string() << '\n';
         }
         std::cout << "Pages: " << scene_.Pages().size() << '\n';
-        std::cout << "Shortcuts: R reloads, 1..9 switch pages\n";
+        std::cout << "Shortcuts: F1 toggles runtime debug, R reloads, 1..9 switch pages\n";
     }
 
     void PublishFramebuffer()
@@ -1329,11 +1324,12 @@ private:
     mfd::SceneRegistry scene_ {};
     mfd::CommandProcessor commandProcessor_;
     mfd::MfdRenderer renderer_ {};
+    mfd::window::debug::RuntimeDebugOverlay debugOverlay_ {};
     std::unique_ptr<AsyncFramebufferCapture> framebufferCapture_ {};
     mfd::WindowAssetDefinition windowDefinition_ {};
     std::unique_ptr<mfd::UdpRuntimeBridge> udpRuntimeBridge_ {};
     std::vector<mfd::CommandBatch> pendingCommandBatches_ {};
-    Texture2D splashTexture_ {};
+    std::vector<mfd::CommandBatch> appliedCommandBatches_ {};
     float strobeFeedbackAccumulator_ = 0.0f;
     std::uint32_t nextStrobeFeedbackSequence_ = 1;
     bool receivedFirstClientCommand_ = false;
@@ -1364,6 +1360,7 @@ std::string BuildUsageText(const LauncherConfig& config)
     output << "If no window JSON is provided, the launcher defaults to '" << defaultWindowFile.string() << "'.\n";
     output << "Optional framebuffer plugins must export '" << kLauncherFramebufferPluginEntryPointName << "'.\n";
     output << "Shortcuts:\n";
+    output << "  F1 toggles the integrated runtime debug overlay\n";
     output << "  R reloads the current window JSON from disk\n";
     output << "  1..9 activate the first nine authored pages\n";
     return output.str();

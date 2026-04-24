@@ -2,10 +2,16 @@
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
 set(MFD_WINDOW_LAUNCHER_HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/WindowLauncher.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/WindowLauncher.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugOverlay.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugPreview.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugState.hpp)
 
 set(MFD_WINDOW_LAUNCHER_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/WindowLauncher.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/WindowLauncher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugOverlay.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugPreview.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugState.cpp)
 
 add_library(mfd_window_launcher STATIC
     ${MFD_WINDOW_LAUNCHER_HEADERS}
@@ -19,7 +25,8 @@ target_include_directories(mfd_window_launcher
 
 target_link_libraries(mfd_window_launcher
     PUBLIC
-        mfd::api)
+        mfd::api
+        rlimgui)
 
 set(MFD_WINDOW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)

@@ -31,6 +31,7 @@ TEST(WindowLauncherTests, BuildUsageTextReflectsConfiguredApplicationAndWindow)
     EXPECT_NE(usage.find("assets/windows/demo_pages_cockpit.json"), std::string::npos);
     EXPECT_NE(usage.find("--framebuffer-plugin <plugin.dll>"), std::string::npos);
     EXPECT_NE(usage.find(mfd::window::kLauncherFramebufferPluginEntryPointName), std::string::npos);
+    EXPECT_NE(usage.find("F1 toggles the integrated runtime debug overlay"), std::string::npos);
     EXPECT_NE(usage.find("1..9 activate the first nine authored pages"), std::string::npos);
 }
 

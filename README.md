@@ -11,6 +11,7 @@ It is built for projects that need:
 - a data-driven display model
 - reusable reticle templates
 - a real-time runtime API
+- an integrated runtime debug overlay in `mfd_window`
 - local scene control or remote control over UDP
 - optional typed client-side API generation
 - optional strobe feedback and framebuffer capture
@@ -51,6 +52,7 @@ Then:
 2. launch `client_mockup`
 3. activate the `Radar` page
 4. move or recolor one reticle from the mockup
+5. press `F1` in `mfd_window` to inspect the live runtime and test local bypasses
 
 If you want the full walkthrough, read [Quick Start](./docs/QUICKSTART.md).
 If you want the full build, test, and target reference, read
@@ -154,6 +156,10 @@ Start with:
 The repository also ships inspired sample assets under `assets/windows` and
 `assets/pages`. Open them with `mfd_window`, one of the root `Start-Mfd*.bat`
 scripts, or through `mfd_editor`.
+
+Inside `mfd_window`, press `F1` to open the integrated runtime debug overlay.
+It can display transport health, the active page, the current reticle tree, and
+temporary local bypasses without changing the client API.
 
 `Start-MfdTutorial.bat` and `client_tutorial` are intentionally gated behind the
 editor tutorial assets. Until `assets/windows/mfd_tutorial.json` and its page /

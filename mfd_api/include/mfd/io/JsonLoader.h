@@ -44,7 +44,7 @@ struct WindowAssetDefinition
     int targetFps = 60;
     /** @brief Optional font file used by the host renderer for text primitives and overlays. */
     std::filesystem::path fontFile;
-    /** @brief Optional application icon image used by the host window and startup splash screen. */
+    /** @brief Optional application icon image used by the host window. */
     std::filesystem::path iconFile;
     /** @brief Folder containing reusable reticle templates. */
     std::filesystem::path reticleLibraryFolder;

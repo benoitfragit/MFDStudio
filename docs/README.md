@@ -21,6 +21,7 @@ That sequence gives you:
 | Goal | Read first | Then continue with |
 | --- | --- | --- |
 | See a shipped demo working quickly | [Quick Start](./QUICKSTART.md) | [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md) |
+| Inspect one live `mfd_window` runtime without changing the client | [Quick Start](./QUICKSTART.md) | [Use The Integrated Runtime Debug Overlay](./tutorials/14_use_the_runtime_debug_overlay.md) |
 | Understand the project structure before coding | [Core Concepts](./CONCEPTS.md) | [Development Guide](./DEVELOPMENT.md) |
 | Author reticles, pages, and windows in JSON | [Core Concepts](./CONCEPTS.md) | [Tutorials 01-03](./tutorials/README.md), then [JSON Reference](./reference/README.md) |
 | Use `mfd_editor` to create or edit assets | [Quick Start](./QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md) |

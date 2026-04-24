@@ -28,6 +28,7 @@ These pages give you the mental model and vocabulary used by the tutorials.
 11. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
 12. [Run The Automated Runtime Tests](./12_run_the_automated_runtime_tests.md)
 13. [Create A Window From Scratch In The Editor](./13_create_window_from_editor.md)
+14. [Use The Integrated Runtime Debug Overlay](./14_use_the_runtime_debug_overlay.md)
 
 ## Fast Reading Paths
 
@@ -63,6 +64,7 @@ If you mainly want an end-to-end showcase:
 1. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
 2. [Drive The Cockpit Demo](./10_cockpit_demo.md)
 3. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
+4. [Use The Integrated Runtime Debug Overlay](./14_use_the_runtime_debug_overlay.md)
 
 If you mainly want automated safety nets around the runtime:
 

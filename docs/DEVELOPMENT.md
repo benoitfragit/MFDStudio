@@ -54,7 +54,7 @@ cmake --build --preset debug-x64
 
 | Target | Role |
 | --- | --- |
-| `mfd_window` | Generic runtime host that loads a window JSON |
+| `mfd_window` | Generic runtime host that loads a window JSON and exposes the integrated `F1` debug overlay |
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting the framebuffer callback symbol expected by `mfd_window` |
 | `client_mockup` | Interactive GUI client used to exercise the public API |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
@@ -62,7 +62,7 @@ cmake --build --preset debug-x64
 | `mfd_editor` | Visual authoring tool |
 | `mfd_api_tests` | Runtime and JSON loading test executable |
 | `client_api_tests` | Client-side helper test executable |
-| `mfd_window_tests` | Window launcher tests |
+| `mfd_window_tests` | Window launcher and integrated runtime-debug tests |
 | `mfd_editor_tests` | Editor-focused tests |
 
 ## Root Launch Scripts
@@ -117,6 +117,12 @@ Run only one family of tests:
 
 ```powershell
 ctest -C Debug --test-dir build/vs2022-win32 -R "CommandProcessorTests|LatestBatchPublisherTests" --output-on-failure
+```
+
+Run the `mfd_window`-specific launcher and runtime-debug tests:
+
+```powershell
+ctest -C Debug --test-dir build/vs2022-win32 -R "WindowLauncherTests|RuntimeDebug" --output-on-failure
 ```
 
 Run one executable directly:

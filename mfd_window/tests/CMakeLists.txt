@@ -4,9 +4,14 @@
 include(GoogleTest)
 
 set(MFD_WINDOW_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/RuntimeDebugTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/WindowLauncherTests.cpp)
 
 add_executable(mfd_window_tests ${MFD_WINDOW_TEST_SOURCES})
+
+target_include_directories(mfd_window_tests
+    PRIVATE
+        ${MFD_ROOT_DIR}/mfd_window/src)
 
 target_link_libraries(mfd_window_tests
     PRIVATE

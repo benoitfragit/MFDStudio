@@ -95,7 +95,7 @@ The root window JSON defines:
 - window size in pixels
 - window screen position
 - optional text font file for text/time primitives and page overlays
-- optional window icon used by the runtime and the startup splash
+- optional window icon used by the runtime host window
 - UDP command transport
 - optional UDP feedback transport
 - list of page files
