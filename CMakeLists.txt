@@ -12,14 +12,48 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(MFD_BUILD_DEMO "Build the demo MFD executable" ON)
 option(MFD_BUILD_TESTS "Build GoogleTest-based runtime and loading tests" ON)
 option(MFD_ENABLE_WARNINGS "Enable strict compiler warnings" ON)
 
+set(MFD_ENABLE_POSITION_INDEPENDENT_CODE_DEFAULT ON)
+if(WIN32)
+    set(MFD_ENABLE_POSITION_INDEPENDENT_CODE_DEFAULT OFF)
+endif()
+
+option(MFD_ENABLE_POSITION_INDEPENDENT_CODE
+    "Enable position-independent code for targets that need it"
+    ${MFD_ENABLE_POSITION_INDEPENDENT_CODE_DEFAULT})
+
+set(MFD_MSVC_RUNTIME "default" CACHE STRING
+    "MSVC C runtime linkage. Supported values: default, dll, static")
+set_property(CACHE MFD_MSVC_RUNTIME PROPERTY STRINGS default dll static)
+
+if(MFD_ENABLE_POSITION_INDEPENDENT_CODE)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
+
 if(MSVC)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    string(TOLOWER "${MFD_MSVC_RUNTIME}" mfd_msvc_runtime)
+    if(mfd_msvc_runtime STREQUAL "default")
+        unset(CMAKE_MSVC_RUNTIME_LIBRARY)
+        unset(CMAKE_MSVC_RUNTIME_LIBRARY CACHE)
+        set(MFD_MSVC_USE_DLL_RUNTIME ON)
+    elseif(mfd_msvc_runtime STREQUAL "dll")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+        set(MFD_MSVC_USE_DLL_RUNTIME ON)
+    elseif(mfd_msvc_runtime STREQUAL "static")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        set(MFD_MSVC_USE_DLL_RUNTIME OFF)
+    else()
+        message(FATAL_ERROR
+            "Unsupported MFD_MSVC_RUNTIME='${MFD_MSVC_RUNTIME}'. "
+            "Expected one of: default, dll, static.")
+    endif()
+
+    set(MFD_MSVC_USE_DLL_RUNTIME "${MFD_MSVC_USE_DLL_RUNTIME}" CACHE INTERNAL
+        "Internal helper controlling third-party MSVC runtime alignment" FORCE)
     add_compile_options(/FS)
 endif()
 

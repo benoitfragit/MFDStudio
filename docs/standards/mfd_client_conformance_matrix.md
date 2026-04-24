@@ -41,11 +41,15 @@ Coverage status used in this document:
 | `CLI-013` | the runtime accepts one large bulk dynamic radar update cycle of 100 tracks | `12.7`, `13`, `17` | `mfd_api/tests/CommandProcessorTests.cpp::BulkDynamicRadarBatchSupportsOneHundredTracks` | Covered |
 | `CLI-014` | strobe feedback is decoded as authoritative resolved runtime state | `14` | `mfd_api/tests/SceneRegistryTests.cpp::StrobeMagnetizationAndCaptureTrackNearestVisibleDynamicReticle`; `StrobeMagnetizationFollowsMovingDynamicReticle`; `ManualStrobeMoveBreaksStickyMagnetization` | Partial |
 | `CLI-015` | generated `Reset()` helpers are explicitly local staging resets and not runtime resets | `7.4` | `client_api/tests/AnimationTests.cpp::ReticleResetSuppressesEmissionUntilANewMutation`; `WindowDisplayResetSuppressesEmissionUntilNextMutation` | Partial |
-| `CLI-016` | generated root `BuildCommandBatch(sequence)` behavior is verified end-to-end against a live runtime window | `7.4`, `11`, `17` | no dedicated automated test yet | Gap |
-| `CLI-017` | generated `SubmitLatest(publisher, sequence)` is verified end-to-end for one real generated UI root | `7.4` | generator output shape is checked in `client_api_generator/tests/test_generate_ui.py`, but no runtime execution test exists | Gap |
+| `CLI-016` | generated root `BuildCommandBatch(sequence)` behavior is verified end-to-end against one generated-style runtime command flow | `7.4`, `11`, `17` | `client_api/tests/GeneratedUiRuntimeTests.cpp::BuildCommandBatchCarriesMappingHashAndGeneratedIdentifiers` | Covered |
+| `CLI-017` | generated `SubmitLatest(publisher, sequence)` is verified end-to-end for one real generated UI root | `7.4` | `client_api/tests/GeneratedUiRuntimeTests.cpp::SubmitLatestForwardsGeneratedUiBatchSemantics` | Covered |
 | `CLI-018` | feedback UDP transport readiness, payload reception, and consumer-side conformance are validated end-to-end | `8.2`, `14`, `17` | runtime bridge feedback queue tests exist, but external-client conformance is not fully automated | Partial |
 | `CLI-019` | generated UI code emits primitive-kind-specific accessors for exposed static and dynamic primitives instead of flattening everything to one generic handle | `6.4`, `7.3`, `7.5` | `client_api_generator/tests/test_generate_ui.py::test_generates_primitive_specialized_accessors_for_static_and_dynamic_handles` | Covered |
 | `CLI-020` | generated primitive-level geometry mutations are serialized as primitive patches keyed by generated primitive IDs with the expected type-specific fields preserved | `7.5`, `12.4`, `13.1` | `client_api/tests/AnimationTests.cpp::GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatchesById`; `client_api/tests/AnimationTests.cpp::GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUserIds` | Covered |
+
+## Traceability View
+
+![Conformance evidence flow](./conformance_evidence_flow.svg)
 
 ## Existing Test Families
 
@@ -97,13 +101,11 @@ They are especially relevant for:
 
 The next gaps worth closing are:
 
-1. one end-to-end test that instantiates a generated UI root, mutates it,
-   calls `BuildCommandBatch(sequence)`, and validates the produced batch
-   semantically rather than by generated source inspection only
-2. one end-to-end test that uses `SubmitLatest(...)` on a generated UI root and
-   validates the delivered batch
-3. one external feedback-client conformance test that receives and checks a real
+1. one external feedback-client conformance test that receives and checks a real
    `StrobeStatusFeedback` payload from a running bridge
+2. one stronger end-to-end test that drives a real generated source pair emitted
+   by `client_api_generator`, not only one generated-style fixture built on the
+   same public API
 
 ## Related Documents
 

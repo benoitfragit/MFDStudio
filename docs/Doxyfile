@@ -65,12 +65,20 @@ DISABLE_INDEX          = NO
 HTML_DYNAMIC_MENUS     = YES
 SEARCHENGINE           = YES
 SERVER_BASED_SEARCH    = NO
-FULL_SIDEBAR           = YES
+FULL_SIDEBAR           = NO
+HTML_HEADER            = docs/doxygen/header.html
 HTML_COLORSTYLE        = LIGHT
 HTML_COLORSTYLE_HUE    = 190
 HTML_COLORSTYLE_SAT    = 78
 HTML_COLORSTYLE_GAMMA  = 92
-HTML_EXTRA_STYLESHEET  = docs/doxygen/custom.css
+HTML_COPY_CLIPBOARD    = NO
+HTML_EXTRA_STYLESHEET  = docs/doxygen-awesome/doxygen-awesome.css \
+                         docs/doxygen-awesome/doxygen-awesome-sidebar-only.css \
+                         docs/doxygen-awesome/doxygen-awesome-sidebar-only-darkmode-toggle.css \
+                         docs/doxygen/mfd-awesome-overrides.css
+HTML_EXTRA_FILES       = docs/doxygen-awesome/doxygen-awesome-darkmode-toggle.js \
+                         docs/doxygen-awesome/doxygen-awesome-fragment-copy-button.js \
+                         docs/doxygen-awesome/doxygen-awesome-paragraph-link.js
 GENERATE_LATEX         = NO
 GENERATE_XML           = NO
 GENERATE_RTF           = NO
@@ -94,7 +102,9 @@ DOT_GRAPH_MAX_NODES    = 80
 MAX_DOT_GRAPH_DEPTH    = 2
 DOT_CLEANUP            = YES
 IMAGE_PATH             = docs \
+                         docs/images \
                          docs/architecture \
+                         docs/standards \
                          docs/reference \
                          docs/tutorials
 PLANTUML_JAR_PATH      =

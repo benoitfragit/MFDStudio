@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">MFDStudio interoperability reference model</title>
+  <desc id="desc">Reference model showing window JSON, runtime window, generated transport map and external client interactions.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f7fbfe"/>
+      <stop offset="100%" stop-color="#edf4f9"/>
+    </linearGradient>
+    <linearGradient id="runtime" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#10263b"/>
+      <stop offset="100%" stop-color="#178b87"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#0f6985"/>
+    </marker>
+    <style>
+      text { font-family: Segoe UI, Trebuchet MS, Verdana, sans-serif; }
+      .panel { fill: #ffffff; stroke: #d6e1eb; stroke-width: 2; rx: 22; }
+      .panel-title { font-size: 24px; font-weight: 700; fill: #10263b; }
+      .panel-body { font-size: 18px; fill: #4e6272; }
+      .runtime-box { fill: url(#runtime); stroke: none; rx: 26; }
+      .runtime-title { font-size: 28px; font-weight: 800; fill: #ffffff; }
+      .runtime-body { font-size: 18px; fill: rgba(255,255,255,0.92); }
+      .link { stroke: #0f6985; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .label { font-size: 16px; font-weight: 700; fill: #0a4258; }
+      .caption { font-size: 16px; fill: #506577; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="420" fill="url(#bg)"/>
+
+  <rect class="panel" x="60" y="70" width="260" height="120"/>
+  <text class="panel-title" x="90" y="118">Window JSON</text>
+  <text class="panel-body" x="90" y="152">UDP endpoints</text>
+  <text class="panel-body" x="90" y="178">page files, reticles</text>
+
+  <rect class="panel" x="60" y="245" width="260" height="120"/>
+  <text class="panel-title" x="90" y="293">Generated Map</text>
+  <text class="panel-body" x="90" y="327">transport IDs</text>
+  <text class="panel-body" x="90" y="353">mappingHash</text>
+
+  <rect class="runtime-box" x="420" y="105" width="360" height="210" rx="26"/>
+  <text class="runtime-title" x="470" y="158">Running `mfd_window`</text>
+  <text class="runtime-body" x="470" y="198">Authoritative live scene state</text>
+  <text class="runtime-body" x="470" y="228">Command processor + renderer</text>
+  <text class="runtime-body" x="470" y="258">Optional feedback emitter</text>
+
+  <rect class="panel" x="900" y="105" width="250" height="210"/>
+  <text class="panel-title" x="935" y="158">External Client</text>
+  <text class="panel-body" x="935" y="195">generated UI, raw</text>
+  <text class="panel-body" x="935" y="221">CommandClient, or</text>
+  <text class="panel-body" x="935" y="247">third-party implementation</text>
+
+  <path class="link" d="M320 130 C365 130 370 145 420 145"/>
+  <text class="label" x="332" y="116">load authored model</text>
+
+  <path class="link" d="M320 292 C365 292 368 274 420 274"/>
+  <text class="label" x="334" y="325">resolve IDs and hash</text>
+
+  <path class="link" d="M900 180 C850 180 835 180 780 180"/>
+  <text class="label" x="804" y="165">UDP commands</text>
+
+  <path class="link" d="M780 240 C845 240 850 262 900 262"/>
+  <text class="label" x="796" y="286">UDP feedback</text>
+
+  <text class="caption" x="60" y="36">MFDStudio replacement-client interoperability contract</text>
+</svg>

@@ -73,6 +73,8 @@ In the normal deployment model:
 - the client sends Protocol Buffers command batches over UDP
 - the window may emit UDP strobe feedback snapshots back to the client
 
+![Interoperability reference model](./interop_reference_model.svg)
+
 ## 5. Terminology
 
 This specification uses the following terms:
@@ -474,7 +476,8 @@ This command performs the same semantic action as repeated
 template inside the same update cycle.
 
 A conforming client SHOULD prefer this bulk form for high-rate loops and radar-
-like workloads.
+A conforming client SHOULD prefer this bulk form for high-rate loops and
+radar-style workloads.
 
 ### 12.8 SetDynamicReticleSetVisibilityCommand
 
@@ -645,6 +648,21 @@ SHOULD also verify:
 | generated dynamic set hides runtime IDs | `Create()` and `Remove(handle)` work without user-managed runtime IDs |
 | generated batch helper carries `mappingHash` | `BuildCommandBatch(sequence)` emits the generated hash |
 | generated submit helper preserves batch semantics | `SubmitLatest(...)` forwards the same logical batch |
+
+### 17.1 Requirement-To-Test Traceability
+
+The specification is intended to be traceable to automated evidence, not only
+to prose. The conformance matrix is the operational companion that records
+which requirements are already covered, which ones are only partially covered,
+and which ones still require dedicated tests.
+
+![Conformance evidence flow](./conformance_evidence_flow.svg)
+
+This traceability split is deliberate:
+
+- the specification defines the interoperability contract
+- the conformance matrix links that contract to repository tests
+- gaps remain visible until they are backed by an automated check
 
 ## 18. Implementation Guidance
 

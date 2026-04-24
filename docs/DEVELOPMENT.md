@@ -49,6 +49,22 @@ cmake --build --preset debug-x64
 | `MFD_BUILD_DEMO` | `ON` | Builds the runtime applications, examples, and editor |
 | `MFD_BUILD_TESTS` | `ON` | Builds and registers the automated test suite |
 | `MFD_ENABLE_WARNINGS` | `ON` | Enables the stricter compiler warning profile |
+| `MFD_ENABLE_POSITION_INDEPENDENT_CODE` | `OFF` on Windows, `ON` elsewhere | Enables position-independent code only where it is actually needed |
+| `MFD_MSVC_RUNTIME` | `default` | Leaves the MSVC CRT runtime to the toolchain default; accepts `dll` or `static` for explicit control |
+
+On Windows/MSVC, the repository no longer forces one global CRT policy unless
+you ask for it. In practice:
+
+- `default` keeps the Visual Studio generator defaults
+- `dll` forces `/MD` in release and `/MDd` in debug
+- `static` forces `/MT` in release and `/MTd` in debug
+
+Examples:
+
+```powershell
+cmake --preset vs2022-win32 -DMFD_MSVC_RUNTIME=static
+cmake --preset vs2022-win32 -DMFD_ENABLE_POSITION_INDEPENDENT_CODE=ON
+```
 
 ## Common Targets
 
@@ -184,19 +200,31 @@ notes, and the public headers under:
 - `mfd_window/include`
 
 The generated HTML enables Graphviz-backed include and dependency diagrams plus
-PlantUML-driven architecture and tutorial diagrams.
+PlantUML-driven architecture and tutorial diagrams. Its frontend now uses the
+official `doxygen-awesome-css` theme with dark-mode toggle, fragment copy
+button, and paragraph links.
 
 For local generation, ensure:
 
 - `doxygen` is installed and available in `PATH`
 - `dot` from Graphviz is available in `PATH`
 - PlantUML is installed or its jar path is known
-- Java 11 or newer is available for PlantUML execution
+- Java 11 or newer is installed somewhere on the machine
+
+`docs/GenerateDocs.ps1` now resolves a compatible Java runtime automatically by
+checking, in order:
+
+- `JAVA_HOME`
+- the current `PATH`
+- common Windows JDK installation folders
+
+If several JDKs are installed, the script keeps the first runtime that reports
+Java 11 or newer and prepends its `bin` directory before invoking Doxygen.
 
 Typical local generation flow:
 
 ```powershell
-pwsh -File docs/GenerateDocs.ps1 -Version local -PlantUmlJarPath C:\path\to\plantuml.jar
+powershell -ExecutionPolicy Bypass -File docs/GenerateDocs.ps1 -Version local -PlantUmlJarPath C:\path\to\plantuml.jar
 ```
 
 The generated site lands under `build/docs/doxygen/html/index.html`.
@@ -208,6 +236,10 @@ The repository includes a release pipeline in
 `.github/workflows/docs-pages.yml`. The Pages workflow follows the successful
 release workflow automatically. The pull request CI, release packaging, and
 docs publication jobs all run on `windows-latest`.
+
+The Pages workflow pins Temurin Java 17 explicitly before running
+`docs/GenerateDocs.ps1`, so the Doxygen / PlantUML publication path does not
+depend on whatever legacy Java might also exist on the runner image.
 
 Recommended release flow:
 

@@ -45,6 +45,13 @@ The current build also uses these important transitive dependencies:
 | `abseil-cpp` | bundled by `protobuf` | Apache-2.0 | linked by the fetched protobuf build |
 | `utf8_range` | bundled by `protobuf` | MIT | linked by the fetched protobuf build |
 
+The repository also vendors one documentation-only frontend dependency for the
+generated HTML portal:
+
+| Dependency | Source | License | Used for |
+| --- | --- | --- | --- |
+| `doxygen-awesome-css` | vendored under `docs/doxygen-awesome/` from `jothepro/doxygen-awesome-css` `v2.4.2` | MIT | Doxygen HTML theme and UI extensions |
+
 ## Dependencies Not Counted As Runtime/Linked Requirements
 
 The fetched `protobuf` source tree also contains other third-party folders such
@@ -147,6 +154,7 @@ The following copied license texts are available under `third_party/licenses/`:
 - `third_party/licenses/googletest-LICENSE.txt`
 - `third_party/licenses/abseil-LICENSE.txt`
 - `third_party/licenses/utf8_range-LICENSE.txt`
+- `third_party/licenses/doxygen-awesome-css-LICENSE.txt`
 
 ## Bottom Line
 

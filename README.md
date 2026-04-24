@@ -46,6 +46,12 @@ cmake --preset vs2022-win32
 cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin client_mockup
 ```
 
+Build defaults worth knowing:
+
+- the shipped presets target Visual Studio/MSVC on Windows
+- `POSITION_INDEPENDENT_CODE` is not forced on Windows by default
+- the MSVC CRT runtime now follows the toolchain default unless you override it explicitly with `-DMFD_MSVC_RUNTIME=dll` or `-DMFD_MSVC_RUNTIME=static`
+
 Then:
 
 1. launch `.\Start-MfdDemo.bat`
@@ -199,6 +205,14 @@ Documentation is intentionally split by job:
 
 The public headers in `mfd_api/include/mfd` are also documented with Doxygen
 using `@brief`, `@param`, `@return`, and `@note`.
+
+The generated HTML API portal uses the official `doxygen-awesome-css` theme
+with a small MFDStudio-specific override layer instead of the previous large
+custom stylesheet.
+
+On Windows, `docs/GenerateDocs.ps1` also auto-detects a Java 11+ runtime for
+PlantUML instead of assuming that the first `java` found in `PATH` is recent
+enough.
 
 ## Third-Party Licenses
 

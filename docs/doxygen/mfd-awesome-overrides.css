@@ -1,0 +1,152 @@
+html {
+  --primary-color: #0f6985;
+  --primary-dark-color: #0a4258;
+  --primary-light-color: #63b5cb;
+  --page-background-color: #f4f8fb;
+  --page-foreground-color: #10263b;
+  --page-secondary-foreground-color: #4e6272;
+  --separator-color: #d6e1eb;
+  --side-nav-background: rgba(247, 251, 254, 0.97);
+  --code-background: #112133;
+  --code-foreground: #eef8ff;
+  --content-maxwidth: 1220px;
+  --border-radius-small: 6px;
+  --border-radius-medium: 10px;
+  --border-radius-large: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not(.light-mode) {
+    --primary-color: #6dc7d7;
+    --primary-dark-color: #5bb0c0;
+    --primary-light-color: #a3e2ec;
+    --page-background-color: #111a22;
+    --page-foreground-color: #e6f1f6;
+    --page-secondary-foreground-color: #a4b7c3;
+    --separator-color: #293845;
+    --side-nav-background: rgba(17, 26, 34, 0.97);
+    --code-background: #0d141b;
+    --code-foreground: #edf8ff;
+  }
+}
+
+html.dark-mode {
+  --primary-color: #6dc7d7;
+  --primary-dark-color: #5bb0c0;
+  --primary-light-color: #a3e2ec;
+  --page-background-color: #111a22;
+  --page-foreground-color: #e6f1f6;
+  --page-secondary-foreground-color: #a4b7c3;
+  --separator-color: #293845;
+  --side-nav-background: rgba(17, 26, 34, 0.97);
+  --code-background: #0d141b;
+  --code-foreground: #edf8ff;
+}
+
+body {
+  background:
+    radial-gradient(circle at top right, rgba(116, 195, 199, 0.11), transparent 24%),
+    linear-gradient(180deg, #f7fbfe 0%, #edf4f9 100%);
+}
+
+#titlearea {
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.16), transparent 24%),
+    linear-gradient(135deg, #10263b 0%, #14506d 56%, #178b87 100%);
+  border-bottom: none;
+  box-shadow: 0 16px 34px rgba(6, 20, 34, 0.25);
+}
+
+#projectalign {
+  padding: 0.8rem 1rem 1rem 1rem;
+}
+
+#projectname,
+#projectnumber,
+#projectbrief {
+  color: #f5fbff;
+}
+
+.contents img {
+  max-width: 100%;
+  border-radius: 18px;
+  box-shadow: 0 18px 42px rgba(16, 38, 59, 0.12);
+}
+
+.mfd-hero {
+  margin: 0.4rem 0 1.7rem 0;
+  padding: 1.55rem 1.7rem;
+  border-radius: 28px;
+  color: #f6fbff;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.16), transparent 28%),
+    linear-gradient(135deg, #10263b 0%, #14506d 56%, #178b87 100%);
+  box-shadow: 0 22px 48px rgba(8, 24, 38, 0.24);
+}
+
+.mfd-eyebrow {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(246, 251, 255, 0.9);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mfd-hero h1 {
+  margin: 0 0 0.5rem 0;
+  border-bottom: none;
+  color: #ffffff;
+}
+
+.mfd-hero p {
+  margin: 0.45rem 0 0 0;
+  color: rgba(246, 251, 255, 0.92);
+  font-size: 1.02rem;
+}
+
+.mfd-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.mfd-pill {
+  display: inline-block;
+  padding: 0.32rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.mfd-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.8rem;
+  margin-top: 1.1rem;
+}
+
+.mfd-stage {
+  padding: 0.85rem 0.95rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mfd-stage strong {
+  display: block;
+  margin-bottom: 0.18rem;
+  color: #ffffff;
+}
+
+.mfd-stage span {
+  color: rgba(246, 251, 255, 0.88);
+  font-size: 0.94rem;
+}
