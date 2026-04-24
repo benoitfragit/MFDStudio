@@ -29,6 +29,7 @@ namespace mfd::window::debug
 {
 namespace
 {
+constexpr int kDebugPanelWidth = 620;
 constexpr float kLeftPaneWidth = 330.0f;
 constexpr float kBottomPanelHeight = 168.0f;
 constexpr std::size_t kTextBufferBaseSize = 256U;
@@ -399,6 +400,11 @@ bool RuntimeDebugOverlay::ConsumeRuntimeShortcuts() const noexcept
     return state_.Active();
 }
 
+int RuntimeDebugOverlay::PreferredPanelWidth() const noexcept
+{
+    return kDebugPanelWidth;
+}
+
 const SceneRegistry& RuntimeDebugOverlay::RenderScene(const SceneRegistry& liveScene) const noexcept
 {
     return state_.Active() && preview_.Ready() ? preview_.Scene() : liveScene;
@@ -508,12 +514,19 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     rlImGuiBegin();
 
     bool open = true;
-    ImGui::SetNextWindowSize(ImVec2(1240.0f, 820.0f), ImGuiCond_FirstUseEver);
+    const float panelWidth = static_cast<float>(std::min(std::max(PreferredPanelWidth(), 320), std::max(GetScreenWidth(), 1)));
+    const float panelHeight = static_cast<float>(std::max(GetScreenHeight(), 1));
+    const float panelX = std::max(0.0f, static_cast<float>(GetScreenWidth()) - panelWidth);
+    const float treePaneWidth = std::min(kLeftPaneWidth, std::max(220.0f, panelWidth * 0.42f));
+
+    ImGui::SetNextWindowPos(ImVec2(panelX, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight), ImGuiCond_Always);
     ImGui::Begin(
         "mfd_window Debug",
         &open,
         ImGuiWindowFlags_NoCollapse |
-            ImGuiWindowFlags_MenuBar);
+            ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoResize);
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.00f), "%s runtime debug", std::string(applicationName).c_str());
     ImGui::SameLine();
@@ -613,7 +626,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     ImGui::Text("Preview active page: %s", displayScene.ActivePageName().c_str());
 
     ImGui::BeginChild("DebugBody", ImVec2(0.0f, -kBottomPanelHeight), false);
-    ImGui::BeginChild("ReticleTreePane", ImVec2(kLeftPaneWidth, 0.0f), true);
+    ImGui::BeginChild("ReticleTreePane", ImVec2(treePaneWidth, 0.0f), true);
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Pages and reticles");
     ImGui::TextDisabled("Select one reticle to inspect or bypass it locally.");
     ImGui::Spacing();

@@ -35,8 +35,9 @@ Use the mockup to activate `Radar` and send at least one reticle update.
 
 Focus the `mfd_window` window and press `F1`.
 
-The overlay appears inside the same native window. It does not create a second
-desktop window.
+The debug UI opens in a dedicated side panel reserved next to the MFD display
+area. The host window grows to keep the rendered page visible while the debug
+tools stay outside the display viewport.
 
 Press `F1` again to close it. Closing the ImGui window itself has the same
 effect.

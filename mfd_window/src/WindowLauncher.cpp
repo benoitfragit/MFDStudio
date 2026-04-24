@@ -903,12 +903,7 @@ public:
         InitWindow(windowDefinition_.width, windowDefinition_.height, windowDefinition_.title.c_str());
         debugOverlay_.Initialize();
         RefreshBranding();
-        SetWindowPosition(windowDefinition_.positionX, windowDefinition_.positionY);
-
-        if (windowDefinition_.targetFps > 0)
-        {
-            SetTargetFPS(windowDefinition_.targetFps);
-        }
+        ApplyWindowHostLayout(false);
 
         PrintStartupSummary();
 
@@ -935,6 +930,7 @@ public:
             try
             {
                 const mfd::SceneRegistry& renderScene = debugOverlay_.RenderScene(scene_);
+                const bool debugWasActiveDuringDraw = debugOverlay_.Active();
                 if (ShouldDrawStartupSplash())
                 {
                     DrawStartupSplash();
@@ -942,9 +938,13 @@ public:
                 else
                 {
                     ClearBackground(ToRayColor(renderScene.ActiveBackgroundColor()));
-                    renderer_.DrawActivePage(renderScene);
+                    renderer_.DrawActivePage(renderScene, RenderViewportWidth(), GetScreenHeight());
                 }
                 debugOverlay_.Draw(scene_, windowDefinition_, applicationName_, lastRuntimeError_);
+                if (debugWasActiveDuringDraw != debugOverlay_.Active())
+                {
+                    ApplyWindowHostLayout(true);
+                }
                 PublishFramebuffer();
             }
             catch (const std::exception& exception)
@@ -1048,6 +1048,47 @@ private:
         }
     }
 
+    [[nodiscard]] int RenderViewportWidth() const noexcept
+    {
+        const int hostWidth = GetScreenWidth();
+        if (!debugOverlay_.Active())
+        {
+            return hostWidth;
+        }
+
+        return std::max(1, hostWidth - debugOverlay_.PreferredPanelWidth());
+    }
+
+    void ApplyWindowHostLayout(const bool preserveCurrentPosition)
+    {
+        if (!IsWindowReady())
+        {
+            return;
+        }
+
+        int positionX = windowDefinition_.positionX;
+        int positionY = windowDefinition_.positionY;
+        if (preserveCurrentPosition)
+        {
+            const Vector2 currentPosition = GetWindowPosition();
+            positionX = static_cast<int>(currentPosition.x);
+            positionY = static_cast<int>(currentPosition.y);
+        }
+
+        const int targetWidth =
+            std::max(1, windowDefinition_.width + (debugOverlay_.Active() ? debugOverlay_.PreferredPanelWidth() : 0));
+        const int targetHeight = std::max(1, windowDefinition_.height);
+
+        SetWindowSize(targetWidth, targetHeight);
+        SetWindowMinSize(targetWidth, targetHeight);
+        SetWindowPosition(positionX, positionY);
+
+        if (windowDefinition_.targetFps > 0)
+        {
+            SetTargetFPS(windowDefinition_.targetFps);
+        }
+    }
+
     bool ReloadConfiguration()
     {
         try
@@ -1098,14 +1139,7 @@ private:
             if (IsWindowReady())
             {
                 SetWindowTitle(windowDefinition_.title.c_str());
-                SetWindowSize(windowDefinition_.width, windowDefinition_.height);
-                SetWindowPosition(windowDefinition_.positionX, windowDefinition_.positionY);
-
-                if (windowDefinition_.targetFps > 0)
-                {
-                    SetTargetFPS(windowDefinition_.targetFps);
-                }
-
+                ApplyWindowHostLayout(false);
                 RefreshBranding();
             }
 
@@ -1122,8 +1156,13 @@ private:
 
     void HandleShortcuts()
     {
+        const bool debugWasActive = debugOverlay_.Active();
         if (debugOverlay_.HandleShortcut(scene_))
         {
+            if (debugWasActive != debugOverlay_.Active())
+            {
+                ApplyWindowHostLayout(true);
+            }
             return;
         }
 

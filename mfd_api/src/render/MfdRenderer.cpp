@@ -300,6 +300,18 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
 {
     const int screenWidth = GetScreenWidth();
     const int screenHeight = GetScreenHeight();
+    DrawActivePage(scene, screenWidth, screenHeight);
+}
+
+void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportWidth, const int viewportHeight)
+{
+    if (viewportWidth <= 0 || viewportHeight <= 0)
+    {
+        return;
+    }
+
+    const int screenWidth = GetScreenWidth();
+    const int screenHeight = GetScreenHeight();
     if (screenWidth <= 0 || screenHeight <= 0)
     {
         return;
@@ -308,7 +320,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
     const WindowDisplayState display = scene.WindowDisplay();
     if (display.disabled)
     {
-        DrawRectangle(0, 0, screenWidth, screenHeight, BLACK);
+        DrawRectangle(0, 0, viewportWidth, viewportHeight, BLACK);
         return;
     }
 
@@ -324,22 +336,30 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
     }
 
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();
-    const bool needsRenderTarget = NeedsWindowPostProcess(display) || ActiveSceneUsesReticleClipping(scene);
+    const bool usesFullScreenViewport = viewportWidth == screenWidth && viewportHeight == screenHeight;
+    const bool needsRenderTarget =
+        !usesFullScreenViewport ||
+        NeedsWindowPostProcess(display) ||
+        ActiveSceneUsesReticleClipping(scene);
     if (!needsRenderTarget)
     {
-        DrawActivePageContent(scene, screenWidth, screenHeight, textFont, false);
+        DrawActivePageContent(scene, viewportWidth, viewportHeight, textFont, false);
         return;
     }
 
-    if (impl_ == nullptr || !impl_->EnsureShader() || !impl_->EnsureRenderTarget(screenWidth, screenHeight))
+    const bool postProcessNeeded = NeedsWindowPostProcess(display);
+    const bool renderTargetReady =
+        impl_ != nullptr && impl_->EnsureRenderTarget(viewportWidth, viewportHeight);
+    const bool shaderReady = !postProcessNeeded || (impl_ != nullptr && impl_->EnsureShader());
+    if (!renderTargetReady || !shaderReady)
     {
-        DrawActivePageContent(scene, screenWidth, screenHeight, textFont, false);
+        DrawActivePageContent(scene, viewportWidth, viewportHeight, textFont, false);
 
         if (display.brightness < 0.9995f)
         {
             const std::uint8_t overlayAlpha =
                 static_cast<std::uint8_t>(std::clamp(1.0f - display.brightness, 0.0f, 1.0f) * 255.0f + 0.5f);
-            DrawRectangle(0, 0, screenWidth, screenHeight, Color {0, 0, 0, overlayAlpha});
+            DrawRectangle(0, 0, viewportWidth, viewportHeight, Color {0, 0, 0, overlayAlpha});
         }
 
         return;
@@ -347,7 +367,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
 
     BeginTextureMode(impl_->renderTarget);
     ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
-    DrawActivePageContent(scene, screenWidth, screenHeight, textFont, impl_->renderTargetStencilReady);
+    DrawActivePageContent(scene, viewportWidth, viewportHeight, textFont, impl_->renderTargetStencilReady);
     EndTextureMode();
 
     const Rectangle source {
@@ -355,9 +375,9 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
         0.0f,
         static_cast<float>(impl_->renderTarget.texture.width),
         -static_cast<float>(impl_->renderTarget.texture.height)};
-    const Rectangle destination {0.0f, 0.0f, static_cast<float>(screenWidth), static_cast<float>(screenHeight)};
+    const Rectangle destination {0.0f, 0.0f, static_cast<float>(viewportWidth), static_cast<float>(viewportHeight)};
 
-    if (!NeedsWindowPostProcess(display))
+    if (!postProcessNeeded)
     {
         DrawTexturePro(impl_->renderTarget.texture, source, destination, Vector2 {0.0f, 0.0f}, 0.0f, WHITE);
         return;

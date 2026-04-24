@@ -113,6 +113,9 @@ In the `mfd_window` window itself:
 4. change `Visible` or `Position` to create one local bypass
 5. clear `Bypassed` again to return immediately to the last UDP-driven state
 
+The debug UI uses a dedicated side panel so it does not cover the display
+viewport.
+
 Press `F1` again, or close the overlay window, to leave debug mode. Every page
 and reticle then follows the normal live runtime state again.
 

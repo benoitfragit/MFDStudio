@@ -85,6 +85,12 @@ public:
     [[nodiscard]] bool ConsumeRuntimeShortcuts() const noexcept;
 
     /**
+     * @brief Returns the preferred width of the dedicated debug side panel.
+     * @return Side-panel width in pixels.
+     */
+    [[nodiscard]] int PreferredPanelWidth() const noexcept;
+
+    /**
      * @brief Returns the scene that should currently be rendered.
      * @param liveScene Live runtime scene used when no preview is active.
      * @return Scene to render for the current frame.
