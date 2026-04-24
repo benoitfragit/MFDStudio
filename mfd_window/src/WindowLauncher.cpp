@@ -1079,8 +1079,8 @@ private:
             std::max(1, windowDefinition_.width + (debugOverlay_.Active() ? debugOverlay_.PreferredPanelWidth() : 0));
         const int targetHeight = std::max(1, windowDefinition_.height);
 
-        SetWindowSize(targetWidth, targetHeight);
         SetWindowMinSize(targetWidth, targetHeight);
+        SetWindowSize(targetWidth, targetHeight);
         SetWindowPosition(positionX, positionY);
 
         if (windowDefinition_.targetFps > 0)
