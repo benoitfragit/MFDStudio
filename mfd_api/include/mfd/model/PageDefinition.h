@@ -32,6 +32,15 @@ enum class StrobeCaptureShape
 };
 
 /**
+ * @brief Visual cue shape optionally applied to a strobe while it is magnetized.
+ */
+enum class StrobeMagnetVisualShape
+{
+    Circle,
+    Square
+};
+
+/**
  * @brief Capture parameters associated with a strobe reticle.
  */
 struct StrobeCaptureConfig
@@ -55,6 +64,12 @@ struct StrobeMagnetConfig
     float radius = 0.075f;
     /** @brief Blend factor applied when the strobe is attracted to a target. */
     float strength = 1.0f;
+    /** @brief Enables an optional visual shape override while a target is magnetized. */
+    bool visualShapeEnabled = false;
+    /** @brief Visual shape applied while `visualShapeEnabled` and magnetization are active. */
+    StrobeMagnetVisualShape visualShape = StrobeMagnetVisualShape::Circle;
+    /** @brief Logical size of the magnetized visual shape. */
+    float visualShapeSize = 0.12f;
 };
 
 /**

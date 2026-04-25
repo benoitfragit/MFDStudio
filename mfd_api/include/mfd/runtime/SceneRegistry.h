@@ -372,6 +372,10 @@ private:
     const ReticleComponent* FindNearestStrobeMagnetTarget(std::string_view normalizedPageName,
                                                           Vec2 position,
                                                           float radius) const noexcept;
+    /** @brief Applies or restores the optional visual shape shown while a strobe is magnetized. */
+    void ApplyStrobeMagnetVisualShape(ReticleComponent& strobe,
+                                      StrobeBehaviorComponent& behavior,
+                                      bool magnetized);
     /** @brief Re-applies one sticky strobe lock after dynamic reticle changes. */
     void RefreshStickyStrobePosition(std::string_view normalizedPageName) noexcept;
     /** @brief Collects copied reticles for one normalized page key. */

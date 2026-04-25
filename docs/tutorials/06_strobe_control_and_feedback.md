@@ -111,6 +111,24 @@ So the feedback position may differ from the command position.
 
 That is expected.
 
+Magnetization does not have to change the authored strobe shape. If you want a
+visual cue while the strobe is locked to a target, enable it explicitly:
+
+```json
+"magnet": {
+  "enabled": true,
+  "radius": 0.075,
+  "visual": {
+    "enabled": true,
+    "shape": "square",
+    "size": 0.12
+  }
+}
+```
+
+With `visual.enabled` omitted or `false`, the strobe keeps its authored reticle
+while still snapping to nearby dynamic reticles.
+
 ## Step 5 - Create a feedback receiver
 
 ```cpp

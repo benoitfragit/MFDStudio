@@ -224,6 +224,9 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     strobe.magnet.enabled = true;
     strobe.magnet.radius = 0.2f;
     strobe.magnet.strength = 0.5f;
+    strobe.magnet.visualShapeEnabled = true;
+    strobe.magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
+    strobe.magnet.visualShapeSize = 0.18f;
     page.strobe = strobe;
 
     mfd::ReticleGroup pageReticle;
@@ -275,6 +278,10 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     ASSERT_TRUE(pageJson.contains("strobe"));
     EXPECT_EQ(pageJson.at("strobe").at("template").get<std::string>(), "strobe_cursor");
     EXPECT_TRUE(pageJson.at("strobe").at("magnet").at("enabled").get<bool>());
+    ASSERT_TRUE(pageJson.at("strobe").at("magnet").contains("visual"));
+    EXPECT_TRUE(pageJson.at("strobe").at("magnet").at("visual").at("enabled").get<bool>());
+    EXPECT_EQ(pageJson.at("strobe").at("magnet").at("visual").at("shape").get<std::string>(), "square");
+    EXPECT_FLOAT_EQ(pageJson.at("strobe").at("magnet").at("visual").at("size").get<float>(), 0.18f);
     ASSERT_EQ(pageJson.at("staticReticles").size(), 1U);
     EXPECT_EQ(pageJson.at("staticReticles").at(0).at("template").get<std::string>(), "radar_track");
 

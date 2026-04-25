@@ -707,6 +707,71 @@ TEST(JsonLoaderTests, LoadDocumentRejectsDuplicateReticleIdsIncludingStrobe)
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesOptionalStrobeMagnetVisualShape)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "marker.json",
+                  R"json({
+  "id": "marker",
+  "elements": [
+    { "id": "shape", "type": "circle", "radius": 0.05 }
+  ]
+})json");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "DefaultVisual",
+      "strobe": {
+        "id": "default_strobe",
+        "template": "marker",
+        "magnet": {
+          "enabled": true,
+          "radius": 0.2,
+          "strength": 0.5
+        }
+      }
+    },
+    {
+      "name": "SquareVisual",
+      "strobe": {
+        "id": "visual_strobe",
+        "template": "marker",
+        "magnet": {
+          "enabled": true,
+          "radius": 0.2,
+          "visual": {
+            "enabled": true,
+            "shape": "square",
+            "size": 0.11
+          }
+        }
+      }
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(document.pages.size(), 2U);
+    ASSERT_TRUE(document.pages[0].strobe.has_value());
+    EXPECT_TRUE(document.pages[0].strobe->magnet.enabled);
+    EXPECT_FALSE(document.pages[0].strobe->magnet.visualShapeEnabled);
+    EXPECT_EQ(document.pages[0].strobe->magnet.visualShape, mfd::StrobeMagnetVisualShape::Circle);
+
+    ASSERT_TRUE(document.pages[1].strobe.has_value());
+    EXPECT_TRUE(document.pages[1].strobe->magnet.enabled);
+    EXPECT_TRUE(document.pages[1].strobe->magnet.visualShapeEnabled);
+    EXPECT_EQ(document.pages[1].strobe->magnet.visualShape, mfd::StrobeMagnetVisualShape::Square);
+    EXPECT_FLOAT_EQ(document.pages[1].strobe->magnet.visualShapeSize, 0.11f);
+}
+
 TEST(JsonLoaderTests, LoadWindowConfigurationRejectsInvalidPageEntryObject)
 {
     TemporaryFolder workspace;

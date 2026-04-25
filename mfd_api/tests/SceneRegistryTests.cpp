@@ -699,6 +699,14 @@ TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamic
     EXPECT_FLOAT_EQ(strobe->position.x, 0.1f);
     EXPECT_FLOAT_EQ(strobe->position.y, 0.0f);
 
+    const mfd::ReticleGroup* strobeReticle = FindReticle(registry.CollectActiveReticlePointers(), "strobe");
+    ASSERT_NE(strobeReticle, nullptr);
+    ASSERT_FALSE(strobeReticle->primitives.empty());
+    EXPECT_EQ(strobeReticle->primitives.front().type, mfd::PrimitiveType::Circle);
+    const auto* authoredCircle = std::get_if<mfd::CircleGeometry>(&strobeReticle->primitives.front().geometry);
+    ASSERT_NE(authoredCircle, nullptr);
+    EXPECT_FLOAT_EQ(authoredCircle->radius, 0.05f);
+
     const auto magnet = registry.ActiveStrobeMagnetSummary();
     ASSERT_TRUE(magnet.has_value());
     EXPECT_TRUE(magnet->enabled);
@@ -726,6 +734,79 @@ TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamic
     ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
     EXPECT_FALSE(registry.ActiveStrobeSummary()->visible);
     EXPECT_FALSE(registry.CaptureActivePageStrobe().has_value());
+}
+
+TEST(SceneRegistryTests, StrobeMagnetVisualShapeIsOptionalAndRestoresAuthoredReticle)
+{
+    mfd::PageDefinition page = MakeRuntimePage();
+    ASSERT_TRUE(page.strobe.has_value());
+    page.strobe->reticle.overrides.thickness = 0.007f;
+    page.strobe->reticle.clipping.mode = mfd::ReticleClipMode::Outer;
+    page.strobe->reticle.clipping.primitiveId = "shape";
+    page.strobe->magnet.visualShapeEnabled = true;
+    page.strobe->magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
+    page.strobe->magnet.visualShapeSize = 0.22f;
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeTextReticle("track_alpha");
+    track.transform.position = {0.10f, 0.00f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.01f}));
+
+    const mfd::ReticleGroup* magnetizedStrobe = FindReticle(registry.CollectActiveReticlePointers(), "strobe");
+    ASSERT_NE(magnetizedStrobe, nullptr);
+    ASSERT_EQ(magnetizedStrobe->primitives.size(), 1U);
+    EXPECT_EQ(magnetizedStrobe->primitives.front().id, "magnet_visual_shape");
+    EXPECT_EQ(magnetizedStrobe->primitives.front().type, mfd::PrimitiveType::Square);
+    const auto* visualSquare = std::get_if<mfd::SquareGeometry>(&magnetizedStrobe->primitives.front().geometry);
+    ASSERT_NE(visualSquare, nullptr);
+    EXPECT_FLOAT_EQ(visualSquare->width, 0.22f);
+    EXPECT_FLOAT_EQ(visualSquare->height, 0.22f);
+    EXPECT_EQ(magnetizedStrobe->clipping.mode, mfd::ReticleClipMode::None);
+    ASSERT_TRUE(magnetizedStrobe->overrides.thickness.has_value());
+    EXPECT_FLOAT_EQ(*magnetizedStrobe->overrides.thickness, 0.007f);
+
+    const auto magnet = registry.ActiveStrobeMagnetSummary();
+    ASSERT_TRUE(magnet.has_value());
+    EXPECT_TRUE(magnet->magnetized);
+    EXPECT_EQ(magnet->reticleId, "track_alpha");
+
+    ASSERT_TRUE(registry.SetReticleColor("Radar", "strobe", mfd::ColorRgba {220, 120, 32, 255}));
+    mfd::ReticlePatch authoredPatchWhileMagnetized;
+    mfd::PrimitivePatch shapePatch;
+    shapePatch.radius = 0.07f;
+    authoredPatchWhileMagnetized.primitivePatches.emplace("shape", shapePatch);
+    ASSERT_TRUE(registry.ApplyReticlePatch("Radar", "strobe", authoredPatchWhileMagnetized));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.45f, 0.12f}));
+
+    const mfd::ReticleGroup* restoredStrobe = FindReticle(registry.CollectActiveReticlePointers(), "strobe");
+    ASSERT_NE(restoredStrobe, nullptr);
+    ASSERT_EQ(restoredStrobe->primitives.size(), 1U);
+    EXPECT_EQ(restoredStrobe->primitives.front().id, "shape");
+    EXPECT_EQ(restoredStrobe->primitives.front().type, mfd::PrimitiveType::Circle);
+    const auto* restoredCircle = std::get_if<mfd::CircleGeometry>(&restoredStrobe->primitives.front().geometry);
+    ASSERT_NE(restoredCircle, nullptr);
+    EXPECT_FLOAT_EQ(restoredCircle->radius, 0.07f);
+    EXPECT_EQ(restoredStrobe->clipping.mode, mfd::ReticleClipMode::Outer);
+    EXPECT_EQ(restoredStrobe->clipping.primitiveId, "shape");
+    ASSERT_TRUE(restoredStrobe->overrides.color.has_value());
+    EXPECT_EQ(restoredStrobe->overrides.color->r, 220);
+    EXPECT_EQ(restoredStrobe->overrides.color->g, 120);
+    EXPECT_EQ(restoredStrobe->overrides.color->b, 32);
+    EXPECT_EQ(restoredStrobe->overrides.color->a, 255);
+    ASSERT_TRUE(restoredStrobe->overrides.thickness.has_value());
+    EXPECT_FLOAT_EQ(*restoredStrobe->overrides.thickness, 0.007f);
+
+    const auto magnetAfterMove = registry.ActiveStrobeMagnetSummary();
+    ASSERT_TRUE(magnetAfterMove.has_value());
+    EXPECT_FALSE(magnetAfterMove->magnetized);
+    EXPECT_TRUE(magnetAfterMove->reticleId.empty());
 }
 
 TEST(SceneRegistryTests, StrobeMagnetizationIgnoresNonFiniteDynamicPositions)

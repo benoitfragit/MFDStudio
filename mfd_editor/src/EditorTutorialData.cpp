@@ -164,7 +164,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "  },\n"
      "  \"staticReticles\": []\n"
      "}",
-     "The strobe block now references the small cross cursor authored earlier in the editor, and still declares the capture shape used by the runtime when the client moves the strobe over new tracks.",
+     "The strobe block now references the small cross cursor authored earlier in the editor, and still declares the capture shape used by the runtime when the client moves the strobe over new tracks. Magnetized visual shape changes remain opt-in through the strobe magnet visual settings.",
      "Next",
      1,
      1},

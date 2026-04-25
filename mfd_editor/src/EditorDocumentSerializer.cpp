@@ -613,10 +613,18 @@ json SerializeStrobe(const mfd::PageStrobeDefinition& strobe)
 
     if (strobe.magnet.enabled)
     {
-        node["magnet"] = json {
+        json magnet = json {
             {"enabled", strobe.magnet.enabled},
             {"radius", strobe.magnet.radius},
             {"strength", strobe.magnet.strength}};
+        if (strobe.magnet.visualShapeEnabled)
+        {
+            magnet["visual"] = json {
+                {"enabled", true},
+                {"shape", strobe.magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle ? "circle" : "square"},
+                {"size", strobe.magnet.visualShapeSize}};
+        }
+        node["magnet"] = std::move(magnet);
     }
 
     return node;

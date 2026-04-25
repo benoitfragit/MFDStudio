@@ -1870,6 +1870,23 @@ StrobeCaptureShape ParseStrobeCaptureShape(const std::string_view value)
     throw std::runtime_error("Unknown strobe capture shape: " + std::string(value));
 }
 
+StrobeMagnetVisualShape ParseStrobeMagnetVisualShape(const std::string_view value)
+{
+    const std::string lowered = CanonicalToken(value);
+
+    if (lowered == "circle" || lowered == "round")
+    {
+        return StrobeMagnetVisualShape::Circle;
+    }
+
+    if (lowered == "square" || lowered == "box")
+    {
+        return StrobeMagnetVisualShape::Square;
+    }
+
+    throw std::runtime_error("Unknown strobe magnet visual shape: " + std::string(value));
+}
+
 StrobeCaptureConfig ParseStrobeCaptureConfig(const json& node)
 {
     StrobeCaptureConfig config;
@@ -1943,6 +1960,53 @@ StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node)
     if (const json* strength = FindField(*magnetNode, {"strength", "magnetStrength", "snapStrength", "blend"}))
     {
         config.strength = std::clamp(strength->get<float>(), 0.0f, 1.0f);
+    }
+
+    const json* visualNode =
+        FindField(*magnetNode, {"visual", "visualCue", "visualStyle", "magnetizedVisual", "magnetizedShape"});
+    if (visualNode != nullptr)
+    {
+        if (visualNode->is_boolean())
+        {
+            config.visualShapeEnabled = visualNode->get<bool>();
+        }
+        else if (visualNode->is_string())
+        {
+            config.visualShapeEnabled = true;
+            config.visualShape = ParseStrobeMagnetVisualShape(visualNode->get<std::string>());
+        }
+        else if (visualNode->is_object())
+        {
+            config.visualShapeEnabled = visualNode->value("enabled", true);
+            if (const json* shape = FindField(*visualNode, {"shape", "type"}))
+            {
+                config.visualShape = ParseStrobeMagnetVisualShape(shape->get<std::string>());
+            }
+            if (const json* size = FindField(*visualNode, {"size", "radius", "width"}))
+            {
+                config.visualShapeSize = std::max(0.001f, size->get<float>());
+            }
+        }
+        else
+        {
+            throw std::runtime_error("strobe.magnet.visual must be a boolean, string or JSON object");
+        }
+    }
+
+    if (const json* shape = FindField(*magnetNode, {"visualShape", "magnetVisualShape"}))
+    {
+        config.visualShapeEnabled = true;
+        config.visualShape = ParseStrobeMagnetVisualShape(shape->get<std::string>());
+    }
+
+    if (const json* visualEnabled = FindField(*magnetNode, {"visualShapeEnabled", "showVisualShape"}))
+    {
+        config.visualShapeEnabled = visualEnabled->get<bool>();
+    }
+
+    if (const json* visualSize = FindField(*magnetNode, {"visualShapeSize", "visualSize"}))
+    {
+        config.visualShapeSize = std::max(0.001f, visualSize->get<float>());
     }
 
     return config;

@@ -6606,6 +6606,56 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
             page.strobe->magnet.strength = std::clamp(page.strobe->magnet.strength, 0.0f, 1.0f);
         }
         ShowItemTooltip("Blend factor applied when the strobe is attracted toward one target.");
+
+        bool visualShapeEnabled = page.strobe->magnet.visualShapeEnabled;
+        if (ImGui::Checkbox("Change visual shape while magnetized", &visualShapeEnabled))
+        {
+            PushUndoSnapshot();
+            page.strobe->magnet.visualShapeEnabled = visualShapeEnabled;
+        }
+        ShowItemTooltip("Optional visual cue only: the authored strobe reticle is kept unless this is enabled.");
+
+        ImGui::BeginDisabled(!page.strobe->magnet.visualShapeEnabled);
+        const char* visualShapeLabel =
+            page.strobe->magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle ? "Circle" : "Square";
+        if (ImGui::BeginCombo("Magnetized visual shape", visualShapeLabel))
+        {
+            const bool circleSelected = page.strobe->magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle;
+            if (ImGui::Selectable("Circle", circleSelected) && !circleSelected)
+            {
+                PushUndoSnapshot();
+                page.strobe->magnet.visualShape = mfd::StrobeMagnetVisualShape::Circle;
+            }
+            if (circleSelected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+
+            const bool squareSelected = page.strobe->magnet.visualShape == mfd::StrobeMagnetVisualShape::Square;
+            if (ImGui::Selectable("Square", squareSelected) && !squareSelected)
+            {
+                PushUndoSnapshot();
+                page.strobe->magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
+            }
+            if (squareSelected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Shape used only while the runtime reports this strobe as magnetized.");
+
+        if (ImGui::DragFloat("Magnetized visual size", &page.strobe->magnet.visualShapeSize, 0.002f, 0.001f, 1.0f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            page.strobe->magnet.visualShapeSize = std::max(0.001f, page.strobe->magnet.visualShapeSize);
+        }
+        ShowItemTooltip("Logical diameter/side length of the optional magnetized visual cue.");
+        ImGui::EndDisabled();
     }
 }
 

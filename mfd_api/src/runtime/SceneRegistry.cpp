@@ -56,6 +56,38 @@ bool IsInsideCaptureArea(const Vec2& strobePosition,
     return false;
 }
 
+PrimitiveStyle ResolveStrobeMagnetVisualStyle(const ReticleGroup& reticle) noexcept
+{
+    if (reticle.primitives.empty())
+    {
+        return {};
+    }
+
+    return reticle.primitives.front().style;
+}
+
+std::vector<Primitive> MakeStrobeMagnetVisualPrimitives(const StrobeMagnetConfig& magnet,
+                                                        const PrimitiveStyle& style)
+{
+    Primitive primitive;
+    primitive.id = "magnet_visual_shape";
+    primitive.style = style;
+
+    const float size = std::max(0.001f, magnet.visualShapeSize);
+    if (magnet.visualShape == StrobeMagnetVisualShape::Square)
+    {
+        primitive.type = PrimitiveType::Square;
+        primitive.geometry = SquareGeometry {size, size};
+    }
+    else
+    {
+        primitive.type = PrimitiveType::Circle;
+        primitive.geometry = CircleGeometry {size * 0.5f};
+    }
+
+    return {std::move(primitive)};
+}
+
 bool IsEmptyPatch(const ReticlePatch& patch) noexcept
 {
     return !patch.visible.has_value() &&
@@ -393,6 +425,10 @@ struct SceneRegistry::StrobeBehaviorComponent
 {
     StrobeCaptureConfig capture;
     StrobeMagnetConfig magnet;
+    std::vector<Primitive> authoredPrimitives;
+    ReticleStyleOverride authoredOverrides;
+    ReticleClipState authoredClipping;
+    bool visualShapeApplied = false;
     std::string lockedReticleId;
 };
 
@@ -599,8 +635,13 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
             const entt::entity strobeEntity = registry_.create();
             registry_.emplace<ReticleComponent>(strobeEntity, ReticleComponent {page.strobe->reticle, kStrobeDrawOrder});
             registry_.emplace<PageMembership>(strobeEntity, PageMembership {page.normalizedName});
-            registry_.emplace<StrobeBehaviorComponent>(strobeEntity,
-                                                       StrobeBehaviorComponent {page.strobe->capture, page.strobe->magnet});
+            StrobeBehaviorComponent behavior;
+            behavior.capture = page.strobe->capture;
+            behavior.magnet = page.strobe->magnet;
+            behavior.authoredPrimitives = page.strobe->reticle.primitives;
+            behavior.authoredOverrides = page.strobe->reticle.overrides;
+            behavior.authoredClipping = page.strobe->reticle.clipping;
+            registry_.emplace<StrobeBehaviorComponent>(strobeEntity, std::move(behavior));
             registry_.emplace<StrobeTag>(strobeEntity);
             strobeEntities_.emplace(page.normalizedName, strobeEntity);
             IndexReticle(page.normalizedName, page.strobe->reticle, strobeEntity);
@@ -1241,9 +1282,15 @@ bool SceneRegistry::SetReticleColor(const std::string_view pageName,
                                     const ColorRgba color) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    if (ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity))
     {
         reticle->group.overrides.color = color;
+        if (StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity);
+            behavior != nullptr && behavior->visualShapeApplied)
+        {
+            behavior->authoredOverrides.color = color;
+        }
         return true;
     }
 
@@ -1260,9 +1307,15 @@ bool SceneRegistry::SetReticleThickness(const std::string_view pageName,
     }
 
     const std::string normalizedPageName = NormalizePageName(pageName);
-    if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    if (ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity))
     {
         reticle->group.overrides.thickness = thickness;
+        if (StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity);
+            behavior != nullptr && behavior->visualShapeApplied)
+        {
+            behavior->authoredOverrides.thickness = thickness;
+        }
         return true;
     }
 
@@ -1274,7 +1327,8 @@ bool SceneRegistry::SetReticleText(const std::string_view pageName,
                                    std::string value) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
     if (reticle == nullptr)
     {
         return false;
@@ -1289,6 +1343,19 @@ bool SceneRegistry::SetReticleText(const std::string_view pageName,
         }
     }
 
+    StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity);
+    if (behavior != nullptr && behavior->visualShapeApplied)
+    {
+        for (auto& primitive : behavior->authoredPrimitives)
+        {
+            if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))
+            {
+                geometry->text = std::move(value);
+                return true;
+            }
+        }
+    }
+
     return false;
 }
 
@@ -1298,8 +1365,33 @@ bool SceneRegistry::SetReticleText(const std::string_view pageName,
                                    std::string value) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
-    return reticle != nullptr && SetTextPrimitive(reticle->group, primitiveId, std::move(value));
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
+    if (reticle == nullptr)
+    {
+        return false;
+    }
+
+    if (SetTextPrimitive(reticle->group, primitiveId, value))
+    {
+        return true;
+    }
+
+    StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity);
+    if (behavior == nullptr || !behavior->visualShapeApplied)
+    {
+        return false;
+    }
+
+    ReticleGroup authoredTarget;
+    authoredTarget.primitives = behavior->authoredPrimitives;
+    if (!SetTextPrimitive(authoredTarget, primitiveId, std::move(value)))
+    {
+        return false;
+    }
+
+    behavior->authoredPrimitives = std::move(authoredTarget.primitives);
+    return true;
 }
 
 bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
@@ -1312,7 +1404,8 @@ bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
     }
 
     const std::string normalizedPageName = NormalizePageName(pageName);
-    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
     if (reticle == nullptr)
     {
         return false;
@@ -1324,6 +1417,19 @@ bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
         {
             *primitiveLetterSpacing = letterSpacing;
             return true;
+        }
+    }
+
+    StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity);
+    if (behavior != nullptr && behavior->visualShapeApplied)
+    {
+        for (auto& primitive : behavior->authoredPrimitives)
+        {
+            if (float* primitiveLetterSpacing = FindTextLikeLetterSpacing(primitive))
+            {
+                *primitiveLetterSpacing = letterSpacing;
+                return true;
+            }
         }
     }
 
@@ -1341,8 +1447,33 @@ bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
     }
 
     const std::string normalizedPageName = NormalizePageName(pageName);
-    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
-    return reticle != nullptr && SetTextPrimitiveLetterSpacing(reticle->group, primitiveId, letterSpacing);
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
+    if (reticle == nullptr)
+    {
+        return false;
+    }
+
+    if (SetTextPrimitiveLetterSpacing(reticle->group, primitiveId, letterSpacing))
+    {
+        return true;
+    }
+
+    StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity);
+    if (behavior == nullptr || !behavior->visualShapeApplied)
+    {
+        return false;
+    }
+
+    ReticleGroup authoredTarget;
+    authoredTarget.primitives = behavior->authoredPrimitives;
+    if (!SetTextPrimitiveLetterSpacing(authoredTarget, primitiveId, letterSpacing))
+    {
+        return false;
+    }
+
+    behavior->authoredPrimitives = std::move(authoredTarget.primitives);
+    return true;
 }
 
 bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
@@ -1351,7 +1482,8 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
-    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
     if (page == nullptr || reticle == nullptr)
     {
         return false;
@@ -1364,6 +1496,23 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
     }
 
     bool applied = ApplyPatchToReticleGroup(reticle->group, patch);
+    StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity);
+    if (behavior != nullptr && behavior->visualShapeApplied)
+    {
+        ReticleGroup authoredTarget;
+        authoredTarget.primitives = behavior->authoredPrimitives;
+        authoredTarget.overrides = behavior->authoredOverrides;
+        authoredTarget.clipping = behavior->authoredClipping;
+
+        if (ApplyPatchToReticleGroup(authoredTarget, patch))
+        {
+            behavior->authoredPrimitives = std::move(authoredTarget.primitives);
+            behavior->authoredOverrides = authoredTarget.overrides;
+            behavior->authoredClipping = authoredTarget.clipping;
+            applied = true;
+        }
+    }
+
     if (blinkResult.status == BlinkPatchResult::Status::Applied)
     {
         reticle->group.blink = blinkResult.blink;
@@ -1529,6 +1678,39 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindNearestStrobeMagnetTar
     return bestTarget;
 }
 
+void SceneRegistry::ApplyStrobeMagnetVisualShape(ReticleComponent& strobe,
+                                                 StrobeBehaviorComponent& behavior,
+                                                 const bool magnetized)
+{
+    const bool shouldApply = magnetized && behavior.magnet.enabled && behavior.magnet.visualShapeEnabled;
+    if (shouldApply)
+    {
+        if (!behavior.visualShapeApplied)
+        {
+            behavior.authoredPrimitives = strobe.group.primitives;
+            behavior.authoredOverrides = strobe.group.overrides;
+            behavior.authoredClipping = strobe.group.clipping;
+        }
+
+        const PrimitiveStyle visualStyle = behavior.authoredPrimitives.empty()
+                                               ? ResolveStrobeMagnetVisualStyle(strobe.group)
+                                               : behavior.authoredPrimitives.front().style;
+        strobe.group.primitives = MakeStrobeMagnetVisualPrimitives(behavior.magnet, visualStyle);
+        strobe.group.overrides = behavior.authoredOverrides;
+        strobe.group.clipping = {};
+        behavior.visualShapeApplied = true;
+        return;
+    }
+
+    if (behavior.visualShapeApplied)
+    {
+        strobe.group.primitives = behavior.authoredPrimitives;
+        strobe.group.overrides = behavior.authoredOverrides;
+        strobe.group.clipping = behavior.authoredClipping;
+        behavior.visualShapeApplied = false;
+    }
+}
+
 void SceneRegistry::RefreshStickyStrobePosition(const std::string_view normalizedPageName) noexcept
 {
     const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
@@ -1548,10 +1730,12 @@ void SceneRegistry::RefreshStickyStrobePosition(const std::string_view normalize
     if (target == nullptr)
     {
         behavior->lockedReticleId.clear();
+        ApplyStrobeMagnetVisualShape(*strobe, *behavior, false);
         return;
     }
 
     strobe->group.transform.position = target->group.transform.position;
+    ApplyStrobeMagnetVisualShape(*strobe, *behavior, true);
 }
 
 bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool active) noexcept
@@ -1588,6 +1772,7 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
         if (behavior != nullptr)
         {
             behavior->lockedReticleId.clear();
+            ApplyStrobeMagnetVisualShape(*reticle, *behavior, false);
 
             if (behavior->magnet.enabled && behavior->magnet.radius > 0.0f)
             {
@@ -1597,12 +1782,17 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
                 {
                     behavior->lockedReticleId = target->group.id;
                     reticle->group.transform.position = target->group.transform.position;
+                    ApplyStrobeMagnetVisualShape(*reticle, *behavior, true);
                     return true;
                 }
             }
         }
 
         reticle->group.transform.position = position;
+        if (behavior != nullptr)
+        {
+            ApplyStrobeMagnetVisualShape(*reticle, *behavior, false);
+        }
         return true;
     }
 

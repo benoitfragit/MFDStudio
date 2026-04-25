@@ -500,6 +500,10 @@ Fields:
 | `enabled` | bool | no | Enable magnetization. | none |
 | `radius` | number | no | Attraction radius. | `magnetRadius`, `snapRadius`, `distance` |
 | `strength` | number | no | Blend factor in `[0, 1]`. | `magnetStrength`, `snapStrength`, `blend` |
+| `visual` | bool, string, or object | no | Optional visual shape applied only while the strobe is magnetized. Disabled by default. | `visualCue`, `visualStyle`, `magnetizedVisual`, `magnetizedShape` |
+| `visualShape` | string | no | Shortcut that enables the optional visual cue and selects its shape. | `magnetVisualShape` |
+| `visualShapeEnabled` | bool | no | Enables or disables the optional magnetized visual cue. | `showVisualShape` |
+| `visualShapeSize` | number | no | Diameter or side length of the optional magnetized visual cue. | `visualSize` |
 
 Accepted container aliases:
 
@@ -508,6 +512,13 @@ Accepted container aliases:
 - `aimantation`
 - `snap`
 
+Accepted visual shape values:
+
+- `circle`
+- `round`
+- `square`
+- `box`
+
 Short form:
 
 ```json
@@ -515,6 +526,25 @@ Short form:
 ```
 
 This enables magnetization with default parameters.
+
+Optional visual cue:
+
+```json
+"magnet": {
+  "enabled": true,
+  "radius": 0.075,
+  "visual": {
+    "enabled": true,
+    "shape": "square",
+    "size": 0.12
+  }
+}
+```
+
+When `visual.enabled` is omitted or `false`, magnetization can still snap the
+strobe without changing the authored strobe reticle. When enabled, the runtime
+temporarily draws the strobe as the configured `circle` or `square` while it is
+magnetized, then restores the authored reticle after the lock is released.
 
 ## 9. Recommended Authoring Style
 
@@ -530,6 +560,7 @@ style is:
 - use `staticReticles` for page instances
 - use `template` for normal reuse
 - use `capture` and `magnet` as nested objects inside `strobe`
+- add `magnet.visual` only when magnetization should temporarily change the strobe shape
 - use canonical transform fields:
   `position`, `rotationDegrees`, `scale`
 - use canonical style fields:
