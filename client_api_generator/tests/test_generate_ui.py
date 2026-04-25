@@ -488,6 +488,87 @@ class GenerateUiTests(unittest.TestCase):
             self.assertNotEqual(completed.returncode, 0)
             self.assertIn("Duplicate generated page class name", completed.stderr)
 
+    def test_rejects_duplicate_generated_static_reticle_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "staticReticles": [
+                            {"id": "lock-box", "elements": [{"id": "left_value", "type": "text"}]},
+                            {"id": "lock_box", "elements": [{"id": "right_value", "type": "text"}]},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Duplicate generated reticle class name", completed.stderr)
+
+    def test_rejects_duplicate_generated_primitive_accessor_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "staticReticles": [
+                            {
+                                "id": "geometry_panel",
+                                "elements": [
+                                    {"id": "track-label", "type": "text", "exposed": True},
+                                    {"id": "track_label", "type": "line", "exposed": True},
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Duplicate generated primitive accessor name", completed.stderr)
+
     def test_requires_force_flag_to_overwrite_existing_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

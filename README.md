@@ -144,6 +144,10 @@ Start with:
 2. [Core Concepts](./docs/CONCEPTS.md)
 3. [Run The Automated Runtime Tests](./docs/tutorials/12_run_the_automated_runtime_tests.md)
 
+The automated suite covers the low-level runtime API, the higher-level
+`client_api`, and the generated client API path, including compiled fixture
+coverage and generator validation.
+
 ## Shipped Tools And Entry Points
 
 | Entry point | Purpose |

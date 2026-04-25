@@ -248,6 +248,13 @@ def validate_cpp_namespace(namespace_name: str) -> None:
             raise RuntimeError(f"Invalid C++ namespace '{namespace_name}'")
 
 
+def duplicate_generated_values(values: list[str]) -> list[str]:
+    counts: dict[str, int] = {}
+    for value in values:
+        counts[value] = counts.get(value, 0) + 1
+    return sorted([value for value, count in counts.items() if count > 1])
+
+
 def ensure_unique_page_spec_names(page_specs: list[PageSpec]) -> None:
     class_names = [page.page_class_name for page in page_specs]
     accessors = [page.accessor_name for page in page_specs]
@@ -258,10 +265,7 @@ def ensure_unique_page_spec_names(page_specs: list[PageSpec]) -> None:
         ("page accessor name", accessors),
         ("UI member name", members),
     ):
-        counts: dict[str, int] = {}
-        for value in values:
-            counts[value] = counts.get(value, 0) + 1
-        duplicates = sorted([value for value, count in counts.items() if count > 1])
+        duplicates = duplicate_generated_values(values)
         if duplicates:
             duplicate_list = ", ".join(duplicates)
             raise RuntimeError(f"Duplicate generated {field_name}(s): {duplicate_list}")
@@ -279,13 +283,38 @@ def ensure_unique_template_spec_names(template_specs: list[TemplateSpec]) -> Non
         ("dynamic accessor name", accessors),
         ("dynamic member name", members),
     ):
-        counts: dict[str, int] = {}
-        for value in values:
-            counts[value] = counts.get(value, 0) + 1
-        duplicates = sorted([value for value, count in counts.items() if count > 1])
+        duplicates = duplicate_generated_values(values)
         if duplicates:
             duplicate_list = ", ".join(duplicates)
             raise RuntimeError(f"Duplicate generated {field_name}(s): {duplicate_list}")
+
+
+def ensure_unique_reticle_spec_names(page_name: str, reticle_specs: list[ReticleSpec]) -> None:
+    for field_name, values in (
+        ("reticle class name", [reticle.wrapper_class_name for reticle in reticle_specs]),
+        ("reticle member name", [reticle.member_name for reticle in reticle_specs]),
+    ):
+        duplicates = duplicate_generated_values(values)
+        if duplicates:
+            duplicate_list = ", ".join(duplicates)
+            raise RuntimeError(
+                f"Duplicate generated {field_name}(s) on page '{page_name}': {duplicate_list}"
+            )
+
+
+def ensure_unique_primitive_spec_names(owner_kind: str,
+                                       owner_name: str,
+                                       primitive_specs: list[PrimitiveSpec]) -> None:
+    for field_name, values in (
+        ("primitive accessor name", [primitive.accessor_name for primitive in primitive_specs]),
+        ("primitive member name", [primitive.member_name for primitive in primitive_specs]),
+    ):
+        duplicates = duplicate_generated_values(values)
+        if duplicates:
+            duplicate_list = ", ".join(duplicates)
+            raise RuntimeError(
+                f"Duplicate generated {field_name}(s) in {owner_kind} '{owner_name}': {duplicate_list}"
+            )
 
 
 def ensure_output_paths(output_header: Path,
@@ -465,6 +494,7 @@ def build_template_specs(template_library: dict[str, dict]) -> list[TemplateSpec
         seen_ids.add(transport_id)
 
         primitives = build_primitive_specs("template", template_id, resolved_elements(template_node, template_library))
+        ensure_unique_primitive_spec_names("template", template_id, primitives)
         status_primitive = choose_status_primitive(primitives)
         template_base_name = pascal_case(template_id)
         templates.append(TemplateSpec(
@@ -522,6 +552,7 @@ def build_page_specs(window_root: dict,
             seen_ids.add(transport_id)
 
             primitives = build_primitive_specs("reticle", f"{page_name}/{reticle_id}", resolved_elements(reticle, template_library))
+            ensure_unique_primitive_spec_names("reticle", f"{page_name}/{reticle_id}", primitives)
             status_primitive = choose_status_primitive(primitives)
             reticles.append(ReticleSpec(
                 reticle_id=reticle_id,
@@ -565,6 +596,7 @@ def build_page_specs(window_root: dict,
                 status_primitive_accessor_name = reticle.status_primitive_accessor_name
                 break
 
+        ensure_unique_reticle_spec_names(page_name, reticles)
         page_specs.append(PageSpec(
             page_name=page_name,
             page_class_name=f"{page_base_name}{page_class_suffix}",

@@ -1,0 +1,9 @@
+{
+  "id": "status_template",
+  "elements": [
+    {
+      "id": "status_value",
+      "type": "text"
+    }
+  ]
+}

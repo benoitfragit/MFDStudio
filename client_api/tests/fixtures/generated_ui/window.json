@@ -1,0 +1,8 @@
+{
+  "title": "Generated Fixture",
+  "defaultPage": "radar",
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    "radar_page.json"
+  ]
+}

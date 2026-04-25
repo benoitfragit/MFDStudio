@@ -12,12 +12,34 @@
 
 #include <cmath>
 #include <limits>
+#include <random>
 
 #include "mfd/control/UserSpaceProjector.h"
 
 namespace
 {
 constexpr float kPi = 3.14159265358979323846f;
+
+float MaybeNonFinite(std::mt19937& rng)
+{
+    std::uniform_int_distribution<int> selector(0, 9);
+    std::uniform_real_distribution<float> finiteDist(-500.0f, 500.0f);
+
+    switch (selector(rng))
+    {
+    case 0:
+        return std::numeric_limits<float>::quiet_NaN();
+
+    case 1:
+        return std::numeric_limits<float>::infinity();
+
+    case 2:
+        return -std::numeric_limits<float>::infinity();
+
+    default:
+        return finiteDist(rng);
+    }
+}
 }
 
 TEST(UserSpaceProjectorTests, ProjectsPositionWithAnchorScaleAndOriginRotation)
@@ -104,4 +126,47 @@ TEST(UserSpaceProjectorTests, SanitizesInvalidFrameValuesToSafeDefaults)
     EXPECT_FLOAT_EQ(pagePosition.y, 3.0f);
 
     EXPECT_FLOAT_EQ(projector.ToPageRotationDegrees(std::numeric_limits<float>::quiet_NaN()), 0.0f);
+}
+
+TEST(UserSpaceProjectorTests, DeterministicPseudoFuzzKeepsFiniteOutputsAndConsistentTransforms)
+{
+    std::mt19937 rng(20260425U);
+    std::uniform_real_distribution<float> finiteScale(0.05f, 4.0f);
+
+    for (int iteration = 0; iteration < 256; ++iteration)
+    {
+        mfd::UserSpaceFrame frame;
+        frame.userOrigin = {MaybeNonFinite(rng), MaybeNonFinite(rng)};
+        frame.pageAnchor = {MaybeNonFinite(rng), MaybeNonFinite(rng)};
+        frame.originRotationRadians = MaybeNonFinite(rng);
+        frame.pageUnitsPerUserUnit = MaybeNonFinite(rng);
+        frame.userXAxisInPage = {MaybeNonFinite(rng), MaybeNonFinite(rng)};
+        frame.userYAxisInPage = {MaybeNonFinite(rng), MaybeNonFinite(rng)};
+
+        const mfd::Vec2 userOffset {MaybeNonFinite(rng), MaybeNonFinite(rng)};
+        const mfd::Vec2 userPosition {MaybeNonFinite(rng), MaybeNonFinite(rng)};
+        const float userRotationRadians = MaybeNonFinite(rng);
+        const mfd::Vec2 scale {finiteScale(rng), finiteScale(rng)};
+
+        mfd::UserSpaceProjector projector(frame);
+
+        const mfd::Vec2 pageOffset = projector.ToPageOffset(userOffset);
+        const mfd::Vec2 pagePosition = projector.ToPagePosition(userPosition);
+        const float pageRotation = projector.ToPageRotationDegrees(userRotationRadians);
+        const mfd::Transform2D transform = projector.ToPageTransform(userPosition, userRotationRadians, scale);
+
+        EXPECT_TRUE(std::isfinite(pageOffset.x)) << iteration;
+        EXPECT_TRUE(std::isfinite(pageOffset.y)) << iteration;
+        EXPECT_TRUE(std::isfinite(pagePosition.x)) << iteration;
+        EXPECT_TRUE(std::isfinite(pagePosition.y)) << iteration;
+        EXPECT_TRUE(std::isfinite(pageRotation)) << iteration;
+        EXPECT_TRUE(std::isfinite(transform.position.x)) << iteration;
+        EXPECT_TRUE(std::isfinite(transform.position.y)) << iteration;
+        EXPECT_TRUE(std::isfinite(transform.rotationDegrees)) << iteration;
+        EXPECT_FLOAT_EQ(transform.position.x, pagePosition.x);
+        EXPECT_FLOAT_EQ(transform.position.y, pagePosition.y);
+        EXPECT_FLOAT_EQ(transform.rotationDegrees, pageRotation);
+        EXPECT_FLOAT_EQ(transform.scale.x, scale.x);
+        EXPECT_FLOAT_EQ(transform.scale.y, scale.y);
+    }
 }

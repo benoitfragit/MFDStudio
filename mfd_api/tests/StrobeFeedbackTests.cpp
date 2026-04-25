@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <random>
 #include <string>
 
 #include "mfd/control/CommandTypes.h"
@@ -48,6 +49,43 @@ mfd::StrobeStatusFeedback MakeFullFeedback()
     feedback.captureResult = std::move(capture);
 
     return feedback;
+}
+
+void ExpectFeedbackEquals(const mfd::StrobeStatusFeedback& expected, const mfd::StrobeStatusFeedback& actual)
+{
+    EXPECT_EQ(actual.sequence, expected.sequence);
+    EXPECT_EQ(actual.pageName, expected.pageName);
+    EXPECT_EQ(actual.strobeId, expected.strobeId);
+    EXPECT_EQ(actual.active, expected.active);
+    EXPECT_FLOAT_EQ(actual.position.x, expected.position.x);
+    EXPECT_FLOAT_EQ(actual.position.y, expected.position.y);
+    EXPECT_EQ(actual.capture.shape, expected.capture.shape);
+    EXPECT_FLOAT_EQ(actual.capture.radius, expected.capture.radius);
+    EXPECT_FLOAT_EQ(actual.capture.size.x, expected.capture.size.x);
+    EXPECT_FLOAT_EQ(actual.capture.size.y, expected.capture.size.y);
+    EXPECT_EQ(actual.magnet.enabled, expected.magnet.enabled);
+    EXPECT_FLOAT_EQ(actual.magnet.radius, expected.magnet.radius);
+    EXPECT_FLOAT_EQ(actual.magnet.strength, expected.magnet.strength);
+    EXPECT_EQ(actual.magnet.magnetized, expected.magnet.magnetized);
+    EXPECT_EQ(actual.magnet.reticleId, expected.magnet.reticleId);
+    EXPECT_FLOAT_EQ(actual.magnet.targetPosition.x, expected.magnet.targetPosition.x);
+    EXPECT_FLOAT_EQ(actual.magnet.targetPosition.y, expected.magnet.targetPosition.y);
+    EXPECT_FLOAT_EQ(actual.magnet.distance, expected.magnet.distance);
+    EXPECT_EQ(actual.captureResult.has_value(), expected.captureResult.has_value());
+    if (!expected.captureResult.has_value())
+    {
+        return;
+    }
+
+    ASSERT_TRUE(actual.captureResult.has_value());
+    EXPECT_EQ(actual.captureResult->reticleId, expected.captureResult->reticleId);
+    EXPECT_EQ(actual.captureResult->sourceTemplateId, expected.captureResult->sourceTemplateId);
+    EXPECT_EQ(actual.captureResult->label, expected.captureResult->label);
+    EXPECT_EQ(actual.captureResult->category, expected.captureResult->category);
+    EXPECT_FLOAT_EQ(actual.captureResult->position.x, expected.captureResult->position.x);
+    EXPECT_FLOAT_EQ(actual.captureResult->position.y, expected.captureResult->position.y);
+    EXPECT_FLOAT_EQ(actual.captureResult->distance, expected.captureResult->distance);
+    EXPECT_EQ(actual.captureResult->metadata, expected.captureResult->metadata);
 }
 } // namespace
 
@@ -146,4 +184,59 @@ TEST(StrobeFeedbackTests, RejectsCommandEnvelopeAsUnsupportedFeedbackPayload)
 
     EXPECT_FALSE(decoded.has_value());
     EXPECT_EQ(error, "Unsupported feedback payload");
+}
+
+TEST(StrobeFeedbackTests, DeterministicPseudoFuzzRoundTripsFeedbackVariants)
+{
+    std::mt19937 rng(1337U);
+    std::uniform_int_distribution<std::uint32_t> sequenceDist(1U, 100000U);
+    std::uniform_real_distribution<float> signedDist(-1.0f, 1.0f);
+    std::uniform_real_distribution<float> positiveDist(0.0f, 1.0f);
+
+    for (int iteration = 0; iteration < 128; ++iteration)
+    {
+        mfd::StrobeStatusFeedback original;
+        original.sequence = sequenceDist(rng);
+        original.pageName = "Page_" + std::to_string(iteration % 5);
+        original.strobeId = "strobe_" + std::to_string(iteration);
+        original.active = (iteration % 2) == 0;
+        original.position = {signedDist(rng), signedDist(rng)};
+        original.capture.shape =
+            (iteration % 3) == 0 ? mfd::StrobeCaptureShape::Rectangle : mfd::StrobeCaptureShape::Circle;
+        original.capture.radius = positiveDist(rng);
+        original.capture.size = {positiveDist(rng), positiveDist(rng)};
+        original.magnet.enabled = (iteration % 4) != 0;
+        original.magnet.radius = positiveDist(rng);
+        original.magnet.strength = positiveDist(rng);
+        original.magnet.magnetized = (iteration % 3) == 0;
+        original.magnet.reticleId = "track_" + std::to_string(iteration % 11);
+        original.magnet.targetPosition = {signedDist(rng), signedDist(rng)};
+        original.magnet.distance = positiveDist(rng);
+
+        if ((iteration % 2) == 1)
+        {
+            mfd::StrobeFeedbackCapture capture;
+            capture.reticleId = "capture_" + std::to_string(iteration);
+            capture.sourceTemplateId = (iteration % 3) == 0 ? "geometry_template" : "radar_track";
+            capture.label = "Label_" + std::to_string(iteration);
+            capture.category = (iteration % 4) == 0 ? "friendly" : "hostile";
+            capture.position = {signedDist(rng), signedDist(rng)};
+            capture.distance = positiveDist(rng);
+            for (int metadataIndex = 0; metadataIndex < (iteration % 4); ++metadataIndex)
+            {
+                capture.metadata.emplace(
+                    "key_" + std::to_string(metadataIndex),
+                    "value_" + std::to_string(iteration + metadataIndex));
+            }
+            original.captureResult = std::move(capture);
+        }
+
+        const std::string payload = mfd::SerializeStrobeStatusFeedback(original);
+        std::string error;
+        const auto decoded = mfd::DeserializeStrobeStatusFeedback(payload, &error);
+
+        ASSERT_TRUE(decoded.has_value()) << "iteration=" << iteration << " error=" << error;
+        EXPECT_TRUE(error.empty());
+        ExpectFeedbackEquals(original, *decoded);
+    }
 }

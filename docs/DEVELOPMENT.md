@@ -157,6 +157,12 @@ There are also convenience build targets:
 The generated-client Python validation is registered through `ctest` under the
 name `client_api_generator_tests`.
 
+In practice the automated suite now covers three complementary layers:
+
+- `mfd_api_tests`: runtime logic, command protocol, generated transport-map resolution, strobe feedback, and unit-space projection
+- `client_api_tests`: high-level client helpers plus a compiled integration fixture built from the real generated client API
+- `client_api_generator_tests`: Python-side generator validation, including rejection of C++ name collisions before invalid code is emitted
+
 ## Repository Layout
 
 | Path | Role |

@@ -3,12 +3,42 @@
 # Repository: https://github.com/benoitfragit/MFDStudio
 include(GoogleTest)
 
+set(CLIENT_API_GENERATED_UI_FIXTURE_DIR
+    ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_ui)
+
+set(CLIENT_API_GENERATED_UI_FIXTURE_OUTPUT_DIR
+    ${CMAKE_CURRENT_BINARY_DIR}/generated_fixture)
+
+set(CLIENT_API_GENERATED_UI_FIXTURE_HEADER
+    ${CLIENT_API_GENERATED_UI_FIXTURE_OUTPUT_DIR}/GeneratedUiFixture.h)
+
+set(CLIENT_API_GENERATED_UI_FIXTURE_SOURCE
+    ${CLIENT_API_GENERATED_UI_FIXTURE_OUTPUT_DIR}/GeneratedUiFixture.cpp)
+
+set(CLIENT_API_GENERATED_UI_FIXTURE_MAP
+    ${CLIENT_API_GENERATED_UI_FIXTURE_OUTPUT_DIR}/GeneratedUiFixture.generated.map)
+
+client_api_generate_ui(
+    WINDOW_JSON "${CLIENT_API_GENERATED_UI_FIXTURE_DIR}/window.json"
+    OUTPUT_HEADER "${CLIENT_API_GENERATED_UI_FIXTURE_HEADER}"
+    OUTPUT_SOURCE "${CLIENT_API_GENERATED_UI_FIXTURE_SOURCE}"
+    OUTPUT_MAP "${CLIENT_API_GENERATED_UI_FIXTURE_MAP}"
+    NAMESPACE "generated_ui_fixture"
+    UI_CLASS_NAME "GeneratedUiFixture"
+    HEADER_INCLUDE "GeneratedUiFixture.h")
+
 set(CLIENT_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/AnimationTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedUiCompiledApiTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedUiRuntimeTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/LatestBatchPublisherTests.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/LatestBatchPublisherTests.cpp
+    ${CLIENT_API_GENERATED_UI_FIXTURE_SOURCE})
 
 add_executable(client_api_tests ${CLIENT_API_TEST_SOURCES})
+
+target_include_directories(client_api_tests
+    PRIVATE
+        ${CLIENT_API_GENERATED_UI_FIXTURE_OUTPUT_DIR})
 
 target_link_libraries(client_api_tests
     PRIVATE

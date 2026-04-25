@@ -1,0 +1,75 @@
+{
+  "name": "Radar",
+  "blinkTypes": [
+    {
+      "name": "slow",
+      "durationMs": 750
+    }
+  ],
+  "strobe": {
+    "capture": {
+      "shape": "rectangle",
+      "radius": 0.12,
+      "size": [
+        0.3,
+        0.2
+      ]
+    },
+    "magnet": {
+      "enabled": true,
+      "radius": 0.18,
+      "strength": 0.65
+    }
+  },
+  "staticReticles": [
+    {
+      "id": "radar_status",
+      "template": "status_template"
+    },
+    {
+      "id": "geometry_panel",
+      "elements": [
+        {
+          "id": "heading_line",
+          "type": "line",
+          "exposed": true
+        },
+        {
+          "id": "cursor_circle",
+          "type": "circle",
+          "exposed": true
+        },
+        {
+          "id": "scope_ring",
+          "type": "ring",
+          "exposed": true
+        },
+        {
+          "id": "lock_box",
+          "type": "rectangle",
+          "exposed": true
+        },
+        {
+          "id": "uncertainty_ellipse",
+          "type": "ellipse",
+          "exposed": true
+        },
+        {
+          "id": "target_square",
+          "type": "square",
+          "exposed": true
+        },
+        {
+          "id": "steer_diamond",
+          "type": "diamond",
+          "exposed": true
+        },
+        {
+          "id": "mission_time",
+          "type": "time",
+          "exposed": true
+        }
+      ]
+    }
+  ]
+}

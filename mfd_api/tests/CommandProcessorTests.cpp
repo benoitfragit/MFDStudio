@@ -233,6 +233,55 @@ TEST(CommandProcessorTests, RejectsSerializedGeneratedTransportIdsWithoutMapping
     EXPECT_EQ(processor.LastError(), "Generated transport ids require a non-empty batch mapping hash");
 }
 
+TEST(CommandProcessorTests, RejectsUnknownGeneratedPrimitiveTransportIdInStaticPatch)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch patch;
+    patch.textsById.emplace(999U, "BAD");
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_EQ(processor.LastError(), "Unknown generated primitive transport id 999");
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "000");
+}
+
+TEST(CommandProcessorTests, RejectsConflictingNamedAndGeneratedPrimitiveTextOverrides)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch patch;
+    patch.texts.emplace("heading_value", "OLD");
+    patch.textsById.emplace(33U, "NEW");
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_EQ(
+        processor.LastError(),
+        "Generated primitive transport id 33 conflicts with an explicit primitive text override");
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "000");
+}
+
 TEST(CommandProcessorTests, SerializedDynamicRuntimeIdsStillMagnetizeActiveStrobe)
 {
     mfd::SceneRegistry registry = MakeRuntimeRegistry();

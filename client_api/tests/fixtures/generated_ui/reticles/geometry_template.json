@@ -1,0 +1,49 @@
+{
+  "id": "geometry_template",
+  "elements": [
+    {
+      "id": "track_label",
+      "type": "text"
+    },
+    {
+      "id": "heading_line",
+      "type": "line",
+      "exposed": true
+    },
+    {
+      "id": "cursor_circle",
+      "type": "circle",
+      "exposed": true
+    },
+    {
+      "id": "scope_ring",
+      "type": "ring",
+      "exposed": true
+    },
+    {
+      "id": "lock_box",
+      "type": "rectangle",
+      "exposed": true
+    },
+    {
+      "id": "uncertainty_ellipse",
+      "type": "ellipse",
+      "exposed": true
+    },
+    {
+      "id": "target_square",
+      "type": "square",
+      "exposed": true
+    },
+    {
+      "id": "steer_diamond",
+      "type": "diamond",
+      "exposed": true
+    },
+    {
+      "id": "mission_time",
+      "type": "time",
+      "exposed": true
+    }
+  ]
+}
