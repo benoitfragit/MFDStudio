@@ -83,6 +83,19 @@ mfd::GeneratedTransportMap MakeTransportMap()
     map.blinkTypes.push_back({44U, 11U, "slow", "slow", 750U});
     return map;
 }
+
+/**
+ * @brief Minimal generated-page stand-in used to test CommandClient page overloads.
+ */
+struct GeneratedRadarPage
+{
+    using MfdGeneratedPageTag = mfd::CommandClient::GeneratedPageTag;
+
+    static constexpr mfd::TransportId GeneratedId() noexcept
+    {
+        return 11U;
+    }
+};
 } // namespace
 
 TEST(CommandClientTests, ResetWindowHelperSendsResetWindowCommand)
@@ -310,8 +323,9 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     mfd::CommandClient client(std::move(channel), MakeTransportMap());
     ASSERT_TRUE(client.IsReady());
 
-    ASSERT_TRUE(client.ActivatePage("Radar")) << client.LastError();
-    ASSERT_TRUE(client.SetPageView("Radar", {0.25f, -0.5f}, 1.75f)) << client.LastError();
+    const GeneratedRadarPage radarPage;
+    ASSERT_TRUE(client.ActivatePage(radarPage)) << client.LastError();
+    ASSERT_TRUE(client.SetPageView(radarPage, {0.25f, -0.5f}, 1.75f)) << client.LastError();
     ASSERT_TRUE(client.SetStrobeActive("Radar", true)) << client.LastError();
     ASSERT_TRUE(client.SetStrobePosition("Radar", {0.1f, -0.2f})) << client.LastError();
     ASSERT_TRUE(client.SetDynamicReticleSetVisible("Radar", "radar_track", false)) << client.LastError();
@@ -430,5 +444,12 @@ TEST(CommandClientTests, NameBasedPageHelpersRequireConfiguredTransportMap)
     EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
 
     EXPECT_FALSE(client.SetStrobeActive("Radar", true));
+    EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
+
+    const GeneratedRadarPage radarPage;
+    EXPECT_FALSE(client.ActivatePage(radarPage));
+    EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
+
+    EXPECT_FALSE(client.SetPageView(radarPage, {0.0f, 0.0f}, 1.0f));
     EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
 }

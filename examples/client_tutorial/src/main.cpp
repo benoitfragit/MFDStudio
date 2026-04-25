@@ -27,8 +27,6 @@
 namespace
 {
 constexpr std::string_view kWindowFile = "assets/windows/mfd_tutorial.json";
-constexpr std::string_view kPage1 = "Page1";
-constexpr std::string_view kPage2 = "Page2";
 constexpr std::size_t kMaxTracks = 10;
 constexpr auto kTrackInterval = std::chrono::seconds(2);
 constexpr auto kPageSwitchInterval = std::chrono::seconds(30);
@@ -63,6 +61,7 @@ int mainImpl()
 
     tutorial_ui::TutorialUi generatedUi;
     auto& page1 = generatedUi.Page1();
+    auto& page2 = generatedUi.Page2();
     auto& generatedDynamicTracks = page1.DynamicMfdTutorialRadarTrack();
     auto& page1Circle = page1.mfdTutorialCircle;
     auto& page1Strobe = page1.strobe;
@@ -70,8 +69,11 @@ int mainImpl()
     generatedTracks.reserve(kMaxTracks);
     bool generatedDeclutterVisible = true;
 
-    std::string activePage(kPage1);
-    client.ActivatePage(activePage);
+    bool page1Active = true;
+    if (!client.ActivatePage(page1))
+    {
+        throw std::runtime_error("Unable to activate tutorial Page1: " + client.LastError());
+    }
 
     auto nextTrackTime = std::chrono::steady_clock::now() + kTrackInterval;
     auto nextPageTime = std::chrono::steady_clock::now() + kPageSwitchInterval;
@@ -83,8 +85,12 @@ int mainImpl()
 
         if (now >= nextPageTime)
         {
-            activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);
-            client.ActivatePage(activePage);
+            page1Active = !page1Active;
+            const bool activated = page1Active ? client.ActivatePage(page1) : client.ActivatePage(page2);
+            if (!activated)
+            {
+                throw std::runtime_error("Unable to activate generated tutorial page: " + client.LastError());
+            }
             nextPageTime += kPageSwitchInterval;
         }
 

@@ -630,6 +630,10 @@ private:
     bool SendRadarSimulationBatch(bool clearOnly, bool quiet = false);
     /** @brief Sends one full cockpit frame batch built from the current simulation state. */
     bool SendCockpitSimulationBatch(bool quiet = false);
+    /** @brief Activates the generated radar page used by the current radar simulator preset. */
+    bool ActivateRadarSimulationPage();
+    /** @brief Activates the generated cockpit page used by the cockpit simulator preset. */
+    bool ActivateCockpitSimulationPage();
     /** @brief Restores the currently selected page draft from authored defaults. */
     void ResetSelectedPageDraft();
     /** @brief Restores the currently selected reticle draft from authored defaults. */
@@ -1987,6 +1991,66 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
     return true;
 }
 
+bool MockupApplication::ActivateRadarSimulationPage()
+{
+    if (client_ == nullptr || !client_->IsReady())
+    {
+        SetStatus("UDP command client is not ready.", true);
+        return false;
+    }
+
+    switch (DetectWindowPresetKind(windowFile_))
+    {
+    case WindowPresetKind::FullDemo:
+        if (fullDemoGeneratedUi_ == nullptr)
+        {
+            fullDemoGeneratedUi_ = std::make_unique<full_demo_ui::FullDemoMockupUi>();
+        }
+        if (!client_->ActivatePage(fullDemoGeneratedUi_->Radar()))
+        {
+            SetStatus("Unable to activate generated radar page: " + client_->LastError(), true);
+            return false;
+        }
+        return true;
+    case WindowPresetKind::MinimalRadar:
+        if (minimalRadarGeneratedUi_ == nullptr)
+        {
+            minimalRadarGeneratedUi_ = std::make_unique<minimal_radar_ui::MinimalRadarMockupUi>();
+        }
+        if (!client_->ActivatePage(minimalRadarGeneratedUi_->Radar()))
+        {
+            SetStatus("Unable to activate generated radar page: " + client_->LastError(), true);
+            return false;
+        }
+        return true;
+    default:
+        SetStatus("No generated radar page is available for the selected window preset.", true);
+        return false;
+    }
+}
+
+bool MockupApplication::ActivateCockpitSimulationPage()
+{
+    if (client_ == nullptr || !client_->IsReady())
+    {
+        SetStatus("UDP command client is not ready.", true);
+        return false;
+    }
+
+    if (cockpitGeneratedUi_ == nullptr)
+    {
+        cockpitGeneratedUi_ = std::make_unique<cockpit_demo_ui::CockpitDemoMockupUi>();
+    }
+
+    if (!client_->ActivatePage(cockpitGeneratedUi_->Cockpit()))
+    {
+        SetStatus("Unable to activate generated cockpit page: " + client_->LastError(), true);
+        return false;
+    }
+
+    return true;
+}
+
 void MockupApplication::ResetSelectedPageDraft()
 {
     const mfd::PageDefinition* page = PageByIndex(selection_.pageIndex);
@@ -2899,8 +2963,14 @@ void MockupApplication::DrawRadarSimulationPanel()
             radarSimulation_.nextSequence = 1;
             radarSimulation_.previousSendTimestamp = 0.0;
             radarSimulation_.clearRequested = false;
-            (void)client_->ActivatePage(std::string(kRadarSimulationPageName));
-            SetStatus("Radar simulator enabled. Sending 100 tracks every 20 ms.", false);
+            if (ActivateRadarSimulationPage())
+            {
+                SetStatus("Radar simulator enabled. Sending 100 tracks every 20 ms.", false);
+            }
+            else
+            {
+                radarSimulation_.enabled = false;
+            }
         }
         else
         {
@@ -2992,9 +3062,15 @@ void MockupApplication::DrawCockpitSimulationPanel()
             cockpitSimulation_.enabled = true;
             cockpitSimulation_.throttle = preservedThrottle;
             cockpitSimulation_.radarEnabled = preservedRadarEnabled;
-            (void)client_->ActivatePage(std::string(kCockpitPageName));
-            (void)SendCockpitSimulationBatch(true);
-            SetStatus("Cockpit simulator enabled. The composite cockpit page now updates every 20 ms.", false);
+            if (ActivateCockpitSimulationPage())
+            {
+                (void)SendCockpitSimulationBatch(true);
+                SetStatus("Cockpit simulator enabled. The composite cockpit page now updates every 20 ms.", false);
+            }
+            else
+            {
+                cockpitSimulation_.enabled = false;
+            }
         }
         else
         {
@@ -3106,7 +3182,7 @@ void MockupApplication::DrawCockpitSimulationPanel()
 
     if (AccentButton("Show cockpit page"))
     {
-        (void)client_->ActivatePage(std::string(kCockpitPageName));
+        (void)ActivateCockpitSimulationPage();
     }
 
     ImGui::SameLine();

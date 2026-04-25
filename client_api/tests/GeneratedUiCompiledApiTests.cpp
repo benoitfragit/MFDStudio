@@ -14,6 +14,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "GeneratedUiFixture.h"
@@ -78,10 +79,15 @@ bool HasTimePatch(const mfd::PrimitivePatch& patch) noexcept
 
 TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealGeneratedClasses)
 {
+    static_assert(std::is_same_v<generated_ui_fixture::RadarMockupPage::MfdGeneratedPageTag,
+                                 mfd::CommandClient::GeneratedPageTag>);
+    static_assert(generated_ui_fixture::RadarMockupPage::GeneratedId() != 0U);
+
     generated_ui_fixture::GeneratedUiFixture ui;
     ui.Window().SetBrightness(0.55f);
 
     auto& radar = ui.Radar();
+    EXPECT_EQ(radar.GeneratedId(), generated_ui_fixture::RadarMockupPage::GeneratedId());
     radar.strobe.SetActive(true);
     radar.strobe.SetPosition({0.25f, -0.10f});
     radar.radarStatus.SetValue("LOCK");

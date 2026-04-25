@@ -170,28 +170,39 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1},
     {TutorialStepKind::FileReview,
      "Review page switching in the client",
-     "The client alternates between Page1 and Page2 on a timer so the user sees both authored pages without manual input.",
+     "The client alternates between Page1 and Page2 on a timer by passing generated page handles to CommandClient. The client extracts the generated page id internally, so the tutorial code does not send page names.",
      "",
      "examples/client_tutorial/src/main.cpp",
-     "constexpr std::string_view kPage1 = \"Page1\";\n"
+     "tutorial_ui::TutorialUi generatedUi;\n"
+     "auto& page1 = generatedUi.Page1();\n"
      "\n"
-     "std::string activePage(kPage1);\n"
-     "client.ActivatePage(activePage);",
-     "constexpr std::string_view kPage1 = \"Page1\";\n"
-     "constexpr std::string_view kPage2 = \"Page2\";\n"
+     "if (!client.ActivatePage(page1))\n"
+     "{\n"
+     "    throw std::runtime_error(\"Unable to activate tutorial Page1: \" + client.LastError());\n"
+     "}",
+     "tutorial_ui::TutorialUi generatedUi;\n"
+     "auto& page1 = generatedUi.Page1();\n"
+     "auto& page2 = generatedUi.Page2();\n"
      "constexpr auto kPageSwitchInterval = std::chrono::seconds(30);\n"
      "\n"
-     "std::string activePage(kPage1);\n"
-     "client.ActivatePage(activePage);\n"
+     "bool page1Active = true;\n"
+     "if (!client.ActivatePage(page1))\n"
+     "{\n"
+     "    throw std::runtime_error(\"Unable to activate tutorial Page1: \" + client.LastError());\n"
+     "}\n"
      "\n"
      "auto nextPageTime = std::chrono::steady_clock::now() + kPageSwitchInterval;\n"
      "if (now >= nextPageTime)\n"
      "{\n"
-     "    activePage = (activePage == kPage1) ? std::string(kPage2) : std::string(kPage1);\n"
-     "    client.ActivatePage(activePage);\n"
+     "    page1Active = !page1Active;\n"
+     "    const bool activated = page1Active ? client.ActivatePage(page1) : client.ActivatePage(page2);\n"
+     "    if (!activated)\n"
+     "    {\n"
+     "        throw std::runtime_error(\"Unable to activate generated tutorial page: \" + client.LastError());\n"
+     "    }\n"
      "    nextPageTime += kPageSwitchInterval;\n"
      "}",
-     "Switching pages in code demonstrates that authored pages stay data-driven while the client decides when each page becomes active.",
+     "Switching pages in code demonstrates that authored pages stay data-driven while generated page wrappers keep transport ids out of application code.",
      "Next",
      1,
      1},

@@ -29,10 +29,15 @@ line.SetColor({0, 255, 0, 255});
 line.SetThickness(0.0035f);
 
 ui.Page1().headingBox.HeadingValue().SetText("123");
+
+client.ActivatePage(ui.Page1());
+client.SetPageView(ui.Page1(), {0.0f, 0.0f}, 1.0f);
 ```
 
 The generated API is the normal client workflow. End users must not call
-string-based primitive setters in normal usage.
+string-based primitive setters in normal usage. When a generated page is passed
+to `CommandClient`, the client reads the page `GeneratedId()` and sends the
+transport id plus the mapping hash, not the authored page name.
 
 \startuml
 left to right direction
@@ -57,6 +62,9 @@ DynamicReticle --> Primitive
 
 - page accessors keep the current generated PascalCase accessor pattern:
   - `ui.Page1()`
+- generated pages can be passed directly to page-level `CommandClient` helpers:
+  - `client.ActivatePage(ui.Page1())`
+  - `client.SetPageView(ui.Page1(), center, zoom)`
 - generated page members keep lower camel case for authored reticles:
   - `ui.Page1().headingScale`
 - generated primitive accessors use PascalCase methods on the reticle handle:
@@ -237,6 +245,8 @@ Transport --> Scene : apply runtime state
 Compatibility stays low-level and explicit:
 
 - raw `CommandClient` helpers may still accept authored names
+- generated page overloads such as `ActivatePage(ui.Radar())` and
+  `SetPageView(ui.Radar(), center, zoom)` must prefer generated page ids
 - those helpers must be constructed with the companion generated transport map
 - name-based primitive patching is resolved locally before serialization
 - generated code must continue to use typed page, reticle, primitive, strobe,

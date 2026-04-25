@@ -86,10 +86,12 @@ In practice:
 - the renderer draws only the active page
 
 On the wire, fixed authored objects now travel through transport IDs plus
-`mappingHash` only. Generated client APIs hide those IDs completely. Raw
-`CommandClient` helpers can still accept page, reticle, template, blink, and
-primitive names, but they must be constructed with the companion generated
-transport map so those names are resolved locally before serialization.
+`mappingHash` only. Generated client APIs hide those IDs completely, including
+page-level calls such as `client.ActivatePage(ui.Radar())` and
+`client.SetPageView(ui.Radar(), center, zoom)`. Raw `CommandClient` helpers can
+still accept page, reticle, template, blink, and primitive names, but they must
+be constructed with the companion generated transport map so those names are
+resolved locally before serialization.
 
 ## Choose Your Path
 

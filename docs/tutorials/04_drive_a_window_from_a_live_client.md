@@ -97,8 +97,22 @@ JSON loading entirely and send typed id-based commands directly.
 
 ## Step 3 - Activate a page once
 
+With generated bindings, pass the generated page wrapper:
+
 ```cpp
-client.ActivatePage("Radar");
+full_demo_ui::FullDemoMockupUi ui;
+client.ActivatePage(ui.Radar());
+```
+
+`CommandClient` extracts the generated page id and sends an id-only transport
+command. Raw authored-name helpers such as `client.ActivatePage("Radar")`
+remain available for tools, but only when the client was constructed with the
+companion generated transport map.
+
+The same pattern applies to page view changes:
+
+```cpp
+client.SetPageView(ui.Radar(), {0.0f, 0.0f}, 1.0f);
 ```
 
 Do this once when the operator changes context, not every frame.
@@ -129,7 +143,9 @@ This matches the mockup `Window display` panel.
 This example updates one reticle every 20 ms:
 
 ```cpp
+#include "FullDemoMockupUi.h"
 #include "mfd/control/CommandClient.h"
+#include "mfd/io/JsonLoader.h"
 
 #include <chrono>
 #include <cmath>
@@ -137,14 +153,18 @@ This example updates one reticle every 20 ms:
 
 int main()
 {
-    mfd::WindowUdpCommandTransport transport;
-    transport.enabled = true;
-    transport.address = "127.0.0.1";
-    transport.port = 47220;
-    transport.maxPacketSize = 16384;
+    mfd::JsonLoader loader;
+    const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages.json");
+    if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
+    {
+        return 1;
+    }
 
-    mfd::CommandClient client(transport);
-    client.ActivatePage("Radar");
+    mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
+
+    full_demo_ui::FullDemoMockupUi ui;
+    auto& radar = ui.Radar();
+    client.ActivatePage(radar);
 
     float angle = 0.0f;
 

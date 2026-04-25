@@ -87,14 +87,17 @@ The mockup uses four increasingly powerful levels of the client API.
 
 Examples:
 
-- `client.ActivatePage(page)`
-- `client.SetPageView(page, center, zoom)`
+- `client.ActivatePage(ui.Radar())` for generated pages
+- `client.SetPageView(ui.Radar(), center, zoom)` for generated pages
 - `client.SetWindowColorInverted(enabled)`
 - `client.SetWindowBrightness(brightness)`
 - `client.SetWindowDisabled(enabled)`
 - `client.ResetWindow()`
 
 Use these when one UI action maps to one semantic command.
+The mockup inspector can still use selected page names because it is a generic
+tool, but generated clients should pass the generated page wrapper so the
+command is sent by transport id.
 
 ### 2. Direct Typed Commands
 
@@ -170,8 +173,8 @@ your own client.
 | `Window target` | `CommandClient(WindowUdpCommandTransport, GeneratedTransportMap)` | connection creation |
 | `Send window display` | `UpdateWindowDisplay` or convenience helpers such as `SetWindowDisabled` | `WindowDisplayPatch` |
 | `Reset window` | `ResetWindow()` | `ResetWindowCommand` |
-| `Activate selected page` | `ActivatePage(page)` | `ActivatePageCommand` |
-| `Send page view` | `SetPageView(page, center, zoom)` | `SetPageViewCommand` |
+| `Activate selected page` | `ActivatePage(page)` in the generic mockup, `ActivatePage(ui.Radar())` in generated clients | `ActivatePageCommand` |
+| `Send page view` | `SetPageView(page, center, zoom)` in the generic mockup, `SetPageView(ui.Radar(), center, zoom)` in generated clients | `SetPageViewCommand` |
 | `Send reticle update` | `UpdateReticle(page, reticle, patch)` | `UpdateReticleCommand` |
 | blink editor | `patch.blinkEnabled`, `patch.blinkType` | part of `ReticlePatch` |
 | `Send strobe` | `Send(UpdateStrobeCommand { ... })` | `UpdateStrobeCommand` |
@@ -223,9 +226,10 @@ if (!client.IsReady())
 }
 
 mockup_ui::CockpitMockupUi ui;
-client.ActivatePage(mockup_ui::CockpitMockupPage::Name());
 
 auto& cockpit = ui.Cockpit();
+client.ActivatePage(cockpit);
+
 auto& contacts = cockpit.DynamicCockpitRadarContact();
 contacts.SetVisible(true);
 

@@ -681,9 +681,10 @@ Practical recommendations:
 
 ## 19. Example Integration Snippets
 
-### 19.1 Name-Resolving Client
+### 19.1 Generated Page Client
 
 ```cpp
+#include "FullDemoMockupUi.h"
 #include "mfd/control/CommandClient.h"
 #include "mfd/io/JsonLoader.h"
 
@@ -701,8 +702,14 @@ if (!client.IsReady())
     return 1;
 }
 
-client.ActivatePage("Radar");
+full_demo_ui::FullDemoMockupUi ui;
+client.ActivatePage(ui.Radar());
 ```
+
+Generated page wrappers expose the stable page transport id to `CommandClient`.
+The serialized command carries the page id and mapping hash. Raw name-resolving
+helpers remain available for generic tooling, but they are a compatibility
+surface rather than the preferred generated-client workflow.
 
 ### 19.2 Bulk Dynamic Update Cycle
 

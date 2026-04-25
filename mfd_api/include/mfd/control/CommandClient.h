@@ -15,6 +15,7 @@
 #include "mfd/core/ArrayView.h"
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -34,6 +35,13 @@ namespace mfd
 class MFD_API CommandClient
 {
 public:
+    /**
+     * @brief Marker type used by generated page wrappers accepted by page helpers.
+     */
+    struct GeneratedPageTag
+    {
+    };
+
     CommandClient() = default;
 
     /**
@@ -109,9 +117,41 @@ public:
 
     /** @brief Activates a page by name. */
     bool ActivatePage(std::string_view page);
+    /** @brief Activates a generated page by transport id. */
+    bool ActivatePage(TransportId pageId);
+    /**
+     * @brief Activates a generated page wrapper by transport id.
+     * @tparam GeneratedPage Generated page class exposing `GeneratedId()`.
+     * @param page Generated page wrapper returned by a generated UI root.
+     * @return `true` if the command payload was sent successfully.
+     */
+    template <typename GeneratedPage,
+              typename = std::enable_if_t<
+                  std::is_same_v<typename GeneratedPage::MfdGeneratedPageTag, GeneratedPageTag>>>
+    bool ActivatePage(const GeneratedPage& page)
+    {
+        return ActivatePage(static_cast<TransportId>(page.GeneratedId()));
+    }
 
     /** @brief Updates the view center and zoom of a page. */
     bool SetPageView(std::string_view page, Vec2 center, float zoom);
+    /** @brief Updates the view center and zoom of a generated page by transport id. */
+    bool SetPageView(TransportId pageId, Vec2 center, float zoom);
+    /**
+     * @brief Updates the view center and zoom of a generated page wrapper by transport id.
+     * @tparam GeneratedPage Generated page class exposing `GeneratedId()`.
+     * @param page Generated page wrapper returned by a generated UI root.
+     * @param center Logical point placed at the center of the viewport.
+     * @param zoom Page zoom factor.
+     * @return `true` if the command payload was sent successfully.
+     */
+    template <typename GeneratedPage,
+              typename = std::enable_if_t<
+                  std::is_same_v<typename GeneratedPage::MfdGeneratedPageTag, GeneratedPageTag>>>
+    bool SetPageView(const GeneratedPage& page, Vec2 center, float zoom)
+    {
+        return SetPageView(static_cast<TransportId>(page.GeneratedId()), center, zoom);
+    }
 
     /** @brief Sends a generic whole-window display patch. */
     bool UpdateWindowDisplay(const WindowDisplayPatch& patch);

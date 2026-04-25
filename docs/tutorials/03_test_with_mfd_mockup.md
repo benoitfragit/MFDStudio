@@ -142,7 +142,10 @@ In the tree on the left:
 
 Or use the header shortcut `Activate selected page`.
 
-This sends `client.ActivatePage(pageName)`.
+The mockup is a generic inspection tool, so this sends
+`client.ActivatePage(pageName)`. In generated clients, prefer passing the
+generated page wrapper directly, for example `client.ActivatePage(ui.Radar())`;
+`CommandClient` then sends the generated page id.
 
 Typical usage:
 
@@ -157,7 +160,10 @@ Inside the page inspector:
 2. edit `Zoom`
 3. click `Send page view`
 
-This sends `client.SetPageView(page, center, zoom)`.
+The mockup sends `client.SetPageView(page, center, zoom)` from the selected
+page name. In generated clients, prefer
+`client.SetPageView(ui.Radar(), center, zoom)` so the command is addressed by
+generated page id.
 
 Use it to confirm that:
 
@@ -344,8 +350,8 @@ in your own application.
 | `Window target` + `Reload` | create a `CommandClient` from the target UDP config | retarget one running window |
 | `Send window display` | `UpdateWindowDisplay`, `SetWindowColorInverted`, `SetWindowBrightness`, `SetWindowDisabled` | host-driven inversion, dimming, and blackout |
 | `Reset window` | `ResetWindow()` | restore runtime to authored initial state |
-| `Activate page now` | `ActivatePage(page)` | page selection |
-| `Send page view` | `SetPageView(page, center, zoom)` | panning and zoom |
+| `Activate page now` | `ActivatePage(page)` in the generic mockup, `ActivatePage(ui.Radar())` in generated clients | page selection |
+| `Send page view` | `SetPageView(page, center, zoom)` in the generic mockup, `SetPageView(ui.Radar(), center, zoom)` in generated clients | panning and zoom |
 | `Send reticle update` | `UpdateReticle(page, reticle, patch)` | patch one static reticle |
 | blink combo | `ReticlePatch.blinkEnabled`, `ReticlePatch.blinkType` | page-local blinking |
 | `Send strobe` | `Send(UpdateStrobeCommand { ... })` | cursor or probe control |

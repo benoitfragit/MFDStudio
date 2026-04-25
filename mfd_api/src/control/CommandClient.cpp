@@ -932,9 +932,24 @@ bool CommandClient::ActivatePage(const std::string_view page)
     return Send(ActivatePageCommand {std::string(page)});
 }
 
+bool CommandClient::ActivatePage(const TransportId pageId)
+{
+    ActivatePageCommand command;
+    command.pageId = pageId;
+    return Send(command);
+}
+
 bool CommandClient::SetPageView(const std::string_view page, const Vec2 center, const float zoom)
 {
     return Send(SetPageViewCommand {std::string(page), PageViewState {center, zoom}});
+}
+
+bool CommandClient::SetPageView(const TransportId pageId, const Vec2 center, const float zoom)
+{
+    SetPageViewCommand command;
+    command.pageId = pageId;
+    command.view = PageViewState {center, zoom};
+    return Send(command);
 }
 
 bool CommandClient::UpdateWindowDisplay(const WindowDisplayPatch& patch)
