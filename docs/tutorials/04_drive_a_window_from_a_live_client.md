@@ -104,10 +104,10 @@ full_demo_ui::FullDemoMockupUi ui;
 client.ActivatePage(ui.Radar());
 ```
 
-`CommandClient` extracts the generated page id and sends an id-only transport
-command. Raw authored-name helpers such as `client.ActivatePage("Radar")`
-remain available for tools, but only when the client was constructed with the
-companion generated transport map.
+`CommandClient` extracts the generated page id and mapping hash, then sends an
+id-only transport command. Raw authored-name helpers such as
+`client.ActivatePage("Radar")` remain available for tools, but only when the
+client was constructed with the companion generated transport map.
 
 The same pattern applies to page view changes:
 

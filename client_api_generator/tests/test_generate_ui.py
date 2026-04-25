@@ -188,6 +188,7 @@ class GenerateUiTests(unittest.TestCase):
 
             self.assertIn(map_content["mappingHash"], header_content)
             self.assertIn(map_content["mappingHash"], source_content)
+            self.assertEqual(header_content.count("static constexpr std::string_view MappingHash() noexcept"), 3)
 
             self.assertEqual(map_content["schemaVersion"], 1)
             self.assertTrue(map_content["mappingHash"])

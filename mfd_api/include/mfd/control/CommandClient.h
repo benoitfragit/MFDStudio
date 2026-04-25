@@ -117,11 +117,9 @@ public:
 
     /** @brief Activates a page by name. */
     bool ActivatePage(std::string_view page);
-    /** @brief Activates a generated page by transport id. */
-    bool ActivatePage(TransportId pageId);
     /**
-     * @brief Activates a generated page wrapper by transport id.
-     * @tparam GeneratedPage Generated page class exposing `GeneratedId()`.
+     * @brief Activates a generated page wrapper by transport id and mapping hash.
+     * @tparam GeneratedPage Generated page class exposing `GeneratedId()` and `MappingHash()`.
      * @param page Generated page wrapper returned by a generated UI root.
      * @return `true` if the command payload was sent successfully.
      */
@@ -130,16 +128,15 @@ public:
                   std::is_same_v<typename GeneratedPage::MfdGeneratedPageTag, GeneratedPageTag>>>
     bool ActivatePage(const GeneratedPage& page)
     {
-        return ActivatePage(static_cast<TransportId>(page.GeneratedId()));
+        (void)page;
+        return ActivateGeneratedPage(GeneratedPage::GeneratedId(), GeneratedPage::MappingHash());
     }
 
     /** @brief Updates the view center and zoom of a page. */
     bool SetPageView(std::string_view page, Vec2 center, float zoom);
-    /** @brief Updates the view center and zoom of a generated page by transport id. */
-    bool SetPageView(TransportId pageId, Vec2 center, float zoom);
     /**
-     * @brief Updates the view center and zoom of a generated page wrapper by transport id.
-     * @tparam GeneratedPage Generated page class exposing `GeneratedId()`.
+     * @brief Updates the view center and zoom of a generated page wrapper by transport id and mapping hash.
+     * @tparam GeneratedPage Generated page class exposing `GeneratedId()` and `MappingHash()`.
      * @param page Generated page wrapper returned by a generated UI root.
      * @param center Logical point placed at the center of the viewport.
      * @param zoom Page zoom factor.
@@ -150,7 +147,8 @@ public:
                   std::is_same_v<typename GeneratedPage::MfdGeneratedPageTag, GeneratedPageTag>>>
     bool SetPageView(const GeneratedPage& page, Vec2 center, float zoom)
     {
-        return SetPageView(static_cast<TransportId>(page.GeneratedId()), center, zoom);
+        (void)page;
+        return SetGeneratedPageView(GeneratedPage::GeneratedId(), GeneratedPage::MappingHash(), center, zoom);
     }
 
     /** @brief Sends a generic whole-window display patch. */
@@ -242,6 +240,22 @@ public:
     bool ResetWindow();
 
 private:
+    /**
+     * @brief Sends a generated page activation command carrying the generated mapping hash.
+     * @param pageId Generated transport id of the target page.
+     * @param mappingHash Mapping hash compiled into the generated page wrapper.
+     * @return `true` if the command payload was sent successfully.
+     */
+    bool ActivateGeneratedPage(TransportId pageId, std::string_view mappingHash);
+    /**
+     * @brief Sends a generated page view command carrying the generated mapping hash.
+     * @param pageId Generated transport id of the target page.
+     * @param mappingHash Mapping hash compiled into the generated page wrapper.
+     * @param center Logical point placed at the center of the viewport.
+     * @param zoom Page zoom factor.
+     * @return `true` if the command payload was sent successfully.
+     */
+    bool SetGeneratedPageView(TransportId pageId, std::string_view mappingHash, Vec2 center, float zoom);
     bool NormalizeBatchForTransport(const CommandBatch& sourceBatch, CommandBatch& normalizedBatch);
     bool SendPayload(std::string_view payload);
     bool SendBatchedPayloads(const CommandBatch& batch);

@@ -36,8 +36,9 @@ client.SetPageView(ui.Page1(), {0.0f, 0.0f}, 1.0f);
 
 The generated API is the normal client workflow. End users must not call
 string-based primitive setters in normal usage. When a generated page is passed
-to `CommandClient`, the client reads the page `GeneratedId()` and sends the
-transport id plus the mapping hash, not the authored page name.
+to `CommandClient`, the client reads the page `GeneratedId()` and
+`MappingHash()` and sends the transport id plus the generated mapping hash, not
+the authored page name.
 
 \startuml
 left to right direction
@@ -246,8 +247,10 @@ Compatibility stays low-level and explicit:
 
 - raw `CommandClient` helpers may still accept authored names
 - generated page overloads such as `ActivatePage(ui.Radar())` and
-  `SetPageView(ui.Radar(), center, zoom)` must prefer generated page ids
-- those helpers must be constructed with the companion generated transport map
+  `SetPageView(ui.Radar(), center, zoom)` must send generated page ids with the
+  generated mapping hash
+- raw name-based helpers must be constructed with the companion generated
+  transport map when they need local name resolution
 - name-based primitive patching is resolved locally before serialization
 - generated code must continue to use typed page, reticle, primitive, strobe,
   and dynamic-set handles

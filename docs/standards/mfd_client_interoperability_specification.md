@@ -405,7 +405,8 @@ This section defines the expected meaning of each public command family.
 ### 12.1 ActivatePageCommand
 
 A conforming client MAY activate a page by authored name or by generated page
-ID.
+ID. Generated-ID activation MUST be sent with the matching `mappingHash`; the
+generated page wrapper workflow carries both values.
 
 Expected behavior:
 
@@ -691,12 +692,12 @@ Practical recommendations:
 mfd::JsonLoader loader;
 const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages.json");
 
-if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
+if (!loaded.window.commandTransports.udp.has_value())
 {
     return 1;
 }
 
-mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
+mfd::CommandClient client(*loaded.window.commandTransports.udp);
 if (!client.IsReady())
 {
     return 1;
@@ -706,10 +707,11 @@ full_demo_ui::FullDemoMockupUi ui;
 client.ActivatePage(ui.Radar());
 ```
 
-Generated page wrappers expose the stable page transport id to `CommandClient`.
-The serialized command carries the page id and mapping hash. Raw name-resolving
-helpers remain available for generic tooling, but they are a compatibility
-surface rather than the preferred generated-client workflow.
+Generated page wrappers expose the stable page transport id and generated
+mapping hash to `CommandClient`, so this page-level call does not need a local
+transport map. Raw name-resolving helpers remain available for generic tooling,
+but they are a compatibility surface rather than the preferred generated-client
+workflow.
 
 ### 19.2 Bulk Dynamic Update Cycle
 

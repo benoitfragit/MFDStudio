@@ -170,7 +170,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1},
     {TutorialStepKind::FileReview,
      "Review page switching in the client",
-     "The client alternates between Page1 and Page2 on a timer by passing generated page handles to CommandClient. The client extracts the generated page id internally, so the tutorial code does not send page names.",
+     "The client alternates between Page1 and Page2 on a timer by passing generated page handles to CommandClient. The client extracts the generated page id and mapping hash internally, so the tutorial code does not send page names.",
      "",
      "examples/client_tutorial/src/main.cpp",
      "tutorial_ui::TutorialUi generatedUi;\n"
@@ -202,7 +202,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "    }\n"
      "    nextPageTime += kPageSwitchInterval;\n"
      "}",
-     "Switching pages in code demonstrates that authored pages stay data-driven while generated page wrappers keep transport ids out of application code.",
+     "Switching pages in code demonstrates that authored pages stay data-driven while generated page wrappers keep transport ids and mapping hashes out of application code.",
      "Next",
      1,
      1},

@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -94,6 +95,29 @@ struct GeneratedRadarPage
     static constexpr mfd::TransportId GeneratedId() noexcept
     {
         return 11U;
+    }
+
+    static constexpr std::string_view MappingHash() noexcept
+    {
+        return "map_hash";
+    }
+};
+
+/**
+ * @brief Generated-page stand-in carrying a stale mapping hash.
+ */
+struct StaleGeneratedRadarPage
+{
+    using MfdGeneratedPageTag = mfd::CommandClient::GeneratedPageTag;
+
+    static constexpr mfd::TransportId GeneratedId() noexcept
+    {
+        return 11U;
+    }
+
+    static constexpr std::string_view MappingHash() noexcept
+    {
+        return "stale_map_hash";
     }
 };
 } // namespace
@@ -434,6 +458,59 @@ TEST(CommandClientTests, WindowDisplayHelpersSendWithoutTransportMap)
     EXPECT_TRUE(*disabled->patch.disabled);
 }
 
+TEST(CommandClientTests, GeneratedPageHelpersCarryMappingHashWithoutTransportMap)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    const GeneratedRadarPage radarPage;
+    ASSERT_TRUE(client.ActivatePage(radarPage)) << client.LastError();
+    ASSERT_TRUE(client.SetPageView(radarPage, {0.2f, -0.3f}, 1.4f)) << client.LastError();
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 2U);
+
+    auto decodeBatch = [](const std::vector<std::byte>& payloadBytes)
+    {
+        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
+        return mfd::DeserializeCommandBatch(payload);
+    };
+
+    const auto activateBatch = decodeBatch(rawChannel->SentPayloads()[0]);
+    ASSERT_TRUE(activateBatch.has_value());
+    EXPECT_EQ(activateBatch->mappingHash, "map_hash");
+    const auto* activate = std::get_if<mfd::ActivatePageCommand>(&activateBatch->commands.front());
+    ASSERT_NE(activate, nullptr);
+    EXPECT_EQ(activate->pageId, 11U);
+    EXPECT_TRUE(activate->page.empty());
+
+    const auto pageViewBatch = decodeBatch(rawChannel->SentPayloads()[1]);
+    ASSERT_TRUE(pageViewBatch.has_value());
+    EXPECT_EQ(pageViewBatch->mappingHash, "map_hash");
+    const auto* pageView = std::get_if<mfd::SetPageViewCommand>(&pageViewBatch->commands.front());
+    ASSERT_NE(pageView, nullptr);
+    EXPECT_EQ(pageView->pageId, 11U);
+    EXPECT_TRUE(pageView->page.empty());
+    EXPECT_FLOAT_EQ(pageView->view.center.x, 0.2f);
+    EXPECT_FLOAT_EQ(pageView->view.center.y, -0.3f);
+    EXPECT_FLOAT_EQ(pageView->view.zoom, 1.4f);
+}
+
+TEST(CommandClientTests, GeneratedPageHelpersRejectStaleMappingHashWhenTransportMapIsConfigured)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    ASSERT_TRUE(client.IsReady());
+
+    const StaleGeneratedRadarPage radarPage;
+    EXPECT_FALSE(client.ActivatePage(radarPage));
+    EXPECT_NE(client.LastError().find("mappingHash does not match"), std::string::npos);
+
+    EXPECT_FALSE(client.SetPageView(radarPage, {0.0f, 0.0f}, 1.0f));
+    EXPECT_NE(client.LastError().find("mappingHash does not match"), std::string::npos);
+}
+
 TEST(CommandClientTests, NameBasedPageHelpersRequireConfiguredTransportMap)
 {
     auto channel = std::make_unique<CapturingExchangeChannel>();
@@ -444,12 +521,5 @@ TEST(CommandClientTests, NameBasedPageHelpersRequireConfiguredTransportMap)
     EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
 
     EXPECT_FALSE(client.SetStrobeActive("Radar", true));
-    EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
-
-    const GeneratedRadarPage radarPage;
-    EXPECT_FALSE(client.ActivatePage(radarPage));
-    EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
-
-    EXPECT_FALSE(client.SetPageView(radarPage, {0.0f, 0.0f}, 1.0f));
     EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
 }

@@ -145,7 +145,7 @@ Or use the header shortcut `Activate selected page`.
 The mockup is a generic inspection tool, so this sends
 `client.ActivatePage(pageName)`. In generated clients, prefer passing the
 generated page wrapper directly, for example `client.ActivatePage(ui.Radar())`;
-`CommandClient` then sends the generated page id.
+`CommandClient` then sends the generated page id and mapping hash.
 
 Typical usage:
 
@@ -163,7 +163,7 @@ Inside the page inspector:
 The mockup sends `client.SetPageView(page, center, zoom)` from the selected
 page name. In generated clients, prefer
 `client.SetPageView(ui.Radar(), center, zoom)` so the command is addressed by
-generated page id.
+generated page id and mapping hash.
 
 Use it to confirm that:
 

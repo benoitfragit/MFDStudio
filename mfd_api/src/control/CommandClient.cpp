@@ -932,11 +932,15 @@ bool CommandClient::ActivatePage(const std::string_view page)
     return Send(ActivatePageCommand {std::string(page)});
 }
 
-bool CommandClient::ActivatePage(const TransportId pageId)
+bool CommandClient::ActivateGeneratedPage(const TransportId pageId, const std::string_view mappingHash)
 {
+    CommandBatch batch;
+    batch.mappingHash = std::string(mappingHash);
+
     ActivatePageCommand command;
     command.pageId = pageId;
-    return Send(command);
+    batch.commands.emplace_back(command);
+    return SendBatch(batch);
 }
 
 bool CommandClient::SetPageView(const std::string_view page, const Vec2 center, const float zoom)
@@ -944,12 +948,19 @@ bool CommandClient::SetPageView(const std::string_view page, const Vec2 center, 
     return Send(SetPageViewCommand {std::string(page), PageViewState {center, zoom}});
 }
 
-bool CommandClient::SetPageView(const TransportId pageId, const Vec2 center, const float zoom)
+bool CommandClient::SetGeneratedPageView(const TransportId pageId,
+                                         const std::string_view mappingHash,
+                                         const Vec2 center,
+                                         const float zoom)
 {
+    CommandBatch batch;
+    batch.mappingHash = std::string(mappingHash);
+
     SetPageViewCommand command;
     command.pageId = pageId;
     command.view = PageViewState {center, zoom};
-    return Send(command);
+    batch.commands.emplace_back(command);
+    return SendBatch(batch);
 }
 
 bool CommandClient::UpdateWindowDisplay(const WindowDisplayPatch& patch)

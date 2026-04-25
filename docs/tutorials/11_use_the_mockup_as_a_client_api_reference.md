@@ -97,7 +97,7 @@ Examples:
 Use these when one UI action maps to one semantic command.
 The mockup inspector can still use selected page names because it is a generic
 tool, but generated clients should pass the generated page wrapper so the
-command is sent by transport id.
+command is sent by transport id and generated mapping hash.
 
 ### 2. Direct Typed Commands
 

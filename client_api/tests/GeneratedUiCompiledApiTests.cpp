@@ -82,6 +82,8 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     static_assert(std::is_same_v<generated_ui_fixture::RadarMockupPage::MfdGeneratedPageTag,
                                  mfd::CommandClient::GeneratedPageTag>);
     static_assert(generated_ui_fixture::RadarMockupPage::GeneratedId() != 0U);
+    static_assert(generated_ui_fixture::RadarMockupPage::MappingHash() ==
+                  generated_ui_fixture::GeneratedUiFixture::MappingHash());
 
     generated_ui_fixture::GeneratedUiFixture ui;
     ui.Window().SetBrightness(0.55f);

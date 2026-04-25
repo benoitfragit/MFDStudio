@@ -146,18 +146,19 @@ Field meaning:
 - `defaultPage`
   - identifies the default active page
 
-Generated page classes expose this stable id through `GeneratedId()`. Client
-code should normally pass the generated page object to page-level helpers:
+Generated page classes expose this stable id through `GeneratedId()` and the
+matching map hash through `MappingHash()`. Client code should normally pass the
+generated page object to page-level helpers:
 
 ```cpp
 client.ActivatePage(ui.Radar());
 client.SetPageView(ui.Radar(), center, zoom);
 ```
 
-`CommandClient` extracts the page id from the generated page wrapper and sends
-the id-only command with the matching `mappingHash`. Authored page names remain
-available for tooling and compatibility helpers, but are resolved locally before
-serialization.
+`CommandClient` extracts the page id and mapping hash from the generated page
+wrapper and sends the id-only command with the matching `mappingHash`. Authored
+page names remain available for tooling and compatibility helpers, but are
+resolved locally before serialization.
 
 ## Reticle Table
 
