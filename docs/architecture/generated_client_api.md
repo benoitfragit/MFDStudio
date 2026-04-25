@@ -77,19 +77,23 @@ DynamicReticle --> Primitive
 
 ## Handle Types
 
-The generated API exposes typed handles:
+The generated API exposes reticle wrappers backed by the public client types
+plus typed primitive handles:
 
-- `ReticleHandle`
 - `PrimitiveHandle`
-- `LineHandle`
 - `TextHandle`
+- `TimeHandle`
+- `LineHandle`
 - `CircleHandle`
+- `RingHandle`
 - `RectangleHandle`
 - `EllipseHandle`
-- `ArcHandle`
-- `PolygonHandle`
+- `SquareHandle`
+- `DiamondHandle`
+- `TriangleHandle`
 - `PolylineHandle`
-- `TimeHandle`
+- `BezierHandle`
+- `ArcHandle`
 - `StrobeHandle`
 
 The exact emitted set depends on the authored primitives present in the parsed
@@ -122,25 +126,28 @@ Shared primitive surface:
 
 - `SetVisible`
 - `SetColor`
+- `SetFillColor`
+- `SetFilled`
 - `SetThickness`
 - `SetPosition`
 - `SetRotationDegrees`
 - `SetScale`
-- `SetBlinkEnabled`
-- `SetBlinkType`
-- `ClearBlinkType`
 
 Text-like specializations:
 
-- `SetText`
-- `SetLetterSpacing`
+- text: `SetText`, `SetLetterSpacing`
+- time: `SetLetterSpacing`
 
 Geometry-specific specializations:
 
 - line: `SetStart`, `SetEnd`
 - circle: `SetRadius`
-- ring: `SetInnerRadius`, `SetOuterRadius`
-- rectangle and ellipse: `SetWidth`, `SetHeight`, `SetSize`
+- ring: `SetInnerRadius`, `SetOuterRadius`, `SetSegments`
+- rectangle, ellipse, square, diamond: `SetWidth`, `SetHeight`, `SetSize`
+- triangle: `SetPoints`
+- polyline: `SetPoints`, `SetClosed`
+- bezier: `SetControlPoints`, `SetSegments`
+- arc: `SetRadius`, `SetStartAngleDegrees`, `SetEndAngleDegrees`, `SetSegments`
 
 Generation must only expose coherent operations for the primitive kind.
 
@@ -163,7 +170,7 @@ const auto& strobe = ui.Page1().strobe;
 if (strobe.IsValid())
 {
     const auto info = strobe.Info();
-    if (info.active)
+    if (info.magnet.enabled)
     {
         // ...
     }
@@ -190,8 +197,6 @@ The `StrobeHandle` is a lightweight page capability wrapper exposing:
 `Info()` returns a value object describing:
 
 - whether the page actually owns a strobe
-- whether the strobe is currently active
-- current logical position
 - capture configuration
 - magnetization configuration
 

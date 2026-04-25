@@ -135,6 +135,86 @@ bool ApplyBoxPrimitivePatch(Geometry& geometry, const PrimitivePatch& patch)
     return applied;
 }
 
+bool ApplyTrianglePrimitivePatch(TriangleGeometry& geometry, const PrimitivePatch& patch)
+{
+    if (!patch.points.has_value() || patch.points->size() != geometry.points.size())
+    {
+        return false;
+    }
+
+    std::copy(patch.points->begin(), patch.points->end(), geometry.points.begin());
+    return true;
+}
+
+bool ApplyPolylinePrimitivePatch(PolylineGeometry& geometry, const PrimitivePatch& patch)
+{
+    bool applied = false;
+
+    if (patch.points.has_value() && patch.points->size() >= 2U)
+    {
+        geometry.points = *patch.points;
+        applied = true;
+    }
+
+    if (patch.closed.has_value())
+    {
+        geometry.closed = *patch.closed;
+        applied = true;
+    }
+
+    return applied;
+}
+
+bool ApplyBezierPrimitivePatch(BezierGeometry& geometry, const PrimitivePatch& patch)
+{
+    bool applied = false;
+
+    if (patch.points.has_value() && patch.points->size() >= 2U)
+    {
+        geometry.controlPoints = *patch.points;
+        applied = true;
+    }
+
+    if (patch.segments.has_value())
+    {
+        geometry.segments = *patch.segments;
+        applied = true;
+    }
+
+    return applied;
+}
+
+bool ApplyArcPrimitivePatch(ArcGeometry& geometry, const PrimitivePatch& patch)
+{
+    bool applied = false;
+
+    if (patch.radius.has_value())
+    {
+        geometry.radius = *patch.radius;
+        applied = true;
+    }
+
+    if (patch.startAngleDegrees.has_value())
+    {
+        geometry.startAngleDegrees = *patch.startAngleDegrees;
+        applied = true;
+    }
+
+    if (patch.endAngleDegrees.has_value())
+    {
+        geometry.endAngleDegrees = *patch.endAngleDegrees;
+        applied = true;
+    }
+
+    if (patch.segments.has_value())
+    {
+        geometry.segments = *patch.segments;
+        applied = true;
+    }
+
+    return applied;
+}
+
 bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
 {
     bool applied = false;
@@ -166,6 +246,18 @@ bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
     if (patch.color.has_value())
     {
         primitive.style.color = *patch.color;
+        applied = true;
+    }
+
+    if (patch.fillColor.has_value())
+    {
+        primitive.style.fillColor = *patch.fillColor;
+        applied = true;
+    }
+
+    if (patch.filled.has_value())
+    {
+        primitive.style.filled = *patch.filled;
         applied = true;
     }
 
@@ -218,9 +310,14 @@ bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
 
     if (patch.radius.has_value())
     {
-        if (CircleGeometry* geometry = std::get_if<CircleGeometry>(&primitive.geometry))
+        if (CircleGeometry* circleGeometry = std::get_if<CircleGeometry>(&primitive.geometry))
         {
-            geometry->radius = *patch.radius;
+            circleGeometry->radius = *patch.radius;
+            applied = true;
+        }
+        else if (ArcGeometry* arcGeometry = std::get_if<ArcGeometry>(&primitive.geometry))
+        {
+            arcGeometry->radius = *patch.radius;
             applied = true;
         }
     }
@@ -243,6 +340,15 @@ bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
         }
     }
 
+    if (patch.segments.has_value())
+    {
+        if (RingGeometry* geometry = std::get_if<RingGeometry>(&primitive.geometry))
+        {
+            geometry->segments = *patch.segments;
+            applied = true;
+        }
+    }
+
     if (RectangleGeometry* rectangleGeometry = std::get_if<RectangleGeometry>(&primitive.geometry))
     {
         applied = ApplyBoxPrimitivePatch(*rectangleGeometry, patch) || applied;
@@ -258,6 +364,22 @@ bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
     else if (DiamondGeometry* diamondGeometry = std::get_if<DiamondGeometry>(&primitive.geometry))
     {
         applied = ApplyBoxPrimitivePatch(*diamondGeometry, patch) || applied;
+    }
+    else if (TriangleGeometry* triangleGeometry = std::get_if<TriangleGeometry>(&primitive.geometry))
+    {
+        applied = ApplyTrianglePrimitivePatch(*triangleGeometry, patch) || applied;
+    }
+    else if (PolylineGeometry* polylineGeometry = std::get_if<PolylineGeometry>(&primitive.geometry))
+    {
+        applied = ApplyPolylinePrimitivePatch(*polylineGeometry, patch) || applied;
+    }
+    else if (BezierGeometry* bezierGeometry = std::get_if<BezierGeometry>(&primitive.geometry))
+    {
+        applied = ApplyBezierPrimitivePatch(*bezierGeometry, patch) || applied;
+    }
+    else if (ArcGeometry* arcGeometry = std::get_if<ArcGeometry>(&primitive.geometry))
+    {
+        applied = ApplyArcPrimitivePatch(*arcGeometry, patch) || applied;
     }
 
     return applied;

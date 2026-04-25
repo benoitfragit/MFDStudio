@@ -91,6 +91,10 @@ struct PrimitivePatch
     std::optional<Vec2> scale;
     /** @brief Optional primitive stroke color override. */
     std::optional<ColorRgba> color;
+    /** @brief Optional primitive fill color override. */
+    std::optional<ColorRgba> fillColor;
+    /** @brief Optional filled-state override. */
+    std::optional<bool> filled;
     /** @brief Optional primitive line thickness override. */
     std::optional<float> thickness;
     /** @brief Optional text payload for text-like primitives. */
@@ -113,6 +117,16 @@ struct PrimitivePatch
     std::optional<float> height;
     /** @brief Optional combined size override for two-axis primitives. */
     std::optional<Vec2> size;
+    /** @brief Optional point list override for triangle, polyline, and bezier primitives. */
+    std::optional<std::vector<Vec2>> points;
+    /** @brief Optional loop-closing override for polyline primitives. */
+    std::optional<bool> closed;
+    /** @brief Optional segment-count override for sampled primitives. */
+    std::optional<int> segments;
+    /** @brief Optional start-angle override for arc primitives. */
+    std::optional<float> startAngleDegrees;
+    /** @brief Optional end-angle override for arc primitives. */
+    std::optional<float> endAngleDegrees;
 };
 
 /**

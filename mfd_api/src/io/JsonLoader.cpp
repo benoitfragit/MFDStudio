@@ -1160,6 +1160,11 @@ PrimitiveType ParsePrimitiveType(const std::string_view value)
         return PrimitiveType::Bezier;
     }
 
+    if (lowered == "arc")
+    {
+        return PrimitiveType::Arc;
+    }
+
     throw std::runtime_error("Unknown primitive type: " + std::string(value));
 }
 
@@ -1336,6 +1341,25 @@ Primitive ParsePrimitive(const json& node)
         }
 
         geometry.segments = node.value("segments", 32);
+        primitive.geometry = std::move(geometry);
+        break;
+    }
+    case PrimitiveType::Arc:
+    {
+        ArcGeometry geometry;
+        geometry.radius = node.value("radius", geometry.radius);
+        geometry.segments = node.value("segments", geometry.segments);
+
+        if (const json* startAngle = FindField(node, {"startAngleDegrees", "startAngle", "fromDegrees", "angleStart"}))
+        {
+            geometry.startAngleDegrees = startAngle->get<float>();
+        }
+
+        if (const json* endAngle = FindField(node, {"endAngleDegrees", "endAngle", "toDegrees", "angleEnd"}))
+        {
+            geometry.endAngleDegrees = endAngle->get<float>();
+        }
+
         primitive.geometry = std::move(geometry);
         break;
     }
@@ -2365,6 +2389,8 @@ std::string PrimitiveTypeToGeneratedName(const PrimitiveType type)
         return "polyline";
     case PrimitiveType::Bezier:
         return "bezier";
+    case PrimitiveType::Arc:
+        return "arc";
     }
 
     return {};

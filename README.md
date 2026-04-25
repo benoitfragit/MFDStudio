@@ -85,6 +85,10 @@ In practice:
 - clients send runtime updates through typed commands
 - the renderer draws only the active page
 
+Authoring covers text primitives plus geometric primitives such as line,
+circle, ring, rectangle, ellipse, square, diamond, triangle, polyline, bezier,
+and arc.
+
 On the wire, fixed authored objects now travel through transport IDs plus
 `mappingHash` only. Generated client APIs hide those IDs completely, including
 page-level calls such as `client.ActivatePage(ui.Radar())` and

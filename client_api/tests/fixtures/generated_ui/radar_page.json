@@ -50,6 +50,16 @@
           "exposed": true
         },
         {
+          "id": "warning_triangle",
+          "type": "triangle",
+          "exposed": true
+        },
+        {
+          "id": "route_polyline",
+          "type": "polyline",
+          "exposed": true
+        },
+        {
           "id": "uncertainty_ellipse",
           "type": "ellipse",
           "exposed": true
@@ -62,6 +72,16 @@
         {
           "id": "steer_diamond",
           "type": "diamond",
+          "exposed": true
+        },
+        {
+          "id": "guide_bezier",
+          "type": "bezier",
+          "exposed": true
+        },
+        {
+          "id": "scan_arc",
+          "type": "arc",
           "exposed": true
         },
         {

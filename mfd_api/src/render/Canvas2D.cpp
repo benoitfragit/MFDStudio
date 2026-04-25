@@ -127,6 +127,26 @@ void SampleBezierInto(const BezierGeometry& geometry,
     }
 }
 
+void SampleArcInto(const ArcGeometry& geometry, std::vector<Vec2>& destination)
+{
+    const int segmentCount = std::max(2, geometry.segments);
+    const float radius = std::max(0.0f, std::abs(geometry.radius));
+    const float startAngleRadians = geometry.startAngleDegrees * PI / 180.0f;
+    const float sweepRadians = (geometry.endAngleDegrees - geometry.startAngleDegrees) * PI / 180.0f;
+
+    destination.clear();
+    destination.reserve(static_cast<std::size_t>(segmentCount) + 1U);
+
+    for (int index = 0; index <= segmentCount; ++index)
+    {
+        const float factor = static_cast<float>(index) / static_cast<float>(segmentCount);
+        const float angle = startAngleRadians + sweepRadians * factor;
+        destination.push_back(Vec2 {
+            std::cos(angle) * radius,
+            std::sin(angle) * radius});
+    }
+}
+
 void SampleEllipseInto(const EllipseGeometry& geometry, const int segments, std::vector<Vec2>& destination)
 {
     const int segmentCount = std::max(12, segments);
@@ -630,6 +650,28 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         SampleBezierInto(bezier, logicalScratchA_, logicalScratchB_);
         BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
         DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor);
+        break;
+    }
+    case PrimitiveType::Arc:
+    {
+        const auto& arc = std::get<ArcGeometry>(primitive.geometry);
+        SampleArcInto(arc, logicalScratchA_);
+        BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
+
+        if (style.filled)
+        {
+            logicalScratchB_.clear();
+            logicalScratchB_.reserve(logicalScratchA_.size() + 1U);
+            logicalScratchB_.push_back(Vec2 {});
+            logicalScratchB_.insert(logicalScratchB_.end(), logicalScratchA_.begin(), logicalScratchA_.end());
+            BuildScreenPointsInto(logicalScratchB_.data(), logicalScratchB_.size(), primitive, group, screenScratchB_);
+            FillConvexPolygon(screenScratchB_, fillColor);
+            DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor);
+        }
+        else
+        {
+            DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor);
+        }
         break;
     }
     }

@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -37,6 +38,28 @@ public:
     }
 
     mfd::client::TextHandle statusValue;
+};
+
+class GeneratedUiGeometryReticle final : public mfd::client::Reticle
+{
+public:
+    GeneratedUiGeometryReticle()
+        : mfd::client::Reticle("Radar", "geometry_panel", 11U, 55U),
+          scopeRing(MutableDesiredPatch(), DirtyFlag(), "scope_ring", 66U, PrimitiveTransportIds()),
+          lockBox(MutableDesiredPatch(), DirtyFlag(), "lock_box", 67U, PrimitiveTransportIds()),
+          warningTriangle(MutableDesiredPatch(), DirtyFlag(), "warning_triangle", 68U, PrimitiveTransportIds()),
+          routePolyline(MutableDesiredPatch(), DirtyFlag(), "route_polyline", 69U, PrimitiveTransportIds()),
+          guideBezier(MutableDesiredPatch(), DirtyFlag(), "guide_bezier", 70U, PrimitiveTransportIds()),
+          scanArc(MutableDesiredPatch(), DirtyFlag(), "scan_arc", 71U, PrimitiveTransportIds())
+    {
+    }
+
+    mfd::client::RingHandle scopeRing;
+    mfd::client::RectangleHandle lockBox;
+    mfd::client::TriangleHandle warningTriangle;
+    mfd::client::PolylineHandle routePolyline;
+    mfd::client::BezierHandle guideBezier;
+    mfd::client::ArcHandle scanArc;
 };
 
 class GeneratedUiTrackReticle final : public mfd::client::DynamicReticle
@@ -83,7 +106,8 @@ public:
 
     GeneratedUiRadarPage()
         : strobe(Name(), MakeStrobeInfo(), 11U),
-          statusBanner()
+          statusBanner(),
+          geometryPanel()
     {
     }
 
@@ -91,6 +115,7 @@ public:
     {
         strobe.Reset();
         statusBanner.Reset();
+        geometryPanel.Reset();
         dynamicTracks.Reset();
     }
 
@@ -99,6 +124,7 @@ public:
         std::size_t count = 0;
         count += strobe.AppendCommands(commands) ? 1U : 0U;
         count += statusBanner.AppendCommands(commands) ? 1U : 0U;
+        count += geometryPanel.AppendCommands(commands) ? 1U : 0U;
         count += dynamicTracks.AppendCommands(commands);
         return count;
     }
@@ -115,6 +141,7 @@ public:
 
     mfd::client::StrobeHandle strobe;
     GeneratedUiStatusReticle statusBanner;
+    GeneratedUiGeometryReticle geometryPanel;
 
 private:
     static mfd::client::StrobeInfo MakeStrobeInfo() noexcept
@@ -292,4 +319,77 @@ TEST(GeneratedUiRuntimeTests, SubmitLatestForwardsGeneratedUiBatchSemantics)
     EXPECT_EQ(upsert->templateTransportId, 77U);
     ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(44U).text, "B02");
+}
+
+TEST(GeneratedUiRuntimeTests, BuildCommandBatchCarriesRichGeneratedPrimitiveGeometryPatches)
+{
+    GeneratedUiFixture ui;
+    auto& geometry = ui.Radar().geometryPanel;
+
+    geometry.scopeRing.SetInnerRadius(0.12f);
+    geometry.scopeRing.SetOuterRadius(0.19f);
+    geometry.scopeRing.SetSegments(40);
+    geometry.lockBox.SetFillColor({1, 2, 3, 180});
+    geometry.lockBox.SetFilled(true);
+    geometry.warningTriangle.SetPoints(
+        std::array<mfd::Vec2, 3> {{{-0.18f, -0.08f}, {0.0f, 0.18f}, {0.16f, -0.06f}}});
+    geometry.routePolyline.SetPoints({{-0.20f, -0.08f}, {-0.04f, 0.12f}, {0.12f, 0.10f}, {0.24f, -0.02f}});
+    geometry.routePolyline.SetClosed(true);
+    geometry.guideBezier.SetControlPoints({{-0.18f, -0.10f}, {-0.06f, 0.14f}, {0.08f, 0.14f}, {0.20f, -0.02f}});
+    geometry.guideBezier.SetSegments(18);
+    geometry.scanArc.SetRadius(0.22f);
+    geometry.scanArc.SetStartAngleDegrees(-45.0f);
+    geometry.scanArc.SetEndAngleDegrees(135.0f);
+    geometry.scanArc.SetSegments(24);
+
+    const mfd::CommandBatch batch = ui.BuildCommandBatch(91U);
+    ASSERT_EQ(batch.commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&batch.commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->target.pageId, 11U);
+    EXPECT_EQ(update->target.reticleId, 55U);
+    EXPECT_TRUE(update->patch.primitivePatches.empty());
+    ASSERT_EQ(update->patch.primitivePatchesById.size(), 6U);
+
+    const auto& ringPatch = update->patch.primitivePatchesById.at(66U);
+    ASSERT_TRUE(ringPatch.innerRadius.has_value());
+    ASSERT_TRUE(ringPatch.outerRadius.has_value());
+    ASSERT_TRUE(ringPatch.segments.has_value());
+    EXPECT_FLOAT_EQ(*ringPatch.innerRadius, 0.12f);
+    EXPECT_FLOAT_EQ(*ringPatch.outerRadius, 0.19f);
+    EXPECT_EQ(*ringPatch.segments, 40);
+
+    const auto& rectanglePatch = update->patch.primitivePatchesById.at(67U);
+    ASSERT_TRUE(rectanglePatch.fillColor.has_value());
+    ASSERT_TRUE(rectanglePatch.filled.has_value());
+    EXPECT_EQ(rectanglePatch.fillColor->r, 1U);
+    EXPECT_TRUE(*rectanglePatch.filled);
+
+    const auto& trianglePatch = update->patch.primitivePatchesById.at(68U);
+    ASSERT_TRUE(trianglePatch.points.has_value());
+    ASSERT_EQ(trianglePatch.points->size(), 3U);
+    EXPECT_FLOAT_EQ(trianglePatch.points->at(1).y, 0.18f);
+
+    const auto& polylinePatch = update->patch.primitivePatchesById.at(69U);
+    ASSERT_TRUE(polylinePatch.points.has_value());
+    ASSERT_TRUE(polylinePatch.closed.has_value());
+    ASSERT_EQ(polylinePatch.points->size(), 4U);
+    EXPECT_TRUE(*polylinePatch.closed);
+
+    const auto& bezierPatch = update->patch.primitivePatchesById.at(70U);
+    ASSERT_TRUE(bezierPatch.points.has_value());
+    ASSERT_TRUE(bezierPatch.segments.has_value());
+    ASSERT_EQ(bezierPatch.points->size(), 4U);
+    EXPECT_EQ(*bezierPatch.segments, 18);
+
+    const auto& arcPatch = update->patch.primitivePatchesById.at(71U);
+    ASSERT_TRUE(arcPatch.radius.has_value());
+    ASSERT_TRUE(arcPatch.startAngleDegrees.has_value());
+    ASSERT_TRUE(arcPatch.endAngleDegrees.has_value());
+    ASSERT_TRUE(arcPatch.segments.has_value());
+    EXPECT_FLOAT_EQ(*arcPatch.radius, 0.22f);
+    EXPECT_FLOAT_EQ(*arcPatch.startAngleDegrees, -45.0f);
+    EXPECT_FLOAT_EQ(*arcPatch.endAngleDegrees, 135.0f);
+    EXPECT_EQ(*arcPatch.segments, 24);
 }

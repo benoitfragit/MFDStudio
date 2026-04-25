@@ -1006,6 +1006,55 @@ TEST(JsonLoaderTests, LoadDocumentRejectsBezierWithAmbiguousPointFields)
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesArcPrimitiveWithAnglesAndSegments)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    std::filesystem::create_directories(reticleFolder);
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "staticReticles": [
+        {
+          "id": "shape",
+          "elements": [
+            {
+              "id": "scan_arc",
+              "type": "arc",
+              "radius": 0.24,
+              "startAngle": -45.0,
+              "endAngleDegrees": 135.0,
+              "segments": 40
+            }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(document.pages.size(), 1U);
+    ASSERT_EQ(document.pages.front().staticReticles.size(), 1U);
+    ASSERT_EQ(document.pages.front().staticReticles.front().primitives.size(), 1U);
+    const mfd::Primitive& primitive = document.pages.front().staticReticles.front().primitives.front();
+    EXPECT_EQ(primitive.type, mfd::PrimitiveType::Arc);
+    const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry);
+    ASSERT_NE(arc, nullptr);
+    EXPECT_FLOAT_EQ(arc->radius, 0.24f);
+    EXPECT_FLOAT_EQ(arc->startAngleDegrees, -45.0f);
+    EXPECT_FLOAT_EQ(arc->endAngleDegrees, 135.0f);
+    EXPECT_EQ(arc->segments, 40);
+}
+
 TEST(JsonLoaderTests, LoadDocumentKeepsNonZeroRingBandWhenOnlyOuterRadiusIsProvided)
 {
     TemporaryFolder workspace;

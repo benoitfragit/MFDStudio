@@ -248,6 +248,10 @@ Expected examples include:
 - `EllipseHandle`
 - `SquareHandle`
 - `DiamondHandle`
+- `TriangleHandle`
+- `PolylineHandle`
+- `BezierHandle`
+- `ArcHandle`
 - `PrimitiveHandle` only as a fallback when no more specific public handle type
   exists
 
@@ -644,7 +648,7 @@ SHOULD also verify:
 | --- | --- |
 | generated UI root exposes page accessors | typed page navigation is available |
 | generated reticle and primitive accessors exist | authored exposed objects are reachable without string lookup |
-| generated primitive handles stay type-specific | text, line, ring, rectangle, and other supported primitive kinds expose dedicated handle types |
+| generated primitive handles stay type-specific | text, line, ring, triangle, polyline, bezier, arc, rectangle, and other supported primitive kinds expose dedicated handle types |
 | generated strobe handle remains page-scoped | no strobe transport object is required from application code |
 | generated dynamic set hides runtime IDs | `Create()` and `Remove(handle)` work without user-managed runtime IDs |
 | generated batch helper carries `mappingHash` | `BuildCommandBatch(sequence)` emits the generated hash |

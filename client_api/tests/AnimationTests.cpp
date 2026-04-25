@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -27,7 +28,11 @@ public:
           headingValue(MutableDesiredPatch(), DirtyFlag(), "heading_value"),
           horizonLine(MutableDesiredPatch(), DirtyFlag(), "horizon_line"),
           compassRing(MutableDesiredPatch(), DirtyFlag(), "compass_ring"),
-          lockBox(MutableDesiredPatch(), DirtyFlag(), "lock_box")
+          lockBox(MutableDesiredPatch(), DirtyFlag(), "lock_box"),
+          warningTriangle(MutableDesiredPatch(), DirtyFlag(), "warning_triangle"),
+          routePolyline(MutableDesiredPatch(), DirtyFlag(), "route_polyline"),
+          guideBezier(MutableDesiredPatch(), DirtyFlag(), "guide_bezier"),
+          scanArc(MutableDesiredPatch(), DirtyFlag(), "scan_arc")
     {
     }
 
@@ -35,6 +40,10 @@ public:
     mfd::client::LineHandle horizonLine;
     mfd::client::RingHandle compassRing;
     mfd::client::RectangleHandle lockBox;
+    mfd::client::TriangleHandle warningTriangle;
+    mfd::client::PolylineHandle routePolyline;
+    mfd::client::BezierHandle guideBezier;
+    mfd::client::ArcHandle scanArc;
 };
 
 class GeneratedPrimitiveFixtureReticle final : public mfd::client::Reticle
@@ -61,7 +70,11 @@ public:
           lockBox(MutableDesiredPatch(), DirtyFlag(), "lock_box", 104U, PrimitiveTransportIds()),
           uncertaintyEllipse(MutableDesiredPatch(), DirtyFlag(), "uncertainty_ellipse", 105U, PrimitiveTransportIds()),
           targetSquare(MutableDesiredPatch(), DirtyFlag(), "target_square", 106U, PrimitiveTransportIds()),
-          steerDiamond(MutableDesiredPatch(), DirtyFlag(), "steer_diamond", 107U, PrimitiveTransportIds())
+          steerDiamond(MutableDesiredPatch(), DirtyFlag(), "steer_diamond", 107U, PrimitiveTransportIds()),
+          warningTriangle(MutableDesiredPatch(), DirtyFlag(), "warning_triangle", 108U, PrimitiveTransportIds()),
+          routePolyline(MutableDesiredPatch(), DirtyFlag(), "route_polyline", 109U, PrimitiveTransportIds()),
+          guideBezier(MutableDesiredPatch(), DirtyFlag(), "guide_bezier", 110U, PrimitiveTransportIds()),
+          scanArc(MutableDesiredPatch(), DirtyFlag(), "scan_arc", 111U, PrimitiveTransportIds())
     {
     }
 
@@ -72,6 +85,10 @@ public:
     mfd::client::EllipseHandle uncertaintyEllipse;
     mfd::client::SquareHandle targetSquare;
     mfd::client::DiamondHandle steerDiamond;
+    mfd::client::TriangleHandle warningTriangle;
+    mfd::client::PolylineHandle routePolyline;
+    mfd::client::BezierHandle guideBezier;
+    mfd::client::ArcHandle scanArc;
 };
 
 class GeneratedDynamicFixtureReticle final : public mfd::client::DynamicReticle
@@ -191,9 +208,22 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     reticle.horizonLine.SetEnd({0.5f, 0.0f});
     reticle.compassRing.SetInnerRadius(0.15f);
     reticle.compassRing.SetOuterRadius(0.2f);
+    reticle.compassRing.SetSegments(48);
     reticle.lockBox.SetWidth(0.30f);
     reticle.lockBox.SetHeight(0.12f);
     reticle.lockBox.SetSize({0.32f, 0.14f});
+    reticle.lockBox.SetFillColor({1, 2, 3, 200});
+    reticle.lockBox.SetFilled(true);
+    reticle.warningTriangle.SetPoints(std::array<mfd::Vec2, 3> {{{-0.2f, -0.1f}, {0.0f, 0.25f}, {0.18f, -0.08f}}});
+    reticle.routePolyline.SetPoints({{-0.3f, -0.1f}, {-0.1f, 0.15f}, {0.12f, 0.08f}, {0.28f, -0.04f}});
+    reticle.routePolyline.SetClosed(true);
+    reticle.routePolyline.SetFilled(true);
+    reticle.guideBezier.SetControlPoints({{-0.2f, -0.12f}, {-0.05f, 0.18f}, {0.05f, 0.18f}, {0.2f, -0.02f}});
+    reticle.guideBezier.SetSegments(20);
+    reticle.scanArc.SetRadius(0.22f);
+    reticle.scanArc.SetStartAngleDegrees(-45.0f);
+    reticle.scanArc.SetEndAngleDegrees(135.0f);
+    reticle.scanArc.SetSegments(24);
 
     std::vector<mfd::UserCommand> commands;
     ASSERT_TRUE(reticle.AppendCommands(commands));
@@ -201,7 +231,7 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
 
     const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
     ASSERT_NE(update, nullptr);
-    ASSERT_EQ(update->patch.primitivePatches.size(), 4U);
+    ASSERT_EQ(update->patch.primitivePatches.size(), 8U);
 
     const auto& textPatch = update->patch.primitivePatches.at("heading_value");
     ASSERT_TRUE(textPatch.visible.has_value());
@@ -230,17 +260,52 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     const auto& ringPatch = update->patch.primitivePatches.at("compass_ring");
     ASSERT_TRUE(ringPatch.innerRadius.has_value());
     ASSERT_TRUE(ringPatch.outerRadius.has_value());
+    ASSERT_TRUE(ringPatch.segments.has_value());
     EXPECT_FLOAT_EQ(*ringPatch.innerRadius, 0.15f);
     EXPECT_FLOAT_EQ(*ringPatch.outerRadius, 0.2f);
+    EXPECT_EQ(*ringPatch.segments, 48);
 
     const auto& rectanglePatch = update->patch.primitivePatches.at("lock_box");
     ASSERT_TRUE(rectanglePatch.width.has_value());
     ASSERT_TRUE(rectanglePatch.height.has_value());
     ASSERT_TRUE(rectanglePatch.size.has_value());
+    ASSERT_TRUE(rectanglePatch.fillColor.has_value());
+    ASSERT_TRUE(rectanglePatch.filled.has_value());
     EXPECT_FLOAT_EQ(*rectanglePatch.width, 0.30f);
     EXPECT_FLOAT_EQ(*rectanglePatch.height, 0.12f);
     EXPECT_FLOAT_EQ(rectanglePatch.size->x, 0.32f);
     EXPECT_FLOAT_EQ(rectanglePatch.size->y, 0.14f);
+    EXPECT_EQ(rectanglePatch.fillColor->r, 1U);
+    EXPECT_TRUE(*rectanglePatch.filled);
+
+    const auto& trianglePatch = update->patch.primitivePatches.at("warning_triangle");
+    ASSERT_TRUE(trianglePatch.points.has_value());
+    ASSERT_EQ(trianglePatch.points->size(), 3U);
+    EXPECT_FLOAT_EQ(trianglePatch.points->at(1).y, 0.25f);
+
+    const auto& polylinePatch = update->patch.primitivePatches.at("route_polyline");
+    ASSERT_TRUE(polylinePatch.points.has_value());
+    ASSERT_TRUE(polylinePatch.closed.has_value());
+    ASSERT_TRUE(polylinePatch.filled.has_value());
+    ASSERT_EQ(polylinePatch.points->size(), 4U);
+    EXPECT_TRUE(*polylinePatch.closed);
+    EXPECT_TRUE(*polylinePatch.filled);
+
+    const auto& bezierPatch = update->patch.primitivePatches.at("guide_bezier");
+    ASSERT_TRUE(bezierPatch.points.has_value());
+    ASSERT_TRUE(bezierPatch.segments.has_value());
+    ASSERT_EQ(bezierPatch.points->size(), 4U);
+    EXPECT_EQ(*bezierPatch.segments, 20);
+
+    const auto& arcPatch = update->patch.primitivePatches.at("scan_arc");
+    ASSERT_TRUE(arcPatch.radius.has_value());
+    ASSERT_TRUE(arcPatch.startAngleDegrees.has_value());
+    ASSERT_TRUE(arcPatch.endAngleDegrees.has_value());
+    ASSERT_TRUE(arcPatch.segments.has_value());
+    EXPECT_FLOAT_EQ(*arcPatch.radius, 0.22f);
+    EXPECT_FLOAT_EQ(*arcPatch.startAngleDegrees, -45.0f);
+    EXPECT_FLOAT_EQ(*arcPatch.endAngleDegrees, 135.0f);
+    EXPECT_EQ(*arcPatch.segments, 24);
 }
 
 TEST(AnimationTests, GeneratedStaticHandlesCarryTransportIdsAlongsideLegacyFields)
@@ -278,6 +343,7 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
     reticle.cursorCircle.SetRadius(0.07f);
     reticle.scopeRing.SetInnerRadius(0.15f);
     reticle.scopeRing.SetOuterRadius(0.21f);
+    reticle.scopeRing.SetSegments(40);
     reticle.lockBox.SetWidth(0.30f);
     reticle.lockBox.SetHeight(0.12f);
     reticle.lockBox.SetSize({0.32f, 0.14f});
@@ -286,6 +352,15 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
     reticle.targetSquare.SetSize({0.11f, 0.11f});
     reticle.steerDiamond.SetWidth(0.18f);
     reticle.steerDiamond.SetHeight(0.24f);
+    reticle.warningTriangle.SetPoints(std::array<mfd::Vec2, 3> {{{-0.2f, -0.1f}, {0.0f, 0.2f}, {0.2f, -0.1f}}});
+    reticle.routePolyline.SetPoints({{-0.25f, -0.08f}, {-0.04f, 0.14f}, {0.18f, -0.02f}});
+    reticle.routePolyline.SetClosed(true);
+    reticle.guideBezier.SetControlPoints({{-0.2f, -0.12f}, {-0.05f, 0.18f}, {0.05f, 0.18f}, {0.2f, -0.02f}});
+    reticle.guideBezier.SetSegments(22);
+    reticle.scanArc.SetRadius(0.19f);
+    reticle.scanArc.SetStartAngleDegrees(-60.0f);
+    reticle.scanArc.SetEndAngleDegrees(120.0f);
+    reticle.scanArc.SetSegments(26);
 
     std::vector<mfd::UserCommand> commands;
     ASSERT_TRUE(reticle.AppendCommands(commands));
@@ -296,7 +371,7 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
     EXPECT_EQ(update->target.pageId, 11U);
     EXPECT_EQ(update->target.reticleId, 22U);
     EXPECT_TRUE(update->patch.primitivePatches.empty());
-    ASSERT_EQ(update->patch.primitivePatchesById.size(), 7U);
+    ASSERT_EQ(update->patch.primitivePatchesById.size(), 11U);
 
     const auto& linePatch = update->patch.primitivePatchesById.at(101U);
     ASSERT_TRUE(linePatch.lineStart.has_value());
@@ -311,8 +386,10 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
     const auto& ringPatch = update->patch.primitivePatchesById.at(103U);
     ASSERT_TRUE(ringPatch.innerRadius.has_value());
     ASSERT_TRUE(ringPatch.outerRadius.has_value());
+    ASSERT_TRUE(ringPatch.segments.has_value());
     EXPECT_FLOAT_EQ(*ringPatch.innerRadius, 0.15f);
     EXPECT_FLOAT_EQ(*ringPatch.outerRadius, 0.21f);
+    EXPECT_EQ(*ringPatch.segments, 40);
 
     const auto& rectanglePatch = update->patch.primitivePatchesById.at(104U);
     ASSERT_TRUE(rectanglePatch.width.has_value());
@@ -339,6 +416,33 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
     ASSERT_TRUE(diamondPatch.height.has_value());
     EXPECT_FLOAT_EQ(*diamondPatch.width, 0.18f);
     EXPECT_FLOAT_EQ(*diamondPatch.height, 0.24f);
+
+    const auto& trianglePatch = update->patch.primitivePatchesById.at(108U);
+    ASSERT_TRUE(trianglePatch.points.has_value());
+    ASSERT_EQ(trianglePatch.points->size(), 3U);
+    EXPECT_FLOAT_EQ(trianglePatch.points->at(1).y, 0.2f);
+
+    const auto& polylinePatch = update->patch.primitivePatchesById.at(109U);
+    ASSERT_TRUE(polylinePatch.points.has_value());
+    ASSERT_TRUE(polylinePatch.closed.has_value());
+    ASSERT_EQ(polylinePatch.points->size(), 3U);
+    EXPECT_TRUE(*polylinePatch.closed);
+
+    const auto& bezierPatch = update->patch.primitivePatchesById.at(110U);
+    ASSERT_TRUE(bezierPatch.points.has_value());
+    ASSERT_TRUE(bezierPatch.segments.has_value());
+    ASSERT_EQ(bezierPatch.points->size(), 4U);
+    EXPECT_EQ(*bezierPatch.segments, 22);
+
+    const auto& arcPatch = update->patch.primitivePatchesById.at(111U);
+    ASSERT_TRUE(arcPatch.radius.has_value());
+    ASSERT_TRUE(arcPatch.startAngleDegrees.has_value());
+    ASSERT_TRUE(arcPatch.endAngleDegrees.has_value());
+    ASSERT_TRUE(arcPatch.segments.has_value());
+    EXPECT_FLOAT_EQ(*arcPatch.radius, 0.19f);
+    EXPECT_FLOAT_EQ(*arcPatch.startAngleDegrees, -60.0f);
+    EXPECT_FLOAT_EQ(*arcPatch.endAngleDegrees, 120.0f);
+    EXPECT_EQ(*arcPatch.segments, 26);
 }
 
 TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingReticles)

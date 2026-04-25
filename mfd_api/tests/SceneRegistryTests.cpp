@@ -66,6 +66,44 @@ mfd::ReticleGroup MakeTextReticle(const std::string_view id)
     return reticle;
 }
 
+mfd::ReticleGroup MakeGeometryPatchReticle(const std::string_view id)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = std::string(id);
+
+    mfd::Primitive ring;
+    ring.id = "ring";
+    ring.type = mfd::PrimitiveType::Ring;
+    ring.geometry = mfd::RingGeometry {0.08f, 0.12f, 32};
+    reticle.primitives.push_back(std::move(ring));
+
+    mfd::Primitive triangle;
+    triangle.id = "triangle";
+    triangle.type = mfd::PrimitiveType::Triangle;
+    triangle.geometry = mfd::TriangleGeometry {{{{-0.1f, -0.1f}, {0.0f, 0.12f}, {0.1f, -0.1f}}}};
+    reticle.primitives.push_back(std::move(triangle));
+
+    mfd::Primitive polyline;
+    polyline.id = "polyline";
+    polyline.type = mfd::PrimitiveType::Polyline;
+    polyline.geometry = mfd::PolylineGeometry {{{{-0.15f, -0.05f}, {0.0f, 0.14f}, {0.16f, -0.03f}}}, false};
+    reticle.primitives.push_back(std::move(polyline));
+
+    mfd::Primitive bezier;
+    bezier.id = "bezier";
+    bezier.type = mfd::PrimitiveType::Bezier;
+    bezier.geometry = mfd::BezierGeometry {{{{-0.18f, -0.12f}, {-0.06f, 0.12f}, {0.06f, 0.12f}, {0.18f, -0.12f}}}, 16};
+    reticle.primitives.push_back(std::move(bezier));
+
+    mfd::Primitive arc;
+    arc.id = "arc";
+    arc.type = mfd::PrimitiveType::Arc;
+    arc.geometry = mfd::ArcGeometry {0.18f, -30.0f, 120.0f, 24};
+    reticle.primitives.push_back(std::move(arc));
+
+    return reticle;
+}
+
 mfd::PageDefinition MakeBlinkPage()
 {
     mfd::PageDefinition page;
@@ -539,6 +577,98 @@ TEST(SceneRegistryTests, ApplyReticlePatchSupportsRichPrimitiveOverrides)
     const auto* circleGeometry = std::get_if<mfd::CircleGeometry>(&circlePrimitive->geometry);
     ASSERT_NE(circleGeometry, nullptr);
     EXPECT_FLOAT_EQ(circleGeometry->radius, 0.12f);
+}
+
+TEST(SceneRegistryTests, ApplyReticlePatchSupportsPointListFillAndArcOverrides)
+{
+    mfd::MfdDocument document;
+    mfd::PageDefinition page = MakeBlinkPage();
+    page.staticReticles.push_back(MakeGeometryPatchReticle("geometry"));
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::PrimitivePatch ringPatch;
+    ringPatch.fillColor = mfd::ColorRgba {1, 2, 3, 220};
+    ringPatch.filled = true;
+    ringPatch.segments = 48;
+
+    mfd::PrimitivePatch trianglePatch;
+    trianglePatch.points = std::vector<mfd::Vec2> {{-0.2f, -0.1f}, {0.0f, 0.25f}, {0.22f, -0.08f}};
+
+    mfd::PrimitivePatch polylinePatch;
+    polylinePatch.points = std::vector<mfd::Vec2> {{-0.2f, 0.0f}, {-0.05f, 0.18f}, {0.12f, 0.08f}, {0.20f, -0.04f}};
+    polylinePatch.closed = true;
+    polylinePatch.fillColor = mfd::ColorRgba {20, 30, 40, 180};
+    polylinePatch.filled = true;
+
+    mfd::PrimitivePatch bezierPatch;
+    bezierPatch.points = std::vector<mfd::Vec2> {{-0.25f, -0.05f}, {-0.08f, 0.22f}, {0.08f, 0.22f}, {0.24f, -0.02f}};
+    bezierPatch.segments = 28;
+
+    mfd::PrimitivePatch arcPatch;
+    arcPatch.radius = 0.26f;
+    arcPatch.startAngleDegrees = -90.0f;
+    arcPatch.endAngleDegrees = 135.0f;
+    arcPatch.segments = 36;
+    arcPatch.fillColor = mfd::ColorRgba {90, 120, 160, 200};
+    arcPatch.filled = true;
+
+    mfd::ReticlePatch patch;
+    patch.primitivePatches.emplace("ring", ringPatch);
+    patch.primitivePatches.emplace("triangle", trianglePatch);
+    patch.primitivePatches.emplace("polyline", polylinePatch);
+    patch.primitivePatches.emplace("bezier", bezierPatch);
+    patch.primitivePatches.emplace("arc", arcPatch);
+
+    EXPECT_TRUE(registry.ApplyReticlePatch("Radar", "geometry", patch));
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    const mfd::ReticleGroup* geometryReticle = FindReticle(reticles, "geometry");
+    ASSERT_NE(geometryReticle, nullptr);
+
+    const auto* ringPrimitive = mfd::FindPrimitive(*geometryReticle, "ring");
+    ASSERT_NE(ringPrimitive, nullptr);
+    const auto* ringGeometry = std::get_if<mfd::RingGeometry>(&ringPrimitive->geometry);
+    ASSERT_NE(ringGeometry, nullptr);
+    EXPECT_EQ(ringGeometry->segments, 48);
+    EXPECT_TRUE(ringPrimitive->style.filled);
+    EXPECT_EQ(ringPrimitive->style.fillColor.r, 1U);
+
+    const auto* trianglePrimitive = mfd::FindPrimitive(*geometryReticle, "triangle");
+    ASSERT_NE(trianglePrimitive, nullptr);
+    const auto* triangleGeometry = std::get_if<mfd::TriangleGeometry>(&trianglePrimitive->geometry);
+    ASSERT_NE(triangleGeometry, nullptr);
+    EXPECT_FLOAT_EQ(triangleGeometry->points[1].y, 0.25f);
+
+    const auto* polylinePrimitive = mfd::FindPrimitive(*geometryReticle, "polyline");
+    ASSERT_NE(polylinePrimitive, nullptr);
+    const auto* polylineGeometry = std::get_if<mfd::PolylineGeometry>(&polylinePrimitive->geometry);
+    ASSERT_NE(polylineGeometry, nullptr);
+    EXPECT_TRUE(polylineGeometry->closed);
+    ASSERT_EQ(polylineGeometry->points.size(), 4U);
+    EXPECT_FLOAT_EQ(polylineGeometry->points[3].x, 0.20f);
+    EXPECT_TRUE(polylinePrimitive->style.filled);
+    EXPECT_EQ(polylinePrimitive->style.fillColor.g, 30U);
+
+    const auto* bezierPrimitive = mfd::FindPrimitive(*geometryReticle, "bezier");
+    ASSERT_NE(bezierPrimitive, nullptr);
+    const auto* bezierGeometry = std::get_if<mfd::BezierGeometry>(&bezierPrimitive->geometry);
+    ASSERT_NE(bezierGeometry, nullptr);
+    EXPECT_EQ(bezierGeometry->segments, 28);
+    ASSERT_EQ(bezierGeometry->controlPoints.size(), 4U);
+    EXPECT_FLOAT_EQ(bezierGeometry->controlPoints[1].y, 0.22f);
+
+    const auto* arcPrimitive = mfd::FindPrimitive(*geometryReticle, "arc");
+    ASSERT_NE(arcPrimitive, nullptr);
+    const auto* arcGeometry = std::get_if<mfd::ArcGeometry>(&arcPrimitive->geometry);
+    ASSERT_NE(arcGeometry, nullptr);
+    EXPECT_FLOAT_EQ(arcGeometry->radius, 0.26f);
+    EXPECT_FLOAT_EQ(arcGeometry->startAngleDegrees, -90.0f);
+    EXPECT_FLOAT_EQ(arcGeometry->endAngleDegrees, 135.0f);
+    EXPECT_EQ(arcGeometry->segments, 36);
+    EXPECT_TRUE(arcPrimitive->style.filled);
+    EXPECT_EQ(arcPrimitive->style.fillColor.b, 160U);
 }
 
 TEST(SceneRegistryTests, DynamicReticlesSupportLifecyclePatchingAndOrdering)

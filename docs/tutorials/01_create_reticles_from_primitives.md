@@ -107,6 +107,7 @@ The main primitive types are:
 - `time`
 - `line`
 - `circle`
+- `ring`
 - `rectangle`
 - `ellipse`
 - `square`
@@ -114,6 +115,7 @@ The main primitive types are:
 - `triangle`
 - `polyline`
 - `bezier`
+- `arc`
 
 Notes:
 
@@ -121,6 +123,7 @@ Notes:
 - `type: "heure"` is also accepted as an alias for `time`.
 - `rectangle` is a dedicated primitive, separate from `square`.
 - `ellipse` uses `width` and `height`.
+- `arc` uses `radius`, `startAngleDegrees`, and `endAngleDegrees`.
 
 ## Step 4 - Use normalized coordinates
 

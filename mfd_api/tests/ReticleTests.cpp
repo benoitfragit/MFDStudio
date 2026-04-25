@@ -25,6 +25,9 @@ mfd::Primitive MakePrimitive(const std::string_view id, const mfd::PrimitiveType
     case mfd::PrimitiveType::Circle:
         primitive.geometry = mfd::CircleGeometry {};
         break;
+    case mfd::PrimitiveType::Ring:
+        primitive.geometry = mfd::RingGeometry {};
+        break;
     case mfd::PrimitiveType::Rectangle:
         primitive.geometry = mfd::RectangleGeometry {};
         break;
@@ -39,6 +42,9 @@ mfd::Primitive MakePrimitive(const std::string_view id, const mfd::PrimitiveType
         break;
     case mfd::PrimitiveType::Line:
         primitive.geometry = mfd::LineGeometry {};
+        break;
+    case mfd::PrimitiveType::Arc:
+        primitive.geometry = mfd::ArcGeometry {};
         break;
     default:
         primitive.geometry = mfd::PolylineGeometry {};
@@ -57,6 +63,8 @@ TEST(ReticleTests, SupportsReticleClipPrimitiveOnlyForSupportedConvexShapes)
     EXPECT_TRUE(mfd::SupportsReticleClipPrimitive(MakePrimitive("square", mfd::PrimitiveType::Square)));
     EXPECT_TRUE(mfd::SupportsReticleClipPrimitive(MakePrimitive("triangle", mfd::PrimitiveType::Triangle)));
     EXPECT_FALSE(mfd::SupportsReticleClipPrimitive(MakePrimitive("line", mfd::PrimitiveType::Line)));
+    EXPECT_FALSE(mfd::SupportsReticleClipPrimitive(MakePrimitive("ring", mfd::PrimitiveType::Ring)));
+    EXPECT_FALSE(mfd::SupportsReticleClipPrimitive(MakePrimitive("arc", mfd::PrimitiveType::Arc)));
     EXPECT_FALSE(mfd::SupportsReticleClipPrimitive(MakePrimitive("poly", mfd::PrimitiveType::Polyline)));
 }
 

@@ -278,6 +278,8 @@ std::string PrimitiveTypeLabel(const mfd::PrimitiveType type)
         return "Polyline";
     case mfd::PrimitiveType::Bezier:
         return "Bezier";
+    case mfd::PrimitiveType::Arc:
+        return "Arc";
     }
 
     return "Primitive";
@@ -405,6 +407,28 @@ std::vector<mfd::Vec2> ApproximateEllipsePoints(const float width, const float h
     {
         const float angle = static_cast<float>(index) / static_cast<float>(segmentCount) * 2.0f * PI;
         points.push_back({std::cos(angle) * halfWidth, std::sin(angle) * halfHeight});
+    }
+
+    return points;
+}
+
+std::vector<mfd::Vec2> ApproximateArcPoints(const float radius,
+                                            const float startAngleDegrees,
+                                            const float endAngleDegrees,
+                                            const int segments = 48)
+{
+    const int segmentCount = std::max(2, segments);
+    const float safeRadius = std::max(0.0f, std::abs(radius));
+    const float startRadians = startAngleDegrees * PI / 180.0f;
+    const float sweepRadians = (endAngleDegrees - startAngleDegrees) * PI / 180.0f;
+    std::vector<mfd::Vec2> points;
+    points.reserve(static_cast<std::size_t>(segmentCount) + 1U);
+
+    for (int index = 0; index <= segmentCount; ++index)
+    {
+        const float factor = static_cast<float>(index) / static_cast<float>(segmentCount);
+        const float angle = startRadians + sweepRadians * factor;
+        points.push_back({std::cos(angle) * safeRadius, std::sin(angle) * safeRadius});
     }
 
     return points;
@@ -586,6 +610,19 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
             includeTransformedPoint(point);
         }
     }
+    else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+    {
+        for (const auto& point :
+             ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments))
+        {
+            includeTransformedPoint(point);
+        }
+
+        if (primitive.style.filled)
+        {
+            includeTransformedPoint({});
+        }
+    }
 
     FinalizeLogicalBounds(bounds);
     return bounds;
@@ -684,18 +721,20 @@ mfd::Transform2D BuildTransformKeepingLocalPointWorldPosition(const mfd::Transfo
         scale};
 }
 
-constexpr std::array<mfd::PrimitiveType, 11> kPrimitiveTypes {
+constexpr std::array<mfd::PrimitiveType, 13> kPrimitiveTypes {
     mfd::PrimitiveType::Text,
     mfd::PrimitiveType::Time,
     mfd::PrimitiveType::Line,
     mfd::PrimitiveType::Circle,
+    mfd::PrimitiveType::Ring,
     mfd::PrimitiveType::Rectangle,
     mfd::PrimitiveType::Ellipse,
     mfd::PrimitiveType::Square,
     mfd::PrimitiveType::Diamond,
     mfd::PrimitiveType::Triangle,
     mfd::PrimitiveType::Polyline,
-    mfd::PrimitiveType::Bezier};
+    mfd::PrimitiveType::Bezier,
+    mfd::PrimitiveType::Arc};
 
 constexpr std::size_t kInvalidBlinkTypeIndex = std::numeric_limits<std::size_t>::max();
 
@@ -2752,6 +2791,23 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
             continue;
         }
 
+        if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
+        {
+            drawList->AddCircle(primitiveCenter,
+                                std::max(8.0f, Distance(primitiveCenter, toScreenPoint(primitive, {ring->outerRadius, 0.0f}))),
+                                IM_COL32(255, 212, 110, 140),
+                                48,
+                                1.2f);
+            drawList->AddCircle(primitiveCenter,
+                                std::max(4.0f, Distance(primitiveCenter, toScreenPoint(primitive, {ring->innerRadius, 0.0f}))),
+                                IM_COL32(255, 212, 110, 90),
+                                48,
+                                1.0f);
+            drawHandle(toScreenPoint(primitive, {ring->innerRadius, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
+            drawHandle(toScreenPoint(primitive, {ring->outerRadius, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
+            continue;
+        }
+
         if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
         {
             drawHandle(toScreenPoint(primitive, {-rectangle->width * 0.5f, -rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
@@ -2814,6 +2870,33 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
             {
                 drawHandle(toScreenPoint(primitive, point), IM_COL32(255, 140, 92, 255));
             }
+            continue;
+        }
+
+        if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+        {
+            const std::vector<mfd::Vec2> arcPoints =
+                ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments);
+            for (std::size_t index = 0; index + 1U < arcPoints.size(); ++index)
+            {
+                drawList->AddLine(toScreenPoint(primitive, arcPoints[index]),
+                                  toScreenPoint(primitive, arcPoints[index + 1U]),
+                                  IM_COL32(255, 212, 110, 110),
+                                  1.5f);
+            }
+
+            const float middleAngleDegrees = (arc->startAngleDegrees + arc->endAngleDegrees) * 0.5f;
+            const float middleAngleRadians = middleAngleDegrees * PI / 180.0f;
+            const mfd::Vec2 middlePoint {
+                std::cos(middleAngleRadians) * std::abs(arc->radius),
+                std::sin(middleAngleRadians) * std::abs(arc->radius)};
+
+            if (!arcPoints.empty())
+            {
+                drawHandle(toScreenPoint(primitive, arcPoints.front()), IM_COL32(255, 140, 92, 255));
+                drawHandle(toScreenPoint(primitive, arcPoints.back()), IM_COL32(255, 140, 92, 255));
+            }
+            drawHandle(toScreenPoint(primitive, middlePoint), IM_COL32(110, 180, 250, 255), 7.0f);
         }
     }
 }
@@ -3768,6 +3851,20 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
                 circle->radius = std::max(0.001f, std::sqrt(mousePrimitiveLocal.x * mousePrimitiveLocal.x +
                                                             mousePrimitiveLocal.y * mousePrimitiveLocal.y));
             }
+            else if (auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
+            {
+                const float radius = std::max(
+                    0.001f,
+                    std::sqrt(mousePrimitiveLocal.x * mousePrimitiveLocal.x + mousePrimitiveLocal.y * mousePrimitiveLocal.y));
+                if (interactionHandleIndex_ == 0)
+                {
+                    ring->innerRadius = std::min(radius, std::max(0.001f, ring->outerRadius - 0.001f));
+                }
+                else if (interactionHandleIndex_ == 1)
+                {
+                    ring->outerRadius = std::max(radius, ring->innerRadius + 0.001f);
+                }
+            }
             else if (auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
             {
                 rectangle->width = std::max(0.001f, std::abs(mousePrimitiveLocal.x) * 2.0f);
@@ -3821,6 +3918,27 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
                     interactionHandleIndex_ < static_cast<int>(bezier->controlPoints.size()))
                 {
                     bezier->controlPoints[static_cast<std::size_t>(interactionHandleIndex_)] = mousePrimitiveLocal;
+                }
+            }
+            else if (auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+            {
+                if (interactionHandleIndex_ == 2)
+                {
+                    arc->radius = std::max(
+                        0.001f,
+                        std::sqrt(mousePrimitiveLocal.x * mousePrimitiveLocal.x + mousePrimitiveLocal.y * mousePrimitiveLocal.y));
+                }
+                else
+                {
+                    const float angleDegrees = std::atan2(mousePrimitiveLocal.y, mousePrimitiveLocal.x) * 180.0f / PI;
+                    if (interactionHandleIndex_ == 0)
+                    {
+                        arc->startAngleDegrees = angleDegrees;
+                    }
+                    else if (interactionHandleIndex_ == 1)
+                    {
+                        arc->endAngleDegrees = angleDegrees;
+                    }
                 }
             }
         }
@@ -3933,6 +4051,24 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             interactionHandleKind_ = PrimitiveHandleKind::Radius;
             interactionHandleIndex_ = 0;
             return;
+        }
+    }
+    else if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
+    {
+        const std::array<mfd::Vec2, 2> handles {{
+            {ring->innerRadius, 0.0f},
+            {ring->outerRadius, 0.0f},
+        }};
+        for (int index = 0; index < 2; ++index)
+        {
+            if (matchesHandle(toScreenPoint(handles[static_cast<std::size_t>(index)])))
+            {
+                PushUndoSnapshot();
+                interactionMode_ = InteractionMode::EditPrimitiveHandle;
+                interactionHandleKind_ = PrimitiveHandleKind::Radius;
+                interactionHandleIndex_ = index;
+                return;
+            }
         }
     }
     else if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
@@ -4053,6 +4189,43 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
                 interactionHandleIndex_ = index;
                 return;
             }
+        }
+    }
+    else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+    {
+        const std::vector<mfd::Vec2> arcPoints =
+            ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments);
+        const float middleAngleDegrees = (arc->startAngleDegrees + arc->endAngleDegrees) * 0.5f;
+        const float middleAngleRadians = middleAngleDegrees * PI / 180.0f;
+        const mfd::Vec2 radiusHandle {
+            std::cos(middleAngleRadians) * std::abs(arc->radius),
+            std::sin(middleAngleRadians) * std::abs(arc->radius)};
+
+        if (!arcPoints.empty() && matchesHandle(toScreenPoint(arcPoints.front())))
+        {
+            PushUndoSnapshot();
+            interactionMode_ = InteractionMode::EditPrimitiveHandle;
+            interactionHandleKind_ = PrimitiveHandleKind::Point;
+            interactionHandleIndex_ = 0;
+            return;
+        }
+
+        if (!arcPoints.empty() && matchesHandle(toScreenPoint(arcPoints.back())))
+        {
+            PushUndoSnapshot();
+            interactionMode_ = InteractionMode::EditPrimitiveHandle;
+            interactionHandleKind_ = PrimitiveHandleKind::Point;
+            interactionHandleIndex_ = 1;
+            return;
+        }
+
+        if (matchesHandle(toScreenPoint(radiusHandle)))
+        {
+            PushUndoSnapshot();
+            interactionMode_ = InteractionMode::EditPrimitiveHandle;
+            interactionHandleKind_ = PrimitiveHandleKind::Radius;
+            interactionHandleIndex_ = 2;
+            return;
         }
     }
 
@@ -4617,6 +4790,19 @@ EditorApplication::ReticleScreenBounds EditorApplication::ComputePrimitiveScreen
             includeTransformedPoint(point);
         }
     }
+    else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+    {
+        for (const auto& point :
+             ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments))
+        {
+            includeTransformedPoint(point);
+        }
+
+        if (primitive.style.filled)
+        {
+            includeTransformedPoint({});
+        }
+    }
 
     if (bounds.valid)
     {
@@ -4790,6 +4976,42 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
         }
 
         return ringDistance;
+    }
+
+    if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+    {
+        const std::vector<mfd::Vec2> logicalArcPoints =
+            ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments);
+        std::vector<ImVec2> arcPoints;
+        arcPoints.reserve(logicalArcPoints.size());
+        for (const auto& point : logicalArcPoints)
+        {
+            arcPoints.push_back(toScreenPoint(point));
+        }
+
+        for (std::size_t index = 0; index + 1U < arcPoints.size(); ++index)
+        {
+            bestDistance = std::min(bestDistance, distanceToSegment(arcPoints[index], arcPoints[index + 1U]));
+        }
+
+        if (primitive.style.filled && arcPoints.size() >= 2U)
+        {
+            std::vector<ImVec2> sectorPoints;
+            sectorPoints.reserve(arcPoints.size() + 1U);
+            sectorPoints.push_back(toScreenPoint({}));
+            sectorPoints.insert(sectorPoints.end(), arcPoints.begin(), arcPoints.end());
+            for (std::size_t index = 0; index + 1U < sectorPoints.size(); ++index)
+            {
+                bestDistance = std::min(bestDistance, distanceToSegment(sectorPoints[index], sectorPoints[index + 1U]));
+            }
+            bestDistance = std::min(bestDistance, distanceToSegment(sectorPoints.back(), sectorPoints.front()));
+            if (IsPointInsidePolygon(sectorPoints, mousePosition))
+            {
+                bestDistance = std::min(bestDistance, 2.0f);
+            }
+        }
+
+        return bestDistance;
     }
 
     std::vector<ImVec2> points;
@@ -6164,6 +6386,11 @@ mfd::ReticleGroup EditorApplication::MakePrimitiveReticle(std::string id, const 
     case mfd::PrimitiveType::Circle:
         primitive.geometry = mfd::CircleGeometry {0.10f};
         break;
+    case mfd::PrimitiveType::Ring:
+        primitive.geometry = mfd::RingGeometry {0.06f, 0.10f, 64};
+        primitive.style.filled = true;
+        primitive.style.fillColor = mfd::ColorRgba {0, 255, 102, 48};
+        break;
     case mfd::PrimitiveType::Rectangle:
         primitive.geometry = mfd::RectangleGeometry {0.24f, 0.14f};
         break;
@@ -6184,6 +6411,9 @@ mfd::ReticleGroup EditorApplication::MakePrimitiveReticle(std::string id, const 
         break;
     case mfd::PrimitiveType::Bezier:
         primitive.geometry = mfd::BezierGeometry {{{{-0.12f, -0.12f}, {-0.04f, 0.12f}, {0.04f, -0.12f}, {0.12f, 0.12f}}}, 32};
+        break;
+    case mfd::PrimitiveType::Arc:
+        primitive.geometry = mfd::ArcGeometry {0.12f, -45.0f, 135.0f, 48};
         break;
     }
 
@@ -7933,6 +8163,40 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         return;
     }
 
+    if (auto* ring = std::get_if<mfd::RingGeometry>(&primitive->geometry))
+    {
+        if (ImGui::DragFloat("Inner radius", &ring->innerRadius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            ring->innerRadius = std::clamp(ring->innerRadius, 0.001f, std::max(0.001f, ring->outerRadius - 0.001f));
+        }
+        ShowItemTooltip("Inner radius of the ring in logical units.");
+
+        if (ImGui::DragFloat("Outer radius", &ring->outerRadius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            ring->outerRadius = std::max(ring->innerRadius + 0.001f, ring->outerRadius);
+        }
+        ShowItemTooltip("Outer radius of the ring in logical units.");
+
+        if (ImGui::DragInt("Segments", &ring->segments, 1.0f, 8, 256))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            ring->segments = std::clamp(ring->segments, 8, 256);
+        }
+        ShowItemTooltip("Number of segments used to approximate the ring circles.");
+        return;
+    }
+
     if (auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive->geometry))
     {
         if (ImGui::DragFloat2("Size", &rectangle->width, 0.002f, 0.001f, 1.0f, "%.4f"))
@@ -8064,5 +8328,47 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             bezier->segments = std::clamp(bezier->segments, 2, 128);
         }
         ShowItemTooltip("Number of line segments used to approximate the bezier curve.");
+        return;
+    }
+
+    if (auto* arc = std::get_if<mfd::ArcGeometry>(&primitive->geometry))
+    {
+        if (ImGui::DragFloat("Radius", &arc->radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            arc->radius = std::max(0.001f, arc->radius);
+        }
+        ShowItemTooltip("Arc radius in logical units.");
+
+        if (ImGui::DragFloat("Start angle", &arc->startAngleDegrees, 0.5f, -720.0f, 720.0f, "%.1f deg"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+        }
+        ShowItemTooltip("Arc start angle in degrees.");
+
+        if (ImGui::DragFloat("End angle", &arc->endAngleDegrees, 0.5f, -720.0f, 720.0f, "%.1f deg"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+        }
+        ShowItemTooltip("Arc end angle in degrees.");
+
+        if (ImGui::DragInt("Segments", &arc->segments, 1.0f, 2, 256))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            arc->segments = std::clamp(arc->segments, 2, 256);
+        }
+        ShowItemTooltip("Number of line segments used to approximate the arc.");
     }
 }

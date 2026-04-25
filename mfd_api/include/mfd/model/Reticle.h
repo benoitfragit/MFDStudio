@@ -50,7 +50,8 @@ enum class PrimitiveType
     Diamond,
     Triangle,
     Polyline,
-    Bezier
+    Bezier,
+    Arc
 };
 
 /**
@@ -187,6 +188,17 @@ struct BezierGeometry
 };
 
 /**
+ * @brief Geometry payload for a circular arc primitive.
+ */
+struct ArcGeometry
+{
+    float radius = 0.0208f;
+    float startAngleDegrees = 0.0f;
+    float endAngleDegrees = 180.0f;
+    int segments = 48;
+};
+
+/**
  * @brief Variant storing the geometry data of a primitive.
  */
 using PrimitiveGeometry = std::variant<TextGeometry,
@@ -200,7 +212,8 @@ using PrimitiveGeometry = std::variant<TextGeometry,
                                        DiamondGeometry,
                                        TriangleGeometry,
                                        PolylineGeometry,
-                                       BezierGeometry>;
+                                       BezierGeometry,
+                                       ArcGeometry>;
 
 /**
  * @brief Arbitrary key/value metadata attached to a reticle.

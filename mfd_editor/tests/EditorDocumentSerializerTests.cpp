@@ -130,6 +130,48 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateIncludesTemplateId)
     EXPECT_EQ(jsonNode.at("id").get<std::string>(), "demo_track");
 }
 
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeometry)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "geometry_demo";
+
+    mfd::Primitive ring;
+    ring.id = "scope_ring";
+    ring.type = mfd::PrimitiveType::Ring;
+    ring.style.filled = true;
+    ring.style.fillColor = mfd::ColorRgba {10, 20, 30, 40};
+    ring.geometry = mfd::RingGeometry {0.12f, 0.20f, 48};
+    reticle.primitives.push_back(ring);
+
+    mfd::Primitive arc;
+    arc.id = "scan_arc";
+    arc.type = mfd::PrimitiveType::Arc;
+    arc.style.color = mfd::ColorRgba {1, 2, 3, 255};
+    arc.geometry = mfd::ArcGeometry {0.25f, -60.0f, 120.0f, 36};
+    reticle.primitives.push_back(arc);
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_EQ(jsonNode.at("elements").size(), 2U);
+
+    const auto& ringNode = jsonNode.at("elements").at(0);
+    EXPECT_EQ(ringNode.at("type").get<std::string>(), "ring");
+    EXPECT_FLOAT_EQ(ringNode.at("innerRadius").get<float>(), 0.12f);
+    EXPECT_FLOAT_EQ(ringNode.at("outerRadius").get<float>(), 0.20f);
+    EXPECT_EQ(ringNode.at("segments").get<int>(), 48);
+    EXPECT_TRUE(ringNode.at("filled").get<bool>());
+    EXPECT_EQ(ringNode.at("fill").get<std::string>(), "#0A141E28");
+
+    const auto& arcNode = jsonNode.at("elements").at(1);
+    EXPECT_EQ(arcNode.at("type").get<std::string>(), "arc");
+    EXPECT_FLOAT_EQ(arcNode.at("radius").get<float>(), 0.25f);
+    EXPECT_FLOAT_EQ(arcNode.at("startAngleDegrees").get<float>(), -60.0f);
+    EXPECT_FLOAT_EQ(arcNode.at("endAngleDegrees").get<float>(), 120.0f);
+    EXPECT_EQ(arcNode.at("segments").get<int>(), 36);
+    EXPECT_EQ(arcNode.at("stroke").get<std::string>(), "#010203FF");
+}
+
 TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverridesBlinkAndClipReset)
 {
     mfd::ReticleGroup templateReticle;

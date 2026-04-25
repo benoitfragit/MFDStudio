@@ -30,17 +30,24 @@ message PrimitivePatch
   optional float rotation_degrees = 3;
   optional Vec2 scale = 4;
   optional fixed32 packed_rgba = 5;
-  optional float thickness = 6;
-  optional string text = 7;
-  optional float letter_spacing = 8;
-  optional Vec2 line_start = 9;
-  optional Vec2 line_end = 10;
-  optional float radius = 11;
-  optional float inner_radius = 12;
-  optional float outer_radius = 13;
-  optional float width = 14;
-  optional float height = 15;
-  optional Vec2 size = 16;
+  optional fixed32 fill_packed_rgba = 6;
+  optional bool filled = 7;
+  optional float thickness = 8;
+  optional string text = 9;
+  optional float letter_spacing = 10;
+  optional Vec2 line_start = 11;
+  optional Vec2 line_end = 12;
+  optional float radius = 13;
+  optional float inner_radius = 14;
+  optional float outer_radius = 15;
+  optional float width = 16;
+  optional float height = 17;
+  optional Vec2 size = 18;
+  repeated Vec2 points = 19;
+  optional bool closed = 20;
+  optional int32 segments = 21;
+  optional float start_angle_degrees = 22;
+  optional float end_angle_degrees = 23;
 }
 
 message ReticlePatch

@@ -26,6 +26,16 @@
       "exposed": true
     },
     {
+      "id": "warning_triangle",
+      "type": "triangle",
+      "exposed": true
+    },
+    {
+      "id": "route_polyline",
+      "type": "polyline",
+      "exposed": true
+    },
+    {
       "id": "uncertainty_ellipse",
       "type": "ellipse",
       "exposed": true
@@ -43,6 +53,16 @@
     {
       "id": "mission_time",
       "type": "time",
+      "exposed": true
+    },
+    {
+      "id": "guide_bezier",
+      "type": "bezier",
+      "exposed": true
+    },
+    {
+      "id": "scan_arc",
+      "type": "arc",
       "exposed": true
     }
   ]

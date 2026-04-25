@@ -32,6 +32,24 @@ bool Equal(const mfd::ColorRgba& lhs, const mfd::ColorRgba& rhs) noexcept
     return lhs.r == rhs.r && lhs.g == rhs.g && lhs.b == rhs.b && lhs.a == rhs.a;
 }
 
+bool Equal(const std::vector<mfd::Vec2>& lhs, const std::vector<mfd::Vec2>& rhs) noexcept
+{
+    if (lhs.size() != rhs.size())
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < lhs.size(); ++index)
+    {
+        if (!Equal(lhs[index], rhs[index]))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 template <typename T>
 bool EqualOptional(const std::optional<T>& lhs, const std::optional<T>& rhs)
 {
@@ -60,6 +78,18 @@ bool EqualOptional(const std::optional<mfd::ColorRgba>& lhs, const std::optional
     return !lhs.has_value() || Equal(*lhs, *rhs);
 }
 
+template <>
+bool EqualOptional(const std::optional<std::vector<mfd::Vec2>>& lhs,
+                   const std::optional<std::vector<mfd::Vec2>>& rhs)
+{
+    if (lhs.has_value() != rhs.has_value())
+    {
+        return false;
+    }
+
+    return !lhs.has_value() || Equal(*lhs, *rhs);
+}
+
 bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs)
 {
     return EqualOptional(lhs.visible, rhs.visible) &&
@@ -67,6 +97,8 @@ bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs)
            EqualOptional(lhs.rotationDegrees, rhs.rotationDegrees) &&
            EqualOptional(lhs.scale, rhs.scale) &&
            EqualOptional(lhs.color, rhs.color) &&
+           EqualOptional(lhs.fillColor, rhs.fillColor) &&
+           EqualOptional(lhs.filled, rhs.filled) &&
            EqualOptional(lhs.thickness, rhs.thickness) &&
            EqualOptional(lhs.text, rhs.text) &&
            EqualOptional(lhs.letterSpacing, rhs.letterSpacing) &&
@@ -77,7 +109,12 @@ bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs)
            EqualOptional(lhs.outerRadius, rhs.outerRadius) &&
            EqualOptional(lhs.width, rhs.width) &&
            EqualOptional(lhs.height, rhs.height) &&
-           EqualOptional(lhs.size, rhs.size);
+           EqualOptional(lhs.size, rhs.size) &&
+           EqualOptional(lhs.points, rhs.points) &&
+           EqualOptional(lhs.closed, rhs.closed) &&
+           EqualOptional(lhs.segments, rhs.segments) &&
+           EqualOptional(lhs.startAngleDegrees, rhs.startAngleDegrees) &&
+           EqualOptional(lhs.endAngleDegrees, rhs.endAngleDegrees);
 }
 
 bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
@@ -187,6 +224,8 @@ mfd::PrimitivePatch BuildDeltaPrimitivePatch(const mfd::PrimitivePatch& desired,
     CopyChangedOptionalField(desired.rotationDegrees, previous.rotationDegrees, delta.rotationDegrees);
     CopyChangedOptionalField(desired.scale, previous.scale, delta.scale);
     CopyChangedOptionalField(desired.color, previous.color, delta.color);
+    CopyChangedOptionalField(desired.fillColor, previous.fillColor, delta.fillColor);
+    CopyChangedOptionalField(desired.filled, previous.filled, delta.filled);
     CopyChangedOptionalField(desired.thickness, previous.thickness, delta.thickness);
     CopyChangedOptionalField(desired.text, previous.text, delta.text);
     CopyChangedOptionalField(desired.letterSpacing, previous.letterSpacing, delta.letterSpacing);
@@ -198,6 +237,11 @@ mfd::PrimitivePatch BuildDeltaPrimitivePatch(const mfd::PrimitivePatch& desired,
     CopyChangedOptionalField(desired.width, previous.width, delta.width);
     CopyChangedOptionalField(desired.height, previous.height, delta.height);
     CopyChangedOptionalField(desired.size, previous.size, delta.size);
+    CopyChangedOptionalField(desired.points, previous.points, delta.points);
+    CopyChangedOptionalField(desired.closed, previous.closed, delta.closed);
+    CopyChangedOptionalField(desired.segments, previous.segments, delta.segments);
+    CopyChangedOptionalField(desired.startAngleDegrees, previous.startAngleDegrees, delta.startAngleDegrees);
+    CopyChangedOptionalField(desired.endAngleDegrees, previous.endAngleDegrees, delta.endAngleDegrees);
     return delta;
 }
 
@@ -479,6 +523,18 @@ void PrimitiveHandle::SetColor(const mfd::ColorRgba color)
     MarkDirty();
 }
 
+void PrimitiveHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    Patch().fillColor = color;
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetFilled(const bool filled)
+{
+    Patch().filled = filled;
+    MarkDirty();
+}
+
 void PrimitiveHandle::SetThickness(const float thickness)
 {
     Patch().thickness = thickness;
@@ -591,6 +647,12 @@ void RingHandle::SetOuterRadius(const float radius)
     MarkDirty();
 }
 
+void RingHandle::SetSegments(const int segments)
+{
+    Patch().segments = segments;
+    MarkDirty();
+}
+
 RectangleHandle::RectangleHandle(mfd::ReticlePatch& patch,
                                  bool* dirty,
                                  const std::string_view primitiveId,
@@ -696,6 +758,96 @@ void DiamondHandle::SetHeight(const float height)
 void DiamondHandle::SetSize(const mfd::Vec2 size)
 {
     Patch().size = size;
+    MarkDirty();
+}
+
+TriangleHandle::TriangleHandle(mfd::ReticlePatch& patch,
+                               bool* dirty,
+                               const std::string_view primitiveId,
+                               const mfd::TransportId transportId,
+                               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+{
+}
+
+void TriangleHandle::SetPoints(const std::array<mfd::Vec2, 3>& points)
+{
+    Patch().points = std::vector<mfd::Vec2>(points.begin(), points.end());
+    MarkDirty();
+}
+
+PolylineHandle::PolylineHandle(mfd::ReticlePatch& patch,
+                               bool* dirty,
+                               const std::string_view primitiveId,
+                               const mfd::TransportId transportId,
+                               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+{
+}
+
+void PolylineHandle::SetPoints(std::vector<mfd::Vec2> points)
+{
+    Patch().points = std::move(points);
+    MarkDirty();
+}
+
+void PolylineHandle::SetClosed(const bool closed)
+{
+    Patch().closed = closed;
+    MarkDirty();
+}
+
+BezierHandle::BezierHandle(mfd::ReticlePatch& patch,
+                           bool* dirty,
+                           const std::string_view primitiveId,
+                           const mfd::TransportId transportId,
+                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+{
+}
+
+void BezierHandle::SetControlPoints(std::vector<mfd::Vec2> controlPoints)
+{
+    Patch().points = std::move(controlPoints);
+    MarkDirty();
+}
+
+void BezierHandle::SetSegments(const int segments)
+{
+    Patch().segments = segments;
+    MarkDirty();
+}
+
+ArcHandle::ArcHandle(mfd::ReticlePatch& patch,
+                     bool* dirty,
+                     const std::string_view primitiveId,
+                     const mfd::TransportId transportId,
+                     std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+{
+}
+
+void ArcHandle::SetRadius(const float radius)
+{
+    Patch().radius = radius;
+    MarkDirty();
+}
+
+void ArcHandle::SetStartAngleDegrees(const float startAngleDegrees)
+{
+    Patch().startAngleDegrees = startAngleDegrees;
+    MarkDirty();
+}
+
+void ArcHandle::SetEndAngleDegrees(const float endAngleDegrees)
+{
+    Patch().endAngleDegrees = endAngleDegrees;
+    MarkDirty();
+}
+
+void ArcHandle::SetSegments(const int segments)
+{
+    Patch().segments = segments;
     MarkDirty();
 }
 

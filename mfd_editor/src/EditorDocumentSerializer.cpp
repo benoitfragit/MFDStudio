@@ -207,6 +207,17 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive)
         return;
     }
 
+    if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
+    {
+        node["innerRadius"] = ring->innerRadius;
+        node["outerRadius"] = ring->outerRadius;
+        if (ring->segments != 64)
+        {
+            node["segments"] = ring->segments;
+        }
+        return;
+    }
+
     if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
     {
         if (std::abs(rectangle->width - rectangle->height) < 0.0001f)
@@ -296,6 +307,18 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive)
         {
             node["segments"] = bezier->segments;
         }
+        return;
+    }
+
+    if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+    {
+        node["radius"] = arc->radius;
+        node["startAngleDegrees"] = arc->startAngleDegrees;
+        node["endAngleDegrees"] = arc->endAngleDegrees;
+        if (arc->segments != 48)
+        {
+            node["segments"] = arc->segments;
+        }
     }
 }
 
@@ -311,6 +334,8 @@ std::string PrimitiveTypeName(const mfd::PrimitiveType type)
         return "line";
     case mfd::PrimitiveType::Circle:
         return "circle";
+    case mfd::PrimitiveType::Ring:
+        return "ring";
     case mfd::PrimitiveType::Rectangle:
         return "rectangle";
     case mfd::PrimitiveType::Ellipse:
@@ -325,6 +350,8 @@ std::string PrimitiveTypeName(const mfd::PrimitiveType type)
         return "polyline";
     case mfd::PrimitiveType::Bezier:
         return "bezier";
+    case mfd::PrimitiveType::Arc:
+        return "arc";
     }
 
     return "line";

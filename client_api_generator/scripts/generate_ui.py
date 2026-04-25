@@ -26,6 +26,10 @@ PRIMITIVE_HANDLE_TYPES = {
     "ellipse": "EllipseHandle",
     "square": "SquareHandle",
     "diamond": "DiamondHandle",
+    "triangle": "TriangleHandle",
+    "polyline": "PolylineHandle",
+    "bezier": "BezierHandle",
+    "arc": "ArcHandle",
 }
 
 
@@ -708,6 +712,10 @@ def emit_header(namespace_name: str,
         "using EllipseHandle = mfd::client::EllipseHandle;",
         "using LineHandle = mfd::client::LineHandle;",
         "using PrimitiveHandle = mfd::client::PrimitiveHandle;",
+        "using TriangleHandle = mfd::client::TriangleHandle;",
+        "using PolylineHandle = mfd::client::PolylineHandle;",
+        "using BezierHandle = mfd::client::BezierHandle;",
+        "using ArcHandle = mfd::client::ArcHandle;",
         "using Reticle = mfd::client::Reticle;",
         "using ReticleBlink = mfd::client::ReticleBlink;",
         "using RingHandle = mfd::client::RingHandle;",

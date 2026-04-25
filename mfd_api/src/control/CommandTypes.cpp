@@ -82,6 +82,16 @@ void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* ta
         target->set_packed_rgba(PackColor(*patch.color));
     }
 
+    if (patch.fillColor.has_value())
+    {
+        target->set_fill_packed_rgba(PackColor(*patch.fillColor));
+    }
+
+    if (patch.filled.has_value())
+    {
+        target->set_filled(*patch.filled);
+    }
+
     if (patch.thickness.has_value())
     {
         target->set_thickness(*patch.thickness);
@@ -136,6 +146,34 @@ void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* ta
     {
         FillProtoVec2(*patch.size, target->mutable_size());
     }
+
+    if (patch.points.has_value())
+    {
+        for (const Vec2& point : *patch.points)
+        {
+            FillProtoVec2(point, target->add_points());
+        }
+    }
+
+    if (patch.closed.has_value())
+    {
+        target->set_closed(*patch.closed);
+    }
+
+    if (patch.segments.has_value())
+    {
+        target->set_segments(*patch.segments);
+    }
+
+    if (patch.startAngleDegrees.has_value())
+    {
+        target->set_start_angle_degrees(*patch.startAngleDegrees);
+    }
+
+    if (patch.endAngleDegrees.has_value())
+    {
+        target->set_end_angle_degrees(*patch.endAngleDegrees);
+    }
 }
 
 PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
@@ -165,6 +203,16 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
     if (value.has_packed_rgba())
     {
         patch.color = UnpackColor(value.packed_rgba());
+    }
+
+    if (value.has_fill_packed_rgba())
+    {
+        patch.fillColor = UnpackColor(value.fill_packed_rgba());
+    }
+
+    if (value.has_filled())
+    {
+        patch.filled = value.filled();
     }
 
     if (value.has_thickness())
@@ -220,6 +268,37 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
     if (value.has_size())
     {
         patch.size = FromProtoVec2(value.size());
+    }
+
+    if (value.points_size() > 0)
+    {
+        std::vector<Vec2> points;
+        points.reserve(static_cast<std::size_t>(value.points_size()));
+        for (const pb::Vec2& point : value.points())
+        {
+            points.push_back(FromProtoVec2(point));
+        }
+        patch.points = std::move(points);
+    }
+
+    if (value.has_closed())
+    {
+        patch.closed = value.closed();
+    }
+
+    if (value.has_segments())
+    {
+        patch.segments = value.segments();
+    }
+
+    if (value.has_start_angle_degrees())
+    {
+        patch.startAngleDegrees = value.start_angle_degrees();
+    }
+
+    if (value.has_end_angle_degrees())
+    {
+        patch.endAngleDegrees = value.end_angle_degrees();
     }
 
     return patch;

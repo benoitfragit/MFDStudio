@@ -10,6 +10,7 @@
  * @brief High-level client-side helpers used to animate authored pages.
  */
 
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -94,6 +95,8 @@ public:
     void SetRotationDegrees(float rotationDegrees);
     void SetScale(mfd::Vec2 scale);
     void SetColor(mfd::ColorRgba color);
+    void SetFillColor(mfd::ColorRgba color);
+    void SetFilled(bool filled);
     void SetThickness(float thickness);
 
 protected:
@@ -183,6 +186,7 @@ public:
 
     void SetInnerRadius(float radius);
     void SetOuterRadius(float radius);
+    void SetSegments(int segments);
 };
 
 /**
@@ -251,6 +255,71 @@ public:
     void SetWidth(float width);
     void SetHeight(float height);
     void SetSize(mfd::Vec2 size);
+};
+
+/**
+ * @brief Primitive handle specialized for authored triangle primitives.
+ */
+class MFD_CLIENT_API TriangleHandle : public PrimitiveHandle
+{
+public:
+    TriangleHandle(mfd::ReticlePatch& patch,
+                   bool* dirty,
+                   std::string_view primitiveId,
+                   mfd::TransportId transportId = 0,
+                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
+
+    void SetPoints(const std::array<mfd::Vec2, 3>& points);
+};
+
+/**
+ * @brief Primitive handle specialized for authored polyline primitives.
+ */
+class MFD_CLIENT_API PolylineHandle : public PrimitiveHandle
+{
+public:
+    PolylineHandle(mfd::ReticlePatch& patch,
+                   bool* dirty,
+                   std::string_view primitiveId,
+                   mfd::TransportId transportId = 0,
+                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
+
+    void SetPoints(std::vector<mfd::Vec2> points);
+    void SetClosed(bool closed);
+};
+
+/**
+ * @brief Primitive handle specialized for authored bezier primitives.
+ */
+class MFD_CLIENT_API BezierHandle : public PrimitiveHandle
+{
+public:
+    BezierHandle(mfd::ReticlePatch& patch,
+                 bool* dirty,
+                 std::string_view primitiveId,
+                 mfd::TransportId transportId = 0,
+                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
+
+    void SetControlPoints(std::vector<mfd::Vec2> controlPoints);
+    void SetSegments(int segments);
+};
+
+/**
+ * @brief Primitive handle specialized for authored arc primitives.
+ */
+class MFD_CLIENT_API ArcHandle : public PrimitiveHandle
+{
+public:
+    ArcHandle(mfd::ReticlePatch& patch,
+              bool* dirty,
+              std::string_view primitiveId,
+              mfd::TransportId transportId = 0,
+              std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
+
+    void SetRadius(float radius);
+    void SetStartAngleDegrees(float startAngleDegrees);
+    void SetEndAngleDegrees(float endAngleDegrees);
+    void SetSegments(int segments);
 };
 
 class MFD_CLIENT_API Reticle

@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -71,6 +72,33 @@ bool HasDiamondPatch(const mfd::PrimitivePatch& patch) noexcept
     return patch.width.has_value() && patch.height.has_value() && !patch.size.has_value();
 }
 
+bool HasTrianglePatch(const mfd::PrimitivePatch& patch) noexcept
+{
+    return patch.points.has_value() && patch.points->size() == 3U;
+}
+
+bool HasPolylinePatch(const mfd::PrimitivePatch& patch) noexcept
+{
+    return patch.points.has_value() && patch.points->size() >= 2U && patch.closed.has_value();
+}
+
+bool HasBezierPatch(const mfd::PrimitivePatch& patch) noexcept
+{
+    return patch.points.has_value() && patch.points->size() >= 2U && patch.segments.has_value() &&
+           !patch.startAngleDegrees.has_value() && !patch.endAngleDegrees.has_value();
+}
+
+bool HasArcPatch(const mfd::PrimitivePatch& patch) noexcept
+{
+    return patch.radius.has_value() && patch.startAngleDegrees.has_value() &&
+           patch.endAngleDegrees.has_value() && patch.segments.has_value();
+}
+
+bool HasFillPatch(const mfd::PrimitivePatch& patch) noexcept
+{
+    return patch.fillColor.has_value() && patch.filled.has_value();
+}
+
 bool HasTimePatch(const mfd::PrimitivePatch& patch) noexcept
 {
     return patch.letterSpacing.has_value();
@@ -98,14 +126,27 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     radar.geometryPanel.CursorCircle().SetRadius(0.07f);
     radar.geometryPanel.ScopeRing().SetInnerRadius(0.15f);
     radar.geometryPanel.ScopeRing().SetOuterRadius(0.21f);
+    radar.geometryPanel.ScopeRing().SetSegments(40);
     radar.geometryPanel.LockBox().SetSize({0.32f, 0.14f});
     radar.geometryPanel.LockBox().SetWidth(0.30f);
     radar.geometryPanel.LockBox().SetHeight(0.12f);
+    radar.geometryPanel.LockBox().SetFillColor({1, 2, 3, 180});
+    radar.geometryPanel.LockBox().SetFilled(true);
+    radar.geometryPanel.WarningTriangle().SetPoints(
+        std::array<mfd::Vec2, 3> {{{-0.22f, -0.08f}, {0.0f, 0.22f}, {0.20f, -0.08f}}});
+    radar.geometryPanel.RoutePolyline().SetPoints({{-0.24f, -0.06f}, {-0.08f, 0.14f}, {0.12f, 0.10f}, {0.24f, -0.02f}});
+    radar.geometryPanel.RoutePolyline().SetClosed(true);
     radar.geometryPanel.UncertaintyEllipse().SetWidth(0.40f);
     radar.geometryPanel.UncertaintyEllipse().SetHeight(0.20f);
     radar.geometryPanel.TargetSquare().SetSize({0.11f, 0.11f});
     radar.geometryPanel.SteerDiamond().SetWidth(0.18f);
     radar.geometryPanel.SteerDiamond().SetHeight(0.24f);
+    radar.geometryPanel.GuideBezier().SetControlPoints({{-0.22f, -0.12f}, {-0.06f, 0.18f}, {0.08f, 0.18f}, {0.22f, -0.02f}});
+    radar.geometryPanel.GuideBezier().SetSegments(18);
+    radar.geometryPanel.ScanArc().SetRadius(0.19f);
+    radar.geometryPanel.ScanArc().SetStartAngleDegrees(-60.0f);
+    radar.geometryPanel.ScanArc().SetEndAngleDegrees(120.0f);
+    radar.geometryPanel.ScanArc().SetSegments(28);
     radar.geometryPanel.MissionTime().SetLetterSpacing(0.02f);
 
     auto& track = radar.DynamicGeometryTemplate().Create();
@@ -117,14 +158,25 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     track.CursorCircle().SetRadius(0.05f);
     track.ScopeRing().SetInnerRadius(0.08f);
     track.ScopeRing().SetOuterRadius(0.14f);
+    track.ScopeRing().SetSegments(32);
     track.LockBox().SetSize({0.16f, 0.10f});
     track.LockBox().SetWidth(0.15f);
     track.LockBox().SetHeight(0.09f);
+    track.WarningTriangle().SetPoints(
+        std::array<mfd::Vec2, 3> {{{-0.12f, -0.06f}, {0.0f, 0.12f}, {0.11f, -0.05f}}});
+    track.RoutePolyline().SetPoints({{-0.16f, -0.04f}, {-0.04f, 0.08f}, {0.12f, 0.02f}});
+    track.RoutePolyline().SetClosed(true);
     track.UncertaintyEllipse().SetWidth(0.20f);
     track.UncertaintyEllipse().SetHeight(0.12f);
     track.TargetSquare().SetSize({0.07f, 0.07f});
     track.SteerDiamond().SetWidth(0.09f);
     track.SteerDiamond().SetHeight(0.13f);
+    track.GuideBezier().SetControlPoints({{-0.18f, -0.08f}, {-0.05f, 0.12f}, {0.05f, 0.12f}, {0.18f, -0.02f}});
+    track.GuideBezier().SetSegments(16);
+    track.ScanArc().SetRadius(0.11f);
+    track.ScanArc().SetStartAngleDegrees(-45.0f);
+    track.ScanArc().SetEndAngleDegrees(90.0f);
+    track.ScanArc().SetSegments(20);
     track.MissionTime().SetLetterSpacing(0.03f);
 
     const mfd::CommandBatch batch = ui.BuildCommandBatch(9U);
@@ -183,7 +235,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     ASSERT_NE(geometryUpdateIt, staticReticleUpdates.end());
     const mfd::UpdateReticleCommand& geometryUpdate = **geometryUpdateIt;
     EXPECT_TRUE(geometryUpdate.patch.primitivePatches.empty());
-    ASSERT_EQ(geometryUpdate.patch.primitivePatchesById.size(), 8U);
+    ASSERT_EQ(geometryUpdate.patch.primitivePatchesById.size(), 12U);
     EXPECT_TRUE(std::any_of(
         geometryUpdate.patch.primitivePatchesById.begin(),
         geometryUpdate.patch.primitivePatchesById.end(),
@@ -217,6 +269,13 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
         geometryUpdate.patch.primitivePatchesById.end(),
         [](const auto& entry)
         {
+            return HasFillPatch(entry.second);
+        }));
+    EXPECT_TRUE(std::any_of(
+        geometryUpdate.patch.primitivePatchesById.begin(),
+        geometryUpdate.patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
             return HasEllipsePatch(entry.second);
         }));
     EXPECT_TRUE(std::any_of(
@@ -232,6 +291,34 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
         [](const auto& entry)
         {
             return HasDiamondPatch(entry.second);
+        }));
+    EXPECT_TRUE(std::any_of(
+        geometryUpdate.patch.primitivePatchesById.begin(),
+        geometryUpdate.patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
+            return HasTrianglePatch(entry.second);
+        }));
+    EXPECT_TRUE(std::any_of(
+        geometryUpdate.patch.primitivePatchesById.begin(),
+        geometryUpdate.patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
+            return HasPolylinePatch(entry.second);
+        }));
+    EXPECT_TRUE(std::any_of(
+        geometryUpdate.patch.primitivePatchesById.begin(),
+        geometryUpdate.patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
+            return HasBezierPatch(entry.second);
+        }));
+    EXPECT_TRUE(std::any_of(
+        geometryUpdate.patch.primitivePatchesById.begin(),
+        geometryUpdate.patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
+            return HasArcPatch(entry.second);
         }));
     EXPECT_TRUE(std::any_of(
         geometryUpdate.patch.primitivePatchesById.begin(),
@@ -256,13 +343,21 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     EXPECT_FALSE(upsert->reticles.front().patch.blinkType.has_value());
     EXPECT_TRUE(*upsert->reticles.front().patch.blinkEnabled);
     EXPECT_TRUE(upsert->reticles.front().patch.primitivePatches.empty());
-    ASSERT_EQ(upsert->reticles.front().patch.primitivePatchesById.size(), 9U);
+    ASSERT_EQ(upsert->reticles.front().patch.primitivePatchesById.size(), 13U);
     EXPECT_TRUE(std::any_of(
         upsert->reticles.front().patch.primitivePatchesById.begin(),
         upsert->reticles.front().patch.primitivePatchesById.end(),
         [](const auto& entry)
         {
             return entry.second.text == std::optional<std::string> {"T01"};
+        }));
+    EXPECT_TRUE(std::any_of(
+        upsert->reticles.front().patch.primitivePatchesById.begin(),
+        upsert->reticles.front().patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
+            return HasTrianglePatch(entry.second) || HasPolylinePatch(entry.second) ||
+                   HasBezierPatch(entry.second) || HasArcPatch(entry.second);
         }));
 }
 

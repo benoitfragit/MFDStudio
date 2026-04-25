@@ -40,6 +40,7 @@ For transform and color syntax, see [Common JSON Syntax](./common_json_syntax.md
 | `triangle` | `triangle` |
 | `polyline` | `polyline` |
 | `bezier` | `bezier` |
+| `arc` | `arc` |
 
 ## `text`
 
@@ -403,6 +404,11 @@ Example:
 }
 ```
 
+Notes:
+
+- when `closed` and `filled` are both `true`, the renderer fills the polygon area
+- the current fill path assumes a convex polygon for correct results
+
 ## `bezier`
 
 Purpose:
@@ -423,7 +429,7 @@ Example:
 
 ```json
 {
-  "id": "arc",
+  "id": "curve",
   "type": "bezier",
   "controlPoints": [
     [-0.20, 0.00],
@@ -435,6 +441,47 @@ Example:
 }
 ```
 
+## `arc`
+
+Purpose:
+
+- scan sectors
+- circular guide marks
+- partial rings and angular indicators
+
+Specific fields:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `radius` | number | no | Arc radius in logical units. |
+| `startAngleDegrees` | number | no | Arc start angle in degrees. |
+| `startAngle` | number | no | Alias of `startAngleDegrees`. |
+| `fromDegrees` | number | no | Alias of `startAngleDegrees`. |
+| `angleStart` | number | no | Alias of `startAngleDegrees`. |
+| `endAngleDegrees` | number | no | Arc end angle in degrees. |
+| `endAngle` | number | no | Alias of `endAngleDegrees`. |
+| `toDegrees` | number | no | Alias of `endAngleDegrees`. |
+| `angleEnd` | number | no | Alias of `endAngleDegrees`. |
+| `segments` | integer | no | Number of line segments used to approximate the arc. |
+
+Example:
+
+```json
+{
+  "id": "scan_arc",
+  "type": "arc",
+  "radius": 0.24,
+  "startAngleDegrees": -45.0,
+  "endAngleDegrees": 135.0,
+  "segments": 40
+}
+```
+
+Notes:
+
+- when `filled` is `true`, the arc is rendered as a sector from the center to the sampled arc
+- use a higher `segments` value if the arc must look smooth at large radius
+
 ## Practical Recommendations
 
 For authoring files that stay readable:
@@ -444,6 +491,7 @@ For authoring files that stay readable:
 - prefer canonical field names over aliases
 - prefer `width` and `height` for `rectangle` and `ellipse`
 - use `controlPoints` instead of `points` for `bezier`
+- use `startAngleDegrees` and `endAngleDegrees` for `arc`
 
 ## Full Example
 

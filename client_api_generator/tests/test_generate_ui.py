@@ -220,6 +220,8 @@ class GenerateUiTests(unittest.TestCase):
                             {"id": "cursor_circle", "type": "circle", "exposed": True},
                             {"id": "scope_ring", "type": "ring", "exposed": True},
                             {"id": "lock_box", "type": "rectangle", "exposed": True},
+                            {"id": "warning_triangle", "type": "triangle", "exposed": True},
+                            {"id": "route_polyline", "type": "polyline", "exposed": True},
                         ],
                     }
                 ),
@@ -242,6 +244,8 @@ class GenerateUiTests(unittest.TestCase):
                                     {"id": "ellipse_zone", "type": "ellipse", "exposed": True},
                                     {"id": "square_marker", "type": "square", "exposed": True},
                                     {"id": "diamond_cue", "type": "diamond", "exposed": True},
+                                    {"id": "guide_bezier", "type": "bezier", "exposed": True},
+                                    {"id": "scan_arc", "type": "arc", "exposed": True},
                                     {"id": "mission_time", "type": "time"},
                                 ],
                             },
@@ -293,16 +297,24 @@ class GenerateUiTests(unittest.TestCase):
 
             for expected in [
                 "class GeometryTemplateDynamicReticle final : public DynamicReticle",
+                "using TriangleHandle = mfd::client::TriangleHandle;",
+                "using PolylineHandle = mfd::client::PolylineHandle;",
+                "using BezierHandle = mfd::client::BezierHandle;",
+                "using ArcHandle = mfd::client::ArcHandle;",
                 "TextHandle& TrackLabel() noexcept;",
                 "LineHandle& HeadingLine() noexcept;",
                 "CircleHandle& CursorCircle() noexcept;",
                 "RingHandle& ScopeRing() noexcept;",
                 "RectangleHandle& LockBox() noexcept;",
+                "TriangleHandle& WarningTriangle() noexcept;",
+                "PolylineHandle& RoutePolyline() noexcept;",
                 "class RadarGeometryWidgetReticle final : public Reticle",
                 "class RadarGeometryPanelReticle final : public Reticle",
                 "EllipseHandle& EllipseZone() noexcept;",
                 "SquareHandle& SquareMarker() noexcept;",
                 "DiamondHandle& DiamondCue() noexcept;",
+                "BezierHandle& GuideBezier() noexcept;",
+                "ArcHandle& ScanArc() noexcept;",
                 "TimeHandle& MissionTime() noexcept;",
             ]:
                 self.assertIn(expected, header_content)
@@ -312,16 +324,27 @@ class GenerateUiTests(unittest.TestCase):
                 'cursorCircle_(MutableDesiredPatch(), DirtyFlag(), "cursor_circle", ',
                 'scopeRing_(MutableDesiredPatch(), DirtyFlag(), "scope_ring", ',
                 'lockBox_(MutableDesiredPatch(), DirtyFlag(), "lock_box", ',
+                'warningTriangle_(MutableDesiredPatch(), DirtyFlag(), "warning_triangle", ',
+                'routePolyline_(MutableDesiredPatch(), DirtyFlag(), "route_polyline", ',
                 'ellipseZone_(MutableDesiredPatch(), DirtyFlag(), "ellipse_zone", ',
                 'squareMarker_(MutableDesiredPatch(), DirtyFlag(), "square_marker", ',
                 'diamondCue_(MutableDesiredPatch(), DirtyFlag(), "diamond_cue", ',
+                'guideBezier_(MutableDesiredPatch(), DirtyFlag(), "guide_bezier", ',
+                'scanArc_(MutableDesiredPatch(), DirtyFlag(), "scan_arc", ',
                 'missionTime_(MutableDesiredPatch(), DirtyFlag(), "mission_time", ',
             ]:
                 self.assertIn(expected, source_content)
 
             self.assertEqual(len(map_content["templates"]), 1)
             self.assertEqual(len(map_content["reticles"]), 2)
-            self.assertEqual(len(map_content["primitives"]), 14)
+            primitive_ids = [row["primitiveId"] for row in map_content["primitives"]]
+            for primitive_id in [
+                "warning_triangle",
+                "route_polyline",
+                "guide_bezier",
+                "scan_arc",
+            ]:
+                self.assertIn(primitive_id, primitive_ids)
 
 
 

@@ -86,6 +86,7 @@ Supported primitives are:
 - `time`
 - `line`
 - `circle`
+- `ring`
 - `rectangle`
 - `ellipse`
 - `square`
@@ -93,6 +94,7 @@ Supported primitives are:
 - `triangle`
 - `polyline`
 - `bezier`
+- `arc`
 
 A reticle is made of one or more primitives.
 

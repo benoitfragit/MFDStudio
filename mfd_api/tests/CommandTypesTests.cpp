@@ -40,6 +40,13 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
 {
     mfd::PrimitivePatch primitivePatch;
     primitivePatch.text = "123";
+    primitivePatch.fillColor = mfd::ColorRgba {1, 2, 3, 200};
+    primitivePatch.filled = true;
+    primitivePatch.points = std::vector<mfd::Vec2> {{-0.2f, 0.1f}, {0.0f, 0.25f}, {0.3f, -0.1f}};
+    primitivePatch.closed = true;
+    primitivePatch.segments = 48;
+    primitivePatch.startAngleDegrees = -30.0f;
+    primitivePatch.endAngleDegrees = 210.0f;
 
     mfd::ReticlePatch patch;
     patch.blinkTypeId = 44U;
@@ -75,6 +82,21 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     ASSERT_EQ(update->patch.primitivePatchesById.size(), 1U);
     ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).text.has_value());
     EXPECT_EQ(*update->patch.primitivePatchesById.at(55U).text, "123");
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).fillColor.has_value());
+    EXPECT_EQ(update->patch.primitivePatchesById.at(55U).fillColor->r, 1U);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).filled.has_value());
+    EXPECT_TRUE(*update->patch.primitivePatchesById.at(55U).filled);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).points.has_value());
+    ASSERT_EQ(update->patch.primitivePatchesById.at(55U).points->size(), 3U);
+    EXPECT_FLOAT_EQ(update->patch.primitivePatchesById.at(55U).points->at(1).y, 0.25f);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).closed.has_value());
+    EXPECT_TRUE(*update->patch.primitivePatchesById.at(55U).closed);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).segments.has_value());
+    EXPECT_EQ(*update->patch.primitivePatchesById.at(55U).segments, 48);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).startAngleDegrees.has_value());
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).endAngleDegrees.has_value());
+    EXPECT_FLOAT_EQ(*update->patch.primitivePatchesById.at(55U).startAngleDegrees, -30.0f);
+    EXPECT_FLOAT_EQ(*update->patch.primitivePatchesById.at(55U).endAngleDegrees, 210.0f);
 }
 
 TEST(CommandTypesTests, SerializeCommandBatchRejectsLegacyNamedTargetsWithoutGeneratedIds)
