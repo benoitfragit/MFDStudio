@@ -85,6 +85,13 @@
           "exposed": true
         },
         {
+          "id": "panel_image",
+          "type": "image",
+          "file": "../picture/generated_fixture_panel.png",
+          "size": [0.24, 0.16],
+          "exposed": true
+        },
+        {
           "id": "mission_time",
           "type": "time",
           "exposed": true

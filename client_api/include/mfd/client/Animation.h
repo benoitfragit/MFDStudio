@@ -322,6 +322,19 @@ public:
     void SetSegments(int segments);
 };
 
+/**
+ * @brief Primitive handle specialized for authored image primitives.
+ */
+class MFD_CLIENT_API ImageHandle : public PrimitiveHandle
+{
+public:
+    ImageHandle(mfd::ReticlePatch& patch,
+                bool* dirty,
+                std::string_view primitiveId,
+                mfd::TransportId transportId = 0,
+                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
+};
+
 class MFD_CLIENT_API Reticle
 {
 public:

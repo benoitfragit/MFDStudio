@@ -20,6 +20,7 @@ set(MFD_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Reticle.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Types.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/Canvas2D.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/OpenGlFramebufferReader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/MfdRenderer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/RenderTextureUtils.h
@@ -42,6 +43,7 @@ set(MFD_API_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Reticle.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp

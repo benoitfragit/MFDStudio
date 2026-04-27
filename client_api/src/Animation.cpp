@@ -851,6 +851,15 @@ void ArcHandle::SetSegments(const int segments)
     MarkDirty();
 }
 
+ImageHandle::ImageHandle(mfd::ReticlePatch& patch,
+                         bool* dirty,
+                         const std::string_view primitiveId,
+                         const mfd::TransportId transportId,
+                         std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+{
+}
+
 Reticle::Reticle(const std::string_view pageName,
                  const std::string_view reticleId,
                  const mfd::TransportId pageTransportId,

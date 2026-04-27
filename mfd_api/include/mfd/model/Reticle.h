@@ -12,6 +12,7 @@
 
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -51,7 +52,8 @@ enum class PrimitiveType
     Triangle,
     Polyline,
     Bezier,
-    Arc
+    Arc,
+    Image
 };
 
 /**
@@ -199,6 +201,16 @@ struct ArcGeometry
 };
 
 /**
+ * @brief Geometry payload for a raster image primitive.
+ */
+struct ImageGeometry
+{
+    std::filesystem::path file;
+    float width = 0.2000f;
+    float height = 0.2000f;
+};
+
+/**
  * @brief Variant storing the geometry data of a primitive.
  */
 using PrimitiveGeometry = std::variant<TextGeometry,
@@ -213,7 +225,8 @@ using PrimitiveGeometry = std::variant<TextGeometry,
                                        TriangleGeometry,
                                        PolylineGeometry,
                                        BezierGeometry,
-                                       ArcGeometry>;
+                                       ArcGeometry,
+                                       ImageGeometry>;
 
 /**
  * @brief Arbitrary key/value metadata attached to a reticle.
@@ -306,6 +319,8 @@ struct ReticleGroup
     /** @brief Optional page-level blink assignment attached to this instance. */
     ReticleBlinkState blink;
     bool visible = true;
+    /** @brief Draws this reticle after regular page reticles when enabled. */
+    bool drawOnTop = false;
     Transform2D transform {};
     ReticleStyleOverride overrides {};
     /** @brief Editor-only state ignored by the runtime. */

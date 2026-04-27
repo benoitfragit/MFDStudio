@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -855,13 +856,49 @@ TEST(JsonLoaderTests, LoadRepositoryDemoWindowConfigurationSmokeTest)
 
     const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
 
-    ASSERT_EQ(loaded.document.pages.size(), 5U);
+    ASSERT_EQ(loaded.document.pages.size(), 6U);
     EXPECT_EQ(loaded.document.pages[0].name, "Pfd");
     EXPECT_EQ(loaded.document.pages[1].name, "Navigation");
     EXPECT_EQ(loaded.document.pages[2].name, "AircraftCentric");
     EXPECT_EQ(loaded.document.pages[3].name, "Radar");
     EXPECT_EQ(loaded.document.pages[4].name, "Tactical");
+    EXPECT_EQ(loaded.document.pages[5].name, "PictureDemo");
     EXPECT_FALSE(loaded.document.reticleLibrary.empty());
+
+    const auto picturePageIt = std::find_if(
+        loaded.document.pages.begin(),
+        loaded.document.pages.end(),
+        [](const mfd::PageDefinition& page)
+        {
+            return page.name == "PictureDemo";
+        });
+    ASSERT_NE(picturePageIt, loaded.document.pages.end());
+
+    const auto pictureReticleIt = std::find_if(
+        picturePageIt->staticReticles.begin(),
+        picturePageIt->staticReticles.end(),
+        [](const mfd::ReticleGroup& reticle)
+        {
+            return reticle.id == "picture_demo";
+        });
+    ASSERT_NE(pictureReticleIt, picturePageIt->staticReticles.end());
+    EXPECT_TRUE(pictureReticleIt->drawOnTop);
+
+    const auto picturePrimitiveIt = std::find_if(
+        pictureReticleIt->primitives.begin(),
+        pictureReticleIt->primitives.end(),
+        [](const mfd::Primitive& primitive)
+        {
+            return primitive.id == "demo_picture";
+        });
+    ASSERT_NE(picturePrimitiveIt, pictureReticleIt->primitives.end());
+    EXPECT_EQ(picturePrimitiveIt->type, mfd::PrimitiveType::Image);
+
+    const auto* image = std::get_if<mfd::ImageGeometry>(&picturePrimitiveIt->geometry);
+    ASSERT_NE(image, nullptr);
+    EXPECT_EQ(
+        image->file.lexically_normal(),
+        (RepositoryRoot() / "assets" / "picture" / "mfdstudio_badge.png").lexically_normal());
 }
 
 TEST(JsonLoaderTests, LoadRepositoryMinimalWindowConfigurationMarksRadarAsDefaultPage)
@@ -1053,6 +1090,56 @@ TEST(JsonLoaderTests, LoadDocumentParsesArcPrimitiveWithAnglesAndSegments)
     EXPECT_FLOAT_EQ(arc->startAngleDegrees, -45.0f);
     EXPECT_FLOAT_EQ(arc->endAngleDegrees, 135.0f);
     EXPECT_EQ(arc->segments, 40);
+}
+
+TEST(JsonLoaderTests, LoadDocumentResolvesImagePrimitivePathsAndDrawOnTop)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path imageFolder = workspace.Path() / "picture";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(imageFolder / "badge.png", "not_a_real_png_but_a_valid_path_for_loader_tests");
+    std::filesystem::create_directories(reticleFolder);
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Images",
+      "staticReticles": [
+        {
+          "id": "badge_layer",
+          "drawOnTop": true,
+          "elements": [
+            {
+              "id": "badge",
+              "type": "image",
+              "file": "picture/badge.png",
+              "size": [0.30, 0.12]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(document.pages.size(), 1U);
+    ASSERT_EQ(document.pages.front().staticReticles.size(), 1U);
+    const mfd::ReticleGroup& reticle = document.pages.front().staticReticles.front();
+    EXPECT_TRUE(reticle.drawOnTop);
+    ASSERT_EQ(reticle.primitives.size(), 1U);
+    const mfd::Primitive& primitive = reticle.primitives.front();
+    EXPECT_EQ(primitive.type, mfd::PrimitiveType::Image);
+    const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry);
+    ASSERT_NE(image, nullptr);
+    EXPECT_EQ(image->file.lexically_normal(), (imageFolder / "badge.png").lexically_normal());
+    EXPECT_FLOAT_EQ(image->width, 0.30f);
+    EXPECT_FLOAT_EQ(image->height, 0.12f);
 }
 
 TEST(JsonLoaderTests, LoadDocumentKeepsNonZeroRingBandWhenOnlyOuterRadiusIsProvided)

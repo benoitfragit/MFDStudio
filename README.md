@@ -85,9 +85,9 @@ In practice:
 - clients send runtime updates through typed commands
 - the renderer draws only the active page
 
-Authoring covers text primitives plus geometric primitives such as line,
-circle, ring, rectangle, ellipse, square, diamond, triangle, polyline, bezier,
-and arc.
+Authoring covers text primitives, image primitives, and geometric primitives
+such as line, circle, ring, rectangle, ellipse, square, diamond, triangle,
+polyline, bezier, and arc.
 
 On the wire, fixed authored objects now travel through transport IDs plus
 `mappingHash` only. Generated client APIs hide those IDs completely, including
@@ -173,8 +173,9 @@ coverage and generator validation.
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 
 The repository also ships inspired sample assets under `assets/windows` and
-`assets/pages`. Open them with `mfd_window`, one of the root `Start-Mfd*.bat`
-scripts, or through `mfd_editor`.
+`assets/pages`, including the `PictureDemo` page backed by bitmap files stored
+under `assets/picture`. Open them with `mfd_window`, one of the root
+`Start-Mfd*.bat` scripts, or through `mfd_editor`.
 
 Inside `mfd_window`, press `F1` to open the integrated runtime debug overlay.
 It can display transport health, the active page, the current reticle tree, and

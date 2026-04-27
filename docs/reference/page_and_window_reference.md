@@ -340,6 +340,7 @@ Fields:
 | `style` | object | no | Nested style block. |
 | `overrides` | object | no | Additional reticle-level style override block. |
 | `blink` | bool, string, or object | no | Page-managed blink binding for this page instance. |
+| `drawOnTop` | bool | no | Defers this reticle draw pass until after normal page reticles. |
 | `text` | string | no | Override the first text primitive. |
 | `texts` | object | no | Override named text primitives by primitive id. |
 | `letterSpacing` | number | no | Override the first text-like primitive spacing. |
@@ -373,6 +374,7 @@ Rules:
 - `true` means "blink using the page default"
 - a string means "blink using this explicit page type"
 - the object form can preserve a type while keeping the reticle currently disabled
+- `onTop` is accepted as a short alias of `drawOnTop`
 
 ### 7.2 Inline reticle
 
@@ -407,6 +409,7 @@ Notes:
 
 - inline reticles use the same reticle-level transform and style override fields
 - inline page reticles can also use `blink`
+- inline page reticles can also use `drawOnTop`
 - each primitive inside `elements` follows the primitive reference
 
 ## 8. Strobe Definition
@@ -448,6 +451,7 @@ The strobe object supports the same reticle fields as a normal page reticle:
 - transform fields
 - style fields
 - `blink`
+- `drawOnTop`
 - text overrides
 - metadata fields
 
@@ -557,6 +561,7 @@ style is:
 - declare blink types at page level with `blinkTypes`
 - use `defaultBlink` when one type should be the normal page default
 - use `blink` only on page instances or on the page strobe, not in reticle templates
+- use `drawOnTop` only for the few reticles that must stay visually above the normal page pass
 - use `staticReticles` for page instances
 - use `template` for normal reuse
 - use `capture` and `magnet` as nested objects inside `strobe`

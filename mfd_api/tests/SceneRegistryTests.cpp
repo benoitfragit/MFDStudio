@@ -211,6 +211,31 @@ TEST(SceneRegistryTests, ActivatesFirstPageAndIgnoresUnknownPage)
     EXPECT_EQ(registry.ActivePageName(), "Navigation");
 }
 
+TEST(SceneRegistryTests, CollectPageReticleViewsDrawsTopReticlesAfterRegularOnes)
+{
+    mfd::PageDefinition page;
+    page.name = "Images";
+    page.normalizedName = "images";
+    page.title = "Images";
+
+    mfd::ReticleGroup overlay = MakeReticle("overlay");
+    overlay.drawOnTop = true;
+    page.staticReticles.push_back(std::move(overlay));
+    page.staticReticles.push_back(MakeReticle("background"));
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+    const std::vector<mfd::ReticleRenderView> views = registry.CollectPageReticleViews("Images");
+
+    ASSERT_EQ(views.size(), 2U);
+    ASSERT_NE(views[0].group, nullptr);
+    ASSERT_NE(views[1].group, nullptr);
+    EXPECT_EQ(views[0].group->id, "background");
+    EXPECT_EQ(views[1].group->id, "overlay");
+}
+
 TEST(SceneRegistryTests, ActivatesMarkedDefaultPageWhenPresent)
 {
     mfd::PageDefinition firstPage = MakeBlinkPage();

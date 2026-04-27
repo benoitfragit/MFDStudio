@@ -44,10 +44,12 @@ bool DiscoverReticleTemplateFiles(const std::filesystem::path& libraryFolder,
                                   std::string* error);
 
 /** @brief Serializes one reticle template to its normalized JSON representation. */
-std::string SerializeReticleTemplateToJsonString(const mfd::ReticleGroup& reticle);
+std::string SerializeReticleTemplateToJsonString(const mfd::ReticleGroup& reticle,
+                                                 const std::filesystem::path& baseFolder = {});
 /** @brief Serializes one page reticle (with library overrides) to JSON. */
 std::string SerializePageReticleToJsonString(const mfd::ReticleGroup& reticle,
-                                             const mfd::ReticleLibrary& library);
+                                             const mfd::ReticleLibrary& library,
+                                             const std::filesystem::path& baseFolder = {});
 
 /** @brief Saves all currently loaded editor assets to disk. */
 bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,

@@ -23,6 +23,8 @@ namespace mfd
 namespace
 {
 constexpr std::size_t kStrobeDrawOrder = std::numeric_limits<std::size_t>::max() - 1U;
+constexpr std::size_t kDrawOnTopOrderBase = 1000000U;
+constexpr std::size_t kDynamicDrawOrderBase = 10000U;
 using BlinkClock = std::chrono::steady_clock;
 
 std::string NormalizeReticleId(const std::string_view value)
@@ -106,6 +108,11 @@ bool IsEmptyPatch(const ReticlePatch& patch) noexcept
            patch.letterSpacingsById.empty() &&
            patch.primitivePatches.empty() &&
            patch.primitivePatchesById.empty();
+}
+
+std::size_t ResolveReticleDrawOrder(const ReticleGroup& reticle, const std::size_t baseOrder) noexcept
+{
+    return reticle.drawOnTop ? kDrawOnTopOrderBase + baseOrder : baseOrder;
 }
 
 template <typename Geometry>
@@ -701,7 +708,8 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
     transportTemplates_.clear();
     transportPrimitives_.clear();
     transportBlinks_.clear();
-    nextDynamicOrder_ = 10000;
+    nextDynamicOrder_ = kDynamicDrawOrderBase;
+    nextDynamicDrawOnTopOrder_ = kDrawOnTopOrderBase + kDynamicDrawOrderBase;
     activePage_.clear();
     windowDisplay_ = {};
 
@@ -745,7 +753,9 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
         for (std::size_t index = 0; index < page.staticReticles.size(); ++index)
         {
             const entt::entity reticleEntity = registry_.create();
-            registry_.emplace<ReticleComponent>(reticleEntity, ReticleComponent {page.staticReticles[index], index});
+            registry_.emplace<ReticleComponent>(reticleEntity,
+                                               ReticleComponent {page.staticReticles[index],
+                                                                 ResolveReticleDrawOrder(page.staticReticles[index], index)});
             registry_.emplace<PageMembership>(reticleEntity, PageMembership {page.normalizedName});
             registry_.emplace<StaticTag>(reticleEntity);
             IndexReticle(page.normalizedName, page.staticReticles[index], reticleEntity);
@@ -2045,7 +2055,10 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
         {
             if (auto* component = registry_.try_get<ReticleComponent>(existingEntity))
             {
+                component->drawOrder = reticle.drawOnTop ? nextDynamicDrawOnTopOrder_++ : nextDynamicOrder_++;
                 component->group = std::move(reticle);
+                RemoveReticleFromPageDrawList(normalizedPageName, existingEntity);
+                InsertReticleIntoPageDrawList(normalizedPageName, existingEntity);
                 RefreshStickyStrobePosition(normalizedPageName);
             }
         }
@@ -2053,7 +2066,9 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
     }
 
     const entt::entity entity = registry_.create();
-    registry_.emplace<ReticleComponent>(entity, ReticleComponent {std::move(reticle), nextDynamicOrder_++});
+    const std::size_t drawOrder =
+        reticle.drawOnTop ? nextDynamicDrawOnTopOrder_++ : nextDynamicOrder_++;
+    registry_.emplace<ReticleComponent>(entity, ReticleComponent {std::move(reticle), drawOrder});
     registry_.emplace<PageMembership>(entity, PageMembership {normalizedPageName});
     registry_.emplace<DynamicTag>(entity);
     IndexReticle(normalizedPageName, registry_.get<ReticleComponent>(entity).group, entity);

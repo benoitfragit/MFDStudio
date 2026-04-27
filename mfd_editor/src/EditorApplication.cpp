@@ -217,6 +217,14 @@ Color ToRayColor(const mfd::ColorRgba& color)
     return Color {color.r, color.g, color.b, color.a};
 }
 
+void ApplyBilinearFilterToFont(const Font font) noexcept
+{
+    if (font.texture.id != 0)
+    {
+        SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+    }
+}
+
 ImVec4 ToImGuiColor(const mfd::ColorRgba& color)
 {
     return ImVec4(
@@ -284,6 +292,8 @@ std::string PrimitiveTypeLabel(const mfd::PrimitiveType type)
         return "Bezier";
     case mfd::PrimitiveType::Arc:
         return "Arc";
+    case mfd::PrimitiveType::Image:
+        return "Image";
     }
 
     return "Primitive";
@@ -627,6 +637,20 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
             includeTransformedPoint({});
         }
     }
+    else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
+    {
+        includeTransformedPoint({-image->width * 0.5f, -image->height * 0.5f});
+        includeTransformedPoint({image->width * 0.5f, -image->height * 0.5f});
+        includeTransformedPoint({image->width * 0.5f, image->height * 0.5f});
+        includeTransformedPoint({-image->width * 0.5f, image->height * 0.5f});
+    }
+    else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
+    {
+        includeTransformedPoint({-image->width * 0.5f, -image->height * 0.5f});
+        includeTransformedPoint({image->width * 0.5f, -image->height * 0.5f});
+        includeTransformedPoint({image->width * 0.5f, image->height * 0.5f});
+        includeTransformedPoint({-image->width * 0.5f, image->height * 0.5f});
+    }
 
     FinalizeLogicalBounds(bounds);
     return bounds;
@@ -725,7 +749,7 @@ mfd::Transform2D BuildTransformKeepingLocalPointWorldPosition(const mfd::Transfo
         scale};
 }
 
-constexpr std::array<mfd::PrimitiveType, 13> kPrimitiveTypes {
+constexpr std::array<mfd::PrimitiveType, 14> kPrimitiveTypes {
     mfd::PrimitiveType::Text,
     mfd::PrimitiveType::Time,
     mfd::PrimitiveType::Line,
@@ -738,7 +762,8 @@ constexpr std::array<mfd::PrimitiveType, 13> kPrimitiveTypes {
     mfd::PrimitiveType::Triangle,
     mfd::PrimitiveType::Polyline,
     mfd::PrimitiveType::Bezier,
-    mfd::PrimitiveType::Arc};
+    mfd::PrimitiveType::Arc,
+    mfd::PrimitiveType::Image};
 
 constexpr std::size_t kInvalidBlinkTypeIndex = std::numeric_limits<std::size_t>::max();
 
@@ -1431,6 +1456,7 @@ int EditorApplication::Run()
 {
     SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(1720, 980, "MFDStudio");
+    SetExitKey(KEY_NULL);
     TryApplyEditorWindowIcon();
     SetWindowMinSize(1320, 760);
     SetTargetFPS(60);
@@ -1548,8 +1574,10 @@ void EditorApplication::Undo()
     loaded_ = std::move(snapshot.loaded);
     files_ = std::move(snapshot.files);
     selection_ = std::move(snapshot.selection);
-    ResetPagePreviewView();
-    ResetLibraryPreviewView();
+    pagePreviewView_ = snapshot.pagePreviewView;
+    pagePreviewView_.zoom = mfd::SanitizeZoom(pagePreviewView_.zoom);
+    libraryPreviewView_ = snapshot.libraryPreviewView;
+    libraryPreviewView_.zoom = mfd::SanitizeZoom(libraryPreviewView_.zoom);
 
     if (selection_.pageIndex >= static_cast<int>(loaded_.document.pages.size()))
     {
@@ -1566,7 +1594,7 @@ void EditorApplication::PushUndoSnapshot()
         undoStack_.erase(undoStack_.begin());
     }
 
-    undoStack_.push_back(UndoSnapshot {loaded_, files_, selection_});
+    undoStack_.push_back(UndoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_});
 }
 
 void EditorApplication::HandleShortcuts()
@@ -2693,6 +2721,7 @@ void EditorApplication::EnsurePreviewFont()
         return;
     }
 
+    ApplyBilinearFilterToFont(loadedFont);
     previewFont_ = loadedFont;
     previewFontReady_ = true;
 }
@@ -2748,22 +2777,29 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     ClearBackground(ToRayColor(page->backgroundColor));
     {
         EnsurePreviewFont();
+        ApplyBilinearFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
             previewTexture_.texture.width,
             previewTexture_.texture.height,
             viewport.view,
             PreviewTextFont(),
             ToRayColor(page->backgroundColor),
-            previewTextureStencilReady_);
-        for (const auto& reticle : page->staticReticles)
+            previewTextureStencilReady_,
+            &previewImageCache_);
+        const auto drawReticlePass = [&](const bool drawOnTop)
         {
-            if (!IsReticleVisibleInEditor(*page, reticle))
+            for (const auto& reticle : page->staticReticles)
             {
-                continue;
-            }
+                if (!IsReticleVisibleInEditor(*page, reticle) || reticle.drawOnTop != drawOnTop)
+                {
+                    continue;
+                }
 
-            canvas.DrawReticle(reticle);
-        }
+                canvas.DrawReticle(reticle);
+            }
+        };
+        drawReticlePass(false);
+        drawReticlePass(true);
 
         if (page->strobe.has_value())
         {
@@ -2839,13 +2875,15 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     ClearBackground(Color {10, 18, 24, 255});
     {
         EnsurePreviewFont();
+        ApplyBilinearFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
             previewTexture_.texture.width,
             previewTexture_.texture.height,
             viewport.view,
             PreviewTextFont(),
             Color {10, 18, 24, 255},
-            previewTextureStencilReady_);
+            previewTextureStencilReady_,
+            &previewImageCache_);
         canvas.DrawReticle(*reticle);
     }
     EndTextureMode();
@@ -4804,12 +4842,14 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
     ClearBackground(backgroundColor);
     {
         EnsurePreviewFont();
+        ApplyBilinearFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(kTooltipPreviewWidth,
                              kTooltipPreviewHeight,
                              previewView,
                              PreviewTextFont(),
                              backgroundColor,
-                             tooltipPreviewTextureStencilReady_);
+                             tooltipPreviewTextureStencilReady_,
+                             &previewImageCache_);
         canvas.DrawReticle(previewReticle);
     }
     EndTextureMode();
@@ -5087,6 +5127,28 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
         return std::min(bestDistance, distanceToSegment(toScreenPoint(line->start), toScreenPoint(line->end)));
     }
 
+    if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
+    {
+        const std::array<ImVec2, 4> imageCorners {
+            toScreenPoint({-image->width * 0.5f, -image->height * 0.5f}),
+            toScreenPoint({image->width * 0.5f, -image->height * 0.5f}),
+            toScreenPoint({image->width * 0.5f, image->height * 0.5f}),
+            toScreenPoint({-image->width * 0.5f, image->height * 0.5f})};
+        std::vector<ImVec2> polygon(imageCorners.begin(), imageCorners.end());
+        if (IsPointInsidePolygon(polygon, mousePosition))
+        {
+            return 1.0f;
+        }
+
+        for (std::size_t index = 0; index < imageCorners.size(); ++index)
+        {
+            const std::size_t nextIndex = (index + 1U) % imageCorners.size();
+            bestDistance = std::min(bestDistance, distanceToSegment(imageCorners[index], imageCorners[nextIndex]));
+        }
+
+        return bestDistance;
+    }
+
     if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
     {
         const ImVec2 center = toScreenPoint({});
@@ -5238,6 +5300,14 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
             points.push_back(toScreenPoint(point));
         }
     }
+    else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
+    {
+        points = {
+            toScreenPoint({-image->width * 0.5f, -image->height * 0.5f}),
+            toScreenPoint({image->width * 0.5f, -image->height * 0.5f}),
+            toScreenPoint({image->width * 0.5f, image->height * 0.5f}),
+            toScreenPoint({-image->width * 0.5f, image->height * 0.5f})};
+    }
 
     for (std::size_t index = 0; index < points.size(); ++index)
     {
@@ -5311,6 +5381,9 @@ std::vector<int> EditorApplication::CollectPageReticlesAt(const ViewportState& v
         int reticleIndex = -1;
         float distance = std::numeric_limits<float>::max();
         float area = std::numeric_limits<float>::max();
+        bool directHit = false;
+        bool boundsHit = false;
+        int drawPriority = 0;
     };
 
     std::vector<ReticleHit> hits;
@@ -5332,24 +5405,37 @@ std::vector<int> EditorApplication::CollectPageReticlesAt(const ViewportState& v
         const bool mouseInsideBounds =
             mousePosition.x >= bounds.min.x - 8.0f && mousePosition.x <= bounds.max.x + 8.0f &&
             mousePosition.y >= bounds.min.y - 8.0f && mousePosition.y <= bounds.max.y + 8.0f;
+        const bool directHit = distance <= 6.0f;
         if (mouseInsideBounds)
         {
             distance = std::min(distance, 4.0f);
         }
 
-        if (!mouseInsideBounds && distance > 36.0f)
+        if (!mouseInsideBounds && !directHit && distance > 36.0f)
         {
             continue;
         }
 
         const float area = std::max(1.0f, (bounds.max.x - bounds.min.x) * (bounds.max.y - bounds.min.y));
-        hits.push_back(ReticleHit {reticleIndex, distance, area});
+        hits.push_back(ReticleHit {reticleIndex, distance, area, directHit, mouseInsideBounds, reticle.drawOnTop ? 1 : 0});
     }
 
     std::sort(hits.begin(),
               hits.end(),
               [](const ReticleHit& lhs, const ReticleHit& rhs)
               {
+                  if (lhs.directHit != rhs.directHit)
+                  {
+                      return lhs.directHit && !rhs.directHit;
+                  }
+                  if (lhs.boundsHit != rhs.boundsHit)
+                  {
+                      return lhs.boundsHit && !rhs.boundsHit;
+                  }
+                  if (lhs.drawPriority != rhs.drawPriority)
+                  {
+                      return lhs.drawPriority > rhs.drawPriority;
+                  }
                   if (std::abs(lhs.distance - rhs.distance) > 0.25f)
                   {
                       return lhs.distance < rhs.distance;
@@ -6573,6 +6659,9 @@ mfd::ReticleGroup EditorApplication::MakePrimitiveReticle(std::string id, const 
     case mfd::PrimitiveType::Arc:
         primitive.geometry = mfd::ArcGeometry {0.12f, -45.0f, 135.0f, 48};
         break;
+    case mfd::PrimitiveType::Image:
+        primitive.geometry = mfd::ImageGeometry {};
+        break;
     }
 
     reticle.primitives.push_back(std::move(primitive));
@@ -7585,6 +7674,16 @@ void EditorApplication::DrawPageReticleInspector()
         ShowItemTooltip("Toggle whether this page reticle instance is rendered.");
     }
 
+    {
+        bool drawOnTop = reticle->drawOnTop;
+        if (ImGui::Checkbox("Draw on top", &drawOnTop))
+        {
+            PushUndoSnapshot();
+            reticle->drawOnTop = drawOnTop;
+        }
+        ShowItemTooltip("Render this page reticle after regular page reticles while keeping the strobe on top.");
+    }
+
     DrawPageReticleBlinkInspector(*page, *reticle);
 
     ImGui::Separator();
@@ -7962,6 +8061,16 @@ void EditorApplication::DrawLibraryReticleInspector()
             reticle->visible = visible;
         }
         ShowItemTooltip("Toggle whether this template is visible by default.");
+    }
+
+    {
+        bool drawOnTop = reticle->drawOnTop;
+        if (ImGui::Checkbox("Draw on top", &drawOnTop))
+        {
+            PushUndoSnapshot();
+            reticle->drawOnTop = drawOnTop;
+        }
+        ShowItemTooltip("Default draw tier used when this template is instantiated on a page.");
     }
 
     if (ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f"))
@@ -8534,6 +8643,34 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             arc->segments = std::clamp(arc->segments, 2, 256);
         }
         ShowItemTooltip("Number of line segments used to approximate the arc.");
+        return;
+    }
+
+    if (auto* image = std::get_if<mfd::ImageGeometry>(&primitive->geometry))
+    {
+        std::array<char, kPathTextCapacity> imagePath {};
+        CopyTextBuffer(imagePath, image->file.string());
+        const bool pathChanged = ImGui::InputText("Image file", imagePath.data(), imagePath.size());
+        ShowItemTooltip("Path to the raster image displayed by this primitive.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (pathChanged)
+        {
+            image->file = std::filesystem::path(imagePath.data()).lexically_normal();
+        }
+
+        if (ImGui::DragFloat2("Size", &image->width, 0.002f, 0.001f, 2.0f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            image->width = std::max(0.001f, image->width);
+            image->height = std::max(0.001f, image->height);
+        }
+        ShowItemTooltip("Logical size of the image before the primitive scale is applied.");
     }
 
 }

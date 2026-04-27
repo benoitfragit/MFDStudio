@@ -36,6 +36,13 @@
       "exposed": true
     },
     {
+      "id": "overlay_image",
+      "type": "image",
+      "file": "../../picture/generated_fixture_template.png",
+      "size": [0.18, 0.18],
+      "exposed": true
+    },
+    {
       "id": "uncertainty_ellipse",
       "type": "ellipse",
       "exposed": true

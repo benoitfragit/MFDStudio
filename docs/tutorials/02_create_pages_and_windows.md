@@ -87,6 +87,11 @@ Important page fields are:
 
 `name` is the page identifier used by the runtime and the client API.
 
+Useful page-reticle details:
+
+- `staticReticles[].drawOnTop` keeps one reticle in a later overlay pass
+- image primitive file paths are resolved relative to the page or reticle JSON file that references them
+
 ## Step 3 - Create a window file
 
 The root window JSON defines:

@@ -82,6 +82,23 @@ std::string ToHexColor(const mfd::ColorRgba& color)
     return stream.str();
 }
 
+std::string SerializePathRelativeTo(const std::filesystem::path& path, const std::filesystem::path& baseFolder)
+{
+    if (path.empty())
+    {
+        return {};
+    }
+
+    if (baseFolder.empty())
+    {
+        return path.generic_string();
+    }
+
+    std::error_code relativeError;
+    const std::filesystem::path relativePath = std::filesystem::relative(path, baseFolder, relativeError);
+    return relativeError ? path.generic_string() : relativePath.generic_string();
+}
+
 void WriteTransformFields(json& node, const mfd::Transform2D& transform)
 {
     if (!IsZero(transform.position.x) || !IsZero(transform.position.y))
@@ -166,7 +183,7 @@ void WritePrimitiveStyleFields(json& node, const mfd::PrimitiveStyle& style)
     }
 }
 
-void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive)
+void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive, const std::filesystem::path& baseFolder)
 {
     if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
     {
@@ -319,6 +336,21 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive)
         {
             node["segments"] = arc->segments;
         }
+        return;
+    }
+
+    if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
+    {
+        node["file"] = SerializePathRelativeTo(image->file, baseFolder);
+        if (std::abs(image->width - image->height) < 0.0001f)
+        {
+            node["size"] = image->width;
+        }
+        else
+        {
+            node["width"] = image->width;
+            node["height"] = image->height;
+        }
     }
 }
 
@@ -352,12 +384,14 @@ std::string PrimitiveTypeName(const mfd::PrimitiveType type)
         return "bezier";
     case mfd::PrimitiveType::Arc:
         return "arc";
+    case mfd::PrimitiveType::Image:
+        return "image";
     }
 
     return "line";
 }
 
-json SerializePrimitive(const mfd::Primitive& primitive)
+json SerializePrimitive(const mfd::Primitive& primitive, const std::filesystem::path& baseFolder)
 {
     json node = json::object();
     if (!primitive.id.empty())
@@ -367,7 +401,7 @@ json SerializePrimitive(const mfd::Primitive& primitive)
     node["type"] = PrimitiveTypeName(primitive.type);
     WriteTransformFields(node, primitive.transform);
     WritePrimitiveStyleFields(node, primitive.style);
-    WritePrimitiveGeometry(node, primitive);
+    WritePrimitiveGeometry(node, primitive, baseFolder);
     return node;
 }
 
@@ -523,7 +557,7 @@ std::optional<json> SerializeLetterSpacingOverrides(const mfd::ReticleGroup& ret
     return letterSpacings;
 }
 
-json SerializeInlineReticle(const mfd::ReticleGroup& reticle)
+json SerializeInlineReticle(const mfd::ReticleGroup& reticle, const std::filesystem::path& baseFolder)
 {
     json node = json::object();
     node["id"] = reticle.id;
@@ -532,6 +566,11 @@ json SerializeInlineReticle(const mfd::ReticleGroup& reticle)
     if (!reticle.visible)
     {
         node["visible"] = false;
+    }
+
+    if (reticle.drawOnTop)
+    {
+        node["drawOnTop"] = true;
     }
 
     WriteTransformFields(node, reticle.transform);
@@ -544,14 +583,16 @@ json SerializeInlineReticle(const mfd::ReticleGroup& reticle)
     json elements = json::array();
     for (const auto& primitive : reticle.primitives)
     {
-        elements.push_back(SerializePrimitive(primitive));
+        elements.push_back(SerializePrimitive(primitive, baseFolder));
     }
     node["elements"] = std::move(elements);
 
     return node;
 }
 
-json SerializePageReticle(const mfd::ReticleGroup& reticle, const mfd::ReticleLibrary& library)
+json SerializePageReticle(const mfd::ReticleGroup& reticle,
+                          const mfd::ReticleLibrary& library,
+                          const std::filesystem::path& baseFolder)
 {
     if (!reticle.sourceTemplateId.empty() && library.find(reticle.sourceTemplateId) != library.end())
     {
@@ -563,6 +604,11 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle, const mfd::ReticleLi
         if (!reticle.visible)
         {
             node["visible"] = false;
+        }
+
+        if (reticle.drawOnTop != library.at(reticle.sourceTemplateId).drawOnTop)
+        {
+            node["drawOnTop"] = reticle.drawOnTop;
         }
 
         WriteTransformFields(node, reticle.transform);
@@ -594,7 +640,7 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle, const mfd::ReticleLi
         return node;
     }
 
-    json node = SerializeInlineReticle(reticle);
+    json node = SerializeInlineReticle(reticle, baseFolder);
     WriteReticleEditorFields(node, reticle);
     if (const auto blink = SerializeBlinkBinding(reticle.blink); blink.has_value())
     {
@@ -604,7 +650,7 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle, const mfd::ReticleLi
     return node;
 }
 
-json SerializeStrobe(const mfd::PageStrobeDefinition& strobe)
+json SerializeStrobe(const mfd::PageStrobeDefinition& strobe, const std::filesystem::path& /*baseFolder*/)
 {
     json node = json::object();
     node["id"] = strobe.reticle.id;
@@ -623,6 +669,10 @@ json SerializeStrobe(const mfd::PageStrobeDefinition& strobe)
     if (const auto clipping = SerializeReticleClipping(strobe.reticle.clipping); clipping.has_value())
     {
         node["clipping"] = *clipping;
+    }
+    if (strobe.reticle.drawOnTop)
+    {
+        node["drawOnTop"] = true;
     }
 
     json capture = json::object();
@@ -657,7 +707,9 @@ json SerializeStrobe(const mfd::PageStrobeDefinition& strobe)
     return node;
 }
 
-json SerializePage(const mfd::PageDefinition& page, const mfd::ReticleLibrary& library)
+json SerializePage(const mfd::PageDefinition& page,
+                   const mfd::ReticleLibrary& library,
+                   const std::filesystem::path& baseFolder)
 {
     json node = json::object();
     node["name"] = page.name;
@@ -673,7 +725,7 @@ json SerializePage(const mfd::PageDefinition& page, const mfd::ReticleLibrary& l
 
     if (page.strobe.has_value())
     {
-        node["strobe"] = SerializeStrobe(*page.strobe);
+        node["strobe"] = SerializeStrobe(*page.strobe, baseFolder);
     }
 
     if (const auto blinkTypes = SerializePageBlinkTypes(page); blinkTypes.has_value())
@@ -694,7 +746,7 @@ json SerializePage(const mfd::PageDefinition& page, const mfd::ReticleLibrary& l
     json reticles = json::array();
     for (const auto& reticle : page.staticReticles)
     {
-        reticles.push_back(SerializePageReticle(reticle, library));
+        reticles.push_back(SerializePageReticle(reticle, library, baseFolder));
     }
     node["staticReticles"] = std::move(reticles);
     return node;
@@ -907,15 +959,17 @@ bool DiscoverReticleTemplateFiles(const std::filesystem::path& libraryFolder,
     }
 }
 
-std::string SerializeReticleTemplateToJsonString(const mfd::ReticleGroup& reticle)
+std::string SerializeReticleTemplateToJsonString(const mfd::ReticleGroup& reticle,
+                                                 const std::filesystem::path& baseFolder)
 {
-    return JsonToString(SerializeInlineReticle(reticle));
+    return JsonToString(SerializeInlineReticle(reticle, baseFolder));
 }
 
 std::string SerializePageReticleToJsonString(const mfd::ReticleGroup& reticle,
-                                             const mfd::ReticleLibrary& library)
+                                             const mfd::ReticleLibrary& library,
+                                             const std::filesystem::path& baseFolder)
 {
-    return JsonToString(SerializePageReticle(reticle, library));
+    return JsonToString(SerializePageReticle(reticle, library, baseFolder));
 }
 
 bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
@@ -933,7 +987,10 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
 
         for (std::size_t index = 0; index < loaded.document.pages.size(); ++index)
         {
-            WriteJsonFile(layout.pageFiles[index], SerializePage(loaded.document.pages[index], loaded.document.reticleLibrary));
+            WriteJsonFile(layout.pageFiles[index],
+                          SerializePage(loaded.document.pages[index],
+                                        loaded.document.reticleLibrary,
+                                        layout.pageFiles[index].parent_path()));
         }
 
         std::vector<std::string> templateIds;
@@ -959,7 +1016,7 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
                     ? fileIterator->second
                     : DefaultTemplateFilePath(loaded.window.reticleLibraryFolder, templateId);
 
-            WriteJsonFile(templatePath, SerializeInlineReticle(iterator->second));
+            WriteJsonFile(templatePath, SerializeInlineReticle(iterator->second, templatePath.parent_path()));
         }
 
         const std::unordered_set<std::filesystem::path> currentPageFiles(layout.pageFiles.begin(), layout.pageFiles.end());

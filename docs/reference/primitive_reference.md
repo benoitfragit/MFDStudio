@@ -41,6 +41,7 @@ For transform and color syntax, see [Common JSON Syntax](./common_json_syntax.md
 | `polyline` | `polyline` |
 | `bezier` | `bezier` |
 | `arc` | `arc` |
+| `image` | `image`, `picture`, `sprite` |
 
 ## `text`
 
@@ -481,6 +482,43 @@ Notes:
 
 - when `filled` is `true`, the arc is rendered as a sector from the center to the sampled arc
 - use a higher `segments` value if the arc must look smooth at large radius
+
+## `image`
+
+Purpose:
+
+- logos
+- bitmap overlays
+- image-backed widgets or page annotations
+
+Specific fields:
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `file` | string | recommended | Image file path. |
+| `image` | string | no | Alias of `file`. |
+| `source` | string | no | Alias of `file`. |
+| `path` | string | no | Alias of `file`. |
+| `size` | number or vec2 | no | Uniform or explicit image size in logical units. |
+| `width` | number | no | Image width. |
+| `height` | number | no | Image height. |
+
+Example:
+
+```json
+{
+  "id": "demo_picture",
+  "type": "image",
+  "file": "../picture/mfdstudio_badge.png",
+  "size": [0.30, 0.30]
+}
+```
+
+Notes:
+
+- image paths are resolved relative to the page or reticle JSON file that references them
+- use the common transform fields `position`, `rotationDegrees`, and `scale` to animate the image at runtime
+- the runtime loads image textures lazily and applies bilinear filtering
 
 ## Practical Recommendations
 

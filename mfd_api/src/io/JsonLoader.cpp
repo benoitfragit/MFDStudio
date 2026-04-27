@@ -39,7 +39,9 @@ std::vector<PageBlinkDefinition> ParsePageBlinkDefinitions(const json& node);
 PageEditorState ParsePageEditorState(const json& node);
 StrobeCaptureConfig ParseStrobeCaptureConfig(const json& node);
 StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node);
-PageStrobeDefinition ParsePageStrobe(const json& node, const ReticleLibrary& library);
+PageStrobeDefinition ParsePageStrobe(const json& node,
+                                     const ReticleLibrary& library,
+                                     const std::filesystem::path& baseFolder);
 PageViewState ParsePageViewState(const json& node);
 WindowCommandTransportConfig ParseWindowCommandTransportConfig(const json& root);
 WindowFeedbackTransportConfig ParseWindowFeedbackTransportConfig(const json& root);
@@ -1165,10 +1167,15 @@ PrimitiveType ParsePrimitiveType(const std::string_view value)
         return PrimitiveType::Arc;
     }
 
+    if (lowered == "image" || lowered == "picture" || lowered == "sprite")
+    {
+        return PrimitiveType::Image;
+    }
+
     throw std::runtime_error("Unknown primitive type: " + std::string(value));
 }
 
-Primitive ParsePrimitive(const json& node)
+Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFolder)
 {
     if (!node.contains("type"))
     {
@@ -1363,12 +1370,54 @@ Primitive ParsePrimitive(const json& node)
         primitive.geometry = std::move(geometry);
         break;
     }
+    case PrimitiveType::Image:
+    {
+        ImageGeometry geometry;
+        const json* imageFile = FindField(node, {"file", "image", "source", "path"});
+        if (imageFile == nullptr || !imageFile->is_string())
+        {
+            throw std::runtime_error("image primitive requires a string file path");
+        }
+
+        geometry.file = ResolvePath(baseFolder, imageFile->get<std::string>());
+
+        if (const json* size = FindField(node, {"size"}); size != nullptr)
+        {
+            if (size->is_number())
+            {
+                const float scalar = size->get<float>();
+                geometry.width = scalar;
+                geometry.height = scalar;
+            }
+            else
+            {
+                const Vec2 dimensions = ParseVec2(*size);
+                geometry.width = dimensions.x;
+                geometry.height = dimensions.y;
+            }
+        }
+
+        if (const json* width = FindField(node, {"width"}))
+        {
+            geometry.width = width->get<float>();
+        }
+
+        if (const json* height = FindField(node, {"height"}))
+        {
+            geometry.height = height->get<float>();
+        }
+
+        geometry.width = std::max(0.001f, geometry.width);
+        geometry.height = std::max(0.001f, geometry.height);
+        primitive.geometry = std::move(geometry);
+        break;
+    }
     }
 
     return primitive;
 }
 
-ReticleGroup ParseInlineReticle(const json& node)
+ReticleGroup ParseInlineReticle(const json& node, const std::filesystem::path& baseFolder)
 {
     if (!node.contains("elements"))
     {
@@ -1380,6 +1429,7 @@ ReticleGroup ParseInlineReticle(const json& node)
     group.sourceTemplateId = node.value("sourceTemplateId", "");
     group.info = ParseReticleInfo(node);
     group.visible = ParseVisibleFlag(node).value_or(true);
+    group.drawOnTop = node.value("drawOnTop", node.value("onTop", false));
     group.transform = ParseTransform(node);
     group.overrides = ParseReticleOverrides(node);
     group.editor = ParseReticleEditorState(node);
@@ -1387,7 +1437,7 @@ ReticleGroup ParseInlineReticle(const json& node)
 
     for (const auto& element : node.at("elements"))
     {
-        group.primitives.push_back(ParsePrimitive(element));
+        group.primitives.push_back(ParsePrimitive(element, baseFolder));
     }
 
     ApplyReticleTextOverrides(node, group);
@@ -1395,7 +1445,9 @@ ReticleGroup ParseInlineReticle(const json& node)
     return group;
 }
 
-ReticleGroup ParseReticle(const json& node, const ReticleLibrary& library)
+ReticleGroup ParseReticle(const json& node,
+                          const ReticleLibrary& library,
+                          const std::filesystem::path& baseFolder)
 {
     if (node.contains("template"))
     {
@@ -1424,6 +1476,7 @@ ReticleGroup ParseReticle(const json& node, const ReticleLibrary& library)
         group.info.metadata.insert(infoOverrides.metadata.begin(), infoOverrides.metadata.end());
         group.blink = ParseReticleBlinkState(node);
         group.visible = ParseVisibleFlag(node).value_or(group.visible);
+        group.drawOnTop = node.value("drawOnTop", node.value("onTop", group.drawOnTop));
         group.editor = ParseReticleEditorState(node);
         if (FindField(node, {"clipping", "clip"}) != nullptr)
         {
@@ -1433,7 +1486,7 @@ ReticleGroup ParseReticle(const json& node, const ReticleLibrary& library)
         return group;
     }
 
-    ReticleGroup group = ParseInlineReticle(node);
+    ReticleGroup group = ParseInlineReticle(node, baseFolder);
     group.blink = ParseReticleBlinkState(node);
     return group;
 }
@@ -1530,7 +1583,7 @@ ReticleLibrary LoadReticleLibrary(const std::filesystem::path& folder)
                 throw std::runtime_error("Template chaining is not supported in reticle library files");
             }
 
-            ReticleGroup group = ParseInlineReticle(templateJson);
+            ReticleGroup group = ParseInlineReticle(templateJson, file.parent_path());
             if (group.id.empty())
             {
                 group.id = file.stem().string();
@@ -2036,10 +2089,12 @@ StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node)
     return config;
 }
 
-PageStrobeDefinition ParsePageStrobe(const json& node, const ReticleLibrary& library)
+PageStrobeDefinition ParsePageStrobe(const json& node,
+                                     const ReticleLibrary& library,
+                                     const std::filesystem::path& baseFolder)
 {
     PageStrobeDefinition strobe;
-    strobe.reticle = ParseReticle(node, library);
+    strobe.reticle = ParseReticle(node, library, baseFolder);
     strobe.capture = ParseStrobeCaptureConfig(node);
     strobe.magnet = ParseStrobeMagnetConfig(node);
     return strobe;
@@ -2219,7 +2274,9 @@ WindowAssetDefinition ParseWindowAssetDefinition(const json& root,
     return window;
 }
 
-PageDefinition ParsePage(const json& node, const ReticleLibrary& library)
+PageDefinition ParsePage(const json& node,
+                         const ReticleLibrary& library,
+                         const std::filesystem::path& baseFolder)
 {
     std::string pageName;
     if (node.contains("name"))
@@ -2273,13 +2330,13 @@ PageDefinition ParsePage(const json& node, const ReticleLibrary& library)
     {
         for (const auto& reticle : node.at("staticReticles"))
         {
-            page.staticReticles.push_back(ParseReticle(reticle, library));
+            page.staticReticles.push_back(ParseReticle(reticle, library, baseFolder));
         }
     }
 
     if (node.contains("strobe"))
     {
-        page.strobe = ParsePageStrobe(node.at("strobe"), library);
+        page.strobe = ParsePageStrobe(node.at("strobe"), library, baseFolder);
     }
 
     for (auto& reticle : page.staticReticles)
@@ -2391,6 +2448,8 @@ std::string PrimitiveTypeToGeneratedName(const PrimitiveType type)
         return "bezier";
     case PrimitiveType::Arc:
         return "arc";
+    case PrimitiveType::Image:
+        return "image";
     }
 
     return {};
@@ -2627,7 +2686,7 @@ LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesys
         try
         {
             const json pageRoot = LoadJsonFile(pageFile);
-            page = ParsePage(ExtractPageNode(pageRoot), loaded.document.reticleLibrary);
+            page = ParsePage(ExtractPageNode(pageRoot), loaded.document.reticleLibrary, pageFile.parent_path());
         }
         catch (const std::exception& exception)
         {
@@ -2693,7 +2752,7 @@ MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) con
 
     for (const auto& pageNode : root.at("pages"))
     {
-        PageDefinition page = ParsePage(pageNode, document.reticleLibrary);
+        PageDefinition page = ParsePage(pageNode, document.reticleLibrary, pagesFile.parent_path());
         if (!pageNames.insert(page.normalizedName).second)
         {
             throw std::runtime_error("Duplicate page name in pages JSON: " + page.name);

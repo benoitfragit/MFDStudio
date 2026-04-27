@@ -32,7 +32,8 @@ public:
           warningTriangle(MutableDesiredPatch(), DirtyFlag(), "warning_triangle"),
           routePolyline(MutableDesiredPatch(), DirtyFlag(), "route_polyline"),
           guideBezier(MutableDesiredPatch(), DirtyFlag(), "guide_bezier"),
-          scanArc(MutableDesiredPatch(), DirtyFlag(), "scan_arc")
+          scanArc(MutableDesiredPatch(), DirtyFlag(), "scan_arc"),
+          overlayImage(MutableDesiredPatch(), DirtyFlag(), "overlay_image")
     {
     }
 
@@ -44,6 +45,7 @@ public:
     mfd::client::PolylineHandle routePolyline;
     mfd::client::BezierHandle guideBezier;
     mfd::client::ArcHandle scanArc;
+    mfd::client::ImageHandle overlayImage;
 };
 
 class GeneratedPrimitiveFixtureReticle final : public mfd::client::Reticle
@@ -224,6 +226,10 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     reticle.scanArc.SetStartAngleDegrees(-45.0f);
     reticle.scanArc.SetEndAngleDegrees(135.0f);
     reticle.scanArc.SetSegments(24);
+    reticle.overlayImage.SetPosition({0.05f, 0.09f});
+    reticle.overlayImage.SetRotationDegrees(18.0f);
+    reticle.overlayImage.SetScale({1.5f, 0.75f});
+    reticle.overlayImage.SetVisible(true);
 
     std::vector<mfd::UserCommand> commands;
     ASSERT_TRUE(reticle.AppendCommands(commands));
@@ -231,7 +237,7 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
 
     const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
     ASSERT_NE(update, nullptr);
-    ASSERT_EQ(update->patch.primitivePatches.size(), 8U);
+    ASSERT_EQ(update->patch.primitivePatches.size(), 9U);
 
     const auto& textPatch = update->patch.primitivePatches.at("heading_value");
     ASSERT_TRUE(textPatch.visible.has_value());
@@ -306,6 +312,18 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     EXPECT_FLOAT_EQ(*arcPatch.startAngleDegrees, -45.0f);
     EXPECT_FLOAT_EQ(*arcPatch.endAngleDegrees, 135.0f);
     EXPECT_EQ(*arcPatch.segments, 24);
+
+    const auto& imagePatch = update->patch.primitivePatches.at("overlay_image");
+    ASSERT_TRUE(imagePatch.visible.has_value());
+    ASSERT_TRUE(imagePatch.position.has_value());
+    ASSERT_TRUE(imagePatch.rotationDegrees.has_value());
+    ASSERT_TRUE(imagePatch.scale.has_value());
+    EXPECT_TRUE(*imagePatch.visible);
+    EXPECT_FLOAT_EQ(imagePatch.position->x, 0.05f);
+    EXPECT_FLOAT_EQ(imagePatch.position->y, 0.09f);
+    EXPECT_FLOAT_EQ(*imagePatch.rotationDegrees, 18.0f);
+    EXPECT_FLOAT_EQ(imagePatch.scale->x, 1.5f);
+    EXPECT_FLOAT_EQ(imagePatch.scale->y, 0.75f);
 }
 
 TEST(AnimationTests, GeneratedStaticHandlesCarryTransportIdsAlongsideLegacyFields)

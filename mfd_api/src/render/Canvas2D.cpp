@@ -22,6 +22,7 @@
 #include <rlgl.h>
 
 #include "OpenGlCompat.h"
+#include "mfd/render/ImageTextureCache.h"
 
 namespace mfd
 {
@@ -232,13 +233,15 @@ Canvas2D::Canvas2D(const int width,
                    const PageViewState view,
                    const Font* textFont,
                    const Color backgroundColor,
-                   const bool clippingEnabled)
+                   const bool clippingEnabled,
+                   ImageTextureCache* imageCache)
     : width_(width)
     , height_(height)
     , view_(view)
     , textFont_(textFont)
     , backgroundColor_(backgroundColor)
     , clippingEnabled_(clippingEnabled)
+    , imageCache_(imageCache)
 {
 }
 
@@ -672,6 +675,33 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         {
             DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor);
         }
+        break;
+    }
+    case PrimitiveType::Image:
+    {
+        if (imageCache_ == nullptr)
+        {
+            break;
+        }
+
+        const auto& image = std::get<ImageGeometry>(primitive.geometry);
+        const Texture2D* texture = imageCache_->Resolve(image.file);
+        if (texture == nullptr || texture->id == 0)
+        {
+            break;
+        }
+
+        const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
+        const float width = std::max(1.0f, ToViewPixels(image.width * std::abs(combinedTransform.scale.x)));
+        const float height = std::max(1.0f, ToViewPixels(image.height * std::abs(combinedTransform.scale.y)));
+        const Rectangle source {
+            0.0f,
+            0.0f,
+            static_cast<float>(texture->width) * (combinedTransform.scale.x < 0.0f ? -1.0f : 1.0f),
+            static_cast<float>(texture->height) * (combinedTransform.scale.y < 0.0f ? -1.0f : 1.0f)};
+        const Rectangle destination {center.x, center.y, width, height};
+        const Vector2 origin {width * 0.5f, height * 0.5f};
+        DrawTexturePro(*texture, source, destination, origin, -combinedTransform.rotationDegrees, WHITE);
         break;
     }
     }

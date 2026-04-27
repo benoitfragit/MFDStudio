@@ -24,6 +24,7 @@
 #include "EditorDocumentSerializer.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
+#include "mfd/render/ImageTextureCache.h"
 
 class EditorTutorialController;
 
@@ -148,6 +149,8 @@ private:
         mfd::LoadedWindowConfiguration loaded;
         editor::EditorFileLayout files;
         Selection selection;
+        mfd::PageViewState pagePreviewView;
+        mfd::PageViewState libraryPreviewView;
     };
 
     /** @brief Draft values used by the "new page" popup before the page is created. */
@@ -425,6 +428,8 @@ private:
     bool previewTextureReady_ = false;
     /** @brief Indicates whether the preview texture was successfully created with stencil support. */
     bool previewTextureStencilReady_ = false;
+    /** @brief Shared texture cache used by image primitives in preview canvases. */
+    mfd::ImageTextureCache previewImageCache_ {};
     /** @brief Off-screen texture dedicated to tree-item hover previews. */
     RenderTexture2D tooltipPreviewTexture_ {};
     /** @brief Indicates whether the hover-preview texture currently owns GPU resources. */

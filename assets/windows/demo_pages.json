@@ -26,6 +26,7 @@
     "../pages/navigation.json",
     "../pages/aircraft_centric.json",
     "../pages/radar.json",
-    "../pages/tactical.json"
+    "../pages/tactical.json",
+    "../pages/picture_demo.json"
   ]
 }

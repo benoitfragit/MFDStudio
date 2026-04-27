@@ -453,6 +453,7 @@ private:
     std::unordered_map<TransportId, TransportBlinkLookup> transportBlinks_ {};
     /** @brief Monotonic ordering counter used to place dynamic reticles after authored content. */
     std::size_t nextDynamicOrder_ = 10000;
+    std::size_t nextDynamicDrawOnTopOrder_ = 1010000;
     /** @brief Normalized name of the currently active page. */
     std::string activePage_ {};
     /** @brief Whole-window display post-process state. */

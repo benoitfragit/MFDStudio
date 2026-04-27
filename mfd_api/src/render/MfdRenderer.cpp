@@ -19,6 +19,7 @@
 #include <raylib.h>
 
 #include "mfd/render/Canvas2D.h"
+#include "mfd/render/ImageTextureCache.h"
 #include "mfd/render/RenderTextureUtils.h"
 
 namespace mfd
@@ -33,6 +34,14 @@ Color ToRayColor(const ColorRgba& color) noexcept
 Font ResolveTextFont(const Font* textFont) noexcept
 {
     return textFont != nullptr ? *textFont : GetFontDefault();
+}
+
+void ApplyBilinearFilterToFont(const Font font) noexcept
+{
+    if (font.texture.id != 0)
+    {
+        SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+    }
 }
 
 constexpr const char* kWindowDisplayFragmentShader = R"glsl(
@@ -79,7 +88,8 @@ void DrawActivePageContent(const SceneRegistry& scene,
                            const int width,
                            const int height,
                            const Font* textFont,
-                           const bool clippingEnabled)
+                           const bool clippingEnabled,
+                           ImageTextureCache* imageCache)
 {
     const auto activePage = scene.ActivePageSummary();
     if (!activePage.has_value())
@@ -93,7 +103,8 @@ void DrawActivePageContent(const SceneRegistry& scene,
         scene.ActivePageView(),
         textFont,
         ToRayColor(scene.ActiveBackgroundColor()),
-        clippingEnabled);
+        clippingEnabled,
+        imageCache);
 
     for (const ReticleRenderView& reticle : scene.CollectActiveReticleViews())
     {
@@ -129,6 +140,7 @@ struct MfdRenderer::Impl
     Font textFont {};
     bool textFontReady = false;
     bool textFontLoadAttempted = false;
+    ImageTextureCache imageCache {};
 
     ~Impl()
     {
@@ -266,6 +278,7 @@ struct MfdRenderer::Impl
             return false;
         }
 
+        ApplyBilinearFilterToFont(loadedFont);
         textFont = loadedFont;
         textFontReady = true;
         return true;
@@ -336,6 +349,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     }
 
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();
+    ApplyBilinearFilterToFont(ResolveTextFont(textFont));
     const bool usesFullScreenViewport = viewportWidth == screenWidth && viewportHeight == screenHeight;
     const bool needsRenderTarget =
         !usesFullScreenViewport ||
@@ -343,7 +357,13 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         ActiveSceneUsesReticleClipping(scene);
     if (!needsRenderTarget)
     {
-        DrawActivePageContent(scene, viewportWidth, viewportHeight, textFont, false);
+        DrawActivePageContent(
+            scene,
+            viewportWidth,
+            viewportHeight,
+            textFont,
+            false,
+            impl_ == nullptr ? nullptr : &impl_->imageCache);
         return;
     }
 
@@ -353,7 +373,13 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     const bool shaderReady = !postProcessNeeded || (impl_ != nullptr && impl_->EnsureShader());
     if (!renderTargetReady || !shaderReady)
     {
-        DrawActivePageContent(scene, viewportWidth, viewportHeight, textFont, false);
+        DrawActivePageContent(
+            scene,
+            viewportWidth,
+            viewportHeight,
+            textFont,
+            false,
+            impl_ == nullptr ? nullptr : &impl_->imageCache);
 
         if (display.brightness < 0.9995f)
         {
@@ -367,7 +393,13 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
 
     BeginTextureMode(impl_->renderTarget);
     ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
-    DrawActivePageContent(scene, viewportWidth, viewportHeight, textFont, impl_->renderTargetStencilReady);
+    DrawActivePageContent(
+        scene,
+        viewportWidth,
+        viewportHeight,
+        textFont,
+        impl_->renderTargetStencilReady,
+        &impl_->imageCache);
     EndTextureMode();
 
     const Rectangle source {

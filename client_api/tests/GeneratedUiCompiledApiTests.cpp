@@ -94,6 +94,12 @@ bool HasArcPatch(const mfd::PrimitivePatch& patch) noexcept
            patch.endAngleDegrees.has_value() && patch.segments.has_value();
 }
 
+bool HasImagePatch(const mfd::PrimitivePatch& patch) noexcept
+{
+    return patch.visible.has_value() && patch.position.has_value() &&
+           patch.rotationDegrees.has_value() && patch.scale.has_value();
+}
+
 bool HasFillPatch(const mfd::PrimitivePatch& patch) noexcept
 {
     return patch.fillColor.has_value() && patch.filled.has_value();
@@ -147,6 +153,10 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     radar.geometryPanel.ScanArc().SetStartAngleDegrees(-60.0f);
     radar.geometryPanel.ScanArc().SetEndAngleDegrees(120.0f);
     radar.geometryPanel.ScanArc().SetSegments(28);
+    radar.geometryPanel.PanelImage().SetVisible(true);
+    radar.geometryPanel.PanelImage().SetPosition({0.28f, -0.14f});
+    radar.geometryPanel.PanelImage().SetScale({1.25f, 0.85f});
+    radar.geometryPanel.PanelImage().SetRotationDegrees(17.0f);
     radar.geometryPanel.MissionTime().SetLetterSpacing(0.02f);
 
     auto& track = radar.DynamicGeometryTemplate().Create();
@@ -177,6 +187,10 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     track.ScanArc().SetStartAngleDegrees(-45.0f);
     track.ScanArc().SetEndAngleDegrees(90.0f);
     track.ScanArc().SetSegments(20);
+    track.OverlayImage().SetVisible(true);
+    track.OverlayImage().SetPosition({0.06f, -0.03f});
+    track.OverlayImage().SetScale({0.75f, 1.10f});
+    track.OverlayImage().SetRotationDegrees(-12.0f);
     track.MissionTime().SetLetterSpacing(0.03f);
 
     const mfd::CommandBatch batch = ui.BuildCommandBatch(9U);
@@ -235,7 +249,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     ASSERT_NE(geometryUpdateIt, staticReticleUpdates.end());
     const mfd::UpdateReticleCommand& geometryUpdate = **geometryUpdateIt;
     EXPECT_TRUE(geometryUpdate.patch.primitivePatches.empty());
-    ASSERT_EQ(geometryUpdate.patch.primitivePatchesById.size(), 12U);
+    ASSERT_EQ(geometryUpdate.patch.primitivePatchesById.size(), 13U);
     EXPECT_TRUE(std::any_of(
         geometryUpdate.patch.primitivePatchesById.begin(),
         geometryUpdate.patch.primitivePatchesById.end(),
@@ -325,6 +339,13 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
         geometryUpdate.patch.primitivePatchesById.end(),
         [](const auto& entry)
         {
+            return HasImagePatch(entry.second);
+        }));
+    EXPECT_TRUE(std::any_of(
+        geometryUpdate.patch.primitivePatchesById.begin(),
+        geometryUpdate.patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
             return HasTimePatch(entry.second);
         }));
 
@@ -343,7 +364,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     EXPECT_FALSE(upsert->reticles.front().patch.blinkType.has_value());
     EXPECT_TRUE(*upsert->reticles.front().patch.blinkEnabled);
     EXPECT_TRUE(upsert->reticles.front().patch.primitivePatches.empty());
-    ASSERT_EQ(upsert->reticles.front().patch.primitivePatchesById.size(), 13U);
+    ASSERT_EQ(upsert->reticles.front().patch.primitivePatchesById.size(), 14U);
     EXPECT_TRUE(std::any_of(
         upsert->reticles.front().patch.primitivePatchesById.begin(),
         upsert->reticles.front().patch.primitivePatchesById.end(),
@@ -358,6 +379,13 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
         {
             return HasTrianglePatch(entry.second) || HasPolylinePatch(entry.second) ||
                    HasBezierPatch(entry.second) || HasArcPatch(entry.second);
+        }));
+    EXPECT_TRUE(std::any_of(
+        upsert->reticles.front().patch.primitivePatchesById.begin(),
+        upsert->reticles.front().patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
+            return HasImagePatch(entry.second);
         }));
 }
 

@@ -222,6 +222,7 @@ class GenerateUiTests(unittest.TestCase):
                             {"id": "lock_box", "type": "rectangle", "exposed": True},
                             {"id": "warning_triangle", "type": "triangle", "exposed": True},
                             {"id": "route_polyline", "type": "polyline", "exposed": True},
+                            {"id": "overlay_image", "type": "image", "exposed": True},
                         ],
                     }
                 ),
@@ -246,6 +247,7 @@ class GenerateUiTests(unittest.TestCase):
                                     {"id": "diamond_cue", "type": "diamond", "exposed": True},
                                     {"id": "guide_bezier", "type": "bezier", "exposed": True},
                                     {"id": "scan_arc", "type": "arc", "exposed": True},
+                                    {"id": "panel_image", "type": "image", "exposed": True},
                                     {"id": "mission_time", "type": "time"},
                                 ],
                             },
@@ -301,6 +303,7 @@ class GenerateUiTests(unittest.TestCase):
                 "using PolylineHandle = mfd::client::PolylineHandle;",
                 "using BezierHandle = mfd::client::BezierHandle;",
                 "using ArcHandle = mfd::client::ArcHandle;",
+                "using ImageHandle = mfd::client::ImageHandle;",
                 "TextHandle& TrackLabel() noexcept;",
                 "LineHandle& HeadingLine() noexcept;",
                 "CircleHandle& CursorCircle() noexcept;",
@@ -308,6 +311,7 @@ class GenerateUiTests(unittest.TestCase):
                 "RectangleHandle& LockBox() noexcept;",
                 "TriangleHandle& WarningTriangle() noexcept;",
                 "PolylineHandle& RoutePolyline() noexcept;",
+                "ImageHandle& OverlayImage() noexcept;",
                 "class RadarGeometryWidgetReticle final : public Reticle",
                 "class RadarGeometryPanelReticle final : public Reticle",
                 "EllipseHandle& EllipseZone() noexcept;",
@@ -315,6 +319,7 @@ class GenerateUiTests(unittest.TestCase):
                 "DiamondHandle& DiamondCue() noexcept;",
                 "BezierHandle& GuideBezier() noexcept;",
                 "ArcHandle& ScanArc() noexcept;",
+                "ImageHandle& PanelImage() noexcept;",
                 "TimeHandle& MissionTime() noexcept;",
             ]:
                 self.assertIn(expected, header_content)
@@ -326,11 +331,13 @@ class GenerateUiTests(unittest.TestCase):
                 'lockBox_(MutableDesiredPatch(), DirtyFlag(), "lock_box", ',
                 'warningTriangle_(MutableDesiredPatch(), DirtyFlag(), "warning_triangle", ',
                 'routePolyline_(MutableDesiredPatch(), DirtyFlag(), "route_polyline", ',
+                'overlayImage_(MutableDesiredPatch(), DirtyFlag(), "overlay_image", ',
                 'ellipseZone_(MutableDesiredPatch(), DirtyFlag(), "ellipse_zone", ',
                 'squareMarker_(MutableDesiredPatch(), DirtyFlag(), "square_marker", ',
                 'diamondCue_(MutableDesiredPatch(), DirtyFlag(), "diamond_cue", ',
                 'guideBezier_(MutableDesiredPatch(), DirtyFlag(), "guide_bezier", ',
                 'scanArc_(MutableDesiredPatch(), DirtyFlag(), "scan_arc", ',
+                'panelImage_(MutableDesiredPatch(), DirtyFlag(), "panel_image", ',
                 'missionTime_(MutableDesiredPatch(), DirtyFlag(), "mission_time", ',
             ]:
                 self.assertIn(expected, source_content)
@@ -341,8 +348,10 @@ class GenerateUiTests(unittest.TestCase):
             for primitive_id in [
                 "warning_triangle",
                 "route_polyline",
+                "overlay_image",
                 "guide_bezier",
                 "scan_arc",
+                "panel_image",
             ]:
                 self.assertIn(primitive_id, primitive_ids)
 

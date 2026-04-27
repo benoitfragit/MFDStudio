@@ -20,6 +20,8 @@
 
 namespace mfd
 {
+class ImageTextureCache;
+
 /**
  * @brief Lightweight 2D renderer turning reticle data into raylib draw calls.
  */
@@ -34,13 +36,15 @@ public:
      * @param textFont Optional font override used for text-like primitives.
      * @param backgroundColor Color restored when one clipping primitive erases part of the page.
      * @param clippingEnabled Enables clipping-mask evaluation for clipping primitives.
+     * @param imageCache Optional texture cache used by image primitives.
      */
     Canvas2D(int width,
              int height,
              PageViewState view = {},
              const Font* textFont = nullptr,
              Color backgroundColor = BLACK,
-             bool clippingEnabled = false);
+             bool clippingEnabled = false,
+             ImageTextureCache* imageCache = nullptr);
 
     /**
      * @brief Draws one full reticle group.
@@ -78,6 +82,7 @@ private:
     const Font* textFont_ = nullptr;
     Color backgroundColor_ = BLACK;
     bool clippingEnabled_ = false;
+    ImageTextureCache* imageCache_ = nullptr;
     mutable std::vector<Vec2> logicalScratchA_ {};
     mutable std::vector<Vec2> logicalScratchB_ {};
     mutable std::vector<Vector2> screenScratchA_ {};

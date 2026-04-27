@@ -172,6 +172,31 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeom
     EXPECT_EQ(arcNode.at("stroke").get<std::string>(), "#010203FF");
 }
 
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesImageGeometryAndDrawOnTop)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "image_demo";
+    reticle.drawOnTop = true;
+
+    mfd::Primitive primitive;
+    primitive.id = "badge";
+    primitive.type = mfd::PrimitiveType::Image;
+    primitive.geometry = mfd::ImageGeometry {std::filesystem::path("/tmp/assets/picture/badge.png"), 0.28f, 0.16f};
+    reticle.primitives.push_back(std::move(primitive));
+
+    const std::string jsonText =
+        editor::SerializeReticleTemplateToJsonString(reticle, std::filesystem::path("/tmp/assets/reticles"));
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    EXPECT_TRUE(jsonNode.at("drawOnTop").get<bool>());
+    ASSERT_EQ(jsonNode.at("elements").size(), 1U);
+    const auto& imageNode = jsonNode.at("elements").at(0);
+    EXPECT_EQ(imageNode.at("type").get<std::string>(), "image");
+    EXPECT_EQ(imageNode.at("file").get<std::string>(), "../picture/badge.png");
+    EXPECT_FLOAT_EQ(imageNode.at("width").get<float>(), 0.28f);
+    EXPECT_FLOAT_EQ(imageNode.at("height").get<float>(), 0.16f);
+}
+
 TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverridesBlinkAndClipReset)
 {
     mfd::ReticleGroup templateReticle;
