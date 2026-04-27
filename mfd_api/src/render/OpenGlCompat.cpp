@@ -175,7 +175,7 @@ bool OpenGlStencilApiAvailable() noexcept
 #endif
 }
 
-void OpenGlSetStencilEnabled(const bool enabled) noexcept
+void OpenGlSetStencilEnabled([[maybe_unused]] const bool enabled) noexcept
 {
 #if defined(_WIN32)
     if (enabled)
@@ -186,32 +186,26 @@ void OpenGlSetStencilEnabled(const bool enabled) noexcept
     {
         glDisable(GL_STENCIL_TEST);
     }
-#else
-    (void)enabled;
 #endif
 }
 
-void OpenGlSetStencilMask(const std::uint32_t mask) noexcept
+void OpenGlSetStencilMask([[maybe_unused]] const std::uint32_t mask) noexcept
 {
 #if defined(_WIN32)
     if (const GlApi& gl = GetGlApi(); gl.stencilMask != nullptr)
     {
         gl.stencilMask(mask);
     }
-#else
-    (void)mask;
 #endif
 }
 
-void OpenGlClearStencilValue(const int value) noexcept
+void OpenGlClearStencilValue([[maybe_unused]] const int value) noexcept
 {
 #if defined(_WIN32)
     if (const GlApi& gl = GetGlApi(); gl.clearStencil != nullptr)
     {
         gl.clearStencil(value);
     }
-#else
-    (void)value;
 #endif
 }
 
@@ -222,7 +216,10 @@ void OpenGlClearStencilBuffer() noexcept
 #endif
 }
 
-void OpenGlSetColorWriteMask(const bool red, const bool green, const bool blue, const bool alpha) noexcept
+void OpenGlSetColorWriteMask([[maybe_unused]] const bool red,
+                             [[maybe_unused]] const bool green,
+                             [[maybe_unused]] const bool blue,
+                             [[maybe_unused]] const bool alpha) noexcept
 {
 #if defined(_WIN32)
     if (const GlApi& gl = GetGlApi(); gl.colorMask != nullptr)
@@ -232,49 +229,38 @@ void OpenGlSetColorWriteMask(const bool red, const bool green, const bool blue, 
                      blue ? GL_TRUE : GL_FALSE,
                      alpha ? GL_TRUE : GL_FALSE);
     }
-#else
-    (void)red;
-    (void)green;
-    (void)blue;
-    (void)alpha;
 #endif
 }
 
-void OpenGlSetStencilFunction(const GlStencilCompare compare, const int reference, const std::uint32_t mask) noexcept
+void OpenGlSetStencilFunction([[maybe_unused]] const GlStencilCompare compare,
+                              [[maybe_unused]] const int reference,
+                              [[maybe_unused]] const std::uint32_t mask) noexcept
 {
 #if defined(_WIN32)
     if (const GlApi& gl = GetGlApi(); gl.stencilFunc != nullptr)
     {
         gl.stencilFunc(ToGlCompare(compare), reference, mask);
     }
-#else
-    (void)compare;
-    (void)reference;
-    (void)mask;
 #endif
 }
 
-void OpenGlSetStencilOperation(const GlStencilOperation stencilFail,
-                               const GlStencilOperation depthFail,
-                               const GlStencilOperation depthPass) noexcept
+void OpenGlSetStencilOperation([[maybe_unused]] const GlStencilOperation stencilFail,
+                               [[maybe_unused]] const GlStencilOperation depthFail,
+                               [[maybe_unused]] const GlStencilOperation depthPass) noexcept
 {
 #if defined(_WIN32)
     if (const GlApi& gl = GetGlApi(); gl.stencilOp != nullptr)
     {
         gl.stencilOp(ToGlOperation(stencilFail), ToGlOperation(depthFail), ToGlOperation(depthPass));
     }
-#else
-    (void)stencilFail;
-    (void)depthFail;
-    (void)depthPass;
 #endif
 }
 
-bool OpenGlReplaceDepthRenderbufferWithDepthStencil(const unsigned int framebufferId,
-                                                    const unsigned int previousDepthId,
-                                                    const int width,
-                                                    const int height,
-                                                    unsigned int* replacementRenderbufferId) noexcept
+bool OpenGlReplaceDepthRenderbufferWithDepthStencil([[maybe_unused]] const unsigned int framebufferId,
+                                                    [[maybe_unused]] const unsigned int previousDepthId,
+                                                    [[maybe_unused]] const int width,
+                                                    [[maybe_unused]] const int height,
+                                                    [[maybe_unused]] unsigned int* replacementRenderbufferId) noexcept
 {
 #if defined(_WIN32)
     if (replacementRenderbufferId == nullptr || !OpenGlDepthStencilRenderbufferApiAvailable())
@@ -314,11 +300,6 @@ bool OpenGlReplaceDepthRenderbufferWithDepthStencil(const unsigned int framebuff
     gl.deleteRenderbuffers(1, &previousDepthId);
     return true;
 #else
-    (void)framebufferId;
-    (void)previousDepthId;
-    (void)width;
-    (void)height;
-    (void)replacementRenderbufferId;
     return false;
 #endif
 }

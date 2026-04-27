@@ -1514,7 +1514,7 @@ void ApplyReticleTextOverrides(const json& node, ReticleGroup& group)
                 throw std::runtime_error("Reticle texts overrides must be string values");
             }
 
-            (void)SetTextPrimitive(group, primitiveId, primitiveText.get<std::string>());
+            SetTextPrimitive(group, primitiveId, primitiveText.get<std::string>());
         }
     }
 
@@ -1545,7 +1545,7 @@ void ApplyReticleTextOverrides(const json& node, ReticleGroup& group)
                 throw std::runtime_error("Reticle letter spacing overrides must be numeric values");
             }
 
-            (void)SetTextPrimitiveLetterSpacing(group, primitiveId, primitiveSpacing.get<float>());
+            SetTextPrimitiveLetterSpacing(group, primitiveId, primitiveSpacing.get<float>());
         }
     }
 }

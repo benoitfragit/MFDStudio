@@ -167,10 +167,9 @@ std::vector<ReticleKey> RuntimeDebugState::BypassedReticles() const
     std::vector<ReticleKey> keys;
     keys.reserve(reticleBypasses_.size());
 
-    for (const auto& [key, bypass] : reticleBypasses_)
+    for (const auto& entry : reticleBypasses_)
     {
-        (void)bypass;
-        keys.push_back(key);
+        keys.push_back(entry.first);
     }
 
     return keys;

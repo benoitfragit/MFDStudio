@@ -93,10 +93,11 @@ On the wire, fixed authored objects now travel through transport IDs plus
 `mappingHash` only. Generated client APIs hide those IDs completely, including
 page-level calls such as `client.ActivatePage(ui.Radar())` and
 `client.SetPageView(ui.Radar(), center, zoom)`, which carry both the generated
-page ID and generated `mappingHash`. Raw `CommandClient` helpers can still
-accept page, reticle, template, blink, and primitive names, but they must be
-constructed with the companion generated transport map so those names are
-resolved locally before serialization.
+page ID and generated `mappingHash`. This generated path is the normal client
+API. Raw `CommandClient` helpers can still accept page, reticle, template,
+blink, and primitive names, but they are now the fallback path for tooling or
+migration only, and they must be constructed with the companion generated
+transport map so those names are resolved locally before serialization.
 
 ## Choose Your Path
 
@@ -118,6 +119,9 @@ Start with:
 3. [Add And Remove Dynamic Reticles](./docs/tutorials/05_dynamic_reticles.md)
 4. [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md)
 
+The recommended end-user path is: generated UI accessors for pages, reticles,
+primitives, and dynamic sets, then `CommandClient` only for the final send.
+
 ### I Want To Use The Generated Client API
 
 Start with:
@@ -125,6 +129,8 @@ Start with:
 1. [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md)
 2. [Documentation Guide](./docs/README.md)
 3. [Architecture Notes](./docs/architecture/generated_client_api.md)
+
+This is the preferred client-facing API surface.
 
 ### I Want To Use The Editor
 

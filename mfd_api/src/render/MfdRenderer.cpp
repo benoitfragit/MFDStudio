@@ -345,7 +345,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
 
     if (impl_ != nullptr)
     {
-        (void)impl_->EnsureTextFont();
+        impl_->EnsureTextFont();
     }
 
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();

@@ -27,7 +27,7 @@
 
 namespace editor
 {
-std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const std::filesystem::path& initialFolder,
+std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const [[maybe_unused]] std::filesystem::path& initialFolder,
                                                                std::string* error)
 {
 #if defined(_WIN32)
@@ -63,7 +63,6 @@ std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const std::filesy
     {
         *error = "Native file explorer integration is only available on Windows in this build.";
     }
-    (void)initialFolder;
     return std::nullopt;
 #endif
 }

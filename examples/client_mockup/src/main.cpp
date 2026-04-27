@@ -976,10 +976,9 @@ bool MockupApplication::ReloadConfiguration()
 
         templateIds_.clear();
         templateIds_.reserve(loaded_.document.reticleLibrary.size());
-        for (const auto& [templateId, reticle] : loaded_.document.reticleLibrary)
+        for (const auto& entry : loaded_.document.reticleLibrary)
         {
-            (void)reticle;
-            templateIds_.push_back(templateId);
+            templateIds_.push_back(entry.first);
         }
         std::sort(templateIds_.begin(), templateIds_.end());
 
@@ -1357,7 +1356,7 @@ void MockupApplication::SelectPage(const int pageIndex)
     selection_.kind = SelectionKind::Page;
     selection_.pageIndex = pageIndex;
     selection_.reticleIndex = -1;
-    (void)EnsurePageDraft(pageIndex);
+    EnsurePageDraft(pageIndex);
 }
 
 void MockupApplication::SelectReticle(const int pageIndex, const int reticleIndex)
@@ -1365,7 +1364,7 @@ void MockupApplication::SelectReticle(const int pageIndex, const int reticleInde
     selection_.kind = SelectionKind::Reticle;
     selection_.pageIndex = pageIndex;
     selection_.reticleIndex = reticleIndex;
-    (void)EnsureReticleDraft(pageIndex, reticleIndex);
+    EnsureReticleDraft(pageIndex, reticleIndex);
 }
 
 void MockupApplication::SelectStrobe(const int pageIndex)
@@ -1373,7 +1372,7 @@ void MockupApplication::SelectStrobe(const int pageIndex)
     selection_.kind = SelectionKind::Strobe;
     selection_.pageIndex = pageIndex;
     selection_.reticleIndex = -1;
-    (void)EnsurePageDraft(pageIndex);
+    EnsurePageDraft(pageIndex);
 }
 
 bool MockupApplication::SendActivatePage()
@@ -1685,7 +1684,7 @@ void MockupApplication::UpdateRadarSimulation(const float deltaSeconds)
 {
     if (radarSimulation_.clearRequested)
     {
-        (void)SendRadarSimulationBatch(true, true);
+        SendRadarSimulationBatch(true, true);
         radarSimulation_.clearRequested = false;
     }
 
@@ -2061,7 +2060,7 @@ void MockupApplication::ResetSelectedPageDraft()
 
     const std::string key = page->normalizedName.empty() ? mfd::NormalizePageName(page->name) : page->normalizedName;
     pageDrafts_.erase(key);
-    (void)EnsurePageDraft(selection_.pageIndex);
+    EnsurePageDraft(selection_.pageIndex);
 }
 
 void MockupApplication::ResetSelectedReticleDraft()
@@ -2076,7 +2075,7 @@ void MockupApplication::ResetSelectedReticleDraft()
     const std::string pageKey = page->normalizedName.empty() ? mfd::NormalizePageName(page->name) : page->normalizedName;
     const std::string reticleKey = pageKey + ":" + mfd::NormalizePageName(reticle->id);
     reticleDrafts_.erase(reticleKey);
-    (void)EnsureReticleDraft(selection_.pageIndex, selection_.reticleIndex);
+    EnsureReticleDraft(selection_.pageIndex, selection_.reticleIndex);
 }
 
 void MockupApplication::SetStatus(std::string message, const bool isError)
@@ -2981,14 +2980,14 @@ void MockupApplication::DrawRadarSimulationPanel()
 
     if (AccentButton("Send one radar batch"))
     {
-        (void)SendRadarSimulationBatch(false, false);
+        SendRadarSimulationBatch(false, false);
     }
 
     ImGui::SameLine();
     if (ImGui::Button("Clear simulated tracks"))
     {
         radarSimulation_.clearRequested = false;
-        (void)SendRadarSimulationBatch(true, false);
+        SendRadarSimulationBatch(true, false);
     }
 
     if (!canRun)
@@ -3064,7 +3063,7 @@ void MockupApplication::DrawCockpitSimulationPanel()
             cockpitSimulation_.radarEnabled = preservedRadarEnabled;
             if (ActivateCockpitSimulationPage())
             {
-                (void)SendCockpitSimulationBatch(true);
+                SendCockpitSimulationBatch(true);
                 SetStatus("Cockpit simulator enabled. The composite cockpit page now updates every 20 ms.", false);
             }
             else
@@ -3083,7 +3082,7 @@ void MockupApplication::DrawCockpitSimulationPanel()
     ImGui::SameLine();
     if (AccentButton("Send one cockpit frame"))
     {
-        (void)SendCockpitSimulationBatch(false);
+        SendCockpitSimulationBatch(false);
     }
 
     ImGui::SameLine();
@@ -3098,7 +3097,7 @@ void MockupApplication::DrawCockpitSimulationPanel()
         cockpitSimulation_.radarEnabled = preservedRadarEnabled;
         if (wasEnabled)
         {
-            (void)SendCockpitSimulationBatch(true);
+            SendCockpitSimulationBatch(true);
         }
         SetStatus("Cockpit simulator state reset.", false);
     }
@@ -3182,7 +3181,7 @@ void MockupApplication::DrawCockpitSimulationPanel()
 
     if (AccentButton("Show cockpit page"))
     {
-        (void)ActivateCockpitSimulationPage();
+        ActivateCockpitSimulationPage();
     }
 
     ImGui::SameLine();

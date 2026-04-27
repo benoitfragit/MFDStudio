@@ -1,7 +1,8 @@
 # Use The Mockup As A Client API Reference
 
-This tutorial explains how `client_mockup` maps its visible controls to the public
-client API in `mfd_api/include/mfd/control/CommandClient.h`.
+This tutorial explains how `client_mockup` maps its visible controls to the
+generated client API first, with `CommandClient` kept as the final UDP send
+layer.
 
 The goal is simple:
 
@@ -77,11 +78,14 @@ application already knows:
 
 If you still want to use raw helper methods such as
 `UpdateReticle("Radar", "fixed_track_alpha", patch)`, load the companion
-generated transport map locally and pass it to `CommandClient`.
+generated transport map locally and pass it to `CommandClient`. That raw path
+is now the fallback mode, not the normal end-user API.
 
 ## The Public API Layers Used By The Mockup
 
-The mockup uses four increasingly powerful levels of the client API.
+The mockup uses four increasingly powerful levels of the client API, with the
+generated path preferred whenever the client is specific to one authored
+window.
 
 ### 1. High-Level One-Shot Helpers
 
@@ -121,18 +125,20 @@ The mockup does this for the strobe because the command naturally carries:
 - optional active flag
 - optional position
 
-### 3. Partial Patches
+### 3. Generated Reticle Mutations And Partial Patches
 
 Example:
 
 ```cpp
-mfd::ReticlePatch patch;
-patch.visible = true;
-patch.position = mfd::Vec2 {0.20f, -0.15f};
-patch.rotationDegrees = 35.0f;
-patch.color = mfd::ColorRgba {77, 224, 255, 255};
+full_demo_ui::FullDemoMockupUi ui;
+auto& radar = ui.Radar();
 
-client.UpdateReticle("Radar", "fixed_track_alpha", patch);
+radar.fixedTrackAlpha.SetVisible(true);
+radar.fixedTrackAlpha.SetPosition({0.20f, -0.15f});
+radar.fixedTrackAlpha.SetRotationDegrees(35.0f);
+radar.fixedTrackAlpha.SetColor({77, 224, 255, 255});
+
+client.SendBatch(ui.BuildBatch());
 ```
 
 Use patches when:
@@ -141,7 +147,8 @@ Use patches when:
 - you only want to override some fields
 - the untouched fields must remain unchanged
 
-The mockup uses `ReticlePatch` heavily for:
+Under the generated API, those patch semantics are hidden behind typed setters.
+The mockup still relies on `ReticlePatch` internally for:
 
 - static reticle edits
 - dynamic reticle creation
@@ -175,8 +182,8 @@ your own client.
 | `Reset window` | `ResetWindow()` | `ResetWindowCommand` |
 | `Activate selected page` | `ActivatePage(page)` in the generic mockup, `ActivatePage(ui.Radar())` in generated clients | `ActivatePageCommand` |
 | `Send page view` | `SetPageView(page, center, zoom)` in the generic mockup, `SetPageView(ui.Radar(), center, zoom)` in generated clients | `SetPageViewCommand` |
-| `Send reticle update` | `UpdateReticle(page, reticle, patch)` | `UpdateReticleCommand` |
-| blink editor | `patch.blinkEnabled`, `patch.blinkType` | part of `ReticlePatch` |
+| `Send reticle update` | generated reticle setters plus `client.SendBatch(ui.BuildBatch())`; generic tools may still use `UpdateReticle(page, reticle, patch)` | `UpdateReticleCommand` |
+| blink editor | generated `SetBlinkEnabled` / `SetBlinkType` setters, or `patch.blinkEnabled` / `patch.blinkType` in generic tooling | part of `ReticlePatch` |
 | `Send strobe` | `Send(UpdateStrobeCommand { ... })` | `UpdateStrobeCommand` |
 | `Upsert dynamic reticle` | `UpsertDynamicReticle(page, id, template, patch)` | `UpsertDynamicReticleCommand` |
 | `Remove dynamic reticle` | `RemoveDynamicReticle(page, id)` | `RemoveDynamicReticleCommand` |
@@ -253,8 +260,9 @@ client.SendBatch(ui.BuildBatch());
   navigation.
 - Let generated dynamic sets own the hidden runtime ids through `Create()` and
   `Remove(...)`.
-- Keep `CommandClient` for the final send path, with the generated transport
-  map whenever raw helper methods still address objects by authored names.
+- Keep `CommandClient` for the final send path. Use raw helper methods only
+  for tooling or transitional code, with the generated transport map whenever
+  those helpers still address objects by authored names.
 - For high-rate loops, prefer `BuildBatch()` or `BuildCommandBatch(sequence)`
   after mutating the generated handles.
 
@@ -293,18 +301,19 @@ Takeaway:
 
 The mockup almost never rebuilds a reticle from scratch.
 
-Instead, it sends partial patches such as:
+In generated clients, that usually looks like typed mutations:
 
 ```cpp
-mfd::ReticlePatch patch;
-patch.visible = true;
-patch.blinkEnabled = true;
-patch.blinkType = std::string {"fast"};
-patch.position = mfd::Vec2 {0.30f, 0.18f};
-patch.rotationDegrees = -15.0f;
-patch.text = std::string {"MOCK"};
+full_demo_ui::FullDemoMockupUi ui;
+auto& radar = ui.Radar();
 
-client.UpdateReticle("Radar", "fixed_track_alpha", patch);
+radar.fixedTrackAlpha.SetVisible(true);
+radar.fixedTrackAlpha.SetBlinkType(radar.fast);
+radar.fixedTrackAlpha.SetPosition({0.30f, 0.18f});
+radar.fixedTrackAlpha.SetRotationDegrees(-15.0f);
+radar.fixedTrackAlpha.TrackLabel().SetText("MOCK");
+
+client.SendBatch(ui.BuildBatch());
 ```
 
 This is a very healthy runtime pattern because:
@@ -322,11 +331,22 @@ operator choose:
 - page default blink
 - one explicit blink type
 
-Equivalent client patterns:
+Equivalent generated-client pattern:
 
 ```cpp
-client.SetReticleBlinkEnabled("Hud", "speed_box", true);
-client.SetReticleBlinkType("Hud", "speed_box", "overspeed");
+full_demo_ui::FullDemoMockupUi ui;
+auto& radar = ui.Radar();
+
+radar.fixedTrackAlpha.SetBlinkEnabled(true);
+radar.fixedTrackAlpha.SetBlinkType(radar.fast);
+client.SendBatch(ui.BuildBatch());
+```
+
+Raw fallback:
+
+```cpp
+client.SetReticleBlinkEnabled("Radar", "fixed_track_alpha", true);
+client.SetReticleBlinkType("Radar", "fixed_track_alpha", "fast");
 ```
 
 Or with a patch:
@@ -334,8 +354,8 @@ Or with a patch:
 ```cpp
 mfd::ReticlePatch patch;
 patch.blinkEnabled = true;
-patch.blinkType = std::string {"overspeed"};
-client.UpdateReticle("Hud", "speed_box", patch);
+patch.blinkType = std::string {"fast"};
+client.UpdateReticle("Radar", "fixed_track_alpha", patch);
 ```
 
 Important rule to remember:

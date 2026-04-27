@@ -2045,7 +2045,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
 
     if (const PageComponent* page = FindPage(normalizedPageName); page != nullptr)
     {
-        (void)ResolveBlinkForReticle(*page, reticle);
+        ResolveBlinkForReticle(*page, reticle);
     }
 
     const entt::entity existingEntity = FindReticleEntity(normalizedPageName, reticle.id);

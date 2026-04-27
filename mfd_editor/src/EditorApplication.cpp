@@ -176,7 +176,7 @@ void TryApplyEditorWindowIcon()
 {
     std::string error;
     const std::filesystem::path iconFile = mfd::ResolveWindowBrandingIconFile();
-    (void)mfd::ApplyWindowIconFile(iconFile, &error);
+    mfd::ApplyWindowIconFile(iconFile, &error);
 }
 
 int FindPageIndexByName(const mfd::LoadedWindowConfiguration& loaded, const std::string_view pageName)
@@ -1805,10 +1805,9 @@ void EditorApplication::DeleteSelectedLibraryReticle()
 
     std::vector<std::string> remainingTemplateIds;
     remainingTemplateIds.reserve(loaded_.document.reticleLibrary.size());
-    for (const auto& [templateId, group] : loaded_.document.reticleLibrary)
+    for (const auto& entry : loaded_.document.reticleLibrary)
     {
-        (void)group;
-        remainingTemplateIds.push_back(templateId);
+        remainingTemplateIds.push_back(entry.first);
     }
     std::sort(remainingTemplateIds.begin(), remainingTemplateIds.end());
     SelectLibraryReticle(remainingTemplateIds.front());
@@ -2455,10 +2454,9 @@ void EditorApplication::DrawLibraryTree()
 
     std::vector<std::string> templateIds;
     templateIds.reserve(loaded_.document.reticleLibrary.size());
-    for (const auto& [templateId, reticle] : loaded_.document.reticleLibrary)
+    for (const auto& entry : loaded_.document.reticleLibrary)
     {
-        (void)reticle;
-        templateIds.push_back(templateId);
+        templateIds.push_back(entry.first);
     }
     std::sort(templateIds.begin(), templateIds.end());
 
@@ -6521,7 +6519,7 @@ bool EditorApplication::CreateNewLibraryReticleFromPrimitive()
         reticle.id == kTutorialStrobeCursorTemplateId &&
         !reticle.primitives.empty())
     {
-        (void)ConfigureTutorialStrobeLinePrimitive(reticle.primitives.front(), false);
+        ConfigureTutorialStrobeLinePrimitive(reticle.primitives.front(), false);
     }
     loaded_.document.reticleLibrary[reticle.id] = reticle;
     files_.templateFiles[reticle.id] = editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, reticle.id);
@@ -6901,10 +6899,9 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
 
     std::vector<std::string> templateIds;
     templateIds.reserve(loaded_.document.reticleLibrary.size());
-    for (const auto& [templateId, reticle] : loaded_.document.reticleLibrary)
+    for (const auto& entry : loaded_.document.reticleLibrary)
     {
-        (void)reticle;
-        templateIds.push_back(templateId);
+        templateIds.push_back(entry.first);
     }
     std::sort(templateIds.begin(), templateIds.end());
 
@@ -8004,7 +8001,6 @@ void EditorApplication::DrawLibraryReticleInspector()
     }
 
     const ScopedImGuiId scopedId("LibraryReticleInspector");
-    (void)scopedId;
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Library reticle");
     ImGui::Text("Template id: %s", reticle->id.c_str());
@@ -8189,7 +8185,7 @@ void EditorApplication::DrawLibraryReticleInspector()
         primitive.id = "primitive_" + std::to_string(reticle->primitives.size() + 1);
         if (tutorialAppendMatched)
         {
-            (void)ConfigureTutorialStrobeLinePrimitive(primitive, true);
+            ConfigureTutorialStrobeLinePrimitive(primitive, true);
         }
         reticle->primitives.push_back(std::move(primitive));
         SelectLibraryPrimitive(reticle->id, static_cast<int>(reticle->primitives.size()) - 1);
@@ -8230,7 +8226,6 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     }
 
     const ScopedImGuiId scopedId("LibraryPrimitiveInspector");
-    (void)scopedId;
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Primitive");
     ImGui::TextDisabled("Green handle moves the primitive. Orange handles edit geometry directly in the studio.");

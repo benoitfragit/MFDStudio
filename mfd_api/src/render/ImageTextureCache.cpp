@@ -82,12 +82,11 @@ void ImageTextureCache::Clear() noexcept
         return;
     }
 
-    for (auto& [path, entry] : impl_->entries)
+    for (auto& entry : impl_->entries)
     {
-        (void)path;
-        if (entry.ready)
+        if (entry.second.ready)
         {
-            UnloadTexture(entry.texture);
+            UnloadTexture(entry.second.texture);
         }
     }
 

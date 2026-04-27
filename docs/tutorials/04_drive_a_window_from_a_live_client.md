@@ -33,7 +33,7 @@ The external client always needs:
 
 That can be either:
 
-- generated bindings
+- generated bindings, which are the preferred client-facing API
 - raw transport IDs already known by your application
 - or the companion `.generated.map` loaded locally so raw name-based
   `CommandClient` helpers can resolve authored names before serialization
@@ -140,7 +140,7 @@ This matches the mockup `Window display` panel.
 
 ## Step 5 - Animate one reticle every cycle
 
-This example updates one reticle every 20 ms:
+This example updates one reticle every 20 ms through the generated API:
 
 ```cpp
 #include "FullDemoMockupUi.h"
@@ -164,6 +164,7 @@ int main()
 
     full_demo_ui::FullDemoMockupUi ui;
     auto& radar = ui.Radar();
+    auto& track = radar.fixedTrackAlpha;
     client.ActivatePage(radar);
 
     float angle = 0.0f;
@@ -174,17 +175,15 @@ int main()
     {
         angle += 0.03f;
 
-        mfd::ReticlePatch patch;
-        patch.visible = true;
-        patch.blinkEnabled = true;
-        patch.blinkType = std::string {"fast"};
-        patch.position = mfd::Vec2 {
+        track.SetVisible(true);
+        track.SetBlinkType(radar.fast);
+        track.SetPosition({
             std::cos(angle) * 0.35f,
             std::sin(angle) * 0.35f
-        };
-        patch.color = mfd::ColorRgba {77, 224, 255, 255};
+        });
+        track.SetColor({77, 224, 255, 255});
 
-        client.UpdateReticle("Radar", "fixed_track_alpha", patch);
+        client.SendBatch(ui.BuildBatch());
 
         std::this_thread::sleep_for(20ms);
     }
@@ -192,34 +191,32 @@ int main()
 ```
 
 This matches the mockup `Reticle` inspector, but without the operator UI.
+`CommandClient` stays on the send boundary while the generated wrapper owns the
+page, reticle, and blink addressing details.
 
 ## Step 6 - Send several updates during the same cycle
 
 If several reticles must update together, prefer a batch:
 
 ```cpp
-std::vector<mfd::UserCommand> commands;
+full_demo_ui::FullDemoMockupUi ui;
+auto& radar = ui.Radar();
 
-commands.push_back(mfd::UpdateReticleCommand {
-    mfd::StaticReticleHandle {"Radar", "track_a"},
-    mfd::ReticlePatch {.position = mfd::Vec2 {-0.20f, 0.15f},
-                       .blinkEnabled = true,
-                       .blinkType = std::string {"caution"},
-                       .color = mfd::ColorRgba {120, 255, 154, 255},
-                       .visible = true}});
+radar.fixedTrackAlpha.SetVisible(true);
+radar.fixedTrackAlpha.SetBlinkType(radar.caution);
+radar.fixedTrackAlpha.SetPosition({-0.20f, 0.15f});
+radar.fixedTrackAlpha.SetColor({120, 255, 154, 255});
 
-commands.push_back(mfd::UpdateReticleCommand {
-    mfd::StaticReticleHandle {"Radar", "track_b"},
-    mfd::ReticlePatch {.position = mfd::Vec2 {0.32f, -0.10f},
-                       .blinkEnabled = true,
-                       .blinkType = std::string {"fast"},
-                       .color = mfd::ColorRgba {255, 144, 112, 255},
-                       .visible = true}});
+radar.fixedTrackBravo.SetVisible(true);
+radar.fixedTrackBravo.SetBlinkType(radar.fast);
+radar.fixedTrackBravo.SetPosition({0.32f, -0.10f});
+radar.fixedTrackBravo.SetColor({255, 144, 112, 255});
 
-commands.push_back(mfd::UpdateWindowDisplayCommand {
-    mfd::WindowDisplayPatch {.invertColors = false, .brightness = 0.65f, .disabled = false}});
+ui.Window().SetColorInverted(false);
+ui.Window().SetBrightness(0.65f);
+ui.Window().SetDisabled(false);
 
-client.SendBatch(commands, 42);
+client.SendBatch(ui.BuildCommandBatch(42U));
 ```
 
 Use one `sequence` value per external cycle if you want a stable cycle id in the
@@ -230,45 +227,45 @@ mockup.
 
 ## Step 7 - Use dynamic reticles for runtime-owned symbols
 
-If the object may appear or disappear at runtime, use dynamic reticles instead
-of trying to patch static JSON content into existence.
+If the object may appear or disappear at runtime, use generated dynamic
+reticles instead of trying to patch static JSON content into existence.
 
 One symbol:
 
 ```cpp
-mfd::ReticlePatch patch;
-patch.visible = true;
-patch.position = mfd::Vec2 {0.18f, -0.24f};
-patch.rotationDegrees = 55.0f;
-patch.text = std::string {"B21"};
+full_demo_ui::FullDemoMockupUi ui;
+auto& tracks = ui.Radar().DynamicRadarTrack();
+auto& track = tracks.Create();
 
-client.UpsertDynamicReticle("Radar", "track_021", "radar_track", patch);
-client.RemoveDynamicReticle("Radar", "track_021");
+track.SetVisible(true);
+track.SetPosition({0.18f, -0.24f});
+track.SetRotationDegrees(55.0f);
+track.TrackLabel().SetText("B21");
+client.SendBatch(ui.BuildBatch());
+
+tracks.Remove(track);
+client.SendBatch(ui.BuildBatch());
 ```
 
 Many symbols in one cycle:
 
 ```cpp
-std::vector<mfd::DynamicReticleState> reticles;
-
 for (const Track& track : tracks)
 {
-    mfd::ReticlePatch patch;
-    patch.position = mfd::Vec2 {track.x, track.y};
-    patch.rotationDegrees = track.headingDegrees;
-    patch.color = track.color;
-    patch.text = track.label;
-
-    mfd::DynamicReticleState state;
-    state.reticleId = track.id;
-    state.patch = std::move(patch);
-    reticles.push_back(std::move(state));
+    auto& symbol = ui.Radar().DynamicRadarTrack().Create();
+    symbol.SetPosition({track.x, track.y});
+    symbol.SetRotationDegrees(track.headingDegrees);
+    symbol.SetColor(track.color);
+    symbol.TrackLabel().SetText(track.label);
 }
 
-client.UpsertDynamicReticles("Radar", "radar_track", reticles);
+client.SendBatch(ui.BuildBatch());
 ```
 
-This is the same public pattern as the mockup radar simulator.
+This is the same public pattern as the mockup radar simulator. If you
+intentionally stay on raw `CommandClient`, the name-based
+`UpsertDynamicReticle(...)` and `UpsertDynamicReticles(...)` helpers still
+exist, but they are now the explicit low-level alternative.
 
 On the wire, those dynamic instance ids are serialized as runtime-scoped
 integers. Raw helper methods still let you call them by name because

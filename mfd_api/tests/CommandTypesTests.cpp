@@ -106,5 +106,5 @@ TEST(CommandTypesTests, SerializeCommandBatchRejectsLegacyNamedTargetsWithoutGen
         mfd::StaticReticleHandle {"Radar", "heading_box"},
         {}});
 
-    EXPECT_THROW((void)mfd::SerializeCommandBatch(batch), std::runtime_error);
+    EXPECT_THROW(mfd::SerializeCommandBatch(batch), std::runtime_error);
 }

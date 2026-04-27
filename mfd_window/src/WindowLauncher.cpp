@@ -226,66 +226,56 @@ bool PboReadbackApi::Available() const noexcept
 #endif
 }
 
-void PboReadbackApi::GenBuffers(const int count, unsigned int* buffers) const noexcept
+void PboReadbackApi::GenBuffers([[maybe_unused]] const int count,
+                                [[maybe_unused]] unsigned int* buffers) const noexcept
 {
 #if defined(_WIN32)
     if (genBuffers_ != nullptr && count > 0 && buffers != nullptr)
     {
         genBuffers_(static_cast<GLsizei>(count), reinterpret_cast<GLuint*>(buffers));
     }
-#else
-    (void)count;
-    (void)buffers;
 #endif
 }
 
-void PboReadbackApi::DeleteBuffers(const int count, const unsigned int* buffers) const noexcept
+void PboReadbackApi::DeleteBuffers([[maybe_unused]] const int count,
+                                   [[maybe_unused]] const unsigned int* buffers) const noexcept
 {
 #if defined(_WIN32)
     if (deleteBuffers_ != nullptr && count > 0 && buffers != nullptr)
     {
         deleteBuffers_(static_cast<GLsizei>(count), reinterpret_cast<const GLuint*>(buffers));
     }
-#else
-    (void)count;
-    (void)buffers;
 #endif
 }
 
-void PboReadbackApi::BindPixelPackBuffer(const unsigned int bufferId) const noexcept
+void PboReadbackApi::BindPixelPackBuffer([[maybe_unused]] const unsigned int bufferId) const noexcept
 {
 #if defined(_WIN32)
     if (bindBuffer_ != nullptr)
     {
         bindBuffer_(GL_PIXEL_PACK_BUFFER, static_cast<GLuint>(bufferId));
     }
-#else
-    (void)bufferId;
 #endif
 }
 
-void PboReadbackApi::AllocatePixelPackBuffer(const std::size_t sizeInBytes) const noexcept
+void PboReadbackApi::AllocatePixelPackBuffer([[maybe_unused]] const std::size_t sizeInBytes) const noexcept
 {
 #if defined(_WIN32)
     if (bufferData_ != nullptr)
     {
         bufferData_(GL_PIXEL_PACK_BUFFER, static_cast<std::ptrdiff_t>(sizeInBytes), nullptr, GL_STREAM_READ);
     }
-#else
-    (void)sizeInBytes;
 #endif
 }
 
-void PboReadbackApi::ReadPixelsRgba32(const int width, const int height) const noexcept
+void PboReadbackApi::ReadPixelsRgba32([[maybe_unused]] const int width,
+                                      [[maybe_unused]] const int height) const noexcept
 {
 #if defined(_WIN32)
     if (readPixels_ != nullptr)
     {
         readPixels_(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     }
-#else
-    (void)width;
-    (void)height;
 #endif
 }
 
@@ -316,7 +306,7 @@ GlSyncHandle PboReadbackApi::CreateFence() const noexcept
 #endif
 }
 
-bool PboReadbackApi::IsFenceReady(const GlSyncHandle fence) const noexcept
+bool PboReadbackApi::IsFenceReady([[maybe_unused]] const GlSyncHandle fence) const noexcept
 {
 #if defined(_WIN32)
     if (clientWaitSync_ == nullptr || fence == nullptr)
@@ -327,20 +317,17 @@ bool PboReadbackApi::IsFenceReady(const GlSyncHandle fence) const noexcept
     const GLenum waitResult = clientWaitSync_(fence, 0, 0);
     return waitResult == GL_ALREADY_SIGNALED || waitResult == GL_CONDITION_SATISFIED;
 #else
-    (void)fence;
     return false;
 #endif
 }
 
-void PboReadbackApi::DeleteFence(const GlSyncHandle fence) const noexcept
+void PboReadbackApi::DeleteFence([[maybe_unused]] const GlSyncHandle fence) const noexcept
 {
 #if defined(_WIN32)
     if (deleteSync_ != nullptr && fence != nullptr)
     {
         deleteSync_(fence);
     }
-#else
-    (void)fence;
 #endif
 }
 
@@ -681,7 +668,7 @@ std::string NarrowWideString(const std::wstring_view text)
     }
 
     std::string output(static_cast<std::size_t>(outputSize), '\0');
-    (void)WideCharToMultiByte(
+    WideCharToMultiByte(
         CP_UTF8,
         0,
         text.data(),
@@ -736,7 +723,7 @@ public:
 
     LoadedFramebufferPlugin() = default;
 
-    [[nodiscard]] bool Load(const std::filesystem::path& pluginFile, std::string& error)
+    [[nodiscard]] bool Load([[maybe_unused]] const std::filesystem::path& pluginFile, std::string& error)
     {
         Unload();
 
@@ -767,7 +754,6 @@ public:
         callback_ = reinterpret_cast<mfd::window::LauncherFramebufferPluginEntryPoint>(symbol);
         return callback_ != nullptr;
 #else
-        (void)pluginFile;
         error = "Framebuffer plugins are only supported on Windows.";
         return false;
 #endif
@@ -1106,7 +1092,7 @@ private:
             udpRuntimeBridge_ = std::make_unique<mfd::UdpRuntimeBridge>(
                 windowDefinition_.commandTransports,
                 windowDefinition_.feedbackTransports);
-            (void)udpRuntimeBridge_->Start();
+            udpRuntimeBridge_->Start();
 
             if (scene_.HasPage(previousPage))
             {

@@ -828,8 +828,12 @@ def emit_header(namespace_name: str,
             "",
             "    void Reset() noexcept;",
             "    std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);",
-            "    std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText);",
-            "    void SetStatusCaption(std::string value);",
+            ("    std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText);"
+             if page.status_member_name is not None
+             else "    std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string);"),
+            ("    void SetStatusCaption(std::string value);"
+             if page.status_member_name is not None and page.status_primitive_accessor_name is not None
+             else "    void SetStatusCaption(std::string);"),
             "",
         ])
 
@@ -1065,7 +1069,11 @@ def emit_source(namespace_name: str,
             "    return count;",
             "}",
             "",
-            f"std::size_t {page.page_class_name}::AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText)",
+            (f"std::size_t {page.page_class_name}::AppendShutdownCommands("
+             "std::vector<mfd::UserCommand>& commands, std::string statusText)"
+             if page.status_member_name is not None
+             else f"std::size_t {page.page_class_name}::AppendShutdownCommands("
+                  "std::vector<mfd::UserCommand>& commands, std::string)"),
             "{",
             "    std::size_t count = 0;",
             "",
@@ -1075,8 +1083,6 @@ def emit_source(namespace_name: str,
                 "    SetStatusCaption(std::move(statusText));",
                 "    count += AppendCommands(commands);",
             ])
-        else:
-            lines.append("    (void)statusText;")
         lines.append("")
         for template in template_specs:
             lines.append(f"    count += {template.dynamic_member_name}.AppendRemovalCommands(commands);")
@@ -1085,14 +1091,14 @@ def emit_source(namespace_name: str,
             "    return count;",
             "}",
             "",
-            f"void {page.page_class_name}::SetStatusCaption(std::string value)",
+            (f"void {page.page_class_name}::SetStatusCaption(std::string value)"
+             if page.status_member_name is not None and page.status_primitive_accessor_name is not None
+             else f"void {page.page_class_name}::SetStatusCaption(std::string)"),
             "{",
         ])
         if page.status_member_name is not None and page.status_primitive_accessor_name is not None:
             lines.append(
                 f"    {page.status_member_name}.{page.status_primitive_accessor_name}().SetText(std::move(value));")
-        else:
-            lines.append("    (void)value;")
         lines.extend([
             "}",
             "",

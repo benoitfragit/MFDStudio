@@ -429,7 +429,7 @@ bool RuntimeDebugPreview::ResetFromLive(const SceneRegistry& liveScene, const Ru
         {
             if (const auto view = liveScene.ViewForPage(page.name); view.has_value())
             {
-                (void)scene_.SetPageView(page.name, *view);
+                scene_.SetPageView(page.name, *view);
             }
 
             const PageDefinition* pageDefinition = FindPage(scene_.Document(), page.name);
@@ -459,7 +459,7 @@ bool RuntimeDebugPreview::ResetFromLive(const SceneRegistry& liveScene, const Ru
                 }
 
                 const ReticlePatch patch = BuildReticlePatch(*currentReticle, *authored);
-                (void)scene_.ApplyReticlePatch(page.name, currentReticle->id, patch);
+                scene_.ApplyReticlePatch(page.name, currentReticle->id, patch);
             }
         }
 
@@ -468,7 +468,7 @@ bool RuntimeDebugPreview::ResetFromLive(const SceneRegistry& liveScene, const Ru
         windowPatch.invertColors = liveDisplay.invertColors;
         windowPatch.brightness = liveDisplay.brightness;
         windowPatch.disabled = liveDisplay.disabled;
-        (void)scene_.ApplyWindowDisplayPatch(windowPatch);
+        scene_.ApplyWindowDisplayPatch(windowPatch);
 
         if (!liveScene.ActivePageName().empty())
         {

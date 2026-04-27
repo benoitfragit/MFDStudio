@@ -126,9 +126,8 @@ public:
     template <typename GeneratedPage,
               typename = std::enable_if_t<
                   std::is_same_v<typename GeneratedPage::MfdGeneratedPageTag, GeneratedPageTag>>>
-    bool ActivatePage(const GeneratedPage& page)
+    bool ActivatePage([[maybe_unused]] const GeneratedPage& page)
     {
-        (void)page;
         return ActivateGeneratedPage(GeneratedPage::GeneratedId(), GeneratedPage::MappingHash());
     }
 
@@ -145,9 +144,8 @@ public:
     template <typename GeneratedPage,
               typename = std::enable_if_t<
                   std::is_same_v<typename GeneratedPage::MfdGeneratedPageTag, GeneratedPageTag>>>
-    bool SetPageView(const GeneratedPage& page, Vec2 center, float zoom)
+    bool SetPageView([[maybe_unused]] const GeneratedPage& page, Vec2 center, float zoom)
     {
-        (void)page;
         return SetGeneratedPageView(GeneratedPage::GeneratedId(), GeneratedPage::MappingHash(), center, zoom);
     }
 

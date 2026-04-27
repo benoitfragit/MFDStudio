@@ -321,7 +321,7 @@ bool RuntimeDebugOverlay::HandleShortcut(const SceneRegistry& liveScene)
     }
     else
     {
-        (void)Activate(liveScene);
+        Activate(liveScene);
     }
 
     return true;
@@ -334,7 +334,7 @@ void RuntimeDebugOverlay::OnRuntimeReloaded(const SceneRegistry& liveScene)
 
     if (state_.Active())
     {
-        (void)RefreshPreviewFromLive(liveScene);
+        RefreshPreviewFromLive(liveScene);
     }
     else
     {
@@ -377,7 +377,7 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
 
     if (!preview_.Ready())
     {
-        (void)RefreshPreviewFromLive(liveScene);
+        RefreshPreviewFromLive(liveScene);
         return;
     }
 
@@ -601,7 +601,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
             state_.DisablePageBypass();
         }
 
-        (void)RefreshPreviewFromLive(liveScene);
+        RefreshPreviewFromLive(liveScene);
     }
 
     ImGui::SameLine();
@@ -613,7 +613,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
             if (ImGui::Selectable(page.name.c_str(), selected))
             {
                 state_.EnablePageBypass(page.name);
-                (void)RefreshPreviewFromLive(liveScene);
+                RefreshPreviewFromLive(liveScene);
             }
 
             if (selected)
@@ -764,7 +764,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         "Reticle '" + selectedKey.reticleId + "' now follows the last UDP state again.");
                 }
 
-                (void)RefreshPreviewFromLive(liveScene);
+                RefreshPreviewFromLive(liveScene);
                 inspectorFrameState.InvalidateSnapshot();
             }
 
@@ -775,7 +775,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 bool visible = inspectedReticle->visible;
                 if (ImGui::Checkbox("Visible", &visible))
                 {
-                    (void)mutateSelectedReticle(
+                    mutateSelectedReticle(
                         [&](ReticleGroup& draft)
                         {
                             draft.visible = visible;
@@ -790,7 +790,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 bool blinkEnabled = inspectedReticle->blink.enabled;
                 if (ImGui::Checkbox("Blink enabled", &blinkEnabled))
                 {
-                    (void)mutateSelectedReticle(
+                    mutateSelectedReticle(
                         [&](ReticleGroup& draft)
                         {
                             draft.blink.enabled = blinkEnabled;
@@ -808,7 +808,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     const bool noTypeSelected = blinkTypeName.empty();
                     if (ImGui::Selectable("<page default>", noTypeSelected))
                     {
-                        (void)mutateSelectedReticle(
+                        mutateSelectedReticle(
                             [&](ReticleGroup& draft)
                             {
                                 draft.blink.typeName.clear();
@@ -833,7 +833,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         const bool selected = blinkTypeName == blinkType.name;
                         if (ImGui::Selectable(blinkType.name.c_str(), selected))
                         {
-                            (void)mutateSelectedReticle(
+                            mutateSelectedReticle(
                                 [&](ReticleGroup& draft)
                                 {
                                     draft.blink.enabled = true;
@@ -861,7 +861,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     inspectedReticle->transform.position.y};
                 if (ImGui::DragFloat2("Position", position.data(), 0.005f, -1.5f, 1.5f, "%.4f"))
                 {
-                    (void)mutateSelectedReticle(
+                    mutateSelectedReticle(
                         [&](ReticleGroup& draft)
                         {
                             draft.transform.position = Vec2 {position[0], position[1]};
@@ -876,7 +876,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 float rotation = inspectedReticle->transform.rotationDegrees;
                 if (ImGui::DragFloat("Rotation", &rotation, 0.25f, -360.0f, 360.0f, "%.3f"))
                 {
-                    (void)mutateSelectedReticle(
+                    mutateSelectedReticle(
                         [&](ReticleGroup& draft)
                         {
                             draft.transform.rotationDegrees = rotation;
@@ -892,7 +892,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 ImVec4 color = ToImGuiColor(ResolveReticleColor(*inspectedReticle));
                 if (ImGui::Checkbox("Color override", &colorOverride))
                 {
-                    (void)mutateSelectedReticle(
+                    mutateSelectedReticle(
                         [&](ReticleGroup& draft)
                         {
                             if (colorOverride)
@@ -909,7 +909,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 }
                 if (inspectorFrameState.SnapshotValid() && colorOverride && ImGui::ColorEdit4("Color", &color.x))
                 {
-                    (void)mutateSelectedReticle(
+                    mutateSelectedReticle(
                         [&](ReticleGroup& draft)
                         {
                             draft.overrides.color = FromImGuiColor(color);
@@ -925,7 +925,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 float thickness = ResolveReticleThickness(*inspectedReticle);
                 if (ImGui::Checkbox("Thickness override", &thicknessOverride))
                 {
-                    (void)mutateSelectedReticle(
+                    mutateSelectedReticle(
                         [&](ReticleGroup& draft)
                         {
                             if (thicknessOverride)
@@ -945,7 +945,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     thicknessOverride &&
                     ImGui::DragFloat("Thickness", &thickness, 0.0005f, 0.0001f, 0.05f, "%.4f"))
                 {
-                    (void)mutateSelectedReticle(
+                    mutateSelectedReticle(
                         [&](ReticleGroup& draft)
                         {
                             draft.overrides.thickness = thickness;
@@ -971,7 +971,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                             "Text##" + primitive.id + "_" + std::to_string(primitiveIndex);
                         if (EditStringField(textLabel.c_str(), text))
                         {
-                            (void)mutateSelectedReticle(
+                            mutateSelectedReticle(
                                 [&](ReticleGroup& draft)
                                 {
                                     if (Primitive* editable = FindPrimitive(draft, primitive.id); editable != nullptr)
@@ -993,7 +993,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                             "Letter spacing##" + primitive.id + "_" + std::to_string(primitiveIndex);
                         if (ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, 0.0f, 0.2f, "%.4f"))
                         {
-                            (void)mutateSelectedReticle(
+                            mutateSelectedReticle(
                                 [&](ReticleGroup& draft)
                                 {
                                     if (Primitive* editable = FindPrimitive(draft, primitive.id); editable != nullptr)
@@ -1085,7 +1085,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         }
         else
         {
-            (void)mutateSelectedReticle(
+            mutateSelectedReticle(
                 [&](ReticleGroup& draft)
                 {
                     draft.visible = !draft.visible;
@@ -1103,7 +1103,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         }
         else
         {
-            (void)mutateSelectedReticle(
+            mutateSelectedReticle(
                 [&](ReticleGroup& draft)
                 {
                     draft.transform.position.x += 0.05f;

@@ -56,8 +56,7 @@ TEST(ArrayViewTests, FrontOnEmptyViewTriggersDebugAssertion)
     const mfd::ArrayView<int> empty;
     EXPECT_DEATH(
         {
-            const volatile int* value = &empty.front();
-            (void)value;
+            [[maybe_unused]] const volatile int* value = &empty.front();
         },
         "ArrayView::front\\(\\) called on an empty view");
 }
@@ -67,8 +66,7 @@ TEST(ArrayViewTests, BackOnEmptyViewTriggersDebugAssertion)
     const mfd::ArrayView<int> empty;
     EXPECT_DEATH(
         {
-            const volatile int* value = &empty.back();
-            (void)value;
+            [[maybe_unused]] const volatile int* value = &empty.back();
         },
         "ArrayView::back\\(\\) called on an empty view");
 }

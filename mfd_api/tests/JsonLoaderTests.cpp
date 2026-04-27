@@ -314,7 +314,7 @@ TEST(JsonLoaderTests, LoadDocumentReportsInvalidJsonPathAndParseContext)
     mfd::JsonLoader loader;
     try
     {
-        (void)loader.LoadDocument(pagesFile);
+        loader.LoadDocument(pagesFile);
         FAIL() << "Expected std::runtime_error for malformed JSON";
     }
     catch (const std::runtime_error& exception)

@@ -995,10 +995,9 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
 
         std::vector<std::string> templateIds;
         templateIds.reserve(loaded.document.reticleLibrary.size());
-        for (const auto& [templateId, group] : loaded.document.reticleLibrary)
+        for (const auto& entry : loaded.document.reticleLibrary)
         {
-            (void)group;
-            templateIds.push_back(templateId);
+            templateIds.push_back(entry.first);
         }
         std::sort(templateIds.begin(), templateIds.end());
 
@@ -1030,10 +1029,9 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
 
         std::unordered_set<std::filesystem::path> currentTemplateFiles;
         currentTemplateFiles.reserve(layout.templateFiles.size());
-        for (const auto& [templateId, templateFile] : layout.templateFiles)
+        for (const auto& entry : layout.templateFiles)
         {
-            (void)templateId;
-            currentTemplateFiles.insert(templateFile);
+            currentTemplateFiles.insert(entry.second);
         }
 
         for (const auto& removedTemplateFile : layout.removedTemplateFiles)

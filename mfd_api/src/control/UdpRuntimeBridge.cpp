@@ -343,7 +343,7 @@ bool UdpRuntimeBridge::Start()
                 }
             }
 
-            (void)flushFeedback();
+            flushFeedback();
             {
                 std::lock_guard lock(impl->stateMutex);
                 impl->running = false;
