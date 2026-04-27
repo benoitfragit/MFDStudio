@@ -41,9 +41,79 @@ constexpr std::array<std::string_view, 4> kBuildConfigurations {
     "Release",
     "RelWithDebInfo",
     "MinSizeRel"};
+constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
+constexpr std::string_view kTutorialProgressBarTemplateId = "mfd_tutorial_progress_bar";
+constexpr std::string_view kTutorialProgressBarFillPrimitiveId = "fill_bar";
+constexpr std::string_view kTutorialProgressBarFramePrimitiveId = "frame";
 constexpr std::array<std::string_view, 1> kTutorialRootTargetRegistrations {{
     "add_subdirectory(examples/client_tutorial)",
 }};
+
+bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool vertical) noexcept
+{
+    if (primitive.type != mfd::PrimitiveType::Line)
+    {
+        return false;
+    }
+
+    auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry);
+    if (line == nullptr)
+    {
+        return false;
+    }
+
+    primitive.id = vertical ? "vertical_line" : "horizontal_line";
+    primitive.style.thickness = 0.0038f;
+    line->start = vertical ? mfd::Vec2 {0.0f, -0.055f} : mfd::Vec2 {-0.055f, 0.0f};
+    line->end = vertical ? mfd::Vec2 {0.0f, 0.055f} : mfd::Vec2 {0.055f, 0.0f};
+    return true;
+}
+
+bool ConfigureTutorialProgressBarFillPrimitive(mfd::Primitive& primitive) noexcept
+{
+    if (primitive.type != mfd::PrimitiveType::Rectangle)
+    {
+        return false;
+    }
+
+    auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry);
+    if (rectangle == nullptr)
+    {
+        return false;
+    }
+
+    primitive.id = std::string(kTutorialProgressBarFillPrimitiveId);
+    primitive.style.color = mfd::ColorRgba {0, 255, 128, 255};
+    primitive.style.fillColor = mfd::ColorRgba {0, 255, 128, 120};
+    primitive.style.filled = true;
+    primitive.style.thickness = 0.0038f;
+    primitive.transform.position = {-0.16f, 0.0f};
+    *rectangle = mfd::RectangleGeometry {0.12f, 0.06f};
+    return true;
+}
+
+bool ConfigureTutorialProgressBarFramePrimitive(mfd::Primitive& primitive) noexcept
+{
+    if (primitive.type != mfd::PrimitiveType::Rectangle)
+    {
+        return false;
+    }
+
+    auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry);
+    if (rectangle == nullptr)
+    {
+        return false;
+    }
+
+    primitive.id = std::string(kTutorialProgressBarFramePrimitiveId);
+    primitive.style.color = mfd::ColorRgba {0, 255, 128, 255};
+    primitive.style.fillColor = mfd::ColorRgba {0, 0, 0, 0};
+    primitive.style.filled = false;
+    primitive.style.thickness = 0.0038f;
+    primitive.transform = {};
+    *rectangle = mfd::RectangleGeometry {0.48f, 0.10f};
+    return true;
+}
 
 std::string ToLowerAscii(std::string value)
 {
@@ -343,13 +413,15 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
 
 void RemoveTutorialGeneratedSourceFiles(const std::filesystem::path& projectRoot)
 {
-    const std::array<std::filesystem::path, 12> generatedFiles {{
+    const std::array<std::filesystem::path, 14> generatedFiles {{
         projectRoot / "assets/windows/mfd_tutorial.json",
+        projectRoot / "assets/windows/mfd_tutorial.generated.map",
         projectRoot / "assets/pages/mfd_tutorial_page1.json",
         projectRoot / "assets/pages/mfd_tutorial_page2.json",
         projectRoot / "assets/pages/mfd_tutor.json",
         projectRoot / "assets/reticles/mfd_tutorial_radar_track.json",
         projectRoot / "assets/reticles/mfd_tutorial_circle.json",
+        projectRoot / "assets/reticles/mfd_tutorial_progress_bar.json",
         projectRoot / "assets/reticles/mfd_tutorial_text.json",
         projectRoot / "assets/reticles/mfd_tutorial_strobe_cursor.json",
         projectRoot / "examples/client_tutorial/generated/TutorialUi.h",
@@ -400,11 +472,13 @@ void RemoveTutorialStageArtifacts(const std::filesystem::path& projectRoot)
         "mfdtutorialmockupui.h",
         "mfdtutorialmockupui.cpp",
         "mfd_tutorial.json",
+        "mfd_tutorial.generated.map",
         "mfd_tutorial_page1.json",
         "mfd_tutorial_page2.json",
         "mfd_tutor.json",
         "mfd_tutorial_radar_track.json",
         "mfd_tutorial_circle.json",
+        "mfd_tutorial_progress_bar.json",
         "mfd_tutorial_text.json",
         "mfd_tutorial_strobe_cursor.json"};
 
@@ -780,6 +854,215 @@ bool EditorTutorialController::ConsumeResumePopupRequest() noexcept
     return requested;
 }
 
+bool EditorTutorialController::ShouldResetReticleMenuPhaseOnClose() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    return IsStepPhase(static_cast<int>(TutorialStepId::CreateRadarTrackReticle), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::CreateCircleReticle), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::CreateProgressBarReticle), 1);
+}
+
+bool EditorTutorialController::ShouldResetReticleCreatePopupOnCancel() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    return IsStep(static_cast<int>(TutorialStepId::CreateRadarTrackReticle)) ||
+           IsStep(static_cast<int>(TutorialStepId::CreateCircleReticle)) ||
+           IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)) ||
+           IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle));
+}
+
+bool EditorTutorialController::ShouldAdvanceReticleCreatePhase() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    return IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)) ||
+           IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle));
+}
+
+bool EditorTutorialController::ValidateNewLibraryReticleDraft(const std::string_view reticleId,
+                                                              const mfd::PrimitiveType primitiveType,
+                                                              std::string& error) const
+{
+    using editor::tutorial::TutorialStepId;
+
+    error.clear();
+    if (IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
+    {
+        if (reticleId != kTutorialStrobeCursorTemplateId)
+        {
+            error = "Tutorial: keep the reticle id set to 'mfd_tutorial_strobe_cursor'.";
+            return false;
+        }
+
+        if (primitiveType != mfd::PrimitiveType::Line)
+        {
+            error = "Tutorial: create the strobe cursor from a Line primitive.";
+            return false;
+        }
+    }
+    else if (IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle)))
+    {
+        if (reticleId != kTutorialProgressBarTemplateId)
+        {
+            error = "Tutorial: keep the reticle id set to 'mfd_tutorial_progress_bar'.";
+            return false;
+        }
+
+        if (primitiveType != mfd::PrimitiveType::Rectangle)
+        {
+            error = "Tutorial: create the progress bar from a Rectangle primitive.";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void EditorTutorialController::ConfigureCreatedLibraryReticle(mfd::ReticleGroup& reticle) const
+{
+    using editor::tutorial::TutorialStepId;
+
+    if (IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)) &&
+        reticle.id == kTutorialStrobeCursorTemplateId &&
+        !reticle.primitives.empty())
+    {
+        ConfigureTutorialStrobeLinePrimitive(reticle.primitives.front(), false);
+    }
+    else if (IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle)) &&
+             reticle.id == kTutorialProgressBarTemplateId &&
+             !reticle.primitives.empty())
+    {
+        ConfigureTutorialProgressBarFillPrimitive(reticle.primitives.front());
+    }
+}
+
+bool EditorTutorialController::ShouldUseHighlightedAddToPageButton() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    return IsStep(static_cast<int>(TutorialStepId::AddCircleReticleToPage1)) ||
+           IsStep(static_cast<int>(TutorialStepId::AddProgressBarToPage2));
+}
+
+bool EditorTutorialController::ValidateAddToPage(const mfd::PageDefinition* page,
+                                                 const mfd::ReticleGroup& reticle,
+                                                 std::string& error) const
+{
+    using editor::tutorial::TutorialStepId;
+
+    error.clear();
+    if (page == nullptr)
+    {
+        return true;
+    }
+
+    if (IsStep(static_cast<int>(TutorialStepId::AddCircleReticleToPage1)) &&
+        (page->name != "Page1" || reticle.id != "mfd_tutorial_circle"))
+    {
+        error = "Tutorial: add 'mfd_tutorial_circle' to Page1 for this step.";
+        return false;
+    }
+
+    if (IsStep(static_cast<int>(TutorialStepId::AddProgressBarToPage2)) &&
+        (page->name != "Page2" || reticle.id != kTutorialProgressBarTemplateId))
+    {
+        error = "Tutorial: add 'mfd_tutorial_progress_bar' to Page2 for this step.";
+        return false;
+    }
+
+    return true;
+}
+
+std::string_view EditorTutorialController::LibraryAddToPageHaloReason() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    if (IsStep(static_cast<int>(TutorialStepId::AddProgressBarToPage2)))
+    {
+        return "Instantiate the authored progress-bar template on Page2 so the generated client can drive it next.";
+    }
+
+    return "Instantiate the prepared tutorial circle on Page1 so clipping can be demonstrated next.";
+}
+
+bool EditorTutorialController::ValidateAppendPrimitive(const mfd::ReticleGroup& reticle,
+                                                       const mfd::PrimitiveType primitiveType,
+                                                       std::string& error) const
+{
+    using editor::tutorial::TutorialStepId;
+
+    error.clear();
+    if (IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
+    {
+        if (reticle.id != kTutorialStrobeCursorTemplateId)
+        {
+            error = "Tutorial: append the second line inside 'mfd_tutorial_strobe_cursor'.";
+            return false;
+        }
+
+        if (primitiveType != mfd::PrimitiveType::Line)
+        {
+            error = "Tutorial: keep the Add primitive selector on 'Line' for the strobe cursor.";
+            return false;
+        }
+    }
+    else if (IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle)))
+    {
+        if (reticle.id != kTutorialProgressBarTemplateId)
+        {
+            error = "Tutorial: append the second rectangle inside 'mfd_tutorial_progress_bar'.";
+            return false;
+        }
+
+        if (primitiveType != mfd::PrimitiveType::Rectangle)
+        {
+            error = "Tutorial: keep the Add primitive selector on 'Rectangle' for the progress bar.";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void EditorTutorialController::ConfigureAppendedPrimitive(mfd::Primitive& primitive) const
+{
+    using editor::tutorial::TutorialStepId;
+
+    if (IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
+    {
+        ConfigureTutorialStrobeLinePrimitive(primitive, true);
+    }
+    else if (IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle)))
+    {
+        ConfigureTutorialProgressBarFramePrimitive(primitive);
+    }
+}
+
+std::string_view EditorTutorialController::LibraryAppendPrimitiveHaloReason() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    if (IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle)))
+    {
+        return "Append the outline rectangle so the tutorial progress bar gets an empty frame around the fill.";
+    }
+
+    return "Append the second line so the tutorial strobe cursor becomes a simple cross.";
+}
+
+bool EditorTutorialController::IsExposedPrimitiveTutorialSelection(const std::string_view reticleId,
+                                                                  const std::string_view primitiveId) const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    return IsStep(static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive)) &&
+           reticleId == kTutorialProgressBarTemplateId &&
+           primitiveId == kTutorialProgressBarFillPrimitiveId;
+}
+
 void EditorTutorialController::AdvanceStep()
 {
     stepIndex_ = std::min(stepIndex_ + 1, editor::tutorial::StepCount() - 1);
@@ -821,6 +1104,14 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     case static_cast<int>(TutorialStepId::CreatePage1):
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "menu_page" : (stepPhase_ == 1 ? "menu_page_new" : "popup_page_create");
+    case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
+        return stepPhase_ == 0 ? "menu_reticle" :
+                                 (stepPhase_ == 1 ? "menu_reticle_new" :
+                                                    (stepPhase_ == 2 ? "popup_reticle_create" : "library_append_primitive"));
+    case static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive):
+        return "primitive_exposed_checkbox";
+    case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
+        return "library_add_to_page";
     case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
         return "page_strobe_template";
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
@@ -857,6 +1148,14 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "Click Page." :
                                  (stepPhase_ == 1 ? "Click New page." : "Click Create page.");
+    case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
+        return stepPhase_ == 0 ? "Click Reticle." :
+                                 (stepPhase_ == 1 ? "Click New library reticle from primitive." :
+                                                    (stepPhase_ == 2 ? "Click Create reticle." : "Click Append primitive."));
+    case static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive):
+        return "Enable Exposed on the fill_bar primitive.";
+    case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
+        return "Click Add to active page.";
     case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
         return "Choose mfd_tutorial_strobe_cursor in Strobe template.";
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):

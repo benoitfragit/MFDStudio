@@ -175,7 +175,7 @@ coverage and generator validation.
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
 | `client_mockup` | Interactive GUI client for page control, reticle updates, dynamic reticles, and feedback inspection |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`; configured only once the tutorial assets exist |
+| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation through an exposed primitive; configured only once the tutorial assets exist |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 
 The repository also ships inspired sample assets under `assets/windows` and

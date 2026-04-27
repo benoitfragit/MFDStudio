@@ -306,6 +306,8 @@ struct Primitive
     Transform2D transform {};
     PrimitiveStyle style {};
     PrimitiveGeometry geometry {};
+    /** @brief Exposes this primitive to the generated client API when enabled. */
+    bool exposed = false;
 };
 
 /**

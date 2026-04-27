@@ -907,6 +907,26 @@ std::optional<bool> ParseFilledFlag(const json& node)
     return std::nullopt;
 }
 
+bool ParsePrimitiveExposed(const json& node)
+{
+    if (const json* exposed = FindField(node, {"expose", "exposed", "public", "clientExpose", "runtimeControl"});
+        exposed != nullptr && exposed->is_boolean())
+    {
+        return exposed->get<bool>();
+    }
+
+    if (const json* clientNode = FindField(node, {"client"}); clientNode != nullptr && clientNode->is_object())
+    {
+        if (const json* exposed = FindField(*clientNode, {"expose", "public"});
+            exposed != nullptr && exposed->is_boolean())
+        {
+            return exposed->get<bool>();
+        }
+    }
+
+    return false;
+}
+
 void ApplyTransformFields(const json& node, Transform2D& transform)
 {
     if (const json* position = FindField(node, {"position", "at", "pos"}))
@@ -1187,6 +1207,7 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
     primitive.type = ParsePrimitiveType(node.at("type").get<std::string>());
     primitive.transform = ParseTransform(node);
     primitive.style = ParsePrimitiveStyle(node);
+    primitive.exposed = ParsePrimitiveExposed(node);
 
     switch (primitive.type)
     {

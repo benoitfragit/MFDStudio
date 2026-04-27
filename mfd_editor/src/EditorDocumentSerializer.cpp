@@ -399,6 +399,10 @@ json SerializePrimitive(const mfd::Primitive& primitive, const std::filesystem::
         node["id"] = primitive.id;
     }
     node["type"] = PrimitiveTypeName(primitive.type);
+    if (primitive.exposed)
+    {
+        node["exposed"] = true;
+    }
     WriteTransformFields(node, primitive.transform);
     WritePrimitiveStyleFields(node, primitive.style);
     WritePrimitiveGeometry(node, primitive, baseFolder);

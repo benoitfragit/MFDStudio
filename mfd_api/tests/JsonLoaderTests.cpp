@@ -527,6 +527,46 @@ TEST(JsonLoaderTests, LoadDocumentParsesInlineAndTemplateReticleClipping)
     EXPECT_EQ(loaded.pages.front().staticReticles[2].clipping.primitiveId, "clip");
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesExposedPrimitiveFlags)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "progress_bar.json",
+                  R"json({
+  "id": "progress_bar",
+  "elements": [
+    { "id": "fill_bar", "type": "rectangle", "width": 0.22, "height": 0.06, "exposed": true },
+    { "id": "frame", "type": "rectangle", "width": 0.28, "height": 0.10, "client": { "expose": true } },
+    { "id": "mask", "type": "rectangle", "width": 0.30, "height": 0.12 }
+  ]
+})json");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Page2",
+      "staticReticles": [
+        { "id": "progress_bar_01", "template": "progress_bar" }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument loaded = loader.LoadDocument(pagesFile);
+
+    const auto templateIt = loaded.reticleLibrary.find("progress_bar");
+    ASSERT_NE(templateIt, loaded.reticleLibrary.end());
+    ASSERT_EQ(templateIt->second.primitives.size(), 3U);
+    EXPECT_TRUE(templateIt->second.primitives[0].exposed);
+    EXPECT_TRUE(templateIt->second.primitives[1].exposed);
+    EXPECT_FALSE(templateIt->second.primitives[2].exposed);
+}
+
 TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUnknownDefaultPageName)
 {
     TemporaryFolder workspace;

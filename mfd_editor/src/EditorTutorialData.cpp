@@ -129,6 +129,39 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0,
      0},
     {TutorialStepKind::UiAction,
+     "Create the progress-bar reticle",
+     "Create a rectangle-based reticle for Page2, then append a second rectangle so the tutorial can animate a framed progress bar.",
+     "menu_reticle",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Expose the progress fill primitive",
+     "Select the filling rectangle and mark it as exposed so the generated client API can resize and move it at runtime.",
+     "primitive_exposed_checkbox",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Add the progress bar to Page2",
+     "Instantiate the progress-bar template on Page2 so the tutorial client can drive it through the generated page bindings.",
+     "library_add_to_page",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
      "Save the tutorial assets",
      "Write the authored tutorial files to disk before moving to the code-focused part of the walkthrough.",
      "menu_file",
@@ -255,8 +288,11 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "page1Circle.SetColor(\n"
      "    generatedDeclutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});\n"
      "page1Circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(generatedTracks.size() + 1U));\n"
-     "page1Circle.Primitive01().SetThickness(0.0045f);",
-     "The tutorial now animates one authored static reticle through generated accessors, which mirrors the target `page -> reticle -> primitive` navigation exactly.",
+     "page1Circle.Primitive01().SetThickness(0.0045f);\n"
+     "page2ProgressBar.SetVisible(true);\n"
+     "progressFill.SetSize({progressWidth, 0.06f});\n"
+     "progressFill.SetPosition({progressCenterX, 0.0f});",
+     "The tutorial now animates authored static reticles through generated accessors on both pages, which mirrors the target `page -> reticle -> primitive` navigation exactly.",
      "Next",
      1,
      1},
@@ -307,10 +343,13 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "\n"
      "tutorial_ui::TutorialUi generatedUi;\n"
      "auto& page1 = generatedUi.Page1();\n"
+     "auto& page2 = generatedUi.Page2();\n"
      "auto& generatedDynamicTracks = page1.DynamicMfdTutorialRadarTrack();\n"
      "auto& page1Circle = page1.mfdTutorialCircle;\n"
+     "auto& page2ProgressBar = page2.mfdTutorialProgressBar;\n"
+     "auto& progressFill = page2ProgressBar.FillBar();\n"
      "auto& page1Strobe = page1.strobe;",
-     "The generated API now exposes one typed dynamic accessor, one static reticle handle, and one generic page `strobe` handle without asking the user to manage ids.",
+     "The generated API now exposes one typed dynamic accessor, two static reticle handles, one exposed primitive accessor, and one generic page `strobe` handle without asking the user to manage ids.",
      "Next",
      1,
      1},

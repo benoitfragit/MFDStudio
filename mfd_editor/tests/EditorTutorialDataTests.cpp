@@ -83,10 +83,26 @@ TEST(EditorTutorialDataTests, TutorialSnippetsPreferGeneratedHandlesWithoutUserM
 
     const std::string_view staticAfter = Step(editor::tutorial::TutorialStepId::ReviewStaticReticleCommands).afterText;
     EXPECT_NE(staticAfter.find("page1Circle.Primitive01().SetRadius"), std::string_view::npos);
+    EXPECT_NE(staticAfter.find("progressFill.SetSize"), std::string_view::npos);
+    EXPECT_NE(staticAfter.find("page2ProgressBar.SetVisible"), std::string_view::npos);
 
     const std::string_view integrationAfter = Step(editor::tutorial::TutorialStepId::ReviewGeneratedUiIntegration).afterText;
     EXPECT_NE(integrationAfter.find("DynamicMfdTutorialRadarTrack()"), std::string_view::npos);
     EXPECT_NE(integrationAfter.find("page1.strobe"), std::string_view::npos);
+    EXPECT_NE(integrationAfter.find("page2.mfdTutorialProgressBar"), std::string_view::npos);
+    EXPECT_NE(integrationAfter.find("FillBar()"), std::string_view::npos);
+}
+
+TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)
+{
+    const auto& createStep = Step(editor::tutorial::TutorialStepId::CreateProgressBarReticle);
+    EXPECT_STREQ(createStep.targetId, "menu_reticle");
+
+    const auto& exposeStep = Step(editor::tutorial::TutorialStepId::ExposeProgressBarFillPrimitive);
+    EXPECT_STREQ(exposeStep.targetId, "primitive_exposed_checkbox");
+
+    const auto& addStep = Step(editor::tutorial::TutorialStepId::AddProgressBarToPage2);
+    EXPECT_STREQ(addStep.targetId, "library_add_to_page");
 }
 
 TEST(EditorTutorialDataTests, TutorialMetadataReflectsSharedWindowLauncherFlow)

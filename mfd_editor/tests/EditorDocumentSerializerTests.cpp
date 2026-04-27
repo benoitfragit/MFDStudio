@@ -197,6 +197,25 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesImageGeometryA
     EXPECT_FLOAT_EQ(imageNode.at("height").get<float>(), 0.16f);
 }
 
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesExposedPrimitiveFlag)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "progress_demo";
+
+    mfd::Primitive primitive;
+    primitive.id = "fill_bar";
+    primitive.type = mfd::PrimitiveType::Rectangle;
+    primitive.exposed = true;
+    primitive.geometry = mfd::RectangleGeometry {0.20f, 0.06f};
+    reticle.primitives.push_back(std::move(primitive));
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_EQ(jsonNode.at("elements").size(), 1U);
+    EXPECT_TRUE(jsonNode.at("elements").at(0).at("exposed").get<bool>());
+}
+
 TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverridesBlinkAndClipReset)
 {
     mfd::ReticleGroup templateReticle;

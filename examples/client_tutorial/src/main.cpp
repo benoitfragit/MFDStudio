@@ -10,6 +10,7 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <exception>
 #include <iostream>
@@ -30,6 +31,10 @@ constexpr std::string_view kWindowFile = "assets/windows/mfd_tutorial.json";
 constexpr std::size_t kMaxTracks = 10;
 constexpr auto kTrackInterval = std::chrono::seconds(2);
 constexpr auto kPageSwitchInterval = std::chrono::seconds(30);
+constexpr float kProgressBarMaxWidth = 0.44f;
+constexpr float kProgressBarHeight = 0.06f;
+constexpr float kProgressBarLeftEdge = -0.22f;
+constexpr float kProgressLoopDurationSeconds = 6.0f;
 
 int mainImpl()
 {
@@ -64,10 +69,14 @@ int mainImpl()
     auto& page2 = generatedUi.Page2();
     auto& generatedDynamicTracks = page1.DynamicMfdTutorialRadarTrack();
     auto& page1Circle = page1.mfdTutorialCircle;
+    auto& page2ProgressBar = page2.mfdTutorialProgressBar;
+    auto& progressFill = page2ProgressBar.FillBar();
     auto& page1Strobe = page1.strobe;
     std::vector<tutorial_ui::MfdTutorialRadarTrackDynamicReticle*> generatedTracks;
     generatedTracks.reserve(kMaxTracks);
     bool generatedDeclutterVisible = true;
+    page2ProgressBar.SetVisible(true);
+    progressFill.SetVisible(true);
 
     bool page1Active = true;
     if (!client.ActivatePage(page1))
@@ -77,11 +86,21 @@ int mainImpl()
 
     auto nextTrackTime = std::chrono::steady_clock::now() + kTrackInterval;
     auto nextPageTime = std::chrono::steady_clock::now() + kPageSwitchInterval;
+    const auto progressStartTime = std::chrono::steady_clock::now();
     std::uint32_t serial = 1;
 
     while (true)
     {
         const auto now = std::chrono::steady_clock::now();
+        const float elapsedProgressSeconds =
+            std::chrono::duration<float>(now - progressStartTime).count();
+        const float progressPhase =
+            std::fmod(elapsedProgressSeconds, kProgressLoopDurationSeconds) / kProgressLoopDurationSeconds;
+        const float progressWidth = std::max(0.001f, kProgressBarMaxWidth * progressPhase);
+        const float progressCenterX = kProgressBarLeftEdge + progressWidth * 0.5f;
+
+        progressFill.SetSize({progressWidth, kProgressBarHeight});
+        progressFill.SetPosition({progressCenterX, 0.0f});
 
         if (now >= nextPageTime)
         {
@@ -131,15 +150,15 @@ int mainImpl()
                 page1Strobe.SetActive(true);
                 page1Strobe.SetPosition(trackPosition);
             }
-
-            const auto commands = generatedUi.BuildBatch();
-            if (!commands.empty())
-            {
-                client.SendBatch(commands);
-            }
             generatedTracks.push_back(&generatedTrack);
 
             nextTrackTime += kTrackInterval;
+        }
+
+        const auto commands = generatedUi.BuildBatch();
+        if (!commands.empty())
+        {
+            client.SendBatch(commands);
         }
 
         if (feedbackChannel)

@@ -767,26 +767,6 @@ constexpr std::array<mfd::PrimitiveType, 14> kPrimitiveTypes {
 
 constexpr std::size_t kInvalidBlinkTypeIndex = std::numeric_limits<std::size_t>::max();
 
-bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool vertical) noexcept
-{
-    if (primitive.type != mfd::PrimitiveType::Line)
-    {
-        return false;
-    }
-
-    auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry);
-    if (line == nullptr)
-    {
-        return false;
-    }
-
-    primitive.id = vertical ? "vertical_line" : "horizontal_line";
-    primitive.style.thickness = 0.0038f;
-    line->start = vertical ? mfd::Vec2 {0.0f, -0.055f} : mfd::Vec2 {-0.055f, 0.0f};
-    line->end = vertical ? mfd::Vec2 {0.0f, 0.055f} : mfd::Vec2 {0.055f, 0.0f};
-    return true;
-}
-
 int DefaultPageIndex(const std::vector<mfd::PageDefinition>& pages) noexcept
 {
     for (int index = 0; index < static_cast<int>(pages.size()); ++index)
@@ -2011,9 +1991,7 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
-    else if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreateRadarTrackReticle), 1) ||
-             tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreateCircleReticle), 1) ||
-             tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle), 1))
+    else if (tutorial_->ShouldResetReticleMenuPhaseOnClose())
     {
         tutorial_->ResetPhase();
     }
@@ -2829,12 +2807,12 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         "Right-click the circle reticle",
         "Open the clipping context menu on the tutorial mask so you can keep only the outside region.");
 
-    if (ImGui::BeginDragDropTarget())
+        if (ImGui::BeginDragDropTarget())
     {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MFD_LIBRARY_RETICLE"))
         {
             const char* templateId = static_cast<const char*>(payload->Data);
-            if (tutorial_->IsStep(static_cast<int>(TutorialStepId::AddCircleReticleToPage1)))
+            if (tutorial_->ShouldUseHighlightedAddToPageButton())
             {
                 RebuildStatus("Tutorial: use the highlighted Add to active page button for this step.", true);
             }
@@ -5946,7 +5924,7 @@ void EditorApplication::DrawPopups()
             {
                 if (tutorialCreateMatched)
                 {
-                    if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
+                    if (tutorial_->ShouldAdvanceReticleCreatePhase())
                     {
                         tutorial_->AdvancePhase();
                     }
@@ -5966,9 +5944,7 @@ void EditorApplication::DrawPopups()
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
         {
-            if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateRadarTrackReticle)) ||
-                tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateCircleReticle)) ||
-                tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
+            if (tutorial_->ShouldResetReticleCreatePopupOnCancel())
             {
                 tutorial_->ResetPhase();
             }
@@ -6314,6 +6290,27 @@ void EditorApplication::PrepareTutorialStep()
         CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page2.json").string());
         newPageDraft_.background = ImVec4(0.04f, 0.08f, 0.14f, 1.0f);
         break;
+    case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
+        CopyTextBuffer(newLibraryReticleDraft_.id, "mfd_tutorial_progress_bar");
+        setPrimitiveDraft(mfd::PrimitiveType::Rectangle);
+        break;
+    case static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive):
+        if (loaded_.document.reticleLibrary.find("mfd_tutorial_progress_bar") != loaded_.document.reticleLibrary.end())
+        {
+            SelectLibraryPrimitive("mfd_tutorial_progress_bar", 0);
+        }
+        break;
+    case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page2"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        if (loaded_.document.reticleLibrary.find("mfd_tutorial_progress_bar") !=
+            loaded_.document.reticleLibrary.end())
+        {
+            SelectLibraryReticle("mfd_tutorial_progress_bar");
+        }
+        break;
     default:
         break;
     }
@@ -6485,8 +6482,6 @@ bool EditorApplication::CreateNewPage()
 
 bool EditorApplication::CreateNewLibraryReticleFromPrimitive()
 {
-    using editor::tutorial::TutorialStepId;
-
     const std::string reticleId = newLibraryReticleDraft_.id.data();
     if (reticleId.empty())
     {
@@ -6496,31 +6491,18 @@ bool EditorApplication::CreateNewLibraryReticleFromPrimitive()
 
     const mfd::PrimitiveType primitiveType =
         kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)];
-    if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)))
+    std::string tutorialError;
+    if (!tutorial_->ValidateNewLibraryReticleDraft(reticleId, primitiveType, tutorialError))
     {
-        if (reticleId != kTutorialStrobeCursorTemplateId)
-        {
-            RebuildStatus("Tutorial: keep the reticle id set to 'mfd_tutorial_strobe_cursor'.", true);
-            return false;
-        }
-
-        if (primitiveType != mfd::PrimitiveType::Line)
-        {
-            RebuildStatus("Tutorial: create the strobe cursor from a Line primitive.", true);
-            return false;
-        }
+        RebuildStatus(tutorialError, true);
+        return false;
     }
 
     PushUndoSnapshot();
     mfd::ReticleGroup reticle = MakePrimitiveReticle(
         reticleId,
         primitiveType);
-    if (tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)) &&
-        reticle.id == kTutorialStrobeCursorTemplateId &&
-        !reticle.primitives.empty())
-    {
-        ConfigureTutorialStrobeLinePrimitive(reticle.primitives.front(), false);
-    }
+    tutorial_->ConfigureCreatedLibraryReticle(reticle);
     loaded_.document.reticleLibrary[reticle.id] = reticle;
     files_.templateFiles[reticle.id] = editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, reticle.id);
     SelectLibraryReticle(reticle.id);
@@ -8020,6 +8002,12 @@ void EditorApplication::DrawLibraryReticleInspector()
         const bool tutorialAddMatched = tutorial_->MatchesTarget("library_add_to_page");
         const mfd::PageDefinition* page = ActivePage();
         const mfd::Vec2 dropPosition = page == nullptr ? mfd::Vec2 {} : pagePreviewView_.center;
+        std::string tutorialError;
+        if (tutorialAddMatched && !tutorial_->ValidateAddToPage(page, *reticle, tutorialError))
+        {
+            RebuildStatus(tutorialError, true);
+            return;
+        }
         if (CreatePageReticleInstanceFromTemplate(reticle->id, dropPosition) && tutorialAddMatched)
         {
             if (const mfd::ReticleGroup* createdReticle = SelectedPageReticle(); createdReticle != nullptr)
@@ -8033,7 +8021,7 @@ void EditorApplication::DrawLibraryReticleInspector()
     tutorial_->DrawHalo(
         "library_add_to_page",
         "Click Add to active page",
-        "Instantiate the prepared tutorial circle on Page1 so clipping can be demonstrated next.");
+        tutorial_->LibraryAddToPageHaloReason().data());
     if (!canAddToPage)
     {
         ImGui::EndDisabled();
@@ -8166,15 +8154,10 @@ void EditorApplication::DrawLibraryReticleInspector()
             kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)];
         if (tutorialAppendMatched)
         {
-            if (reticle->id != kTutorialStrobeCursorTemplateId)
+            std::string tutorialError;
+            if (!tutorial_->ValidateAppendPrimitive(*reticle, primitiveType, tutorialError))
             {
-                RebuildStatus("Tutorial: append the second line inside 'mfd_tutorial_strobe_cursor'.", true);
-                return;
-            }
-
-            if (primitiveType != mfd::PrimitiveType::Line)
-            {
-                RebuildStatus("Tutorial: keep the Add primitive selector on 'Line' for the strobe cursor.", true);
+                RebuildStatus(tutorialError, true);
                 return;
             }
         }
@@ -8185,7 +8168,7 @@ void EditorApplication::DrawLibraryReticleInspector()
         primitive.id = "primitive_" + std::to_string(reticle->primitives.size() + 1);
         if (tutorialAppendMatched)
         {
-            ConfigureTutorialStrobeLinePrimitive(primitive, true);
+            tutorial_->ConfigureAppendedPrimitive(primitive);
         }
         reticle->primitives.push_back(std::move(primitive));
         SelectLibraryPrimitive(reticle->id, static_cast<int>(reticle->primitives.size()) - 1);
@@ -8198,7 +8181,7 @@ void EditorApplication::DrawLibraryReticleInspector()
     tutorial_->DrawHalo(
         "library_append_primitive",
         "Click Append primitive",
-        "Append the second line so the tutorial strobe cursor becomes a simple cross.");
+        tutorial_->LibraryAppendPrimitiveHaloReason().data());
 
     ImGui::SameLine();
     if (ImGui::Button("Remove selected primitive"))
@@ -8251,6 +8234,30 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             primitive->style.visible = visible;
         }
         ShowItemTooltip("Toggle whether this primitive is rendered inside the template.");
+    }
+
+    {
+        bool exposed = primitive->exposed;
+        const bool tutorialProgressFillSelected =
+            tutorial_->IsExposedPrimitiveTutorialSelection(selection_.libraryReticleId, primitive->id);
+        if (ImGui::Checkbox("Exposed", &exposed))
+        {
+            PushUndoSnapshot();
+            primitive->exposed = exposed;
+
+            if (exposed && tutorial_->MatchesTarget("primitive_exposed_checkbox") && tutorialProgressFillSelected)
+            {
+                tutorial_->CompleteStep();
+            }
+        }
+        ShowItemTooltip("Expose this primitive through the generated client API so runtime code can drive it directly.");
+        if (tutorialProgressFillSelected)
+        {
+            tutorial_->DrawHalo(
+                "primitive_exposed_checkbox",
+                "Enable Exposed",
+                "Expose the fill rectangle so the generated API can animate the progress bar without raw ids.");
+        }
     }
 
     if (ImGui::DragFloat2("Position", &primitive->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f"))
