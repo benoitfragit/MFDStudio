@@ -4,6 +4,7 @@
 set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationPluginLoader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialController.cpp
@@ -12,6 +13,11 @@ set(MFD_EDITOR_SOURCES
 
 set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorApplication.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationBridge.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationDocumentUtils.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationPluginLoader.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationServices.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationTypes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
@@ -29,8 +35,11 @@ add_executable(mfd_editor
     ${MFD_EDITOR_HEADERS}
     ${MFD_EDITOR_WINDOWS_RESOURCES})
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationBuild.cmake)
-mfd_editor_enable_automation_for_target(mfd_editor)
+target_sources(mfd_editor
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationBridge.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationCore.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationDocumentUtils.cpp)
 
 target_include_directories(mfd_editor
     PRIVATE
@@ -39,6 +48,7 @@ target_include_directories(mfd_editor
 target_link_libraries(mfd_editor
     PRIVATE
         mfd::api
+        mfd::editor_plugin_api
         imgui
         rlimgui)
 

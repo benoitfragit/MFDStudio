@@ -71,6 +71,7 @@ add_subdirectory(mfd_api)
 add_subdirectory(client_api)
 add_subdirectory(client_api_generator)
 add_subdirectory(mfd_window)
+add_subdirectory(mfd_editor_plugin_api)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/client_api_generator/ClientApiGenerator.cmake)
 
@@ -85,6 +86,7 @@ endif()
 
 if(MFD_BUILD_DEMO)
     add_subdirectory(examples/mfd_framebuffer_stdout_plugin)
+    add_subdirectory(examples/mfd_editor_automation_sample_plugin)
     add_subdirectory(examples/client_mockup)
     add_subdirectory(examples/client_mockup_minimal)
     add_subdirectory(mfd_editor)

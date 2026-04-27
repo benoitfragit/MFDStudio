@@ -637,6 +637,36 @@ ValidationReport ValidateAutomationState(const mfd::LoadedWindowConfiguration& l
             }
         }
 
+        std::unordered_set<std::string> blinkTypeNames;
+        for (const mfd::PageBlinkDefinition& blinkType : page.blinkTypes)
+        {
+            const std::string normalizedBlinkName =
+                blinkType.normalizedName.empty() ? NormalizeIdentifier(blinkType.name) : blinkType.normalizedName;
+            if (normalizedBlinkName.empty())
+            {
+                report.valid = false;
+                report.diagnostics.push_back(
+                    ValidationDiagnostic {AutomationErrorCode::ValidationFailed, pageId.value, "Blink type names cannot be empty."});
+                continue;
+            }
+
+            if (!blinkTypeNames.insert(normalizedBlinkName).second)
+            {
+                report.valid = false;
+                report.diagnostics.push_back(
+                    ValidationDiagnostic {AutomationErrorCode::ValidationFailed, pageId.value, "Blink type names must stay unique inside one page."});
+            }
+        }
+
+        if (!page.defaultBlinkTypeName.empty() && mfd::FindPageBlinkDefinition(page, page.defaultBlinkTypeName) == nullptr)
+        {
+            report.valid = false;
+            report.diagnostics.push_back(ValidationDiagnostic {
+                AutomationErrorCode::ValidationFailed,
+                pageId.value,
+                "The page default blink type must resolve inside the page blink catalog."});
+        }
+
         std::unordered_set<std::string> reticleIds;
         for (const mfd::ReticleGroup& reticle : page.staticReticles)
         {
@@ -666,6 +696,29 @@ ValidationReport ValidateAutomationState(const mfd::LoadedWindowConfiguration& l
             }
 
             AppendPrimitiveDiagnostics(reticle.primitives, reticleId.value, report);
+
+            if (reticle.blink.enabled &&
+                !reticle.blink.typeName.empty() &&
+                mfd::FindPageBlinkDefinition(page, reticle.blink.typeName) == nullptr)
+            {
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    reticleId.value,
+                    "Page reticle blink bindings must reference one page-local blink type."});
+            }
+        }
+
+        if (page.strobe.has_value() &&
+            page.strobe->reticle.blink.enabled &&
+            !page.strobe->reticle.blink.typeName.empty() &&
+            mfd::FindPageBlinkDefinition(page, page.strobe->reticle.blink.typeName) == nullptr)
+        {
+            report.valid = false;
+            report.diagnostics.push_back(ValidationDiagnostic {
+                AutomationErrorCode::ValidationFailed,
+                pageId.value,
+                "Page strobe blink bindings must reference one page-local blink type."});
         }
     }
 

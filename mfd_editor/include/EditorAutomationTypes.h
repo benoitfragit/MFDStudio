@@ -7,7 +7,7 @@
 
 /**
  * @file
- * @brief Strongly-typed automation contracts used by the hidden external editor automation host.
+ * @brief Strongly-typed automation contracts used by hidden editor automation plugins and tests.
  */
 
 #include <filesystem>
@@ -207,6 +207,16 @@ enum class AutomationPrimitiveOwnerKind
 };
 
 /**
+ * @brief Reticle target category used by generic reticle-level automation actions.
+ */
+enum class AutomationReticleTargetKind
+{
+    ReticleAsset,
+    PageReticleInstance,
+    PageStrobe
+};
+
+/**
  * @brief Event kinds emitted by the automation subsystem after successful mutations.
  */
 enum class AutomationEventKind
@@ -380,6 +390,16 @@ struct CreateWindowDocumentRequest
 };
 
 /**
+ * @brief Replaces the authored window settings while keeping the current document content.
+ */
+struct ReplaceWindowAssetRequest
+{
+    mfd::WindowAssetDefinition window {};
+    std::optional<std::filesystem::path> windowFile {};
+    std::optional<std::filesystem::path> reticleLibraryFolder {};
+};
+
+/**
  * @brief Creates one new page asset inside the current document.
  */
 struct CreatePageAssetRequest
@@ -463,6 +483,15 @@ struct DeletePageReticleInstanceRequest
 };
 
 /**
+ * @brief Reorders one page-reticle instance inside its parent page draw order.
+ */
+struct MovePageReticleRequest
+{
+    PageReticleInstanceId pageReticleId {};
+    int targetIndex = 0;
+};
+
+/**
  * @brief Selects one primitive inside a reticle asset or a page-reticle instance.
  */
 struct PrimitiveSelector
@@ -504,6 +533,24 @@ struct DeletePrimitiveRequest
 };
 
 /**
+ * @brief Toggles the visibility of one reticle template.
+ */
+struct SetReticleAssetVisibilityRequest
+{
+    ReticleAssetId reticleId {};
+    bool visible = true;
+};
+
+/**
+ * @brief Toggles draw-on-top ordering for one reticle template.
+ */
+struct SetReticleAssetDrawOnTopRequest
+{
+    ReticleAssetId reticleId {};
+    bool drawOnTop = false;
+};
+
+/**
  * @brief Toggles the visibility of one page-reticle instance.
  */
 struct SetReticleVisibilityRequest
@@ -522,6 +569,37 @@ struct SetReticleDrawOnTopRequest
 };
 
 /**
+ * @brief Replaces the clipping state of one reticle asset, page-reticle instance or page strobe.
+ */
+struct SetReticleClippingRequest
+{
+    AutomationReticleTargetKind targetKind = AutomationReticleTargetKind::PageReticleInstance;
+    std::string targetId {};
+    mfd::ReticleClipState clipping {};
+};
+
+/**
+ * @brief Updates the transform of one reticle asset, page-reticle instance or page strobe.
+ */
+struct SetReticleTransformRequest
+{
+    AutomationReticleTargetKind targetKind = AutomationReticleTargetKind::PageReticleInstance;
+    std::string targetId {};
+    mfd::Transform2D transform {};
+};
+
+/**
+ * @brief Updates the transform of one primitive.
+ */
+struct SetPrimitiveTransformRequest
+{
+    AutomationPrimitiveOwnerKind ownerKind = AutomationPrimitiveOwnerKind::ReticleAsset;
+    std::string ownerId {};
+    PrimitiveSelector primitive {};
+    mfd::Transform2D transform {};
+};
+
+/**
  * @brief Toggles the visibility of one primitive.
  */
 struct SetPrimitiveVisibilityRequest
@@ -530,6 +608,109 @@ struct SetPrimitiveVisibilityRequest
     std::string ownerId {};
     PrimitiveSelector primitive {};
     bool visible = true;
+};
+
+/**
+ * @brief Toggles whether one primitive is exposed through the generated client API.
+ */
+struct SetPrimitiveExposedRequest
+{
+    AutomationPrimitiveOwnerKind ownerKind = AutomationPrimitiveOwnerKind::ReticleAsset;
+    std::string ownerId {};
+    PrimitiveSelector primitive {};
+    bool exposed = true;
+};
+
+/**
+ * @brief Assigns one page-reticle instance to one editor layer inside its page.
+ */
+struct SetPageReticleLayerRequest
+{
+    PageReticleInstanceId pageReticleId {};
+    LayerId layerId {};
+};
+
+/**
+ * @brief Appends one new editor layer to one page.
+ */
+struct CreateLayerRequest
+{
+    PageId pageId {};
+    mfd::EditorLayerDefinition layer {};
+    std::optional<int> insertIndex {};
+};
+
+/**
+ * @brief Replaces one existing editor layer and updates page-reticle references when renamed.
+ */
+struct ReplaceLayerRequest
+{
+    PageId pageId {};
+    LayerId layerId {};
+    mfd::EditorLayerDefinition layer {};
+};
+
+/**
+ * @brief Deletes one editor layer from one page and clears reticle assignments that referenced it.
+ */
+struct DeleteLayerRequest
+{
+    PageId pageId {};
+    LayerId layerId {};
+};
+
+/**
+ * @brief Replaces the full blink-type catalog of one page.
+ */
+struct ReplacePageBlinkTypesRequest
+{
+    PageId pageId {};
+    std::vector<mfd::PageBlinkDefinition> blinkTypes {};
+};
+
+/**
+ * @brief Updates the default page blink type used by reticles that enable blink without naming one.
+ */
+struct SetPageDefaultBlinkTypeRequest
+{
+    PageId pageId {};
+    std::string blinkTypeName {};
+};
+
+/**
+ * @brief Updates the blink binding of one page-reticle instance.
+ */
+struct SetPageReticleBlinkRequest
+{
+    PageReticleInstanceId pageReticleId {};
+    mfd::ReticleBlinkState blink {};
+};
+
+/**
+ * @brief Assigns one reticle template as the page strobe, preserving prior authored settings when possible.
+ */
+struct AssignPageStrobeTemplateRequest
+{
+    PageId pageId {};
+    ReticleAssetId reticleAssetId {};
+    std::optional<std::string> strobeId {};
+};
+
+/**
+ * @brief Replaces one page strobe with a fully specified authored definition.
+ */
+struct ReplacePageStrobeRequest
+{
+    PageId pageId {};
+    mfd::PageStrobeDefinition strobe {};
+};
+
+/**
+ * @brief Removes the page strobe from one page.
+ */
+struct DeletePageStrobeRequest
+{
+    PageId pageId {};
 };
 
 /**
@@ -555,6 +736,7 @@ struct SelectEntityRequest
  * @brief Strongly-typed semantic action applied during one preview session.
  */
 using AutomationAction = std::variant<CreateWindowDocumentRequest,
+                                      ReplaceWindowAssetRequest,
                                       CreatePageAssetRequest,
                                       ReplacePageAssetRequest,
                                       DeletePageAssetRequest,
@@ -564,12 +746,29 @@ using AutomationAction = std::variant<CreateWindowDocumentRequest,
                                       InstantiateReticleOnPageRequest,
                                       ReplacePageReticleInstanceRequest,
                                       DeletePageReticleInstanceRequest,
+                                      MovePageReticleRequest,
                                       AddPrimitiveRequest,
                                       ReplacePrimitiveRequest,
                                       DeletePrimitiveRequest,
+                                      SetReticleAssetVisibilityRequest,
+                                      SetReticleAssetDrawOnTopRequest,
                                       SetReticleVisibilityRequest,
                                       SetReticleDrawOnTopRequest,
+                                      SetReticleClippingRequest,
+                                      SetReticleTransformRequest,
+                                      SetPrimitiveTransformRequest,
                                       SetPrimitiveVisibilityRequest,
+                                      SetPrimitiveExposedRequest,
+                                      SetPageReticleLayerRequest,
+                                      CreateLayerRequest,
+                                      ReplaceLayerRequest,
+                                      DeleteLayerRequest,
+                                      ReplacePageBlinkTypesRequest,
+                                      SetPageDefaultBlinkTypeRequest,
+                                      SetPageReticleBlinkRequest,
+                                      AssignPageStrobeTemplateRequest,
+                                      ReplacePageStrobeRequest,
+                                      DeletePageStrobeRequest,
                                       SetLayerVisibilityRequest,
                                       SelectEntityRequest>;
 

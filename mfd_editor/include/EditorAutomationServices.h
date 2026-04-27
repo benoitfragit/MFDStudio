@@ -7,18 +7,20 @@
 
 /**
  * @file
- * @brief Service interfaces and facade used by the hidden external editor automation host.
+ * @brief Service interfaces and facade used by hidden editor automation plugins and tests.
  */
 
 #include <memory>
 #include <vector>
 
-#include "EditorAutomationBridge.h"
+#include "EditorAutomationTypes.h"
 
 namespace editor::automation
 {
+class IEditorAutomationEditorBridge;
+
 /**
- * @brief Read-only query service exposing the current editor state to external automation clients.
+ * @brief Read-only query service exposing the current editor state to automation plugins.
  */
 class IEditorAutomationQueryService
 {
@@ -87,7 +89,7 @@ public:
 };
 
 /**
- * @brief Event service collecting structured automation events for external clients.
+ * @brief Event service collecting structured automation events for automation plugins.
  */
 class IEditorAutomationEventService
 {

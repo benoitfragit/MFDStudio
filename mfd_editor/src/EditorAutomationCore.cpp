@@ -13,9 +13,12 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 
+#include "EditorAutomationBridge.h"
 #include "EditorAutomationDocumentUtils.h"
 
 namespace editor
@@ -73,6 +76,27 @@ std::filesystem::path ResolveAgainst(const std::filesystem::path& anchorFile, co
     return (anchorFile.parent_path() / candidate).lexically_normal();
 }
 
+std::filesystem::path ResolveAgainstDirectory(const std::filesystem::path& anchorDirectory,
+                                              const std::filesystem::path& candidate)
+{
+    if (candidate.empty())
+    {
+        return {};
+    }
+
+    if (candidate.is_absolute())
+    {
+        return candidate.lexically_normal();
+    }
+
+    if (anchorDirectory.empty())
+    {
+        return candidate.lexically_normal();
+    }
+
+    return (anchorDirectory / candidate).lexically_normal();
+}
+
 std::filesystem::path DefaultReticleLibraryFolder(const std::filesystem::path& windowFile)
 {
     if (windowFile.empty())
@@ -83,10 +107,28 @@ std::filesystem::path DefaultReticleLibraryFolder(const std::filesystem::path& w
     return (windowFile.parent_path() / "reticles").lexically_normal();
 }
 
+std::optional<std::string> ExtractReticleAssetTemplateId(const std::string_view automationId)
+{
+    constexpr std::string_view kReticleAssetPrefix = "reticle-asset:";
+    if (automationId.size() <= kReticleAssetPrefix.size() ||
+        automationId.compare(0, kReticleAssetPrefix.size(), kReticleAssetPrefix) != 0)
+    {
+        return std::nullopt;
+    }
+
+    return std::string(automationId.substr(kReticleAssetPrefix.size()));
+}
+
 struct PrimitiveOwnerAccess
 {
     std::vector<mfd::Primitive>* primitives = nullptr;
     std::string ownerId {};
+};
+
+struct ReticleTargetAccess
+{
+    mfd::ReticleGroup* reticle = nullptr;
+    std::string targetId {};
 };
 
 PrimitiveOwnerAccess ResolvePrimitiveOwner(mfd::LoadedWindowConfiguration& loaded,
@@ -111,6 +153,70 @@ PrimitiveOwnerAccess ResolvePrimitiveOwner(mfd::LoadedWindowConfiguration& loade
     {
         result.primitives = &pageReticle->primitives;
     }
+    return result;
+}
+
+mfd::PageStrobeDefinition* FindPageStrobeByPageId(mfd::LoadedWindowConfiguration& loaded,
+                                                  const PageId& pageId,
+                                                  mfd::PageDefinition** page = nullptr,
+                                                  int* pageIndex = nullptr)
+{
+    mfd::PageDefinition* targetPage = FindPageById(loaded, pageId, pageIndex);
+    if (targetPage == nullptr || !targetPage->strobe.has_value())
+    {
+        return nullptr;
+    }
+
+    if (page != nullptr)
+    {
+        *page = targetPage;
+    }
+
+    return &*targetPage->strobe;
+}
+
+const mfd::PageStrobeDefinition* FindPageStrobeByPageId(const mfd::LoadedWindowConfiguration& loaded,
+                                                        const PageId& pageId,
+                                                        const mfd::PageDefinition** page = nullptr,
+                                                        int* pageIndex = nullptr)
+{
+    const mfd::PageDefinition* targetPage = FindPageById(loaded, pageId, pageIndex);
+    if (targetPage == nullptr || !targetPage->strobe.has_value())
+    {
+        return nullptr;
+    }
+
+    if (page != nullptr)
+    {
+        *page = targetPage;
+    }
+
+    return &*targetPage->strobe;
+}
+
+ReticleTargetAccess ResolveReticleTarget(mfd::LoadedWindowConfiguration& loaded,
+                                         const AutomationReticleTargetKind targetKind,
+                                         const std::string_view targetId)
+{
+    ReticleTargetAccess result;
+    result.targetId = std::string(targetId);
+
+    switch (targetKind)
+    {
+    case AutomationReticleTargetKind::ReticleAsset:
+        result.reticle = FindReticleAssetById(loaded, ReticleAssetId {std::string(targetId)});
+        return result;
+    case AutomationReticleTargetKind::PageReticleInstance:
+        result.reticle = FindPageReticleById(loaded, PageReticleInstanceId {std::string(targetId)});
+        return result;
+    case AutomationReticleTargetKind::PageStrobe:
+    {
+        mfd::PageStrobeDefinition* strobe = FindPageStrobeByPageId(loaded, PageId {std::string(targetId)}, nullptr, nullptr);
+        result.reticle = strobe == nullptr ? nullptr : &strobe->reticle;
+        return result;
+    }
+    }
+
     return result;
 }
 
@@ -200,6 +306,25 @@ bool HasDuplicatePageReticleId(const mfd::PageDefinition& page, const std::strin
     return false;
 }
 
+bool HasDuplicateLayerId(const mfd::PageDefinition& page, const std::string_view layerId, const int ignoredIndex = -1)
+{
+    const std::string normalizedLayerId = mfd::NormalizePageName(layerId);
+    for (int index = 0; index < static_cast<int>(page.editor.layers.size()); ++index)
+    {
+        if (index == ignoredIndex)
+        {
+            continue;
+        }
+
+        if (mfd::NormalizePageName(page.editor.layers[static_cast<std::size_t>(index)].id) == normalizedLayerId)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void SyncWindowPageFiles(mfd::LoadedWindowConfiguration& loaded, const editor::EditorFileLayout& files)
 {
     loaded.window.pageFiles = files.pageFiles;
@@ -214,15 +339,205 @@ std::vector<std::filesystem::path> CollectSavedFiles(const mfd::LoadedWindowConf
     }
 
     savedFiles.insert(savedFiles.end(), files.pageFiles.begin(), files.pageFiles.end());
-    for (const auto& [templateId, templateFile] : files.templateFiles)
+    for (const auto& entry : files.templateFiles)
     {
-        static_cast<void>(templateId);
-        savedFiles.push_back(templateFile);
+        savedFiles.push_back(entry.second);
     }
 
     std::sort(savedFiles.begin(), savedFiles.end());
     savedFiles.erase(std::unique(savedFiles.begin(), savedFiles.end()), savedFiles.end());
     return savedFiles;
+}
+
+std::size_t FindBlinkTypeIndex(const mfd::PageDefinition& page, const std::string_view blinkTypeName)
+{
+    const std::string normalizedBlinkTypeName = mfd::NormalizePageName(blinkTypeName);
+    if (normalizedBlinkTypeName.empty())
+    {
+        return static_cast<std::size_t>(-1);
+    }
+
+    for (std::size_t index = 0; index < page.blinkTypes.size(); ++index)
+    {
+        if (page.blinkTypes[index].normalizedName == normalizedBlinkTypeName)
+        {
+            return index;
+        }
+    }
+
+    return static_cast<std::size_t>(-1);
+}
+
+std::size_t EffectiveDefaultBlinkTypeIndex(const mfd::PageDefinition& page)
+{
+    if (page.blinkTypes.empty())
+    {
+        return static_cast<std::size_t>(-1);
+    }
+
+    if (!page.normalizedDefaultBlinkTypeName.empty())
+    {
+        for (std::size_t index = 0; index < page.blinkTypes.size(); ++index)
+        {
+            if (page.blinkTypes[index].normalizedName == page.normalizedDefaultBlinkTypeName)
+            {
+                return index;
+            }
+        }
+    }
+
+    return 0U;
+}
+
+void RefreshBlinkBinding(const mfd::PageDefinition& page, mfd::ReticleBlinkState& blink)
+{
+    blink.normalizedTypeName = blink.typeName.empty() ? std::string {} : mfd::NormalizePageName(blink.typeName);
+
+    if (!blink.typeName.empty())
+    {
+        const std::size_t blinkTypeIndex = FindBlinkTypeIndex(page, blink.normalizedTypeName);
+        blink.durationMs = blinkTypeIndex == static_cast<std::size_t>(-1) ? 0U : page.blinkTypes[blinkTypeIndex].durationMs;
+        return;
+    }
+
+    if (!blink.enabled)
+    {
+        blink.durationMs = 0U;
+        return;
+    }
+
+    const std::size_t defaultBlinkTypeIndex = EffectiveDefaultBlinkTypeIndex(page);
+    blink.durationMs =
+        defaultBlinkTypeIndex == static_cast<std::size_t>(-1) ? 0U : page.blinkTypes[defaultBlinkTypeIndex].durationMs;
+}
+
+void ClearInvalidBlinkReferences(mfd::PageDefinition& page)
+{
+    const auto clearInvalidReference = [&page](mfd::ReticleBlinkState& blink)
+    {
+        if (blink.typeName.empty())
+        {
+            return;
+        }
+
+        if (FindBlinkTypeIndex(page, blink.typeName) == static_cast<std::size_t>(-1))
+        {
+            blink = {};
+        }
+    };
+
+    for (mfd::ReticleGroup& reticle : page.staticReticles)
+    {
+        clearInvalidReference(reticle.blink);
+    }
+
+    if (page.strobe.has_value())
+    {
+        clearInvalidReference(page.strobe->reticle.blink);
+    }
+}
+
+void RefreshPageBlinkState(mfd::PageDefinition& page)
+{
+    for (mfd::PageBlinkDefinition& blinkType : page.blinkTypes)
+    {
+        blinkType.normalizedName = mfd::NormalizePageName(blinkType.name);
+        blinkType.durationMs = std::max<std::uint32_t>(1U, blinkType.durationMs);
+    }
+
+    page.normalizedDefaultBlinkTypeName =
+        page.defaultBlinkTypeName.empty() ? std::string {} : mfd::NormalizePageName(page.defaultBlinkTypeName);
+    ClearInvalidBlinkReferences(page);
+
+    for (mfd::ReticleGroup& reticle : page.staticReticles)
+    {
+        RefreshBlinkBinding(page, reticle.blink);
+    }
+
+    if (page.strobe.has_value())
+    {
+        RefreshBlinkBinding(page, page.strobe->reticle.blink);
+    }
+}
+
+void WriteUtf8TextFile(const std::filesystem::path& path, const std::string& text)
+{
+    std::filesystem::create_directories(path.parent_path());
+
+    std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+    if (!stream.is_open())
+    {
+        throw std::runtime_error("Unable to open file for writing: " + path.string());
+    }
+
+    stream << text;
+}
+
+void RenameEditorLayerReferences(mfd::PageDefinition& page,
+                                 const std::string_view previousLayerId,
+                                 const std::string& nextLayerId)
+{
+    if (previousLayerId.empty() || previousLayerId == nextLayerId)
+    {
+        return;
+    }
+
+    for (mfd::ReticleGroup& reticle : page.staticReticles)
+    {
+        if (reticle.editor.layerId == previousLayerId)
+        {
+            reticle.editor.layerId = nextLayerId;
+        }
+    }
+}
+
+std::size_t ClearEditorLayerReferences(mfd::PageDefinition& page, const std::string_view removedLayerId)
+{
+    if (removedLayerId.empty())
+    {
+        return 0U;
+    }
+
+    std::size_t clearedCount = 0U;
+    for (mfd::ReticleGroup& reticle : page.staticReticles)
+    {
+        if (reticle.editor.layerId == removedLayerId)
+        {
+            reticle.editor.layerId.clear();
+            ++clearedCount;
+        }
+    }
+
+    return clearedCount;
+}
+
+mfd::PageStrobeDefinition MakePageStrobeFromTemplate(const mfd::PageDefinition& page,
+                                                     const mfd::ReticleGroup& templ,
+                                                     const std::optional<mfd::PageStrobeDefinition>& previousStrobe)
+{
+    const std::string baseId =
+        previousStrobe.has_value() && !previousStrobe->reticle.id.empty()
+            ? previousStrobe->reticle.id
+            : (templ.id.empty() ? std::string {"strobe"} : templ.id + "_strobe");
+
+    mfd::PageStrobeDefinition strobe;
+    strobe.reticle = mfd::InstantiateReticle(templ, MakeUniqueReticleId(page.staticReticles, baseId));
+    strobe.reticle.visible = true;
+
+    if (previousStrobe.has_value())
+    {
+        strobe.reticle.visible = previousStrobe->reticle.visible;
+        strobe.reticle.drawOnTop = previousStrobe->reticle.drawOnTop;
+        strobe.reticle.transform = previousStrobe->reticle.transform;
+        strobe.reticle.overrides = previousStrobe->reticle.overrides;
+        strobe.reticle.blink = previousStrobe->reticle.blink;
+        strobe.reticle.clipping = previousStrobe->reticle.clipping;
+        strobe.reticle.editor = previousStrobe->reticle.editor;
+        strobe.capture = previousStrobe->capture;
+        strobe.magnet = previousStrobe->magnet;
+    }
+
+    return strobe;
 }
 
 class EventQueue
@@ -339,6 +654,7 @@ private:
 
             page.normalizedName = mfd::NormalizePageName(page.name);
             BootstrapEditorLayersForPage(page);
+            RefreshPageBlinkState(page);
             next.document.pages.push_back(page);
 
             std::filesystem::path pageFile =
@@ -368,6 +684,45 @@ private:
         return AutomationStatus::Success();
     }
 
+    AutomationStatus ApplyConcreteAction(const ReplaceWindowAssetRequest& request)
+    {
+        if (!context_.bridge.HasOpenWindow())
+        {
+            return FailureStatus(AutomationErrorCode::InvalidState, "No authored window is currently open.");
+        }
+
+        std::filesystem::path windowFile =
+            request.windowFile.value_or(context_.bridge.WindowFile().empty() ? request.window.sourceFile : context_.bridge.WindowFile());
+        windowFile = windowFile.lexically_normal();
+        if (windowFile.empty())
+        {
+            return FailureStatus(AutomationErrorCode::InvalidArgument, "Window file cannot be empty.");
+        }
+        if (IsExecStagingPath(windowFile))
+        {
+            return FailureStatus(AutomationErrorCode::InvalidArgument,
+                                 "Choose a source assets folder for the window JSON, not a staged _Exec folder.");
+        }
+
+        mfd::WindowAssetDefinition window = request.window;
+        window.sourceFile = windowFile;
+        window.pageFiles = context_.bridge.Files().pageFiles;
+        window.reticleLibraryFolder =
+            ResolveAgainst(windowFile,
+                           request.reticleLibraryFolder.value_or(
+                               request.window.reticleLibraryFolder.empty() ? context_.bridge.Loaded().window.reticleLibraryFolder
+                                                                           : request.window.reticleLibraryFolder));
+
+        context_.bridge.MutableLoaded().window = window;
+        context_.bridge.MutableLoaded().document.sourceFile = windowFile;
+        context_.bridge.MutableLoaded().document.reticleLibraryFolder = window.reticleLibraryFolder;
+        context_.bridge.SetWindowFile(windowFile);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             MakeWindowId(context_.bridge.Loaded()).value,
+                             "Automation updated the authored window settings.");
+        return AutomationStatus::Success();
+    }
+
     AutomationStatus ApplyConcreteAction(const CreatePageAssetRequest& request)
     {
         if (!context_.bridge.HasOpenWindow())
@@ -386,6 +741,7 @@ private:
         mfd::PageDefinition page = request.page;
         page.normalizedName = mfd::NormalizePageName(page.name);
         BootstrapEditorLayersForPage(page);
+        RefreshPageBlinkState(page);
 
         std::filesystem::path pageFile =
             ResolveAgainst(context_.bridge.WindowFile(),
@@ -429,6 +785,7 @@ private:
         mfd::PageDefinition replacement = request.page;
         replacement.normalizedName = mfd::NormalizePageName(replacement.name);
         BootstrapEditorLayersForPage(replacement);
+        RefreshPageBlinkState(replacement);
         *page = replacement;
 
         if (request.filePathHint.has_value())
@@ -503,9 +860,9 @@ private:
         mfd::ReticleGroup reticle = request.reticle;
         reticle.sourceTemplateId.clear();
         const std::filesystem::path templateFile =
-            ResolveAgainst(context_.bridge.Loaded().window.reticleLibraryFolder,
-                           request.filePathHint.value_or(
-                               editor::DefaultTemplateFilePath(context_.bridge.Loaded().window.reticleLibraryFolder, reticle.id)));
+            ResolveAgainstDirectory(context_.bridge.Loaded().window.reticleLibraryFolder,
+                                    request.filePathHint.value_or(
+                                        editor::DefaultTemplateFilePath(context_.bridge.Loaded().window.reticleLibraryFolder, reticle.id)));
         if (IsExecStagingPath(templateFile))
         {
             return FailureStatus(AutomationErrorCode::InvalidArgument,
@@ -577,7 +934,7 @@ private:
         if (request.filePathHint.has_value())
         {
             context_.bridge.MutableFiles().templateFiles[replacement.id] =
-                ResolveAgainst(context_.bridge.Loaded().window.reticleLibraryFolder, *request.filePathHint);
+                ResolveAgainstDirectory(context_.bridge.Loaded().window.reticleLibraryFolder, *request.filePathHint);
         }
 
         context_.bridge.SelectReticleAsset(replacement.id);
@@ -688,6 +1045,7 @@ private:
         }
 
         *reticle = request.reticle;
+        RefreshPageBlinkState(*page);
         context_.bridge.SelectPageReticle(pageIndex, reticleIndex);
         context_.events.Push(AutomationEventKind::DocumentChanged,
                              MakePageReticleInstanceId(*page, *reticle).value,
@@ -720,6 +1078,43 @@ private:
         context_.events.Push(AutomationEventKind::DocumentChanged,
                              request.pageReticleId.value,
                              "Automation deleted one page reticle instance.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const MovePageReticleRequest& request)
+    {
+        mfd::PageDefinition* page = nullptr;
+        int pageIndex = -1;
+        int reticleIndex = -1;
+        mfd::ReticleGroup* reticle =
+            FindPageReticleById(context_.bridge.MutableLoaded(), request.pageReticleId, &page, &pageIndex, &reticleIndex);
+        if (reticle == nullptr || page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page reticle id.");
+        }
+
+        const int reticleCount = static_cast<int>(page->staticReticles.size());
+        if (reticleCount <= 0)
+        {
+            return FailureStatus(AutomationErrorCode::InvalidState, "The parent page has no reticles to reorder.");
+        }
+
+        const int targetIndex = std::clamp(request.targetIndex, 0, reticleCount - 1);
+        if (targetIndex == reticleIndex)
+        {
+            return AutomationStatus::Success();
+        }
+
+        mfd::ReticleGroup movedReticle = std::move(page->staticReticles[static_cast<std::size_t>(reticleIndex)]);
+        page->staticReticles.erase(page->staticReticles.begin() + reticleIndex);
+        page->staticReticles.insert(page->staticReticles.begin() + targetIndex, std::move(movedReticle));
+        context_.bridge.SelectPageReticle(pageIndex, targetIndex);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageReticleId.value,
+                             "Automation reordered one page reticle instance.");
+        context_.events.Push(AutomationEventKind::SelectionChanged,
+                             MakePageReticleInstanceId(*page, page->staticReticles[static_cast<std::size_t>(targetIndex)]).value,
+                             "Automation kept the moved page reticle selected.");
         return AutomationStatus::Success();
     }
 
@@ -785,6 +1180,36 @@ private:
         return AutomationStatus::Success();
     }
 
+    AutomationStatus ApplyConcreteAction(const SetReticleAssetVisibilityRequest& request)
+    {
+        mfd::ReticleGroup* reticle = FindReticleAssetById(context_.bridge.MutableLoaded(), request.reticleId);
+        if (reticle == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown reticle asset id.");
+        }
+
+        reticle->visible = request.visible;
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.reticleId.value,
+                             "Automation updated reticle asset visibility.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const SetReticleAssetDrawOnTopRequest& request)
+    {
+        mfd::ReticleGroup* reticle = FindReticleAssetById(context_.bridge.MutableLoaded(), request.reticleId);
+        if (reticle == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown reticle asset id.");
+        }
+
+        reticle->drawOnTop = request.drawOnTop;
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.reticleId.value,
+                             "Automation updated reticle asset draw-on-top state.");
+        return AutomationStatus::Success();
+    }
+
     AutomationStatus ApplyConcreteAction(const SetReticleVisibilityRequest& request)
     {
         mfd::ReticleGroup* reticle = FindPageReticleById(context_.bridge.MutableLoaded(), request.pageReticleId);
@@ -815,6 +1240,70 @@ private:
         return AutomationStatus::Success();
     }
 
+    AutomationStatus ApplyConcreteAction(const SetReticleClippingRequest& request)
+    {
+        ReticleTargetAccess target = ResolveReticleTarget(context_.bridge.MutableLoaded(), request.targetKind, request.targetId);
+        if (target.reticle == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown reticle target id.");
+        }
+
+        const mfd::ReticleClipState previousClipping = target.reticle->clipping;
+        target.reticle->clipping = request.clipping;
+
+        if (target.reticle->clipping.mode != mfd::ReticleClipMode::None)
+        {
+            if (target.reticle->clipping.primitiveId.empty())
+            {
+                target.reticle->clipping = previousClipping;
+                return FailureStatus(AutomationErrorCode::InvalidArgument,
+                                     "Clipping requires one primitive id when the mode is not 'None'.");
+            }
+
+            if (mfd::ResolveClipPrimitive(*target.reticle) == nullptr)
+            {
+                target.reticle->clipping = previousClipping;
+                return FailureStatus(AutomationErrorCode::ValidationFailed,
+                                     "The requested clip primitive is missing or not supported for clipping.");
+            }
+        }
+
+        context_.events.Push(AutomationEventKind::DocumentChanged, target.targetId, "Automation updated reticle clipping.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const SetReticleTransformRequest& request)
+    {
+        ReticleTargetAccess target = ResolveReticleTarget(context_.bridge.MutableLoaded(), request.targetKind, request.targetId);
+        if (target.reticle == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown reticle target id.");
+        }
+
+        target.reticle->transform = request.transform;
+        context_.events.Push(AutomationEventKind::DocumentChanged, target.targetId, "Automation updated reticle transform.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const SetPrimitiveTransformRequest& request)
+    {
+        PrimitiveOwnerAccess owner = ResolvePrimitiveOwner(context_.bridge.MutableLoaded(), request.ownerKind, request.ownerId);
+        if (owner.primitives == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown primitive owner id.");
+        }
+
+        const int primitiveIndex = ResolvePrimitiveIndex(*owner.primitives, request.primitive);
+        if (primitiveIndex < 0)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown primitive id.");
+        }
+
+        (*owner.primitives)[static_cast<std::size_t>(primitiveIndex)].transform = request.transform;
+        context_.events.Push(AutomationEventKind::DocumentChanged, owner.ownerId, "Automation updated primitive transform.");
+        return AutomationStatus::Success();
+    }
+
     AutomationStatus ApplyConcreteAction(const SetPrimitiveVisibilityRequest& request)
     {
         PrimitiveOwnerAccess owner = ResolvePrimitiveOwner(context_.bridge.MutableLoaded(), request.ownerKind, request.ownerId);
@@ -831,6 +1320,312 @@ private:
 
         (*owner.primitives)[static_cast<std::size_t>(primitiveIndex)].style.visible = request.visible;
         context_.events.Push(AutomationEventKind::DocumentChanged, owner.ownerId, "Automation updated primitive visibility.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const SetPrimitiveExposedRequest& request)
+    {
+        PrimitiveOwnerAccess owner = ResolvePrimitiveOwner(context_.bridge.MutableLoaded(), request.ownerKind, request.ownerId);
+        if (owner.primitives == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown primitive owner id.");
+        }
+
+        const int primitiveIndex = ResolvePrimitiveIndex(*owner.primitives, request.primitive);
+        if (primitiveIndex < 0)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown primitive id.");
+        }
+
+        (*owner.primitives)[static_cast<std::size_t>(primitiveIndex)].exposed = request.exposed;
+        context_.events.Push(AutomationEventKind::DocumentChanged, owner.ownerId, "Automation updated primitive exposure.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const SetPageReticleLayerRequest& request)
+    {
+        mfd::PageDefinition* page = nullptr;
+        mfd::ReticleGroup* reticle =
+            FindPageReticleById(context_.bridge.MutableLoaded(), request.pageReticleId, &page, nullptr, nullptr);
+        if (reticle == nullptr || page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page reticle id.");
+        }
+
+        if (request.layerId.empty())
+        {
+            reticle->editor.layerId.clear();
+            context_.events.Push(AutomationEventKind::DocumentChanged,
+                                 request.pageReticleId.value,
+                                 "Automation cleared the page reticle layer assignment.");
+            return AutomationStatus::Success();
+        }
+
+        const mfd::EditorLayerDefinition* layer =
+            FindLayerById(context_.bridge.Loaded(), MakePageId(*page), request.layerId, nullptr);
+        if (layer == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown layer id.");
+        }
+
+        reticle->editor.layerId = layer->id;
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageReticleId.value,
+                             "Automation updated page reticle layer assignment.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const CreateLayerRequest& request)
+    {
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, nullptr);
+        if (page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page id.");
+        }
+        if (request.layer.id.empty())
+        {
+            return FailureStatus(AutomationErrorCode::InvalidArgument, "Layer id cannot be empty.");
+        }
+        if (HasDuplicateLayerId(*page, request.layer.id))
+        {
+            return FailureStatus(AutomationErrorCode::Conflict, "Layer ids must stay unique inside one page.");
+        }
+
+        const int insertIndex = request.insertIndex.has_value()
+                                    ? std::clamp(*request.insertIndex, 0, static_cast<int>(page->editor.layers.size()))
+                                    : static_cast<int>(page->editor.layers.size());
+        page->editor.layers.insert(page->editor.layers.begin() + insertIndex, request.layer);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             MakeLayerId(*page, page->editor.layers[static_cast<std::size_t>(insertIndex)]).value,
+                             "Automation created one editor layer.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const ReplaceLayerRequest& request)
+    {
+        int layerIndex = -1;
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, nullptr);
+        mfd::EditorLayerDefinition* layer =
+            FindLayerById(context_.bridge.MutableLoaded(), request.pageId, request.layerId, &layerIndex);
+        if (page == nullptr || layer == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown layer id.");
+        }
+        if (request.layer.id.empty())
+        {
+            return FailureStatus(AutomationErrorCode::InvalidArgument, "Layer id cannot be empty.");
+        }
+        if (HasDuplicateLayerId(*page, request.layer.id, layerIndex))
+        {
+            return FailureStatus(AutomationErrorCode::Conflict, "Layer ids must stay unique inside one page.");
+        }
+
+        const std::string previousId = layer->id;
+        *layer = request.layer;
+        RenameEditorLayerReferences(*page, previousId, layer->id);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             MakeLayerId(*page, *layer).value,
+                             "Automation replaced one editor layer.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const DeleteLayerRequest& request)
+    {
+        int layerIndex = -1;
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, nullptr);
+        mfd::EditorLayerDefinition* layer =
+            FindLayerById(context_.bridge.MutableLoaded(), request.pageId, request.layerId, &layerIndex);
+        if (page == nullptr || layer == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown layer id.");
+        }
+
+        ClearEditorLayerReferences(*page, layer->id);
+        page->editor.layers.erase(page->editor.layers.begin() + layerIndex);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.layerId.value,
+                             "Automation deleted one editor layer and cleared its assignments.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const ReplacePageBlinkTypesRequest& request)
+    {
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, nullptr);
+        if (page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page id.");
+        }
+
+        std::vector<mfd::PageBlinkDefinition> blinkTypes = request.blinkTypes;
+        for (int index = 0; index < static_cast<int>(blinkTypes.size()); ++index)
+        {
+            if (blinkTypes[static_cast<std::size_t>(index)].name.empty())
+            {
+                return FailureStatus(AutomationErrorCode::InvalidArgument, "Blink type name cannot be empty.");
+            }
+
+            const std::string normalizedName = mfd::NormalizePageName(blinkTypes[static_cast<std::size_t>(index)].name);
+            for (int otherIndex = index + 1; otherIndex < static_cast<int>(blinkTypes.size()); ++otherIndex)
+            {
+                if (mfd::NormalizePageName(blinkTypes[static_cast<std::size_t>(otherIndex)].name) == normalizedName)
+                {
+                    return FailureStatus(AutomationErrorCode::Conflict,
+                                         "Blink type names must stay unique inside one page.");
+                }
+            }
+        }
+
+        page->blinkTypes = std::move(blinkTypes);
+        RefreshPageBlinkState(*page);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageId.value,
+                             "Automation replaced the page blink-type catalog.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const SetPageDefaultBlinkTypeRequest& request)
+    {
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, nullptr);
+        if (page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page id.");
+        }
+
+        if (!request.blinkTypeName.empty() && FindBlinkTypeIndex(*page, request.blinkTypeName) == static_cast<std::size_t>(-1))
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page blink type.");
+        }
+
+        page->defaultBlinkTypeName = request.blinkTypeName;
+        RefreshPageBlinkState(*page);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageId.value,
+                             "Automation updated the page default blink type.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const SetPageReticleBlinkRequest& request)
+    {
+        mfd::PageDefinition* page = nullptr;
+        mfd::ReticleGroup* reticle =
+            FindPageReticleById(context_.bridge.MutableLoaded(), request.pageReticleId, &page, nullptr, nullptr);
+        if (page == nullptr || reticle == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page reticle id.");
+        }
+
+        if (!request.blink.typeName.empty() && FindBlinkTypeIndex(*page, request.blink.typeName) == static_cast<std::size_t>(-1))
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page blink type.");
+        }
+
+        reticle->blink = request.blink;
+        if (!reticle->blink.enabled)
+        {
+            reticle->blink = {};
+        }
+
+        RefreshPageBlinkState(*page);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageReticleId.value,
+                             "Automation updated the page reticle blink binding.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const AssignPageStrobeTemplateRequest& request)
+    {
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, nullptr);
+        if (page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page id.");
+        }
+
+        const mfd::ReticleGroup* templ = FindReticleAssetById(context_.bridge.Loaded(), request.reticleAssetId);
+        if (templ == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown reticle asset id.");
+        }
+
+        mfd::PageStrobeDefinition strobe = MakePageStrobeFromTemplate(*page, *templ, page->strobe);
+        strobe.reticle.sourceTemplateId = templ->id;
+        if (request.strobeId.has_value())
+        {
+            if (request.strobeId->empty())
+            {
+                return FailureStatus(AutomationErrorCode::InvalidArgument, "Page strobe id cannot be empty.");
+            }
+            if (HasDuplicatePageReticleId(*page, *request.strobeId))
+            {
+                return FailureStatus(AutomationErrorCode::Conflict,
+                                     "Page strobe id must stay unique against page reticle instance ids.");
+            }
+
+            strobe.reticle.id = *request.strobeId;
+        }
+
+        page->strobe = std::move(strobe);
+        RefreshPageBlinkState(*page);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageId.value,
+                             "Automation assigned a strobe template to one page.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const ReplacePageStrobeRequest& request)
+    {
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, nullptr);
+        if (page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page id.");
+        }
+        if (request.strobe.reticle.id.empty())
+        {
+            return FailureStatus(AutomationErrorCode::InvalidArgument, "Page strobe id cannot be empty.");
+        }
+        if (HasDuplicatePageReticleId(*page, request.strobe.reticle.id))
+        {
+            return FailureStatus(AutomationErrorCode::Conflict,
+                                 "Page strobe id must stay unique against page reticle instance ids.");
+        }
+        if (!request.strobe.reticle.sourceTemplateId.empty() &&
+            FindReticleAssetById(context_.bridge.Loaded(),
+                                 MakeReticleAssetId(request.strobe.reticle.sourceTemplateId)) == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound,
+                                 "The requested page strobe template id does not exist in the reticle library.");
+        }
+        if (request.strobe.reticle.clipping.mode != mfd::ReticleClipMode::None &&
+            mfd::ResolveClipPrimitive(request.strobe.reticle) == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::ValidationFailed,
+                                 "The requested page strobe clipping references one missing or unsupported primitive.");
+        }
+
+        page->strobe = request.strobe;
+        RefreshPageBlinkState(*page);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageId.value,
+                             "Automation replaced the page strobe definition.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const DeletePageStrobeRequest& request)
+    {
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, nullptr);
+        if (page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page id.");
+        }
+        if (!page->strobe.has_value())
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "The requested page has no strobe to delete.");
+        }
+
+        page->strobe.reset();
+        RefreshPageBlinkState(*page);
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageId.value,
+                             "Automation deleted the page strobe definition.");
         return AutomationStatus::Success();
     }
 
@@ -889,10 +1684,39 @@ private:
                 return FailureStatus(AutomationErrorCode::NotFound, "Unknown reticle asset id.");
             }
 
-            context_.bridge.SelectReticleAsset(request.targetId);
+            if (const std::optional<std::string> templateId = ExtractReticleAssetTemplateId(request.targetId);
+                templateId.has_value())
+            {
+                context_.bridge.SelectReticleAsset(*templateId);
+            }
+            else
+            {
+                return FailureStatus(AutomationErrorCode::InvalidArgument, "Reticle asset selection requires one reticle asset id.");
+            }
             context_.events.Push(AutomationEventKind::SelectionChanged, request.targetId, "Automation selected one reticle asset.");
             return AutomationStatus::Success();
         case AutomationSelectionKind::Primitive:
+            for (const auto& [templateId, reticle] : context_.bridge.Loaded().document.reticleLibrary)
+            {
+                for (int primitiveIndex = 0; primitiveIndex < static_cast<int>(reticle.primitives.size()); ++primitiveIndex)
+                {
+                    if (MakeReticleAssetPrimitiveId(templateId,
+                                                    reticle.primitives[static_cast<std::size_t>(primitiveIndex)],
+                                                    primitiveIndex)
+                            .value != request.targetId)
+                    {
+                        continue;
+                    }
+
+                    context_.bridge.SelectReticlePrimitive(templateId, primitiveIndex);
+                    context_.events.Push(AutomationEventKind::SelectionChanged,
+                                         request.targetId,
+                                         "Automation selected one library primitive.");
+                    return AutomationStatus::Success();
+                }
+            }
+
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown library primitive id.");
         case AutomationSelectionKind::None:
             break;
         }
@@ -941,8 +1765,84 @@ public:
 
     [[nodiscard]] AutomationResult<SaveResult> SaveAsset(const SaveAssetRequest& request) override
     {
-        static_cast<void>(request);
-        return SaveAll();
+        if (context_.activeSession.has_value())
+        {
+            return FailureResult<SaveResult>(AutomationErrorCode::InvalidState,
+                                             "Commit or roll back the active preview session before saving.");
+        }
+
+        try
+        {
+            SaveResult result;
+
+            switch (request.kind)
+            {
+            case SaveAssetRequest::Kind::Page:
+            {
+                int pageIndex = -1;
+                const mfd::PageDefinition* page = FindPageById(context_.bridge.Loaded(), PageId {request.entityId}, &pageIndex);
+                if (page == nullptr)
+                {
+                    return FailureResult<SaveResult>(AutomationErrorCode::NotFound, "Unknown page id.");
+                }
+                if (pageIndex < 0 || pageIndex >= static_cast<int>(context_.bridge.Files().pageFiles.size()))
+                {
+                    return FailureResult<SaveResult>(AutomationErrorCode::InvalidState,
+                                                     "Missing page file path for the requested page asset.");
+                }
+
+                WriteUtf8TextFile(context_.bridge.Loaded().window.sourceFile,
+                                  editor::SerializeWindowToJsonString(context_.bridge.Loaded().window,
+                                                                      context_.bridge.Loaded().document,
+                                                                      context_.bridge.Files()));
+                const std::filesystem::path pageFile =
+                    context_.bridge.Files().pageFiles[static_cast<std::size_t>(pageIndex)];
+                WriteUtf8TextFile(pageFile,
+                                  editor::SerializePageToJsonString(*page,
+                                                                    context_.bridge.Loaded().document.reticleLibrary,
+                                                                    context_.bridge.Files(),
+                                                                    static_cast<std::size_t>(pageIndex)));
+
+                result.savedFiles.push_back(context_.bridge.Loaded().window.sourceFile);
+                result.savedFiles.push_back(pageFile);
+                context_.events.Push(AutomationEventKind::AssetSaved,
+                                     request.entityId,
+                                     "Automation saved one page asset and refreshed the window manifest.");
+                return AutomationResult<SaveResult>::Success(std::move(result));
+            }
+            case SaveAssetRequest::Kind::ReticleAsset:
+            {
+                const mfd::ReticleGroup* reticle =
+                    FindReticleAssetById(context_.bridge.Loaded(), ReticleAssetId {request.entityId});
+                if (reticle == nullptr)
+                {
+                    return FailureResult<SaveResult>(AutomationErrorCode::NotFound, "Unknown reticle asset id.");
+                }
+
+                const auto iterator = context_.bridge.Files().templateFiles.find(reticle->id);
+                if (iterator == context_.bridge.Files().templateFiles.end())
+                {
+                    return FailureResult<SaveResult>(AutomationErrorCode::InvalidState,
+                                                     "Missing template file path for the requested reticle asset.");
+                }
+
+                WriteUtf8TextFile(iterator->second,
+                                  editor::SerializeReticleTemplateToJsonString(*reticle, iterator->second.parent_path()));
+
+                result.savedFiles.push_back(iterator->second);
+                context_.events.Push(AutomationEventKind::AssetSaved,
+                                     request.entityId,
+                                     "Automation saved one reticle asset.");
+                return AutomationResult<SaveResult>::Success(std::move(result));
+            }
+            }
+        }
+        catch (const std::exception& exception)
+        {
+            return FailureResult<SaveResult>(AutomationErrorCode::IoFailure, "Save failed: " + std::string(exception.what()));
+        }
+
+        return FailureResult<SaveResult>(AutomationErrorCode::Unsupported, "Unsupported save-asset request.");
     }
 
     [[nodiscard]] AutomationResult<ExportJsonPreviewResult> ExportJsonPreview(const ExportJsonPreviewRequest& request) const override
