@@ -513,6 +513,12 @@ private:
     float inspectorWidth_ = 360.0f;
     /** @brief Split ratio used by the library-studio sub-layout. */
     float libraryStudioPageWidth_ = 0.0f;
+    /** @brief Indicates whether the page-context panel stays visible while editing one library reticle. */
+    bool libraryStudioShowPageContext_ = true;
+    /** @brief Indicates whether primitive labels stay visible in the reticle-studio overlay. */
+    bool libraryStudioShowPrimitiveLabels_ = true;
+    /** @brief Indicates whether reticle-studio gizmos such as bounds and handles stay visible. */
+    bool libraryStudioShowGizmos_ = true;
     /** @brief Editor-only page preview camera independent from the authored page view. */
     mfd::PageViewState pagePreviewView_ {};
     /** @brief Editor-only reticle-studio preview camera. */

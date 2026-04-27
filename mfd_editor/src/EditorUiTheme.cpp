@@ -12,6 +12,9 @@
 
 #include <imgui.h>
 
+#include <cmath>
+#include <cstdio>
+
 namespace editor::ui
 {
 void ApplyEditorTheme()
@@ -111,5 +114,28 @@ void ShowItemTooltip(const char* text)
     ImGui::TextUnformatted(text);
     ImGui::PopTextWrapPos();
     ImGui::EndTooltip();
+}
+
+std::string FormatViewportToolbarInfoLabel(const float zoom, const std::optional<mfd::Vec2>& mouseLogical)
+{
+    char buffer[96] {};
+    if (mouseLogical.has_value())
+    {
+        std::snprintf(buffer,
+                      sizeof(buffer),
+                      "Zoom: %.0f%%  X %+0.3f  Y %+0.3f",
+                      std::round(static_cast<double>(zoom) * 100.0),
+                      static_cast<double>(mouseLogical->x),
+                      static_cast<double>(mouseLogical->y));
+    }
+    else
+    {
+        std::snprintf(buffer,
+                      sizeof(buffer),
+                      "Zoom: %.0f%%",
+                      std::round(static_cast<double>(zoom) * 100.0));
+    }
+
+    return buffer;
 }
 } // namespace editor::ui

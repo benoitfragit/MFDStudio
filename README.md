@@ -142,6 +142,8 @@ Editor page-preview essentials:
 - `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, and `Del` operate on the current page-reticle selection
 - right-click lists every hovered reticle, then exposes per-reticle clipping submenus so overlapping reticles stay reachable
 - `Undo` restores one whole paste, cut, delete, or drag gesture at a time
+- a small `?` button is shown at the top-left of the page preview and reticle studio, with the current zoom and mouse `X/Y` displayed next to it
+- the reticle studio now exposes a top-right `View` menu to show or hide the page context, primitive names, and gizmos
 
 ### I Want To Work On The Codebase
 

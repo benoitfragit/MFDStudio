@@ -10,6 +10,11 @@
  * @brief Shared ImGui styling helpers used by the MFD editor shell.
  */
 
+#include <optional>
+#include <string>
+
+#include "mfd/model/Types.h"
+
 namespace editor::ui
 {
 /**
@@ -42,4 +47,12 @@ bool DrawVerticalSplitter(const char* id, float height);
  * @param text Tooltip text.
  */
 void ShowItemTooltip(const char* text);
+
+/**
+ * @brief Formats the compact viewport overlay text shown next to the help button.
+ * @param zoom Current editor-only zoom factor for the viewport.
+ * @param mouseLogical Optional mouse coordinates in logical space.
+ * @return Text containing the zoom percentage and, when available, the logical mouse coordinates.
+ */
+std::string FormatViewportToolbarInfoLabel(float zoom, const std::optional<mfd::Vec2>& mouseLogical);
 } // namespace editor::ui

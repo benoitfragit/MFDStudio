@@ -40,6 +40,7 @@ namespace
 using editor::ui::AccentButton;
 using editor::ui::ApplyEditorTheme;
 using editor::ui::DrawVerticalSplitter;
+using editor::ui::FormatViewportToolbarInfoLabel;
 using editor::ui::ShowItemTooltip;
 
 constexpr float kSidebarWidth = 320.0f;
@@ -50,6 +51,9 @@ constexpr float kMinWorkspaceWidth = 420.0f;
 constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
 constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
+constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
+constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
+constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
 
 std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
 {
@@ -1118,6 +1122,115 @@ bool IsPointInsideRect(const ImVec2 point, const ImVec2 min, const ImVec2 max)
     return point.x >= min.x && point.x <= max.x && point.y >= min.y && point.y <= max.y;
 }
 
+struct ViewportToolbarLayout
+{
+    ImVec2 toolbarMin {};
+    ImVec2 toolbarMax {};
+    ImVec2 buttonPos {};
+    ImVec2 buttonSize {};
+    ImVec2 textPos {};
+    std::array<char, 96> infoLabel {};
+};
+
+class ScopedImGuiId
+{
+public:
+    explicit ScopedImGuiId(const char* id)
+    {
+        ImGui::PushID(id);
+    }
+
+    ~ScopedImGuiId()
+    {
+        ImGui::PopID();
+    }
+};
+
+ViewportToolbarLayout ComputeViewportToolbarLayout(const ImVec2 viewportOrigin,
+                                                   const float zoom,
+                                                   const std::optional<mfd::Vec2>& mouseLogical)
+{
+    ViewportToolbarLayout layout;
+
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const std::string infoLabel = FormatViewportToolbarInfoLabel(zoom, mouseLogical);
+    std::snprintf(layout.infoLabel.data(), layout.infoLabel.size(), "%s", infoLabel.c_str());
+
+    const ImVec2 buttonLabelSize = ImGui::CalcTextSize("?");
+    const ImVec2 textSize = ImGui::CalcTextSize(layout.infoLabel.data());
+    layout.buttonSize = ImVec2(
+        buttonLabelSize.x + style.FramePadding.x * 2.0f,
+        buttonLabelSize.y + style.FramePadding.y * 2.0f);
+    layout.buttonPos = ImVec2(viewportOrigin.x + 12.0f, viewportOrigin.y + 12.0f);
+    layout.textPos = ImVec2(layout.buttonPos.x + layout.buttonSize.x + style.ItemSpacing.x,
+                            layout.buttonPos.y + style.FramePadding.y);
+    layout.toolbarMin = layout.buttonPos;
+    layout.toolbarMax = ImVec2(
+        layout.textPos.x + textSize.x,
+        layout.buttonPos.y + std::max(layout.buttonSize.y, textSize.y + style.FramePadding.y * 2.0f));
+    return layout;
+}
+
+void DrawViewportHelpPopupContent(const bool libraryPreview)
+{
+    if (libraryPreview)
+    {
+        ImGui::TextDisabled("Reticle studio");
+        ImGui::Separator();
+        ImGui::BulletText("Mouse wheel: zoom the studio camera.");
+        ImGui::BulletText("Right-drag: pan the studio camera.");
+        ImGui::BulletText("Click a primitive: focus it in the studio and inspector.");
+        ImGui::BulletText("Left-drag the handles: edit the selected primitive geometry.");
+    }
+    else
+    {
+        ImGui::TextDisabled("Page preview");
+        ImGui::Separator();
+        ImGui::BulletText("Ctrl+click: add or remove one reticle from the selection.");
+        ImGui::BulletText("Esc: clear the current page-reticle selection.");
+        ImGui::BulletText("Drag a selected reticle: move the whole selected group.");
+        ImGui::BulletText("Blue handle: rotate the selected reticle.");
+        ImGui::BulletText("Corner handles: scale the selected reticle.");
+        ImGui::BulletText("Mouse wheel: zoom the page camera.");
+        ImGui::BulletText("Right-drag: pan the page camera.");
+        ImGui::BulletText("Right-click: open selection and clipping actions.");
+        ImGui::BulletText("Left-drag the minimap viewport: navigate the page.");
+    }
+
+    ImGui::Separator();
+    ImGui::TextDisabled("Global shortcuts");
+    ImGui::BulletText("Save: Ctrl+S");
+    ImGui::BulletText("Undo: Ctrl+Z");
+    ImGui::BulletText("Copy / Cut / Paste selected page reticles: Ctrl+C / Ctrl+X / Ctrl+V");
+    ImGui::BulletText("Delete current selection: Del");
+}
+
+void DrawViewportToolbar(const ImVec2 viewportOrigin,
+                         const float zoom,
+                         const std::optional<mfd::Vec2>& mouseLogical,
+                         const char* buttonId,
+                         const char* popupId,
+                         const bool libraryPreview)
+{
+    const ViewportToolbarLayout layout = ComputeViewportToolbarLayout(viewportOrigin, zoom, mouseLogical);
+    ImGui::SetCursorScreenPos(layout.buttonPos);
+    if (ImGui::Button(buttonId, layout.buttonSize))
+    {
+        ImGui::OpenPopup(popupId);
+    }
+    ShowItemTooltip("Open a compact summary of the controls available in this view.");
+
+    ImGui::SetCursorScreenPos(layout.textPos);
+    ImGui::TextDisabled("%s", layout.infoLabel.data());
+
+    ImGui::SetNextWindowPos(ImVec2(layout.buttonPos.x, layout.buttonPos.y + layout.buttonSize.y + 6.0f), ImGuiCond_Appearing);
+    if (ImGui::BeginPopup(popupId))
+    {
+        DrawViewportHelpPopupContent(libraryPreview);
+        ImGui::EndPopup();
+    }
+}
+
 ImVec2 ToMinimapScreen(const PageMinimapState& minimap, const mfd::Vec2 logical)
 {
     return ImVec2(
@@ -2020,6 +2133,52 @@ void EditorApplication::DrawWorkspace()
         const float totalWidth = ImGui::GetContentRegionAvail().x;
         const float totalHeight = ImGui::GetContentRegionAvail().y;
 
+        auto drawReticleStudioPanel = [this]()
+        {
+            ImGui::BeginChild("ReticleStudioPanel", ImVec2(0.0f, 0.0f), true);
+            ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
+
+            const ImGuiStyle& style = ImGui::GetStyle();
+            const float buttonWidth = ImGui::CalcTextSize("View").x + style.FramePadding.x * 2.0f;
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - buttonWidth));
+            if (ImGui::Button("View##ReticleStudioDisplay"))
+            {
+                ImGui::OpenPopup(kReticleStudioDisplayPopupId);
+            }
+
+            if (ImGui::BeginPopup(kReticleStudioDisplayPopupId))
+            {
+                ImGui::Checkbox("Show page context", &libraryStudioShowPageContext_);
+                ImGui::Checkbox("Show primitive names", &libraryStudioShowPrimitiveLabels_);
+                ImGui::Checkbox("Show gizmos", &libraryStudioShowGizmos_);
+                ImGui::EndPopup();
+            }
+
+            ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry.");
+            ImGui::Separator();
+
+            ViewportState studioViewport;
+            studioViewport.origin = ImGui::GetCursorScreenPos();
+            studioViewport.size = ImGui::GetContentRegionAvail();
+            studioViewport.valid = studioViewport.size.x > 8.0f && studioViewport.size.y > 8.0f;
+            studioViewport.view = libraryPreviewView_;
+
+            if (studioViewport.valid)
+            {
+                DrawLibraryPreview(studioViewport);
+                DrawLibraryPreviewOverlays(studioViewport);
+                HandleLibraryPreviewInteraction(studioViewport);
+            }
+            ImGui::EndChild();
+        };
+
+        if (!libraryStudioShowPageContext_)
+        {
+            drawReticleStudioPanel();
+            return;
+        }
+
         if (libraryStudioPageWidth_ <= 0.0f)
         {
             libraryStudioPageWidth_ = std::max(kMinPageContextWidth, totalWidth * 0.56f);
@@ -2070,24 +2229,7 @@ void EditorApplication::DrawWorkspace()
         }
 
         ImGui::SameLine();
-        ImGui::BeginChild("ReticleStudioPanel", ImVec2(0.0f, 0.0f), true);
-        ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
-        ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry.");
-        ImGui::Separator();
-
-        ViewportState studioViewport;
-        studioViewport.origin = ImGui::GetCursorScreenPos();
-        studioViewport.size = ImGui::GetContentRegionAvail();
-        studioViewport.valid = studioViewport.size.x > 8.0f && studioViewport.size.y > 8.0f;
-        studioViewport.view = libraryPreviewView_;
-
-        if (studioViewport.valid)
-        {
-            DrawLibraryPreview(studioViewport);
-            DrawLibraryPreviewOverlays(studioViewport);
-            HandleLibraryPreviewInteraction(studioViewport);
-        }
-        ImGui::EndChild();
+        drawReticleStudioPanel();
         return;
     }
 
@@ -2637,16 +2779,17 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         ImVec2(1.0f, 0.0f));
 
     ImGui::SetCursorScreenPos(viewport.origin);
+    ImGui::SetNextItemAllowOverlap();
     ImGui::InvisibleButton("PagePreviewInput", viewport.size);
-    ShowItemTooltip(
-        "Editor-only page preview.\n"
-        "Ctrl+click adds or removes one reticle from the current selection.\n"
-        "Esc clears the current page-reticle selection.\n"
-        "Drag one selected reticle to move the whole selected group.\n"
-        "Mouse wheel zooms the editor camera only.\n"
-        "Right-drag pans the editor camera.\n"
-        "Right-click one or more reticles to open a context menu with selection actions and clipping submenus.\n"
-        "Left-drag the minimap viewport to navigate without changing authored reticle data.");
+
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    std::optional<mfd::Vec2> mouseLogical;
+    if (IsPointInsideRect(mouse, viewport.origin, viewportMax))
+    {
+        mouseLogical = viewport.ToLogical(mouse);
+    }
+
     tutorial_->DrawHalo(
         "page_preview_clip_source",
         "Right-click the circle reticle",
@@ -2668,6 +2811,14 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         }
         ImGui::EndDragDropTarget();
     }
+
+    DrawViewportToolbar(
+        viewport.origin,
+        mfd::SanitizeZoom(pagePreviewView_.zoom),
+        mouseLogical,
+        "?##PagePreviewHelp",
+        kPagePreviewHelpPopupId,
+        false);
 }
 
 void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
@@ -2706,12 +2857,24 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
         ImVec2(1.0f, 0.0f));
 
     ImGui::SetCursorScreenPos(viewport.origin);
+    ImGui::SetNextItemAllowOverlap();
     ImGui::InvisibleButton("LibraryPreviewInput", viewport.size);
-    ShowItemTooltip(
-        "Editor-only reticle studio preview.\n"
-        "Mouse wheel zooms the studio camera only.\n"
-        "Right-drag pans the preview.\n"
-        "Left-drag green and orange handles to edit the selected primitive.");
+
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    std::optional<mfd::Vec2> mouseLogical;
+    if (IsPointInsideRect(mouse, viewport.origin, viewportMax))
+    {
+        mouseLogical = viewport.ToLogical(mouse);
+    }
+
+    DrawViewportToolbar(
+        viewport.origin,
+        mfd::SanitizeZoom(libraryPreviewView_.zoom),
+        mouseLogical,
+        "?##LibraryPreviewHelp",
+        kLibraryPreviewHelpPopupId,
+        true);
 }
 
 void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport)
@@ -2749,23 +2912,29 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
         }
 
         const bool selected = hasSelectedPrimitive && selection_.primitiveIndex == primitiveIndex;
-        const ImU32 borderColor = selected ? IM_COL32(255, 212, 110, 255) : IM_COL32(104, 185, 205, 160);
-        const ImU32 fillColor = selected ? IM_COL32(255, 212, 110, 32) : IM_COL32(104, 185, 205, 18);
-        drawList->AddRectFilled(bounds.min, bounds.max, fillColor, 6.0f);
-        drawList->AddRect(bounds.min, bounds.max, borderColor, 6.0f, 0, selected ? 2.2f : 1.3f);
+        if (libraryStudioShowGizmos_)
+        {
+            const ImU32 borderColor = selected ? IM_COL32(255, 212, 110, 255) : IM_COL32(104, 185, 205, 160);
+            const ImU32 fillColor = selected ? IM_COL32(255, 212, 110, 32) : IM_COL32(104, 185, 205, 18);
+            drawList->AddRectFilled(bounds.min, bounds.max, fillColor, 6.0f);
+            drawList->AddRect(bounds.min, bounds.max, borderColor, 6.0f, 0, selected ? 2.2f : 1.3f);
+        }
 
-        const std::string label =
-            std::to_string(primitiveIndex + 1) + ". " +
-            (primitive.id.empty() ? PrimitiveTypeLabel(primitive.type) : primitive.id);
-        const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
-        const ImVec2 tagMin(bounds.min.x + 6.0f, bounds.min.y + 6.0f);
-        const ImVec2 tagMax(tagMin.x + textSize.x + 12.0f, tagMin.y + textSize.y + 6.0f);
-        drawList->AddRectFilled(tagMin, tagMax, selected ? IM_COL32(255, 212, 110, 220) : IM_COL32(33, 49, 59, 210), 4.0f);
-        drawList->AddText(ImVec2(tagMin.x + 6.0f, tagMin.y + 3.0f),
-                          selected ? IM_COL32(12, 20, 26, 255) : IM_COL32(220, 235, 240, 255),
-                          label.c_str());
+        if (libraryStudioShowPrimitiveLabels_)
+        {
+            const std::string label =
+                std::to_string(primitiveIndex + 1) + ". " +
+                (primitive.id.empty() ? PrimitiveTypeLabel(primitive.type) : primitive.id);
+            const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
+            const ImVec2 tagMin(bounds.min.x + 6.0f, bounds.min.y + 6.0f);
+            const ImVec2 tagMax(tagMin.x + textSize.x + 12.0f, tagMin.y + textSize.y + 6.0f);
+            drawList->AddRectFilled(tagMin, tagMax, selected ? IM_COL32(255, 212, 110, 220) : IM_COL32(33, 49, 59, 210), 4.0f);
+            drawList->AddText(ImVec2(tagMin.x + 6.0f, tagMin.y + 3.0f),
+                              selected ? IM_COL32(12, 20, 26, 255) : IM_COL32(220, 235, 240, 255),
+                              label.c_str());
+        }
 
-        if (!selected)
+        if (!selected || !libraryStudioShowGizmos_)
         {
             continue;
         }
@@ -2904,33 +3073,6 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
 void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
 {
     ImDrawList* drawList = ImGui::GetWindowDrawList();
-
-    if (ImGui::IsItemHovered())
-    {
-        const ImVec2 mouse = ImGui::GetMousePos();
-        if (mouse.x >= viewport.origin.x &&
-            mouse.x <= viewport.origin.x + viewport.size.x &&
-            mouse.y >= viewport.origin.y &&
-            mouse.y <= viewport.origin.y + viewport.size.y)
-        {
-            const mfd::Vec2 logical = viewport.ToLogical(mouse);
-            char coordinates[96] {};
-            std::snprintf(coordinates,
-                          sizeof(coordinates),
-                          "View X %+0.3f  Y %+0.3f",
-                          static_cast<double>(logical.x),
-                          static_cast<double>(logical.y));
-
-            const ImVec2 textSize = ImGui::CalcTextSize(coordinates);
-            const ImVec2 labelMin(viewport.origin.x + 12.0f, viewport.origin.y + 12.0f);
-            const ImVec2 labelMax(labelMin.x + textSize.x + 16.0f, labelMin.y + textSize.y + 10.0f);
-            drawList->AddRectFilled(labelMin, labelMax, IM_COL32(7, 15, 23, 224), 6.0f);
-            drawList->AddRect(labelMin, labelMax, IM_COL32(76, 132, 168, 255), 6.0f, 0, 1.5f);
-            drawList->AddText(ImVec2(labelMin.x + 8.0f, labelMin.y + 5.0f),
-                              IM_COL32(216, 233, 246, 255),
-                              coordinates);
-        }
-    }
 
     const mfd::PageDefinition* page = ActivePage();
     if (page != nullptr)
@@ -3162,7 +3304,17 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 
     const bool leftMouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     const bool rightMouseDown = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
-    if (!ImGui::IsItemHovered())
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    const std::optional<mfd::Vec2> mouseLogical =
+        IsPointInsideRect(mouse, viewport.origin, viewportMax) ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
+                                                               : std::nullopt;
+    const ViewportToolbarLayout toolbarLayout =
+        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(pagePreviewView_.zoom), mouseLogical);
+    const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
+    const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
+    const bool helpPopupOpen = ImGui::IsPopupOpen(kPagePreviewHelpPopupId);
+    if (!mouseInsideViewport || mouseInsideToolbar || helpPopupOpen)
     {
         const bool interactionButtonReleased =
             interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
@@ -3188,7 +3340,6 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
             std::clamp(currentZoom * std::pow(kWheelZoomStep, wheelDelta), kMinPageZoom, kMaxPageZoom);
         if (std::abs(nextZoom - currentZoom) > 0.0001f)
         {
-            const ImVec2 mouse = ImGui::GetMousePos();
             const mfd::Vec2 mouseLogicalBeforeZoom = interactiveViewport.ToLogical(mouse);
             const mfd::Vec2 viewedOffset = mouseLogicalBeforeZoom - pagePreviewView_.center;
             const float zoomRatio = currentZoom / nextZoom;
@@ -3202,7 +3353,6 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     }
 
     const PageMinimapState minimap = ComputePageMinimapState(*page, interactiveViewport);
-    const ImVec2 mouse = ImGui::GetMousePos();
     const bool mouseInsideMinimap = minimap.valid && IsPointInsideRect(mouse, minimap.contentMin, minimap.contentMax);
     if (interactionMode_ == InteractionMode::None && mouseInsideMinimap && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
@@ -3953,7 +4103,17 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         return;
     }
 
-    if (!ImGui::IsItemHovered())
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    const std::optional<mfd::Vec2> mouseLogical =
+        IsPointInsideRect(mouse, viewport.origin, viewportMax) ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
+                                                               : std::nullopt;
+    const ViewportToolbarLayout toolbarLayout =
+        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(libraryPreviewView_.zoom), mouseLogical);
+    const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
+    const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
+    const bool helpPopupOpen = ImGui::IsPopupOpen(kLibraryPreviewHelpPopupId);
+    if (!mouseInsideViewport || mouseInsideToolbar || helpPopupOpen)
     {
         return;
     }
@@ -3971,7 +4131,6 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             std::clamp(currentZoom * std::pow(kWheelZoomStep, wheelDelta), kMinStudioZoom, kMaxStudioZoom);
         if (std::abs(nextZoom - currentZoom) > 0.0001f)
         {
-            const ImVec2 mouse = ImGui::GetMousePos();
             const mfd::Vec2 mouseLogicalBeforeZoom = viewport.ToLogical(mouse);
             const mfd::Vec2 viewedOffset = mouseLogicalBeforeZoom - libraryPreviewView_.center;
             const float zoomRatio = currentZoom / nextZoom;
@@ -3998,7 +4157,6 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         return;
     }
 
-    const ImVec2 mouse = ImGui::GetMousePos();
     std::optional<int> bestPrimitiveIndex = FindNearestLibraryPrimitive(viewport, mouse);
     if (!bestPrimitiveIndex.has_value())
     {
@@ -7746,6 +7904,9 @@ void EditorApplication::DrawLibraryReticleInspector()
         return;
     }
 
+    const ScopedImGuiId scopedId("LibraryReticleInspector");
+    (void)scopedId;
+
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Library reticle");
     ImGui::Text("Template id: %s", reticle->id.c_str());
     if (const auto fileIt = files_.templateFiles.find(reticle->id); fileIt != files_.templateFiles.end())
@@ -7958,6 +8119,9 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         ImGui::TextDisabled("Select a primitive inside a library reticle.");
         return;
     }
+
+    const ScopedImGuiId scopedId("LibraryPrimitiveInspector");
+    (void)scopedId;
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Primitive");
     ImGui::TextDisabled("Green handle moves the primitive. Orange handles edit geometry directly in the studio.");
@@ -8371,4 +8535,5 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         }
         ShowItemTooltip("Number of line segments used to approximate the arc.");
     }
+
 }

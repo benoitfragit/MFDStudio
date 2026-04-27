@@ -74,3 +74,15 @@ TEST(EditorUiThemeTests, ApplyEditorThemeConfiguresRoundedEditorPalette)
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_CheckMark].y, 0.86f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_CheckMark].z, 0.78f);
 }
+
+TEST(EditorUiThemeTests, FormatViewportToolbarInfoLabelIncludesZoomOnlyWhenMouseIsUnavailable)
+{
+    EXPECT_EQ(editor::ui::FormatViewportToolbarInfoLabel(1.25f, std::nullopt), "Zoom: 125%");
+}
+
+TEST(EditorUiThemeTests, FormatViewportToolbarInfoLabelIncludesZoomAndLogicalMouseCoordinates)
+{
+    const std::string label = editor::ui::FormatViewportToolbarInfoLabel(0.875f, mfd::Vec2 {0.125f, -0.5f});
+
+    EXPECT_EQ(label, "Zoom: 88%  X +0.125  Y -0.500");
+}
