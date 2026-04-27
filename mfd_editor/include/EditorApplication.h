@@ -28,6 +28,12 @@
 
 class EditorTutorialController;
 
+namespace editor::automation
+{
+class EditorApplicationAutomationBridge;
+class IEditorAutomationFacade;
+}
+
 /**
  * @brief Interactive editor for authored MFD assets.
  *
@@ -38,6 +44,7 @@ class EditorTutorialController;
 class EditorApplication
 {
     friend class EditorTutorialController;
+    friend class editor::automation::EditorApplicationAutomationBridge;
 
 public:
     /** @brief Builds the editor shell with its default startup file and UI state. */
@@ -478,6 +485,20 @@ private:
     int pageReticlePasteSerial_ = 0;
     /** @brief Private controller that owns the guided tutorial state and workflow. */
     std::unique_ptr<EditorTutorialController> tutorial_ {};
+    /** @brief Hidden bridge mapping the live editor state to the automation subsystem. */
+    std::unique_ptr<editor::automation::EditorApplicationAutomationBridge> automationBridge_ {};
+    /** @brief Hidden facade exposing generic editor automation services to future in-process automation plugins. */
+    std::unique_ptr<editor::automation::IEditorAutomationFacade> automationFacade_ {};
+    /** @brief Future hidden conversation-surface state kept invisible until one UI consumer is explicitly added. */
+    struct HiddenConversationSurfaceState
+    {
+        /** @brief Enables one future docked conversation panel once the product decides to expose it. */
+        bool panelEnabled = false;
+        /** @brief Enables one future detached overlay window once the product decides to expose it. */
+        bool overlayWindowEnabled = false;
+        /** @brief Stores the last external-agent session id for future hidden conversation adapters. */
+        std::string lastExternalAgentSessionId {};
+    } hiddenConversationSurface_ {};
     /** @brief Current direct-manipulation mode active in the preview. */
     InteractionMode interactionMode_ = InteractionMode::None;
     /** @brief Reticle currently manipulated by the user, when relevant. */

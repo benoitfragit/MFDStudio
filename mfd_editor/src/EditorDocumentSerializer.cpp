@@ -976,6 +976,23 @@ std::string SerializePageReticleToJsonString(const mfd::ReticleGroup& reticle,
     return JsonToString(SerializePageReticle(reticle, library, baseFolder));
 }
 
+std::string SerializePageToJsonString(const mfd::PageDefinition& page,
+                                      const mfd::ReticleLibrary& library,
+                                      const EditorFileLayout& layout,
+                                      const std::size_t pageIndex)
+{
+    const std::filesystem::path baseFolder =
+        pageIndex < layout.pageFiles.size() ? layout.pageFiles[pageIndex].parent_path() : std::filesystem::path {};
+    return JsonToString(SerializePage(page, library, baseFolder));
+}
+
+std::string SerializeWindowToJsonString(const mfd::WindowAssetDefinition& window,
+                                        const mfd::MfdDocument& document,
+                                        const EditorFileLayout& layout)
+{
+    return JsonToString(SerializeWindow(window, document, layout));
+}
+
 bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
                         const EditorFileLayout& layout,
                         std::string* error)

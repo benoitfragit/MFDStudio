@@ -26,6 +26,8 @@
 
 #include <rlImGui.h>
 
+#include "EditorAutomationBridge.h"
+#include "EditorAutomationServices.h"
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorFileDialogs.h"
@@ -1391,6 +1393,8 @@ EditorApplication::EditorApplication()
     CopyTextBuffer(duplicateLibraryReticleDraft_.id, "reticle_copy");
     ResetPagePreviewView();
     ResetLibraryPreviewView();
+    automationBridge_ = std::make_unique<editor::automation::EditorApplicationAutomationBridge>(*this);
+    automationFacade_ = editor::automation::CreateEditorAutomationFacade(*automationBridge_);
     RebuildStatus("Open one window asset or create assets to begin authoring.", false);
     tutorial_->LoadProgress();
 }

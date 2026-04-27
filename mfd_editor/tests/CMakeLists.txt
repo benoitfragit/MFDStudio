@@ -4,6 +4,7 @@
 include(GoogleTest)
 
 set(MFD_EDITOR_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp)
@@ -29,6 +30,9 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_api/src/model/PageName.cpp
         ${MFD_ROOT_DIR}/mfd_api/src/model/Reticle.cpp
         ${MFD_ROOT_DIR}/mfd_api/src/model/Types.cpp)
+
+include(${MFD_ROOT_DIR}/mfd_editor/EditorAutomationBuild.cmake)
+mfd_editor_enable_automation_for_target(mfd_editor_tests SKIP_EDITOR_APPLICATION_BRIDGE)
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)
 

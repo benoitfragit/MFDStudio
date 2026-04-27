@@ -50,6 +50,15 @@ std::string SerializeReticleTemplateToJsonString(const mfd::ReticleGroup& reticl
 std::string SerializePageReticleToJsonString(const mfd::ReticleGroup& reticle,
                                              const mfd::ReticleLibrary& library,
                                              const std::filesystem::path& baseFolder = {});
+/** @brief Serializes one full page asset to its normalized JSON representation. */
+std::string SerializePageToJsonString(const mfd::PageDefinition& page,
+                                      const mfd::ReticleLibrary& library,
+                                      const EditorFileLayout& layout,
+                                      std::size_t pageIndex);
+/** @brief Serializes one full window asset to its normalized JSON representation. */
+std::string SerializeWindowToJsonString(const mfd::WindowAssetDefinition& window,
+                                        const mfd::MfdDocument& document,
+                                        const EditorFileLayout& layout);
 
 /** @brief Saves all currently loaded editor assets to disk. */
 bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,

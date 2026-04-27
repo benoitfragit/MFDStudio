@@ -29,6 +29,9 @@ add_executable(mfd_editor
     ${MFD_EDITOR_HEADERS}
     ${MFD_EDITOR_WINDOWS_RESOURCES})
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationBuild.cmake)
+mfd_editor_enable_automation_for_target(mfd_editor)
+
 target_include_directories(mfd_editor
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include)
