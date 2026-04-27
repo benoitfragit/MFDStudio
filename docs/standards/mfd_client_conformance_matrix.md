@@ -1,7 +1,7 @@
 # MFDStudio Client Conformance Matrix
 
 Status: Draft 0.1  
-Aligned release baseline: MFDStudio 1.1.7
+Aligned release baseline: MFDStudio current documentation set
 
 ## Purpose
 
@@ -110,6 +110,7 @@ The next gaps worth closing are:
 
 ## Related Documents
 
+- [MFDStudio Generated Client API Standardization](./mfd_generated_client_api_standardization.md)
 - [MFDStudio External Client Interoperability Specification](./mfd_client_interoperability_specification.md)
 - [Generated Client API Architecture](../architecture/generated_client_api.md)
 - [Generated Transport Map Specification](../architecture/generated_transport_map.md)

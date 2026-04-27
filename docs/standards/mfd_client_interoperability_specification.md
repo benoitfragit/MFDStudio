@@ -1,7 +1,7 @@
 # MFDStudio External Client Interoperability Specification
 
 Status: Draft 0.1  
-Aligned release baseline: MFDStudio 1.1.7  
+Aligned release baseline: MFDStudio current documentation set  
 Intended audience: external client implementers, integrators, reviewers, and future normalization work
 
 ## 1. Purpose
@@ -12,6 +12,12 @@ control a running MFDStudio window from an external application.
 Its goal is to let a third party replace the shipped clients with an
 independent implementation while remaining compatible with the runtime
 behavior, transport contract, and public command model.
+
+For normal C++ client integrations tied to one authored window, the preferred
+surface remains the generated API documented in
+[MFDStudio Generated Client API Standardization](./mfd_generated_client_api_standardization.md).
+This specification is broader: it also covers the low-level transport and
+compatibility boundary required by generic and replacement clients.
 
 This document is written as a normative specification candidate. It therefore:
 
@@ -132,6 +138,9 @@ A Profile D implementation MUST satisfy Profile B and MUST also expose an
 ergonomic generated binding layer equivalent in role to the shipped generated
 client UI.
 
+Profile D is the preferred integration profile for application-specific C++
+clients.
+
 At minimum, a Profile D implementation MUST:
 
 - expose typed navigation from a generated UI root to pages, reticles, and
@@ -187,6 +196,10 @@ integration surface of MFDStudio.
 
 A replacement client does not need to reuse the generated C++ code as long as
 it obeys the command, identifier, and transport rules defined here.
+
+However, when the client is a C++ application specific to one authored window,
+the RECOMMENDED path is still to use the generated API directly instead of
+re-implementing its navigation surface manually.
 
 However, any implementation claiming compatibility with the generated UI layer
 MUST preserve the following client-facing model:
@@ -252,6 +265,7 @@ Expected examples include:
 - `PolylineHandle`
 - `BezierHandle`
 - `ArcHandle`
+- `ImageHandle`
 - `PrimitiveHandle` only as a fallback when no more specific public handle type
   exists
 
@@ -480,7 +494,6 @@ This command performs the same semantic action as repeated
 `UpsertDynamicReticleCommand` operations, but for many reticles of the same
 template inside the same update cycle.
 
-A conforming client SHOULD prefer this bulk form for high-rate loops and radar-
 A conforming client SHOULD prefer this bulk form for high-rate loops and
 radar-style workloads.
 
@@ -593,6 +606,7 @@ Use this mode when:
 - you control the C++ integration
 - you want typed accessors instead of strings
 - you want the generated layer to hide transport IDs
+- you want the normal supported client-facing workflow
 
 ### 16.2 Mode B - Raw CommandClient With Transport Map
 
@@ -763,6 +777,7 @@ if (payload.has_value())
 The following documents are informative companions to this specification:
 
 - [Documentation Guide](../README.md)
+- [Generated Client API Standardization](./mfd_generated_client_api_standardization.md)
 - [Client Conformance Matrix](./mfd_client_conformance_matrix.md)
 - [Core Concepts](../CONCEPTS.md)
 - [Generated Client API Architecture](../architecture/generated_client_api.md)

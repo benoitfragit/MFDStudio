@@ -2,54 +2,54 @@
 
 ## Scope
 
-This note freezes the target generated client API for the primitive-addressable
-refactor. It defines the public shape consumed by client applications, the
-authored exposure rules, and the remaining low-level compatibility boundary.
+This note explains how the generated client API is organized and why it is the
+preferred client-facing surface for normal C++ integrations.
 
-## Goals
+Read this page when you want:
 
-- keep authored JSON assets as the only source of truth
-- generate a high-level client API from the parsed window model
-- make fixed authored objects transportable through internal integer IDs
-- keep transport IDs completely hidden from application code
-- make primitive access follow the same navigation model as pages and reticles
+- the structure behind the generated UI root
+- the rationale for page, reticle, primitive, strobe, and dynamic-set handles
+- the boundary between generated code and `CommandClient`
+- concrete examples aligned with the current generated outputs in the repository
 
-## Public API Shape
+For the normative client-facing contract, also read
+[Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md).
+
+## Core Goal
+
+The generated API exists so that application code can talk in authored UI
+concepts instead of in raw runtime identifiers.
+
+That means:
+
+- JSON assets stay the source of truth
+- generated code mirrors the authored structure
+- transport IDs and `mappingHash` remain implementation detail
+- `CommandClient` stays the last-mile transport sender
+
+## Public Navigation Model
 
 The generated static navigation is:
 
-- `ui -> page -> reticle -> primitive`
-
-Representative usage:
-
-```cpp
-auto& line = ui.Page1().headingScale.Line1();
-line.SetVisible(true);
-line.SetColor({0, 255, 0, 255});
-line.SetThickness(0.0035f);
-
-ui.Page1().headingBox.HeadingValue().SetText("123");
-
-client.ActivatePage(ui.Page1());
-client.SetPageView(ui.Page1(), {0.0f, 0.0f}, 1.0f);
+```text
+ui -> page -> reticle -> primitive
+ui -> page -> strobe
+ui -> page -> dynamic set -> dynamic reticle -> primitive
+ui -> window
 ```
-
-The generated API is the normal client workflow. End users must not call
-string-based primitive setters in normal usage. When a generated page is passed
-to `CommandClient`, the client reads the page `GeneratedId()` and
-`MappingHash()` and sends the transport id plus the generated mapping hash, not
-the authored page name.
 
 \startuml
 left to right direction
 rectangle "Generated UI root" as Ui
+rectangle "WindowDisplay" as Window
 rectangle "Page handle" as Page
-rectangle "Reticle handle" as Reticle
+rectangle "Static reticle handle" as Reticle
 rectangle "Primitive handle" as Primitive
 rectangle "Strobe handle" as Strobe
 rectangle "Dynamic set handle" as DynamicSet
 rectangle "Dynamic reticle handle" as DynamicReticle
 
+Ui --> Window
 Ui --> Page
 Page --> Reticle
 Reticle --> Primitive
@@ -59,28 +59,126 @@ DynamicSet --> DynamicReticle
 DynamicReticle --> Primitive
 \enduml
 
-## Naming Rules
+Representative usage:
 
-- page accessors keep the current generated PascalCase accessor pattern:
-  - `ui.Page1()`
-- generated pages can be passed directly to page-level `CommandClient` helpers:
-  - `client.ActivatePage(ui.Page1())`
-  - `client.SetPageView(ui.Page1(), center, zoom)`
-- generated page members keep lower camel case for authored reticles:
-  - `ui.Page1().headingScale`
-- generated primitive accessors use PascalCase methods on the reticle handle:
-  - `ui.Page1().headingScale.Line1()`
-- blink types remain generated page members:
-  - `ui.Page1().attention`
-- the page strobe is exposed through one generic page member:
-  - `ui.Page1().strobe`
+```cpp
+auto& radar = ui.Radar();
 
-## Handle Types
+radar.fixedTrackAlpha.SetVisible(true);
+radar.fixedTrackAlpha.TrackLabel().SetText("ALPHA");
+radar.fixedTrackAlpha.SetColor({77, 224, 255, 255});
 
-The generated API exposes reticle wrappers backed by the public client types
-plus typed primitive handles:
+client.ActivatePage(radar);
+client.SetPageView(radar, {0.0f, 0.0f}, 1.0f);
+client.SendBatch(ui.BuildBatch());
+```
 
-- `PrimitiveHandle`
+## Root Responsibilities
+
+The generated root has three jobs:
+
+1. expose authored pages and the window display state
+2. accumulate staged partial patches while user code mutates handles
+3. build runtime command batches on demand
+
+The root is therefore the bridge between the authored model and the transport
+client:
+
+```cpp
+full_demo_ui::FullDemoMockupUi ui;
+ui.Window().SetBrightness(0.55f);
+
+auto& radar = ui.Radar();
+radar.fixedTrackAlpha.SetVisible(true);
+radar.fixedTrackAlpha.SetPosition({0.2f, -0.1f});
+
+const mfd::CommandBatch batch = ui.BuildCommandBatch(9U);
+client.SendBatch(batch);
+```
+
+Expected generated root helpers:
+
+- `Window()`
+- one accessor per page such as `Radar()` or `PictureDemo()`
+- `BuildBatch()`
+- `BuildCommandBatch(sequence)`
+- `SubmitLatest(publisher, sequence)`
+
+Some generated roots may also expose convenience helpers such as shutdown
+batches when the authored model carries that concept. Those helpers are useful,
+but they are not the main architectural contract.
+
+## Page Model
+
+Each generated page wrapper carries:
+
+- the authored page name
+- the generated page transport ID
+- the generated `mappingHash`
+- one member per static reticle on the page
+- one member per page-local blink type
+- one page-scoped `strobe` handle
+- one typed generated dynamic-set accessor per authored reticle template
+
+This lets `CommandClient` overloads consume a generated page directly:
+
+```cpp
+client.ActivatePage(ui.Radar());
+client.SetPageView(ui.Radar(), {0.15f, -0.10f}, 1.25f);
+```
+
+The generated page object hides the transport details needed to serialize those
+page-level commands correctly.
+
+## Static Reticles
+
+Static reticles remain the most common control surface.
+
+The generated static reticle handle inherits the usual reticle-level controls:
+
+- visibility
+- blink enable and blink type
+- position
+- rotation
+- color
+- thickness
+
+Example:
+
+```cpp
+auto& radar = ui.Radar();
+
+radar.fixedTrackAlpha.SetVisible(true);
+radar.fixedTrackAlpha.SetBlinkType(radar.fast);
+radar.fixedTrackAlpha.SetPosition({0.30f, 0.18f});
+radar.fixedTrackAlpha.SetRotationDegrees(-15.0f);
+radar.fixedTrackAlpha.TrackLabel().SetText("MOCK");
+
+client.SendBatch(ui.BuildBatch());
+```
+
+The architecture is intentionally patch-based: untouched authored fields remain
+owned by JSON and are not resent.
+
+## Primitive Handles
+
+Primitive handles exist so that one reticle can expose a few client-driven
+sub-parts without turning the whole authored template into a runtime-only
+object.
+
+Shared primitive surface:
+
+- `SetVisible`
+- `SetPosition`
+- `SetRotationDegrees`
+- `SetScale`
+- `SetColor`
+- `SetFillColor`
+- `SetFilled`
+- `SetThickness`
+
+Specialized handle families currently exposed by the public client layer:
+
 - `TextHandle`
 - `TimeHandle`
 - `LineHandle`
@@ -94,173 +192,199 @@ plus typed primitive handles:
 - `PolylineHandle`
 - `BezierHandle`
 - `ArcHandle`
-- `StrobeHandle`
+- `ImageHandle`
 
-The exact emitted set depends on the authored primitives present in the parsed
-window model.
+The generator emits the most specific handle type available for the authored
+primitive kind.
 
-## Reticle-Level Surface
+## Exposed Primitive Pattern
 
-Reticles remain the main authored control level. The generated reticle handle
-keeps the common controls already available today:
+The most important authoring rule is that client-facing primitive access is
+opt-in.
 
-- `SetVisible`
-- `SetBlinkEnabled`
-- `SetBlink`
-- `SetBlinkType`
-- `ClearBlinkType`
-- `SetPosition`
-- `SetRotationDegrees`
-- `SetColor`
-- `SetThickness`
+The intended pattern is:
 
-Compatibility-only helpers may temporarily remain available on the low-level
-reticle type, but generated code must not rely on string primitive addressing.
+- author one decorative reticle normally
+- mark only the client-driven primitives as `exposed`
+- let the generator produce typed accessors for those exposed primitives only
 
-## Primitive-Level Surface
+This keeps the generated client surface small and meaningful.
 
-Every exposed primitive is generated under its owning reticle. Primitive
-controls are split between a shared base and kind-specific specializations.
+### Progress Bar Example
 
-Shared primitive surface:
-
-- `SetVisible`
-- `SetColor`
-- `SetFillColor`
-- `SetFilled`
-- `SetThickness`
-- `SetPosition`
-- `SetRotationDegrees`
-- `SetScale`
-
-Text-like specializations:
-
-- text: `SetText`, `SetLetterSpacing`
-- time: `SetLetterSpacing`
-
-Geometry-specific specializations:
-
-- line: `SetStart`, `SetEnd`
-- circle: `SetRadius`
-- ring: `SetInnerRadius`, `SetOuterRadius`, `SetSegments`
-- rectangle, ellipse, square, diamond: `SetWidth`, `SetHeight`, `SetSize`
-- triangle: `SetPoints`
-- polyline: `SetPoints`, `SetClosed`
-- bezier: `SetControlPoints`, `SetSegments`
-- arc: `SetRadius`, `SetStartAngleDegrees`, `SetEndAngleDegrees`, `SetSegments`
-
-Generation must only expose coherent operations for the primitive kind.
-
-## Primitive Exposure Rules
-
-- decorative primitives are not exposed by default
-- only named client-driven primitives are emitted
-- an exposed primitive must have a stable authored identity
-- exposure is opt-in in authored JSON
-- non-exposed primitives remain an internal rendering detail of the reticle
-
-## Strobe Model
-
-The strobe is not part of the primitive ID mapping.
-
-The generated page surface exposes one generic page-scoped handle:
+The tutorial now uses this pattern for a progress bar on Page2:
 
 ```cpp
-const auto& strobe = ui.Page1().strobe;
-if (strobe.IsValid())
-{
-    const auto info = strobe.Info();
-    if (info.magnet.enabled)
-    {
-        // ...
-    }
-}
+tutorial_ui::TutorialUi ui;
+auto& progressBar = ui.Page2().mfdTutorialProgressBar;
+auto& fillBar = progressBar.FillBar();
+
+fillBar.SetVisible(true);
+fillBar.SetSize({0.22f, 0.06f});
+fillBar.SetPosition({-0.11f, 0.0f});
+
+client.SendBatch(ui.BuildBatch());
 ```
 
-Strobe invariants:
+Architecturally, this is better than rebuilding the whole reticle every frame:
 
-- no authored strobe transport ID is generated
-- no strobe lookup is required from user code
-- the handle is always present on the page surface
-- the handle is invalid when the page has no strobe
-- runtime strobe commands remain page-scoped
-- strobe feedback remains page-scoped
+- the static frame stays authored
+- only the fill rectangle is mutated
+- the generated API stays typed and discoverable
 
-The `StrobeHandle` is a lightweight page capability wrapper exposing:
+### Image Primitive Example
 
-- `IsValid()`
-- `PageName()`
-- `Info()`
-- `SetActive(bool)`
-- `SetPosition(Vec2)`
+Images follow the same model when they are exposed:
 
-`Info()` returns a value object describing:
+```cpp
+full_demo_ui::FullDemoMockupUi ui;
+auto& picture = ui.PictureDemo().pictureDemo;
 
-- whether the page actually owns a strobe
-- capture configuration
-- magnetization configuration
+picture.DemoPicture().SetVisible(true);
+picture.DemoPicture().SetPosition({0.0f, 0.0f});
+picture.DemoPicture().SetScale({1.10f, 1.10f});
+picture.DemoPicture().SetRotationDegrees(8.0f);
+
+client.SendBatch(ui.BuildBatch());
+```
+
+This is the supported way to animate or reposition authored bitmap content
+without changing the referenced asset file itself.
 
 ## Dynamic Reticles
 
-Dynamic reticles are runtime-created, so they do not appear as fixed authored
-page members. The generated page surface instead exposes one typed dynamic-set
-accessor per authored template:
+Dynamic reticles are runtime-owned instances, so the generated API exposes them
+through typed sets instead of static page members.
+
+The main architectural rule is:
+
+- generated code hides runtime dynamic IDs
+- application code keeps typed handles returned by `Create()`
+
+Example:
 
 ```cpp
 auto& tracks = ui.Radar().DynamicRadarTrack();
 auto& track = tracks.Create();
-track.TrackLabel().SetText("AF001");
+
+track.SetVisible(true);
+track.SetPosition({0.18f, -0.24f});
+track.SetRotationDegrees(55.0f);
+track.TrackLabel().SetText("B21");
+
+client.SendBatch(ui.BuildBatch());
+
 tracks.Remove(track);
+client.SendBatch(ui.BuildBatch());
 ```
 
-Dynamic-reticle invariants:
+This model gives three benefits:
 
-- generated page APIs do not expose `Dynamic(std::string_view templateId)`
-- generated client code does not ask the user for a runtime reticle id
-- `Create()` allocates one hidden runtime-scoped integer id inside the generated set
-- `Remove(...)` removes that generated instance by handle
-- application code keeps the returned typed handle or pointer while the domain
-  object is alive
-- primitive-level typed access is still available on the generated dynamic
-  reticle handle when the authored template exposes primitives
+- user code does not invent transport identities
+- the generated API still exposes typed primitive access on dynamic instances
+- lifecycle remains explicit through `Create()` and `Remove(...)`
 
-Low-level dynamic reticle patches may still carry primitive updates internally,
-but the normal generated workflow is now handle-based rather than id-based.
+## Strobe Model
+
+The strobe is modeled as a page capability, not as an addressable generated
+transport object.
+
+That is why generated pages expose a single page-scoped `strobe` member:
+
+```cpp
+auto& radar = ui.Radar();
+if (radar.strobe.IsValid())
+{
+    radar.strobe.SetActive(true);
+    radar.strobe.SetPosition({0.15f, -0.08f});
+    client.SendBatch(ui.BuildBatch());
+}
+```
+
+The strobe handle intentionally stays page-scoped because:
+
+- authored pages own the strobe definition
+- strobe feedback is also page-scoped
+- no independent strobe transport table is generated
+
+## Batch Building And Transport Boundary
+
+The generated API is a local staging layer. It does not send by itself.
+
+The normal publication sequence is:
+
+1. mutate generated handles
+2. build commands from the generated root
+3. publish them through `CommandClient` or `LatestBatchPublisher`
 
 \startuml
 top to bottom direction
-actor "Client code" as Client
-rectangle "Generated page API" as PageApi
-rectangle "StrobeHandle" as StrobeHandle
-rectangle "DynamicTemplateSet" as DynamicSet
-rectangle "CommandClient" as Transport
-rectangle "SceneRegistry" as Scene
+actor "Application code" as App
+rectangle "Generated UI root" as Ui
+rectangle "CommandBatch builder" as Builder
+rectangle "CommandClient / LatestBatchPublisher" as Transport
+rectangle "Runtime window" as Runtime
 
-Client --> PageApi : ui.Radar()
-PageApi --> StrobeHandle : .strobe
-PageApi --> DynamicSet : .DynamicRadarTrack()
-Client --> StrobeHandle : SetActive / SetPosition / Info
-Client --> DynamicSet : Create / Remove / mutate handles
-StrobeHandle --> Transport : page-scoped commands
-DynamicSet --> Transport : generated lifecycle + patches
-Transport --> Scene : apply runtime state
+App --> Ui : mutate typed handles
+Ui --> Builder : BuildBatch / BuildCommandBatch
+Builder --> Transport : commands + mappingHash
+Transport --> Runtime : UDP protobuf batch
 \enduml
 
-## Compatibility Strategy
+The important design constraint is that the generated path preserves the same
+runtime semantics as manually authored `CommandBatch` instances:
 
-Compatibility stays low-level and explicit:
+- same command families
+- same `mappingHash`
+- same sequence handling
+- same dynamic lifecycle behavior
 
-- raw `CommandClient` helpers may still accept authored names
-- generated page overloads such as `ActivatePage(ui.Radar())` and
-  `SetPageView(ui.Radar(), center, zoom)` must send generated page ids with the
-  generated mapping hash
-- raw name-based helpers must be constructed with the companion generated
-  transport map when they need local name resolution
-- name-based primitive patching is resolved locally before serialization
-- generated code must continue to use typed page, reticle, primitive, strobe,
-  and dynamic-set handles
-- serialized command payloads must omit duplicate authored-name fields and rely
-  on `mappingHash` + transport IDs only
+## Generated Page IDs And Mapping Hash
 
-String-based addressing is therefore no longer part of the normal generated
-client-facing workflow.
+When user code passes a generated page to `CommandClient`, the client extracts:
+
+- the generated page ID
+- the generated `mappingHash`
+
+This is why page-level helpers can remain ergonomic:
+
+```cpp
+client.ActivatePage(ui.Radar());
+client.SetPageView(ui.Radar(), {0.0f, 0.0f}, 1.0f);
+```
+
+Raw name-based helpers still exist, but they are a fallback path that requires
+the companion `.generated.map` for local authored-name resolution.
+
+## Draw Order And Other Authored Rules
+
+Some authored properties intentionally stay outside the generated runtime patch
+surface.
+
+`drawOnTop` is the main example:
+
+- it is authored JSON data
+- it is preserved by loading and serialization
+- it affects runtime draw ordering
+- it is not meant to be toggled by the generated per-frame client API
+
+This keeps the generated surface focused on runtime state changes, not on
+re-authoring the scene graph from the client.
+
+## Practical Takeaways
+
+- Start from the generated root, not from raw transport concepts.
+- Use static reticle members for authored page content.
+- Use exposed primitive handles for partial client-driven reticle updates.
+- Use `ImageHandle` exactly like other exposed primitive types when a bitmap is
+  client-driven.
+- Use generated dynamic sets when objects appear and disappear at runtime.
+- Keep `CommandClient` as the final sender, not as the primary author-facing
+  API.
+
+## Related Documents
+
+- [Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
+- [Generated Transport Map Specification](./generated_transport_map.md)
+- [Use The Mockup As A Client API Reference](../tutorials/11_use_the_mockup_as_a_client_api_reference.md)
+- [Drive A Window From A Live Client](../tutorials/04_drive_a_window_from_a_live_client.md)

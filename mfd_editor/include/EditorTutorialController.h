@@ -16,6 +16,14 @@
 
 class EditorApplication;
 
+namespace mfd
+{
+enum class PrimitiveType;
+struct PageDefinition;
+struct Primitive;
+struct ReticleGroup;
+}
+
 /**
  * @brief Encapsulates tutorial state, persistence, cleanup and coach UI orchestration.
  *
@@ -86,6 +94,36 @@ public:
     std::string_view FocusLayerId() const noexcept;
     /** @brief Consumes the one-shot request that opens the resume/restart popup. */
     bool ConsumeResumePopupRequest() noexcept;
+    /** @brief Returns `true` when closing the reticle menu must reset the guided phase. */
+    bool ShouldResetReticleMenuPhaseOnClose() const noexcept;
+    /** @brief Returns `true` when closing the reticle-create popup must reset the guided phase. */
+    bool ShouldResetReticleCreatePopupOnCancel() const noexcept;
+    /** @brief Returns `true` when creating a reticle should advance to an append-primitive micro-step. */
+    bool ShouldAdvanceReticleCreatePhase() const noexcept;
+    /** @brief Validates the current reticle-create draft against the active tutorial step. */
+    bool ValidateNewLibraryReticleDraft(std::string_view reticleId,
+                                        mfd::PrimitiveType primitiveType,
+                                        std::string& error) const;
+    /** @brief Applies tutorial-specific defaults to a freshly created library reticle when required. */
+    void ConfigureCreatedLibraryReticle(mfd::ReticleGroup& reticle) const;
+    /** @brief Returns `true` when the current tutorial step forbids drag-and-drop instantiation. */
+    bool ShouldUseHighlightedAddToPageButton() const noexcept;
+    /** @brief Validates the "add to active page" action against the current tutorial context. */
+    bool ValidateAddToPage(const mfd::PageDefinition* page,
+                           const mfd::ReticleGroup& reticle,
+                           std::string& error) const;
+    /** @brief Returns the contextual halo reason displayed on the add-to-page button. */
+    std::string_view LibraryAddToPageHaloReason() const noexcept;
+    /** @brief Validates the primitive append action against the active tutorial step. */
+    bool ValidateAppendPrimitive(const mfd::ReticleGroup& reticle,
+                                 mfd::PrimitiveType primitiveType,
+                                 std::string& error) const;
+    /** @brief Applies tutorial-specific defaults to a freshly appended primitive when required. */
+    void ConfigureAppendedPrimitive(mfd::Primitive& primitive) const;
+    /** @brief Returns the contextual halo reason displayed on the append-primitive button. */
+    std::string_view LibraryAppendPrimitiveHaloReason() const noexcept;
+    /** @brief Returns `true` when the selected primitive matches the guided exposure step. */
+    bool IsExposedPrimitiveTutorialSelection(std::string_view reticleId, std::string_view primitiveId) const noexcept;
 
 private:
     /** @brief Advances to the next tutorial step and persists progress. */

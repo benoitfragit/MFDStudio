@@ -72,4 +72,6 @@ If you mainly want automated safety nets around the runtime:
 2. [Manage Page-Local Blink](./09_page_managed_blink.md)
 3. [Drive A Window From A Live Client Over UDP](./04_drive_a_window_from_a_live_client.md)
 
-All tutorials use the current public API from `mfd_api/include/mfd`.
+All client-side runtime tutorials now assume the generated API is the normal
+surface exposed to application code, with `CommandClient` kept as the final
+send boundary.

@@ -139,6 +139,45 @@ P -> W : Update SceneRegistry
 W -> R : Render active page
 \enduml
 
+## Step 9 - See the preferred client API shape
+
+For one application-specific C++ client, the normal public workflow is:
+
+1. load the window JSON once to discover the UDP endpoint and generated map
+2. construct `CommandClient`
+3. mutate the generated UI handles
+4. publish the staged commands with `BuildBatch()` or `BuildCommandBatch()`
+
+Representative snippet:
+
+```cpp
+#include "FullDemoMockupUi.h"
+#include "mfd/control/CommandClient.h"
+#include "mfd/io/JsonLoader.h"
+
+mfd::JsonLoader loader;
+const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages.json");
+if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
+{
+    return 1;
+}
+
+mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
+full_demo_ui::FullDemoMockupUi ui;
+
+auto& radar = ui.Radar();
+client.ActivatePage(radar);
+radar.fixedTrackAlpha.SetVisible(true);
+radar.fixedTrackAlpha.SetPosition({0.20f, -0.15f});
+radar.fixedTrackAlpha.TrackLabel().SetText("ALPHA");
+
+client.SendBatch(ui.BuildBatch());
+```
+
+That generated path is the preferred client-facing API. Raw string-based
+helpers still exist on `CommandClient`, but they are now the fallback mode for
+generic tools, migration code, or debugging.
+
 ## What You Should Read Next
 
 Choose the path that matches your goal:

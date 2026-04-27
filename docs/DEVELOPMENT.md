@@ -189,6 +189,7 @@ Use the documentation layers intentionally:
 - [`docs/CONCEPTS.md`](./CONCEPTS.md): vocabulary and mental model
 - [`docs/reference`](./reference/README.md): exact JSON and authoring rules
 - [`docs/tutorials`](./tutorials/README.md): step-by-step workflows
+- [`docs/standards`](./standards/README.md): generated client API standardization, replacement-client contract, and conformance evidence
 
 If you change public behavior, examples, or onboarding flow, update the
 relevant Markdown page in the same change. That includes the root launch

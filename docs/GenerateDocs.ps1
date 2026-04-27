@@ -159,9 +159,19 @@ if (-not $resolvedPlantUmlJar) {
 $javaBinDirectory = Split-Path -Parent $resolvedJava.Path
 $javaHome = Split-Path -Parent $javaBinDirectory
 $env:JAVA_HOME = $javaHome
-if (-not ($env:Path -split ';' | Where-Object { $_ -eq $javaBinDirectory })) {
-    $env:Path = $javaBinDirectory + ';' + $env:Path
+$pathEntries = @()
+foreach ($entry in ($env:Path -split ';')) {
+    if ([string]::IsNullOrWhiteSpace($entry)) {
+        continue
+    }
+
+    if ([string]::Equals($entry, $javaBinDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+        continue
+    }
+
+    $pathEntries += $entry
 }
+$env:Path = $javaBinDirectory + ';' + ($pathEntries -join ';')
 
 $doxyfileTemplatePath = Join-Path $repoRoot "docs/Doxyfile"
 $generatedConfigPath = Join-Path $repoRoot "build/docs/MFDStudio.generated.Doxyfile"
