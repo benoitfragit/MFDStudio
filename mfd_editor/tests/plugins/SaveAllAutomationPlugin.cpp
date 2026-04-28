@@ -1,4 +1,4 @@
-/*
+﻿/*
  * This file is part of MFDStudio.
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
@@ -45,13 +45,13 @@ MfdEditorAutomationResultCode WriteMessage(MfdEditorUtf8Buffer* buffer, const ch
 
 struct SaveAllAutomationPluginContext
 {
-    const MfdEditorAutomationHostApiV1* host = nullptr;
+    const MfdEditorAutomationHostApi* host = nullptr;
     bool started = false;
     bool tickApplied = false;
 };
 
 MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL StartPlugin(void* pluginContext,
-                                                                     const MfdEditorAutomationHostApiV1* host,
+                                                                     const MfdEditorAutomationHostApi* host,
                                                                      MfdEditorUtf8Buffer* error) noexcept
 {
     if (pluginContext == nullptr || host == nullptr ||
@@ -94,7 +94,7 @@ MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL TickPlugin(void* plugin
     }
 
     char createdPageIdStorage[128] {};
-    MfdEditorAutomationCreatePageAssetRequestV1 createPage {};
+    MfdEditorAutomationCreatePageAssetRequest createPage {};
     createPage.struct_size = sizeof(createPage);
     createPage.session = sessionHandle;
     createPage.name = MakeView("SavedPluginPage");
@@ -108,7 +108,7 @@ MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL TickPlugin(void* plugin
         return status;
     }
 
-    MfdEditorAutomationValidationSummaryV1 validation {};
+    MfdEditorAutomationValidationSummary validation {};
     validation.struct_size = sizeof(validation);
     status = context->host->validate_session(context->host->host_context, sessionHandle, &validation, error);
     if (status != MfdEditorAutomationResultCode_Success || validation.valid == 0U)
@@ -128,7 +128,7 @@ MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL TickPlugin(void* plugin
         return status;
     }
 
-    MfdEditorAutomationSaveSummaryV1 saveSummary {};
+    MfdEditorAutomationSaveSummary saveSummary {};
     saveSummary.struct_size = sizeof(saveSummary);
     status = context->host->save_all(context->host->host_context, &saveSummary, error);
     if (status != MfdEditorAutomationResultCode_Success)
@@ -161,7 +161,7 @@ void MFD_EDITOR_AUTOMATION_CALL DestroyPlugin(void* pluginContext) noexcept
 } // namespace
 
 extern "C" MFD_EDITOR_AUTOMATION_EXPORT MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL
-MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApiV1* outApi, MfdEditorUtf8Buffer* error) noexcept
+MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApi* outApi, MfdEditorUtf8Buffer* error) noexcept
 {
     if (outApi == nullptr)
     {
@@ -189,3 +189,4 @@ MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApiV1* outApi, MfdEdito
     outApi->destroy = &DestroyPlugin;
     return MfdEditorAutomationResultCode_Success;
 }
+

@@ -47,6 +47,7 @@ add_executable(mfd_editor_tests ${MFD_EDITOR_TEST_SOURCES})
 
 set(MFD_EDITOR_TEST_AUTOMATION_PLUGIN_TARGETS
     mfd_editor_test_automation_plugin
+    mfd_editor_test_extended_automation_plugin
     mfd_editor_test_failing_plugin
     mfd_editor_test_bad_abi_plugin
     mfd_editor_test_start_failure_plugin
@@ -59,6 +60,11 @@ mfd_add_editor_test_plugin(
     mfd_editor_test_automation_plugin
     "mfd_editor_test_automation_plugin"
     ${CMAKE_CURRENT_SOURCE_DIR}/plugins/TestAutomationPlugin.cpp)
+
+mfd_add_editor_test_plugin(
+    mfd_editor_test_extended_automation_plugin
+    "mfd_editor_test_extended_automation_plugin"
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/ExtendedAutomationPlugin.cpp)
 
 mfd_add_editor_test_plugin(
     mfd_editor_test_failing_plugin

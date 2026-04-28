@@ -142,6 +142,11 @@ Start with:
 2. [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md)
 3. [Test A Window With The Mockup](./docs/tutorials/03_test_with_mfd_mockup.md)
 
+If you need in-process editor automation plugins:
+
+- stable native C ABI contract, no COM boundary: [mfd_editor_plugin_api/README.md](./mfd_editor_plugin_api/README.md)
+- updated sample plugin: [examples/mfd_editor_automation_sample_plugin/README.md](./examples/mfd_editor_automation_sample_plugin/README.md)
+
 Editor page-preview essentials:
 
 - `Ctrl+click` adds or removes one page reticle from the current selection

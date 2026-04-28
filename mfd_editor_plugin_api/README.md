@@ -1,53 +1,54 @@
-# `mfd_editor_plugin_api`
+﻿# `mfd_editor_plugin_api`
 
-Public contract for the in-process automation plugin loaded by `mfd_editor`.
+Stable public contract for in-process automation plugins loaded by `mfd_editor`.
 
-This project exposes one **stable typed C ABI**. The DLL boundary intentionally
-avoids:
+The current contract is **ABI v3**. The previous binary surface is no longer
+accepted: plugins must be rebuilt against the updated header.
+
+## Purpose
+
+This project exposes one typed C ABI so external plugins can automate the
+editor without linking against the editor's internal C++ classes.
+
+The DLL boundary intentionally avoids:
 
 - C++ classes
+- COM/OLE automation objects
 - STL containers
-- exceptions
-- JSON payloads at the boundary
+- exceptions across the boundary
+- raw ImGui/UI widget access
+- JSON commands at the ABI boundary
 
 The editor keeps ownership of:
 
 - the live document
-- preview rendering
-- validation
 - undo/redo
+- validation
 - JSON serialization
 - disk persistence
+- event production
 
-The plugin only receives one versioned function table and asks the host to
-perform semantic editor actions.
-
-## Scope
-
-- No visible ImGui widget is exposed.
-- No raw UI automation is exposed.
-- No network transport is imposed.
-- No assistant, agent, or AI concept exists in this contract.
-- ABI `v1` is intentionally small and acts as the stable foundation.
+Plugins receive one versioned host callback table and request semantic editor
+operations through it.
 
 ## Public Files
 
 - Public header: [include/mfd/editor/AutomationPlugin.h](./include/mfd/editor/AutomationPlugin.h)
-- CMake target definition: [CMakeLists.txt](./CMakeLists.txt)
-- Minimal example: [../examples/mfd_editor_automation_sample_plugin](../examples/mfd_editor_automation_sample_plugin)
+- CMake target: [CMakeLists.txt](./CMakeLists.txt)
+- Example plugin: [../examples/mfd_editor_automation_sample_plugin](../examples/mfd_editor_automation_sample_plugin)
 
 ## ABI Principles
 
-The binary contract relies on:
+The contract relies on:
 
 - one `extern "C"` entry point
-- versioned POD `struct` types
-- one `struct_size` field on every versioned structure
-- opaque handles
-- caller-owned UTF-8 buffers
-- host/plugin function tables
+- POD structs only
+- versioned tables plus `struct_size`
+- opaque session handles
+- caller-owned UTF-8 output buffers
+- explicit result codes
 
-The exported plugin symbol is:
+The exported symbol remains:
 
 - `MfdGetEditorAutomationPluginApi`
 
@@ -55,31 +56,28 @@ The header also defines:
 
 - `MFD_EDITOR_AUTOMATION_PLUGIN_ABI_VERSION`
 - `MFD_EDITOR_AUTOMATION_PLUGIN_ENTRY_POINT`
+- `MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK`
 
-## Compatibility
+## ABI Versioning
 
-This ABI is meant to be more flexible than one exported C++ virtual interface.
-It no longer requires:
+The current value of `MFD_EDITOR_AUTOMATION_PLUGIN_ABI_VERSION` is `3`.
 
-- the same repository revision
-- the same compiler family
-- the same C++ runtime
+Implications:
 
-The following constraints still apply:
+- old automation plugin DLLs compiled against the previous ABI are rejected
+- the editor and plugins must agree on ABI version `3`
+- future extensions may still append host callbacks at the end of the host
+  table while preserving the leading layout
 
-- same binary platform
-- same binary architecture
-- plugin loaded in the same process as the editor
-
-So one faulty plugin can still crash the editor. The host guards common
-contract errors, not arbitrary memory corruption.
+`MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK` is provided so plugins can probe one
+callback safely from `struct_size` when a later editor adds more capabilities.
 
 ## Lifecycle
 
 The host loads one DLL and then executes:
 
 1. resolve `MfdGetEditorAutomationPluginApi`
-2. retrieve `MfdEditorAutomationPluginApiV1`
+2. retrieve `MfdEditorAutomationPluginApi`
 3. validate `struct_size`, `abi_version`, and required callbacks
 4. call `start(plugin_context, host, error)`
 5. call `tick(plugin_context, error)` once per frame while loaded
@@ -88,64 +86,133 @@ The host loads one DLL and then executes:
 
 Rules:
 
-- `start` must validate its prerequisites and return a clear error on failure
+- `start` validates prerequisites and caches only plugin-owned state
 - `tick` must stay lightweight and non-blocking
-- `stop` must tolerate partial startup
-- `destroy` must release all plugin-owned state
+- `stop` tolerates partial startup
+- `destroy` releases every plugin-owned allocation
 - `plugin_context` may be `nullptr` for stateless plugins
-- the plugin must not keep host pointers beyond its lifetime
+- host pointers must not outlive the plugin lifetime
 
-## Function Tables
+## Host Surface
 
-### Host Table
+`MfdEditorAutomationHostApi` now exposes the following stable capabilities.
 
-The host provides `MfdEditorAutomationHostApiV1`.
-
-Currently exposed callbacks:
+Read-only queries:
 
 - `get_snapshot_summary`
+- `get_window_info`
+- `get_ui_state`
 - `get_page_info`
+- `get_page_blink_type_info`
+- `get_reticle_asset_info`
+- `get_reticle_asset_primitive_info`
+- `get_page_reticle_info`
+- `get_page_reticle_primitive_info`
+- `get_layer_info`
+
+Session and validation:
+
 - `begin_session`
 - `validate_session`
-- `create_page_asset`
+- `get_session_validation_diagnostic`
 - `commit_session`
 - `rollback_session`
+
+Semantic mutations:
+
+- `create_page_asset`
+- `delete_page_asset`
+- `create_reticle_asset`
+- `delete_reticle_asset`
+- `instantiate_reticle_on_page`
+- `delete_page_reticle`
+- `move_page_reticle`
+- `set_page_reticle_visibility`
+- `set_page_reticle_draw_on_top`
+- `set_page_reticle_transform`
+- `set_page_reticle_layer`
+- `set_reticle_asset_visibility`
+- `set_reticle_asset_draw_on_top`
+- `set_reticle_transform`
+- `set_reticle_clipping`
+- `create_layer`
+- `replace_layer`
+- `delete_layer`
+- `set_layer_visibility`
+- `upsert_page_blink_type`
+- `delete_page_blink_type`
+- `set_page_default_blink_type`
+- `set_page_reticle_blink`
+- `assign_page_strobe_template`
+- `delete_page_strobe`
+- `select_entity`
+
+Persistence and events:
+
 - `save_all`
+- `save_asset`
+- `export_json_preview`
+- `consume_pending_event`
 
-### Plugin Table
+## Key Public Types
 
-The plugin returns `MfdEditorAutomationPluginApiV1`.
+Summary and query types:
 
-It contains:
+- `MfdEditorAutomationSnapshotSummary`
+- `MfdEditorAutomationWindowInfo`
+- `MfdEditorAutomationUiState`
+- `MfdEditorAutomationPageInfo`
+- `MfdEditorAutomationPageBlinkTypeInfo`
+- `MfdEditorAutomationReticleAssetInfo`
+- `MfdEditorAutomationPageReticleInfo`
+- `MfdEditorAutomationLayerInfo`
+- `MfdEditorAutomationPrimitiveInfo`
 
-- `info`
-- `plugin_context`
-- `start`
-- `tick`
-- `stop`
-- `destroy`
+Validation and events:
 
-## Important Types
+- `MfdEditorAutomationValidationSummary`
+- `MfdEditorAutomationValidationDiagnostic`
+- `MfdEditorAutomationEvent`
 
-The public header defines:
+Mutation requests:
 
-- `MfdEditorAutomationResultCode`
+- `MfdEditorAutomationCreatePageAssetRequest`
+- `MfdEditorAutomationDeletePageAssetRequest`
+- `MfdEditorAutomationCreateReticleAssetRequest`
+- `MfdEditorAutomationDeleteReticleAssetRequest`
+- `MfdEditorAutomationInstantiateReticleOnPageRequest`
+- `MfdEditorAutomationDeletePageReticleRequest`
+- `MfdEditorAutomationMovePageReticleRequest`
+- `MfdEditorAutomationSetPageReticleVisibilityRequest`
+- `MfdEditorAutomationSetPageReticleDrawOnTopRequest`
+- `MfdEditorAutomationSetPageReticleTransformRequest`
+- `MfdEditorAutomationSetPageReticleLayerRequest`
+- `MfdEditorAutomationSetReticleAssetVisibilityRequest`
+- `MfdEditorAutomationSetReticleAssetDrawOnTopRequest`
+- `MfdEditorAutomationSetReticleTransformRequest`
+- `MfdEditorAutomationSetReticleClippingRequest`
+- `MfdEditorAutomationCreateLayerRequest`
+- `MfdEditorAutomationReplaceLayerRequest`
+- `MfdEditorAutomationDeleteLayerRequest`
+- `MfdEditorAutomationSetLayerVisibilityRequest`
+- `MfdEditorAutomationUpsertPageBlinkTypeRequest`
+- `MfdEditorAutomationDeletePageBlinkTypeRequest`
+- `MfdEditorAutomationSetPageDefaultBlinkTypeRequest`
+- `MfdEditorAutomationSetPageReticleBlinkRequest`
+- `MfdEditorAutomationAssignPageStrobeTemplateRequest`
+- `MfdEditorAutomationDeletePageStrobeRequest`
+- `MfdEditorAutomationSelectEntityRequest`
+- `MfdEditorAutomationExportJsonPreviewRequest`
+- `MfdEditorAutomationSaveAssetRequest`
+
+Shared utility types:
+
 - `MfdEditorStringView`
 - `MfdEditorUtf8Buffer`
+- `MfdEditorAutomationTransform2D`
 - `MfdEditorAutomationSessionHandle`
-- `MfdEditorAutomationSnapshotSummaryV1`
-- `MfdEditorAutomationPageInfoV1`
-- `MfdEditorAutomationValidationSummaryV1`
-- `MfdEditorAutomationSaveSummaryV1`
-- `MfdEditorAutomationCreatePageAssetRequestV1`
-
-General pattern:
-
-- the caller prepares the structure
-- sets `struct_size`
-- provides output buffers when needed
-- calls the host/plugin function
-- reads the result code and outputs
+- `MfdEditorAutomationJsonPreviewResult`
+- `MfdEditorAutomationSaveSummary`
 
 ## String Handling
 
@@ -154,54 +221,60 @@ Input strings use `MfdEditorStringView`.
 Output strings use `MfdEditorUtf8Buffer`:
 
 - `data` points to caller-owned storage
-- `capacity` gives the available byte count
-- `size` receives the full logical string length, excluding `\0`
+- `capacity` is the available byte count
+- `size` receives the full logical byte length excluding `\0`
 
-If the buffer is too small:
+When the buffer is too small, the callee:
 
-- the callee writes as much as possible
-- terminates with `\0` when `capacity > 0`
+- writes as much as possible
+- null-terminates when `capacity > 0`
 - returns `MfdEditorAutomationResultCode_BufferTooSmall`
 
 ## Recommended Workflow
 
-For any non-trivial mutation:
+For a non-trivial mutation flow:
 
-1. read context with `get_snapshot_summary` and `get_page_info`
+1. read the document through `get_snapshot_summary`, `get_window_info`,
+   `get_ui_state`, `get_page_info`, `get_reticle_asset_info`,
+   `get_page_reticle_info`, `get_layer_info`, and primitive-info queries
 2. open a preview session with `begin_session`
-3. send one or more semantic actions
-4. validate with `validate_session`
-5. `commit_session` or `rollback_session`
-6. optionally call `save_all`
+3. reuse the stable ids returned by the queries when issuing semantic actions
+4. call `validate_session`
+5. inspect diagnostics with `get_session_validation_diagnostic` when needed
+6. `commit_session` or `rollback_session`
+7. persist with `save_asset` or `save_all`, or export one dry-run payload with `export_json_preview`
+8. drain `consume_pending_event` if the plugin needs structured feedback
 
-The save itself always remains editor-owned.
+The editor always owns the final save implementation.
 
-## Current ABI `v1` Surface
+## Example Flow
 
-The stable surface exposed today covers:
+The readable sample plugin demonstrates one non-destructive walkthrough:
 
-- reading one summary of the current document
-- reading one page by index
-- opening one preview session
-- validating one session
-- creating one page asset
-- committing one session
-- rolling back one session
-- saving all authored assets
+1. read the first page and first reticle asset
+2. start one preview session
+3. create a temporary editor layer
+4. instantiate one reticle on the page
+5. assign the new reticle to the temporary layer
+6. update visibility and transform
+7. validate the preview session
+8. roll everything back
+9. consume the queued automation events
 
-The internal automation core inside the editor is richer. Other semantic
-actions remain internal for now and can be promoted in a future ABI revision
-without breaking `v1`.
+See:
 
-## Minimal Example
+- [../examples/mfd_editor_automation_sample_plugin/src/EditorAutomationSamplePlugin.cpp](../examples/mfd_editor_automation_sample_plugin/src/EditorAutomationSamplePlugin.cpp)
 
-The plugin exports `MfdGetEditorAutomationPluginApi`, allocates its context when
-needed, then returns one callback table.
+For exhaustive callback coverage, see:
+
+- [../mfd_editor/tests/plugins/ExtendedAutomationPlugin.cpp](../mfd_editor/tests/plugins/ExtendedAutomationPlugin.cpp)
+
+## Minimal Factory
 
 ```cpp
 extern "C" MFD_EDITOR_AUTOMATION_EXPORT MfdEditorAutomationResultCode
 MFD_EDITOR_AUTOMATION_CALL
-MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApiV1* outApi,
+MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApi* outApi,
                                 MfdEditorUtf8Buffer* error) noexcept
 {
     if (outApi == nullptr)
@@ -230,37 +303,7 @@ MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApiV1* outApi,
 }
 ```
 
-Example session on the plugin side:
-
-```cpp
-MfdEditorAutomationSessionHandle session = 0U;
-host->begin_session(host->host_context,
-                    MfdEditorStringView {"demo-session", 12U},
-                    &session,
-                    error);
-
-MfdEditorAutomationCreatePageAssetRequestV1 request {};
-request.struct_size = sizeof(request);
-request.session = session;
-request.name = MfdEditorStringView {"PluginPage", 10U};
-request.title = MfdEditorStringView {"Plugin Page", 11U};
-request.relative_source_path = MfdEditorStringView {"plugin_page.json", 16U};
-
-char createdPageIdStorage[128] {};
-request.created_page_id =
-    MfdEditorUtf8Buffer {createdPageIdStorage, sizeof(createdPageIdStorage), 0U};
-
-MfdEditorAutomationSaveSummaryV1 saveSummary {};
-saveSummary.struct_size = sizeof(saveSummary);
-
-host->create_page_asset(host->host_context, &request, error);
-host->commit_session(host->host_context, session, error);
-host->save_all(host->host_context, &saveSummary, error);
-```
-
 ## CMake
-
-Declare one plugin directly with standard CMake:
 
 ```cmake
 add_library(my_editor_plugin SHARED
@@ -274,27 +317,27 @@ target_compile_features(my_editor_plugin PRIVATE cxx_std_17)
 target_compile_definitions(my_editor_plugin PRIVATE MFD_EDITOR_AUTOMATION_PLUGIN_EXPORTS=1)
 ```
 
-Recommended repository integration:
+Recommended integration:
 
-- build the plugin as one `SHARED` DLL
-- link `mfd::editor_plugin_api`
+- build one `SHARED` DLL per plugin
 - compile as `C++17`
-- define `MFD_EDITOR_AUTOMATION_PLUGIN_EXPORTS` for the plugin target
-- apply the same warning policy as the repository
+- link `mfd::editor_plugin_api`
+- keep the repository warning policy
 - set an explicit debugger working directory when needed
 
-## Tests
+## Test Coverage
 
-The repository already covers this ABI with `GoogleTest`:
+The repository covers the ABI with `GoogleTest`, including:
 
-- nominal loading
-- plugin-driven mutation
-- implicit rollback on unload
-- plugin runtime errors
+- nominal loading and mutation
+- granular `save_asset`
+- host-owned `save_all`
+- validation summary and diagnostic retrieval
+- structured event consumption
+- rollback on unload
+- runtime plugin failures
 - startup refusal
-- ABI mismatch
-- incomplete callback table
+- ABI mismatch rejection
+- incomplete plugin-table rejection
 - stateless plugin acceptance
-- plugin-triggered save all
 
-The sample plugin stays intentionally minimal and non-destructive.

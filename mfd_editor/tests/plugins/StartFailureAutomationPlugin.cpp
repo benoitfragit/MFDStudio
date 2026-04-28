@@ -1,4 +1,4 @@
-/*
+﻿/*
  * This file is part of MFDStudio.
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
@@ -48,7 +48,7 @@ struct StartFailureAutomationPluginContext
 };
 
 MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL StartPlugin(void*,
-                                                                     const MfdEditorAutomationHostApiV1*,
+                                                                     const MfdEditorAutomationHostApi*,
                                                                      MfdEditorUtf8Buffer* error) noexcept
 {
     WriteMessage(error, "Start failure from test plugin");
@@ -71,7 +71,7 @@ void MFD_EDITOR_AUTOMATION_CALL DestroyPlugin(void* pluginContext) noexcept
 } // namespace
 
 extern "C" MFD_EDITOR_AUTOMATION_EXPORT MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL
-MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApiV1* outApi, MfdEditorUtf8Buffer* error) noexcept
+MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApi* outApi, MfdEditorUtf8Buffer* error) noexcept
 {
     if (outApi == nullptr)
     {
@@ -99,3 +99,4 @@ MfdGetEditorAutomationPluginApi(MfdEditorAutomationPluginApiV1* outApi, MfdEdito
     outApi->destroy = &DestroyPlugin;
     return MfdEditorAutomationResultCode_Success;
 }
+

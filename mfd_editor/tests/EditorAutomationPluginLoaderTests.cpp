@@ -91,8 +91,17 @@ TEST(EditorAutomationPluginLoaderTests, LoadsPluginAndLetsItMutateTheDocument)
     ASSERT_EQ(bridge.loaded_.document.pages.size(), 2U);
     EXPECT_EQ(bridge.loaded_.document.pages.back().name, "PluginPage");
     EXPECT_EQ(bridge.loaded_.document.pages.back().title, "Plugin Page");
+    ASSERT_EQ(bridge.loaded_.document.pages.back().staticReticles.size(), 1U);
+    EXPECT_EQ(bridge.loaded_.document.pages.back().staticReticles.front().id, "plugin_track");
+    EXPECT_FALSE(bridge.loaded_.document.pages.back().staticReticles.front().visible);
+    EXPECT_TRUE(bridge.loaded_.document.pages.back().staticReticles.front().drawOnTop);
+    EXPECT_EQ(bridge.loaded_.document.pages.back().staticReticles.front().editor.layerId, "plugin_overlay");
+    ASSERT_EQ(bridge.loaded_.document.pages.back().editor.layers.size(), 2U);
+    EXPECT_EQ(bridge.loaded_.document.pages.back().editor.layers.back().id, "plugin_overlay");
+    EXPECT_TRUE(bridge.loaded_.document.pages.back().editor.layers.back().visible);
     ASSERT_EQ(bridge.files_.pageFiles.size(), 2U);
     EXPECT_EQ(bridge.files_.pageFiles.back().filename().string(), "plugin_page.json");
+    EXPECT_TRUE(std::filesystem::exists(bridge.files_.pageFiles.back()));
     EXPECT_EQ(bridge.pushedUndoSnapshots_.size(), 1U);
     EXPECT_TRUE(loader.LastRuntimeError().empty());
 
@@ -161,6 +170,39 @@ TEST(EditorAutomationPluginLoaderTests, LetsThePluginTriggerHostOwnedSaveAll)
     const auto templateIterator = bridge.files_.templateFiles.find("track_box");
     ASSERT_NE(templateIterator, bridge.files_.templateFiles.end());
     EXPECT_TRUE(std::filesystem::exists(templateIterator->second));
+
+    loader.Unload();
+}
+
+TEST(EditorAutomationPluginLoaderTests, LoadsPluginAndCoversTheExtendedAutomationSurface)
+{
+    FakeEditorAutomationBridge bridge = MakeSeedEditorAutomationBridge();
+    auto facade = editor::automation::CreateEditorAutomationFacade(bridge);
+    editor::EditorAutomationPluginLoader loader;
+    std::string error;
+
+    ASSERT_TRUE(loader.Load(TestPluginFile("mfd_editor_test_extended_automation_plugin"), *facade, error)) << error;
+    EXPECT_TRUE(loader.IsLoaded());
+    EXPECT_EQ(loader.PluginDisplayName(), "MFD Editor Extended Automation Plugin");
+
+    loader.Tick();
+    EXPECT_TRUE(loader.LastRuntimeError().empty()) << loader.LastRuntimeError();
+
+    ASSERT_EQ(bridge.loaded_.document.pages.size(), 1U);
+    EXPECT_EQ(bridge.loaded_.document.pages.front().name, "Radar");
+    EXPECT_TRUE(bridge.loaded_.document.pages.front().blinkTypes.empty());
+    EXPECT_FALSE(bridge.loaded_.document.pages.front().strobe.has_value());
+    EXPECT_TRUE(bridge.loaded_.document.pages.front().staticReticles.empty());
+    ASSERT_EQ(bridge.loaded_.document.pages.front().editor.layers.size(), 1U);
+    EXPECT_EQ(bridge.loaded_.document.pages.front().editor.layers.front().id, "layer");
+
+    ASSERT_EQ(bridge.loaded_.document.reticleLibrary.size(), 1U);
+    EXPECT_NE(bridge.loaded_.document.reticleLibrary.find("track_box"), bridge.loaded_.document.reticleLibrary.end());
+    EXPECT_EQ(bridge.files_.pageFiles.size(), 1U);
+    EXPECT_EQ(bridge.files_.removedPageFiles.size(), 1U);
+    EXPECT_EQ(bridge.files_.templateFiles.size(), 1U);
+    EXPECT_EQ(bridge.files_.removedTemplateFiles.size(), 1U);
+    EXPECT_EQ(bridge.pushedUndoSnapshots_.size(), 1U);
 
     loader.Unload();
 }
