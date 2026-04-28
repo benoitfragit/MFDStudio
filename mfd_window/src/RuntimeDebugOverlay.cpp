@@ -90,6 +90,41 @@ const PageDefinition* FindPage(const MfdDocument& document, std::string_view pag
     return FindPageDefinition(document, pageName);
 }
 
+const PageBlinkDefinition* ResolvePageDefaultBlink(const PageDefinition& page)
+{
+    if (page.defaultBlinkTypeName.empty())
+    {
+        return nullptr;
+    }
+
+    return FindPageBlinkDefinition(page, page.defaultBlinkTypeName);
+}
+
+bool CanResolveBlinkState(const PageDefinition& page, const ReticleBlinkState& blink)
+{
+    if (!blink.typeName.empty())
+    {
+        return FindPageBlinkDefinition(page, blink.typeName) != nullptr;
+    }
+
+    if (!blink.enabled)
+    {
+        return true;
+    }
+
+    return ResolvePageDefaultBlink(page) != nullptr;
+}
+
+std::string BuildBlinkTypePreviewLabel(const PageDefinition& page, const ReticleBlinkState& blink)
+{
+    if (!blink.typeName.empty())
+    {
+        return blink.typeName;
+    }
+
+    return ResolvePageDefaultBlink(page) != nullptr ? std::string {"<page default>"} : std::string {"<no page default>"};
+}
+
 ReticleKind ClassifyReticle(const PageDefinition& page, std::string_view reticleId)
 {
     if (page.strobe.has_value() && page.strobe->reticle.id == reticleId)
@@ -501,11 +536,42 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
             return false;
         }
 
+        const ReticleBypassState* previousBypass = state_.FindReticleBypass(key);
+        std::optional<ReticleBypassState> rollbackSnapshot;
+        if (previousBypass != nullptr)
+        {
+            rollbackSnapshot = *previousBypass;
+        }
+
         ReticleBypassState& bypass = state_.EnsureReticleBypass(key, *currentReticle);
         mutation(bypass.draft);
         if (!RefreshPreviewFromLive(liveScene))
         {
-            state_.SetTestPanelStatus(preview_.LastError());
+            const std::string mutationError =
+                preview_.LastError().empty() ? std::string {"Unknown preview rebuild failure."} : preview_.LastError();
+
+            if (rollbackSnapshot.has_value())
+            {
+                if (ReticleBypassState* restore = state_.FindReticleBypass(key); restore != nullptr)
+                {
+                    *restore = *rollbackSnapshot;
+                }
+            }
+            else
+            {
+                state_.ReleaseReticleBypass(key);
+            }
+
+            if (!RefreshPreviewFromLive(liveScene))
+            {
+                const std::string rollbackError =
+                    preview_.LastError().empty() ? std::string {"Unknown rollback failure."} : preview_.LastError();
+                state_.SetTestPanelStatus(
+                    "Rejected the local reticle mutation and failed to restore the preview: " + rollbackError);
+                return false;
+            }
+
+            state_.SetTestPanelStatus("Rejected the local reticle mutation: " + mutationError);
             return false;
         }
 
@@ -589,6 +655,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         comboPreview = pages.front().name;
     }
 
+    ImGui::PushID("PageOverride");
     bool pageBypassed = state_.PageBypassed();
     if (ImGui::Checkbox("Bypass active page", &pageBypassed))
     {
@@ -609,6 +676,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     {
         for (const PageSummary& page : pages)
         {
+            ImGui::PushID(page.name.c_str());
             const bool selected = comboPreview == page.name;
             if (ImGui::Selectable(page.name.c_str(), selected))
             {
@@ -620,9 +688,11 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
             {
                 ImGui::SetItemDefaultFocus();
             }
+            ImGui::PopID();
         }
         ImGui::EndCombo();
     }
+    ImGui::PopID();
 
     ImGui::Text("Live active page: %s", liveScene.ActivePageName().c_str());
     ImGui::Text("Preview active page: %s", displayScene.ActivePageName().c_str());
@@ -657,9 +727,8 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         {
             pageLabel.append(" [bypassed]");
         }
-        pageLabel.append("##page_tree_").append(page.name);
-
-        const bool pageOpened = ImGui::TreeNodeEx(pageLabel.c_str(), pageFlags);
+        ImGui::PushID(page.name.c_str());
+        const bool pageOpened = ImGui::TreeNodeEx("##page_tree", pageFlags, "%s", pageLabel.c_str());
         if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
         {
             state_.SelectPage(page.name);
@@ -667,6 +736,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
 
         if (!pageOpened)
         {
+            ImGui::PopID();
             continue;
         }
 
@@ -695,8 +765,6 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
             {
                 entry.label.append(" [hidden]");
             }
-            entry.label.append("##reticle_tree_").append(page.name).append("_").append(reticle->id);
-
             const bool reticleSelected =
                 state_.SelectedReticle().has_value() && *state_.SelectedReticle() == entry.key;
             ImGuiTreeNodeFlags reticleFlags =
@@ -708,14 +776,21 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 reticleFlags |= ImGuiTreeNodeFlags_Selected;
             }
 
-            ImGui::TreeNodeEx(entry.label.c_str(), reticleFlags);
+            ImGui::PushID(static_cast<int>(entry.key.kind));
+            ImGui::PushID(reticle->id.c_str());
+            ImGui::PushID(static_cast<int>(index));
+            ImGui::TreeNodeEx("##reticle_tree", reticleFlags, "%s", entry.label.c_str());
             if (ImGui::IsItemClicked())
             {
                 state_.SelectReticle(entry.key);
             }
+            ImGui::PopID();
+            ImGui::PopID();
+            ImGui::PopID();
         }
 
         ImGui::TreePop();
+        ImGui::PopID();
     }
     ImGui::EndChild();
 
@@ -740,7 +815,12 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         {
             const ReticleBypassState* bypass = state_.FindReticleBypass(selectedKey);
             bool bypassed = bypass != nullptr;
+            const PageBlinkDefinition* defaultBlink = ResolvePageDefaultBlink(*page);
+            const bool pageHasNamedBlinkTypes = !page->blinkTypes.empty();
             RuntimeDebugInspectorFrameState inspectorFrameState;
+            ImGui::PushID(selectedKey.pageName.c_str());
+            ImGui::PushID(static_cast<int>(selectedKey.kind));
+            ImGui::PushID(selectedKey.reticleId.c_str());
             ImGui::Text("Page: %s", selectedKey.pageName.c_str());
             ImGui::Text("Reticle: %s", selectedKey.reticleId.c_str());
             ImGui::Text("Kind: %s", ReticleKindLabel(selectedKey.kind));
@@ -788,6 +868,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
             if (inspectorFrameState.SnapshotValid())
             {
                 bool blinkEnabled = inspectedReticle->blink.enabled;
+                const bool canEnableBlink =
+                    blinkEnabled || !inspectedReticle->blink.typeName.empty() || defaultBlink != nullptr;
+                ImGui::BeginDisabled(!canEnableBlink);
                 if (ImGui::Checkbox("Blink enabled", &blinkEnabled))
                 {
                     mutateSelectedReticle(
@@ -798,15 +881,21 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         "Updated reticle blink state.");
                     inspectorFrameState.InvalidateSnapshot();
                 }
+                ImGui::EndDisabled();
             }
 
             if (inspectorFrameState.SnapshotValid())
             {
                 std::string blinkTypeName = inspectedReticle->blink.typeName;
-                if (ImGui::BeginCombo("Blink type", blinkTypeName.empty() ? "<page default>" : blinkTypeName.c_str()))
+                const bool canClearToPageDefault = !blinkTypeName.empty() && defaultBlink != nullptr;
+                const bool canSelectNamedBlinkType = pageHasNamedBlinkTypes;
+                const bool canEditBlinkType = canClearToPageDefault || canSelectNamedBlinkType;
+                const std::string blinkTypePreview = BuildBlinkTypePreviewLabel(*page, inspectedReticle->blink);
+                ImGui::BeginDisabled(!canEditBlinkType);
+                if (ImGui::BeginCombo("Blink type", blinkTypePreview.c_str()))
                 {
                     const bool noTypeSelected = blinkTypeName.empty();
-                    if (ImGui::Selectable("<page default>", noTypeSelected))
+                    if (defaultBlink != nullptr && ImGui::Selectable("<page default>", noTypeSelected))
                     {
                         mutateSelectedReticle(
                             [&](ReticleGroup& draft)
@@ -851,6 +940,16 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         }
                     }
                     ImGui::EndCombo();
+                }
+                ImGui::EndDisabled();
+
+                if (!pageHasNamedBlinkTypes && defaultBlink == nullptr)
+                {
+                    ImGui::TextDisabled("This page does not define any blink type.");
+                }
+                else if (blinkTypeName.empty() && !CanResolveBlinkState(*page, inspectedReticle->blink))
+                {
+                    ImGui::TextDisabled("Pick one named blink type before enabling blinking on this page.");
                 }
             }
 
@@ -1028,6 +1127,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 ImGui::Separator();
                 ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
             }
+            ImGui::PopID();
+            ImGui::PopID();
+            ImGui::PopID();
         }
     }
     ImGui::EndChild();

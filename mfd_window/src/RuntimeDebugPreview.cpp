@@ -291,10 +291,7 @@ ReticlePatch BuildReticlePatch(const ReticleGroup& current, const ReticleGroup& 
     ReticlePatch patch;
     patch.visible = current.visible;
     patch.blinkEnabled = current.blink.enabled;
-    if (current.blink.typeName != base.blink.typeName)
-    {
-        patch.blinkType = current.blink.typeName;
-    }
+    patch.blinkType = current.blink.typeName;
     patch.position = current.transform.position;
     patch.rotationDegrees = current.transform.rotationDegrees;
 

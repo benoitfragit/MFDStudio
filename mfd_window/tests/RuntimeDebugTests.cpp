@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -44,6 +45,15 @@ mfd::ReticleGroup MakeReticle(std::string id, const mfd::Vec2 position = {})
     return reticle;
 }
 
+mfd::PageBlinkDefinition MakeBlinkType(std::string name, const std::uint32_t durationMs)
+{
+    mfd::PageBlinkDefinition blinkType;
+    blinkType.name = std::move(name);
+    blinkType.normalizedName = mfd::NormalizePageName(blinkType.name);
+    blinkType.durationMs = durationMs;
+    return blinkType;
+}
+
 mfd::PageDefinition MakePage(std::string name, const bool defaultPage, std::vector<mfd::ReticleGroup> staticReticles)
 {
     mfd::PageDefinition page;
@@ -76,6 +86,92 @@ mfd::SceneRegistry MakeScene()
 {
     mfd::SceneRegistry scene;
     scene.LoadDocument(MakeRuntimeDebugDocument());
+    scene.SetActivePage("Radar");
+    return scene;
+}
+
+void AddBlinkCatalogToPage(mfd::MfdDocument& document,
+                           const std::string_view pageName,
+                           std::vector<mfd::PageBlinkDefinition> blinkTypes,
+                           const std::string_view defaultBlinkTypeName)
+{
+    for (mfd::PageDefinition& page : document.pages)
+    {
+        if (page.name != pageName)
+        {
+            continue;
+        }
+
+        page.blinkTypes = std::move(blinkTypes);
+        page.defaultBlinkTypeName = std::string(defaultBlinkTypeName);
+        page.normalizedDefaultBlinkTypeName = mfd::NormalizePageName(defaultBlinkTypeName);
+        return;
+    }
+}
+
+void AssignReticleBlink(mfd::MfdDocument& document,
+                        const std::string_view pageName,
+                        const std::string_view reticleId,
+                        const std::string_view blinkTypeName)
+{
+    for (mfd::PageDefinition& page : document.pages)
+    {
+        if (page.name != pageName)
+        {
+            continue;
+        }
+
+        const mfd::PageBlinkDefinition* blinkType = mfd::FindPageBlinkDefinition(page, blinkTypeName);
+        if (blinkType == nullptr)
+        {
+            return;
+        }
+
+        for (mfd::ReticleGroup& reticle : page.staticReticles)
+        {
+            if (reticle.id != reticleId)
+            {
+                continue;
+            }
+
+            reticle.blink.enabled = true;
+            reticle.blink.typeName = blinkType->name;
+            reticle.blink.normalizedTypeName = blinkType->normalizedName;
+            reticle.blink.durationMs = blinkType->durationMs;
+            return;
+        }
+
+        return;
+    }
+}
+
+mfd::SceneRegistry MakeSceneWithBlinkTypes()
+{
+    mfd::MfdDocument document = MakeRuntimeDebugDocument();
+    AddBlinkCatalogToPage(
+        document,
+        "Nav",
+        {MakeBlinkType("flash", 250U), MakeBlinkType("slow", 1000U)},
+        "flash");
+
+    mfd::SceneRegistry scene;
+    scene.LoadDocument(document);
+    scene.SetActivePage("Radar");
+    return scene;
+}
+
+mfd::SceneRegistry MakeSceneWithAuthoredBlinkReticle()
+{
+    mfd::MfdDocument document = MakeRuntimeDebugDocument();
+    AddBlinkCatalogToPage(
+        document,
+        "Nav",
+        {MakeBlinkType("flash", 250U), MakeBlinkType("slow", 1000U)},
+        "flash");
+    AssignReticleBlink(document, "Nav", "Route", "slow");
+
+    mfd::SceneRegistry scene;
+    scene.LoadDocument(document);
     scene.SetActivePage("Radar");
     return scene;
 }
@@ -296,4 +392,112 @@ TEST(RuntimeDebugPreviewTests, PageBypassRestoresLiveActivePageWhenReleased)
     state.DisablePageBypass();
     ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
     EXPECT_EQ(preview.Scene().ActivePageName(), "Radar");
+}
+
+/**
+ * @brief Ensures one local reticle blink bypass does not disturb the currently forced preview page.
+ */
+TEST(RuntimeDebugPreviewTests, ReticleBlinkBypassKeepsForcedPreviewPageStable)
+{
+    using namespace mfd::window::debug;
+
+    mfd::SceneRegistry liveScene = MakeSceneWithBlinkTypes();
+
+    RuntimeDebugState state;
+    state.Activate();
+    state.EnablePageBypass("Nav");
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+    EXPECT_EQ(preview.Scene().ActivePageName(), "Nav");
+
+    const ReticleKey key {"Nav", "Route", ReticleKind::Static};
+    const mfd::ReticleGroup* previewReticle = FindReticle(preview.Scene(), key.pageName, key.reticleId);
+    ASSERT_NE(previewReticle, nullptr);
+
+    ReticleBypassState& bypass = state.EnsureReticleBypass(key, *previewReticle);
+    bypass.draft.blink.enabled = true;
+    bypass.draft.blink.typeName = "flash";
+    bypass.draft.blink.normalizedTypeName = mfd::NormalizePageName("flash");
+    bypass.draft.blink.durationMs = 250U;
+
+    ASSERT_TRUE(preview.ApplyStateOverrides(state));
+    EXPECT_EQ(preview.Scene().ActivePageName(), "Nav");
+
+    previewReticle = FindReticle(preview.Scene(), key.pageName, key.reticleId);
+    ASSERT_NE(previewReticle, nullptr);
+    EXPECT_TRUE(previewReticle->blink.enabled);
+    EXPECT_EQ(previewReticle->blink.typeName, "flash");
+    EXPECT_EQ(previewReticle->blink.durationMs, 250U);
+}
+
+/**
+ * @brief Ensures one bypassed reticle can restore its authored blink type even when live UDP state differs.
+ */
+TEST(RuntimeDebugPreviewTests, ReticleBlinkBypassOverridesDifferentLiveBlinkType)
+{
+    using namespace mfd::window::debug;
+
+    mfd::SceneRegistry liveScene = MakeSceneWithAuthoredBlinkReticle();
+    mfd::ReticlePatch livePatch;
+    livePatch.blinkType = std::string {"flash"};
+    ASSERT_TRUE(liveScene.ApplyReticlePatch("Nav", "Route", livePatch));
+
+    RuntimeDebugState state;
+    state.Activate();
+    state.EnablePageBypass("Nav");
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const ReticleKey key {"Nav", "Route", ReticleKind::Static};
+    const mfd::ReticleGroup* previewReticle = FindReticle(preview.Scene(), key.pageName, key.reticleId);
+    ASSERT_NE(previewReticle, nullptr);
+    EXPECT_EQ(previewReticle->blink.typeName, "flash");
+
+    ReticleBypassState& bypass = state.EnsureReticleBypass(key, *previewReticle);
+    bypass.draft.blink.enabled = true;
+    bypass.draft.blink.typeName = "slow";
+    bypass.draft.blink.normalizedTypeName = mfd::NormalizePageName("slow");
+    bypass.draft.blink.durationMs = 1000U;
+
+    ASSERT_TRUE(preview.ApplyStateOverrides(state));
+
+    previewReticle = FindReticle(preview.Scene(), key.pageName, key.reticleId);
+    ASSERT_NE(previewReticle, nullptr);
+    EXPECT_TRUE(previewReticle->blink.enabled);
+    EXPECT_EQ(previewReticle->blink.typeName, "slow");
+    EXPECT_EQ(previewReticle->blink.durationMs, 1000U);
+    EXPECT_EQ(preview.Scene().ActivePageName(), "Nav");
+}
+
+/**
+ * @brief Verifies enabling blink on a page without any blink catalog is rejected by the preview.
+ */
+TEST(RuntimeDebugPreviewTests, ReticleBlinkBypassWithoutPageBlinkCatalogIsRejected)
+{
+    using namespace mfd::window::debug;
+
+    mfd::SceneRegistry liveScene = MakeScene();
+
+    RuntimeDebugState state;
+    state.Activate();
+    state.EnablePageBypass("Nav");
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const ReticleKey key {"Nav", "Route", ReticleKind::Static};
+    const mfd::ReticleGroup* previewReticle = FindReticle(preview.Scene(), key.pageName, key.reticleId);
+    ASSERT_NE(previewReticle, nullptr);
+
+    ReticleBypassState& bypass = state.EnsureReticleBypass(key, *previewReticle);
+    bypass.draft.blink.enabled = true;
+    bypass.draft.blink.typeName.clear();
+    bypass.draft.blink.normalizedTypeName.clear();
+    bypass.draft.blink.durationMs = 0U;
+
+    EXPECT_FALSE(preview.ApplyStateOverrides(state));
+    EXPECT_FALSE(preview.Ready());
+    EXPECT_FALSE(preview.LastError().empty());
 }
