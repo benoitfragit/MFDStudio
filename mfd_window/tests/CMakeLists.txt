@@ -9,6 +9,8 @@ set(MFD_WINDOW_TEST_SOURCES
 
 add_executable(mfd_window_tests ${MFD_WINDOW_TEST_SOURCES})
 
+mfd_configure_test_runtime_output(mfd_window_tests)
+
 target_include_directories(mfd_window_tests
     PRIVATE
         ${MFD_ROOT_DIR}/mfd_window/src)
@@ -51,7 +53,7 @@ if(WIN32)
         VERBATIM)
 endif()
 
-mfd_stage_runtime(mfd_window_tests WITH_RUNTIME_DLLS)
+mfd_stage_runtime(mfd_window_tests WITH_RUNTIME_DLLS STAGE_SUBDIR tests)
 
 mfd_add_runtime_layout_smoke_test(
     mfd_window

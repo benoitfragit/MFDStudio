@@ -25,19 +25,49 @@ else()
     set(MFD_EXEC_COMPILER_DIR "v${PROJECT_VERSION}")
 endif()
 
-function(mfd_stage_runtime target_name)
-    set(copy_assets OFF)
-    set(copy_runtime_dlls OFF)
-
-    foreach(arg IN LISTS ARGN)
-        if(arg STREQUAL "WITH_ASSETS")
-            set(copy_assets ON)
-        elseif(arg STREQUAL "WITH_RUNTIME_DLLS")
-            set(copy_runtime_dlls ON)
-        endif()
-    endforeach()
+function(mfd_resolve_stage_dir out_var)
+    set(options)
+    set(one_value_args STAGE_SUBDIR)
+    cmake_parse_arguments(MFD_STAGE_DIR "${options}" "${one_value_args}" "" ${ARGN})
 
     set(stage_dir "${MFD_ROOT_DIR}/_Exec/${MFD_EXEC_COMPILER_DIR}/${MFD_EXEC_PLATFORM_DIR}/$<CONFIG>")
+    if(MFD_STAGE_DIR_STAGE_SUBDIR)
+        string(APPEND stage_dir "/${MFD_STAGE_DIR_STAGE_SUBDIR}")
+    endif()
+
+    set(${out_var} "${stage_dir}" PARENT_SCOPE)
+endfunction()
+
+function(mfd_configure_test_runtime_output target_name)
+    set(options)
+    set(one_value_args BUILD_SUBDIR)
+    cmake_parse_arguments(MFD_TEST_OUTPUT "${options}" "${one_value_args}" "" ${ARGN})
+
+    if(NOT MFD_TEST_OUTPUT_BUILD_SUBDIR)
+        set(MFD_TEST_OUTPUT_BUILD_SUBDIR "tests")
+    endif()
+
+    if(CMAKE_CONFIGURATION_TYPES)
+        foreach(config IN LISTS CMAKE_CONFIGURATION_TYPES)
+            string(TOUPPER "${config}" config_upper)
+            set_target_properties(${target_name} PROPERTIES
+                "RUNTIME_OUTPUT_DIRECTORY_${config_upper}" "${CMAKE_BINARY_DIR}/${MFD_TEST_OUTPUT_BUILD_SUBDIR}/${config}")
+        endforeach()
+    else()
+        set_target_properties(${target_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${MFD_TEST_OUTPUT_BUILD_SUBDIR}")
+    endif()
+endfunction()
+
+function(mfd_stage_runtime target_name)
+    set(options WITH_ASSETS WITH_RUNTIME_DLLS)
+    set(one_value_args STAGE_SUBDIR)
+    cmake_parse_arguments(MFD_STAGE_RUNTIME "${options}" "${one_value_args}" "" ${ARGN})
+
+    set(copy_assets ${MFD_STAGE_RUNTIME_WITH_ASSETS})
+    set(copy_runtime_dlls ${MFD_STAGE_RUNTIME_WITH_RUNTIME_DLLS})
+
+    mfd_resolve_stage_dir(stage_dir STAGE_SUBDIR "${MFD_STAGE_RUNTIME_STAGE_SUBDIR}")
     set(runtime_dlls_arg "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:${target_name}>,$<SEMICOLON>>")
 
     set(runtime_dll_commands)

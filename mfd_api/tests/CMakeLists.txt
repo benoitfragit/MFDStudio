@@ -19,6 +19,8 @@ set(MFD_API_TEST_SOURCES
 
 add_executable(mfd_api_tests ${MFD_API_TEST_SOURCES})
 
+mfd_configure_test_runtime_output(mfd_api_tests)
+
 target_link_libraries(mfd_api_tests
     PRIVATE
         mfd::api
@@ -57,7 +59,7 @@ if(WIN32)
         VERBATIM)
 endif()
 
-mfd_stage_runtime(mfd_api_tests WITH_RUNTIME_DLLS)
+mfd_stage_runtime(mfd_api_tests WITH_RUNTIME_DLLS STAGE_SUBDIR tests)
 
 gtest_discover_tests(mfd_api_tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_api_tests>"

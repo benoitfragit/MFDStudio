@@ -36,6 +36,8 @@ set(CLIENT_API_TEST_SOURCES
 
 add_executable(client_api_tests ${CLIENT_API_TEST_SOURCES})
 
+mfd_configure_test_runtime_output(client_api_tests)
+
 target_include_directories(client_api_tests
     PRIVATE
         ${CLIENT_API_GENERATED_UI_FIXTURE_OUTPUT_DIR})
@@ -78,7 +80,7 @@ if(WIN32)
         VERBATIM)
 endif()
 
-mfd_stage_runtime(client_api_tests WITH_RUNTIME_DLLS)
+mfd_stage_runtime(client_api_tests WITH_RUNTIME_DLLS STAGE_SUBDIR tests)
 
 gtest_discover_tests(client_api_tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_api_tests>"

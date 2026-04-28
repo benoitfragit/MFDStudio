@@ -32,7 +32,7 @@ function(mfd_add_editor_test_plugin target output_name source_file)
         OUTPUT_NAME "${output_name}"
         VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${target}>")
 
-    mfd_stage_runtime(${target})
+    mfd_stage_runtime(${target} STAGE_SUBDIR tests)
 endfunction()
 
 set(MFD_EDITOR_TEST_SOURCES
@@ -44,6 +44,8 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp)
 
 add_executable(mfd_editor_tests ${MFD_EDITOR_TEST_SOURCES})
+
+mfd_configure_test_runtime_output(mfd_editor_tests)
 
 set(MFD_EDITOR_TEST_AUTOMATION_PLUGIN_TARGETS
     mfd_editor_test_automation_plugin
@@ -175,7 +177,7 @@ if(WIN32)
         VERBATIM)
 endif()
 
-mfd_stage_runtime(mfd_editor_tests WITH_RUNTIME_DLLS)
+mfd_stage_runtime(mfd_editor_tests WITH_RUNTIME_DLLS STAGE_SUBDIR tests)
 
 gtest_discover_tests(mfd_editor_tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_editor_tests>"

@@ -170,6 +170,9 @@ The automated suite covers the low-level runtime API, the higher-level
 `client_api`, and the generated client API path, including compiled fixture
 coverage and generator validation.
 
+GoogleTest executables are emitted under `build/<preset>/tests/<config>/` and
+staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
+
 ## Shipped Tools And Entry Points
 
 | Entry point | Purpose |

@@ -144,8 +144,11 @@ ctest -C Debug --test-dir build/vs2022-win32 -R "WindowLauncherTests|RuntimeDebu
 Run one executable directly:
 
 ```powershell
-.\build\vs2022-win32\mfd_api\tests\Debug\mfd_api_tests.exe
+.\build\vs2022-win32\tests\Debug\mfd_api_tests.exe
 ```
+
+All GoogleTest executables are grouped under `build/<preset>/tests/<config>/`.
+Their staged copies are grouped under `_Exec/<toolset>/<platform>/<config>/tests/`.
 
 There are also convenience build targets:
 
