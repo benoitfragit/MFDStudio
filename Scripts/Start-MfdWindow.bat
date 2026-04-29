@@ -7,6 +7,13 @@ if "%~1"=="" (
 )
 
 set "SCRIPT_DIR=%~dp0"
+set "LAUNCH_ROOT=%SCRIPT_DIR%"
+if not exist "%LAUNCH_ROOT%assets" (
+    if exist "%SCRIPT_DIR%..\assets" (
+        for %%I in ("%SCRIPT_DIR%..") do set "LAUNCH_ROOT=%%~fI\"
+    )
+)
+
 set "WINDOW_FILE=%~1"
 shift
 
@@ -107,9 +114,9 @@ if exist "%SCRIPT_DIR%mfd_window.exe" (
     exit /b 0
 )
 
-set "STAGED_ROOT=%SCRIPT_DIR%_Exec"
+set "STAGED_ROOT=%LAUNCH_ROOT%_Exec"
 if not exist "%STAGED_ROOT%" (
-    echo Unable to locate "_Exec" from "%SCRIPT_DIR%". Build the project first or pass --runtime-dir.
+    echo Unable to locate "_Exec" from "%LAUNCH_ROOT%". Build the project first or pass --runtime-dir.
     exit /b 1
 )
 
@@ -143,8 +150,13 @@ if exist "%~f2" (
     exit /b 0
 )
 
-if exist "%RUNTIME_DIR%%~2" (
-    for %%I in ("%RUNTIME_DIR%%~2") do set "%~1=%%~fI"
+if exist "%RUNTIME_DIR%\%~2" (
+    for %%I in ("%RUNTIME_DIR%\%~2") do set "%~1=%%~fI"
+    exit /b 0
+)
+
+if exist "%LAUNCH_ROOT%%~2" (
+    for %%I in ("%LAUNCH_ROOT%%~2") do set "%~1=%%~fI"
     exit /b 0
 )
 

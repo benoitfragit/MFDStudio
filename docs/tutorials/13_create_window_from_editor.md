@@ -33,7 +33,7 @@ These fields map directly to the root window JSON.
 
 Use the **Browse ... folder** buttons when creating new assets. The editor now guides you toward the source `assets/` tree and blocks `_Exec` staging folders, because `_Exec/assets` is only a runtime copy and would break later CMake-generated client API steps.
 
-This also matters for the integrated tutorial: `client_tutorial` is intentionally kept out of the default examples build. Once the authored tutorial window, page, and reticle JSON files exist under the repository `assets/` tree, add `add_subdirectory(client_tutorial)` to `examples/CMakeLists.txt`, re-run CMake configuration, and then build the new target. `Start-MfdTutorial.bat` becomes usable at the same point.
+This also matters for the integrated tutorial: `client_tutorial` is intentionally kept out of the default examples build. Once the authored tutorial window, page, and reticle JSON files exist under the repository `assets/` tree, add `add_subdirectory(client_tutorial)` to `examples/CMakeLists.txt`, re-run CMake configuration, and then build the new target. `Scripts/Start-MfdTutorial.bat` becomes usable from the repository, and the staged `Start-MfdTutorial.bat` is copied next to `mfd_window` at the same point.
 
 ## Step 3 - Configure UDP communication
 

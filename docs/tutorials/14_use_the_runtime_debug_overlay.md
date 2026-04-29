@@ -26,7 +26,7 @@ cmake --build --preset debug-win32 --target mfd_window client_mockup mfd_window_
 
 Then launch:
 
-1. `.\Start-MfdDemo.bat`
+1. `.\Scripts\Start-MfdDemo.bat`
 2. `client_mockup`
 
 Use the mockup to activate `Radar` and send at least one reticle update.

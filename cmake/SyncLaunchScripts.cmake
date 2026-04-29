@@ -1,8 +1,8 @@
 # This file is part of MFDStudio.
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
-if(NOT DEFINED SOURCE_ROOT OR SOURCE_ROOT STREQUAL "")
-    message(FATAL_ERROR "SOURCE_ROOT must be provided to SyncLaunchScripts.cmake")
+if(NOT DEFINED SOURCE_DIR OR SOURCE_DIR STREQUAL "")
+    message(FATAL_ERROR "SOURCE_DIR must be provided to SyncLaunchScripts.cmake")
 endif()
 
 if(NOT DEFINED DEST_DIR OR DEST_DIR STREQUAL "")
@@ -22,7 +22,7 @@ foreach(launch_script_name IN LISTS launch_script_names)
         continue()
     endif()
 
-    set(source_path "${SOURCE_ROOT}/${launch_script_name}")
+    set(source_path "${SOURCE_DIR}/${launch_script_name}")
     if(NOT EXISTS "${source_path}")
         message(FATAL_ERROR "Expected launch script not found: ${source_path}")
     endif()

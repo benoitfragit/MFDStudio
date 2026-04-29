@@ -74,10 +74,10 @@ cmake --build --preset debug-win32
 
 Launch one of:
 
-- `.\Start-MfdDemo.bat`
-- `.\Start-MfdCockpit.bat`
-- `.\Start-MfdMinimal.bat`
-- `.\Start-MfdTutorial.bat` after the editor tutorial has generated `assets/windows/mfd_tutorial.json`
+- `.\Scripts\Start-MfdDemo.bat`
+- `.\Scripts\Start-MfdCockpit.bat`
+- `.\Scripts\Start-MfdMinimal.bat`
+- `.\Scripts\Start-MfdTutorial.bat` after the editor tutorial has generated `assets/windows/mfd_tutorial.json`
 - your own `mfd_window --window <window.json>` command
 
 The window must load a root JSON file that contains a valid `commands.udp`

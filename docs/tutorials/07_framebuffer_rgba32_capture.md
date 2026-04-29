@@ -103,7 +103,7 @@ The generic runtime host now accepts one optional plugin DLL on the command
 line:
 
 ```powershell
-.\Start-MfdMinimal.bat
+.\Scripts\Start-MfdMinimal.bat
 ```
 
 Under the hood this launches:

@@ -403,7 +403,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1},
     {TutorialStepKind::FileReview,
      "Review tutorial target registration",
-     "The examples subtree only needs to register the tutorial client because the authored tutorial window is now launched through `mfd_window` and `Start-MfdTutorial.bat`.",
+     "The examples subtree only needs to register the tutorial client because the authored tutorial window is now launched through `mfd_window`, the repository `Scripts/Start-MfdTutorial.bat`, or the staged `Start-MfdTutorial.bat` copied next to the runtime.",
      "",
      "examples/CMakeLists.txt",
      "add_subdirectory(mfd_framebuffer_stdout_plugin)\n"
@@ -415,7 +415,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "add_subdirectory(client_mockup)\n"
      "add_subdirectory(client_mockup_minimal)\n"
      "add_subdirectory(client_tutorial)\n",
-     "Registering `client_tutorial` under the examples subtree is enough to build the generated API walkthrough, while `Start-MfdTutorial.bat` reuses the shared window host for the authored runtime.",
+     "Registering `client_tutorial` under the examples subtree is enough to build the generated API walkthrough, while `Scripts/Start-MfdTutorial.bat` and the staged `Start-MfdTutorial.bat` both reuse the shared window host for the authored runtime.",
      "Finish",
      1,
      1},

@@ -51,16 +51,16 @@ runtime API and JSON loading rules.
 
 ## Step 2 - Start a ready-to-use window
 
-Launch one of the root launchers:
+Launch one of the repository launchers:
 
-- `.\Start-MfdDemo.bat`
-- `.\Start-MfdMinimal.bat`
+- `.\Scripts\Start-MfdDemo.bat`
+- `.\Scripts\Start-MfdMinimal.bat`
 
-For a first run, `.\Start-MfdDemo.bat` is the easiest option.
+For a first run, `.\Scripts\Start-MfdDemo.bat` is the easiest option.
 
-These scripts are also copied into `_Exec/<toolset>/<platform>/<config>/`
+These scripts are also copied directly into `_Exec/<toolset>/<platform>/<config>/`
 when `mfd_window` is built, so the same launch flow works from the staged
-runtime layout.
+runtime layout without an extra scripts subdirectory.
 
 ## Step 3 - Start the mockup
 

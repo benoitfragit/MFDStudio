@@ -108,24 +108,26 @@ mfd_end_external_libraries(mfd_editor)
 | `mfd_window_tests` | Window launcher and integrated runtime-debug tests |
 | `mfd_editor_tests` | Editor-focused tests |
 
-## Root Launch Scripts
+## Repository Launch Scripts
 
 The window entry points intended for humans are the batch launchers
-committed at the repository root:
+committed under `Scripts/`:
 
-- `Start-MfdDemo.bat`
-- `Start-MfdCockpit.bat`
-- `Start-MfdMinimal.bat`
-- `Start-MfdTutorial.bat`
-- `Start-MfdWindow.bat`
+- `Scripts/Start-MfdDemo.bat`
+- `Scripts/Start-MfdCockpit.bat`
+- `Scripts/Start-MfdMinimal.bat`
+- `Scripts/Start-MfdTutorial.bat`
+- `Scripts/Start-MfdWindow.bat`
 
 When `mfd_window` builds on Windows, these scripts are copied both next to the
-built executable and into `_Exec/<toolset>/<platform>/<config>/`.
+built executable and into `_Exec/<toolset>/<platform>/<config>/`, without
+creating an additional scripts subdirectory inside the staged layout.
 
 Tutorial-oriented assets still feed `client_tutorial`, while the matching
-window is launched through `Start-MfdTutorial.bat` or directly with
-`mfd_window --window assets/windows/mfd_tutorial.json` once the tutorial assets
-have been authored under `assets/` and the tutorial has wired
+window is launched through `Scripts/Start-MfdTutorial.bat` from the repository,
+through the staged `Start-MfdTutorial.bat` copied next to `mfd_window`, or
+directly with `mfd_window --window assets/windows/mfd_tutorial.json` once the
+tutorial assets have been authored under `assets/` and the tutorial has wired
 `add_subdirectory(client_tutorial)` into `examples/CMakeLists.txt`.
 
 ## Fast Onboarding Commands
@@ -207,6 +209,7 @@ In practice the automated suite now covers three complementary layers:
 | `assets/windows` | Root window JSON files |
 | `assets/pages` | Page JSON files |
 | `assets/reticles` | Reticle template JSON files |
+| `Scripts` | Repository launch scripts copied next to staged runtimes |
 | `docs` | Onboarding, concepts, tutorials, reference, and architecture notes |
 | `third_party` | Vendored or staged third-party material when applicable |
 
@@ -223,7 +226,7 @@ Use the documentation layers intentionally:
 - [`docs/standards`](./standards/README.md): generated client API standardization, replacement-client contract, and conformance evidence
 
 If you change public behavior, examples, or onboarding flow, update the
-relevant Markdown page in the same change. That includes the root launch
+relevant Markdown page in the same change. That includes the repository launch
 scripts when the supported demo entry points change.
 
 ## API Reference Docs

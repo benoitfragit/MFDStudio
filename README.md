@@ -55,7 +55,7 @@ Build defaults worth knowing:
 
 Then:
 
-1. launch `.\Start-MfdDemo.bat`
+1. launch `.\Scripts\Start-MfdDemo.bat`
 2. launch `client_mockup`
 3. activate the `Radar` page
 4. move or recolor one reticle from the mockup
@@ -183,10 +183,10 @@ staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 | Entry point | Purpose |
 | --- | --- |
 | `mfd_window` | Generic runtime launcher that accepts a window JSON file |
-| `Start-MfdDemo.bat` | Root and staged launcher opening `assets/windows/demo_pages.json` |
-| `Start-MfdCockpit.bat` | Root and staged launcher opening `assets/windows/demo_pages_cockpit.json` |
-| `Start-MfdMinimal.bat` | Root and staged launcher opening `assets/windows/demo_pages_minimal.json` with the sample framebuffer plugin |
-| `Start-MfdTutorial.bat` | Root and staged launcher for the tutorial window once `assets/windows/mfd_tutorial.json` has been authored; also passes the sample framebuffer plugin |
+| `Scripts/Start-MfdDemo.bat` | Repository launcher and staged copy opening `assets/windows/demo_pages.json` |
+| `Scripts/Start-MfdCockpit.bat` | Repository launcher and staged copy opening `assets/windows/demo_pages_cockpit.json` |
+| `Scripts/Start-MfdMinimal.bat` | Repository launcher and staged copy opening `assets/windows/demo_pages_minimal.json` with the sample framebuffer plugin |
+| `Scripts/Start-MfdTutorial.bat` | Repository launcher and staged copy for the tutorial window once `assets/windows/mfd_tutorial.json` has been authored; also passes the sample framebuffer plugin |
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
 | `client_mockup` | Interactive GUI client for page control, reticle updates, dynamic reticles, and feedback inspection |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
@@ -196,18 +196,18 @@ staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 The repository also ships inspired sample assets under `assets/windows` and
 `assets/pages`, including the `PictureDemo` page backed by bitmap files stored
 under `assets/picture`. Open them with `mfd_window`, one of the root
-`Start-Mfd*.bat` scripts, or through `mfd_editor`.
+`Scripts/Start-Mfd*.bat` launchers, or through `mfd_editor`.
 
 Inside `mfd_window`, press `F1` to open the integrated runtime debug overlay.
 It can display transport health, the active page, the current reticle tree, and
 temporary local bypasses without changing the client API.
 
-`Start-MfdTutorial.bat` and `client_tutorial` are intentionally gated behind the
+`Scripts/Start-MfdTutorial.bat` and `client_tutorial` are intentionally gated behind the
 editor tutorial assets. The tutorial flow is expected to wire
 `add_subdirectory(client_tutorial)` into `examples/CMakeLists.txt`
 when those assets are ready.
 Until `assets/windows/mfd_tutorial.json` and its page / reticle companions
-exist, the script exits with a clear message and the tutorial client should
+exist, the repository script exits with a clear message and the tutorial client should
 remain out of the default examples build.
 
 ## Repository Layout
@@ -221,6 +221,7 @@ remain out of the default examples build.
 | `mfd_editor` | Visual authoring application |
 | `examples` | Example clients and sample plugins |
 | `assets` | Window, page, and reticle JSON assets |
+| `Scripts` | Repository launch scripts copied into runtime output folders |
 | `docs` | Onboarding, concepts, tutorials, reference, and architecture notes |
 
 For the contributor-oriented build, test, and layout view, see

@@ -663,7 +663,7 @@ void EditorTutorialController::Finish()
     }
 
     app_.RebuildStatus(
-        "Tutorial completed. Reconfigure/rebuild the solution manually to generate and compile 'client_tutorial', then launch the authored window with 'Start-MfdTutorial.bat'.",
+        "Tutorial completed. Reconfigure/rebuild the solution manually to generate and compile 'client_tutorial', then launch the authored window with 'Scripts/Start-MfdTutorial.bat' from the repository or the staged 'Start-MfdTutorial.bat' next to mfd_window.",
         false);
 }
 

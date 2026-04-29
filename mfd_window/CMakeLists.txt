@@ -55,6 +55,7 @@ set_target_properties(mfd_window PROPERTIES
 set(MFD_WINDOW_STAGE_DIR "${MFD_ROOT_DIR}/_Exec/${MFD_EXEC_COMPILER_DIR}/${MFD_EXEC_PLATFORM_DIR}/$<CONFIG>")
 set(MFD_WINDOW_API_RUNTIME_DLLS_ARG
     "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_api>,$<SEMICOLON>>")
+set(MFD_WINDOW_SCRIPT_SOURCE_DIR "${MFD_ROOT_DIR}/Scripts")
 set(MFD_WINDOW_LAUNCH_SCRIPT_NAMES
     Start-MfdWindow.bat
     Start-MfdDemo.bat
@@ -64,7 +65,7 @@ set(MFD_WINDOW_LAUNCH_SCRIPT_NAMES
 
 set(MFD_WINDOW_LAUNCH_SCRIPTS)
 foreach(mfd_window_script_name IN LISTS MFD_WINDOW_LAUNCH_SCRIPT_NAMES)
-    list(APPEND MFD_WINDOW_LAUNCH_SCRIPTS "${MFD_ROOT_DIR}/${mfd_window_script_name}")
+    list(APPEND MFD_WINDOW_LAUNCH_SCRIPTS "${MFD_WINDOW_SCRIPT_SOURCE_DIR}/${mfd_window_script_name}")
 endforeach()
 
 string(JOIN ";" MFD_WINDOW_LAUNCH_SCRIPT_LIST ${MFD_WINDOW_LAUNCH_SCRIPT_NAMES})
@@ -96,14 +97,14 @@ if(WIN32)
             "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
         COMMAND
             ${CMAKE_COMMAND}
-            "-DSOURCE_ROOT=${MFD_ROOT_DIR}"
+            "-DSOURCE_DIR=${MFD_WINDOW_SCRIPT_SOURCE_DIR}"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>"
             "-DFILE_NAMES=${MFD_WINDOW_LAUNCH_SCRIPT_LIST}"
             -P
             "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake"
         COMMAND
             ${CMAKE_COMMAND}
-            "-DSOURCE_ROOT=${MFD_ROOT_DIR}"
+            "-DSOURCE_DIR=${MFD_WINDOW_SCRIPT_SOURCE_DIR}"
             "-DDEST_DIR=${MFD_WINDOW_STAGE_DIR}"
             "-DFILE_NAMES=${MFD_WINDOW_LAUNCH_SCRIPT_LIST}"
             -P

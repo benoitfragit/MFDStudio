@@ -29,7 +29,7 @@ cmake --build --preset debug-win32
 
 ## Step 2 - Start the cockpit window
 
-Launch `.\Start-MfdCockpit.bat`.
+Launch `.\Scripts\Start-MfdCockpit.bat`.
 
 This window loads `assets/windows/demo_pages_cockpit.json`, which references:
 
