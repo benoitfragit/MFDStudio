@@ -26,8 +26,11 @@ target_include_directories(mfd_window_launcher
 
 target_link_libraries(mfd_window_launcher
     PUBLIC
-        mfd::api
-        rlimgui)
+        mfd::api)
+
+mfd_begin_external_libraries(mfd_window_launcher)
+mfd_public_library(mfd_window_launcher rlimgui)
+mfd_end_external_libraries(mfd_window_launcher)
 
 set(MFD_WINDOW_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)

@@ -105,10 +105,13 @@ mfd_add_editor_test_plugin(
 
 target_link_libraries(mfd_editor_tests
     PRIVATE
-        GTest::gtest_main
-        mfd::editor_plugin_api
-        nlohmann_json::nlohmann_json
-        imgui)
+        mfd::editor_plugin_api)
+
+mfd_begin_external_libraries(mfd_editor_tests)
+mfd_private_library(mfd_editor_tests GTest::gtest_main)
+mfd_private_library(mfd_editor_tests nlohmann_json::nlohmann_json)
+mfd_private_library(mfd_editor_tests imgui)
+mfd_end_external_libraries(mfd_editor_tests)
 
 target_include_directories(mfd_editor_tests
     PRIVATE

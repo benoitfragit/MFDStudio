@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.26)
 
 project(MFD
-    VERSION 0.1.0
+    VERSION 1.2.1
     DESCRIPTION "2D Multi-Function Display framework with JSON pages and reusable reticles"
     LANGUAGES C CXX)
 
@@ -59,6 +59,7 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+include(ExternalLibraries)
 include(Dependencies)
 
 mfd_fetch_dependencies()
@@ -67,27 +68,35 @@ set(MFD_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 include(RuntimePackaging)
 
-add_subdirectory(mfd_api)
-add_subdirectory(client_api)
-add_subdirectory(client_api_generator)
-add_subdirectory(mfd_window)
-add_subdirectory(mfd_editor_plugin_api)
+function(mfd_add_repo_subdirectory relative_dir)
+    add_subdirectory(
+        "${MFD_ROOT_DIR}/${relative_dir}"
+        "${CMAKE_CURRENT_BINARY_DIR}/${relative_dir}")
+endfunction()
+
+mfd_add_repo_subdirectory(mfd_api)
+mfd_add_repo_subdirectory(client_api)
+mfd_add_repo_subdirectory(client_api_generator)
+mfd_add_repo_subdirectory(mfd_window)
+mfd_add_repo_subdirectory(mfd_editor_plugin_api)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/client_api_generator/ClientApiGenerator.cmake)
 
 if(MFD_BUILD_TESTS)
     enable_testing()
-    add_subdirectory(mfd_api/tests)
-    add_subdirectory(client_api/tests)
-    add_subdirectory(client_api_generator/tests)
-    add_subdirectory(mfd_window/tests)
-    add_subdirectory(mfd_editor/tests)
+    mfd_add_repo_subdirectory(mfd_api/tests)
+    mfd_add_repo_subdirectory(client_api/tests)
+    mfd_add_repo_subdirectory(client_api_generator/tests)
+    mfd_add_repo_subdirectory(mfd_window/tests)
+    mfd_add_repo_subdirectory(mfd_editor/tests)
 endif()
 
 if(MFD_BUILD_DEMO)
-    add_subdirectory(examples/mfd_framebuffer_stdout_plugin)
-    add_subdirectory(examples/mfd_editor_automation_sample_plugin)
-    add_subdirectory(examples/client_mockup)
-    add_subdirectory(examples/client_mockup_minimal)
-    add_subdirectory(mfd_editor)
+    mfd_add_repo_subdirectory(examples/mfd_framebuffer_stdout_plugin)
+    mfd_add_repo_subdirectory(examples/mfd_editor_automation_sample_plugin)
+    mfd_add_repo_subdirectory(examples/client_mockup)
+    mfd_add_repo_subdirectory(examples/client_mockup_minimal)
+    # examples/client_tutorial is intentionally wired by the tutorial flow
+    # instead of being enabled by default from the repository root.
+    mfd_add_repo_subdirectory(mfd_editor)
 endif()

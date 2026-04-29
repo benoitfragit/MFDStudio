@@ -48,9 +48,12 @@ target_include_directories(mfd_editor
 target_link_libraries(mfd_editor
     PRIVATE
         mfd::api
-        mfd::editor_plugin_api
-        imgui
-        rlimgui)
+        mfd::editor_plugin_api)
+
+mfd_begin_external_libraries(mfd_editor)
+mfd_private_library(mfd_editor imgui)
+mfd_private_library(mfd_editor rlimgui)
+mfd_end_external_libraries(mfd_editor)
 
 if (WIN32)
     target_link_libraries(mfd_editor PRIVATE Comdlg32)

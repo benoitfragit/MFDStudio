@@ -120,13 +120,12 @@ target_include_directories(mfd_api
         "$<INSTALL_INTERFACE:include>")
 target_include_directories(mfd_api PRIVATE ${MFD_API_PROTO_OUTPUT_DIR})
 
-target_link_libraries(mfd_api
-    PUBLIC
-        EnTT::EnTT
-        nlohmann_json::nlohmann_json
-        raylib
-    PRIVATE
-        protobuf::libprotobuf)
+mfd_begin_external_libraries(mfd_api)
+mfd_public_library(mfd_api EnTT::EnTT)
+mfd_public_library(mfd_api nlohmann_json::nlohmann_json)
+mfd_public_library(mfd_api raylib)
+mfd_private_library(mfd_api protobuf::libprotobuf)
+mfd_end_external_libraries(mfd_api)
 
 target_compile_definitions(mfd_api
     PUBLIC

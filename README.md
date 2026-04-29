@@ -170,6 +170,11 @@ The automated suite covers the low-level runtime API, the higher-level
 `client_api`, and the generated client API path, including compiled fixture
 coverage and generator validation.
 
+Build-system contributions follow the convention documented in
+[Development Guide](./docs/DEVELOPMENT.md): keep repository targets and system
+libraries in plain `target_link_libraries(...)`, and route third-party links
+through `cmake/ExternalLibraries.cmake`.
+
 GoogleTest executables are emitted under `build/<preset>/tests/<config>/` and
 staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 
@@ -185,7 +190,7 @@ staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
 | `client_mockup` | Interactive GUI client for page control, reticle updates, dynamic reticles, and feedback inspection |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation through an exposed primitive; configured only once the tutorial assets exist |
+| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation through an exposed primitive; intended to be wired into the top-level build by the tutorial flow once the tutorial assets exist |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 
 The repository also ships inspired sample assets under `assets/windows` and
@@ -198,9 +203,12 @@ It can display transport health, the active page, the current reticle tree, and
 temporary local bypasses without changing the client API.
 
 `Start-MfdTutorial.bat` and `client_tutorial` are intentionally gated behind the
-editor tutorial assets. Until `assets/windows/mfd_tutorial.json` and its page /
-reticle companions exist, the script exits with a clear message and CMake skips
-`client_tutorial`.
+editor tutorial assets. The tutorial flow is expected to wire
+`mfd_add_repo_subdirectory(examples/client_tutorial)` into the top-level build
+when those assets are ready.
+Until `assets/windows/mfd_tutorial.json` and its page / reticle companions
+exist, the script exits with a clear message and the tutorial client should
+remain out of the root build.
 
 ## Repository Layout
 

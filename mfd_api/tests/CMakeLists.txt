@@ -23,8 +23,11 @@ mfd_configure_test_runtime_output(mfd_api_tests)
 
 target_link_libraries(mfd_api_tests
     PRIVATE
-        mfd::api
-        GTest::gtest_main)
+        mfd::api)
+
+mfd_begin_external_libraries(mfd_api_tests)
+mfd_private_library(mfd_api_tests GTest::gtest_main)
+mfd_end_external_libraries(mfd_api_tests)
 
 target_compile_features(mfd_api_tests PRIVATE cxx_std_17)
 

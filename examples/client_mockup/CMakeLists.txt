@@ -68,9 +68,12 @@ target_include_directories(client_mockup
 target_link_libraries(client_mockup
     PRIVATE
         mfd::api
-        mfd::client
-        imgui
-        rlimgui)
+        mfd::client)
+
+mfd_begin_external_libraries(client_mockup)
+mfd_private_library(client_mockup imgui)
+mfd_private_library(client_mockup rlimgui)
+mfd_end_external_libraries(client_mockup)
 
 set_target_properties(client_mockup PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_mockup>")

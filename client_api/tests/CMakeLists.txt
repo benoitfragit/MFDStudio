@@ -44,8 +44,11 @@ target_include_directories(client_api_tests
 
 target_link_libraries(client_api_tests
     PRIVATE
-        mfd::client
-        GTest::gtest_main)
+        mfd::client)
+
+mfd_begin_external_libraries(client_api_tests)
+mfd_private_library(client_api_tests GTest::gtest_main)
+mfd_end_external_libraries(client_api_tests)
 
 target_compile_features(client_api_tests PRIVATE cxx_std_17)
 
