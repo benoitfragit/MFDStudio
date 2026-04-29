@@ -68,35 +68,20 @@ set(MFD_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 include(RuntimePackaging)
 
-function(mfd_add_repo_subdirectory relative_dir)
-    add_subdirectory(
-        "${MFD_ROOT_DIR}/${relative_dir}"
-        "${CMAKE_CURRENT_BINARY_DIR}/${relative_dir}")
-endfunction()
+if(MFD_BUILD_TESTS)
+    enable_testing()
+endif()
 
-mfd_add_repo_subdirectory(mfd_api)
-mfd_add_repo_subdirectory(client_api)
-mfd_add_repo_subdirectory(client_api_generator)
-mfd_add_repo_subdirectory(mfd_window)
-mfd_add_repo_subdirectory(mfd_editor_plugin_api)
+add_subdirectory(mfd_api)
+add_subdirectory(client_api_generator)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/client_api_generator/ClientApiGenerator.cmake)
 
-if(MFD_BUILD_TESTS)
-    enable_testing()
-    mfd_add_repo_subdirectory(mfd_api/tests)
-    mfd_add_repo_subdirectory(client_api/tests)
-    mfd_add_repo_subdirectory(client_api_generator/tests)
-    mfd_add_repo_subdirectory(mfd_window/tests)
-    mfd_add_repo_subdirectory(mfd_editor/tests)
-endif()
+add_subdirectory(client_api)
+add_subdirectory(mfd_window)
+add_subdirectory(mfd_editor_plugin_api)
+add_subdirectory(mfd_editor)
 
 if(MFD_BUILD_DEMO)
-    mfd_add_repo_subdirectory(examples/mfd_framebuffer_stdout_plugin)
-    mfd_add_repo_subdirectory(examples/mfd_editor_automation_sample_plugin)
-    mfd_add_repo_subdirectory(examples/client_mockup)
-    mfd_add_repo_subdirectory(examples/client_mockup_minimal)
-    # examples/client_tutorial is intentionally wired by the tutorial flow
-    # instead of being enabled by default from the repository root.
-    mfd_add_repo_subdirectory(mfd_editor)
+    add_subdirectory(examples)
 endif()

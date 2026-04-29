@@ -73,7 +73,8 @@ Keep dependency categories separated in repository `CMakeLists.txt` files:
 - internal repository targets stay in plain `target_link_libraries(...)`
 - system libraries stay in plain `target_link_libraries(...)`
 - third-party dependencies go through `cmake/ExternalLibraries.cmake`
-- top-level `add_subdirectory(...)` calls go through one helper and mirror the repository layout in the build tree
+- the root `CMakeLists.txt` only registers first-level repository directories
+- each directory owns its local `add_subdirectory(...)` tree for children such as `tests` or `examples/*`
 
 Use the real target name when calling the helpers. The top-level project name is
 still `MFD`, so `${PROJECT_NAME}` is not a per-directory target alias.
@@ -100,7 +101,7 @@ mfd_end_external_libraries(mfd_editor)
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting the framebuffer callback symbol expected by `mfd_window` |
 | `client_mockup` | Interactive GUI client used to exercise the public API |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive; this target is meant to be added to the root build by the tutorial flow once the tutorial asset set exists |
+| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive; this target is meant to be added to `examples/CMakeLists.txt` by the tutorial flow once the tutorial asset set exists |
 | `mfd_editor` | Visual authoring tool |
 | `mfd_api_tests` | Runtime and JSON loading test executable |
 | `client_api_tests` | Client-side helper test executable |
@@ -125,7 +126,7 @@ Tutorial-oriented assets still feed `client_tutorial`, while the matching
 window is launched through `Start-MfdTutorial.bat` or directly with
 `mfd_window --window assets/windows/mfd_tutorial.json` once the tutorial assets
 have been authored under `assets/` and the tutorial has wired
-`mfd_add_repo_subdirectory(examples/client_tutorial)` into the root build.
+`add_subdirectory(client_tutorial)` into `examples/CMakeLists.txt`.
 
 ## Fast Onboarding Commands
 

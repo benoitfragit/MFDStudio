@@ -154,3 +154,7 @@ if(MFD_ENABLE_WARNINGS)
 endif()
 
 mfd_stage_runtime(mfd_api WITH_RUNTIME_DLLS)
+
+if(MFD_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()

@@ -403,25 +403,19 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1},
     {TutorialStepKind::FileReview,
      "Review tutorial target registration",
-     "The repository root only needs to register the tutorial client because the authored tutorial window is now launched through `mfd_window` and `Start-MfdTutorial.bat`.",
+     "The examples subtree only needs to register the tutorial client because the authored tutorial window is now launched through `mfd_window` and `Start-MfdTutorial.bat`.",
      "",
-     "CMakeLists.txt",
-     "if(MFD_BUILD_DEMO)\n"
-     "{\n"
-     "    add_subdirectory(examples/mfd_framebuffer_stdout_plugin)\n"
-     "    add_subdirectory(examples/client_mockup)\n"
-     "    add_subdirectory(examples/client_mockup_minimal)\n"
-     "    add_subdirectory(mfd_editor)\n"
-     "endif()",
-     "if(MFD_BUILD_DEMO)\n"
-     "{\n"
-     "    add_subdirectory(examples/mfd_framebuffer_stdout_plugin)\n"
-     "    add_subdirectory(examples/client_mockup)\n"
-     "    add_subdirectory(examples/client_mockup_minimal)\n"
-     "    add_subdirectory(examples/client_tutorial)\n"
-     "    add_subdirectory(mfd_editor)\n"
-     "endif()",
-     "Registering `client_tutorial` is enough to build the generated API walkthrough, while `Start-MfdTutorial.bat` reuses the shared window host for the authored runtime.",
+     "examples/CMakeLists.txt",
+     "add_subdirectory(mfd_framebuffer_stdout_plugin)\n"
+     "add_subdirectory(mfd_editor_automation_sample_plugin)\n"
+     "add_subdirectory(client_mockup)\n"
+     "add_subdirectory(client_mockup_minimal)\n",
+     "add_subdirectory(mfd_framebuffer_stdout_plugin)\n"
+     "add_subdirectory(mfd_editor_automation_sample_plugin)\n"
+     "add_subdirectory(client_mockup)\n"
+     "add_subdirectory(client_mockup_minimal)\n"
+     "add_subdirectory(client_tutorial)\n",
+     "Registering `client_tutorial` under the examples subtree is enough to build the generated API walkthrough, while `Start-MfdTutorial.bat` reuses the shared window host for the authored runtime.",
      "Finish",
      1,
      1},

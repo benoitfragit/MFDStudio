@@ -190,7 +190,7 @@ staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
 | `client_mockup` | Interactive GUI client for page control, reticle updates, dynamic reticles, and feedback inspection |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation through an exposed primitive; intended to be wired into the top-level build by the tutorial flow once the tutorial assets exist |
+| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation through an exposed primitive; intended to be wired into `examples/CMakeLists.txt` by the tutorial flow once the tutorial assets exist |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 
 The repository also ships inspired sample assets under `assets/windows` and
@@ -204,11 +204,11 @@ temporary local bypasses without changing the client API.
 
 `Start-MfdTutorial.bat` and `client_tutorial` are intentionally gated behind the
 editor tutorial assets. The tutorial flow is expected to wire
-`mfd_add_repo_subdirectory(examples/client_tutorial)` into the top-level build
+`add_subdirectory(client_tutorial)` into `examples/CMakeLists.txt`
 when those assets are ready.
 Until `assets/windows/mfd_tutorial.json` and its page / reticle companions
 exist, the script exits with a clear message and the tutorial client should
-remain out of the root build.
+remain out of the default examples build.
 
 ## Repository Layout
 

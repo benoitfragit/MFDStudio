@@ -45,8 +45,8 @@ constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strob
 constexpr std::string_view kTutorialProgressBarTemplateId = "mfd_tutorial_progress_bar";
 constexpr std::string_view kTutorialProgressBarFillPrimitiveId = "fill_bar";
 constexpr std::string_view kTutorialProgressBarFramePrimitiveId = "frame";
-constexpr std::array<std::string_view, 1> kTutorialRootTargetRegistrations {{
-    "add_subdirectory(examples/client_tutorial)",
+constexpr std::array<std::string_view, 1> kTutorialExampleTargetRegistrations {{
+    "add_subdirectory(client_tutorial)",
 }};
 
 bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool vertical) noexcept
@@ -238,14 +238,14 @@ void RemoveEmptyDirectoryChain(const std::filesystem::path& start, const std::fi
 bool IsTutorialTargetRegistrationLine(std::string_view line) noexcept
 {
     const std::string_view trimmed = TrimAsciiWhitespace(line);
-    return std::find(kTutorialRootTargetRegistrations.begin(),
-                     kTutorialRootTargetRegistrations.end(),
-                     trimmed) != kTutorialRootTargetRegistrations.end();
+    return std::find(kTutorialExampleTargetRegistrations.begin(),
+                     kTutorialExampleTargetRegistrations.end(),
+                     trimmed) != kTutorialExampleTargetRegistrations.end();
 }
 
 void RemoveTutorialTargetRegistration(const std::filesystem::path& projectRoot)
 {
-    const std::filesystem::path cmakeFile = projectRoot / "CMakeLists.txt";
+    const std::filesystem::path cmakeFile = projectRoot / "examples" / "CMakeLists.txt";
     std::ifstream input(cmakeFile, std::ios::binary);
     if (!input.is_open())
     {
@@ -314,7 +314,7 @@ void RemoveTutorialTargetRegistration(const std::filesystem::path& projectRoot)
 
 void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
 {
-    const std::filesystem::path cmakeFile = projectRoot / "CMakeLists.txt";
+    const std::filesystem::path cmakeFile = projectRoot / "examples" / "CMakeLists.txt";
     std::ifstream input(cmakeFile, std::ios::binary);
     if (!input.is_open())
     {
@@ -338,9 +338,10 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
     std::vector<std::string> lines;
     lines.reserve(64);
 
-    std::array<bool, kTutorialRootTargetRegistrations.size()> hasTargetRegistrations {};
+    std::array<bool, kTutorialExampleTargetRegistrations.size()> hasTargetRegistrations {};
     std::size_t insertionIndex = std::numeric_limits<std::size_t>::max();
     std::string insertionIndentation;
+    std::size_t appendIndex = std::numeric_limits<std::size_t>::max();
 
     for (std::string line; std::getline(stream, line);)
     {
@@ -350,16 +351,25 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
         }
 
         const std::string_view trimmed = TrimAsciiWhitespace(line);
-        for (std::size_t index = 0; index < kTutorialRootTargetRegistrations.size(); ++index)
+        for (std::size_t index = 0; index < kTutorialExampleTargetRegistrations.size(); ++index)
         {
-            if (trimmed == kTutorialRootTargetRegistrations[index])
+            if (trimmed == kTutorialExampleTargetRegistrations[index])
             {
                 hasTargetRegistrations[index] = true;
                 break;
             }
         }
 
-        if (trimmed == "add_subdirectory(mfd_editor)" &&
+        if (trimmed.rfind("add_subdirectory(", 0) == 0)
+        {
+            appendIndex = lines.size() + 1U;
+            if (insertionIndentation.empty())
+            {
+                insertionIndentation = LeadingWhitespace(line);
+            }
+        }
+
+        if (trimmed.rfind("# client_tutorial is intentionally wired", 0) == 0 &&
             insertionIndex == std::numeric_limits<std::size_t>::max())
         {
             insertionIndex = lines.size();
@@ -373,16 +383,26 @@ void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
                     { return present; }) ||
         insertionIndex == std::numeric_limits<std::size_t>::max())
     {
-        return;
+        if (std::all_of(hasTargetRegistrations.begin(), hasTargetRegistrations.end(), [](const bool present)
+                        { return present; }))
+        {
+            return;
+        }
+
+        insertionIndex = appendIndex;
+        if (insertionIndex == std::numeric_limits<std::size_t>::max())
+        {
+            return;
+        }
     }
 
     std::vector<std::string> insertedLines;
-    insertedLines.reserve(kTutorialRootTargetRegistrations.size());
-    for (std::size_t index = 0; index < kTutorialRootTargetRegistrations.size(); ++index)
+    insertedLines.reserve(kTutorialExampleTargetRegistrations.size());
+    for (std::size_t index = 0; index < kTutorialExampleTargetRegistrations.size(); ++index)
     {
         if (!hasTargetRegistrations[index])
         {
-            insertedLines.push_back(insertionIndentation + std::string(kTutorialRootTargetRegistrations[index]));
+            insertedLines.push_back(insertionIndentation + std::string(kTutorialExampleTargetRegistrations[index]));
         }
     }
 

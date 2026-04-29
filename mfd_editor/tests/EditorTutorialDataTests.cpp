@@ -113,7 +113,7 @@ TEST(EditorTutorialDataTests, TutorialMetadataReflectsSharedWindowLauncherFlow)
     EXPECT_EQ(std::string_view(framebufferStep.afterText).find("RunLauncher"), std::string_view::npos);
 
     const auto& registrationStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialTargetRegistration);
-    EXPECT_NE(std::string_view(registrationStep.afterText).find("add_subdirectory(examples/client_tutorial)"),
+    EXPECT_NE(std::string_view(registrationStep.afterText).find("add_subdirectory(client_tutorial)"),
               std::string_view::npos);
     EXPECT_EQ(std::string_view(registrationStep.afterText).find("add_subdirectory(examples/mfd_tutorial)"),
               std::string_view::npos);
