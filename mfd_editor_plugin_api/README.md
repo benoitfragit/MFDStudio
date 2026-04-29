@@ -1,4 +1,4 @@
-﻿# `mfd_editor_plugin_api`
+# `mfd_editor_plugin_api`
 
 Stable public contract for in-process automation plugins loaded by `mfd_editor`.
 
@@ -267,7 +267,7 @@ See:
 
 For exhaustive callback coverage, see:
 
-- [../mfd_editor/tests/plugins/ExtendedAutomationPlugin.cpp](../mfd_editor/tests/plugins/ExtendedAutomationPlugin.cpp)
+- [../tests/mfd_editor/plugins/ExtendedAutomationPlugin.cpp](../tests/mfd_editor/plugins/ExtendedAutomationPlugin.cpp)
 
 ## Minimal Factory
 

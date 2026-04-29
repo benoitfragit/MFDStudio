@@ -82,6 +82,10 @@ add_subdirectory(mfd_window)
 add_subdirectory(mfd_editor_plugin_api)
 add_subdirectory(mfd_editor)
 
+if(MFD_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
 if(MFD_BUILD_DEMO)
     add_subdirectory(examples)
 endif()

@@ -38,16 +38,26 @@ This keeps the tests fast, deterministic, and useful for day-to-day work.
 
 ## Where The Tests Live
 
-The test target is defined in:
+The root test aggregation happens in:
 
-- `mfd_api/tests/CMakeLists.txt`
+- `tests/CMakeLists.txt`
+
+The root `tests/` tree mirrors the tested modules with dedicated bridge
+`CMakeLists.txt` files, for example:
+
+- `tests/mfd_api/CMakeLists.txt`
+
+Each module keeps its own test target definitions under its local test
+directory, for example:
+
+- `tests/mfd_api/CMakeLists.txt`
 
 The first test files are:
 
-- `mfd_api/tests/JsonLoaderTests.cpp`
-- `mfd_api/tests/SceneRegistryTests.cpp`
-- `mfd_api/tests/StrobeFeedbackTests.cpp`
-- `mfd_api/tests/CommandTransportTests.cpp`
+- `tests/mfd_api/JsonLoaderTests.cpp`
+- `tests/mfd_api/SceneRegistryTests.cpp`
+- `tests/mfd_api/StrobeFeedbackTests.cpp`
+- `tests/mfd_api/CommandTransportTests.cpp`
 
 ## What Is Covered Today
 

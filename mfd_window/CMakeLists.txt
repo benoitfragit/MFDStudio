@@ -130,7 +130,3 @@ else()
 endif()
 
 mfd_stage_runtime(mfd_window WITH_ASSETS WITH_RUNTIME_DLLS)
-
-if(MFD_BUILD_TESTS)
-    add_subdirectory(tests)
-endif()

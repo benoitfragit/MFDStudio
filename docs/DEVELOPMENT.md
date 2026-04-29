@@ -74,7 +74,8 @@ Keep dependency categories separated in repository `CMakeLists.txt` files:
 - system libraries stay in plain `target_link_libraries(...)`
 - third-party dependencies go through `cmake/ExternalLibraries.cmake`
 - the root `CMakeLists.txt` only registers first-level repository directories
-- each directory owns its local `add_subdirectory(...)` tree for children such as `tests` or `examples/*`
+- `tests/` mirrors the tested modules with dedicated `CMakeLists.txt` entry points
+- non-test child trees such as `examples/*` stay owned by their local directory
 
 Use the real target name when calling the helpers. The top-level project name is
 still `MFD`, so `${PROJECT_NAME}` is not a per-directory target alias.
@@ -205,6 +206,7 @@ In practice the automated suite now covers three complementary layers:
 | `client_api_generator` | Python and CMake tooling generating typed client wrappers |
 | `mfd_window` | Generic runtime host executable |
 | `mfd_editor` | Visual authoring application |
+| `tests` | Root test tree mirroring each module with dedicated CMake entry points |
 | `examples` | Example clients and sample plugins |
 | `assets/windows` | Root window JSON files |
 | `assets/pages` | Page JSON files |

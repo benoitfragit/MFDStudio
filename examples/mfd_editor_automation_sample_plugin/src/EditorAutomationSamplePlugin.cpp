@@ -9,7 +9,7 @@
  *
  * @details The sample focuses on one pedagogical workflow across the stable
  * `MfdEditorAutomationHostApi`. Exhaustive callback coverage is maintained in
- * the loader test plugin located in `mfd_editor/tests/plugins/ExtendedAutomationPlugin.cpp`.
+ * the loader test plugin located in `tests/mfd_editor/plugins/ExtendedAutomationPlugin.cpp`.
  *
  * The workflow is split into two parts:
  *

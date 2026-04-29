@@ -1,4 +1,4 @@
-﻿# `mfd_editor_automation_sample_plugin`
+# `mfd_editor_automation_sample_plugin`
 
 Sample in-process automation plugin for `mfd_editor`, updated for the current
 stable **ABI v3**.
@@ -15,7 +15,7 @@ The sample illustrates one high-value end-to-end workflow over
 
 Exhaustive callback coverage lives in the loader test plugin:
 
-- [../../mfd_editor/tests/plugins/ExtendedAutomationPlugin.cpp](../../mfd_editor/tests/plugins/ExtendedAutomationPlugin.cpp)
+- [../../tests/mfd_editor/plugins/ExtendedAutomationPlugin.cpp](../../tests/mfd_editor/plugins/ExtendedAutomationPlugin.cpp)
 
 The sample is split into two phases:
 

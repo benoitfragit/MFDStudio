@@ -82,7 +82,3 @@ if(MFD_BUILD_DEMO)
 
     mfd_stage_runtime(mfd_editor WITH_ASSETS WITH_RUNTIME_DLLS)
 endif()
-
-if(MFD_BUILD_TESTS)
-    add_subdirectory(tests)
-endif()

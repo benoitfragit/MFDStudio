@@ -219,6 +219,7 @@ remain out of the default examples build.
 | `client_api_generator` | Typed client API generator |
 | `mfd_window` | Generic window host |
 | `mfd_editor` | Visual authoring application |
+| `tests` | Root test tree mirroring each module with dedicated CMake entry points |
 | `examples` | Example clients and sample plugins |
 | `assets` | Window, page, and reticle JSON assets |
 | `Scripts` | Repository launch scripts copied into runtime output folders |
