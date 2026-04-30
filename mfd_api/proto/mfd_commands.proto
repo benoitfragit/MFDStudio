@@ -5,6 +5,14 @@ syntax = "proto3";
 
 package mfd.transport;
 
+enum PrimitiveLineStyle
+{
+  PRIMITIVE_LINE_STYLE_UNSPECIFIED = 0;
+  PRIMITIVE_LINE_STYLE_SOLID = 1;
+  PRIMITIVE_LINE_STYLE_DOTTED = 2;
+  PRIMITIVE_LINE_STYLE_DASHED = 3;
+}
+
 message Vec2
 {
   float x = 1;
@@ -48,6 +56,7 @@ message PrimitivePatch
   optional int32 segments = 21;
   optional float start_angle_degrees = 22;
   optional float end_angle_degrees = 23;
+  optional PrimitiveLineStyle line_style = 24;
 }
 
 message ReticlePatch

@@ -61,10 +61,17 @@ enum class PrimitiveType
  */
 struct PrimitiveStyle
 {
+    /** @brief Enables or disables the primitive visibility. */
     bool visible = true;
+    /** @brief Stroke color used by the primitive outline. */
     ColorRgba color {0, 255, 102, 255};
+    /** @brief Stroke thickness expressed in logical units. */
     float thickness = 0.0042f;
+    /** @brief Stroke pattern used by the primitive outline. */
+    LineStyle lineStyle = LineStyle::Solid;
+    /** @brief Fill color used when the primitive supports filling. */
     ColorRgba fillColor {0, 0, 0, 0};
+    /** @brief Enables filled rendering when the primitive supports it. */
     bool filled = false;
 };
 

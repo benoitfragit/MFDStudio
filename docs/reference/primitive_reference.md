@@ -19,10 +19,15 @@ Every primitive supports the following common fields.
 | `visible` | bool | no | Primitive visibility. |
 | `stroke` | color | no | Primitive stroke color. |
 | `thickness` | number | no | Primitive stroke thickness. |
+| `lineStyle` | string | no | Stroke pattern for outline-capable primitives: `solid`, `dotted`, or `dashed`. |
 | `filled` | bool | no | Whether the primitive is filled. |
 | `fill` | color or bool | no | Fill color or fill enable flag. |
 
 For transform and color syntax, see [Common JSON Syntax](./common_json_syntax.md).
+
+`lineStyle` applies to outline-capable primitives such as lines, circles,
+rings, rectangles, ellipses, squares, diamonds, triangles, polylines, beziers,
+and arcs. Text, time, and image primitives keep their default solid stroke.
 
 ## Supported Type Names
 
@@ -137,7 +142,8 @@ Example:
   "start": [-0.03, 0.0],
   "end": [0.03, 0.0],
   "stroke": "radar",
-  "thickness": 0.003
+  "thickness": 0.003,
+  "lineStyle": "dashed"
 }
 ```
 

@@ -867,6 +867,42 @@ std::optional<float> ParseThicknessField(const json& node)
     return std::nullopt;
 }
 
+LineStyle ParseLineStyle(const json& value)
+{
+    if (!value.is_string())
+    {
+        throw std::runtime_error("Line style must be a string");
+    }
+
+    const std::string token = CanonicalToken(value.get<std::string>());
+    if (token == "solid" || token == "plain" || token == "full" || token == "plein")
+    {
+        return LineStyle::Solid;
+    }
+
+    if (token == "dotted" || token == "dot" || token == "pointille")
+    {
+        return LineStyle::Dotted;
+    }
+
+    if (token == "dashed" || token == "dash" || token == "tiret" || token == "tirets")
+    {
+        return LineStyle::Dashed;
+    }
+
+    throw std::runtime_error("Unsupported line style: " + value.get<std::string>());
+}
+
+std::optional<LineStyle> ParseLineStyleField(const json& node)
+{
+    if (const json* style = FindField(node, {"lineStyle", "strokeStyle", "strokePattern"}))
+    {
+        return ParseLineStyle(*style);
+    }
+
+    return std::nullopt;
+}
+
 std::optional<float> ParseLetterSpacingField(const json& node)
 {
     if (const json* spacing = FindField(node, {"letterSpacing", "spacing", "tracking"}))
@@ -1063,6 +1099,7 @@ PrimitiveStyle ParsePrimitiveStyle(const json& node)
         style.visible = styleOverrides.visible;
         style.color = styleOverrides.color;
         style.thickness = styleOverrides.thickness;
+        style.lineStyle = styleOverrides.lineStyle;
         style.fillColor = styleOverrides.fillColor;
         style.filled = styleOverrides.filled;
     }
@@ -1080,6 +1117,11 @@ PrimitiveStyle ParsePrimitiveStyle(const json& node)
     if (const auto thickness = ParseThicknessField(node); thickness.has_value())
     {
         style.thickness = *thickness;
+    }
+
+    if (const auto lineStyle = ParseLineStyleField(node); lineStyle.has_value())
+    {
+        style.lineStyle = *lineStyle;
     }
 
     if (const auto fillColor = ParseFillColorField(node); fillColor.has_value())

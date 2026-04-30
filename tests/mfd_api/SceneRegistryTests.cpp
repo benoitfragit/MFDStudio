@@ -550,6 +550,7 @@ TEST(SceneRegistryTests, ApplyReticlePatchSupportsRichPrimitiveOverrides)
     valuePatch.letterSpacing = 0.04f;
 
     mfd::PrimitivePatch linePatch;
+    linePatch.lineStyle = mfd::LineStyle::Dashed;
     linePatch.lineStart = mfd::Vec2 {-0.25f, -0.02f};
     linePatch.lineEnd = mfd::Vec2 {0.30f, -0.02f};
 
@@ -592,6 +593,7 @@ TEST(SceneRegistryTests, ApplyReticlePatchSupportsRichPrimitiveOverrides)
     ASSERT_NE(linePrimitive, nullptr);
     const auto* lineGeometry = std::get_if<mfd::LineGeometry>(&linePrimitive->geometry);
     ASSERT_NE(lineGeometry, nullptr);
+    EXPECT_EQ(linePrimitive->style.lineStyle, mfd::LineStyle::Dashed);
     EXPECT_FLOAT_EQ(lineGeometry->start.x, -0.25f);
     EXPECT_FLOAT_EQ(lineGeometry->start.y, -0.02f);
     EXPECT_FLOAT_EQ(lineGeometry->end.x, 0.30f);

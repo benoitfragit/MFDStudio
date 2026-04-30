@@ -55,6 +55,35 @@ Vec2 FromProtoVec2(const pb::Vec2& value) noexcept
     return Vec2 {value.x(), value.y()};
 }
 
+pb::PrimitiveLineStyle ToProtoLineStyle(const LineStyle value) noexcept
+{
+    switch (value)
+    {
+    case LineStyle::Dotted:
+        return pb::PRIMITIVE_LINE_STYLE_DOTTED;
+    case LineStyle::Dashed:
+        return pb::PRIMITIVE_LINE_STYLE_DASHED;
+    case LineStyle::Solid:
+    default:
+        return pb::PRIMITIVE_LINE_STYLE_SOLID;
+    }
+}
+
+LineStyle FromProtoLineStyle(const pb::PrimitiveLineStyle value) noexcept
+{
+    switch (value)
+    {
+    case pb::PRIMITIVE_LINE_STYLE_DOTTED:
+        return LineStyle::Dotted;
+    case pb::PRIMITIVE_LINE_STYLE_DASHED:
+        return LineStyle::Dashed;
+    case pb::PRIMITIVE_LINE_STYLE_SOLID:
+    case pb::PRIMITIVE_LINE_STYLE_UNSPECIFIED:
+    default:
+        return LineStyle::Solid;
+    }
+}
+
 void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* target)
 {
     if (patch.visible.has_value())
@@ -95,6 +124,11 @@ void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* ta
     if (patch.thickness.has_value())
     {
         target->set_thickness(*patch.thickness);
+    }
+
+    if (patch.lineStyle.has_value())
+    {
+        target->set_line_style(ToProtoLineStyle(*patch.lineStyle));
     }
 
     if (patch.text.has_value())
@@ -218,6 +252,11 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
     if (value.has_thickness())
     {
         patch.thickness = value.thickness();
+    }
+
+    if (value.has_line_style())
+    {
+        patch.lineStyle = FromProtoLineStyle(value.line_style());
     }
 
     if (value.has_text())

@@ -206,6 +206,7 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     reticle.headingValue.SetThickness(0.005f);
     reticle.headingValue.SetText("123");
     reticle.headingValue.SetLetterSpacing(0.02f);
+    reticle.horizonLine.SetLineStyle(mfd::client::LineStyle::Dashed);
     reticle.horizonLine.SetStart({-0.5f, 0.0f});
     reticle.horizonLine.SetEnd({0.5f, 0.0f});
     reticle.compassRing.SetInnerRadius(0.15f);
@@ -258,8 +259,10 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     EXPECT_FLOAT_EQ(*textPatch.letterSpacing, 0.02f);
 
     const auto& linePatch = update->patch.primitivePatches.at("horizon_line");
+    ASSERT_TRUE(linePatch.lineStyle.has_value());
     ASSERT_TRUE(linePatch.lineStart.has_value());
     ASSERT_TRUE(linePatch.lineEnd.has_value());
+    EXPECT_EQ(*linePatch.lineStyle, mfd::LineStyle::Dashed);
     EXPECT_FLOAT_EQ(linePatch.lineStart->x, -0.5f);
     EXPECT_FLOAT_EQ(linePatch.lineEnd->x, 0.5f);
 
@@ -356,6 +359,7 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
 {
     GeneratedGeometryFixtureReticle reticle;
 
+    reticle.horizonLine.SetLineStyle(mfd::client::LineStyle::Dashed);
     reticle.horizonLine.SetStart({-0.5f, 0.0f});
     reticle.horizonLine.SetEnd({0.5f, 0.0f});
     reticle.cursorCircle.SetRadius(0.07f);
@@ -392,8 +396,10 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
     ASSERT_EQ(update->patch.primitivePatchesById.size(), 11U);
 
     const auto& linePatch = update->patch.primitivePatchesById.at(101U);
+    ASSERT_TRUE(linePatch.lineStyle.has_value());
     ASSERT_TRUE(linePatch.lineStart.has_value());
     ASSERT_TRUE(linePatch.lineEnd.has_value());
+    EXPECT_EQ(*linePatch.lineStyle, mfd::LineStyle::Dashed);
     EXPECT_FLOAT_EQ(linePatch.lineStart->x, -0.5f);
     EXPECT_FLOAT_EQ(linePatch.lineEnd->x, 0.5f);
 
@@ -556,6 +562,7 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     GeneratedDynamicFixtureReticle& track = set.Create();
 
     track.label.SetText("A1");
+    track.vectorLine.SetLineStyle(mfd::client::LineStyle::Dotted);
     track.vectorLine.SetStart({-0.25f, 0.15f});
     track.vectorLine.SetEnd({0.25f, 0.15f});
     track.SetPosition({0.12f, -0.08f});
@@ -580,8 +587,10 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(33U).text, "A1");
     ASSERT_NE(upsert->reticles.front().patch.primitivePatchesById.find(34U),
               upsert->reticles.front().patch.primitivePatchesById.end());
+    ASSERT_TRUE(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineStyle.has_value());
     ASSERT_TRUE(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineStart.has_value());
     ASSERT_TRUE(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineEnd.has_value());
+    EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(34U).lineStyle, mfd::LineStyle::Dotted);
     EXPECT_FLOAT_EQ(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineStart->x, -0.25f);
     EXPECT_FLOAT_EQ(upsert->reticles.front().patch.primitivePatchesById.at(34U).lineEnd->x, 0.25f);
 

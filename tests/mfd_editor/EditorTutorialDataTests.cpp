@@ -74,6 +74,7 @@ TEST(EditorTutorialDataTests, TutorialSnippetsPreferGeneratedHandlesWithoutUserM
 {
     const std::string_view creationAfter = Step(editor::tutorial::TutorialStepId::ReviewDynamicReticleCreation).afterText;
     EXPECT_NE(creationAfter.find("generatedDynamicTracks.Create()"), std::string_view::npos);
+    EXPECT_NE(creationAfter.find("tutorial_ui::LineStyle::Dashed"), std::string_view::npos);
     EXPECT_EQ(creationAfter.find("Upsert("), std::string_view::npos);
     EXPECT_EQ(creationAfter.find("trackId"), std::string_view::npos);
 
@@ -83,6 +84,7 @@ TEST(EditorTutorialDataTests, TutorialSnippetsPreferGeneratedHandlesWithoutUserM
 
     const std::string_view staticAfter = Step(editor::tutorial::TutorialStepId::ReviewStaticReticleCommands).afterText;
     EXPECT_NE(staticAfter.find("page1Circle.Primitive01().SetRadius"), std::string_view::npos);
+    EXPECT_NE(staticAfter.find("page1Circle.Primitive01().SetLineStyle"), std::string_view::npos);
     EXPECT_NE(staticAfter.find("progressFill.SetSize"), std::string_view::npos);
     EXPECT_NE(staticAfter.find("page2ProgressBar.SetVisible"), std::string_view::npos);
 

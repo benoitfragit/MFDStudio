@@ -610,6 +610,17 @@ TEST(EditorAutomationTests, PrimitiveActionsSupportTransformVisibilityExposureAc
                             editor::automation::PrimitiveSelector {"asset_line", -1},
                             true}})
                     .ok());
+    ASSERT_TRUE(facade->SessionService().ApplyAction(
+                    editor::automation::ApplyActionRequest {
+                        session.value,
+                        editor::automation::SetPrimitiveLineStyleRequest {
+                            editor::automation::AutomationPrimitiveOwnerKind::ReticleAsset,
+                            reticleAssetId.value,
+                            editor::automation::PrimitiveSelector {"asset_line", -1},
+                            mfd::LineStyle::Dashed}})
+                    .ok());
+    EXPECT_EQ(bridge.loaded_.document.reticleLibrary.at("track_box").primitives.front().style.lineStyle,
+              mfd::LineStyle::Dashed);
 
     mfd::Primitive replacementPrimitive = bridge.loaded_.document.reticleLibrary.at("track_box").primitives.front();
     replacementPrimitive.id = "asset_circle";

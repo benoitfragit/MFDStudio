@@ -97,6 +97,8 @@ struct PrimitivePatch
     std::optional<bool> filled;
     /** @brief Optional primitive line thickness override. */
     std::optional<float> thickness;
+    /** @brief Optional primitive stroke pattern override. */
+    std::optional<LineStyle> lineStyle;
     /** @brief Optional text payload for text-like primitives. */
     std::optional<std::string> text;
     /** @brief Optional letter spacing override for text-like primitives. */

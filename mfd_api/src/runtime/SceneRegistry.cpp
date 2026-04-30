@@ -274,6 +274,12 @@ bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
         applied = true;
     }
 
+    if (patch.lineStyle.has_value())
+    {
+        primitive.style.lineStyle = *patch.lineStyle;
+        applied = true;
+    }
+
     if (patch.text.has_value())
     {
         if (TextGeometry* geometry = std::get_if<TextGeometry>(&primitive.geometry))

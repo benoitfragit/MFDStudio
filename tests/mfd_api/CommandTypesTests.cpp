@@ -42,6 +42,7 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     primitivePatch.text = "123";
     primitivePatch.fillColor = mfd::ColorRgba {1, 2, 3, 200};
     primitivePatch.filled = true;
+    primitivePatch.lineStyle = mfd::LineStyle::Dashed;
     primitivePatch.points = std::vector<mfd::Vec2> {{-0.2f, 0.1f}, {0.0f, 0.25f}, {0.3f, -0.1f}};
     primitivePatch.closed = true;
     primitivePatch.segments = 48;
@@ -86,6 +87,8 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     EXPECT_EQ(update->patch.primitivePatchesById.at(55U).fillColor->r, 1U);
     ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).filled.has_value());
     EXPECT_TRUE(*update->patch.primitivePatchesById.at(55U).filled);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).lineStyle.has_value());
+    EXPECT_EQ(*update->patch.primitivePatchesById.at(55U).lineStyle, mfd::LineStyle::Dashed);
     ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).points.has_value());
     ASSERT_EQ(update->patch.primitivePatchesById.at(55U).points->size(), 3U);
     EXPECT_FLOAT_EQ(update->patch.primitivePatchesById.at(55U).points->at(1).y, 0.25f);

@@ -156,6 +156,19 @@ PrimitiveOwnerAccess ResolvePrimitiveOwner(mfd::LoadedWindowConfiguration& loade
     return result;
 }
 
+bool SupportsPrimitiveLineStyle(const mfd::PrimitiveType type) noexcept
+{
+    switch (type)
+    {
+    case mfd::PrimitiveType::Text:
+    case mfd::PrimitiveType::Time:
+    case mfd::PrimitiveType::Image:
+        return false;
+    default:
+        return true;
+    }
+}
+
 mfd::PageStrobeDefinition* FindPageStrobeByPageId(mfd::LoadedWindowConfiguration& loaded,
                                                   const PageId& pageId,
                                                   mfd::PageDefinition** page = nullptr,
@@ -1339,6 +1352,32 @@ private:
 
         (*owner.primitives)[static_cast<std::size_t>(primitiveIndex)].exposed = request.exposed;
         context_.events.Push(AutomationEventKind::DocumentChanged, owner.ownerId, "Automation updated primitive exposure.");
+        return AutomationStatus::Success();
+    }
+
+    AutomationStatus ApplyConcreteAction(const SetPrimitiveLineStyleRequest& request)
+    {
+        PrimitiveOwnerAccess owner = ResolvePrimitiveOwner(context_.bridge.MutableLoaded(), request.ownerKind, request.ownerId);
+        if (owner.primitives == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown primitive owner id.");
+        }
+
+        const int primitiveIndex = ResolvePrimitiveIndex(*owner.primitives, request.primitive);
+        if (primitiveIndex < 0)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown primitive id.");
+        }
+
+        mfd::Primitive& primitive = (*owner.primitives)[static_cast<std::size_t>(primitiveIndex)];
+        if (!SupportsPrimitiveLineStyle(primitive.type))
+        {
+            return FailureStatus(AutomationErrorCode::Unsupported,
+                                 "The selected primitive type does not support line style.");
+        }
+
+        primitive.style.lineStyle = request.lineStyle;
+        context_.events.Push(AutomationEventKind::DocumentChanged, owner.ownerId, "Automation updated primitive line style.");
         return AutomationStatus::Success();
     }
 

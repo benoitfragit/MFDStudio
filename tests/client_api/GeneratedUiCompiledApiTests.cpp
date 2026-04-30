@@ -127,6 +127,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     radar.strobe.SetActive(true);
     radar.strobe.SetPosition({0.25f, -0.10f});
     radar.radarStatus.SetValue("LOCK");
+    radar.geometryPanel.HeadingLine().SetLineStyle(generated_ui_fixture::LineStyle::Dashed);
     radar.geometryPanel.HeadingLine().SetStart({-0.5f, 0.0f});
     radar.geometryPanel.HeadingLine().SetEnd({0.5f, 0.0f});
     radar.geometryPanel.CursorCircle().SetRadius(0.07f);
@@ -163,6 +164,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     track.SetPosition({0.10f, -0.20f});
     track.SetBlinkType(radar.slow);
     track.TrackLabel().SetText("T01");
+    track.HeadingLine().SetLineStyle(generated_ui_fixture::LineStyle::Dotted);
     track.HeadingLine().SetStart({-0.25f, 0.15f});
     track.HeadingLine().SetEnd({0.25f, 0.15f});
     track.CursorCircle().SetRadius(0.05f);
@@ -255,7 +257,8 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
         geometryUpdate.patch.primitivePatchesById.end(),
         [](const auto& entry)
         {
-            return HasLinePatch(entry.second);
+            return HasLinePatch(entry.second) &&
+                   entry.second.lineStyle == std::optional<mfd::LineStyle> {mfd::LineStyle::Dashed};
         }));
     EXPECT_TRUE(std::any_of(
         geometryUpdate.patch.primitivePatchesById.begin(),
@@ -371,6 +374,14 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
         [](const auto& entry)
         {
             return entry.second.text == std::optional<std::string> {"T01"};
+        }));
+    EXPECT_TRUE(std::any_of(
+        upsert->reticles.front().patch.primitivePatchesById.begin(),
+        upsert->reticles.front().patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
+            return HasLinePatch(entry.second) &&
+                   entry.second.lineStyle == std::optional<mfd::LineStyle> {mfd::LineStyle::Dotted};
         }));
     EXPECT_TRUE(std::any_of(
         upsert->reticles.front().patch.primitivePatchesById.begin(),

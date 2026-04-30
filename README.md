@@ -88,7 +88,9 @@ In practice:
 
 Authoring covers text primitives, image primitives, and geometric primitives
 such as line, circle, ring, rectangle, ellipse, square, diamond, triangle,
-polyline, bezier, and arc.
+polyline, bezier, and arc. Outline-capable primitives can now author and drive
+their stroke style as `solid`, `dotted`, or `dashed` from JSON, the editor, the
+generated client API, and editor automation plugins.
 
 On the wire, fixed authored objects now travel through transport IDs plus
 `mappingHash` only. Generated client APIs hide those IDs completely, including

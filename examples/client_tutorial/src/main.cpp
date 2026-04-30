@@ -131,6 +131,8 @@ int mainImpl()
             generatedTrack.SetThickness(0.0038f);
             generatedTrack.Primitive01().SetSize({trackSize, trackSize});
             generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));
+            generatedTrack.Primitive01().SetLineStyle(
+                (trackSerial % 2U) == 0U ? tutorial_ui::LineStyle::Dashed : tutorial_ui::LineStyle::Dotted);
 
             if ((trackSerial % 5U) == 0U)
             {
@@ -144,6 +146,8 @@ int mainImpl()
                 generatedDeclutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});
             page1Circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(generatedTracks.size() + 1U));
             page1Circle.Primitive01().SetThickness(0.0045f);
+            page1Circle.Primitive01().SetLineStyle(
+                generatedDeclutterVisible ? tutorial_ui::LineStyle::Solid : tutorial_ui::LineStyle::Dotted);
 
             if (page1Strobe.IsValid())
             {

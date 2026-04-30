@@ -24,6 +24,8 @@
 
 namespace mfd::client
 {
+using LineStyle = mfd::LineStyle;
+
 class MFD_CLIENT_API BlinkType
 {
 public:
@@ -98,6 +100,7 @@ public:
     void SetFillColor(mfd::ColorRgba color);
     void SetFilled(bool filled);
     void SetThickness(float thickness);
+    void SetLineStyle(LineStyle lineStyle);
 
 protected:
     mfd::PrimitivePatch& Patch() noexcept;

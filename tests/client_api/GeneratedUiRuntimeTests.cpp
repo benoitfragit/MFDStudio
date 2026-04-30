@@ -218,6 +218,7 @@ TEST(GeneratedUiRuntimeTests, BuildCommandBatchCarriesMappingHashAndGeneratedIde
     track.label.SetText("T01");
     track.vectorLine.SetStart({-0.10f, 0.0f});
     track.vectorLine.SetEnd({0.20f, 0.0f});
+    track.vectorLine.SetLineStyle(mfd::client::LineStyle::Dashed);
 
     const mfd::CommandBatch batch = ui.BuildCommandBatch(42U);
     EXPECT_EQ(batch.sequence, 42U);
@@ -260,6 +261,8 @@ TEST(GeneratedUiRuntimeTests, BuildCommandBatchCarriesMappingHashAndGeneratedIde
     EXPECT_FLOAT_EQ(upsert->reticles.front().patch.position->x, 0.15f);
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(44U).text, "T01");
     EXPECT_FLOAT_EQ(upsert->reticles.front().patch.primitivePatchesById.at(45U).lineStart->x, -0.10f);
+    EXPECT_EQ(upsert->reticles.front().patch.primitivePatchesById.at(45U).lineStyle,
+              std::optional<mfd::LineStyle> {mfd::LineStyle::Dashed});
 
     const std::string payload = mfd::SerializeCommandBatch(batch);
     const auto decoded = mfd::DeserializeCommandBatch(payload);

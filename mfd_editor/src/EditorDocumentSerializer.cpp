@@ -82,6 +82,20 @@ std::string ToHexColor(const mfd::ColorRgba& color)
     return stream.str();
 }
 
+const char* ToLineStyleText(const mfd::LineStyle lineStyle) noexcept
+{
+    switch (lineStyle)
+    {
+    case mfd::LineStyle::Dotted:
+        return "dotted";
+    case mfd::LineStyle::Dashed:
+        return "dashed";
+    case mfd::LineStyle::Solid:
+    default:
+        return "solid";
+    }
+}
+
 std::string SerializePathRelativeTo(const std::filesystem::path& path, const std::filesystem::path& baseFolder)
 {
     if (path.empty())
@@ -167,6 +181,11 @@ void WritePrimitiveStyleFields(json& node, const mfd::PrimitiveStyle& style)
     if (std::abs(style.thickness - defaults.thickness) >= 0.0001f)
     {
         node["lineWidth"] = style.thickness;
+    }
+
+    if (style.lineStyle != defaults.lineStyle)
+    {
+        node["lineStyle"] = ToLineStyleText(style.lineStyle);
     }
 
     if (style.fillColor.r != defaults.fillColor.r ||

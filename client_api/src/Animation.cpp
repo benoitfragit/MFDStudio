@@ -100,6 +100,7 @@ bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs)
            EqualOptional(lhs.fillColor, rhs.fillColor) &&
            EqualOptional(lhs.filled, rhs.filled) &&
            EqualOptional(lhs.thickness, rhs.thickness) &&
+           EqualOptional(lhs.lineStyle, rhs.lineStyle) &&
            EqualOptional(lhs.text, rhs.text) &&
            EqualOptional(lhs.letterSpacing, rhs.letterSpacing) &&
            EqualOptional(lhs.lineStart, rhs.lineStart) &&
@@ -227,6 +228,7 @@ mfd::PrimitivePatch BuildDeltaPrimitivePatch(const mfd::PrimitivePatch& desired,
     CopyChangedOptionalField(desired.fillColor, previous.fillColor, delta.fillColor);
     CopyChangedOptionalField(desired.filled, previous.filled, delta.filled);
     CopyChangedOptionalField(desired.thickness, previous.thickness, delta.thickness);
+    CopyChangedOptionalField(desired.lineStyle, previous.lineStyle, delta.lineStyle);
     CopyChangedOptionalField(desired.text, previous.text, delta.text);
     CopyChangedOptionalField(desired.letterSpacing, previous.letterSpacing, delta.letterSpacing);
     CopyChangedOptionalField(desired.lineStart, previous.lineStart, delta.lineStart);
@@ -538,6 +540,12 @@ void PrimitiveHandle::SetFilled(const bool filled)
 void PrimitiveHandle::SetThickness(const float thickness)
 {
     Patch().thickness = thickness;
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetLineStyle(const LineStyle lineStyle)
+{
+    Patch().lineStyle = lineStyle;
     MarkDirty();
 }
 

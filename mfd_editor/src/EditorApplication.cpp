@@ -301,6 +301,33 @@ std::string PrimitiveTypeLabel(const mfd::PrimitiveType type)
     return "Primitive";
 }
 
+const char* LineStyleLabel(const mfd::LineStyle lineStyle) noexcept
+{
+    switch (lineStyle)
+    {
+    case mfd::LineStyle::Dotted:
+        return "Dotted";
+    case mfd::LineStyle::Dashed:
+        return "Dashed";
+    case mfd::LineStyle::Solid:
+    default:
+        return "Solid";
+    }
+}
+
+bool SupportsPrimitiveLineStyle(const mfd::PrimitiveType type) noexcept
+{
+    switch (type)
+    {
+    case mfd::PrimitiveType::Text:
+    case mfd::PrimitiveType::Time:
+    case mfd::PrimitiveType::Image:
+        return false;
+    default:
+        return true;
+    }
+}
+
 const char* ReticleClipModeLabel(const mfd::ReticleClipMode mode) noexcept
 {
     switch (mode)
@@ -8313,6 +8340,32 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         primitive->style.thickness = std::max(0.0005f, primitive->style.thickness);
     }
     ShowItemTooltip("Stroke thickness used by this primitive.");
+
+    if (SupportsPrimitiveLineStyle(primitive->type))
+    {
+        if (ImGui::BeginCombo("Line style", LineStyleLabel(primitive->style.lineStyle)))
+        {
+            constexpr std::array<mfd::LineStyle, 3> kLineStyles {{
+                mfd::LineStyle::Solid,
+                mfd::LineStyle::Dotted,
+                mfd::LineStyle::Dashed}};
+            for (const mfd::LineStyle candidate : kLineStyles)
+            {
+                const bool selected = primitive->style.lineStyle == candidate;
+                if (ImGui::Selectable(LineStyleLabel(candidate), selected))
+                {
+                    PushUndoSnapshot();
+                    primitive->style.lineStyle = candidate;
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Choose whether this primitive outline is solid, dotted, or dashed.");
+    }
 
     ImVec4 fill = ToImGuiColor(primitive->style.fillColor);
     if (ImGui::ColorEdit4("Fill", &fill.x))

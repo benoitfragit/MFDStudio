@@ -135,6 +135,7 @@ class GenerateUiTests(unittest.TestCase):
                 "class CockpitMockupUi",
                 "class StatusTemplateDynamicReticle final : public DynamicReticle",
                 "class StatusTemplateDynamicReticleSet final : public GeneratedDynamicReticleSet",
+                "using LineStyle = mfd::client::LineStyle;",
                 "class RadarRadarStatusReticle final : public Reticle",
                 "class RadarTrackBoxReticle final : public Reticle",
                 "class SystemSystemStatusReticle final : public Reticle",

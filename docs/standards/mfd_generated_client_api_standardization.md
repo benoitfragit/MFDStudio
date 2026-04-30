@@ -165,6 +165,18 @@ The public primitive-handle families currently standardized are:
 The generator MUST expose the most specific handle type available for the
 authored primitive kind.
 
+Shared generated primitive controls MUST include:
+
+- `SetVisible`
+- `SetPosition`
+- `SetRotationDegrees`
+- `SetScale`
+- `SetColor`
+- `SetFillColor`
+- `SetFilled`
+- `SetThickness`
+- `SetLineStyle`
+
 ## 6. Standardized Feature Coverage
 
 The generated API is expected to cover the following client-visible features.
@@ -174,7 +186,7 @@ The generated API is expected to cover the following client-visible features.
 | Window | Brightness, inversion, and disabled state are staged through `Window()` |
 | Pages | Generated page wrappers carry the page transport ID and mapping hash used by page-level helpers |
 | Static reticles | Authored page members remain directly reachable and patchable through typed setters |
-| Exposed primitives | Client-driven authored primitives are exposed as typed handles under their owning reticles |
+| Exposed primitives | Client-driven authored primitives are exposed as typed handles under their owning reticles, including `SetLineStyle` for outline-capable primitives |
 | Images | Bitmap primitives are first-class generated handles through `ImageHandle` |
 | Dynamic reticles | Generated sets own hidden runtime IDs and return typed handles from `Create()` |
 | Strobe | Strobe control stays page-scoped through one generated `strobe` handle |
@@ -241,6 +253,7 @@ track.SetVisible(true);
 track.SetPosition({0.18f, -0.24f});
 track.SetRotationDegrees(55.0f);
 track.TrackLabel().SetText("B21");
+track.Primitive01().SetLineStyle(full_demo_ui::LineStyle::Dashed);
 
 client.SendBatch(ui.BuildBatch());
 ```

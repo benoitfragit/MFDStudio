@@ -235,6 +235,7 @@ Most drawable objects support the same style fields.
 | stroke color | `stroke` | `color`, `strokeColor` |
 | fill color | `fill` | `fillColor` |
 | thickness | `thickness` | `lineWidth`, `strokeWidth`, `strokeThickness` |
+| stroke pattern | `lineStyle` | `strokeStyle`, `strokePattern` |
 | filled flag | `filled` | `fill` when boolean |
 | visibility | `visible` | `show`, `hidden` |
 
@@ -244,6 +245,7 @@ Canonical example:
 {
   "stroke": "#33FF88FF",
   "thickness": 0.004,
+  "lineStyle": "dashed",
   "filled": true,
   "fill": "#112233AA"
 }
@@ -255,10 +257,13 @@ Canonical example:
 {
   "style": {
     "stroke": "hud",
-    "thickness": 0.004
+    "thickness": 0.004,
+    "lineStyle": "dotted"
   }
 }
 ```
+
+Recommended `lineStyle` values are `solid`, `dotted`, and `dashed`.
 
 ## Text Overrides At Reticle Instance Level
 
@@ -299,6 +304,7 @@ Even though the loader accepts many aliases, the recommended authoring style is:
 - use `stroke`
 - use `fill`
 - use `thickness`
+- use `lineStyle`
 - use `visible`
 
 This keeps files easier to read and easier to maintain.

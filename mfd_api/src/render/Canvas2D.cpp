@@ -33,6 +33,20 @@ Color ToRayColor(const ColorRgba& color)
     return Color {color.r, color.g, color.b, color.a};
 }
 
+float Distance(const Vector2& lhs, const Vector2& rhs) noexcept
+{
+    const float dx = rhs.x - lhs.x;
+    const float dy = rhs.y - lhs.y;
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+Vector2 LerpVector2(const Vector2& lhs, const Vector2& rhs, const float factor) noexcept
+{
+    return Vector2 {
+        lhs.x + (rhs.x - lhs.x) * factor,
+        lhs.y + (rhs.y - lhs.y) * factor};
+}
+
 void FillConvexPolygon(const ArrayView<const Vector2> points, const Color color)
 {
     if (points.size() < 3)
@@ -49,21 +63,111 @@ void FillConvexPolygon(const ArrayView<const Vector2> points, const Color color)
 void DrawPolylineStroke(const ArrayView<const Vector2> points,
                         const bool closed,
                         const float thickness,
-                        const Color color)
+                        const Color color,
+                        const LineStyle lineStyle)
 {
     if (points.size() < 2)
     {
         return;
     }
 
+    if (lineStyle == LineStyle::Solid)
+    {
+        for (std::size_t index = 0; index + 1 < points.size(); ++index)
+        {
+            DrawLineEx(points[index], points[index + 1], thickness, color);
+        }
+
+        if (closed)
+        {
+            DrawLineEx(points.back(), points.front(), thickness, color);
+        }
+
+        return;
+    }
+
+    if (lineStyle == LineStyle::Dotted)
+    {
+        const float dotSpacing = std::max(4.0f, thickness * 2.25f);
+        const float dotRadius = std::max(1.0f, thickness * 0.5f);
+        float distanceToNextDot = 0.0f;
+
+        auto drawDottedSegment = [&](const Vector2 start, const Vector2 end)
+        {
+            const float segmentLength = Distance(start, end);
+            if (segmentLength <= 0.0001f)
+            {
+                return;
+            }
+
+            while (distanceToNextDot <= segmentLength + 0.0001f)
+            {
+                const float factor = std::clamp(distanceToNextDot / segmentLength, 0.0f, 1.0f);
+                DrawCircleV(LerpVector2(start, end, factor), dotRadius, color);
+                distanceToNextDot += dotSpacing;
+            }
+
+            distanceToNextDot -= segmentLength;
+            if (distanceToNextDot <= 0.0001f)
+            {
+                distanceToNextDot = dotSpacing;
+            }
+        };
+
+        for (std::size_t index = 0; index + 1 < points.size(); ++index)
+        {
+            drawDottedSegment(points[index], points[index + 1]);
+        }
+
+        if (closed)
+        {
+            drawDottedSegment(points.back(), points.front());
+        }
+
+        return;
+    }
+
+    const float dashLength = std::max(6.0f, thickness * 4.0f);
+    const float gapLength = std::max(4.0f, thickness * 2.0f);
+    const float patternLength = dashLength + gapLength;
+    float phase = 0.0f;
+
+    auto drawDashedSegment = [&](const Vector2 start, const Vector2 end)
+    {
+        const float segmentLength = Distance(start, end);
+        if (segmentLength <= 0.0001f)
+        {
+            return;
+        }
+
+        float segmentOffset = 0.0f;
+        while (segmentOffset < segmentLength)
+        {
+            const float cycleOffset = std::fmod(phase, patternLength);
+            const bool drawingDash = cycleOffset < dashLength;
+            const float remainingPattern = drawingDash ? (dashLength - cycleOffset) : (patternLength - cycleOffset);
+            const float step = std::min(remainingPattern, segmentLength - segmentOffset);
+
+            if (drawingDash && step > 0.0f)
+            {
+                const Vector2 dashStart = LerpVector2(start, end, segmentOffset / segmentLength);
+                const Vector2 dashEnd = LerpVector2(start, end, (segmentOffset + step) / segmentLength);
+                DrawLineEx(dashStart, dashEnd, thickness, color);
+            }
+
+            segmentOffset += step;
+            phase += step;
+        }
+    };
+
     for (std::size_t index = 0; index + 1 < points.size(); ++index)
     {
-        DrawLineEx(points[index], points[index + 1], thickness, color);
+        drawDashedSegment(points[index], points[index + 1]);
     }
 
     if (closed)
     {
-        DrawLineEx(points.back(), points.front(), thickness, color);
+        drawDashedSegment(points.back(), points.front());
     }
 }
 
@@ -495,7 +599,8 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         const auto& line = std::get<LineGeometry>(primitive.geometry);
         const Vector2 start = ToScreen(TransformPoint(line.start, primitive, group));
         const Vector2 end = ToScreen(TransformPoint(line.end, primitive, group));
-        DrawLineEx(start, end, strokeThickness, strokeColor);
+        const std::array<Vector2, 2> linePoints {{start, end}};
+        DrawPolylineStroke(linePoints, false, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Circle:
@@ -511,13 +616,9 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             DrawCircleV(center, radius, fillColor);
         }
 
-        DrawRing(center,
-                 std::max(0.0f, radius - strokeThickness * 0.5f),
-                 radius + strokeThickness * 0.5f,
-                 0.0f,
-                 360.0f,
-                 64,
-                 strokeColor);
+        SampleEllipseInto(EllipseGeometry {circle.radius * 2.0f, circle.radius * 2.0f}, 64, logicalScratchA_);
+        BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Ring:
@@ -549,8 +650,8 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             FillRing(screenScratchA_, screenScratchB_, fillColor);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor);
-        DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Rectangle:
@@ -568,7 +669,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             FillConvexPolygon(screenScratchA_, fillColor);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Ellipse:
@@ -582,7 +683,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             FillConvexPolygon(screenScratchA_, fillColor);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Square:
@@ -600,7 +701,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             FillConvexPolygon(screenScratchA_, fillColor);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Diamond:
@@ -618,7 +719,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             FillConvexPolygon(screenScratchA_, fillColor);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Triangle:
@@ -631,7 +732,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             FillConvexPolygon(screenScratchA_, fillColor);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Polyline:
@@ -644,7 +745,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             FillConvexPolygon(screenScratchA_, fillColor);
         }
 
-        DrawPolylineStroke(screenScratchA_, polyline.closed, strokeThickness, strokeColor);
+        DrawPolylineStroke(screenScratchA_, polyline.closed, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Bezier:
@@ -652,7 +753,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         const auto& bezier = std::get<BezierGeometry>(primitive.geometry);
         SampleBezierInto(bezier, logicalScratchA_, logicalScratchB_);
         BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
-        DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor);
+        DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Arc:
@@ -669,11 +770,11 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             logicalScratchB_.insert(logicalScratchB_.end(), logicalScratchA_.begin(), logicalScratchA_.end());
             BuildScreenPointsInto(logicalScratchB_.data(), logicalScratchB_.size(), primitive, group, screenScratchB_);
             FillConvexPolygon(screenScratchB_, fillColor);
-            DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor);
+            DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor, style.lineStyle);
         }
         else
         {
-            DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor);
+            DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle);
         }
         break;
     }

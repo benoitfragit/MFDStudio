@@ -176,6 +176,7 @@ Shared primitive surface:
 - `SetFillColor`
 - `SetFilled`
 - `SetThickness`
+- `SetLineStyle`
 
 Specialized handle families currently exposed by the public client layer:
 
@@ -271,6 +272,7 @@ track.SetVisible(true);
 track.SetPosition({0.18f, -0.24f});
 track.SetRotationDegrees(55.0f);
 track.TrackLabel().SetText("B21");
+track.Primitive01().SetLineStyle(full_demo_ui::LineStyle::Dashed);
 
 client.SendBatch(ui.BuildBatch());
 

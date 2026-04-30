@@ -59,6 +59,19 @@ struct ColorRgba
 };
 
 /**
+ * @brief Stroke pattern used by outline-capable primitives.
+ */
+enum class LineStyle
+{
+    /** @brief Draws one continuous stroke. */
+    Solid,
+    /** @brief Draws one dotted stroke. */
+    Dotted,
+    /** @brief Draws one dashed stroke. */
+    Dashed
+};
+
+/**
  * @brief Generic 2D transform combining translation, rotation and scale.
  */
 struct Transform2D

@@ -1,7 +1,7 @@
 # `mfd_editor_automation_sample_plugin`
 
 Sample in-process automation plugin for `mfd_editor`, updated for the current
-stable **ABI v3**.
+stable **ABI v4**.
 
 ## Purpose
 
@@ -34,6 +34,7 @@ Read-only queries:
 - `get_reticle_asset_info`
 - `get_layer_info`
 - `get_page_reticle_info`
+- `get_page_reticle_primitive_info`
 
 Session and diagnostics:
 
@@ -52,6 +53,7 @@ Semantic edits:
 - `set_page_reticle_draw_on_top`
 - `set_page_reticle_transform`
 - `set_page_reticle_layer`
+- `set_primitive_line_style`
 - `create_layer`
 - `set_layer_visibility`
 
@@ -71,6 +73,7 @@ The sample code:
 - creates one temporary layer on that page
 - instantiates two reticles so reorder operations can be demonstrated
 - moves one reticle, assigns its layer, changes visibility, draw order, and transform
+- updates one page-reticle primitive to a dashed stroke when the primitive type supports line styles
 - reads the resulting stable ids back through the query callbacks
 - validates the session and probes the diagnostic accessor
 - rolls the preview session back

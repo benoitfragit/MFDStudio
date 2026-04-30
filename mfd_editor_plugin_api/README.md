@@ -2,7 +2,7 @@
 
 Stable public contract for in-process automation plugins loaded by `mfd_editor`.
 
-The current contract is **ABI v3**. The previous binary surface is no longer
+The current contract is **ABI v4**. The previous binary surface is no longer
 accepted: plugins must be rebuilt against the updated header.
 
 ## Purpose
@@ -60,12 +60,12 @@ The header also defines:
 
 ## ABI Versioning
 
-The current value of `MFD_EDITOR_AUTOMATION_PLUGIN_ABI_VERSION` is `3`.
+The current value of `MFD_EDITOR_AUTOMATION_PLUGIN_ABI_VERSION` is `4`.
 
 Implications:
 
 - old automation plugin DLLs compiled against the previous ABI are rejected
-- the editor and plugins must agree on ABI version `3`
+- the editor and plugins must agree on ABI version `4`
 - future extensions may still append host callbacks at the end of the host
   table while preserving the leading layout
 
@@ -110,6 +110,9 @@ Read-only queries:
 - `get_page_reticle_primitive_info`
 - `get_layer_info`
 
+`MfdEditorAutomationPrimitiveInfo` also exposes `line_style` so plugins can
+inspect the authored stroke style of outline-capable primitives.
+
 Session and validation:
 
 - `begin_session`
@@ -131,6 +134,7 @@ Semantic mutations:
 - `set_page_reticle_draw_on_top`
 - `set_page_reticle_transform`
 - `set_page_reticle_layer`
+- `set_primitive_line_style`
 - `set_reticle_asset_visibility`
 - `set_reticle_asset_draw_on_top`
 - `set_reticle_transform`
@@ -167,6 +171,7 @@ Summary and query types:
 - `MfdEditorAutomationPageReticleInfo`
 - `MfdEditorAutomationLayerInfo`
 - `MfdEditorAutomationPrimitiveInfo`
+- `MfdEditorAutomationLineStyle`
 
 Validation and events:
 
@@ -187,6 +192,7 @@ Mutation requests:
 - `MfdEditorAutomationSetPageReticleDrawOnTopRequest`
 - `MfdEditorAutomationSetPageReticleTransformRequest`
 - `MfdEditorAutomationSetPageReticleLayerRequest`
+- `MfdEditorAutomationSetPrimitiveLineStyleRequest`
 - `MfdEditorAutomationSetReticleAssetVisibilityRequest`
 - `MfdEditorAutomationSetReticleAssetDrawOnTopRequest`
 - `MfdEditorAutomationSetReticleTransformRequest`
@@ -256,7 +262,7 @@ The readable sample plugin demonstrates one non-destructive walkthrough:
 3. create a temporary editor layer
 4. instantiate one reticle on the page
 5. assign the new reticle to the temporary layer
-6. update visibility and transform
+6. update visibility, transform, and one primitive line style
 7. validate the preview session
 8. roll everything back
 9. consume the queued automation events

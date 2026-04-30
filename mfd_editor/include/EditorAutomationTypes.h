@@ -622,6 +622,17 @@ struct SetPrimitiveExposedRequest
 };
 
 /**
+ * @brief Updates the stroke style of one primitive.
+ */
+struct SetPrimitiveLineStyleRequest
+{
+    AutomationPrimitiveOwnerKind ownerKind = AutomationPrimitiveOwnerKind::ReticleAsset;
+    std::string ownerId {};
+    PrimitiveSelector primitive {};
+    mfd::LineStyle lineStyle = mfd::LineStyle::Solid;
+};
+
+/**
  * @brief Assigns one page-reticle instance to one editor layer inside its page.
  */
 struct SetPageReticleLayerRequest
@@ -759,6 +770,7 @@ using AutomationAction = std::variant<CreateWindowDocumentRequest,
                                       SetPrimitiveTransformRequest,
                                       SetPrimitiveVisibilityRequest,
                                       SetPrimitiveExposedRequest,
+                                      SetPrimitiveLineStyleRequest,
                                       SetPageReticleLayerRequest,
                                       CreateLayerRequest,
                                       ReplaceLayerRequest,

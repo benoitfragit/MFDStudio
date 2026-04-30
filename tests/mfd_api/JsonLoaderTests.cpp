@@ -1132,6 +1132,65 @@ TEST(JsonLoaderTests, LoadDocumentParsesArcPrimitiveWithAnglesAndSegments)
     EXPECT_EQ(arc->segments, 40);
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesPrimitiveLineStylesFromDirectAndNestedFields)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    std::filesystem::create_directories(reticleFolder);
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "staticReticles": [
+        {
+          "id": "shape",
+          "elements": [
+            {
+              "id": "solid_line",
+              "type": "line",
+              "start": [-0.20, 0.0],
+              "end": [0.20, 0.0]
+            },
+            {
+              "id": "dotted_ring",
+              "type": "ring",
+              "radius": 0.18,
+              "lineStyle": "dotted"
+            },
+            {
+              "id": "dashed_arc",
+              "type": "arc",
+              "radius": 0.24,
+              "startAngle": 0.0,
+              "endAngle": 180.0,
+              "style": {
+                "lineStyle": "dashed"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(document.pages.size(), 1U);
+    ASSERT_EQ(document.pages.front().staticReticles.size(), 1U);
+    const auto& primitives = document.pages.front().staticReticles.front().primitives;
+    ASSERT_EQ(primitives.size(), 3U);
+    EXPECT_EQ(primitives[0].style.lineStyle, mfd::LineStyle::Solid);
+    EXPECT_EQ(primitives[1].style.lineStyle, mfd::LineStyle::Dotted);
+    EXPECT_EQ(primitives[2].style.lineStyle, mfd::LineStyle::Dashed);
+}
+
 TEST(JsonLoaderTests, LoadDocumentResolvesImagePrimitivePathsAndDrawOnTop)
 {
     TemporaryFolder workspace;

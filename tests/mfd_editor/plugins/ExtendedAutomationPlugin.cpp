@@ -397,6 +397,7 @@ MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL StartPlugin(void* plugi
         host->get_page_blink_type_info == nullptr ||
         host->get_reticle_asset_primitive_info == nullptr ||
         host->get_page_reticle_primitive_info == nullptr ||
+        host->set_primitive_line_style == nullptr ||
         host->export_json_preview == nullptr)
     {
         WriteMessage(error, "The editor host did not expose the extended automation callbacks.");
@@ -638,12 +639,42 @@ MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL TickPlugin(void* plugin
     MfdEditorAutomationPrimitiveInfo assetPrimitiveInfo {};
     status = ReadPrimitiveInfo(host, true, createdAssetIndex, 0U, 0U, assetPrimitiveInfo, error);
     if (status != MfdEditorAutomationResultCode_Success ||
-        assetPrimitiveInfo.primitive_type != MfdEditorAutomationPrimitiveType_Rectangle)
+        assetPrimitiveInfo.primitive_type != MfdEditorAutomationPrimitiveType_Rectangle ||
+        assetPrimitiveInfo.line_style != MfdEditorAutomationLineStyle_Solid)
     {
         host.rollback_session(host.host_context, sessionHandle, nullptr);
         if (status == MfdEditorAutomationResultCode_Success)
         {
             WriteMessage(error, "The created reticle asset should expose one rectangle primitive.");
+            return MfdEditorAutomationResultCode_InternalFailure;
+        }
+        return status;
+    }
+
+    MfdEditorAutomationSetPrimitiveLineStyleRequest setAssetPrimitiveLineStyle {};
+    setAssetPrimitiveLineStyle.struct_size = sizeof(setAssetPrimitiveLineStyle);
+    setAssetPrimitiveLineStyle.session = sessionHandle;
+    setAssetPrimitiveLineStyle.owner_kind = MfdEditorAutomationPrimitiveOwnerKind_ReticleAsset;
+    setAssetPrimitiveLineStyle.line_style = MfdEditorAutomationLineStyle_Dotted;
+    setAssetPrimitiveLineStyle.owner_id = MakeView(createdAssetId);
+    const std::string assetPrimitiveId = BufferToString(assetPrimitiveInfo.primitive_id);
+    setAssetPrimitiveLineStyle.primitive_id = MakeView(assetPrimitiveId);
+    status = host.set_primitive_line_style(host.host_context, &setAssetPrimitiveLineStyle, error);
+    if (status != MfdEditorAutomationResultCode_Success)
+    {
+        host.rollback_session(host.host_context, sessionHandle, nullptr);
+        return status;
+    }
+
+    assetPrimitiveInfo = {};
+    status = ReadPrimitiveInfo(host, true, createdAssetIndex, 0U, 0U, assetPrimitiveInfo, error);
+    if (status != MfdEditorAutomationResultCode_Success ||
+        assetPrimitiveInfo.line_style != MfdEditorAutomationLineStyle_Dotted)
+    {
+        host.rollback_session(host.host_context, sessionHandle, nullptr);
+        if (status == MfdEditorAutomationResultCode_Success)
+        {
+            WriteMessage(error, "The reticle-asset primitive line style did not update as expected.");
             return MfdEditorAutomationResultCode_InternalFailure;
         }
         return status;
@@ -686,6 +717,41 @@ MfdEditorAutomationResultCode MFD_EDITOR_AUTOMATION_CALL TickPlugin(void* plugin
     if (status != MfdEditorAutomationResultCode_Success)
     {
         host.rollback_session(host.host_context, sessionHandle, nullptr);
+        return status;
+    }
+    if (pagePrimitiveInfo.line_style != MfdEditorAutomationLineStyle_Dotted)
+    {
+        host.rollback_session(host.host_context, sessionHandle, nullptr);
+        WriteMessage(error, "The instantiated page primitive did not inherit the reticle-asset line style.");
+        return MfdEditorAutomationResultCode_InternalFailure;
+    }
+
+    MfdEditorAutomationSetPrimitiveLineStyleRequest setPagePrimitiveLineStyle {};
+    setPagePrimitiveLineStyle.struct_size = sizeof(setPagePrimitiveLineStyle);
+    setPagePrimitiveLineStyle.session = sessionHandle;
+    setPagePrimitiveLineStyle.owner_kind = MfdEditorAutomationPrimitiveOwnerKind_PageReticleInstance;
+    setPagePrimitiveLineStyle.line_style = MfdEditorAutomationLineStyle_Dashed;
+    setPagePrimitiveLineStyle.owner_id = MakeView(createdPageReticleId);
+    const std::string pageOwnedPrimitiveId = BufferToString(pagePrimitiveInfo.primitive_id);
+    setPagePrimitiveLineStyle.primitive_id = MakeView(pageOwnedPrimitiveId);
+    status = host.set_primitive_line_style(host.host_context, &setPagePrimitiveLineStyle, error);
+    if (status != MfdEditorAutomationResultCode_Success)
+    {
+        host.rollback_session(host.host_context, sessionHandle, nullptr);
+        return status;
+    }
+
+    pagePrimitiveInfo = {};
+    status = ReadPrimitiveInfo(host, false, createdPageIndex, 0U, 0U, pagePrimitiveInfo, error);
+    if (status != MfdEditorAutomationResultCode_Success ||
+        pagePrimitiveInfo.line_style != MfdEditorAutomationLineStyle_Dashed)
+    {
+        host.rollback_session(host.host_context, sessionHandle, nullptr);
+        if (status == MfdEditorAutomationResultCode_Success)
+        {
+            WriteMessage(error, "The page primitive line style did not update as expected.");
+            return MfdEditorAutomationResultCode_InternalFailure;
+        }
         return status;
     }
 

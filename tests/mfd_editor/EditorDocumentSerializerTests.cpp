@@ -139,6 +139,7 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeom
     ring.id = "scope_ring";
     ring.type = mfd::PrimitiveType::Ring;
     ring.style.filled = true;
+    ring.style.lineStyle = mfd::LineStyle::Dotted;
     ring.style.fillColor = mfd::ColorRgba {10, 20, 30, 40};
     ring.geometry = mfd::RingGeometry {0.12f, 0.20f, 48};
     reticle.primitives.push_back(ring);
@@ -147,6 +148,7 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeom
     arc.id = "scan_arc";
     arc.type = mfd::PrimitiveType::Arc;
     arc.style.color = mfd::ColorRgba {1, 2, 3, 255};
+    arc.style.lineStyle = mfd::LineStyle::Dashed;
     arc.geometry = mfd::ArcGeometry {0.25f, -60.0f, 120.0f, 36};
     reticle.primitives.push_back(arc);
 
@@ -162,6 +164,7 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeom
     EXPECT_EQ(ringNode.at("segments").get<int>(), 48);
     EXPECT_TRUE(ringNode.at("filled").get<bool>());
     EXPECT_EQ(ringNode.at("fill").get<std::string>(), "#0A141E28");
+    EXPECT_EQ(ringNode.at("lineStyle").get<std::string>(), "dotted");
 
     const auto& arcNode = jsonNode.at("elements").at(1);
     EXPECT_EQ(arcNode.at("type").get<std::string>(), "arc");
@@ -170,6 +173,7 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeom
     EXPECT_FLOAT_EQ(arcNode.at("endAngleDegrees").get<float>(), 120.0f);
     EXPECT_EQ(arcNode.at("segments").get<int>(), 36);
     EXPECT_EQ(arcNode.at("stroke").get<std::string>(), "#010203FF");
+    EXPECT_EQ(arcNode.at("lineStyle").get<std::string>(), "dashed");
 }
 
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesImageGeometryAndDrawOnTop)

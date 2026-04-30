@@ -317,6 +317,20 @@ uint32_t MapPrimitiveOwnerKind(const editor::automation::AutomationPrimitiveOwne
     return MfdEditorAutomationPrimitiveOwnerKind_ReticleAsset;
 }
 
+std::optional<editor::automation::AutomationPrimitiveOwnerKind> MapPrimitiveOwnerKind(const uint32_t kind) noexcept
+{
+    using editor::automation::AutomationPrimitiveOwnerKind;
+    switch (kind)
+    {
+    case MfdEditorAutomationPrimitiveOwnerKind_ReticleAsset:
+        return AutomationPrimitiveOwnerKind::ReticleAsset;
+    case MfdEditorAutomationPrimitiveOwnerKind_PageReticleInstance:
+        return AutomationPrimitiveOwnerKind::PageReticleInstance;
+    default:
+        return std::nullopt;
+    }
+}
+
 uint32_t MapPrimitiveType(const mfd::PrimitiveType type) noexcept
 {
     switch (type)
@@ -386,6 +400,36 @@ std::optional<mfd::PrimitiveType> MapPrimitiveType(const uint32_t type) noexcept
         return mfd::PrimitiveType::Arc;
     case MfdEditorAutomationPrimitiveType_Image:
         return mfd::PrimitiveType::Image;
+    default:
+        return std::nullopt;
+    }
+}
+
+uint32_t MapLineStyle(const mfd::LineStyle lineStyle) noexcept
+{
+    switch (lineStyle)
+    {
+    case mfd::LineStyle::Solid:
+        return MfdEditorAutomationLineStyle_Solid;
+    case mfd::LineStyle::Dotted:
+        return MfdEditorAutomationLineStyle_Dotted;
+    case mfd::LineStyle::Dashed:
+        return MfdEditorAutomationLineStyle_Dashed;
+    }
+
+    return MfdEditorAutomationLineStyle_Solid;
+}
+
+std::optional<mfd::LineStyle> MapLineStyle(const uint32_t lineStyle) noexcept
+{
+    switch (lineStyle)
+    {
+    case MfdEditorAutomationLineStyle_Solid:
+        return mfd::LineStyle::Solid;
+    case MfdEditorAutomationLineStyle_Dotted:
+        return mfd::LineStyle::Dotted;
+    case MfdEditorAutomationLineStyle_Dashed:
+        return mfd::LineStyle::Dashed;
     default:
         return std::nullopt;
     }
@@ -663,6 +707,85 @@ MfdEditorAutomationResultCode ResolveClipPrimitiveId(const HostApiState& state,
     return MfdEditorAutomationResultCode_NotFound;
 }
 
+MfdEditorAutomationResultCode ResolvePrimitiveSelector(const HostApiState& state,
+                                                       const editor::automation::AutomationPrimitiveOwnerKind ownerKind,
+                                                       const std::string_view ownerId,
+                                                       const std::string_view requestedPrimitiveId,
+                                                       editor::automation::PrimitiveSelector& outSelector,
+                                                       MfdEditorUtf8Buffer* error)
+{
+    outSelector = editor::automation::PrimitiveSelector {std::string(requestedPrimitiveId), -1};
+    if (requestedPrimitiveId.empty() || !LooksLikeStablePrimitiveId(requestedPrimitiveId))
+    {
+        return MfdEditorAutomationResultCode_Success;
+    }
+
+    const auto snapshot = state.facade.QueryService().GetSnapshot();
+    if (!snapshot.ok())
+    {
+        CopyUtf8ToBuffer(error, snapshot.error.message);
+        return MapAutomationErrorCode(snapshot.error.code);
+    }
+
+    const auto tryResolve = [&requestedPrimitiveId, &outSelector](const auto& primitives) {
+        for (const auto& primitive : primitives)
+        {
+            if (primitive.id.value == requestedPrimitiveId)
+            {
+                outSelector.primitiveId = primitive.primitive.id;
+                outSelector.primitiveIndex = primitive.index;
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    switch (ownerKind)
+    {
+    case editor::automation::AutomationPrimitiveOwnerKind::ReticleAsset:
+        for (const editor::automation::ReticleAssetSnapshot& reticle : snapshot.value.reticleAssets)
+        {
+            if (reticle.id.value != ownerId)
+            {
+                continue;
+            }
+
+            if (tryResolve(reticle.primitives))
+            {
+                return MfdEditorAutomationResultCode_Success;
+            }
+
+            CopyUtf8ToBuffer(error, "Unknown primitive id for the selected reticle asset.");
+            return MfdEditorAutomationResultCode_NotFound;
+        }
+        break;
+    case editor::automation::AutomationPrimitiveOwnerKind::PageReticleInstance:
+        for (const editor::automation::PageSnapshot& page : snapshot.value.pages)
+        {
+            for (const editor::automation::PageReticleInstanceSnapshot& reticle : page.reticles)
+            {
+                if (reticle.id.value != ownerId)
+                {
+                    continue;
+                }
+
+                if (tryResolve(reticle.primitives))
+                {
+                    return MfdEditorAutomationResultCode_Success;
+                }
+
+                CopyUtf8ToBuffer(error, "Unknown primitive id for the selected page reticle.");
+                return MfdEditorAutomationResultCode_NotFound;
+            }
+        }
+        break;
+    }
+
+    CopyUtf8ToBuffer(error, "Unknown primitive owner id.");
+    return MfdEditorAutomationResultCode_NotFound;
+}
+
 template <typename ActionType>
 MfdEditorAutomationResultCode ApplySessionAction(HostApiState& state,
                                                  const MfdEditorAutomationSessionHandle sessionHandle,
@@ -922,6 +1045,8 @@ MfdEditorAutomationResultCode FillPrimitiveInfo(const editor::automation::Primit
     outPrimitive.transform = ToApiTransform(primitive.primitive.transform);
     outPrimitive.color = ToApiColor(primitive.primitive.style.color);
     outPrimitive.fill_color = ToApiColor(primitive.primitive.style.fillColor);
+    outPrimitive.line_style = MapLineStyle(primitive.primitive.style.lineStyle);
+    std::fill(std::begin(outPrimitive.reserved_extension), std::end(outPrimitive.reserved_extension), uint8_t {0U});
 
     MfdEditorAutomationResultCode result =
         CopyUtf8ToBuffer(&outPrimitive.primitive_id, primitive.id.value);
@@ -1904,6 +2029,55 @@ MfdEditorAutomationResultCode HostSetReticleClipping(void* hostContext,
         error);
 }
 
+MfdEditorAutomationResultCode HostSetPrimitiveLineStyle(void* hostContext,
+                                                        MfdEditorAutomationSetPrimitiveLineStyleRequest* request,
+                                                        MfdEditorUtf8Buffer* error)
+{
+    HostApiState* state = GetHostState(hostContext);
+    if (state == nullptr || request == nullptr ||
+        request->struct_size < sizeof(MfdEditorAutomationSetPrimitiveLineStyleRequest) ||
+        !IsValidView(request->owner_id) ||
+        !IsValidView(request->primitive_id))
+    {
+        CopyUtf8ToBuffer(error, "Invalid set-primitive-line-style request.");
+        return MfdEditorAutomationResultCode_InvalidArgument;
+    }
+
+    const std::optional<editor::automation::AutomationPrimitiveOwnerKind> ownerKind =
+        MapPrimitiveOwnerKind(request->owner_kind);
+    if (!ownerKind.has_value())
+    {
+        CopyUtf8ToBuffer(error, "Unsupported primitive owner kind.");
+        return MfdEditorAutomationResultCode_InvalidArgument;
+    }
+
+    const std::optional<mfd::LineStyle> lineStyle = MapLineStyle(request->line_style);
+    if (!lineStyle.has_value())
+    {
+        CopyUtf8ToBuffer(error, "Unsupported primitive line style.");
+        return MfdEditorAutomationResultCode_InvalidArgument;
+    }
+
+    const std::string ownerId = ViewToString(request->owner_id);
+    editor::automation::PrimitiveSelector primitiveSelector {};
+    const MfdEditorAutomationResultCode resolveStatus =
+        ResolvePrimitiveSelector(*state, *ownerKind, ownerId, ViewToString(request->primitive_id), primitiveSelector, error);
+    if (resolveStatus != MfdEditorAutomationResultCode_Success)
+    {
+        return resolveStatus;
+    }
+
+    return ApplySessionAction(
+        *state,
+        request->session,
+        editor::automation::SetPrimitiveLineStyleRequest {
+            *ownerKind,
+            ownerId,
+            std::move(primitiveSelector),
+            *lineStyle},
+        error);
+}
+
 MfdEditorAutomationResultCode HostSetPageReticleLayer(void* hostContext,
                                                       MfdEditorAutomationSetPageReticleLayerRequest* request,
                                                       MfdEditorUtf8Buffer* error)
@@ -2634,6 +2808,7 @@ public:
         hostApi_.save_asset = &HostSaveAsset;
         hostApi_.export_json_preview = &HostExportJsonPreview;
         hostApi_.consume_pending_event = &HostConsumePendingEvent;
+        hostApi_.set_primitive_line_style = &HostSetPrimitiveLineStyle;
 
         std::array<char, kPluginErrorBufferCapacity> errorStorage {};
         MfdEditorUtf8Buffer errorBuffer {};

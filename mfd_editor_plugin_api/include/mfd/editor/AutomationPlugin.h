@@ -43,7 +43,7 @@ extern "C"
 /** @brief ABI revision implemented by the editor automation plugin contract. */
 enum
 {
-    MFD_EDITOR_AUTOMATION_PLUGIN_ABI_VERSION = 3u
+    MFD_EDITOR_AUTOMATION_PLUGIN_ABI_VERSION = 4u
 };
 
 /** @brief Exported symbol name returning the plugin function table. */
@@ -223,6 +223,16 @@ typedef enum MfdEditorAutomationPrimitiveType
     MfdEditorAutomationPrimitiveType_Arc = 12,
     MfdEditorAutomationPrimitiveType_Image = 13
 } MfdEditorAutomationPrimitiveType;
+
+/**
+ * @brief Stroke styles exposed for outline-capable primitives.
+ */
+typedef enum MfdEditorAutomationLineStyle
+{
+    MfdEditorAutomationLineStyle_Solid = 0,
+    MfdEditorAutomationLineStyle_Dotted = 1,
+    MfdEditorAutomationLineStyle_Dashed = 2
+} MfdEditorAutomationLineStyle;
 
 /**
  * @brief JSON-producing entity categories supported by the host-owned preview exporter.
@@ -431,6 +441,8 @@ typedef struct MfdEditorAutomationPrimitiveInfo
     MfdEditorUtf8Buffer primitive_id;
     MfdEditorUtf8Buffer owner_id;
     MfdEditorUtf8Buffer content;
+    uint32_t line_style;
+    uint8_t reserved_extension[4];
 } MfdEditorAutomationPrimitiveInfo;
 
 /**
@@ -702,6 +714,19 @@ typedef struct MfdEditorAutomationSetReticleClippingRequest
     MfdEditorStringView target_id;
     MfdEditorStringView primitive_id;
 } MfdEditorAutomationSetReticleClippingRequest;
+
+/**
+ * @brief Stable request used to update the stroke style of one primitive.
+ */
+typedef struct MfdEditorAutomationSetPrimitiveLineStyleRequest
+{
+    size_t struct_size;
+    MfdEditorAutomationSessionHandle session;
+    uint32_t owner_kind;
+    uint32_t line_style;
+    MfdEditorStringView owner_id;
+    MfdEditorStringView primitive_id;
+} MfdEditorAutomationSetPrimitiveLineStyleRequest;
 
 /**
  * @brief Stable request used to create or update one page blink type.
@@ -1039,6 +1064,10 @@ typedef struct MfdEditorAutomationHostApi
         void* host_context,
         const MfdEditorAutomationExportJsonPreviewRequest* request,
         MfdEditorAutomationJsonPreviewResult* out_preview,
+        MfdEditorUtf8Buffer* error);
+    MfdEditorAutomationResultCode(MFD_EDITOR_AUTOMATION_CALL* set_primitive_line_style)(
+        void* host_context,
+        MfdEditorAutomationSetPrimitiveLineStyleRequest* request,
         MfdEditorUtf8Buffer* error);
 } MfdEditorAutomationHostApi;
 

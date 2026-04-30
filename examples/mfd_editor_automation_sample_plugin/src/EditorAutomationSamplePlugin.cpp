@@ -210,6 +210,30 @@ struct PageReticleInfoOutput
 };
 
 /**
+ * @brief Owns the caller-side UTF-8 storage required by `get_page_reticle_primitive_info`.
+ */
+struct PrimitiveInfoOutput
+{
+    PrimitiveInfoOutput()
+    {
+        value.struct_size = sizeof(value);
+        value.primitive_id = MakeBuffer(primitiveIdStorage);
+        value.owner_id = MakeBuffer(ownerIdStorage);
+        value.content = MakeBuffer(contentStorage);
+    }
+
+    [[nodiscard]] std::string PrimitiveId() const
+    {
+        return BufferToString(value.primitive_id);
+    }
+
+    MfdEditorAutomationPrimitiveInfo value {};
+    std::array<char, kSmallTextCapacity> primitiveIdStorage {};
+    std::array<char, kSmallTextCapacity> ownerIdStorage {};
+    std::array<char, kEventTextCapacity> contentStorage {};
+};
+
+/**
  * @brief Owns the caller-side UTF-8 storage required by `get_session_validation_diagnostic`.
  */
 struct ValidationDiagnosticOutput
@@ -291,6 +315,7 @@ MfdEditorAutomationResultCode EnsureSampleWorkflowApi(const MfdEditorAutomationH
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, save_all) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, get_reticle_asset_info) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, get_page_reticle_info) ||
+        !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, get_page_reticle_primitive_info) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, get_layer_info) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, get_session_validation_diagnostic) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, instantiate_reticle_on_page) ||
@@ -299,6 +324,7 @@ MfdEditorAutomationResultCode EnsureSampleWorkflowApi(const MfdEditorAutomationH
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, set_page_reticle_draw_on_top) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, set_page_reticle_transform) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, set_page_reticle_layer) ||
+        !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, set_primitive_line_style) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, create_layer) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, set_layer_visibility) ||
         !MFD_EDITOR_AUTOMATION_HOST_HAS_CALLBACK(host, save_asset) ||
@@ -350,6 +376,24 @@ MfdEditorAutomationResultCode ReadPageReticleInfo(const MfdEditorAutomationHostA
                                                   MfdEditorUtf8Buffer* error) noexcept
 {
     return host.get_page_reticle_info(host.host_context, pageIndex, reticleIndex, &output.value, error);
+}
+
+MfdEditorAutomationResultCode ReadPageReticlePrimitiveInfo(const MfdEditorAutomationHostApi& host,
+                                                           const uint32_t pageIndex,
+                                                           const uint32_t reticleIndex,
+                                                           const uint32_t primitiveIndex,
+                                                           PrimitiveInfoOutput& output,
+                                                           MfdEditorUtf8Buffer* error) noexcept
+{
+    return host.get_page_reticle_primitive_info(
+        host.host_context, pageIndex, reticleIndex, primitiveIndex, &output.value, error);
+}
+
+bool SupportsLineStyle(const uint32_t primitiveType) noexcept
+{
+    return primitiveType != MfdEditorAutomationPrimitiveType_Text &&
+           primitiveType != MfdEditorAutomationPrimitiveType_Time &&
+           primitiveType != MfdEditorAutomationPrimitiveType_Image;
 }
 
 MfdEditorAutomationResultCode BeginSession(const MfdEditorAutomationHostApi& host,
@@ -833,6 +877,47 @@ MfdEditorAutomationResultCode RunRollbackMutationWalkthrough(SampleAutomationPlu
     {
         WriteMessage(error, "The sample preview page did not expose the expected post-mutation state.");
         return MfdEditorAutomationResultCode_InternalFailure;
+    }
+
+    if (betaReticleInfo.value.primitive_count > 0U)
+    {
+        PrimitiveInfoOutput primitiveInfo;
+        status = ReadPageReticlePrimitiveInfo(*context.host, previewPageIndex, betaReticleIndex, 0U, primitiveInfo, error);
+        if (status != MfdEditorAutomationResultCode_Success)
+        {
+            return status;
+        }
+
+        if (SupportsLineStyle(primitiveInfo.value.primitive_type))
+        {
+            MfdEditorAutomationSetPrimitiveLineStyleRequest setPrimitiveLineStyle {};
+            setPrimitiveLineStyle.struct_size = sizeof(setPrimitiveLineStyle);
+            setPrimitiveLineStyle.session = session.handle;
+            setPrimitiveLineStyle.owner_kind = MfdEditorAutomationPrimitiveOwnerKind_PageReticleInstance;
+            setPrimitiveLineStyle.line_style = MfdEditorAutomationLineStyle_Dashed;
+            setPrimitiveLineStyle.owner_id = MakeView(betaReticleId);
+            const std::string primitiveId = primitiveInfo.PrimitiveId();
+            setPrimitiveLineStyle.primitive_id = MakeView(primitiveId);
+            status =
+                context.host->set_primitive_line_style(context.host->host_context, &setPrimitiveLineStyle, error);
+            if (status != MfdEditorAutomationResultCode_Success)
+            {
+                return status;
+            }
+
+            PrimitiveInfoOutput updatedPrimitiveInfo;
+            status = ReadPageReticlePrimitiveInfo(
+                *context.host, previewPageIndex, betaReticleIndex, 0U, updatedPrimitiveInfo, error);
+            if (status != MfdEditorAutomationResultCode_Success)
+            {
+                return status;
+            }
+            if (updatedPrimitiveInfo.value.line_style != MfdEditorAutomationLineStyle_Dashed)
+            {
+                WriteMessage(error, "The sample workflow expected the page-reticle primitive line style to update.");
+                return MfdEditorAutomationResultCode_InternalFailure;
+            }
+        }
     }
 
     status = ValidateSessionAndIllustrateDiagnostics(*context.host, session.handle, error);

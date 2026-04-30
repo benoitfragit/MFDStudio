@@ -277,6 +277,8 @@ Normative rules:
   primitives authored on the backing template
 - mutating one generated primitive handle MUST result in primitive-level patch
   data, not in unrelated whole-reticle fallback behavior
+- outline-capable generated primitive handles MUST expose stroke-style control
+  equivalent to `SetLineStyle`
 - when generated primitive IDs are available, the emitted primitive-level patch
   SHOULD resolve to generated primitive IDs rather than remain name-only
 - generated application code SHOULD prefer these typed primitive accessors over

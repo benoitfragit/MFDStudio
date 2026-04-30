@@ -255,8 +255,10 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "generatedTrack.SetColor({80, 255, 185, 255});\n"
      "generatedTrack.SetThickness(0.0038f);\n"
      "generatedTrack.Primitive01().SetSize({trackSize, trackSize});\n"
-     "generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));",
-     "The generated set now owns the hidden runtime id. The tutorial only keeps the typed handle returned by `Create()` and drives the authored primitive through `Primitive01()`.",
+     "generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));\n"
+     "generatedTrack.Primitive01().SetLineStyle(\n"
+     "    (trackSerial % 2U) == 0U ? tutorial_ui::LineStyle::Dashed : tutorial_ui::LineStyle::Dotted);",
+     "The generated set now owns the hidden runtime id. The tutorial only keeps the typed handle returned by `Create()` and drives the authored primitive through `Primitive01()`, including its generated `LineStyle` enum.",
      "Next",
      1,
      1},
@@ -289,6 +291,8 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "    generatedDeclutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});\n"
      "page1Circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(generatedTracks.size() + 1U));\n"
      "page1Circle.Primitive01().SetThickness(0.0045f);\n"
+     "page1Circle.Primitive01().SetLineStyle(\n"
+     "    generatedDeclutterVisible ? tutorial_ui::LineStyle::Solid : tutorial_ui::LineStyle::Dotted);\n"
      "page2ProgressBar.SetVisible(true);\n"
      "progressFill.SetSize({progressWidth, 0.06f});\n"
      "progressFill.SetPosition({progressCenterX, 0.0f});",
@@ -308,7 +312,9 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "generatedTrack.SetColor({80, 255, 185, 255});\n"
      "generatedTrack.SetThickness(0.0038f);\n"
      "generatedTrack.Primitive01().SetSize({trackSize, trackSize});\n"
-     "generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));",
+     "generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));\n"
+     "generatedTrack.Primitive01().SetLineStyle(\n"
+     "    (trackSerial % 2U) == 0U ? tutorial_ui::LineStyle::Dashed : tutorial_ui::LineStyle::Dotted);",
      "Those typed setters build one coherent delta for the generated object before `BuildBatch()` serializes it.",
      "Next",
      1,
