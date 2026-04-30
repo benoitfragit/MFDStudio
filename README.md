@@ -192,7 +192,7 @@ staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
 | `client_mockup` | Interactive GUI client for page control, reticle updates, dynamic reticles, and feedback inspection |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation through an exposed primitive; intended to be wired into `examples/CMakeLists.txt` by the tutorial flow once the tutorial assets exist |
+| `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation, a transient radar-track FIFO, and two persistent bouncing tracks linked by a dynamic line; intended to be wired into `examples/CMakeLists.txt` by the tutorial flow once the tutorial assets exist |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 
 The repository also ships inspired sample assets under `assets/windows` and
