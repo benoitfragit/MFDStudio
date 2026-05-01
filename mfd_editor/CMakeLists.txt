@@ -44,7 +44,8 @@ if(MFD_BUILD_DEMO)
 
     target_include_directories(mfd_editor
         PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/include)
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${MFD_ROOT_DIR}/mfd_api/src/render)
 
     target_link_libraries(mfd_editor
         PRIVATE
@@ -53,6 +54,7 @@ if(MFD_BUILD_DEMO)
 
     mfd_begin_external_libraries(mfd_editor)
     mfd_private_library(mfd_editor imgui)
+    mfd_private_library(mfd_editor raylib)
     mfd_private_library(mfd_editor rlimgui)
     mfd_end_external_libraries(mfd_editor)
 

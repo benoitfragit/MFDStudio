@@ -8,7 +8,7 @@
  * @brief Implementation for ImageTextureCache.
  */
 
-#include "mfd/render/ImageTextureCache.h"
+#include "ImageTextureCache.h"
 
 #include <string>
 #include <unordered_map>

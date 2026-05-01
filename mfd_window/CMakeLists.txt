@@ -29,6 +29,7 @@ target_link_libraries(mfd_window_launcher
         mfd::api)
 
 mfd_begin_external_libraries(mfd_window_launcher)
+mfd_private_library(mfd_window_launcher raylib)
 mfd_public_library(mfd_window_launcher rlimgui)
 mfd_end_external_libraries(mfd_window_launcher)
 
@@ -47,7 +48,8 @@ add_executable(mfd_window
 
 target_link_libraries(mfd_window
     PRIVATE
-        mfd::window_launcher)
+        mfd::window_launcher
+        raylib)
 
 set_target_properties(mfd_window PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_window>")

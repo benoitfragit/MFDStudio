@@ -72,6 +72,7 @@ target_link_libraries(client_mockup
 
 mfd_begin_external_libraries(client_mockup)
 mfd_private_library(client_mockup imgui)
+mfd_private_library(client_mockup raylib)
 mfd_private_library(client_mockup rlimgui)
 mfd_end_external_libraries(client_mockup)
 

@@ -20,6 +20,9 @@ namespace mfd
 {
 /**
  * @brief Convenience renderer drawing the active page of a scene registry.
+ *
+ * @details This is the supported public render façade of `mfd_api`.
+ * Lower-level raylib helpers remain internal to the repository targets.
  */
 class MFD_API MfdRenderer
 {

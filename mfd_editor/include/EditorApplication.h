@@ -24,7 +24,7 @@
 #include "EditorDocumentSerializer.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
-#include "mfd/render/ImageTextureCache.h"
+#include "ImageTextureCache.h"
 
 class EditorTutorialController;
 

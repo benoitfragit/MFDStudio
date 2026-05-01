@@ -8,7 +8,7 @@
  * @brief Implementation for RenderTextureUtils.
  */
 
-#include "mfd/render/RenderTextureUtils.h"
+#include "RenderTextureUtils.h"
 
 #include <raylib.h>
 

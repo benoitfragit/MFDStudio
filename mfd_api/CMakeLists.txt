@@ -20,14 +20,16 @@ set(MFD_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageName.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Reticle.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Types.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/Canvas2D.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/OpenGlFramebufferReader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/MfdRenderer.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/RenderTextureUtils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/WindowBranding.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/GeneratedTransportMap.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/SceneRegistry.h)
+
+set(MFD_API_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h)
 
 set(MFD_API_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandClient.cpp
@@ -109,6 +111,7 @@ endforeach()
 
 add_library(mfd_api SHARED
     ${MFD_API_PUBLIC_HEADERS}
+    ${MFD_API_PRIVATE_HEADERS}
     ${MFD_API_SOURCES}
     ${MFD_API_PROTO_HEADERS}
     ${MFD_API_PROTO_SOURCES})
@@ -124,7 +127,7 @@ target_include_directories(mfd_api PRIVATE ${MFD_API_PROTO_OUTPUT_DIR})
 mfd_begin_external_libraries(mfd_api)
 mfd_public_library(mfd_api EnTT::EnTT)
 mfd_public_library(mfd_api nlohmann_json::nlohmann_json)
-mfd_public_library(mfd_api raylib)
+mfd_private_library(mfd_api raylib)
 mfd_private_library(mfd_api protobuf::libprotobuf)
 mfd_end_external_libraries(mfd_api)
 

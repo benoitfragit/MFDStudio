@@ -11,6 +11,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/CommandTypesTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedTransportMapTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/PublicRenderFacadeHeadersTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ReticleTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SceneRegistryTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/StrobeFeedbackTests.cpp

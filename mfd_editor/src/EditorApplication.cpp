@@ -33,8 +33,8 @@
 #include "EditorFileDialogs.h"
 #include "EditorUiTheme.h"
 #include "mfd/model/Types.h"
-#include "mfd/render/Canvas2D.h"
-#include "mfd/render/RenderTextureUtils.h"
+#include "Canvas2D.h"
+#include "RenderTextureUtils.h"
 #include "mfd/render/WindowBranding.h"
 
 namespace

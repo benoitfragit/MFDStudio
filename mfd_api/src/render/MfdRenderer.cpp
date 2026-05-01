@@ -18,9 +18,9 @@
 
 #include <raylib.h>
 
-#include "mfd/render/Canvas2D.h"
-#include "mfd/render/ImageTextureCache.h"
-#include "mfd/render/RenderTextureUtils.h"
+#include "Canvas2D.h"
+#include "ImageTextureCache.h"
+#include "RenderTextureUtils.h"
 
 namespace mfd
 {

@@ -86,6 +86,9 @@ In practice:
 - clients send runtime updates through typed commands
 - the renderer draws only the active page
 
+For C++ integrators, `mfd::MfdRenderer` is the supported public render façade.
+Lower-level raylib-specific helpers stay internal to the repository targets.
+
 Authoring covers text primitives, image primitives, and geometric primitives
 such as line, circle, ring, rectangle, ellipse, square, diamond, triangle,
 polyline, bezier, and arc. Outline-capable primitives can now author and drive
