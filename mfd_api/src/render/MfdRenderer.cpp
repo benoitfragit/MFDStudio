@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <raylib.h>
 
@@ -71,9 +72,9 @@ bool NeedsWindowPostProcess(const WindowDisplayState& display) noexcept
     return display.invertColors || display.brightness < 0.9995f;
 }
 
-bool ActiveSceneUsesReticleClipping(const SceneRegistry& scene)
+bool ActiveReticleViewsUseClipping(const std::vector<ReticleRenderView>& activeReticles)
 {
-    for (const ReticleRenderView& reticle : scene.CollectActiveReticleViews())
+    for (const ReticleRenderView& reticle : activeReticles)
     {
         if (reticle.group != nullptr && reticle.visible && ResolveClipPrimitive(*reticle.group) != nullptr)
         {
@@ -85,6 +86,7 @@ bool ActiveSceneUsesReticleClipping(const SceneRegistry& scene)
 }
 
 void DrawActivePageContent(const SceneRegistry& scene,
+                           const std::vector<ReticleRenderView>& activeReticles,
                            const int width,
                            const int height,
                            const Font* textFont,
@@ -106,7 +108,7 @@ void DrawActivePageContent(const SceneRegistry& scene,
         clippingEnabled,
         imageCache);
 
-    for (const ReticleRenderView& reticle : scene.CollectActiveReticleViews())
+    for (const ReticleRenderView& reticle : activeReticles)
     {
         if (reticle.group != nullptr)
         {
@@ -350,15 +352,17 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
 
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();
     ApplyBilinearFilterToFont(ResolveTextFont(textFont));
+    const std::vector<ReticleRenderView> activeReticles = scene.CollectActiveReticleViews();
     const bool usesFullScreenViewport = viewportWidth == screenWidth && viewportHeight == screenHeight;
     const bool needsRenderTarget =
         !usesFullScreenViewport ||
         NeedsWindowPostProcess(display) ||
-        ActiveSceneUsesReticleClipping(scene);
+        ActiveReticleViewsUseClipping(activeReticles);
     if (!needsRenderTarget)
     {
         DrawActivePageContent(
             scene,
+            activeReticles,
             viewportWidth,
             viewportHeight,
             textFont,
@@ -375,6 +379,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     {
         DrawActivePageContent(
             scene,
+            activeReticles,
             viewportWidth,
             viewportHeight,
             textFont,
@@ -395,6 +400,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
     DrawActivePageContent(
         scene,
+        activeReticles,
         viewportWidth,
         viewportHeight,
         textFont,

@@ -12,6 +12,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedTransportMapTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonNumberParsingTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/PolygonTriangulationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/PublicRenderFacadeHeadersTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ReticleTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SceneRegistryTests.cpp
@@ -26,11 +27,21 @@ mfd_configure_test_runtime_output(mfd_api_tests)
 target_sources(mfd_api_tests
     PRIVATE
         ${MFD_ROOT_DIR}/mfd_api/src/io/json/JsonNumberParsing.cpp
-        ${MFD_ROOT_DIR}/mfd_api/src/io/json/JsonValueHelpers.cpp)
+        ${MFD_ROOT_DIR}/mfd_api/src/io/json/JsonValueHelpers.cpp
+        ${MFD_ROOT_DIR}/mfd_api/src/render/PolygonTriangulation.cpp)
 
 target_link_libraries(mfd_api_tests
     PRIVATE
-        mfd::api)
+        mfd::api
+        raylib)
+
+if(TARGET abseil_dll)
+    target_link_libraries(mfd_api_tests PRIVATE abseil_dll)
+endif()
+
+if(TARGET utf8_validity)
+    target_link_libraries(mfd_api_tests PRIVATE utf8_validity)
+endif()
 
 mfd_private_library(mfd_api_tests GTest::gtest_main)
 
@@ -38,7 +49,8 @@ target_compile_features(mfd_api_tests PRIVATE cxx_std_17)
 
 target_include_directories(mfd_api_tests
     PRIVATE
-        ${MFD_ROOT_DIR}/mfd_api/src/io/json)
+        ${MFD_ROOT_DIR}/mfd_api/src/io/json
+        ${MFD_ROOT_DIR}/mfd_api/src/render)
 
 mfd_enable_target_warnings(mfd_api_tests)
 

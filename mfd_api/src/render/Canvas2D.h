@@ -87,5 +87,6 @@ private:
     mutable std::vector<Vec2> logicalScratchB_ {};
     mutable std::vector<Vector2> screenScratchA_ {};
     mutable std::vector<Vector2> screenScratchB_ {};
+    mutable std::vector<std::size_t> triangleIndexScratch_ {};
 };
 } // namespace mfd

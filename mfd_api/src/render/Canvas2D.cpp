@@ -23,6 +23,7 @@
 
 #include "OpenGlCompat.h"
 #include "ImageTextureCache.h"
+#include "PolygonTriangulation.h"
 
 namespace mfd
 {
@@ -57,6 +58,24 @@ void FillConvexPolygon(const ArrayView<const Vector2> points, const Color color)
     for (std::size_t index = 1; index + 1 < points.size(); ++index)
     {
         DrawTriangle(points[0], points[index], points[index + 1], color);
+    }
+}
+
+void FillIndexedTriangles(const ArrayView<const Vector2> points,
+                          const ArrayView<const std::size_t> triangleIndices,
+                          const Color color)
+{
+    for (std::size_t index = 0; index + 2 < triangleIndices.size(); index += 3U)
+    {
+        const std::size_t a = triangleIndices[index];
+        const std::size_t b = triangleIndices[index + 1U];
+        const std::size_t c = triangleIndices[index + 2U];
+        if (a >= points.size() || b >= points.size() || c >= points.size())
+        {
+            continue;
+        }
+
+        DrawTriangle(points[a], points[b], points[c], color);
     }
 }
 
@@ -742,7 +761,18 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled && polyline.closed)
         {
-            FillConvexPolygon(screenScratchA_, fillColor);
+            if (detail::PolygonIsConvex(screenScratchA_))
+            {
+                FillConvexPolygon(screenScratchA_, fillColor);
+            }
+            else
+            {
+                triangleIndexScratch_.clear();
+                if (detail::TriangulateSimplePolygon(screenScratchA_, triangleIndexScratch_))
+                {
+                    FillIndexedTriangles(screenScratchA_, triangleIndexScratch_, fillColor);
+                }
+            }
         }
 
         DrawPolylineStroke(screenScratchA_, polyline.closed, strokeThickness, strokeColor, style.lineStyle);

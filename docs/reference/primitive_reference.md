@@ -414,7 +414,8 @@ Example:
 Notes:
 
 - when `closed` and `filled` are both `true`, the renderer fills the polygon area
-- the current fill path assumes a convex polygon for correct results
+- closed filled polylines support simple convex or concave polygons
+- self-intersecting closed polylines are not supported for filled rendering
 
 ## `bezier`
 

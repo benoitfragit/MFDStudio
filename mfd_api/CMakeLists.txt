@@ -31,6 +31,7 @@ set(MFD_API_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h)
 
 set(MFD_API_SOURCES
@@ -54,6 +55,7 @@ set(MFD_API_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/WindowBranding.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/GeneratedTransportMap.cpp
