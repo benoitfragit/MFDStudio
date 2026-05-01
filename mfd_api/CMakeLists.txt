@@ -1,67 +1,8 @@
 # This file is part of MFDStudio.
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
-set(MFD_API_PUBLIC_HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/MfdExport.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/core/ArrayView.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandClient.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandProcessor.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandTransport.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandTypes.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/FeedbackTransport.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/StrobeFeedback.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/UserSpaceProjector.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/UdpRuntimeBridge.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/io/JsonLoader.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/ExchangeChannel.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpChannel.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpLimits.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageDefinition.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageName.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Reticle.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Types.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/OpenGlFramebufferReader.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/MfdRenderer.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/WindowBranding.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/GeneratedTransportMap.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/SceneRegistry.h)
-
-set(MFD_API_PRIVATE_HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h)
-
-set(MFD_API_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandClient.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandProcessor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandTransport.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandTypes.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/FeedbackTransport.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/StrobeFeedback.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UserSpaceProjector.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UdpRuntimeBridge.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/JsonLoader.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/UdpChannel.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/PageName.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Reticle.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Types.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/WindowBranding.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/GeneratedTransportMap.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/SceneRegistry.cpp)
-
-set(MFD_API_PROTO_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+set(MFD_API_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set(MFD_API_PROTO_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(MFD_API_PROTO_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/proto/mfd_commands.proto
     ${CMAKE_CURRENT_SOURCE_DIR}/proto/mfd_feedback.proto)
@@ -115,37 +56,176 @@ foreach(MFD_API_PROTO_FILE IN LISTS MFD_API_PROTO_FILES)
     list(APPEND MFD_API_PROTO_SOURCES ${MFD_API_PROTO_SOURCE})
 endforeach()
 
-add_library(mfd_api SHARED
-    ${MFD_API_PUBLIC_HEADERS}
-    ${MFD_API_PRIVATE_HEADERS}
-    ${MFD_API_SOURCES}
+function(mfd_configure_component target_name)
+    target_include_directories(${target_name}
+        PUBLIC
+            "$<BUILD_INTERFACE:${MFD_API_INCLUDE_DIR}>"
+            "$<INSTALL_INTERFACE:include>")
+
+    if(WIN32)
+        target_compile_definitions(${target_name} PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+    endif()
+
+    mfd_enable_target_warnings(${target_name})
+endfunction()
+
+set(MFD_MODEL_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/MfdExport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/core/ArrayView.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageDefinition.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageName.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Reticle.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Types.h)
+
+set(MFD_MODEL_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/PageName.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Reticle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Types.cpp)
+
+add_library(mfd_model STATIC
+    ${MFD_MODEL_PUBLIC_HEADERS}
+    ${MFD_MODEL_SOURCES})
+add_library(mfd::model ALIAS mfd_model)
+
+mfd_configure_component(mfd_model)
+
+set(MFD_TRANSPORT_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandClient.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandTransport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandTypes.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/FeedbackTransport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/StrobeFeedback.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/ExchangeChannel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpChannel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpLimits.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/GeneratedTransportMap.h)
+
+set(MFD_TRANSPORT_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandClient.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandTransport.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandTypes.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/FeedbackTransport.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/StrobeFeedback.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/UdpChannel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/GeneratedTransportMap.cpp
     ${MFD_API_PROTO_HEADERS}
     ${MFD_API_PROTO_SOURCES})
+
+add_library(mfd_transport STATIC
+    ${MFD_TRANSPORT_PUBLIC_HEADERS}
+    ${MFD_TRANSPORT_SOURCES})
+add_library(mfd::transport ALIAS mfd_transport)
+
+mfd_configure_component(mfd_transport)
+target_include_directories(mfd_transport PRIVATE ${MFD_API_PROTO_OUTPUT_DIR})
+target_link_libraries(mfd_transport
+    PUBLIC
+        mfd::model
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        protobuf::libprotobuf)
+
+if(WIN32)
+    target_link_libraries(mfd_transport PRIVATE ws2_32)
+endif()
+
+set(MFD_RUNTIME_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandProcessor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/UdpRuntimeBridge.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/UserSpaceProjector.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/SceneRegistry.h)
+
+set(MFD_RUNTIME_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandProcessor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UdpRuntimeBridge.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UserSpaceProjector.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/SceneRegistry.cpp)
+
+add_library(mfd_runtime STATIC
+    ${MFD_RUNTIME_PUBLIC_HEADERS}
+    ${MFD_RUNTIME_SOURCES})
+add_library(mfd::runtime ALIAS mfd_runtime)
+
+mfd_configure_component(mfd_runtime)
+target_link_libraries(mfd_runtime
+    PUBLIC
+        EnTT::EnTT
+        mfd::model
+        mfd::transport)
+
+set(MFD_IO_JSON_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/io/JsonLoader.h)
+
+set(MFD_IO_JSON_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.h)
+
+set(MFD_IO_JSON_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/JsonLoader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.cpp)
+
+add_library(mfd_io_json STATIC
+    ${MFD_IO_JSON_PUBLIC_HEADERS}
+    ${MFD_IO_JSON_PRIVATE_HEADERS}
+    ${MFD_IO_JSON_SOURCES})
+add_library(mfd::io_json ALIAS mfd_io_json)
+
+mfd_configure_component(mfd_io_json)
+target_link_libraries(mfd_io_json
+    PUBLIC
+        mfd::model
+        mfd::transport
+    PRIVATE
+        nlohmann_json::nlohmann_json)
+
+set(MFD_RENDER_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/MfdRenderer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/OpenGlFramebufferReader.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/WindowBranding.h)
+
+set(MFD_RENDER_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h)
+
+set(MFD_RENDER_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/WindowBranding.cpp)
+
+add_library(mfd_render_raylib STATIC
+    ${MFD_RENDER_PUBLIC_HEADERS}
+    ${MFD_RENDER_PRIVATE_HEADERS}
+    ${MFD_RENDER_SOURCES})
+add_library(mfd::render_raylib ALIAS mfd_render_raylib)
+
+mfd_configure_component(mfd_render_raylib)
+target_include_directories(mfd_render_raylib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/render)
+target_link_libraries(mfd_render_raylib
+    PUBLIC
+        mfd::model
+        mfd::runtime
+        raylib)
+
+if(WIN32)
+    target_link_libraries(mfd_render_raylib PUBLIC opengl32)
+endif()
+
+add_library(mfd_api INTERFACE)
 add_library(mfd::api ALIAS mfd_api)
 add_library(mfd::core ALIAS mfd_api)
 
-target_include_directories(mfd_api
-    PUBLIC
-        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-        "$<INSTALL_INTERFACE:include>")
-target_include_directories(mfd_api PRIVATE ${MFD_API_PROTO_OUTPUT_DIR})
-
-mfd_public_library(mfd_api EnTT::EnTT)
-mfd_public_library(mfd_api nlohmann_json::nlohmann_json)
-mfd_private_library(mfd_api raylib)
-mfd_private_library(mfd_api protobuf::libprotobuf)
-
-target_compile_definitions(mfd_api
-    PUBLIC
-        MFD_API_DLL
-    PRIVATE
-        MFD_API_EXPORTS)
-
-if(WIN32)
-    target_link_libraries(mfd_api PUBLIC ws2_32 opengl32)
-    target_compile_definitions(mfd_api PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
-endif()
-
-mfd_enable_target_warnings(mfd_api)
-
-mfd_stage_runtime(mfd_api WITH_RUNTIME_DLLS)
+target_link_libraries(mfd_api
+    INTERFACE
+        mfd::io_json
+        mfd::model
+        mfd::runtime
+        mfd::transport)

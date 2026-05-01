@@ -62,7 +62,11 @@ target_include_directories(client_tutorial
     PRIVATE
         ${MFD_CLIENT_TUTORIAL_GENERATED_DIR})
 
-target_link_libraries(client_tutorial PRIVATE mfd::api mfd::client)
+target_link_libraries(client_tutorial
+    PRIVATE
+        mfd::client
+        mfd::io_json
+        mfd::transport)
 
 set_target_properties(client_tutorial PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_tutorial>")
@@ -89,7 +93,6 @@ mfd_stage_runtime(client_tutorial WITH_ASSETS WITH_RUNTIME_DLLS)
 if(MFD_BUILD_TESTS)
     mfd_add_runtime_layout_smoke_test(
         client_tutorial
-        EXTRA_RUNTIME_TARGETS mfd_api
         VERIFY_ASSETS
         LABELS examples)
 endif()

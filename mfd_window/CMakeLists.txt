@@ -26,10 +26,10 @@ target_include_directories(mfd_window_launcher
 
 target_link_libraries(mfd_window_launcher
     PUBLIC
-        mfd::api)
-
-mfd_private_library(mfd_window_launcher raylib)
-mfd_public_library(mfd_window_launcher rlimgui)
+        mfd::io_json
+        mfd::render_raylib
+        mfd::runtime
+        rlimgui)
 
 mfd_enable_target_warnings(mfd_window_launcher)
 
@@ -48,8 +48,7 @@ add_executable(mfd_window
 
 target_link_libraries(mfd_window
     PRIVATE
-        mfd::window_launcher
-        raylib)
+        mfd::window_launcher)
 
 set_target_properties(mfd_window PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_window>")
@@ -57,8 +56,6 @@ set_target_properties(mfd_window PROPERTIES
 mfd_enable_target_warnings(mfd_window)
 
 set(MFD_WINDOW_STAGE_DIR "${MFD_ROOT_DIR}/_Exec/${MFD_EXEC_COMPILER_DIR}/${MFD_EXEC_PLATFORM_DIR}/$<CONFIG>")
-set(MFD_WINDOW_API_RUNTIME_DLLS_ARG
-    "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_api>,$<SEMICOLON>>")
 set(MFD_WINDOW_SCRIPT_SOURCE_DIR "${MFD_ROOT_DIR}/Scripts")
 set(MFD_WINDOW_LAUNCH_SCRIPT_NAMES
     Start-MfdWindow.bat
@@ -95,12 +92,6 @@ if(WIN32)
             "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
         COMMAND
             ${CMAKE_COMMAND}
-            "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>"
-            "${MFD_WINDOW_API_RUNTIME_DLLS_ARG}"
-            -P
-            "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
-        COMMAND
-            ${CMAKE_COMMAND}
             "-DSOURCE_DIR=${MFD_WINDOW_SCRIPT_SOURCE_DIR}"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>"
             "-DFILE_NAMES=${MFD_WINDOW_LAUNCH_SCRIPT_LIST}"
@@ -113,12 +104,6 @@ if(WIN32)
             "-DFILE_NAMES=${MFD_WINDOW_LAUNCH_SCRIPT_LIST}"
             -P
             "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake"
-        COMMAND
-            ${CMAKE_COMMAND}
-            "-DDEST_DIR=${MFD_WINDOW_STAGE_DIR}"
-            "${MFD_WINDOW_API_RUNTIME_DLLS_ARG}"
-            -P
-            "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
         VERBATIM)
 else()
     add_custom_command(

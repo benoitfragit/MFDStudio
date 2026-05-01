@@ -92,7 +92,8 @@ mfd_add_editor_test_plugin(
 
 target_link_libraries(mfd_editor_tests
     PRIVATE
-        mfd::editor_plugin_api)
+        mfd::editor_plugin_api
+        mfd::model)
 
 mfd_private_library(mfd_editor_tests GTest::gtest_main)
 mfd_private_library(mfd_editor_tests nlohmann_json::nlohmann_json)
@@ -116,10 +117,7 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationPluginLoader.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
-        ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiTheme.cpp
-        ${MFD_ROOT_DIR}/mfd_api/src/model/PageName.cpp
-        ${MFD_ROOT_DIR}/mfd_api/src/model/Reticle.cpp
-        ${MFD_ROOT_DIR}/mfd_api/src/model/Types.cpp)
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiTheme.cpp)
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)
 

@@ -88,6 +88,18 @@ In practice:
 - clients send runtime updates through typed commands
 - the renderer draws only the active page
 
+The build is now split into focused layers:
+
+- `mfd_model`: authored document and reticle types
+- `mfd_transport`: generated transport maps, command serialization, UDP transport, and command client helpers
+- `mfd_io_json`: window/page/template JSON loading
+- `mfd_runtime`: scene registry, command processor, projector, and runtime bridge
+- `mfd_render_raylib`: host-side raylib renderer used privately by `mfd_window` and `mfd_editor`
+
+That split keeps the client-facing API independent from the raylib render
+backend. `client_mockup` now runs on a private Win32 + Dear ImGui + DX11 shell
+and no longer links raylib at all.
+
 For C++ integrators, `mfd::MfdRenderer` is the supported public render façade.
 Lower-level raylib-specific helpers stay internal to the repository targets.
 
@@ -196,7 +208,7 @@ staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 | `Scripts/Start-MfdMinimal.bat` | Repository launcher and staged copy opening `assets/windows/demo_pages_minimal.json` with the sample framebuffer plugin |
 | `Scripts/Start-MfdTutorial.bat` | Repository launcher and staged copy for the tutorial window once `assets/windows/mfd_tutorial.json` has been authored; also passes the sample framebuffer plugin |
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
-| `client_mockup` | Interactive GUI client for page control, reticle updates, dynamic reticles, and feedback inspection |
+| `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client for page control, reticle updates, dynamic reticles, and feedback inspection |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
 | `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation, a transient radar-track FIFO, and two persistent bouncing tracks linked by a dynamic line; intended to be wired into `examples/CMakeLists.txt` by the tutorial flow once the tutorial assets exist |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
@@ -222,7 +234,7 @@ remain out of the default examples build.
 
 | Path | Role |
 | --- | --- |
-| `mfd_api` | Core runtime library and public API |
+| `mfd_api` | Core source tree producing `mfd_model`, `mfd_transport`, `mfd_io_json`, `mfd_runtime`, and the private `mfd_render_raylib` layer |
 | `client_api` | Higher-level client helpers |
 | `client_api_generator` | Typed client API generator |
 | `mfd_window` | Generic window host |

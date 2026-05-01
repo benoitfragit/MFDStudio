@@ -251,18 +251,39 @@ U -> C : UDP protobuf feedback
 The recommended window-side runtime model uses two threads:
 
 - render thread
-  owns `SceneRegistry`, `CommandProcessor`, `EnTT`, `raylib`, and OpenGL rendering
+  owns `SceneRegistry`, `CommandProcessor`, `EnTT`, and the private host-side
+  render backend used by `mfd_window` or `mfd_editor`
 - UDP I/O worker thread
   owns the UDP sockets and performs network receive/send work
 
 Why this split is healthy:
 
 - rendering stays isolated from network latency
-- `raylib` and OpenGL remain on the main thread
+- the host render backend remains on the main thread
 - scene mutation stays on the same thread as rendering
 - strobe feedback can be sent asynchronously
 
 The bridge used by the examples is `mfd::UdpRuntimeBridge`.
+
+## Build Layers
+
+The repository implementation is split into focused CMake targets:
+
+- `mfd_model` for authored window, page, reticle, and primitive data types
+- `mfd_transport` for generated transport maps, command serialization, and UDP
+  transport helpers
+- `mfd_io_json` for JSON loading
+- `mfd_runtime` for scene state, command processing, and runtime bridging
+- `mfd_render_raylib` for the private raylib renderer used by repository hosts
+
+This separation matters because:
+
+- external clients can depend on the command and data layers without depending
+  on the render backend
+- `client_mockup` stays a normal standalone UDP client and no longer links
+  `raylib`
+- `mfd_window` and `mfd_editor` keep the raylib renderer as a private host-side
+  implementation detail
 
 ## Recommended Reading Paths
 

@@ -34,15 +34,14 @@ target_include_directories(client_mockup_minimal
     PRIVATE
         ${MFD_MOCKUP_MINIMAL_GENERATED_DIR})
 
-target_link_libraries(client_mockup_minimal PRIVATE mfd::api mfd::client)
+target_link_libraries(client_mockup_minimal
+    PRIVATE
+        mfd::client
+        mfd::io_json
+        mfd::transport)
 
 set_target_properties(client_mockup_minimal PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_mockup_minimal>")
-
-set(MFD_CLIENT_MOCKUP_MINIMAL_STAGE_DIR
-    "${MFD_ROOT_DIR}/_Exec/${MFD_EXEC_COMPILER_DIR}/${MFD_EXEC_PLATFORM_DIR}/$<CONFIG>")
-set(MFD_CLIENT_MOCKUP_MINIMAL_API_RUNTIME_DLLS_ARG
-    "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_api>,$<SEMICOLON>>")
 
 add_custom_command(
     TARGET client_mockup_minimal
@@ -59,18 +58,6 @@ add_custom_command(
         "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:client_mockup_minimal>,$<SEMICOLON>>"
         -P
         "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
-    COMMAND
-        ${CMAKE_COMMAND}
-        "-DDEST_DIR=$<TARGET_FILE_DIR:client_mockup_minimal>"
-        "${MFD_CLIENT_MOCKUP_MINIMAL_API_RUNTIME_DLLS_ARG}"
-        -P
-        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
-    COMMAND
-        ${CMAKE_COMMAND}
-        "-DDEST_DIR=${MFD_CLIENT_MOCKUP_MINIMAL_STAGE_DIR}"
-        "${MFD_CLIENT_MOCKUP_MINIMAL_API_RUNTIME_DLLS_ARG}"
-        -P
-        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
     VERBATIM)
 
 mfd_stage_runtime(client_mockup_minimal WITH_ASSETS WITH_RUNTIME_DLLS)
@@ -78,7 +65,6 @@ mfd_stage_runtime(client_mockup_minimal WITH_ASSETS WITH_RUNTIME_DLLS)
 if(MFD_BUILD_TESTS)
     mfd_add_runtime_layout_smoke_test(
         client_mockup_minimal
-        EXTRA_RUNTIME_TARGETS mfd_api
         VERIFY_ASSETS
         LABELS examples)
 endif()

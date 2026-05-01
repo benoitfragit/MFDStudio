@@ -23,12 +23,11 @@
 #include <vector>
 
 #include <imgui.h>
-#include <raylib.h>
-#include <rlImGui.h>
 
 #include "CockpitDemoMockupUi.h"
 #include "FullDemoMockupUi.h"
 #include "MinimalRadarMockupUi.h"
+#include "Win32Dx11ImGuiHost.h"
 #include "mfd/client/LatestBatchPublisher.h"
 #include "mfd/control/CommandClient.h"
 #include "mfd/control/FeedbackTransport.h"
@@ -671,6 +670,8 @@ private:
     void DrawCockpitSimulationPanel();
     /** @brief Draws the footer status bar. */
     void DrawStatusBar();
+    /** @brief Returns the current shell uptime in seconds. */
+    double TimeSeconds() const noexcept;
 
     /** @brief Built-in target presets exposed by the window-target combo box. */
     const std::array<WindowFilePreset, 3> knownWindowFiles_ {{
@@ -721,6 +722,8 @@ private:
     RadarSimulationState radarSimulation_ {};
     /** @brief State of the built-in cockpit simulator. */
     CockpitSimulationState cockpitSimulation_ {};
+    /** @brief Private Win32 + DX11 host shell used by the mockup UI. */
+    Win32Dx11ImGuiHost host_ {};
     /** @brief Selected index inside the built-in window-target preset list. */
     int selectedWindowFileIndex_ = 0;
     /** @brief Selected index inside the dynamic-template combo box. */
@@ -901,6 +904,11 @@ bool AccentButton(const char* label)
     return pressed;
 }
 
+double MockupApplication::TimeSeconds() const noexcept
+{
+    return host_.TimeSeconds();
+}
+
 int MockupApplication::Run()
 {
     if (!ReloadConfiguration())
@@ -908,18 +916,19 @@ int MockupApplication::Run()
         throw std::runtime_error("Unable to load mockup window JSON: " + windowFile_.string());
     }
 
-    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
-    InitWindow(1500, 920, "Client Mockup");
-    SetWindowMinSize(1180, 720);
-    SetTargetFPS(60);
+    std::string hostError;
+    if (!host_.Initialize(
+            Win32Dx11ImGuiHost::Config {1500, 920, 1180, 720, "Client Mockup"},
+            hostError))
+    {
+        throw std::runtime_error("Unable to initialize the mockup shell: " + hostError);
+    }
 
-    rlImGuiSetup(true);
     ApplyMockupTheme();
 
-    while (!WindowShouldClose())
+    float deltaSeconds = 0.0f;
+    while (host_.BeginFrame(deltaSeconds))
     {
-        const float deltaSeconds = GetFrameTime();
-
         try
         {
             PollFeedback();
@@ -935,15 +944,10 @@ int MockupApplication::Run()
             lastRuntimeError_ = "Unknown exception while updating the mockup simulators";
         }
 
-        BeginDrawing();
-        ClearBackground(Color {8, 13, 18, 255});
-
-        bool imguiFrameBegun = false;
+        host_.SetClearColor(8, 13, 18, 255);
 
         try
         {
-            rlImGuiBegin();
-            imguiFrameBegun = true;
             DrawUi();
         }
         catch (const std::exception& exception)
@@ -955,16 +959,9 @@ int MockupApplication::Run()
             lastRuntimeError_ = "Unknown exception while rendering the mockup";
         }
 
-        if (imguiFrameBegun)
-        {
-            rlImGuiEnd();
-        }
-
-        EndDrawing();
+        host_.EndFrame();
     }
 
-    rlImGuiShutdown();
-    CloseWindow();
     return 0;
 }
 
@@ -1135,7 +1132,7 @@ void MockupApplication::PollFeedback()
         }
 
         const std::string normalizedPageName = mfd::NormalizePageName(feedback->pageName);
-        strobeFeedbackByPage_[normalizedPageName] = StrobeFeedbackEntry {*feedback, GetTime()};
+        strobeFeedbackByPage_[normalizedPageName] = StrobeFeedbackEntry {*feedback, TimeSeconds()};
         ApplyStrobeFeedbackToDraft(*feedback);
         lastFeedbackStatus_ = "Strobe feedback received for page '" + feedback->pageName + "'.";
     }
@@ -1881,10 +1878,10 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
         return false;
     }
 
-    const double sendStart = GetTime();
+    const double sendStart = TimeSeconds();
     const int commandCount = static_cast<int>(commands.size());
     const bool submitted = realtimePublisher_->SubmitLatest(std::move(commands), radarSimulation_.nextSequence);
-    const double sendEnd = GetTime();
+    const double sendEnd = TimeSeconds();
 
     radarSimulation_.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
     radarSimulation_.lastCommandCount = commandCount;
@@ -1955,10 +1952,10 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
     PopulateCockpitSimulationUi(*cockpitGeneratedUi_, cockpitRadarContacts_, simulation);
     std::vector<mfd::UserCommand> commands = cockpitGeneratedUi_->BuildBatch();
 
-    const double sendStart = GetTime();
+    const double sendStart = TimeSeconds();
     const int commandCount = static_cast<int>(commands.size());
     const bool submitted = realtimePublisher_->SubmitLatest(std::move(commands), simulation.nextSequence);
-    const double sendEnd = GetTime();
+    const double sendEnd = TimeSeconds();
 
     simulation.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
     simulation.lastCommandCount = commandCount;
@@ -2779,7 +2776,7 @@ void MockupApplication::DrawStrobeInspector()
             ImGui::TextDisabled("No dynamic reticle currently captured by the strobe.");
         }
 
-        ImGui::TextDisabled("Received %.2f s ago", GetTime() - feedbackEntry->receivedTimestamp);
+        ImGui::TextDisabled("Received %.2f s ago", TimeSeconds() - feedbackEntry->receivedTimestamp);
     }
     else
     {
@@ -3001,8 +2998,10 @@ void MockupApplication::DrawCockpitSimulationPanel()
     const bool hasCockpitPage = IsCockpitDemoWindow();
     const bool hasRadarTemplate = loaded_.document.reticleLibrary.find(std::string(kCockpitRadarTemplateId)) != loaded_.document.reticleLibrary.end();
     const bool clientReady = client_ != nullptr && client_->IsReady();
-    int pitchCommand = (IsKeyDown(KEY_UP) ? 1 : 0) - (IsKeyDown(KEY_DOWN) ? 1 : 0);
-    int rollCommand = (IsKeyDown(KEY_RIGHT) ? 1 : 0) - (IsKeyDown(KEY_LEFT) ? 1 : 0);
+    int pitchCommand =
+        (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? 1 : 0) - (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? 1 : 0);
+    int rollCommand =
+        (ImGui::IsKeyDown(ImGuiKey_RightArrow) ? 1 : 0) - (ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? 1 : 0);
 
     ImGui::TextColored(ImVec4(0.78f, 0.92f, 0.83f, 1.0f), "Pilot Controls");
     ImGui::TextDisabled(

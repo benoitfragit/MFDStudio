@@ -49,10 +49,12 @@ if(MFD_BUILD_DEMO)
 
     target_link_libraries(mfd_editor
         PRIVATE
-            mfd::api
+            mfd::io_json
+            mfd::render_raylib
             mfd::editor_plugin_api)
 
     mfd_private_library(mfd_editor imgui)
+    mfd_private_library(mfd_editor nlohmann_json::nlohmann_json)
     mfd_private_library(mfd_editor raylib)
     mfd_private_library(mfd_editor rlimgui)
 

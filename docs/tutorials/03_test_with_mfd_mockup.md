@@ -8,6 +8,8 @@ It also introduces the most important idea behind `client_mockup`:
 - it is not a special internal tool
 - it is a normal UDP client built on the same public API as any external
   application
+- it is a standalone Win32 + Dear ImGui + DX11 executable and does not link
+  the raylib renderer used by the repository hosts
 
 If you want the deep client-side reference after this hands-on walkthrough, go
 to
@@ -90,6 +92,10 @@ custom host executable.
 ## Step 3 - Start `client_mockup`
 
 Launch `client_mockup.exe`.
+
+This executable is intentionally separate from the runtime host render stack:
+it loads the window JSON locally for discovery, then sends normal UDP commands
+through the public client API.
 
 At startup it can target:
 

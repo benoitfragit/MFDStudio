@@ -24,16 +24,10 @@ add_executable(mfd_api_tests ${MFD_API_TEST_SOURCES})
 
 mfd_configure_test_runtime_output(mfd_api_tests)
 
-target_sources(mfd_api_tests
-    PRIVATE
-        ${MFD_ROOT_DIR}/mfd_api/src/io/json/JsonNumberParsing.cpp
-        ${MFD_ROOT_DIR}/mfd_api/src/io/json/JsonValueHelpers.cpp
-        ${MFD_ROOT_DIR}/mfd_api/src/render/PolygonTriangulation.cpp)
-
 target_link_libraries(mfd_api_tests
     PRIVATE
         mfd::api
-        raylib)
+        mfd::render_raylib)
 
 if(TARGET abseil_dll)
     target_link_libraries(mfd_api_tests PRIVATE abseil_dll)
@@ -44,6 +38,7 @@ if(TARGET utf8_validity)
 endif()
 
 mfd_private_library(mfd_api_tests GTest::gtest_main)
+mfd_private_library(mfd_api_tests nlohmann_json::nlohmann_json)
 
 target_compile_features(mfd_api_tests PRIVATE cxx_std_17)
 

@@ -44,7 +44,8 @@ target_include_directories(client_api_tests
 
 target_link_libraries(client_api_tests
     PRIVATE
-        mfd::client)
+        mfd::client
+        mfd::transport)
 
 mfd_private_library(client_api_tests GTest::gtest_main)
 

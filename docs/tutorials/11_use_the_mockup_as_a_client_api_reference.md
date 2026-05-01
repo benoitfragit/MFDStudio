@@ -22,6 +22,8 @@ That means:
   contract is healthy
 - when you want to write your own client, the mockup already shows the normal
   public way to do it
+- the mockup does not need to embed or link the runtime render backend to be a
+  full-featured client reference
 
 There is no hidden backdoor API used by the mockup.
 
@@ -46,6 +48,10 @@ Keep these roles separate:
 - the target window owns rendering and runtime state
 - the mockup owns user input, drafts, and command emission
 - the JSON loaded by the mockup is only local discovery data
+
+In the repository, that separation is reflected directly in the build graph:
+`client_mockup` is a standalone Win32 + Dear ImGui + DX11 client, while the
+raylib renderer remains private to the runtime and editor hosts.
 
 ## What The Mockup Loads And Why
 

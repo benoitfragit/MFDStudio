@@ -80,8 +80,9 @@ function(mfd_fetch_dependencies)
 
     # Local source archive when USE_LOCALE_PACKAGE is ON:
     # https://github.com/raysan5/raylib/archive/refs/tags/5.5.zip
-    # raylib must be shared so the EXE and the API DLL use the same rlgl/raylib state.
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
+    # raylib stays static so each host embeds its own render layer instead of
+    # relying on one shared runtime DLL boundary.
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     mfd_declare_dependency(
         raylib
         GIT_REPOSITORY https://github.com/raysan5/raylib.git

@@ -36,6 +36,13 @@ It brings together:
 - the versioned C++ header surface exposed from `mfd_api/include`,
   `client_api/include`, and `mfd_window/include`
 
+Internally, the repository implementation is now split into `mfd_model`,
+`mfd_transport`, `mfd_io_json`, `mfd_runtime`, and the private
+`mfd_render_raylib` layer. The published client-facing documentation therefore
+stays render-agnostic: the public API focuses on authored data, command flow,
+runtime control, and generated clients rather than exposing one renderer as a
+required dependency.
+
 <div class="mfd-callout"><strong>Preferred client integration:</strong> for one C++ client specific to one authored window, start from the generated UI emitted by the generator, mutate generated page / reticle / primitive handles, then let <code>CommandClient</code> publish the resulting batch.</div>
 
 ## Start Here

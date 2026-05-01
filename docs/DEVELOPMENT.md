@@ -113,13 +113,25 @@ Example:
 ```cmake
 target_link_libraries(mfd_editor
     PRIVATE
-        mfd::api
+        mfd::io_json
+        mfd::render_raylib
         mfd::editor_plugin_api)
 
 mfd_private_library(mfd_editor imgui)
+mfd_private_library(mfd_editor nlohmann_json::nlohmann_json)
+mfd_private_library(mfd_editor raylib)
 mfd_private_library(mfd_editor rlimgui)
 mfd_enable_target_warnings(mfd_editor)
 ```
+
+The historical `mfd::api` name now remains only as a convenience umbrella.
+The real build graph is split into:
+
+- `mfd::model`
+- `mfd::transport`
+- `mfd::io_json`
+- `mfd::runtime`
+- `mfd::render_raylib`
 
 ## Common Targets
 
@@ -127,7 +139,7 @@ mfd_enable_target_warnings(mfd_editor)
 | --- | --- |
 | `mfd_window` | Generic runtime host that loads a window JSON and exposes the integrated `F1` debug overlay |
 | `mfd_framebuffer_stdout_plugin` | Sample DLL exporting the framebuffer callback symbol expected by `mfd_window` |
-| `client_mockup` | Interactive GUI client used to exercise the public API |
+| `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client used to exercise the public API without linking raylib |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
 | `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive; this target is meant to be added to `examples/CMakeLists.txt` by the tutorial flow once the tutorial asset set exists |
 | `mfd_editor` | Visual authoring tool |
@@ -235,7 +247,7 @@ In practice the automated suite now covers three complementary layers:
 
 | Path | Role |
 | --- | --- |
-| `mfd_api` | Core runtime library, JSON loading, command protocol, and public headers |
+| `mfd_api` | Core source tree producing the modular `mfd_model`, `mfd_transport`, `mfd_io_json`, `mfd_runtime`, and `mfd_render_raylib` targets plus the compatibility umbrella `mfd::api` |
 | `client_api` | Client-side helper layer built on top of the low-level command API |
 | `client_api_generator` | Python and CMake tooling generating typed client wrappers |
 | `mfd_window` | Generic runtime host executable |

@@ -23,7 +23,8 @@ target_include_directories(client_api
 
 target_link_libraries(client_api
     PUBLIC
-        mfd::api)
+        mfd::model
+        mfd::transport)
 
 target_compile_definitions(client_api
     PUBLIC
