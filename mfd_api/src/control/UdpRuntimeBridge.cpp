@@ -32,7 +32,7 @@ namespace mfd
 namespace
 {
 constexpr std::size_t kMaxPacketsPerPump = 64;
-constexpr std::size_t kMaxQueuedCommands = 8192;
+constexpr std::size_t kMaxQueuedBatches = 8192;
 constexpr std::size_t kMaxQueuedFeedback = 256;
 constexpr auto kIdleWait = std::chrono::milliseconds(2);
 
@@ -199,8 +199,8 @@ bool UdpRuntimeBridge::Start()
                 std::lock_guard lock(impl->inboundMutex);
 
                 const std::size_t overflow =
-                    impl->inboundBatches.size() + 1U > kMaxQueuedCommands
-                        ? impl->inboundBatches.size() + 1U - kMaxQueuedCommands
+                    impl->inboundBatches.size() + 1U > kMaxQueuedBatches
+                        ? impl->inboundBatches.size() + 1U - kMaxQueuedBatches
                         : 0;
 
                 for (std::size_t index = 0; index < overflow && !impl->inboundBatches.empty(); ++index)
@@ -210,7 +210,7 @@ bool UdpRuntimeBridge::Start()
 
                 if (overflow > 0)
                 {
-                    impl->SetCommandStatus("UDP command queue overflow, dropping oldest commands");
+                    impl->SetCommandStatus("UDP command batch queue overflow, dropping oldest batches");
                 }
 
                 impl->inboundBatches.push_back(std::move(batch));

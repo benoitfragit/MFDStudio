@@ -49,6 +49,18 @@ struct FakeChannelState
         std::lock_guard lock(mutex);
         inboundPayloads.push_back(std::move(payload));
     }
+
+    /**
+     * @brief Pushes the same payload multiple times to the inbound queue.
+     */
+    void PushInboundRepeated(const std::vector<std::byte>& payload, const std::size_t count)
+    {
+        std::lock_guard lock(mutex);
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            inboundPayloads.push_back(payload);
+        }
+    }
 };
 
 /**
@@ -218,4 +230,50 @@ TEST(UdpRuntimeBridgeTests, SendsQueuedStrobeFeedbackFromWorkerThread)
 
     bridge.Stop();
     EXPECT_FALSE(bridge.IsRunning());
+}
+
+TEST(UdpRuntimeBridgeTests, ReportsInboundBatchOverflowUsingBatchTerminology)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 1U;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(mfd::ResetWindowCommand {});
+
+    const std::vector<std::byte> payload = ToBytes(mfd::SerializeCommandBatch(batch));
+    receiverState->PushInboundRepeated(payload, 8200U);
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::seconds(2),
+        [receiverState]()
+        {
+            std::lock_guard lock(receiverState->mutex);
+            return receiverState->inboundPayloads.empty();
+        }));
+
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.LastCommandStatus().find("oldest batches") != std::string::npos;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    EXPECT_EQ(bridge.DrainReceivedBatches(drained, 9000U), 8192U);
+    EXPECT_EQ(bridge.LastCommandStatus(), "UDP command batch queue overflow, dropping oldest batches");
+    bridge.Stop();
 }
