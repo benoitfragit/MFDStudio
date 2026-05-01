@@ -10,6 +10,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/CommandTransportTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CommandTypesTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedTransportMapTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/JsonNumberParsingTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/PublicRenderFacadeHeadersTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ReticleTests.cpp
@@ -22,6 +23,11 @@ add_executable(mfd_api_tests ${MFD_API_TEST_SOURCES})
 
 mfd_configure_test_runtime_output(mfd_api_tests)
 
+target_sources(mfd_api_tests
+    PRIVATE
+        ${MFD_ROOT_DIR}/mfd_api/src/io/json/JsonNumberParsing.cpp
+        ${MFD_ROOT_DIR}/mfd_api/src/io/json/JsonValueHelpers.cpp)
+
 target_link_libraries(mfd_api_tests
     PRIVATE
         mfd::api)
@@ -31,6 +37,10 @@ mfd_private_library(mfd_api_tests GTest::gtest_main)
 mfd_end_external_libraries(mfd_api_tests)
 
 target_compile_features(mfd_api_tests PRIVATE cxx_std_17)
+
+target_include_directories(mfd_api_tests
+    PRIVATE
+        ${MFD_ROOT_DIR}/mfd_api/src/io/json)
 
 if(MFD_ENABLE_WARNINGS)
     if(MSVC)

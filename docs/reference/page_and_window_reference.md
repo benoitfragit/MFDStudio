@@ -74,6 +74,8 @@ Notes:
 - `fontFile` is resolved relative to the root window JSON file
 - `iconFile` is resolved relative to the root window JSON file
 - the font choice is authoring-time configuration, not a runtime user command
+- numeric JSON fields must be finite
+- pixel-oriented integer fields are rounded from JSON numbers and must fit in a signed 32-bit integer
 
 \startuml
 left to right direction

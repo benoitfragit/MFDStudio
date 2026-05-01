@@ -12,11 +12,8 @@
 
 #include <array>
 #include <algorithm>
-#include <cctype>
 #include <cmath>
-#include <fstream>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -25,7 +22,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include "mfd/ipc/UdpLimits.h"
+#include "json/JsonNumberParsing.h"
+#include "json/JsonValueHelpers.h"
 
 namespace mfd
 {
@@ -53,129 +51,6 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
                                                   const std::filesystem::path& windowFile,
                                                   const WindowAssetDefinition& window,
                                                   const MfdDocument& document);
-
-std::string_view TrimAsciiWhitespace(std::string_view value) noexcept
-{
-    std::size_t first = 0;
-    while (first < value.size() &&
-           std::isspace(static_cast<unsigned char>(value[first])) != 0)
-    {
-        ++first;
-    }
-
-    std::size_t last = value.size();
-    while (last > first &&
-           std::isspace(static_cast<unsigned char>(value[last - 1])) != 0)
-    {
-        --last;
-    }
-
-    return value.substr(first, last - first);
-}
-
-std::string Lowercase(std::string_view value)
-{
-    std::string result;
-    result.reserve(value.size());
-
-    for (const char ch : value)
-    {
-        result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-    }
-
-    return result;
-}
-
-std::string CanonicalToken(std::string_view value)
-{
-    const std::string_view trimmed = TrimAsciiWhitespace(value);
-
-    std::string result;
-    result.reserve(trimmed.size());
-
-    for (const char ch : trimmed)
-    {
-        if (ch == ' ' || ch == '-' || ch == '_')
-        {
-            continue;
-        }
-
-        result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-    }
-
-    return result;
-}
-
-std::string JsonScalarToString(const json& value)
-{
-    if (value.is_string())
-    {
-        return value.get<std::string>();
-    }
-
-    if (value.is_boolean())
-    {
-        return value.get<bool>() ? "true" : "false";
-    }
-
-    if (value.is_number_integer() || value.is_number_unsigned())
-    {
-        return std::to_string(value.get<long long>());
-    }
-
-    if (value.is_number_float())
-    {
-        std::ostringstream stream;
-        stream << value.get<double>();
-        return stream.str();
-    }
-
-    return value.dump();
-}
-
-json LoadJsonFile(const std::filesystem::path& path)
-{
-    std::ifstream stream(path);
-    if (!stream.is_open())
-    {
-        throw std::runtime_error("Unable to open JSON file: " + path.string());
-    }
-
-    try
-    {
-        json document;
-        stream >> document;
-        return document;
-    }
-    catch (const nlohmann::json::parse_error& exception)
-    {
-        throw std::runtime_error("Unable to parse JSON file '" + path.string() +
-                                 "' at byte " + std::to_string(exception.byte) +
-                                 ": " + exception.what());
-    }
-    catch (const nlohmann::json::exception& exception)
-    {
-        throw std::runtime_error("Unable to read JSON file '" + path.string() +
-                                 "': " + exception.what());
-    }
-}
-
-std::filesystem::path NormalizePath(const std::filesystem::path& path)
-{
-    return path.is_absolute()
-               ? path.lexically_normal()
-               : std::filesystem::absolute(path).lexically_normal();
-}
-
-std::filesystem::path ResolvePath(const std::filesystem::path& baseFolder, const std::filesystem::path& path)
-{
-    if (path.is_absolute())
-    {
-        return path.lexically_normal();
-    }
-
-    return (baseFolder / path).lexically_normal();
-}
 
 std::uint8_t ClampByte(const int value)
 {
@@ -207,154 +82,22 @@ std::uint8_t ParseHexByte(const std::string_view value)
     return ClampByte(HexDigit(value[0]) * 16 + HexDigit(value[1]));
 }
 
-const json* FindField(const json& node, const std::initializer_list<const char*> fieldNames)
-{
-    if (!node.is_object())
-    {
-        return nullptr;
-    }
-
-    for (const char* fieldName : fieldNames)
-    {
-        const auto iterator = node.find(fieldName);
-        if (iterator != node.end())
-        {
-            return &(*iterator);
-        }
-    }
-
-    return nullptr;
-}
-
-const json* FindEditorField(const json& node, const std::initializer_list<const char*> fieldNames)
-{
-    const json* editor = FindField(node, {"_editor", "editor"});
-    return editor == nullptr ? nullptr : FindField(*editor, fieldNames);
-}
-
-bool IsPageFileList(const json& value)
-{
-    if (!value.is_array())
-    {
-        return false;
-    }
-
-    for (const auto& entry : value)
-    {
-        if (entry.is_string())
-        {
-            continue;
-        }
-
-        if (entry.is_object() && FindField(entry, {"file", "path", "json"}) != nullptr)
-        {
-            continue;
-        }
-
-        return false;
-    }
-
-    return true;
-}
-
-int ParsePixelNumber(const json& value, const char* fieldName)
-{
-    if (!value.is_number())
-    {
-        throw std::runtime_error(std::string(fieldName) + " must be numeric");
-    }
-
-    return static_cast<int>(std::lround(value.get<double>()));
-}
-
-void ParseWindowSize(const json& value, int& width, int& height)
-{
-    if (value.is_array())
-    {
-        if (value.size() < 2)
-        {
-            throw std::runtime_error("Window size array must contain width and height");
-        }
-
-        width = ParsePixelNumber(value.at(0), "window width");
-        height = ParsePixelNumber(value.at(1), "window height");
-        return;
-    }
-
-    if (value.is_object())
-    {
-        if (!value.contains("width") || !value.contains("height"))
-        {
-            throw std::runtime_error("Window size object must contain width and height");
-        }
-
-        width = ParsePixelNumber(value.at("width"), "window width");
-        height = ParsePixelNumber(value.at("height"), "window height");
-        return;
-    }
-
-    throw std::runtime_error("Unsupported window size format");
-}
-
-void ParseWindowPosition(const json& value, int& x, int& y)
-{
-    if (value.is_array())
-    {
-        if (value.size() < 2)
-        {
-            throw std::runtime_error("Window position array must contain x and y");
-        }
-
-        x = ParsePixelNumber(value.at(0), "window x");
-        y = ParsePixelNumber(value.at(1), "window y");
-        return;
-    }
-
-    if (value.is_object())
-    {
-        x = ParsePixelNumber(value.value("x", json(x)), "window x");
-        y = ParsePixelNumber(value.value("y", json(y)), "window y");
-        return;
-    }
-
-    throw std::runtime_error("Unsupported window position format");
-}
-
-std::uint16_t ParsePortNumber(const json& value, const char* fieldName)
-{
-    const int port = ParsePixelNumber(value, fieldName);
-    if (port < 0 || port > 65535)
-    {
-        throw std::runtime_error(std::string(fieldName) + " must be in [0, 65535]");
-    }
-
-    return static_cast<std::uint16_t>(port);
-}
-
-std::size_t ParsePositivePacketSize(const json& value, const char* fieldName)
-{
-    const int packetSize = ParsePixelNumber(value, fieldName);
-    if (packetSize < static_cast<int>(kUdpMinPayloadBytes) ||
-        packetSize > static_cast<int>(kUdpMaxPayloadBytes))
-    {
-        throw std::runtime_error(std::string(fieldName) + " must be in [" +
-                                 std::to_string(kUdpMinPayloadBytes) + ", " +
-                                 std::to_string(kUdpMaxPayloadBytes) + "]");
-    }
-
-    return static_cast<std::size_t>(packetSize);
-}
-
-std::uint32_t ParseDurationMilliseconds(const json& value, const char* fieldName)
-{
-    const int durationMs = ParsePixelNumber(value, fieldName);
-    if (durationMs <= 0)
-    {
-        throw std::runtime_error(std::string(fieldName) + " must be strictly positive");
-    }
-
-    return static_cast<std::uint32_t>(durationMs);
-}
+using json_loader_detail::CanonicalToken;
+using json_loader_detail::FindEditorField;
+using json_loader_detail::FindField;
+using json_loader_detail::IsPageFileList;
+using json_loader_detail::JsonScalarToString;
+using json_loader_detail::LoadJsonFile;
+using json_loader_detail::Lowercase;
+using json_loader_detail::NormalizePath;
+using json_loader_detail::ParseDurationMilliseconds;
+using json_loader_detail::ParsePixelNumber;
+using json_loader_detail::ParsePortNumber;
+using json_loader_detail::ParsePositivePacketSize;
+using json_loader_detail::ParseWindowPosition;
+using json_loader_detail::ParseWindowSize;
+using json_loader_detail::ResolvePath;
+using json_loader_detail::TrimAsciiWhitespace;
 
 std::optional<std::string> ParseDefaultPageName(const json& root, const char* sourceLabel)
 {

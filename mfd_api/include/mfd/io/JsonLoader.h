@@ -79,6 +79,10 @@ public:
      * @brief Loads a root window JSON and all referenced page/template files.
      * @param windowFile Path to the root window JSON file.
      * @return Loaded window configuration and resolved document.
+     *
+     * @note Numeric JSON fields must be finite. Pixel-oriented integer fields
+     * such as window size, screen position, ports, durations and packet sizes
+     * are rounded from JSON numbers and must fit in a signed 32-bit integer.
      */
     LoadedWindowConfiguration LoadWindowConfiguration(const std::filesystem::path& windowFile) const;
 
@@ -86,6 +90,9 @@ public:
      * @brief Loads a legacy pages JSON or a window JSON and returns only the document.
      * @param pagesFile Path to the JSON file to load.
      * @return Loaded document containing pages and reticle templates.
+     *
+     * @note Numeric JSON fields must be finite. Pixel-oriented integer fields
+     * are rounded from JSON numbers and must fit in a signed 32-bit integer.
      */
     MfdDocument LoadDocument(const std::filesystem::path& pagesFile) const;
 };

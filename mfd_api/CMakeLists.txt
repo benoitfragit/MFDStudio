@@ -27,6 +27,8 @@ set(MFD_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/SceneRegistry.h)
 
 set(MFD_API_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h)
@@ -41,6 +43,8 @@ set(MFD_API_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UserSpaceProjector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UdpRuntimeBridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/JsonLoader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/UdpChannel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model/PageName.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Reticle.cpp

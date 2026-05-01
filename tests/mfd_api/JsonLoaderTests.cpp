@@ -1056,6 +1056,24 @@ TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUdpPacketSizesOutsideSupport
     EXPECT_THROW(loader.LoadWindowConfiguration(lowWindowFile), std::runtime_error);
 }
 
+TEST(JsonLoaderTests, LoadWindowConfigurationRejectsWindowMetricsOutsideSignedIntRange)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path windowFile = workspace.Path() / "window.json";
+    const std::filesystem::path pageFile = workspace.Path() / "page.json";
+
+    WriteTextFile(pageFile, R"json({ "name": "Main" })json");
+    WriteTextFile(windowFile,
+                  R"json({
+  "width": 3000000000,
+  "height": 600,
+  "pages": ["page.json"]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadWindowConfiguration(windowFile), std::runtime_error);
+}
+
 TEST(JsonLoaderTests, LoadDocumentRejectsTriangleWithMoreThanThreePoints)
 {
     TemporaryFolder workspace;
