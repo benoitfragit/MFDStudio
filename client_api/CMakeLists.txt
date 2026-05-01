@@ -35,19 +35,6 @@ if(WIN32)
     target_compile_definitions(client_api PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
-if(MFD_ENABLE_WARNINGS)
-    if(MSVC)
-        target_compile_options(client_api
-            PRIVATE
-                /W4
-                /permissive-
-                /Zc:__cplusplus
-                /EHsc
-                /wd4251
-                /wd4275)
-    else()
-        target_compile_options(client_api PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-endif()
+mfd_enable_target_warnings(client_api)
 
 mfd_stage_runtime(client_api WITH_RUNTIME_DLLS)

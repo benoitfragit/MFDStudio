@@ -13,20 +13,7 @@ function(mfd_add_editor_test_plugin target output_name source_file)
     target_compile_features(${target} PRIVATE cxx_std_17)
     target_compile_definitions(${target} PRIVATE MFD_EDITOR_AUTOMATION_PLUGIN_EXPORTS=1)
 
-    if(MFD_ENABLE_WARNINGS)
-        if(MSVC)
-            target_compile_options(${target}
-                PRIVATE
-                    /W4
-                    /permissive-
-                    /Zc:__cplusplus
-                    /EHsc
-                    /wd4251
-                    /wd4275)
-        else()
-            target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
-        endif()
-    endif()
+    mfd_enable_target_warnings(${target})
 
     set_target_properties(${target} PROPERTIES
         OUTPUT_NAME "${output_name}"
@@ -107,11 +94,9 @@ target_link_libraries(mfd_editor_tests
     PRIVATE
         mfd::editor_plugin_api)
 
-mfd_begin_external_libraries(mfd_editor_tests)
 mfd_private_library(mfd_editor_tests GTest::gtest_main)
 mfd_private_library(mfd_editor_tests nlohmann_json::nlohmann_json)
 mfd_private_library(mfd_editor_tests imgui)
-mfd_end_external_libraries(mfd_editor_tests)
 
 target_include_directories(mfd_editor_tests
     PRIVATE
@@ -138,20 +123,7 @@ target_sources(mfd_editor_tests
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)
 
-if(MFD_ENABLE_WARNINGS)
-    if(MSVC)
-        target_compile_options(mfd_editor_tests
-            PRIVATE
-                /W4
-                /permissive-
-                /Zc:__cplusplus
-                /EHsc
-                /wd4251
-                /wd4275)
-    else()
-        target_compile_options(mfd_editor_tests PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-endif()
+mfd_enable_target_warnings(mfd_editor_tests)
 
 set_target_properties(mfd_editor_tests PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_editor_tests>")

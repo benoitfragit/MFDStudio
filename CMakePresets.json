@@ -2,7 +2,7 @@
   "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 26,
+    "minor": 25,
     "patch": 0
   },
   "configurePresets": [
@@ -16,6 +16,14 @@
       }
     },
     {
+      "name": "vs2022-base-no-tests",
+      "hidden": true,
+      "inherits": "vs2022-base",
+      "cacheVariables": {
+        "MFD_BUILD_TESTS": "OFF"
+      }
+    },
+    {
       "name": "vs2022-x64",
       "inherits": "vs2022-base",
       "architecture": {
@@ -24,8 +32,24 @@
       }
     },
     {
+      "name": "vs2022-x64-no-tests",
+      "inherits": "vs2022-base-no-tests",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      }
+    },
+    {
       "name": "vs2022-win32",
       "inherits": "vs2022-base",
+      "architecture": {
+        "value": "Win32",
+        "strategy": "set"
+      }
+    },
+    {
+      "name": "vs2022-win32-no-tests",
+      "inherits": "vs2022-base-no-tests",
       "architecture": {
         "value": "Win32",
         "strategy": "set"
@@ -44,6 +68,16 @@
       "configuration": "Release"
     },
     {
+      "name": "debug-x64-no-tests",
+      "configurePreset": "vs2022-x64-no-tests",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release-x64-no-tests",
+      "configurePreset": "vs2022-x64-no-tests",
+      "configuration": "Release"
+    },
+    {
       "name": "debug-win32",
       "configurePreset": "vs2022-win32",
       "configuration": "Debug"
@@ -52,6 +86,34 @@
       "name": "release-win32",
       "configurePreset": "vs2022-win32",
       "configuration": "Release"
+    },
+    {
+      "name": "debug-win32-no-tests",
+      "configurePreset": "vs2022-win32-no-tests",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release-win32-no-tests",
+      "configurePreset": "vs2022-win32-no-tests",
+      "configuration": "Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-debug-x64",
+      "configurePreset": "vs2022-x64",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test-debug-win32",
+      "configurePreset": "vs2022-win32",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

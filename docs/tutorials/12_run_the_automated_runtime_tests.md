@@ -107,7 +107,13 @@ MFD_BUILD_TESTS=ON
 ```
 
 If needed, you can disable the suite in a local configure step, but the default
-repository behavior is to compile it.
+repository behavior is to compile it. The repository also ships no-tests
+configure and build presets when you explicitly want to skip test targets:
+
+```powershell
+cmake --preset vs2022-win32-no-tests
+cmake --build --preset debug-win32-no-tests
+```
 
 ## Run The Tests
 
@@ -124,6 +130,12 @@ Or use the convenience target:
 
 ```powershell
 cmake --build --preset debug-win32 --target mfd_api_tests_run
+```
+
+Or run the registered suite through the shipped CTest preset:
+
+```powershell
+ctest --preset test-debug-win32
 ```
 
 ## How To Extend The Suite

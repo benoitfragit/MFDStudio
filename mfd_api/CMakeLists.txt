@@ -128,12 +128,10 @@ target_include_directories(mfd_api
         "$<INSTALL_INTERFACE:include>")
 target_include_directories(mfd_api PRIVATE ${MFD_API_PROTO_OUTPUT_DIR})
 
-mfd_begin_external_libraries(mfd_api)
 mfd_public_library(mfd_api EnTT::EnTT)
 mfd_public_library(mfd_api nlohmann_json::nlohmann_json)
 mfd_private_library(mfd_api raylib)
 mfd_private_library(mfd_api protobuf::libprotobuf)
-mfd_end_external_libraries(mfd_api)
 
 target_compile_definitions(mfd_api
     PUBLIC
@@ -146,19 +144,6 @@ if(WIN32)
     target_compile_definitions(mfd_api PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
-if(MFD_ENABLE_WARNINGS)
-    if(MSVC)
-        target_compile_options(mfd_api
-            PRIVATE
-                /W4
-                /permissive-
-                /Zc:__cplusplus
-                /EHsc
-                /wd4251
-                /wd4275)
-    else()
-        target_compile_options(mfd_api PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-endif()
+mfd_enable_target_warnings(mfd_api)
 
 mfd_stage_runtime(mfd_api WITH_RUNTIME_DLLS)

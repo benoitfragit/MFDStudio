@@ -32,9 +32,7 @@ target_link_libraries(mfd_api_tests
     PRIVATE
         mfd::api)
 
-mfd_begin_external_libraries(mfd_api_tests)
 mfd_private_library(mfd_api_tests GTest::gtest_main)
-mfd_end_external_libraries(mfd_api_tests)
 
 target_compile_features(mfd_api_tests PRIVATE cxx_std_17)
 
@@ -42,20 +40,7 @@ target_include_directories(mfd_api_tests
     PRIVATE
         ${MFD_ROOT_DIR}/mfd_api/src/io/json)
 
-if(MFD_ENABLE_WARNINGS)
-    if(MSVC)
-        target_compile_options(mfd_api_tests
-            PRIVATE
-                /W4
-                /permissive-
-                /Zc:__cplusplus
-                /EHsc
-                /wd4251
-                /wd4275)
-    else()
-        target_compile_options(mfd_api_tests PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-endif()
+mfd_enable_target_warnings(mfd_api_tests)
 
 set_target_properties(mfd_api_tests PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_api_tests>")

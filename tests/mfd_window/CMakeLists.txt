@@ -19,26 +19,11 @@ target_link_libraries(mfd_window_tests
     PRIVATE
         mfd::window_launcher)
 
-mfd_begin_external_libraries(mfd_window_tests)
 mfd_private_library(mfd_window_tests GTest::gtest_main)
-mfd_end_external_libraries(mfd_window_tests)
 
 target_compile_features(mfd_window_tests PRIVATE cxx_std_17)
 
-if(MFD_ENABLE_WARNINGS)
-    if(MSVC)
-        target_compile_options(mfd_window_tests
-            PRIVATE
-                /W4
-                /permissive-
-                /Zc:__cplusplus
-                /EHsc
-                /wd4251
-                /wd4275)
-    else()
-        target_compile_options(mfd_window_tests PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-endif()
+mfd_enable_target_warnings(mfd_window_tests)
 
 set_target_properties(mfd_window_tests PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_window_tests>")

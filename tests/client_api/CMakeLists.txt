@@ -46,26 +46,11 @@ target_link_libraries(client_api_tests
     PRIVATE
         mfd::client)
 
-mfd_begin_external_libraries(client_api_tests)
 mfd_private_library(client_api_tests GTest::gtest_main)
-mfd_end_external_libraries(client_api_tests)
 
 target_compile_features(client_api_tests PRIVATE cxx_std_17)
 
-if(MFD_ENABLE_WARNINGS)
-    if(MSVC)
-        target_compile_options(client_api_tests
-            PRIVATE
-                /W4
-                /permissive-
-                /Zc:__cplusplus
-                /EHsc
-                /wd4251
-                /wd4275)
-    else()
-        target_compile_options(client_api_tests PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-endif()
+mfd_enable_target_warnings(client_api_tests)
 
 set_target_properties(client_api_tests PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_api_tests>")

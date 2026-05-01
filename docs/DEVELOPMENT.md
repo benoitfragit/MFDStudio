@@ -8,7 +8,7 @@ navigating the repository.
 The repository currently targets:
 
 - Visual Studio 2022
-- CMake 3.26 or newer
+- CMake 3.25 or newer
 - Python 3
 - C++17
 
@@ -36,11 +36,19 @@ cmake --build --preset debug-x64
 | Preset | Purpose |
 | --- | --- |
 | `vs2022-win32` | Configure a Win32 build tree under `build/vs2022-win32` |
+| `vs2022-win32-no-tests` | Configure a Win32 build tree with `MFD_BUILD_TESTS=OFF` |
 | `vs2022-x64` | Configure an x64 build tree under `build/vs2022-x64` |
+| `vs2022-x64-no-tests` | Configure an x64 build tree with `MFD_BUILD_TESTS=OFF` |
 | `debug-win32` | Build Win32 Debug |
 | `release-win32` | Build Win32 Release |
+| `debug-win32-no-tests` | Build Win32 Debug from the no-tests configure preset |
+| `release-win32-no-tests` | Build Win32 Release from the no-tests configure preset |
 | `debug-x64` | Build x64 Debug |
 | `release-x64` | Build x64 Release |
+| `debug-x64-no-tests` | Build x64 Debug from the no-tests configure preset |
+| `release-x64-no-tests` | Build x64 Release from the no-tests configure preset |
+| `test-debug-win32` | Run the registered Win32 Debug test suite with `ctest --preset` |
+| `test-debug-x64` | Run the registered x64 Debug test suite with `ctest --preset` |
 
 ## Common CMake Options
 
@@ -49,6 +57,8 @@ cmake --build --preset debug-x64
 | `MFD_BUILD_DEMO` | `ON` | Builds the runtime applications, examples, and editor |
 | `MFD_BUILD_TESTS` | `ON` | Builds and registers the automated test suite |
 | `MFD_ENABLE_WARNINGS` | `ON` | Enables the stricter compiler warning profile |
+| `USE_LOCALE_PACKAGE` | `OFF` | Keeps the remote Git-based `FetchContent` behavior; set it to `ON` to use local third-party source archives from `MFD_LOCAL_PACKAGE_ROOT` |
+| `MFD_LOCAL_PACKAGE_ROOT` | `third_party/archives` | Root folder containing local third-party source archives grouped by dependency name |
 | `MFD_ENABLE_POSITION_INDEPENDENT_CODE` | `OFF` on Windows, `ON` elsewhere | Enables position-independent code only where it is actually needed |
 | `MFD_MSVC_RUNTIME` | `default` | Leaves the MSVC CRT runtime to the toolchain default; accepts `dll` or `static` for explicit control |
 
@@ -64,7 +74,25 @@ Examples:
 ```powershell
 cmake --preset vs2022-win32 -DMFD_MSVC_RUNTIME=static
 cmake --preset vs2022-win32 -DMFD_ENABLE_POSITION_INDEPENDENT_CODE=ON
+cmake --preset vs2022-win32 -DUSE_LOCALE_PACKAGE=ON
 ```
+
+When `USE_LOCALE_PACKAGE` is set to `ON`, `FetchContent` expects
+source archives under `MFD_LOCAL_PACKAGE_ROOT` with this layout:
+
+```text
+third_party/archives/
+  raylib/raylib-5.5.zip
+  nlohmann_json/json-3.11.3.zip
+  entt/entt-3.13.2.zip
+  protobuf/protobuf-29.4.zip
+  imgui/imgui-1.92.1.zip
+  rlimgui/rlImGui-286e11acd6c785004c9550c7ed3762add2ae3d47.zip
+  googletest/googletest-1.15.2.zip
+```
+
+Each dependency block in `cmake/Dependencies.cmake` carries a comment with the
+exact upstream source-archive URL to download.
 
 ## CMake Linking Convention
 
@@ -88,10 +116,9 @@ target_link_libraries(mfd_editor
         mfd::api
         mfd::editor_plugin_api)
 
-mfd_begin_external_libraries(mfd_editor)
 mfd_private_library(mfd_editor imgui)
 mfd_private_library(mfd_editor rlimgui)
-mfd_end_external_libraries(mfd_editor)
+mfd_enable_target_warnings(mfd_editor)
 ```
 
 ## Common Targets
@@ -157,10 +184,17 @@ cmake --build --preset debug-win32 --target mfd_api_tests client_api_tests mfd_w
 Run the whole registered test suite:
 
 ```powershell
-ctest -C Debug --test-dir build/vs2022-win32 --output-on-failure
+ctest --preset test-debug-win32
 ```
 
 Run only one family of tests:
+
+```powershell
+ctest --preset test-debug-win32 -R "CommandProcessorTests|LatestBatchPublisherTests"
+```
+
+The equivalent explicit `ctest` form remains valid when you need to override
+the preset manually:
 
 ```powershell
 ctest -C Debug --test-dir build/vs2022-win32 -R "CommandProcessorTests|LatestBatchPublisherTests" --output-on-failure

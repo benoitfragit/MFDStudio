@@ -1,7 +1,7 @@
 # This file is part of MFDStudio.
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
-cmake_minimum_required(VERSION 3.26)
+cmake_minimum_required(VERSION 3.25)
 
 project(MFD
     VERSION 1.3.0
@@ -16,6 +16,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(MFD_BUILD_DEMO "Build the demo MFD executable" ON)
 option(MFD_BUILD_TESTS "Build GoogleTest-based runtime and loading tests" ON)
 option(MFD_ENABLE_WARNINGS "Enable strict compiler warnings" ON)
+option(USE_LOCALE_PACKAGE "When ON, FetchContent expects local source archives under MFD_LOCAL_PACKAGE_ROOT instead of using the remote Git declarations." OFF)
+
+set(MFD_LOCAL_PACKAGE_ROOT
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/archives"
+    CACHE PATH
+    "Root directory containing local third-party source archives grouped by dependency name.")
 
 set(MFD_ENABLE_POSITION_INDEPENDENT_CODE_DEFAULT ON)
 if(WIN32)
@@ -60,6 +66,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(ExternalLibraries)
+include(CompilerWarnings)
 include(Dependencies)
 
 mfd_fetch_dependencies()

@@ -2,12 +2,6 @@
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
 
-function(mfd_begin_external_libraries target)
-endfunction()
-
-function(mfd_end_external_libraries target)
-endfunction()
-
 function(mfd_public_library target)
     if(ARGC LESS 2)
         message(FATAL_ERROR

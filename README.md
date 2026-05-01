@@ -37,7 +37,7 @@ Use the entry point that matches your goal:
 Requirements:
 
 - Visual Studio 2022
-- CMake 3.26 or newer
+- CMake 3.25 or newer
 - Python 3
 
 Recommended first build on Windows:
@@ -50,6 +50,8 @@ cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_pl
 Build defaults worth knowing:
 
 - the shipped presets target Visual Studio/MSVC on Windows
+- the shipped presets now include `ctest --preset` entries for Win32/x64 debug runs plus matching `-no-tests` configure/build variants
+- third-party source resolution defaults to the remote Git-based `FetchContent` path; set `-DUSE_LOCALE_PACKAGE=ON` to use local archives under `third_party/archives`
 - `POSITION_INDEPENDENT_CODE` is not forced on Windows by default
 - the MSVC CRT runtime now follows the toolchain default unless you override it explicitly with `-DMFD_MSVC_RUNTIME=dll` or `-DMFD_MSVC_RUNTIME=static`
 
@@ -177,8 +179,9 @@ coverage and generator validation.
 
 Build-system contributions follow the convention documented in
 [Development Guide](./docs/DEVELOPMENT.md): keep repository targets and system
-libraries in plain `target_link_libraries(...)`, and route third-party links
-through `cmake/ExternalLibraries.cmake`.
+libraries in plain `target_link_libraries(...)`, route third-party links
+through `cmake/ExternalLibraries.cmake`, and apply the shared warning profile
+through `cmake/CompilerWarnings.cmake`.
 
 GoogleTest executables are emitted under `build/<preset>/tests/<config>/` and
 staged under `_Exec/<toolset>/<platform>/<config>/tests/`.

@@ -52,11 +52,11 @@ if(MFD_BUILD_DEMO)
             mfd::api
             mfd::editor_plugin_api)
 
-    mfd_begin_external_libraries(mfd_editor)
     mfd_private_library(mfd_editor imgui)
     mfd_private_library(mfd_editor raylib)
     mfd_private_library(mfd_editor rlimgui)
-    mfd_end_external_libraries(mfd_editor)
+
+    mfd_enable_target_warnings(mfd_editor)
 
     if(WIN32)
         target_link_libraries(mfd_editor PRIVATE Comdlg32)

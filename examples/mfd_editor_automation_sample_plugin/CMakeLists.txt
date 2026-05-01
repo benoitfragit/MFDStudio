@@ -12,20 +12,7 @@ target_link_libraries(mfd_editor_automation_sample_plugin
 target_compile_features(mfd_editor_automation_sample_plugin PRIVATE cxx_std_17)
 target_compile_definitions(mfd_editor_automation_sample_plugin PRIVATE MFD_EDITOR_AUTOMATION_PLUGIN_EXPORTS=1)
 
-if(MFD_ENABLE_WARNINGS)
-    if(MSVC)
-        target_compile_options(mfd_editor_automation_sample_plugin
-            PRIVATE
-                /W4
-                /permissive-
-                /Zc:__cplusplus
-                /EHsc
-                /wd4251
-                /wd4275)
-    else()
-        target_compile_options(mfd_editor_automation_sample_plugin PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-endif()
+mfd_enable_target_warnings(mfd_editor_automation_sample_plugin)
 
 set_target_properties(mfd_editor_automation_sample_plugin PROPERTIES
     OUTPUT_NAME "mfd_editor_automation_sample_plugin"
