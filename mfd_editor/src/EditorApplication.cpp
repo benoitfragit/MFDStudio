@@ -673,13 +673,6 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
         includeTransformedPoint({image->width * 0.5f, image->height * 0.5f});
         includeTransformedPoint({-image->width * 0.5f, image->height * 0.5f});
     }
-    else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-image->width * 0.5f, -image->height * 0.5f});
-        includeTransformedPoint({image->width * 0.5f, -image->height * 0.5f});
-        includeTransformedPoint({image->width * 0.5f, image->height * 0.5f});
-        includeTransformedPoint({-image->width * 0.5f, image->height * 0.5f});
-    }
 
     FinalizeLogicalBounds(bounds);
     return bounds;
