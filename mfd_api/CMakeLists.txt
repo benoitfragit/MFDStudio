@@ -129,6 +129,44 @@ if(WIN32)
     target_link_libraries(mfd_transport PRIVATE ws2_32)
 endif()
 
+set(MFD_PUBLIC_API_PUBLIC_HEADERS
+    ${MFD_MODEL_PUBLIC_HEADERS}
+    ${MFD_TRANSPORT_PUBLIC_HEADERS})
+
+set(MFD_PUBLIC_API_SOURCES
+    ${MFD_MODEL_SOURCES}
+    ${MFD_TRANSPORT_SOURCES})
+
+add_library(mfd_public_api SHARED
+    ${MFD_PUBLIC_API_PUBLIC_HEADERS}
+    ${MFD_PUBLIC_API_SOURCES})
+add_library(mfd::public_api ALIAS mfd_public_api)
+
+mfd_configure_component(mfd_public_api)
+target_include_directories(mfd_public_api PRIVATE ${MFD_API_PROTO_OUTPUT_DIR})
+target_compile_definitions(mfd_public_api
+    PRIVATE
+        MFD_API_EXPORTS)
+set_target_properties(mfd_public_api PROPERTIES OUTPUT_NAME "mfd_api")
+target_link_libraries(mfd_public_api
+    PRIVATE
+        nlohmann_json::nlohmann_json
+        protobuf::libprotobuf)
+
+if(WIN32)
+    add_custom_command(TARGET mfd_public_api POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -f
+            "$<TARGET_FILE_DIR:mfd_public_api>/mfd_public_api.dll"
+            "$<TARGET_FILE_DIR:mfd_public_api>/mfd_public_api.exp"
+            "$<TARGET_LINKER_FILE_DIR:mfd_public_api>/mfd_public_api.lib"
+            "$<TARGET_FILE_DIR:mfd_public_api>/mfd_public_api.pdb"
+        VERBATIM)
+endif()
+
+if(WIN32)
+    target_link_libraries(mfd_public_api PRIVATE ws2_32)
+endif()
+
 set(MFD_RUNTIME_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandProcessor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/UdpRuntimeBridge.h

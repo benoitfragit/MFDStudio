@@ -14,6 +14,5 @@ int main(int argc, char** argv)
 {
     mfd::window::LauncherConfig config;
     config.applicationName = "mfd_window";
-    config.defaultWindowFile = "assets/windows/demo_pages.json";
     return mfd::window::RunLauncher(argc, argv, config);
 }

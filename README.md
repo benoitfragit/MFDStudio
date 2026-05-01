@@ -186,7 +186,7 @@ Start with:
 3. [Run The Automated Runtime Tests](./docs/tutorials/12_run_the_automated_runtime_tests.md)
 
 The automated suite covers the low-level runtime API, the higher-level
-`client_api`, and the generated client API path, including compiled fixture
+`mfd_client_api` library, and the generated client API path, including compiled fixture
 coverage and generator validation.
 
 Build-system contributions follow the convention documented in
@@ -198,6 +198,20 @@ through `cmake/CompilerWarnings.cmake`.
 GoogleTest executables are emitted under `build/<preset>/tests/<config>/` and
 staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 
+Development and install deliveries are staged separately under `_Deliveries`:
+
+- `packages_windows/<PackageName>/build/native` for SDK-style development packages
+- `packages_bin_windows/<PackageName>/_Exec/<toolset>/<platform>/<config>` for runtime/install packages
+
+Runtime/install packages keep the executable payload, runtime DLLs, launch
+scripts, and branding only. The demo JSON/assets remain repository-side, and
+`MFDStudioWindowLauncher.Install` intentionally ships only
+`Start-MfdWindow.bat` rather than the repository demo launchers.
+`MFDStudioClientApi.Install` carries `mfd_client_api.dll` together with the
+low-level `mfd_api.dll`, while `MFDStudioWindowLauncher.Install` carries
+`mfd_window.exe`, `mfd_window_plugin_api.dll`, `Start-MfdWindow.bat`, and the
+shared branding files.
+
 ## Shipped Tools And Entry Points
 
 | Entry point | Purpose |
@@ -207,7 +221,7 @@ staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 | `Scripts/Start-MfdCockpit.bat` | Repository launcher and staged copy opening `assets/windows/demo_pages_cockpit.json` |
 | `Scripts/Start-MfdMinimal.bat` | Repository launcher and staged copy opening `assets/windows/demo_pages_minimal.json` with the sample framebuffer plugin |
 | `Scripts/Start-MfdTutorial.bat` | Repository launcher and staged copy for the tutorial window once `assets/windows/mfd_tutorial.json` has been authored; also passes the sample framebuffer plugin |
-| `mfd_framebuffer_stdout_plugin` | Sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
+| `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting one framebuffer callback for `mfd_window --framebuffer-plugin` |
 | `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client for page control, reticle updates, dynamic reticles, and feedback inspection |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
 | `client_tutorial` | Tutorial-specific client demonstrating the generated API on `mfd_tutorial.json`, including Page2 progress-bar animation, a transient radar-track FIFO, and two persistent bouncing tracks linked by a dynamic line; intended to be wired into `examples/CMakeLists.txt` by the tutorial flow once the tutorial assets exist |
@@ -217,6 +231,10 @@ The repository also ships inspired sample assets under `assets/windows` and
 `assets/pages`, including the `PictureDemo` page backed by bitmap files stored
 under `assets/picture`. Open them with `mfd_window`, one of the root
 `Scripts/Start-Mfd*.bat` launchers, or through `mfd_editor`.
+
+The sample framebuffer plugin remains a repository example only. It is not part
+of the `MFDStudioWindowLauncherPlugin` SDK package and is not staged inside
+`MFDStudioWindowLauncher.Install`.
 
 Inside `mfd_window`, press `F1` to open the integrated runtime debug overlay.
 It can display transport health, the active page, the current reticle tree, and
@@ -234,15 +252,18 @@ remain out of the default examples build.
 
 | Path | Role |
 | --- | --- |
-| `mfd_api` | Core source tree producing `mfd_model`, `mfd_transport`, `mfd_io_json`, `mfd_runtime`, and the private `mfd_render_raylib` layer |
-| `client_api` | Higher-level client helpers |
-| `client_api_generator` | Typed client API generator |
+| `mfd_api` | Core source tree producing `mfd_model`, `mfd_transport`, `mfd_io_json`, `mfd_runtime`, the public low-level `mfd_api` DLL, and the private `mfd_render_raylib` layer |
+| `mfd_client_api` | Higher-level client helpers producing the `mfd_client_api` library |
+| `mfd_client_api/generator` | Typed client API generator |
+| `mfd_window_plugin_api` | Public framebuffer-plugin SDK used by `MFDStudioWindowLauncherPlugin` |
 | `mfd_window` | Generic window host |
 | `mfd_editor` | Visual authoring application |
 | `tests` | Root test tree mirroring each module with dedicated CMake entry points |
 | `examples` | Example clients and sample plugins |
 | `assets` | Window, page, and reticle JSON assets |
+| `branding` | Shared icons and branding files staged with runtime hosts |
 | `Scripts` | Repository launch scripts copied into runtime output folders |
+| `_Deliveries` | Generated development and runtime packages staged by `stage_deliveries` |
 | `docs` | Onboarding, concepts, tutorials, reference, and architecture notes |
 
 For the contributor-oriented build, test, and layout view, see
@@ -263,8 +284,9 @@ Documentation is intentionally split by job:
 | [Architecture Notes](./docs/architecture/README.md) | you need advanced design details for generated APIs or transport maps |
 | [Interoperability Standards](./docs/standards/README.md) | you want the generated client API standard, the formal replacement-client contract, and the conformance target |
 
-The public headers in `mfd_api/include/mfd` are also documented with Doxygen
-using `@brief`, `@param`, `@return`, and `@note`.
+The public headers in `mfd_api/include/mfd`, `mfd_client_api/include`,
+`mfd_editor_plugin_api/include`, and `mfd_window_plugin_api/include` are also
+documented with Doxygen using `@brief`, `@param`, `@return`, and `@note`.
 
 The generated HTML API portal uses the official `doxygen-awesome-css` theme
 with a small MFDStudio-specific override layer instead of the previous large

@@ -9,4 +9,4 @@ add_test(
         ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/test_generate_ui.py
         --generator
-        ${MFD_ROOT_DIR}/client_api_generator/scripts/generate_ui.py)
+        ${MFD_ROOT_DIR}/mfd_client_api/generator/scripts/generate_ui.py)

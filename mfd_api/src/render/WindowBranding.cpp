@@ -19,7 +19,7 @@ namespace mfd
 {
 namespace
 {
-constexpr const char* kBundledBrandingIconRelativePath = "assets/branding/mfdstudio_app_icon.png";
+constexpr const char* kBundledBrandingIconRelativePath = "branding/mfdstudio_app_icon.png";
 
 std::filesystem::path NormalizePath(const std::filesystem::path& path)
 {
@@ -57,7 +57,9 @@ std::filesystem::path ResolveWindowBrandingIconFile(std::filesystem::path prefer
     }
 
     const std::filesystem::path anchorDirectory = ResolveAnchorDirectory(sourceAnchor);
-    const std::array<std::filesystem::path, 4> candidates {
+    const std::array<std::filesystem::path, 5> candidates {
+        anchorDirectory.empty() ? std::filesystem::path {}
+                                : anchorDirectory / ".." / ".." / "branding" / "mfdstudio_app_icon.png",
         anchorDirectory.empty() ? std::filesystem::path {}
                                 : anchorDirectory / ".." / "branding" / "mfdstudio_app_icon.png",
         anchorDirectory.empty() ? std::filesystem::path {}

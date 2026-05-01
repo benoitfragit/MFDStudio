@@ -31,12 +31,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - configure_preset: vs2022-x64
-            build_preset: release-x64
+          - configure_preset: vs2022-x64-no-tests
+            build_preset: debug-x64-no-tests
             exec_platform: x64
-          - configure_preset: vs2022-win32
-            build_preset: release-win32
+            build_config: Debug
+          - configure_preset: vs2022-x64-no-tests
+            build_preset: release-x64-no-tests
+            exec_platform: x64
+            build_config: Release
+          - configure_preset: vs2022-win32-no-tests
+            build_preset: debug-win32-no-tests
             exec_platform: win32
+            build_config: Debug
+          - configure_preset: vs2022-win32-no-tests
+            build_preset: release-win32-no-tests
+            exec_platform: win32
+            build_config: Release
 
     steps:
       - name: Resolve release context
@@ -85,34 +95,78 @@ jobs:
       - name: Configure (${{ matrix.configure_preset }})
         run: cmake --preset ${{ matrix.configure_preset }}
 
-      - name: Build (${{ matrix.build_preset }})
-        run: cmake --build --preset ${{ matrix.build_preset }}
+      - name: Stage deliveries (${{ matrix.build_preset }})
+        run: cmake --build --preset ${{ matrix.build_preset }} --target stage_deliveries
 
-      - name: Create archive (${{ matrix.exec_platform }})
-        id: create_archive
+      - name: Create package archives (${{ matrix.exec_platform }} ${{ matrix.build_config }})
         shell: pwsh
         env:
           RELEASE_TAG: ${{ steps.release_context.outputs.release_tag }}
         run: |
-          $toolsetDir = Get-ChildItem -Path "_Exec" -Directory | Select-Object -First 1
-          if (-not $toolsetDir) {
-            throw "No staged runtime found under _Exec"
+          $archiveDir = Join-Path $PWD "release_archives"
+          New-Item -ItemType Directory -Path $archiveDir -Force | Out-Null
+
+          $runtimeToolsetDir = Get-ChildItem -Path "_Deliveries/packages_bin_windows" -Directory |
+            ForEach-Object {
+              Get-ChildItem -Path (Join-Path $_.FullName "_Exec") -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -ne "_Conf" } |
+                Select-Object -First 1
+            } |
+            Where-Object { $_ -ne $null } |
+            Select-Object -First 1
+
+          if (-not $runtimeToolsetDir) {
+            throw "No staged runtime package found under _Deliveries/packages_bin_windows"
           }
 
-          $stageDir = Join-Path $toolsetDir.FullName "${{ matrix.exec_platform }}/Release"
-          if (-not (Test-Path $stageDir)) {
-            throw "Expected stage directory not found: $stageDir"
+          $toolset = $runtimeToolsetDir.Name
+          $createdArchives = New-Object System.Collections.Generic.List[string]
+
+          $devPackagesRoot = Join-Path $PWD "_Deliveries/packages_windows"
+          if (Test-Path $devPackagesRoot) {
+            Get-ChildItem -Path $devPackagesRoot -Directory | ForEach-Object {
+              $packageDir = $_
+              $packageName = $packageDir.Name
+              $toolsetLibRoot = Join-Path $packageDir.FullName "build/native/libs/$toolset"
+              $platformConfigDir = Join-Path $packageDir.FullName "build/native/libs/$toolset/${{ matrix.exec_platform }}/${{ matrix.build_config }}"
+
+              if (Test-Path $platformConfigDir) {
+                $archiveName = "$packageName-$env:RELEASE_TAG-$toolset-${{ matrix.exec_platform }}-${{ matrix.build_config }}.zip"
+                Compress-Archive -Path $packageDir.FullName -DestinationPath (Join-Path $archiveDir $archiveName) -Force
+                $createdArchives.Add($archiveName)
+              }
+              elseif (-not (Test-Path $toolsetLibRoot) -and "${{ matrix.exec_platform }}" -eq "x64" -and "${{ matrix.build_config }}" -eq "Release") {
+                $archiveName = "$packageName-$env:RELEASE_TAG-$toolset.zip"
+                Compress-Archive -Path $packageDir.FullName -DestinationPath (Join-Path $archiveDir $archiveName) -Force
+                $createdArchives.Add($archiveName)
+              }
+            }
           }
 
-          $archiveName = "mfd-$env:RELEASE_TAG-${{ matrix.exec_platform }}.zip"
-          Compress-Archive -Path "$stageDir/*" -DestinationPath $archiveName
-          "archive_name=$archiveName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $runtimePackagesRoot = Join-Path $PWD "_Deliveries/packages_bin_windows"
+          if (Test-Path $runtimePackagesRoot) {
+            Get-ChildItem -Path $runtimePackagesRoot -Directory | ForEach-Object {
+              $packageDir = $_
+              $packageName = $packageDir.Name
+              $platformConfigDir = Join-Path $packageDir.FullName "_Exec/$toolset/${{ matrix.exec_platform }}/${{ matrix.build_config }}"
+
+              if (Test-Path $platformConfigDir) {
+                $archiveName = "$packageName-$env:RELEASE_TAG-$toolset-${{ matrix.exec_platform }}-${{ matrix.build_config }}.zip"
+                Compress-Archive -Path $packageDir.FullName -DestinationPath (Join-Path $archiveDir $archiveName) -Force
+                $createdArchives.Add($archiveName)
+              }
+            }
+          }
+
+          if ($createdArchives.Count -eq 0) {
+            throw "No delivery archives were created."
+          }
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.create_archive.outputs.archive_name }}
-          path: ${{ steps.create_archive.outputs.archive_name }}
+          name: release-packages-${{ matrix.exec_platform }}-${{ matrix.build_config }}
+          path: release_archives/*.zip
 
   publish-release:
     needs: build-release-assets
@@ -185,13 +239,16 @@ jobs:
           }
 
           $lines.Add('### Assets')
-          $lines.Add('- Windows x64 and Win32 ZIP archives')
+          $lines.Add('- Development and install ZIP packages')
+          $lines.Add('- Toolset-qualified asset names such as `MFDStudioClientApi-v1.3.0-v143-win32-Debug.zip`')
+          $lines.Add('- Win32/x64 Debug/Release variants for every package carrying platform-specific binaries')
+          $lines.Add('- One toolset-qualified archive only for header-only SDK packages such as `MFDStudioEditorPlugin-v1.3.0-v143.zip`')
           $lines.Add('- SHA256 checksums in `SHA256SUMS.txt`')
           $lines.Add("")
           $lines.Add('### Quick start')
-          $lines.Add('1. Download the ZIP for your platform')
+          $lines.Add('1. Download the package matching your use case, platform, and configuration')
           $lines.Add('2. Verify the checksum with `SHA256SUMS.txt`')
-          $lines.Add('3. Extract and run')
+          $lines.Add('3. Extract the package and use the staged `_Exec` or `build/native` tree')
 
           $lines | Set-Content -Path "release_notes.md" -Encoding utf8
 

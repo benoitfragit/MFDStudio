@@ -1,0 +1,34 @@
+@PACKAGE_INIT@
+
+set(_mfdstudio_window_launcher_plugin_root "${CMAKE_CURRENT_LIST_DIR}/..")
+get_filename_component(_mfdstudio_window_launcher_plugin_root "${_mfdstudio_window_launcher_plugin_root}" ABSOLUTE)
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(_mfdstudio_window_launcher_plugin_arch "x64")
+else()
+    set(_mfdstudio_window_launcher_plugin_arch "win32")
+endif()
+
+set(MFDStudioWindowLauncherPlugin_INCLUDE_DIR "${_mfdstudio_window_launcher_plugin_root}/include")
+set(MFDStudioWindowLauncherPlugin_LIBRARY_DIR
+    "${_mfdstudio_window_launcher_plugin_root}/libs/@MFD_PACKAGE_TOOLSET@/${_mfdstudio_window_launcher_plugin_arch}")
+
+if(NOT EXISTS "${MFDStudioWindowLauncherPlugin_INCLUDE_DIR}")
+    message(FATAL_ERROR
+        "MFDStudioWindowLauncherPlugin include directory not found: ${MFDStudioWindowLauncherPlugin_INCLUDE_DIR}")
+endif()
+
+if(NOT TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@)
+    add_library(@MFD_PACKAGE_IMPORTED_TARGET_NAME@ SHARED IMPORTED)
+    set_target_properties(@MFD_PACKAGE_IMPORTED_TARGET_NAME@ PROPERTIES
+        IMPORTED_CONFIGURATIONS "Debug;Release"
+        IMPORTED_IMPLIB_DEBUG
+            "${MFDStudioWindowLauncherPlugin_LIBRARY_DIR}/Debug/mfd_window_plugin_api.lib"
+        IMPORTED_IMPLIB_RELEASE
+            "${MFDStudioWindowLauncherPlugin_LIBRARY_DIR}/Release/mfd_window_plugin_api.lib"
+        INTERFACE_COMPILE_DEFINITIONS "MFD_WINDOW_PLUGIN_API_DLL"
+        INTERFACE_COMPILE_FEATURES "cxx_std_17"
+        INTERFACE_INCLUDE_DIRECTORIES "${MFDStudioWindowLauncherPlugin_INCLUDE_DIR}")
+endif()
+
+set(MFDStudioWindowLauncherPlugin_INCLUDE_DIRS "${MFDStudioWindowLauncherPlugin_INCLUDE_DIR}")

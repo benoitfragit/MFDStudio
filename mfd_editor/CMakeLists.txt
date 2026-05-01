@@ -72,6 +72,12 @@ if(MFD_BUILD_DEMO)
         POST_BUILD
         COMMAND
             ${CMAKE_COMMAND}
+            "-DSOURCE_DIR=${MFD_ROOT_DIR}/branding"
+            "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_editor>/branding"
+            -P
+            "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake"
+        COMMAND
+            ${CMAKE_COMMAND}
             "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_editor>/assets"
             -P
@@ -84,5 +90,10 @@ if(MFD_BUILD_DEMO)
             "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
         VERBATIM)
 
-    mfd_stage_runtime(mfd_editor WITH_ASSETS WITH_RUNTIME_DLLS)
+    mfd_stage_runtime(mfd_editor WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
+
+    mfd_register_runtime_package(
+        NAME MFDStudioEditor.Install
+        TARGETS mfd_editor
+        WITH_BRANDING)
 endif()

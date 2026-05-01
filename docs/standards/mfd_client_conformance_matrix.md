@@ -105,7 +105,7 @@ The next gaps worth closing are:
 1. one external feedback-client conformance test that receives and checks a real
    `StrobeStatusFeedback` payload from a running bridge
 2. one stronger end-to-end test that drives a real generated source pair emitted
-   by `client_api_generator`, not only one generated-style fixture built on the
+   by `mfd_client_api/generator`, not only one generated-style fixture built on the
    same public API
 
 ## Related Documents

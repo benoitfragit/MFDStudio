@@ -41,6 +41,7 @@
 *.dwo
 /.vs/*
 /_Exec/*
+/_Deliveries/*
 /build/*
 /assets/windows/*.generated.map
 /examples/client_mockup/generated/*

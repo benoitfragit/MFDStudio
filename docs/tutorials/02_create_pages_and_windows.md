@@ -115,7 +115,7 @@ Create `assets/windows/tutorial_window.json`:
   "position": [80, 60],
   "targetFps": 60,
   "fontFile": "../fonts/ocr_a.ttf",
-  "iconFile": "../branding/mfdstudio_app_icon.png",
+  "iconFile": "../../branding/mfdstudio_app_icon.png",
   "reticleLibraryFolder": "../reticles",
   "commands": {
     "udp": {

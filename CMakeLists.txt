@@ -74,17 +74,19 @@ mfd_fetch_dependencies()
 set(MFD_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 include(RuntimePackaging)
+include(DeliveryPackaging)
 
 if(MFD_BUILD_TESTS)
     enable_testing()
 endif()
 
 add_subdirectory(mfd_api)
-add_subdirectory(client_api_generator)
+add_subdirectory(mfd_client_api/generator)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/client_api_generator/ClientApiGenerator.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/mfd_client_api/generator/ClientApiGenerator.cmake)
 
-add_subdirectory(client_api)
+add_subdirectory(mfd_client_api)
+add_subdirectory(mfd_window_plugin_api)
 add_subdirectory(mfd_window)
 add_subdirectory(mfd_editor_plugin_api)
 add_subdirectory(mfd_editor)
@@ -96,3 +98,13 @@ endif()
 if(MFD_BUILD_DEMO)
     add_subdirectory(examples)
 endif()
+
+mfd_register_runtime_package(
+    NAME MFDStudioWindowLauncher.Install
+    TARGETS mfd_window
+    WITH_BRANDING
+    SCRIPT_SOURCE_DIR "${MFD_ROOT_DIR}/Scripts"
+    SCRIPT_NAMES
+        Start-MfdWindow.bat)
+
+mfd_finalize_delivery_targets()

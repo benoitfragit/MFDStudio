@@ -798,8 +798,7 @@ bool ParseCommandLine(const int argc,
                       CommandLineOptions& options,
                       std::string& error)
 {
-    options.windowFile =
-        config.defaultWindowFile.empty() ? std::filesystem::path {"assets/windows/demo_pages.json"} : config.defaultWindowFile;
+    options.windowFile = config.defaultWindowFile;
     bool positionalWindowConsumed = false;
 
     for (int index = 1; index < argc; ++index)
@@ -851,6 +850,12 @@ bool ParseCommandLine(const int argc,
 
         options.windowFile = std::filesystem::path {std::string(argument)};
         positionalWindowConsumed = true;
+    }
+
+    if (options.windowFile.empty())
+    {
+        error = "No window JSON path was provided and no default launcher window is configured.";
+        return false;
     }
 
     return true;
@@ -1372,8 +1377,6 @@ namespace mfd::window
 std::string BuildUsageText(const LauncherConfig& config)
 {
     const std::string applicationName = config.applicationName.empty() ? std::string {"mfd_window"} : config.applicationName;
-    const std::filesystem::path defaultWindowFile =
-        config.defaultWindowFile.empty() ? std::filesystem::path {"assets/windows/demo_pages.json"} : config.defaultWindowFile;
 
     std::ostringstream output;
     output << "Usage:\n";
@@ -1382,7 +1385,15 @@ std::string BuildUsageText(const LauncherConfig& config)
     output << "  " << applicationName << " --window <window.json> --framebuffer-plugin <plugin.dll>\n";
     output << "  " << applicationName << " --help\n";
     output << '\n';
-    output << "If no window JSON is provided, the launcher defaults to '" << defaultWindowFile.string() << "'.\n";
+    if (config.defaultWindowFile.empty())
+    {
+        output << "No default window JSON is configured. Pass one explicitly.\n";
+    }
+    else
+    {
+        output << "If no window JSON is provided, the launcher defaults to '"
+               << config.defaultWindowFile.string() << "'.\n";
+    }
     output << "Optional framebuffer plugins must export '" << kLauncherFramebufferPluginEntryPointName << "'.\n";
     output << "Shortcuts:\n";
     output << "  F1 toggles the integrated runtime debug overlay\n";
@@ -1408,8 +1419,6 @@ bool ParseLauncherCommandLine(const int argc,
 int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFramebufferCallback framebufferCallback)
 {
     const std::string applicationName = config.applicationName.empty() ? std::string {"mfd_window"} : config.applicationName;
-    const std::filesystem::path defaultWindowFile =
-        config.defaultWindowFile.empty() ? std::filesystem::path {"assets/windows/demo_pages.json"} : config.defaultWindowFile;
 
     LauncherOptions options;
     std::string error;
@@ -1418,7 +1427,7 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
         std::cerr << error << '\n';
         LauncherConfig usageConfig;
         usageConfig.applicationName = applicationName;
-        usageConfig.defaultWindowFile = defaultWindowFile;
+        usageConfig.defaultWindowFile = config.defaultWindowFile;
         std::cerr << BuildUsageText(usageConfig);
         return 1;
     }
@@ -1427,7 +1436,7 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
     {
         LauncherConfig usageConfig;
         usageConfig.applicationName = applicationName;
-        usageConfig.defaultWindowFile = defaultWindowFile;
+        usageConfig.defaultWindowFile = config.defaultWindowFile;
         std::cout << BuildUsageText(usageConfig);
         return 0;
     }

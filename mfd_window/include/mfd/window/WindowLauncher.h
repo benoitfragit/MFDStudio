@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <functional>
-#include "mfd/core/ArrayView.h"
+#include "mfd/window/WindowLauncherPlugin.h"
 #include <string>
 
 namespace mfd::window
@@ -16,7 +16,7 @@ namespace mfd::window
 struct LauncherConfig
 {
     std::string applicationName = "mfd_window";
-    std::filesystem::path defaultWindowFile = "assets/windows/demo_pages.json";
+    std::filesystem::path defaultWindowFile {};
 };
 
 /**
@@ -28,20 +28,6 @@ struct LauncherConfig
 using LauncherFramebufferCallback = std::function<void(int width,
                                                        int height,
                                                        mfd::ByteView rgba32Bytes)>;
-
-/**
- * @brief Exported symbol signature accepted from one optional framebuffer plugin DLL.
- *
- * @note The plugin is loaded by `mfd_window` through the `--framebuffer-plugin`
- * command-line option. The exported symbol must use exactly this callable
- * signature and remain valid for the full lifetime of the process.
- */
-using LauncherFramebufferPluginEntryPoint = void(*)(int width,
-                                                    int height,
-                                                    mfd::ByteView rgba32Bytes);
-
-/** @brief Exported symbol name searched inside one framebuffer plugin DLL. */
-constexpr const char* kLauncherFramebufferPluginEntryPointName = "MfdWindowFramebufferCallback";
 
 struct LauncherOptions
 {

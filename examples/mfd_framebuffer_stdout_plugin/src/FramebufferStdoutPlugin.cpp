@@ -10,7 +10,7 @@
 
 #include <iostream>
 
-#include "mfd/window/WindowLauncher.h"
+#include "mfd/window/WindowLauncherPlugin.h"
 
 /**
  * @brief Sample plugin entry point discovered by `mfd_window --framebuffer-plugin`.
@@ -23,6 +23,12 @@ extern "C" __declspec(dllexport) void MfdWindowFramebufferCallback(
     const int height,
     const mfd::ByteView pixels)
 {
+    if (!mfd::window::ValidateFramebufferRgba32Layout(width, height, pixels))
+    {
+        std::cerr << "Unexpected framebuffer layout received from mfd_window.\n";
+        return;
+    }
+
     static bool printed = false;
     if (!printed)
     {

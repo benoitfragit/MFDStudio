@@ -1,0 +1,61 @@
+@PACKAGE_INIT@
+
+set(_mfdstudio_client_api_root "${CMAKE_CURRENT_LIST_DIR}/..")
+get_filename_component(_mfdstudio_client_api_root "${_mfdstudio_client_api_root}" ABSOLUTE)
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(_mfdstudio_client_api_arch "x64")
+else()
+    set(_mfdstudio_client_api_arch "win32")
+endif()
+
+set(MFDStudioClientApi_INCLUDE_DIR "${_mfdstudio_client_api_root}/include")
+set(MFDStudioClientApi_LIBRARY_DIR
+    "${_mfdstudio_client_api_root}/libs/@MFD_PACKAGE_TOOLSET@/${_mfdstudio_client_api_arch}")
+set(MFDStudioClientApi_CMAKE_DIR "${_mfdstudio_client_api_root}/cmake")
+set(MFDStudioClientApi_TOOLS_DIR "${_mfdstudio_client_api_root}/tools")
+set(MFDStudioClientApi_GENERATOR_ROOT "${MFDStudioClientApi_TOOLS_DIR}/generator")
+set(MFDStudioClientApi_GENERATOR_SCRIPT
+    "${MFDStudioClientApi_GENERATOR_ROOT}/scripts/generate_ui.py")
+
+set(_mfdstudio_api_debug_implib
+    "${MFDStudioClientApi_LIBRARY_DIR}/Debug/mfd_api.lib")
+set(_mfdstudio_api_release_implib
+    "${MFDStudioClientApi_LIBRARY_DIR}/Release/mfd_api.lib")
+set(_mfdstudio_client_api_debug_implib
+    "${MFDStudioClientApi_LIBRARY_DIR}/Debug/mfd_client_api.lib")
+set(_mfdstudio_client_api_release_implib
+    "${MFDStudioClientApi_LIBRARY_DIR}/Release/mfd_client_api.lib")
+
+if(NOT EXISTS "${MFDStudioClientApi_INCLUDE_DIR}")
+    message(FATAL_ERROR "MFDStudioClientApi include directory not found: ${MFDStudioClientApi_INCLUDE_DIR}")
+endif()
+
+if(NOT TARGET MFDStudio::Api)
+    add_library(MFDStudio::Api SHARED IMPORTED)
+    set_target_properties(MFDStudio::Api PROPERTIES
+        IMPORTED_CONFIGURATIONS "Debug;Release"
+        IMPORTED_IMPLIB_DEBUG "${_mfdstudio_api_debug_implib}"
+        IMPORTED_IMPLIB_RELEASE "${_mfdstudio_api_release_implib}"
+        INTERFACE_COMPILE_DEFINITIONS "MFD_API_DLL;NOMINMAX;WIN32_LEAN_AND_MEAN"
+        INTERFACE_COMPILE_FEATURES "cxx_std_17"
+        INTERFACE_INCLUDE_DIRECTORIES "${MFDStudioClientApi_INCLUDE_DIR}")
+endif()
+
+if(NOT TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@)
+    add_library(@MFD_PACKAGE_IMPORTED_TARGET_NAME@ SHARED IMPORTED)
+    set_target_properties(@MFD_PACKAGE_IMPORTED_TARGET_NAME@ PROPERTIES
+        IMPORTED_CONFIGURATIONS "Debug;Release"
+        IMPORTED_IMPLIB_DEBUG "${_mfdstudio_client_api_debug_implib}"
+        IMPORTED_IMPLIB_RELEASE "${_mfdstudio_client_api_release_implib}"
+        INTERFACE_COMPILE_DEFINITIONS "MFD_CLIENT_API_DLL;NOMINMAX;WIN32_LEAN_AND_MEAN"
+        INTERFACE_COMPILE_FEATURES "cxx_std_17"
+        INTERFACE_LINK_LIBRARIES "MFDStudio::Api"
+        INTERFACE_INCLUDE_DIRECTORIES "${MFDStudioClientApi_INCLUDE_DIR}")
+endif()
+
+if(EXISTS "${MFDStudioClientApi_CMAKE_DIR}/ClientApiGenerator.cmake")
+    include("${MFDStudioClientApi_CMAKE_DIR}/ClientApiGenerator.cmake")
+endif()
+
+set(MFDStudioClientApi_INCLUDE_DIRS "${MFDStudioClientApi_INCLUDE_DIR}")

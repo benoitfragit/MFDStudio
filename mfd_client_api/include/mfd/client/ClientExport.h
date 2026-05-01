@@ -12,10 +12,10 @@
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 #    if defined(MFD_CLIENT_API_EXPORTS)
-        /** @brief Marks a public symbol exported by `client_api`. */
+        /** @brief Marks a public symbol exported by `mfd_client_api`. */
 #        define MFD_CLIENT_API __declspec(dllexport)
 #    elif defined(MFD_CLIENT_API_DLL)
-        /** @brief Marks a public symbol imported from `client_api`. */
+        /** @brief Marks a public symbol imported from `mfd_client_api`. */
 #        define MFD_CLIENT_API __declspec(dllimport)
 #    else
         /** @brief Marks a public symbol when no DLL decoration is required. */

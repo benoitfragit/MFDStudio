@@ -36,9 +36,9 @@ TEST(WindowLauncherTests, BuildUsageTextReflectsConfiguredApplicationAndWindow)
 }
 
 /**
- * @brief Ensures usage text falls back to hardcoded defaults when config is empty.
+ * @brief Ensures usage text explains that a path is required when no default is configured.
  */
-TEST(WindowLauncherTests, BuildUsageTextFallsBackToBuiltInDefaults)
+TEST(WindowLauncherTests, BuildUsageTextRequiresExplicitWindowWhenNoDefaultIsConfigured)
 {
     mfd::window::LauncherConfig config;
     config.applicationName.clear();
@@ -47,7 +47,7 @@ TEST(WindowLauncherTests, BuildUsageTextFallsBackToBuiltInDefaults)
     const std::string usage = mfd::window::BuildUsageText(config);
 
     EXPECT_NE(usage.find("mfd_window <window.json>"), std::string::npos);
-    EXPECT_NE(usage.find("assets/windows/demo_pages.json"), std::string::npos);
+    EXPECT_NE(usage.find("No default window JSON is configured"), std::string::npos);
     EXPECT_NE(usage.find("--framebuffer-plugin <plugin.dll>"), std::string::npos);
 }
 
@@ -120,7 +120,7 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsFramebufferPluginFlag)
 }
 
 /**
- * @brief Parses short aliases -w and -h as valid options.
+ * @brief Parses short aliases -w, -p and -h as valid options.
  */
 TEST(WindowLauncherTests, ParseCommandLineAcceptsShortAliases)
 {
@@ -147,10 +147,11 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsShortAliases)
 
     char shortPlugin[] = "-p";
     char pluginPath[] = "short/plugin.dll";
-    char* pluginArgv[] = {program, shortPlugin, pluginPath, nullptr};
-    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(3, pluginArgv, config, options, error));
+    char* pluginArgv[] = {program, shortWindow, windowPath, shortPlugin, pluginPath, nullptr};
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(5, pluginArgv, config, options, error));
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(options.framebufferPluginFile.generic_string(), "short/plugin.dll");
+    EXPECT_EQ(options.windowFile.generic_string(), "short/path.json");
 }
 
 /**
@@ -194,9 +195,9 @@ TEST(WindowLauncherTests, ParseCommandLineAllowsMixingPositionalAndWindowFlag)
 }
 
 /**
- * @brief Handles null argument slots as empty positional arguments.
+ * @brief Rejects a missing window path when the launcher has no configured default.
  */
-TEST(WindowLauncherTests, ParseCommandLineTreatsNullEntryAsEmptyPath)
+TEST(WindowLauncherTests, ParseCommandLineRejectsMissingWindowWhenNoDefaultIsConfigured)
 {
     mfd::window::LauncherConfig config;
 
@@ -205,11 +206,8 @@ TEST(WindowLauncherTests, ParseCommandLineTreatsNullEntryAsEmptyPath)
 
     mfd::window::LauncherOptions options;
     std::string error;
-    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(2, argv, config, options, error));
-    EXPECT_TRUE(error.empty());
-    EXPECT_TRUE(options.windowFile.empty());
-    EXPECT_TRUE(options.framebufferPluginFile.empty());
-    EXPECT_FALSE(options.showHelp);
+    EXPECT_FALSE(mfd::window::ParseLauncherCommandLine(2, argv, config, options, error));
+    EXPECT_NE(error.find("No window JSON path was provided"), std::string::npos);
 }
 
 /**

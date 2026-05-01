@@ -3,7 +3,7 @@
   "size": [480, 480],
   "position": [120, 120],
   "targetFps": 60,
-  "iconFile": "../branding/mfdstudio_app_icon.png",
+  "iconFile": "../../branding/mfdstudio_app_icon.png",
   "reticleLibraryFolder": "../reticles",
   "commands": {
     "udp": {

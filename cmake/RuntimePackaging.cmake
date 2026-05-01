@@ -60,12 +60,13 @@ function(mfd_configure_test_runtime_output target_name)
 endfunction()
 
 function(mfd_stage_runtime target_name)
-    set(options WITH_ASSETS WITH_RUNTIME_DLLS)
+    set(options WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
     set(one_value_args STAGE_SUBDIR)
     cmake_parse_arguments(MFD_STAGE_RUNTIME "${options}" "${one_value_args}" "" ${ARGN})
 
     set(copy_assets ${MFD_STAGE_RUNTIME_WITH_ASSETS})
     set(copy_runtime_dlls ${MFD_STAGE_RUNTIME_WITH_RUNTIME_DLLS})
+    set(copy_branding ${MFD_STAGE_RUNTIME_WITH_BRANDING})
 
     mfd_resolve_stage_dir(stage_dir STAGE_SUBDIR "${MFD_STAGE_RUNTIME_STAGE_SUBDIR}")
     set(runtime_dlls_arg "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:${target_name}>,$<SEMICOLON>>")
@@ -92,6 +93,17 @@ function(mfd_stage_runtime target_name)
                 "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake")
     endif()
 
+    set(branding_commands)
+    if(copy_branding)
+        list(APPEND branding_commands
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_DIR=${MFD_ROOT_DIR}/branding"
+                "-DDEST_DIR=${stage_dir}/branding"
+                -P
+                "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake")
+    endif()
+
     add_custom_command(
         TARGET ${target_name}
         POST_BUILD
@@ -99,6 +111,7 @@ function(mfd_stage_runtime target_name)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${target_name}>" "${stage_dir}"
         ${runtime_dll_commands}
         ${asset_commands}
+        ${branding_commands}
         VERBATIM)
 endfunction()
 

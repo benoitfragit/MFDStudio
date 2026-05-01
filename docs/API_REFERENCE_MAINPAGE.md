@@ -34,7 +34,8 @@ It brings together:
 - tutorial flows and exact JSON authoring reference pages
 - architecture notes for generated APIs and transport maps
 - the versioned C++ header surface exposed from `mfd_api/include`,
-  `client_api/include`, and `mfd_window/include`
+  `mfd_client_api/include`, `mfd_editor_plugin_api/include`,
+  `mfd_window/include`, and `mfd_window_plugin_api/include`
 
 Internally, the repository implementation is now split into `mfd_model`,
 `mfd_transport`, `mfd_io_json`, `mfd_runtime`, and the private

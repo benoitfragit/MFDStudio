@@ -29,6 +29,7 @@ target_link_libraries(mfd_window_launcher
         mfd::io_json
         mfd::render_raylib
         mfd::runtime
+        mfd::window_plugin_api
         rlimgui)
 
 mfd_enable_target_warnings(mfd_window_launcher)
@@ -80,6 +81,12 @@ if(WIN32)
         POST_BUILD
         COMMAND
             ${CMAKE_COMMAND}
+            "-DSOURCE_DIR=${MFD_ROOT_DIR}/branding"
+            "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/branding"
+            -P
+            "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake"
+        COMMAND
+            ${CMAKE_COMMAND}
             "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/assets"
             -P
@@ -111,6 +118,12 @@ else()
         POST_BUILD
         COMMAND
             ${CMAKE_COMMAND}
+            "-DSOURCE_DIR=${MFD_ROOT_DIR}/branding"
+            "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/branding"
+            -P
+            "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake"
+        COMMAND
+            ${CMAKE_COMMAND}
             "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/assets"
             -P
@@ -118,4 +131,4 @@ else()
         VERBATIM)
 endif()
 
-mfd_stage_runtime(mfd_window WITH_ASSETS WITH_RUNTIME_DLLS)
+mfd_stage_runtime(mfd_window WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
