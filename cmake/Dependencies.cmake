@@ -117,12 +117,23 @@ function(mfd_fetch_dependencies)
     if(NOT Protobuf_FOUND)
         # Local source archive when USE_LOCALE_PACKAGE is ON:
         # https://github.com/protocolbuffers/protobuf/archive/refs/tags/v29.4.zip
+        #
+        # The vendored protobuf tree still inspects BUILD_SHARED_LIBS for its
+        # bundled abseil and utf8_range subprojects. Keep it OFF locally so the
+        # runtime graph does not pull abseil_dll.dll or utf8_validity.dll into
+        # the staged applications.
         mfd_declare_dependency(
             protobuf
             GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
             GIT_TAG v29.4
             LOCAL_ARCHIVE_NAME protobuf-29.4.zip)
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
         FetchContent_MakeAvailable(protobuf)
+        if(mfd_had_build_shared_libs)
+            set(BUILD_SHARED_LIBS "${mfd_previous_build_shared_libs}" CACHE BOOL "" FORCE)
+        else()
+            unset(BUILD_SHARED_LIBS CACHE)
+        endif()
     endif()
 
     # Local source archive when USE_LOCALE_PACKAGE is ON:
