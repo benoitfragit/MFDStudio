@@ -302,7 +302,8 @@ The window JSON exposes:
 A conforming client MUST:
 
 - send command payloads to the configured UDP endpoint
-- respect the configured `maxPacketSize`
+- respect the configured `maxPacketSize` within the supported `[64, 65507]`
+  range
 - preserve `sequence` and `mappingHash` when splitting one logical command cycle
   across several UDP payloads
 

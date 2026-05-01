@@ -158,9 +158,12 @@ Fields:
 | Field | Type | Required | Description | Aliases |
 | --- | --- | --- | --- | --- |
 | `enabled` | bool | no | Enables the UDP command endpoint. | none |
-| `address` | string | no | Bind or target address. | `bindAddress`, `host` |
+| `address` | string | no | Numeric IPv4 bind or target address. Keep `127.0.0.1` for trusted local control unless you explicitly want network exposure. | `bindAddress`, `host` |
 | `port` | integer | recommended | UDP port. | `listenPort` |
-| `maxPacketSize` | integer | no | Maximum protobuf UDP payload size. | `packetSize`, `bufferSize` |
+| `maxPacketSize` | integer | no | Maximum protobuf UDP payload size in the supported `[64, 65507]` range. | `packetSize`, `bufferSize` |
+
+Binding the command endpoint to `0.0.0.0` exposes the runtime command surface to
+the local network. Do that only for trusted environments.
 
 ## 3. UDP Feedback Transport
 
@@ -182,9 +185,9 @@ Fields are identical to the command transport:
 | Field | Type | Required | Description | Aliases |
 | --- | --- | --- | --- | --- |
 | `enabled` | bool | no | Enables UDP feedback. | none |
-| `address` | string | no | Bind or target address. | `bindAddress`, `host` |
+| `address` | string | no | Numeric IPv4 bind or target address. Keep `127.0.0.1` for trusted local feedback streams unless you explicitly want network exposure. | `bindAddress`, `host` |
 | `port` | integer | recommended | UDP port. | `listenPort` |
-| `maxPacketSize` | integer | no | Maximum protobuf UDP payload size. | `packetSize`, `bufferSize` |
+| `maxPacketSize` | integer | no | Maximum protobuf UDP payload size in the supported `[64, 65507]` range. | `packetSize`, `bufferSize` |
 
 ## 4. Page JSON
 

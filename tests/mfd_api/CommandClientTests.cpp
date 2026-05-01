@@ -19,6 +19,7 @@
 
 #include "mfd/control/CommandClient.h"
 #include "mfd/control/CommandTypes.h"
+#include "mfd/ipc/UdpLimits.h"
 
 namespace
 {
@@ -522,4 +523,23 @@ TEST(CommandClientTests, NameBasedPageHelpersRequireConfiguredTransportMap)
 
     EXPECT_FALSE(client.SetStrobeActive("Radar", true));
     EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
+}
+
+TEST(CommandClientTests, MaxPayloadBytesUsesSharedUdpBounds)
+{
+    mfd::WindowUdpCommandTransport smallConfig;
+    smallConfig.enabled = true;
+    smallConfig.port = 47220U;
+    smallConfig.maxPacketSize = 1U;
+
+    mfd::CommandClient smallClient(smallConfig);
+    EXPECT_EQ(smallClient.MaxPayloadBytes(), mfd::kUdpMinPayloadBytes);
+
+    mfd::WindowUdpCommandTransport largeConfig;
+    largeConfig.enabled = true;
+    largeConfig.port = 47220U;
+    largeConfig.maxPacketSize = mfd::kUdpMaxPayloadBytes + 1024U;
+
+    mfd::CommandClient largeClient(largeConfig);
+    EXPECT_EQ(largeClient.MaxPayloadBytes(), mfd::kUdpMaxPayloadBytes);
 }

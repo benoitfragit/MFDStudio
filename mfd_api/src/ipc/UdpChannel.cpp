@@ -10,6 +10,7 @@
 
 #include "mfd/ipc/UdpChannel.h"
 
+#include <algorithm>
 #include <utility>
 
 #ifdef _WIN32
@@ -25,7 +26,7 @@ struct UdpChannel::Impl
 {
     bool ready = false;
     std::string lastError;
-    std::size_t maxPacketSize = 4096;
+    std::size_t maxPacketSize = kUdpDefaultPayloadBytes;
 
 #ifdef _WIN32
     SOCKET socketHandle = INVALID_SOCKET;
@@ -101,7 +102,7 @@ bool ResolveAddress(const std::string& host,
 UdpChannel::UdpChannel(const UdpChannelConfig& config)
     : impl_(std::make_unique<Impl>())
 {
-    impl_->maxPacketSize = config.maxPacketSize;
+    impl_->maxPacketSize = std::clamp(config.maxPacketSize, kUdpMinPayloadBytes, kUdpMaxPayloadBytes);
 
 #ifdef _WIN32
     if (!EnsureWinsock(impl_->lastError))
@@ -189,6 +190,13 @@ bool UdpChannel::Send(const ByteView buffer)
         return false;
     }
 
+    if (sentBytes != static_cast<int>(buffer.size()))
+    {
+        impl_->lastError = "UDP payload was partially sent";
+        return false;
+    }
+
+    impl_->lastError.clear();
     return true;
 #else
     return false;
@@ -227,6 +235,7 @@ std::optional<std::vector<std::byte>> UdpChannel::TryReceive()
     }
 
     buffer.resize(static_cast<std::size_t>(receivedBytes));
+    impl_->lastError.clear();
     return buffer;
 #else
     return std::nullopt;

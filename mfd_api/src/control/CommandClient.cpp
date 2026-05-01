@@ -22,14 +22,13 @@
 #include <vector>
 
 #include "mfd/ipc/ExchangeChannel.h"
+#include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/PageName.h"
 
 namespace mfd
 {
 namespace
 {
-constexpr std::size_t kUdpHardPayloadLimit = 65507;
-constexpr std::size_t kDefaultCommandPayloadLimit = 4096;
 constexpr RuntimeDynamicId kGeneratedDynamicRuntimeIdBit = RuntimeDynamicId {1} << 63U;
 
 bool PatchUsesGeneratedIdentifiers(const ReticlePatch& patch) noexcept
@@ -384,8 +383,8 @@ CommandClient::CommandClient(const WindowCommandTransportConfig& config, std::op
     if (config.udp.has_value())
     {
         maxPayloadBytes_ = std::clamp(config.udp->maxPacketSize,
-                                      std::size_t {1},
-                                      kUdpHardPayloadLimit);
+                                      kUdpMinPayloadBytes,
+                                      kUdpMaxPayloadBytes);
     }
 }
 
@@ -393,8 +392,8 @@ CommandClient::CommandClient(const WindowUdpCommandTransport& config, std::optio
     : CommandClient(CreateCommandClientChannel(config), std::move(transportMap))
 {
     maxPayloadBytes_ = std::clamp(config.maxPacketSize,
-                                  std::size_t {1},
-                                  kUdpHardPayloadLimit);
+                                  kUdpMinPayloadBytes,
+                                  kUdpMaxPayloadBytes);
 }
 
 bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, CommandBatch& normalizedBatch)
@@ -924,7 +923,7 @@ bool CommandClient::SendBatch(const CommandBatch& batch)
 
 std::size_t CommandClient::MaxPayloadBytes() const noexcept
 {
-    return maxPayloadBytes_ == 0 ? kDefaultCommandPayloadLimit : maxPayloadBytes_;
+    return maxPayloadBytes_ == 0 ? kUdpDefaultPayloadBytes : maxPayloadBytes_;
 }
 
 bool CommandClient::ActivatePage(const std::string_view page)

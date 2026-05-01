@@ -15,6 +15,7 @@ set(MFD_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/io/JsonLoader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/ExchangeChannel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpChannel.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpLimits.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageDefinition.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageName.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Reticle.h

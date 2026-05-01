@@ -25,6 +25,7 @@
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/ipc/ExchangeChannel.h"
 #include "mfd/ipc/UdpChannel.h"
+#include "mfd/ipc/UdpLimits.h"
 
 namespace
 {
@@ -173,6 +174,13 @@ TEST(CommandTransportTests, FactoriesRejectDisabledOrIncompleteFeedbackConfigura
     mfd::WindowFeedbackTransportConfig generic;
     EXPECT_EQ(mfd::CreateFeedbackReceiverChannel(generic), nullptr);
     EXPECT_EQ(mfd::CreateFeedbackSenderChannel(generic), nullptr);
+}
+
+TEST(CommandTransportTests, PublicUdpConfigsShareTheSameDefaultPayloadLimit)
+{
+    EXPECT_EQ(mfd::UdpChannelConfig {}.maxPacketSize, mfd::kUdpDefaultPayloadBytes);
+    EXPECT_EQ(mfd::WindowUdpCommandTransport {}.maxPacketSize, mfd::kUdpDefaultPayloadBytes);
+    EXPECT_EQ(mfd::WindowUdpFeedbackTransport {}.maxPacketSize, mfd::kUdpDefaultPayloadBytes);
 }
 
 TEST(CommandTransportTests, CommandTransportLoopbackDeliversSerializedBatches)

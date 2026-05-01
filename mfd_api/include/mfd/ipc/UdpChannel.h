@@ -19,6 +19,7 @@
 
 #include "mfd/MfdExport.h"
 #include "mfd/ipc/ExchangeChannel.h"
+#include "mfd/ipc/UdpLimits.h"
 
 namespace mfd
 {
@@ -27,16 +28,16 @@ namespace mfd
  */
 struct UdpChannelConfig
 {
-    /** @brief Local bind address used by the socket. */
+    /** @brief Local numeric IPv4 bind address used by the socket. */
     std::string bindAddress = "127.0.0.1";
     /** @brief Local bind port used by the socket. */
     std::uint16_t bindPort = 0;
-    /** @brief Default remote target address used by `Send()`. */
+    /** @brief Default remote numeric IPv4 target address used by `Send()`. */
     std::string remoteAddress = "127.0.0.1";
     /** @brief Default remote target port used by `Send()`. */
     std::uint16_t remotePort = 0;
-    /** @brief Maximum receive packet size in bytes. */
-    std::size_t maxPacketSize = 4096;
+    /** @brief Maximum receive packet size in bytes in the supported `[64, 65507]` range. */
+    std::size_t maxPacketSize = kUdpDefaultPayloadBytes;
 };
 
 /**

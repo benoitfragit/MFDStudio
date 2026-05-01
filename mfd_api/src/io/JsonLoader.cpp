@@ -25,6 +25,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "mfd/ipc/UdpLimits.h"
+
 namespace mfd
 {
 namespace
@@ -332,9 +334,12 @@ std::uint16_t ParsePortNumber(const json& value, const char* fieldName)
 std::size_t ParsePositivePacketSize(const json& value, const char* fieldName)
 {
     const int packetSize = ParsePixelNumber(value, fieldName);
-    if (packetSize <= 0)
+    if (packetSize < static_cast<int>(kUdpMinPayloadBytes) ||
+        packetSize > static_cast<int>(kUdpMaxPayloadBytes))
     {
-        throw std::runtime_error(std::string(fieldName) + " must be strictly positive");
+        throw std::runtime_error(std::string(fieldName) + " must be in [" +
+                                 std::to_string(kUdpMinPayloadBytes) + ", " +
+                                 std::to_string(kUdpMaxPayloadBytes) + "]");
     }
 
     return static_cast<std::size_t>(packetSize);

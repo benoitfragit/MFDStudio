@@ -66,6 +66,11 @@ Assume the target window exposes:
 
 Your external client can use those values directly.
 
+Keep the command endpoint on `127.0.0.1` for the default trusted-local setup.
+If you bind the window to `0.0.0.0`, any host that can reach that port can send
+runtime commands. `maxPacketSize` must stay in the supported `[64, 65507]`
+range.
+
 ## Step 2 - Create a command client
 
 ```cpp

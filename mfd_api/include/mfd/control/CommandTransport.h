@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include "mfd/MfdExport.h"
+#include "mfd/ipc/UdpLimits.h"
 
 namespace mfd
 {
@@ -28,12 +29,12 @@ struct WindowUdpCommandTransport
 {
     /** @brief Enables or disables the UDP transport. */
     bool enabled = false;
-    /** @brief Address bound or targeted by the receiver/client side. */
+    /** @brief Numeric IPv4 address bound or targeted by the receiver/client side. Prefer `127.0.0.1` for trusted local control. */
     std::string address = "127.0.0.1";
     /** @brief UDP port used by the transport. */
     std::uint16_t port = 47220;
-    /** @brief Maximum Protocol Buffers UDP payload size accepted by the channel. */
-    std::size_t maxPacketSize = 4096;
+    /** @brief Maximum Protocol Buffers UDP payload size accepted by the channel in the supported `[64, 65507]` range. */
+    std::size_t maxPacketSize = kUdpDefaultPayloadBytes;
 };
 
 /**

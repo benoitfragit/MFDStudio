@@ -172,6 +172,10 @@ const mfd::LoadedWindowConfiguration loaded =
 - optional font file
 - UDP transport settings
 
+Keep those UDP addresses on `127.0.0.1` when the client and the window run on
+the same machine. Both command and feedback `maxPacketSize` values must stay in
+the supported `[64, 65507]` range.
+
 `loaded.document` gives you:
 
 - reticle library

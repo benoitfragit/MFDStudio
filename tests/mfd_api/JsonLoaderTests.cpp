@@ -1022,6 +1022,40 @@ TEST(JsonLoaderTests, LoadWindowConfigurationRejectsNonPositiveUdpPacketSizes)
     EXPECT_THROW(loader.LoadWindowConfiguration(windowFile), std::runtime_error);
 }
 
+TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUdpPacketSizesOutsideSupportedRange)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path highWindowFile = workspace.Path() / "window_high.json";
+    const std::filesystem::path lowWindowFile = workspace.Path() / "window_low.json";
+    const std::filesystem::path pageFile = workspace.Path() / "page.json";
+
+    WriteTextFile(pageFile, R"json({ "name": "Main" })json");
+    WriteTextFile(highWindowFile,
+                  R"json({
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "maxPacketSize": 70000
+    }
+  },
+  "pages": ["page.json"]
+})json");
+    WriteTextFile(lowWindowFile,
+                  R"json({
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "maxPacketSize": 32
+    }
+  },
+  "pages": ["page.json"]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadWindowConfiguration(highWindowFile), std::runtime_error);
+    EXPECT_THROW(loader.LoadWindowConfiguration(lowWindowFile), std::runtime_error);
+}
+
 TEST(JsonLoaderTests, LoadDocumentRejectsTriangleWithMoreThanThreePoints)
 {
     TemporaryFolder workspace;

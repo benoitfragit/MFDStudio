@@ -62,6 +62,10 @@ Example:
 
 The window will send one feedback stream for the strobe state.
 
+Keep the feedback endpoint on `127.0.0.1` for the default trusted-local setup.
+If you expose it on `0.0.0.0`, any reachable host can receive the stream.
+`maxPacketSize` must stay in the supported `[64, 65507]` range.
+
 If you author the page in `mfd_editor`, select the page and use
 `Page inspector > Strobe > Strobe template` to assign one of the library
 reticles as the page strobe before saving.
