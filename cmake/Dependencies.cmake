@@ -26,7 +26,7 @@ function(mfd_declare_dependency dependency_name)
         endif()
     endforeach()
 
-    if(NOT USE_LOCALE_PACKAGE)
+    if(NOT USE_LOCAL_PACKAGE)
         FetchContent_Declare(
             ${dependency_name}
             GIT_REPOSITORY ${MFD_DEP_GIT_REPOSITORY}
@@ -38,10 +38,10 @@ function(mfd_declare_dependency dependency_name)
         "${MFD_LOCAL_PACKAGE_ROOT}/${dependency_name}/${MFD_DEP_LOCAL_ARCHIVE_NAME}")
     if(NOT EXISTS "${mfd_local_archive}")
         message(FATAL_ERROR
-            "USE_LOCALE_PACKAGE is ON, but the local archive for '${dependency_name}' "
+            "USE_LOCAL_PACKAGE is ON, but the local archive for '${dependency_name}' "
             "was not found at '${mfd_local_archive}'. "
             "Provide the source archive in MFD_LOCAL_PACKAGE_ROOT or reconfigure with "
-            "-DUSE_LOCALE_PACKAGE=OFF.")
+            "-DUSE_LOCAL_PACKAGE=OFF.")
     endif()
 
     FetchContent_Declare(
@@ -78,7 +78,7 @@ function(mfd_fetch_dependencies)
         set(mfd_previous_build_shared_libs "${BUILD_SHARED_LIBS}")
     endif()
 
-    # Local source archive when USE_LOCALE_PACKAGE is ON:
+    # Local source archive when USE_LOCAL_PACKAGE is ON:
     # https://github.com/raysan5/raylib/archive/refs/tags/5.5.zip
     # raylib stays static so each host embeds its own render layer instead of
     # relying on one shared runtime DLL boundary.
@@ -95,7 +95,7 @@ function(mfd_fetch_dependencies)
         unset(BUILD_SHARED_LIBS CACHE)
     endif()
 
-    # Local source archive when USE_LOCALE_PACKAGE is ON:
+    # Local source archive when USE_LOCAL_PACKAGE is ON:
     # https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip
     mfd_declare_dependency(
         nlohmann_json
@@ -104,7 +104,7 @@ function(mfd_fetch_dependencies)
         LOCAL_ARCHIVE_NAME json-3.11.3.zip)
     FetchContent_MakeAvailable(nlohmann_json)
 
-    # Local source archive when USE_LOCALE_PACKAGE is ON:
+    # Local source archive when USE_LOCAL_PACKAGE is ON:
     # https://github.com/skypjack/entt/archive/refs/tags/v3.13.2.zip
     mfd_declare_dependency(
         entt
@@ -115,7 +115,7 @@ function(mfd_fetch_dependencies)
 
     find_package(Protobuf CONFIG QUIET)
     if(NOT Protobuf_FOUND)
-        # Local source archive when USE_LOCALE_PACKAGE is ON:
+        # Local source archive when USE_LOCAL_PACKAGE is ON:
         # https://github.com/protocolbuffers/protobuf/archive/refs/tags/v29.4.zip
         #
         # The vendored protobuf tree still inspects BUILD_SHARED_LIBS for its
@@ -136,7 +136,7 @@ function(mfd_fetch_dependencies)
         endif()
     endif()
 
-    # Local source archive when USE_LOCALE_PACKAGE is ON:
+    # Local source archive when USE_LOCAL_PACKAGE is ON:
     # https://github.com/ocornut/imgui/archive/refs/tags/v1.92.1.zip
     mfd_declare_dependency(
         imgui
@@ -157,7 +157,7 @@ function(mfd_fetch_dependencies)
         target_compile_features(imgui PUBLIC cxx_std_17)
     endif()
 
-    # Local source archive when USE_LOCALE_PACKAGE is ON:
+    # Local source archive when USE_LOCAL_PACKAGE is ON:
     # https://github.com/raylib-extras/rlImGui/archive/286e11acd6c785004c9550c7ed3762add2ae3d47.zip
     # The pinned rlImGui input currently tracks one commit instead of a tagged release.
     mfd_declare_dependency(
@@ -188,7 +188,7 @@ function(mfd_fetch_dependencies)
             set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
         endif()
 
-        # Local source archive when USE_LOCALE_PACKAGE is ON:
+        # Local source archive when USE_LOCAL_PACKAGE is ON:
         # https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
         mfd_declare_dependency(
             googletest

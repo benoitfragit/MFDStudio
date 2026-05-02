@@ -51,7 +51,7 @@ Build defaults worth knowing:
 
 - the shipped presets target Visual Studio/MSVC on Windows
 - the shipped presets now include `ctest --preset` entries for Win32/x64 debug runs plus matching `-no-tests` configure/build variants
-- third-party source resolution defaults to the remote Git-based `FetchContent` path; set `-DUSE_LOCALE_PACKAGE=ON` to use local archives under `third_party/archives`
+- third-party source resolution defaults to the remote Git-based `FetchContent` path; set `-DUSE_LOCAL_PACKAGE=ON` to use local archives under `third_party/archives`
 - `POSITION_INDEPENDENT_CODE` is not forced on Windows by default
 - the MSVC CRT runtime now follows the toolchain default unless you override it explicitly with `-DMFD_MSVC_RUNTIME=dll` or `-DMFD_MSVC_RUNTIME=static`
 

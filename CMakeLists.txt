@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(MFD
-    VERSION 1.4.2
+    VERSION 1.4.3
     DESCRIPTION "2D Multi-Function Display framework with JSON pages and reusable reticles"
     LANGUAGES C CXX)
 
@@ -16,7 +16,48 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(MFD_BUILD_DEMO "Build the demo MFD executable" ON)
 option(MFD_BUILD_TESTS "Build GoogleTest-based runtime and loading tests" ON)
 option(MFD_ENABLE_WARNINGS "Enable strict compiler warnings" ON)
-option(USE_LOCALE_PACKAGE "When ON, FetchContent expects local source archives under MFD_LOCAL_PACKAGE_ROOT instead of using the remote Git declarations." OFF)
+
+set(_mfd_use_local_package_is_defined OFF)
+set(_mfd_use_local_package_value OFF)
+if(DEFINED CACHE{USE_LOCAL_PACKAGE})
+    set(_mfd_use_local_package_is_defined ON)
+    set(_mfd_use_local_package_value "${USE_LOCAL_PACKAGE}")
+endif()
+
+set(_mfd_use_locale_package_is_defined OFF)
+set(_mfd_use_locale_package_value OFF)
+if(DEFINED CACHE{USE_LOCALE_PACKAGE})
+    set(_mfd_use_locale_package_is_defined ON)
+    set(_mfd_use_locale_package_value "${USE_LOCALE_PACKAGE}")
+endif()
+
+set(_mfd_use_local_package_default OFF)
+if(_mfd_use_local_package_is_defined)
+    set(_mfd_use_local_package_default "${_mfd_use_local_package_value}")
+elseif(_mfd_use_locale_package_is_defined)
+    set(_mfd_use_local_package_default "${_mfd_use_locale_package_value}")
+endif()
+
+option(USE_LOCAL_PACKAGE
+    "When ON, FetchContent expects local source archives under MFD_LOCAL_PACKAGE_ROOT instead of using the remote Git declarations."
+    ${_mfd_use_local_package_default})
+
+if(_mfd_use_locale_package_is_defined)
+    if(_mfd_use_local_package_is_defined AND
+       NOT "${_mfd_use_local_package_value}" STREQUAL "${_mfd_use_locale_package_value}")
+        message(WARNING
+            "Both USE_LOCAL_PACKAGE='${_mfd_use_local_package_value}' and deprecated "
+            "USE_LOCALE_PACKAGE='${_mfd_use_locale_package_value}' are defined. "
+            "USE_LOCAL_PACKAGE takes precedence.")
+    elseif(NOT _mfd_use_local_package_is_defined)
+        message(WARNING
+            "USE_LOCALE_PACKAGE is deprecated and will be removed in a future release. "
+            "Use USE_LOCAL_PACKAGE instead.")
+    endif()
+endif()
+
+set(USE_LOCALE_PACKAGE "${USE_LOCAL_PACKAGE}" CACHE BOOL "Deprecated alias for USE_LOCAL_PACKAGE." FORCE)
+mark_as_advanced(USE_LOCALE_PACKAGE)
 
 set(MFD_LOCAL_PACKAGE_ROOT
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/archives"

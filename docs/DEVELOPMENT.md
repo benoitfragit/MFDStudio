@@ -57,7 +57,7 @@ cmake --build --preset debug-x64
 | `MFD_BUILD_DEMO` | `ON` | Builds the runtime applications, examples, and editor |
 | `MFD_BUILD_TESTS` | `ON` | Builds and registers the automated test suite |
 | `MFD_ENABLE_WARNINGS` | `ON` | Enables the stricter compiler warning profile |
-| `USE_LOCALE_PACKAGE` | `OFF` | Keeps the remote Git-based `FetchContent` behavior; set it to `ON` to use local third-party source archives from `MFD_LOCAL_PACKAGE_ROOT` |
+| `USE_LOCAL_PACKAGE` | `OFF` | Keeps the remote Git-based `FetchContent` behavior; set it to `ON` to use local third-party source archives from `MFD_LOCAL_PACKAGE_ROOT` |
 | `MFD_LOCAL_PACKAGE_ROOT` | `third_party/archives` | Root folder containing local third-party source archives grouped by dependency name |
 | `MFD_ENABLE_POSITION_INDEPENDENT_CODE` | `OFF` on Windows, `ON` elsewhere | Enables position-independent code only where it is actually needed |
 | `MFD_MSVC_RUNTIME` | `default` | Leaves the MSVC CRT runtime to the toolchain default; accepts `dll` or `static` for explicit control |
@@ -74,10 +74,10 @@ Examples:
 ```powershell
 cmake --preset vs2022-win32 -DMFD_MSVC_RUNTIME=static
 cmake --preset vs2022-win32 -DMFD_ENABLE_POSITION_INDEPENDENT_CODE=ON
-cmake --preset vs2022-win32 -DUSE_LOCALE_PACKAGE=ON
+cmake --preset vs2022-win32 -DUSE_LOCAL_PACKAGE=ON
 ```
 
-When `USE_LOCALE_PACKAGE` is set to `ON`, `FetchContent` expects
+When `USE_LOCAL_PACKAGE` is set to `ON`, `FetchContent` expects
 source archives under `MFD_LOCAL_PACKAGE_ROOT` with this layout:
 
 ```text
@@ -93,6 +93,9 @@ third_party/archives/
 
 Each dependency block in `cmake/Dependencies.cmake` carries a comment with the
 exact upstream source-archive URL to download.
+
+The deprecated `USE_LOCALE_PACKAGE` cache entry is still accepted as a
+compatibility alias, but new configurations should use `USE_LOCAL_PACKAGE`.
 
 ## CMake Linking Convention
 
