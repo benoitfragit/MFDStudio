@@ -92,8 +92,7 @@ target_link_libraries(client_mockup
         dxgi
         imgui
         mfd::client
-        mfd::io_json
-        mfd::transport)
+        mfd::io_json)
 
 mfd_enable_target_warnings(client_mockup)
 

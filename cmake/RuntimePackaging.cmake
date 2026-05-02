@@ -38,6 +38,14 @@ function(mfd_resolve_stage_dir out_var)
     set(${out_var} "${stage_dir}" PARENT_SCOPE)
 endfunction()
 
+function(_mfd_runtime_stage_register target_name stage_subdir copy_assets copy_branding copy_runtime_dlls script_source_dir)
+    set(script_names ${ARGN})
+    string(JOIN "#" script_names_encoded ${script_names})
+    set(registration
+        "${target_name}|${stage_subdir}|${copy_assets}|${copy_branding}|${copy_runtime_dlls}|${script_source_dir}|${script_names_encoded}")
+    set_property(GLOBAL APPEND PROPERTY MFD_RUNTIME_STAGE_REGISTRATIONS "${registration}")
+endfunction()
+
 function(mfd_configure_test_runtime_output target_name)
     set(options)
     set(one_value_args BUILD_SUBDIR)
@@ -61,12 +69,18 @@ endfunction()
 
 function(mfd_stage_runtime target_name)
     set(options WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
-    set(one_value_args STAGE_SUBDIR)
-    cmake_parse_arguments(MFD_STAGE_RUNTIME "${options}" "${one_value_args}" "" ${ARGN})
+    set(one_value_args STAGE_SUBDIR SCRIPT_SOURCE_DIR)
+    set(multi_value_args SCRIPT_NAMES)
+    cmake_parse_arguments(MFD_STAGE_RUNTIME "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
 
     set(copy_assets ${MFD_STAGE_RUNTIME_WITH_ASSETS})
     set(copy_runtime_dlls ${MFD_STAGE_RUNTIME_WITH_RUNTIME_DLLS})
     set(copy_branding ${MFD_STAGE_RUNTIME_WITH_BRANDING})
+
+    if(MFD_STAGE_RUNTIME_SCRIPT_NAMES
+       AND (NOT MFD_STAGE_RUNTIME_SCRIPT_SOURCE_DIR OR NOT EXISTS "${MFD_STAGE_RUNTIME_SCRIPT_SOURCE_DIR}"))
+        message(FATAL_ERROR "mfd_stage_runtime requires SCRIPT_SOURCE_DIR when SCRIPT_NAMES are provided.")
+    endif()
 
     mfd_resolve_stage_dir(stage_dir STAGE_SUBDIR "${MFD_STAGE_RUNTIME_STAGE_SUBDIR}")
     set(runtime_dlls_arg "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:${target_name}>,$<SEMICOLON>>")
@@ -104,6 +118,19 @@ function(mfd_stage_runtime target_name)
                 "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake")
     endif()
 
+    set(runtime_script_commands)
+    if(MFD_STAGE_RUNTIME_SCRIPT_NAMES)
+        string(JOIN ";" runtime_script_list ${MFD_STAGE_RUNTIME_SCRIPT_NAMES})
+        list(APPEND runtime_script_commands
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_DIR=${MFD_STAGE_RUNTIME_SCRIPT_SOURCE_DIR}"
+                "-DDEST_DIR=${stage_dir}"
+                "-DFILE_NAMES=${runtime_script_list}"
+                -P
+                "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake")
+    endif()
+
     add_custom_command(
         TARGET ${target_name}
         POST_BUILD
@@ -112,7 +139,133 @@ function(mfd_stage_runtime target_name)
         ${runtime_dll_commands}
         ${asset_commands}
         ${branding_commands}
+        ${runtime_script_commands}
         VERBATIM)
+
+    _mfd_runtime_stage_register(
+        "${target_name}"
+        "${MFD_STAGE_RUNTIME_STAGE_SUBDIR}"
+        "${copy_assets}"
+        "${copy_branding}"
+        "${copy_runtime_dlls}"
+        "${MFD_STAGE_RUNTIME_SCRIPT_SOURCE_DIR}"
+        ${MFD_STAGE_RUNTIME_SCRIPT_NAMES})
+endfunction()
+
+function(mfd_finalize_runtime_stage_targets)
+    get_property(runtime_stage_registrations GLOBAL PROPERTY MFD_RUNTIME_STAGE_REGISTRATIONS)
+    if(NOT runtime_stage_registrations)
+        return()
+    endif()
+
+    set(runtime_stage_keys)
+    foreach(registration IN LISTS runtime_stage_registrations)
+        string(REPLACE "|" ";" registration_fields "${registration}")
+        list(GET registration_fields 1 stage_subdir)
+        if(stage_subdir STREQUAL "")
+            set(stage_key "__root__")
+        else()
+            set(stage_key "${stage_subdir}")
+        endif()
+
+        list(FIND runtime_stage_keys "${stage_key}" stage_key_index)
+        if(stage_key_index EQUAL -1)
+            list(APPEND runtime_stage_keys "${stage_key}")
+        endif()
+    endforeach()
+
+    add_custom_target(stage_exec)
+
+    foreach(stage_key IN LISTS runtime_stage_keys)
+        if(stage_key STREQUAL "__root__")
+            set(stage_subdir "")
+            set(stage_target_name "stage_exec_root")
+        else()
+            set(stage_subdir "${stage_key}")
+            string(MAKE_C_IDENTIFIER "stage_exec_${stage_subdir}" stage_target_name)
+        endif()
+
+        mfd_resolve_stage_dir(stage_dir STAGE_SUBDIR "${stage_subdir}")
+
+        set(stage_commands
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${stage_dir}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${stage_dir}")
+        set(stage_dependencies)
+
+        foreach(registration IN LISTS runtime_stage_registrations)
+            string(REPLACE "|" ";" registration_fields "${registration}")
+            list(GET registration_fields 0 target_name)
+            list(GET registration_fields 1 registration_stage_subdir)
+            list(GET registration_fields 2 copy_assets)
+            list(GET registration_fields 3 copy_branding)
+            list(GET registration_fields 4 copy_runtime_dlls)
+            list(GET registration_fields 5 script_source_dir)
+            list(GET registration_fields 6 script_names_encoded)
+
+            if(stage_subdir STREQUAL "")
+                if(NOT registration_stage_subdir STREQUAL "")
+                    continue()
+                endif()
+            elseif(NOT registration_stage_subdir STREQUAL "${stage_subdir}")
+                continue()
+            endif()
+
+            list(APPEND stage_dependencies "${target_name}")
+            list(APPEND stage_commands
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:${target_name}>"
+                    "${stage_dir}/$<TARGET_FILE_NAME:${target_name}>")
+
+            if(copy_runtime_dlls AND WIN32)
+                list(APPEND stage_commands
+                    COMMAND
+                        ${CMAKE_COMMAND}
+                        "-DDEST_DIR=${stage_dir}"
+                        "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:${target_name}>,$<SEMICOLON>>"
+                        -P
+                        "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake")
+            endif()
+
+            if(copy_assets)
+                list(APPEND stage_commands
+                    COMMAND
+                        ${CMAKE_COMMAND}
+                        "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+                        "-DDEST_DIR=${stage_dir}/assets"
+                        -P
+                        "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake")
+            endif()
+
+            if(copy_branding)
+                list(APPEND stage_commands
+                    COMMAND
+                        ${CMAKE_COMMAND}
+                        "-DSOURCE_DIR=${MFD_ROOT_DIR}/branding"
+                        "-DDEST_DIR=${stage_dir}/branding"
+                        -P
+                        "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake")
+            endif()
+
+            if(NOT script_names_encoded STREQUAL "")
+                string(REPLACE "#" ";" script_names "${script_names_encoded}")
+                string(JOIN ";" script_name_list ${script_names})
+                list(APPEND stage_commands
+                    COMMAND
+                        ${CMAKE_COMMAND}
+                        "-DSOURCE_DIR=${script_source_dir}"
+                        "-DDEST_DIR=${stage_dir}"
+                        "-DFILE_NAMES=${script_name_list}"
+                        -P
+                        "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake")
+            endif()
+        endforeach()
+
+        add_custom_target(${stage_target_name}
+            ${stage_commands}
+            DEPENDS ${stage_dependencies}
+            VERBATIM)
+        add_dependencies(stage_exec ${stage_target_name})
+    endforeach()
 endfunction()
 
 function(mfd_add_runtime_layout_smoke_test target_name)

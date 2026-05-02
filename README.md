@@ -88,7 +88,10 @@ In practice:
 - clients send runtime updates through typed commands
 - the renderer draws only the active page
 
-The build is now split into focused layers:
+The internal build graph is now split into focused layers. The dedicated
+`mfd_common_api` module owns its own `include/`, `src/`, and `proto/` trees,
+plus the shared low-level static libraries reused by `mfd_api`,
+`mfd_client_api`, the examples, and the tests:
 
 - `mfd_model`: authored document and reticle types
 - `mfd_transport`: generated transport maps, command serialization, UDP transport, and command client helpers
@@ -198,6 +201,12 @@ through `cmake/CompilerWarnings.cmake`.
 GoogleTest executables are emitted under `build/<preset>/tests/<config>/` and
 staged under `_Exec/<toolset>/<platform>/<config>/tests/`.
 
+For a clean, reproducible `_Exec` refresh, build the dedicated staging target:
+
+```powershell
+cmake --build --preset debug-win32 --target stage_exec
+```
+
 Development and install deliveries are staged separately under `_Deliveries`:
 
 - `packages_windows/<PackageName>/build/native` for SDK-style development packages
@@ -208,9 +217,16 @@ scripts, and branding only. The demo JSON/assets remain repository-side, and
 `MFDStudioWindowLauncher.Install` intentionally ships only
 `Start-MfdWindow.bat` rather than the repository demo launchers.
 `MFDStudioClientApi.Install` carries `mfd_client_api.dll` together with the
-low-level `mfd_api.dll`, while `MFDStudioWindowLauncher.Install` carries
+low-level `mfd_api.dll`, while the `MFDStudioClientApi` SDK republishes only
+the narrow low-level header subset required by `Animation.h`,
+`LatestBatchPublisher.h`, generated UI headers, and `CommandClient`.
+`MFDStudioWindowLauncher.Install` carries
 `mfd_window.exe`, `mfd_window_plugin_api.dll`, `Start-MfdWindow.bat`, and the
 shared branding files.
+
+GitHub releases now publish one aggregated ZIP asset per package. Each
+platform-specific package ZIP contains every staged `win32/x64` and
+`Debug/Release` subtree produced for that toolset.
 
 ## Shipped Tools And Entry Points
 
@@ -252,7 +268,8 @@ remain out of the default examples build.
 
 | Path | Role |
 | --- | --- |
-| `mfd_api` | Core source tree producing `mfd_model`, `mfd_transport`, `mfd_io_json`, `mfd_runtime`, the public low-level `mfd_api` DLL, and the private `mfd_render_raylib` layer |
+| `mfd_common_api` | Internal shared low-level module owning the `mfd_model` and `mfd_transport` static libraries reused across the repository |
+| `mfd_api` | Core source tree producing `mfd_io_json`, `mfd_runtime`, the public low-level `mfd_api` DLL, and the private `mfd_render_raylib` layer |
 | `mfd_client_api` | Higher-level client helpers producing the `mfd_client_api` library |
 | `mfd_client_api/generator` | Typed client API generator |
 | `mfd_window_plugin_api` | Public framebuffer-plugin SDK used by `MFDStudioWindowLauncherPlugin` |
@@ -284,9 +301,10 @@ Documentation is intentionally split by job:
 | [Architecture Notes](./docs/architecture/README.md) | you need advanced design details for generated APIs or transport maps |
 | [Interoperability Standards](./docs/standards/README.md) | you want the generated client API standard, the formal replacement-client contract, and the conformance target |
 
-The public headers in `mfd_api/include/mfd`, `mfd_client_api/include`,
-`mfd_editor_plugin_api/include`, and `mfd_window_plugin_api/include` are also
-documented with Doxygen using `@brief`, `@param`, `@return`, and `@note`.
+The public headers in `mfd_common_api/include/mfd`, `mfd_api/include/mfd`,
+`mfd_client_api/include`, `mfd_editor_plugin_api/include`, and
+`mfd_window_plugin_api/include` are also documented with Doxygen using
+`@brief`, `@param`, `@return`, and `@note`.
 
 The generated HTML API portal uses the official `doxygen-awesome-css` theme
 with a small MFDStudio-specific override layer instead of the previous large

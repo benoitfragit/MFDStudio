@@ -23,7 +23,7 @@ target_include_directories(mfd_client_api
 
 target_link_libraries(mfd_client_api
     PUBLIC
-        mfd::public_api)
+        mfd::transport)
 
 target_compile_definitions(mfd_client_api
     PUBLIC
@@ -39,31 +39,34 @@ mfd_enable_target_warnings(mfd_client_api)
 
 mfd_stage_runtime(mfd_client_api WITH_RUNTIME_DLLS)
 
+set(CLIENT_API_PACKAGE_PUBLIC_HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/Animation.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/ClientExport.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/LatestBatchPublisher.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/MfdExport.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/core/ArrayView.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/control/CommandClient.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/control/CommandTransport.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/control/CommandTypes.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/ipc/ExchangeChannel.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/ipc/UdpLimits.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/PageDefinition.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/PageName.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/Reticle.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/Types.h"
+    "${MFD_ROOT_DIR}/mfd_common_api/include/mfd/runtime/GeneratedTransportMap.h")
+
 mfd_register_dev_package(
     NAME MFDStudioClientApi
     TARGET mfd_client_api
     ADDITIONAL_LIBRARY_TARGETS
-        mfd_public_api
+        mfd_api
     IMPORTED_TARGET_NAME MFDStudio::ClientApi
     PUBLIC_INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
-        "${MFD_ROOT_DIR}/mfd_api/include"
+        "${MFD_ROOT_DIR}/mfd_common_api/include"
     PUBLIC_HEADER_FILES
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/Animation.h"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/ClientExport.h"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/LatestBatchPublisher.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/MfdExport.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/core/ArrayView.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/control/CommandClient.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/control/CommandTransport.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/control/CommandTypes.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/ipc/ExchangeChannel.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/ipc/UdpLimits.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/model/PageDefinition.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/model/PageName.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/model/Reticle.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/model/Types.h"
-        "${MFD_ROOT_DIR}/mfd_api/include/mfd/runtime/GeneratedTransportMap.h"
+        ${CLIENT_API_PACKAGE_PUBLIC_HEADERS}
     PACKAGE_CMAKE_FILES
         "${MFD_ROOT_DIR}/mfd_client_api/generator/ClientApiGenerator.cmake"
     TOOL_DIRECTORIES
@@ -73,4 +76,6 @@ mfd_register_dev_package(
 
 mfd_register_runtime_package(
     NAME MFDStudioClientApi.Install
-    TARGETS mfd_client_api)
+    TARGETS
+        mfd_client_api
+        mfd_api)

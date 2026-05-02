@@ -37,8 +37,7 @@ target_include_directories(client_mockup_minimal
 target_link_libraries(client_mockup_minimal
     PRIVATE
         mfd::client
-        mfd::io_json
-        mfd::transport)
+        mfd::io_json)
 
 set_target_properties(client_mockup_minimal PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_mockup_minimal>")

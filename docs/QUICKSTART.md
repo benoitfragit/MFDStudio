@@ -49,6 +49,13 @@ cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_pl
 This default build also compiles the `GoogleTest` suite used to validate the
 runtime API and JSON loading rules.
 
+If you want to refresh the staged `_Exec` runtime tree cleanly before launching
+from it, run:
+
+```powershell
+cmake --build --preset debug-win32 --target stage_exec
+```
+
 ## Step 2 - Start a ready-to-use window
 
 Launch one of the repository launchers:
@@ -59,8 +66,8 @@ Launch one of the repository launchers:
 For a first run, `.\Scripts\Start-MfdDemo.bat` is the easiest option.
 
 These scripts are also copied directly into `_Exec/<toolset>/<platform>/<config>/`
-when `mfd_window` is built, so the same launch flow works from the staged
-runtime layout without an extra scripts subdirectory.
+when `mfd_window` is built, and `stage_exec` can rebuild that staged runtime
+layout cleanly without an extra scripts subdirectory.
 
 ## Step 3 - Start the mockup
 

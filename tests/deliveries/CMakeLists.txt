@@ -14,6 +14,19 @@ set(MFD_DELIVERY_TEST_COMMON_ARGS
     "-DPARENT_CMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}")
 
 add_test(
+    NAME exec_stage_smoke
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DBUILD_DIRECTORY=${CMAKE_BINARY_DIR}"
+        "-DBUILD_CONFIG=$<CONFIG>"
+        "-DEXEC_ROOT=${MFD_ROOT_DIR}/_Exec"
+        "-DTOOLSET=${MFD_EXEC_COMPILER_DIR}"
+        "-DPLATFORM=${MFD_EXEC_PLATFORM_DIR}"
+        -P
+        "${MFD_ROOT_DIR}/cmake/VerifyExecLayout.cmake")
+set_tests_properties(exec_stage_smoke PROPERTIES LABELS "runtime;stage;smoke")
+
+add_test(
     NAME delivery_layout_smoke
     COMMAND
         ${CMAKE_COMMAND}

@@ -1,5 +1,5 @@
 PROJECT_NAME           = "MFDStudio"
-PROJECT_NUMBER         = "1.3.0"
+PROJECT_NUMBER         = "1.4.1"
 PROJECT_BRIEF          = "Versioned documentation portal and C++ API reference for the MFDStudio toolkit"
 OUTPUT_DIRECTORY       = build/docs/doxygen
 OUTPUT_LANGUAGE        = English
@@ -37,6 +37,8 @@ FILE_PATTERNS          = *.h \
 INPUT                  = README.md \
                          THIRD_PARTY_NOTICES.md \
                          docs \
+                         mfd_common_api/README.md \
+                         mfd_common_api/include \
                          mfd_api/include \
                          mfd_client_api/include \
                          mfd_editor_plugin_api/include \

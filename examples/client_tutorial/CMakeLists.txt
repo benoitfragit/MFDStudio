@@ -65,8 +65,7 @@ target_include_directories(client_tutorial
 target_link_libraries(client_tutorial
     PRIVATE
         mfd::client
-        mfd::io_json
-        mfd::transport)
+        mfd::io_json)
 
 set_target_properties(client_tutorial PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_tutorial>")

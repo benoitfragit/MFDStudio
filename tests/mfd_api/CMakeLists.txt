@@ -29,14 +29,6 @@ target_link_libraries(mfd_api_tests
         mfd::api
         mfd::render_raylib)
 
-if(TARGET abseil_dll)
-    target_link_libraries(mfd_api_tests PRIVATE abseil_dll)
-endif()
-
-if(TARGET utf8_validity)
-    target_link_libraries(mfd_api_tests PRIVATE utf8_validity)
-endif()
-
 mfd_private_library(mfd_api_tests GTest::gtest_main)
 mfd_private_library(mfd_api_tests nlohmann_json::nlohmann_json)
 
@@ -64,8 +56,6 @@ if(WIN32)
             "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
         VERBATIM)
 endif()
-
-mfd_stage_runtime(mfd_api_tests WITH_RUNTIME_DLLS STAGE_SUBDIR tests)
 
 gtest_discover_tests(mfd_api_tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_api_tests>"

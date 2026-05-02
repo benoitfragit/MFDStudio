@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(MFD
-    VERSION 1.3.0
+    VERSION 1.4.1
     DESCRIPTION "2D Multi-Function Display framework with JSON pages and reusable reticles"
     LANGUAGES C CXX)
 
@@ -72,6 +72,8 @@ include(Dependencies)
 mfd_fetch_dependencies()
 
 set(MFD_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+set(MFD_COMMON_API_PUBLIC_INCLUDE_DIR "${MFD_ROOT_DIR}/mfd_common_api/include")
+set(MFD_API_PUBLIC_INCLUDE_DIR "${MFD_ROOT_DIR}/mfd_api/include")
 
 include(RuntimePackaging)
 include(DeliveryPackaging)
@@ -80,6 +82,7 @@ if(MFD_BUILD_TESTS)
     enable_testing()
 endif()
 
+add_subdirectory(mfd_common_api)
 add_subdirectory(mfd_api)
 add_subdirectory(mfd_client_api/generator)
 
@@ -98,6 +101,8 @@ endif()
 if(MFD_BUILD_DEMO)
     add_subdirectory(examples)
 endif()
+
+mfd_finalize_runtime_stage_targets()
 
 mfd_register_runtime_package(
     NAME MFDStudioWindowLauncher.Install

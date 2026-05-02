@@ -33,16 +33,20 @@ It brings together:
 - generated-client onboarding and standardization pages
 - tutorial flows and exact JSON authoring reference pages
 - architecture notes for generated APIs and transport maps
-- the versioned C++ header surface exposed from `mfd_api/include`,
-  `mfd_client_api/include`, `mfd_editor_plugin_api/include`,
-  `mfd_window/include`, and `mfd_window_plugin_api/include`
+- the internal `mfd_common_api` build-graph note describing the shared static
+  low-level module
+- the versioned C++ header surface exposed from `mfd_common_api/include`,
+  `mfd_api/include`, `mfd_client_api/include`,
+  `mfd_editor_plugin_api/include`, `mfd_window/include`, and
+  `mfd_window_plugin_api/include`
 
-Internally, the repository implementation is now split into `mfd_model`,
-`mfd_transport`, `mfd_io_json`, `mfd_runtime`, and the private
-`mfd_render_raylib` layer. The published client-facing documentation therefore
-stays render-agnostic: the public API focuses on authored data, command flow,
-runtime control, and generated clients rather than exposing one renderer as a
-required dependency.
+Internally, the repository implementation now starts from the dedicated
+`mfd_common_api` module, which owns `mfd_model` and `mfd_transport`, then
+layers `mfd_io_json`, `mfd_runtime`, and the private `mfd_render_raylib`
+backend on top. The published client-facing documentation therefore stays
+render-agnostic: the public API focuses on authored data, command flow, runtime
+control, and generated clients rather than exposing one renderer as a required
+dependency.
 
 <div class="mfd-callout"><strong>Preferred client integration:</strong> for one C++ client specific to one authored window, start from the generated UI emitted by the generator, mutate generated page / reticle / primitive handles, then let <code>CommandClient</code> publish the resulting batch.</div>
 

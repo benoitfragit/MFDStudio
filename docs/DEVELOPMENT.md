@@ -225,7 +225,9 @@ Run one executable directly:
 ```
 
 All GoogleTest executables are grouped under `build/<preset>/tests/<config>/`.
-Their staged copies are grouped under `_Exec/<toolset>/<platform>/<config>/tests/`.
+The staged `_Exec/<toolset>/<platform>/<config>/tests/` bucket is reserved for
+launcher-oriented smoke executables. The heavier low-level `mfd_api_tests`
+binary stays in the build tree and is not copied into `_Exec`.
 
 There are also convenience build targets:
 
@@ -237,19 +239,29 @@ There are also convenience build targets:
 The generated-client Python validation is registered through `ctest` under the
 name `client_api_generator_tests`.
 
+A clean `_Exec` refresh is available through the dedicated `stage_exec` target:
+
+```powershell
+cmake --build --preset debug-win32 --target stage_exec
+```
+
+That target removes the staged `_Exec/<toolset>/<platform>/<config>` subtree
+for each registered staging bucket and regenerates it from the current build
+outputs, runtime DLLs, assets, branding, and launch scripts.
+
 Package deliveries are staged through the dedicated `stage_deliveries` target:
 
 ```powershell
 cmake --build --preset debug-win32 --target stage_deliveries
 ```
 
-That target keeps the historical `_Exec` staging untouched and additionally
-populates `_Deliveries` with:
+That target populates `_Deliveries` with:
 
 - `packages_windows/<PackageName>/build/native` for development packages
 - `packages_bin_windows/<PackageName>/_Exec/<toolset>/<platform>/<config>` for install/runtime packages
 - runtime/install packages stage only the executable payload, runtime DLLs, launch scripts, and branding
 - `MFDStudioClientApi.Install` stages `mfd_client_api.dll` and the low-level `mfd_api.dll`
+- `MFDStudioClientApi` stages only the client headers plus the low-level header closure required by `Animation.h`, `LatestBatchPublisher.h`, generated UI headers, and `CommandClient`
 - `MFDStudioWindowLauncher.Install` stages `mfd_window.exe`, `mfd_window_plugin_api.dll`, `Start-MfdWindow.bat`, and the shared branding files
 - `MFDStudioWindowLauncher.Install` deliberately stages only `Start-MfdWindow.bat`; repository demo launchers remain outside the install package
 - `MFDStudioWindowLauncherPlugin` is a pure SDK package; the sample `mfd_framebuffer_stdout_plugin` remains repository-side
@@ -274,7 +286,8 @@ In practice the automated suite now covers three complementary layers:
 
 | Path | Role |
 | --- | --- |
-| `mfd_api` | Core source tree producing the modular `mfd_model`, `mfd_transport`, `mfd_io_json`, `mfd_runtime`, the public low-level `mfd_api` DLL, and `mfd_render_raylib` plus the compatibility umbrella `mfd::api` |
+| `mfd_common_api` | Internal shared low-level module with its own `include/`, `src/`, and `proto/` trees, owning the reusable `mfd_model` and `mfd_transport` static libraries |
+| `mfd_api` | Core source tree producing `mfd_io_json`, `mfd_runtime`, the public low-level `mfd_api` DLL, and `mfd_render_raylib` plus the compatibility umbrella `mfd::api` |
 | `mfd_client_api` | Client-side helper layer built on top of the low-level command API and producing `mfd_client_api` |
 | `mfd_client_api/generator` | Python and CMake tooling generating typed client wrappers |
 | `mfd_window_plugin_api` | Public framebuffer-plugin SDK used by `MFDStudioWindowLauncherPlugin` |
@@ -312,8 +325,10 @@ scripts when the supported demo entry points change.
 The repository now carries a versioned Doxygen configuration in `docs/Doxyfile`
 plus a generation helper script in `docs/GenerateDocs.ps1`. The published
 portal includes the repository guides, tutorials, references, architecture
-notes, and the public headers under:
+notes, the internal `mfd_common_api/README.md` build-graph note, and the public
+headers under:
 
+- `mfd_common_api/include`
 - `mfd_api/include`
 - `mfd_client_api/include`
 - `mfd_editor_plugin_api/include`
@@ -366,7 +381,7 @@ Recommended release flow:
 
 1. ensure the main branch is green on CI
 2. create and push a semantic tag such as `1.0.0` or `v1.0.0`
-3. let GitHub Actions stage and archive the Win32/x64 Debug/Release packages and publish the release
+3. let GitHub Actions stage the Win32/x64 Debug/Release packages, aggregate them per package, and publish the release
 4. let GitHub Actions regenerate and deploy the Doxygen HTML site to GitHub Pages
 
 Example:
@@ -378,12 +393,10 @@ git push origin 1.0.0
 
 Published assets include:
 
-- per-package ZIP archives under `_Deliveries/packages_windows`
-- per-package ZIP archives under `_Deliveries/packages_bin_windows`
-- toolset-qualified names such as `MFDStudioClientApi-<tag>-v143-win32-Debug.zip`
-- toolset-qualified names such as `MFDStudioWindowLauncher.Install-<tag>-v143-x64-Release.zip`
+- one aggregated ZIP per development or install package
+- toolset-qualified names such as `MFDStudioClientApi-<tag>-v143.zip`
+- aggregated archives containing the staged `win32/x64` and `Debug/Release` subtrees for packages that ship binaries
 - one header-only development archive for `MFDStudioEditorPlugin`, named like `MFDStudioEditorPlugin-<tag>-v143.zip`
-- Win32/x64 Debug/Release development archives for `MFDStudioWindowLauncherPlugin`, named like `MFDStudioWindowLauncherPlugin-<tag>-v143-win32-Debug.zip`
 - `SHA256SUMS.txt`
 
 Published documentation includes:

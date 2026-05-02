@@ -59,6 +59,11 @@ The first test files are:
 - `tests/mfd_api/StrobeFeedbackTests.cpp`
 - `tests/mfd_api/CommandTransportTests.cpp`
 
+The low-level authored-data and transport sources exercised by those tests now
+live physically under `mfd_common_api/include`, `mfd_common_api/src`, and
+`mfd_common_api/proto`, while the runtime and JSON-loading layer stays under
+`mfd_api/`.
+
 ## What Is Covered Today
 
 `JsonLoaderTests.cpp` covers:
@@ -124,7 +129,17 @@ You can run the executable directly:
 ```
 
 All GoogleTest executables are grouped under `build/<preset>/tests/<config>/`.
-Their staged copies are grouped under `_Exec/<toolset>/<platform>/<config>/tests/`.
+The clean staged `_Exec/<toolset>/<platform>/<config>/tests/` bucket is kept
+for launcher-oriented smoke executables such as `client_api_tests`,
+`mfd_window_tests`, and `mfd_editor_tests`. The heavier low-level
+`mfd_api_tests` executable stays in the build tree and is launched from there.
+
+If you want to regenerate the staged `_Exec` layout cleanly before launching
+tests or runtime hosts from it, use:
+
+```powershell
+cmake --build --preset debug-win32 --target stage_exec
+```
 
 Or use the convenience target:
 
@@ -156,7 +171,8 @@ Good candidates for future tests:
 When you touch the runtime or loading code:
 
 1. build the project
-2. run `mfd_api_tests`
-3. launch the mockup only after the automated suite is green
+2. refresh `_Exec` with `stage_exec` if you plan to launch from the staged tree
+3. run `mfd_api_tests` from `build/<preset>/tests/<config>/`
+4. launch the mockup only after the automated suite is green
 
 This gives a faster and more reliable feedback loop than manual checking alone.

@@ -56,7 +56,6 @@ set_target_properties(mfd_window PROPERTIES
 
 mfd_enable_target_warnings(mfd_window)
 
-set(MFD_WINDOW_STAGE_DIR "${MFD_ROOT_DIR}/_Exec/${MFD_EXEC_COMPILER_DIR}/${MFD_EXEC_PLATFORM_DIR}/$<CONFIG>")
 set(MFD_WINDOW_SCRIPT_SOURCE_DIR "${MFD_ROOT_DIR}/Scripts")
 set(MFD_WINDOW_LAUNCH_SCRIPT_NAMES
     Start-MfdWindow.bat
@@ -104,13 +103,6 @@ if(WIN32)
             "-DFILE_NAMES=${MFD_WINDOW_LAUNCH_SCRIPT_LIST}"
             -P
             "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake"
-        COMMAND
-            ${CMAKE_COMMAND}
-            "-DSOURCE_DIR=${MFD_WINDOW_SCRIPT_SOURCE_DIR}"
-            "-DDEST_DIR=${MFD_WINDOW_STAGE_DIR}"
-            "-DFILE_NAMES=${MFD_WINDOW_LAUNCH_SCRIPT_LIST}"
-            -P
-            "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake"
         VERBATIM)
 else()
     add_custom_command(
@@ -131,4 +123,11 @@ else()
         VERBATIM)
 endif()
 
-mfd_stage_runtime(mfd_window WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
+mfd_stage_runtime(
+    mfd_window
+    WITH_ASSETS
+    WITH_BRANDING
+    WITH_RUNTIME_DLLS
+    SCRIPT_SOURCE_DIR "${MFD_WINDOW_SCRIPT_SOURCE_DIR}"
+    SCRIPT_NAMES
+        ${MFD_WINDOW_LAUNCH_SCRIPT_NAMES})

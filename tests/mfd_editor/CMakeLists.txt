@@ -103,6 +103,7 @@ target_include_directories(mfd_editor_tests
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${MFD_ROOT_DIR}/mfd_editor/include
+        ${MFD_ROOT_DIR}/mfd_common_api/include
         ${MFD_ROOT_DIR}/mfd_api/include)
 
 target_sources(mfd_editor_tests

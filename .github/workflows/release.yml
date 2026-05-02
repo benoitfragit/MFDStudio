@@ -98,75 +98,11 @@ jobs:
       - name: Stage deliveries (${{ matrix.build_preset }})
         run: cmake --build --preset ${{ matrix.build_preset }} --target stage_deliveries
 
-      - name: Create package archives (${{ matrix.exec_platform }} ${{ matrix.build_config }})
-        shell: pwsh
-        env:
-          RELEASE_TAG: ${{ steps.release_context.outputs.release_tag }}
-        run: |
-          $archiveDir = Join-Path $PWD "release_archives"
-          New-Item -ItemType Directory -Path $archiveDir -Force | Out-Null
-
-          $runtimeToolsetDir = Get-ChildItem -Path "_Deliveries/packages_bin_windows" -Directory |
-            ForEach-Object {
-              Get-ChildItem -Path (Join-Path $_.FullName "_Exec") -Directory -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -ne "_Conf" } |
-                Select-Object -First 1
-            } |
-            Where-Object { $_ -ne $null } |
-            Select-Object -First 1
-
-          if (-not $runtimeToolsetDir) {
-            throw "No staged runtime package found under _Deliveries/packages_bin_windows"
-          }
-
-          $toolset = $runtimeToolsetDir.Name
-          $createdArchives = New-Object System.Collections.Generic.List[string]
-
-          $devPackagesRoot = Join-Path $PWD "_Deliveries/packages_windows"
-          if (Test-Path $devPackagesRoot) {
-            Get-ChildItem -Path $devPackagesRoot -Directory | ForEach-Object {
-              $packageDir = $_
-              $packageName = $packageDir.Name
-              $toolsetLibRoot = Join-Path $packageDir.FullName "build/native/libs/$toolset"
-              $platformConfigDir = Join-Path $packageDir.FullName "build/native/libs/$toolset/${{ matrix.exec_platform }}/${{ matrix.build_config }}"
-
-              if (Test-Path $platformConfigDir) {
-                $archiveName = "$packageName-$env:RELEASE_TAG-$toolset-${{ matrix.exec_platform }}-${{ matrix.build_config }}.zip"
-                Compress-Archive -Path $packageDir.FullName -DestinationPath (Join-Path $archiveDir $archiveName) -Force
-                $createdArchives.Add($archiveName)
-              }
-              elseif (-not (Test-Path $toolsetLibRoot) -and "${{ matrix.exec_platform }}" -eq "x64" -and "${{ matrix.build_config }}" -eq "Release") {
-                $archiveName = "$packageName-$env:RELEASE_TAG-$toolset.zip"
-                Compress-Archive -Path $packageDir.FullName -DestinationPath (Join-Path $archiveDir $archiveName) -Force
-                $createdArchives.Add($archiveName)
-              }
-            }
-          }
-
-          $runtimePackagesRoot = Join-Path $PWD "_Deliveries/packages_bin_windows"
-          if (Test-Path $runtimePackagesRoot) {
-            Get-ChildItem -Path $runtimePackagesRoot -Directory | ForEach-Object {
-              $packageDir = $_
-              $packageName = $packageDir.Name
-              $platformConfigDir = Join-Path $packageDir.FullName "_Exec/$toolset/${{ matrix.exec_platform }}/${{ matrix.build_config }}"
-
-              if (Test-Path $platformConfigDir) {
-                $archiveName = "$packageName-$env:RELEASE_TAG-$toolset-${{ matrix.exec_platform }}-${{ matrix.build_config }}.zip"
-                Compress-Archive -Path $packageDir.FullName -DestinationPath (Join-Path $archiveDir $archiveName) -Force
-                $createdArchives.Add($archiveName)
-              }
-            }
-          }
-
-          if ($createdArchives.Count -eq 0) {
-            throw "No delivery archives were created."
-          }
-
-      - name: Upload release artifact
+      - name: Upload staged deliveries artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-packages-${{ matrix.exec_platform }}-${{ matrix.build_config }}
-          path: release_archives/*.zip
+          name: staged-deliveries-${{ matrix.exec_platform }}-${{ matrix.build_config }}
+          path: _Deliveries
 
   publish-release:
     needs: build-release-assets
@@ -205,8 +141,97 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release_artifacts
-          merge-multiple: true
+          path: release_inputs
+
+      - name: Merge staged delivery trees
+        shell: pwsh
+        run: |
+          function Merge-Directory {
+            param(
+              [Parameter(Mandatory = $true)]
+              [string]$SourceDir,
+              [Parameter(Mandatory = $true)]
+              [string]$DestDir
+            )
+
+            New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
+            robocopy $SourceDir $DestDir /E /NFL /NDL /NJH /NJS /NP | Out-Null
+            if ($LASTEXITCODE -gt 7) {
+              throw "robocopy failed while merging '$SourceDir' into '$DestDir' (exit code $LASTEXITCODE)."
+            }
+          }
+
+          $mergedDeliveriesRoot = Join-Path $PWD "_Deliveries"
+          New-Item -ItemType Directory -Path $mergedDeliveriesRoot -Force | Out-Null
+
+          $artifactRoots = Get-ChildItem -Path "release_inputs" -Directory
+          if ($artifactRoots.Count -eq 0) {
+            throw "No staged delivery artifacts were downloaded."
+          }
+
+          foreach ($artifactRoot in $artifactRoots) {
+            $sourceDeliveriesRoot = Join-Path $artifactRoot.FullName "_Deliveries"
+            if (-not (Test-Path $sourceDeliveriesRoot)) {
+              throw "Downloaded artifact '$($artifactRoot.Name)' does not contain an _Deliveries directory."
+            }
+
+            Get-ChildItem -Path $sourceDeliveriesRoot -Directory | ForEach-Object {
+              Merge-Directory -SourceDir $_.FullName -DestDir (Join-Path $mergedDeliveriesRoot $_.Name)
+            }
+          }
+
+      - name: Create aggregated package archives
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_context.outputs.release_tag }}
+        run: |
+          $deliveriesRoot = Join-Path $PWD "_Deliveries"
+          $archiveDir = Join-Path $PWD "release_artifacts"
+          New-Item -ItemType Directory -Path $archiveDir -Force | Out-Null
+
+          $runtimePackagesRoot = Join-Path $deliveriesRoot "packages_bin_windows"
+          $runtimeToolsetDir = $null
+          if (Test-Path $runtimePackagesRoot) {
+            $runtimeToolsetDir = Get-ChildItem -Path $runtimePackagesRoot -Directory |
+              ForEach-Object {
+                Get-ChildItem -Path (Join-Path $_.FullName "_Exec") -Directory -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Name -ne "_Conf" } |
+                  Select-Object -First 1
+              } |
+              Where-Object { $_ -ne $null } |
+              Select-Object -First 1
+          }
+
+          $toolset = ""
+          if ($runtimeToolsetDir) {
+            $toolset = $runtimeToolsetDir.Name
+          }
+
+          $createdArchives = New-Object System.Collections.Generic.List[string]
+
+          foreach ($packageRootName in @("packages_windows", "packages_bin_windows")) {
+            $packageFamilyRoot = Join-Path $deliveriesRoot $packageRootName
+            if (-not (Test-Path $packageFamilyRoot)) {
+              continue
+            }
+
+            Get-ChildItem -Path $packageFamilyRoot -Directory | Sort-Object Name | ForEach-Object {
+              $packageDir = $_
+              if ([string]::IsNullOrWhiteSpace($toolset)) {
+                $archiveName = "$($packageDir.Name)-$env:RELEASE_TAG.zip"
+              }
+              else {
+                $archiveName = "$($packageDir.Name)-$env:RELEASE_TAG-$toolset.zip"
+              }
+
+              Compress-Archive -Path $packageDir.FullName -DestinationPath (Join-Path $archiveDir $archiveName) -Force
+              $createdArchives.Add($archiveName)
+            }
+          }
+
+          if ($createdArchives.Count -eq 0) {
+            throw "No aggregated delivery archives were created."
+          }
 
       - name: Generate checksums
         shell: pwsh
@@ -239,16 +264,16 @@ jobs:
           }
 
           $lines.Add('### Assets')
-          $lines.Add('- Development and install ZIP packages')
-          $lines.Add('- Toolset-qualified asset names such as `MFDStudioClientApi-v1.3.0-v143-win32-Debug.zip`')
-          $lines.Add('- Win32/x64 Debug/Release variants for every package carrying platform-specific binaries')
-          $lines.Add('- One toolset-qualified archive only for header-only SDK packages such as `MFDStudioEditorPlugin-v1.3.0-v143.zip`')
+          $lines.Add('- One aggregated ZIP per development or install package')
+          $lines.Add('- Toolset-qualified asset names such as `MFDStudioClientApi-v1.3.0-v143.zip`')
+          $lines.Add('- Each aggregated package contains the staged `v143/win32/Debug`, `v143/win32/Release`, `v143/x64/Debug`, and `v143/x64/Release` trees when that package produces binaries')
+          $lines.Add('- Header-only SDK packages remain one archive each, without redundant per-configuration assets')
           $lines.Add('- SHA256 checksums in `SHA256SUMS.txt`')
           $lines.Add("")
           $lines.Add('### Quick start')
-          $lines.Add('1. Download the package matching your use case, platform, and configuration')
+          $lines.Add('1. Download the package matching your use case')
           $lines.Add('2. Verify the checksum with `SHA256SUMS.txt`')
-          $lines.Add('3. Extract the package and use the staged `_Exec` or `build/native` tree')
+          $lines.Add('3. Extract the package and use the staged `_Exec` or `build/native` tree matching your platform and configuration')
 
           $lines | Set-Content -Path "release_notes.md" -Encoding utf8
 
