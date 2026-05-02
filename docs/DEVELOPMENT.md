@@ -399,6 +399,11 @@ Published assets include:
 - one header-only development archive for `MFDStudioEditorPlugin`, named like `MFDStudioEditorPlugin-<tag>-v143.zip`
 - `SHA256SUMS.txt`
 
+The publish job accepts both artifact layouts produced by GitHub Actions when
+rehydrating staged deliveries: either a downloaded `_Deliveries/` root or an
+artifact extracted directly with `packages_windows/` and
+`packages_bin_windows/` at its root.
+
 Published documentation includes:
 
 - GitHub Pages deployment of the Doxygen HTML portal generated with Graphviz

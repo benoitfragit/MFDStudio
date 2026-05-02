@@ -103,6 +103,7 @@ jobs:
         with:
           name: staged-deliveries-${{ matrix.exec_platform }}-${{ matrix.build_config }}
           path: _Deliveries
+          if-no-files-found: error
 
   publish-release:
     needs: build-release-assets
@@ -146,6 +147,31 @@ jobs:
       - name: Merge staged delivery trees
         shell: pwsh
         run: |
+          function Resolve-DeliveriesRoot {
+            param(
+              [Parameter(Mandatory = $true)]
+              [string]$ArtifactRoot
+            )
+
+            $nestedDeliveriesRoot = Join-Path $ArtifactRoot "_Deliveries"
+            if (Test-Path $nestedDeliveriesRoot) {
+              return $nestedDeliveriesRoot
+            }
+
+            $packageFamilyNames = @("packages_windows", "packages_bin_windows")
+            $availablePackageFamilies = $packageFamilyNames |
+              Where-Object { Test-Path (Join-Path $ArtifactRoot $_) }
+
+            if ($availablePackageFamilies.Count -gt 0) {
+              return $ArtifactRoot
+            }
+
+            throw (
+              "Downloaded artifact '$ArtifactRoot' does not expose a supported deliveries layout. " +
+              "Expected either '_Deliveries/<package-family>' or '<package-family>' at the artifact root."
+            )
+          }
+
           function Merge-Directory {
             param(
               [Parameter(Mandatory = $true)]
@@ -170,12 +196,15 @@ jobs:
           }
 
           foreach ($artifactRoot in $artifactRoots) {
-            $sourceDeliveriesRoot = Join-Path $artifactRoot.FullName "_Deliveries"
-            if (-not (Test-Path $sourceDeliveriesRoot)) {
-              throw "Downloaded artifact '$($artifactRoot.Name)' does not contain an _Deliveries directory."
+            $sourceDeliveriesRoot = Resolve-DeliveriesRoot -ArtifactRoot $artifactRoot.FullName
+            $packageFamilyRoots = Get-ChildItem -Path $sourceDeliveriesRoot -Directory |
+              Where-Object { $_.Name -in @("packages_windows", "packages_bin_windows") }
+
+            if ($packageFamilyRoots.Count -eq 0) {
+              throw "Downloaded artifact '$($artifactRoot.Name)' does not contain any supported package families."
             }
 
-            Get-ChildItem -Path $sourceDeliveriesRoot -Directory | ForEach-Object {
+            $packageFamilyRoots | ForEach-Object {
               Merge-Directory -SourceDir $_.FullName -DestDir (Join-Path $mergedDeliveriesRoot $_.Name)
             }
           }
