@@ -12,6 +12,7 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PageManagementService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PageImportService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PageRenameService.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ReticleRenameService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialController.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialData.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorUiTheme.cpp)
@@ -29,6 +30,7 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/include/PageManagementService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/PageImportService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/PageRenameService.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/ReticleRenameService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/PagePreviewViewOptions.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h

@@ -141,6 +141,18 @@ std::string Lowercase(const std::string_view value)
     return lowered;
 }
 
+const char* ReticleReferenceKindLabel(const editor::ReticleReferenceKind kind) noexcept
+{
+    switch (kind)
+    {
+    case editor::ReticleReferenceKind::PageStrobeTemplate:
+        return "Page strobe";
+    case editor::ReticleReferenceKind::PageReticleTemplate:
+    default:
+        return "Page reticle";
+    }
+}
+
 bool PathContainsSegment(const std::filesystem::path& path, const std::string_view segment)
 {
     if (segment.empty())
@@ -1933,6 +1945,39 @@ editor::RenamePageRequest EditorApplication::BuildPageRenameRequest(const int pa
         false};
 }
 
+void EditorApplication::OpenReticleRenamePopup(std::string templateId)
+{
+    if (templateId.empty())
+    {
+        RebuildStatus("No library reticle selected.", true);
+        return;
+    }
+
+    const auto iterator = loaded_.document.reticleLibrary.find(templateId);
+    if (iterator == loaded_.document.reticleLibrary.end())
+    {
+        RebuildStatus("The selected library reticle is no longer available.", true);
+        return;
+    }
+
+    reticleRenamePopup_.currentTemplateId = std::move(templateId);
+    reticleRenamePopup_.openRequested = true;
+    reticleRenamePopup_.renameTemplateFile = true;
+    CopyTextBuffer(reticleRenamePopup_.newName, iterator->second.id.empty() ? iterator->first : iterator->second.id);
+}
+
+editor::RenameReticleRequest EditorApplication::BuildReticleRenameRequest(const std::string_view oldTemplateId,
+                                                                          const std::string_view newTemplateId,
+                                                                          const bool renameTemplateFile) const
+{
+    return editor::RenameReticleRequest {
+        std::string(oldTemplateId),
+        std::string(newTemplateId),
+        DefaultProjectAssetFolder("assets"),
+        false,
+        renameTemplateFile};
+}
+
 bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan)
 {
     if (!plan.canExecute)
@@ -2042,6 +2087,57 @@ bool EditorApplication::ExecutePageRenamePlan(const editor::RenamePagePlan& plan
         }
     }
     status += ". Regenerate the generated client API if this page is exposed there.";
+    RebuildStatus(status, false);
+    return true;
+}
+
+bool EditorApplication::ExecuteReticleRenamePlan(const editor::RenameReticlePlan& plan)
+{
+    if (!plan.canExecute)
+    {
+        RebuildStatus(plan.error.empty() ? "The selected reticle template cannot be renamed globally." : plan.error, true);
+        return false;
+    }
+
+    editor::RenameReticleResult result;
+    std::string error;
+    if (!reticleRenameService_.Execute(plan, loaded_, files_, &result, &error))
+    {
+        RebuildStatus(error.empty() ? "Renaming the selected reticle template globally failed." : error, true);
+        return false;
+    }
+
+    if (mfd::PageNamesEqual(selection_.libraryReticleId, plan.oldReticleName))
+    {
+        selection_.libraryReticleId = plan.newReticleName;
+    }
+    if (mfd::PageNamesEqual(selection_.libraryBrowserReticleId, plan.oldReticleName))
+    {
+        selection_.libraryBrowserReticleId = plan.newReticleName;
+    }
+
+    std::string status = "Reticle template '" + plan.oldReticleName + "' renamed to '" + plan.newReticleName + "'";
+    if (!plan.references.empty())
+    {
+        status += " across " + std::to_string(plan.references.size()) + " page reference";
+        if (plan.references.size() != 1U)
+        {
+            status += "s";
+        }
+    }
+    if (result.updatedPageCount > 0U)
+    {
+        status += " with " + std::to_string(result.updatedPageCount) + " page JSON update";
+        if (result.updatedPageCount != 1U)
+        {
+            status += "s";
+        }
+    }
+    if (result.renamedTemplateFile)
+    {
+        status += " and one template file move";
+    }
+    status += ". Regenerate the generated client API if this template is exposed there.";
     RebuildStatus(status, false);
     return true;
 }
@@ -2357,6 +2453,14 @@ void EditorApplication::DrawMenuBar()
         if (duplicateReticleRequested)
         {
             OpenDuplicateLibraryReticlePopup();
+        }
+
+        const bool renameReticleRequested =
+            ImGui::MenuItem("Rename selected library reticle globally...", nullptr, false, hasFocusedLibraryReticle);
+        ShowItemTooltip("Rename the focused library reticle template safely across the source assets tree and every page that references it.");
+        if (renameReticleRequested)
+        {
+            OpenReticleRenamePopup(selection_.libraryReticleId);
         }
 
         const bool deleteReticleRequested =
@@ -2888,6 +2992,23 @@ void EditorApplication::DrawLibraryTree()
             ImGui::SetDragDropPayload("MFD_LIBRARY_RETICLE", templateId.c_str(), templateId.size() + 1);
             ImGui::Text("Drop '%s' on the page", templateId.c_str());
             ImGui::EndDragDropSource();
+        }
+
+        if (ImGui::BeginPopupContextItem(("LibraryReticleContextMenu##" + templateId).c_str()))
+        {
+            if (ImGui::MenuItem("Rename reticle globally..."))
+            {
+                SelectLibraryReticle(templateId);
+                OpenReticleRenamePopup(templateId);
+            }
+
+            if (ImGui::MenuItem("Delete library reticle"))
+            {
+                SelectLibraryReticle(templateId);
+                DeleteSelectedLibraryReticle();
+            }
+
+            ImGui::EndPopup();
         }
     }
 
@@ -6421,6 +6542,12 @@ void EditorApplication::DrawPopups()
         pageRenamePopup_.openRequested = false;
     }
 
+    if (reticleRenamePopup_.openRequested)
+    {
+        ImGui::OpenPopup("Rename reticle globally");
+        reticleRenamePopup_.openRequested = false;
+    }
+
     if (pageManagementPopup_.openRequested)
     {
         ImGui::OpenPopup("Manage page");
@@ -6597,6 +6724,7 @@ void EditorApplication::DrawPopups()
     DrawAssetFolderPickerPopup();
     DrawPageImportPopup();
     DrawPageRenamePopup();
+    DrawReticleRenamePopup();
     DrawPageManagementPopup();
 
     if (ImGui::BeginPopupModal("Create new library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -7051,6 +7179,165 @@ void EditorApplication::DrawPageRenamePopup()
     if (ImGui::Button("Cancel"))
     {
         pageRenamePopup_ = {};
+        ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::EndPopup();
+}
+
+void EditorApplication::DrawReticleRenamePopup()
+{
+    if (!ImGui::BeginPopupModal("Rename reticle globally", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    const auto reticleIterator = loaded_.document.reticleLibrary.find(reticleRenamePopup_.currentTemplateId);
+    if (reticleIterator == loaded_.document.reticleLibrary.end())
+    {
+        ImGui::TextWrapped("The selected reticle template is no longer available.");
+        if (ImGui::Button("Close"))
+        {
+            reticleRenamePopup_ = {};
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+        return;
+    }
+
+    const mfd::ReticleGroup& reticle = reticleIterator->second;
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Rename reticle globally");
+    ImGui::TextWrapped(
+        "Pages reference reticle templates by logical id. Review every source-page reference before renaming this shared template across the source assets tree.");
+    ImGui::Separator();
+
+    ImGui::TextDisabled("Old id");
+    ImGui::TextWrapped("%s", reticle.id.empty() ? reticleIterator->first.c_str() : reticle.id.c_str());
+
+    ImGui::InputText("New id", reticleRenamePopup_.newName.data(), reticleRenamePopup_.newName.size());
+    ShowItemTooltip("Use the safe rename workflow to update the template JSON id and every source page template reference consistently.");
+
+    ImGui::Checkbox("Rename template JSON file too", &reticleRenamePopup_.renameTemplateFile);
+    ShowItemTooltip("Also move the template JSON file to the default file name derived from the new template id.");
+
+    const editor::RenameReticlePlan plan =
+        reticleRenameService_.BuildPlan(loaded_,
+                                        files_,
+                                        BuildReticleRenameRequest(
+                                            reticleRenamePopup_.currentTemplateId,
+                                            reticleRenamePopup_.newName.data(),
+                                            reticleRenamePopup_.renameTemplateFile));
+
+    ImGui::SeparatorText("Template file");
+    if (plan.currentTemplateFile.empty())
+    {
+        ImGui::TextDisabled("No tracked template file is currently available.");
+    }
+    else
+    {
+        ImGui::TextWrapped("Current: %s", plan.currentTemplateFile.string().c_str());
+        if (reticleRenamePopup_.renameTemplateFile)
+        {
+            ImGui::TextWrapped("Target: %s", plan.targetTemplateFile.string().c_str());
+        }
+        else
+        {
+            ImGui::TextDisabled("Logical rename only: keep the current template JSON file path.");
+        }
+    }
+
+    ImGui::SeparatorText("References found");
+    if (plan.references.empty())
+    {
+        ImGui::TextDisabled("No source page currently references this template. Only the template JSON will be rewritten.");
+    }
+    else
+    {
+        for (const editor::RenameReticleReference& reference : plan.references)
+        {
+            ImGui::PushID((reference.pageFile.string() + reference.ownerReticleId).c_str());
+            ImGui::TextWrapped("%s", reference.pageFile.string().c_str());
+            ImGui::TextDisabled("%s '%s' on page '%s'",
+                                ReticleReferenceKindLabel(reference.kind),
+                                reference.ownerReticleId.c_str(),
+                                reference.pageName.c_str());
+            ImGui::PopID();
+        }
+    }
+
+    ImGui::SeparatorText("Files to modify");
+    for (const std::filesystem::path& file : plan.filesToModify)
+    {
+        ImGui::TextWrapped("%s", file.string().c_str());
+    }
+    if (plan.filesToModify.empty())
+    {
+        ImGui::TextDisabled("No file would be rewritten.");
+    }
+
+    if (!plan.filesToDelete.empty())
+    {
+        ImGui::SeparatorText("Files to delete");
+        for (const std::filesystem::path& file : plan.filesToDelete)
+        {
+            ImGui::TextWrapped("%s", file.string().c_str());
+        }
+    }
+
+    if (!plan.collisions.empty())
+    {
+        ImGui::SeparatorText("Collisions");
+        for (const editor::RenameReticleCollision& collision : plan.collisions)
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f),
+                               "%s already uses template '%s' through %s '%s' on page '%s'",
+                               collision.pageFile.string().c_str(),
+                               collision.conflictingTemplateId.c_str(),
+                               ReticleReferenceKindLabel(collision.kind),
+                               collision.conflictingReticleId.c_str(),
+                               collision.pageName.c_str());
+        }
+    }
+
+    if (!plan.warnings.empty())
+    {
+        ImGui::SeparatorText("Warnings");
+        for (const std::string& warning : plan.warnings)
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f), "%s", warning.c_str());
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("This workflow updates the source JSON assets directly and ignores _Exec by default.");
+    ImGui::TextDisabled("After a successful rename, regenerate the generated client API if this template is exposed there.");
+
+    if (!plan.error.empty())
+    {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f), "%s", plan.error.c_str());
+    }
+
+    ImGui::Spacing();
+    ImGui::BeginDisabled(!plan.canExecute);
+    if (AccentButton("Rename reticle"))
+    {
+        if (ExecuteReticleRenamePlan(plan))
+        {
+            reticleRenamePopup_ = {};
+            ImGui::CloseCurrentPopup();
+            ImGui::EndDisabled();
+            ImGui::EndPopup();
+            return;
+        }
+    }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        reticleRenamePopup_ = {};
         ImGui::CloseCurrentPopup();
     }
 
@@ -9112,6 +9399,14 @@ void EditorApplication::DrawLibraryReticleInspector()
     {
         ImGui::EndDisabled();
     }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Rename reticle globally..."))
+    {
+        OpenReticleRenamePopup(reticle->id);
+        return;
+    }
+    ShowItemTooltip("Rename this shared reticle template safely across the source assets tree and every page that references it.");
 
     ImGui::SameLine();
     if (ImGui::Button("Delete library reticle"))

@@ -169,6 +169,11 @@ If you need in-process editor automation plugins:
 - stable native C ABI contract, no COM boundary: [mfd_editor_plugin_api/README.md](./mfd_editor_plugin_api/README.md)
 - updated sample plugin: [examples/mfd_editor_automation_sample_plugin/README.md](./examples/mfd_editor_automation_sample_plugin/README.md)
 
+In editor terms, the shared-asset distinction is now explicit:
+
+- pages are authored assets referenced by windows
+- reticle templates are authored assets referenced by pages
+
 Editor page-preview essentials:
 
 - `Ctrl+click` adds or removes one page reticle from the current selection
@@ -177,6 +182,7 @@ Editor page-preview essentials:
 - `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, and `Del` operate on the current page-reticle selection
 - `Page > Import page...` or dropping one page JSON into the editor stages that page plus any referenced reticle templates before the next `Save`
 - `Rename page globally...` safely rewrites one shared page asset plus every source-window `defaultPage` reference found under `assets/`, while `_Exec` stays ignored by default
+- `Reticle > Rename selected library reticle globally...` safely rewrites one shared reticle template plus every source-page `template` and page-strobe template reference found under `assets/`, with an optional template-file move and automatic relative image-path rewrite
 - right-click lists every hovered reticle, then exposes per-reticle clipping submenus so overlapping reticles stay reachable
 - `Undo` restores one whole paste, cut, delete, or drag gesture at a time
 - a small `?` button is shown at the top-left of the page preview and reticle studio, with the current zoom and mouse `X/Y` displayed next to it

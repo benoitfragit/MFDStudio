@@ -26,6 +26,7 @@
 #include "PageManagementService.h"
 #include "PageRenameService.h"
 #include "PagePreviewViewOptions.h"
+#include "ReticleRenameService.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 #include "ImageTextureCache.h"
@@ -246,6 +247,15 @@ private:
         std::array<char, 128> newName {};
     };
 
+    /** @brief UI state driving the global reticle-template rename review popup. */
+    struct ReticleRenamePopupState
+    {
+        bool openRequested = false;
+        std::string currentTemplateId {};
+        std::array<char, 128> newName {};
+        bool renameTemplateFile = true;
+    };
+
     /** @brief Loads a root window file plus its referenced authored assets into the editor. */
     bool LoadWindowConfiguration(const std::filesystem::path& path);
     /** @brief Serializes every modified file back to disk. */
@@ -278,6 +288,14 @@ private:
     [[nodiscard]] editor::RenamePageRequest BuildPageRenameRequest(int pageIndex, std::string_view newPageName) const;
     /** @brief Applies one global page-rename plan to disk and the live editor state. */
     bool ExecutePageRenamePlan(const editor::RenamePagePlan& plan);
+    /** @brief Opens the global reticle-template rename popup for the provided template id. */
+    void OpenReticleRenamePopup(std::string templateId);
+    /** @brief Builds the service request used by the reticle-rename popup. */
+    [[nodiscard]] editor::RenameReticleRequest BuildReticleRenameRequest(std::string_view oldTemplateId,
+                                                                         std::string_view newTemplateId,
+                                                                         bool renameTemplateFile) const;
+    /** @brief Applies one global reticle-template rename plan to disk and the live editor state. */
+    bool ExecuteReticleRenamePlan(const editor::RenameReticlePlan& plan);
     /** @brief Deletes the currently selected reticle from the shared library. */
     void DeleteSelectedLibraryReticle();
 
@@ -393,6 +411,8 @@ private:
     void DrawPageImportPopup();
     /** @brief Draws the global page-rename planning popup. */
     void DrawPageRenamePopup();
+    /** @brief Draws the global reticle-template rename planning popup. */
+    void DrawReticleRenamePopup();
     /** @brief Seeds the editor state expected by the current tutorial step. */
     void PrepareTutorialStep();
 
@@ -561,6 +581,8 @@ private:
     PageImportPopupState pageImportPopup_ {};
     /** @brief Confirmation-popup state used by global page renames. */
     PageRenamePopupState pageRenamePopup_ {};
+    /** @brief Confirmation-popup state used by global reticle-template renames. */
+    ReticleRenamePopupState reticleRenamePopup_ {};
     /** @brief Asset field currently edited through the guided folder picker. */
     AssetFolderPickerTarget assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
     /** @brief Current folder displayed by the guided asset-folder picker. */
@@ -581,6 +603,8 @@ private:
     editor::PageImportService pageImportService_ {};
     /** @brief Stateless service owning the global page-rename planning logic. */
     editor::PageRenameService pageRenameService_ {};
+    /** @brief Stateless service owning the global reticle-template rename planning logic. */
+    editor::ReticleRenameService reticleRenameService_ {};
     /** @brief Future hidden conversation-surface state kept invisible until one UI consumer is explicitly added. */
     struct HiddenConversationSurfaceState
     {

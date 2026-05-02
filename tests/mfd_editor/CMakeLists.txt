@@ -31,6 +31,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/PageManagementServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/PageImportServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/PageRenameServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ReticleRenameServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp)
 
@@ -131,6 +132,8 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/PageImportService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/PageRenameService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/PageRenameService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/ReticleRenameService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/ReticleRenameService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiTheme.cpp)
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)

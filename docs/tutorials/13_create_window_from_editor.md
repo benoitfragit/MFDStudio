@@ -10,6 +10,7 @@ You will learn how to:
 - define the default page
 - import an existing page asset with its reticle dependencies
 - rename one shared page asset safely across windows
+- rename one shared reticle template safely across pages
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
@@ -204,6 +205,45 @@ Current behavior:
 After a successful rename, regenerate the generated client API if this page is
 part of an exported window contract.
 
+## Step 13 - Rename a reticle template safely
+
+Pages live inside windows. Reticle templates live inside pages through page
+`template` references.
+
+Use the safe reticle rename workflow when one shared template is reused by
+several authored pages.
+
+Open it from any of these entry points:
+
+- right-click one template in the reticle-library tree, then choose **Rename reticle globally...**
+- use the library-reticle inspector button **Rename reticle globally...**
+- use **Reticle > Rename selected library reticle globally...**
+
+The popup now shows:
+
+- the current template id
+- the requested new template id
+- the current template JSON file
+- the optional target template JSON file when you also rename the file
+- every source page or strobe reference found under the scanned `assets/` root
+- the exact JSON files that will be rewritten or deleted
+- blocking collisions when one page already references the requested target template id
+- a warning that the generated client API and `mappingHash` may change
+
+Current behavior:
+
+- the template JSON `id` is always rewritten
+- page `staticReticles[*].template` references are rewritten
+- page `strobe.template` references are rewritten
+- you can choose between logical rename only and logical rename plus template-file rename
+- when the template file moves, relative image paths are rewritten automatically
+- `_Exec` is ignored by default
+- the rename writes directly to source JSON files and does not wait for the next
+  **File > Save**
+
+After a successful rename, regenerate the generated client API if this template
+is part of an exported runtime contract.
+
 ## Undo behavior
 
 The editor keeps one undo snapshot per page-modifying action:
@@ -218,4 +258,4 @@ The editor keeps one undo snapshot per page-modifying action:
 
 ## Result
 
-You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, safe shared-page rename handling, default page selection, and UDP runtime transport configuration.
+You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, safe shared-page and shared-reticle rename handling, default page selection, and UDP runtime transport configuration.
