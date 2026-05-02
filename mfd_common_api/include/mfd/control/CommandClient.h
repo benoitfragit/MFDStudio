@@ -115,7 +115,14 @@ public:
      */
     std::size_t MaxPayloadBytes() const noexcept;
 
-    /** @brief Activates a page by name. */
+    /**
+     * @brief Activates a page by authored name.
+     * @param page Authored page name resolved through the configured generated transport map.
+     * @return `true` if the command payload was sent successfully.
+     *
+     * @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     * Prefer the generated page-wrapper overload in production code.
+     */
     bool ActivatePage(std::string_view page);
     /**
      * @brief Activates a generated page wrapper by transport id and mapping hash.
@@ -131,7 +138,16 @@ public:
         return ActivateGeneratedPage(GeneratedPage::GeneratedId(), GeneratedPage::MappingHash());
     }
 
-    /** @brief Updates the view center and zoom of a page. */
+    /**
+     * @brief Updates the view center and zoom of a page by authored name.
+     * @param page Authored page name resolved through the configured generated transport map.
+     * @param center Logical point placed at the center of the viewport.
+     * @param zoom Page zoom factor.
+     * @return `true` if the command payload was sent successfully.
+     *
+     * @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     * Prefer the generated page-wrapper overload in production code.
+     */
     bool SetPageView(std::string_view page, Vec2 center, float zoom);
     /**
      * @brief Updates the view center and zoom of a generated page wrapper by transport id and mapping hash.
@@ -158,42 +174,72 @@ public:
     /** @brief Enables or disables whole-window blackout. */
     bool SetWindowDisabled(bool disabled);
 
-    /** @brief Sends a generic reticle patch. */
+    /** @brief Sends a generic reticle patch by authored page and reticle names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool UpdateReticle(std::string_view page, std::string_view reticle, const ReticlePatch& patch);
-    /** @brief Sets reticle visibility. */
+    /** @brief Sets reticle visibility by authored page and reticle names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleVisible(std::string_view page, std::string_view reticle, bool visible);
-    /** @brief Enables or disables reticle blinking. */
+    /** @brief Enables or disables reticle blinking by authored page and reticle names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleBlinkEnabled(std::string_view page, std::string_view reticle, bool enabled);
-    /** @brief Sets the page blink type used by a reticle and enables blinking. */
+    /** @brief Sets the page blink type used by a reticle and enables blinking by authored names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleBlinkType(std::string_view page, std::string_view reticle, std::string_view blinkType);
-    /** @brief Clears the reticle-specific blink type and falls back to the page default when blinking is enabled. */
+    /** @brief Clears the reticle-specific blink type by authored names and falls back to the page default when blinking is enabled.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool ClearReticleBlinkType(std::string_view page, std::string_view reticle);
-    /** @brief Sets reticle position. */
+    /** @brief Sets reticle position by authored page and reticle names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticlePosition(std::string_view page, std::string_view reticle, Vec2 position);
-    /** @brief Sets reticle rotation in degrees. */
+    /** @brief Sets reticle rotation in degrees by authored page and reticle names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleRotation(std::string_view page, std::string_view reticle, float rotationDegrees);
-    /** @brief Sets the reticle stroke color override. */
+    /** @brief Sets the reticle stroke color override by authored page and reticle names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleColor(std::string_view page, std::string_view reticle, ColorRgba color);
-    /** @brief Sets the reticle stroke thickness override. */
+    /** @brief Sets the reticle stroke thickness override by authored page and reticle names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleThickness(std::string_view page, std::string_view reticle, float thickness);
-    /** @brief Sets the first text primitive value found in the reticle. */
+    /** @brief Sets the first text primitive value found in the reticle by authored page and reticle names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleText(std::string_view page, std::string_view reticle, std::string text);
-    /** @brief Sets the text of a named text primitive inside a reticle. */
+    /** @brief Sets the text of a named text primitive inside a reticle by authored names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleText(std::string_view page,
                         std::string_view reticle,
                         std::string_view primitiveId,
                         std::string text);
-    /** @brief Sets the first text primitive letter spacing found in the reticle. */
+    /** @brief Sets the first text primitive letter spacing found in the reticle by authored names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleLetterSpacing(std::string_view page, std::string_view reticle, float letterSpacing);
-    /** @brief Sets the letter spacing of a named text primitive inside a reticle. */
+    /** @brief Sets the letter spacing of a named text primitive inside a reticle by authored names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetReticleLetterSpacing(std::string_view page,
                                  std::string_view reticle,
                                  std::string_view primitiveId,
                                  float letterSpacing);
 
-    /** @brief Enables or disables the strobe of a page. */
+    /** @brief Enables or disables the strobe of a page by authored name.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetStrobeActive(std::string_view page, bool active);
-    /** @brief Moves the strobe of a page. */
+    /** @brief Moves the strobe of a page by authored name.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetStrobePosition(std::string_view page, Vec2 position);
 
     /**
@@ -203,6 +249,8 @@ public:
      * @param templateId Reticle template used to instantiate the dynamic reticle.
      * @param patch Optional patch applied after instantiation.
      * @return `true` if the command was sent successfully.
+     *
+     * @note Requires this client to be constructed with a `GeneratedTransportMap`.
      */
     bool UpsertDynamicReticle(std::string_view page,
                               std::string_view reticle,
@@ -220,11 +268,14 @@ public:
      * Protocol Buffers payloads when the serialized packet would exceed the
      * configured `maxPacketSize`, while preserving `CommandBatch::mappingHash`
      * and any generated transport ids already present in the command.
+     * Requires this client to be constructed with a `GeneratedTransportMap`.
      */
     bool UpsertDynamicReticles(std::string_view page,
                                std::string_view templateId,
                                ArrayView<const DynamicReticleState> reticles);
-    /** @brief Enables or disables all dynamic reticles belonging to one page/template set. */
+    /** @brief Enables or disables all dynamic reticles belonging to one page/template set by authored names.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
     bool SetDynamicReticleSetVisible(std::string_view page, std::string_view templateId, bool visible);
 
     /**
@@ -232,6 +283,8 @@ public:
      * @param page Target page.
      * @param reticle Dynamic reticle id.
      * @return `true` if the command was sent successfully.
+     *
+     * @note Requires this client to be constructed with a `GeneratedTransportMap`.
      */
     bool RemoveDynamicReticle(std::string_view page, std::string_view reticle);
     /** @brief Requests a full reset of the target window runtime state. */
