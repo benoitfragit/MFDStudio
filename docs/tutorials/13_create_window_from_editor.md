@@ -36,6 +36,8 @@ Use the **Browse ... folder** buttons when creating new assets. The editor now g
 
 This also matters for the integrated tutorial: `client_tutorial` is intentionally kept out of the default examples build. Once the authored tutorial window, page, and reticle JSON files exist under the repository `assets/` tree, add `add_subdirectory(client_tutorial)` to `examples/CMakeLists.txt`, re-run CMake configuration, and then build the new target. `Scripts/Start-MfdTutorial.bat` becomes usable from the repository, and the staged `Start-MfdTutorial.bat` is copied next to `mfd_window` at the same point.
 
+That source-tree discipline also feeds the editor asset reference index used by upcoming safe import, rename, highlight, and diagnostics workflows. Keeping authored windows, pages, reticles, fonts, and images under the real repository asset tree is what lets those tools resolve dependencies reliably.
+
 ## Step 3 - Configure UDP communication
 
 ### Commands UDP (incoming to the window runtime)

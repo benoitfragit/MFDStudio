@@ -4,6 +4,7 @@
 if(MFD_BUILD_DEMO)
     set(MFD_EDITOR_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/AssetReferenceIndexService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationPluginLoader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
@@ -13,6 +14,7 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorUiTheme.cpp)
 
     set(MFD_EDITOR_HEADERS
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/AssetReferenceIndexService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorApplication.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationBridge.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationDocumentUtils.h

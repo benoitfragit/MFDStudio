@@ -25,6 +25,7 @@ first, then come back here for the design detail behind those rules.
 | --- | --- |
 | [Generated Client API Architecture](./generated_client_api.md) | you are shaping the typed generated client layer exposed to applications |
 | [Generated Transport Map Specification](./generated_transport_map.md) | you need the stable rules mapping authored names to runtime transport IDs |
+| [Editor Asset Reference Index](./editor_asset_reference_index.md) | you are changing editor workflows that need one shared source of truth for `window -> page -> reticle -> asset` dependencies |
 
 If you are new to the project, start with:
 

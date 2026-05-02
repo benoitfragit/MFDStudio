@@ -23,6 +23,7 @@ function(mfd_add_editor_test_plugin target output_name source_file)
 endfunction()
 
 set(MFD_EDITOR_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/AssetReferenceIndexServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationPluginLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationTestUtils.cpp
@@ -108,11 +109,13 @@ target_include_directories(mfd_editor_tests
 
 target_sources(mfd_editor_tests
     PRIVATE
+        ${MFD_ROOT_DIR}/mfd_editor/include/AssetReferenceIndexService.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationBridge.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationDocumentUtils.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationPluginLoader.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationServices.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationTypes.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/AssetReferenceIndexService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationCore.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationDocumentUtils.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
