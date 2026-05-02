@@ -163,13 +163,29 @@ TEST(StrobeFeedbackTests, RoundTripsFeedbackWithoutOptionalCaptureResult)
     EXPECT_FALSE(decoded->captureResult.has_value());
 }
 
+TEST(StrobeFeedbackTests, RoundTripsActivePageFeedbackEnvelope)
+{
+    mfd::ActivePageFeedback original;
+    original.sequence = 19U;
+    original.pageName = "Page1";
+
+    const std::string payload = mfd::SerializeActivePageFeedback(original);
+    std::string error;
+    const auto decoded = mfd::DeserializeActivePageFeedback(payload, &error);
+
+    ASSERT_TRUE(decoded.has_value()) << error;
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(decoded->sequence, 19U);
+    EXPECT_EQ(decoded->pageName, "Page1");
+}
+
 TEST(StrobeFeedbackTests, RejectsInvalidPayload)
 {
     std::string error;
     const auto decoded = mfd::DeserializeStrobeStatusFeedback("not a protobuf payload", &error);
 
     EXPECT_FALSE(decoded.has_value());
-    EXPECT_EQ(error, "Unable to parse Protocol Buffers strobe feedback payload");
+    EXPECT_EQ(error, "Unable to parse Protocol Buffers runtime feedback payload");
 }
 
 TEST(StrobeFeedbackTests, RejectsCommandEnvelopeAsUnsupportedFeedbackPayload)
@@ -180,10 +196,39 @@ TEST(StrobeFeedbackTests, RejectsCommandEnvelopeAsUnsupportedFeedbackPayload)
 
     const std::string payload = mfd::SerializeCommandBatch(batch);
     std::string error;
-    const auto decoded = mfd::DeserializeStrobeStatusFeedback(payload, &error);
+    const auto decoded = mfd::DeserializeFeedbackPayload(payload, &error);
 
     EXPECT_FALSE(decoded.has_value());
     EXPECT_EQ(error, "Unsupported feedback payload");
+}
+
+TEST(StrobeFeedbackTests, StrobeDecoderIgnoresActivePageFeedbackWithoutError)
+{
+    mfd::ActivePageFeedback activePage;
+    activePage.sequence = 23U;
+    activePage.pageName = "Radar";
+
+    std::string error;
+    const auto decoded = mfd::DeserializeStrobeStatusFeedback(mfd::SerializeActivePageFeedback(activePage), &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_TRUE(error.empty());
+}
+
+TEST(StrobeFeedbackTests, GenericDecoderReturnsActivePageVariant)
+{
+    mfd::ActivePageFeedback activePage;
+    activePage.sequence = 31U;
+    activePage.pageName = "Navigation";
+
+    std::string error;
+    const auto decoded = mfd::DeserializeFeedbackPayload(mfd::SerializeActivePageFeedback(activePage), &error);
+
+    ASSERT_TRUE(decoded.has_value()) << error;
+    const auto* value = std::get_if<mfd::ActivePageFeedback>(&(*decoded));
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(value->sequence, 31U);
+    EXPECT_EQ(value->pageName, "Navigation");
 }
 
 TEST(StrobeFeedbackTests, DeterministicPseudoFuzzRoundTripsFeedbackVariants)

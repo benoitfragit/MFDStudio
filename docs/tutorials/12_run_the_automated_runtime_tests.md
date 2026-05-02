@@ -86,9 +86,16 @@ live physically under `mfd_common_api/include`, `mfd_common_api/src`, and
 
 `StrobeFeedbackTests.cpp` covers:
 
-- round-tripping full strobe feedback envelopes including capture metadata
+- round-tripping full strobe and active-page feedback envelopes including capture metadata
 - preserving optional and defaulted strobe feedback fields
+- decoding mixed runtime feedback payload kinds correctly
 - rejecting malformed or wrong-envelope Protocol Buffers payloads
+
+`client_api_tests` also cover the higher-level generated feedback path:
+
+- authoritative active-page tracking
+- authoritative dynamic-reticle strobe-capture tracking
+- generated `IsActive()` and `IsStrobeCaptured()` queries
 
 `CommandTransportTests.cpp` covers:
 

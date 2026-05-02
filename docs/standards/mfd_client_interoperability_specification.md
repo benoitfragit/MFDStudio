@@ -35,7 +35,7 @@ This specification defines:
 - the optional generated client UI and primitive-binding layer
 - the command batch contract
 - the semantics of the public runtime commands
-- the optional strobe feedback profile
+- the optional runtime feedback profile
 - the minimum conformance checks for a replacement client
 
 This specification does not define:
@@ -77,7 +77,7 @@ In the normal deployment model:
 
 - the window listens for command UDP packets
 - the client sends Protocol Buffers command batches over UDP
-- the window may emit UDP strobe feedback snapshots back to the client
+- the window may emit UDP runtime feedback snapshots back to the client
 
 ![Interoperability reference model](./interop_reference_model.svg)
 
@@ -129,8 +129,8 @@ A Profile B client MUST satisfy Profile A and MUST also support:
 A Profile C client MUST satisfy Profile B and MUST also support:
 
 - `UpdateStrobeCommand`
-- optional UDP strobe feedback reception and decoding
-- treating window feedback as authoritative for resolved strobe state
+- optional UDP runtime-feedback reception and decoding
+- treating window feedback as authoritative for resolved runtime state
 
 ### 6.4 Profile D - Generated UI Binding Client
 
@@ -151,6 +151,8 @@ At minimum, a Profile D implementation MUST:
 - expose one typed dynamic-set accessor per authored dynamic template
 - hide transport IDs from normal application code
 - provide batch-building helpers that preserve the generated `mappingHash`
+- when runtime feedback is consumed, expose an ergonomic equivalent of
+  generated `Page::IsActive()` and dynamic `IsStrobeCaptured()` queries
 
 ## 7. Discovery Artifacts
 
@@ -239,6 +241,11 @@ If an implementation exposes a generated UI layer, the following rules apply:
   user-supplied-runtime-id-based
 - a generated `Reset()` helper MUST be treated as a local staging reset, not as
   a substitute for `ResetWindowCommand`
+- if runtime feedback is consumed, the generated root MUST provide one helper
+  equivalent in role to `ApplyFeedbackPayload(...)` or `PollFeedback(...)`
+- if runtime feedback is consumed, the generated page and dynamic-reticle
+  surfaces SHOULD expose authoritative queries equivalent to `IsActive()` and
+  `IsStrobeCaptured()`
 
 ### 7.5 Primitive-Level Generated Surface
 
@@ -322,7 +329,7 @@ If the window exposes:
 }
 ```
 
-then a Profile C client MAY receive strobe feedback on that UDP endpoint.
+then a Profile C client MAY receive runtime feedback on that UDP endpoint.
 
 ### 8.3 Reliability Model
 
@@ -557,11 +564,17 @@ For such generated dynamic sets:
 - primitive-specific handle kinds SHOULD be preserved on generated dynamic
   reticles instead of collapsing everything to one generic primitive wrapper
 
-## 14. Optional Strobe Feedback Profile
+## 14. Optional Runtime Feedback Profile
 
-If feedback UDP is enabled, the window MAY emit `StrobeStatusFeedback`.
+If feedback UDP is enabled, the window MAY emit `StrobeStatusFeedback`,
+`ActivePageFeedback`, or both on the same UDP stream.
 
 Important fields are:
+
+- `sequence`
+- `pageName`
+
+for `ActivePageFeedback`, and:
 
 - `sequence`
 - `pageName`
@@ -574,9 +587,13 @@ Important fields are:
 
 Normative rules:
 
+- a feedback-capable client MUST accept that the same UDP feedback stream can
+  contain several supported feedback payload kinds
 - a feedback-capable client MUST treat feedback as the resolved runtime state
 - a feedback-capable client MUST NOT assume the resolved strobe position equals
   the requested position
+- `ActivePageFeedback` MUST be treated as authoritative for which page is
+  currently rendered as active
 - if magnetization is enabled, the feedback position MAY snap to a dynamic
   target
 - if capture is active, `captureResult` MAY describe the captured target
@@ -653,7 +670,7 @@ following checks against a known target window:
 | toggle one dynamic set visibility | only the matching page/template set is affected |
 | send one reset command | runtime returns to authored initial state |
 | send one strobe update | requested strobe intent is applied |
-| receive one strobe feedback packet | decoded resolved state matches window behavior |
+| receive one runtime feedback packet | decoded resolved state matches window behavior |
 
 For radar-like workloads, a conformance test SHOULD also cover one batch of at
 least 100 dynamic reticle updates during the same cycle.
@@ -668,6 +685,7 @@ SHOULD also verify:
 | generated primitive handles stay type-specific | text, line, ring, triangle, polyline, bezier, arc, rectangle, and other supported primitive kinds expose dedicated handle types |
 | generated strobe handle remains page-scoped | no strobe transport object is required from application code |
 | generated dynamic set hides runtime IDs | `Create()` and `Remove(handle)` work without user-managed runtime IDs |
+| generated runtime-feedback queries stay authoritative | `IsActive()` and `IsStrobeCaptured()` reflect the consumed runtime feedback stream |
 | generated batch helper carries `mappingHash` | `BuildCommandBatch(sequence)` emits the generated hash |
 | generated submit helper preserves batch semantics | `SubmitLatest(...)` forwards the same logical batch |
 
@@ -762,7 +780,7 @@ batch.commands.push_back(std::move(command));
 client.SendBatch(batch);
 ```
 
-### 19.3 Strobe Feedback Receiver
+### 19.3 Runtime Feedback Receiver
 
 ```cpp
 auto feedbackChannel = mfd::CreateFeedbackReceiverChannel(feedbackUdp);
@@ -770,7 +788,7 @@ const auto payload = feedbackChannel->TryReceive();
 if (payload.has_value())
 {
     const auto feedback =
-        mfd::DeserializeStrobeStatusFeedback(
+        mfd::DeserializeFeedbackPayload(
             std::string_view(reinterpret_cast<const char*>(payload->data()), payload->size()));
 }
 ```

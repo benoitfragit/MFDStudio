@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <optional>
 #include <random>
+#include <string_view>
 #include <utility>
 
 namespace mfd::client
@@ -21,6 +22,16 @@ namespace mfd::client
 namespace
 {
 constexpr mfd::RuntimeDynamicId kGeneratedDynamicRuntimeIdBit = mfd::RuntimeDynamicId {1} << 63U;
+
+std::string NormalizeFeedbackKey(const std::string_view value)
+{
+    return mfd::NormalizePageName(value);
+}
+
+bool SequenceIsNewer(const std::uint32_t sequence, const std::uint32_t previous) noexcept
+{
+    return sequence >= previous;
+}
 
 bool Equal(const mfd::Vec2& lhs, const mfd::Vec2& rhs) noexcept
 {
@@ -387,6 +398,151 @@ const std::string& BlinkType::Name() const noexcept
 mfd::TransportId BlinkType::GeneratedId() const noexcept
 {
     return transportId_;
+}
+
+bool RuntimeFeedbackState::Apply(const mfd::StrobeStatusFeedback& feedback)
+{
+    const std::string normalizedPageName = NormalizeFeedbackKey(feedback.pageName);
+    PageCaptureState& state = pageCaptureByName_[normalizedPageName];
+    if (state.hasSequence && !SequenceIsNewer(feedback.sequence, state.lastStrobeSequence))
+    {
+        return false;
+    }
+
+    const bool nextCaptured = feedback.captureResult.has_value();
+    const std::string nextCapturedReticleId =
+        nextCaptured ? NormalizeFeedbackKey(feedback.captureResult->reticleId) : std::string {};
+    const bool changed = !state.hasSequence ||
+                         state.captured != nextCaptured ||
+                         state.capturedReticleIdNormalized != nextCapturedReticleId;
+
+    state.lastStrobeSequence = feedback.sequence;
+    state.hasSequence = true;
+    state.captured = nextCaptured;
+    state.capturedReticleIdNormalized = std::move(nextCapturedReticleId);
+    return changed;
+}
+
+bool RuntimeFeedbackState::Apply(const mfd::ActivePageFeedback& feedback)
+{
+    if (hasActivePage_ && !SequenceIsNewer(feedback.sequence, lastActivePageSequence_))
+    {
+        return false;
+    }
+
+    const std::string normalizedPageName = NormalizeFeedbackKey(feedback.pageName);
+    const bool changed = !hasActivePage_ ||
+                         activePageName_ != feedback.pageName ||
+                         activePageNameNormalized_ != normalizedPageName;
+
+    activePageName_ = feedback.pageName;
+    activePageNameNormalized_ = normalizedPageName;
+    lastActivePageSequence_ = feedback.sequence;
+    hasActivePage_ = true;
+    return changed;
+}
+
+bool RuntimeFeedbackState::ApplyPayload(const std::string_view payload, std::string* error)
+{
+    std::string localError;
+    std::string* errorTarget = error == nullptr ? &localError : error;
+    errorTarget->clear();
+
+    const auto decoded = mfd::DeserializeFeedbackPayload(payload, errorTarget);
+    if (!decoded.has_value())
+    {
+        return false;
+    }
+
+    return std::visit(
+        [this](const auto& value)
+        {
+            return Apply(value);
+        },
+        *decoded);
+}
+
+std::size_t RuntimeFeedbackState::Poll(mfd::IExchangeChannel& channel,
+                                       const std::size_t maxMessages,
+                                       std::string* error)
+{
+    if (maxMessages == 0)
+    {
+        if (error != nullptr)
+        {
+            error->clear();
+        }
+
+        return 0;
+    }
+
+    std::size_t appliedCount = 0;
+    std::string lastError;
+
+    for (std::size_t index = 0; index < maxMessages; ++index)
+    {
+        const auto payload = channel.TryReceive();
+        if (!payload.has_value())
+        {
+            break;
+        }
+
+        const auto* raw = reinterpret_cast<const char*>(payload->data());
+        std::string decodeError;
+        if (ApplyPayload(std::string_view(raw, payload->size()), &decodeError))
+        {
+            ++appliedCount;
+            continue;
+        }
+
+        if (!decodeError.empty())
+        {
+            lastError = std::move(decodeError);
+        }
+    }
+
+    if (error != nullptr)
+    {
+        *error = std::move(lastError);
+    }
+
+    return appliedCount;
+}
+
+void RuntimeFeedbackState::Reset() noexcept
+{
+    pageCaptureByName_.clear();
+    activePageName_.clear();
+    activePageNameNormalized_.clear();
+    lastActivePageSequence_ = 0;
+    hasActivePage_ = false;
+}
+
+bool RuntimeFeedbackState::HasActivePage() const noexcept
+{
+    return hasActivePage_;
+}
+
+const std::string& RuntimeFeedbackState::ActivePageName() const noexcept
+{
+    return activePageName_;
+}
+
+bool RuntimeFeedbackState::IsPageActive(const std::string_view pageName) const noexcept
+{
+    return hasActivePage_ && activePageNameNormalized_ == NormalizeFeedbackKey(pageName);
+}
+
+bool RuntimeFeedbackState::IsDynamicReticleCaptured(const std::string_view pageName,
+                                                    const std::string_view reticleId) const noexcept
+{
+    const auto pageIt = pageCaptureByName_.find(NormalizeFeedbackKey(pageName));
+    if (pageIt == pageCaptureByName_.end() || !pageIt->second.captured)
+    {
+        return false;
+    }
+
+    return pageIt->second.capturedReticleIdNormalized == NormalizeFeedbackKey(reticleId);
 }
 
 ReticleBlink::ReticleBlink(mfd::ReticlePatch& patch, bool* dirty) noexcept :
@@ -1140,6 +1296,13 @@ const std::string& DynamicReticle::Id() const noexcept
     return reticleId_;
 }
 
+bool DynamicReticle::IsStrobeCaptured() const noexcept
+{
+    return feedbackState_ != nullptr &&
+           !feedbackPageName_.empty() &&
+           feedbackState_->IsDynamicReticleCaptured(feedbackPageName_, reticleId_);
+}
+
 void DynamicReticle::SetVisible(const bool visible)
 {
     PatchSetVisible(desiredPatch_, visible);
@@ -1225,6 +1388,13 @@ const mfd::ReticlePatch& DynamicReticle::DesiredPatch() const noexcept
     return desiredPatch_;
 }
 
+void DynamicReticle::BindRuntimeFeedback(const std::string_view pageName,
+                                         RuntimeFeedbackState* feedbackState) noexcept
+{
+    feedbackPageName_ = std::string(pageName);
+    feedbackState_ = feedbackState;
+}
+
 void DynamicReticle::PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, const bool useGeneratedBlinkTypeId) const
 {
     if (patch.blinkTypeId.has_value() && useGeneratedBlinkTypeId)
@@ -1240,11 +1410,13 @@ void DynamicReticle::PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, cons
 GeneratedDynamicReticleSet::GeneratedDynamicReticleSet(const std::string_view pageName,
                                                        const std::string_view templateId,
                                                        const mfd::TransportId pageTransportId,
-                                                       const mfd::TransportId templateTransportId) :
+                                                       const mfd::TransportId templateTransportId,
+                                                       RuntimeFeedbackState* feedbackState) :
     pageName_(pageName),
     templateId_(templateId),
     pageTransportId_(pageTransportId),
-    templateTransportId_(templateTransportId)
+    templateTransportId_(templateTransportId),
+    feedbackState_(feedbackState)
 {
 }
 
@@ -1266,6 +1438,7 @@ DynamicReticle& GeneratedDynamicReticleSet::Create()
 {
     DynamicEntry entry;
     entry.reticle = CreateReticle(NextReticleId());
+    BindReticleRuntimeFeedback(*entry.reticle);
     entry.reticle->runtimeReticleId_ = NextRuntimeReticleId();
     reticles_.push_back(std::move(entry));
     return *reticles_.back().reticle;
@@ -1428,14 +1601,21 @@ GeneratedDynamicReticleSet::DynamicEntry* GeneratedDynamicReticleSet::FindEntry(
     return iterator == reticles_.end() ? nullptr : &(*iterator);
 }
 
+void GeneratedDynamicReticleSet::BindReticleRuntimeFeedback(DynamicReticle& reticle) noexcept
+{
+    reticle.BindRuntimeFeedback(pageName_, feedbackState_);
+}
+
 DynamicReticleSet::DynamicReticleSet(const std::string_view pageName,
                                      const std::string_view templateId,
                                      const mfd::TransportId pageTransportId,
-                                     const mfd::TransportId templateTransportId) :
+                                     const mfd::TransportId templateTransportId,
+                                     RuntimeFeedbackState* feedbackState) :
     pageName_(pageName),
     templateId_(templateId),
     pageTransportId_(pageTransportId),
-    templateTransportId_(templateTransportId)
+    templateTransportId_(templateTransportId),
+    feedbackState_(feedbackState)
 {
 }
 
@@ -1462,6 +1642,7 @@ DynamicReticle& DynamicReticleSet::Upsert(const std::string_view reticleId)
     }
 
     reticles_.push_back(std::make_unique<DynamicReticle>(reticleId));
+    BindReticleRuntimeFeedback(*reticles_.back());
     reticles_.back()->seenThisCycle_ = true;
     return *reticles_.back();
 }
@@ -1578,6 +1759,11 @@ DynamicReticle* DynamicReticleSet::Find(const std::string_view reticleId) noexce
             return candidate->Id() == reticleId;
         });
     return iterator == reticles_.end() ? nullptr : iterator->get();
+}
+
+void DynamicReticleSet::BindReticleRuntimeFeedback(DynamicReticle& reticle) noexcept
+{
+    reticle.BindRuntimeFeedback(pageName_, feedbackState_);
 }
 
 void WindowDisplay::Reset() noexcept

@@ -75,11 +75,12 @@ client.SendBatch(ui.BuildBatch());
 
 ## Root Responsibilities
 
-The generated root has three jobs:
+The generated root has four jobs:
 
 1. expose authored pages and the window display state
 2. accumulate staged partial patches while user code mutates handles
 3. build runtime command batches on demand
+4. absorb runtime feedback and surface authoritative convenience queries
 
 The root is therefore the bridge between the authored model and the transport
 client:
@@ -103,6 +104,9 @@ Expected generated root helpers:
 - `BuildBatch()`
 - `BuildCommandBatch(sequence)`
 - `SubmitLatest(publisher, sequence)`
+- `ApplyFeedback(...)`
+- `ApplyFeedbackPayload(...)`
+- `PollFeedback(...)`
 
 Some generated roots may also expose convenience helpers such as shutdown
 batches when the authored model carries that concept. Those helpers are useful,
@@ -115,6 +119,7 @@ Each generated page wrapper carries:
 - the authored page name
 - the generated page transport ID
 - the generated `mappingHash`
+- authoritative runtime active-state query through `IsActive()`
 - one member per static reticle on the page
 - one member per page-local blink type
 - one page-scoped `strobe` handle
@@ -286,6 +291,29 @@ This model gives three benefits:
 - the generated API still exposes typed primitive access on dynamic instances
 - lifecycle remains explicit through `Create()` and `Remove(...)`
 
+When runtime feedback is wired back into the generated root, dynamic reticles
+also expose one authoritative capture query:
+
+```cpp
+auto& radar = ui.Radar();
+auto& tracks = radar.DynamicRadarTrack();
+auto& track = tracks.Create();
+
+if (ui.PollFeedback(*feedbackChannel, 8U) > 0U)
+{
+    const bool radarIsRendered = radar.IsActive();
+    const bool trackCapturedByStrobe = track.IsStrobeCaptured();
+}
+```
+
+`IsStrobeCaptured()` is intentionally a runtime-state query, not a staged local
+flag:
+
+- it becomes `true` only when the latest authoritative strobe feedback reports
+  that exact dynamic handle as captured
+- it becomes `false` again when capture is lost or when the strobe captures a
+  different dynamic reticle
+
 ## Strobe Model
 
 The strobe is modeled as a page capability, not as an addressable generated
@@ -308,6 +336,31 @@ The strobe handle intentionally stays page-scoped because:
 - authored pages own the strobe definition
 - strobe feedback is also page-scoped
 - no independent strobe transport table is generated
+
+## Runtime Feedback Queries
+
+The generated runtime feedback layer is built around one internal
+`RuntimeFeedbackState` owned by the generated root.
+
+That state is updated through:
+
+- `ApplyFeedback(const mfd::StrobeStatusFeedback&)`
+- `ApplyFeedback(const mfd::ActivePageFeedback&)`
+- `ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr)`
+- `PollFeedback(mfd::IExchangeChannel&, std::size_t maxMessages, std::string* error = nullptr)`
+
+It then powers two user-facing convenience queries:
+
+- `Page::IsActive()`, which is `true` only while the render thread reports that
+  page as active
+- `DynamicReticle::IsStrobeCaptured()`, which is `true` only while the latest
+  strobe feedback points to that exact dynamic reticle
+
+This keeps the user API ergonomic while preserving one important rule:
+
+- authored handles still express intent locally
+- feedback-backed queries expose authoritative runtime state only after the
+  window reported it
 
 ## Batch Building And Transport Boundary
 

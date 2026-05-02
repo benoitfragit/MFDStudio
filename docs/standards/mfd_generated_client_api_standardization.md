@@ -36,7 +36,7 @@ This standardization note defines:
   set surfaces
 - the required batch-building bridge to `CommandClient`
 - the authoring rules that decide which primitives become generated handles
-- the expected coverage for text, geometry, image, and dynamic features
+- the expected coverage for text, geometry, image, dynamic, and runtime-feedback features
 
 This note does not define:
 
@@ -97,6 +97,10 @@ It MUST provide:
 - `BuildBatch()`
 - `BuildCommandBatch(sequence)`
 - `SubmitLatest(publisher, sequence)`
+- `ApplyFeedback(const mfd::StrobeStatusFeedback&)`
+- `ApplyFeedback(const mfd::ActivePageFeedback&)`
+- `ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr)`
+- `PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr)`
 
 Representative usage:
 
@@ -117,6 +121,7 @@ Each generated page MUST expose:
 - `Name()`
 - `GeneratedId()`
 - `MappingHash()`
+- `IsActive()`
 - one generated member per authored static reticle on that page
 - one generated member per authored page-local blink type
 - one generated `strobe` handle
@@ -137,6 +142,9 @@ common reticle controls already exposed by `mfd::client::Reticle` and
 - `SetRotationDegrees`
 - `SetColor`
 - `SetThickness`
+
+Each generated dynamic reticle MUST also expose `IsStrobeCaptured()` as the
+authoritative runtime capture query backed by the feedback stream.
 
 ### 5.4 Primitive Surface
 
@@ -190,6 +198,7 @@ The generated API is expected to cover the following client-visible features.
 | Images | Bitmap primitives are first-class generated handles through `ImageHandle` |
 | Dynamic reticles | Generated sets own hidden runtime IDs and return typed handles from `Create()` |
 | Strobe | Strobe control stays page-scoped through one generated `strobe` handle |
+| Runtime feedback | Generated roots absorb runtime feedback, pages expose `IsActive()`, and dynamic reticles expose `IsStrobeCaptured()` |
 | Batches | The generated root stages partial patches locally, then emits one coherent command batch on demand |
 
 ### 6.1 Static Reticles
@@ -271,6 +280,38 @@ if (radar.strobe.IsValid())
     client.SendBatch(ui.BuildBatch());
 }
 ```
+
+### 6.6 Runtime Feedback Convenience Queries
+
+When the runtime feedback stream is consumed, the generated API MUST expose the
+authoritative rendering-side state without forcing the user to decode payloads
+and correlate reticle ids manually.
+
+Representative usage:
+
+```cpp
+auto& page1 = ui.Page1();
+auto& tracks = page1.DynamicMfdTutorialRadarTrack();
+auto& track = tracks.Create();
+
+std::string feedbackError;
+if (ui.PollFeedback(*feedbackChannel, 8U, &feedbackError) > 0U)
+{
+    const bool page1Active = page1.IsActive();
+    const bool trackCaptured = track.IsStrobeCaptured();
+}
+```
+
+Normative expectations:
+
+- `Page::IsActive()` MUST return `true` only when the latest authoritative
+  active-page feedback reports that page as the currently rendered page
+- `DynamicReticle::IsStrobeCaptured()` MUST return `true` only when the latest
+  authoritative strobe feedback reports that exact dynamic reticle as captured
+- `DynamicReticle::IsStrobeCaptured()` MUST return `false` again when capture
+  is lost or when the strobe captures another dynamic reticle
+- clients MUST NOT have to manage the low-level strobe capture bookkeeping
+  themselves when they stay on the generated API path
 
 ## 7. Authoring Rules That Affect Generation
 
@@ -365,11 +406,13 @@ surface.
 | Area | Standardized expectation |
 | --- | --- |
 | Root API | `Window()`, page accessors, `BuildBatch()`, `BuildCommandBatch()`, `SubmitLatest()` |
-| Page API | stable `Name()`, `GeneratedId()`, `MappingHash()`, reticles, blink types, `strobe`, dynamic sets |
+| Root feedback API | `ApplyFeedback(...)`, `ApplyFeedbackPayload(...)`, `PollFeedback(...)` |
+| Page API | stable `Name()`, `GeneratedId()`, `MappingHash()`, `IsActive()`, reticles, blink types, `strobe`, dynamic sets |
 | Static reticles | common reticle setters stay available |
 | Primitive handles | exposed primitives use the most specific handle type available |
 | Image primitives | exposed bitmap primitives use `ImageHandle` |
 | Dynamic sets | `Create()` and `Remove(handle)` hide runtime IDs |
+| Dynamic runtime queries | `IsStrobeCaptured()` exposes capture state without manual feedback correlation |
 | Strobe | page-scoped handle only, no generated strobe transport object |
 | Transport bridge | generated batches preserve `mappingHash` and command semantics |
 | Authoring link | `exposed` and `drawOnTop` remain preserved by the model and serializer |

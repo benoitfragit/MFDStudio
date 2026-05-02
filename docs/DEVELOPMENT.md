@@ -144,7 +144,7 @@ The real build graph is split into:
 | `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting the framebuffer callback symbol expected by `mfd_window` |
 | `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client used to exercise the public API without linking raylib |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive; this target is meant to be added to `examples/CMakeLists.txt` by the tutorial flow once the tutorial asset set exists |
+| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive plus Page1 strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is meant to be added to `examples/CMakeLists.txt` by the tutorial flow once the tutorial asset set exists |
 | `mfd_editor` | Visual authoring tool |
 | `mfd_api_tests` | Runtime and JSON loading test executable |
 | `client_api_tests` | Client-side helper test executable |
@@ -281,7 +281,7 @@ Current package families:
 
 In practice the automated suite now covers three complementary layers:
 
-- `mfd_api_tests`: runtime logic, command protocol, generated transport-map resolution, strobe feedback, and unit-space projection
+- `mfd_api_tests`: runtime logic, command protocol, generated transport-map resolution, runtime feedback, and unit-space projection
 - `client_api_tests`: high-level client helpers plus a compiled integration fixture built from the real generated client API
 - `client_api_generator_tests`: Python-side generator validation, including rejection of C++ name collisions before invalid code is emitted
 

@@ -33,7 +33,7 @@ It defines:
 - screen position
 - reticle library folder
 - UDP command transport
-- optional UDP feedback transport
+- optional UDP runtime-feedback transport
 - the list of page JSON files to load
 
 Think of the window as the runtime container.
@@ -242,8 +242,8 @@ participant "Strobe logic" as S
 C -> U : command packet
 U -> M : queued strobe command
 M -> S : resolve magnetization and capture
-M -> U : queue feedback snapshot
-U -> C : UDP protobuf feedback
+M -> U : queue runtime feedback snapshot
+U -> C : UDP protobuf runtime feedback
 \enduml
 
 ## Threading Model
@@ -261,7 +261,16 @@ Why this split is healthy:
 - rendering stays isolated from network latency
 - the host render backend remains on the main thread
 - scene mutation stays on the same thread as rendering
-- strobe feedback can be sent asynchronously
+- runtime feedback can be sent asynchronously
+
+The current runtime feedback stream can multiplex:
+
+- authoritative strobe snapshots
+- authoritative active-page snapshots
+
+Generated client bindings can consume that stream directly to drive
+`page.IsActive()` and `dynamicReticle.IsStrobeCaptured()` without extra user
+bookkeeping.
 
 The bridge used by the examples is `mfd::UdpRuntimeBridge`.
 

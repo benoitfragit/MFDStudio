@@ -13,6 +13,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -20,6 +21,9 @@
 
 #include "mfd/client/ClientExport.h"
 #include "mfd/control/CommandTypes.h"
+#include "mfd/control/StrobeFeedback.h"
+#include "mfd/ipc/ExchangeChannel.h"
+#include "mfd/model/PageName.h"
 #include "mfd/model/PageDefinition.h"
 
 namespace mfd::client
@@ -75,6 +79,99 @@ struct StrobeInfo
     mfd::StrobeCaptureConfig capture {};
     /** @brief Authored magnetization configuration of the page strobe. */
     mfd::StrobeMagnetConfig magnet {};
+};
+
+/**
+ * @brief Client-side runtime feedback tracker used by generated page and dynamic APIs.
+ *
+ * @note This tracker stores only the authoritative runtime state needed by the
+ * generated API convenience queries such as `Page.IsActive()` and
+ * `DynamicReticle.IsStrobeCaptured()`.
+ */
+class MFD_CLIENT_API RuntimeFeedbackState
+{
+public:
+    /**
+     * @brief Applies one decoded strobe feedback payload.
+     * @param feedback Runtime feedback emitted by the window.
+     * @return `true` when the internal state changed.
+     */
+    bool Apply(const mfd::StrobeStatusFeedback& feedback);
+
+    /**
+     * @brief Applies one decoded active-page feedback payload.
+     * @param feedback Runtime feedback emitted by the window.
+     * @return `true` when the internal state changed.
+     */
+    bool Apply(const mfd::ActivePageFeedback& feedback);
+
+    /**
+     * @brief Decodes and applies one binary runtime feedback payload.
+     * @param payload Raw Protocol Buffers payload received from the window.
+     * @param error Optional output string receiving the parsing error.
+     * @return `true` when the payload was recognized and changed the state.
+     */
+    bool ApplyPayload(std::string_view payload, std::string* error = nullptr);
+
+    /**
+     * @brief Drains runtime feedback packets from a channel and applies them.
+     * @param channel Receiver channel providing raw feedback packets.
+     * @param maxMessages Maximum number of packets consumed during this call.
+     * @param error Optional output string receiving the last decoding error.
+     * @return Number of packets that changed the tracked runtime state.
+     */
+    std::size_t Poll(mfd::IExchangeChannel& channel,
+                     std::size_t maxMessages = 64,
+                     std::string* error = nullptr);
+
+    /**
+     * @brief Clears all tracked runtime feedback state.
+     */
+    void Reset() noexcept;
+
+    /**
+     * @brief Returns whether any active-page feedback has been received.
+     * @return `true` once the runtime reported an authoritative active page.
+     */
+    bool HasActivePage() const noexcept;
+
+    /**
+     * @brief Returns the last authoritative active page name.
+     * @return Empty string when no active-page feedback has been received yet.
+     */
+    const std::string& ActivePageName() const noexcept;
+
+    /**
+     * @brief Returns whether one authored page is currently active at render time.
+     * @param pageName Authored page name to query.
+     * @return `true` only when the runtime reported that page as active.
+     */
+    bool IsPageActive(std::string_view pageName) const noexcept;
+
+    /**
+     * @brief Returns whether one dynamic reticle is currently captured by its page strobe.
+     * @param pageName Authored page name owning the dynamic reticle.
+     * @param reticleId Public dynamic-reticle id to query.
+     * @return `true` only when the latest authoritative strobe feedback reports
+     * that exact dynamic reticle as captured.
+     */
+    bool IsDynamicReticleCaptured(std::string_view pageName, std::string_view reticleId) const noexcept;
+
+private:
+    struct PageCaptureState
+    {
+        std::uint32_t lastStrobeSequence = 0;
+        bool hasSequence = false;
+        bool captured = false;
+        std::string capturedReticleIdNormalized;
+    };
+
+    std::unordered_map<std::string, PageCaptureState, mfd::TransparentStringHash, mfd::TransparentStringEqual>
+        pageCaptureByName_ {};
+    std::string activePageName_ {};
+    std::string activePageNameNormalized_ {};
+    std::uint32_t lastActivePageSequence_ = 0;
+    bool hasActivePage_ = false;
 };
 
 /**
@@ -449,6 +546,7 @@ public:
     void Reset() noexcept;
 
     const std::string& Id() const noexcept;
+    bool IsStrobeCaptured() const noexcept;
 
     void SetVisible(bool visible);
     void SetBlinkEnabled(bool enabled);
@@ -475,8 +573,11 @@ private:
 
     const mfd::ReticlePatch& DesiredPatch() const noexcept;
     void PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, bool useGeneratedBlinkTypeId) const;
+    void BindRuntimeFeedback(std::string_view pageName, RuntimeFeedbackState* feedbackState) noexcept;
 
     std::string reticleId_;
+    std::string feedbackPageName_ {};
+    RuntimeFeedbackState* feedbackState_ = nullptr;
     mfd::RuntimeDynamicId runtimeReticleId_ = 0;
     std::unordered_map<std::string, mfd::TransportId> primitiveTransportIds_ {};
     mfd::ReticlePatch desiredPatch_ {};
@@ -498,7 +599,8 @@ public:
     GeneratedDynamicReticleSet(std::string_view pageName,
                                std::string_view templateId,
                                mfd::TransportId pageTransportId = 0,
-                               mfd::TransportId templateTransportId = 0);
+                               mfd::TransportId templateTransportId = 0,
+                               RuntimeFeedbackState* feedbackState = nullptr);
     virtual ~GeneratedDynamicReticleSet() = default;
     GeneratedDynamicReticleSet(const GeneratedDynamicReticleSet&) = delete;
     GeneratedDynamicReticleSet& operator=(const GeneratedDynamicReticleSet&) = delete;
@@ -523,6 +625,7 @@ private:
         bool removeRequested = false;
     };
 
+    void BindReticleRuntimeFeedback(DynamicReticle& reticle) noexcept;
     std::string NextReticleId();
     mfd::RuntimeDynamicId NextRuntimeReticleId();
     DynamicEntry* FindEntry(const DynamicReticle& reticle) noexcept;
@@ -531,6 +634,7 @@ private:
     std::string templateId_;
     mfd::TransportId pageTransportId_ = 0;
     mfd::TransportId templateTransportId_ = 0;
+    RuntimeFeedbackState* feedbackState_ = nullptr;
     std::vector<DynamicEntry> reticles_ {};
     bool desiredVisible_ = true;
     bool lastSentVisible_ = true;
@@ -545,7 +649,8 @@ public:
     DynamicReticleSet(std::string_view pageName,
                       std::string_view templateId,
                       mfd::TransportId pageTransportId = 0,
-                      mfd::TransportId templateTransportId = 0);
+                      mfd::TransportId templateTransportId = 0,
+                      RuntimeFeedbackState* feedbackState = nullptr);
     DynamicReticleSet(const DynamicReticleSet&) = delete;
     DynamicReticleSet& operator=(const DynamicReticleSet&) = delete;
     DynamicReticleSet(DynamicReticleSet&&) = delete;
@@ -559,12 +664,14 @@ public:
     std::size_t AppendRemovalCommands(std::vector<mfd::UserCommand>& commands);
 
 private:
+    void BindReticleRuntimeFeedback(DynamicReticle& reticle) noexcept;
     DynamicReticle* Find(std::string_view reticleId) noexcept;
 
     std::string pageName_;
     std::string templateId_;
     mfd::TransportId pageTransportId_ = 0;
     mfd::TransportId templateTransportId_ = 0;
+    RuntimeFeedbackState* feedbackState_ = nullptr;
     std::vector<std::unique_ptr<DynamicReticle>> reticles_ {};
     bool desiredVisible_ = true;
     bool lastSentVisible_ = true;

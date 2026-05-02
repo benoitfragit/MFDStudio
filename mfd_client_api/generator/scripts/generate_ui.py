@@ -723,6 +723,7 @@ def emit_header(namespace_name: str,
         "using ReticleBlink = mfd::client::ReticleBlink;",
         "using RingHandle = mfd::client::RingHandle;",
         "using RectangleHandle = mfd::client::RectangleHandle;",
+        "using RuntimeFeedbackState = mfd::client::RuntimeFeedbackState;",
         "using SquareHandle = mfd::client::SquareHandle;",
         "using StrobeHandle = mfd::client::StrobeHandle;",
         "using StrobeInfo = mfd::client::StrobeInfo;",
@@ -763,7 +764,8 @@ def emit_header(namespace_name: str,
             f"class {template.dynamic_set_class_name} final : public GeneratedDynamicReticleSet",
             "{",
             "public:",
-            f"    explicit {template.dynamic_set_class_name}(std::string_view pageName, mfd::TransportId pageTransportId = 0);",
+            (f"    explicit {template.dynamic_set_class_name}(std::string_view pageName, "
+             "mfd::TransportId pageTransportId = 0, RuntimeFeedbackState* feedbackState = nullptr);"),
             f"    {template.dynamic_reticle_class_name}& Create();",
             f"    void Remove({template.dynamic_reticle_class_name}& reticle);",
             "",
@@ -807,6 +809,9 @@ def emit_header(namespace_name: str,
         lines.extend([
             f"class {page.page_class_name}",
             "{",
+            "private:",
+            "    RuntimeFeedbackState* feedbackState_ = nullptr;",
+            "",
             "public:",
             "    using MfdGeneratedPageTag = mfd::CommandClient::GeneratedPageTag;",
             "",
@@ -825,8 +830,9 @@ def emit_header(namespace_name: str,
             f'        return "{mapping_hash}";',
             "    }",
             "",
-            f"    {page.page_class_name}();",
+            f"    explicit {page.page_class_name}(RuntimeFeedbackState* feedbackState = nullptr);",
             "",
+            "    bool IsActive() const noexcept;",
             "    void Reset() noexcept;",
             "    std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);",
             ("    std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText);"
@@ -886,6 +892,10 @@ def emit_header(namespace_name: str,
         f"    {ui_class_name}();",
         "",
         "    bool SendStartup(mfd::CommandClient& client, const mfd::PageViewState& view, std::string statusText);",
+        "    bool ApplyFeedback(const mfd::StrobeStatusFeedback& feedback);",
+        "    bool ApplyFeedback(const mfd::ActivePageFeedback& feedback);",
+        "    bool ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr);",
+        "    std::size_t PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr);",
         "    void Reset() noexcept;",
         "    std::vector<mfd::UserCommand> BuildBatch();",
         "    mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);",
@@ -903,11 +913,12 @@ def emit_header(namespace_name: str,
     lines.extend([
         "",
         "private:",
+        "    RuntimeFeedbackState feedbackState_ {};",
         "    WindowDisplay window_ {};",
     ])
 
     for page in page_specs:
-        lines.append(f"    {page.page_class_name} {page.ui_member_name} {{}};")
+        lines.append(f"    {page.page_class_name} {page.ui_member_name};")
 
     lines.extend([
         "};",
@@ -975,8 +986,10 @@ def emit_source(namespace_name: str,
             ])
 
         lines.extend([
-            f"{template.dynamic_set_class_name}::{template.dynamic_set_class_name}(std::string_view pageName, const mfd::TransportId pageTransportId) :",
-            f'    GeneratedDynamicReticleSet(pageName, "{cpp_string(template.template_id)}", pageTransportId, {template.transport_id}U)',
+            (f"{template.dynamic_set_class_name}::{template.dynamic_set_class_name}("
+             "std::string_view pageName, const mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) :"),
+            (f'    GeneratedDynamicReticleSet(pageName, "{cpp_string(template.template_id)}", '
+             f"pageTransportId, {template.transport_id}U, feedbackState)"),
             "{",
             "}",
             "",
@@ -1030,20 +1043,28 @@ def emit_source(namespace_name: str,
                 ])
 
         page_ctor_initializers: list[str] = [
+            "    feedbackState_(feedbackState)",
             f"    strobe(Name(), {emit_strobe_initializer(page.strobe)}, {page.transport_id}U)",
         ]
         for reticle in page.reticles:
             page_ctor_initializers.append(f"    {reticle.member_name}()")
         for template in template_specs:
-            page_ctor_initializers.append(f"    {template.dynamic_member_name}(Name(), {page.transport_id}U)")
+            page_ctor_initializers.append(
+                f"    {template.dynamic_member_name}(Name(), {page.transport_id}U, feedbackState)")
 
-        lines.append(f"{page.page_class_name}::{page.page_class_name}() :")
+        lines.append(
+            f"{page.page_class_name}::{page.page_class_name}(RuntimeFeedbackState* feedbackState) :")
         lines.append(",\n".join(page_ctor_initializers))
         lines.append("{")
         lines.append("}")
         lines.append("")
 
         lines.extend([
+            f"bool {page.page_class_name}::IsActive() const noexcept",
+            "{",
+            "    return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());",
+            "}",
+            "",
             f"void {page.page_class_name}::Reset() noexcept",
             "{",
             "    strobe.Reset();",
@@ -1113,8 +1134,11 @@ def emit_source(namespace_name: str,
                 "",
             ])
 
+    ui_ctor_initializers = [f"    {page.ui_member_name}(&feedbackState_)" for page in page_specs]
+
     lines.extend([
-        f"{ui_class_name}::{ui_class_name}()",
+        f"{ui_class_name}::{ui_class_name}() :",
+        ",\n".join(ui_ctor_initializers),
         "{",
         "    window_.SetColorInverted(false);",
         "    window_.SetBrightness(1.0f);",
@@ -1149,6 +1173,27 @@ def emit_source(namespace_name: str,
         f'    batch.mappingHash = "{mapping_hash}";',
         "    batch.commands = std::move(commands);",
         "    return client.SendBatch(batch);",
+        "}",
+        "",
+        f"bool {ui_class_name}::ApplyFeedback(const mfd::StrobeStatusFeedback& feedback)",
+        "{",
+        "    return feedbackState_.Apply(feedback);",
+        "}",
+        "",
+        f"bool {ui_class_name}::ApplyFeedback(const mfd::ActivePageFeedback& feedback)",
+        "{",
+        "    return feedbackState_.Apply(feedback);",
+        "}",
+        "",
+        f"bool {ui_class_name}::ApplyFeedbackPayload(std::string_view payload, std::string* error)",
+        "{",
+        "    return feedbackState_.ApplyPayload(payload, error);",
+        "}",
+        "",
+        (f"std::size_t {ui_class_name}::PollFeedback("
+         "mfd::IExchangeChannel& channel, const std::size_t maxMessages, std::string* error)"),
+        "{",
+        "    return feedbackState_.Poll(channel, maxMessages, error);",
         "}",
         "",
         f"void {ui_class_name}::Reset() noexcept",

@@ -1305,6 +1305,11 @@ private:
             udpRuntimeBridge_->EnqueueStrobeFeedback(std::move(feedback));
         }
 
+        mfd::ActivePageFeedback activePageFeedback;
+        activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
+        activePageFeedback.pageName = scene_.ActivePageName();
+        udpRuntimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
+
         if (!udpRuntimeBridge_->LastFeedbackStatus().empty())
         {
             lastFeedbackStatus_ = udpRuntimeBridge_->LastFeedbackStatus();

@@ -30,7 +30,7 @@ ReticleJson --> WindowJson
 PageJson --> WindowJson
 WindowJson --> WindowApp
 Client --> WindowApp : UDP commands
-WindowApp --> Client : UDP strobe feedback
+WindowApp --> Client : UDP runtime feedback
 \enduml
 
 Keep this simple model in mind:
@@ -80,7 +80,7 @@ The mockup is your control panel. It lets you test:
 - reticle updates
 - dynamic reticles
 - strobe control
-- strobe feedback
+- runtime feedback
 
 ## Step 4 - Activate the Radar page
 

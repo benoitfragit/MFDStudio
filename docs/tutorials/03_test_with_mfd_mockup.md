@@ -24,7 +24,7 @@ participant Window as W
 
 U -> M : Select window / page / reticle / strobe
 M -> W : UDP protobuf command
-W -> M : Optional strobe feedback
+W -> M : Optional runtime feedback
 \enduml
 
 `client_mockup` is the fastest way to:
@@ -36,7 +36,7 @@ W -> M : Optional strobe feedback
 - edit reticles
 - test page-managed blink types
 - send strobe commands
-- inspect live strobe feedback
+- inspect live runtime feedback
 - create and remove dynamic reticles
 - stress-test a radar page with 100 dynamic tracks
 - drive the integrated cockpit demo at one 20 ms update cycle
@@ -46,7 +46,7 @@ W -> M : Optional strobe feedback
 The mockup loads the target window JSON locally in order to discover:
 
 - the UDP command endpoint
-- the optional UDP strobe feedback endpoint
+- the optional UDP feedback endpoint
 - the list of pages
 - the list of static reticles with public ids
 - whether a page exposes a strobe
@@ -374,7 +374,7 @@ When everything is wired correctly:
 - activating a page changes the visible page in the window immediately
 - a reticle update moves or recolors the symbol immediately
 - dynamic reticles appear and disappear on command
-- strobe feedback updates live in the mockup
+- runtime feedback updates live in the mockup
 - the radar simulator sustains many track updates at one cycle
 - the cockpit simulator keeps the ADI, HUD, and radar coherent inside the same
   page frame after frame

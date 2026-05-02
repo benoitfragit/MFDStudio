@@ -1123,11 +1123,23 @@ void MockupApplication::PollFeedback()
 
         const auto* raw = reinterpret_cast<const char*>(payload->data());
         std::string error;
-        const auto feedback =
-            mfd::DeserializeStrobeStatusFeedback(std::string_view(raw, payload->size()), &error);
-        if (!feedback.has_value())
+        const auto decoded =
+            mfd::DeserializeFeedbackPayload(std::string_view(raw, payload->size()), &error);
+        if (!decoded.has_value())
         {
             lastFeedbackStatus_ = error.empty() ? "Unable to decode strobe feedback" : std::move(error);
+            continue;
+        }
+
+        const auto* feedback = std::get_if<mfd::StrobeStatusFeedback>(&(*decoded));
+        if (feedback == nullptr)
+        {
+            const auto* activePage = std::get_if<mfd::ActivePageFeedback>(&(*decoded));
+            if (activePage != nullptr)
+            {
+                lastFeedbackStatus_ = "Active page feedback received for page '" + activePage->pageName + "'.";
+            }
+
             continue;
         }
 

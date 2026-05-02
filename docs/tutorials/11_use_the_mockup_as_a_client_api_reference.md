@@ -40,7 +40,7 @@ rectangle "Feedback receiver in mockup" as FeedbackReceiver
 WindowJson --> Discovery
 Discovery --> CommandClient
 CommandClient --> RunningWindow : UDP protobuf commands
-RunningWindow --> FeedbackReceiver : optional UDP strobe feedback
+RunningWindow --> FeedbackReceiver : optional UDP runtime feedback
 \enduml
 
 Keep these roles separate:

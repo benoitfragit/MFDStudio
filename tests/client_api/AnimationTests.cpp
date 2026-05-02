@@ -110,8 +110,8 @@ public:
 class GeneratedDynamicFixtureSet final : public mfd::client::GeneratedDynamicReticleSet
 {
 public:
-    GeneratedDynamicFixtureSet()
-        : mfd::client::GeneratedDynamicReticleSet("Radar", "radar_track", 11U, 77U)
+    explicit GeneratedDynamicFixtureSet(mfd::client::RuntimeFeedbackState* feedbackState = nullptr)
+        : mfd::client::GeneratedDynamicReticleSet("Radar", "radar_track", 11U, 77U, feedbackState)
     {
     }
 
@@ -655,6 +655,96 @@ TEST(AnimationTests, GeneratedDynamicReticleSetAppendRemovalCommandsClearsPublis
     ASSERT_NE(upsert, nullptr);
     ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(33U).text, "C3");
+}
+
+TEST(AnimationTests, RuntimeFeedbackStateTracksActivePageAndCapturedDynamicReticle)
+{
+    mfd::client::RuntimeFeedbackState feedbackState;
+    EXPECT_FALSE(feedbackState.HasActivePage());
+    EXPECT_FALSE(feedbackState.IsPageActive("Radar"));
+    EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured("Radar", "track_01"));
+
+    mfd::ActivePageFeedback activePage;
+    activePage.sequence = 3U;
+    activePage.pageName = "Radar";
+    EXPECT_TRUE(feedbackState.Apply(activePage));
+    EXPECT_TRUE(feedbackState.HasActivePage());
+    EXPECT_EQ(feedbackState.ActivePageName(), "Radar");
+    EXPECT_TRUE(feedbackState.IsPageActive("Radar"));
+    EXPECT_FALSE(feedbackState.IsPageActive("Navigation"));
+
+    mfd::StrobeStatusFeedback strobe;
+    strobe.sequence = 4U;
+    strobe.pageName = "Radar";
+    mfd::StrobeFeedbackCapture capture;
+    capture.reticleId = "Track_01";
+    strobe.captureResult = std::move(capture);
+    EXPECT_TRUE(feedbackState.Apply(strobe));
+    EXPECT_TRUE(feedbackState.IsDynamicReticleCaptured("Radar", "track_01"));
+    EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured("Radar", "track_02"));
+
+    mfd::StrobeStatusFeedback cleared;
+    cleared.sequence = 5U;
+    cleared.pageName = "Radar";
+    EXPECT_TRUE(feedbackState.Apply(cleared));
+    EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured("Radar", "track_01"));
+}
+
+TEST(AnimationTests, RuntimeFeedbackStateIgnoresOlderOutOfOrderFeedback)
+{
+    mfd::client::RuntimeFeedbackState feedbackState;
+
+    mfd::ActivePageFeedback activePage;
+    activePage.sequence = 10U;
+    activePage.pageName = "Radar";
+    EXPECT_TRUE(feedbackState.Apply(activePage));
+
+    mfd::ActivePageFeedback staleActivePage;
+    staleActivePage.sequence = 9U;
+    staleActivePage.pageName = "Navigation";
+    EXPECT_FALSE(feedbackState.Apply(staleActivePage));
+    EXPECT_TRUE(feedbackState.IsPageActive("Radar"));
+
+    mfd::StrobeStatusFeedback freshStrobe;
+    freshStrobe.sequence = 12U;
+    freshStrobe.pageName = "Radar";
+    mfd::StrobeFeedbackCapture freshCapture;
+    freshCapture.reticleId = "alpha";
+    freshStrobe.captureResult = std::move(freshCapture);
+    EXPECT_TRUE(feedbackState.Apply(freshStrobe));
+
+    mfd::StrobeStatusFeedback staleStrobe;
+    staleStrobe.sequence = 11U;
+    staleStrobe.pageName = "Radar";
+    EXPECT_FALSE(feedbackState.Apply(staleStrobe));
+    EXPECT_TRUE(feedbackState.IsDynamicReticleCaptured("Radar", "alpha"));
+}
+
+TEST(AnimationTests, GeneratedDynamicReticleReportsCaptureFromRuntimeFeedbackState)
+{
+    mfd::client::RuntimeFeedbackState feedbackState;
+    GeneratedDynamicFixtureSet set(&feedbackState);
+    GeneratedDynamicFixtureReticle& track = set.Create();
+
+    EXPECT_FALSE(track.IsStrobeCaptured());
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+
+    mfd::StrobeStatusFeedback feedback;
+    feedback.sequence = 14U;
+    feedback.pageName = "Radar";
+    mfd::StrobeFeedbackCapture capture;
+    capture.reticleId = track.Id();
+    feedback.captureResult = std::move(capture);
+    EXPECT_TRUE(feedbackState.Apply(feedback));
+    EXPECT_TRUE(track.IsStrobeCaptured());
+
+    mfd::StrobeStatusFeedback cleared;
+    cleared.sequence = 15U;
+    cleared.pageName = "Radar";
+    EXPECT_TRUE(feedbackState.Apply(cleared));
+    EXPECT_FALSE(track.IsStrobeCaptured());
 }
 
 TEST(AnimationTests, WindowDisplaySuppressesDuplicateUpdatesAndSupportsShutdownRemoval)

@@ -19,6 +19,7 @@
 #include <functional>
 #include <mutex>
 #include <thread>
+#include <type_traits>
 #include <utility>
 
 #include "mfd/control/CommandTransport.h"
@@ -36,6 +37,25 @@ constexpr std::size_t kMaxQueuedBatches = 8192;
 constexpr std::size_t kMaxQueuedFeedback = 256;
 constexpr auto kIdleWait = std::chrono::milliseconds(2);
 
+std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
+{
+    return std::visit(
+        [](const auto& value) -> std::string
+        {
+            using FeedbackType = std::decay_t<decltype(value)>;
+
+            if constexpr (std::is_same_v<FeedbackType, StrobeStatusFeedback>)
+            {
+                return "page '" + value.pageName + "' strobe";
+            }
+            else if constexpr (std::is_same_v<FeedbackType, ActivePageFeedback>)
+            {
+                return "active page '" + value.pageName + "'";
+            }
+        },
+        feedback);
+}
+
 } // namespace
 
 struct UdpRuntimeBridge::Impl
@@ -49,7 +69,7 @@ struct UdpRuntimeBridge::Impl
     std::unique_ptr<IExchangeChannel> feedbackSender {};
 
     std::deque<CommandBatch> inboundBatches;
-    std::deque<StrobeStatusFeedback> outboundFeedback;
+    std::deque<FeedbackPayload> outboundFeedback;
 
     mutable std::mutex stateMutex;
     mutable std::mutex inboundMutex;
@@ -165,11 +185,11 @@ bool UdpRuntimeBridge::Start()
 
     if (!hasFeedbackSender)
     {
-        impl_->SetFeedbackStatus("UDP strobe feedback sender disabled in the window JSON");
+        impl_->SetFeedbackStatus("UDP runtime feedback sender disabled in the window JSON");
     }
     else if (feedbackReady)
     {
-        impl_->SetFeedbackStatus("UDP strobe feedback sender thread ready");
+        impl_->SetFeedbackStatus("UDP runtime feedback sender thread ready");
     }
     else
     {
@@ -223,7 +243,7 @@ bool UdpRuntimeBridge::Start()
                     return false;
                 }
 
-                std::deque<StrobeStatusFeedback> localQueue;
+                std::deque<FeedbackPayload> localQueue;
                 {
                     std::lock_guard lock(impl->outboundMutex);
                     if (impl->outboundFeedback.empty())
@@ -237,12 +257,12 @@ bool UdpRuntimeBridge::Start()
                 bool sentAny = false;
                 while (!localQueue.empty())
                 {
-                    StrobeStatusFeedback feedback = std::move(localQueue.front());
+                    FeedbackPayload feedback = std::move(localQueue.front());
                     localQueue.pop_front();
 
                     try
                     {
-                        const std::string payload = SerializeStrobeStatusFeedback(feedback);
+                        const std::string payload = SerializeFeedbackPayload(feedback);
                         const auto* payloadBytes = reinterpret_cast<const std::byte*>(payload.data());
                         if (!impl->feedbackSender->Send(ByteView(payloadBytes, payload.size())))
                         {
@@ -251,7 +271,7 @@ bool UdpRuntimeBridge::Start()
                         }
 
                         impl->SetFeedbackStatus(
-                            "UDP strobe feedback sent for page '" + feedback.pageName + "'");
+                            "UDP runtime feedback sent for " + DescribeFeedbackTarget(feedback));
                         sentAny = true;
                     }
                     catch (const std::exception& exception)
@@ -260,7 +280,7 @@ bool UdpRuntimeBridge::Start()
                     }
                     catch (...)
                     {
-                        impl->SetFeedbackStatus("Unknown exception while sending strobe feedback");
+                        impl->SetFeedbackStatus("Unknown exception while sending runtime feedback");
                     }
                 }
 
@@ -522,10 +542,31 @@ void UdpRuntimeBridge::EnqueueStrobeFeedback(StrobeStatusFeedback feedback)
         if (impl_->outboundFeedback.size() >= kMaxQueuedFeedback)
         {
             impl_->outboundFeedback.pop_front();
-            impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest strobe feedback");
+            impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest runtime feedback");
         }
 
-        impl_->outboundFeedback.push_back(std::move(feedback));
+        impl_->outboundFeedback.emplace_back(std::move(feedback));
+    }
+
+    impl_->waitCondition.notify_all();
+}
+
+void UdpRuntimeBridge::EnqueueActivePageFeedback(ActivePageFeedback feedback)
+{
+    if (impl_ == nullptr || !HasFeedbackSender())
+    {
+        return;
+    }
+
+    {
+        std::lock_guard lock(impl_->outboundMutex);
+        if (impl_->outboundFeedback.size() >= kMaxQueuedFeedback)
+        {
+            impl_->outboundFeedback.pop_front();
+            impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest runtime feedback");
+        }
+
+        impl_->outboundFeedback.emplace_back(std::move(feedback));
     }
 
     impl_->waitCondition.notify_all();

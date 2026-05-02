@@ -29,7 +29,7 @@ namespace mfd
  *
  * @note The bridge owns a dedicated worker thread for UDP receive/send work.
  * The render thread remains responsible for applying commands to the scene and
- * for producing strobe feedback snapshots.
+ * for producing runtime feedback snapshots.
  */
 class MFD_API UdpRuntimeBridge
 {
@@ -130,6 +130,12 @@ public:
      * @param feedback Feedback snapshot to enqueue.
      */
     void EnqueueStrobeFeedback(StrobeStatusFeedback feedback);
+
+    /**
+     * @brief Queues an active-page feedback payload to be sent by the worker thread.
+     * @param feedback Feedback snapshot to enqueue.
+     */
+    void EnqueueActivePageFeedback(ActivePageFeedback feedback);
 
     /**
      * @brief Returns the last command-side status or error string.

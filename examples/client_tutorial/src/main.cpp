@@ -292,17 +292,22 @@ int mainImpl()
 
         if (feedbackChannel)
         {
-            const auto payload = feedbackChannel->TryReceive();
-            if (payload.has_value())
+            std::string feedbackError;
+            const std::size_t appliedFeedbackCount = generatedUi.PollFeedback(*feedbackChannel, 8U, &feedbackError);
+            if (!feedbackError.empty())
             {
-                const std::string_view raw(reinterpret_cast<const char*>(payload->data()), payload->size());
-                std::string error;
-                const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);
-                if (feedback.has_value())
-                {
-                    std::cout << "Strobe feedback: page=" << feedback->pageName
-                              << " active=" << (feedback->active ? "true" : "false") << '\n';
-                }
+                std::cerr << "Runtime feedback decode error: " << feedbackError << '\n';
+            }
+
+            if (appliedFeedbackCount > 0U)
+            {
+                const bool latestTrackCaptured =
+                    !generatedTracks.empty() &&
+                    generatedTracks.back() != nullptr &&
+                    generatedTracks.back()->IsStrobeCaptured();
+                std::cout << "Runtime feedback: Page1.active=" << (page1.IsActive() ? "true" : "false")
+                          << " Page2.active=" << (page2.IsActive() ? "true" : "false")
+                          << " latestTrack.captured=" << (latestTrackCaptured ? "true" : "false") << '\n';
             }
         }
 

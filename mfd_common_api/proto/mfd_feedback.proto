@@ -54,10 +54,17 @@ message StrobeStatusFeedback
   optional StrobeCaptureStatus capture_result = 8;
 }
 
+message ActivePageFeedback
+{
+  uint32 sequence = 1;
+  string page = 2;
+}
+
 message FeedbackEnvelope
 {
   oneof payload
   {
     StrobeStatusFeedback strobe_status = 1;
+    ActivePageFeedback active_page = 2;
   }
 }

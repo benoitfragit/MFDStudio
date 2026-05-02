@@ -7,13 +7,14 @@
 
 /**
  * @file
- * @brief Protocol Buffers feedback payloads emitted by a window for strobe state.
+ * @brief Protocol Buffers runtime feedback payloads emitted by a window.
  */
 
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 
 #include "mfd/MfdExport.h"
 #include "mfd/model/PageDefinition.h"
@@ -88,6 +89,38 @@ struct StrobeStatusFeedback
 };
 
 /**
+ * @brief Runtime snapshot reporting which page is currently rendered as active.
+ */
+struct ActivePageFeedback
+{
+    /** @brief Monotonic sequence set by the window. */
+    std::uint32_t sequence = 0;
+    /** @brief Owning page name currently rendered as active. */
+    std::string pageName;
+};
+
+/**
+ * @brief Variant carrying one supported runtime feedback payload.
+ */
+using FeedbackPayload = std::variant<StrobeStatusFeedback, ActivePageFeedback>;
+
+/**
+ * @brief Serializes any supported runtime feedback payload to Protocol Buffers.
+ * @param feedback Feedback payload to serialize.
+ * @return Binary payload ready to be sent through UDP.
+ */
+MFD_API std::string SerializeFeedbackPayload(const FeedbackPayload& feedback);
+
+/**
+ * @brief Deserializes a Protocol Buffers runtime feedback payload.
+ * @param payload Raw binary Protocol Buffers payload.
+ * @param error Optional output string receiving the parsing error.
+ * @return Parsed feedback payload, or `std::nullopt` if the payload is invalid.
+ */
+MFD_API std::optional<FeedbackPayload> DeserializeFeedbackPayload(std::string_view payload,
+                                                                  std::string* error = nullptr);
+
+/**
  * @brief Serializes a strobe feedback payload to Protocol Buffers.
  * @param feedback Feedback payload to serialize.
  * @return Binary payload ready to be sent through UDP.
@@ -96,10 +129,36 @@ MFD_API std::string SerializeStrobeStatusFeedback(const StrobeStatusFeedback& fe
 
 /**
  * @brief Deserializes a Protocol Buffers strobe feedback payload.
+ *
+ * @note When the payload contains another supported feedback kind, this
+ * decoder returns `std::nullopt` without treating it as an error.
+ *
  * @param payload Raw binary Protocol Buffers payload.
  * @param error Optional output string receiving the parsing error.
- * @return Parsed feedback payload, or `std::nullopt` if the payload is invalid.
+ * @return Parsed strobe feedback payload, or `std::nullopt` if the payload is
+ * invalid or belongs to another supported feedback kind.
  */
 MFD_API std::optional<StrobeStatusFeedback> DeserializeStrobeStatusFeedback(std::string_view payload,
                                                                             std::string* error = nullptr);
+
+/**
+ * @brief Serializes an active-page feedback payload to Protocol Buffers.
+ * @param feedback Feedback payload to serialize.
+ * @return Binary payload ready to be sent through UDP.
+ */
+MFD_API std::string SerializeActivePageFeedback(const ActivePageFeedback& feedback);
+
+/**
+ * @brief Deserializes an active-page Protocol Buffers feedback payload.
+ *
+ * @note When the payload contains another supported feedback kind, this
+ * decoder returns `std::nullopt` without treating it as an error.
+ *
+ * @param payload Raw binary Protocol Buffers payload.
+ * @param error Optional output string receiving the parsing error.
+ * @return Parsed active-page feedback payload, or `std::nullopt` if the
+ * payload is invalid or belongs to another supported feedback kind.
+ */
+MFD_API std::optional<ActivePageFeedback> DeserializeActivePageFeedback(std::string_view payload,
+                                                                        std::string* error = nullptr);
 } // namespace mfd

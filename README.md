@@ -14,7 +14,7 @@ It is built for projects that need:
 - an integrated runtime debug overlay in `mfd_window`
 - local scene control or remote control over UDP
 - optional typed client-side API generation
-- optional strobe feedback and framebuffer capture
+- optional runtime feedback (strobe state and active page) and framebuffer capture
 - example applications, editor tooling, and automated tests
 
 ## New Here
@@ -79,7 +79,7 @@ The normal workflow is:
 1. describe a window, its pages, and reusable reticles in JSON
 2. launch a runtime window that renders the active page
 3. drive that window locally or from an external client
-4. optionally receive strobe feedback or capture the framebuffer
+4. optionally receive runtime feedback or capture the framebuffer
 
 In practice:
 

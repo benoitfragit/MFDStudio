@@ -355,13 +355,13 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "auto& page2ProgressBar = page2.mfdTutorialProgressBar;\n"
      "auto& progressFill = page2ProgressBar.FillBar();\n"
      "auto& page1Strobe = page1.strobe;",
-     "The generated API now exposes one typed dynamic accessor, two static reticle handles, one exposed primitive accessor, and one generic page `strobe` handle without asking the user to manage ids.",
+     "The generated API now exposes one typed dynamic accessor, two static reticle handles, one exposed primitive accessor, one generic page `strobe` handle, and feedback-backed `IsActive()` / `IsStrobeCaptured()` queries without asking the user to manage ids.",
      "Next",
      1,
      1},
     {TutorialStepKind::FileReview,
-     "Review strobe feedback handling",
-     "The client can subscribe to feedback packets and decode them to monitor the runtime strobe state.",
+     "Review runtime feedback handling",
+     "The client can subscribe to runtime feedback packets and consume them directly through the generated Page1 API.",
      "",
      "examples/client_tutorial/src/main.cpp",
      "std::unique_ptr<mfd::IExchangeChannel> feedbackChannel;",
@@ -371,11 +371,11 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "    feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);\n"
      "}\n"
      "\n"
-     "const auto payload = feedbackChannel->TryReceive();\n"
-     "const std::string_view raw(reinterpret_cast<const char*>(payload->data()), payload->size());\n"
-     "std::string error;\n"
-     "const auto feedback = mfd::DeserializeStrobeStatusFeedback(raw, &error);",
-     "Feedback decoding closes the loop between authored strobe behavior in the window and the external application driving it.",
+     "std::string feedbackError;\n"
+     "const std::size_t appliedFeedbackCount = generatedUi.PollFeedback(*feedbackChannel, 8U, &feedbackError);\n"
+     "const bool page1Active = page1.IsActive();\n"
+     "const bool trackCaptured = !generatedTracks.empty() && generatedTracks.back()->IsStrobeCaptured();",
+     "Generated feedback polling closes the loop between authored strobe behavior in the window and the external application, while keeping `Page1.IsActive()` and dynamic-track capture state available directly on the typed handles.",
      "Next",
      1,
      1},

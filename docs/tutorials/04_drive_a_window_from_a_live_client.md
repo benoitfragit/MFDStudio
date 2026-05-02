@@ -47,7 +47,7 @@ This is the key idea:
 On the window side, the recommended runtime model is:
 
 - one render thread at the window frame rate
-- one background UDP I/O thread receiving commands and sending strobe feedback
+- one background UDP I/O thread receiving commands and sending runtime feedback
 
 ## Step 1 - Know the UDP endpoint
 
@@ -320,7 +320,7 @@ That means:
 - commands are queued safely
 - the render thread drains that queue at the beginning of the frame
 - the render thread applies the commands through `CommandProcessor` and `EnTT`
-- strobe feedback snapshots are queued back to the UDP thread for sending
+- runtime feedback snapshots are queued back to the UDP thread for sending
 
 ## What You Should See
 

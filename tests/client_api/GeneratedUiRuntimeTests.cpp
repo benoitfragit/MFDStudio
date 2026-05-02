@@ -15,6 +15,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "mfd/client/Animation.h"
@@ -79,8 +80,8 @@ public:
 class GeneratedUiTrackSet final : public mfd::client::GeneratedDynamicReticleSet
 {
 public:
-    GeneratedUiTrackSet()
-        : mfd::client::GeneratedDynamicReticleSet("Radar", "radar_track", 11U, 77U)
+    explicit GeneratedUiTrackSet(mfd::client::RuntimeFeedbackState* feedbackState = nullptr)
+        : mfd::client::GeneratedDynamicReticleSet("Radar", "radar_track", 11U, 77U, feedbackState)
     {
     }
 
@@ -99,16 +100,23 @@ protected:
 class GeneratedUiRadarPage final
 {
 public:
+    explicit GeneratedUiRadarPage(mfd::client::RuntimeFeedbackState* feedbackState = nullptr)
+        : feedbackState_(feedbackState),
+          strobe(Name(), MakeStrobeInfo(), 11U),
+          statusBanner(),
+          geometryPanel(),
+          dynamicTracks(feedbackState)
+    {
+    }
+
     static constexpr std::string_view Name() noexcept
     {
         return "Radar";
     }
 
-    GeneratedUiRadarPage()
-        : strobe(Name(), MakeStrobeInfo(), 11U),
-          statusBanner(),
-          geometryPanel()
+    bool IsActive() const noexcept
     {
+        return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());
     }
 
     void Reset() noexcept
@@ -151,6 +159,7 @@ private:
         return info;
     }
 
+    mfd::client::RuntimeFeedbackState* feedbackState_ = nullptr;
     GeneratedUiTrackSet dynamicTracks;
 };
 
@@ -160,6 +169,27 @@ public:
     static constexpr std::string_view MappingHash() noexcept
     {
         return "generated-ui-fixture-hash";
+    }
+
+    GeneratedUiFixture()
+        : window_(),
+          radar_(&feedbackState_)
+    {
+    }
+
+    bool ApplyFeedback(const mfd::StrobeStatusFeedback& feedback)
+    {
+        return feedbackState_.Apply(feedback);
+    }
+
+    bool ApplyFeedback(const mfd::ActivePageFeedback& feedback)
+    {
+        return feedbackState_.Apply(feedback);
+    }
+
+    bool ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr)
+    {
+        return feedbackState_.ApplyPayload(payload, error);
     }
 
     void Reset() noexcept
@@ -201,8 +231,9 @@ public:
     }
 
 private:
+    mfd::client::RuntimeFeedbackState feedbackState_ {};
     mfd::client::WindowDisplay window_ {};
-    GeneratedUiRadarPage radar_ {};
+    GeneratedUiRadarPage radar_;
 };
 } // namespace
 
@@ -322,6 +353,51 @@ TEST(GeneratedUiRuntimeTests, SubmitLatestForwardsGeneratedUiBatchSemantics)
     EXPECT_EQ(upsert->templateTransportId, 77U);
     ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(44U).text, "B02");
+}
+
+TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeedbackState)
+{
+    GeneratedUiFixture ui;
+    auto& track = ui.Radar().DynamicRadarTrack().Create();
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_EQ(ui.Radar().AppendCommands(commands), 1U);
+    EXPECT_FALSE(ui.Radar().IsActive());
+    EXPECT_FALSE(track.IsStrobeCaptured());
+
+    mfd::ActivePageFeedback activePage;
+    activePage.sequence = 1U;
+    activePage.pageName = "Radar";
+    EXPECT_TRUE(ui.ApplyFeedback(activePage));
+    EXPECT_TRUE(ui.Radar().IsActive());
+
+    mfd::StrobeStatusFeedback strobe;
+    strobe.sequence = 2U;
+    strobe.pageName = "Radar";
+    mfd::StrobeFeedbackCapture capture;
+    capture.reticleId = track.Id();
+    strobe.captureResult = std::move(capture);
+    EXPECT_TRUE(ui.ApplyFeedback(strobe));
+    EXPECT_TRUE(track.IsStrobeCaptured());
+
+    mfd::StrobeStatusFeedback cleared;
+    cleared.sequence = 3U;
+    cleared.pageName = "Radar";
+    EXPECT_TRUE(ui.ApplyFeedback(cleared));
+    EXPECT_FALSE(track.IsStrobeCaptured());
+}
+
+TEST(GeneratedUiRuntimeTests, GeneratedUiAppliesSerializedRuntimeFeedbackPayloads)
+{
+    GeneratedUiFixture ui;
+
+    mfd::ActivePageFeedback activePage;
+    activePage.sequence = 5U;
+    activePage.pageName = "Radar";
+
+    std::string error;
+    EXPECT_TRUE(ui.ApplyFeedbackPayload(mfd::SerializeActivePageFeedback(activePage), &error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_TRUE(ui.Radar().IsActive());
 }
 
 TEST(GeneratedUiRuntimeTests, BuildCommandBatchCarriesRichGeneratedPrimitiveGeometryPatches)

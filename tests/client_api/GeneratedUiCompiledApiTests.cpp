@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "GeneratedUiFixture.h"
@@ -462,4 +463,30 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureShutdownBuildsStatusAndDynamic
     EXPECT_EQ(delivered.mappingHash, generated_ui_fixture::GeneratedUiFixture::MappingHash());
     ASSERT_EQ(delivered.commands.size(), 1U);
     ASSERT_NE(std::get_if<mfd::UpdateReticleCommand>(&delivered.commands.front()), nullptr);
+}
+
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureExposesRuntimeFeedbackQueries)
+{
+    generated_ui_fixture::GeneratedUiFixture ui;
+    auto& track = ui.Radar().DynamicGeometryTemplate().Create();
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_EQ(ui.Radar().AppendCommands(commands), 1U);
+    EXPECT_FALSE(ui.Radar().IsActive());
+    EXPECT_FALSE(track.IsStrobeCaptured());
+
+    mfd::ActivePageFeedback activePage;
+    activePage.sequence = 1U;
+    activePage.pageName = "Radar";
+    EXPECT_TRUE(ui.ApplyFeedback(activePage));
+    EXPECT_TRUE(ui.Radar().IsActive());
+
+    mfd::StrobeStatusFeedback strobe;
+    strobe.sequence = 2U;
+    strobe.pageName = "Radar";
+    mfd::StrobeFeedbackCapture capture;
+    capture.reticleId = track.Id();
+    strobe.captureResult = std::move(capture);
+    EXPECT_TRUE(ui.ApplyFeedback(strobe));
+    EXPECT_TRUE(track.IsStrobeCaptured());
 }
