@@ -78,6 +78,7 @@ void EditorApplicationAutomationBridge::RestoreSnapshot(const EditorStateSnapsho
     application_.pagePreviewView_.zoom = mfd::SanitizeZoom(application_.pagePreviewView_.zoom);
     application_.libraryPreviewView_ = snapshot.uiState.libraryPreviewView;
     application_.libraryPreviewView_.zoom = mfd::SanitizeZoom(application_.libraryPreviewView_.zoom);
+    application_.pagePreviewViewOptions_ = snapshot.uiState.pagePreviewViewOptions;
 
     if (!snapshot.uiState.activePageId.empty())
     {
@@ -233,6 +234,7 @@ AutomationUiState EditorApplicationAutomationBridge::CaptureUiState() const
 
     state.pagePreviewView = application_.pagePreviewView_;
     state.libraryPreviewView = application_.libraryPreviewView_;
+    state.pagePreviewViewOptions = application_.pagePreviewViewOptions_;
 
     switch (application_.selection_.kind)
     {

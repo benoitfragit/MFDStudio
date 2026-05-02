@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "EditorDocumentSerializer.h"
+#include "PagePreviewViewOptions.h"
 #include "mfd/io/JsonLoader.h"
 
 namespace editor::automation
@@ -245,6 +246,7 @@ struct AutomationUiState
     int selectedPrimitiveIndex = -1;
     mfd::PageViewState pagePreviewView {};
     mfd::PageViewState libraryPreviewView {};
+    editor::PagePreviewViewOptions pagePreviewViewOptions {};
 };
 
 /**

@@ -21,6 +21,7 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationTypes.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/PagePreviewViewOptions.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h)

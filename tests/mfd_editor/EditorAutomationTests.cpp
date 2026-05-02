@@ -31,6 +31,73 @@ TEST(EditorAutomationTests, BuildDocumentSnapshotExposesStableIds)
     EXPECT_EQ(snapshot.reticleAssets.front().id.value, "reticle-asset:track_box");
 }
 
+TEST(EditorAutomationTests, PagePreviewViewOptionsDefaultToRoadmapSafeValues)
+{
+    const editor::PagePreviewViewOptions options {};
+
+    EXPECT_FALSE(options.showLayerInspector);
+    EXPECT_FALSE(options.showMinimap);
+    EXPECT_FALSE(options.showProblemsPanel);
+    EXPECT_FALSE(options.highlightReticleUsages);
+    EXPECT_TRUE(options.showReticleNames);
+    EXPECT_TRUE(options.showGizmos);
+    EXPECT_TRUE(options.showPageContext);
+}
+
+TEST(EditorAutomationTests, SnapshotRoundTripsPagePreviewViewOptions)
+{
+    FakeEditorAutomationBridge bridge = MakeSeedEditorAutomationBridge();
+    bridge.uiState_.pagePreviewViewOptions.showLayerInspector = true;
+    bridge.uiState_.pagePreviewViewOptions.showMinimap = true;
+    bridge.uiState_.pagePreviewViewOptions.showProblemsPanel = true;
+    bridge.uiState_.pagePreviewViewOptions.highlightReticleUsages = true;
+    bridge.uiState_.pagePreviewViewOptions.showReticleNames = false;
+    bridge.uiState_.pagePreviewViewOptions.showGizmos = false;
+    bridge.uiState_.pagePreviewViewOptions.showPageContext = false;
+
+    const editor::automation::EditorStateSnapshot snapshot = bridge.CaptureSnapshot();
+
+    bridge.uiState_.pagePreviewViewOptions = {};
+    bridge.RestoreSnapshot(snapshot);
+
+    EXPECT_TRUE(bridge.uiState_.pagePreviewViewOptions.showLayerInspector);
+    EXPECT_TRUE(bridge.uiState_.pagePreviewViewOptions.showMinimap);
+    EXPECT_TRUE(bridge.uiState_.pagePreviewViewOptions.showProblemsPanel);
+    EXPECT_TRUE(bridge.uiState_.pagePreviewViewOptions.highlightReticleUsages);
+    EXPECT_FALSE(bridge.uiState_.pagePreviewViewOptions.showReticleNames);
+    EXPECT_FALSE(bridge.uiState_.pagePreviewViewOptions.showGizmos);
+    EXPECT_FALSE(bridge.uiState_.pagePreviewViewOptions.showPageContext);
+}
+
+TEST(EditorAutomationTests, PagePreviewViewOptionsDoNotAffectJsonPreviewExports)
+{
+    FakeEditorAutomationBridge bridge = MakeSeedEditorAutomationBridge();
+    std::unique_ptr<editor::automation::IEditorAutomationFacade> facade =
+        editor::automation::CreateEditorAutomationFacade(bridge);
+
+    const auto before = facade->PersistenceService().ExportJsonPreview(
+        editor::automation::ExportJsonPreviewRequest {
+            editor::automation::ExportJsonPreviewRequest::Kind::Page,
+            editor::automation::MakePageId(bridge.loaded_.document.pages.front()).value});
+    ASSERT_TRUE(before.ok()) << before.error.message;
+
+    bridge.uiState_.pagePreviewViewOptions.showLayerInspector = true;
+    bridge.uiState_.pagePreviewViewOptions.showMinimap = true;
+    bridge.uiState_.pagePreviewViewOptions.showProblemsPanel = true;
+    bridge.uiState_.pagePreviewViewOptions.highlightReticleUsages = true;
+    bridge.uiState_.pagePreviewViewOptions.showReticleNames = false;
+    bridge.uiState_.pagePreviewViewOptions.showGizmos = false;
+    bridge.uiState_.pagePreviewViewOptions.showPageContext = false;
+
+    const auto after = facade->PersistenceService().ExportJsonPreview(
+        editor::automation::ExportJsonPreviewRequest {
+            editor::automation::ExportJsonPreviewRequest::Kind::Page,
+            editor::automation::MakePageId(bridge.loaded_.document.pages.front()).value});
+    ASSERT_TRUE(after.ok()) << after.error.message;
+
+    EXPECT_EQ(before.value.json, after.value.json);
+}
+
 TEST(EditorAutomationTests, SessionRollbackRestoresPreSessionState)
 {
     FakeEditorAutomationBridge bridge = MakeSeedEditorAutomationBridge();

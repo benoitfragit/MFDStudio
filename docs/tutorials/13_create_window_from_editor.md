@@ -9,6 +9,7 @@ You will learn how to:
 - add an initial page
 - define the default page
 - configure incoming command UDP and outgoing feedback UDP
+- use the page-preview View menu without modifying authored JSON assets
 
 ## Step 1 - Open the window wizard
 
@@ -99,6 +100,31 @@ When several reticles overlap in the page preview:
 4. use the clipping submenu for the hovered convex primitive you want to mask through
 
 The same popup also exposes **Copy selection**, **Cut selection**, **Paste copies**, and **Delete selection** for the current page-reticle group.
+
+## Step 9 - Use the Page Preview View menu
+
+The page preview now owns one editor-only **View** menu. Open it from the preview header to toggle:
+
+- **Layer Inspector**
+- **Minimap**
+- **Problems**
+- **Highlight reticle usages**
+- **Reticle names**
+- **Gizmos**
+- **Page context**
+
+Default startup behavior stays intentionally conservative:
+
+- **Layer Inspector** starts off
+- **Minimap** starts off
+- **Problems** starts off
+- **Highlight reticle usages** starts off
+- **Reticle names** starts on
+- **Gizmos** starts on
+
+These switches are session preferences only. They help you inspect the current page, but they do not change the authored window/page/reticle JSON files.
+
+If the **View** button shows `!`, validation diagnostics exist and you can enable **Problems** to inspect them directly from the preview.
 
 ## Undo behavior
 

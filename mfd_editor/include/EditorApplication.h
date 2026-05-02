@@ -22,6 +22,7 @@
 #include <raylib.h>
 
 #include "EditorDocumentSerializer.h"
+#include "PagePreviewViewOptions.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 #include "ImageTextureCache.h"
@@ -263,8 +264,22 @@ private:
     void DrawPagePreview(const ViewportState& viewport);
     /** @brief Draws the selected library reticle into the studio preview viewport. */
     void DrawLibraryPreview(const ViewportState& viewport);
+    /** @brief Draws the shared page-preview view menu button and popup. */
+    void DrawPagePreviewViewMenuButton(const char* buttonId, bool showProblemsIndicator);
     /** @brief Draws guides, selection boxes and coordinate overlays on the page preview. */
     void DrawPreviewOverlays(const ViewportState& viewport);
+    /** @brief Draws the optional page-preview minimap overlay. */
+    void DrawPagePreviewMinimap(const ViewportState& viewport, const mfd::PageDefinition& page);
+    /** @brief Draws optional reticle-name labels over the page preview. */
+    void DrawPagePreviewReticleNames(const ViewportState& viewport, const mfd::PageDefinition& page);
+    /** @brief Draws the selection bounds and transform handles for the active page preview. */
+    void DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page);
+    /** @brief Draws the layer-inspector strip or its placeholder when enabled. */
+    void DrawLayerInspectorStrip(const ViewportState& viewport, const mfd::PageDefinition& page);
+    /** @brief Draws the lightweight problems panel overlay for the page preview. */
+    void DrawProblemsPanel(const ViewportState& viewport);
+    /** @brief Draws the placeholder for future reticle-usage highlighting. */
+    void DrawReticleUsageHighlightPlaceholder(const ViewportState& viewport);
     /** @brief Handles drag interactions in the page preview. */
     void HandlePreviewInteraction(const ViewportState& viewport);
     /** @brief Draws the page-preview context menu for reticle-specific actions. */
@@ -294,6 +309,8 @@ private:
     void ResetPagePreviewView() noexcept;
     /** @brief Resets the library preview camera to its neutral editor-only view. */
     void ResetLibraryPreviewView() noexcept;
+    /** @brief Returns the current page-preview problem messages derived from validation. */
+    std::vector<std::string> BuildPagePreviewProblemMessages() const;
     /** @brief Updates the footer status message. */
     void RebuildStatus(std::string message, bool isError);
 
@@ -539,12 +556,12 @@ private:
     float inspectorWidth_ = 360.0f;
     /** @brief Split ratio used by the library-studio sub-layout. */
     float libraryStudioPageWidth_ = 0.0f;
-    /** @brief Indicates whether the page-context panel stays visible while editing one library reticle. */
-    bool libraryStudioShowPageContext_ = true;
     /** @brief Indicates whether primitive labels stay visible in the reticle-studio overlay. */
     bool libraryStudioShowPrimitiveLabels_ = true;
     /** @brief Indicates whether reticle-studio gizmos such as bounds and handles stay visible. */
     bool libraryStudioShowGizmos_ = true;
+    /** @brief Session-scoped display preferences for the page preview panel. */
+    editor::PagePreviewViewOptions pagePreviewViewOptions_ {};
     /** @brief Editor-only page preview camera independent from the authored page view. */
     mfd::PageViewState pagePreviewView_ {};
     /** @brief Editor-only reticle-studio preview camera. */

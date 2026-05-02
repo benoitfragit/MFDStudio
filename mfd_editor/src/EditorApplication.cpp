@@ -55,6 +55,7 @@ constexpr float kMinReticleStudioWidth = 320.0f;
 constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
 constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
+constexpr const char* kPagePreviewDisplayPopupId = "PagePreviewDisplayPopup";
 constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
 
 std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
@@ -2154,6 +2155,7 @@ void EditorApplication::DrawWorkspace()
         return;
     }
 
+    const bool hasPagePreviewProblems = !BuildPagePreviewProblemMessages().empty();
     const bool libraryStudioVisible =
         selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive;
 
@@ -2178,7 +2180,7 @@ void EditorApplication::DrawWorkspace()
 
             if (ImGui::BeginPopup(kReticleStudioDisplayPopupId))
             {
-                ImGui::Checkbox("Show page context", &libraryStudioShowPageContext_);
+                ImGui::Checkbox("Show page context", &pagePreviewViewOptions_.showPageContext);
                 ImGui::Checkbox("Show primitive names", &libraryStudioShowPrimitiveLabels_);
                 ImGui::Checkbox("Show gizmos", &libraryStudioShowGizmos_);
                 ImGui::EndPopup();
@@ -2202,7 +2204,7 @@ void EditorApplication::DrawWorkspace()
             ImGui::EndChild();
         };
 
-        if (!libraryStudioShowPageContext_)
+        if (!pagePreviewViewOptions_.showPageContext)
         {
             drawReticleStudioPanel();
             return;
@@ -2220,6 +2222,7 @@ void EditorApplication::DrawWorkspace()
 
         ImGui::BeginChild("PageContextPanel", ImVec2(pageWidth, 0.0f), true);
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page context");
+        DrawPagePreviewViewMenuButton("##PageContextViewMenu", hasPagePreviewProblems);
         ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
         ImGui::Separator();
 
@@ -2261,6 +2264,11 @@ void EditorApplication::DrawWorkspace()
         drawReticleStudioPanel();
         return;
     }
+
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
+    DrawPagePreviewViewMenuButton("##MainPagePreviewViewMenu", hasPagePreviewProblems);
+    ImGui::TextDisabled("Use View to toggle preview-only overlays without touching authored JSON assets.");
+    ImGui::Separator();
 
     ViewportState viewport;
     viewport.origin = ImGui::GetCursorScreenPos();
@@ -2757,6 +2765,37 @@ void EditorApplication::ResetLibraryPreviewView() noexcept
     libraryPreviewView_.zoom = 1.0f;
 }
 
+std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() const
+{
+    std::vector<std::string> messages;
+    if (automationFacade_ == nullptr || !HasOpenWindow())
+    {
+        return messages;
+    }
+
+    const auto validation = automationFacade_->PersistenceService().ValidateCurrentState();
+    if (!validation.ok())
+    {
+        messages.push_back("Validation unavailable: " + validation.error.message);
+        return messages;
+    }
+
+    messages.reserve(validation.value.diagnostics.size());
+    for (const auto& diagnostic : validation.value.diagnostics)
+    {
+        if (!diagnostic.entityId.empty())
+        {
+            messages.push_back(diagnostic.entityId + ": " + diagnostic.message);
+        }
+        else
+        {
+            messages.push_back(diagnostic.message);
+        }
+    }
+
+    return messages;
+}
+
 void EditorApplication::DrawPagePreview(const ViewportState& viewport)
 {
     using editor::tutorial::TutorialStepId;
@@ -2913,6 +2952,41 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
         "?##LibraryPreviewHelp",
         kLibraryPreviewHelpPopupId,
         true);
+}
+
+void EditorApplication::DrawPagePreviewViewMenuButton(const char* buttonId, const bool showProblemsIndicator)
+{
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const std::string label =
+        showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel ? "View !" : "View";
+    const std::string buttonLabel = label + (buttonId == nullptr ? "##PagePreviewViewMenu" : buttonId);
+    const float buttonWidth = ImGui::CalcTextSize(label.c_str()).x + style.FramePadding.x * 2.0f;
+
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - buttonWidth));
+    if (ImGui::Button(buttonLabel.c_str()))
+    {
+        ImGui::OpenPopup(kPagePreviewDisplayPopupId);
+    }
+    ShowItemTooltip("Toggle page-preview overlays and editor-only helper panels.");
+
+    if (ImGui::BeginPopup(kPagePreviewDisplayPopupId))
+    {
+        ImGui::Checkbox("Layer Inspector", &pagePreviewViewOptions_.showLayerInspector);
+        ImGui::Checkbox("Minimap", &pagePreviewViewOptions_.showMinimap);
+        ImGui::Checkbox("Problems", &pagePreviewViewOptions_.showProblemsPanel);
+        ImGui::Checkbox("Highlight reticle usages", &pagePreviewViewOptions_.highlightReticleUsages);
+        ImGui::Separator();
+        ImGui::Checkbox("Reticle names", &pagePreviewViewOptions_.showReticleNames);
+        ImGui::Checkbox("Gizmos", &pagePreviewViewOptions_.showGizmos);
+        ImGui::Checkbox("Page context", &pagePreviewViewOptions_.showPageContext);
+        if (showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel)
+        {
+            ImGui::Separator();
+            ImGui::TextDisabled("Validation issues are available. Enable Problems to inspect them.");
+        }
+        ImGui::EndPopup();
+    }
 }
 
 void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport)
@@ -3110,121 +3184,300 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
 
 void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
 {
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-
     const mfd::PageDefinition* page = ActivePage();
-    if (page != nullptr)
-    {
-        const PageMinimapState minimap = ComputePageMinimapState(*page, viewport);
-        if (minimap.valid)
-        {
-            const ImVec2 mouse = ImGui::GetMousePos();
-            const bool mouseInsideMinimap = IsPointInsideRect(mouse, minimap.contentMin, minimap.contentMax);
-            drawList->AddRectFilled(minimap.frameMin, minimap.frameMax, IM_COL32(7, 15, 23, 224), 8.0f);
-            drawList->AddRect(minimap.frameMin, minimap.frameMax, IM_COL32(68, 118, 152, 255), 8.0f, 0, 1.5f);
-            drawList->AddRectFilled(minimap.contentMin, minimap.contentMax, IM_COL32(12, 24, 34, 220), 6.0f);
-
-            if (minimap.logicalMin.x <= 0.0f && minimap.logicalMax.x >= 0.0f)
-            {
-                const ImVec2 axisBottom = ToMinimapScreen(minimap, mfd::Vec2 {0.0f, minimap.logicalMin.y});
-                const ImVec2 axisTop = ToMinimapScreen(minimap, mfd::Vec2 {0.0f, minimap.logicalMax.y});
-                drawList->AddLine(axisBottom, axisTop, IM_COL32(52, 79, 96, 255), 1.0f);
-            }
-
-            if (minimap.logicalMin.y <= 0.0f && minimap.logicalMax.y >= 0.0f)
-            {
-                const ImVec2 axisLeft = ToMinimapScreen(minimap, mfd::Vec2 {minimap.logicalMin.x, 0.0f});
-                const ImVec2 axisRight = ToMinimapScreen(minimap, mfd::Vec2 {minimap.logicalMax.x, 0.0f});
-                drawList->AddLine(axisLeft, axisRight, IM_COL32(52, 79, 96, 255), 1.0f);
-            }
-
-            const std::vector<int> selectedIndices = SelectedPageReticleIndices();
-            for (int reticleIndex = 0; reticleIndex < static_cast<int>(page->staticReticles.size()); ++reticleIndex)
-            {
-                const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
-                if (!IsReticleVisibleInEditor(*page, reticle))
-                {
-                    continue;
-                }
-
-                const LogicalBounds worldBounds = ComputeReticleWorldBounds(reticle);
-                if (!worldBounds.valid)
-                {
-                    continue;
-                }
-
-                const ImVec2 rectPointA = ToMinimapScreen(minimap, worldBounds.min);
-                const ImVec2 rectPointB = ToMinimapScreen(minimap, worldBounds.max);
-                ImVec2 rectMin(std::min(rectPointA.x, rectPointB.x), std::min(rectPointA.y, rectPointB.y));
-                ImVec2 rectMax(std::max(rectPointA.x, rectPointB.x), std::max(rectPointA.y, rectPointB.y));
-                const bool selected =
-                    std::find(selectedIndices.begin(), selectedIndices.end(), reticleIndex) != selectedIndices.end();
-
-                if (rectMax.x - rectMin.x < 4.0f || rectMax.y - rectMin.y < 4.0f)
-                {
-                    const ImVec2 center = ToMinimapScreen(minimap, worldBounds.center);
-                    drawList->AddCircleFilled(center, selected ? 3.5f : 2.5f, selected ? IM_COL32(84, 219, 201, 255)
-                                                                                       : IM_COL32(174, 200, 214, 230),
-                                              12);
-                    continue;
-                }
-
-                drawList->AddRectFilled(
-                    rectMin,
-                    rectMax,
-                    selected ? IM_COL32(84, 219, 201, 70) : IM_COL32(174, 200, 214, 34),
-                    2.0f);
-                drawList->AddRect(
-                    rectMin,
-                    rectMax,
-                    selected ? IM_COL32(84, 219, 201, 255) : IM_COL32(174, 200, 214, 190),
-                    2.0f,
-                    0,
-                    selected ? 1.8f : 1.0f);
-            }
-
-            const LogicalBounds viewBounds = ComputeViewportLogicalBounds(viewport);
-            if (viewBounds.valid)
-            {
-                const ImVec2 viewA = ToMinimapScreen(minimap, viewBounds.min);
-                const ImVec2 viewB = ToMinimapScreen(minimap, viewBounds.max);
-                const ImVec2 viewMin(std::min(viewA.x, viewB.x), std::min(viewA.y, viewB.y));
-                const ImVec2 viewMax(std::max(viewA.x, viewB.x), std::max(viewA.y, viewB.y));
-                drawList->AddRectFilled(viewMin, viewMax, IM_COL32(110, 180, 250, 38), 4.0f);
-                drawList->AddRect(viewMin, viewMax, IM_COL32(110, 180, 250, 255), 4.0f, 0, 1.8f);
-            }
-
-            const char* minimapLabel = "Minimap";
-            const ImVec2 textSize = ImGui::CalcTextSize(minimapLabel);
-            drawList->AddText(
-                ImVec2(minimap.frameMin.x + 10.0f, minimap.frameMin.y + 8.0f),
-                IM_COL32(216, 233, 246, 255),
-                minimapLabel);
-            drawList->AddLine(
-                ImVec2(minimap.frameMin.x + 10.0f, minimap.frameMin.y + textSize.y + 12.0f),
-                ImVec2(minimap.frameMax.x - 10.0f, minimap.frameMin.y + textSize.y + 12.0f),
-                IM_COL32(36, 63, 78, 255),
-                1.0f);
-
-            ShowHoveredRegionTooltip(
-                mouseInsideMinimap,
-                "Minimap navigation for the editor camera.\n"
-                "Drag the blue viewport rectangle to pan smoothly.\n"
-                "Click elsewhere in the minimap to recenter the editor view.");
-        }
-    }
-
-    const std::vector<int> selectedIndices = SelectedPageReticleIndices();
-    if (page == nullptr || selectedIndices.empty() || selection_.kind != SelectionKind::PageReticle)
+    if (page == nullptr)
     {
         return;
     }
 
+    if (pagePreviewViewOptions_.showMinimap)
+    {
+        DrawPagePreviewMinimap(viewport, *page);
+    }
+
+    if (pagePreviewViewOptions_.showReticleNames)
+    {
+        DrawPagePreviewReticleNames(viewport, *page);
+    }
+
+    if (pagePreviewViewOptions_.showLayerInspector)
+    {
+        DrawLayerInspectorStrip(viewport, *page);
+    }
+
+    if (pagePreviewViewOptions_.showProblemsPanel)
+    {
+        DrawProblemsPanel(viewport);
+    }
+
+    if (pagePreviewViewOptions_.highlightReticleUsages)
+    {
+        DrawReticleUsageHighlightPlaceholder(viewport);
+    }
+
+    if (pagePreviewViewOptions_.showGizmos)
+    {
+        DrawPagePreviewGizmos(viewport, *page);
+    }
+}
+
+void EditorApplication::DrawPagePreviewMinimap(const ViewportState& viewport, const mfd::PageDefinition& page)
+{
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const PageMinimapState minimap = ComputePageMinimapState(page, viewport);
+    if (!minimap.valid)
+    {
+        return;
+    }
+
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const bool mouseInsideMinimap = IsPointInsideRect(mouse, minimap.contentMin, minimap.contentMax);
+
+    drawList->AddRectFilled(minimap.frameMin, minimap.frameMax, IM_COL32(7, 15, 23, 224), 8.0f);
+    drawList->AddRect(minimap.frameMin, minimap.frameMax, IM_COL32(68, 118, 152, 255), 8.0f, 0, 1.5f);
+    drawList->AddRectFilled(minimap.contentMin, minimap.contentMax, IM_COL32(12, 24, 34, 220), 6.0f);
+
+    if (minimap.logicalMin.x <= 0.0f && minimap.logicalMax.x >= 0.0f)
+    {
+        const ImVec2 axisBottom = ToMinimapScreen(minimap, mfd::Vec2 {0.0f, minimap.logicalMin.y});
+        const ImVec2 axisTop = ToMinimapScreen(minimap, mfd::Vec2 {0.0f, minimap.logicalMax.y});
+        drawList->AddLine(axisBottom, axisTop, IM_COL32(52, 79, 96, 255), 1.0f);
+    }
+
+    if (minimap.logicalMin.y <= 0.0f && minimap.logicalMax.y >= 0.0f)
+    {
+        const ImVec2 axisLeft = ToMinimapScreen(minimap, mfd::Vec2 {minimap.logicalMin.x, 0.0f});
+        const ImVec2 axisRight = ToMinimapScreen(minimap, mfd::Vec2 {minimap.logicalMax.x, 0.0f});
+        drawList->AddLine(axisLeft, axisRight, IM_COL32(52, 79, 96, 255), 1.0f);
+    }
+
+    const std::vector<int> selectedIndices = SelectedPageReticleIndices();
+    for (int reticleIndex = 0; reticleIndex < static_cast<int>(page.staticReticles.size()); ++reticleIndex)
+    {
+        const mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
+        if (!IsReticleVisibleInEditor(page, reticle))
+        {
+            continue;
+        }
+
+        const LogicalBounds worldBounds = ComputeReticleWorldBounds(reticle);
+        if (!worldBounds.valid)
+        {
+            continue;
+        }
+
+        const ImVec2 rectPointA = ToMinimapScreen(minimap, worldBounds.min);
+        const ImVec2 rectPointB = ToMinimapScreen(minimap, worldBounds.max);
+        const ImVec2 rectMin(std::min(rectPointA.x, rectPointB.x), std::min(rectPointA.y, rectPointB.y));
+        const ImVec2 rectMax(std::max(rectPointA.x, rectPointB.x), std::max(rectPointA.y, rectPointB.y));
+        const bool selected = std::find(selectedIndices.begin(), selectedIndices.end(), reticleIndex) != selectedIndices.end();
+
+        if (rectMax.x - rectMin.x < 4.0f || rectMax.y - rectMin.y < 4.0f)
+        {
+            const ImVec2 center = ToMinimapScreen(minimap, worldBounds.center);
+            drawList->AddCircleFilled(center,
+                                      selected ? 3.5f : 2.5f,
+                                      selected ? IM_COL32(84, 219, 201, 255) : IM_COL32(174, 200, 214, 230),
+                                      12);
+            continue;
+        }
+
+        drawList->AddRectFilled(rectMin,
+                                rectMax,
+                                selected ? IM_COL32(84, 219, 201, 70) : IM_COL32(174, 200, 214, 34),
+                                2.0f);
+        drawList->AddRect(rectMin,
+                          rectMax,
+                          selected ? IM_COL32(84, 219, 201, 255) : IM_COL32(174, 200, 214, 190),
+                          2.0f,
+                          0,
+                          selected ? 1.8f : 1.0f);
+    }
+
+    const LogicalBounds viewBounds = ComputeViewportLogicalBounds(viewport);
+    if (viewBounds.valid)
+    {
+        const ImVec2 viewA = ToMinimapScreen(minimap, viewBounds.min);
+        const ImVec2 viewB = ToMinimapScreen(minimap, viewBounds.max);
+        const ImVec2 viewMin(std::min(viewA.x, viewB.x), std::min(viewA.y, viewB.y));
+        const ImVec2 viewMax(std::max(viewA.x, viewB.x), std::max(viewA.y, viewB.y));
+        drawList->AddRectFilled(viewMin, viewMax, IM_COL32(110, 180, 250, 38), 4.0f);
+        drawList->AddRect(viewMin, viewMax, IM_COL32(110, 180, 250, 255), 4.0f, 0, 1.8f);
+    }
+
+    const char* minimapLabel = "Minimap";
+    const ImVec2 textSize = ImGui::CalcTextSize(minimapLabel);
+    drawList->AddText(ImVec2(minimap.frameMin.x + 10.0f, minimap.frameMin.y + 8.0f),
+                      IM_COL32(216, 233, 246, 255),
+                      minimapLabel);
+    drawList->AddLine(ImVec2(minimap.frameMin.x + 10.0f, minimap.frameMin.y + textSize.y + 12.0f),
+                      ImVec2(minimap.frameMax.x - 10.0f, minimap.frameMin.y + textSize.y + 12.0f),
+                      IM_COL32(36, 63, 78, 255),
+                      1.0f);
+
+    ShowHoveredRegionTooltip(
+        mouseInsideMinimap,
+        "Minimap navigation for the editor camera.\n"
+        "Drag the blue viewport rectangle to pan smoothly.\n"
+        "Click elsewhere in the minimap to recenter the editor view.");
+}
+
+void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewport, const mfd::PageDefinition& page)
+{
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    for (int reticleIndex = 0; reticleIndex < static_cast<int>(page.staticReticles.size()); ++reticleIndex)
+    {
+        const mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
+        if (!IsReticleVisibleInEditor(page, reticle))
+        {
+            continue;
+        }
+
+        const ReticleScreenBounds bounds = ComputeReticleScreenBounds(reticle, viewport);
+        if (!bounds.valid)
+        {
+            continue;
+        }
+
+        const std::string label = reticle.id.empty() ? std::string {"reticle"} : reticle.id;
+        const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
+        const ImVec2 tagMin(bounds.min.x + 6.0f, bounds.min.y + 6.0f);
+        const ImVec2 tagMax(tagMin.x + textSize.x + 12.0f, tagMin.y + textSize.y + 6.0f);
+        const bool selected = HasSelectedPageReticle(selection_.pageIndex, reticleIndex);
+        drawList->AddRectFilled(tagMin,
+                                tagMax,
+                                selected ? IM_COL32(84, 219, 201, 220) : IM_COL32(33, 49, 59, 210),
+                                4.0f);
+        drawList->AddText(ImVec2(tagMin.x + 6.0f, tagMin.y + 3.0f),
+                          selected ? IM_COL32(12, 20, 26, 255) : IM_COL32(220, 235, 240, 255),
+                          label.c_str());
+    }
+}
+
+void EditorApplication::DrawLayerInspectorStrip(const ViewportState& viewport, const mfd::PageDefinition& page)
+{
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const float panelWidth = 148.0f;
+    const ImVec2 panelMin(viewport.origin.x + 12.0f, viewport.origin.y + 48.0f);
+    const ImVec2 panelMax(panelMin.x + panelWidth, viewport.origin.y + viewport.size.y - 12.0f);
+    if (panelMax.y <= panelMin.y + 36.0f)
+    {
+        return;
+    }
+
+    drawList->AddRectFilled(panelMin, panelMax, IM_COL32(7, 15, 23, 216), 8.0f);
+    drawList->AddRect(panelMin, panelMax, IM_COL32(68, 118, 152, 220), 8.0f, 0, 1.2f);
+    drawList->AddText(ImVec2(panelMin.x + 10.0f, panelMin.y + 8.0f),
+                      IM_COL32(216, 233, 246, 255),
+                      "Layer Inspector");
+
+    const float lineHeight = ImGui::GetTextLineHeightWithSpacing();
+    float currentY = panelMin.y + 32.0f;
+    const auto drawEntry = [&](const std::string& label, const ImU32 fillColor, const ImU32 textColor)
+    {
+        const ImVec2 entryMin(panelMin.x + 8.0f, currentY);
+        const ImVec2 entryMax(panelMax.x - 8.0f, currentY + lineHeight + 4.0f);
+        drawList->AddRectFilled(entryMin, entryMax, fillColor, 5.0f);
+        drawList->AddText(ImVec2(entryMin.x + 8.0f, entryMin.y + 3.0f), textColor, label.c_str());
+        currentY += lineHeight + 8.0f;
+    };
+
+    drawEntry("Full View", IM_COL32(84, 219, 201, 64), IM_COL32(216, 233, 246, 255));
+    for (const auto& layer : page.editor.layers)
+    {
+        drawEntry(layer.id + (layer.visible ? "" : " (hidden)"),
+                  layer.visible ? IM_COL32(24, 46, 61, 180) : IM_COL32(48, 28, 28, 180),
+                  IM_COL32(216, 233, 246, 255));
+    }
+
+    if (page.editor.layers.empty())
+    {
+        drawList->AddText(ImVec2(panelMin.x + 10.0f, currentY + 4.0f),
+                          IM_COL32(170, 186, 198, 255),
+                          "No editor layers yet.");
+    }
+}
+
+void EditorApplication::DrawProblemsPanel(const ViewportState& viewport)
+{
+    const std::vector<std::string> problemMessages = BuildPagePreviewProblemMessages();
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const float panelWidth = 360.0f;
+    const float panelHeight = 148.0f;
+    const ImVec2 panelMax(viewport.origin.x + viewport.size.x - 12.0f, viewport.origin.y + viewport.size.y - 12.0f);
+    const ImVec2 panelMin(panelMax.x - panelWidth, panelMax.y - panelHeight);
+    if (panelMax.x <= panelMin.x || panelMax.y <= panelMin.y)
+    {
+        return;
+    }
+
+    drawList->AddRectFilled(panelMin, panelMax, IM_COL32(7, 15, 23, 228), 8.0f);
+    drawList->AddRect(panelMin, panelMax, IM_COL32(196, 146, 84, 220), 8.0f, 0, 1.2f);
+    drawList->AddText(ImVec2(panelMin.x + 10.0f, panelMin.y + 8.0f),
+                      IM_COL32(255, 216, 170, 255),
+                      "Problems");
+
+    float currentY = panelMin.y + 34.0f;
+    const float lineHeight = ImGui::GetTextLineHeightWithSpacing();
+    if (problemMessages.empty())
+    {
+        drawList->AddText(ImVec2(panelMin.x + 10.0f, currentY),
+                          IM_COL32(170, 186, 198, 255),
+                          "No validation problems detected.");
+        return;
+    }
+
+    const std::size_t maxLines = std::min<std::size_t>(4U, problemMessages.size());
+    for (std::size_t index = 0; index < maxLines; ++index)
+    {
+        drawList->AddText(ImVec2(panelMin.x + 10.0f, currentY),
+                          IM_COL32(220, 235, 240, 255),
+                          problemMessages[index].c_str());
+        currentY += lineHeight;
+    }
+
+    if (problemMessages.size() > maxLines)
+    {
+        const std::string moreLabel = "+" + std::to_string(problemMessages.size() - maxLines) + " more";
+        drawList->AddText(ImVec2(panelMin.x + 10.0f, currentY + 2.0f),
+                          IM_COL32(170, 186, 198, 255),
+                          moreLabel.c_str());
+    }
+}
+
+void EditorApplication::DrawReticleUsageHighlightPlaceholder(const ViewportState& viewport)
+{
+    const mfd::ReticleGroup* reticle = SelectedLibraryReticle();
+    if (reticle == nullptr)
+    {
+        return;
+    }
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const std::string message = "Usage highlight pending asset reference index for '" + reticle->id + "'.";
+    const ImVec2 textSize = ImGui::CalcTextSize(message.c_str());
+    const ImVec2 tagMin(viewport.origin.x + 12.0f, viewport.origin.y + viewport.size.y - textSize.y - 28.0f);
+    const ImVec2 tagMax(tagMin.x + textSize.x + 16.0f, tagMin.y + textSize.y + 8.0f);
+    drawList->AddRectFilled(tagMin, tagMax, IM_COL32(33, 49, 59, 220), 5.0f);
+    drawList->AddText(ImVec2(tagMin.x + 8.0f, tagMin.y + 4.0f),
+                      IM_COL32(220, 235, 240, 255),
+                      message.c_str());
+}
+
+void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page)
+{
+    const std::vector<int> selectedIndices = SelectedPageReticleIndices();
+    if (selectedIndices.empty() || selection_.kind != SelectionKind::PageReticle)
+    {
+        return;
+    }
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
     ReticleScreenBounds selectionBounds;
     for (const int reticleIndex : selectedIndices)
     {
-        const mfd::ReticleGroup& selectedReticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
-        if (!IsReticleVisibleInEditor(*page, selectedReticle))
+        const mfd::ReticleGroup& selectedReticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
+        if (!IsReticleVisibleInEditor(page, selectedReticle))
         {
             continue;
         }
@@ -3236,13 +3489,12 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
         }
 
         const bool primarySelection = reticleIndex == selection_.pageReticleIndex;
-        drawList->AddRect(
-            bounds.min,
-            bounds.max,
-            primarySelection ? IM_COL32(84, 219, 201, 255) : IM_COL32(84, 219, 201, 150),
-            4.0f,
-            0,
-            primarySelection ? 2.0f : 1.2f);
+        drawList->AddRect(bounds.min,
+                          bounds.max,
+                          primarySelection ? IM_COL32(84, 219, 201, 255) : IM_COL32(84, 219, 201, 150),
+                          4.0f,
+                          0,
+                          primarySelection ? 2.0f : 1.2f);
 
         if (!selectionBounds.valid)
         {
@@ -3262,9 +3514,8 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
         return;
     }
 
-    selectionBounds.center = ImVec2(
-        (selectionBounds.min.x + selectionBounds.max.x) * 0.5f,
-        (selectionBounds.min.y + selectionBounds.max.y) * 0.5f);
+    selectionBounds.center = ImVec2((selectionBounds.min.x + selectionBounds.max.x) * 0.5f,
+                                    (selectionBounds.min.y + selectionBounds.max.y) * 0.5f);
 
     if (selectedIndices.size() != 1U)
     {
@@ -3278,7 +3529,7 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
     }
 
     const mfd::ReticleGroup* reticle = SelectedPageReticle();
-    if (reticle == nullptr || !IsReticleVisibleInEditor(*page, *reticle))
+    if (reticle == nullptr || !IsReticleVisibleInEditor(page, *reticle))
     {
         return;
     }
@@ -3301,24 +3552,21 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
     drawList->AddCircle(center, 5.0f, IM_COL32(84, 219, 201, 255), 18, 2.0f);
     drawList->AddLine(topCenter, rotateHandle, IM_COL32(110, 180, 250, 255), 1.5f);
     drawList->AddCircle(rotateHandle, 8.0f, IM_COL32(110, 180, 250, 255), 20, 2.0f);
-    drawList->AddLine(
-        ImVec2(rotateHandle.x + 5.0f, rotateHandle.y - 3.0f),
-        ImVec2(rotateHandle.x + 10.0f, rotateHandle.y - 7.0f),
-        IM_COL32(110, 180, 250, 255),
-        2.0f);
-    drawList->AddLine(
-        ImVec2(rotateHandle.x + 5.0f, rotateHandle.y - 3.0f),
-        ImVec2(rotateHandle.x + 10.0f, rotateHandle.y + 1.0f),
-        IM_COL32(110, 180, 250, 255),
-        2.0f);
+    drawList->AddLine(ImVec2(rotateHandle.x + 5.0f, rotateHandle.y - 3.0f),
+                      ImVec2(rotateHandle.x + 10.0f, rotateHandle.y - 7.0f),
+                      IM_COL32(110, 180, 250, 255),
+                      2.0f);
+    drawList->AddLine(ImVec2(rotateHandle.x + 5.0f, rotateHandle.y - 3.0f),
+                      ImVec2(rotateHandle.x + 10.0f, rotateHandle.y + 1.0f),
+                      IM_COL32(110, 180, 250, 255),
+                      2.0f);
 
     const auto drawCorner = [&](const ImVec2 corner)
     {
-        drawList->AddRectFilled(
-            ImVec2(corner.x - 5.5f, corner.y - 5.5f),
-            ImVec2(corner.x + 5.5f, corner.y + 5.5f),
-            IM_COL32(255, 193, 92, 255),
-            2.0f);
+        drawList->AddRectFilled(ImVec2(corner.x - 5.5f, corner.y - 5.5f),
+                                ImVec2(corner.x + 5.5f, corner.y + 5.5f),
+                                IM_COL32(255, 193, 92, 255),
+                                2.0f);
     };
 
     drawCorner(topLeft);
@@ -3390,8 +3638,10 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         }
     }
 
-    const PageMinimapState minimap = ComputePageMinimapState(*page, interactiveViewport);
-    const bool mouseInsideMinimap = minimap.valid && IsPointInsideRect(mouse, minimap.contentMin, minimap.contentMax);
+    const PageMinimapState minimap =
+        pagePreviewViewOptions_.showMinimap ? ComputePageMinimapState(*page, interactiveViewport) : PageMinimapState {};
+    const bool mouseInsideMinimap =
+        pagePreviewViewOptions_.showMinimap && minimap.valid && IsPointInsideRect(mouse, minimap.contentMin, minimap.contentMax);
     if (interactionMode_ == InteractionMode::None && mouseInsideMinimap && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
         interactionMode_ = InteractionMode::NavigateMinimap;
@@ -3561,18 +3811,21 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                     interactionMode_ = mode;
                 };
 
-                if (Distance(mouse, selectedRotateHandle) <= 16.0f)
+                if (pagePreviewViewOptions_.showGizmos)
                 {
-                    initializeInteraction(InteractionMode::RotateReticle, selectedBounds.center);
-                    return;
-                }
-
-                for (const ImVec2 corner : selectedCorners)
-                {
-                    if (Distance(mouse, corner) <= 16.0f)
+                    if (Distance(mouse, selectedRotateHandle) <= 16.0f)
                     {
-                        initializeInteraction(InteractionMode::ScaleReticle, corner);
+                        initializeInteraction(InteractionMode::RotateReticle, selectedBounds.center);
                         return;
+                    }
+
+                    for (const ImVec2 corner : selectedCorners)
+                    {
+                        if (Distance(mouse, corner) <= 16.0f)
+                        {
+                            initializeInteraction(InteractionMode::ScaleReticle, corner);
+                            return;
+                        }
                     }
                 }
             }
@@ -3654,7 +3907,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     interactionStartCenterScreen_ = viewport.ToScreen(interactionPivotLogical);
     interactionStartCornerScreen_ = center;
 
-    if (distance(mouse, rotateHandle) <= 16.0f)
+    if (pagePreviewViewOptions_.showGizmos && distance(mouse, rotateHandle) <= 16.0f)
     {
         PushUndoSnapshot();
         interactionMode_ = InteractionMode::RotateReticle;
@@ -3662,14 +3915,17 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     else if (mouse.x >= bounds.min.x - 8.0f && mouse.x <= bounds.max.x + 8.0f &&
              mouse.y >= bounds.min.y - 8.0f && mouse.y <= bounds.max.y + 8.0f)
     {
-        for (const ImVec2 corner : corners)
+        if (pagePreviewViewOptions_.showGizmos)
         {
-            if (distance(mouse, corner) <= 16.0f)
+            for (const ImVec2 corner : corners)
             {
-                PushUndoSnapshot();
-                interactionMode_ = InteractionMode::ScaleReticle;
-                interactionStartCornerScreen_ = corner;
-                return;
+                if (distance(mouse, corner) <= 16.0f)
+                {
+                    PushUndoSnapshot();
+                    interactionMode_ = InteractionMode::ScaleReticle;
+                    interactionStartCornerScreen_ = corner;
+                    return;
+                }
             }
         }
 
