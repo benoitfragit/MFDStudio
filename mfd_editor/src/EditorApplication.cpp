@@ -803,6 +803,19 @@ int DefaultPageIndex(const std::vector<mfd::PageDefinition>& pages) noexcept
     return 0;
 }
 
+int SuggestReplacementPageIndex(const std::vector<mfd::PageDefinition>& pages, const int removedPageIndex) noexcept
+{
+    for (int index = 0; index < static_cast<int>(pages.size()); ++index)
+    {
+        if (index != removedPageIndex)
+        {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
 std::size_t FindBlinkTypeIndex(const mfd::PageDefinition& page, const std::string_view blinkTypeName)
 {
     const std::string normalizedBlinkTypeName = mfd::NormalizePageName(blinkTypeName);
@@ -1661,7 +1674,7 @@ void EditorApplication::DeleteSelection()
 {
     if (selection_.kind == SelectionKind::Page)
     {
-        DeleteActivePage();
+        OpenPageManagementPopup(PageManagementAction::DeleteAsset, selection_.pageIndex);
         return;
     }
 
@@ -1716,45 +1729,106 @@ void EditorApplication::DeleteSelection()
     RebuildStatus("Select a page, a page reticle or a library reticle to delete it.", true);
 }
 
-void EditorApplication::DeleteActivePage()
+void EditorApplication::OpenPageManagementPopup(const PageManagementAction action, const int pageIndex)
 {
     if (loaded_.document.pages.empty() ||
-        selection_.pageIndex < 0 ||
-        selection_.pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+        pageIndex < 0 ||
+        pageIndex >= static_cast<int>(loaded_.document.pages.size()))
     {
-        RebuildStatus("No page selected to delete.", true);
+        RebuildStatus("No page selected.", true);
         return;
     }
 
-    PushUndoSnapshot();
+    pageManagementPopup_.action = action;
+    pageManagementPopup_.openRequested = true;
+    pageManagementPopup_.pageIndex = pageIndex;
+    pageManagementPopup_.replacementPageIndex = SuggestReplacementPageIndex(loaded_.document.pages, pageIndex);
+    pageManagementPopup_.allowOutsideAssetsRoot = false;
+    pageManagementPopup_.confirmDelete = false;
+}
 
-    const int removedPageIndex = selection_.pageIndex;
-    const std::string removedPageName = loaded_.document.pages[static_cast<std::size_t>(removedPageIndex)].name;
-    if (removedPageIndex < static_cast<int>(files_.pageFiles.size()))
+bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan)
+{
+    if (!plan.canExecute)
     {
-        files_.removedPageFiles.push_back(files_.pageFiles[static_cast<std::size_t>(removedPageIndex)].lexically_normal());
-        files_.pageFiles.erase(files_.pageFiles.begin() + removedPageIndex);
+        RebuildStatus(plan.error.empty() ? "The page cannot be removed from the current window." : plan.error, true);
+        return false;
     }
 
-    loaded_.document.pages.erase(loaded_.document.pages.begin() + removedPageIndex);
-    loaded_.window.pageFiles = files_.pageFiles;
+    PushUndoSnapshot();
+    std::string error;
+    if (!pageManagementService_.Execute(plan, loaded_, files_, &error))
+    {
+        RebuildStatus("Remove page failed: " + error, true);
+        return false;
+    }
 
     if (loaded_.document.pages.empty())
     {
         selection_ = {};
-        RebuildStatus("Page '" + removedPageName + "' deleted. The window has no pages now.", false);
-        return;
     }
-
-    const int nextPageIndex = std::min(removedPageIndex, static_cast<int>(loaded_.document.pages.size()) - 1);
-    selection_.pageIndex = nextPageIndex;
-    selection_.pageReticleIndex = -1;
-    if (selection_.kind == SelectionKind::Page || selection_.kind == SelectionKind::PageReticle)
+    else
     {
-        SelectPage(nextPageIndex);
+        selection_.pageIndex = plan.nextSelectedPageIndex;
+        selection_.pageReticleIndex = -1;
+        selection_.pageReticleIndices.clear();
+        SelectPage(plan.nextSelectedPageIndex);
     }
 
-    RebuildStatus("Page '" + removedPageName + "' deleted.", false);
+    if (plan.replacementPageName.empty())
+    {
+        RebuildStatus("Page '" + plan.pageName + "' removed from the current window.", false);
+    }
+    else
+    {
+        RebuildStatus("Page '" + plan.pageName + "' removed. Default page switched to '" +
+                          plan.replacementPageName + "'.",
+                      false);
+    }
+
+    return true;
+}
+
+bool EditorApplication::ExecutePageDeletePlan(const editor::PageDeletePlan& plan)
+{
+    if (!plan.canExecute)
+    {
+        RebuildStatus(plan.error.empty() ? "The page asset cannot be deleted." : plan.error, true);
+        return false;
+    }
+
+    PushUndoSnapshot();
+    std::string error;
+    if (!pageManagementService_.Execute(plan, loaded_, files_, &error))
+    {
+        RebuildStatus("Delete page failed: " + error, true);
+        return false;
+    }
+
+    if (loaded_.document.pages.empty())
+    {
+        selection_ = {};
+    }
+    else
+    {
+        selection_.pageIndex = plan.nextSelectedPageIndex;
+        selection_.pageReticleIndex = -1;
+        selection_.pageReticleIndices.clear();
+        SelectPage(plan.nextSelectedPageIndex);
+    }
+
+    if (plan.replacementPageName.empty())
+    {
+        RebuildStatus("Page '" + plan.pageName + "' removed and marked for deletion on the next save.", false);
+    }
+    else
+    {
+        RebuildStatus("Page '" + plan.pageName + "' removed and marked for deletion. Default page switched to '" +
+                          plan.replacementPageName + "'.",
+                      false);
+    }
+
+    return true;
 }
 
 void EditorApplication::DeleteSelectedLibraryReticle()
@@ -1958,11 +2032,18 @@ void EditorApplication::DrawMenuBar()
             OpenNewPagePopup();
         }
 
-        const bool deletePageRequested = ImGui::MenuItem("Delete current page", "Del", false, ActivePage() != nullptr);
-        ShowItemTooltip("Delete the currently selected page from the window definition.");
+        const bool removePageRequested = ImGui::MenuItem("Remove current page from window", nullptr, false, ActivePage() != nullptr);
+        ShowItemTooltip("Detach the current page from the window while keeping its JSON file.");
+        if (removePageRequested)
+        {
+            OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, selection_.pageIndex);
+        }
+
+        const bool deletePageRequested = ImGui::MenuItem("Delete current page asset...", "Del", false, ActivePage() != nullptr);
+        ShowItemTooltip("Open the confirmation flow that removes the page and marks its JSON file for deletion on the next save.");
         if (deletePageRequested)
         {
-            DeleteActivePage();
+            OpenPageManagementPopup(PageManagementAction::DeleteAsset, selection_.pageIndex);
         }
         ImGui::EndMenu();
     }
@@ -2402,6 +2483,23 @@ void EditorApplication::DrawPageTree()
         if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
         {
             SelectPage(pageIndex);
+        }
+
+        if (ImGui::BeginPopupContextItem(("PageContextMenu##" + std::to_string(pageIndex)).c_str()))
+        {
+            if (ImGui::MenuItem("Remove page from window"))
+            {
+                SelectPage(pageIndex);
+                OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, pageIndex);
+            }
+
+            if (ImGui::MenuItem("Delete page asset..."))
+            {
+                SelectPage(pageIndex);
+                OpenPageManagementPopup(PageManagementAction::DeleteAsset, pageIndex);
+            }
+
+            ImGui::EndPopup();
         }
 
         if (open)
@@ -6010,6 +6108,12 @@ void EditorApplication::DrawPopups()
         showDuplicateLibraryReticlePopup_ = false;
     }
 
+    if (pageManagementPopup_.openRequested)
+    {
+        ImGui::OpenPopup("Manage page");
+        pageManagementPopup_.openRequested = false;
+    }
+
     if (tutorial_->ConsumeResumePopupRequest())
     {
         ImGui::OpenPopup("Tutorial progress");
@@ -6178,6 +6282,7 @@ void EditorApplication::DrawPopups()
     }
 
     DrawAssetFolderPickerPopup();
+    DrawPageManagementPopup();
 
     if (ImGui::BeginPopupModal("Create new library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
@@ -6408,6 +6513,153 @@ void EditorApplication::DrawAssetFolderPickerPopup()
     if (ImGui::Button("Cancel"))
     {
         assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
+        ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::EndPopup();
+}
+
+void EditorApplication::DrawPageManagementPopup()
+{
+    if (!ImGui::BeginPopupModal("Manage page", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    const bool deleteAsset = pageManagementPopup_.action == PageManagementAction::DeleteAsset;
+    const bool pageIndexValid = pageManagementPopup_.pageIndex >= 0 &&
+                                pageManagementPopup_.pageIndex < static_cast<int>(loaded_.document.pages.size());
+    if (!pageIndexValid)
+    {
+        ImGui::TextWrapped("The selected page is no longer available.");
+        if (ImGui::Button("Close"))
+        {
+            pageManagementPopup_ = {};
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+        return;
+    }
+
+    const mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageManagementPopup_.pageIndex)];
+    if (deleteAsset)
+    {
+        ImGui::TextColored(ImVec4(0.95f, 0.50f, 0.42f, 1.0f), "Delete page asset");
+        ImGui::TextWrapped("This removes the page from the current window and deletes its JSON file on the next save.");
+    }
+    else
+    {
+        ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Remove page from window");
+        ImGui::TextWrapped("This detaches the page from the current window but keeps its JSON file on disk.");
+    }
+
+    ImGui::Separator();
+    ImGui::TextDisabled("Page");
+    ImGui::TextWrapped("%s", page.name.c_str());
+
+    if (page.defaultPage && loaded_.document.pages.size() > 1U)
+    {
+        const int currentReplacementIndex =
+            pageManagementPopup_.replacementPageIndex >= 0 ? pageManagementPopup_.replacementPageIndex
+                                                           : SuggestReplacementPageIndex(loaded_.document.pages, pageManagementPopup_.pageIndex);
+        pageManagementPopup_.replacementPageIndex = currentReplacementIndex;
+
+        std::string replacementLabel = "Select replacement";
+        if (currentReplacementIndex >= 0 &&
+            currentReplacementIndex < static_cast<int>(loaded_.document.pages.size()) &&
+            currentReplacementIndex != pageManagementPopup_.pageIndex)
+        {
+            replacementLabel = loaded_.document.pages[static_cast<std::size_t>(currentReplacementIndex)].name;
+        }
+
+        if (ImGui::BeginCombo("Replacement default page", replacementLabel.c_str()))
+        {
+            for (int index = 0; index < static_cast<int>(loaded_.document.pages.size()); ++index)
+            {
+                if (index == pageManagementPopup_.pageIndex)
+                {
+                    continue;
+                }
+
+                const bool selected = pageManagementPopup_.replacementPageIndex == index;
+                if (ImGui::Selectable(loaded_.document.pages[static_cast<std::size_t>(index)].name.c_str(), selected))
+                {
+                    pageManagementPopup_.replacementPageIndex = index;
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Choose the page that should become the new default after this operation.");
+    }
+    else
+    {
+        pageManagementPopup_.replacementPageIndex = -1;
+    }
+
+    const std::optional<int> replacementPageIndex =
+        pageManagementPopup_.replacementPageIndex >= 0 ? std::optional<int> {pageManagementPopup_.replacementPageIndex}
+                                                       : std::nullopt;
+    const editor::PageRemovePlan removePlan =
+        pageManagementService_.BuildRemovePlan(loaded_,
+                                               files_,
+                                               editor::PageRemoveRequest {pageManagementPopup_.pageIndex, replacementPageIndex});
+    const editor::PageDeletePlan deletePlan =
+        pageManagementService_.BuildDeletePlan(loaded_,
+                                               files_,
+                                               editor::PageDeleteRequest {pageManagementPopup_.pageIndex,
+                                                                          replacementPageIndex,
+                                                                          DefaultProjectAssetFolder("assets"),
+                                                                          pageManagementPopup_.allowOutsideAssetsRoot});
+
+    if (deleteAsset)
+    {
+        ImGui::Separator();
+        ImGui::TextDisabled("File");
+        ImGui::TextWrapped("%s", deletePlan.pageFile.empty() ? "<unknown>" : deletePlan.pageFile.string().c_str());
+
+        if (deletePlan.outsideAssetsRoot)
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f),
+                               "The page file is outside the protected source assets root.");
+            ImGui::Checkbox("Allow delete outside source assets root", &pageManagementPopup_.allowOutsideAssetsRoot);
+        }
+
+        ImGui::Checkbox("Confirm page asset deletion on next save", &pageManagementPopup_.confirmDelete);
+        ShowItemTooltip("This confirmation is required before the page file is marked for deletion.");
+    }
+
+    const std::string errorMessage = deleteAsset ? deletePlan.error : removePlan.error;
+    if (!errorMessage.empty())
+    {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f), "%s", errorMessage.c_str());
+    }
+
+    const bool canExecutePlan = deleteAsset ? (deletePlan.canExecute && pageManagementPopup_.confirmDelete) : removePlan.canExecute;
+    ImGui::Spacing();
+    ImGui::BeginDisabled(!canExecutePlan);
+    if (AccentButton(deleteAsset ? "Delete page asset" : "Remove page from window"))
+    {
+        const bool executed = deleteAsset ? ExecutePageDeletePlan(deletePlan) : ExecutePageRemovePlan(removePlan);
+        if (executed)
+        {
+            pageManagementPopup_ = {};
+            ImGui::CloseCurrentPopup();
+            ImGui::EndDisabled();
+            ImGui::EndPopup();
+            return;
+        }
+    }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        pageManagementPopup_ = {};
         ImGui::CloseCurrentPopup();
     }
 
@@ -7015,15 +7267,23 @@ void EditorApplication::DrawPageInspector()
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page");
     ImGui::TextDisabled("Edit the page and work directly in the preview.");
 
-    if (ImGui::Button("Delete page"))
+    if (ImGui::Button("Remove page from window"))
     {
-        DeleteActivePage();
+        OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, selection_.pageIndex);
         return;
     }
-    ShowItemTooltip("Delete the currently selected page from the window definition.");
+    ShowItemTooltip("Remove the currently selected page from this window while keeping its authored JSON file.");
 
     ImGui::SameLine();
-    ImGui::TextDisabled("Shortcut: Suppr when the page is selected");
+    if (ImGui::Button("Delete page asset..."))
+    {
+        OpenPageManagementPopup(PageManagementAction::DeleteAsset, selection_.pageIndex);
+        return;
+    }
+    ShowItemTooltip("Remove the page from this window and mark its JSON file for deletion on the next save.");
+
+    ImGui::SameLine();
+    ImGui::TextDisabled("Shortcut: Suppr opens the delete confirmation");
 
     const bool canPasteReticles = !pageReticleClipboard_.empty();
     ImGui::BeginDisabled(!canPasteReticles);

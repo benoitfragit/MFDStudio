@@ -8,6 +8,7 @@ You will learn how to:
 - configure a window font
 - add an initial page
 - define the default page
+- remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
 
@@ -127,6 +128,21 @@ Default startup behavior stays intentionally conservative:
 These switches are session preferences only. They help you inspect the current page, but they do not change the authored window/page/reticle JSON files.
 
 If the **View** button shows `!`, validation diagnostics exist and you can enable **Problems** to inspect them directly from the preview.
+
+## Step 10 - Remove or delete a page
+
+When you no longer want one page in the current window, right-click the page inside the left tree or use the page inspector buttons.
+
+- **Remove page from window** detaches the page from the current window but keeps its JSON file so it can be re-imported or reused later.
+- **Delete page asset...** removes the page from the window and marks its JSON file for deletion on the next **Save**.
+
+Safety rules now enforced by the editor:
+
+- the window must always keep at least one page
+- removing or deleting the default page requires choosing a replacement default page first
+- deleting a page file outside the source `assets/` root is blocked unless you explicitly confirm the advanced override
+
+Both actions create one undo step and leave the document dirty until you save or reload.
 
 ## Undo behavior
 

@@ -421,11 +421,21 @@ struct ReplacePageAssetRequest
 };
 
 /**
+ * @brief Removes one existing page from the current window while keeping its source JSON file.
+ */
+struct RemovePageFromWindowRequest
+{
+    PageId pageId {};
+    std::optional<PageId> replacementDefaultPageId {};
+};
+
+/**
  * @brief Deletes one existing page asset from the current document.
  */
 struct DeletePageAssetRequest
 {
     PageId pageId {};
+    std::optional<PageId> replacementDefaultPageId {};
 };
 
 /**
@@ -752,6 +762,7 @@ using AutomationAction = std::variant<CreateWindowDocumentRequest,
                                       ReplaceWindowAssetRequest,
                                       CreatePageAssetRequest,
                                       ReplacePageAssetRequest,
+                                      RemovePageFromWindowRequest,
                                       DeletePageAssetRequest,
                                       CreateReticleAssetRequest,
                                       ReplaceReticleAssetRequest,

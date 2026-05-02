@@ -22,6 +22,7 @@
 #include <raylib.h>
 
 #include "EditorDocumentSerializer.h"
+#include "PageManagementService.h"
 #include "PagePreviewViewOptions.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
@@ -209,6 +210,25 @@ private:
         std::array<char, 64> id {};
     };
 
+    /** @brief Page-management operation currently staged through the confirmation popup. */
+    enum class PageManagementAction
+    {
+        None,
+        RemoveFromWindow,
+        DeleteAsset
+    };
+
+    /** @brief UI state driving the remove/delete page confirmation popup. */
+    struct PageManagementPopupState
+    {
+        PageManagementAction action = PageManagementAction::None;
+        bool openRequested = false;
+        int pageIndex = -1;
+        int replacementPageIndex = -1;
+        bool allowOutsideAssetsRoot = false;
+        bool confirmDelete = false;
+    };
+
     /** @brief Loads a root window file plus its referenced authored assets into the editor. */
     bool LoadWindowConfiguration(const std::filesystem::path& path);
     /** @brief Serializes every modified file back to disk. */
@@ -221,8 +241,12 @@ private:
     void HandleShortcuts();
     /** @brief Deletes the current selection when that selection supports deletion. */
     void DeleteSelection();
-    /** @brief Deletes the currently active page from the window definition. */
-    void DeleteActivePage();
+    /** @brief Opens the page-management popup for the provided page and action. */
+    void OpenPageManagementPopup(PageManagementAction action, int pageIndex);
+    /** @brief Applies one page-removal plan to the live editor state. */
+    bool ExecutePageRemovePlan(const editor::PageRemovePlan& plan);
+    /** @brief Applies one page-delete plan to the live editor state. */
+    bool ExecutePageDeletePlan(const editor::PageDeletePlan& plan);
     /** @brief Deletes the currently selected reticle from the shared library. */
     void DeleteSelectedLibraryReticle();
 
@@ -330,6 +354,8 @@ private:
     void DrawPopups();
     /** @brief Draws the guided folder-picker popup used by new-asset dialogs. */
     void DrawAssetFolderPickerPopup();
+    /** @brief Draws the remove/delete page confirmation popup. */
+    void DrawPageManagementPopup();
     /** @brief Seeds the editor state expected by the current tutorial step. */
     void PrepareTutorialStep();
 
@@ -492,6 +518,8 @@ private:
     NewLibraryReticleDraft newLibraryReticleDraft_ {};
     /** @brief Reticle-duplication draft values. */
     DuplicateLibraryReticleDraft duplicateLibraryReticleDraft_ {};
+    /** @brief Confirmation-popup state used by remove/delete page actions. */
+    PageManagementPopupState pageManagementPopup_ {};
     /** @brief Asset field currently edited through the guided folder picker. */
     AssetFolderPickerTarget assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
     /** @brief Current folder displayed by the guided asset-folder picker. */
@@ -506,6 +534,8 @@ private:
     std::unique_ptr<editor::automation::EditorApplicationAutomationBridge> automationBridge_ {};
     /** @brief Hidden facade exposing generic editor automation services to future in-process automation plugins. */
     std::unique_ptr<editor::automation::IEditorAutomationFacade> automationFacade_ {};
+    /** @brief Stateless service owning the page remove/delete planning logic. */
+    editor::PageManagementService pageManagementService_ {};
     /** @brief Future hidden conversation-surface state kept invisible until one UI consumer is explicitly added. */
     struct HiddenConversationSurfaceState
     {

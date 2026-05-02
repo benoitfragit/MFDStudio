@@ -28,6 +28,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationPluginLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationTestUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/PageManagementServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp)
 
@@ -121,6 +122,8 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationPluginLoader.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/PageManagementService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/PageManagementService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiTheme.cpp)
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)

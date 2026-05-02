@@ -403,6 +403,10 @@ TEST(EditorAutomationTests, PageAssetReplacementDeletionPreviewAndSelectionSuppo
     ASSERT_EQ(bridge.loaded_.document.pages.size(), 1U);
     ASSERT_EQ(bridge.files_.removedPageFiles.size(), 1U);
     EXPECT_EQ(bridge.files_.removedPageFiles.front().filename().string(), "support.json");
+
+    const auto commitStatus = facade->SessionService().CommitSession(editor::automation::CommitSessionRequest {session.value});
+    ASSERT_TRUE(commitStatus.ok()) << commitStatus.error.message;
+    ASSERT_EQ(bridge.pushedUndoSnapshots_.size(), 1U);
 }
 
 TEST(EditorAutomationTests, ReticleAssetAndPageReticleLifecycleSupportsFlagsLayerClippingAndDeletion)
@@ -537,6 +541,39 @@ TEST(EditorAutomationTests, ReticleAssetAndPageReticleLifecycleSupportsFlagsLaye
     const auto commitStatus = facade->SessionService().CommitSession(
         editor::automation::CommitSessionRequest {session.value});
     ASSERT_TRUE(commitStatus.ok());
+}
+
+TEST(EditorAutomationTests, RemovePageFromWindowCommitsOneUndoStepAndKeepsTheSourceFile)
+{
+    FakeEditorAutomationBridge bridge = MakeSeedEditorAutomationBridge();
+    mfd::PageDefinition supportPage;
+    supportPage.name = "Support";
+    supportPage.normalizedName = mfd::NormalizePageName(supportPage.name);
+    supportPage.title = "Support";
+    bridge.loaded_.document.pages.push_back(supportPage);
+    bridge.files_.pageFiles.push_back(bridge.windowFile_.parent_path() / "support.json");
+    bridge.loaded_.window.pageFiles = bridge.files_.pageFiles;
+
+    std::unique_ptr<editor::automation::IEditorAutomationFacade> facade =
+        editor::automation::CreateEditorAutomationFacade(bridge);
+    const auto session = facade->SessionService().BeginSession(editor::automation::BeginSessionRequest {"remove-page"});
+    ASSERT_TRUE(session.ok());
+
+    const editor::automation::PageId supportPageId =
+        editor::automation::MakePageId(bridge.loaded_.document.pages.back());
+    const auto removeStatus = facade->SessionService().ApplyAction(
+        editor::automation::ApplyActionRequest {
+            session.value,
+            editor::automation::RemovePageFromWindowRequest {supportPageId}});
+    ASSERT_TRUE(removeStatus.ok()) << removeStatus.error.message;
+    ASSERT_EQ(bridge.loaded_.document.pages.size(), 1U);
+    EXPECT_TRUE(bridge.files_.removedPageFiles.empty());
+    ASSERT_EQ(bridge.files_.pageFiles.size(), 1U);
+    EXPECT_EQ(bridge.loaded_.window.pageFiles, bridge.files_.pageFiles);
+
+    const auto commitStatus = facade->SessionService().CommitSession(editor::automation::CommitSessionRequest {session.value});
+    ASSERT_TRUE(commitStatus.ok()) << commitStatus.error.message;
+    ASSERT_EQ(bridge.pushedUndoSnapshots_.size(), 1U);
 }
 
 TEST(EditorAutomationTests, ReplacePageReticleInstanceSupportsFullReplacementAndConflictChecks)

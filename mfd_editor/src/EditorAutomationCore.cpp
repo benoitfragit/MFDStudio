@@ -20,6 +20,7 @@
 
 #include "EditorAutomationBridge.h"
 #include "EditorAutomationDocumentUtils.h"
+#include "PageManagementService.h"
 
 namespace editor
 {
@@ -341,6 +342,24 @@ bool HasDuplicateLayerId(const mfd::PageDefinition& page, const std::string_view
 void SyncWindowPageFiles(mfd::LoadedWindowConfiguration& loaded, const editor::EditorFileLayout& files)
 {
     loaded.window.pageFiles = files.pageFiles;
+}
+
+std::optional<int> ResolveReplacementPageIndex(const mfd::LoadedWindowConfiguration& loaded,
+                                               const std::optional<PageId>& replacementPageId)
+{
+    if (!replacementPageId.has_value())
+    {
+        return std::nullopt;
+    }
+
+    int replacementPageIndex = -1;
+    const mfd::PageDefinition* replacementPage = FindPageById(loaded, *replacementPageId, &replacementPageIndex);
+    if (replacementPage == nullptr || replacementPageIndex < 0)
+    {
+        return std::nullopt;
+    }
+
+    return replacementPageIndex;
 }
 
 std::vector<std::filesystem::path> CollectSavedFiles(const mfd::LoadedWindowConfiguration& loaded, const editor::EditorFileLayout& files)
@@ -824,6 +843,53 @@ private:
         return AutomationStatus::Success();
     }
 
+    AutomationStatus ApplyConcreteAction(const RemovePageFromWindowRequest& request)
+    {
+        int pageIndex = -1;
+        mfd::PageDefinition* page = FindPageById(context_.bridge.MutableLoaded(), request.pageId, &pageIndex);
+        if (page == nullptr)
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown page id.");
+        }
+
+        const std::optional<int> replacementPageIndex =
+            ResolveReplacementPageIndex(context_.bridge.Loaded(), request.replacementDefaultPageId);
+        if (request.replacementDefaultPageId.has_value() && !replacementPageIndex.has_value())
+        {
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown replacement default page id.");
+        }
+
+        editor::PageManagementService pageManagementService;
+        const editor::PageRemovePlan plan =
+            pageManagementService.BuildRemovePlan(context_.bridge.Loaded(),
+                                                 context_.bridge.Files(),
+                                                 editor::PageRemoveRequest {pageIndex, replacementPageIndex});
+        if (!plan.canExecute)
+        {
+            return FailureStatus(AutomationErrorCode::ValidationFailed, plan.error);
+        }
+
+        std::string error;
+        if (!pageManagementService.Execute(plan, context_.bridge.MutableLoaded(), context_.bridge.MutableFiles(), &error))
+        {
+            return FailureStatus(AutomationErrorCode::InvalidState, error);
+        }
+
+        if (context_.bridge.HasOpenWindow() && !context_.bridge.Loaded().document.pages.empty())
+        {
+            context_.bridge.SelectPage(plan.nextSelectedPageIndex);
+            context_.events.Push(AutomationEventKind::ActivePageChanged,
+                                 MakePageId(context_.bridge.Loaded().document.pages[static_cast<std::size_t>(plan.nextSelectedPageIndex)])
+                                     .value,
+                                 "Automation focused the page selected after one page removal.");
+        }
+
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageId.value,
+                             "Automation removed one page from the current window.");
+        return AutomationStatus::Success();
+    }
+
     AutomationStatus ApplyConcreteAction(const DeletePageAssetRequest& request)
     {
         int pageIndex = -1;
@@ -833,25 +899,41 @@ private:
             return FailureStatus(AutomationErrorCode::NotFound, "Unknown page id.");
         }
 
-        const std::string deletedPageId = request.pageId.value;
-        if (pageIndex >= 0 && pageIndex < static_cast<int>(context_.bridge.Files().pageFiles.size()))
+        const std::optional<int> replacementPageIndex =
+            ResolveReplacementPageIndex(context_.bridge.Loaded(), request.replacementDefaultPageId);
+        if (request.replacementDefaultPageId.has_value() && !replacementPageIndex.has_value())
         {
-            context_.bridge.MutableFiles().removedPageFiles.push_back(
-                context_.bridge.Files().pageFiles[static_cast<std::size_t>(pageIndex)]);
-            context_.bridge.MutableFiles().pageFiles.erase(
-                context_.bridge.MutableFiles().pageFiles.begin() + pageIndex);
+            return FailureStatus(AutomationErrorCode::NotFound, "Unknown replacement default page id.");
         }
 
-        context_.bridge.MutableLoaded().document.pages.erase(
-            context_.bridge.MutableLoaded().document.pages.begin() + pageIndex);
-        SyncWindowPageFiles(context_.bridge.MutableLoaded(), context_.bridge.Files());
+        editor::PageManagementService pageManagementService;
+        const editor::PageDeletePlan plan =
+            pageManagementService.BuildDeletePlan(context_.bridge.Loaded(),
+                                                 context_.bridge.Files(),
+                                                 editor::PageDeleteRequest {pageIndex, replacementPageIndex, {}, true});
+        if (!plan.canExecute)
+        {
+            return FailureStatus(AutomationErrorCode::ValidationFailed, plan.error);
+        }
+
+        std::string error;
+        if (!pageManagementService.Execute(plan, context_.bridge.MutableLoaded(), context_.bridge.MutableFiles(), &error))
+        {
+            return FailureStatus(AutomationErrorCode::InvalidState, error);
+        }
 
         if (context_.bridge.HasOpenWindow() && !context_.bridge.Loaded().document.pages.empty())
         {
-            context_.bridge.SelectPage(std::clamp(pageIndex, 0, static_cast<int>(context_.bridge.Loaded().document.pages.size()) - 1));
+            context_.bridge.SelectPage(plan.nextSelectedPageIndex);
+            context_.events.Push(AutomationEventKind::ActivePageChanged,
+                                 MakePageId(context_.bridge.Loaded().document.pages[static_cast<std::size_t>(plan.nextSelectedPageIndex)])
+                                     .value,
+                                 "Automation focused the page selected after one page deletion.");
         }
 
-        context_.events.Push(AutomationEventKind::DocumentChanged, deletedPageId, "Automation deleted one page asset.");
+        context_.events.Push(AutomationEventKind::DocumentChanged,
+                             request.pageId.value,
+                             "Automation deleted one page asset.");
         return AutomationStatus::Success();
     }
 
