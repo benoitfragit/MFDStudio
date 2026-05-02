@@ -22,8 +22,9 @@
 #include <raylib.h>
 
 #include "EditorDocumentSerializer.h"
-#include "PageManagementService.h"
 #include "PageImportService.h"
+#include "PageManagementService.h"
+#include "PageRenameService.h"
 #include "PagePreviewViewOptions.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
@@ -237,6 +238,14 @@ private:
         std::filesystem::path sourcePageFile {};
     };
 
+    /** @brief UI state driving the global page-rename review popup. */
+    struct PageRenamePopupState
+    {
+        bool openRequested = false;
+        int pageIndex = -1;
+        std::array<char, 128> newName {};
+    };
+
     /** @brief Loads a root window file plus its referenced authored assets into the editor. */
     bool LoadWindowConfiguration(const std::filesystem::path& path);
     /** @brief Serializes every modified file back to disk. */
@@ -263,6 +272,12 @@ private:
     [[nodiscard]] editor::PageImportRequest BuildPageImportRequest(const std::filesystem::path& sourcePageFile) const;
     /** @brief Applies one page-import plan to the live editor state. */
     bool ExecutePageImportPlan(const editor::PageImportPlan& plan);
+    /** @brief Opens the global page-rename popup for the provided page. */
+    void OpenPageRenamePopup(int pageIndex);
+    /** @brief Builds the service request used by the page-rename popup. */
+    [[nodiscard]] editor::RenamePageRequest BuildPageRenameRequest(int pageIndex, std::string_view newPageName) const;
+    /** @brief Applies one global page-rename plan to disk and the live editor state. */
+    bool ExecutePageRenamePlan(const editor::RenamePagePlan& plan);
     /** @brief Deletes the currently selected reticle from the shared library. */
     void DeleteSelectedLibraryReticle();
 
@@ -376,6 +391,8 @@ private:
     void DrawPageManagementPopup();
     /** @brief Draws the page-import planning popup. */
     void DrawPageImportPopup();
+    /** @brief Draws the global page-rename planning popup. */
+    void DrawPageRenamePopup();
     /** @brief Seeds the editor state expected by the current tutorial step. */
     void PrepareTutorialStep();
 
@@ -542,6 +559,8 @@ private:
     PageManagementPopupState pageManagementPopup_ {};
     /** @brief Confirmation-popup state used by page imports. */
     PageImportPopupState pageImportPopup_ {};
+    /** @brief Confirmation-popup state used by global page renames. */
+    PageRenamePopupState pageRenamePopup_ {};
     /** @brief Asset field currently edited through the guided folder picker. */
     AssetFolderPickerTarget assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
     /** @brief Current folder displayed by the guided asset-folder picker. */
@@ -560,6 +579,8 @@ private:
     editor::PageManagementService pageManagementService_ {};
     /** @brief Stateless service owning the page import planning logic. */
     editor::PageImportService pageImportService_ {};
+    /** @brief Stateless service owning the global page-rename planning logic. */
+    editor::PageRenameService pageRenameService_ {};
     /** @brief Future hidden conversation-surface state kept invisible until one UI consumer is explicitly added. */
     struct HiddenConversationSurfaceState
     {

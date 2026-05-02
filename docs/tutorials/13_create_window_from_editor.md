@@ -9,6 +9,7 @@ You will learn how to:
 - add an initial page
 - define the default page
 - import an existing page asset with its reticle dependencies
+- rename one shared page asset safely across windows
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
@@ -170,6 +171,39 @@ Safety rules now enforced by the editor:
 
 Both actions create one undo step and leave the document dirty until you save or reload.
 
+## Step 12 - Rename a page safely
+
+When one page JSON is reused by several source windows, use the safe rename
+workflow instead of editing only the page name field locally.
+
+Open it from any of these entry points:
+
+- right-click one page in the left tree, then choose **Rename page globally...**
+- use the page inspector button **Rename page globally...**
+- use **Page > Rename current page globally...**
+
+The popup now shows:
+
+- the current page name
+- the requested new page name
+- every source window reference found under the scanned `assets/` root
+- the exact JSON files that will be rewritten
+- blocking name collisions, if any
+- a warning that the generated client API and `mappingHash` may change
+
+Current behavior:
+
+- the page JSON itself is always rewritten
+- window JSON files are rewritten only when their `defaultPage` still points to
+  the old page name
+- `_Exec` is ignored by default
+- collisions inside any referenced window block execution before any file is modified
+- the rename writes directly to source JSON files and does not wait for the next
+  **File > Save**
+
+After a successful rename, regenerate the generated client API if this page is
+part of an exported window contract.
+
 ## Undo behavior
 
 The editor keeps one undo snapshot per page-modifying action:
@@ -184,4 +218,4 @@ The editor keeps one undo snapshot per page-modifying action:
 
 ## Result
 
-You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, default page selection, and UDP runtime transport configuration.
+You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, safe shared-page rename handling, default page selection, and UDP runtime transport configuration.

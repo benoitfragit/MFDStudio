@@ -1900,12 +1900,37 @@ void EditorApplication::OpenPageImportPopup(std::filesystem::path sourcePageFile
     pageImportPopup_.openRequested = true;
 }
 
+void EditorApplication::OpenPageRenamePopup(const int pageIndex)
+{
+    if (loaded_.document.pages.empty() ||
+        pageIndex < 0 ||
+        pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    {
+        RebuildStatus("No page selected.", true);
+        return;
+    }
+
+    pageRenamePopup_.pageIndex = pageIndex;
+    pageRenamePopup_.openRequested = true;
+    CopyTextBuffer(pageRenamePopup_.newName, loaded_.document.pages[static_cast<std::size_t>(pageIndex)].name);
+}
+
 editor::PageImportRequest EditorApplication::BuildPageImportRequest(const std::filesystem::path& sourcePageFile) const
 {
     return editor::PageImportRequest {
         sourcePageFile,
         CurrentPageImportTargetFolder(windowFile_, files_),
         loaded_.window.reticleLibraryFolder};
+}
+
+editor::RenamePageRequest EditorApplication::BuildPageRenameRequest(const int pageIndex,
+                                                                    const std::string_view newPageName) const
+{
+    return editor::RenamePageRequest {
+        pageIndex,
+        std::string(newPageName),
+        DefaultProjectAssetFolder("assets"),
+        false};
 }
 
 bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan)
@@ -1979,6 +2004,44 @@ bool EditorApplication::ExecutePageImportPlan(const editor::PageImportPlan& plan
         }
     }
     status += ". Use File > Save to persist the staged JSON assets.";
+    RebuildStatus(status, false);
+    return true;
+}
+
+bool EditorApplication::ExecutePageRenamePlan(const editor::RenamePagePlan& plan)
+{
+    if (!plan.canExecute)
+    {
+        RebuildStatus(plan.error.empty() ? "The selected page cannot be renamed globally." : plan.error, true);
+        return false;
+    }
+
+    editor::RenamePageResult result;
+    std::string error;
+    if (!pageRenameService_.Execute(plan, loaded_, files_, &result, &error))
+    {
+        RebuildStatus(error.empty() ? "Renaming the selected page globally failed." : error, true);
+        return false;
+    }
+
+    std::string status = "Page '" + plan.oldPageName + "' renamed to '" + plan.newPageName + "'";
+    if (!plan.references.empty())
+    {
+        status += " across " + std::to_string(plan.references.size()) + " window reference";
+        if (plan.references.size() != 1U)
+        {
+            status += "s";
+        }
+    }
+    if (result.updatedWindowCount > 0U)
+    {
+        status += " with " + std::to_string(result.updatedWindowCount) + " window JSON update";
+        if (result.updatedWindowCount != 1U)
+        {
+            status += "s";
+        }
+    }
+    status += ". Regenerate the generated client API if this page is exposed there.";
     RebuildStatus(status, false);
     return true;
 }
@@ -2231,6 +2294,13 @@ void EditorApplication::DrawMenuBar()
         if (importPageRequested)
         {
             OpenPageAssetImportFromFileExplorer();
+        }
+
+        const bool renamePageRequested = ImGui::MenuItem("Rename current page globally...", nullptr, false, ActivePage() != nullptr);
+        ShowItemTooltip("Rename the current page asset safely across the source assets tree and update shared window references.");
+        if (renamePageRequested)
+        {
+            OpenPageRenamePopup(selection_.pageIndex);
         }
 
         const bool removePageRequested = ImGui::MenuItem("Remove current page from window", nullptr, false, ActivePage() != nullptr);
@@ -2688,6 +2758,12 @@ void EditorApplication::DrawPageTree()
 
         if (ImGui::BeginPopupContextItem(("PageContextMenu##" + std::to_string(pageIndex)).c_str()))
         {
+            if (ImGui::MenuItem("Rename page globally..."))
+            {
+                SelectPage(pageIndex);
+                OpenPageRenamePopup(pageIndex);
+            }
+
             if (ImGui::MenuItem("Remove page from window"))
             {
                 SelectPage(pageIndex);
@@ -6339,6 +6415,12 @@ void EditorApplication::DrawPopups()
         pageImportPopup_.openRequested = false;
     }
 
+    if (pageRenamePopup_.openRequested)
+    {
+        ImGui::OpenPopup("Rename page globally");
+        pageRenamePopup_.openRequested = false;
+    }
+
     if (pageManagementPopup_.openRequested)
     {
         ImGui::OpenPopup("Manage page");
@@ -6514,6 +6596,7 @@ void EditorApplication::DrawPopups()
 
     DrawAssetFolderPickerPopup();
     DrawPageImportPopup();
+    DrawPageRenamePopup();
     DrawPageManagementPopup();
 
     if (ImGui::BeginPopupModal("Create new library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -6846,6 +6929,128 @@ void EditorApplication::DrawPageImportPopup()
     if (ImGui::Button("Cancel"))
     {
         pageImportPopup_ = {};
+        ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::EndPopup();
+}
+
+void EditorApplication::DrawPageRenamePopup()
+{
+    if (!ImGui::BeginPopupModal("Rename page globally", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    const bool pageIndexValid = pageRenamePopup_.pageIndex >= 0 &&
+                                pageRenamePopup_.pageIndex < static_cast<int>(loaded_.document.pages.size());
+    if (!pageIndexValid)
+    {
+        ImGui::TextWrapped("The selected page is no longer available.");
+        if (ImGui::Button("Close"))
+        {
+            pageRenamePopup_ = {};
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+        return;
+    }
+
+    const mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageRenamePopup_.pageIndex)];
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Rename page globally");
+    ImGui::TextWrapped("Review every shared window reference before renaming this page asset across the source assets tree.");
+    ImGui::Separator();
+
+    ImGui::TextDisabled("Old name");
+    ImGui::TextWrapped("%s", page.name.c_str());
+
+    ImGui::InputText("New name", pageRenamePopup_.newName.data(), pageRenamePopup_.newName.size());
+    ShowItemTooltip("Use the safe rename workflow to update the page JSON and every source window defaultPage reference consistently.");
+
+    const editor::RenamePagePlan plan =
+        pageRenameService_.BuildPlan(loaded_,
+                                     files_,
+                                     BuildPageRenameRequest(pageRenamePopup_.pageIndex, pageRenamePopup_.newName.data()));
+
+    ImGui::SeparatorText("References found");
+    if (plan.references.empty())
+    {
+        ImGui::TextDisabled("No source window reference is currently eligible for this rename.");
+    }
+    else
+    {
+        for (const editor::RenamePageReference& reference : plan.references)
+        {
+            ImGui::PushID(reference.windowFile.string().c_str());
+            ImGui::TextWrapped("%s", reference.windowFile.string().c_str());
+            if (reference.updatesDefaultPage)
+            {
+                ImGui::TextDisabled("defaultPage will be updated in this window JSON");
+            }
+            ImGui::PopID();
+        }
+    }
+
+    ImGui::SeparatorText("Files to modify");
+    for (const std::filesystem::path& file : plan.filesToModify)
+    {
+        ImGui::TextWrapped("%s", file.string().c_str());
+    }
+    if (plan.filesToModify.empty())
+    {
+        ImGui::TextDisabled("No file would be rewritten.");
+    }
+
+    if (!plan.collisions.empty())
+    {
+        ImGui::SeparatorText("Collisions");
+        for (const editor::RenamePageCollision& collision : plan.collisions)
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f),
+                               "%s already exposes page '%s'",
+                               collision.windowFile.string().c_str(),
+                               collision.conflictingPageName.c_str());
+        }
+    }
+
+    if (!plan.warnings.empty())
+    {
+        ImGui::SeparatorText("Warnings");
+        for (const std::string& warning : plan.warnings)
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f), "%s", warning.c_str());
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("This workflow updates the source JSON assets directly and ignores _Exec by default.");
+
+    if (!plan.error.empty())
+    {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f), "%s", plan.error.c_str());
+    }
+
+    ImGui::Spacing();
+    ImGui::BeginDisabled(!plan.canExecute);
+    if (AccentButton("Rename page"))
+    {
+        if (ExecutePageRenamePlan(plan))
+        {
+            pageRenamePopup_ = {};
+            ImGui::CloseCurrentPopup();
+            ImGui::EndDisabled();
+            ImGui::EndPopup();
+            return;
+        }
+    }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        pageRenamePopup_ = {};
         ImGui::CloseCurrentPopup();
     }
 
@@ -7614,6 +7819,14 @@ void EditorApplication::DrawPageInspector()
         return;
     }
     ShowItemTooltip("Remove the page from this window and mark its JSON file for deletion on the next save.");
+
+    ImGui::SameLine();
+    if (ImGui::Button("Rename page globally..."))
+    {
+        OpenPageRenamePopup(selection_.pageIndex);
+        return;
+    }
+    ShowItemTooltip("Rename this page asset safely across the source assets tree and update every referenced window defaultPage.");
 
     ImGui::SameLine();
     ImGui::TextDisabled("Shortcut: Suppr opens the delete confirmation");
