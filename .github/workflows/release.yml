@@ -181,9 +181,23 @@ jobs:
             )
 
             New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
-            robocopy $SourceDir $DestDir /E /NFL /NDL /NJH /NJS /NP | Out-Null
-            if ($LASTEXITCODE -gt 7) {
-              throw "robocopy failed while merging '$SourceDir' into '$DestDir' (exit code $LASTEXITCODE)."
+            $resolvedSourceDir = (Resolve-Path -LiteralPath $SourceDir).Path
+
+            Get-ChildItem -LiteralPath $resolvedSourceDir -Recurse -Force | ForEach-Object {
+              $relativePath = $_.FullName.Substring($resolvedSourceDir.Length).TrimStart('\', '/')
+              $destinationPath = Join-Path $DestDir $relativePath
+
+              if ($_.PSIsContainer) {
+                New-Item -ItemType Directory -Path $destinationPath -Force | Out-Null
+              }
+              else {
+                $destinationParent = Split-Path -Path $destinationPath -Parent
+                if (-not [string]::IsNullOrWhiteSpace($destinationParent)) {
+                  New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
+                }
+
+                Copy-Item -LiteralPath $_.FullName -Destination $destinationPath -Force
+              }
             }
           }
 
