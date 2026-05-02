@@ -24,4 +24,12 @@ namespace editor
  */
 std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const std::filesystem::path& initialFolder,
                                                                std::string* error);
+/**
+ * @brief Opens a native file-explorer dialog to pick one existing page JSON asset.
+ * @param initialFolder Folder opened first by the dialog.
+ * @param error Optional error message populated when the dialog fails.
+ * @return Selected page JSON path, or `std::nullopt` when the user cancels.
+ */
+std::optional<std::filesystem::path> OpenPageAssetFileDialog(const std::filesystem::path& initialFolder,
+                                                             std::string* error);
 } // namespace editor

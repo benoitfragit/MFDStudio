@@ -23,6 +23,7 @@
 
 #include "EditorDocumentSerializer.h"
 #include "PageManagementService.h"
+#include "PageImportService.h"
 #include "PagePreviewViewOptions.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
@@ -229,6 +230,13 @@ private:
         bool confirmDelete = false;
     };
 
+    /** @brief UI state driving the page-import review popup. */
+    struct PageImportPopupState
+    {
+        bool openRequested = false;
+        std::filesystem::path sourcePageFile {};
+    };
+
     /** @brief Loads a root window file plus its referenced authored assets into the editor. */
     bool LoadWindowConfiguration(const std::filesystem::path& path);
     /** @brief Serializes every modified file back to disk. */
@@ -241,12 +249,20 @@ private:
     void HandleShortcuts();
     /** @brief Deletes the current selection when that selection supports deletion. */
     void DeleteSelection();
+    /** @brief Handles native file-drop events routed to the editor window. */
+    void HandleDroppedFiles();
     /** @brief Opens the page-management popup for the provided page and action. */
     void OpenPageManagementPopup(PageManagementAction action, int pageIndex);
     /** @brief Applies one page-removal plan to the live editor state. */
     bool ExecutePageRemovePlan(const editor::PageRemovePlan& plan);
     /** @brief Applies one page-delete plan to the live editor state. */
     bool ExecutePageDeletePlan(const editor::PageDeletePlan& plan);
+    /** @brief Opens the page-import popup for the provided external JSON file. */
+    void OpenPageImportPopup(std::filesystem::path sourcePageFile);
+    /** @brief Builds the service request used by the page-import popup. */
+    [[nodiscard]] editor::PageImportRequest BuildPageImportRequest(const std::filesystem::path& sourcePageFile) const;
+    /** @brief Applies one page-import plan to the live editor state. */
+    bool ExecutePageImportPlan(const editor::PageImportPlan& plan);
     /** @brief Deletes the currently selected reticle from the shared library. */
     void DeleteSelectedLibraryReticle();
 
@@ -348,6 +364,8 @@ private:
     void OpenNewLibraryReticlePopup();
     /** @brief Opens the "duplicate reticle" popup and seeds its draft values. */
     void OpenDuplicateLibraryReticlePopup();
+    /** @brief Opens a native file-explorer dialog to import one external page JSON asset. */
+    bool OpenPageAssetImportFromFileExplorer();
     /** @brief Opens the guided folder-picker popup for one asset-location field. */
     void OpenAssetFolderPicker(AssetFolderPickerTarget target);
     /** @brief Draws and resolves all modal popups owned by the editor. */
@@ -356,6 +374,8 @@ private:
     void DrawAssetFolderPickerPopup();
     /** @brief Draws the remove/delete page confirmation popup. */
     void DrawPageManagementPopup();
+    /** @brief Draws the page-import planning popup. */
+    void DrawPageImportPopup();
     /** @brief Seeds the editor state expected by the current tutorial step. */
     void PrepareTutorialStep();
 
@@ -520,6 +540,8 @@ private:
     DuplicateLibraryReticleDraft duplicateLibraryReticleDraft_ {};
     /** @brief Confirmation-popup state used by remove/delete page actions. */
     PageManagementPopupState pageManagementPopup_ {};
+    /** @brief Confirmation-popup state used by page imports. */
+    PageImportPopupState pageImportPopup_ {};
     /** @brief Asset field currently edited through the guided folder picker. */
     AssetFolderPickerTarget assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
     /** @brief Current folder displayed by the guided asset-folder picker. */
@@ -536,6 +558,8 @@ private:
     std::unique_ptr<editor::automation::IEditorAutomationFacade> automationFacade_ {};
     /** @brief Stateless service owning the page remove/delete planning logic. */
     editor::PageManagementService pageManagementService_ {};
+    /** @brief Stateless service owning the page import planning logic. */
+    editor::PageImportService pageImportService_ {};
     /** @brief Future hidden conversation-surface state kept invisible until one UI consumer is explicitly added. */
     struct HiddenConversationSurfaceState
     {

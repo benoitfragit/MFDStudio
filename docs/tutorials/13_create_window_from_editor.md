@@ -8,6 +8,7 @@ You will learn how to:
 - configure a window font
 - add an initial page
 - define the default page
+- import an existing page asset with its reticle dependencies
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
@@ -129,7 +130,32 @@ These switches are session preferences only. They help you inspect the current p
 
 If the **View** button shows `!`, validation diagnostics exist and you can enable **Problems** to inspect them directly from the preview.
 
-## Step 10 - Remove or delete a page
+## Step 10 - Import an existing page
+
+When one page already exists in another asset tree, use **Page > Import page...**
+or drop the page JSON file directly onto the editor window.
+
+The import popup now previews:
+
+- the selected source page JSON
+- the target page file staged in the current window asset tree
+- every reticle-template dependency referenced by the page
+- the deterministic collision outcome for pages and templates
+
+Current collision rules:
+
+- missing target file: copy it into the current assets tree
+- identical existing target file: reuse it
+- different existing target file: create one renamed imported copy
+
+If one imported reticle template contains image primitives, the editor also
+rewrites relative file paths so the staged template stays valid once it is
+saved into the current reticle library folder.
+
+The imported page and any imported templates are added to the in-memory
+document immediately, then written with the next **File > Save**.
+
+## Step 11 - Remove or delete a page
 
 When you no longer want one page in the current window, right-click the page inside the left tree or use the page inspector buttons.
 
@@ -158,4 +184,4 @@ The editor keeps one undo snapshot per page-modifying action:
 
 ## Result
 
-You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, pages, default page selection, and UDP runtime transport configuration.
+You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, default page selection, and UDP runtime transport configuration.

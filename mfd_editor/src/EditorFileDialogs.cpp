@@ -27,24 +27,26 @@
 
 namespace editor
 {
-std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const [[maybe_unused]] std::filesystem::path& initialFolder,
-                                                               std::string* error)
+namespace
+{
+std::optional<std::filesystem::path> OpenJsonAssetFileDialog(const [[maybe_unused]] std::filesystem::path& initialFolder,
+                                                             const wchar_t* dialogTitle,
+                                                             std::string* error)
 {
 #if defined(_WIN32)
-    static constexpr wchar_t kWindowAssetFilter[] = L"Window JSON (*.json)\0*.json\0All Files (*.*)\0*.*\0";
+    static constexpr wchar_t kJsonAssetFilter[] = L"JSON Assets (*.json)\0*.json\0All Files (*.*)\0*.*\0";
 
     std::wstring initialFolderWide = initialFolder.wstring();
-    std::wstring dialogTitle = L"Open MFD window asset";
     std::array<wchar_t, 4096> selectedFileBuffer {};
 
     OPENFILENAMEW dialog {};
     dialog.lStructSize = sizeof(dialog);
     dialog.hwndOwner = GetActiveWindow();
-    dialog.lpstrFilter = kWindowAssetFilter;
+    dialog.lpstrFilter = kJsonAssetFilter;
     dialog.lpstrFile = selectedFileBuffer.data();
     dialog.nMaxFile = static_cast<DWORD>(selectedFileBuffer.size());
     dialog.lpstrInitialDir = initialFolderWide.c_str();
-    dialog.lpstrTitle = dialogTitle.c_str();
+    dialog.lpstrTitle = dialogTitle;
     dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
     if (!GetOpenFileNameW(&dialog))
@@ -52,7 +54,7 @@ std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const [[maybe_unu
         const DWORD dialogError = CommDlgExtendedError();
         if (dialogError != 0 && error != nullptr)
         {
-            *error = "Opening the window asset picker failed.";
+            *error = "Opening the JSON asset picker failed.";
         }
         return std::nullopt;
     }
@@ -65,5 +67,18 @@ std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const [[maybe_unu
     }
     return std::nullopt;
 #endif
+}
+} // namespace
+
+std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const std::filesystem::path& initialFolder,
+                                                               std::string* error)
+{
+    return OpenJsonAssetFileDialog(initialFolder, L"Open MFD window asset", error);
+}
+
+std::optional<std::filesystem::path> OpenPageAssetFileDialog(const std::filesystem::path& initialFolder,
+                                                             std::string* error)
+{
+    return OpenJsonAssetFileDialog(initialFolder, L"Import MFD page asset", error);
 }
 } // namespace editor

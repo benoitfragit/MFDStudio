@@ -182,7 +182,13 @@ ParsedAssetKind ClassifyDocument(const json& document)
         return ParsedAssetKind::TemplateAsset;
     }
 
-    if (FindField(document, {"name", "staticReticles", "strobe", "blinkTypes", "defaultBlinkType", "backgroundColor", "bg"}) !=
+    const json* pageNode = &document;
+    if (document.contains("page") && document.at("page").is_object())
+    {
+        pageNode = &document.at("page");
+    }
+
+    if (FindField(*pageNode, {"name", "id", "staticReticles", "strobe", "blinkTypes", "defaultBlinkType", "backgroundColor", "bg"}) !=
         nullptr)
     {
         return ParsedAssetKind::Page;
@@ -470,7 +476,11 @@ void ProcessPageDocument(const ParsedAssetFile& asset,
                          const std::unordered_map<std::string, std::filesystem::path>& templateFilesById,
                          AssetReferenceIndex& index)
 {
-    if (const json* staticReticles = FindField(asset.document, {"staticReticles"}); staticReticles != nullptr)
+    const json& pageNode =
+        asset.document.contains("page") && asset.document.at("page").is_object() ? asset.document.at("page")
+                                                                                  : asset.document;
+
+    if (const json* staticReticles = FindField(pageNode, {"staticReticles"}); staticReticles != nullptr)
     {
         if (!staticReticles->is_array())
         {
@@ -490,7 +500,7 @@ void ProcessPageDocument(const ParsedAssetFile& asset,
         }
     }
 
-    if (const json* strobe = FindField(asset.document, {"strobe"}); strobe != nullptr)
+    if (const json* strobe = FindField(pageNode, {"strobe"}); strobe != nullptr)
     {
         if (!strobe->is_object())
         {
@@ -680,7 +690,11 @@ AssetReferenceIndex AssetReferenceIndexService::BuildIndex(const AssetReferenceI
                 parsedAsset.document = std::move(document);
                 if (parsedAsset.kind == ParsedAssetKind::Page)
                 {
-                    parsedAsset.pageName = parsedAsset.document.value("name", "");
+                    const json& pageNode =
+                        parsedAsset.document.contains("page") && parsedAsset.document.at("page").is_object()
+                            ? parsedAsset.document.at("page")
+                            : parsedAsset.document;
+                    parsedAsset.pageName = pageNode.value("name", pageNode.value("id", ""));
                 }
                 else if (parsedAsset.kind == ParsedAssetKind::TemplateAsset)
                 {

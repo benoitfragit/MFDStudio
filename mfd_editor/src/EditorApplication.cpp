@@ -128,6 +128,19 @@ std::filesystem::path JsonFileNameOrFallback(const std::filesystem::path& candid
     return fileName;
 }
 
+std::string Lowercase(const std::string_view value)
+{
+    std::string lowered;
+    lowered.reserve(value.size());
+
+    for (const char character : value)
+    {
+        lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(character))));
+    }
+
+    return lowered;
+}
+
 bool PathContainsSegment(const std::filesystem::path& path, const std::string_view segment)
 {
     if (segment.empty())
@@ -173,6 +186,91 @@ bool IsExecStagingPath(const std::filesystem::path& path)
     const std::filesystem::path absolutePath =
         path.is_absolute() ? path.lexically_normal() : std::filesystem::absolute(path).lexically_normal();
     return PathContainsSegment(absolutePath, "_Exec");
+}
+
+std::optional<std::filesystem::path> FindAncestorNamed(std::filesystem::path path, const std::string_view folderName)
+{
+    path = path.empty() ? std::filesystem::path {} : std::filesystem::absolute(path).lexically_normal();
+    const std::string normalizedFolderName = Lowercase(folderName);
+
+    while (!path.empty())
+    {
+        if (Lowercase(path.filename().string()) == normalizedFolderName)
+        {
+            return path;
+        }
+
+        if (!path.has_parent_path() || path == path.parent_path())
+        {
+            break;
+        }
+
+        path = path.parent_path();
+    }
+
+    return std::nullopt;
+}
+
+std::filesystem::path CurrentPageImportTargetFolder(const std::filesystem::path& windowFile,
+                                                    const editor::EditorFileLayout& files)
+{
+    if (!files.pageFiles.empty())
+    {
+        const std::filesystem::path firstFolder = files.pageFiles.front().parent_path();
+        const bool allPageFoldersMatch = std::all_of(files.pageFiles.begin(),
+                                                     files.pageFiles.end(),
+                                                     [&firstFolder](const std::filesystem::path& pageFile)
+                                                     {
+                                                         return pageFile.parent_path().lexically_normal() ==
+                                                                firstFolder.lexically_normal();
+                                                     });
+        if (allPageFoldersMatch && !firstFolder.empty())
+        {
+            return firstFolder.lexically_normal();
+        }
+    }
+
+    if (const auto assetsRoot = FindAncestorNamed(windowFile.parent_path(), "assets"); assetsRoot.has_value())
+    {
+        return (*assetsRoot / "pages").lexically_normal();
+    }
+
+    if (Lowercase(windowFile.parent_path().filename().string()) == "windows" && windowFile.parent_path().has_parent_path())
+    {
+        return (windowFile.parent_path().parent_path() / "pages").lexically_normal();
+    }
+
+    return windowFile.empty() ? DefaultProjectAssetFolder("assets/pages") : windowFile.parent_path().lexically_normal();
+}
+
+const char* ImportDispositionLabel(const editor::ImportDisposition disposition) noexcept
+{
+    switch (disposition)
+    {
+    case editor::ImportDisposition::CopyNew:
+        return "copy";
+    case editor::ImportDisposition::KeepExisting:
+        return "keep existing";
+    case editor::ImportDisposition::RenameCopy:
+        return "rename copy";
+    }
+
+    return "copy";
+}
+
+ImVec4 ImportDispositionColor(const editor::ImportDisposition disposition) noexcept
+{
+    switch (disposition)
+    {
+    case editor::ImportDisposition::CopyNew:
+        return ImVec4(0.33f, 0.86f, 0.78f, 1.0f);
+    case editor::ImportDisposition::KeepExisting:
+        return ImVec4(0.66f, 0.78f, 0.95f, 1.0f);
+    case editor::ImportDisposition::RenameCopy:
+        return ImVec4(0.95f, 0.72f, 0.38f, 1.0f);
+    }
+
+    return ImVec4(0.33f, 0.86f, 0.78f, 1.0f);
 }
 
 void TryApplyEditorWindowIcon()
@@ -1617,6 +1715,8 @@ void EditorApplication::PushUndoSnapshot()
 
 void EditorApplication::HandleShortcuts()
 {
+    HandleDroppedFiles();
+
     const ImGuiIO& io = ImGui::GetIO();
 
     if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
@@ -1729,6 +1829,47 @@ void EditorApplication::DeleteSelection()
     RebuildStatus("Select a page, a page reticle or a library reticle to delete it.", true);
 }
 
+void EditorApplication::HandleDroppedFiles()
+{
+    if (!IsFileDropped())
+    {
+        return;
+    }
+
+    const FilePathList droppedFiles = LoadDroppedFiles();
+    std::optional<std::filesystem::path> importedPageFile;
+    for (unsigned int index = 0; index < droppedFiles.count; ++index)
+    {
+        const std::filesystem::path candidate = std::filesystem::path(droppedFiles.paths[index]).lexically_normal();
+        if (Lowercase(candidate.extension().string()) == ".json")
+        {
+            importedPageFile = candidate;
+            break;
+        }
+    }
+
+    if (!importedPageFile.has_value())
+    {
+        RebuildStatus("Drop one page JSON file to open the import workflow.", true);
+        UnloadDroppedFiles(droppedFiles);
+        return;
+    }
+
+    if (!HasOpenWindow())
+    {
+        RebuildStatus("Open or create one window before importing a page asset.", true);
+        UnloadDroppedFiles(droppedFiles);
+        return;
+    }
+
+    OpenPageImportPopup(*importedPageFile);
+    if (droppedFiles.count > 1U)
+    {
+        RebuildStatus("Opened the import workflow for the first dropped JSON file.", false);
+    }
+    UnloadDroppedFiles(droppedFiles);
+}
+
 void EditorApplication::OpenPageManagementPopup(const PageManagementAction action, const int pageIndex)
 {
     if (loaded_.document.pages.empty() ||
@@ -1745,6 +1886,26 @@ void EditorApplication::OpenPageManagementPopup(const PageManagementAction actio
     pageManagementPopup_.replacementPageIndex = SuggestReplacementPageIndex(loaded_.document.pages, pageIndex);
     pageManagementPopup_.allowOutsideAssetsRoot = false;
     pageManagementPopup_.confirmDelete = false;
+}
+
+void EditorApplication::OpenPageImportPopup(std::filesystem::path sourcePageFile)
+{
+    if (!HasOpenWindow())
+    {
+        RebuildStatus("Open or create one window before importing a page asset.", true);
+        return;
+    }
+
+    pageImportPopup_.sourcePageFile = std::move(sourcePageFile);
+    pageImportPopup_.openRequested = true;
+}
+
+editor::PageImportRequest EditorApplication::BuildPageImportRequest(const std::filesystem::path& sourcePageFile) const
+{
+    return editor::PageImportRequest {
+        sourcePageFile,
+        CurrentPageImportTargetFolder(windowFile_, files_),
+        loaded_.window.reticleLibraryFolder};
 }
 
 bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan)
@@ -1786,6 +1947,39 @@ bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan
                       false);
     }
 
+    return true;
+}
+
+bool EditorApplication::ExecutePageImportPlan(const editor::PageImportPlan& plan)
+{
+    if (!plan.canExecute)
+    {
+        RebuildStatus(plan.error.empty() ? "The selected page cannot be imported." : plan.error, true);
+        return false;
+    }
+
+    PushUndoSnapshot();
+
+    editor::PageImportResult result;
+    std::string error;
+    if (!pageImportService_.Execute(plan, loaded_, files_, &result, &error))
+    {
+        RebuildStatus(error.empty() ? "Importing the selected page failed." : error, true);
+        return false;
+    }
+
+    SelectPage(result.importedPageIndex);
+    std::string status = "Page '" + result.pageName + "' imported";
+    if (!result.importedTemplateIds.empty())
+    {
+        status += " with " + std::to_string(result.importedTemplateIds.size()) + " reticle template";
+        if (result.importedTemplateIds.size() != 1U)
+        {
+            status += "s";
+        }
+    }
+    status += ". Use File > Save to persist the staged JSON assets.";
+    RebuildStatus(status, false);
     return true;
 }
 
@@ -2030,6 +2224,13 @@ void EditorApplication::DrawMenuBar()
                 tutorial_->AdvancePhase();
             }
             OpenNewPagePopup();
+        }
+
+        const bool importPageRequested = ImGui::MenuItem("Import page...");
+        ShowItemTooltip("Import one external page JSON and stage its reticle dependencies into the current window.");
+        if (importPageRequested)
+        {
+            OpenPageAssetImportFromFileExplorer();
         }
 
         const bool removePageRequested = ImGui::MenuItem("Remove current page from window", nullptr, false, ActivePage() != nullptr);
@@ -2649,6 +2850,30 @@ bool EditorApplication::OpenWindowAssetFromFileExplorer()
     }
 
     return LoadWindowConfiguration(*selectedFile);
+}
+
+bool EditorApplication::OpenPageAssetImportFromFileExplorer()
+{
+    if (!HasOpenWindow())
+    {
+        RebuildStatus("Open or create one window before importing a page asset.", true);
+        return false;
+    }
+
+    const std::filesystem::path initialFolder = CurrentPageImportTargetFolder(windowFile_, files_);
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFile = editor::OpenPageAssetFileDialog(initialFolder, &error);
+    if (!selectedFile.has_value())
+    {
+        if (!error.empty())
+        {
+            RebuildStatus(error, true);
+        }
+        return false;
+    }
+
+    OpenPageImportPopup(*selectedFile);
+    return true;
 }
 
 void EditorApplication::OpenAssetFolderPicker(const AssetFolderPickerTarget target)
@@ -6108,6 +6333,12 @@ void EditorApplication::DrawPopups()
         showDuplicateLibraryReticlePopup_ = false;
     }
 
+    if (pageImportPopup_.openRequested)
+    {
+        ImGui::OpenPopup("Import page");
+        pageImportPopup_.openRequested = false;
+    }
+
     if (pageManagementPopup_.openRequested)
     {
         ImGui::OpenPopup("Manage page");
@@ -6282,6 +6513,7 @@ void EditorApplication::DrawPopups()
     }
 
     DrawAssetFolderPickerPopup();
+    DrawPageImportPopup();
     DrawPageManagementPopup();
 
     if (ImGui::BeginPopupModal("Create new library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -6513,6 +6745,107 @@ void EditorApplication::DrawAssetFolderPickerPopup()
     if (ImGui::Button("Cancel"))
     {
         assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
+        ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::EndPopup();
+}
+
+void EditorApplication::DrawPageImportPopup()
+{
+    if (!ImGui::BeginPopupModal("Import page", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    const editor::PageImportPlan plan =
+        pageImportService_.BuildPlan(loaded_, files_, BuildPageImportRequest(pageImportPopup_.sourcePageFile));
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Import page asset");
+    ImGui::TextWrapped("Review the staged page and reticle-template import before it is added to the current window.");
+    ImGui::Separator();
+
+    ImGui::TextDisabled("Source");
+    ImGui::TextWrapped("%s", plan.sourcePageFile.empty() ? "<none>" : plan.sourcePageFile.string().c_str());
+
+    if (!plan.sourcePageName.empty())
+    {
+        ImGui::TextDisabled("Page name");
+        if (mfd::PageNamesEqual(plan.sourcePageName, plan.targetPageName))
+        {
+            ImGui::TextWrapped("%s", plan.sourcePageName.c_str());
+        }
+        else
+        {
+            ImGui::TextWrapped("%s -> %s", plan.sourcePageName.c_str(), plan.targetPageName.c_str());
+        }
+    }
+
+    if (!plan.targetPageFile.empty())
+    {
+        ImGui::TextDisabled("Target page file");
+        ImGui::TextWrapped("%s", plan.targetPageFile.string().c_str());
+        ImGui::TextColored(ImportDispositionColor(plan.pageDisposition),
+                           "Page policy: %s",
+                           ImportDispositionLabel(plan.pageDisposition));
+    }
+
+    ImGui::SeparatorText("Reticle dependencies");
+    if (plan.reticles.empty())
+    {
+        ImGui::TextDisabled("No reticle template dependency detected for this page.");
+    }
+    else
+    {
+        for (const editor::ReticleImportPlan& reticlePlan : plan.reticles)
+        {
+            ImGui::PushID(reticlePlan.sourceTemplateId.c_str());
+            ImGui::TextColored(ImportDispositionColor(reticlePlan.disposition),
+                               "[%s] %s",
+                               ImportDispositionLabel(reticlePlan.disposition),
+                               reticlePlan.sourceTemplateId.c_str());
+            if (mfd::PageNamesEqual(reticlePlan.sourceTemplateId, reticlePlan.targetTemplateId))
+            {
+                ImGui::TextWrapped("Target: %s", reticlePlan.targetFile.string().c_str());
+            }
+            else
+            {
+                ImGui::TextWrapped("%s -> %s", reticlePlan.sourceTemplateId.c_str(), reticlePlan.targetTemplateId.c_str());
+                ImGui::TextWrapped("Target: %s", reticlePlan.targetFile.string().c_str());
+            }
+            ImGui::PopID();
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("Imported assets are staged in memory first and written with File > Save.");
+    ImGui::TextDisabled("Deterministic collision policy: missing target = copy, identical target = keep existing, different target = rename copy.");
+
+    if (!plan.error.empty())
+    {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f), "%s", plan.error.c_str());
+    }
+
+    ImGui::Spacing();
+    ImGui::BeginDisabled(!plan.canExecute);
+    if (AccentButton("Import page"))
+    {
+        if (ExecutePageImportPlan(plan))
+        {
+            pageImportPopup_ = {};
+            ImGui::CloseCurrentPopup();
+            ImGui::EndDisabled();
+            ImGui::EndPopup();
+            return;
+        }
+    }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        pageImportPopup_ = {};
         ImGui::CloseCurrentPopup();
     }
 
