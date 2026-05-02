@@ -292,6 +292,26 @@ TEST(CommandTransportTests, UdpChannelRequiresRemoteEndpointBeforeSending)
 #endif
 }
 
+TEST(CommandTransportTests, UdpChannelRejectsPayloadsLargerThanSupportedDatagramSize)
+{
+#ifndef _WIN32
+    GTEST_SKIP() << "UDP loopback transport is implemented for Windows targets in this project";
+#else
+    mfd::UdpChannelConfig config;
+    config.bindAddress = "127.0.0.1";
+    config.bindPort = 0U;
+    config.remoteAddress = "127.0.0.1";
+    config.remotePort = 47220U;
+
+    mfd::UdpChannel channel(config);
+    ASSERT_TRUE(channel.IsReady()) << channel.LastError();
+
+    std::vector<std::byte> payload(mfd::kUdpMaxPayloadBytes + 1U, std::byte {0x2A});
+    EXPECT_FALSE(channel.Send(mfd::ByteView(payload.data(), payload.size())));
+    EXPECT_EQ(channel.LastError(), "UDP payload exceeds maximum datagram size");
+#endif
+}
+
 TEST(CommandTransportTests, UdpChannelRejectsInvalidBindAddress)
 {
 #ifndef _WIN32

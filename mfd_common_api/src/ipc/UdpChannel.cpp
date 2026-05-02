@@ -11,6 +11,7 @@
 #include "mfd/ipc/UdpChannel.h"
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 #ifdef _WIN32
@@ -177,9 +178,23 @@ bool UdpChannel::Send(const ByteView buffer)
         return false;
     }
 
+    if (buffer.size() > kUdpMaxPayloadBytes)
+    {
+        impl_->lastError = "UDP payload exceeds maximum datagram size";
+        return false;
+    }
+
+    if (buffer.size() > static_cast<std::size_t>((std::numeric_limits<int>::max)()))
+    {
+        impl_->lastError = "UDP payload exceeds the platform send limit";
+        return false;
+    }
+
+    const int payloadSize = static_cast<int>(buffer.size());
+
     const int sentBytes = sendto(impl_->socketHandle,
                                  reinterpret_cast<const char*>(buffer.data()),
-                                 static_cast<int>(buffer.size()),
+                                 payloadSize,
                                  0,
                                  reinterpret_cast<const sockaddr*>(&impl_->remoteAddress),
                                  sizeof(impl_->remoteAddress));
@@ -190,7 +205,7 @@ bool UdpChannel::Send(const ByteView buffer)
         return false;
     }
 
-    if (sentBytes != static_cast<int>(buffer.size()))
+    if (sentBytes != payloadSize)
     {
         impl_->lastError = "UDP payload was partially sent";
         return false;
