@@ -184,6 +184,7 @@ Editor page-preview essentials:
 - `Rename page globally...` safely rewrites one shared page asset plus every scanned-window `defaultPage` reference found under the current asset root, including staged `_Exec` trees when those are the files you opened
 - `Reticle > Rename selected library reticle globally...` safely rewrites one shared reticle template plus every scanned-page `template` and page-strobe template reference found under the current asset root, with an optional template-file move and automatic relative image-path rewrite
 - `View > Highlight reticle usages` stays off by default, then highlights both current-page instances and page-tree entries using the selected library reticle without rewriting authored JSON assets
+- `View > Layer Inspector` stays off by default, then lets the page preview focus one existing editor layer while dimming the others and leaving the JSON schema unchanged
 - right-click lists every hovered reticle, then exposes per-reticle clipping submenus so overlapping reticles stay reachable
 - `Undo` restores one whole paste, cut, delete, or drag gesture at a time
 - a small `?` button is shown at the top-left of the page preview and reticle studio, with the current zoom and mouse `X/Y` displayed next to it

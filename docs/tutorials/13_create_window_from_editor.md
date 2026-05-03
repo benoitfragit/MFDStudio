@@ -12,6 +12,7 @@ You will learn how to:
 - rename one shared page asset safely across windows
 - rename one shared reticle template safely across pages
 - highlight the pages using one selected shared reticle template
+- focus one page layer without changing authored JSON
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
@@ -264,6 +265,28 @@ The editor then:
 
 If no page currently uses the selected template, the preview shows one discreet
 message instead of forcing any selection change or JSON rewrite.
+
+## Step 15 - Use Layer Focus Mode
+
+The page-preview **Layer Inspector** is optional and starts disabled by
+default.
+
+When you enable **View > Layer Inspector**:
+
+1. the preview shows a vertical strip with **Full View** plus the current
+   editor layers
+2. click **Full View** to keep the normal selection behavior
+3. click one layer to focus it
+
+In focus mode:
+
+- only reticles assigned to the active layer stay selectable and editable
+- other visible layers stay rendered, but with a dimmed appearance
+- `Esc` exits the focus layer first, then falls back to the normal selection
+  clear shortcut
+
+This workflow reuses the existing editor-only layer metadata. It does not add
+or document any new runtime JSON layer schema.
 
 ## Undo behavior
 

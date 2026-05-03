@@ -27,6 +27,7 @@ first, then come back here for the design detail behind those rules.
 | [Generated Transport Map Specification](./generated_transport_map.md) | you need the stable rules mapping authored names to runtime transport IDs |
 | [Editor Asset Reference Index](./editor_asset_reference_index.md) | you are changing editor workflows that need one shared source of truth for `window -> page -> reticle -> asset` dependencies |
 | [Editor Page Import Workflow](./editor_page_import_workflow.md) | you are changing how external page JSON assets and reticle dependencies are planned, staged, or persisted inside `mfd_editor` |
+| [Editor Layer Focus Mode](./editor_layer_focus_mode.md) | you are changing how the page preview temporarily focuses one editor layer without introducing a new runtime layer schema |
 | [Editor Page Rename Workflow](./editor_page_rename_workflow.md) | you are changing how shared page assets are renamed safely across source window JSON files |
 | [Editor Reticle Rename Workflow](./editor_reticle_rename_workflow.md) | you are changing how shared reticle templates are renamed safely across source page JSON files |
 | [Editor Reticle Usage Highlight Workflow](./editor_reticle_usage_highlight.md) | you are changing how the page preview highlights the pages and instances using the selected library reticle |

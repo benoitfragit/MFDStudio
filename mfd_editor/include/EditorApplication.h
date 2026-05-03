@@ -22,6 +22,7 @@
 #include <raylib.h>
 
 #include "EditorDocumentSerializer.h"
+#include "LayerFocusController.h"
 #include "PageImportService.h"
 #include "PageManagementService.h"
 #include "PageRenameService.h"
@@ -358,6 +359,18 @@ private:
     const editor::ReticleUsageHighlightResult* ResolveReticleUsageHighlight();
     /** @brief Invalidates every cached reticle-usage highlight derived from the asset graph. */
     void InvalidateReticleUsageHighlightCache() noexcept;
+    /** @brief Clears the current layer focus and optionally reports it in the status bar. */
+    void ClearLayerFocus(bool announceStatus);
+    /** @brief Clears invalid layer-focus ids after page or layer changes. */
+    void SanitizeLayerFocusForActivePage();
+    /** @brief Drops any page-reticle selection that no longer stays editable in focus mode. */
+    void SanitizePageReticleSelectionForCurrentFocus();
+    /** @brief Returns whether one page reticle is currently editable under layer focus. */
+    bool IsPageReticleSelectableInCurrentFocus(const mfd::PageDefinition& page, const mfd::ReticleGroup& reticle) const;
+    /** @brief Returns whether one page reticle should stay visible but dimmed under layer focus. */
+    bool ShouldDimPageReticleInCurrentFocus(const mfd::PageDefinition& page, const mfd::ReticleGroup& reticle) const;
+    /** @brief Returns the editor layer id used for new page-reticle insertions. */
+    std::string ActiveInsertionLayerId(const mfd::PageDefinition& page) const;
     /** @brief Handles drag interactions in the page preview. */
     void HandlePreviewInteraction(const ViewportState& viewport);
     /** @brief Draws the page-preview context menu for reticle-specific actions. */
@@ -610,6 +623,8 @@ private:
     editor::PageRenameService pageRenameService_ {};
     /** @brief Stateless service owning the global reticle-template rename planning logic. */
     editor::ReticleRenameService reticleRenameService_ {};
+    /** @brief Stateless controller owning page-preview layer-focus decisions. */
+    editor::LayerFocusController layerFocusController_ {};
     /** @brief Stateless service computing page highlights for the selected reticle template. */
     editor::ReticleUsageHighlightService reticleUsageHighlightService_ {};
     /** @brief Cached highlight result reused while the document and selected template stay unchanged. */
@@ -677,6 +692,8 @@ private:
     bool libraryStudioShowGizmos_ = true;
     /** @brief Session-scoped display preferences for the page preview panel. */
     editor::PagePreviewViewOptions pagePreviewViewOptions_ {};
+    /** @brief Editor-only layer-focus state used by the page-preview inspector strip. */
+    editor::LayerFocusState layerFocusState_ {};
     /** @brief Editor-only page preview camera independent from the authored page view. */
     mfd::PageViewState pagePreviewView_ {};
     /** @brief Editor-only reticle-studio preview camera. */

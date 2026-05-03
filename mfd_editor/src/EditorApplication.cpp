@@ -1666,6 +1666,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
 
         ApplyPreviewFontFile(loaded_.window.fontFile);
         selection_ = {};
+        layerFocusState_ = {};
         SelectPage(DefaultPageIndex(loaded_.document.pages));
         ResetLibraryPreviewView();
         undoStack_.clear();
@@ -1724,6 +1725,8 @@ void EditorApplication::Undo()
         SelectPage(loaded_.document.pages.empty() ? 0 : static_cast<int>(loaded_.document.pages.size()) - 1);
     }
 
+    SanitizeLayerFocusForActivePage();
+    SanitizePageReticleSelectionForCurrentFocus();
     RebuildStatus("Undo applied.", false);
     InvalidateReticleUsageHighlightCache();
 }
@@ -1787,12 +1790,20 @@ void EditorApplication::HandleShortcuts()
 
     if (!io.WantTextInput &&
         !ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId) &&
-        ImGui::IsKeyPressed(ImGuiKey_Escape) &&
-        selection_.kind == SelectionKind::PageReticle &&
-        !SelectedPageReticleIndices().empty())
+        ImGui::IsKeyPressed(ImGuiKey_Escape))
     {
-        SelectPage(selection_.pageIndex);
-        RebuildStatus("Page reticle selection cleared.", false);
+        if (const mfd::PageDefinition* page = ActivePage();
+            page != nullptr && layerFocusController_.IsFocusActive(*page, layerFocusState_))
+        {
+            ClearLayerFocus(true);
+            return;
+        }
+
+        if (selection_.kind == SelectionKind::PageReticle && !SelectedPageReticleIndices().empty())
+        {
+            SelectPage(selection_.pageIndex);
+            RebuildStatus("Page reticle selection cleared.", false);
+        }
     }
 }
 
@@ -2208,6 +2219,39 @@ bool EditorApplication::ExecutePageDeletePlan(const editor::PageDeletePlan& plan
     }
 
     return true;
+}
+
+mfd::ColorRgba ScaleAlpha(const mfd::ColorRgba color, const float factor)
+{
+    const float clampedFactor = std::clamp(factor, 0.0f, 1.0f);
+    return mfd::ColorRgba {
+        color.r,
+        color.g,
+        color.b,
+        static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::lround(static_cast<float>(color.a) * clampedFactor)),
+                                             0,
+                                             255))};
+}
+
+mfd::ReticleGroup MakeDimmedReticlePreviewCopy(const mfd::ReticleGroup& source, const float alphaFactor)
+{
+    mfd::ReticleGroup copy = source;
+    if (copy.overrides.color.has_value())
+    {
+        copy.overrides.color = ScaleAlpha(*copy.overrides.color, alphaFactor);
+    }
+    if (copy.overrides.fillColor.has_value())
+    {
+        copy.overrides.fillColor = ScaleAlpha(*copy.overrides.fillColor, alphaFactor);
+    }
+
+    for (mfd::Primitive& primitive : copy.primitives)
+    {
+        primitive.style.color = ScaleAlpha(primitive.style.color, alphaFactor);
+        primitive.style.fillColor = ScaleAlpha(primitive.style.fillColor, alphaFactor);
+    }
+
+    return copy;
 }
 
 void EditorApplication::DeleteSelectedLibraryReticle()
@@ -2936,6 +2980,7 @@ void EditorApplication::DrawPageTree()
             for (int reticleIndex = 0; reticleIndex < static_cast<int>(page.staticReticles.size()); ++reticleIndex)
             {
                 const auto& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
+                const bool reticleSelectable = IsPageReticleSelectableInCurrentFocus(page, reticle);
                 ImGuiTreeNodeFlags leafFlags =
                     ImGuiTreeNodeFlags_Leaf |
                     ImGuiTreeNodeFlags_NoTreePushOnOpen |
@@ -2948,12 +2993,13 @@ void EditorApplication::DrawPageTree()
                 const std::string reticleLabel =
                     (reticle.id.empty() ? "reticle" : reticle.id) + "##reticle_" +
                     std::to_string(pageIndex) + "_" + std::to_string(reticleIndex);
+                ImGui::BeginDisabled(!reticleSelectable);
                 ImGui::TreeNodeEx(reticleLabel.c_str(), leafFlags);
                 DrawReticleHoverPreviewTooltip(
                     reticle,
                     std::string("Page reticle: ") + (reticle.id.empty() ? "reticle" : reticle.id),
                     ToRayColor(page.backgroundColor));
-                if (ImGui::IsItemClicked())
+                if (reticleSelectable && ImGui::IsItemClicked())
                 {
                     if (ImGui::GetIO().KeyCtrl)
                     {
@@ -2973,6 +3019,7 @@ void EditorApplication::DrawPageTree()
                                         reticle.editor.layerId.c_str(),
                                         layerVisible ? "" : " hidden");
                 }
+                ImGui::EndDisabled();
             }
 
             ImGui::TreePop();
@@ -3398,7 +3445,14 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
                     continue;
                 }
 
-                canvas.DrawReticle(reticle);
+                if (ShouldDimPageReticleInCurrentFocus(*page, reticle))
+                {
+                    canvas.DrawReticle(MakeDimmedReticlePreviewCopy(reticle, 0.30f));
+                }
+                else
+                {
+                    canvas.DrawReticle(reticle);
+                }
             }
         };
         drawReticlePass(false);
@@ -3406,7 +3460,14 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
 
         if (page->strobe.has_value())
         {
-            canvas.DrawReticle(page->strobe->reticle);
+            if (ShouldDimPageReticleInCurrentFocus(*page, page->strobe->reticle))
+            {
+                canvas.DrawReticle(MakeDimmedReticlePreviewCopy(page->strobe->reticle, 0.30f));
+            }
+            else
+            {
+                canvas.DrawReticle(page->strobe->reticle);
+            }
         }
     }
     EndTextureMode();
@@ -3536,7 +3597,11 @@ void EditorApplication::DrawPagePreviewViewMenuButton(const char* buttonId, cons
 
     if (ImGui::BeginPopup(kPagePreviewDisplayPopupId))
     {
-        ImGui::Checkbox("Layer Inspector", &pagePreviewViewOptions_.showLayerInspector);
+        const bool layerInspectorChanged = ImGui::Checkbox("Layer Inspector", &pagePreviewViewOptions_.showLayerInspector);
+        if (layerInspectorChanged && !pagePreviewViewOptions_.showLayerInspector)
+        {
+            ClearLayerFocus(false);
+        }
         ImGui::Checkbox("Minimap", &pagePreviewViewOptions_.showMinimap);
         ImGui::Checkbox("Problems", &pagePreviewViewOptions_.showProblemsPanel);
         ImGui::Checkbox("Highlight reticle usages", &pagePreviewViewOptions_.highlightReticleUsages);
@@ -3908,58 +3973,70 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
         const ImVec2 tagMin(bounds.min.x + 6.0f, bounds.min.y + 6.0f);
         const ImVec2 tagMax(tagMin.x + textSize.x + 12.0f, tagMin.y + textSize.y + 6.0f);
         const bool selected = HasSelectedPageReticle(selection_.pageIndex, reticleIndex);
+        const bool dimmed = ShouldDimPageReticleInCurrentFocus(page, reticle);
         drawList->AddRectFilled(tagMin,
                                 tagMax,
-                                selected ? IM_COL32(84, 219, 201, 220) : IM_COL32(33, 49, 59, 210),
+                                selected ? IM_COL32(84, 219, 201, 220)
+                                         : (dimmed ? IM_COL32(24, 30, 36, 188) : IM_COL32(33, 49, 59, 210)),
                                 4.0f);
         drawList->AddText(ImVec2(tagMin.x + 6.0f, tagMin.y + 3.0f),
-                          selected ? IM_COL32(12, 20, 26, 255) : IM_COL32(220, 235, 240, 255),
+                          selected ? IM_COL32(12, 20, 26, 255)
+                                   : (dimmed ? IM_COL32(146, 160, 170, 220) : IM_COL32(220, 235, 240, 255)),
                           label.c_str());
     }
 }
 
 void EditorApplication::DrawLayerInspectorStrip(const ViewportState& viewport, const mfd::PageDefinition& page)
 {
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    const float panelWidth = 148.0f;
+    const editor::LayerFocusStripModel model = layerFocusController_.BuildStripModel(page, layerFocusState_);
+    const float panelWidth = 164.0f;
     const ImVec2 panelMin(viewport.origin.x + 12.0f, viewport.origin.y + 48.0f);
-    const ImVec2 panelMax(panelMin.x + panelWidth, viewport.origin.y + viewport.size.y - 12.0f);
-    if (panelMax.y <= panelMin.y + 36.0f)
+    const ImVec2 panelSize(panelWidth, viewport.size.y - 60.0f);
+    if (panelSize.x <= 24.0f || panelSize.y <= 36.0f)
     {
         return;
     }
 
-    drawList->AddRectFilled(panelMin, panelMax, IM_COL32(7, 15, 23, 216), 8.0f);
-    drawList->AddRect(panelMin, panelMax, IM_COL32(68, 118, 152, 220), 8.0f, 0, 1.2f);
-    drawList->AddText(ImVec2(panelMin.x + 10.0f, panelMin.y + 8.0f),
-                      IM_COL32(216, 233, 246, 255),
-                      "Layer Inspector");
-
-    const float lineHeight = ImGui::GetTextLineHeightWithSpacing();
-    float currentY = panelMin.y + 32.0f;
-    const auto drawEntry = [&](const std::string& label, const ImU32 fillColor, const ImU32 textColor)
+    ImGui::SetCursorScreenPos(panelMin);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(7, 15, 23, 216));
+    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(68, 118, 152, 220));
+    ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(32, 60, 74, 220));
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(48, 88, 108, 220));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, IM_COL32(84, 219, 201, 120));
+    if (ImGui::BeginChild("PageLayerInspectorStrip", panelSize, true))
     {
-        const ImVec2 entryMin(panelMin.x + 8.0f, currentY);
-        const ImVec2 entryMax(panelMax.x - 8.0f, currentY + lineHeight + 4.0f);
-        drawList->AddRectFilled(entryMin, entryMax, fillColor, 5.0f);
-        drawList->AddText(ImVec2(entryMin.x + 8.0f, entryMin.y + 3.0f), textColor, label.c_str());
-        currentY += lineHeight + 8.0f;
-    };
+        ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
+        ImGui::TextDisabled("Focus one layer without changing JSON.");
+        ImGui::Separator();
 
-    drawEntry("Full View", IM_COL32(84, 219, 201, 64), IM_COL32(216, 233, 246, 255));
-    for (const auto& layer : page.editor.layers)
-    {
-        drawEntry(layer.id + (layer.visible ? "" : " (hidden)"),
-                  layer.visible ? IM_COL32(24, 46, 61, 180) : IM_COL32(48, 28, 28, 180),
-                  IM_COL32(216, 233, 246, 255));
+        for (const editor::LayerFocusStripEntry& entry : model.entries)
+        {
+            const bool pressed = ImGui::Selectable(entry.label.c_str(), entry.selected, ImGuiSelectableFlags_SpanAvailWidth);
+            if (pressed)
+            {
+                if (entry.fullView)
+                {
+                    ClearLayerFocus(true);
+                }
+                else
+                {
+                    layerFocusState_ = layerFocusController_.MakeFocusedState(page, entry.layerId);
+                    SanitizePageReticleSelectionForCurrentFocus();
+                    RebuildStatus("Layer focus set to '" + entry.layerId + "' on page '" + page.name + "'.", false);
+                }
+            }
+
+            if (!entry.fullView && !entry.visible)
+            {
+                ShowItemTooltip("This editor layer is currently hidden in the preview.");
+            }
+        }
     }
-
-    if (page.editor.layers.empty())
-    {
-        drawList->AddText(ImVec2(panelMin.x + 10.0f, currentY + 4.0f),
-                          IM_COL32(170, 186, 198, 255),
-                          "No editor layers yet.");
-    }
+    ImGui::EndChild();
+    ImGui::PopStyleColor(5);
+    ImGui::PopStyleVar(2);
 }
 
 void EditorApplication::DrawProblemsPanel(const ViewportState& viewport)
@@ -4142,6 +4219,92 @@ void EditorApplication::InvalidateReticleUsageHighlightCache() noexcept
     reticleUsageHighlightCache_.dirty = true;
 }
 
+void EditorApplication::ClearLayerFocus(const bool announceStatus)
+{
+    if (layerFocusState_.focusedLayerId.empty())
+    {
+        return;
+    }
+
+    layerFocusState_.focusedLayerId.clear();
+    SanitizePageReticleSelectionForCurrentFocus();
+    if (announceStatus)
+    {
+        if (const mfd::PageDefinition* page = ActivePage(); page != nullptr)
+        {
+            RebuildStatus("Layer focus cleared on page '" + page->name + "'.", false);
+        }
+        else
+        {
+            RebuildStatus("Layer focus cleared.", false);
+        }
+    }
+}
+
+void EditorApplication::SanitizeLayerFocusForActivePage()
+{
+    if (const mfd::PageDefinition* page = ActivePage(); page != nullptr)
+    {
+        layerFocusController_.SanitizeFocusState(*page, layerFocusState_);
+    }
+    else
+    {
+        layerFocusState_ = {};
+    }
+}
+
+void EditorApplication::SanitizePageReticleSelectionForCurrentFocus()
+{
+    if (selection_.kind != SelectionKind::PageReticle)
+    {
+        return;
+    }
+
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr || selection_.pageIndex < 0 || selection_.pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    {
+        selection_.pageReticleIndex = -1;
+        selection_.pageReticleIndices.clear();
+        return;
+    }
+
+    const std::vector<int> filtered =
+        layerFocusController_.FilterSelectableReticleIndices(*page, selection_.pageReticleIndices, layerFocusState_);
+    if (filtered.empty())
+    {
+        SelectPage(selection_.pageIndex);
+        return;
+    }
+
+    selection_.pageReticleIndices = filtered;
+    if (std::find(filtered.begin(), filtered.end(), selection_.pageReticleIndex) == filtered.end())
+    {
+        selection_.pageReticleIndex = filtered.back();
+    }
+}
+
+bool EditorApplication::IsPageReticleSelectableInCurrentFocus(const mfd::PageDefinition& page,
+                                                              const mfd::ReticleGroup& reticle) const
+{
+    return layerFocusController_.IsReticleSelectable(page, reticle, layerFocusState_);
+}
+
+bool EditorApplication::ShouldDimPageReticleInCurrentFocus(const mfd::PageDefinition& page,
+                                                           const mfd::ReticleGroup& reticle) const
+{
+    return layerFocusController_.ShouldReticleBeDimmed(page, reticle, layerFocusState_);
+}
+
+std::string EditorApplication::ActiveInsertionLayerId(const mfd::PageDefinition& page) const
+{
+    if (layerFocusController_.IsFocusActive(page, layerFocusState_))
+    {
+        return layerFocusState_.focusedLayerId;
+    }
+
+    return DefaultEditorLayerId(page);
+}
+
 void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page)
 {
     const std::vector<int> selectedIndices = SelectedPageReticleIndices();
@@ -4277,8 +4440,12 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(pagePreviewView_.zoom), mouseLogical);
     const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
     const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
+    const ImVec2 layerInspectorMin(viewport.origin.x + 12.0f, viewport.origin.y + 48.0f);
+    const ImVec2 layerInspectorMax(layerInspectorMin.x + 164.0f, viewport.origin.y + viewport.size.y - 12.0f);
+    const bool mouseInsideLayerInspector =
+        pagePreviewViewOptions_.showLayerInspector && IsPointInsideRect(mouse, layerInspectorMin, layerInspectorMax);
     const bool helpPopupOpen = ImGui::IsPopupOpen(kPagePreviewHelpPopupId);
-    if (!mouseInsideViewport || mouseInsideToolbar || helpPopupOpen)
+    if (!mouseInsideViewport || mouseInsideToolbar || mouseInsideLayerInspector || helpPopupOpen)
     {
         const bool interactionButtonReleased =
             interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
@@ -5374,12 +5541,18 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
 
 void EditorApplication::SelectPage(const int pageIndex)
 {
+    const int previousPageIndex = selection_.pageIndex;
     selection_.kind = SelectionKind::Page;
     selection_.pageIndex = std::clamp(pageIndex, 0, std::max(0, static_cast<int>(loaded_.document.pages.size()) - 1));
+    if (selection_.pageIndex != previousPageIndex)
+    {
+        layerFocusState_ = {};
+    }
     if (mfd::PageDefinition* page = ActivePage(); page != nullptr)
     {
         BootstrapEditorLayersForPage(*page);
     }
+    SanitizeLayerFocusForActivePage();
     selection_.pageReticleIndex = -1;
     selection_.pageReticleIndices.clear();
     interactionMode_ = InteractionMode::None;
@@ -5394,6 +5567,18 @@ void EditorApplication::SelectPage(const int pageIndex)
 
 void EditorApplication::SelectPageReticle(const int pageIndex, const int reticleIndex)
 {
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    {
+        return;
+    }
+
+    mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
+    if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page.staticReticles.size()) ||
+        !IsPageReticleSelectableInCurrentFocus(page, page.staticReticles[static_cast<std::size_t>(reticleIndex)]))
+    {
+        return;
+    }
+
     selection_.kind = SelectionKind::PageReticle;
     selection_.pageIndex = pageIndex;
     selection_.pageReticleIndex = reticleIndex;
@@ -5409,6 +5594,18 @@ void EditorApplication::SelectPageReticle(const int pageIndex, const int reticle
 
 void EditorApplication::TogglePageReticleSelection(const int pageIndex, const int reticleIndex)
 {
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    {
+        return;
+    }
+
+    mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
+    if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page.staticReticles.size()) ||
+        !IsPageReticleSelectableInCurrentFocus(page, page.staticReticles[static_cast<std::size_t>(reticleIndex)]))
+    {
+        return;
+    }
+
     if (selection_.kind != SelectionKind::PageReticle || selection_.pageIndex != pageIndex)
     {
         SelectPageReticle(pageIndex, reticleIndex);
@@ -5686,7 +5883,11 @@ void EditorApplication::PasteCopiedPageReticles()
         pastedReticle.transform.position.y = std::clamp(pastedReticle.transform.position.y - offset, -1.0f, 1.0f);
         if (!pastedReticle.editor.layerId.empty() && FindEditorLayer(*page, pastedReticle.editor.layerId) == nullptr)
         {
-            pastedReticle.editor.layerId = DefaultEditorLayerId(*page);
+            pastedReticle.editor.layerId = ActiveInsertionLayerId(*page);
+        }
+        else if (pastedReticle.editor.layerId.empty())
+        {
+            pastedReticle.editor.layerId = ActiveInsertionLayerId(*page);
         }
 
         page->staticReticles.push_back(std::move(pastedReticle));
@@ -5697,6 +5898,7 @@ void EditorApplication::PasteCopiedPageReticles()
     selection_.kind = SelectionKind::PageReticle;
     selection_.pageReticleIndices = pastedIndices;
     selection_.pageReticleIndex = pastedIndices.empty() ? -1 : pastedIndices.back();
+    SanitizePageReticleSelectionForCurrentFocus();
 
     if (pastedIndices.size() == 1U)
     {
@@ -6324,7 +6526,7 @@ std::vector<int> EditorApplication::CollectPageReticlesAt(const ViewportState& v
     for (int reticleIndex = 0; reticleIndex < static_cast<int>(page->staticReticles.size()); ++reticleIndex)
     {
         const auto& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
-        if (!IsReticleVisibleInEditor(*page, reticle))
+        if (!IsReticleVisibleInEditor(*page, reticle) || !IsPageReticleSelectableInCurrentFocus(*page, reticle))
         {
             continue;
         }
@@ -8076,7 +8278,7 @@ bool EditorApplication::CreatePageReticleInstanceFromTemplate(const std::string_
         mfd::Transform2D {position, 0.0f, {1.0f, 1.0f}},
         {});
     instance.visible = true;
-    instance.editor.layerId = DefaultEditorLayerId(*page);
+    instance.editor.layerId = ActiveInsertionLayerId(*page);
 
     const LogicalBounds localBounds = ComputeReticleLocalBounds(instance);
     if (localBounds.valid)
@@ -8691,6 +8893,7 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
         {
             PushUndoSnapshot();
             layer.visible = visible;
+            SanitizePageReticleSelectionForCurrentFocus();
             if (tutorial_->MatchesTarget("inspector_layer_visibility") &&
                 layer.id == tutorial_->FocusLayerId() &&
                 !layer.visible)
@@ -8742,6 +8945,11 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
                 const std::string previousId = layer.id;
                 layer.id = nextId;
                 RenameEditorLayerReferences(page, previousId, layer.id);
+                if (layerFocusState_.focusedLayerId == previousId)
+                {
+                    layerFocusState_.focusedLayerId = layer.id;
+                }
+                SanitizePageReticleSelectionForCurrentFocus();
             }
         }
 
@@ -8753,6 +8961,8 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             PushUndoSnapshot();
             ClearEditorLayerReferences(page, removedLayerId);
             page.editor.layers.erase(page.editor.layers.begin() + static_cast<std::ptrdiff_t>(index));
+            SanitizeLayerFocusForActivePage();
+            SanitizePageReticleSelectionForCurrentFocus();
 
             std::string status = "Editor layer '" + removedLayerId + "' removed from page '" + page.name + "'.";
             if (clearedReticles > 0U)
