@@ -4,24 +4,24 @@
 if(MFD_BUILD_DEMO)
     set(MFD_EDITOR_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/AssetReferenceIndexService.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetReferenceIndexService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationPluginLoader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/LayerFocusController.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/PageManagementService.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/PageImportService.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/PageRenameService.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ReticleExtractionService.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ReticleRenameService.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/ReticleUsageHighlightService.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorLayerFocusController.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageManagementService.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageImportService.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageRenameService.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorReticleExtractionService.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorReticleRenameService.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorReticleUsageHighlightService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialController.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialData.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorUiTheme.cpp)
 
     set(MFD_EDITOR_HEADERS
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/AssetReferenceIndexService.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAssetReferenceIndexService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorApplication.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationBridge.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationDocumentUtils.h
@@ -30,14 +30,14 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationTypes.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/LayerFocusController.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/PageManagementService.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/PageImportService.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/PageRenameService.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/ReticleExtractionService.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/ReticleRenameService.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/PagePreviewViewOptions.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/ReticleUsageHighlightService.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLayerFocusController.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageManagementService.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageImportService.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageRenameService.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleExtractionService.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleRenameService.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPagePreviewViewOptions.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleUsageHighlightService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h)

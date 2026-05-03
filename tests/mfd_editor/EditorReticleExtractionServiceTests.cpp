@@ -9,7 +9,7 @@
  * @brief Unit tests covering the page-reticle extraction service.
  */
 
-#include "ReticleExtractionService.h"
+#include "EditorReticleExtractionService.h"
 
 #include <chrono>
 #include <filesystem>

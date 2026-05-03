@@ -9,7 +9,7 @@
  * @brief Unit tests covering the page-preview layer-focus controller.
  */
 
-#include "LayerFocusController.h"
+#include "EditorLayerFocusController.h"
 
 #include <gtest/gtest.h>
 

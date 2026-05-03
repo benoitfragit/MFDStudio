@@ -3,7 +3,7 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
-#include "ReticleRenameService.h"
+#include "EditorReticleRenameService.h"
 
 /**
  * @file

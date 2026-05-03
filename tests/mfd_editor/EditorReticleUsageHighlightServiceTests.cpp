@@ -9,7 +9,7 @@
  * @brief Unit tests covering the editor reticle-template usage highlight service.
  */
 
-#include "ReticleUsageHighlightService.h"
+#include "EditorReticleUsageHighlightService.h"
 
 #include <chrono>
 #include <filesystem>

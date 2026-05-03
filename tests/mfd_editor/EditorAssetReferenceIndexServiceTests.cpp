@@ -9,7 +9,7 @@
  * @brief Unit tests covering the editor asset reference index service.
  */
 
-#include "AssetReferenceIndexService.h"
+#include "EditorAssetReferenceIndexService.h"
 
 #include <chrono>
 #include <filesystem>

@@ -3,7 +3,7 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
-#include "PageImportService.h"
+#include "EditorPageImportService.h"
 
 /**
  * @file

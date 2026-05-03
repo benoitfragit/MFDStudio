@@ -9,7 +9,7 @@
  * @brief Unit tests covering the page-management planning service.
  */
 
-#include "PageManagementService.h"
+#include "EditorPageManagementService.h"
 
 #include <chrono>
 #include <filesystem>

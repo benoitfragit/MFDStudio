@@ -9,7 +9,7 @@
  * @brief Unit tests covering the page-import planning service.
  */
 
-#include "PageImportService.h"
+#include "EditorPageImportService.h"
 
 #include <chrono>
 #include <filesystem>

@@ -20,7 +20,7 @@
 
 #include "EditorAutomationBridge.h"
 #include "EditorAutomationDocumentUtils.h"
-#include "PageManagementService.h"
+#include "EditorPageManagementService.h"
 
 namespace editor
 {

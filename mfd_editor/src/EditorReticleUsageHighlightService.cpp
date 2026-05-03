@@ -3,7 +3,7 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
-#include "ReticleUsageHighlightService.h"
+#include "EditorReticleUsageHighlightService.h"
 
 /**
  * @file

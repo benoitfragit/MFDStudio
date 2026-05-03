@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "EditorDocumentSerializer.h"
-#include "PagePreviewViewOptions.h"
+#include "EditorPagePreviewViewOptions.h"
 #include "mfd/io/JsonLoader.h"
 
 namespace editor::automation

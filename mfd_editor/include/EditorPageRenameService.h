@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include "AssetReferenceIndexService.h"
+#include "EditorAssetReferenceIndexService.h"
 #include "EditorDocumentSerializer.h"
 #include "mfd/io/JsonLoader.h"
 

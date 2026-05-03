@@ -3,7 +3,7 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
-#include "PageManagementService.h"
+#include "EditorPageManagementService.h"
 
 /**
  * @file

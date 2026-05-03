@@ -23,18 +23,18 @@ function(mfd_add_editor_test_plugin target output_name source_file)
 endfunction()
 
 set(MFD_EDITOR_TEST_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/AssetReferenceIndexServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetReferenceIndexServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationPluginLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationTestUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/LayerFocusControllerTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/PageManagementServiceTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/PageImportServiceTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/PageRenameServiceTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/ReticleExtractionServiceTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/ReticleUsageHighlightServiceTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/ReticleRenameServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorLayerFocusControllerTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageManagementServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageImportServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageRenameServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleExtractionServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleUsageHighlightServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleRenameServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp)
 
@@ -117,32 +117,32 @@ target_include_directories(mfd_editor_tests
 
 target_sources(mfd_editor_tests
     PRIVATE
-        ${MFD_ROOT_DIR}/mfd_editor/include/AssetReferenceIndexService.h
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorAssetReferenceIndexService.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationBridge.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationDocumentUtils.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationPluginLoader.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationServices.h
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAutomationTypes.h
-        ${MFD_ROOT_DIR}/mfd_editor/src/AssetReferenceIndexService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorAssetReferenceIndexService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationCore.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationDocumentUtils.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationPluginLoader.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
-        ${MFD_ROOT_DIR}/mfd_editor/include/LayerFocusController.h
-        ${MFD_ROOT_DIR}/mfd_editor/src/LayerFocusController.cpp
-        ${MFD_ROOT_DIR}/mfd_editor/include/PageManagementService.h
-        ${MFD_ROOT_DIR}/mfd_editor/src/PageManagementService.cpp
-        ${MFD_ROOT_DIR}/mfd_editor/include/PageImportService.h
-        ${MFD_ROOT_DIR}/mfd_editor/src/PageImportService.cpp
-        ${MFD_ROOT_DIR}/mfd_editor/include/PageRenameService.h
-        ${MFD_ROOT_DIR}/mfd_editor/src/PageRenameService.cpp
-        ${MFD_ROOT_DIR}/mfd_editor/include/ReticleExtractionService.h
-        ${MFD_ROOT_DIR}/mfd_editor/src/ReticleExtractionService.cpp
-        ${MFD_ROOT_DIR}/mfd_editor/include/ReticleRenameService.h
-        ${MFD_ROOT_DIR}/mfd_editor/src/ReticleRenameService.cpp
-        ${MFD_ROOT_DIR}/mfd_editor/include/ReticleUsageHighlightService.h
-        ${MFD_ROOT_DIR}/mfd_editor/src/ReticleUsageHighlightService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorLayerFocusController.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorLayerFocusController.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorPageManagementService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorPageManagementService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorPageImportService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorPageImportService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorPageRenameService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorPageRenameService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorReticleExtractionService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorReticleExtractionService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorReticleRenameService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorReticleRenameService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorReticleUsageHighlightService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorReticleUsageHighlightService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiTheme.cpp)
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)

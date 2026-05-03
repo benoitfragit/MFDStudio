@@ -9,7 +9,7 @@
  * @brief Unit tests covering the global page-rename planning service.
  */
 
-#include "PageRenameService.h"
+#include "EditorPageRenameService.h"
 
 #include <chrono>
 #include <filesystem>

@@ -9,7 +9,7 @@
  * @brief Unit tests covering the global reticle-template rename planning service.
  */
 
-#include "ReticleRenameService.h"
+#include "EditorReticleRenameService.h"
 
 #include <chrono>
 #include <filesystem>
