@@ -10,6 +10,7 @@
  * @brief Editor-only controller used by the page-preview layer-focus workflow.
  */
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -43,6 +44,8 @@ struct LayerFocusStripEntry
     bool selected = false;
     /** @brief Indicates whether the authored editor layer is visible in the page preview. */
     bool visible = true;
+    /** @brief Number of page-reticle instances currently assigned to this layer entry. */
+    std::size_t reticleCount = 0U;
 };
 
 /**

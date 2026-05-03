@@ -185,7 +185,7 @@ Editor page-preview essentials:
 - `Reticle > Rename selected library reticle globally...` safely rewrites one shared reticle template plus every scanned-page `template` and page-strobe template reference found under the current asset root, with an optional template-file move and automatic relative image-path rewrite
 - `View > Highlight reticle usages` stays off by default, then highlights both current-page instances and page-tree entries using the selected library reticle without rewriting authored JSON assets
 - `View > Problems` stays off by default, then opens one full-width dock under the page preview with scrollable validation diagnostics instead of covering the minimap
-- `View > Layer Inspector` stays off by default, then lets the page preview focus one existing editor layer while dimming the others and leaving the JSON schema unchanged
+- `View > Layer Inspector` stays off by default, then opens one docked panel on the left of the page preview with per-layer thumbnails, focus selection, and dimmed non-focused layers without changing the JSON schema
 - `Extract as reticle...` turns one selected contiguous page-reticle block into one reusable library template, rejects unsupported cases up front, and keeps the replacement instance selected until you save the staged JSON asset
 - right-click lists every hovered reticle, then exposes per-reticle clipping submenus so overlapping reticles stay reachable
 - `Undo` restores one whole paste, cut, delete, or drag gesture at a time

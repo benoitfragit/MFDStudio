@@ -51,6 +51,24 @@ TEST(LayerFocusControllerTests, BuildStripModelKeepsSafeFullViewWhenNoLayerExist
     EXPECT_TRUE(model.entries.front().fullView);
     EXPECT_TRUE(model.entries.front().selected);
     EXPECT_EQ(model.entries.front().label, "Full View");
+    EXPECT_EQ(model.entries.front().reticleCount, 0U);
+}
+
+TEST(LayerFocusControllerTests, BuildStripModelReportsReticleCountsPerLayer)
+{
+    const mfd::PageDefinition page = MakeLayeredPage();
+    editor::LayerFocusController controller;
+
+    const editor::LayerFocusStripModel model = controller.BuildStripModel(page, editor::LayerFocusState {});
+
+    ASSERT_EQ(model.entries.size(), 4U);
+    EXPECT_EQ(model.entries[0].reticleCount, 3U);
+    EXPECT_EQ(model.entries[1].layerId, "base");
+    EXPECT_EQ(model.entries[1].reticleCount, 1U);
+    EXPECT_EQ(model.entries[2].layerId, "overlay");
+    EXPECT_EQ(model.entries[2].reticleCount, 1U);
+    EXPECT_EQ(model.entries[3].layerId, "hidden");
+    EXPECT_EQ(model.entries[3].reticleCount, 1U);
 }
 
 TEST(LayerFocusControllerTests, FullViewKeepsAllReticlesSelectable)

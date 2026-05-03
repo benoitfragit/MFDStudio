@@ -364,8 +364,8 @@ private:
     void DrawPagePreviewReticleNames(const ViewportState& viewport, const mfd::PageDefinition& page);
     /** @brief Draws the selection bounds and transform handles for the active page preview. */
     void DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page);
-    /** @brief Draws the layer-inspector strip or its placeholder when enabled. */
-    void DrawLayerInspectorStrip(const ViewportState& viewport, const mfd::PageDefinition& page);
+    /** @brief Draws the docked layer-inspector panel shown next to the page preview. */
+    void DrawLayerInspectorPanel(const mfd::PageDefinition& page);
     /** @brief Draws the docked validation panel shown under the page preview. */
     void DrawProblemsPanel(const std::vector<std::string>& problemMessages);
     /** @brief Draws page and instance highlights for the currently selected reticle template. */
@@ -403,6 +403,8 @@ private:
     void EnsureTooltipPreviewTexture(int width, int height);
     /** @brief Releases the hover-preview texture. */
     void ReleaseTooltipPreviewTexture();
+    /** @brief Releases every cached layer-preview thumbnail texture. */
+    void ReleaseLayerPreviewTextures() noexcept;
     /** @brief Applies the font file declared by the loaded window configuration. */
     void ApplyPreviewFontFile(std::filesystem::path fontFile);
     /** @brief Lazily loads the configured preview font once raylib is ready. */
@@ -493,6 +495,12 @@ private:
     mfd::Primitive* SelectedLibraryPrimitive() noexcept;
     /** @brief Returns the selected primitive when available. */
     const mfd::Primitive* SelectedLibraryPrimitive() const noexcept;
+    /** @brief Renders or refreshes one layer-preview thumbnail texture. */
+    const RenderTexture2D* RenderLayerPreviewThumbnail(std::size_t thumbnailIndex,
+                                                       const mfd::PageDefinition& page,
+                                                       const editor::LayerFocusStripEntry& entry,
+                                                       int width,
+                                                       int height);
     /** @brief Draws a hover tooltip preview for one reticle item inside the tree views. */
     void DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& reticle,
                                         std::string_view label,
@@ -578,6 +586,17 @@ private:
     bool tooltipPreviewTextureReady_ = false;
     /** @brief Indicates whether the hover-preview texture was successfully created with stencil support. */
     bool tooltipPreviewTextureStencilReady_ = false;
+    /** @brief One cached render target reused by one layer-preview thumbnail slot. */
+    struct LayerPreviewTextureSlot
+    {
+        RenderTexture2D texture {};
+        bool ready = false;
+        bool stencilReady = false;
+        int width = 0;
+        int height = 0;
+    };
+    /** @brief Cached layer-preview thumbnail textures shown inside the docked layer inspector. */
+    std::vector<LayerPreviewTextureSlot> layerPreviewTextures_ {};
     /** @brief Font file declared by the current window configuration. */
     std::filesystem::path previewFontFile_ {};
     /** @brief GPU font override used by the preview canvases when available. */

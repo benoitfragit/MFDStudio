@@ -55,6 +55,8 @@ constexpr float kMinInspectorWidth = 280.0f;
 constexpr float kMinWorkspaceWidth = 420.0f;
 constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
+constexpr float kLayerInspectorDockWidth = 248.0f;
+constexpr float kLayerInspectorPreviewHeight = 84.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
 constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
@@ -1559,6 +1561,7 @@ EditorApplication::EditorApplication()
 
 EditorApplication::~EditorApplication()
 {
+    ReleaseLayerPreviewTextures();
     ReleaseTooltipPreviewTexture();
     ReleasePreviewTexture();
     ReleasePreviewFont();
@@ -1642,6 +1645,7 @@ int EditorApplication::Run()
     }
 
     rlImGuiShutdown();
+    ReleaseLayerPreviewTextures();
     ReleaseTooltipPreviewTexture();
     ReleasePreviewTexture();
     ReleasePreviewFont();
@@ -2782,6 +2786,7 @@ void EditorApplication::DrawWorkspace()
 
     const auto drawPagePreviewWorkspace = [this, &pagePreviewProblems](
                                              const char* previewChildId,
+                                             const char* layersChildId,
                                              const char* problemsChildId,
                                              const bool drawPreviewOverlays,
                                              const bool handlePreviewInteraction)
@@ -2791,12 +2796,34 @@ void EditorApplication::DrawWorkspace()
         layoutRequest.width = available.x;
         layoutRequest.height = available.y;
         layoutRequest.spacing = ImGui::GetStyle().ItemSpacing.y;
+        layoutRequest.showLeadingPanel = pagePreviewViewOptions_.showLayerInspector;
+        layoutRequest.leadingPanelWidth = kLayerInspectorDockWidth;
+        layoutRequest.minLeadingPanelWidth = 196.0f;
         layoutRequest.showBottomPanel = pagePreviewViewOptions_.showProblemsPanel;
         layoutRequest.bottomPanelHeight = kPreviewProblemsDockHeight;
         layoutRequest.minBottomPanelHeight = 88.0f;
+        layoutRequest.minCenterWidth = 220.0f;
         layoutRequest.minCenterHeight = 168.0f;
         const editor::WorkspaceLayoutResult layout = editor::ComputeWorkspaceLayout(layoutRequest);
+        const mfd::PageDefinition* activePage = ActivePage();
 
+        if (layout.leadingPanel.IsVisible())
+        {
+            ImGui::BeginChild(layersChildId, ImVec2(layout.leadingPanel.width, layout.leadingPanel.height), true);
+            if (activePage != nullptr)
+            {
+                DrawLayerInspectorPanel(*activePage);
+            }
+            else
+            {
+                ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
+                ImGui::TextDisabled("Open one page to inspect editor layers.");
+            }
+            ImGui::EndChild();
+            ImGui::SameLine();
+        }
+
+        ImGui::BeginGroup();
         if (layout.previewPanel.IsVisible())
         {
             ImGui::BeginChild(previewChildId, ImVec2(layout.previewPanel.width, layout.previewPanel.height), true);
@@ -2806,7 +2833,6 @@ void EditorApplication::DrawWorkspace()
             pageViewport.size = ImGui::GetContentRegionAvail();
             pageViewport.valid = pageViewport.size.x > 8.0f && pageViewport.size.y > 8.0f;
 
-            const mfd::PageDefinition* activePage = ActivePage();
             if (activePage != nullptr)
             {
                 pageViewport.view = pagePreviewView_;
@@ -2839,6 +2865,7 @@ void EditorApplication::DrawWorkspace()
             DrawProblemsPanel(pagePreviewProblems);
             ImGui::EndChild();
         }
+        ImGui::EndGroup();
     };
 
     if (libraryStudioVisible)
@@ -2908,11 +2935,11 @@ void EditorApplication::DrawWorkspace()
         ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
         ImGui::Separator();
 
-        drawPagePreviewWorkspace(
-            "PageContextPreviewPanel",
-            "PageContextProblemsPanel",
-            selection_.kind == SelectionKind::PageReticle,
-            selection_.kind == SelectionKind::PageReticle);
+        drawPagePreviewWorkspace("PageContextPreviewPanel",
+                                 "PageContextLayersPanel",
+                                 "PageContextProblemsPanel",
+                                 selection_.kind == SelectionKind::PageReticle,
+                                 selection_.kind == SelectionKind::PageReticle);
         ImGui::EndChild();
 
         ImGui::SameLine();
@@ -2934,7 +2961,8 @@ void EditorApplication::DrawWorkspace()
     ImGui::TextDisabled("Use View to toggle preview-only overlays without touching authored JSON assets.");
     ImGui::Separator();
 
-    drawPagePreviewWorkspace("MainPagePreviewPanel", "MainPageProblemsPanel", true, true);
+    drawPagePreviewWorkspace(
+        "MainPagePreviewPanel", "MainPageLayersPanel", "MainPageProblemsPanel", true, true);
 }
 
 void EditorApplication::DrawEmptyWorkspacePlaceholder()
@@ -3420,6 +3448,125 @@ void EditorApplication::ReleaseTooltipPreviewTexture()
     tooltipPreviewTextureStencilReady_ = false;
 }
 
+void EditorApplication::ReleaseLayerPreviewTextures() noexcept
+{
+    for (LayerPreviewTextureSlot& slot : layerPreviewTextures_)
+    {
+        if (slot.ready)
+        {
+            UnloadRenderTexture(slot.texture);
+            slot.texture = {};
+        }
+
+        slot.ready = false;
+        slot.stencilReady = false;
+        slot.width = 0;
+        slot.height = 0;
+    }
+
+    layerPreviewTextures_.clear();
+}
+
+const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std::size_t thumbnailIndex,
+                                                                      const mfd::PageDefinition& page,
+                                                                      const editor::LayerFocusStripEntry& entry,
+                                                                      int width,
+                                                                      int height)
+{
+    width = std::max(width, 1);
+    height = std::max(height, 1);
+
+    if (thumbnailIndex >= layerPreviewTextures_.size())
+    {
+        layerPreviewTextures_.resize(thumbnailIndex + 1U);
+    }
+
+    LayerPreviewTextureSlot& slot = layerPreviewTextures_[thumbnailIndex];
+    if (!slot.ready || slot.width != width || slot.height != height)
+    {
+        if (slot.ready)
+        {
+            UnloadRenderTexture(slot.texture);
+            slot.texture = {};
+            slot.ready = false;
+        }
+
+        slot.stencilReady = false;
+        slot.texture = mfd::LoadRenderTextureWithStencil(width, height, &slot.stencilReady);
+        slot.ready = slot.texture.texture.id != 0;
+        slot.width = width;
+        slot.height = height;
+    }
+
+    if (!slot.ready)
+    {
+        return nullptr;
+    }
+
+    LogicalBounds bounds;
+    auto includeReticleBounds = [&](const mfd::ReticleGroup& reticle)
+    {
+        IncludeLogicalBounds(bounds, ComputeReticleWorldBounds(reticle));
+    };
+
+    auto isEntryMatch = [&](const mfd::ReticleGroup& reticle) -> bool
+    {
+        if (entry.fullView)
+        {
+            return IsReticleVisibleInEditor(page, reticle);
+        }
+
+        return reticle.editor.layerId == entry.layerId;
+    };
+
+    for (const mfd::ReticleGroup& reticle : page.staticReticles)
+    {
+        if (isEntryMatch(reticle))
+        {
+            includeReticleBounds(reticle);
+        }
+    }
+
+    mfd::PageViewState previewView = bounds.valid ? MakeViewFittingBounds(bounds, width, height) : mfd::PageViewState {};
+    previewView.zoom = mfd::SanitizeZoom(previewView.zoom);
+    const Color background = ToRayColor(page.backgroundColor);
+    const bool drawDimmedLayer = !entry.fullView && !entry.visible;
+
+    BeginTextureMode(slot.texture);
+    ClearBackground(background);
+    {
+        EnsurePreviewFont();
+        ApplyBilinearFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        mfd::Canvas2D canvas(width,
+                             height,
+                             previewView,
+                             PreviewTextFont(),
+                             background,
+                             slot.stencilReady,
+                             &previewImageCache_);
+
+        for (const mfd::ReticleGroup& reticle : page.staticReticles)
+        {
+            if (!isEntryMatch(reticle))
+            {
+                continue;
+            }
+
+            if (drawDimmedLayer)
+            {
+                canvas.DrawReticle(MakeDimmedReticlePreviewCopy(reticle, 0.38f));
+            }
+            else
+            {
+                canvas.DrawReticle(reticle);
+            }
+        }
+    }
+    EndTextureMode();
+
+    return &slot.texture;
+}
+
 void EditorApplication::ApplyPreviewFontFile(std::filesystem::path fontFile)
 {
     if (!fontFile.empty())
@@ -3713,6 +3860,7 @@ void EditorApplication::DrawPagePreviewViewMenuButton(const char* buttonId, cons
         if (layerInspectorChanged && !pagePreviewViewOptions_.showLayerInspector)
         {
             ClearLayerFocus(false);
+            ReleaseLayerPreviewTextures();
         }
         ImGui::Checkbox("Minimap", &pagePreviewViewOptions_.showMinimap);
         ImGui::Checkbox("Problems", &pagePreviewViewOptions_.showProblemsPanel);
@@ -3941,11 +4089,6 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
         DrawPagePreviewReticleNames(viewport, *page);
     }
 
-    if (pagePreviewViewOptions_.showLayerInspector)
-    {
-        DrawLayerInspectorStrip(viewport, *page);
-    }
-
     if (pagePreviewViewOptions_.highlightReticleUsages)
     {
         DrawReticleUsageHighlightPlaceholder(viewport);
@@ -4093,57 +4236,83 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
     }
 }
 
-void EditorApplication::DrawLayerInspectorStrip(const ViewportState& viewport, const mfd::PageDefinition& page)
+void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
 {
     const editor::LayerFocusStripModel model = layerFocusController_.BuildStripModel(page, layerFocusState_);
-    const float panelWidth = 164.0f;
-    const ImVec2 panelMin(viewport.origin.x + 12.0f, viewport.origin.y + 48.0f);
-    const ImVec2 panelSize(panelWidth, viewport.size.y - 60.0f);
-    if (panelSize.x <= 24.0f || panelSize.y <= 36.0f)
-    {
-        return;
-    }
+    ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
+    ImGui::TextDisabled("Focus one layer without changing JSON.");
+    ImGui::Separator();
 
-    ImGui::SetCursorScreenPos(panelMin);
-    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(7, 15, 23, 216));
-    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(68, 118, 152, 220));
-    ImGui::PushStyleColor(ImGuiCol_Header, IM_COL32(32, 60, 74, 220));
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, IM_COL32(48, 88, 108, 220));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, IM_COL32(84, 219, 201, 120));
-    if (ImGui::BeginChild("PageLayerInspectorStrip", panelSize, true))
-    {
-        ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
-        ImGui::TextDisabled("Focus one layer without changing JSON.");
-        ImGui::Separator();
+    const float previewWidth = std::max(72.0f, ImGui::GetContentRegionAvail().x);
+    const int previewWidthPixels = std::max(72, static_cast<int>(std::lround(previewWidth)));
+    const int previewHeightPixels = static_cast<int>(kLayerInspectorPreviewHeight);
 
-        for (const editor::LayerFocusStripEntry& entry : model.entries)
+    for (std::size_t index = 0; index < model.entries.size(); ++index)
+    {
+        const editor::LayerFocusStripEntry& entry = model.entries[index];
+        const bool pressed = ImGui::Selectable(entry.label.c_str(), entry.selected);
+        if (pressed)
         {
-            const bool pressed = ImGui::Selectable(entry.label.c_str(), entry.selected);
-            if (pressed)
+            if (entry.fullView)
             {
-                if (entry.fullView)
-                {
-                    ClearLayerFocus(true);
-                }
-                else
-                {
-                    layerFocusState_ = layerFocusController_.MakeFocusedState(page, entry.layerId);
-                    SanitizePageReticleSelectionForCurrentFocus();
-                    RebuildStatus("Layer focus set to '" + entry.layerId + "' on page '" + page.name + "'.", false);
-                }
+                ClearLayerFocus(true);
             }
-
-            if (!entry.fullView && !entry.visible)
+            else
             {
-                ShowItemTooltip("This editor layer is currently hidden in the preview.");
+                layerFocusState_ = layerFocusController_.MakeFocusedState(page, entry.layerId);
+                SanitizePageReticleSelectionForCurrentFocus();
+                RebuildStatus("Layer focus set to '" + entry.layerId + "' on page '" + page.name + "'.", false);
             }
         }
+
+        const std::string metaLabel =
+            entry.fullView ? std::to_string(entry.reticleCount) + " page reticle(s)"
+                           : std::to_string(entry.reticleCount) + " reticle(s)" +
+                                 (entry.visible ? "" : "  hidden in preview");
+        ImGui::TextDisabled("%s", metaLabel.c_str());
+
+        if (const RenderTexture2D* previewTexture =
+                RenderLayerPreviewThumbnail(index, page, entry, previewWidthPixels, previewHeightPixels);
+            previewTexture != nullptr)
+        {
+            ImGui::Image((ImTextureID)(uintptr_t)previewTexture->texture.id,
+                         ImVec2(previewWidth, kLayerInspectorPreviewHeight),
+                         ImVec2(0.0f, 1.0f),
+                         ImVec2(1.0f, 0.0f));
+        }
+        else
+        {
+            ImGui::Dummy(ImVec2(previewWidth, kLayerInspectorPreviewHeight));
+        }
+
+        if (entry.reticleCount == 0U)
+        {
+            ImGui::TextDisabled("No page reticles currently target this layer.");
+        }
+
+        if (!entry.fullView && !entry.visible)
+        {
+            ShowItemTooltip("This editor layer is currently hidden in the page preview.");
+        }
+
+        if (index + 1U < model.entries.size())
+        {
+            ImGui::Spacing();
+            ImGui::Separator();
+        }
     }
-    ImGui::EndChild();
-    ImGui::PopStyleColor(5);
-    ImGui::PopStyleVar(2);
+
+    if (layerPreviewTextures_.size() > model.entries.size())
+    {
+        for (std::size_t slotIndex = model.entries.size(); slotIndex < layerPreviewTextures_.size(); ++slotIndex)
+        {
+            if (layerPreviewTextures_[slotIndex].ready)
+            {
+                UnloadRenderTexture(layerPreviewTextures_[slotIndex].texture);
+            }
+        }
+        layerPreviewTextures_.resize(model.entries.size());
+    }
 }
 
 void EditorApplication::DrawProblemsPanel(const std::vector<std::string>& problemMessages)
@@ -4539,12 +4708,8 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(pagePreviewView_.zoom), mouseLogical);
     const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
     const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
-    const ImVec2 layerInspectorMin(viewport.origin.x + 12.0f, viewport.origin.y + 48.0f);
-    const ImVec2 layerInspectorMax(layerInspectorMin.x + 164.0f, viewport.origin.y + viewport.size.y - 12.0f);
-    const bool mouseInsideLayerInspector =
-        pagePreviewViewOptions_.showLayerInspector && IsPointInsideRect(mouse, layerInspectorMin, layerInspectorMax);
     const bool helpPopupOpen = ImGui::IsPopupOpen(kPagePreviewHelpPopupId);
-    if (!mouseInsideViewport || mouseInsideToolbar || mouseInsideLayerInspector || helpPopupOpen)
+    if (!mouseInsideViewport || mouseInsideToolbar || helpPopupOpen)
     {
         const bool interactionButtonReleased =
             interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;

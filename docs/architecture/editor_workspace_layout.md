@@ -15,13 +15,17 @@ page content:
 
 ## Current Usage
 
-The first consumer is the page-preview **Problems** panel.
+The helper now drives two page-preview docks:
 
-When `View > Problems` is enabled:
+- the left **Layer Inspector** panel
+- the bottom **Problems** panel
 
-- the panel is docked under the preview instead of overlaying it
-- it spans the full width of the preview column
-- its diagnostic text lives inside one scrollable child region
+When those view options are enabled:
+
+- the layer inspector is docked beside the preview instead of overlaying it
+- the problems panel is docked under the preview instead of overlaying it
+- the problems panel spans the full width of the preview column
+- the diagnostic text lives inside one scrollable child region
 
 This keeps the minimap, reticle handles and preview interactions unobstructed.
 
@@ -52,9 +56,10 @@ unit tests.
 
 - deciding which editor panels are visible for the current mode
 - building validation diagnostics once per frame
+- rendering layer-preview thumbnails inside the leading dock
 - rendering the preview inside the computed `previewPanel`
 - rendering the docked diagnostics panel in the computed `bottomPanel`
 
 Overlay-only features such as gizmos, minimap labels and reticle annotations
 still stay in `DrawPreviewOverlays()`. Only the persistent diagnostics panel
-has moved out of that overlay path.
+and the layer-inspector dock have moved out of that overlay path.

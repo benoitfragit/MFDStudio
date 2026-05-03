@@ -1,6 +1,6 @@
 # Editor Layer Focus Mode
 
-The page-preview `Layer Inspector` strip is an editor-only focusing workflow
+The page-preview `Layer Inspector` dock is an editor-only focusing workflow
 built on top of the existing page editor-layer metadata.
 
 This feature does not add a new runtime layer model, does not change the page
@@ -19,11 +19,13 @@ Layer focus solves that by separating two concerns:
 
 ## Current Behavior
 
-When `View > Layer Inspector` is enabled, the page preview shows a vertical
-strip containing:
+When `View > Layer Inspector` is enabled, the page preview shows one docked
+panel on the left containing:
 
 - `Full View`
 - every existing editor layer in page order
+- one small thumbnail preview per entry
+- one reticle count per entry
 
 Selecting `Full View` restores the normal page-preview behavior.
 
@@ -42,6 +44,7 @@ instead of keeping a dangling id.
 `LayerFocusController` owns the read-only decisions used by the page preview:
 
 - strip entries
+- per-layer reticle counts
 - whether focus is active
 - whether one reticle is still selectable
 - whether one reticle should be dimmed
@@ -54,15 +57,17 @@ its own unit tests.
 
 `EditorApplication` remains responsible for:
 
-- wiring strip clicks to the editor state
-- clearing focus when the strip is hidden
+- wiring dock clicks to the editor state
+- clearing focus when the dock is hidden
 - clearing focus on page changes
 - sanitizing the current page-reticle selection after layer edits
 - rendering dimmed preview copies for non-focused layers
+- rendering and caching the thumbnail previews shown in the dock
+- reserving the left dock width through the shared workspace-layout helper
 
 The result is intentionally conservative:
 
 - full view remains the default
-- hiding the strip does not mutate authored content
+- hiding the dock does not mutate authored content
 - newly inserted page reticles follow the focused layer when focus mode is
   active

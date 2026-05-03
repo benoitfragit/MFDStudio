@@ -278,10 +278,12 @@ default.
 
 When you enable **View > Layer Inspector**:
 
-1. the preview shows a vertical strip with **Full View** plus the current
-   editor layers
-2. click **Full View** to keep the normal selection behavior
-3. click one layer to focus it
+1. the preview shows a docked panel on the left with **Full View** plus the
+   current editor layers
+2. each entry now includes one small thumbnail preview and one reticle count
+3. hidden layers keep a dimmed thumbnail so you can still identify them
+4. click **Full View** to keep the normal selection behavior
+5. click one layer to focus it
 
 In focus mode:
 

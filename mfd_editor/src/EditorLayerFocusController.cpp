@@ -16,6 +16,17 @@ namespace editor
 {
 namespace
 {
+std::size_t CountLayerReticles(const mfd::PageDefinition& page, const std::string_view layerId)
+{
+    return static_cast<std::size_t>(std::count_if(
+        page.staticReticles.begin(),
+        page.staticReticles.end(),
+        [layerId](const mfd::ReticleGroup& reticle)
+        {
+            return reticle.editor.layerId == layerId;
+        }));
+}
+
 const mfd::EditorLayerDefinition* FindLayerById(const mfd::PageDefinition& page, const std::string_view layerId)
 {
     if (layerId.empty())
@@ -50,12 +61,18 @@ LayerFocusStripModel LayerFocusController::BuildStripModel(const mfd::PageDefini
     LayerFocusStripModel model;
     model.focusActive = !sanitized.focusedLayerId.empty();
     model.entries.reserve(page.editor.layers.size() + 1U);
-    model.entries.push_back(LayerFocusStripEntry {{}, "Full View", true, !model.focusActive, true});
+    model.entries.push_back(
+        LayerFocusStripEntry {{}, "Full View", true, !model.focusActive, true, page.staticReticles.size()});
 
     for (const mfd::EditorLayerDefinition& layer : page.editor.layers)
     {
         model.entries.push_back(
-            LayerFocusStripEntry {layer.id, layer.id + (layer.visible ? "" : " (hidden)"), false, sanitized.focusedLayerId == layer.id, layer.visible});
+            LayerFocusStripEntry {layer.id,
+                                  layer.id + (layer.visible ? "" : " (hidden)"),
+                                  false,
+                                  sanitized.focusedLayerId == layer.id,
+                                  layer.visible,
+                                  CountLayerReticles(page, layer.id)});
     }
 
     return model;
