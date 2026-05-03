@@ -27,6 +27,7 @@
 #include "PageManagementService.h"
 #include "PageRenameService.h"
 #include "PagePreviewViewOptions.h"
+#include "ReticleExtractionService.h"
 #include "ReticleUsageHighlightService.h"
 #include "ReticleRenameService.h"
 #include "mfd/io/JsonLoader.h"
@@ -258,6 +259,14 @@ private:
         bool renameTemplateFile = true;
     };
 
+    /** @brief UI state driving the reticle-extraction review popup. */
+    struct ReticleExtractionPopupState
+    {
+        bool openRequested = false;
+        std::array<char, 128> templateId {};
+        std::array<char, kPathTextCapacity> templateFile {};
+    };
+
     /** @brief Loads a root window file plus its referenced authored assets into the editor. */
     bool LoadWindowConfiguration(const std::filesystem::path& path);
     /** @brief Serializes every modified file back to disk. */
@@ -298,6 +307,12 @@ private:
                                                                          bool renameTemplateFile) const;
     /** @brief Applies one global reticle-template rename plan to disk and the live editor state. */
     bool ExecuteReticleRenamePlan(const editor::RenameReticlePlan& plan);
+    /** @brief Opens the reusable-reticle extraction popup for the current page-reticle selection. */
+    void OpenReticleExtractionPopup();
+    /** @brief Builds the service request used by the reticle-extraction popup. */
+    [[nodiscard]] editor::ReticleExtractionRequest BuildReticleExtractionRequest() const;
+    /** @brief Applies one staged reticle extraction to the live editor state. */
+    bool ExecuteReticleExtractionPlan(const editor::ReticleExtractionPlan& plan);
     /** @brief Deletes the currently selected reticle from the shared library. */
     void DeleteSelectedLibraryReticle();
 
@@ -431,6 +446,8 @@ private:
     void DrawPageRenamePopup();
     /** @brief Draws the global reticle-template rename planning popup. */
     void DrawReticleRenamePopup();
+    /** @brief Draws the reusable-reticle extraction planning popup. */
+    void DrawReticleExtractionPopup();
     /** @brief Seeds the editor state expected by the current tutorial step. */
     void PrepareTutorialStep();
 
@@ -601,6 +618,8 @@ private:
     PageRenamePopupState pageRenamePopup_ {};
     /** @brief Confirmation-popup state used by global reticle-template renames. */
     ReticleRenamePopupState reticleRenamePopup_ {};
+    /** @brief Confirmation-popup state used by reusable-reticle extractions. */
+    ReticleExtractionPopupState reticleExtractionPopup_ {};
     /** @brief Asset field currently edited through the guided folder picker. */
     AssetFolderPickerTarget assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
     /** @brief Current folder displayed by the guided asset-folder picker. */
@@ -627,6 +646,8 @@ private:
     editor::LayerFocusController layerFocusController_ {};
     /** @brief Stateless service computing page highlights for the selected reticle template. */
     editor::ReticleUsageHighlightService reticleUsageHighlightService_ {};
+    /** @brief Stateless service extracting one selected page-reticle block into a reusable template. */
+    editor::ReticleExtractionService reticleExtractionService_ {};
     /** @brief Cached highlight result reused while the document and selected template stay unchanged. */
     struct ReticleUsageHighlightCacheState
     {

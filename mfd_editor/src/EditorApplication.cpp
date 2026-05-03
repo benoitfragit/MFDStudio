@@ -31,6 +31,7 @@
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorFileDialogs.h"
+#include "ReticleExtractionService.h"
 #include "ReticleUsageHighlightService.h"
 #include "EditorUiTheme.h"
 #include "mfd/model/Types.h"
@@ -1994,6 +1995,51 @@ void EditorApplication::OpenReticleRenamePopup(std::string templateId)
     CopyTextBuffer(reticleRenamePopup_.newName, iterator->second.id.empty() ? iterator->first : iterator->second.id);
 }
 
+void EditorApplication::OpenReticleExtractionPopup()
+{
+    const std::vector<int> selectedIndices = SelectedPageReticleIndices();
+    if (selectedIndices.empty())
+    {
+        RebuildStatus("Select one or more page reticles before extracting them as a reusable reticle.", true);
+        return;
+    }
+
+    const mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        RebuildStatus("Select one page before extracting a reusable reticle.", true);
+        return;
+    }
+
+    std::string suggestedTemplateId = "extracted_reticle";
+    const int firstReticleIndex = selectedIndices.front();
+    if (firstReticleIndex >= 0 && firstReticleIndex < static_cast<int>(page->staticReticles.size()))
+    {
+        const mfd::ReticleGroup& firstReticle = page->staticReticles[static_cast<std::size_t>(firstReticleIndex)];
+        if (!firstReticle.sourceTemplateId.empty())
+        {
+            suggestedTemplateId = firstReticle.sourceTemplateId + "_extract";
+        }
+        else if (!firstReticle.id.empty())
+        {
+            suggestedTemplateId = firstReticle.id + "_extract";
+        }
+    }
+
+    CopyTextBuffer(reticleExtractionPopup_.templateId, suggestedTemplateId);
+    if (loaded_.window.reticleLibraryFolder.empty())
+    {
+        CopyTextBuffer(reticleExtractionPopup_.templateFile, "");
+    }
+    else
+    {
+        CopyTextBuffer(reticleExtractionPopup_.templateFile,
+                       editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, suggestedTemplateId).string());
+    }
+
+    reticleExtractionPopup_.openRequested = true;
+}
+
 editor::RenameReticleRequest EditorApplication::BuildReticleRenameRequest(const std::string_view oldTemplateId,
                                                                           const std::string_view newTemplateId,
                                                                           const bool renameTemplateFile) const
@@ -2009,6 +2055,21 @@ editor::RenameReticleRequest EditorApplication::BuildReticleRenameRequest(const 
         std::string(newTemplateId),
         ResolveAssetRootForPath(templateFile),
         renameTemplateFile};
+}
+
+editor::ReticleExtractionRequest EditorApplication::BuildReticleExtractionRequest() const
+{
+    std::filesystem::path requestedTemplateFile;
+    if (reticleExtractionPopup_.templateFile.front() != '\0')
+    {
+        requestedTemplateFile = std::filesystem::path(reticleExtractionPopup_.templateFile.data()).lexically_normal();
+    }
+
+    return editor::ReticleExtractionRequest {
+        selection_.pageIndex,
+        SelectedPageReticleIndices(),
+        reticleExtractionPopup_.templateId.data(),
+        requestedTemplateFile};
 }
 
 bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan)
@@ -2176,6 +2237,37 @@ bool EditorApplication::ExecuteReticleRenamePlan(const editor::RenameReticlePlan
     status += ". Regenerate the generated client API if this template is exposed there.";
     RebuildStatus(status, false);
     InvalidateReticleUsageHighlightCache();
+    return true;
+}
+
+bool EditorApplication::ExecuteReticleExtractionPlan(const editor::ReticleExtractionPlan& plan)
+{
+    if (!plan.canExecute)
+    {
+        RebuildStatus(plan.error.empty() ? "The current page-reticle selection cannot be extracted yet." : plan.error, true);
+        return false;
+    }
+
+    PushUndoSnapshot();
+
+    editor::ReticleExtractionResult result;
+    std::string error;
+    if (!reticleExtractionService_.Execute(plan, loaded_, files_, &result, &error))
+    {
+        RebuildStatus(error.empty() ? "Extracting the selected page reticles failed." : error, true);
+        return false;
+    }
+
+    SelectPageReticle(plan.pageIndex, result.insertedReticleIndex);
+    InvalidateReticleUsageHighlightCache();
+
+    std::string status = "Extracted " + std::to_string(result.extractedPrimitiveCount) + " primitive";
+    if (result.extractedPrimitiveCount != 1U)
+    {
+        status += "s";
+    }
+    status += " into reticle template '" + result.templateId + "'. Use File > Save to persist the staged JSON asset.";
+    RebuildStatus(status, false);
     return true;
 }
 
@@ -4013,7 +4105,7 @@ void EditorApplication::DrawLayerInspectorStrip(const ViewportState& viewport, c
 
         for (const editor::LayerFocusStripEntry& entry : model.entries)
         {
-            const bool pressed = ImGui::Selectable(entry.label.c_str(), entry.selected, ImGuiSelectableFlags_SpanAvailWidth);
+            const bool pressed = ImGui::Selectable(entry.label.c_str(), entry.selected);
             if (pressed)
             {
                 if (entry.fullView)
@@ -4955,6 +5047,12 @@ void EditorApplication::DrawPageReticleContextMenu()
             return;
         }
         ShowItemTooltip("Paste the current reticle clipboard onto the active page.");
+
+        if (ImGui::MenuItem("Extract as reticle...", nullptr, false, hasSelectedGroup))
+        {
+            OpenReticleExtractionPopup();
+        }
+        ShowItemTooltip("Replace the current page-reticle selection with one reusable library template while preserving the visual result.");
 
         if (ImGui::MenuItem("Delete selection", "Del", false, hasSelectedGroup))
         {
@@ -6908,6 +7006,12 @@ void EditorApplication::DrawPopups()
         reticleRenamePopup_.openRequested = false;
     }
 
+    if (reticleExtractionPopup_.openRequested)
+    {
+        ImGui::OpenPopup("Extract as reticle");
+        reticleExtractionPopup_.openRequested = false;
+    }
+
     if (pageManagementPopup_.openRequested)
     {
         ImGui::OpenPopup("Manage page");
@@ -7085,6 +7189,7 @@ void EditorApplication::DrawPopups()
     DrawPageImportPopup();
     DrawPageRenamePopup();
     DrawReticleRenamePopup();
+    DrawReticleExtractionPopup();
     DrawPageManagementPopup();
 
     if (ImGui::BeginPopupModal("Create new library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -7698,6 +7803,110 @@ void EditorApplication::DrawReticleRenamePopup()
     if (ImGui::Button("Cancel"))
     {
         reticleRenamePopup_ = {};
+        ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::EndPopup();
+}
+
+void EditorApplication::DrawReticleExtractionPopup()
+{
+    if (!ImGui::BeginPopupModal("Extract as reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Extract a reusable reticle");
+    ImGui::TextWrapped(
+        "Review the current page-reticle selection before replacing it with one reusable library template. The visual result should stay identical or nearly identical after extraction.");
+    ImGui::Separator();
+
+    ImGui::InputText("Template id", reticleExtractionPopup_.templateId.data(), reticleExtractionPopup_.templateId.size());
+    ShowItemTooltip("Logical id assigned to the new shared reticle template. Planning resolves collisions automatically.");
+    ImGui::InputText("Template file", reticleExtractionPopup_.templateFile.data(), reticleExtractionPopup_.templateFile.size());
+    ShowItemTooltip("Optional JSON file path for the new shared template. Clear it to let the editor derive the default file from the target template id.");
+
+    const editor::ReticleExtractionPlan plan =
+        reticleExtractionService_.BuildPlan(loaded_, files_, BuildReticleExtractionRequest());
+
+    ImGui::SeparatorText("Selection");
+    if (plan.sourceReticleIds.empty())
+    {
+        ImGui::TextDisabled("No page reticle is currently selected.");
+    }
+    else
+    {
+        for (const std::string& reticleId : plan.sourceReticleIds)
+        {
+            ImGui::BulletText("%s", reticleId.c_str());
+        }
+    }
+
+    ImGui::SeparatorText("Extraction result");
+    if (plan.targetTemplateId.empty())
+    {
+        ImGui::TextDisabled("No target template id is currently available.");
+    }
+    else
+    {
+        ImGui::TextWrapped("Template id: %s", plan.targetTemplateId.c_str());
+        if (plan.templateIdAdjusted)
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f),
+                               "The requested id collides with the current library. The editor will stage '%s' instead.",
+                               plan.targetTemplateId.c_str());
+        }
+    }
+
+    if (plan.targetTemplateFile.empty())
+    {
+        ImGui::TextDisabled("No target template file is currently available.");
+    }
+    else
+    {
+        ImGui::TextWrapped("Template file: %s", plan.targetTemplateFile.string().c_str());
+        if (plan.templateFileAdjusted)
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f),
+                               "The requested file collides with an existing staged or on-disk asset. A unique file name will be used.");
+        }
+    }
+
+    ImGui::Text("Flattened primitives: %d", static_cast<int>(plan.extractedPrimitiveCount));
+    ImGui::Text("Replacement reticle id: %s",
+                plan.replacementInstanceId.empty() ? "<pending>" : plan.replacementInstanceId.c_str());
+    ImGui::Text("Editor layer: %s", plan.targetLayerId.empty() ? "<none>" : plan.targetLayerId.c_str());
+    ImGui::TextDisabled("Draw order: %s", plan.drawOnTop ? "draw on top" : "regular page reticle order");
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("The new template is staged in memory first, then written with File > Save.");
+    ImGui::TextDisabled("Unsupported cases are rejected here instead of partially mutating the page.");
+
+    if (!plan.error.empty())
+    {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f), "%s", plan.error.c_str());
+    }
+
+    ImGui::Spacing();
+    ImGui::BeginDisabled(!plan.canExecute);
+    if (AccentButton("Extract reticle"))
+    {
+        if (ExecuteReticleExtractionPlan(plan))
+        {
+            reticleExtractionPopup_ = {};
+            ImGui::CloseCurrentPopup();
+            ImGui::EndDisabled();
+            ImGui::EndPopup();
+            return;
+        }
+    }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        reticleExtractionPopup_ = {};
         ImGui::CloseCurrentPopup();
     }
 
@@ -9187,6 +9396,14 @@ void EditorApplication::DrawPageReticleInspector()
         ShowItemTooltip("Paste copied page reticles onto the active page.");
         ImGui::EndDisabled();
 
+        ImGui::SameLine();
+        if (ImGui::Button("Extract as reticle..."))
+        {
+            OpenReticleExtractionPopup();
+            return;
+        }
+        ShowItemTooltip("Replace the current selection with one reusable reticle template staged in the shared library.");
+
         ImGui::TextDisabled("Shortcuts: Ctrl+C, Ctrl+X, Ctrl+V, Suppr, Esc");
         ImGui::TextDisabled("Drag one selected reticle in the preview to move the whole group.");
         ImGui::TextDisabled("Direct property editing stays available when a single reticle is selected.");
@@ -9270,6 +9487,14 @@ void EditorApplication::DrawPageReticleInspector()
     }
     ShowItemTooltip("Paste copied page reticles onto the active page.");
     ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Extract as reticle..."))
+    {
+        OpenReticleExtractionPopup();
+        return;
+    }
+    ShowItemTooltip("Extract this page reticle as a reusable library template, then replace it with one template instance.");
 
     if (!reticle->sourceTemplateId.empty() &&
         loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end() &&

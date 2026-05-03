@@ -13,6 +13,7 @@ You will learn how to:
 - rename one shared reticle template safely across pages
 - highlight the pages using one selected shared reticle template
 - focus one page layer without changing authored JSON
+- extract one reusable reticle from selected page content
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
@@ -288,6 +289,35 @@ In focus mode:
 This workflow reuses the existing editor-only layer metadata. It does not add
 or document any new runtime JSON layer schema.
 
+## Step 16 - Extract a reusable reticle
+
+When several page reticles now form one reusable symbol:
+
+1. select one contiguous page-reticle block on the active page
+2. open **Extract as reticle...** from the inspector or from the page-preview
+   right-click menu
+3. review the target template id, optional file path, and flattened primitive
+   count
+4. confirm **Extract reticle**
+
+The editor then:
+
+- creates one new shared reticle template in memory
+- converts the extracted primitive transforms into the new local template space
+- replaces the selected page reticles with one instance of that template
+- keeps the visual result as close as possible to the original page layout
+
+Current MVP limits are intentionally conservative:
+
+- the selection must be one contiguous page-reticle block
+- all selected reticles must stay on the same editor layer
+- all selected reticles must share the same draw-order mode
+- clipped reticles, blink-bound reticles, and external image files outside the
+  current `assets` root are rejected up front
+
+Like page import, the new template JSON is staged first and written later with
+**File > Save**. The action is undoable in one step.
+
 ## Undo behavior
 
 The editor keeps one undo snapshot per page-modifying action:
@@ -297,9 +327,10 @@ The editor keeps one undo snapshot per page-modifying action:
 - one delete action
 - one completed drag gesture, including grouped reticle moves
 - one clipping change
+- one reticle extraction action
 
 `Copy` alone does not create an undo step because it only updates the internal clipboard and does not modify the authored page.
 
 ## Result
 
-You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, safe shared-page and shared-reticle rename handling, default page selection, and UDP runtime transport configuration.
+You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, safe shared-page and shared-reticle rename handling, reusable-reticle extraction, default page selection, and UDP runtime transport configuration.

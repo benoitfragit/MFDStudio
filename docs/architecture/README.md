@@ -29,6 +29,7 @@ first, then come back here for the design detail behind those rules.
 | [Editor Page Import Workflow](./editor_page_import_workflow.md) | you are changing how external page JSON assets and reticle dependencies are planned, staged, or persisted inside `mfd_editor` |
 | [Editor Layer Focus Mode](./editor_layer_focus_mode.md) | you are changing how the page preview temporarily focuses one editor layer without introducing a new runtime layer schema |
 | [Editor Page Rename Workflow](./editor_page_rename_workflow.md) | you are changing how shared page assets are renamed safely across source window JSON files |
+| [Editor Reticle Extraction Workflow](./editor_reticle_extraction.md) | you are changing how selected page reticles are flattened into one reusable library template and replaced in-place on the page |
 | [Editor Reticle Rename Workflow](./editor_reticle_rename_workflow.md) | you are changing how shared reticle templates are renamed safely across source page JSON files |
 | [Editor Reticle Usage Highlight Workflow](./editor_reticle_usage_highlight.md) | you are changing how the page preview highlights the pages and instances using the selected library reticle |
 
