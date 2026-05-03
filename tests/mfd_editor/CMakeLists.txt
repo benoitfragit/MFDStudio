@@ -28,6 +28,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationPluginLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationTestUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorWorkspaceLayoutTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorLayerFocusControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageManagementServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageImportServiceTests.cpp
@@ -129,6 +130,8 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationPluginLoader.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorWorkspaceLayout.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorWorkspaceLayout.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorLayerFocusController.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorLayerFocusController.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorPageManagementService.h

@@ -366,8 +366,8 @@ private:
     void DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page);
     /** @brief Draws the layer-inspector strip or its placeholder when enabled. */
     void DrawLayerInspectorStrip(const ViewportState& viewport, const mfd::PageDefinition& page);
-    /** @brief Draws the lightweight problems panel overlay for the page preview. */
-    void DrawProblemsPanel(const ViewportState& viewport);
+    /** @brief Draws the docked validation panel shown under the page preview. */
+    void DrawProblemsPanel(const std::vector<std::string>& problemMessages);
     /** @brief Draws page and instance highlights for the currently selected reticle template. */
     void DrawReticleUsageHighlightPlaceholder(const ViewportState& viewport);
     /** @brief Returns the cached reticle-template highlight result when the workflow is active. */

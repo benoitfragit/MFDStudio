@@ -135,6 +135,10 @@ These switches are session preferences only. They help you inspect the current p
 
 If the **View** button shows `!`, validation diagnostics exist and you can enable **Problems** to inspect them directly from the preview.
 
+When **Problems** is enabled, the diagnostics are now shown in one full-width
+docked panel under the preview. The list is scrollable, so the minimap and the
+actual page canvas stay visible and interactive while you review the issues.
+
 ## Step 10 - Import an existing page
 
 When one page already exists in another asset tree, use **Page > Import page...**

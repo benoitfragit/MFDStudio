@@ -34,6 +34,7 @@
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorUiTheme.h"
+#include "EditorWorkspaceLayout.h"
 #include "mfd/model/Types.h"
 #include "Canvas2D.h"
 #include "RenderTextureUtils.h"
@@ -54,6 +55,7 @@ constexpr float kMinInspectorWidth = 280.0f;
 constexpr float kMinWorkspaceWidth = 420.0f;
 constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
+constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
 constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
@@ -2773,9 +2775,71 @@ void EditorApplication::DrawWorkspace()
         return;
     }
 
-    const bool hasPagePreviewProblems = !BuildPagePreviewProblemMessages().empty();
+    const std::vector<std::string> pagePreviewProblems = BuildPagePreviewProblemMessages();
+    const bool hasPagePreviewProblems = !pagePreviewProblems.empty();
     const bool libraryStudioVisible =
         selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive;
+
+    const auto drawPagePreviewWorkspace = [this, &pagePreviewProblems](
+                                             const char* previewChildId,
+                                             const char* problemsChildId,
+                                             const bool drawPreviewOverlays,
+                                             const bool handlePreviewInteraction)
+    {
+        const ImVec2 available = ImGui::GetContentRegionAvail();
+        editor::WorkspaceLayoutRequest layoutRequest;
+        layoutRequest.width = available.x;
+        layoutRequest.height = available.y;
+        layoutRequest.spacing = ImGui::GetStyle().ItemSpacing.y;
+        layoutRequest.showBottomPanel = pagePreviewViewOptions_.showProblemsPanel;
+        layoutRequest.bottomPanelHeight = kPreviewProblemsDockHeight;
+        layoutRequest.minBottomPanelHeight = 88.0f;
+        layoutRequest.minCenterHeight = 168.0f;
+        const editor::WorkspaceLayoutResult layout = editor::ComputeWorkspaceLayout(layoutRequest);
+
+        if (layout.previewPanel.IsVisible())
+        {
+            ImGui::BeginChild(previewChildId, ImVec2(layout.previewPanel.width, layout.previewPanel.height), true);
+
+            ViewportState pageViewport;
+            pageViewport.origin = ImGui::GetCursorScreenPos();
+            pageViewport.size = ImGui::GetContentRegionAvail();
+            pageViewport.valid = pageViewport.size.x > 8.0f && pageViewport.size.y > 8.0f;
+
+            const mfd::PageDefinition* activePage = ActivePage();
+            if (activePage != nullptr)
+            {
+                pageViewport.view = pagePreviewView_;
+            }
+
+            if (pageViewport.valid && activePage != nullptr)
+            {
+                DrawPagePreview(pageViewport);
+                if (drawPreviewOverlays)
+                {
+                    DrawPreviewOverlays(pageViewport);
+                }
+                if (handlePreviewInteraction)
+                {
+                    HandlePreviewInteraction(pageViewport);
+                }
+                DrawPageReticleContextMenu();
+            }
+            else
+            {
+                ImGui::TextDisabled("No active page to preview.");
+            }
+
+            ImGui::EndChild();
+        }
+
+        if (layout.bottomPanel.IsVisible())
+        {
+            ImGui::BeginChild(problemsChildId, ImVec2(layout.bottomPanel.width, layout.bottomPanel.height), true);
+            DrawProblemsPanel(pagePreviewProblems);
+            ImGui::EndChild();
+        }
+    };
 
     if (libraryStudioVisible)
     {
@@ -2844,29 +2908,11 @@ void EditorApplication::DrawWorkspace()
         ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
         ImGui::Separator();
 
-        ViewportState pageViewport;
-        pageViewport.origin = ImGui::GetCursorScreenPos();
-        pageViewport.size = ImGui::GetContentRegionAvail();
-        pageViewport.valid = pageViewport.size.x > 8.0f && pageViewport.size.y > 8.0f;
-        if (const mfd::PageDefinition* activePage = ActivePage(); activePage != nullptr)
-        {
-            pageViewport.view = pagePreviewView_;
-        }
-
-        if (pageViewport.valid && ActivePage() != nullptr)
-        {
-            DrawPagePreview(pageViewport);
-            if (selection_.kind == SelectionKind::PageReticle)
-            {
-                DrawPreviewOverlays(pageViewport);
-                HandlePreviewInteraction(pageViewport);
-            }
-            DrawPageReticleContextMenu();
-        }
-        else
-        {
-            ImGui::TextDisabled("No active page to preview.");
-        }
+        drawPagePreviewWorkspace(
+            "PageContextPreviewPanel",
+            "PageContextProblemsPanel",
+            selection_.kind == SelectionKind::PageReticle,
+            selection_.kind == SelectionKind::PageReticle);
         ImGui::EndChild();
 
         ImGui::SameLine();
@@ -2888,33 +2934,7 @@ void EditorApplication::DrawWorkspace()
     ImGui::TextDisabled("Use View to toggle preview-only overlays without touching authored JSON assets.");
     ImGui::Separator();
 
-    ViewportState viewport;
-    viewport.origin = ImGui::GetCursorScreenPos();
-    viewport.size = ImGui::GetContentRegionAvail();
-    viewport.valid = viewport.size.x > 8.0f && viewport.size.y > 8.0f;
-
-    const mfd::PageDefinition* activePage = ActivePage();
-    if (activePage != nullptr)
-    {
-        viewport.view = pagePreviewView_;
-    }
-
-    if (!viewport.valid)
-    {
-        return;
-    }
-
-    if (ActivePage() != nullptr)
-    {
-        DrawPagePreview(viewport);
-        DrawPreviewOverlays(viewport);
-        HandlePreviewInteraction(viewport);
-        DrawPageReticleContextMenu();
-    }
-    else
-    {
-        ImGui::TextDisabled("No active page to preview.");
-    }
+    drawPagePreviewWorkspace("MainPagePreviewPanel", "MainPageProblemsPanel", true, true);
 }
 
 void EditorApplication::DrawEmptyWorkspacePlaceholder()
@@ -3704,7 +3724,7 @@ void EditorApplication::DrawPagePreviewViewMenuButton(const char* buttonId, cons
         if (showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel)
         {
             ImGui::Separator();
-            ImGui::TextDisabled("Validation issues are available. Enable Problems to inspect them.");
+            ImGui::TextDisabled("Validation issues are available. Enable Problems to inspect them below the preview.");
         }
         ImGui::EndPopup();
     }
@@ -3926,11 +3946,6 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
         DrawLayerInspectorStrip(viewport, *page);
     }
 
-    if (pagePreviewViewOptions_.showProblemsPanel)
-    {
-        DrawProblemsPanel(viewport);
-    }
-
     if (pagePreviewViewOptions_.highlightReticleUsages)
     {
         DrawReticleUsageHighlightPlaceholder(viewport);
@@ -4131,51 +4146,43 @@ void EditorApplication::DrawLayerInspectorStrip(const ViewportState& viewport, c
     ImGui::PopStyleVar(2);
 }
 
-void EditorApplication::DrawProblemsPanel(const ViewportState& viewport)
+void EditorApplication::DrawProblemsPanel(const std::vector<std::string>& problemMessages)
 {
-    const std::vector<std::string> problemMessages = BuildPagePreviewProblemMessages();
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    const float panelWidth = 360.0f;
-    const float panelHeight = 148.0f;
-    const ImVec2 panelMax(viewport.origin.x + viewport.size.x - 12.0f, viewport.origin.y + viewport.size.y - 12.0f);
-    const ImVec2 panelMin(panelMax.x - panelWidth, panelMax.y - panelHeight);
-    if (panelMax.x <= panelMin.x || panelMax.y <= panelMin.y)
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.67f, 1.0f), "Problems");
+    if (!problemMessages.empty())
     {
-        return;
+        ImGui::SameLine();
+        ImGui::TextDisabled("(%zu)", problemMessages.size());
     }
+    ImGui::TextDisabled("Validation diagnostics for the current editor state.");
+    ImGui::Separator();
 
-    drawList->AddRectFilled(panelMin, panelMax, IM_COL32(7, 15, 23, 228), 8.0f);
-    drawList->AddRect(panelMin, panelMax, IM_COL32(196, 146, 84, 220), 8.0f, 0, 1.2f);
-    drawList->AddText(ImVec2(panelMin.x + 10.0f, panelMin.y + 8.0f),
-                      IM_COL32(255, 216, 170, 255),
-                      "Problems");
-
-    float currentY = panelMin.y + 34.0f;
-    const float lineHeight = ImGui::GetTextLineHeightWithSpacing();
-    if (problemMessages.empty())
+    if (ImGui::BeginChild("PagePreviewProblemsScrollRegion", ImVec2(0.0f, 0.0f), false))
     {
-        drawList->AddText(ImVec2(panelMin.x + 10.0f, currentY),
-                          IM_COL32(170, 186, 198, 255),
-                          "No validation problems detected.");
-        return;
+        if (problemMessages.empty())
+        {
+            ImGui::TextDisabled("No validation problems detected.");
+        }
+        else
+        {
+            for (std::size_t index = 0; index < problemMessages.size(); ++index)
+            {
+                ImGui::PushID(static_cast<int>(index));
+                ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.44f, 1.0f), "%02zu.", index + 1U);
+                ImGui::SameLine();
+                const float wrapPos = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
+                ImGui::PushTextWrapPos(wrapPos);
+                ImGui::TextUnformatted(problemMessages[index].c_str());
+                ImGui::PopTextWrapPos();
+                if (index + 1U < problemMessages.size())
+                {
+                    ImGui::Spacing();
+                }
+                ImGui::PopID();
+            }
+        }
     }
-
-    const std::size_t maxLines = std::min<std::size_t>(4U, problemMessages.size());
-    for (std::size_t index = 0; index < maxLines; ++index)
-    {
-        drawList->AddText(ImVec2(panelMin.x + 10.0f, currentY),
-                          IM_COL32(220, 235, 240, 255),
-                          problemMessages[index].c_str());
-        currentY += lineHeight;
-    }
-
-    if (problemMessages.size() > maxLines)
-    {
-        const std::string moreLabel = "+" + std::to_string(problemMessages.size() - maxLines) + " more";
-        drawList->AddText(ImVec2(panelMin.x + 10.0f, currentY + 2.0f),
-                          IM_COL32(170, 186, 198, 255),
-                          moreLabel.c_str());
-    }
+    ImGui::EndChild();
 }
 
 void EditorApplication::DrawReticleUsageHighlightPlaceholder(const ViewportState& viewport)

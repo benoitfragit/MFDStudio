@@ -9,6 +9,7 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationPluginLoader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorWorkspaceLayout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorLayerFocusController.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageManagementService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageImportService.cpp
@@ -30,6 +31,7 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationTypes.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorWorkspaceLayout.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLayerFocusController.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageManagementService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageImportService.h
