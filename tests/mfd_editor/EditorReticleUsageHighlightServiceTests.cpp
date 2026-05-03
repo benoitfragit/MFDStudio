@@ -140,7 +140,7 @@ TEST(ReticleUsageHighlightServiceTests, BuildHighlightFindsCurrentPageUsage)
     const editor::ReticleUsageHighlightResult result = service.BuildHighlight(
         loaded,
         files,
-        editor::ReticleUsageHighlightRequest {"track_box", assetsRoot, false});
+        editor::ReticleUsageHighlightRequest {"track_box", assetsRoot});
 
     ASSERT_TRUE(result.hasUsage);
     ASSERT_EQ(result.pages.size(), 1U);
@@ -171,7 +171,7 @@ TEST(ReticleUsageHighlightServiceTests, BuildHighlightMergesCurrentAndScannedPag
     const editor::ReticleUsageHighlightResult result = service.BuildHighlight(
         loaded,
         files,
-        editor::ReticleUsageHighlightRequest {"track_box", assetsRoot, false});
+        editor::ReticleUsageHighlightRequest {"track_box", assetsRoot});
 
     ASSERT_TRUE(result.hasUsage);
     ASSERT_EQ(result.pages.size(), 2U);
@@ -199,14 +199,14 @@ TEST(ReticleUsageHighlightServiceTests, BuildHighlightReturnsNoPagesWhenTemplate
     const editor::ReticleUsageHighlightResult result = service.BuildHighlight(
         loaded,
         files,
-        editor::ReticleUsageHighlightRequest {"track_box", assetsRoot, false});
+        editor::ReticleUsageHighlightRequest {"track_box", assetsRoot});
 
     EXPECT_FALSE(result.hasUsage);
     EXPECT_TRUE(result.pages.empty());
     EXPECT_EQ(result.totalReferenceCount, 0U);
 }
 
-TEST(ReticleUsageHighlightServiceTests, BuildHighlightIgnoresExecByDefault)
+TEST(ReticleUsageHighlightServiceTests, BuildHighlightScansExecLikeAnyOtherFolder)
 {
     ScopedTempDir tempDir;
     const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
@@ -224,15 +224,16 @@ TEST(ReticleUsageHighlightServiceTests, BuildHighlightIgnoresExecByDefault)
     const editor::ReticleUsageHighlightResult result = service.BuildHighlight(
         loaded,
         files,
-        editor::ReticleUsageHighlightRequest {"track_box", assetsRoot, false});
+        editor::ReticleUsageHighlightRequest {"track_box", assetsRoot});
 
     ASSERT_TRUE(result.hasUsage);
-    ASSERT_EQ(result.pages.size(), 1U);
+    ASSERT_EQ(result.pages.size(), 2U);
     EXPECT_EQ(result.pages.front().pageName, "Radar");
-    EXPECT_EQ(result.totalReferenceCount, 1U);
+    EXPECT_EQ(result.pages.back().pageName, "Staged");
+    EXPECT_EQ(result.totalReferenceCount, 2U);
 }
 
-TEST(ReticleUsageHighlightServiceTests, BuildHighlightIncludesExecAssetsWhenRequested)
+TEST(ReticleUsageHighlightServiceTests, BuildHighlightScansExecAssetsEvenWithoutSpecialHandling)
 {
     ScopedTempDir tempDir;
     const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
@@ -248,7 +249,7 @@ TEST(ReticleUsageHighlightServiceTests, BuildHighlightIncludesExecAssetsWhenRequ
     const editor::ReticleUsageHighlightResult result = service.BuildHighlight(
         loaded,
         files,
-        editor::ReticleUsageHighlightRequest {"track_box", execAssetsRoot, true});
+        editor::ReticleUsageHighlightRequest {"track_box", execAssetsRoot});
 
     ASSERT_TRUE(result.hasUsage);
     ASSERT_EQ(result.pages.size(), 1U);

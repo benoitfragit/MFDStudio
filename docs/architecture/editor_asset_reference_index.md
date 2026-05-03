@@ -1,7 +1,7 @@
 # Editor Asset Reference Index
 
 `mfd_editor` now owns one dedicated `AssetReferenceIndexService` that scans the
-source asset tree and builds the dependency graph consumed by editor-side
+requested asset tree and builds the dependency graph consumed by editor-side
 rename, import, highlight, and diagnostics workflows.
 
 ## Why This Service Exists
@@ -35,8 +35,8 @@ root and returns:
 ## Design Rules
 
 - `BuildIndex()` is read-only and never modifies the document or the disk.
-- `_Exec` trees are ignored by default, but callers can opt into scanning them
-  when a workflow must operate on the currently opened staged asset tree.
+- `_Exec` is not treated as a special case by the scanner; folders under the
+  requested root are traversed uniformly.
 - The scan is resilient: invalid JSON is reported through `AssetScanError`
   instead of crashing the editor workflow.
 - Paths are normalized before they are returned so later services do not need to

@@ -729,8 +729,7 @@ RenameReticlePlan ReticleRenameService::BuildPlan(const mfd::LoadedWindowConfigu
                 plan.targetTemplateFile.string());
         }
 
-        const AssetReferenceIndex index = referenceIndexService_.BuildIndex(
-            AssetReferenceIndexRequest {plan.assetsRoot, true});
+        const AssetReferenceIndex index = referenceIndexService_.BuildIndex(AssetReferenceIndexRequest {plan.assetsRoot});
 
         std::unordered_set<std::string> currentPageFileKeys;
         currentPageFileKeys.reserve(files.pageFiles.size());

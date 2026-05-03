@@ -47,8 +47,6 @@ struct AssetReferenceIndexRequest
 {
     /** @brief Root folder scanned recursively for source JSON assets. */
     std::filesystem::path assetsRoot;
-    /** @brief Includes staged `_Exec` trees when enabled. */
-    bool includeExecAssets = false;
 };
 
 /**
@@ -153,7 +151,7 @@ class AssetReferenceIndexService
 public:
     /**
      * @brief Scans the requested asset tree and returns the discovered references.
-     * @param request Scan options describing the asset root and `_Exec` policy.
+     * @param request Scan options describing the asset root.
      * @return Structured reference graph, missing assets and scan errors.
      */
     [[nodiscard]] AssetReferenceIndex BuildIndex(const AssetReferenceIndexRequest& request) const;

@@ -480,8 +480,7 @@ RenamePagePlan PageRenameService::BuildPlan(const mfd::LoadedWindowConfiguration
                 "Save or reload the current window before renaming this page globally because the in-memory page name differs from disk.");
         }
 
-        const AssetReferenceIndex index = referenceIndexService_.BuildIndex(
-            AssetReferenceIndexRequest {plan.assetsRoot, true});
+        const AssetReferenceIndex index = referenceIndexService_.BuildIndex(AssetReferenceIndexRequest {plan.assetsRoot});
         const std::filesystem::path currentWindowFile = NormalizePath(loaded.window.sourceFile);
         const bool currentWindowInsideAssetsRoot = IsPathInsideRoot(currentWindowFile, plan.assetsRoot);
 

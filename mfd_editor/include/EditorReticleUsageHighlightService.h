@@ -63,8 +63,6 @@ struct ReticleUsageHighlightRequest
     std::string templateId {};
     /** @brief Asset root scanned for page usages outside the open document. */
     std::filesystem::path assetsRoot {};
-    /** @brief Includes staged `_Exec` trees when the current workflow explicitly targets them. */
-    bool includeExecAssets = false;
 };
 
 /**

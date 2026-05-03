@@ -673,7 +673,6 @@ private:
         bool dirty = true;
         std::string templateId {};
         std::filesystem::path assetsRoot {};
-        bool includeExecAssets = false;
         editor::ReticleUsageHighlightResult result {};
     } reticleUsageHighlightCache_ {};
     /** @brief Future hidden conversation-surface state kept invisible until one UI consumer is explicitly added. */

@@ -111,29 +111,6 @@ bool HasJsonExtension(const std::filesystem::path& path)
     return Lowercase(path.extension().string()) == ".json";
 }
 
-bool IsExecComponent(const std::filesystem::path& component)
-{
-    return Lowercase(component.string()) == "_exec";
-}
-
-bool ShouldIgnorePath(const std::filesystem::path& path, const bool includeExecAssets)
-{
-    if (includeExecAssets)
-    {
-        return false;
-    }
-
-    for (const auto& component : path)
-    {
-        if (IsExecComponent(component))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 const json* FindField(const json& node, std::initializer_list<const char*> fieldNames)
 {
     if (!node.is_object())
@@ -634,11 +611,6 @@ AssetReferenceIndex AssetReferenceIndexService::BuildIndex(const AssetReferenceI
         std::error_code statusError;
         if (entry.is_directory(statusError))
         {
-            if (ShouldIgnorePath(entryPath, request.includeExecAssets))
-            {
-                iterator.disable_recursion_pending();
-            }
-
             iterator.increment(iterationError);
             if (iterationError)
             {
@@ -660,8 +632,7 @@ AssetReferenceIndex AssetReferenceIndexService::BuildIndex(const AssetReferenceI
             continue;
         }
 
-        if (!entry.is_regular_file(statusError) || statusError || !HasJsonExtension(entryPath) ||
-            ShouldIgnorePath(entryPath, request.includeExecAssets))
+        if (!entry.is_regular_file(statusError) || statusError || !HasJsonExtension(entryPath))
         {
             iterator.increment(iterationError);
             if (iterationError)

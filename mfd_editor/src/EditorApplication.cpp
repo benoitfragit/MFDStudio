@@ -4459,11 +4459,9 @@ const editor::ReticleUsageHighlightResult* EditorApplication::ResolveReticleUsag
     }
 
     const std::filesystem::path assetsRoot = ResolveAssetRootForPath(templateFile);
-    const bool includeExecAssets = PathContainsSegment(assetsRoot, "_Exec");
     if (!reticleUsageHighlightCache_.dirty &&
         mfd::PageNamesEqual(reticleUsageHighlightCache_.templateId, selectedReticle->id) &&
-        reticleUsageHighlightCache_.assetsRoot == assetsRoot &&
-        reticleUsageHighlightCache_.includeExecAssets == includeExecAssets)
+        reticleUsageHighlightCache_.assetsRoot == assetsRoot)
     {
         return &reticleUsageHighlightCache_.result;
     }
@@ -4473,11 +4471,9 @@ const editor::ReticleUsageHighlightResult* EditorApplication::ResolveReticleUsag
         files_,
         editor::ReticleUsageHighlightRequest {
             selectedReticle->id,
-            assetsRoot,
-            includeExecAssets});
+            assetsRoot});
     reticleUsageHighlightCache_.templateId = selectedReticle->id;
     reticleUsageHighlightCache_.assetsRoot = assetsRoot;
-    reticleUsageHighlightCache_.includeExecAssets = includeExecAssets;
     reticleUsageHighlightCache_.dirty = false;
     return &reticleUsageHighlightCache_.result;
 }
@@ -7789,7 +7785,7 @@ void EditorApplication::DrawPageRenamePopup()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("This workflow updates the scanned JSON assets directly, including staged _Exec trees when they are part of the current asset root.");
+    ImGui::TextDisabled("This workflow updates the scanned JSON assets directly across the current asset tree.");
 
     if (!plan.error.empty())
     {
@@ -7947,7 +7943,7 @@ void EditorApplication::DrawReticleRenamePopup()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("This workflow updates the scanned JSON assets directly, including staged _Exec trees when they are part of the current asset root.");
+    ImGui::TextDisabled("This workflow updates the scanned JSON assets directly across the current asset tree.");
     ImGui::TextDisabled("After a successful rename, regenerate the generated client API if this template is exposed there.");
 
     if (!plan.error.empty())

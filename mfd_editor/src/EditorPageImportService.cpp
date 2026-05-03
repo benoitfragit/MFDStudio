@@ -574,10 +574,7 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
         plan.sourceUsesPageWrapper = sourceMetadata.usesPageWrapper;
         plan.sourceAssetsRoot = InferAssetsRootFromPageFile(plan.sourcePageFile);
 
-        const bool includeExecAssets = PathContainsSegment(plan.sourceAssetsRoot, "_Exec") ||
-                                       PathContainsSegment(plan.sourcePageFile, "_Exec");
-        const AssetReferenceIndex index =
-            referenceIndexService_.BuildIndex(AssetReferenceIndexRequest {plan.sourceAssetsRoot, includeExecAssets});
+        const AssetReferenceIndex index = referenceIndexService_.BuildIndex(AssetReferenceIndexRequest {plan.sourceAssetsRoot});
 
         const std::string sourcePageKey = PathKey(plan.sourcePageFile);
         for (const AssetScanError& scanError : index.errors)

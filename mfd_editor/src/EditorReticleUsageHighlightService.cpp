@@ -164,8 +164,7 @@ ReticleUsageHighlightResult ReticleUsageHighlightService::BuildHighlight(const m
     const bool canScanAssetsRoot = !result.assetsRoot.empty() && std::filesystem::exists(result.assetsRoot);
     if (canScanAssetsRoot)
     {
-        const AssetReferenceIndex index =
-            referenceIndexService_.BuildIndex(AssetReferenceIndexRequest {result.assetsRoot, request.includeExecAssets});
+        const AssetReferenceIndex index = referenceIndexService_.BuildIndex(AssetReferenceIndexRequest {result.assetsRoot});
 
         for (const ReticleReference& reference : index.reticles)
         {

@@ -173,7 +173,7 @@ TEST(AssetReferenceIndexServiceTests, BuildIndexTracksWindowPagesTemplatesImages
     TouchFile(iconFile);
 
     editor::AssetReferenceIndexService service;
-    const editor::AssetReferenceIndex index = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot, false});
+    const editor::AssetReferenceIndex index = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot});
 
     ASSERT_TRUE(index.errors.empty());
     ASSERT_EQ(index.pages.size(), 1U);
@@ -243,7 +243,7 @@ TEST(AssetReferenceIndexServiceTests, BuildIndexDetectsMissingPagesAndTemplates)
 })");
 
     editor::AssetReferenceIndexService service;
-    const editor::AssetReferenceIndex index = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot, false});
+    const editor::AssetReferenceIndex index = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot});
 
     EXPECT_NE(FindMissingAsset(index, editor::MissingAssetKind::PageFile, windowFile, missingPageFile), nullptr);
 
@@ -254,7 +254,7 @@ TEST(AssetReferenceIndexServiceTests, BuildIndexDetectsMissingPagesAndTemplates)
     EXPECT_EQ(missingTemplate->pageName, "Radar");
 }
 
-TEST(AssetReferenceIndexServiceTests, BuildIndexIgnoresExecByDefaultButCanIncludeIt)
+TEST(AssetReferenceIndexServiceTests, BuildIndexScansExecLikeAnyOtherFolder)
 {
     ScopedTempDir tempDir;
     const std::filesystem::path assetRoot = tempDir.Path() / "assets";
@@ -270,11 +270,10 @@ TEST(AssetReferenceIndexServiceTests, BuildIndexIgnoresExecByDefaultButCanInclud
 
     editor::AssetReferenceIndexService service;
 
-    const editor::AssetReferenceIndex defaultIndex = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot, false});
-    ASSERT_EQ(defaultIndex.pages.size(), 1U);
-    EXPECT_EQ(defaultIndex.pages[0].windowFile, std::filesystem::absolute(liveWindowFile).lexically_normal());
+    const editor::AssetReferenceIndex defaultIndex = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot});
+    ASSERT_EQ(defaultIndex.pages.size(), 2U);
 
-    const editor::AssetReferenceIndex includeExecIndex = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot, true});
+    const editor::AssetReferenceIndex includeExecIndex = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot});
     ASSERT_EQ(includeExecIndex.pages.size(), 2U);
 }
 
@@ -291,7 +290,7 @@ TEST(AssetReferenceIndexServiceTests, BuildIndexReportsInvalidJsonWithoutCrashin
     WriteTextFile(invalidTemplateFile, R"({"id":"broken","elements":[})");
 
     editor::AssetReferenceIndexService service;
-    const editor::AssetReferenceIndex index = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot, false});
+    const editor::AssetReferenceIndex index = service.BuildIndex(editor::AssetReferenceIndexRequest {assetRoot});
 
     ASSERT_EQ(index.pages.size(), 1U);
     ASSERT_FALSE(index.errors.empty());

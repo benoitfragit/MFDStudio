@@ -27,7 +27,7 @@ Renaming one reticle template safely is not just one local text edit:
 - static reticle references and page strobe references must be rewritten
 - optional template-file renames must update relative image paths
 - page-level collisions must be rejected before any disk mutation happens
-- the workflow must not special-case `_Exec` when it is part of the scanned tree
+- the workflow must not special-case `_Exec`
 
 Putting that logic behind one focused service makes the workflow testable and
 reusable without embedding filesystem code in the UI layer.
@@ -66,7 +66,7 @@ confirm the rename.
 It:
 
 - validates the selected template and the requested new id
-- refuses template files outside the protected scanned asset root
+- refuses template files outside the scanned asset root
 - reuses `AssetReferenceIndexService` to discover every page or strobe
   reference under the scanned asset root
 - overlays the current open pages from the live in-memory editor document so
@@ -96,7 +96,8 @@ It:
 - serializes current in-memory pages and the current in-memory template so
   local unsaved editor changes are preserved
 - rewrites relative image paths automatically when the template file moves
-- includes staged `_Exec` assets whenever they are part of the scanned root
+- rewrites every matching page JSON found under the scanned root without
+  treating `_Exec` specially
 - updates the current in-memory reticle library and current page references so
   the editor shell stays consistent immediately after the operation
 

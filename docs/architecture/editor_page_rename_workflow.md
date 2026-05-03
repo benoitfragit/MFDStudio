@@ -15,7 +15,7 @@ Renaming a page safely is not just one local text edit:
 - every window under the scanned asset root must be inspected
 - `defaultPage` must be rewritten when it points to the renamed page
 - name collisions must be rejected before any disk mutation happens
-- the workflow must not special-case `_Exec` when it is part of the scanned tree
+- the workflow must not special-case `_Exec`
 
 Putting that logic behind one focused service makes the workflow testable and
 reusable without embedding filesystem code in the UI layer.
@@ -53,7 +53,7 @@ confirm the rename.
 It:
 
 - validates the selected page and the requested new name
-- refuses page files outside the protected scanned asset root
+- refuses page files outside the scanned asset root
 - reloads the target page JSON from disk and checks that the saved name still
   matches the in-memory editor state
 - reuses `AssetReferenceIndexService` to discover every window that
@@ -78,7 +78,8 @@ It:
 - rewrites the page JSON `name` and legacy `id` fields, including
   `{"page": {...}}` wrapper documents
 - rewrites each impacted window `defaultPage`
-- includes staged `_Exec` assets whenever they are part of the scanned root
+- rewrites every matching window JSON found under the scanned root without
+  treating `_Exec` specially
 - updates the current in-memory page name and normalized page id so the editor
   shell stays consistent immediately after the operation
 
