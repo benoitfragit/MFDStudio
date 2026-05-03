@@ -181,8 +181,8 @@ Editor page-preview essentials:
 - dragging one selected page reticle moves the whole selected group together
 - `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, and `Del` operate on the current page-reticle selection
 - `Page > Import page...` or dropping one page JSON into the editor stages that page plus any referenced reticle templates before the next `Save`
-- `Rename page globally...` safely rewrites one shared page asset plus every source-window `defaultPage` reference found under `assets/`, while `_Exec` stays ignored by default
-- `Reticle > Rename selected library reticle globally...` safely rewrites one shared reticle template plus every source-page `template` and page-strobe template reference found under `assets/`, with an optional template-file move and automatic relative image-path rewrite
+- `Rename page globally...` safely rewrites one shared page asset plus every scanned-window `defaultPage` reference found under the current asset root, including staged `_Exec` trees when those are the files you opened
+- `Reticle > Rename selected library reticle globally...` safely rewrites one shared reticle template plus every scanned-page `template` and page-strobe template reference found under the current asset root, with an optional template-file move and automatic relative image-path rewrite
 - right-click lists every hovered reticle, then exposes per-reticle clipping submenus so overlapping reticles stay reachable
 - `Undo` restores one whole paste, cut, delete, or drag gesture at a time
 - a small `?` button is shown at the top-left of the page preview and reticle studio, with the current zoom and mouse `X/Y` displayed next to it

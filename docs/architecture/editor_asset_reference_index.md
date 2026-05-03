@@ -35,8 +35,8 @@ root and returns:
 ## Design Rules
 
 - `BuildIndex()` is read-only and never modifies the document or the disk.
-- `_Exec` trees are ignored by default because editor workflows must target the
-  real source assets, not staged runtime copies.
+- `_Exec` trees are ignored by default, but callers can opt into scanning them
+  when a workflow must operate on the currently opened staged asset tree.
 - The scan is resilient: invalid JSON is reported through `AssetScanError`
   instead of crashing the editor workflow.
 - Paths are normalized before they are returned so later services do not need to

@@ -159,7 +159,7 @@ TEST(PageRenameServiceTests, RenamesPageReferencedByOneWindowAndKeepsWrapperComp
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {1, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {1, "Tactical", assetRoot});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.references.size(), 1U);
@@ -213,7 +213,7 @@ TEST(PageRenameServiceTests, RenamesPageReferencedBySeveralWindows)
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {0, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {0, "Tactical", assetRoot});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.references.size(), 2U);
@@ -259,7 +259,7 @@ TEST(PageRenameServiceTests, RenamesWindowDefaultPageWhenNeeded)
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {1, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {1, "Tactical", assetRoot});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.references.size(), 1U);
@@ -300,7 +300,7 @@ TEST(PageRenameServiceTests, RefusesNameCollisionInsideOneWindow)
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {0, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {0, "Tactical", assetRoot});
 
     EXPECT_FALSE(plan.canExecute);
     ASSERT_FALSE(plan.collisions.empty());
@@ -326,10 +326,10 @@ TEST(PageRenameServiceTests, ReportsClearErrorWhenNoWindowReferenceExistsUnderAs
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {0, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {0, "Tactical", assetRoot});
 
     EXPECT_FALSE(plan.canExecute);
-    EXPECT_NE(plan.error.find("No window under the source assets root references page"), std::string::npos);
+    EXPECT_NE(plan.error.find("No window under the scanned assets root references page"), std::string::npos);
 }
 
 TEST(PageRenameServiceTests, ReportsInvalidWindowJsonClearly)
@@ -360,7 +360,7 @@ TEST(PageRenameServiceTests, ReportsInvalidWindowJsonClearly)
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {0, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {0, "Tactical", assetRoot});
 
     EXPECT_FALSE(plan.canExecute);
     EXPECT_NE(plan.error.find("valid window JSON files"), std::string::npos);
@@ -395,7 +395,7 @@ TEST(PageRenameServiceTests, BuildPlanDoesNotModifyFiles)
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {0, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {0, "Tactical", assetRoot});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     EXPECT_EQ(ReadTextFile(windowFile), windowBefore);
@@ -453,7 +453,7 @@ TEST(PageRenameServiceTests, ExecuteModifiesOnlyExpectedFiles)
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {0, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {0, "Tactical", assetRoot});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.filesToModify.size(), 2U);
@@ -470,7 +470,7 @@ TEST(PageRenameServiceTests, ExecuteModifiesOnlyExpectedFiles)
     EXPECT_EQ(changed, expected);
 }
 
-TEST(PageRenameServiceTests, IgnoresExecByDefault)
+TEST(PageRenameServiceTests, IncludesExecWindowsWhenScanningAssetRoot)
 {
     ScopedTempDir tempDir;
     const std::filesystem::path assetRoot = tempDir.Path() / "assets";
@@ -500,18 +500,54 @@ TEST(PageRenameServiceTests, IgnoresExecByDefault)
             {radarFile, "Radar", true},
         });
 
-    const std::string execWindowBefore = ReadTextFile(execWindowFile);
+    editor::PageRenameService service;
+    const editor::RenamePagePlan plan = service.BuildPlan(
+        loaded,
+        files,
+        editor::RenamePageRequest {0, "Tactical", assetRoot});
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    ASSERT_EQ(plan.references.size(), 2U);
+    ASSERT_EQ(plan.filesToModify.size(), 3U);
+
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+    EXPECT_EQ(json::parse(ReadTextFile(execWindowFile)).at("defaultPage").get<std::string>(), "Tactical");
+}
+
+TEST(PageRenameServiceTests, AllowsRenameInsideExecAssetTree)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetRoot = tempDir.Path() / "_Exec" / "v143" / "Win32" / "Debug" / "assets";
+    const std::filesystem::path windowFile = assetRoot / "windows" / "demo.json";
+    const std::filesystem::path radarFile = assetRoot / "pages" / "radar.json";
+
+    WriteTextFile(windowFile,
+                  R"json({
+  "pages": [
+    "../pages/radar.json"
+  ],
+  "defaultPage": "Radar"
+})json");
+    WriteTextFile(radarFile, R"json({"name":"Radar","staticReticles":[]})json");
+
+    auto [loaded, files] = MakeLoadedWindow(
+        windowFile,
+        {
+            {radarFile, "Radar", true},
+        });
 
     editor::PageRenameService service;
     const editor::RenamePagePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenamePageRequest {0, "Tactical", assetRoot, false});
+        editor::RenamePageRequest {0, "Tactical", assetRoot});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.references.size(), 1U);
 
     std::string error;
     ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
-    EXPECT_EQ(ReadTextFile(execWindowFile), execWindowBefore);
+    EXPECT_EQ(json::parse(ReadTextFile(radarFile)).at("name").get<std::string>(), "Tactical");
+    EXPECT_EQ(json::parse(ReadTextFile(windowFile)).at("defaultPage").get<std::string>(), "Tactical");
 }

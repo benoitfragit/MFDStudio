@@ -21,7 +21,7 @@
 namespace editor
 {
 /**
- * @brief Input used to plan one global reticle-template rename across the source assets tree.
+ * @brief Input used to plan one global reticle-template rename across the scanned asset tree.
  */
 struct RenameReticleRequest
 {
@@ -29,10 +29,8 @@ struct RenameReticleRequest
     std::string oldTemplateId {};
     /** @brief Requested reticle-template id after the rename. */
     std::string newTemplateId {};
-    /** @brief Source assets root scanned for page references and template collisions. */
+    /** @brief Asset root scanned for page references and template collisions. */
     std::filesystem::path assetsRoot {};
-    /** @brief Includes staged `_Exec` trees when enabled. */
-    bool includeExecAssets = false;
     /** @brief Renames the backing template JSON file in addition to the logical template id when enabled. */
     bool renameTemplateFile = false;
 };
@@ -86,7 +84,7 @@ struct RenameReticlePlan
     std::filesystem::path targetTemplateFile {};
     /** @brief Indicates whether the backing template JSON file should be renamed too. */
     bool renameTemplateFile = false;
-    /** @brief Source assets root scanned for references and collisions. */
+    /** @brief Asset root scanned for references and collisions. */
     std::filesystem::path assetsRoot {};
     /** @brief Exact page-level references discovered for the target template id. */
     std::vector<RenameReticleReference> references {};
@@ -126,7 +124,7 @@ class ReticleRenameService
 {
 public:
     /**
-     * @brief Builds one read-only plan for renaming a shared reticle template across authored page assets.
+     * @brief Builds one read-only plan for renaming a shared reticle template across the scanned page tree.
      * @param loaded Current authored window and document state.
      * @param files Current authored file layout tracked by the editor.
      * @param request Requested rename inputs.

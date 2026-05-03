@@ -465,11 +465,11 @@ RenamePagePlan PageRenameService::BuildPlan(const mfd::LoadedWindowConfiguration
         }
         if (plan.assetsRoot.empty() || !PathExists(plan.assetsRoot))
         {
-            throw std::runtime_error("The source assets root does not exist.");
+            throw std::runtime_error("The scanned assets root does not exist.");
         }
         if (!IsPathInsideRoot(plan.pageFile, plan.assetsRoot))
         {
-            throw std::runtime_error("Refusing to rename one page JSON outside the protected source assets root.");
+            throw std::runtime_error("Refusing to rename one page JSON outside the protected scanned assets root.");
         }
 
         const json currentPageDocument = LoadJsonFile(plan.pageFile);
@@ -481,7 +481,7 @@ RenamePagePlan PageRenameService::BuildPlan(const mfd::LoadedWindowConfiguration
         }
 
         const AssetReferenceIndex index = referenceIndexService_.BuildIndex(
-            AssetReferenceIndexRequest {plan.assetsRoot, request.includeExecAssets});
+            AssetReferenceIndexRequest {plan.assetsRoot, true});
         const std::filesystem::path currentWindowFile = NormalizePath(loaded.window.sourceFile);
         const bool currentWindowInsideAssetsRoot = IsPathInsideRoot(currentWindowFile, plan.assetsRoot);
 
@@ -497,7 +497,7 @@ RenamePagePlan PageRenameService::BuildPlan(const mfd::LoadedWindowConfiguration
             }
 
             throw std::runtime_error(
-                "Safe global rename requires valid window JSON files under the assets root. "
+                "Safe global rename requires valid window JSON files under the scanned assets root. "
                 "Scan error: " +
                 errorEntry.file.string() + " (" + errorEntry.message + ")");
         }
@@ -549,7 +549,7 @@ RenamePagePlan PageRenameService::BuildPlan(const mfd::LoadedWindowConfiguration
         if (referencesByWindow.empty())
         {
             throw std::runtime_error(
-                "No window under the source assets root references page '" + plan.oldPageName + "'.");
+                "No window under the scanned assets root references page '" + plan.oldPageName + "'.");
         }
 
         AppendUniquePath(plan.filesToModify, plan.pageFile);

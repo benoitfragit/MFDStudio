@@ -187,7 +187,7 @@ The popup now shows:
 
 - the current page name
 - the requested new page name
-- every source window reference found under the scanned `assets/` root
+- every scanned window reference found under the current asset root
 - the exact JSON files that will be rewritten
 - blocking name collisions, if any
 - a warning that the generated client API and `mappingHash` may change
@@ -197,9 +197,9 @@ Current behavior:
 - the page JSON itself is always rewritten
 - window JSON files are rewritten only when their `defaultPage` still points to
   the old page name
-- `_Exec` is ignored by default
+- the scan includes staged `_Exec` assets when that is the asset tree you opened
 - collisions inside any referenced window block execution before any file is modified
-- the rename writes directly to source JSON files and does not wait for the next
+- the rename writes directly to the scanned JSON files and does not wait for the next
   **File > Save**
 
 After a successful rename, regenerate the generated client API if this page is
@@ -225,7 +225,7 @@ The popup now shows:
 - the requested new template id
 - the current template JSON file
 - the optional target template JSON file when you also rename the file
-- every source page or strobe reference found under the scanned `assets/` root
+- every scanned page or strobe reference found under the current asset root
 - the exact JSON files that will be rewritten or deleted
 - blocking collisions when one page already references the requested target template id
 - a warning that the generated client API and `mappingHash` may change
@@ -237,8 +237,8 @@ Current behavior:
 - page `strobe.template` references are rewritten
 - you can choose between logical rename only and logical rename plus template-file rename
 - when the template file moves, relative image paths are rewritten automatically
-- `_Exec` is ignored by default
-- the rename writes directly to source JSON files and does not wait for the next
+- the scan includes staged `_Exec` assets when that is the asset tree you opened
+- the rename writes directly to the scanned JSON files and does not wait for the next
   **File > Save**
 
 After a successful rename, regenerate the generated client API if this template

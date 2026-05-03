@@ -170,29 +170,6 @@ bool HasJsonExtension(const std::filesystem::path& path)
     return Lowercase(path.extension().string()) == ".json";
 }
 
-bool IsExecComponent(const std::filesystem::path& component)
-{
-    return Lowercase(component.string()) == "_exec";
-}
-
-bool ShouldIgnorePath(const std::filesystem::path& path, const bool includeExecAssets)
-{
-    if (includeExecAssets)
-    {
-        return false;
-    }
-
-    for (const auto& component : path)
-    {
-        if (IsExecComponent(component))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 json LoadJsonFile(const std::filesystem::path& path)
 {
     std::ifstream input(path, std::ios::binary);
@@ -603,7 +580,6 @@ std::filesystem::path PreferredRenamedTemplateFile(const mfd::LoadedWindowConfig
 }
 
 std::optional<std::filesystem::path> FindTemplateIdCollision(const std::filesystem::path& assetsRoot,
-                                                             const bool includeExecAssets,
                                                              const std::string_view newTemplateId,
                                                              const std::filesystem::path& ignoredFile)
 {
@@ -628,11 +604,6 @@ std::optional<std::filesystem::path> FindTemplateIdCollision(const std::filesyst
         std::error_code statusError;
         if (entry.is_directory(statusError))
         {
-            if (ShouldIgnorePath(entryPath, includeExecAssets))
-            {
-                iterator.disable_recursion_pending();
-            }
-
             iterator.increment(iterationError);
             if (iterationError)
             {
@@ -647,7 +618,6 @@ std::optional<std::filesystem::path> FindTemplateIdCollision(const std::filesyst
         }
 
         if (!entry.is_regular_file(statusError) || statusError || !HasJsonExtension(entryPath) ||
-            ShouldIgnorePath(entryPath, includeExecAssets) ||
             PathsEqual(entryPath, ignoredFile))
         {
             iterator.increment(iterationError);
@@ -736,7 +706,7 @@ RenameReticlePlan ReticleRenameService::BuildPlan(const mfd::LoadedWindowConfigu
 
         if (plan.assetsRoot.empty() || !PathExists(plan.assetsRoot))
         {
-            throw std::runtime_error("The source assets root does not exist.");
+            throw std::runtime_error("The scanned assets root does not exist.");
         }
         if (plan.currentTemplateFile.empty() || !PathExists(plan.currentTemplateFile))
         {
@@ -744,11 +714,11 @@ RenameReticlePlan ReticleRenameService::BuildPlan(const mfd::LoadedWindowConfigu
         }
         if (!IsPathInsideRoot(plan.currentTemplateFile, plan.assetsRoot))
         {
-            throw std::runtime_error("Refusing to rename one reticle template JSON outside the protected source assets root.");
+            throw std::runtime_error("Refusing to rename one reticle template JSON outside the protected scanned assets root.");
         }
         if (!IsPathInsideRoot(plan.targetTemplateFile, plan.assetsRoot))
         {
-            throw std::runtime_error("Refusing to move the reticle template JSON outside the protected source assets root.");
+            throw std::runtime_error("Refusing to move the reticle template JSON outside the protected scanned assets root.");
         }
         if (request.renameTemplateFile &&
             !PathsEqual(plan.currentTemplateFile, plan.targetTemplateFile) &&
@@ -760,7 +730,7 @@ RenameReticlePlan ReticleRenameService::BuildPlan(const mfd::LoadedWindowConfigu
         }
 
         const AssetReferenceIndex index = referenceIndexService_.BuildIndex(
-            AssetReferenceIndexRequest {plan.assetsRoot, request.includeExecAssets});
+            AssetReferenceIndexRequest {plan.assetsRoot, true});
 
         std::unordered_set<std::string> currentPageFileKeys;
         currentPageFileKeys.reserve(files.pageFiles.size());
@@ -787,13 +757,13 @@ RenameReticlePlan ReticleRenameService::BuildPlan(const mfd::LoadedWindowConfigu
             }
 
             throw std::runtime_error(
-                "Safe global reticle rename requires valid page and reticle JSON files under the assets root. "
+                "Safe global reticle rename requires valid page and reticle JSON files under the scanned assets root. "
                 "Scan error: " +
                 errorEntry.file.string() + " (" + errorEntry.message + ")");
         }
 
         if (const std::optional<std::filesystem::path> existingTemplateFile =
-                FindTemplateIdCollision(plan.assetsRoot, request.includeExecAssets, plan.newReticleName, plan.currentTemplateFile);
+                FindTemplateIdCollision(plan.assetsRoot, plan.newReticleName, plan.currentTemplateFile);
             existingTemplateFile.has_value())
         {
             throw std::runtime_error(
@@ -826,7 +796,7 @@ RenameReticlePlan ReticleRenameService::BuildPlan(const mfd::LoadedWindowConfigu
             {
                 throw std::runtime_error(
                     "Refusing to rename the reticle globally because current page '" + page.name +
-                    "' sits outside the protected source assets root.");
+                    "' sits outside the protected scanned assets root.");
             }
             if (!PathExists(pageFile))
             {

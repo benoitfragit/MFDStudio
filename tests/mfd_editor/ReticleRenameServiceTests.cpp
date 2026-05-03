@@ -288,7 +288,7 @@ TEST(ReticleRenameServiceTests, RenamesReticleUsedByOnePage)
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, false});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.references.size(), 1U);
@@ -343,7 +343,7 @@ TEST(ReticleRenameServiceTests, RenamesReticleUsedBySeveralPagesIncludingStrobe)
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, false});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.references.size(), 3U);
@@ -382,7 +382,7 @@ TEST(ReticleRenameServiceTests, RefusesCollisionInsideOnePage)
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, false});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
 
     EXPECT_FALSE(plan.canExecute);
     ASSERT_FALSE(plan.collisions.empty());
@@ -409,7 +409,7 @@ TEST(ReticleRenameServiceTests, ReportsClearErrorWhenReticleIsMissing)
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"unknown_template", "threat_box", assetsRoot, false, false});
+        editor::RenameReticleRequest {"unknown_template", "threat_box", assetsRoot, false});
 
     EXPECT_FALSE(plan.canExecute);
     EXPECT_NE(plan.error.find("does not exist in the current editor document"), std::string::npos);
@@ -438,7 +438,7 @@ TEST(ReticleRenameServiceTests, LogicalRenameOnlyKeepsTemplateFilePath)
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, false});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     EXPECT_EQ(plan.currentTemplateFile, plan.targetTemplateFile);
@@ -473,7 +473,7 @@ TEST(ReticleRenameServiceTests, LogicalRenamePlusFileMoveDeletesOldTemplateJson)
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, true});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, true});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     EXPECT_EQ(plan.targetTemplateFile, std::filesystem::absolute(renamedTemplateFile).lexically_normal());
@@ -516,7 +516,7 @@ TEST(ReticleRenameServiceTests, RenamesTemplateFileAndRewritesRelativeImagePaths
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, true});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, true});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
 
@@ -554,7 +554,7 @@ TEST(ReticleRenameServiceTests, BuildPlanDoesNotModifyFiles)
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, false});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     EXPECT_EQ(ReadTextFile(radarFile), pageBefore);
@@ -594,7 +594,7 @@ TEST(ReticleRenameServiceTests, ExecuteModifiesOnlyExpectedFiles)
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, false});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.filesToModify.size(), 3U);
@@ -609,7 +609,7 @@ TEST(ReticleRenameServiceTests, ExecuteModifiesOnlyExpectedFiles)
     EXPECT_EQ(changed, expected);
 }
 
-TEST(ReticleRenameServiceTests, IgnoresExecByDefault)
+TEST(ReticleRenameServiceTests, IncludesExecPagesWhenScanningAssetRoot)
 {
     ScopedTempDir tempDir;
     const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
@@ -630,18 +630,51 @@ TEST(ReticleRenameServiceTests, IgnoresExecByDefault)
     auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {{radarFile, radarPage}});
     AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
 
-    const std::string execPageBefore = ReadTextFile(execPageFile);
+    editor::ReticleRenameService service;
+    const editor::RenameReticlePlan plan = service.BuildPlan(
+        loaded,
+        files,
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    ASSERT_EQ(plan.references.size(), 2U);
+    ASSERT_EQ(plan.filesToModify.size(), 3U);
+
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+    EXPECT_EQ(json::parse(ReadTextFile(execPageFile)).at("staticReticles").front().at("template").get<std::string>(), "threat_box");
+}
+
+TEST(ReticleRenameServiceTests, AllowsRenameInsideExecAssetTree)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetsRoot = tempDir.Path() / "_Exec" / "v143" / "Win32" / "Debug" / "assets";
+    const std::filesystem::path reticleFolder = assetsRoot / "reticles";
+    const std::filesystem::path windowFile = assetsRoot / "windows" / "current.json";
+    const std::filesystem::path radarFile = assetsRoot / "pages" / "radar.json";
+    const std::filesystem::path templateFile = reticleFolder / "track_box.json";
+
+    WritePageJson(radarFile, "Radar", {{"track", "track_box"}});
+    WriteTemplateJson(templateFile, "track_box");
+    WriteWindowJson(windowFile, reticleFolder, {radarFile}, "Radar");
+
+    mfd::PageDefinition radarPage = MakePage("Radar", true);
+    AddStaticTemplateReference(radarPage, "track", "track_box");
+
+    auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {{radarFile, radarPage}});
+    AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
 
     editor::ReticleRenameService service;
     const editor::RenameReticlePlan plan = service.BuildPlan(
         loaded,
         files,
-        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false, false});
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
 
     ASSERT_TRUE(plan.canExecute) << plan.error;
     ASSERT_EQ(plan.references.size(), 1U);
 
     std::string error;
     ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
-    EXPECT_EQ(ReadTextFile(execPageFile), execPageBefore);
+    EXPECT_EQ(json::parse(ReadTextFile(radarFile)).at("staticReticles").front().at("template").get<std::string>(), "threat_box");
+    EXPECT_EQ(json::parse(ReadTextFile(templateFile)).at("id").get<std::string>(), "threat_box");
 }

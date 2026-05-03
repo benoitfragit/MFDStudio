@@ -12,10 +12,10 @@ The service keeps the business rules out of ImGui and follows the same
 Renaming a page safely is not just one local text edit:
 
 - the page JSON itself must be rewritten
-- every source window under the scanned `assets/` root must be inspected
+- every window under the scanned asset root must be inspected
 - `defaultPage` must be rewritten when it points to the renamed page
 - name collisions must be rejected before any disk mutation happens
-- `_Exec` must stay ignored by default
+- the workflow must not special-case `_Exec` when it is part of the scanned tree
 
 Putting that logic behind one focused service makes the workflow testable and
 reusable without embedding filesystem code in the UI layer.
@@ -32,8 +32,7 @@ The request stays deliberately narrow:
 
 - current page index in the live editor document
 - requested new page name
-- source `assets/` root
-- `_Exec` inclusion flag, off by default
+- scanned asset root
 
 The plan exposes:
 
@@ -54,12 +53,12 @@ confirm the rename.
 It:
 
 - validates the selected page and the requested new name
-- refuses page files outside the protected source `assets/` root
+- refuses page files outside the protected scanned asset root
 - reloads the target page JSON from disk and checks that the saved name still
   matches the in-memory editor state
-- reuses `AssetReferenceIndexService` to discover every source window that
+- reuses `AssetReferenceIndexService` to discover every window that
   references the target page
-- refuses the workflow when another source window JSON under the scanned root is
+- refuses the workflow when another window JSON under the scanned root is
   invalid, because the editor can no longer guarantee full reference coverage
 - replaces the current open window reference set with the live in-memory
   document state so unsaved local page-list collisions are still detected
@@ -72,14 +71,14 @@ No file content is changed during this phase.
 
 ## Execute
 
-`Execute()` writes the rename directly to source JSON assets.
+`Execute()` writes the rename directly to the scanned JSON assets.
 
 It:
 
 - rewrites the page JSON `name` and legacy `id` fields, including
   `{"page": {...}}` wrapper documents
 - rewrites each impacted window `defaultPage`
-- leaves `_Exec` untouched by default
+- includes staged `_Exec` assets whenever they are part of the scanned root
 - updates the current in-memory page name and normalized page id so the editor
   shell stays consistent immediately after the operation
 
@@ -98,14 +97,14 @@ The editor exposes the workflow from three entry points:
 The popup shows:
 
 - old and new page names
-- every source window reference found
+- every scanned window reference found
 - the files that will be rewritten
 - blocking collisions
 - the generated API / `mappingHash` warning
 
 ## Limitations And Intentional Tradeoffs
 
-- only source assets are renamed by default; `_Exec` stays ignored
+- the rename stays scoped to the current scanned asset root; it does not jump across unrelated asset trees automatically
 - the workflow updates only `defaultPage` in window JSON files because page file
   paths remain unchanged
 - because several source files may be rewritten at once, this workflow should be

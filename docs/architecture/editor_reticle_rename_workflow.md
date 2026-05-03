@@ -23,11 +23,11 @@ while renaming one reticle template rewrites page-level `template` references.
 Renaming one reticle template safely is not just one local text edit:
 
 - the template JSON `id` must be rewritten
-- every source page under the scanned `assets/` root must be inspected
+- every page under the scanned asset root must be inspected
 - static reticle references and page strobe references must be rewritten
 - optional template-file renames must update relative image paths
 - page-level collisions must be rejected before any disk mutation happens
-- `_Exec` must stay ignored by default
+- the workflow must not special-case `_Exec` when it is part of the scanned tree
 
 Putting that logic behind one focused service makes the workflow testable and
 reusable without embedding filesystem code in the UI layer.
@@ -44,8 +44,7 @@ The request stays deliberately narrow:
 
 - current template id in the live editor document
 - requested new template id
-- source `assets/` root
-- `_Exec` inclusion flag, off by default
+- scanned asset root
 - optional template-file rename flag
 
 The plan exposes:
@@ -67,12 +66,12 @@ confirm the rename.
 It:
 
 - validates the selected template and the requested new id
-- refuses template files outside the protected source `assets/` root
+- refuses template files outside the protected scanned asset root
 - reuses `AssetReferenceIndexService` to discover every page or strobe
-  reference under source assets
+  reference under the scanned asset root
 - overlays the current open pages from the live in-memory editor document so
   unsaved page edits are still planned correctly
-- refuses the workflow when another source page or reticle JSON under the
+- refuses the workflow when another page or reticle JSON under the
   scanned root is invalid, because the editor can no longer guarantee full
   reference coverage
 - blocks any global template-id collision
@@ -85,7 +84,7 @@ No file content is changed during this phase.
 
 ## Execute
 
-`Execute()` writes the rename directly to source JSON assets.
+`Execute()` writes the rename directly to the scanned JSON assets.
 
 It:
 
@@ -97,6 +96,7 @@ It:
 - serializes current in-memory pages and the current in-memory template so
   local unsaved editor changes are preserved
 - rewrites relative image paths automatically when the template file moves
+- includes staged `_Exec` assets whenever they are part of the scanned root
 - updates the current in-memory reticle library and current page references so
   the editor shell stays consistent immediately after the operation
 
@@ -130,9 +130,9 @@ rebuilding or shipping the authored asset set that exposes this template.
 
 ## Limitations And Intentional Tradeoffs
 
-- only source assets are renamed by default; `_Exec` stays ignored
-- current pages must already map to tracked source JSON files under the
-  protected source asset root
+- the rename stays scoped to the current scanned asset root; it does not jump across unrelated asset trees automatically
+- current pages must already map to tracked JSON files under the
+  protected scanned asset root
 - the workflow updates page template references only; there is no separate
   authored dynamic-template asset in the current editor model
 - because several source files may be rewritten at once, this workflow should

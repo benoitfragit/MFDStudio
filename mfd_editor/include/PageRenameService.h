@@ -21,7 +21,7 @@
 namespace editor
 {
 /**
- * @brief Input used to plan one global page rename across the source assets tree.
+ * @brief Input used to plan one global page rename across the scanned asset tree.
  */
 struct RenamePageRequest
 {
@@ -29,10 +29,8 @@ struct RenamePageRequest
     int pageIndex = -1;
     /** @brief New authored page name that should replace the existing one. */
     std::string newPageName {};
-    /** @brief Source assets root scanned for window references. */
+    /** @brief Asset root scanned for window references. */
     std::filesystem::path assetsRoot {};
-    /** @brief Includes staged `_Exec` trees when enabled. */
-    bool includeExecAssets = false;
 };
 
 /**
@@ -76,7 +74,7 @@ struct RenamePagePlan
     std::string newPageName {};
     /** @brief Target page JSON file that will be rewritten. */
     std::filesystem::path pageFile {};
-    /** @brief Source assets root scanned for dependent windows. */
+    /** @brief Asset root scanned for dependent windows. */
     std::filesystem::path assetsRoot {};
     /** @brief Exact window references discovered for the target page. */
     std::vector<RenamePageReference> references {};
@@ -110,7 +108,7 @@ class PageRenameService
 {
 public:
     /**
-     * @brief Builds one read-only plan for renaming a shared page asset across source windows.
+     * @brief Builds one read-only plan for renaming a shared page asset across the scanned window tree.
      * @param loaded Current authored window and document state.
      * @param files Current authored file layout tracked by the editor.
      * @param request Requested rename inputs.

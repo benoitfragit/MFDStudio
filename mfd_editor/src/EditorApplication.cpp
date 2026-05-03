@@ -223,6 +223,16 @@ std::optional<std::filesystem::path> FindAncestorNamed(std::filesystem::path pat
     return std::nullopt;
 }
 
+std::filesystem::path ResolveAssetRootForPath(const std::filesystem::path& path)
+{
+    if (const auto assetsRoot = FindAncestorNamed(path, "assets"); assetsRoot.has_value())
+    {
+        return assetsRoot->lexically_normal();
+    }
+
+    return DefaultProjectAssetFolder("assets");
+}
+
 std::filesystem::path CurrentPageImportTargetFolder(const std::filesystem::path& windowFile,
                                                     const editor::EditorFileLayout& files)
 {
@@ -1938,11 +1948,14 @@ editor::PageImportRequest EditorApplication::BuildPageImportRequest(const std::f
 editor::RenamePageRequest EditorApplication::BuildPageRenameRequest(const int pageIndex,
                                                                     const std::string_view newPageName) const
 {
+    const std::filesystem::path pageFile =
+        pageIndex >= 0 && pageIndex < static_cast<int>(files_.pageFiles.size())
+            ? files_.pageFiles[static_cast<std::size_t>(pageIndex)]
+            : loaded_.window.sourceFile;
     return editor::RenamePageRequest {
         pageIndex,
         std::string(newPageName),
-        DefaultProjectAssetFolder("assets"),
-        false};
+        ResolveAssetRootForPath(pageFile)};
 }
 
 void EditorApplication::OpenReticleRenamePopup(std::string templateId)
@@ -1970,11 +1983,16 @@ editor::RenameReticleRequest EditorApplication::BuildReticleRenameRequest(const 
                                                                           const std::string_view newTemplateId,
                                                                           const bool renameTemplateFile) const
 {
+    std::filesystem::path templateFile = loaded_.window.reticleLibraryFolder;
+    if (const auto iterator = files_.templateFiles.find(std::string(oldTemplateId)); iterator != files_.templateFiles.end())
+    {
+        templateFile = iterator->second;
+    }
+
     return editor::RenameReticleRequest {
         std::string(oldTemplateId),
         std::string(newTemplateId),
-        DefaultProjectAssetFolder("assets"),
-        false,
+        ResolveAssetRootForPath(templateFile),
         renameTemplateFile};
 }
 
@@ -2393,7 +2411,7 @@ void EditorApplication::DrawMenuBar()
         }
 
         const bool renamePageRequested = ImGui::MenuItem("Rename current page globally...", nullptr, false, ActivePage() != nullptr);
-        ShowItemTooltip("Rename the current page asset safely across the source assets tree and update shared window references.");
+        ShowItemTooltip("Rename the current page asset safely across the current asset tree and update shared window references.");
         if (renamePageRequested)
         {
             OpenPageRenamePopup(selection_.pageIndex);
@@ -2457,7 +2475,7 @@ void EditorApplication::DrawMenuBar()
 
         const bool renameReticleRequested =
             ImGui::MenuItem("Rename selected library reticle globally...", nullptr, false, hasFocusedLibraryReticle);
-        ShowItemTooltip("Rename the focused library reticle template safely across the source assets tree and every page that references it.");
+        ShowItemTooltip("Rename the focused library reticle template safely across the current asset tree and every page that references it.");
         if (renameReticleRequested)
         {
             OpenReticleRenamePopup(selection_.libraryReticleId);
@@ -7087,14 +7105,14 @@ void EditorApplication::DrawPageRenamePopup()
     const mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageRenamePopup_.pageIndex)];
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Rename page globally");
-    ImGui::TextWrapped("Review every shared window reference before renaming this page asset across the source assets tree.");
+    ImGui::TextWrapped("Review every shared window reference before renaming this page asset across the current scanned asset tree.");
     ImGui::Separator();
 
     ImGui::TextDisabled("Old name");
     ImGui::TextWrapped("%s", page.name.c_str());
 
     ImGui::InputText("New name", pageRenamePopup_.newName.data(), pageRenamePopup_.newName.size());
-    ShowItemTooltip("Use the safe rename workflow to update the page JSON and every source window defaultPage reference consistently.");
+    ShowItemTooltip("Use the safe rename workflow to update the page JSON and every scanned window defaultPage reference consistently.");
 
     const editor::RenamePagePlan plan =
         pageRenameService_.BuildPlan(loaded_,
@@ -7104,7 +7122,7 @@ void EditorApplication::DrawPageRenamePopup()
     ImGui::SeparatorText("References found");
     if (plan.references.empty())
     {
-        ImGui::TextDisabled("No source window reference is currently eligible for this rename.");
+        ImGui::TextDisabled("No scanned window reference is currently eligible for this rename.");
     }
     else
     {
@@ -7152,7 +7170,7 @@ void EditorApplication::DrawPageRenamePopup()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("This workflow updates the source JSON assets directly and ignores _Exec by default.");
+    ImGui::TextDisabled("This workflow updates the scanned JSON assets directly, including staged _Exec trees when they are part of the current asset root.");
 
     if (!plan.error.empty())
     {
@@ -7209,14 +7227,14 @@ void EditorApplication::DrawReticleRenamePopup()
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Rename reticle globally");
     ImGui::TextWrapped(
-        "Pages reference reticle templates by logical id. Review every source-page reference before renaming this shared template across the source assets tree.");
+        "Pages reference reticle templates by logical id. Review every scanned page reference before renaming this shared template across the current asset tree.");
     ImGui::Separator();
 
     ImGui::TextDisabled("Old id");
     ImGui::TextWrapped("%s", reticle.id.empty() ? reticleIterator->first.c_str() : reticle.id.c_str());
 
     ImGui::InputText("New id", reticleRenamePopup_.newName.data(), reticleRenamePopup_.newName.size());
-    ShowItemTooltip("Use the safe rename workflow to update the template JSON id and every source page template reference consistently.");
+    ShowItemTooltip("Use the safe rename workflow to update the template JSON id and every scanned page template reference consistently.");
 
     ImGui::Checkbox("Rename template JSON file too", &reticleRenamePopup_.renameTemplateFile);
     ShowItemTooltip("Also move the template JSON file to the default file name derived from the new template id.");
@@ -7250,7 +7268,7 @@ void EditorApplication::DrawReticleRenamePopup()
     ImGui::SeparatorText("References found");
     if (plan.references.empty())
     {
-        ImGui::TextDisabled("No source page currently references this template. Only the template JSON will be rewritten.");
+        ImGui::TextDisabled("No scanned page currently references this template. Only the template JSON will be rewritten.");
     }
     else
     {
@@ -7310,7 +7328,7 @@ void EditorApplication::DrawReticleRenamePopup()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("This workflow updates the source JSON assets directly and ignores _Exec by default.");
+    ImGui::TextDisabled("This workflow updates the scanned JSON assets directly, including staged _Exec trees when they are part of the current asset root.");
     ImGui::TextDisabled("After a successful rename, regenerate the generated client API if this template is exposed there.");
 
     if (!plan.error.empty())
@@ -8113,7 +8131,7 @@ void EditorApplication::DrawPageInspector()
         OpenPageRenamePopup(selection_.pageIndex);
         return;
     }
-    ShowItemTooltip("Rename this page asset safely across the source assets tree and update every referenced window defaultPage.");
+    ShowItemTooltip("Rename this page asset safely across the current asset tree and update every referenced window defaultPage.");
 
     ImGui::SameLine();
     ImGui::TextDisabled("Shortcut: Suppr opens the delete confirmation");
@@ -9406,7 +9424,7 @@ void EditorApplication::DrawLibraryReticleInspector()
         OpenReticleRenamePopup(reticle->id);
         return;
     }
-    ShowItemTooltip("Rename this shared reticle template safely across the source assets tree and every page that references it.");
+    ShowItemTooltip("Rename this shared reticle template safely across the current asset tree and every page that references it.");
 
     ImGui::SameLine();
     if (ImGui::Button("Delete library reticle"))
