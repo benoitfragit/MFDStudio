@@ -41,7 +41,9 @@ In **Create new window**, set:
 
 These fields map directly to the root window JSON.
 
-Use the **Browse ... folder** buttons when creating new assets. The editor now guides you toward the source `assets/` tree and blocks `_Exec` staging folders, because `_Exec/assets` is only a runtime copy and would break later CMake-generated client API steps.
+Use the **Browse ... folder** buttons when creating new assets. The editor still guides you toward the source `assets/` tree because that is the safest place to keep authored JSON, fonts, and images under version control.
+
+The editor no longer treats `_Exec` as one blocked special case during authoring or reference scans. You can still open or scan staged runtime copies when needed, but the source `assets/` tree remains the recommended location for long-term editing and generated-client workflows.
 
 This also matters for the integrated tutorial: `client_tutorial` is
 intentionally kept out of the default examples build. Once the authored
@@ -148,6 +150,21 @@ When **Problems** is enabled, the diagnostics are now shown in one full-width
 docked panel under the preview. The list is scrollable, so the minimap and the
 actual page canvas stay visible and interactive while you review the issues.
 
+### Fullscreen preview
+
+The page preview header now exposes one small fullscreen toggle immediately next
+to **View**.
+
+Use it when you want to edit the page with the editor chrome hidden:
+
+1. click the `[]` button next to **View**
+2. the sidebar, inspector, page-context split, and docked helper panels are hidden
+3. keep using zoom, pan, selection, and gizmos directly on the page canvas
+4. click the same button again, press `F11`, or press `Esc` to restore the previous layout
+
+`Esc` exits fullscreen first, then falls back to the normal page-selection clear
+behavior when fullscreen is not active.
+
 ## Step 10 - Import an existing page
 
 When one page already exists in another asset tree, use **Page > Import page...**
@@ -213,7 +230,7 @@ Current behavior:
 - the page JSON itself is always rewritten
 - window JSON files are rewritten only when their `defaultPage` still points to
   the old page name
-- the scan includes staged `_Exec` assets when that is the asset tree you opened
+- the scan includes staged `_Exec` assets too when they are part of the scanned asset tree
 - collisions inside any referenced window block execution before any file is modified
 - the rename writes directly to the scanned JSON files and does not wait for the next
   **File > Save**
@@ -253,7 +270,7 @@ Current behavior:
 - page `strobe.template` references are rewritten
 - you can choose between logical rename only and logical rename plus template-file rename
 - when the template file moves, relative image paths are rewritten automatically
-- the scan includes staged `_Exec` assets when that is the asset tree you opened
+- the scan includes staged `_Exec` assets too when they are part of the scanned asset tree
 - the rename writes directly to the scanned JSON files and does not wait for the next
   **File > Save**
 
@@ -333,6 +350,30 @@ Current MVP limits are intentionally conservative:
 Like page import, the new template JSON is staged first and written later with
 **File > Save**. The action is undoable in one step.
 
+## Step 17 - Export design documentation
+
+When you need one designer-facing package for the currently loaded window:
+
+1. open **File > Export > Export design...**
+2. choose one output folder
+3. keep or adjust the export options for Markdown ICD files, exploded views, coordinates, snippets, strobe, blink, primitive ids, and mapping hash
+4. click **Export**
+
+The export creates:
+
+- `README.md`
+- `window_icd.md`
+- `pages/*.md`
+- `images/*_design_exploded.png` when exploded views are enabled and rendered successfully
+- `data/design_manifest.json`
+
+If the chosen folder already contains files, the editor creates one timestamped
+subfolder automatically instead of overwriting unrelated content.
+
+The Markdown output keeps relative links between pages and images so the export
+can be opened directly in GitHub, VS Code preview, or any other Markdown
+viewer.
+
 ## Undo behavior
 
 The editor keeps one undo snapshot per page-modifying action:
@@ -348,4 +389,4 @@ The editor keeps one undo snapshot per page-modifying action:
 
 ## Result
 
-You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, safe shared-page and shared-reticle rename handling, reusable-reticle extraction, default page selection, and UDP runtime transport configuration.
+You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, safe shared-page and shared-reticle rename handling, reusable-reticle extraction, design-document export, default page selection, and UDP runtime transport configuration.

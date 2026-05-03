@@ -28,6 +28,8 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationPluginLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutomationTestUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorDesignExportServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorFullscreenPreviewControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorWorkspaceLayoutTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorLayerFocusControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageManagementServiceTests.cpp
@@ -103,7 +105,8 @@ target_link_libraries(mfd_editor_tests
     PRIVATE
         mfd::editor_plugin_api
         mfd::io_json
-        mfd::model)
+        mfd::model
+        mfd::render_raylib)
 
 mfd_private_library(mfd_editor_tests GTest::gtest_main)
 mfd_private_library(mfd_editor_tests nlohmann_json::nlohmann_json)
@@ -114,7 +117,8 @@ target_include_directories(mfd_editor_tests
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${MFD_ROOT_DIR}/mfd_editor/include
         ${MFD_ROOT_DIR}/mfd_common_api/include
-        ${MFD_ROOT_DIR}/mfd_api/include)
+        ${MFD_ROOT_DIR}/mfd_api/include
+        ${MFD_ROOT_DIR}/mfd_api/src/render)
 
 target_sources(mfd_editor_tests
     PRIVATE
@@ -130,6 +134,10 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAutomationPluginLoader.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorDesignExportService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorDesignExportService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorFullscreenPreviewController.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorFullscreenPreviewController.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorWorkspaceLayout.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorWorkspaceLayout.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorLayerFocusController.h

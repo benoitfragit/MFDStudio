@@ -10,6 +10,8 @@ recommended shapes for JSON files.
 1. [Common JSON Syntax](./common_json_syntax.md)
 2. [Primitive Reference](./primitive_reference.md)
 3. [Page And Window Reference](./page_and_window_reference.md)
+4. [Editor View Modes](./editor_view_modes.md)
+5. [Editor Design Export](./editor_design_export.md)
 
 ## When To Use These Pages
 

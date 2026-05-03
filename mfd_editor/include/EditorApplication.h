@@ -22,6 +22,8 @@
 #include <raylib.h>
 
 #include "EditorDocumentSerializer.h"
+#include "EditorDesignExportService.h"
+#include "EditorFullscreenPreviewController.h"
 #include "EditorLayerFocusController.h"
 #include "EditorPageImportService.h"
 #include "EditorPageManagementService.h"
@@ -267,6 +269,24 @@ private:
         std::array<char, kPathTextCapacity> templateFile {};
     };
 
+    /** @brief UI state driving the design-export popup and its execution feedback. */
+    struct DesignExportPopupState
+    {
+        bool openRequested = false;
+        std::array<char, kPathTextCapacity> outputFolder {};
+        bool exportMarkdownIcd = true;
+        bool exportExplodedViews = true;
+        bool includeCanvasCoordinates = true;
+        bool includeCppSnippets = true;
+        bool includeStrobe = true;
+        bool includeBlink = true;
+        bool includePrimitiveIds = true;
+        bool includeMappingHash = true;
+        bool exportCompleted = false;
+        std::filesystem::path exportedFolder {};
+        std::vector<std::string> warnings {};
+    };
+
     /** @brief Loads a root window file plus its referenced authored assets into the editor. */
     bool LoadWindowConfiguration(const std::filesystem::path& path);
     /** @brief Serializes every modified file back to disk. */
@@ -313,6 +333,18 @@ private:
     [[nodiscard]] editor::ReticleExtractionRequest BuildReticleExtractionRequest() const;
     /** @brief Applies one staged reticle extraction to the live editor state. */
     bool ExecuteReticleExtractionPlan(const editor::ReticleExtractionPlan& plan);
+    /** @brief Toggles the editor-only fullscreen page-preview mode. */
+    void ToggleFullscreenPagePreview();
+    /** @brief Captures the current layout state used by the fullscreen controller. */
+    [[nodiscard]] editor::FullscreenPreviewLayoutState CaptureFullscreenPreviewLayoutState() const;
+    /** @brief Applies one layout state restored by the fullscreen controller. */
+    void ApplyFullscreenPreviewLayoutState(const editor::FullscreenPreviewLayoutState& state);
+    /** @brief Opens the design-export popup and seeds its default output folder. */
+    void OpenDesignExportPopup();
+    /** @brief Builds the service request used by the design-export popup. */
+    [[nodiscard]] editor::DesignExportRequest BuildDesignExportRequest() const;
+    /** @brief Executes one design-export plan and updates the popup feedback state. */
+    bool ExecuteDesignExportPlan(const editor::DesignExportPlan& plan);
     /** @brief Deletes the currently selected reticle from the shared library. */
     void DeleteSelectedLibraryReticle();
 
@@ -354,8 +386,8 @@ private:
     void DrawPagePreview(const ViewportState& viewport);
     /** @brief Draws the selected library reticle into the studio preview viewport. */
     void DrawLibraryPreview(const ViewportState& viewport);
-    /** @brief Draws the shared page-preview view menu button and popup. */
-    void DrawPagePreviewViewMenuButton(const char* buttonId, bool showProblemsIndicator);
+    /** @brief Draws the page-preview header controls shared by normal and context previews. */
+    void DrawPagePreviewHeaderControls(const char* buttonId, bool showProblemsIndicator);
     /** @brief Draws guides, selection boxes and coordinate overlays on the page preview. */
     void DrawPreviewOverlays(const ViewportState& viewport);
     /** @brief Draws the optional page-preview minimap overlay. */
@@ -450,6 +482,8 @@ private:
     void DrawReticleRenamePopup();
     /** @brief Draws the reusable-reticle extraction planning popup. */
     void DrawReticleExtractionPopup();
+    /** @brief Draws the design-export planning popup. */
+    void DrawDesignExportPopup();
     /** @brief Seeds the editor state expected by the current tutorial step. */
     void PrepareTutorialStep();
 
@@ -639,6 +673,8 @@ private:
     ReticleRenamePopupState reticleRenamePopup_ {};
     /** @brief Confirmation-popup state used by reusable-reticle extractions. */
     ReticleExtractionPopupState reticleExtractionPopup_ {};
+    /** @brief Confirmation-popup state used by design export. */
+    DesignExportPopupState designExportPopup_ {};
     /** @brief Asset field currently edited through the guided folder picker. */
     AssetFolderPickerTarget assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
     /** @brief Current folder displayed by the guided asset-folder picker. */
@@ -661,6 +697,10 @@ private:
     editor::PageRenameService pageRenameService_ {};
     /** @brief Stateless service owning the global reticle-template rename planning logic. */
     editor::ReticleRenameService reticleRenameService_ {};
+    /** @brief Stateless service generating design Markdown and exploded views for the current window. */
+    editor::EditorDesignExportService designExportService_ {};
+    /** @brief Stateless controller owning fullscreen preview layout capture and restoration. */
+    editor::FullscreenPreviewController fullscreenPreviewController_ {};
     /** @brief Stateless controller owning page-preview layer-focus decisions. */
     editor::LayerFocusController layerFocusController_ {};
     /** @brief Stateless service computing page highlights for the selected reticle template. */
@@ -721,8 +761,12 @@ private:
     ImVec2 interactionStartCornerScreen_ {};
     /** @brief Width of the left navigation pane. */
     float sidebarWidth_ = 320.0f;
+    /** @brief Indicates whether the left navigation pane is currently visible. */
+    bool sidebarVisible_ = true;
     /** @brief Width of the right inspector pane. */
     float inspectorWidth_ = 360.0f;
+    /** @brief Indicates whether the right inspector pane is currently visible. */
+    bool inspectorVisible_ = true;
     /** @brief Split ratio used by the library-studio sub-layout. */
     float libraryStudioPageWidth_ = 0.0f;
     /** @brief Indicates whether primitive labels stay visible in the reticle-studio overlay. */

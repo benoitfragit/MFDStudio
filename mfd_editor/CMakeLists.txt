@@ -8,7 +8,9 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationPluginLoader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDesignExportService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFullscreenPreviewController.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorWorkspaceLayout.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorLayerFocusController.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageManagementService.cpp
@@ -30,7 +32,9 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationServices.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationTypes.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDesignExportService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFullscreenPreviewController.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorWorkspaceLayout.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLayerFocusController.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageManagementService.h
@@ -80,7 +84,7 @@ if(MFD_BUILD_DEMO)
     mfd_enable_target_warnings(mfd_editor)
 
     if(WIN32)
-        target_link_libraries(mfd_editor PRIVATE Comdlg32)
+        target_link_libraries(mfd_editor PRIVATE Comdlg32 Ole32 Shell32)
     endif()
 
     set_target_properties(mfd_editor PROPERTIES

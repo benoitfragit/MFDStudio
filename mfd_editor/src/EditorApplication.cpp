@@ -1755,6 +1755,11 @@ void EditorApplication::HandleShortcuts()
 
     const ImGuiIO& io = ImGui::GetIO();
 
+    if (!io.WantTextInput && HasOpenWindow() && ImGui::IsKeyPressed(ImGuiKey_F11))
+    {
+        ToggleFullscreenPagePreview();
+    }
+
     if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
         IsRaylibControlChordPressed({KEY_S}))
     {
@@ -1799,6 +1804,12 @@ void EditorApplication::HandleShortcuts()
         !ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId) &&
         ImGui::IsKeyPressed(ImGuiKey_Escape))
     {
+        if (fullscreenPreviewController_.IsActive())
+        {
+            ToggleFullscreenPagePreview();
+            return;
+        }
+
         if (const mfd::PageDefinition* page = ActivePage();
             page != nullptr && layerFocusController_.IsFocusActive(*page, layerFocusState_))
         {
@@ -2076,6 +2087,109 @@ editor::ReticleExtractionRequest EditorApplication::BuildReticleExtractionReques
         SelectedPageReticleIndices(),
         reticleExtractionPopup_.templateId.data(),
         requestedTemplateFile};
+}
+
+editor::FullscreenPreviewLayoutState EditorApplication::CaptureFullscreenPreviewLayoutState() const
+{
+    editor::FullscreenPreviewLayoutState state;
+    state.sidebarVisible = sidebarVisible_;
+    state.inspectorVisible = inspectorVisible_;
+    state.pageContextVisible = pagePreviewViewOptions_.showPageContext;
+    state.layerInspectorVisible = pagePreviewViewOptions_.showLayerInspector;
+    state.minimapVisible = pagePreviewViewOptions_.showMinimap;
+    state.problemsVisible = pagePreviewViewOptions_.showProblemsPanel;
+    state.sidebarWidth = sidebarWidth_;
+    state.inspectorWidth = inspectorWidth_;
+    state.pageContextWidth = libraryStudioPageWidth_;
+    return state;
+}
+
+void EditorApplication::ApplyFullscreenPreviewLayoutState(const editor::FullscreenPreviewLayoutState& state)
+{
+    sidebarVisible_ = state.sidebarVisible;
+    inspectorVisible_ = state.inspectorVisible;
+    pagePreviewViewOptions_.showPageContext = state.pageContextVisible;
+    pagePreviewViewOptions_.showLayerInspector = state.layerInspectorVisible;
+    pagePreviewViewOptions_.showMinimap = state.minimapVisible;
+    pagePreviewViewOptions_.showProblemsPanel = state.problemsVisible;
+    sidebarWidth_ = state.sidebarWidth > 0.0f ? state.sidebarWidth : sidebarWidth_;
+    inspectorWidth_ = state.inspectorWidth > 0.0f ? state.inspectorWidth : inspectorWidth_;
+    libraryStudioPageWidth_ = state.pageContextWidth;
+}
+
+void EditorApplication::ToggleFullscreenPagePreview()
+{
+    if (!HasOpenWindow() && !fullscreenPreviewController_.IsActive())
+    {
+        return;
+    }
+
+    const editor::FullscreenPreviewTransition transition =
+        fullscreenPreviewController_.Toggle(CaptureFullscreenPreviewLayoutState());
+    if (!transition.changed)
+    {
+        return;
+    }
+
+    ApplyFullscreenPreviewLayoutState(transition.state);
+    RebuildStatus(fullscreenPreviewController_.IsActive() ? "Fullscreen preview enabled." : "Fullscreen preview disabled.",
+                  false);
+}
+
+void EditorApplication::OpenDesignExportPopup()
+{
+    const std::filesystem::path defaultFolder =
+        windowFile_.empty() ? DefaultProjectAssetFolder("MFDStudioDesignExport")
+                            : (windowFile_.parent_path() / std::filesystem::path("MFDStudioDesignExport"));
+    CopyTextBuffer(designExportPopup_.outputFolder, defaultFolder.lexically_normal().string());
+    designExportPopup_.exportCompleted = false;
+    designExportPopup_.exportedFolder.clear();
+    designExportPopup_.warnings.clear();
+    designExportPopup_.openRequested = true;
+}
+
+editor::DesignExportRequest EditorApplication::BuildDesignExportRequest() const
+{
+    editor::DesignExportRequest request;
+    request.outputFolder = std::filesystem::path(designExportPopup_.outputFolder.data()).lexically_normal();
+    request.windowFile = windowFile_;
+    request.loaded = HasOpenWindow() ? &loaded_ : nullptr;
+    request.files = HasOpenWindow() ? &files_ : nullptr;
+    request.exportMarkdownIcd = designExportPopup_.exportMarkdownIcd;
+    request.exportExplodedViews = designExportPopup_.exportExplodedViews;
+    request.includeCanvasCoordinates = designExportPopup_.includeCanvasCoordinates;
+    request.includeCppSnippets = designExportPopup_.includeCppSnippets;
+    request.includeStrobe = designExportPopup_.includeStrobe;
+    request.includeBlink = designExportPopup_.includeBlink;
+    request.includePrimitiveIds = designExportPopup_.includePrimitiveIds;
+    request.includeMappingHash = designExportPopup_.includeMappingHash;
+    return request;
+}
+
+bool EditorApplication::ExecuteDesignExportPlan(const editor::DesignExportPlan& plan)
+{
+    if (!plan.canExecute)
+    {
+        RebuildStatus(plan.error.empty() ? "The design export cannot execute." : plan.error, true);
+        return false;
+    }
+
+    const editor::DesignExportResult result = designExportService_.Execute(plan);
+    designExportPopup_.warnings = result.warnings;
+    designExportPopup_.exportCompleted = true;
+    designExportPopup_.exportedFolder = result.outputFolder;
+
+    const bool hasErrors = !result.warnings.empty() &&
+                           !std::filesystem::exists(plan.readmeFile) &&
+                           !std::filesystem::exists(plan.windowIcdFile);
+    if (hasErrors)
+    {
+        RebuildStatus("Design export failed. Review the popup warnings.", true);
+        return false;
+    }
+
+    RebuildStatus("Design export created in '" + result.outputFolder.string() + "'.", false);
+    return true;
 }
 
 bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan)
@@ -2454,6 +2568,17 @@ void EditorApplication::DrawMenuBar()
             OpenWindowAssetFromFileExplorer();
         }
 
+        if (ImGui::BeginMenu("Export", hasOpenWindow))
+        {
+            const bool exportDesignRequested = ImGui::MenuItem("Export design...");
+            ShowItemTooltip("Generate Markdown ICD files and exploded designer views for the current window.");
+            if (exportDesignRequested)
+            {
+                OpenDesignExportPopup();
+            }
+            ImGui::EndMenu();
+        }
+
         ImGui::Separator();
         const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S", false, hasOpenWindow);
         ShowItemTooltip("Write the window file, page files and reticle template files back to disk.");
@@ -2688,50 +2813,70 @@ void EditorApplication::DrawRootLayout()
 
     const float totalWidth = ImGui::GetContentRegionAvail().x;
     const float totalHeight = ImGui::GetContentRegionAvail().y;
-    const float maxSidebarWidth = std::max(kMinSidebarWidth,
-                                           totalWidth - inspectorWidth_ - kMinWorkspaceWidth - 2.0f * editor::ui::kPaneSplitterWidth);
-    sidebarWidth_ = std::clamp(sidebarWidth_, kMinSidebarWidth, maxSidebarWidth);
+    const float splitterCount = static_cast<float>((sidebarVisible_ ? 1 : 0) + (inspectorVisible_ ? 1 : 0));
+    const float reservedInspectorWidth = inspectorVisible_ ? inspectorWidth_ : 0.0f;
 
-    const float maxInspectorWidth = std::max(kMinInspectorWidth,
-                                             totalWidth - sidebarWidth_ - kMinWorkspaceWidth - 2.0f * editor::ui::kPaneSplitterWidth);
-    inspectorWidth_ = std::clamp(inspectorWidth_, kMinInspectorWidth, maxInspectorWidth);
-
-    ImGui::BeginChild("Sidebar", ImVec2(sidebarWidth_, 0.0f), true);
-    DrawSidebar();
-    ImGui::EndChild();
-
-    ImGui::SameLine();
-    if (DrawVerticalSplitter("##SidebarSplitter", totalHeight))
+    if (sidebarVisible_)
     {
-        const float nextSidebarWidth = sidebarWidth_ + ImGui::GetIO().MouseDelta.x;
-        const float nextMaxSidebarWidth = std::max(kMinSidebarWidth,
-                                                   totalWidth - inspectorWidth_ - kMinWorkspaceWidth -
-                                                       2.0f * editor::ui::kPaneSplitterWidth);
-        sidebarWidth_ = std::clamp(nextSidebarWidth, kMinSidebarWidth, nextMaxSidebarWidth);
+        const float maxSidebarWidth = std::max(
+            kMinSidebarWidth, totalWidth - reservedInspectorWidth - kMinWorkspaceWidth - splitterCount * editor::ui::kPaneSplitterWidth);
+        sidebarWidth_ = std::clamp(sidebarWidth_, kMinSidebarWidth, maxSidebarWidth);
     }
 
-    ImGui::SameLine();
+    if (inspectorVisible_)
+    {
+        const float maxInspectorWidth = std::max(
+            kMinInspectorWidth, totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) - kMinWorkspaceWidth -
+                                   splitterCount * editor::ui::kPaneSplitterWidth);
+        inspectorWidth_ = std::clamp(inspectorWidth_, kMinInspectorWidth, maxInspectorWidth);
+    }
 
-    const float workspaceWidth =
-        std::max(kMinWorkspaceWidth, totalWidth - sidebarWidth_ - inspectorWidth_ - 2.0f * editor::ui::kPaneSplitterWidth);
+    if (sidebarVisible_)
+    {
+        ImGui::BeginChild("Sidebar", ImVec2(sidebarWidth_, 0.0f), true);
+        DrawSidebar();
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+        if (DrawVerticalSplitter("##SidebarSplitter", totalHeight))
+        {
+            const float nextSidebarWidth = sidebarWidth_ + ImGui::GetIO().MouseDelta.x;
+            const float nextMaxSidebarWidth =
+                std::max(kMinSidebarWidth,
+                         totalWidth - (inspectorVisible_ ? inspectorWidth_ : 0.0f) - kMinWorkspaceWidth -
+                             splitterCount * editor::ui::kPaneSplitterWidth);
+            sidebarWidth_ = std::clamp(nextSidebarWidth, kMinSidebarWidth, nextMaxSidebarWidth);
+        }
+
+        ImGui::SameLine();
+    }
+
+    const float workspaceWidth = std::max(kMinWorkspaceWidth,
+                                          totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) -
+                                              (inspectorVisible_ ? inspectorWidth_ : 0.0f) -
+                                              splitterCount * editor::ui::kPaneSplitterWidth);
     ImGui::BeginChild("Workspace", ImVec2(workspaceWidth, 0.0f), true);
     DrawWorkspace();
     ImGui::EndChild();
 
-    ImGui::SameLine();
-    if (DrawVerticalSplitter("##InspectorSplitter", totalHeight))
+    if (inspectorVisible_)
     {
-        const float nextInspectorWidth = inspectorWidth_ - ImGui::GetIO().MouseDelta.x;
-        const float nextMaxInspectorWidth = std::max(kMinInspectorWidth,
-                                                     totalWidth - sidebarWidth_ - kMinWorkspaceWidth -
-                                                         2.0f * editor::ui::kPaneSplitterWidth);
-        inspectorWidth_ = std::clamp(nextInspectorWidth, kMinInspectorWidth, nextMaxInspectorWidth);
-    }
+        ImGui::SameLine();
+        if (DrawVerticalSplitter("##InspectorSplitter", totalHeight))
+        {
+            const float nextInspectorWidth = inspectorWidth_ - ImGui::GetIO().MouseDelta.x;
+            const float nextMaxInspectorWidth =
+                std::max(kMinInspectorWidth,
+                         totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) - kMinWorkspaceWidth -
+                             splitterCount * editor::ui::kPaneSplitterWidth);
+            inspectorWidth_ = std::clamp(nextInspectorWidth, kMinInspectorWidth, nextMaxInspectorWidth);
+        }
 
-    ImGui::SameLine();
-    ImGui::BeginChild("Inspector", ImVec2(0.0f, 0.0f), true);
-    DrawInspector();
-    ImGui::EndChild();
+        ImGui::SameLine();
+        ImGui::BeginChild("Inspector", ImVec2(0.0f, 0.0f), true);
+        DrawInspector();
+        ImGui::EndChild();
+    }
 
     ImGui::End();
 }
@@ -2783,6 +2928,7 @@ void EditorApplication::DrawWorkspace()
     const bool hasPagePreviewProblems = !pagePreviewProblems.empty();
     const bool libraryStudioVisible =
         selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive;
+    const bool fullscreenPreviewActive = fullscreenPreviewController_.IsActive();
 
     const auto drawPagePreviewWorkspace = [this, &pagePreviewProblems](
                                              const char* previewChildId,
@@ -2868,6 +3014,18 @@ void EditorApplication::DrawWorkspace()
         ImGui::EndGroup();
     };
 
+    if (fullscreenPreviewActive)
+    {
+        ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
+        DrawPagePreviewHeaderControls("##FullscreenPagePreviewViewMenu", hasPagePreviewProblems);
+        ImGui::TextDisabled("Fullscreen preview keeps the page canvas interactive. Press F11 or Esc to restore the editor layout.");
+        ImGui::Separator();
+
+        drawPagePreviewWorkspace(
+            "FullscreenPagePreviewPanel", "FullscreenPageLayersPanel", "FullscreenPageProblemsPanel", true, true);
+        return;
+    }
+
     if (libraryStudioVisible)
     {
         const float totalWidth = ImGui::GetContentRegionAvail().x;
@@ -2931,7 +3089,7 @@ void EditorApplication::DrawWorkspace()
 
         ImGui::BeginChild("PageContextPanel", ImVec2(pageWidth, 0.0f), true);
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page context");
-        DrawPagePreviewViewMenuButton("##PageContextViewMenu", hasPagePreviewProblems);
+        DrawPagePreviewHeaderControls("##PageContextViewMenu", hasPagePreviewProblems);
         ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
         ImGui::Separator();
 
@@ -2957,7 +3115,7 @@ void EditorApplication::DrawWorkspace()
     }
 
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-    DrawPagePreviewViewMenuButton("##MainPagePreviewViewMenu", hasPagePreviewProblems);
+    DrawPagePreviewHeaderControls("##MainPagePreviewViewMenu", hasPagePreviewProblems);
     ImGui::TextDisabled("Use View to toggle preview-only overlays without touching authored JSON assets.");
     ImGui::Separator();
 
@@ -3838,21 +3996,30 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
         true);
 }
 
-void EditorApplication::DrawPagePreviewViewMenuButton(const char* buttonId, const bool showProblemsIndicator)
+void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId, const bool showProblemsIndicator)
 {
     const ImGuiStyle& style = ImGui::GetStyle();
     const std::string label =
         showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel ? "View !" : "View";
     const std::string buttonLabel = label + (buttonId == nullptr ? "##PagePreviewViewMenu" : buttonId);
     const float buttonWidth = ImGui::CalcTextSize(label.c_str()).x + style.FramePadding.x * 2.0f;
+    const float fullscreenButtonWidth = ImGui::CalcTextSize("[]").x + style.FramePadding.x * 2.0f;
+    const float controlsWidth = buttonWidth + style.ItemSpacing.x + fullscreenButtonWidth;
 
     ImGui::SameLine();
-    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - buttonWidth));
+    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - controlsWidth));
     if (ImGui::Button(buttonLabel.c_str()))
     {
         ImGui::OpenPopup(kPagePreviewDisplayPopupId);
     }
     ShowItemTooltip("Toggle page-preview overlays and editor-only helper panels.");
+
+    ImGui::SameLine();
+    if (ImGui::Button("[]##PagePreviewFullscreenToggle"))
+    {
+        ToggleFullscreenPagePreview();
+    }
+    ShowItemTooltip(fullscreenPreviewController_.IsActive() ? "Exit fullscreen preview" : "Fullscreen page preview");
 
     if (ImGui::BeginPopup(kPagePreviewDisplayPopupId))
     {
@@ -7180,6 +7347,12 @@ void EditorApplication::DrawPopups()
         reticleExtractionPopup_.openRequested = false;
     }
 
+    if (designExportPopup_.openRequested)
+    {
+        ImGui::OpenPopup("Export design");
+        designExportPopup_.openRequested = false;
+    }
+
     if (pageManagementPopup_.openRequested)
     {
         ImGui::OpenPopup("Manage page");
@@ -7358,6 +7531,7 @@ void EditorApplication::DrawPopups()
     DrawPageRenamePopup();
     DrawReticleRenamePopup();
     DrawReticleExtractionPopup();
+    DrawDesignExportPopup();
     DrawPageManagementPopup();
 
     if (ImGui::BeginPopupModal("Create new library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -8075,6 +8249,135 @@ void EditorApplication::DrawReticleExtractionPopup()
     if (ImGui::Button("Cancel"))
     {
         reticleExtractionPopup_ = {};
+        ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::EndPopup();
+}
+
+void EditorApplication::DrawDesignExportPopup()
+{
+    if (!ImGui::BeginPopupModal("Export design", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    if (!HasOpenWindow())
+    {
+        ImGui::TextWrapped("Open one window before exporting design documentation.");
+        if (ImGui::Button("Close"))
+        {
+            designExportPopup_ = {};
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Export design");
+    ImGui::TextWrapped(
+        "Generate Markdown ICD files and exploded designer views for the currently loaded window without modifying authored JSON assets.");
+    ImGui::Separator();
+
+    if (designExportPopup_.exportCompleted)
+    {
+        ImGui::TextWrapped("Design export created:");
+        ImGui::TextWrapped("%s", designExportPopup_.exportedFolder.string().c_str());
+
+        if (!designExportPopup_.warnings.empty())
+        {
+            ImGui::SeparatorText("Warnings");
+            for (const std::string& warning : designExportPopup_.warnings)
+            {
+                ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f), "%s", warning.c_str());
+            }
+        }
+
+        if (AccentButton("Open folder"))
+        {
+            std::string error;
+            if (!editor::OpenFolderInFileExplorer(designExportPopup_.exportedFolder, &error))
+            {
+                RebuildStatus(error.empty() ? "Opening the export folder failed." : error, true);
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Close"))
+        {
+            designExportPopup_ = {};
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+        return;
+    }
+
+    ImGui::InputText("Output folder", designExportPopup_.outputFolder.data(), designExportPopup_.outputFolder.size());
+    ImGui::SameLine();
+    if (ImGui::Button("Browse..."))
+    {
+        std::string dialogError;
+        const std::filesystem::path initialFolder =
+            designExportPopup_.outputFolder.front() == '\0' ? windowFile_.parent_path()
+                                                            : std::filesystem::path(designExportPopup_.outputFolder.data());
+        if (const auto selectedFolder =
+                editor::OpenFolderDialog(initialFolder, "Select design export folder", &dialogError);
+            selectedFolder.has_value())
+        {
+            CopyTextBuffer(designExportPopup_.outputFolder, selectedFolder->lexically_normal().string());
+        }
+        else if (!dialogError.empty())
+        {
+            RebuildStatus(dialogError, true);
+        }
+    }
+    ShowItemTooltip("Choose the folder where the design export should be created.");
+
+    ImGui::SeparatorText("Options");
+    ImGui::Checkbox("Export Markdown ICD", &designExportPopup_.exportMarkdownIcd);
+    ImGui::Checkbox("Export exploded designer views", &designExportPopup_.exportExplodedViews);
+    ImGui::Checkbox("Include canvas coordinates", &designExportPopup_.includeCanvasCoordinates);
+    ImGui::Checkbox("Include generated C++ usage snippets", &designExportPopup_.includeCppSnippets);
+    ImGui::Checkbox("Include strobe section", &designExportPopup_.includeStrobe);
+    ImGui::Checkbox("Include blink section", &designExportPopup_.includeBlink);
+    ImGui::Checkbox("Include primitive ids when available", &designExportPopup_.includePrimitiveIds);
+    ImGui::Checkbox("Include mapping hash when available", &designExportPopup_.includeMappingHash);
+
+    const editor::DesignExportPlan plan = designExportService_.BuildPlan(BuildDesignExportRequest());
+
+    if (plan.canExecute)
+    {
+        ImGui::SeparatorText("Plan");
+        ImGui::TextWrapped("Final output: %s", plan.outputFolder.string().c_str());
+        ImGui::Text("Files: %d", static_cast<int>(plan.filesToWrite.size()));
+    }
+
+    if (!plan.warnings.empty())
+    {
+        ImGui::SeparatorText("Warnings");
+        for (const std::string& warning : plan.warnings)
+        {
+            ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f), "%s", warning.c_str());
+        }
+    }
+
+    if (!plan.error.empty())
+    {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f), "%s", plan.error.c_str());
+    }
+
+    ImGui::Spacing();
+    ImGui::BeginDisabled(!plan.canExecute);
+    if (AccentButton("Export"))
+    {
+        ExecuteDesignExportPlan(plan);
+    }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        designExportPopup_ = {};
         ImGui::CloseCurrentPopup();
     }
 
