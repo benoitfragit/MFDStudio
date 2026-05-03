@@ -1,0 +1,22 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam rectangle {
+  RoundCorner 18
+}
+
+rectangle "README" as Readme
+rectangle "Quick Start" as Quick
+rectangle "Core Concepts" as Concepts
+rectangle "Tutorials" as Tutorials
+rectangle "JSON Reference" as Reference
+rectangle "Development Guide" as Dev
+rectangle "Architecture\nand Standards" as DeepDive
+
+Readme --> Quick : see a demo
+Readme --> Concepts : learn the vocabulary
+Quick --> Tutorials : reproduce the flow
+Concepts --> Reference : exact JSON syntax
+Quick --> Dev : build / test
+Tutorials --> DeepDive : advanced behavior
+@enduml

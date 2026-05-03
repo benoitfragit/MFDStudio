@@ -1,206 +1,136 @@
 # Quick Start
 
-This page is the fastest way to understand the project and get a visible result.
+This page is the fastest path from zero to a visible live window.
 
-If you want the full documentation map first, read [Documentation Guide](../docs/README.md).
-If you want the contributor-oriented build and test view, read [Development Guide](./DEVELOPMENT.md).
+In one short session you will:
 
-## Goal
-
-In about 10 minutes you will:
-
-- launch a window
-- launch the mockup
+- launch one runtime window
+- launch the live mock client
 - activate a page
-- move a reticle
-- inspect the runtime from inside `mfd_window`
-- see how the client and the window talk to each other over UDP
+- edit one reticle
+- inspect the runtime overlay
 
-## Mental Model
+If you want the full map first, open [Documentation Guide](./README.md).
 
-\startuml
-left to right direction
-rectangle "Reticle JSON files" as ReticleJson
-rectangle "Page JSON files" as PageJson
-rectangle "Window JSON" as WindowJson
-rectangle "Window application" as WindowApp
-rectangle "Mockup or your own client" as Client
+## What You Will Be Looking At
 
-ReticleJson --> WindowJson
-PageJson --> WindowJson
-WindowJson --> WindowApp
-Client --> WindowApp : UDP commands
-WindowApp --> Client : UDP runtime feedback
-\enduml
+### Runtime Window
 
-Keep this simple model in mind:
+![Runtime window](./images/mfd_window_cockpit_capture.png)
 
-- JSON files describe what exists
-- the window application renders it
-- a client sends runtime commands
+### Live Client
 
-## Step 1 - Build the project
+![Client mockup](./images/client_mockup_demo.png)
+
+## The Only Mental Model You Need
+
+![Runtime loop](./images/mfd_runtime_roundtrip.svg)
+
+Keep this in mind:
+
+- JSON assets define what exists
+- `mfd_window` renders the active page
+- `client_mockup` sends commands over UDP
+- the runtime can return feedback
+
+## Step 1 - Build Only What You Need
 
 ```powershell
 cmake --preset vs2022-win32
 cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin client_mockup
 ```
 
-This default build also compiles the `GoogleTest` suite used to validate the
-runtime API and JSON loading rules.
+If you want the editor too:
 
-If you want to refresh the staged `_Exec` runtime tree cleanly before launching
-from it, run:
+```powershell
+cmake --build --preset debug-win32 --target mfd_editor
+```
+
+For a clean staged runtime refresh:
 
 ```powershell
 cmake --build --preset debug-win32 --target stage_exec
 ```
 
-## Step 2 - Start a ready-to-use window
+## Step 2 - Start A Runtime Window
 
-Launch one of the repository launchers:
+Use one of the shipped launchers:
 
 - `.\Scripts\Start-MfdDemo.bat`
+- `.\Scripts\Start-MfdCockpit.bat`
 - `.\Scripts\Start-MfdMinimal.bat`
 
-For a first run, `.\Scripts\Start-MfdDemo.bat` is the easiest option.
+For a first run, `.\Scripts\Start-MfdDemo.bat` is the simplest choice.
 
-These scripts are also copied directly into `_Exec/<toolset>/<platform>/<config>/`
-when `mfd_window` is built, and `stage_exec` can rebuild that staged runtime
-layout cleanly without an extra scripts subdirectory.
-
-## Step 3 - Start the mockup
+## Step 3 - Start The Client
 
 Launch `client_mockup`.
 
-The mockup is your control panel. It lets you test:
+At this point you have the complete live loop:
 
-- page activation
-- page zoom
-- reticle updates
-- dynamic reticles
-- strobe control
-- runtime feedback
+- one authored window running in `mfd_window`
+- one UDP client discovering the same JSON locally
+- one control surface for pages, reticles, blink, strobe, and feedback
 
-## Step 4 - Activate the Radar page
+## Step 4 - Activate One Page
 
-In the mockup:
+In `client_mockup`:
 
-1. select the demo target
-2. open the page tree
-3. select `Radar`
-4. click `Activate page now`
+1. select the window preset matching the launched runtime
+2. choose a page in the left tree
+3. click `Activate selected page` or `Activate page now`
 
-## Step 5 - Move one reticle
+If the command loop is correct, the runtime window changes immediately.
 
-Still in the mockup:
+## Step 5 - Move One Reticle
 
-1. expand the `Radar` page
-2. select one reticle
-3. change `Position`
+Still in `client_mockup`:
+
+1. open the selected page
+2. pick one static reticle
+3. edit `Position`
 4. click `Send reticle update`
 
-You should immediately see the reticle move in the window.
+You should see the change live in the runtime window.
 
-## Step 6 - Test live dynamic tracks
+## Step 6 - Check Something More Dynamic
 
-In the radar tools section of the mockup:
+Useful quick checks:
 
-1. enable the simulated radar batch
-2. watch the radar page update with many tracks
-3. watch the reported send time and UI FPS
+- enable the radar simulation to flood a page with dynamic tracks
+- change `Brightness` or `Invert colors` in `Window display`
+- activate the cockpit preset to see a denser page in motion
 
-## Step 7 - Inspect the runtime from `mfd_window`
+## Step 7 - Inspect The Runtime Itself
 
-In the `mfd_window` window itself:
+Inside `mfd_window`:
 
 1. press `F1`
-2. inspect the transport panel and active page
-3. select one reticle in the tree
-4. change `Visible` or `Position` to create one local bypass
-5. clear `Bypassed` again to return immediately to the last UDP-driven state
+2. inspect the transport state and active page
+3. select one reticle in the runtime tree
+4. apply a temporary local bypass
+5. clear the bypass to return to the live client-driven state
 
-The debug UI uses a dedicated side panel so it does not cover the display
-viewport.
+This is the fastest way to distinguish:
 
-Press `F1` again, or close the overlay window, to leave debug mode. Every page
-and reticle then follows the normal live runtime state again.
+- an authored asset problem
+- a client-side command problem
+- a runtime-state problem
 
-## Step 8 - Understand what just happened
+## After 10 Minutes, You Should Understand
 
-You have already exercised the full runtime loop:
+- where the assets live
+- how the runtime is launched
+- how the client talks to the runtime
+- how to validate a page without writing new code
 
-\startuml
-actor User as U
-participant client_mockup as M
-participant "UDP I/O worker" as N
-participant "Render thread" as W
-participant "CommandProcessor / EnTT" as P
-participant Renderer as R
+## Where To Go Next
 
-U -> M : Edit page or reticle
-M -> N : UDP protobuf command
-N -> W : Queue typed commands
-W -> P : Submit commands
-P -> W : Update SceneRegistry
-W -> R : Render active page
-\enduml
-
-## Step 9 - See the preferred client API shape
-
-For one application-specific C++ client, the normal public workflow is:
-
-1. load the window JSON once to discover the UDP endpoint and generated map
-2. construct `CommandClient`
-3. mutate the generated UI handles
-4. publish the staged commands with `BuildBatch()` or `BuildCommandBatch()`
-
-Representative snippet:
-
-```cpp
-#include "FullDemoMockupUi.h"
-#include "mfd/control/CommandClient.h"
-#include "mfd/io/JsonLoader.h"
-
-mfd::JsonLoader loader;
-const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages.json");
-if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
-{
-    return 1;
-}
-
-mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
-full_demo_ui::FullDemoMockupUi ui;
-
-auto& radar = ui.Radar();
-client.ActivatePage(radar);
-radar.fixedTrackAlpha.SetVisible(true);
-radar.fixedTrackAlpha.SetPosition({0.20f, -0.15f});
-radar.fixedTrackAlpha.TrackLabel().SetText("ALPHA");
-
-client.SendBatch(ui.BuildBatch());
-```
-
-That generated path is the preferred client-facing API. Raw string-based
-helpers still exist on `CommandClient`, but they are now the fallback mode for
-generic tools, migration code, or debugging.
-
-## What You Should Read Next
-
-Choose the path that matches your goal:
-
-- create reusable reticles: [01 Create Reticles From Primitives](./tutorials/01_create_reticles_from_primitives.md)
-- create your own page and window JSON: [02 Create Pages And Windows](./tutorials/02_create_pages_and_windows.md)
-- understand the mockup as a real UDP client: [11 Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md)
-- integrate a live external client: [04 Drive A Window From A Live Client Over UDP](./tutorials/04_drive_a_window_from_a_live_client.md)
-- use dynamic radar-style tracks: [05 Dynamic Reticles](./tutorials/05_dynamic_reticles.md)
-- try the integrated showcase: [10 Drive The Cockpit Demo](./tutorials/10_cockpit_demo.md)
-- run the automated runtime tests: [12 Run The Automated Runtime Tests](./tutorials/12_run_the_automated_runtime_tests.md)
-- inspect the runtime overlay in detail: [14 Use The Integrated Runtime Debug Overlay](./tutorials/14_use_the_runtime_debug_overlay.md)
-
-## Common First-Time Mistakes
-
-- editing coordinates as if they were pixels instead of `[-1, 1]`
-- forgetting that page names and reticle ids are case-sensitive runtime identifiers
-- sending commands to the wrong UDP port
-- trying to control a reticle id that does not exist on the selected page
+| Goal | Next page |
+| --- | --- |
+| create your own assets | [Create Reticles From Primitives](./tutorials/01_create_reticles_from_primitives.md) |
+| build a window in JSON | [Create Pages And Windows](./tutorials/02_create_pages_and_windows.md) |
+| use the mockup as a real client reference | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) |
+| drive a runtime from your own code | [Drive A Window From A Live Client](./tutorials/04_drive_a_window_from_a_live_client.md) |
+| work visually in the editor | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md) |
+| understand the vocabulary better | [Core Concepts](./CONCEPTS.md) |

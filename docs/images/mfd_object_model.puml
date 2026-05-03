@@ -1,0 +1,19 @@
+@startuml
+top to bottom direction
+skinparam shadowing false
+skinparam rectangle {
+  RoundCorner 18
+}
+
+rectangle "Window\nsize, position, UDP endpoints" as Window
+rectangle "Page\nname, view, background" as Page
+rectangle "Reticle instance\nstatic or dynamic" as Reticle
+rectangle "Primitive\ntext, geometry, image, time" as Primitive
+rectangle "Page strobe\noptional" as Strobe
+
+Window --> Page
+Page --> Reticle
+Reticle --> Primitive
+Page --> Strobe
+Strobe --> Primitive
+@enduml

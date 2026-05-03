@@ -1,8 +1,19 @@
 # Documentation Images
 
-This folder is reserved for stable documentation visuals referenced from the
-Markdown guides and the generated Doxygen site.
+This folder stores the stable visual assets used by the Markdown guides and the
+generated Doxygen portal.
 
-It intentionally exists in the repository even when no screenshots are
-published yet, so Doxygen can keep `docs/images` in `IMAGE_PATH` without
-warning during local and CI generation.
+Contents:
+
+- `*.puml`: PlantUML source files kept under version control
+- `*.svg`: rendered diagrams intended to be visible directly from GitHub
+- `*.png`: GUI screenshots captured from the real Windows executables
+
+Refresh helpers:
+
+- render diagrams: `.\docs\RenderPlantUmlDiagrams.ps1`
+- capture GUI screenshots: `.\docs\CaptureScreenshots.ps1`
+
+The screenshots currently target the shipped Win32 debug runtime staged under
+`_Exec`, launch `mfd_window`, `client_mockup`, and `mfd_editor`, then capture
+each window individually.

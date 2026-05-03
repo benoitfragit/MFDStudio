@@ -1,0 +1,20 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam rectangle {
+  RoundCorner 18
+}
+
+actor "Author or integrator" as User
+rectangle "mfd_editor\noptional authoring tool" as Editor
+folder "JSON assets\nwindow / page / reticle" as Assets
+rectangle "mfd_window\nruntime display" as Window
+rectangle "client_mockup\nor your own client" as Client
+
+User --> Editor : author / inspect
+Editor --> Assets : save
+Assets --> Window : load at startup
+User --> Client : trigger updates
+Client --> Window : UDP commands
+Window --> Client : feedback / framebuffer
+@enduml

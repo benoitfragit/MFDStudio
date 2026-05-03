@@ -15,6 +15,8 @@ If you want the deep client-side reference after this hands-on walkthrough, go
 to
 [11 Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md).
 
+![Client mockup screenshot](../images/client_mockup_demo.png)
+
 ## At A Glance
 
 \startuml

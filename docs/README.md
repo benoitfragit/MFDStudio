@@ -1,40 +1,78 @@
 # Documentation Guide
 
-This page helps you choose the shortest documentation path for your goal.
+This page is the main entry point for the repository documentation.
 
-## Start Here If You Are New
+The goal is simple:
 
-Read these pages in order:
+- get you to the right page quickly
+- avoid making you read the whole tree first
+- separate onboarding, usage, reference, and deep architecture work
+
+![Documentation map](./images/mfd_doc_paths.svg)
+
+## Start Here
+
+If this is your first session with the project, read in this order:
 
 1. [Quick Start](./QUICKSTART.md)
 2. [Core Concepts](./CONCEPTS.md)
-3. one path from the goal table below
+3. the path matching your job below
 
-That sequence gives you:
+## What The Product Looks Like
 
-- one visible result quickly
-- the project vocabulary
-- the right deep-dive pages without reading the whole documentation tree first
+### Runtime Window
 
-## Choose Your Goal
+![Runtime window screenshot](./images/mfd_window_cockpit_capture.png)
 
-| Goal | Read first | Then continue with |
+### Live Client
+
+![Client mockup screenshot](./images/client_mockup_demo.png)
+
+### Visual Editor
+
+![Editor screenshot](./images/mfd_editor_capture.png)
+
+## Choose Your Path
+
+| I want to... | Read first | Then continue with |
 | --- | --- | --- |
-| See a shipped demo working quickly | [Quick Start](./QUICKSTART.md) | [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md) |
-| Inspect one live `mfd_window` runtime without changing the client | [Quick Start](./QUICKSTART.md) | [Use The Integrated Runtime Debug Overlay](./tutorials/14_use_the_runtime_debug_overlay.md) |
-| Understand the project structure before coding | [Core Concepts](./CONCEPTS.md) | [Development Guide](./DEVELOPMENT.md) |
-| Author reticles, pages, and windows in JSON | [Core Concepts](./CONCEPTS.md) | [Tutorials 01-03](./tutorials/README.md), then [JSON Reference](./reference/README.md) |
-| Use `mfd_editor` to create or edit assets | [Quick Start](./QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md) |
-| Integrate a live external client over UDP | [Quick Start](./QUICKSTART.md) | [Drive A Window From A Live Client](./tutorials/04_drive_a_window_from_a_live_client.md), [Dynamic Reticles](./tutorials/05_dynamic_reticles.md), [Strobe And Feedback](./tutorials/06_strobe_control_and_feedback.md) |
-| Use the generated client-side API | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) | [Generated Client API Architecture](./architecture/generated_client_api.md), then [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md) |
-| Build a third-party replacement client | [External Client Interoperability Specification](./standards/mfd_client_interoperability_specification.md) | [Generated Transport Map Specification](./architecture/generated_transport_map.md), then the live-client and strobe tutorials |
-| Review or standardize the generated client contract | [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md) | [Generated Client API Architecture](./architecture/generated_client_api.md), then [Client Conformance Matrix](./standards/mfd_client_conformance_matrix.md) |
-| Need a hosted C++ API reference | [Development Guide](./DEVELOPMENT.md) | GitHub Pages site published automatically from Doxygen on each release |
-| Work on runtime safety or contributor workflows | [Development Guide](./DEVELOPMENT.md) | [Run The Automated Runtime Tests](./tutorials/12_run_the_automated_runtime_tests.md) |
-| Need exact JSON field syntax | [JSON Reference](./reference/README.md) | [Page And Window Reference](./reference/page_and_window_reference.md) and [Primitive Reference](./reference/primitive_reference.md) |
-| Need the low-level generated transport rules | [Generated Transport Map Specification](./architecture/generated_transport_map.md) | then relevant runtime and client tutorials |
+| see a shipped demo working | [Quick Start](./QUICKSTART.md) | [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md) |
+| understand the authored model | [Core Concepts](./CONCEPTS.md) | [JSON Reference](./reference/README.md) |
+| create assets in JSON | [Core Concepts](./CONCEPTS.md) | [Tutorials 01 to 03](./tutorials/README.md) |
+| use `mfd_editor` | [Quick Start](./QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md) |
+| drive the runtime from a client | [Quick Start](./QUICKSTART.md) | [Drive A Window From A Live Client](./tutorials/04_drive_a_window_from_a_live_client.md) |
+| understand `client_mockup` as a reference implementation | [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md) | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) |
+| use the generated client API | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) | [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md) |
+| work on the repository itself | [Development Guide](./DEVELOPMENT.md) | [Run The Automated Runtime Tests](./tutorials/12_run_the_automated_runtime_tests.md) |
+| review formal contracts and compatibility | [Interoperability Standards](./standards/README.md) | [Architecture Notes](./architecture/README.md) |
 
-## Recommended Reading Paths
+## Quick Utility Pages
+
+- [FAQ](./FAQ.md): practical questions and fast answers
+- [What's New](./WHATS_NEW.md): the current highlights of the repository tree
+
+## Documentation Shelves
+
+### Get Started
+
+- [Quick Start](./QUICKSTART.md): first visible result in one short session
+- [Core Concepts](./CONCEPTS.md): the vocabulary you need before the deep dive
+- [Tutorial Index](./tutorials/README.md): step-by-step workflows grouped by topic
+
+### Build And Contribute
+
+- [Development Guide](./DEVELOPMENT.md): build presets, tests, staging, and repository layout
+
+### Authoring Reference
+
+- [JSON Reference](./reference/README.md): exact supported JSON fields and syntax
+
+### Advanced Design And Contracts
+
+- [Architecture Notes](./architecture/README.md): internal design notes for generated APIs, transport mapping, and editor workflows
+- [Interoperability Standards](./standards/README.md): generated client standardization and external client contract
+
+## Recommended Reading By Profile
 
 ### Asset Author
 
@@ -47,50 +85,28 @@ That sequence gives you:
 ### Client Integrator
 
 1. [Quick Start](./QUICKSTART.md)
-2. [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md)
+2. [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md)
 3. [Drive A Window From A Live Client](./tutorials/04_drive_a_window_from_a_live_client.md)
-4. [Add And Remove Dynamic Reticles](./tutorials/05_dynamic_reticles.md)
-5. [Control The Strobe And Receive Feedback](./tutorials/06_strobe_control_and_feedback.md)
-6. [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md)
-
-### Generated Client API Integrator
-
-1. [Quick Start](./QUICKSTART.md)
-2. [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md)
-3. [Drive A Window From A Live Client](./tutorials/04_drive_a_window_from_a_live_client.md)
-4. [Generated Client API Architecture](./architecture/generated_client_api.md)
-5. [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md)
-6. [Generated Transport Map Specification](./architecture/generated_transport_map.md)
+4. [Dynamic Reticles](./tutorials/05_dynamic_reticles.md)
+5. [Strobe And Feedback](./tutorials/06_strobe_control_and_feedback.md)
 
 ### Editor-Centric User
 
 1. [Quick Start](./QUICKSTART.md)
-2. [Core Concepts](./CONCEPTS.md)
-3. [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md)
-4. [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md)
+2. [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md)
+3. [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md)
 
 ### Contributor
 
 1. [Development Guide](./DEVELOPMENT.md)
 2. [Core Concepts](./CONCEPTS.md)
-3. [Run The Automated Runtime Tests](./tutorials/12_run_the_automated_runtime_tests.md)
-4. the specific tutorial or reference page related to the feature you touch
-
-## Documentation Map
-
-- [Quick Start](./QUICKSTART.md): first visible result in one short session
-- [Core Concepts](./CONCEPTS.md): project vocabulary and runtime model
-- [Tutorial Index](./tutorials/README.md): step-by-step workflows by topic
-- [JSON Reference](./reference/README.md): exact fields, aliases, and JSON rules
-- [Development Guide](./DEVELOPMENT.md): build, test, repository layout, and release workflow
-- [Architecture Notes](./architecture/README.md): advanced design notes for generated client code and transport maps
-- [Interoperability Standards](./standards/README.md): generated client API standardization, replacement-client contract, and conformance evidence
+3. [Tutorial Index](./tutorials/README.md)
+4. the specific reference or architecture page related to the feature you touch
 
 ## Common First-Time Mistakes
 
-- reading the architecture specs before the quick start and concepts pages
-- treating page coordinates as pixels instead of logical `[-1, 1]` space
+- reading architecture pages before `Quick Start` and `Core Concepts`
 - confusing reticle templates with page reticle instances
-- trying to use UDP commands before validating the target window and port
-- forgetting the companion `.generated.map` when using raw name-based `CommandClient` helpers
-- using the low-level API first when the mockup or generated client path would explain the workflow faster
+- treating page coordinates as pixels instead of logical `[-1, 1]`
+- trying UDP control before confirming the target window and port
+- using low-level string-based helpers first when the generated client path is available

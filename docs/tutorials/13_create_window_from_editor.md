@@ -2,6 +2,8 @@
 
 This tutorial shows how to create a brand-new window directly from the editor UI, without starting from an existing preset JSON file.
 
+![Editor screenshot](../images/mfd_editor_capture.png)
+
 You will learn how to:
 - create a window file from scratch
 - set size and screen position
@@ -41,7 +43,14 @@ These fields map directly to the root window JSON.
 
 Use the **Browse ... folder** buttons when creating new assets. The editor now guides you toward the source `assets/` tree and blocks `_Exec` staging folders, because `_Exec/assets` is only a runtime copy and would break later CMake-generated client API steps.
 
-This also matters for the integrated tutorial: `client_tutorial` is intentionally kept out of the default examples build. Once the authored tutorial window, page, and reticle JSON files exist under the repository `assets/` tree, add `add_subdirectory(client_tutorial)` to `examples/CMakeLists.txt`, re-run CMake configuration, and then build the new target. `Scripts/Start-MfdTutorial.bat` becomes usable from the repository, and the staged `Start-MfdTutorial.bat` is copied next to `mfd_window` at the same point.
+This also matters for the integrated tutorial: `client_tutorial` is
+intentionally kept out of the default examples build. Once the authored
+tutorial window, page, and reticle JSON files exist under the repository
+`assets/` tree, add `add_subdirectory(client_tutorial)` to
+`examples/CMakeLists.txt`, re-run CMake configuration, and then build the new
+target. `Scripts/Start-MfdTutorial.bat` becomes usable from the repository,
+and the staged `Start-MfdTutorial.bat` is copied next to `mfd_window` at the
+same point.
 
 That source-tree discipline also feeds the editor asset reference index used by upcoming safe import, rename, highlight, and diagnostics workflows. Keeping authored windows, pages, reticles, fonts, and images under the real repository asset tree is what lets those tools resolve dependencies reliably.
 
