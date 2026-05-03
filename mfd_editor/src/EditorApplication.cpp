@@ -31,6 +31,7 @@
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorFileDialogs.h"
+#include "ReticleUsageHighlightService.h"
 #include "EditorUiTheme.h"
 #include "mfd/model/Types.h"
 #include "Canvas2D.h"
@@ -1668,6 +1669,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         SelectPage(DefaultPageIndex(loaded_.document.pages));
         ResetLibraryPreviewView();
         undoStack_.clear();
+        InvalidateReticleUsageHighlightCache();
         windowFile_ = path;
         lastRuntimeError_.clear();
         RebuildStatus("Editor loaded '" + loaded_.window.title + "'.", false);
@@ -1723,6 +1725,7 @@ void EditorApplication::Undo()
     }
 
     RebuildStatus("Undo applied.", false);
+    InvalidateReticleUsageHighlightCache();
 }
 
 void EditorApplication::PushUndoSnapshot()
@@ -1733,6 +1736,7 @@ void EditorApplication::PushUndoSnapshot()
     }
 
     undoStack_.push_back(UndoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_});
+    InvalidateReticleUsageHighlightCache();
 }
 
 void EditorApplication::HandleShortcuts()
@@ -2035,6 +2039,7 @@ bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan
                       false);
     }
 
+    InvalidateReticleUsageHighlightCache();
     return true;
 }
 
@@ -2068,6 +2073,7 @@ bool EditorApplication::ExecutePageImportPlan(const editor::PageImportPlan& plan
     }
     status += ". Use File > Save to persist the staged JSON assets.";
     RebuildStatus(status, false);
+    InvalidateReticleUsageHighlightCache();
     return true;
 }
 
@@ -2106,6 +2112,7 @@ bool EditorApplication::ExecutePageRenamePlan(const editor::RenamePagePlan& plan
     }
     status += ". Regenerate the generated client API if this page is exposed there.";
     RebuildStatus(status, false);
+    InvalidateReticleUsageHighlightCache();
     return true;
 }
 
@@ -2157,6 +2164,7 @@ bool EditorApplication::ExecuteReticleRenamePlan(const editor::RenameReticlePlan
     }
     status += ". Regenerate the generated client API if this template is exposed there.";
     RebuildStatus(status, false);
+    InvalidateReticleUsageHighlightCache();
     return true;
 }
 
@@ -2856,6 +2864,8 @@ void EditorApplication::DrawPageTree()
 {
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Pages");
     ShowItemTooltip("Browse authored pages and select a page or one of its page reticles.");
+    const editor::ReticleUsageHighlightResult* usageHighlight =
+        pagePreviewViewOptions_.highlightReticleUsages ? ResolveReticleUsageHighlight() : nullptr;
 
     for (int pageIndex = 0; pageIndex < static_cast<int>(loaded_.document.pages.size()); ++pageIndex)
     {
@@ -2871,7 +2881,23 @@ void EditorApplication::DrawPageTree()
         }
 
         const std::string pageLabel = page.title.empty() ? page.name : page.title;
+        const bool pageUsesSelectedReticle =
+            usageHighlight != nullptr &&
+            std::any_of(usageHighlight->pages.begin(),
+                        usageHighlight->pages.end(),
+                        [pageIndex](const editor::ReticleUsageHighlightPage& usagePage)
+                        {
+                            return usagePage.currentPageIndex == pageIndex;
+                        });
+        if (pageUsesSelectedReticle)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.78f, 0.38f, 1.0f));
+        }
         const bool open = ImGui::TreeNodeEx((pageLabel + "##page_" + std::to_string(pageIndex)).c_str(), flags);
+        if (pageUsesSelectedReticle)
+        {
+            ImGui::PopStyleColor();
+        }
         ShowItemTooltip("Click to focus the page inspector. Use the arrow or double-click to expand its reticles.");
         if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
         {
@@ -3985,21 +4011,135 @@ void EditorApplication::DrawProblemsPanel(const ViewportState& viewport)
 
 void EditorApplication::DrawReticleUsageHighlightPlaceholder(const ViewportState& viewport)
 {
-    const mfd::ReticleGroup* reticle = SelectedLibraryReticle();
-    if (reticle == nullptr)
+    const editor::ReticleUsageHighlightResult* usageHighlight = ResolveReticleUsageHighlight();
+    if (usageHighlight == nullptr)
     {
         return;
     }
 
     ImDrawList* drawList = ImGui::GetWindowDrawList();
-    const std::string message = "Usage highlight pending asset reference index for '" + reticle->id + "'.";
-    const ImVec2 textSize = ImGui::CalcTextSize(message.c_str());
-    const ImVec2 tagMin(viewport.origin.x + 12.0f, viewport.origin.y + viewport.size.y - textSize.y - 28.0f);
-    const ImVec2 tagMax(tagMin.x + textSize.x + 16.0f, tagMin.y + textSize.y + 8.0f);
-    drawList->AddRectFilled(tagMin, tagMax, IM_COL32(33, 49, 59, 220), 5.0f);
-    drawList->AddText(ImVec2(tagMin.x + 8.0f, tagMin.y + 4.0f),
-                      IM_COL32(220, 235, 240, 255),
-                      message.c_str());
+    const mfd::PageDefinition* page = ActivePage();
+    const editor::ReticleUsageHighlightPage* currentPageHighlight = nullptr;
+    if (page != nullptr)
+    {
+        const auto iterator = std::find_if(usageHighlight->pages.begin(),
+                                           usageHighlight->pages.end(),
+                                           [this](const editor::ReticleUsageHighlightPage& usagePage)
+                                           {
+                                               return usagePage.currentPageIndex == selection_.pageIndex;
+                                           });
+        if (iterator != usageHighlight->pages.end())
+        {
+            currentPageHighlight = &(*iterator);
+        }
+    }
+
+    if (page != nullptr && currentPageHighlight != nullptr)
+    {
+        for (const int reticleIndex : currentPageHighlight->matchingReticleIndices)
+        {
+            if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page->staticReticles.size()))
+            {
+                continue;
+            }
+
+            const ReticleScreenBounds bounds =
+                ComputeReticleScreenBounds(page->staticReticles[static_cast<std::size_t>(reticleIndex)], viewport);
+            if (!bounds.valid)
+            {
+                continue;
+            }
+
+            drawList->AddRectFilled(bounds.min, bounds.max, IM_COL32(255, 210, 102, 24), 5.0f);
+            drawList->AddRect(bounds.min, bounds.max, IM_COL32(255, 210, 102, 255), 5.0f, 0, 2.2f);
+        }
+
+        if (currentPageHighlight->matchingStrobe && page->strobe.has_value())
+        {
+            const ReticleScreenBounds strobeBounds = ComputeReticleScreenBounds(page->strobe->reticle, viewport);
+            if (strobeBounds.valid)
+            {
+                drawList->AddRectFilled(strobeBounds.min, strobeBounds.max, IM_COL32(255, 210, 102, 18), 5.0f);
+                drawList->AddRect(strobeBounds.min, strobeBounds.max, IM_COL32(255, 210, 102, 220), 5.0f, 0, 2.0f);
+            }
+        }
+    }
+
+    const bool noUsage = !usageHighlight->hasUsage;
+    const std::string header = noUsage
+                                   ? "No page currently uses '" + usageHighlight->templateId + "'."
+                                   : std::to_string(usageHighlight->pages.size()) + " page" +
+                                         (usageHighlight->pages.size() == 1U ? "" : "s") +
+                                         " use '" + usageHighlight->templateId + "'.";
+    const float lineHeight = ImGui::GetTextLineHeightWithSpacing();
+    const std::size_t shownPages = std::min<std::size_t>(4U, usageHighlight->pages.size());
+    const float panelWidth = 320.0f;
+    const float panelHeight = 42.0f + lineHeight * static_cast<float>(shownPages) + (shownPages > 0U ? 6.0f : 0.0f);
+    const ImVec2 panelMin(viewport.origin.x + 12.0f, viewport.origin.y + viewport.size.y - panelHeight - 12.0f);
+    const ImVec2 panelMax(panelMin.x + panelWidth, panelMin.y + panelHeight);
+    drawList->AddRectFilled(panelMin, panelMax, IM_COL32(33, 49, 59, 220), 6.0f);
+    drawList->AddRect(panelMin, panelMax, IM_COL32(255, 210, 102, noUsage ? 160 : 220), 6.0f, 0, 1.5f);
+    drawList->AddText(ImVec2(panelMin.x + 10.0f, panelMin.y + 8.0f),
+                      noUsage ? IM_COL32(220, 235, 240, 255) : IM_COL32(255, 224, 176, 255),
+                      header.c_str());
+
+    float currentY = panelMin.y + 8.0f + lineHeight;
+    for (std::size_t index = 0; index < shownPages; ++index)
+    {
+        const editor::ReticleUsageHighlightPage& usagePage = usageHighlight->pages[index];
+        const std::string label = std::string("- ") + usagePage.pageName;
+        drawList->AddText(ImVec2(panelMin.x + 12.0f, currentY), IM_COL32(220, 235, 240, 255), label.c_str());
+        currentY += lineHeight;
+    }
+
+    if (usageHighlight->pages.size() > shownPages)
+    {
+        const std::string more = "+" + std::to_string(usageHighlight->pages.size() - shownPages) + " more";
+        drawList->AddText(ImVec2(panelMin.x + 12.0f, currentY), IM_COL32(170, 186, 198, 255), more.c_str());
+    }
+}
+
+const editor::ReticleUsageHighlightResult* EditorApplication::ResolveReticleUsageHighlight()
+{
+    const mfd::ReticleGroup* selectedReticle = SelectedLibraryReticle();
+    if (!pagePreviewViewOptions_.highlightReticleUsages || selectedReticle == nullptr)
+    {
+        return nullptr;
+    }
+
+    std::filesystem::path templateFile = loaded_.window.reticleLibraryFolder;
+    if (const auto iterator = files_.templateFiles.find(selection_.libraryReticleId); iterator != files_.templateFiles.end())
+    {
+        templateFile = iterator->second;
+    }
+
+    const std::filesystem::path assetsRoot = ResolveAssetRootForPath(templateFile);
+    const bool includeExecAssets = PathContainsSegment(assetsRoot, "_Exec");
+    if (!reticleUsageHighlightCache_.dirty &&
+        mfd::PageNamesEqual(reticleUsageHighlightCache_.templateId, selectedReticle->id) &&
+        reticleUsageHighlightCache_.assetsRoot == assetsRoot &&
+        reticleUsageHighlightCache_.includeExecAssets == includeExecAssets)
+    {
+        return &reticleUsageHighlightCache_.result;
+    }
+
+    reticleUsageHighlightCache_.result = reticleUsageHighlightService_.BuildHighlight(
+        loaded_,
+        files_,
+        editor::ReticleUsageHighlightRequest {
+            selectedReticle->id,
+            assetsRoot,
+            includeExecAssets});
+    reticleUsageHighlightCache_.templateId = selectedReticle->id;
+    reticleUsageHighlightCache_.assetsRoot = assetsRoot;
+    reticleUsageHighlightCache_.includeExecAssets = includeExecAssets;
+    reticleUsageHighlightCache_.dirty = false;
+    return &reticleUsageHighlightCache_.result;
+}
+
+void EditorApplication::InvalidateReticleUsageHighlightCache() noexcept
+{
+    reticleUsageHighlightCache_.dirty = true;
 }
 
 void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page)

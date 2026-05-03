@@ -26,6 +26,7 @@
 #include "PageManagementService.h"
 #include "PageRenameService.h"
 #include "PagePreviewViewOptions.h"
+#include "ReticleUsageHighlightService.h"
 #include "ReticleRenameService.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
@@ -351,8 +352,12 @@ private:
     void DrawLayerInspectorStrip(const ViewportState& viewport, const mfd::PageDefinition& page);
     /** @brief Draws the lightweight problems panel overlay for the page preview. */
     void DrawProblemsPanel(const ViewportState& viewport);
-    /** @brief Draws the placeholder for future reticle-usage highlighting. */
+    /** @brief Draws page and instance highlights for the currently selected reticle template. */
     void DrawReticleUsageHighlightPlaceholder(const ViewportState& viewport);
+    /** @brief Returns the cached reticle-template highlight result when the workflow is active. */
+    const editor::ReticleUsageHighlightResult* ResolveReticleUsageHighlight();
+    /** @brief Invalidates every cached reticle-usage highlight derived from the asset graph. */
+    void InvalidateReticleUsageHighlightCache() noexcept;
     /** @brief Handles drag interactions in the page preview. */
     void HandlePreviewInteraction(const ViewportState& viewport);
     /** @brief Draws the page-preview context menu for reticle-specific actions. */
@@ -605,6 +610,17 @@ private:
     editor::PageRenameService pageRenameService_ {};
     /** @brief Stateless service owning the global reticle-template rename planning logic. */
     editor::ReticleRenameService reticleRenameService_ {};
+    /** @brief Stateless service computing page highlights for the selected reticle template. */
+    editor::ReticleUsageHighlightService reticleUsageHighlightService_ {};
+    /** @brief Cached highlight result reused while the document and selected template stay unchanged. */
+    struct ReticleUsageHighlightCacheState
+    {
+        bool dirty = true;
+        std::string templateId {};
+        std::filesystem::path assetsRoot {};
+        bool includeExecAssets = false;
+        editor::ReticleUsageHighlightResult result {};
+    } reticleUsageHighlightCache_ {};
     /** @brief Future hidden conversation-surface state kept invisible until one UI consumer is explicitly added. */
     struct HiddenConversationSurfaceState
     {

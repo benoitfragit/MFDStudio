@@ -11,6 +11,7 @@ You will learn how to:
 - import an existing page asset with its reticle dependencies
 - rename one shared page asset safely across windows
 - rename one shared reticle template safely across pages
+- highlight the pages using one selected shared reticle template
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
@@ -243,6 +244,26 @@ Current behavior:
 
 After a successful rename, regenerate the generated client API if this template
 is part of an exported runtime contract.
+
+## Step 14 - Highlight pages using the selected reticle
+
+The page preview `View` menu keeps **Highlight reticle usages** disabled by
+default.
+
+When you need to inspect template reuse:
+
+1. select one reticle template in the left **Reticle library** tree
+2. open the page-preview **View** menu
+3. enable **Highlight reticle usages**
+
+The editor then:
+
+- highlights the pages in the current page tree that reference that template
+- outlines matching instances on the active page preview
+- shows a small usage summary directly in the preview overlay
+
+If no page currently uses the selected template, the preview shows one discreet
+message instead of forcing any selection change or JSON rewrite.
 
 ## Undo behavior
 
