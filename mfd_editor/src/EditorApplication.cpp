@@ -1623,7 +1623,6 @@ int EditorApplication::Run()
             DrawMenuBar();
             DrawRootLayout();
             DrawPopups();
-            tutorial_->DrawCoach();
         }
         catch (const std::exception& exception)
         {
@@ -2568,12 +2567,30 @@ void EditorApplication::DrawMenuBar()
             OpenWindowAssetFromFileExplorer();
         }
 
-        if (ImGui::BeginMenu("Export", hasOpenWindow))
+        const bool exportMenuOpen = ImGui::BeginMenu("Export", hasOpenWindow);
+        ShowItemTooltip("Open export workflows for designer-facing deliverables.");
+        tutorial_->DrawHalo(
+            "menu_file_export",
+            "Open Export",
+            "Open the export workflows exposed by the editor before reviewing the design-export popup.");
+        if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_file_export"))
+        {
+            tutorial_->AdvancePhase();
+        }
+        if (exportMenuOpen)
         {
             const bool exportDesignRequested = ImGui::MenuItem("Export design...");
             ShowItemTooltip("Generate Markdown ICD files and exploded designer views for the current window.");
+            tutorial_->DrawHalo(
+                "menu_file_export_design",
+                "Click Export design...",
+                "Open the design export popup and review its options without writing anything yet.");
             if (exportDesignRequested)
             {
+                if (tutorial_->MatchesTarget("menu_file_export_design"))
+                {
+                    tutorial_->AdvancePhase();
+                }
                 OpenDesignExportPopup();
             }
             ImGui::EndMenu();
@@ -2604,8 +2621,7 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
-    else if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreateWindow), 1) ||
-             tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::SaveTutorialAssets), 1))
+    else if (tutorial_->ShouldResetFileMenuPhaseOnClose())
     {
         tutorial_->ResetPhase();
     }
@@ -2680,15 +2696,31 @@ void EditorApplication::DrawMenuBar()
 
         const bool importPageRequested = ImGui::MenuItem("Import page...");
         ShowItemTooltip("Import one external page JSON and stage its reticle dependencies into the current window.");
+        tutorial_->DrawHalo(
+            "menu_page_import",
+            "Click Import page...",
+            "Open the import workflow so you know where shared page ingestion starts. You can cancel the native file picker.");
         if (importPageRequested)
         {
+            if (tutorial_->MatchesTarget("menu_page_import"))
+            {
+                tutorial_->CompleteStep();
+            }
             OpenPageAssetImportFromFileExplorer();
         }
 
         const bool renamePageRequested = ImGui::MenuItem("Rename current page globally...", nullptr, false, ActivePage() != nullptr);
         ShowItemTooltip("Rename the current page asset safely across the current asset tree and update shared window references.");
+        tutorial_->DrawHalo(
+            "menu_page_rename",
+            "Click Rename current page globally...",
+            "Open the safe page-rename popup, review the scanned references, then close it without executing the rename.");
         if (renamePageRequested)
         {
+            if (tutorial_->MatchesTarget("menu_page_rename"))
+            {
+                tutorial_->AdvancePhase();
+            }
             OpenPageRenamePopup(selection_.pageIndex);
         }
 
@@ -2707,8 +2739,7 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
-    else if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreatePage1), 1) ||
-             tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::CreatePage2), 1))
+    else if (tutorial_->ShouldResetPageMenuPhaseOnClose())
     {
         tutorial_->ResetPhase();
     }
@@ -2751,8 +2782,16 @@ void EditorApplication::DrawMenuBar()
         const bool renameReticleRequested =
             ImGui::MenuItem("Rename selected library reticle globally...", nullptr, false, hasFocusedLibraryReticle);
         ShowItemTooltip("Rename the focused library reticle template safely across the current asset tree and every page that references it.");
+        tutorial_->DrawHalo(
+            "menu_reticle_rename",
+            "Click Rename selected library reticle globally...",
+            "Open the safe reticle-rename popup, review the shared references, then close it without executing the rename.");
         if (renameReticleRequested)
         {
+            if (tutorial_->MatchesTarget("menu_reticle_rename"))
+            {
+                tutorial_->AdvancePhase();
+            }
             OpenReticleRenamePopup(selection_.libraryReticleId);
         }
 
@@ -2920,6 +2959,7 @@ void EditorApplication::DrawWorkspace()
 {
     if (!HasOpenWindow())
     {
+        tutorial_->DrawCoach();
         DrawEmptyWorkspacePlaceholder();
         return;
     }
@@ -3019,6 +3059,7 @@ void EditorApplication::DrawWorkspace()
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
         DrawPagePreviewHeaderControls("##FullscreenPagePreviewViewMenu", hasPagePreviewProblems);
         ImGui::TextDisabled("Fullscreen preview keeps the page canvas interactive. Press F11 or Esc to restore the editor layout.");
+        tutorial_->DrawCoach();
         ImGui::Separator();
 
         drawPagePreviewWorkspace(
@@ -3091,6 +3132,7 @@ void EditorApplication::DrawWorkspace()
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page context");
         DrawPagePreviewHeaderControls("##PageContextViewMenu", hasPagePreviewProblems);
         ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
+        tutorial_->DrawCoach();
         ImGui::Separator();
 
         drawPagePreviewWorkspace("PageContextPreviewPanel",
@@ -3117,6 +3159,7 @@ void EditorApplication::DrawWorkspace()
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
     DrawPagePreviewHeaderControls("##MainPagePreviewViewMenu", hasPagePreviewProblems);
     ImGui::TextDisabled("Use View to toggle preview-only overlays without touching authored JSON assets.");
+    tutorial_->DrawCoach();
     ImGui::Separator();
 
     drawPagePreviewWorkspace(
@@ -3998,6 +4041,8 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
 
 void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId, const bool showProblemsIndicator)
 {
+    using editor::tutorial::TutorialStepId;
+
     const ImGuiStyle& style = ImGui::GetStyle();
     const std::string label =
         showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel ? "View !" : "View";
@@ -4010,16 +4055,41 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId, cons
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - controlsWidth));
     if (ImGui::Button(buttonLabel.c_str()))
     {
+        if (tutorial_->MatchesTarget("page_preview_view_menu"))
+        {
+            tutorial_->AdvancePhase();
+        }
         ImGui::OpenPopup(kPagePreviewDisplayPopupId);
     }
     ShowItemTooltip("Toggle page-preview overlays and editor-only helper panels.");
+    tutorial_->DrawHalo(
+        "page_preview_view_menu",
+        "Click View",
+        "Open the page-preview helper menu so the coach can walk through the editor-only overlays one by one.");
 
     ImGui::SameLine();
     if (ImGui::Button("[]##PagePreviewFullscreenToggle"))
     {
         ToggleFullscreenPagePreview();
+        if (tutorial_->MatchesTarget("page_preview_fullscreen"))
+        {
+            if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 0))
+            {
+                tutorial_->AdvancePhase();
+            }
+            else
+            {
+                tutorial_->CompleteStep();
+            }
+        }
     }
     ShowItemTooltip(fullscreenPreviewController_.IsActive() ? "Exit fullscreen preview" : "Fullscreen page preview");
+    tutorial_->DrawHalo(
+        "page_preview_fullscreen",
+        "Toggle fullscreen preview",
+        tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 0)
+            ? "Enter fullscreen preview to focus on the page canvas."
+            : "Leave fullscreen preview to restore the normal editor layout.");
 
     if (ImGui::BeginPopup(kPagePreviewDisplayPopupId))
     {
@@ -4029,19 +4099,71 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId, cons
             ClearLayerFocus(false);
             ReleaseLayerPreviewTextures();
         }
-        ImGui::Checkbox("Minimap", &pagePreviewViewOptions_.showMinimap);
-        ImGui::Checkbox("Problems", &pagePreviewViewOptions_.showProblemsPanel);
-        ImGui::Checkbox("Highlight reticle usages", &pagePreviewViewOptions_.highlightReticleUsages);
+        if (layerInspectorChanged && pagePreviewViewOptions_.showLayerInspector &&
+            tutorial_->MatchesTarget("page_preview_view_layer_inspector"))
+        {
+            tutorial_->CompleteStep();
+        }
+        tutorial_->DrawHalo(
+            "page_preview_view_layer_inspector",
+            "Enable Layer Inspector",
+            "Turn on the layer strip to inspect editor-only layers and their thumbnails.");
+
+        const bool minimapChanged = ImGui::Checkbox("Minimap", &pagePreviewViewOptions_.showMinimap);
+        if (minimapChanged && pagePreviewViewOptions_.showMinimap &&
+            tutorial_->MatchesTarget("page_preview_view_minimap"))
+        {
+            tutorial_->CompleteStep();
+        }
+        tutorial_->DrawHalo(
+            "page_preview_view_minimap",
+            "Enable Minimap",
+            "Turn on the minimap so page navigation stays readable while zooming and panning.");
+
+        const bool problemsChanged = ImGui::Checkbox("Problems", &pagePreviewViewOptions_.showProblemsPanel);
+        if (problemsChanged && pagePreviewViewOptions_.showProblemsPanel &&
+            tutorial_->MatchesTarget("page_preview_view_problems"))
+        {
+            tutorial_->CompleteStep();
+        }
+        tutorial_->DrawHalo(
+            "page_preview_view_problems",
+            "Enable Problems",
+            "Dock the validation panel under the preview so diagnostics stay visible while editing.");
+
+        const bool highlightChanged = ImGui::Checkbox("Highlight reticle usages", &pagePreviewViewOptions_.highlightReticleUsages);
+        if (highlightChanged && pagePreviewViewOptions_.highlightReticleUsages &&
+            tutorial_->MatchesTarget("page_preview_view_highlight_usages"))
+        {
+            tutorial_->CompleteStep();
+        }
+        tutorial_->DrawHalo(
+            "page_preview_view_highlight_usages",
+            "Enable Highlight reticle usages",
+            "Turn on template usage highlighting for the currently selected shared reticle.");
         ImGui::Separator();
         ImGui::Checkbox("Reticle names", &pagePreviewViewOptions_.showReticleNames);
         ImGui::Checkbox("Gizmos", &pagePreviewViewOptions_.showGizmos);
-        ImGui::Checkbox("Page context", &pagePreviewViewOptions_.showPageContext);
+        const bool pageContextChanged = ImGui::Checkbox("Page context", &pagePreviewViewOptions_.showPageContext);
+        if (pageContextChanged && pagePreviewViewOptions_.showPageContext &&
+            tutorial_->MatchesTarget("page_preview_view_page_context"))
+        {
+            tutorial_->CompleteStep();
+        }
+        tutorial_->DrawHalo(
+            "page_preview_view_page_context",
+            "Enable Page context",
+            "Turn on the page-context split so the active page stays visible while you inspect the rest of the workspace.");
         if (showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel)
         {
             ImGui::Separator();
             ImGui::TextDisabled("Validation issues are available. Enable Problems to inspect them below the preview.");
         }
         ImGui::EndPopup();
+    }
+    else if (tutorial_->ShouldResetPagePreviewViewPhaseOnClose())
+    {
+        tutorial_->ResetPhase();
     }
 }
 
@@ -7985,9 +8107,17 @@ void EditorApplication::DrawPageRenamePopup()
     ImGui::SameLine();
     if (ImGui::Button("Cancel"))
     {
+        if (tutorial_->MatchesTarget("popup_page_rename_cancel"))
+        {
+            tutorial_->CompleteStep();
+        }
         pageRenamePopup_ = {};
         ImGui::CloseCurrentPopup();
     }
+    tutorial_->DrawHalo(
+        "popup_page_rename_cancel",
+        "Close the rename popup",
+        "This discovery step only inspects the safe page-rename workflow. Close it without executing the rename.");
 
     ImGui::EndPopup();
 }
@@ -8144,9 +8274,17 @@ void EditorApplication::DrawReticleRenamePopup()
     ImGui::SameLine();
     if (ImGui::Button("Cancel"))
     {
+        if (tutorial_->MatchesTarget("popup_reticle_rename_cancel"))
+        {
+            tutorial_->CompleteStep();
+        }
         reticleRenamePopup_ = {};
         ImGui::CloseCurrentPopup();
     }
+    tutorial_->DrawHalo(
+        "popup_reticle_rename_cancel",
+        "Close the rename popup",
+        "This discovery step only inspects the safe reticle-rename workflow. Close it without executing the rename.");
 
     ImGui::EndPopup();
 }
@@ -8248,9 +8386,17 @@ void EditorApplication::DrawReticleExtractionPopup()
     ImGui::SameLine();
     if (ImGui::Button("Cancel"))
     {
+        if (tutorial_->MatchesTarget("popup_reticle_extract_cancel"))
+        {
+            tutorial_->CompleteStep();
+        }
         reticleExtractionPopup_ = {};
         ImGui::CloseCurrentPopup();
     }
+    tutorial_->DrawHalo(
+        "popup_reticle_extract_cancel",
+        "Close the extraction popup",
+        "This discovery step only inspects the extraction workflow. Close it without replacing the selected reticle.");
 
     ImGui::EndPopup();
 }
@@ -8377,9 +8523,17 @@ void EditorApplication::DrawDesignExportPopup()
     ImGui::SameLine();
     if (ImGui::Button("Cancel"))
     {
+        if (tutorial_->MatchesTarget("popup_design_export_cancel"))
+        {
+            tutorial_->CompleteStep();
+        }
         designExportPopup_ = {};
         ImGui::CloseCurrentPopup();
     }
+    tutorial_->DrawHalo(
+        "popup_design_export_cancel",
+        "Close the export popup",
+        "This discovery step only inspects the design-export workflow. Close it without generating files.");
 
     ImGui::EndPopup();
 }
@@ -8706,6 +8860,93 @@ void EditorApplication::PrepareTutorialStep()
             loaded_.document.reticleLibrary.end())
         {
             SelectLibraryReticle("mfd_tutorial_progress_bar");
+        }
+        break;
+    case static_cast<int>(TutorialStepId::ShowPageContext):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page2"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        pagePreviewViewOptions_.showPageContext = false;
+        break;
+    case static_cast<int>(TutorialStepId::ShowLayerInspector):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        pagePreviewViewOptions_.showLayerInspector = false;
+        break;
+    case static_cast<int>(TutorialStepId::ShowMinimap):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        pagePreviewViewOptions_.showMinimap = false;
+        break;
+    case static_cast<int>(TutorialStepId::ShowReticleUsageHighlights):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        if (loaded_.document.reticleLibrary.find("mfd_tutorial_circle") != loaded_.document.reticleLibrary.end())
+        {
+            SelectLibraryReticle("mfd_tutorial_circle");
+        }
+        pagePreviewViewOptions_.highlightReticleUsages = false;
+        break;
+    case static_cast<int>(TutorialStepId::ShowProblemsPanel):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        pagePreviewViewOptions_.showProblemsPanel = false;
+        break;
+    case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
+        if (fullscreenPreviewController_.IsActive())
+        {
+            ToggleFullscreenPagePreview();
+        }
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        break;
+    case static_cast<int>(TutorialStepId::InspectPageImportWorkflow):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        break;
+    case static_cast<int>(TutorialStepId::InspectPageRenameWorkflow):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+        }
+        break;
+    case static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow):
+        if (loaded_.document.reticleLibrary.find("mfd_tutorial_circle") != loaded_.document.reticleLibrary.end())
+        {
+            SelectLibraryReticle("mfd_tutorial_circle");
+        }
+        break;
+    case static_cast<int>(TutorialStepId::InspectReticleExtractionWorkflow):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+            if (!tutorial_->TrackedReticleId().empty())
+            {
+                const mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
+                if (const int reticleIndex = FindPageReticleIndexById(page, tutorial_->TrackedReticleId()); reticleIndex >= 0)
+                {
+                    SelectPageReticle(pageIndex, reticleIndex);
+                }
+            }
+        }
+        break;
+    case static_cast<int>(TutorialStepId::InspectDesignExportWorkflow):
+        if (fullscreenPreviewController_.IsActive())
+        {
+            ToggleFullscreenPagePreview();
         }
         break;
     default:
@@ -9867,13 +10108,21 @@ void EditorApplication::DrawPageReticleInspector()
         ShowItemTooltip("Paste copied page reticles onto the active page.");
         ImGui::EndDisabled();
 
-        ImGui::SameLine();
-        if (ImGui::Button("Extract as reticle..."))
+    ImGui::SameLine();
+    if (ImGui::Button("Extract as reticle..."))
+    {
+        if (tutorial_->MatchesTarget("page_reticle_extract"))
         {
-            OpenReticleExtractionPopup();
-            return;
+            tutorial_->AdvancePhase();
         }
-        ShowItemTooltip("Replace the current selection with one reusable reticle template staged in the shared library.");
+        OpenReticleExtractionPopup();
+        return;
+    }
+    ShowItemTooltip("Replace the current selection with one reusable reticle template staged in the shared library.");
+    tutorial_->DrawHalo(
+        "page_reticle_extract",
+        "Click Extract as reticle...",
+        "Open the extraction workflow to review how page content can become one reusable library template.");
 
         ImGui::TextDisabled("Shortcuts: Ctrl+C, Ctrl+X, Ctrl+V, Suppr, Esc");
         ImGui::TextDisabled("Drag one selected reticle in the preview to move the whole group.");
@@ -9962,10 +10211,18 @@ void EditorApplication::DrawPageReticleInspector()
     ImGui::SameLine();
     if (ImGui::Button("Extract as reticle..."))
     {
+        if (tutorial_->MatchesTarget("page_reticle_extract"))
+        {
+            tutorial_->AdvancePhase();
+        }
         OpenReticleExtractionPopup();
         return;
     }
     ShowItemTooltip("Extract this page reticle as a reusable library template, then replace it with one template instance.");
+    tutorial_->DrawHalo(
+        "page_reticle_extract",
+        "Click Extract as reticle...",
+        "Open the extraction workflow to review how one page reticle can be promoted into the shared library.");
 
     if (!reticle->sourceTemplateId.empty() &&
         loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end() &&

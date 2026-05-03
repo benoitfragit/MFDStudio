@@ -95,6 +95,20 @@ TEST(EditorTutorialDataTests, TutorialSnippetsPreferGeneratedHandlesWithoutUserM
     EXPECT_NE(integrationAfter.find("FillBar()"), std::string_view::npos);
 }
 
+TEST(EditorTutorialDataTests, TutorialMetadataHighlightsGeneratedHeaderAndTransportMap)
+{
+    const auto& headerStep = Step(editor::tutorial::TutorialStepId::ReviewGeneratedUiHeader);
+    EXPECT_STREQ(headerStep.filePath, "examples/client_tutorial/generated/TutorialUi.h");
+    EXPECT_NE(std::string_view(headerStep.afterText).find("Page1() noexcept"), std::string_view::npos);
+    EXPECT_NE(std::string_view(headerStep.afterText).find("BuildCommandBatch"), std::string_view::npos);
+    EXPECT_NE(std::string_view(headerStep.afterText).find("PollFeedback"), std::string_view::npos);
+
+    const auto& mapStep = Step(editor::tutorial::TutorialStepId::ReviewGeneratedTransportMap);
+    EXPECT_STREQ(mapStep.filePath, "assets/windows/mfd_tutorial.generated.map");
+    EXPECT_NE(std::string_view(mapStep.afterText).find("\"mappingHash\""), std::string_view::npos);
+    EXPECT_NE(std::string_view(mapStep.afterText).find("\"transportId\""), std::string_view::npos);
+}
+
 TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)
 {
     const auto& createStep = Step(editor::tutorial::TutorialStepId::CreateProgressBarReticle);
@@ -114,10 +128,51 @@ TEST(EditorTutorialDataTests, TutorialMetadataReflectsSharedWindowLauncherFlow)
     EXPECT_NE(std::string_view(framebufferStep.afterText).find("MfdWindowFramebufferCallback"), std::string_view::npos);
     EXPECT_EQ(std::string_view(framebufferStep.afterText).find("RunLauncher"), std::string_view::npos);
 
+    const auto& buildGateStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialClientBuildGate);
+    EXPECT_STREQ(buildGateStep.filePath, "examples/client_tutorial/CMakeLists.txt");
+    EXPECT_NE(std::string_view(buildGateStep.afterText).find("Skipping client_tutorial"), std::string_view::npos);
+    EXPECT_NE(std::string_view(buildGateStep.explanation).find("opt-in"), std::string_view::npos);
+
     const auto& registrationStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialTargetRegistration);
     EXPECT_NE(std::string_view(registrationStep.afterText).find("add_subdirectory(client_tutorial)"),
               std::string_view::npos);
     EXPECT_EQ(std::string_view(registrationStep.afterText).find("add_subdirectory(examples/mfd_tutorial)"),
               std::string_view::npos);
-    EXPECT_NE(std::string_view(registrationStep.explanation).find("Start-MfdTutorial.bat"), std::string_view::npos);
+    EXPECT_NE(std::string_view(registrationStep.explanation).find("manual"), std::string_view::npos);
+}
+
+TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps)
+{
+    const auto& pageContextStep = Step(editor::tutorial::TutorialStepId::ShowPageContext);
+    EXPECT_STREQ(pageContextStep.targetId, "page_preview_view_menu");
+
+    const auto& importStep = Step(editor::tutorial::TutorialStepId::InspectPageImportWorkflow);
+    EXPECT_STREQ(importStep.targetId, "menu_page");
+    EXPECT_NE(std::string_view(importStep.instruction).find("cancel"), std::string_view::npos);
+
+    const auto& pageRenameStep = Step(editor::tutorial::TutorialStepId::InspectPageRenameWorkflow);
+    EXPECT_STREQ(pageRenameStep.targetId, "menu_page");
+    EXPECT_NE(std::string_view(pageRenameStep.instruction).find("rename"), std::string_view::npos);
+
+    const auto& reticleRenameStep = Step(editor::tutorial::TutorialStepId::InspectReticleRenameWorkflow);
+    EXPECT_STREQ(reticleRenameStep.targetId, "menu_reticle");
+
+    const auto& extractionStep = Step(editor::tutorial::TutorialStepId::InspectReticleExtractionWorkflow);
+    EXPECT_STREQ(extractionStep.targetId, "page_reticle_extract");
+
+    const auto& exportStep = Step(editor::tutorial::TutorialStepId::InspectDesignExportWorkflow);
+    EXPECT_STREQ(exportStep.targetId, "menu_file");
+    EXPECT_NE(std::string_view(exportStep.instruction).find("export"), std::string_view::npos);
+}
+
+TEST(EditorTutorialDataTests, TutorialMetadataPointsToDocumentationNextSteps)
+{
+    const auto& documentationStep = Step(editor::tutorial::TutorialStepId::ReviewDocumentationPath);
+    EXPECT_STREQ(documentationStep.filePath, "docs/README.md");
+    EXPECT_NE(std::string_view(documentationStep.afterText).find("Use The Mockup As A Client API Reference"),
+              std::string_view::npos);
+    EXPECT_NE(std::string_view(documentationStep.afterText).find("Generated Client API Standardization"),
+              std::string_view::npos);
+    EXPECT_NE(std::string_view(documentationStep.afterText).find("Generated Client API Architecture"),
+              std::string_view::npos);
 }

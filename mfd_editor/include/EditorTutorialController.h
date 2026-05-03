@@ -94,8 +94,14 @@ public:
     std::string_view FocusLayerId() const noexcept;
     /** @brief Consumes the one-shot request that opens the resume/restart popup. */
     bool ConsumeResumePopupRequest() noexcept;
+    /** @brief Returns `true` when closing the File menu must reset the guided phase. */
+    bool ShouldResetFileMenuPhaseOnClose() const noexcept;
+    /** @brief Returns `true` when closing the Page menu must reset the guided phase. */
+    bool ShouldResetPageMenuPhaseOnClose() const noexcept;
     /** @brief Returns `true` when closing the reticle menu must reset the guided phase. */
     bool ShouldResetReticleMenuPhaseOnClose() const noexcept;
+    /** @brief Returns `true` when closing the page-preview View popup must reset the guided phase. */
+    bool ShouldResetPagePreviewViewPhaseOnClose() const noexcept;
     /** @brief Returns `true` when closing the reticle-create popup must reset the guided phase. */
     bool ShouldResetReticleCreatePopupOnCancel() const noexcept;
     /** @brief Returns `true` when creating a reticle should advance to an append-primitive micro-step. */
@@ -136,7 +142,7 @@ private:
     void SaveProgress() const;
     /** @brief Clears persisted tutorial progress from disk. */
     void ClearProgress();
-    /** @brief Cleans generated tutorial files plus root-project tutorial registrations. */
+    /** @brief Cleans generated tutorial files and staged tutorial artifacts. */
     void CleanupGeneratedFiles();
     /** @brief Draws the synchronized file review UI used by tutorial file steps. */
     void DrawFileReview();

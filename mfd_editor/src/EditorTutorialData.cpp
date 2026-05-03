@@ -7,7 +7,7 @@
 
 /**
  * @file
- * @brief Tutorial step metadata for validated editor guidance and file review.
+ * @brief Tutorial step metadata for the guided editor walkthrough.
  */
 
 #include <array>
@@ -162,8 +162,129 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0,
      0},
     {TutorialStepKind::UiAction,
+     "Open the page context",
+     "Open the page-preview View menu and enable Page context so you can compare the active page with the rest of the window without changing authored JSON.",
+     "page_preview_view_menu",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Enable the layer inspector",
+     "Open the page-preview View menu and enable Layer Inspector to inspect editor-only layers with their thumbnails and focus strip.",
+     "page_preview_view_menu",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Enable the minimap",
+     "Open the page-preview View menu and enable Minimap so navigation stays readable on larger authored pages.",
+     "page_preview_view_menu",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Highlight reticle usages",
+     "Keep one shared reticle template selected, open the page-preview View menu, and enable Highlight reticle usages to see where that template is reused.",
+     "page_preview_view_menu",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Show the problems panel",
+     "Open the page-preview View menu and enable Problems so validation diagnostics stay docked under the preview.",
+     "page_preview_view_menu",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Try fullscreen preview",
+     "Enter fullscreen preview, then leave it again, so you can focus on the page canvas without the rest of the editor layout.",
+     "page_preview_fullscreen",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
      "Save the tutorial assets",
-     "Write the authored tutorial files to disk before moving to the code-focused part of the walkthrough.",
+     "Write the authored tutorial window, pages, and reticles to disk once the guided editor tour is complete.",
+     "menu_file",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Inspect page import",
+     "Open the page import entry point from the editor menu so you know where shared page ingestion starts. You can cancel the native file dialog after locating it.",
+     "menu_page",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Inspect page rename",
+     "Open the global page rename workflow, review the scanned references, then close the popup without executing the rename.",
+     "menu_page",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Inspect reticle rename",
+     "Open the global reticle rename workflow, review the shared template references, then close the popup without executing the rename.",
+     "menu_reticle",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Inspect reticle extraction",
+     "Open the extraction popup from one selected page reticle to see how the editor turns page content into one reusable library template, then close the popup.",
+     "page_reticle_extract",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
+     "Inspect design export",
+     "Open the design export workflow, review the export options and destination, then close the popup without exporting.",
      "menu_file",
      nullptr,
      nullptr,
@@ -198,6 +319,102 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "  \"staticReticles\": []\n"
      "}",
      "The strobe block now references the small cross cursor authored earlier in the editor, and still declares the capture shape used by the runtime when the client moves the strobe over new tracks. Magnetized visual shape changes remain opt-in through the strobe magnet visual settings.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review the generated UI header",
+     "Open the generated C++17 surface to see how the authored window becomes typed page, reticle, primitive, strobe, and batch helpers.",
+     "",
+     "examples/client_tutorial/generated/TutorialUi.h",
+     "class TutorialUi\n"
+     "{\n"
+     "public:\n"
+     "    std::vector<mfd::UserCommand> BuildBatch();\n"
+     "};",
+     "class Page1Page\n"
+     "{\n"
+     "public:\n"
+     "    MfdTutorialRadarTrackDynamicReticleSet& DynamicMfdTutorialRadarTrack() noexcept;\n"
+     "    StrobeHandle strobe;\n"
+     "    Page1MfdTutorialCircleReticle mfdTutorialCircle;\n"
+     "};\n"
+     "\n"
+     "class Page2Page\n"
+     "{\n"
+     "public:\n"
+     "    Page2MfdTutorialProgressBarReticle mfdTutorialProgressBar;\n"
+     "};\n"
+     "\n"
+     "class TutorialUi\n"
+     "{\n"
+     "public:\n"
+     "    Page1Page& Page1() noexcept;\n"
+     "    Page2Page& Page2() noexcept;\n"
+     "    std::size_t PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr);\n"
+     "    std::vector<mfd::UserCommand> BuildBatch();\n"
+     "    mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);\n"
+     "};",
+     "The generated header follows a clear page -> reticle -> primitive composition model. User code stays in typed C++17 wrappers and avoids raw page names, reticle ids, or ad-hoc transport tables.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review the generated transport map",
+     "The generated API is paired with one companion transport map that keeps authored names aligned with transport ids and the compatibility hash.",
+     "",
+     "assets/windows/mfd_tutorial.generated.map",
+     "{\n"
+     "  \"window\": {\n"
+     "    \"source\": \"mfd_tutorial.json\"\n"
+     "  }\n"
+     "}",
+     "{\n"
+     "  \"schemaVersion\": 1,\n"
+     "  \"mappingHash\": \"tutorial-generated-hash\",\n"
+     "  \"window\": {\n"
+     "    \"name\": \"mfd_tutorial\",\n"
+     "    \"source\": \"mfd_tutorial.json\"\n"
+     "  },\n"
+     "  \"pages\": [\n"
+     "    {\n"
+     "      \"name\": \"Page1\",\n"
+     "      \"transportId\": 11,\n"
+     "      \"reticles\": [\n"
+     "        {\n"
+     "          \"name\": \"mfdTutorialCircle\",\n"
+     "          \"transportId\": 22,\n"
+     "          \"primitives\": [\n"
+     "            { \"name\": \"primitive_1\", \"transportId\": 33 }\n"
+     "          ]\n"
+     "        }\n"
+     "      ]\n"
+     "    }\n"
+     "  ]\n"
+     "}",
+     "The map keeps the runtime wire contract explicit: page, reticle, and primitive ids are generated once, and `mappingHash` lets the client detect mismatches. Dynamic runtime reticles still keep their transient ids hidden behind the generated sets.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review generated UI integration",
+     "The tutorial client should consume the generated bindings directly so higher-level commands stay aligned with the authored JSON.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "#include \"mfd/control/CommandClient.h\"\n"
+     "#include \"mfd/control/FeedbackTransport.h\"\n"
+     "#include \"mfd/control/StrobeFeedback.h\"",
+     "#include \"TutorialUi.h\"\n"
+     "\n"
+     "tutorial_ui::TutorialUi generatedUi;\n"
+     "auto& page1 = generatedUi.Page1();\n"
+     "auto& page2 = generatedUi.Page2();\n"
+     "auto& generatedDynamicTracks = page1.DynamicMfdTutorialRadarTrack();\n"
+     "auto& page1Circle = page1.mfdTutorialCircle;\n"
+     "auto& page2ProgressBar = page2.mfdTutorialProgressBar;\n"
+     "auto& progressFill = page2ProgressBar.FillBar();\n"
+     "auto& page1Strobe = page1.strobe;",
+     "The generated API now exposes one typed dynamic accessor, two static reticle handles, one exposed primitive accessor, one generic page `strobe` handle, and feedback-backed `IsActive()` / `IsStrobeCaptured()` queries without asking the user to manage ids.",
      "Next",
      1,
      1},
@@ -263,44 +480,6 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1,
      1},
     {TutorialStepKind::FileReview,
-     "Review dynamic reticle removal",
-     "When the client reaches the maximum track count it removes the oldest generated handle before adding a new track.",
-     "",
-     "examples/client_tutorial/src/main.cpp",
-     "if (generatedTracks.size() >= kMaxTracks)\n"
-     "{\n"
-     "    generatedTracks.erase(generatedTracks.begin());\n"
-     "}",
-     "if (generatedTracks.size() >= kMaxTracks)\n"
-     "{\n"
-     "    generatedDynamicTracks.Remove(*generatedTracks.front());\n"
-     "    generatedTracks.erase(generatedTracks.begin());\n"
-     "}",
-     "The generated API still removes the runtime object explicitly, but the application never handles an MFD reticle id itself.",
-     "Next",
-     1,
-     1},
-    {TutorialStepKind::FileReview,
-     "Review static reticle commands",
-     "Static reticles are now addressed through generated page -> reticle -> primitive navigation instead of raw page/reticle strings.",
-     "",
-     "examples/client_tutorial/src/main.cpp",
-     "// Page1 keeps its authored static reticles unchanged.",
-     "page1Circle.SetVisible(true);\n"
-     "page1Circle.SetColor(\n"
-     "    generatedDeclutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});\n"
-     "page1Circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(generatedTracks.size() + 1U));\n"
-     "page1Circle.Primitive01().SetThickness(0.0045f);\n"
-     "page1Circle.Primitive01().SetLineStyle(\n"
-     "    generatedDeclutterVisible ? tutorial_ui::LineStyle::Solid : tutorial_ui::LineStyle::Dotted);\n"
-     "page2ProgressBar.SetVisible(true);\n"
-     "progressFill.SetSize({progressWidth, 0.06f});\n"
-     "progressFill.SetPosition({progressCenterX, 0.0f});",
-     "The tutorial now animates authored static reticles through generated accessors on both pages, which mirrors the target `page -> reticle -> primitive` navigation exactly.",
-     "Next",
-     1,
-     1},
-    {TutorialStepKind::FileReview,
      "Review dynamic reticle updates",
      "One generated dynamic handle can accumulate several field updates before the batch is emitted.",
      "",
@@ -338,24 +517,40 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1,
      1},
     {TutorialStepKind::FileReview,
-     "Review generated UI integration",
-     "The tutorial client should consume the generated bindings directly so higher-level commands stay aligned with the authored JSON.",
+     "Review dynamic reticle removal",
+     "When the client reaches the maximum track count it removes the oldest generated handle before adding a new track.",
      "",
      "examples/client_tutorial/src/main.cpp",
-     "#include \"mfd/control/CommandClient.h\"\n"
-     "#include \"mfd/control/FeedbackTransport.h\"\n"
-     "#include \"mfd/control/StrobeFeedback.h\"",
-     "#include \"TutorialUi.h\"\n"
-     "\n"
-     "tutorial_ui::TutorialUi generatedUi;\n"
-     "auto& page1 = generatedUi.Page1();\n"
-     "auto& page2 = generatedUi.Page2();\n"
-     "auto& generatedDynamicTracks = page1.DynamicMfdTutorialRadarTrack();\n"
-     "auto& page1Circle = page1.mfdTutorialCircle;\n"
-     "auto& page2ProgressBar = page2.mfdTutorialProgressBar;\n"
-     "auto& progressFill = page2ProgressBar.FillBar();\n"
-     "auto& page1Strobe = page1.strobe;",
-     "The generated API now exposes one typed dynamic accessor, two static reticle handles, one exposed primitive accessor, one generic page `strobe` handle, and feedback-backed `IsActive()` / `IsStrobeCaptured()` queries without asking the user to manage ids.",
+     "if (generatedTracks.size() >= kMaxTracks)\n"
+     "{\n"
+     "    generatedTracks.erase(generatedTracks.begin());\n"
+     "}",
+     "if (generatedTracks.size() >= kMaxTracks)\n"
+     "{\n"
+     "    generatedDynamicTracks.Remove(*generatedTracks.front());\n"
+     "    generatedTracks.erase(generatedTracks.begin());\n"
+     "}",
+     "The generated API still removes the runtime object explicitly, but the application never handles an MFD reticle id itself.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review static reticle commands",
+     "Static reticles are now addressed through generated page -> reticle -> primitive navigation instead of raw page/reticle strings.",
+     "",
+     "examples/client_tutorial/src/main.cpp",
+     "// Page1 keeps its authored static reticles unchanged.",
+     "page1Circle.SetVisible(true);\n"
+     "page1Circle.SetColor(\n"
+     "    generatedDeclutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});\n"
+     "page1Circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(generatedTracks.size() + 1U));\n"
+     "page1Circle.Primitive01().SetThickness(0.0045f);\n"
+     "page1Circle.Primitive01().SetLineStyle(\n"
+     "    generatedDeclutterVisible ? tutorial_ui::LineStyle::Solid : tutorial_ui::LineStyle::Dotted);\n"
+     "page2ProgressBar.SetVisible(true);\n"
+     "progressFill.SetSize({progressWidth, 0.06f});\n"
+     "progressFill.SetPosition({progressCenterX, 0.0f});",
+     "The tutorial now animates authored static reticles through generated accessors on both pages, which mirrors the target `page -> reticle -> primitive` navigation exactly.",
      "Next",
      1,
      1},
@@ -408,8 +603,40 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1,
      1},
     {TutorialStepKind::FileReview,
+     "Review the tutorial build gate",
+     "The tutorial client stays out of the default examples build and still requires an explicit opt-in once the authored tutorial asset set exists.",
+     "",
+     "examples/client_tutorial/CMakeLists.txt",
+     "client_api_generate_ui(\n"
+     "    WINDOW_JSON \"${MFD_ROOT_DIR}/assets/windows/mfd_tutorial.json\"\n"
+     "    OUTPUT_HEADER \"${MFD_CLIENT_TUTORIAL_GENERATED_HEADER}\"\n"
+     "    OUTPUT_SOURCE \"${MFD_CLIENT_TUTORIAL_GENERATED_SOURCE}\")",
+     "set(MFD_CLIENT_TUTORIAL_REQUIRED_FILES\n"
+     "    \"${MFD_ROOT_DIR}/assets/windows/mfd_tutorial.json\"\n"
+     "    \"${MFD_ROOT_DIR}/assets/pages/mfd_tutorial_page1.json\"\n"
+     "    \"${MFD_ROOT_DIR}/assets/pages/mfd_tutorial_page2.json\")\n"
+     "\n"
+     "if(MFD_CLIENT_TUTORIAL_MISSING_FILES)\n"
+     "    message(STATUS\n"
+     "        \"Skipping client_tutorial because the tutorial asset set is incomplete.\\n\"\n"
+     "        \"Finish the editor tutorial and save the authored assets before reconfiguring.\")\n"
+     "    return()\n"
+     "endif()\n"
+     "\n"
+     "client_api_generate_ui(\n"
+     "    WINDOW_JSON \"${MFD_CLIENT_TUTORIAL_WINDOW_JSON}\"\n"
+     "    OUTPUT_HEADER \"${MFD_CLIENT_TUTORIAL_GENERATED_HEADER}\"\n"
+     "    OUTPUT_SOURCE \"${MFD_CLIENT_TUTORIAL_GENERATED_SOURCE}\"\n"
+     "    OUTPUT_MAP \"${MFD_ROOT_DIR}/assets/windows/mfd_tutorial.generated.map\"\n"
+     "    NAMESPACE \"tutorial_ui\"\n"
+     "    UI_CLASS_NAME \"TutorialUi\")",
+     "The tutorial stays opt-in: the repository default build remains unchanged, and even after manual registration the target still self-skips until the authored assets exist.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
      "Review tutorial target registration",
-     "The examples subtree only needs to register the tutorial client because the authored tutorial window is now launched through `mfd_window`, the repository `Scripts/Start-MfdTutorial.bat`, or the staged `Start-MfdTutorial.bat` copied next to the runtime.",
+     "The examples subtree only needs one explicit registration for the tutorial client once you decide to opt in.",
      "",
      "examples/CMakeLists.txt",
      "add_subdirectory(mfd_framebuffer_stdout_plugin)\n"
@@ -421,7 +648,31 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "add_subdirectory(client_mockup)\n"
      "add_subdirectory(client_mockup_minimal)\n"
      "add_subdirectory(client_tutorial)\n",
-     "Registering `client_tutorial` under the examples subtree is enough to build the generated API walkthrough, while `Scripts/Start-MfdTutorial.bat` and the staged `Start-MfdTutorial.bat` both reuse the shared window host for the authored runtime.",
+     "Registering `client_tutorial` under the examples subtree is a manual follow-up step only. The editor tutorial itself does not flip that switch for you.",
+     "Next",
+     1,
+     1},
+    {TutorialStepKind::FileReview,
+     "Review the documentation path",
+     "The integrated tutorial should leave the user with a clear next reading path across editor usage, generated API usage, and deeper contracts.",
+     "",
+     "docs/README.md",
+     "| use `mfd_editor` | [Quick Start](./QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md) |\n"
+     "\n"
+     "### Editor-Centric User\n"
+     "1. [Quick Start](./QUICKSTART.md)\n"
+     "2. [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md)\n"
+     "3. [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md)",
+     "| use `mfd_editor` | [Quick Start](./QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md), [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md), [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) |\n"
+     "\n"
+     "### Editor-Centric User\n"
+     "1. [Quick Start](./QUICKSTART.md)\n"
+     "2. [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md)\n"
+     "3. [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md)\n"
+     "4. [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md)\n"
+     "5. [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md)\n"
+     "6. [Generated Client API Architecture](./architecture/generated_client_api.md)",
+     "The tutorial now points directly to the next layers of the project: visual authoring, runtime validation with the mockup, generated C++17 API usage, and the architecture notes that explain the generated wrappers.",
      "Finish",
      1,
      1},

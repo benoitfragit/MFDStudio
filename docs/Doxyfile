@@ -1,5 +1,5 @@
 PROJECT_NAME           = "MFDStudio"
-PROJECT_NUMBER         = "1.4.4"
+PROJECT_NUMBER         = "1.5.0"
 PROJECT_BRIEF          = "Versioned documentation portal and C++ API reference for the MFDStudio toolkit"
 OUTPUT_DIRECTORY       = build/docs/doxygen
 OUTPUT_LANGUAGE        = English

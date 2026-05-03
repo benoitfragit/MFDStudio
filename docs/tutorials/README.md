@@ -36,6 +36,9 @@ Use this path when the editor is your main entry point:
 
 1. [Create A Window From Scratch In The Editor](./13_create_window_from_editor.md)
 2. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
+3. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
+4. [Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
+5. [Generated Client API Architecture](../architecture/generated_client_api.md)
 
 ### Diagnostics, Capture, And Validation
 
@@ -68,4 +71,4 @@ Use these pages when you are validating or instrumenting the runtime:
 - if you want visuals first: `Quick Start`, then `03`
 - if you want JSON authoring first: `01`, `02`, then `03`
 - if you want client integration first: `03`, `04`, `05`, `11`
-- if you want editor work first: `13`, then `03`
+- if you want editor work first: `13`, then `03`, `11`, then the generated-client docs

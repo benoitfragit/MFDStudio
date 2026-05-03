@@ -5,6 +5,7 @@ This tutorial shows how to create a brand-new window directly from the editor UI
 ![Editor screenshot](../images/mfd_editor_capture.png)
 
 You will learn how to:
+- launch the integrated guided tutorial from the editor
 - create a window file from scratch
 - set size and screen position
 - configure a window font
@@ -19,6 +20,26 @@ You will learn how to:
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
+- understand how the generated C++17 client API mirrors the authored window
+- keep `client_tutorial` opt-in instead of building it by default
+- continue with the right generated-API and documentation path once the editor tour is done
+
+## Guided Tour Overview
+
+The integrated editor tutorial is available from:
+
+- **Help > Tutorial**
+- the empty-state **Launch the tutorial** button
+
+That guided flow is intentionally split into five phases:
+
+1. **Author in editor**: create the tutorial window, pages, shared reticles, strobe, layer, and exposed primitive.
+2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / extraction / export workflows without mutating the tutorial assets.
+3. **Read generated artifacts**: inspect the saved page JSON, generated `TutorialUi.h`, and companion `.generated.map`.
+4. **Drive the runtime**: review how `client_tutorial` uses typed page, reticle, primitive, dynamic-set, and feedback handles.
+5. **Opt in and continue**: keep the tutorial client opt-in and leave with the right doc path.
+
+The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step.
 
 ## Step 1 - Open the window wizard
 
@@ -374,6 +395,45 @@ The Markdown output keeps relative links between pages and images so the export
 can be opened directly in GitHub, VS Code preview, or any other Markdown
 viewer.
 
+## Step 18 - Use the integrated tutorial as the project overview
+
+Once the base editor workflow feels clear, launch **Help > Tutorial** and let
+the guided coach walk you through the repository-specific tutorial asset set.
+
+This integrated flow does more than explain clicks:
+
+- it seeds the editor popups with the tutorial window, page, and reticle values
+- it highlights the exact control expected by the current step
+- it explains why each authored asset matters for the runtime contract
+- it now covers the preview tools and the main editor workflows before switching to generated API and documentation review steps
+
+By the end of the integrated flow, the user should understand the full chain:
+
+- editor action
+- saved authored JSON
+- generated transport map
+- generated C++17 page and reticle wrappers
+- runtime client loop
+- documentation path for deeper study
+
+## Step 19 - Keep the tutorial client opt-in, then continue with the generated API docs
+
+`client_tutorial` is still intentionally excluded from the default examples
+build.
+
+That remains the expected behavior:
+
+- `examples/CMakeLists.txt` does not register `client_tutorial` by default
+- `examples/client_tutorial/CMakeLists.txt` still self-skips when the tutorial asset set is incomplete
+- the tutorial only becomes buildable after the authored asset files exist and you explicitly opt in
+
+After the integrated tour, the recommended follow-up order is:
+
+1. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
+2. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
+3. [Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
+4. [Generated Client API Architecture](../architecture/generated_client_api.md)
+
 ## Undo behavior
 
 The editor keeps one undo snapshot per page-modifying action:
@@ -390,3 +450,8 @@ The editor keeps one undo snapshot per page-modifying action:
 ## Result
 
 You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, safe shared-page and shared-reticle rename handling, reusable-reticle extraction, design-document export, default page selection, and UDP runtime transport configuration.
+
+With the integrated guided tour on top of that workflow, the editor now also
+serves as a clean project overview: authored assets, editor workflows,
+generated API, runtime client behavior, and the next documentation layers all
+stay connected in one logical path.

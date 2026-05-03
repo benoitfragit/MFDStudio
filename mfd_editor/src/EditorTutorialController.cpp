@@ -15,10 +15,7 @@
 #include <cctype>
 #include <cstdio>
 #include <fstream>
-#include <iterator>
-#include <limits>
 #include <optional>
-#include <sstream>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -45,9 +42,6 @@ constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strob
 constexpr std::string_view kTutorialProgressBarTemplateId = "mfd_tutorial_progress_bar";
 constexpr std::string_view kTutorialProgressBarFillPrimitiveId = "fill_bar";
 constexpr std::string_view kTutorialProgressBarFramePrimitiveId = "frame";
-constexpr std::array<std::string_view, 1> kTutorialExampleTargetRegistrations {{
-    "add_subdirectory(client_tutorial)",
-}};
 
 bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool vertical) noexcept
 {
@@ -127,37 +121,6 @@ std::string ToLowerAscii(std::string value)
     return value;
 }
 
-std::string_view TrimAsciiWhitespace(std::string_view value) noexcept
-{
-    std::size_t first = 0;
-    while (first < value.size() &&
-           std::isspace(static_cast<unsigned char>(value[first])) != 0)
-    {
-        ++first;
-    }
-
-    std::size_t last = value.size();
-    while (last > first &&
-           std::isspace(static_cast<unsigned char>(value[last - 1])) != 0)
-    {
-        --last;
-    }
-
-    return value.substr(first, last - first);
-}
-
-std::string LeadingWhitespace(std::string_view value)
-{
-    std::size_t count = 0;
-    while (count < value.size() &&
-           (value[count] == ' ' || value[count] == '\t'))
-    {
-        ++count;
-    }
-
-    return std::string(value.substr(0, count));
-}
-
 std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
 {
     std::filesystem::path current = std::filesystem::absolute(start);
@@ -232,202 +195,6 @@ void RemoveEmptyDirectoryChain(const std::filesystem::path& start, const std::fi
             return;
         }
         current = current.parent_path();
-    }
-}
-
-bool IsTutorialTargetRegistrationLine(std::string_view line) noexcept
-{
-    const std::string_view trimmed = TrimAsciiWhitespace(line);
-    return std::find(kTutorialExampleTargetRegistrations.begin(),
-                     kTutorialExampleTargetRegistrations.end(),
-                     trimmed) != kTutorialExampleTargetRegistrations.end();
-}
-
-void RemoveTutorialTargetRegistration(const std::filesystem::path& projectRoot)
-{
-    const std::filesystem::path cmakeFile = projectRoot / "examples" / "CMakeLists.txt";
-    std::ifstream input(cmakeFile, std::ios::binary);
-    if (!input.is_open())
-    {
-        return;
-    }
-
-    const std::string content {
-        std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>()};
-    if (content.empty())
-    {
-        return;
-    }
-
-    const std::string newline = content.find("\r\n") != std::string::npos ? "\r\n" : "\n";
-    const bool hasTrailingNewline =
-        content.size() >= newline.size() &&
-        content.compare(content.size() - newline.size(), newline.size(), newline) == 0;
-
-    std::istringstream stream(content);
-    std::vector<std::string> keptLines;
-    keptLines.reserve(64);
-
-    bool removedLine = false;
-    for (std::string line; std::getline(stream, line);)
-    {
-        if (!line.empty() && line.back() == '\r')
-        {
-            line.pop_back();
-        }
-
-        if (IsTutorialTargetRegistrationLine(line))
-        {
-            removedLine = true;
-            continue;
-        }
-
-        keptLines.push_back(std::move(line));
-    }
-
-    if (!removedLine)
-    {
-        return;
-    }
-
-    std::ofstream output(cmakeFile, std::ios::binary | std::ios::trunc);
-    if (!output.is_open())
-    {
-        return;
-    }
-
-    for (std::size_t index = 0; index < keptLines.size(); ++index)
-    {
-        if (index != 0)
-        {
-            output << newline;
-        }
-        output << keptLines[index];
-    }
-
-    if (hasTrailingNewline && !keptLines.empty())
-    {
-        output << newline;
-    }
-}
-
-void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
-{
-    const std::filesystem::path cmakeFile = projectRoot / "examples" / "CMakeLists.txt";
-    std::ifstream input(cmakeFile, std::ios::binary);
-    if (!input.is_open())
-    {
-        return;
-    }
-
-    const std::string content {
-        std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>()};
-    if (content.empty())
-    {
-        return;
-    }
-
-    const std::string newline = content.find("\r\n") != std::string::npos ? "\r\n" : "\n";
-    const bool hasTrailingNewline =
-        content.size() >= newline.size() &&
-        content.compare(content.size() - newline.size(), newline.size(), newline) == 0;
-
-    std::istringstream stream(content);
-    std::vector<std::string> lines;
-    lines.reserve(64);
-
-    std::array<bool, kTutorialExampleTargetRegistrations.size()> hasTargetRegistrations {};
-    std::size_t insertionIndex = std::numeric_limits<std::size_t>::max();
-    std::string insertionIndentation;
-    std::size_t appendIndex = std::numeric_limits<std::size_t>::max();
-
-    for (std::string line; std::getline(stream, line);)
-    {
-        if (!line.empty() && line.back() == '\r')
-        {
-            line.pop_back();
-        }
-
-        const std::string_view trimmed = TrimAsciiWhitespace(line);
-        for (std::size_t index = 0; index < kTutorialExampleTargetRegistrations.size(); ++index)
-        {
-            if (trimmed == kTutorialExampleTargetRegistrations[index])
-            {
-                hasTargetRegistrations[index] = true;
-                break;
-            }
-        }
-
-        if (trimmed.rfind("add_subdirectory(", 0) == 0)
-        {
-            appendIndex = lines.size() + 1U;
-            if (insertionIndentation.empty())
-            {
-                insertionIndentation = LeadingWhitespace(line);
-            }
-        }
-
-        if (trimmed.rfind("# client_tutorial is intentionally wired", 0) == 0 &&
-            insertionIndex == std::numeric_limits<std::size_t>::max())
-        {
-            insertionIndex = lines.size();
-            insertionIndentation = LeadingWhitespace(line);
-        }
-
-        lines.push_back(std::move(line));
-    }
-
-    if (std::all_of(hasTargetRegistrations.begin(), hasTargetRegistrations.end(), [](const bool present)
-                    { return present; }) ||
-        insertionIndex == std::numeric_limits<std::size_t>::max())
-    {
-        if (std::all_of(hasTargetRegistrations.begin(), hasTargetRegistrations.end(), [](const bool present)
-                        { return present; }))
-        {
-            return;
-        }
-
-        insertionIndex = appendIndex;
-        if (insertionIndex == std::numeric_limits<std::size_t>::max())
-        {
-            return;
-        }
-    }
-
-    std::vector<std::string> insertedLines;
-    insertedLines.reserve(kTutorialExampleTargetRegistrations.size());
-    for (std::size_t index = 0; index < kTutorialExampleTargetRegistrations.size(); ++index)
-    {
-        if (!hasTargetRegistrations[index])
-        {
-            insertedLines.push_back(insertionIndentation + std::string(kTutorialExampleTargetRegistrations[index]));
-        }
-    }
-
-    lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insertionIndex),
-                 insertedLines.begin(),
-                 insertedLines.end());
-
-    std::ofstream output(cmakeFile, std::ios::binary | std::ios::trunc);
-    if (!output.is_open())
-    {
-        return;
-    }
-
-    for (std::size_t index = 0; index < lines.size(); ++index)
-    {
-        if (index != 0)
-        {
-            output << newline;
-        }
-        output << lines[index];
-    }
-
-    if (hasTrailingNewline && !lines.empty())
-    {
-        output << newline;
     }
 }
 
@@ -562,6 +329,82 @@ int CountTutorialLines(std::string_view text)
         });
     return std::max(1, lineCount);
 }
+
+struct TutorialStageInfo
+{
+    const char* title;
+    const char* summary;
+    int firstStep = 0;
+    int lastStep = 0;
+};
+
+constexpr std::array<TutorialStageInfo, 5> kTutorialStages {{
+    {"Stage 1 - Author In Editor",
+     "Create the tutorial window, page assets, reusable reticle templates, editor-only layers, and the exposed primitive that will feed the generated client.",
+     static_cast<int>(editor::tutorial::TutorialStepId::CreateWindow),
+     static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
+    {"Stage 2 - Explore Editor Tools",
+     "Use the page-preview helper panels, save the tutorial assets, and discover the import, rename, extraction, and export workflows directly from the editor.",
+     static_cast<int>(editor::tutorial::TutorialStepId::ShowPageContext),
+     static_cast<int>(editor::tutorial::TutorialStepId::InspectDesignExportWorkflow)},
+    {"Stage 3 - Read Generated Artifacts",
+     "Connect the editor actions to the JSON page file, the generated C++17 header, and the companion transport map written on disk.",
+     static_cast<int>(editor::tutorial::TutorialStepId::ReviewPage1StrobeJson),
+     static_cast<int>(editor::tutorial::TutorialStepId::ReviewGeneratedTransportMap)},
+    {"Stage 4 - Drive The Runtime",
+     "Follow the typed client flow from generated page handles to dynamic reticles, static reticles, strobe feedback, and optional framebuffer inspection.",
+     static_cast<int>(editor::tutorial::TutorialStepId::ReviewGeneratedUiIntegration),
+     static_cast<int>(editor::tutorial::TutorialStepId::ReviewRgba32FramebufferCapture)},
+    {"Stage 5 - Opt In And Continue",
+     "Keep the tutorial client opt-in, understand the manual registration step, and leave with the right documentation path for the rest of the project.",
+     static_cast<int>(editor::tutorial::TutorialStepId::ReviewTutorialClientBuildGate),
+     static_cast<int>(editor::tutorial::TutorialStepId::ReviewDocumentationPath)},
+}};
+
+const TutorialStageInfo& StageForStep(const int stepIndex) noexcept
+{
+    for (const TutorialStageInfo& stage : kTutorialStages)
+    {
+        if (stepIndex >= stage.firstStep && stepIndex <= stage.lastStep)
+        {
+            return stage;
+        }
+    }
+
+    return kTutorialStages.back();
+}
+
+int StageIndexForStep(const int stepIndex) noexcept
+{
+    for (int index = 0; index < static_cast<int>(kTutorialStages.size()); ++index)
+    {
+        const TutorialStageInfo& stage = kTutorialStages[static_cast<std::size_t>(index)];
+        if (stepIndex >= stage.firstStep && stepIndex <= stage.lastStep)
+        {
+            return index;
+        }
+    }
+
+    return static_cast<int>(kTutorialStages.size()) - 1;
+}
+
+float OverallTutorialProgress(const int stepIndex) noexcept
+{
+    const int stepCount = editor::tutorial::StepCount();
+    if (stepCount <= 0)
+    {
+        return 0.0f;
+    }
+
+    return std::clamp(static_cast<float>(stepIndex + 1) / static_cast<float>(stepCount), 0.0f, 1.0f);
+}
+
+float StageTutorialProgress(const TutorialStageInfo& stage, const int stepIndex) noexcept
+{
+    const int stageSpan = std::max(1, stage.lastStep - stage.firstStep + 1);
+    const int stageOffset = std::clamp(stepIndex - stage.firstStep + 1, 0, stageSpan);
+    return std::clamp(static_cast<float>(stageOffset) / static_cast<float>(stageSpan), 0.0f, 1.0f);
+}
 } // namespace
 
 EditorTutorialController::EditorTutorialController(EditorApplication& application) :
@@ -657,13 +500,8 @@ void EditorTutorialController::Finish()
     focusLayerId_.clear();
     showCoach_ = false;
     ClearProgress();
-    if (const auto projectRoot = FindProjectRoot(std::filesystem::current_path()); projectRoot.has_value())
-    {
-        EnsureTutorialTargetRegistration(*projectRoot);
-    }
-
     app_.RebuildStatus(
-        "Tutorial completed. Reconfigure/rebuild the solution manually to generate and compile 'client_tutorial', then launch the authored window with 'Scripts/Start-MfdTutorial.bat' from the repository or the staged 'Start-MfdTutorial.bat' next to mfd_window.",
+        "Tutorial completed. The tutorial client remains opt-in by design: register 'client_tutorial' manually only when you want the generated walkthrough, then continue with tutorials 03, 11 and the generated-client architecture notes.",
         false);
 }
 
@@ -678,16 +516,28 @@ void EditorTutorialController::DrawCoach()
     const auto tutorialSteps = editor::tutorial::Steps();
     const editor::tutorial::TutorialStepDefinition& step =
         tutorialSteps[static_cast<std::size_t>(stepIndex_)];
-    const ImVec2 defaultSize =
-        editor::tutorial::IsFileReviewStep(step) ? ImVec2(1100.0f, 780.0f) : ImVec2(640.0f, 360.0f);
-    ImGui::SetNextWindowSize(defaultSize, ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("Tutorial coach", &showCoach_))
+    const TutorialStageInfo& stage = StageForStep(stepIndex_);
+    const int stageIndex = StageIndexForStep(stepIndex_);
+    const float panelHeight = editor::tutorial::IsFileReviewStep(step) ? 420.0f : 220.0f;
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.05f, 0.09f, 0.12f, 1.0f));
+    if (!ImGui::BeginChild("TutorialCoachPanel", ImVec2(0.0f, panelHeight), true, ImGuiWindowFlags_HorizontalScrollbar))
     {
-        ImGui::End();
+        ImGui::EndChild();
+        ImGui::PopStyleColor();
         return;
     }
 
-    ImGui::Text("Step %d / %d", stepIndex_ + 1, editor::tutorial::StepCount());
+    ImGui::TextColored(ImVec4(0.42f, 0.84f, 0.96f, 1.0f), "Tutorial coach");
+    ImGui::SameLine();
+    ImGui::TextDisabled("Step %d / %d", stepIndex_ + 1, editor::tutorial::StepCount());
+    ImGui::ProgressBar(OverallTutorialProgress(stepIndex_), ImVec2(-1.0f, 0.0f));
+    ImGui::Spacing();
+    ImGui::TextDisabled("Stage %d / %zu", stageIndex + 1, kTutorialStages.size());
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.42f, 0.84f, 0.96f, 1.0f), "%s", stage.title);
+    ImGui::TextWrapped("%s", stage.summary);
+    ImGui::ProgressBar(StageTutorialProgress(stage, stepIndex_), ImVec2(-1.0f, 0.0f));
     ImGui::Separator();
     ImGui::TextUnformatted(step.title);
     ImGui::Spacing();
@@ -714,11 +564,12 @@ void EditorTutorialController::DrawCoach()
         RestartFromScratch();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Mark complete"))
+    if (ImGui::Button("End tutorial"))
     {
         Finish();
     }
-    ImGui::End();
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
 }
 
 void EditorTutorialController::DrawHalo(const char* targetId, const char* title, const char* reason) const
@@ -874,6 +725,26 @@ bool EditorTutorialController::ConsumeResumePopupRequest() noexcept
     return requested;
 }
 
+bool EditorTutorialController::ShouldResetFileMenuPhaseOnClose() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    return IsStepPhase(static_cast<int>(TutorialStepId::CreateWindow), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::SaveTutorialAssets), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::InspectDesignExportWorkflow), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::InspectDesignExportWorkflow), 2);
+}
+
+bool EditorTutorialController::ShouldResetPageMenuPhaseOnClose() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    return IsStepPhase(static_cast<int>(TutorialStepId::CreatePage1), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::CreatePage2), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::InspectPageImportWorkflow), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::InspectPageRenameWorkflow), 1);
+}
+
 bool EditorTutorialController::ShouldResetReticleMenuPhaseOnClose() const noexcept
 {
     using editor::tutorial::TutorialStepId;
@@ -881,7 +752,19 @@ bool EditorTutorialController::ShouldResetReticleMenuPhaseOnClose() const noexce
     return IsStepPhase(static_cast<int>(TutorialStepId::CreateRadarTrackReticle), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::CreateCircleReticle), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle), 1) ||
-           IsStepPhase(static_cast<int>(TutorialStepId::CreateProgressBarReticle), 1);
+           IsStepPhase(static_cast<int>(TutorialStepId::CreateProgressBarReticle), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow), 1);
+}
+
+bool EditorTutorialController::ShouldResetPagePreviewViewPhaseOnClose() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    return IsStepPhase(static_cast<int>(TutorialStepId::ShowPageContext), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::ShowLayerInspector), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::ShowMinimap), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::ShowProblemsPanel), 1);
 }
 
 bool EditorTutorialController::ShouldResetReticleCreatePopupOnCancel() const noexcept
@@ -1140,8 +1023,35 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
         return stepPhase_ == 0 ? "page_preview_clip_source" : "context_clip_outer";
     case static_cast<int>(TutorialStepId::AddAndHideEditorLayer):
         return stepPhase_ == 0 ? "inspector_add_layer" : "inspector_layer_visibility";
+    case static_cast<int>(TutorialStepId::ShowPageContext):
+        return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_page_context";
+    case static_cast<int>(TutorialStepId::ShowLayerInspector):
+        return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_layer_inspector";
+    case static_cast<int>(TutorialStepId::ShowMinimap):
+        return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_minimap";
+    case static_cast<int>(TutorialStepId::ShowReticleUsageHighlights):
+        return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_highlight_usages";
+    case static_cast<int>(TutorialStepId::ShowProblemsPanel):
+        return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_problems";
+    case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
+        return "page_preview_fullscreen";
     case static_cast<int>(TutorialStepId::SaveTutorialAssets):
         return stepPhase_ == 0 ? "menu_file" : "menu_file_save";
+    case static_cast<int>(TutorialStepId::InspectPageImportWorkflow):
+        return stepPhase_ == 0 ? "menu_page" : "menu_page_import";
+    case static_cast<int>(TutorialStepId::InspectPageRenameWorkflow):
+        return stepPhase_ == 0 ? "menu_page" :
+                                 (stepPhase_ == 1 ? "menu_page_rename" : "popup_page_rename_cancel");
+    case static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow):
+        return stepPhase_ == 0 ? "menu_reticle" :
+                                 (stepPhase_ == 1 ? "menu_reticle_rename" : "popup_reticle_rename_cancel");
+    case static_cast<int>(TutorialStepId::InspectReticleExtractionWorkflow):
+        return stepPhase_ == 0 ? "page_reticle_extract" : "popup_reticle_extract_cancel";
+    case static_cast<int>(TutorialStepId::InspectDesignExportWorkflow):
+        return stepPhase_ == 0 ? "menu_file" :
+                                 (stepPhase_ == 1 ? "menu_file_export" :
+                                                    (stepPhase_ == 2 ? "menu_file_export_design"
+                                                                     : "popup_design_export_cancel"));
     default:
         return {};
     }
@@ -1184,8 +1094,34 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
         return stepPhase_ == 0 ? "Right-click the circle reticle in the page preview." : "Click Clip outside.";
     case static_cast<int>(TutorialStepId::AddAndHideEditorLayer):
         return stepPhase_ == 0 ? "Click Add layer." : "Click Visible to hide the new layer.";
+    case static_cast<int>(TutorialStepId::ShowPageContext):
+        return stepPhase_ == 0 ? "Click View." : "Enable Page context.";
+    case static_cast<int>(TutorialStepId::ShowLayerInspector):
+        return stepPhase_ == 0 ? "Click View." : "Enable Layer Inspector.";
+    case static_cast<int>(TutorialStepId::ShowMinimap):
+        return stepPhase_ == 0 ? "Click View." : "Enable Minimap.";
+    case static_cast<int>(TutorialStepId::ShowReticleUsageHighlights):
+        return stepPhase_ == 0 ? "Click View." : "Enable Highlight reticle usages.";
+    case static_cast<int>(TutorialStepId::ShowProblemsPanel):
+        return stepPhase_ == 0 ? "Click View." : "Enable Problems.";
+    case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
+        return stepPhase_ == 0 ? "Click the fullscreen button." : "Click the fullscreen button again to restore the layout.";
     case static_cast<int>(TutorialStepId::SaveTutorialAssets):
         return stepPhase_ == 0 ? "Click File." : "Click Save.";
+    case static_cast<int>(TutorialStepId::InspectPageImportWorkflow):
+        return stepPhase_ == 0 ? "Click Page." : "Click Import page...";
+    case static_cast<int>(TutorialStepId::InspectPageRenameWorkflow):
+        return stepPhase_ == 0 ? "Click Page." :
+                                 (stepPhase_ == 1 ? "Click Rename current page globally..." : "Close the rename popup.");
+    case static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow):
+        return stepPhase_ == 0 ? "Click Reticle." :
+                                 (stepPhase_ == 1 ? "Click Rename selected library reticle globally..." : "Close the rename popup.");
+    case static_cast<int>(TutorialStepId::InspectReticleExtractionWorkflow):
+        return stepPhase_ == 0 ? "Click Extract as reticle..." : "Close the extraction popup.";
+    case static_cast<int>(TutorialStepId::InspectDesignExportWorkflow):
+        return stepPhase_ == 0 ? "Click File." :
+                                 (stepPhase_ == 1 ? "Open Export." :
+                                                    (stepPhase_ == 2 ? "Click Export design..." : "Close the export popup."));
     default:
         return {};
     }
@@ -1221,7 +1157,6 @@ void EditorTutorialController::CleanupGeneratedFiles()
     RemoveTutorialGeneratedSourceFiles(*projectRoot);
     RemoveTutorialBuildOutputs(*projectRoot);
     RemoveTutorialStageArtifacts(*projectRoot);
-    RemoveTutorialTargetRegistration(*projectRoot);
 }
 
 void EditorTutorialController::DrawFileReview()

@@ -39,7 +39,7 @@ If this is your first session with the project, read in this order:
 | see a shipped demo working | [Quick Start](./QUICKSTART.md) | [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md) |
 | understand the authored model | [Core Concepts](./CONCEPTS.md) | [JSON Reference](./reference/README.md) |
 | create assets in JSON | [Core Concepts](./CONCEPTS.md) | [Tutorials 01 to 03](./tutorials/README.md) |
-| use `mfd_editor` | [Quick Start](./QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md) |
+| use `mfd_editor` | [Quick Start](./QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md), [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md), [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md), [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md), [Generated Client API Architecture](./architecture/generated_client_api.md) |
 | drive the runtime from a client | [Quick Start](./QUICKSTART.md) | [Drive A Window From A Live Client](./tutorials/04_drive_a_window_from_a_live_client.md) |
 | understand `client_mockup` as a reference implementation | [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md) | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) |
 | use the generated client API | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) | [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md) |
@@ -95,6 +95,9 @@ If this is your first session with the project, read in this order:
 1. [Quick Start](./QUICKSTART.md)
 2. [Create A Window From Scratch In `mfd_editor`](./tutorials/13_create_window_from_editor.md)
 3. [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md)
+4. [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md)
+5. [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md)
+6. [Generated Client API Architecture](./architecture/generated_client_api.md)
 
 ### Contributor
 
