@@ -114,9 +114,4 @@ if(MFD_BUILD_DEMO)
         VERBATIM)
 
     mfd_stage_runtime(mfd_editor WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
-
-    mfd_register_runtime_package(
-        NAME MFDStudioEditor.Install
-        TARGETS mfd_editor
-        WITH_BRANDING)
 endif()

@@ -141,6 +141,16 @@ cmake --build --preset debug-win32
 ctest --preset test-debug-win32
 ```
 
+Generate delivery packages with the dedicated script:
+
+```powershell
+.\Scripts\BuildDeliveries.bat
+```
+
+That command rebuilds the Win32/x64 Debug/Release package payloads and writes
+the resulting SDK and install layouts under `_Deliveries/` without replacing
+the local runtime staging flow under `_Exec/`.
+
 Contributor-oriented details live in [Development Guide](./docs/DEVELOPMENT.md).
 
 ## Licenses

@@ -117,7 +117,6 @@ set(MFD_COMMON_API_PUBLIC_INCLUDE_DIR "${MFD_ROOT_DIR}/mfd_common_api/include")
 set(MFD_API_PUBLIC_INCLUDE_DIR "${MFD_ROOT_DIR}/mfd_api/include")
 
 include(RuntimePackaging)
-include(DeliveryPackaging)
 
 if(MFD_BUILD_TESTS)
     enable_testing()
@@ -144,13 +143,3 @@ if(MFD_BUILD_DEMO)
 endif()
 
 mfd_finalize_runtime_stage_targets()
-
-mfd_register_runtime_package(
-    NAME MFDStudioWindowLauncher.Install
-    TARGETS mfd_window
-    WITH_BRANDING
-    SCRIPT_SOURCE_DIR "${MFD_ROOT_DIR}/Scripts"
-    SCRIPT_NAMES
-        Start-MfdWindow.bat)
-
-mfd_finalize_delivery_targets()
