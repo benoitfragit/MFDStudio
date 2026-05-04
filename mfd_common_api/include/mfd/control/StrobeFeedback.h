@@ -20,6 +20,7 @@
 #include "mfd/model/PageDefinition.h"
 #include "mfd/model/Reticle.h"
 #include "mfd/model/Types.h"
+#include "mfd/runtime/GeneratedTransportMap.h"
 
 namespace mfd
 {
@@ -36,6 +37,8 @@ struct StrobeFeedbackMagnet
     float strength = 1.0f;
     /** @brief Indicates whether a target is currently magnetized. */
     bool magnetized = false;
+    /** @brief Runtime identifier of the currently magnetized dynamic reticle. */
+    mfd::RuntimeDynamicId runtimeReticleId = 0;
     /** @brief Public id of the currently magnetized reticle. */
     std::string reticleId;
     /** @brief Target position used by the magnetization logic. */
@@ -49,6 +52,10 @@ struct StrobeFeedbackMagnet
  */
 struct StrobeFeedbackCapture
 {
+    /** @brief Runtime identifier of the captured dynamic reticle instance. */
+    mfd::RuntimeDynamicId runtimeReticleId = 0;
+    /** @brief Generated transport id of the template that created the captured reticle. */
+    mfd::TransportId sourceTemplateTransportId = 0;
     /** @brief Public id of the captured dynamic reticle. */
     std::string reticleId;
     /** @brief Template id originally used to create the captured reticle. */
@@ -72,6 +79,8 @@ struct StrobeStatusFeedback
 {
     /** @brief Monotonic sequence set by the window. */
     std::uint32_t sequence = 0;
+    /** @brief Generated transport id of the owning page when available. */
+    mfd::TransportId pageId = 0;
     /** @brief Owning page name. */
     std::string pageName;
     /** @brief Public reticle id of the strobe cursor. */

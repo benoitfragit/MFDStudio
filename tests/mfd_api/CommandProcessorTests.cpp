@@ -313,6 +313,7 @@ TEST(CommandProcessorTests, SerializedDynamicRuntimeIdsStillMagnetizeActiveStrob
 
     const auto strobeSummary = registry.ActiveStrobeSummary();
     ASSERT_TRUE(strobeSummary.has_value());
+    EXPECT_EQ(strobeSummary->pageId, 11U);
     EXPECT_TRUE(strobeSummary->visible);
     EXPECT_FLOAT_EQ(strobeSummary->position.x, 0.1f);
     EXPECT_FLOAT_EQ(strobeSummary->position.y, 0.0f);
@@ -321,12 +322,16 @@ TEST(CommandProcessorTests, SerializedDynamicRuntimeIdsStillMagnetizeActiveStrob
     ASSERT_TRUE(magnet.has_value());
     EXPECT_TRUE(magnet->enabled);
     EXPECT_TRUE(magnet->magnetized);
+    EXPECT_EQ(magnet->runtimeReticleId, 9001U);
     EXPECT_EQ(magnet->reticleId, "__runtime_dynamic_9001");
     EXPECT_FLOAT_EQ(magnet->targetPosition.x, 0.1f);
     EXPECT_FLOAT_EQ(magnet->targetPosition.y, 0.0f);
 
     const auto capture = registry.CaptureActivePageStrobe();
     ASSERT_TRUE(capture.has_value());
+    EXPECT_EQ(capture->pageId, 11U);
+    EXPECT_EQ(capture->runtimeReticleId, 9001U);
+    EXPECT_EQ(capture->sourceTemplateTransportId, 55U);
     EXPECT_EQ(capture->reticleId, "__runtime_dynamic_9001");
 }
 

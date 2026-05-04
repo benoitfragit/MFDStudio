@@ -85,6 +85,17 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0,
      0},
     {TutorialStepKind::UiAction,
+     "Allow the steering cue dynamic reticle on Page1",
+     "On Page1, enable `inspired_steering_cue` in the generated dynamic-template list so the generated client can build the persistent cue link used by the tutorial.",
+     "page_dynamic_template_inspired_steering_cue",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
      "Assign the Page1 strobe template",
      "On Page1, choose the small cross cursor as the page strobe so the runtime and the client both target a real authored strobe.",
      "page_strobe_template",
@@ -304,7 +315,8 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "  \"backgroundColor\": [0, 32, 96, 255],\n"
      "  \"_editor\": {\n"
      "    \"dynamicReticleTemplates\": [\n"
-     "      \"mfd_tutorial_radar_track\"\n"
+     "      \"mfd_tutorial_radar_track\",\n"
+     "      \"inspired_steering_cue\"\n"
      "    ]\n"
      "  },\n"
      "  \"staticReticles\": []\n"
@@ -315,7 +327,8 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "  \"backgroundColor\": [0, 32, 96, 255],\n"
      "  \"_editor\": {\n"
      "    \"dynamicReticleTemplates\": [\n"
-     "      \"mfd_tutorial_radar_track\"\n"
+     "      \"mfd_tutorial_radar_track\",\n"
+     "      \"inspired_steering_cue\"\n"
      "    ]\n"
      "  },\n"
      "  \"strobe\": {\n"
@@ -346,6 +359,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "{\n"
      "public:\n"
      "    MfdTutorialRadarTrackDynamicReticleSet& DynamicMfdTutorialRadarTrack() noexcept;\n"
+     "    InspiredSteeringCueDynamicReticleSet& DynamicInspiredSteeringCue() noexcept;\n"
      "    StrobeHandle strobe;\n"
      "    Page1MfdTutorialCircleReticle mfdTutorialCircle;\n"
      "};\n"
@@ -365,7 +379,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "    std::vector<mfd::UserCommand> BuildBatch();\n"
      "    mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);\n"
      "};",
-     "The generated header follows a clear page -> reticle -> primitive composition model. User code stays in typed C++17 wrappers and avoids raw page names, reticle ids, or ad-hoc transport tables.",
+     "The generated header follows a clear page -> reticle -> primitive composition model. User code stays in typed C++17 wrappers and gets both dynamic tutorial accessors without raw page names, reticle ids, or ad-hoc transport tables.",
      "Next",
      1,
      1},
@@ -420,11 +434,12 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "auto& page1 = generatedUi.Page1();\n"
      "auto& page2 = generatedUi.Page2();\n"
      "auto& generatedDynamicTracks = page1.DynamicMfdTutorialRadarTrack();\n"
+     "auto& persistentTrackLinkSet = page1.DynamicInspiredSteeringCue();\n"
      "auto& page1Circle = page1.mfdTutorialCircle;\n"
      "auto& page2ProgressBar = page2.mfdTutorialProgressBar;\n"
      "auto& progressFill = page2ProgressBar.FillBar();\n"
      "auto& page1Strobe = page1.strobe;",
-     "The generated API now exposes one typed dynamic accessor, two static reticle handles, one exposed primitive accessor, one generic page `strobe` handle, and feedback-backed `IsActive()` / `IsStrobeCaptured()` queries without asking the user to manage ids.",
+     "The generated API now exposes two typed dynamic accessors, two static reticle handles, one exposed primitive accessor, one generic page `strobe` handle, and feedback-backed `IsActive()` / `IsStrobeCaptured()` queries without asking the user to manage ids.",
      "Next",
      1,
      1},
@@ -624,7 +639,8 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "set(MFD_CLIENT_TUTORIAL_REQUIRED_FILES\n"
      "    \"${MFD_ROOT_DIR}/assets/windows/mfd_tutorial.json\"\n"
      "    \"${MFD_ROOT_DIR}/assets/pages/mfd_tutorial_page1.json\"\n"
-     "    \"${MFD_ROOT_DIR}/assets/pages/mfd_tutorial_page2.json\")\n"
+     "    \"${MFD_ROOT_DIR}/assets/pages/mfd_tutorial_page2.json\"\n"
+     "    \"${MFD_ROOT_DIR}/assets/reticles/inspired_steering_cue.json\")\n"
      "\n"
      "if(MFD_CLIENT_TUTORIAL_MISSING_FILES)\n"
      "    message(STATUS\n"
@@ -640,7 +656,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "    OUTPUT_MAP \"${MFD_ROOT_DIR}/assets/windows/mfd_tutorial.generated.map\"\n"
      "    NAMESPACE \"tutorial_ui\"\n"
      "    UI_CLASS_NAME \"TutorialUi\")",
-     "The repository default build stays unchanged until the tutorial completes, and the target still self-skips whenever the authored asset set is incomplete.",
+     "The default examples build stays unchanged until the tutorial completes, and the target still self-skips whenever the authored asset set is incomplete.",
      "Next",
      1,
      1},

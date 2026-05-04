@@ -100,7 +100,7 @@ std::uint64_t HashNormalizedIdentifier(std::string_view lhs, std::string_view rh
     constexpr std::uint64_t kFnvOffset = 1469598103934665603ull;
     constexpr std::uint64_t kFnvPrime = 1099511628211ull;
 
-    auto append = [](std::uint64_t hash, const std::string_view value) noexcept
+    auto append = [kFnvPrime](std::uint64_t hash, const std::string_view value) noexcept
     {
         for (const unsigned char ch : value)
         {

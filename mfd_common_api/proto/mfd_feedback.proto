@@ -29,6 +29,7 @@ message StrobeMagnetStatus
   string reticle = 5;
   Vec2 target_position = 6;
   float distance = 7;
+  uint64 runtime_reticle_id = 8;
 }
 
 message StrobeCaptureStatus
@@ -40,6 +41,8 @@ message StrobeCaptureStatus
   Vec2 position = 5;
   float distance = 6;
   map<string, string> metadata = 7;
+  uint64 runtime_reticle_id = 8;
+  uint64 source_template_transport_id = 9;
 }
 
 message StrobeStatusFeedback
@@ -52,6 +55,7 @@ message StrobeStatusFeedback
   StrobeCaptureArea capture = 6;
   StrobeMagnetStatus magnet = 7;
   optional StrobeCaptureStatus capture_result = 8;
+  uint64 page_id = 9;
 }
 
 message ActivePageFeedback

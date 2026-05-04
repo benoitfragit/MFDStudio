@@ -361,6 +361,10 @@ TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeed
     auto& track = ui.Radar().DynamicRadarTrack().Create();
     std::vector<mfd::UserCommand> commands;
     ASSERT_EQ(ui.Radar().AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands.front());
+    ASSERT_NE(upsert, nullptr);
+    ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_FALSE(ui.Radar().IsActive());
     EXPECT_FALSE(track.IsStrobeCaptured());
 
@@ -372,8 +376,10 @@ TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeed
 
     mfd::StrobeStatusFeedback strobe;
     strobe.sequence = 2U;
+    strobe.pageId = 11U;
     strobe.pageName = "Radar";
     mfd::StrobeFeedbackCapture capture;
+    capture.runtimeReticleId = upsert->reticles.front().runtimeReticleId;
     capture.reticleId = track.Id();
     strobe.captureResult = std::move(capture);
     EXPECT_TRUE(ui.ApplyFeedback(strobe));
@@ -381,6 +387,7 @@ TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeed
 
     mfd::StrobeStatusFeedback cleared;
     cleared.sequence = 3U;
+    cleared.pageId = 11U;
     cleared.pageName = "Radar";
     EXPECT_TRUE(ui.ApplyFeedback(cleared));
     EXPECT_FALSE(track.IsStrobeCaptured());

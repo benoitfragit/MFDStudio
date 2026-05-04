@@ -22,6 +22,7 @@ mfd::StrobeStatusFeedback MakeFullFeedback()
 {
     mfd::StrobeStatusFeedback feedback;
     feedback.sequence = 41U;
+    feedback.pageId = 11U;
     feedback.pageName = "Radar";
     feedback.strobeId = "cursor";
     feedback.active = true;
@@ -33,11 +34,14 @@ mfd::StrobeStatusFeedback MakeFullFeedback()
     feedback.magnet.radius = 0.20f;
     feedback.magnet.strength = 0.65f;
     feedback.magnet.magnetized = true;
+    feedback.magnet.runtimeReticleId = 7001U;
     feedback.magnet.reticleId = "track_17";
     feedback.magnet.targetPosition = {0.19f, -0.22f};
     feedback.magnet.distance = 0.04f;
 
     mfd::StrobeFeedbackCapture capture;
+    capture.runtimeReticleId = 7001U;
+    capture.sourceTemplateTransportId = 55U;
     capture.reticleId = "track_17";
     capture.sourceTemplateId = "radar_track";
     capture.label = "Bogey 17";
@@ -54,6 +58,7 @@ mfd::StrobeStatusFeedback MakeFullFeedback()
 void ExpectFeedbackEquals(const mfd::StrobeStatusFeedback& expected, const mfd::StrobeStatusFeedback& actual)
 {
     EXPECT_EQ(actual.sequence, expected.sequence);
+    EXPECT_EQ(actual.pageId, expected.pageId);
     EXPECT_EQ(actual.pageName, expected.pageName);
     EXPECT_EQ(actual.strobeId, expected.strobeId);
     EXPECT_EQ(actual.active, expected.active);
@@ -67,6 +72,7 @@ void ExpectFeedbackEquals(const mfd::StrobeStatusFeedback& expected, const mfd::
     EXPECT_FLOAT_EQ(actual.magnet.radius, expected.magnet.radius);
     EXPECT_FLOAT_EQ(actual.magnet.strength, expected.magnet.strength);
     EXPECT_EQ(actual.magnet.magnetized, expected.magnet.magnetized);
+    EXPECT_EQ(actual.magnet.runtimeReticleId, expected.magnet.runtimeReticleId);
     EXPECT_EQ(actual.magnet.reticleId, expected.magnet.reticleId);
     EXPECT_FLOAT_EQ(actual.magnet.targetPosition.x, expected.magnet.targetPosition.x);
     EXPECT_FLOAT_EQ(actual.magnet.targetPosition.y, expected.magnet.targetPosition.y);
@@ -78,6 +84,8 @@ void ExpectFeedbackEquals(const mfd::StrobeStatusFeedback& expected, const mfd::
     }
 
     ASSERT_TRUE(actual.captureResult.has_value());
+    EXPECT_EQ(actual.captureResult->runtimeReticleId, expected.captureResult->runtimeReticleId);
+    EXPECT_EQ(actual.captureResult->sourceTemplateTransportId, expected.captureResult->sourceTemplateTransportId);
     EXPECT_EQ(actual.captureResult->reticleId, expected.captureResult->reticleId);
     EXPECT_EQ(actual.captureResult->sourceTemplateId, expected.captureResult->sourceTemplateId);
     EXPECT_EQ(actual.captureResult->label, expected.captureResult->label);
@@ -100,6 +108,7 @@ TEST(StrobeFeedbackTests, RoundTripsCompleteFeedbackEnvelope)
     ASSERT_TRUE(decoded.has_value()) << error;
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(decoded->sequence, 41U);
+    EXPECT_EQ(decoded->pageId, 11U);
     EXPECT_EQ(decoded->pageName, "Radar");
     EXPECT_EQ(decoded->strobeId, "cursor");
     EXPECT_TRUE(decoded->active);
@@ -113,12 +122,15 @@ TEST(StrobeFeedbackTests, RoundTripsCompleteFeedbackEnvelope)
     EXPECT_FLOAT_EQ(decoded->magnet.radius, 0.20f);
     EXPECT_FLOAT_EQ(decoded->magnet.strength, 0.65f);
     EXPECT_TRUE(decoded->magnet.magnetized);
+    EXPECT_EQ(decoded->magnet.runtimeReticleId, 7001U);
     EXPECT_EQ(decoded->magnet.reticleId, "track_17");
     EXPECT_FLOAT_EQ(decoded->magnet.targetPosition.x, 0.19f);
     EXPECT_FLOAT_EQ(decoded->magnet.targetPosition.y, -0.22f);
     EXPECT_FLOAT_EQ(decoded->magnet.distance, 0.04f);
 
     ASSERT_TRUE(decoded->captureResult.has_value());
+    EXPECT_EQ(decoded->captureResult->runtimeReticleId, 7001U);
+    EXPECT_EQ(decoded->captureResult->sourceTemplateTransportId, 55U);
     EXPECT_EQ(decoded->captureResult->reticleId, "track_17");
     EXPECT_EQ(decoded->captureResult->sourceTemplateId, "radar_track");
     EXPECT_EQ(decoded->captureResult->label, "Bogey 17");
@@ -135,6 +147,7 @@ TEST(StrobeFeedbackTests, RoundTripsFeedbackWithoutOptionalCaptureResult)
 {
     mfd::StrobeStatusFeedback original;
     original.sequence = 7U;
+    original.pageId = 19U;
     original.pageName = "HUD";
     original.strobeId = "designator";
     original.active = false;
@@ -150,6 +163,7 @@ TEST(StrobeFeedbackTests, RoundTripsFeedbackWithoutOptionalCaptureResult)
 
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->sequence, 7U);
+    EXPECT_EQ(decoded->pageId, 19U);
     EXPECT_EQ(decoded->pageName, "HUD");
     EXPECT_EQ(decoded->strobeId, "designator");
     EXPECT_FALSE(decoded->active);
@@ -242,6 +256,7 @@ TEST(StrobeFeedbackTests, DeterministicPseudoFuzzRoundTripsFeedbackVariants)
     {
         mfd::StrobeStatusFeedback original;
         original.sequence = sequenceDist(rng);
+        original.pageId = 100U + static_cast<mfd::TransportId>(iteration);
         original.pageName = "Page_" + std::to_string(iteration % 5);
         original.strobeId = "strobe_" + std::to_string(iteration);
         original.active = (iteration % 2) == 0;
@@ -254,6 +269,7 @@ TEST(StrobeFeedbackTests, DeterministicPseudoFuzzRoundTripsFeedbackVariants)
         original.magnet.radius = positiveDist(rng);
         original.magnet.strength = positiveDist(rng);
         original.magnet.magnetized = (iteration % 3) == 0;
+        original.magnet.runtimeReticleId = 4000U + static_cast<mfd::RuntimeDynamicId>(iteration);
         original.magnet.reticleId = "track_" + std::to_string(iteration % 11);
         original.magnet.targetPosition = {signedDist(rng), signedDist(rng)};
         original.magnet.distance = positiveDist(rng);
@@ -261,6 +277,8 @@ TEST(StrobeFeedbackTests, DeterministicPseudoFuzzRoundTripsFeedbackVariants)
         if ((iteration % 2) == 1)
         {
             mfd::StrobeFeedbackCapture capture;
+            capture.runtimeReticleId = 8000U + static_cast<mfd::RuntimeDynamicId>(iteration);
+            capture.sourceTemplateTransportId = 9000U + static_cast<mfd::TransportId>(iteration % 7);
             capture.reticleId = "capture_" + std::to_string(iteration);
             capture.sourceTemplateId = (iteration % 3) == 0 ? "geometry_template" : "radar_track";
             capture.label = "Label_" + std::to_string(iteration);

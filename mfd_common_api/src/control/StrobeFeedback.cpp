@@ -85,6 +85,7 @@ void FillProtoMagnet(const StrobeFeedbackMagnet& magnet, pb::StrobeMagnetStatus*
     target->set_radius(magnet.radius);
     target->set_strength(magnet.strength);
     target->set_magnetized(magnet.magnetized);
+    target->set_runtime_reticle_id(magnet.runtimeReticleId);
     target->set_reticle(magnet.reticleId);
     FillProtoVec2(magnet.targetPosition, target->mutable_target_position());
     target->set_distance(magnet.distance);
@@ -97,6 +98,7 @@ StrobeFeedbackMagnet FromProtoMagnet(const pb::StrobeMagnetStatus& value)
     magnet.radius = value.radius();
     magnet.strength = value.strength();
     magnet.magnetized = value.magnetized();
+    magnet.runtimeReticleId = value.runtime_reticle_id();
     magnet.reticleId = value.reticle();
     if (value.has_target_position())
     {
@@ -108,6 +110,8 @@ StrobeFeedbackMagnet FromProtoMagnet(const pb::StrobeMagnetStatus& value)
 
 void FillProtoCaptureResult(const StrobeFeedbackCapture& capture, pb::StrobeCaptureStatus* target)
 {
+    target->set_runtime_reticle_id(capture.runtimeReticleId);
+    target->set_source_template_transport_id(capture.sourceTemplateTransportId);
     target->set_reticle(capture.reticleId);
     target->set_template_id(capture.sourceTemplateId);
     target->set_label(capture.label);
@@ -124,6 +128,8 @@ void FillProtoCaptureResult(const StrobeFeedbackCapture& capture, pb::StrobeCapt
 StrobeFeedbackCapture FromProtoCaptureResult(const pb::StrobeCaptureStatus& value)
 {
     StrobeFeedbackCapture capture;
+    capture.runtimeReticleId = value.runtime_reticle_id();
+    capture.sourceTemplateTransportId = value.source_template_transport_id();
     capture.reticleId = value.reticle();
     capture.sourceTemplateId = value.template_id();
     capture.label = value.label();
@@ -155,6 +161,7 @@ std::string SerializeFeedbackPayload(const FeedbackPayload& feedback)
             {
                 pb::StrobeStatusFeedback* message = envelope.mutable_strobe_status();
                 message->set_sequence(value.sequence);
+                message->set_page_id(value.pageId);
                 message->set_page(value.pageName);
                 message->set_strobe_id(value.strobeId);
                 message->set_active(value.active);
@@ -201,6 +208,7 @@ std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view
 
             StrobeStatusFeedback feedback;
             feedback.sequence = message.sequence();
+            feedback.pageId = message.page_id();
             feedback.pageName = message.page();
             feedback.strobeId = message.strobe_id();
             feedback.active = message.active();

@@ -8849,6 +8849,7 @@ void EditorApplication::PrepareTutorialStep()
         newPageDraft_.background = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
+    case static_cast<int>(TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate):
         selectTutorialPageOrFallback("Page1");
         break;
     case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
@@ -9035,6 +9036,15 @@ bool EditorApplication::CreateNewWindow()
     next.window.feedbackTransports.udp = feedbackUdp;
 
     editor::EditorFileLayout nextFiles {};
+    if (std::filesystem::exists(next.window.reticleLibraryFolder))
+    {
+        std::string discoverError;
+        if (!editor::DiscoverReticleTemplateFiles(next.window.reticleLibraryFolder, nextFiles, &discoverError))
+        {
+            RebuildStatus(discoverError, true);
+            return false;
+        }
+    }
     if (newWindowDraft_.createInitialPage)
     {
         const std::string pageName = newWindowDraft_.firstPageName.data();
@@ -9532,8 +9542,24 @@ void EditorApplication::DrawPageInspector()
 
 void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& page)
 {
-    constexpr std::string_view kTutorialDynamicTemplateId = "mfd_tutorial_radar_track";
-    constexpr std::string_view kTutorialDynamicTemplateTargetId = "page_dynamic_template_mfd_tutorial_radar_track";
+    struct TutorialDynamicTemplateInfo
+    {
+        std::string_view templateId;
+        std::string_view targetId;
+        const char* label;
+        const char* reason;
+    };
+
+    constexpr std::array<TutorialDynamicTemplateInfo, 2> kTutorialDynamicTemplates {{
+        {"mfd_tutorial_radar_track",
+         "page_dynamic_template_mfd_tutorial_radar_track",
+         "Enable mfd_tutorial_radar_track",
+         "Allow the tutorial radar-track template on Page1 so the generated client can create runtime dynamic tracks."},
+        {"inspired_steering_cue",
+         "page_dynamic_template_inspired_steering_cue",
+         "Enable inspired_steering_cue",
+         "Allow the authored steering cue template on Page1 so the generated client can build the persistent cue link."},
+    }};
 
     ImGui::Spacing();
     ImGui::Separator();
@@ -9541,12 +9567,17 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     ImGui::TextDisabled("Choose which library reticle templates are exposed as dynamic sets for this page.");
 
     std::vector<std::string> templateIds;
-    templateIds.reserve(loaded_.document.reticleLibrary.size());
+    templateIds.reserve(loaded_.document.reticleLibrary.size() + files_.templateFiles.size());
     for (const auto& entry : loaded_.document.reticleLibrary)
     {
         templateIds.push_back(entry.first);
     }
+    for (const auto& entry : files_.templateFiles)
+    {
+        templateIds.push_back(entry.first);
+    }
     std::sort(templateIds.begin(), templateIds.end());
+    templateIds.erase(std::unique(templateIds.begin(), templateIds.end()), templateIds.end());
 
     const auto isSelected = [&page](const std::string_view templateId)
     {
@@ -9584,6 +9615,13 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
             page.editor.dynamicReticleTemplateIds.reset();
         }
     };
+    const bool tutorialDynamicTemplateStepActive =
+        std::any_of(kTutorialDynamicTemplates.begin(),
+                    kTutorialDynamicTemplates.end(),
+                    [this](const TutorialDynamicTemplateInfo& tutorialTemplate)
+                    {
+                        return tutorial_->MatchesTarget(tutorialTemplate.targetId.data());
+                    });
 
     ImGui::TextDisabled("Selected templates: %d / %d",
                         page.editor.dynamicReticleTemplateIds.has_value()
@@ -9598,15 +9636,11 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
         return;
     }
 
+    ImGui::BeginDisabled(tutorialDynamicTemplateStepActive);
     if (ImGui::Button("Select all"))
     {
         PushUndoSnapshot();
         assignAllTemplates();
-        if (std::find(templateIds.begin(), templateIds.end(), std::string {kTutorialDynamicTemplateId}) != templateIds.end() &&
-            tutorial_->MatchesTarget(kTutorialDynamicTemplateTargetId.data()))
-        {
-            tutorial_->CompleteStep();
-        }
     }
     ShowItemTooltip("Authorize every library template for generated dynamic access on this page.");
 
@@ -9617,6 +9651,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
         page.editor.dynamicReticleTemplateIds.reset();
     }
     ShowItemTooltip("Generate no dynamic-set accessor for this page until you re-enable one or more templates.");
+    ImGui::EndDisabled();
 
     for (const std::string& templateId : templateIds)
     {
@@ -9639,23 +9674,32 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
                 removeTemplate(templateId);
             }
 
-            if (!wasSelected &&
-                selected &&
-                templateId == kTutorialDynamicTemplateId &&
-                tutorial_->MatchesTarget(kTutorialDynamicTemplateTargetId.data()))
+            for (const TutorialDynamicTemplateInfo& tutorialTemplate : kTutorialDynamicTemplates)
             {
-                tutorial_->CompleteStep();
+                if (!wasSelected &&
+                    selected &&
+                    templateId == tutorialTemplate.templateId &&
+                    tutorial_->MatchesTarget(tutorialTemplate.targetId.data()))
+                {
+                    tutorial_->CompleteStep();
+                    break;
+                }
             }
         }
 
-        if (templateId == kTutorialDynamicTemplateId)
+        for (const TutorialDynamicTemplateInfo& tutorialTemplate : kTutorialDynamicTemplates)
         {
-            tutorial_->DrawHalo(
-                kTutorialDynamicTemplateTargetId.data(),
-                "Enable mfd_tutorial_radar_track",
-                "Allow the tutorial radar-track template on Page1 so the generated client can create runtime dynamic tracks.");
+            if (templateId == tutorialTemplate.templateId)
+            {
+                tutorial_->DrawHalo(
+                    tutorialTemplate.targetId.data(),
+                    tutorialTemplate.label,
+                    tutorialTemplate.reason);
+                break;
+            }
         }
     }
+
 }
 
 void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)

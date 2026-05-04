@@ -28,6 +28,7 @@ enum class TutorialStepId : int
     CreateStrobeCursorReticle,
     CreatePage1,
     AllowPage1DynamicReticleTemplate,
+    AllowPage1SteeringCueDynamicReticleTemplate,
     AssignPage1StrobeTemplate,
     AddCircleReticleToPage1,
     ClipCircleOutside,

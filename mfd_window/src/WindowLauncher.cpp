@@ -619,6 +619,8 @@ bool TextureReady(const Texture2D& texture) noexcept
 mfd::StrobeFeedbackCapture ToFeedbackCapture(const mfd::StrobeCaptureResult& capture)
 {
     return mfd::StrobeFeedbackCapture {
+        capture.runtimeReticleId,
+        capture.sourceTemplateTransportId,
         capture.reticleId,
         capture.sourceTemplateId,
         capture.label,
@@ -640,6 +642,7 @@ mfd::StrobeFeedbackMagnet ToFeedbackMagnet(const std::optional<mfd::StrobeMagnet
         magnetSummary->radius,
         magnetSummary->strength,
         magnetSummary->magnetized,
+        magnetSummary->runtimeReticleId,
         magnetSummary->reticleId,
         magnetSummary->targetPosition,
         magnetSummary->distance};
@@ -1290,6 +1293,7 @@ private:
 
             mfd::StrobeStatusFeedback feedback;
             feedback.sequence = nextStrobeFeedbackSequence_++;
+            feedback.pageId = strobe->pageId;
             feedback.pageName = strobe->pageName;
             feedback.strobeId = strobe->reticleId;
             feedback.active = strobe->visible;

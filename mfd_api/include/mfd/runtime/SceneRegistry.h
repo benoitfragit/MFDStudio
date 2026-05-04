@@ -52,6 +52,8 @@ struct StrobeSummary
 {
     /** @brief Owning page name. */
     std::string pageName;
+    /** @brief Generated transport id of the owning page when available. */
+    TransportId pageId = 0;
     /** @brief Public reticle id of the strobe cursor. */
     std::string reticleId;
     /** @brief Current strobe position in logical coordinates. */
@@ -77,6 +79,8 @@ struct StrobeMagnetSummary
     float strength = 1.0f;
     /** @brief Indicates whether a dynamic reticle is currently magnetized. */
     bool magnetized = false;
+    /** @brief Runtime identifier of the magnetized dynamic reticle when available. */
+    RuntimeDynamicId runtimeReticleId = 0;
     /** @brief Public id of the magnetized dynamic reticle. */
     std::string reticleId;
     /** @brief Position of the magnetized target. */
@@ -92,10 +96,16 @@ struct StrobeCaptureResult
 {
     /** @brief Page on which the capture happened. */
     std::string pageName;
+    /** @brief Generated transport id of the page on which the capture happened. */
+    TransportId pageId = 0;
     /** @brief Public id of the strobe that captured the target. */
     std::string strobeId;
+    /** @brief Runtime identifier of the captured dynamic reticle. */
+    RuntimeDynamicId runtimeReticleId = 0;
     /** @brief Public id of the captured dynamic reticle. */
     std::string reticleId;
+    /** @brief Generated transport id of the authored template that created the captured reticle. */
+    TransportId sourceTemplateTransportId = 0;
     /** @brief Template id originally used to create the captured reticle. */
     std::string sourceTemplateId;
     /** @brief Human-readable label exposed by the captured reticle. */
@@ -392,6 +402,11 @@ private:
     ReticleComponent* FindReticle(std::string_view normalizedPageName, std::string_view reticleId) noexcept;
     /** @brief Returns read-only access to one reticle component. */
     const ReticleComponent* FindReticle(std::string_view normalizedPageName, std::string_view reticleId) const noexcept;
+    /** @brief Stores runtime-only identifiers for one dynamic reticle instance. */
+    bool SetDynamicReticleRuntimeIdentifiers(std::string_view normalizedPageName,
+                                             std::string_view reticleId,
+                                             RuntimeDynamicId runtimeReticleId,
+                                             TransportId sourceTemplateTransportId) noexcept;
     /** @brief Returns mutable access to one page component. */
     PageComponent* FindPage(std::string_view normalizedPageName) noexcept;
     /** @brief Returns read-only access to one page component. */
@@ -412,6 +427,8 @@ private:
     void SetActiveFlag(std::string_view pageName, bool active);
     /** @brief Rebuilds generated transport lookup indexes from the current companion map. */
     void RebuildTransportIndexes();
+    /** @brief Returns the generated transport id of one template name when available. */
+    TransportId ResolveTemplateTransportId(std::string_view templateId) const noexcept;
     /** @brief Returns whether the current scene can validate a mapping hash. */
     bool HasMatchingTransportMap(std::string_view mappingHash) const noexcept;
     /** @brief Resolves a generated page transport id to an authored page name. */
@@ -447,6 +464,8 @@ private:
     std::unordered_map<TransportId, TransportReticleLookup> transportReticles_ {};
     /** @brief Generated template lookup indexed by generated transport id. */
     std::unordered_map<TransportId, std::string> transportTemplates_ {};
+    /** @brief Generated template-transport lookup indexed by normalized template id. */
+    std::unordered_map<std::string, TransportId, TransparentStringHash, TransparentStringEqual> templateTransportIds_ {};
     /** @brief Generated primitive lookup indexed by generated transport id. */
     std::unordered_map<TransportId, TransportPrimitiveLookup> transportPrimitives_ {};
     /** @brief Generated blink lookup indexed by generated transport id. */

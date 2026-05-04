@@ -521,6 +521,7 @@ struct SceneRegistry::PageComponent
     std::string name;
     std::string normalizedName;
     std::string title;
+    TransportId transportId = 0;
     ColorRgba backgroundColor {6, 14, 20, 255};
     PageViewState view {};
     std::unordered_map<std::string, std::uint32_t, TransparentStringHash, TransparentStringEqual> blinkDurationsByType {};
@@ -542,6 +543,8 @@ struct SceneRegistry::ReticleComponent
 {
     ReticleGroup group;
     std::size_t drawOrder = 0;
+    RuntimeDynamicId runtimeReticleId = 0;
+    TransportId sourceTemplateTransportId = 0;
 };
 
 struct SceneRegistry::DynamicTag
@@ -827,8 +830,17 @@ void SceneRegistry::RebuildTransportIndexes()
     transportPageNames_.clear();
     transportReticles_.clear();
     transportTemplates_.clear();
+    templateTransportIds_.clear();
     transportPrimitives_.clear();
     transportBlinks_.clear();
+
+    for (const auto& [normalizedPageName, entity] : pageEntities_)
+    {
+        if (PageComponent* page = registry_.try_get<PageComponent>(entity); page != nullptr)
+        {
+            page->transportId = 0;
+        }
+    }
 
     if (!transportMap_.has_value())
     {
@@ -838,6 +850,10 @@ void SceneRegistry::RebuildTransportIndexes()
     for (const auto& page : transportMap_->pages)
     {
         transportPageNames_.emplace(page.id, page.name);
+        if (PageComponent* pageComponent = FindPage(page.normalizedName); pageComponent != nullptr)
+        {
+            pageComponent->transportId = page.id;
+        }
     }
 
     for (const auto& reticle : transportMap_->reticles)
@@ -850,6 +866,7 @@ void SceneRegistry::RebuildTransportIndexes()
     for (const auto& templ : transportMap_->templates)
     {
         transportTemplates_.emplace(templ.id, templ.templateId);
+        templateTransportIds_.emplace(templ.normalizedTemplateId, templ.id);
     }
 
     for (const auto& primitive : transportMap_->primitives)
@@ -888,6 +905,12 @@ const std::string* SceneRegistry::ResolveTemplateId(const TransportId templateId
 {
     const auto iterator = transportTemplates_.find(templateId);
     return iterator == transportTemplates_.end() ? nullptr : &iterator->second;
+}
+
+TransportId SceneRegistry::ResolveTemplateTransportId(const std::string_view templateId) const noexcept
+{
+    const auto iterator = templateTransportIds_.find(NormalizePageName(templateId));
+    return iterator == templateTransportIds_.end() ? 0 : iterator->second;
 }
 
 const std::string* SceneRegistry::ResolveBlinkType(const TransportId pageId, const TransportId blinkTypeId) const noexcept
@@ -1067,6 +1090,7 @@ std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_v
 
     return StrobeSummary {
         page->name,
+        page->transportId,
         reticle->group.id,
         strobePosition,
         behavior->capture,
@@ -1118,6 +1142,7 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
         lockedTarget != nullptr)
     {
         summary.magnetized = true;
+        summary.runtimeReticleId = lockedTarget->runtimeReticleId;
         summary.reticleId = lockedTarget->group.id;
         summary.targetPosition = lockedTarget->group.transform.position;
         summary.distance = 0.0f;
@@ -1129,6 +1154,7 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
         nearestTarget != nullptr)
     {
         summary.magnetized = true;
+        summary.runtimeReticleId = nearestTarget->runtimeReticleId;
         summary.reticleId = nearestTarget->group.id;
         summary.targetPosition = nearestTarget->group.transform.position;
         summary.distance = std::sqrt(
@@ -2006,7 +2032,8 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
             continue;
         }
 
-        const auto& reticle = dynamicView.get<ReticleComponent>(entity).group;
+        const auto& reticleComponent = dynamicView.get<ReticleComponent>(entity);
+        const auto& reticle = reticleComponent.group;
         if (!IsReticleVisibleNow(*page, reticle, now) ||
             !IsDynamicTemplateVisible(pageName, reticle.sourceTemplateId))
         {
@@ -2028,8 +2055,11 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
         bestDistanceSquared = distanceSquared;
         bestCapture = StrobeCaptureResult {
             page->name,
+            page->transportId,
             strobe->group.id,
+            reticleComponent.runtimeReticleId,
             reticle.id,
+            reticleComponent.sourceTemplateTransportId,
             reticle.sourceTemplateId,
             reticle.info.label,
             reticle.info.category,
@@ -2179,6 +2209,30 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindReticle(const std::str
 {
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
     return entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
+}
+
+bool SceneRegistry::SetDynamicReticleRuntimeIdentifiers(const std::string_view normalizedPageName,
+                                                        const std::string_view reticleId,
+                                                        const RuntimeDynamicId runtimeReticleId,
+                                                        const TransportId sourceTemplateTransportId) noexcept
+{
+    ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
+    if (reticle == nullptr)
+    {
+        return false;
+    }
+
+    reticle->runtimeReticleId = runtimeReticleId;
+    if (sourceTemplateTransportId != 0)
+    {
+        reticle->sourceTemplateTransportId = sourceTemplateTransportId;
+    }
+    else if (reticle->sourceTemplateTransportId == 0 && !reticle->group.sourceTemplateId.empty())
+    {
+        reticle->sourceTemplateTransportId = ResolveTemplateTransportId(reticle->group.sourceTemplateId);
+    }
+
+    return true;
 }
 
 SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_view normalizedPageName) noexcept

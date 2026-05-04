@@ -672,6 +672,11 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
 
     if (scene_.HasDynamicReticle(command.target.page, command.target.reticleId))
     {
+        scene_.SetDynamicReticleRuntimeIdentifiers(
+            mfd::NormalizePageName(command.target.page),
+            command.target.reticleId,
+            command.target.runtimeReticleId,
+            command.templateTransportId);
         if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticleId, command.patch))
         {
             SetFailure("Unable to update dynamic reticle '" + command.target.reticleId + "'");
@@ -682,6 +687,11 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
 
     ReticleGroup reticle = InstantiateReticle(templateIterator->second, command.target.reticleId);
     scene_.UpsertDynamicReticle(command.target.page, std::move(reticle));
+    scene_.SetDynamicReticleRuntimeIdentifiers(
+        mfd::NormalizePageName(command.target.page),
+        command.target.reticleId,
+        command.target.runtimeReticleId,
+        command.templateTransportId);
 
     if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticleId, command.patch))
     {
@@ -708,6 +718,11 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
     {
         if (scene_.HasDynamicReticle(command.page, state.reticleId))
         {
+            scene_.SetDynamicReticleRuntimeIdentifiers(
+                mfd::NormalizePageName(command.page),
+                state.reticleId,
+                state.runtimeReticleId,
+                command.templateTransportId);
             if (!scene_.ApplyDynamicReticlePatch(command.page, state.reticleId, state.patch))
             {
                 SetFailure("Unable to update dynamic reticle '" + state.reticleId + "'");
@@ -719,6 +734,11 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
 
         ReticleGroup reticle = InstantiateReticle(templateIterator->second, state.reticleId);
         scene_.UpsertDynamicReticle(command.page, std::move(reticle));
+        scene_.SetDynamicReticleRuntimeIdentifiers(
+            mfd::NormalizePageName(command.page),
+            state.reticleId,
+            state.runtimeReticleId,
+            command.templateTransportId);
 
         if (!scene_.ApplyDynamicReticlePatch(command.page, state.reticleId, state.patch))
         {

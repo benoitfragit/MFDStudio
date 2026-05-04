@@ -1177,6 +1177,8 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
         return stepPhase_ == 0 ? "menu_page" : (stepPhase_ == 1 ? "menu_page_new" : "popup_page_create");
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
         return "page_dynamic_template_mfd_tutorial_radar_track";
+    case static_cast<int>(TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate):
+        return "page_dynamic_template_inspired_steering_cue";
     case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
         return stepPhase_ == 0 ? "menu_reticle" :
                                  (stepPhase_ == 1 ? "menu_reticle_new" :
@@ -1248,6 +1250,8 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
                                  (stepPhase_ == 1 ? "Click New page." : "Click Create page.");
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
         return "Enable mfd_tutorial_radar_track.";
+    case static_cast<int>(TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate):
+        return "Enable inspired_steering_cue.";
     case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
         return stepPhase_ == 0 ? "Click Reticle." :
                                  (stepPhase_ == 1 ? "Click New library reticle from primitive." :

@@ -149,13 +149,13 @@ public:
     bool IsPageActive(std::string_view pageName) const noexcept;
 
     /**
-     * @brief Returns whether one dynamic reticle is currently captured by its page strobe.
-     * @param pageName Authored page name owning the dynamic reticle.
-     * @param reticleId Public dynamic-reticle id to query.
+     * @brief Returns whether one dynamic reticle instance is currently captured by its page strobe.
+     * @param pageId Generated transport id of the page owning the reticle.
+     * @param runtimeReticleId Runtime-scoped identifier of the dynamic reticle instance.
      * @return `true` only when the latest authoritative strobe feedback reports
-     * that exact dynamic reticle as captured.
+     * that exact runtime reticle instance as captured.
      */
-    bool IsDynamicReticleCaptured(std::string_view pageName, std::string_view reticleId) const noexcept;
+    bool IsDynamicReticleCaptured(mfd::TransportId pageId, mfd::RuntimeDynamicId runtimeReticleId) const noexcept;
 
 private:
     struct PageCaptureState
@@ -163,11 +163,10 @@ private:
         std::uint32_t lastStrobeSequence = 0;
         bool hasSequence = false;
         bool captured = false;
-        std::string capturedReticleIdNormalized;
+        mfd::RuntimeDynamicId capturedRuntimeReticleId = 0;
     };
 
-    std::unordered_map<std::string, PageCaptureState, mfd::TransparentStringHash, mfd::TransparentStringEqual>
-        pageCaptureByName_ {};
+    std::unordered_map<mfd::TransportId, PageCaptureState> pageCaptureById_ {};
     std::string activePageName_ {};
     std::string activePageNameNormalized_ {};
     std::uint32_t lastActivePageSequence_ = 0;
@@ -573,10 +572,10 @@ private:
 
     const mfd::ReticlePatch& DesiredPatch() const noexcept;
     void PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, bool useGeneratedBlinkTypeId) const;
-    void BindRuntimeFeedback(std::string_view pageName, RuntimeFeedbackState* feedbackState) noexcept;
+    void BindRuntimeFeedback(mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) noexcept;
 
     std::string reticleId_;
-    std::string feedbackPageName_ {};
+    mfd::TransportId feedbackPageTransportId_ = 0;
     RuntimeFeedbackState* feedbackState_ = nullptr;
     mfd::RuntimeDynamicId runtimeReticleId_ = 0;
     std::unordered_map<std::string, mfd::TransportId> primitiveTransportIds_ {};

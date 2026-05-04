@@ -1077,25 +1077,35 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
             WriteJsonFile(templatePath, SerializeInlineReticle(iterator->second, templatePath.parent_path()));
         }
 
-        const std::unordered_set<std::filesystem::path> currentPageFiles(layout.pageFiles.begin(), layout.pageFiles.end());
+        const auto makePathKey = [](const std::filesystem::path& path)
+        {
+            return path.lexically_normal().generic_string();
+        };
+
+        std::unordered_set<std::string> currentPageFiles;
+        currentPageFiles.reserve(layout.pageFiles.size());
+        for (const auto& pageFile : layout.pageFiles)
+        {
+            currentPageFiles.insert(makePathKey(pageFile));
+        }
         for (const auto& removedPageFile : layout.removedPageFiles)
         {
-            if (currentPageFiles.find(removedPageFile) == currentPageFiles.end())
+            if (currentPageFiles.find(makePathKey(removedPageFile)) == currentPageFiles.end())
             {
                 DeleteFileIfPresent(removedPageFile);
             }
         }
 
-        std::unordered_set<std::filesystem::path> currentTemplateFiles;
+        std::unordered_set<std::string> currentTemplateFiles;
         currentTemplateFiles.reserve(layout.templateFiles.size());
         for (const auto& entry : layout.templateFiles)
         {
-            currentTemplateFiles.insert(entry.second);
+            currentTemplateFiles.insert(makePathKey(entry.second));
         }
 
         for (const auto& removedTemplateFile : layout.removedTemplateFiles)
         {
-            if (currentTemplateFiles.find(removedTemplateFile) == currentTemplateFiles.end())
+            if (currentTemplateFiles.find(makePathKey(removedTemplateFile)) == currentTemplateFiles.end())
             {
                 DeleteFileIfPresent(removedTemplateFile);
             }

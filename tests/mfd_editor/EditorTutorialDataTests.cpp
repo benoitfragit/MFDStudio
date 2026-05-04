@@ -90,6 +90,7 @@ TEST(EditorTutorialDataTests, TutorialSnippetsPreferGeneratedHandlesWithoutUserM
 
     const std::string_view integrationAfter = Step(editor::tutorial::TutorialStepId::ReviewGeneratedUiIntegration).afterText;
     EXPECT_NE(integrationAfter.find("DynamicMfdTutorialRadarTrack()"), std::string_view::npos);
+    EXPECT_NE(integrationAfter.find("DynamicInspiredSteeringCue()"), std::string_view::npos);
     EXPECT_NE(integrationAfter.find("page1.strobe"), std::string_view::npos);
     EXPECT_NE(integrationAfter.find("page2.mfdTutorialProgressBar"), std::string_view::npos);
     EXPECT_NE(integrationAfter.find("FillBar()"), std::string_view::npos);
@@ -102,6 +103,7 @@ TEST(EditorTutorialDataTests, TutorialMetadataHighlightsGeneratedHeaderAndTransp
     EXPECT_NE(std::string_view(headerStep.afterText).find("Page1() noexcept"), std::string_view::npos);
     EXPECT_NE(std::string_view(headerStep.afterText).find("BuildCommandBatch"), std::string_view::npos);
     EXPECT_NE(std::string_view(headerStep.afterText).find("PollFeedback"), std::string_view::npos);
+    EXPECT_NE(std::string_view(headerStep.afterText).find("DynamicInspiredSteeringCue()"), std::string_view::npos);
 
     const auto& mapStep = Step(editor::tutorial::TutorialStepId::ReviewGeneratedTransportMap);
     EXPECT_STREQ(mapStep.filePath, "assets/windows/mfd_tutorial.generated.map");
@@ -149,6 +151,12 @@ TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps
     const auto& dynamicTemplateStep = Step(editor::tutorial::TutorialStepId::AllowPage1DynamicReticleTemplate);
     EXPECT_STREQ(dynamicTemplateStep.targetId, "page_dynamic_template_mfd_tutorial_radar_track");
     EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("mfd_tutorial_radar_track"), std::string_view::npos);
+
+    const auto& cueDynamicTemplateStep =
+        Step(editor::tutorial::TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate);
+    EXPECT_STREQ(cueDynamicTemplateStep.targetId, "page_dynamic_template_inspired_steering_cue");
+    EXPECT_NE(std::string_view(cueDynamicTemplateStep.instruction).find("inspired_steering_cue"),
+              std::string_view::npos);
 
     const auto& importStep = Step(editor::tutorial::TutorialStepId::InspectPageImportWorkflow);
     EXPECT_STREQ(importStep.targetId, "menu_page");
