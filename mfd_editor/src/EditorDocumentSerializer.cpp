@@ -504,10 +504,12 @@ void WriteReticleEditorFields(json& node, const mfd::ReticleGroup& reticle)
 
 std::optional<json> SerializePageEditorState(const mfd::PageDefinition& page)
 {
-    if (page.editor.layers.empty())
+    if (page.editor.layers.empty() && !page.editor.dynamicReticleTemplateIds.has_value())
     {
         return std::nullopt;
     }
+
+    json editorState = json::object();
 
     json layers = json::array();
     for (const auto& layer : page.editor.layers)
@@ -527,13 +529,30 @@ std::optional<json> SerializePageEditorState(const mfd::PageDefinition& page)
         layers.push_back(std::move(layerNode));
     }
 
-    if (layers.empty())
+    if (!layers.empty())
+    {
+        editorState["layers"] = std::move(layers);
+    }
+
+    if (page.editor.dynamicReticleTemplateIds.has_value())
+    {
+        json dynamicTemplates = json::array();
+        for (const std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+        {
+            if (!templateId.empty())
+            {
+                dynamicTemplates.push_back(templateId);
+            }
+        }
+        editorState["dynamicReticleTemplates"] = std::move(dynamicTemplates);
+    }
+
+    if (editorState.empty())
     {
         return std::nullopt;
     }
 
-    return json {
-        {"layers", std::move(layers)}};
+    return editorState;
 }
 
 std::optional<json> SerializeTextOverrides(const mfd::ReticleGroup& reticle)

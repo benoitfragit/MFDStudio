@@ -493,6 +493,53 @@ void ProcessPageDocument(const ParsedAssetFile& asset,
                             index);
         }
     }
+
+    const json* editorNode = FindField(pageNode, {"_editor"});
+    if (editorNode != nullptr && editorNode->is_object())
+    {
+        const json* dynamicTemplates = FindField(*editorNode, {"dynamicReticleTemplates"});
+        if (dynamicTemplates != nullptr)
+        {
+            if (!dynamicTemplates->is_array())
+            {
+                AddScanError(index, asset.file, "Page editor dynamicReticleTemplates field must be a JSON array");
+            }
+            else
+            {
+                for (const auto& entry : *dynamicTemplates)
+                {
+                    if (!entry.is_string())
+                    {
+                        AddScanError(index, asset.file, "Page editor dynamic reticle template ids must be strings");
+                        continue;
+                    }
+
+                    const std::string templateId = entry.get<std::string>();
+                    const auto iterator = templateFilesById.find(templateId);
+                    AddReference(index,
+                                 ReticleReferenceKind::PageDynamicTemplate,
+                                 asset.file,
+                                 iterator != templateFilesById.end() ? iterator->second : std::filesystem::path {},
+                                 asset.pageName,
+                                 {},
+                                 templateId);
+
+                    if (iterator == templateFilesById.end())
+                    {
+                        AddMissingAsset(index,
+                                        MissingAssetKind::ReticleTemplate,
+                                        asset.file,
+                                        {},
+                                        asset.pageName,
+                                        {},
+                                        templateId,
+                                        {},
+                                        "Editor dynamic reticle template id was not found under the scanned assets root");
+                    }
+                }
+            }
+        }
+    }
 }
 
 void ProcessTemplateDocument(const ParsedAssetFile& asset, AssetReferenceIndex& index)

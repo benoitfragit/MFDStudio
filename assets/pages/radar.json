@@ -17,6 +17,11 @@
     }
   ],
   "defaultBlink": "slow",
+  "_editor": {
+    "dynamicReticleTemplates": [
+      "radar_track"
+    ]
+  },
   "strobe": {
     "id": "radar_strobe",
     "template": "strobe_cursor",

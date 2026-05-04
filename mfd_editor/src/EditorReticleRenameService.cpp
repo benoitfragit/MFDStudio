@@ -222,7 +222,8 @@ void DeleteFile(const std::filesystem::path& path)
 bool IsTemplateReferenceKind(const ReticleReferenceKind kind)
 {
     return kind == ReticleReferenceKind::PageReticleTemplate ||
-           kind == ReticleReferenceKind::PageStrobeTemplate;
+           kind == ReticleReferenceKind::PageStrobeTemplate ||
+           kind == ReticleReferenceKind::PageDynamicTemplate;
 }
 
 void AppendUniquePath(std::vector<std::filesystem::path>& paths, const std::filesystem::path& candidate)
@@ -446,6 +447,31 @@ void CollectCurrentPageUsage(const mfd::PageDefinition& page,
 
     if (!page.strobe.has_value() || page.strobe->reticle.sourceTemplateId.empty())
     {
+        if (page.editor.dynamicReticleTemplateIds.has_value())
+        {
+            for (const std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+            {
+                const std::string normalizedDynamicTemplateId = NormalizeIdentifier(templateId);
+                if (normalizedDynamicTemplateId == normalizedOldTemplateId)
+                {
+                    AddReferenceAccumulator(usage,
+                                            ReticleReferenceKind::PageDynamicTemplate,
+                                            pageFile,
+                                            page.name,
+                                            {},
+                                            templateId);
+                }
+                else if (normalizedDynamicTemplateId == normalizedNewTemplateId)
+                {
+                    AddCollisionAccumulator(usage,
+                                            ReticleReferenceKind::PageDynamicTemplate,
+                                            pageFile,
+                                            page.name,
+                                            {},
+                                            templateId);
+                }
+            }
+        }
         return;
     }
 
@@ -467,6 +493,32 @@ void CollectCurrentPageUsage(const mfd::PageDefinition& page,
                                 page.name,
                                 page.strobe->reticle.id,
                                 page.strobe->reticle.sourceTemplateId);
+    }
+
+    if (page.editor.dynamicReticleTemplateIds.has_value())
+    {
+        for (const std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+        {
+            const std::string normalizedDynamicTemplateId = NormalizeIdentifier(templateId);
+            if (normalizedDynamicTemplateId == normalizedOldTemplateId)
+            {
+                AddReferenceAccumulator(usage,
+                                        ReticleReferenceKind::PageDynamicTemplate,
+                                        pageFile,
+                                        page.name,
+                                        {},
+                                        templateId);
+            }
+            else if (normalizedDynamicTemplateId == normalizedNewTemplateId)
+            {
+                AddCollisionAccumulator(usage,
+                                        ReticleReferenceKind::PageDynamicTemplate,
+                                        pageFile,
+                                        page.name,
+                                        {},
+                                        templateId);
+            }
+        }
     }
 }
 
@@ -493,6 +545,20 @@ std::size_t RenamePageTemplateReferences(mfd::PageDefinition& page,
     {
         page.strobe->reticle.sourceTemplateId = std::string(newTemplateId);
         ++updatedReferenceCount;
+    }
+
+    if (page.editor.dynamicReticleTemplateIds.has_value())
+    {
+        for (std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+        {
+            if (NormalizeIdentifier(templateId) != normalizedOldTemplateId)
+            {
+                continue;
+            }
+
+            templateId = std::string(newTemplateId);
+            ++updatedReferenceCount;
+        }
     }
 
     return updatedReferenceCount;
@@ -565,6 +631,37 @@ std::size_t RewritePageTemplateReferences(json& document,
         }
 
         rewriteTemplateField(pageNode.at("strobe"));
+    }
+
+    if (pageNode.contains("_editor"))
+    {
+        if (!pageNode.at("_editor").is_object())
+        {
+            throw std::runtime_error("Page _editor field must be a JSON object.");
+        }
+
+        json& editorNode = pageNode.at("_editor");
+        if (editorNode.contains("dynamicReticleTemplates"))
+        {
+            if (!editorNode.at("dynamicReticleTemplates").is_array())
+            {
+                throw std::runtime_error("Page editor dynamicReticleTemplates field must be a JSON array.");
+            }
+
+            for (auto& templateNode : editorNode.at("dynamicReticleTemplates"))
+            {
+                if (!templateNode.is_string())
+                {
+                    throw std::runtime_error("Page editor dynamic reticle template ids must be strings.");
+                }
+
+                if (NormalizeIdentifier(templateNode.get<std::string>()) == normalizedOldTemplateId)
+                {
+                    templateNode = std::string(newTemplateId);
+                    ++updatedReferenceCount;
+                }
+            }
+        }
     }
 
     return updatedReferenceCount;

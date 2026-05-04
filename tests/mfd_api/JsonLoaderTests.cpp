@@ -567,6 +567,56 @@ TEST(JsonLoaderTests, LoadDocumentParsesExposedPrimitiveFlags)
     EXPECT_FALSE(templateIt->second.primitives[2].exposed);
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesPageDynamicTemplateSelections)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "radar_track.json",
+                  R"json({
+  "id": "radar_track",
+  "elements": [
+    { "id": "shape", "type": "circle", "radius": 0.05 }
+  ]
+})json");
+    WriteTextFile(reticleFolder / "cursor.json",
+                  R"json({
+  "id": "cursor",
+  "elements": [
+    { "id": "shape", "type": "line", "start": [-0.05, 0.0], "end": [0.05, 0.0] }
+  ]
+})json");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Radar",
+      "_editor": {
+        "dynamicReticleTemplates": [
+          "radar_track",
+          "cursor"
+        ]
+      },
+      "staticReticles": [
+        { "id": "track_1", "template": "radar_track" }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument loaded = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(loaded.pages.size(), 1U);
+    ASSERT_TRUE(loaded.pages.front().editor.dynamicReticleTemplateIds.has_value());
+    ASSERT_EQ(loaded.pages.front().editor.dynamicReticleTemplateIds->size(), 2U);
+    EXPECT_EQ(loaded.pages.front().editor.dynamicReticleTemplateIds->at(0), "radar_track");
+    EXPECT_EQ(loaded.pages.front().editor.dynamicReticleTemplateIds->at(1), "cursor");
+}
+
 TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUnknownDefaultPageName)
 {
     TemporaryFolder workspace;

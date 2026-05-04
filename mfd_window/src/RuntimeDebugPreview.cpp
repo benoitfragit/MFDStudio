@@ -108,48 +108,48 @@ PrimitivePatch BuildPrimitivePatch(const Primitive& current, const Primitive* ba
     patch.color = current.style.color;
     patch.thickness = current.style.thickness;
 
-    if (const auto* geometry = std::get_if<TextGeometry>(&current.geometry))
+    if (const auto* textGeometry = std::get_if<TextGeometry>(&current.geometry))
     {
-        patch.text = geometry->text;
-        patch.letterSpacing = geometry->letterSpacing;
+        patch.text = textGeometry->text;
+        patch.letterSpacing = textGeometry->letterSpacing;
     }
-    else if (const auto* geometry = std::get_if<TimeGeometry>(&current.geometry))
+    else if (const auto* timeGeometry = std::get_if<TimeGeometry>(&current.geometry))
     {
-        patch.letterSpacing = geometry->letterSpacing;
+        patch.letterSpacing = timeGeometry->letterSpacing;
     }
-    else if (const auto* geometry = std::get_if<LineGeometry>(&current.geometry))
+    else if (const auto* lineGeometry = std::get_if<LineGeometry>(&current.geometry))
     {
-        patch.lineStart = geometry->start;
-        patch.lineEnd = geometry->end;
+        patch.lineStart = lineGeometry->start;
+        patch.lineEnd = lineGeometry->end;
     }
-    else if (const auto* geometry = std::get_if<CircleGeometry>(&current.geometry))
+    else if (const auto* circleGeometry = std::get_if<CircleGeometry>(&current.geometry))
     {
-        patch.radius = geometry->radius;
+        patch.radius = circleGeometry->radius;
     }
-    else if (const auto* geometry = std::get_if<RingGeometry>(&current.geometry))
+    else if (const auto* ringGeometry = std::get_if<RingGeometry>(&current.geometry))
     {
-        patch.innerRadius = geometry->innerRadius;
-        patch.outerRadius = geometry->outerRadius;
+        patch.innerRadius = ringGeometry->innerRadius;
+        patch.outerRadius = ringGeometry->outerRadius;
     }
-    else if (const auto* geometry = std::get_if<RectangleGeometry>(&current.geometry))
+    else if (const auto* rectangleGeometry = std::get_if<RectangleGeometry>(&current.geometry))
     {
-        patch.width = geometry->width;
-        patch.height = geometry->height;
+        patch.width = rectangleGeometry->width;
+        patch.height = rectangleGeometry->height;
     }
-    else if (const auto* geometry = std::get_if<EllipseGeometry>(&current.geometry))
+    else if (const auto* ellipseGeometry = std::get_if<EllipseGeometry>(&current.geometry))
     {
-        patch.width = geometry->width;
-        patch.height = geometry->height;
+        patch.width = ellipseGeometry->width;
+        patch.height = ellipseGeometry->height;
     }
-    else if (const auto* geometry = std::get_if<SquareGeometry>(&current.geometry))
+    else if (const auto* squareGeometry = std::get_if<SquareGeometry>(&current.geometry))
     {
-        patch.width = geometry->width;
-        patch.height = geometry->height;
+        patch.width = squareGeometry->width;
+        patch.height = squareGeometry->height;
     }
-    else if (const auto* geometry = std::get_if<DiamondGeometry>(&current.geometry))
+    else if (const auto* diamondGeometry = std::get_if<DiamondGeometry>(&current.geometry))
     {
-        patch.width = geometry->width;
-        patch.height = geometry->height;
+        patch.width = diamondGeometry->width;
+        patch.height = diamondGeometry->height;
     }
 
     if (base == nullptr)
@@ -182,102 +182,102 @@ PrimitivePatch BuildPrimitivePatch(const Primitive& current, const Primitive* ba
         patch.thickness.reset();
     }
 
-    if (const auto* geometry = std::get_if<TextGeometry>(&current.geometry))
+    if (const auto* textGeometry = std::get_if<TextGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<TextGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && geometry->text == baseGeometry->text)
+        if (baseGeometry != nullptr && textGeometry->text == baseGeometry->text)
         {
             patch.text.reset();
         }
-        if (baseGeometry != nullptr && geometry->letterSpacing == baseGeometry->letterSpacing)
+        if (baseGeometry != nullptr && textGeometry->letterSpacing == baseGeometry->letterSpacing)
         {
             patch.letterSpacing.reset();
         }
     }
-    else if (const auto* geometry = std::get_if<TimeGeometry>(&current.geometry))
+    else if (const auto* timeGeometry = std::get_if<TimeGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<TimeGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && geometry->letterSpacing == baseGeometry->letterSpacing)
+        if (baseGeometry != nullptr && timeGeometry->letterSpacing == baseGeometry->letterSpacing)
         {
             patch.letterSpacing.reset();
         }
     }
-    else if (const auto* geometry = std::get_if<LineGeometry>(&current.geometry))
+    else if (const auto* lineGeometry = std::get_if<LineGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<LineGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && SameVector(geometry->start, baseGeometry->start))
+        if (baseGeometry != nullptr && SameVector(lineGeometry->start, baseGeometry->start))
         {
             patch.lineStart.reset();
         }
-        if (baseGeometry != nullptr && SameVector(geometry->end, baseGeometry->end))
+        if (baseGeometry != nullptr && SameVector(lineGeometry->end, baseGeometry->end))
         {
             patch.lineEnd.reset();
         }
     }
-    else if (const auto* geometry = std::get_if<CircleGeometry>(&current.geometry))
+    else if (const auto* circleGeometry = std::get_if<CircleGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<CircleGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && geometry->radius == baseGeometry->radius)
+        if (baseGeometry != nullptr && circleGeometry->radius == baseGeometry->radius)
         {
             patch.radius.reset();
         }
     }
-    else if (const auto* geometry = std::get_if<RingGeometry>(&current.geometry))
+    else if (const auto* ringGeometry = std::get_if<RingGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<RingGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && geometry->innerRadius == baseGeometry->innerRadius)
+        if (baseGeometry != nullptr && ringGeometry->innerRadius == baseGeometry->innerRadius)
         {
             patch.innerRadius.reset();
         }
-        if (baseGeometry != nullptr && geometry->outerRadius == baseGeometry->outerRadius)
+        if (baseGeometry != nullptr && ringGeometry->outerRadius == baseGeometry->outerRadius)
         {
             patch.outerRadius.reset();
         }
     }
-    else if (const auto* geometry = std::get_if<RectangleGeometry>(&current.geometry))
+    else if (const auto* rectangleGeometry = std::get_if<RectangleGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<RectangleGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && geometry->width == baseGeometry->width)
+        if (baseGeometry != nullptr && rectangleGeometry->width == baseGeometry->width)
         {
             patch.width.reset();
         }
-        if (baseGeometry != nullptr && geometry->height == baseGeometry->height)
+        if (baseGeometry != nullptr && rectangleGeometry->height == baseGeometry->height)
         {
             patch.height.reset();
         }
     }
-    else if (const auto* geometry = std::get_if<EllipseGeometry>(&current.geometry))
+    else if (const auto* ellipseGeometry = std::get_if<EllipseGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<EllipseGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && geometry->width == baseGeometry->width)
+        if (baseGeometry != nullptr && ellipseGeometry->width == baseGeometry->width)
         {
             patch.width.reset();
         }
-        if (baseGeometry != nullptr && geometry->height == baseGeometry->height)
+        if (baseGeometry != nullptr && ellipseGeometry->height == baseGeometry->height)
         {
             patch.height.reset();
         }
     }
-    else if (const auto* geometry = std::get_if<SquareGeometry>(&current.geometry))
+    else if (const auto* squareGeometry = std::get_if<SquareGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<SquareGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && geometry->width == baseGeometry->width)
+        if (baseGeometry != nullptr && squareGeometry->width == baseGeometry->width)
         {
             patch.width.reset();
         }
-        if (baseGeometry != nullptr && geometry->height == baseGeometry->height)
+        if (baseGeometry != nullptr && squareGeometry->height == baseGeometry->height)
         {
             patch.height.reset();
         }
     }
-    else if (const auto* geometry = std::get_if<DiamondGeometry>(&current.geometry))
+    else if (const auto* diamondGeometry = std::get_if<DiamondGeometry>(&current.geometry))
     {
         const auto* baseGeometry = std::get_if<DiamondGeometry>(&reference.geometry);
-        if (baseGeometry != nullptr && geometry->width == baseGeometry->width)
+        if (baseGeometry != nullptr && diamondGeometry->width == baseGeometry->width)
         {
             patch.width.reset();
         }
-        if (baseGeometry != nullptr && geometry->height == baseGeometry->height)
+        if (baseGeometry != nullptr && diamondGeometry->height == baseGeometry->height)
         {
             patch.height.reset();
         }

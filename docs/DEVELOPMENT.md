@@ -144,7 +144,7 @@ The real build graph is split into:
 | `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting the framebuffer callback symbol expected by `mfd_window` |
 | `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client used to exercise the public API without linking raylib |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive plus Page1 strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is meant to be added to `examples/CMakeLists.txt` by the tutorial flow once the tutorial asset set exists |
+| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive plus Page1 strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is registered automatically in `examples/CMakeLists.txt` when the integrated tutorial completes once the tutorial asset set exists |
 | `mfd_editor` | Visual authoring tool |
 | `mfd_api_tests` | Runtime and JSON loading test executable |
 | `client_api_tests` | Client-side helper test executable |
@@ -170,8 +170,8 @@ Tutorial-oriented assets still feed `client_tutorial`, while the matching
 window is launched through `Scripts/Start-MfdTutorial.bat` from the repository,
 through the staged `Start-MfdTutorial.bat` copied next to `mfd_window`, or
 directly with `mfd_window --window assets/windows/mfd_tutorial.json` once the
-tutorial assets have been authored under `assets/` and the tutorial has wired
-`add_subdirectory(client_tutorial)` into `examples/CMakeLists.txt`.
+tutorial assets have been authored under `assets/` and the integrated
+tutorial has registered `client_tutorial` into `examples/CMakeLists.txt`.
 
 ## Fast Onboarding Commands
 

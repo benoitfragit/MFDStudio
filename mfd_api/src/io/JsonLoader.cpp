@@ -1645,52 +1645,86 @@ PageEditorState ParsePageEditorState(const json& node)
 {
     PageEditorState editorState;
     const json* layers = FindEditorField(node, {"layers"});
-    if (layers == nullptr || layers->is_null())
+    if (layers != nullptr && !layers->is_null())
     {
-        return editorState;
-    }
-
-    if (!layers->is_array())
-    {
-        throw std::runtime_error("Page editor layers must be an array");
-    }
-
-    std::unordered_set<std::string> layerIds;
-    for (const auto& entry : *layers)
-    {
-        if (!entry.is_object())
+        if (!layers->is_array())
         {
-            throw std::runtime_error("Each page editor layer must be an object");
+            throw std::runtime_error("Page editor layers must be an array");
         }
 
-        if (!entry.contains("id") || !entry.at("id").is_string())
+        std::unordered_set<std::string> layerIds;
+        for (const auto& entry : *layers)
         {
-            throw std::runtime_error("Each page editor layer must define a string id");
-        }
-
-        EditorLayerDefinition layer;
-        layer.id = entry.at("id").get<std::string>();
-        if (layer.id.empty())
-        {
-            throw std::runtime_error("Page editor layer id cannot be empty");
-        }
-
-        if (!layerIds.insert(layer.id).second)
-        {
-            throw std::runtime_error("Duplicate page editor layer id: " + layer.id);
-        }
-
-        if (const json* visible = FindField(entry, {"visible"}); visible != nullptr && !visible->is_null())
-        {
-            if (!visible->is_boolean())
+            if (!entry.is_object())
             {
-                throw std::runtime_error("Page editor layer visibility must be a boolean");
+                throw std::runtime_error("Each page editor layer must be an object");
             }
 
-            layer.visible = visible->get<bool>();
+            if (!entry.contains("id") || !entry.at("id").is_string())
+            {
+                throw std::runtime_error("Each page editor layer must define a string id");
+            }
+
+            EditorLayerDefinition layer;
+            layer.id = entry.at("id").get<std::string>();
+            if (layer.id.empty())
+            {
+                throw std::runtime_error("Page editor layer id cannot be empty");
+            }
+
+            if (!layerIds.insert(layer.id).second)
+            {
+                throw std::runtime_error("Duplicate page editor layer id: " + layer.id);
+            }
+
+            if (const json* visible = FindField(entry, {"visible"}); visible != nullptr && !visible->is_null())
+            {
+                if (!visible->is_boolean())
+                {
+                    throw std::runtime_error("Page editor layer visibility must be a boolean");
+                }
+
+                layer.visible = visible->get<bool>();
+            }
+
+            editorState.layers.push_back(std::move(layer));
+        }
+    }
+
+    const json* dynamicTemplates = FindEditorField(node, {"dynamicReticleTemplates"});
+    if (dynamicTemplates != nullptr && !dynamicTemplates->is_null())
+    {
+        if (!dynamicTemplates->is_array())
+        {
+            throw std::runtime_error("Page editor dynamicReticleTemplates must be an array");
         }
 
-        editorState.layers.push_back(std::move(layer));
+        std::vector<std::string> templateIds;
+        templateIds.reserve(dynamicTemplates->size());
+        std::unordered_set<std::string> normalizedTemplateIds;
+        for (const auto& entry : *dynamicTemplates)
+        {
+            if (!entry.is_string())
+            {
+                throw std::runtime_error("Each page editor dynamic reticle template id must be a string");
+            }
+
+            const std::string templateId = entry.get<std::string>();
+            if (templateId.empty())
+            {
+                throw std::runtime_error("Page editor dynamic reticle template ids cannot be empty");
+            }
+
+            const std::string normalizedTemplateId = NormalizePageName(templateId);
+            if (!normalizedTemplateIds.insert(normalizedTemplateId).second)
+            {
+                throw std::runtime_error("Duplicate page editor dynamic reticle template id: " + templateId);
+            }
+
+            templateIds.push_back(templateId);
+        }
+
+        editorState.dynamicReticleTemplateIds = std::move(templateIds);
     }
 
     return editorState;
@@ -2117,6 +2151,18 @@ PageDefinition ParsePage(const json& node,
     page.view = ParsePageViewState(node);
     page.blinkTypes = ParsePageBlinkDefinitions(node);
     page.editor = ParsePageEditorState(node);
+
+    if (page.editor.dynamicReticleTemplateIds.has_value())
+    {
+        for (const std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+        {
+            if (library.find(templateId) == library.end())
+            {
+                throw std::runtime_error(
+                    "Unknown page editor dynamic reticle template '" + templateId + "' on page: " + page.name);
+            }
+        }
+    }
 
     if (const json* defaultBlink = FindField(node, {"defaultBlink", "defaultBlinkType"});
         defaultBlink != nullptr && !defaultBlink->is_null())

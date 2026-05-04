@@ -74,6 +74,17 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0,
      0},
     {TutorialStepKind::UiAction,
+     "Allow the tutorial dynamic reticle on Page1",
+     "On Page1, enable `mfd_tutorial_radar_track` in the generated dynamic-template list so the generated client can create runtime tutorial tracks.",
+     "page_dynamic_template_mfd_tutorial_radar_track",
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     nullptr,
+     0,
+     0},
+    {TutorialStepKind::UiAction,
      "Assign the Page1 strobe template",
      "On Page1, choose the small cross cursor as the page strobe so the runtime and the client both target a real authored strobe.",
      "page_strobe_template",
@@ -272,17 +283,6 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0,
      0},
     {TutorialStepKind::UiAction,
-     "Inspect reticle extraction",
-     "Open the extraction popup from one selected page reticle to see how the editor turns page content into one reusable library template, then close the popup.",
-     "page_reticle_extract",
-     nullptr,
-     nullptr,
-     nullptr,
-     nullptr,
-     nullptr,
-     0,
-     0},
-    {TutorialStepKind::UiAction,
      "Inspect design export",
      "Open the design export workflow, review the export options and destination, then close the popup without exporting.",
      "menu_file",
@@ -302,12 +302,22 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "  \"name\": \"Page1\",\n"
      "  \"title\": \"Page 1\",\n"
      "  \"backgroundColor\": [0, 32, 96, 255],\n"
+     "  \"_editor\": {\n"
+     "    \"dynamicReticleTemplates\": [\n"
+     "      \"mfd_tutorial_radar_track\"\n"
+     "    ]\n"
+     "  },\n"
      "  \"staticReticles\": []\n"
      "}",
      "{\n"
      "  \"name\": \"Page1\",\n"
      "  \"title\": \"Page 1\",\n"
      "  \"backgroundColor\": [0, 32, 96, 255],\n"
+     "  \"_editor\": {\n"
+     "    \"dynamicReticleTemplates\": [\n"
+     "      \"mfd_tutorial_radar_track\"\n"
+     "    ]\n"
+     "  },\n"
      "  \"strobe\": {\n"
      "    \"id\": \"tutorial_strobe\",\n"
      "    \"template\": \"mfd_tutorial_strobe_cursor\",\n"
@@ -318,7 +328,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "  },\n"
      "  \"staticReticles\": []\n"
      "}",
-     "The strobe block now references the small cross cursor authored earlier in the editor, and still declares the capture shape used by the runtime when the client moves the strobe over new tracks. Magnetized visual shape changes remain opt-in through the strobe magnet visual settings.",
+     "The page now keeps the tutorial radar-track template in its generated dynamic list, while the strobe block references the small cross cursor authored earlier in the editor and still declares the capture shape used by the runtime when the client moves the strobe over new tracks. Magnetized visual shape changes remain opt-in through the strobe magnet visual settings.",
      "Next",
      1,
      1},
@@ -604,7 +614,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      1},
     {TutorialStepKind::FileReview,
      "Review the tutorial build gate",
-     "The tutorial client stays out of the default examples build and still requires an explicit opt-in once the authored tutorial asset set exists.",
+     "The tutorial client stays out of the default examples build until the integrated walkthrough completes and registers it automatically.",
      "",
      "examples/client_tutorial/CMakeLists.txt",
      "client_api_generate_ui(\n"
@@ -630,13 +640,13 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "    OUTPUT_MAP \"${MFD_ROOT_DIR}/assets/windows/mfd_tutorial.generated.map\"\n"
      "    NAMESPACE \"tutorial_ui\"\n"
      "    UI_CLASS_NAME \"TutorialUi\")",
-     "The tutorial stays opt-in: the repository default build remains unchanged, and even after manual registration the target still self-skips until the authored assets exist.",
+     "The repository default build stays unchanged until the tutorial completes, and the target still self-skips whenever the authored asset set is incomplete.",
      "Next",
      1,
      1},
     {TutorialStepKind::FileReview,
      "Review tutorial target registration",
-     "The examples subtree only needs one explicit registration for the tutorial client once you decide to opt in.",
+     "The examples subtree only needs one explicit registration for the tutorial client, and the tutorial now writes it automatically at completion.",
      "",
      "examples/CMakeLists.txt",
      "add_subdirectory(mfd_framebuffer_stdout_plugin)\n"
@@ -648,7 +658,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "add_subdirectory(client_mockup)\n"
      "add_subdirectory(client_mockup_minimal)\n"
      "add_subdirectory(client_tutorial)\n",
-     "Registering `client_tutorial` under the examples subtree is a manual follow-up step only. The editor tutorial itself does not flip that switch for you.",
+     "Finishing the integrated tutorial writes this registration into `examples/CMakeLists.txt`, so the generated walkthrough becomes available after the next CMake reconfigure.",
      "Next",
      1,
      1},

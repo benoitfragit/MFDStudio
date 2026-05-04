@@ -97,7 +97,6 @@ The documented workflow includes:
 - layer inspector
 - full-width problems panel
 - multi-selection and drag workflows
-- extraction of selected content into one reusable reticle template
 
 ### The Editor Is Safer About Source Versus Staged Assets
 

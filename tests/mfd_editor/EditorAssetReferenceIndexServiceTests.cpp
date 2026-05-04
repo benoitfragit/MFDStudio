@@ -134,6 +134,11 @@ TEST(AssetReferenceIndexServiceTests, BuildIndexTracksWindowPagesTemplatesImages
     WriteTextFile(pageFile,
                   R"({
   "name": "Radar",
+  "_editor": {
+    "dynamicReticleTemplates": [
+      "radar_track"
+    ]
+  },
   "staticReticles": [
     {
       "id": "track_alpha",
@@ -191,6 +196,11 @@ TEST(AssetReferenceIndexServiceTests, BuildIndexTracksWindowPagesTemplatesImages
         FindReference(index, editor::ReticleReferenceKind::PageStrobeTemplate, pageFile, "cursor", "strobe_cursor");
     ASSERT_NE(strobeTemplateReference, nullptr);
     EXPECT_EQ(strobeTemplateReference->targetFile, std::filesystem::absolute(strobeTemplateFile).lexically_normal());
+
+    const editor::ReticleReference* pageDynamicTemplateReference =
+        FindReference(index, editor::ReticleReferenceKind::PageDynamicTemplate, pageFile, {}, "radar_track");
+    ASSERT_NE(pageDynamicTemplateReference, nullptr);
+    EXPECT_EQ(pageDynamicTemplateReference->targetFile, std::filesystem::absolute(radarTemplateFile).lexically_normal());
 
     const editor::ReticleReference* pageImageReference = FindReference(
         index, editor::ReticleReferenceKind::ReticleImageAsset, pageFile, "inline_badge", {}, "page_picture");

@@ -66,6 +66,7 @@ class PageSpec:
     transport_id: int
     blink_members: list["BlinkSpec"]
     reticles: list[ReticleSpec]
+    dynamic_template_ids: list[str]
     status_member_name: str | None
     status_primitive_accessor_name: str | None
     strobe: "StrobeSpec"
@@ -141,6 +142,11 @@ def resolve_path(base: Path, raw_path: str) -> Path:
 def extract_page_node(root: dict) -> dict:
     page = root.get("page")
     return page if isinstance(page, dict) else root
+
+
+def extract_page_editor_node(page_root: dict) -> dict | None:
+    editor = page_root.get("_editor")
+    return editor if isinstance(editor, dict) else None
 
 
 def split_words(value: str) -> list[str]:
@@ -487,11 +493,42 @@ def resolve_strobe_spec(page_root: dict) -> StrobeSpec:
     )
 
 
-def build_template_specs(template_library: dict[str, dict]) -> list[TemplateSpec]:
+def resolve_page_dynamic_template_ids(page_root: dict, template_library: dict[str, dict]) -> list[str]:
+    editor_node = extract_page_editor_node(page_root)
+    if editor_node is None or "dynamicReticleTemplates" not in editor_node:
+        return []
+
+    dynamic_templates = editor_node.get("dynamicReticleTemplates")
+    if not isinstance(dynamic_templates, list):
+        raise RuntimeError("Page _editor.dynamicReticleTemplates must be a JSON array")
+
+    selected_template_ids: list[str] = []
+    seen_template_ids: set[str] = set()
+    for entry in dynamic_templates:
+        if not isinstance(entry, str) or not entry:
+            raise RuntimeError("Each page _editor.dynamicReticleTemplates entry must be a non-empty string")
+
+        normalized_template_id = normalize_lookup_name(entry)
+        if normalized_template_id in seen_template_ids:
+            raise RuntimeError(f"Duplicate page dynamic template id: '{entry}'")
+        if entry not in template_library:
+            raise RuntimeError(f"Unknown page dynamic template id: '{entry}'")
+
+        seen_template_ids.add(normalized_template_id)
+        selected_template_ids.append(entry)
+
+    return selected_template_ids
+
+
+def build_template_specs(template_library: dict[str, dict], included_template_ids: set[str]) -> list[TemplateSpec]:
     templates: list[TemplateSpec] = []
     seen_ids: set[int] = set()
 
-    for template_id, template_node in sorted(template_library.items()):
+    for template_id in sorted(included_template_ids):
+        template_node = template_library.get(template_id)
+        if template_node is None:
+            raise RuntimeError(f"Template '{template_id}' was requested for generation but is missing from the library")
+
         canonical_key = f"template/{normalize_lookup_name(template_id)}"
         transport_id = stable_transport_id(canonical_key)
         if transport_id in seen_ids:
@@ -523,6 +560,7 @@ def build_page_specs(window_root: dict,
                      page_class_suffix: str) -> tuple[list[PageSpec], list[TemplateSpec]]:
     template_library = load_reticle_library(window_root, window_path)
     page_specs: list[PageSpec] = []
+    used_dynamic_template_ids: set[str] = set()
     seen_ids: set[int] = set()
 
     for page_entry in page_entries(window_root):
@@ -592,6 +630,9 @@ def build_page_specs(window_root: dict,
                     transport_id=transport_id,
                 ))
 
+        dynamic_template_ids = resolve_page_dynamic_template_ids(page_root, template_library)
+        used_dynamic_template_ids.update(dynamic_template_ids)
+
         expected_status_name = f"{camel_case(page_name)}Status"
         status_member_name = None
         status_primitive_accessor_name = None
@@ -611,12 +652,13 @@ def build_page_specs(window_root: dict,
             transport_id=page_transport_id,
             blink_members=blink_members,
             reticles=reticles,
+            dynamic_template_ids=dynamic_template_ids,
             status_member_name=status_member_name,
             status_primitive_accessor_name=status_primitive_accessor_name,
             strobe=resolve_strobe_spec(page_root),
         ))
 
-    return page_specs, build_template_specs(template_library)
+    return page_specs, build_template_specs(template_library, used_dynamic_template_ids)
 
 
 def resolve_startup_page(page_specs: list[PageSpec], window_root: dict) -> PageSpec:
@@ -679,6 +721,7 @@ def emit_header(namespace_name: str,
                 mapping_hash: str,
                 page_specs: list[PageSpec],
                 template_specs: list[TemplateSpec]) -> str:
+    template_specs_by_id = {template.template_id: template for template in template_specs}
     lines: list[str] = [
         "/*",
         " * This file is part of MFDStudio.",
@@ -776,6 +819,7 @@ def emit_header(namespace_name: str,
         ])
 
     for page in page_specs:
+        page_templates = [template_specs_by_id[template_id] for template_id in page.dynamic_template_ids]
         for reticle in page.reticles:
             lines.extend([
                 f"class {reticle.wrapper_class_name} final : public Reticle",
@@ -844,10 +888,10 @@ def emit_header(namespace_name: str,
             "",
         ])
 
-        for template in template_specs:
+        for template in page_templates:
             lines.append(f"    {template.dynamic_set_class_name}& {template.dynamic_accessor_name}() noexcept;")
 
-        if template_specs:
+        if page_templates:
             lines.append("")
 
         for blink in page.blink_members:
@@ -867,7 +911,7 @@ def emit_header(namespace_name: str,
             "private:",
         ])
 
-        for template in template_specs:
+        for template in page_templates:
             lines.append(f"    {template.dynamic_set_class_name} {template.dynamic_member_name};")
 
         lines.extend([
@@ -935,6 +979,7 @@ def emit_source(namespace_name: str,
                 startup_page: PageSpec,
                 page_specs: list[PageSpec],
                 template_specs: list[TemplateSpec]) -> str:
+    template_specs_by_id = {template.template_id: template for template in template_specs}
     lines: list[str] = [
         "/*",
         " * This file is part of MFDStudio.",
@@ -1011,6 +1056,7 @@ def emit_source(namespace_name: str,
         ])
 
     for page in page_specs:
+        page_templates = [template_specs_by_id[template_id] for template_id in page.dynamic_template_ids]
         for reticle in page.reticles:
             ctor_initializers = [
                 f'    Reticle("{cpp_string(page.page_name)}", "{cpp_string(reticle.reticle_id)}", {page.transport_id}U, {reticle.transport_id}U)']
@@ -1048,7 +1094,7 @@ def emit_source(namespace_name: str,
         ]
         for reticle in page.reticles:
             page_ctor_initializers.append(f"    {reticle.member_name}()")
-        for template in template_specs:
+        for template in page_templates:
             page_ctor_initializers.append(
                 f"    {template.dynamic_member_name}(Name(), {page.transport_id}U, feedbackState)")
 
@@ -1071,7 +1117,7 @@ def emit_source(namespace_name: str,
         ])
         for reticle in page.reticles:
             lines.append(f"    {reticle.member_name}.Reset();")
-        for template in template_specs:
+        for template in page_templates:
             lines.append(f"    {template.dynamic_member_name}.Reset();")
         lines.extend([
             "}",
@@ -1084,7 +1130,7 @@ def emit_source(namespace_name: str,
         ])
         for reticle in page.reticles:
             lines.append(f"    count += {reticle.member_name}.AppendCommands(commands) ? 1U : 0U;")
-        for template in template_specs:
+        for template in page_templates:
             lines.append(f"    count += {template.dynamic_member_name}.AppendCommands(commands);")
         lines.extend([
             "",
@@ -1106,7 +1152,7 @@ def emit_source(namespace_name: str,
                 "    count += AppendCommands(commands);",
             ])
         lines.append("")
-        for template in template_specs:
+        for template in page_templates:
             lines.append(f"    count += {template.dynamic_member_name}.AppendRemovalCommands(commands);")
         lines.extend([
             "",
@@ -1125,7 +1171,7 @@ def emit_source(namespace_name: str,
             "}",
             "",
         ])
-        for template in template_specs:
+        for template in page_templates:
             lines.extend([
                 f"{template.dynamic_set_class_name}& {page.page_class_name}::{template.dynamic_accessor_name}() noexcept",
                 "{",

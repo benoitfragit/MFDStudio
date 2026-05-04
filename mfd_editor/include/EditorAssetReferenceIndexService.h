@@ -23,6 +23,7 @@ enum class ReticleReferenceKind
 {
     PageReticleTemplate,
     PageStrobeTemplate,
+    PageDynamicTemplate,
     ReticleImageAsset,
     WindowFontAsset,
     WindowIconAsset

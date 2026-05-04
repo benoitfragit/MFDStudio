@@ -119,6 +119,14 @@ struct PageEditorState
 {
     /** @brief Ordered list of editor layers available on the page. */
     std::vector<EditorLayerDefinition> layers;
+    /**
+     * @brief Optional explicit list of shared reticle templates exposed as generated dynamic sets for this page.
+     *
+     * @note `std::nullopt` means the page does not opt into generated dynamic
+     * sets yet. An empty vector explicitly keeps the generated dynamic API
+     * empty for this page as well.
+     */
+    std::optional<std::vector<std::string>> dynamicReticleTemplateIds;
 };
 
 /**

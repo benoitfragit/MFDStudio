@@ -52,6 +52,9 @@ class GenerateUiTests(unittest.TestCase):
                     {
                         "page": {
                             "name": "Radar",
+                            "_editor": {
+                                "dynamicReticleTemplates": ["status_template"],
+                            },
                             "blinkTypes": [{"name": "attention"}],
                             "staticReticles": [
                                 {
@@ -252,6 +255,9 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "Radar",
+                        "_editor": {
+                            "dynamicReticleTemplates": ["geometry_template"],
+                        },
                         "staticReticles": [
                             {
                                 "id": "geometry_widget",
@@ -372,6 +378,188 @@ class GenerateUiTests(unittest.TestCase):
                 "panel_image",
             ]:
                 self.assertIn(primitive_id, primitive_ids)
+
+    def test_generates_dynamic_accessors_only_for_templates_selected_on_each_page(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "alpha_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "alpha_template",
+                        "elements": [{"id": "alpha_text", "type": "text"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (template_dir / "beta_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "beta_template",
+                        "elements": [{"id": "beta_text", "type": "text"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            alpha_page = root / "alpha_page.json"
+            alpha_page.write_text(
+                json.dumps(
+                    {
+                        "name": "Alpha",
+                        "_editor": {
+                            "dynamicReticleTemplates": ["alpha_template"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            beta_page = root / "beta_page.json"
+            beta_page.write_text(
+                json.dumps(
+                    {
+                        "name": "Beta",
+                        "_editor": {
+                            "dynamicReticleTemplates": ["beta_template"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps(
+                    {
+                        "title": "Selective",
+                        "reticleLibraryFolder": "reticles",
+                        "pages": [alpha_page.name, beta_page.name],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                    "--namespace",
+                    "generated_ui",
+                    "--header-include",
+                    "GeneratedUi.h",
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+            source_content = output_source.read_text(encoding="utf-8")
+            map_content = json.loads(output_map.read_text(encoding="utf-8"))
+
+            self.assertIn("class AlphaTemplateDynamicReticle final : public DynamicReticle", header_content)
+            self.assertIn("class BetaTemplateDynamicReticle final : public DynamicReticle", header_content)
+            self.assertIn("AlphaTemplateDynamicReticleSet& DynamicAlphaTemplate() noexcept;", header_content)
+            self.assertIn("BetaTemplateDynamicReticleSet& DynamicBetaTemplate() noexcept;", header_content)
+
+            self.assertIn(
+                "AlphaTemplateDynamicReticleSet& AlphaMockupPage::DynamicAlphaTemplate() noexcept",
+                source_content,
+            )
+            self.assertNotIn(
+                "BetaTemplateDynamicReticleSet& AlphaMockupPage::DynamicBetaTemplate() noexcept",
+                source_content,
+            )
+            self.assertIn(
+                "BetaTemplateDynamicReticleSet& BetaMockupPage::DynamicBetaTemplate() noexcept",
+                source_content,
+            )
+            self.assertNotIn(
+                "AlphaTemplateDynamicReticleSet& BetaMockupPage::DynamicAlphaTemplate() noexcept",
+                source_content,
+            )
+
+            self.assertEqual({row["templateId"] for row in map_content["templates"]}, {"alpha_template", "beta_template"})
+
+    def test_omits_dynamic_generation_when_page_does_not_configure_dynamic_templates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "alpha_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "alpha_template",
+                        "elements": [{"id": "alpha_text", "type": "text"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Alpha",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps(
+                    {
+                        "title": "Selective",
+                        "reticleLibraryFolder": "reticles",
+                        "pages": [page.name],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+            source_content = output_source.read_text(encoding="utf-8")
+            map_content = json.loads(output_map.read_text(encoding="utf-8"))
+
+            self.assertNotIn("AlphaTemplateDynamicReticle", header_content)
+            self.assertNotIn("DynamicAlphaTemplate()", header_content)
+            self.assertNotIn("DynamicAlphaTemplate()", source_content)
+            self.assertEqual(map_content["templates"], [])
 
 
 

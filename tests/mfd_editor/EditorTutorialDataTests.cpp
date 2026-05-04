@@ -131,20 +131,24 @@ TEST(EditorTutorialDataTests, TutorialMetadataReflectsSharedWindowLauncherFlow)
     const auto& buildGateStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialClientBuildGate);
     EXPECT_STREQ(buildGateStep.filePath, "examples/client_tutorial/CMakeLists.txt");
     EXPECT_NE(std::string_view(buildGateStep.afterText).find("Skipping client_tutorial"), std::string_view::npos);
-    EXPECT_NE(std::string_view(buildGateStep.explanation).find("opt-in"), std::string_view::npos);
+    EXPECT_NE(std::string_view(buildGateStep.explanation).find("default examples build"), std::string_view::npos);
 
     const auto& registrationStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialTargetRegistration);
     EXPECT_NE(std::string_view(registrationStep.afterText).find("add_subdirectory(client_tutorial)"),
               std::string_view::npos);
     EXPECT_EQ(std::string_view(registrationStep.afterText).find("add_subdirectory(examples/mfd_tutorial)"),
               std::string_view::npos);
-    EXPECT_NE(std::string_view(registrationStep.explanation).find("manual"), std::string_view::npos);
+    EXPECT_NE(std::string_view(registrationStep.explanation).find("writes this registration"), std::string_view::npos);
 }
 
 TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps)
 {
     const auto& pageContextStep = Step(editor::tutorial::TutorialStepId::ShowPageContext);
     EXPECT_STREQ(pageContextStep.targetId, "page_preview_view_menu");
+
+    const auto& dynamicTemplateStep = Step(editor::tutorial::TutorialStepId::AllowPage1DynamicReticleTemplate);
+    EXPECT_STREQ(dynamicTemplateStep.targetId, "page_dynamic_template_mfd_tutorial_radar_track");
+    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("mfd_tutorial_radar_track"), std::string_view::npos);
 
     const auto& importStep = Step(editor::tutorial::TutorialStepId::InspectPageImportWorkflow);
     EXPECT_STREQ(importStep.targetId, "menu_page");
@@ -156,9 +160,6 @@ TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps
 
     const auto& reticleRenameStep = Step(editor::tutorial::TutorialStepId::InspectReticleRenameWorkflow);
     EXPECT_STREQ(reticleRenameStep.targetId, "menu_reticle");
-
-    const auto& extractionStep = Step(editor::tutorial::TutorialStepId::InspectReticleExtractionWorkflow);
-    EXPECT_STREQ(extractionStep.targetId, "page_reticle_extract");
 
     const auto& exportStep = Step(editor::tutorial::TutorialStepId::InspectDesignExportWorkflow);
     EXPECT_STREQ(exportStep.targetId, "menu_file");

@@ -287,6 +287,32 @@ PageSourceMetadata ParsePageSourceMetadata(const std::filesystem::path& sourcePa
         }
     }
 
+    if (pageNode.contains("_editor") && pageNode.at("_editor").is_object())
+    {
+        const auto& editorNode = pageNode.at("_editor");
+        if (editorNode.contains("dynamicReticleTemplates"))
+        {
+            if (!editorNode.at("dynamicReticleTemplates").is_array())
+            {
+                throw std::runtime_error("Page editor dynamicReticleTemplates field must be a JSON array.");
+            }
+
+            for (const auto& entry : editorNode.at("dynamicReticleTemplates"))
+            {
+                if (!entry.is_string())
+                {
+                    throw std::runtime_error("Page editor dynamic reticle template ids must be strings.");
+                }
+
+                const std::string templateId = entry.get<std::string>();
+                if (seenTemplateIds.insert(templateId).second)
+                {
+                    metadata.templateIds.push_back(templateId);
+                }
+            }
+        }
+    }
+
     return metadata;
 }
 
@@ -471,6 +497,18 @@ void ApplyTemplateIdRemap(
     {
         remapOne(page.strobe->reticle);
     }
+
+    if (page.editor.dynamicReticleTemplateIds.has_value())
+    {
+        for (std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+        {
+            const auto iterator = remap.find(templateId);
+            if (iterator != remap.end())
+            {
+                templateId = iterator->second;
+            }
+        }
+    }
 }
 
 bool HasAnyDefaultPage(const std::vector<mfd::PageDefinition>& pages)
@@ -632,7 +670,8 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
                              {
                                  return PathKey(reference.ownerFile) == sourcePageKey &&
                                         (reference.kind == ReticleReferenceKind::PageReticleTemplate ||
-                                         reference.kind == ReticleReferenceKind::PageStrobeTemplate) &&
+                                         reference.kind == ReticleReferenceKind::PageStrobeTemplate ||
+                                         reference.kind == ReticleReferenceKind::PageDynamicTemplate) &&
                                         mfd::PageNamesEqual(reference.templateId, sourceTemplateId);
                              });
             if (referenceIterator == index.reticles.end() || referenceIterator->targetFile.empty())

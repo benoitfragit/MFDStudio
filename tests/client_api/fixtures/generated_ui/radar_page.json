@@ -21,6 +21,11 @@
       "strength": 0.65
     }
   },
+  "_editor": {
+    "dynamicReticleTemplates": [
+      "geometry_template"
+    ]
+  },
   "staticReticles": [
     {
       "id": "radar_status",

@@ -15,7 +15,10 @@
 #include <cctype>
 #include <cstdio>
 #include <fstream>
+#include <iterator>
+#include <limits>
 #include <optional>
+#include <sstream>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -42,6 +45,9 @@ constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strob
 constexpr std::string_view kTutorialProgressBarTemplateId = "mfd_tutorial_progress_bar";
 constexpr std::string_view kTutorialProgressBarFillPrimitiveId = "fill_bar";
 constexpr std::string_view kTutorialProgressBarFramePrimitiveId = "frame";
+constexpr std::array<std::string_view, 1> kTutorialExampleTargetRegistrations {{
+    "add_subdirectory(client_tutorial)",
+}};
 
 bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool vertical) noexcept
 {
@@ -121,6 +127,37 @@ std::string ToLowerAscii(std::string value)
     return value;
 }
 
+std::string_view TrimAsciiWhitespace(std::string_view value) noexcept
+{
+    std::size_t first = 0;
+    while (first < value.size() &&
+           std::isspace(static_cast<unsigned char>(value[first])) != 0)
+    {
+        ++first;
+    }
+
+    std::size_t last = value.size();
+    while (last > first &&
+           std::isspace(static_cast<unsigned char>(value[last - 1])) != 0)
+    {
+        --last;
+    }
+
+    return value.substr(first, last - first);
+}
+
+std::string LeadingWhitespace(std::string_view value)
+{
+    std::size_t count = 0;
+    while (count < value.size() &&
+           (value[count] == ' ' || value[count] == '\t'))
+    {
+        ++count;
+    }
+
+    return std::string(value.substr(0, count));
+}
+
 std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
 {
     std::filesystem::path current = std::filesystem::absolute(start);
@@ -195,6 +232,133 @@ void RemoveEmptyDirectoryChain(const std::filesystem::path& start, const std::fi
             return;
         }
         current = current.parent_path();
+    }
+}
+
+bool IsTutorialTargetRegistrationLine(std::string_view line) noexcept
+{
+    const std::string_view trimmed = TrimAsciiWhitespace(line);
+    return std::find(kTutorialExampleTargetRegistrations.begin(),
+                     kTutorialExampleTargetRegistrations.end(),
+                     trimmed) != kTutorialExampleTargetRegistrations.end();
+}
+
+void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
+{
+    const std::filesystem::path cmakeFile = projectRoot / "examples" / "CMakeLists.txt";
+    std::ifstream input(cmakeFile, std::ios::binary);
+    if (!input.is_open())
+    {
+        return;
+    }
+
+    const std::string content {
+        std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>()};
+    if (content.empty())
+    {
+        return;
+    }
+
+    const std::string newline = content.find("\r\n") != std::string::npos ? "\r\n" : "\n";
+    const bool hasTrailingNewline =
+        content.size() >= newline.size() &&
+        content.compare(content.size() - newline.size(), newline.size(), newline) == 0;
+
+    std::istringstream stream(content);
+    std::vector<std::string> lines;
+    lines.reserve(64);
+
+    std::array<bool, kTutorialExampleTargetRegistrations.size()> hasTargetRegistrations {};
+    std::size_t insertionIndex = std::numeric_limits<std::size_t>::max();
+    std::string insertionIndentation;
+    std::size_t appendIndex = std::numeric_limits<std::size_t>::max();
+
+    for (std::string line; std::getline(stream, line);)
+    {
+        if (!line.empty() && line.back() == '\r')
+        {
+            line.pop_back();
+        }
+
+        const std::string_view trimmed = TrimAsciiWhitespace(line);
+        for (std::size_t index = 0; index < kTutorialExampleTargetRegistrations.size(); ++index)
+        {
+            if (trimmed == kTutorialExampleTargetRegistrations[index])
+            {
+                hasTargetRegistrations[index] = true;
+                break;
+            }
+        }
+
+        if (trimmed.rfind("add_subdirectory(", 0) == 0)
+        {
+            appendIndex = lines.size() + 1U;
+            if (insertionIndentation.empty())
+            {
+                insertionIndentation = LeadingWhitespace(line);
+            }
+        }
+
+        if (trimmed.rfind("# client_tutorial is intentionally wired", 0) == 0 &&
+            insertionIndex == std::numeric_limits<std::size_t>::max())
+        {
+            insertionIndex = lines.size();
+            insertionIndentation = LeadingWhitespace(line);
+        }
+
+        lines.push_back(std::move(line));
+    }
+
+    if (std::all_of(hasTargetRegistrations.begin(), hasTargetRegistrations.end(), [](const bool present)
+                    { return present; }) ||
+        insertionIndex == std::numeric_limits<std::size_t>::max())
+    {
+        if (std::all_of(hasTargetRegistrations.begin(), hasTargetRegistrations.end(), [](const bool present)
+                        { return present; }))
+        {
+            return;
+        }
+
+        insertionIndex = appendIndex;
+        if (insertionIndex == std::numeric_limits<std::size_t>::max())
+        {
+            return;
+        }
+    }
+
+    std::vector<std::string> insertedLines;
+    insertedLines.reserve(kTutorialExampleTargetRegistrations.size());
+    for (std::size_t index = 0; index < kTutorialExampleTargetRegistrations.size(); ++index)
+    {
+        if (!hasTargetRegistrations[index])
+        {
+            insertedLines.push_back(insertionIndentation + std::string(kTutorialExampleTargetRegistrations[index]));
+        }
+    }
+
+    lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insertionIndex),
+                 insertedLines.begin(),
+                 insertedLines.end());
+
+    std::ofstream output(cmakeFile, std::ios::binary | std::ios::trunc);
+    if (!output.is_open())
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < lines.size(); ++index)
+    {
+        if (index != 0)
+        {
+            output << newline;
+        }
+        output << lines[index];
+    }
+
+    if (hasTrailingNewline && !lines.empty())
+    {
+        output << newline;
     }
 }
 
@@ -340,11 +504,11 @@ struct TutorialStageInfo
 
 constexpr std::array<TutorialStageInfo, 5> kTutorialStages {{
     {"Stage 1 - Author In Editor",
-     "Create the tutorial window, page assets, reusable reticle templates, editor-only layers, and the exposed primitive that will feed the generated client.",
+     "Create the tutorial window, page assets, reusable reticle templates, the Page1 dynamic-template selection, editor-only layers, and the exposed primitive that will feed the generated client.",
      static_cast<int>(editor::tutorial::TutorialStepId::CreateWindow),
      static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
     {"Stage 2 - Explore Editor Tools",
-     "Use the page-preview helper panels, save the tutorial assets, and discover the import, rename, extraction, and export workflows directly from the editor.",
+     "Use the page-preview helper panels, save the tutorial assets, and discover the import, rename, and export workflows directly from the editor.",
      static_cast<int>(editor::tutorial::TutorialStepId::ShowPageContext),
      static_cast<int>(editor::tutorial::TutorialStepId::InspectDesignExportWorkflow)},
     {"Stage 3 - Read Generated Artifacts",
@@ -355,8 +519,8 @@ constexpr std::array<TutorialStageInfo, 5> kTutorialStages {{
      "Follow the typed client flow from generated page handles to dynamic reticles, static reticles, strobe feedback, and optional framebuffer inspection.",
      static_cast<int>(editor::tutorial::TutorialStepId::ReviewGeneratedUiIntegration),
      static_cast<int>(editor::tutorial::TutorialStepId::ReviewRgba32FramebufferCapture)},
-    {"Stage 5 - Opt In And Continue",
-     "Keep the tutorial client opt-in, understand the manual registration step, and leave with the right documentation path for the rest of the project.",
+    {"Stage 5 - Register And Continue",
+     "Review the tutorial client build gate, let the tutorial register the example target automatically at completion, and leave with the right documentation path for the rest of the project.",
      static_cast<int>(editor::tutorial::TutorialStepId::ReviewTutorialClientBuildGate),
      static_cast<int>(editor::tutorial::TutorialStepId::ReviewDocumentationPath)},
 }};
@@ -500,8 +664,12 @@ void EditorTutorialController::Finish()
     focusLayerId_.clear();
     showCoach_ = false;
     ClearProgress();
+    if (const auto projectRoot = FindProjectRoot(std::filesystem::current_path()); projectRoot.has_value())
+    {
+        EnsureTutorialTargetRegistration(*projectRoot);
+    }
     app_.RebuildStatus(
-        "Tutorial completed. The tutorial client remains opt-in by design: register 'client_tutorial' manually only when you want the generated walkthrough, then continue with tutorials 03, 11 and the generated-client architecture notes.",
+        "Tutorial completed. The tutorial registered 'client_tutorial' in 'examples/CMakeLists.txt'. Re-run CMake configuration, rebuild, then continue with tutorials 03, 11 and the generated-client architecture notes.",
         false);
 }
 
@@ -1007,6 +1175,8 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     case static_cast<int>(TutorialStepId::CreatePage1):
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "menu_page" : (stepPhase_ == 1 ? "menu_page_new" : "popup_page_create");
+    case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
+        return "page_dynamic_template_mfd_tutorial_radar_track";
     case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
         return stepPhase_ == 0 ? "menu_reticle" :
                                  (stepPhase_ == 1 ? "menu_reticle_new" :
@@ -1045,8 +1215,6 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     case static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow):
         return stepPhase_ == 0 ? "menu_reticle" :
                                  (stepPhase_ == 1 ? "menu_reticle_rename" : "popup_reticle_rename_cancel");
-    case static_cast<int>(TutorialStepId::InspectReticleExtractionWorkflow):
-        return stepPhase_ == 0 ? "page_reticle_extract" : "popup_reticle_extract_cancel";
     case static_cast<int>(TutorialStepId::InspectDesignExportWorkflow):
         return stepPhase_ == 0 ? "menu_file" :
                                  (stepPhase_ == 1 ? "menu_file_export" :
@@ -1078,6 +1246,8 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "Click Page." :
                                  (stepPhase_ == 1 ? "Click New page." : "Click Create page.");
+    case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
+        return "Enable mfd_tutorial_radar_track.";
     case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
         return stepPhase_ == 0 ? "Click Reticle." :
                                  (stepPhase_ == 1 ? "Click New library reticle from primitive." :
@@ -1116,8 +1286,6 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
     case static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow):
         return stepPhase_ == 0 ? "Click Reticle." :
                                  (stepPhase_ == 1 ? "Click Rename selected library reticle globally..." : "Close the rename popup.");
-    case static_cast<int>(TutorialStepId::InspectReticleExtractionWorkflow):
-        return stepPhase_ == 0 ? "Click Extract as reticle..." : "Close the extraction popup.";
     case static_cast<int>(TutorialStepId::InspectDesignExportWorkflow):
         return stepPhase_ == 0 ? "Click File." :
                                  (stepPhase_ == 1 ? "Open Export." :

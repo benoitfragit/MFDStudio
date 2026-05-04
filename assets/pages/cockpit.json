@@ -13,6 +13,11 @@
     }
   ],
   "defaultBlink": "overspeed",
+  "_editor": {
+    "dynamicReticleTemplates": [
+      "cockpit_radar_contact"
+    ]
+  },
   "staticReticles": [
     {
       "id": "cockpit_shell",

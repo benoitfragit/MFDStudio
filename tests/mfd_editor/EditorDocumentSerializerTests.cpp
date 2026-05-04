@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
@@ -305,6 +306,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     page.title = "Radar Page";
     page.defaultPage = true;
     page.backgroundColor = mfd::ColorRgba {10, 20, 30, 255};
+    page.editor.dynamicReticleTemplateIds = std::vector<std::string> {"radar_track"};
 
     mfd::PageStrobeDefinition strobe;
     strobe.reticle.id = "strobe";
@@ -372,6 +374,10 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     EXPECT_TRUE(pageJson.at("strobe").at("magnet").at("visual").at("enabled").get<bool>());
     EXPECT_EQ(pageJson.at("strobe").at("magnet").at("visual").at("shape").get<std::string>(), "square");
     EXPECT_FLOAT_EQ(pageJson.at("strobe").at("magnet").at("visual").at("size").get<float>(), 0.18f);
+    ASSERT_TRUE(pageJson.contains("_editor"));
+    ASSERT_TRUE(pageJson.at("_editor").contains("dynamicReticleTemplates"));
+    ASSERT_EQ(pageJson.at("_editor").at("dynamicReticleTemplates").size(), 1U);
+    EXPECT_EQ(pageJson.at("_editor").at("dynamicReticleTemplates").at(0).get<std::string>(), "radar_track");
     ASSERT_EQ(pageJson.at("staticReticles").size(), 1U);
     EXPECT_EQ(pageJson.at("staticReticles").at(0).at("template").get<std::string>(), "radar_track");
 

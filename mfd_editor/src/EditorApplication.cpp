@@ -153,6 +153,8 @@ const char* ReticleReferenceKindLabel(const editor::ReticleReferenceKind kind) n
     {
     case editor::ReticleReferenceKind::PageStrobeTemplate:
         return "Page strobe";
+    case editor::ReticleReferenceKind::PageDynamicTemplate:
+        return "Page dynamic template";
     case editor::ReticleReferenceKind::PageReticleTemplate:
     default:
         return "Page reticle";
@@ -2495,6 +2497,21 @@ void EditorApplication::DeleteSelectedLibraryReticle()
                           true);
             return;
         }
+
+        if (page.editor.dynamicReticleTemplateIds.has_value() &&
+            std::any_of(page.editor.dynamicReticleTemplateIds->begin(),
+                        page.editor.dynamicReticleTemplateIds->end(),
+                        [&reticleId](const std::string& templateId)
+                        {
+                            return mfd::PageNamesEqual(templateId, reticleId);
+                        }))
+        {
+            RebuildStatus("Cannot delete library reticle '" + reticleId +
+                              "' because page '" + page.name +
+                              "' exposes it as one generated dynamic template.",
+                          true);
+            return;
+        }
     }
 
     PushUndoSnapshot();
@@ -2957,6 +2974,8 @@ void EditorApplication::DrawSidebar()
 
 void EditorApplication::DrawWorkspace()
 {
+    using editor::tutorial::TutorialStepId;
+
     if (!HasOpenWindow())
     {
         tutorial_->DrawCoach();
@@ -2966,8 +2985,17 @@ void EditorApplication::DrawWorkspace()
 
     const std::vector<std::string> pagePreviewProblems = BuildPagePreviewProblemMessages();
     const bool hasPagePreviewProblems = !pagePreviewProblems.empty();
+    const bool forcePagePreviewTutorialWorkspace =
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowLayerInspector)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowMinimap)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowProblemsPanel)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ToggleFullscreenPreview)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectDesignExportWorkflow));
     const bool libraryStudioVisible =
-        selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive;
+        !forcePagePreviewTutorialWorkspace &&
+        (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive);
     const bool fullscreenPreviewActive = fullscreenPreviewController_.IsActive();
 
     const auto drawPagePreviewWorkspace = [this, &pagePreviewProblems](
@@ -8742,6 +8770,31 @@ void EditorApplication::PrepareTutorialStep()
             }
         }
     };
+    const auto selectTutorialPageOrFallback = [this](const std::string_view pageName)
+    {
+        if (const int pageIndex = FindPageIndexByName(loaded_, pageName); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+            return;
+        }
+
+        if (!loaded_.document.pages.empty())
+        {
+            SelectPage(std::clamp(selection_.pageIndex, 0, static_cast<int>(loaded_.document.pages.size()) - 1));
+        }
+    };
+    const auto focusLibraryReticleInBrowser = [this](const std::string_view templateId)
+    {
+        const auto iterator = loaded_.document.reticleLibrary.find(std::string {templateId});
+        if (iterator == loaded_.document.reticleLibrary.end())
+        {
+            return;
+        }
+
+        selection_.libraryReticleId = iterator->first;
+        selection_.libraryBrowserReticleId = iterator->first;
+        selection_.primitiveIndex = -1;
+    };
 
     const auto tutorialSteps = editor::tutorial::Steps();
     const editor::tutorial::TutorialStepDefinition& step =
@@ -8795,18 +8848,15 @@ void EditorApplication::PrepareTutorialStep()
         CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page1.json").string());
         newPageDraft_.background = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
+    case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
+        selectTutorialPageOrFallback("Page1");
+        break;
     case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
         break;
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
     {
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
         if (loaded_.document.reticleLibrary.find("mfd_tutorial_circle") != loaded_.document.reticleLibrary.end())
         {
             SelectLibraryReticle("mfd_tutorial_circle");
@@ -8830,10 +8880,7 @@ void EditorApplication::PrepareTutorialStep()
         break;
     }
     case static_cast<int>(TutorialStepId::AddAndHideEditorLayer):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
         break;
     case static_cast<int>(TutorialStepId::CreatePage2):
         CopyTextBuffer(newPageDraft_.name, "Page2");
@@ -8852,10 +8899,7 @@ void EditorApplication::PrepareTutorialStep()
         }
         break;
     case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page2"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page2");
         if (loaded_.document.reticleLibrary.find("mfd_tutorial_progress_bar") !=
             loaded_.document.reticleLibrary.end())
         {
@@ -8863,42 +8907,27 @@ void EditorApplication::PrepareTutorialStep()
         }
         break;
     case static_cast<int>(TutorialStepId::ShowPageContext):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page2"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page2");
         pagePreviewViewOptions_.showPageContext = false;
         break;
     case static_cast<int>(TutorialStepId::ShowLayerInspector):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
+        pagePreviewViewOptions_.showPageContext = false;
         pagePreviewViewOptions_.showLayerInspector = false;
         break;
     case static_cast<int>(TutorialStepId::ShowMinimap):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
+        pagePreviewViewOptions_.showPageContext = false;
         pagePreviewViewOptions_.showMinimap = false;
         break;
     case static_cast<int>(TutorialStepId::ShowReticleUsageHighlights):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
-        if (loaded_.document.reticleLibrary.find("mfd_tutorial_circle") != loaded_.document.reticleLibrary.end())
-        {
-            SelectLibraryReticle("mfd_tutorial_circle");
-        }
+        selectTutorialPageOrFallback("Page1");
+        focusLibraryReticleInBrowser("mfd_tutorial_circle");
         pagePreviewViewOptions_.highlightReticleUsages = false;
         break;
     case static_cast<int>(TutorialStepId::ShowProblemsPanel):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
+        pagePreviewViewOptions_.showPageContext = false;
         pagePreviewViewOptions_.showProblemsPanel = false;
         break;
     case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
@@ -8906,22 +8935,14 @@ void EditorApplication::PrepareTutorialStep()
         {
             ToggleFullscreenPagePreview();
         }
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
+        pagePreviewViewOptions_.showPageContext = false;
         break;
     case static_cast<int>(TutorialStepId::InspectPageImportWorkflow):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
         break;
     case static_cast<int>(TutorialStepId::InspectPageRenameWorkflow):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-        }
+        selectTutorialPageOrFallback("Page1");
         break;
     case static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow):
         if (loaded_.document.reticleLibrary.find("mfd_tutorial_circle") != loaded_.document.reticleLibrary.end())
@@ -8929,25 +8950,13 @@ void EditorApplication::PrepareTutorialStep()
             SelectLibraryReticle("mfd_tutorial_circle");
         }
         break;
-    case static_cast<int>(TutorialStepId::InspectReticleExtractionWorkflow):
-        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
-        {
-            SelectPage(pageIndex);
-            if (!tutorial_->TrackedReticleId().empty())
-            {
-                const mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
-                if (const int reticleIndex = FindPageReticleIndexById(page, tutorial_->TrackedReticleId()); reticleIndex >= 0)
-                {
-                    SelectPageReticle(pageIndex, reticleIndex);
-                }
-            }
-        }
-        break;
     case static_cast<int>(TutorialStepId::InspectDesignExportWorkflow):
         if (fullscreenPreviewController_.IsActive())
         {
             ToggleFullscreenPagePreview();
         }
+        selectTutorialPageOrFallback("Page1");
+        pagePreviewViewOptions_.showPageContext = false;
         break;
     default:
         break;
@@ -9505,6 +9514,7 @@ void EditorApplication::DrawPageInspector()
     ImGui::TextDisabled("If no page is marked default, the runtime opens the first page in the window JSON.");
 
     DrawPageBlinkInspector(*page);
+    DrawPageDynamicTemplateInspector(*page);
     DrawPageStrobeInspector(*page);
     DrawPageLayerInspector(*page);
 
@@ -9518,6 +9528,134 @@ void EditorApplication::DrawPageInspector()
             return IsReticleVisibleInEditor(*page, reticle);
         }));
     ImGui::TextDisabled("Visible in editor: %d", editorVisibleReticleCount);
+}
+
+void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& page)
+{
+    constexpr std::string_view kTutorialDynamicTemplateId = "mfd_tutorial_radar_track";
+    constexpr std::string_view kTutorialDynamicTemplateTargetId = "page_dynamic_template_mfd_tutorial_radar_track";
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Generated dynamic API");
+    ImGui::TextDisabled("Choose which library reticle templates are exposed as dynamic sets for this page.");
+
+    std::vector<std::string> templateIds;
+    templateIds.reserve(loaded_.document.reticleLibrary.size());
+    for (const auto& entry : loaded_.document.reticleLibrary)
+    {
+        templateIds.push_back(entry.first);
+    }
+    std::sort(templateIds.begin(), templateIds.end());
+
+    const auto isSelected = [&page](const std::string_view templateId)
+    {
+        return page.editor.dynamicReticleTemplateIds.has_value() &&
+               std::any_of(page.editor.dynamicReticleTemplateIds->begin(),
+                           page.editor.dynamicReticleTemplateIds->end(),
+                           [templateId](const std::string& candidate)
+                           {
+                               return mfd::PageNamesEqual(candidate, templateId);
+                           });
+    };
+    const auto assignAllTemplates = [&page, &templateIds]()
+    {
+        page.editor.dynamicReticleTemplateIds = templateIds;
+    };
+    const auto removeTemplate = [&page](const std::string_view templateId)
+    {
+        if (!page.editor.dynamicReticleTemplateIds.has_value())
+        {
+            return;
+        }
+
+        std::vector<std::string>& selectedTemplateIds = *page.editor.dynamicReticleTemplateIds;
+        selectedTemplateIds.erase(
+            std::remove_if(selectedTemplateIds.begin(),
+                           selectedTemplateIds.end(),
+                           [templateId](const std::string& candidate)
+                           {
+                               return mfd::PageNamesEqual(candidate, templateId);
+                           }),
+            selectedTemplateIds.end());
+
+        if (selectedTemplateIds.empty())
+        {
+            page.editor.dynamicReticleTemplateIds.reset();
+        }
+    };
+
+    ImGui::TextDisabled("Selected templates: %d / %d",
+                        page.editor.dynamicReticleTemplateIds.has_value()
+                            ? static_cast<int>(page.editor.dynamicReticleTemplateIds->size())
+                            : 0,
+                        static_cast<int>(templateIds.size()));
+    ImGui::TextDisabled("Only checked templates generate page-scoped dynamic accessors. If nothing is selected, no dynamic set is generated.");
+
+    if (templateIds.empty())
+    {
+        ImGui::TextDisabled("No library reticle is available yet. Create one first.");
+        return;
+    }
+
+    if (ImGui::Button("Select all"))
+    {
+        PushUndoSnapshot();
+        assignAllTemplates();
+        if (std::find(templateIds.begin(), templateIds.end(), std::string {kTutorialDynamicTemplateId}) != templateIds.end() &&
+            tutorial_->MatchesTarget(kTutorialDynamicTemplateTargetId.data()))
+        {
+            tutorial_->CompleteStep();
+        }
+    }
+    ShowItemTooltip("Authorize every library template for generated dynamic access on this page.");
+
+    ImGui::SameLine();
+    if (ImGui::Button("Clear all"))
+    {
+        PushUndoSnapshot();
+        page.editor.dynamicReticleTemplateIds.reset();
+    }
+    ShowItemTooltip("Generate no dynamic-set accessor for this page until you re-enable one or more templates.");
+
+    for (const std::string& templateId : templateIds)
+    {
+        bool selected = isSelected(templateId);
+        const bool wasSelected = selected;
+        if (ImGui::Checkbox(templateId.c_str(), &selected))
+        {
+            PushUndoSnapshot();
+            if (selected)
+            {
+                if (!page.editor.dynamicReticleTemplateIds.has_value())
+                {
+                    page.editor.dynamicReticleTemplateIds = std::vector<std::string> {};
+                }
+
+                page.editor.dynamicReticleTemplateIds->push_back(templateId);
+            }
+            else
+            {
+                removeTemplate(templateId);
+            }
+
+            if (!wasSelected &&
+                selected &&
+                templateId == kTutorialDynamicTemplateId &&
+                tutorial_->MatchesTarget(kTutorialDynamicTemplateTargetId.data()))
+            {
+                tutorial_->CompleteStep();
+            }
+        }
+
+        if (templateId == kTutorialDynamicTemplateId)
+        {
+            tutorial_->DrawHalo(
+                kTutorialDynamicTemplateTargetId.data(),
+                "Enable mfd_tutorial_radar_track",
+                "Allow the tutorial radar-track template on Page1 so the generated client can create runtime dynamic tracks.");
+        }
+    }
 }
 
 void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)

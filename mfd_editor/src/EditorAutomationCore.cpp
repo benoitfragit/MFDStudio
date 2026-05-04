@@ -1019,6 +1019,23 @@ private:
                         pageReticle.sourceTemplateId = replacement.id;
                     }
                 }
+
+                if (page.strobe.has_value() &&
+                    mfd::NormalizePageName(page.strobe->reticle.sourceTemplateId) == mfd::NormalizePageName(oldKey))
+                {
+                    page.strobe->reticle.sourceTemplateId = replacement.id;
+                }
+
+                if (page.editor.dynamicReticleTemplateIds.has_value())
+                {
+                    for (std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+                    {
+                        if (mfd::NormalizePageName(templateId) == mfd::NormalizePageName(oldKey))
+                        {
+                            templateId = replacement.id;
+                        }
+                    }
+                }
             }
         }
         else
@@ -1056,6 +1073,26 @@ private:
                     return FailureStatus(AutomationErrorCode::Conflict,
                                          "Cannot delete one reticle asset while page reticles still reference it.");
                 }
+            }
+
+            if (page.strobe.has_value() &&
+                mfd::NormalizePageName(page.strobe->reticle.sourceTemplateId) == mfd::NormalizePageName(existing->id))
+            {
+                return FailureStatus(AutomationErrorCode::Conflict,
+                                     "Cannot delete one reticle asset while one page strobe still references it.");
+            }
+
+            if (page.editor.dynamicReticleTemplateIds.has_value() &&
+                std::any_of(page.editor.dynamicReticleTemplateIds->begin(),
+                            page.editor.dynamicReticleTemplateIds->end(),
+                            [&existing](const std::string& templateId)
+                            {
+                                return mfd::NormalizePageName(templateId) == mfd::NormalizePageName(existing->id);
+                            }))
+            {
+                return FailureStatus(
+                    AutomationErrorCode::Conflict,
+                    "Cannot delete one reticle asset while one page still exposes it as a generated dynamic template.");
             }
         }
 

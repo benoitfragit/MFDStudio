@@ -667,6 +667,42 @@ ValidationReport ValidateAutomationState(const mfd::LoadedWindowConfiguration& l
                 "The page default blink type must resolve inside the page blink catalog."});
         }
 
+        if (page.editor.dynamicReticleTemplateIds.has_value())
+        {
+            std::unordered_set<std::string> dynamicTemplateIds;
+            for (const std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+            {
+                if (templateId.empty())
+                {
+                    report.valid = false;
+                    report.diagnostics.push_back(ValidationDiagnostic {
+                        AutomationErrorCode::ValidationFailed,
+                        pageId.value,
+                        "Page dynamic reticle template ids cannot be empty."});
+                    continue;
+                }
+
+                const std::string normalizedTemplateId = NormalizeIdentifier(templateId);
+                if (!dynamicTemplateIds.insert(normalizedTemplateId).second)
+                {
+                    report.valid = false;
+                    report.diagnostics.push_back(ValidationDiagnostic {
+                        AutomationErrorCode::ValidationFailed,
+                        pageId.value,
+                        "Page dynamic reticle template ids must stay unique inside one page."});
+                }
+
+                if (loaded.document.reticleLibrary.find(templateId) == loaded.document.reticleLibrary.end())
+                {
+                    report.valid = false;
+                    report.diagnostics.push_back(ValidationDiagnostic {
+                        AutomationErrorCode::ValidationFailed,
+                        pageId.value,
+                        "Page dynamic reticle template ids must resolve inside the loaded reticle library."});
+                }
+            }
+        }
+
         std::unordered_set<std::string> reticleIds;
         for (const mfd::ReticleGroup& reticle : page.staticReticles)
         {

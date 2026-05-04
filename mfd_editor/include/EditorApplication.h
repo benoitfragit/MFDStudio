@@ -371,6 +371,8 @@ private:
     void DrawPageStrobeInspector(mfd::PageDefinition& page);
     /** @brief Draws the editor-only layer manager for the active page. */
     void DrawPageLayerInspector(mfd::PageDefinition& page);
+    /** @brief Draws the editor-only generated dynamic-template selection for the active page. */
+    void DrawPageDynamicTemplateInspector(mfd::PageDefinition& page);
     /** @brief Draws the inspector for one page reticle instance. */
     void DrawPageReticleInspector();
     /** @brief Draws the page-local blink-type editor. */

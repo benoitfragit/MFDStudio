@@ -16,12 +16,11 @@ You will learn how to:
 - rename one shared reticle template safely across pages
 - highlight the pages using one selected shared reticle template
 - focus one page layer without changing authored JSON
-- extract one reusable reticle from selected page content
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
 - understand how the generated C++17 client API mirrors the authored window
-- keep `client_tutorial` opt-in instead of building it by default
+- let the integrated tutorial register `client_tutorial` automatically instead of building it by default from a fresh clone
 - continue with the right generated-API and documentation path once the editor tour is done
 
 ## Guided Tour Overview
@@ -34,10 +33,10 @@ The integrated editor tutorial is available from:
 That guided flow is intentionally split into five phases:
 
 1. **Author in editor**: create the tutorial window, pages, shared reticles, strobe, layer, and exposed primitive.
-2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / extraction / export workflows without mutating the tutorial assets.
+2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / export workflows without mutating the tutorial assets.
 3. **Read generated artifacts**: inspect the saved page JSON, generated `TutorialUi.h`, and companion `.generated.map`.
 4. **Drive the runtime**: review how `client_tutorial` uses typed page, reticle, primitive, dynamic-set, and feedback handles.
-5. **Opt in and continue**: keep the tutorial client opt-in and leave with the right doc path.
+5. **Register and continue**: review the build gate, let the tutorial register `client_tutorial`, and leave with the right doc path.
 
 The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step.
 
@@ -66,14 +65,13 @@ Use the **Browse ... folder** buttons when creating new assets. The editor still
 
 The editor no longer treats `_Exec` as one blocked special case during authoring or reference scans. You can still open or scan staged runtime copies when needed, but the source `assets/` tree remains the recommended location for long-term editing and generated-client workflows.
 
-This also matters for the integrated tutorial: `client_tutorial` is
-intentionally kept out of the default examples build. Once the authored
-tutorial window, page, and reticle JSON files exist under the repository
-`assets/` tree, add `add_subdirectory(client_tutorial)` to
-`examples/CMakeLists.txt`, re-run CMake configuration, and then build the new
-target. `Scripts/Start-MfdTutorial.bat` becomes usable from the repository,
-and the staged `Start-MfdTutorial.bat` is copied next to `mfd_window` at the
-same point.
+This also matters for the integrated tutorial: `client_tutorial` stays out of
+the default examples build until the walkthrough completes. At completion, the
+tutorial adds `add_subdirectory(client_tutorial)` to
+`examples/CMakeLists.txt` automatically. Re-run CMake configuration, then
+build the new target. `Scripts/Start-MfdTutorial.bat` becomes usable from the
+repository, and the staged `Start-MfdTutorial.bat` is copied next to
+`mfd_window` at the same point.
 
 That source-tree discipline also feeds the editor asset reference index used by upcoming safe import, rename, highlight, and diagnostics workflows. Keeping authored windows, pages, reticles, fonts, and images under the real repository asset tree is what lets those tools resolve dependencies reliably.
 
@@ -342,36 +340,7 @@ In focus mode:
 This workflow reuses the existing editor-only layer metadata. It does not add
 or document any new runtime JSON layer schema.
 
-## Step 16 - Extract a reusable reticle
-
-When several page reticles now form one reusable symbol:
-
-1. select one contiguous page-reticle block on the active page
-2. open **Extract as reticle...** from the inspector or from the page-preview
-   right-click menu
-3. review the target template id, optional file path, and flattened primitive
-   count
-4. confirm **Extract reticle**
-
-The editor then:
-
-- creates one new shared reticle template in memory
-- converts the extracted primitive transforms into the new local template space
-- replaces the selected page reticles with one instance of that template
-- keeps the visual result as close as possible to the original page layout
-
-Current MVP limits are intentionally conservative:
-
-- the selection must be one contiguous page-reticle block
-- all selected reticles must stay on the same editor layer
-- all selected reticles must share the same draw-order mode
-- clipped reticles, blink-bound reticles, and external image files outside the
-  current `assets` root are rejected up front
-
-Like page import, the new template JSON is staged first and written later with
-**File > Save**. The action is undoable in one step.
-
-## Step 17 - Export design documentation
+## Step 16 - Export design documentation
 
 When you need one designer-facing package for the currently loaded window:
 
@@ -395,7 +364,7 @@ The Markdown output keeps relative links between pages and images so the export
 can be opened directly in GitHub, VS Code preview, or any other Markdown
 viewer.
 
-## Step 18 - Use the integrated tutorial as the project overview
+## Step 17 - Use the integrated tutorial as the project overview
 
 Once the base editor workflow feels clear, launch **Help > Tutorial** and let
 the guided coach walk you through the repository-specific tutorial asset set.
@@ -416,16 +385,16 @@ By the end of the integrated flow, the user should understand the full chain:
 - runtime client loop
 - documentation path for deeper study
 
-## Step 19 - Keep the tutorial client opt-in, then continue with the generated API docs
+## Step 18 - Register the tutorial client, then continue with the generated API docs
 
 `client_tutorial` is still intentionally excluded from the default examples
-build.
+build until the integrated walkthrough finishes.
 
 That remains the expected behavior:
 
-- `examples/CMakeLists.txt` does not register `client_tutorial` by default
+- the repository version of `examples/CMakeLists.txt` does not register `client_tutorial` by default
 - `examples/client_tutorial/CMakeLists.txt` still self-skips when the tutorial asset set is incomplete
-- the tutorial only becomes buildable after the authored asset files exist and you explicitly opt in
+- when the tutorial completes, it writes `add_subdirectory(client_tutorial)` automatically so the target becomes buildable after the next CMake reconfigure
 
 After the integrated tour, the recommended follow-up order is:
 
@@ -443,13 +412,12 @@ The editor keeps one undo snapshot per page-modifying action:
 - one delete action
 - one completed drag gesture, including grouped reticle moves
 - one clipping change
-- one reticle extraction action
 
 `Copy` alone does not create an undo step because it only updates the internal clipboard and does not modify the authored page.
 
 ## Result
 
-You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, safe shared-page and shared-reticle rename handling, reusable-reticle extraction, design-document export, default page selection, and UDP runtime transport configuration.
+You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.
 
 With the integrated guided tour on top of that workflow, the editor now also
 serves as a clean project overview: authored assets, editor workflows,
