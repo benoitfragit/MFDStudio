@@ -25,6 +25,7 @@ Renaming one reticle template safely is not just one local text edit:
 - the template JSON `id` must be rewritten
 - every page under the scanned asset root must be inspected
 - static reticle references and page strobe references must be rewritten
+- page dynamic reticle bindings must be rewritten too
 - optional template-file renames must update relative image paths
 - page-level collisions must be rejected before any disk mutation happens
 - the workflow must not special-case `_Exec`
@@ -91,6 +92,7 @@ It:
 - rewrites the template JSON `id`
 - rewrites every impacted page `staticReticles[*].template`
 - rewrites every impacted page `strobe.template`
+- rewrites every impacted page `dynamicReticleBindings[*].templateId`
 - optionally writes the template JSON to a new file name and deletes the old
   source file
 - serializes current in-memory pages and the current in-memory template so
@@ -135,7 +137,8 @@ rebuilding or shipping the authored asset set that exposes this template.
 - current pages must already map to tracked JSON files under the
   protected scanned asset root
 - the workflow updates page template references only; there is no separate
-  authored dynamic-template asset in the current editor model
+  authored dynamic-template asset in the current editor model, so dynamic page
+  bindings are rewritten as part of the normal page-reference update
 - because several source files may be rewritten at once, this workflow should
   be considered a source-control level operation; use Git if you need a global
   rollback

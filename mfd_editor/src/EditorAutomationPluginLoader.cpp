@@ -1448,11 +1448,11 @@ MfdEditorAutomationResultCode HostGetPageReticleInfo(void* hostContext,
 
     const editor::automation::PageReticleInstanceSnapshot& reticle = page.reticles[reticleIndex];
     std::string layerId;
-    if (!reticle.reticle.editor.layerId.empty())
+    if (!reticle.reticle.layerId.empty())
     {
         for (const editor::automation::LayerSnapshot& layer : page.layers)
         {
-            if (layer.layer.id == reticle.reticle.editor.layerId)
+            if (layer.layer.id == reticle.reticle.layerId)
             {
                 layerId = layer.id.value;
                 break;
@@ -1526,7 +1526,7 @@ MfdEditorAutomationResultCode HostGetLayerInfo(void* hostContext,
 
     for (const editor::automation::PageReticleInstanceSnapshot& reticle : page.reticles)
     {
-        if (reticle.reticle.editor.layerId == layer.layer.id)
+        if (reticle.reticle.layerId == layer.layer.id)
         {
             ++outLayer->assigned_reticle_count;
         }

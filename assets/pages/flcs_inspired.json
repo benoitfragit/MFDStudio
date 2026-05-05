@@ -1,35 +1,278 @@
 {
-  "name": "FLCS_INSPIRED",
-  "title": "FLCS Inspired",
-  "bg": "#081208FF",
-  "staticReticles": [
-    { "id": "osb", "template": "inspired_osb_ring", "stroke": "hud" },
-    { "id": "airframe", "template": "aircraft_symbol", "at": [0.0, -0.06], "scale": 0.78, "stroke": "ghost" },
-    { "id": "surfaces", "stroke": "hud", "elements": [
-      { "id": "left_track", "type": "rect", "at": [-0.48, 0.02], "width": 0.06, "height": 0.54 },
-      { "id": "right_track", "type": "rect", "at": [0.48, 0.02], "width": 0.06, "height": 0.54 },
-      { "id": "left_fill", "type": "rect", "at": [-0.48, 0.12], "width": 0.04, "height": 0.24, "fill": "#33FF88AA" },
-      { "id": "right_fill", "type": "rect", "at": [0.48, -0.08], "width": 0.04, "height": 0.34, "fill": "#33FF88AA" },
-      { "id": "rudder_track", "type": "rect", "at": [0.00, -0.54], "width": 0.52, "height": 0.06 },
-      { "id": "rudder_fill", "type": "rect", "at": [0.08, -0.54], "width": 0.12, "height": 0.04, "fill": "#33FF88AA" },
-      { "id": "pitch_scale", "type": "line", "start": [-0.24, 0.38], "end": [0.24, 0.38] },
-      { "id": "pitch_marker", "type": "line", "start": [-0.04, 0.38], "end": [0.08, 0.38] },
-      { "id": "roll_scale", "type": "line", "start": [-0.24, -0.40], "end": [0.24, -0.40] },
-      { "id": "roll_marker", "type": "line", "start": [-0.10, -0.40], "end": [0.02, -0.40] },
-      { "id": "lef_left", "type": "line", "start": [-0.22, 0.02], "end": [-0.34, 0.18] },
-      { "id": "lef_right", "type": "line", "start": [0.22, 0.02], "end": [0.34, 0.18] }
-    ]},
-    { "id": "status", "stroke": "ghost", "elements": [
-      { "id": "title", "type": "text", "text": "FLCS / SURF", "at": [-0.56, 0.80], "size": 0.040 },
-      { "id": "mode", "type": "text", "text": "NORM", "at": [0.56, 0.80], "size": 0.040 },
-      { "id": "g_lbl", "type": "text", "text": "G 4.2", "at": [-0.46, 0.54], "size": 0.034 },
-      { "id": "aoa_lbl", "type": "text", "text": "AOA 12", "at": [0.46, 0.54], "size": 0.034 },
-      { "id": "pitch_lbl", "type": "text", "text": "PITCH 2.1", "at": [0.00, 0.48], "size": 0.030 },
-      { "id": "lef_lbl", "type": "text", "text": "LEF AUTO", "at": [-0.48, -0.62], "size": 0.032 },
-      { "id": "hyd_lbl", "type": "text", "text": "HYD A/B", "at": [0.46, -0.62], "size": 0.032 },
-      { "id": "trim_lbl", "type": "text", "text": "TRIM 0.4", "at": [0.00, 0.56], "size": 0.034 },
-      { "id": "rudder_lbl", "type": "text", "text": "RUD 0.8", "at": [0.00, -0.66], "size": 0.030 },
-      { "id": "footer", "type": "text", "text": "FCS CH 1 2 3 4", "at": [0.00, -0.80], "size": 0.032 }
-    ]}
-  ]
+    "name":  "FLCS_INSPIRED",
+    "title":  "FLCS Inspired",
+    "bg":  "#081208FF",
+    "staticReticles":  [
+                           {
+                               "id":  "osb",
+                               "template":  "inspired_osb_ring",
+                               "stroke":  "hud",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "airframe",
+                               "template":  "aircraft_symbol",
+                               "at":  [
+                                          0.0,
+                                          -0.06
+                                      ],
+                               "scale":  0.78,
+                               "stroke":  "ghost",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "surfaces",
+                               "stroke":  "hud",
+                               "elements":  [
+                                                {
+                                                    "id":  "left_track",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.02
+                                                           ],
+                                                    "width":  0.06,
+                                                    "height":  0.54
+                                                },
+                                                {
+                                                    "id":  "right_track",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               0.48,
+                                                               0.02
+                                                           ],
+                                                    "width":  0.06,
+                                                    "height":  0.54
+                                                },
+                                                {
+                                                    "id":  "left_fill",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.12
+                                                           ],
+                                                    "width":  0.04,
+                                                    "height":  0.24,
+                                                    "fill":  "#33FF88AA"
+                                                },
+                                                {
+                                                    "id":  "right_fill",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               0.48,
+                                                               -0.08
+                                                           ],
+                                                    "width":  0.04,
+                                                    "height":  0.34,
+                                                    "fill":  "#33FF88AA"
+                                                },
+                                                {
+                                                    "id":  "rudder_track",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.54
+                                                           ],
+                                                    "width":  0.52,
+                                                    "height":  0.06
+                                                },
+                                                {
+                                                    "id":  "rudder_fill",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               0.08,
+                                                               -0.54
+                                                           ],
+                                                    "width":  0.12,
+                                                    "height":  0.04,
+                                                    "fill":  "#33FF88AA"
+                                                },
+                                                {
+                                                    "id":  "pitch_scale",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.24,
+                                                                  0.38
+                                                              ],
+                                                    "end":  [
+                                                                0.24,
+                                                                0.38
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "pitch_marker",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.04,
+                                                                  0.38
+                                                              ],
+                                                    "end":  [
+                                                                0.08,
+                                                                0.38
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "roll_scale",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.24,
+                                                                  -0.40
+                                                              ],
+                                                    "end":  [
+                                                                0.24,
+                                                                -0.40
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "roll_marker",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.10,
+                                                                  -0.40
+                                                              ],
+                                                    "end":  [
+                                                                0.02,
+                                                                -0.40
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "lef_left",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.22,
+                                                                  0.02
+                                                              ],
+                                                    "end":  [
+                                                                -0.34,
+                                                                0.18
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "lef_right",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.22,
+                                                                  0.02
+                                                              ],
+                                                    "end":  [
+                                                                0.34,
+                                                                0.18
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "status",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "title",
+                                                    "type":  "text",
+                                                    "text":  "FLCS / SURF",
+                                                    "at":  [
+                                                               -0.56,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.040
+                                                },
+                                                {
+                                                    "id":  "mode",
+                                                    "type":  "text",
+                                                    "text":  "NORM",
+                                                    "at":  [
+                                                               0.56,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.040
+                                                },
+                                                {
+                                                    "id":  "g_lbl",
+                                                    "type":  "text",
+                                                    "text":  "G 4.2",
+                                                    "at":  [
+                                                               -0.46,
+                                                               0.54
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "aoa_lbl",
+                                                    "type":  "text",
+                                                    "text":  "AOA 12",
+                                                    "at":  [
+                                                               0.46,
+                                                               0.54
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "pitch_lbl",
+                                                    "type":  "text",
+                                                    "text":  "PITCH 2.1",
+                                                    "at":  [
+                                                               0.00,
+                                                               0.48
+                                                           ],
+                                                    "size":  0.030
+                                                },
+                                                {
+                                                    "id":  "lef_lbl",
+                                                    "type":  "text",
+                                                    "text":  "LEF AUTO",
+                                                    "at":  [
+                                                               -0.48,
+                                                               -0.62
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "hyd_lbl",
+                                                    "type":  "text",
+                                                    "text":  "HYD A/B",
+                                                    "at":  [
+                                                               0.46,
+                                                               -0.62
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "trim_lbl",
+                                                    "type":  "text",
+                                                    "text":  "TRIM 0.4",
+                                                    "at":  [
+                                                               0.00,
+                                                               0.56
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "rudder_lbl",
+                                                    "type":  "text",
+                                                    "text":  "RUD 0.8",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.030
+                                                },
+                                                {
+                                                    "id":  "footer",
+                                                    "type":  "text",
+                                                    "text":  "FCS CH 1 2 3 4",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.032
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           }
+                       ],
+    "layers":  [
+                   {
+                       "id":  "default"
+                   }
+               ]
 }

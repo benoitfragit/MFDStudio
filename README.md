@@ -67,6 +67,11 @@ starting from handwritten JSON.
 
 ![Editor screenshot](./docs/images/mfd_editor_capture.png)
 
+In the page inspector, runtime page layers, dynamic reticle bindings, and the
+optional strobe stay separated explicitly: choose a template, assign one page
+layer, add it to the page dynamic list, then adjust or remove that binding from
+the same place.
+
 ## Read The Right Documentation
 
 ![Documentation paths](./docs/images/mfd_doc_paths.svg)

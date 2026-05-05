@@ -19,7 +19,7 @@ mfd::ReticleGroup MakeLayeredReticle(const std::string& id, const std::string& l
 {
     mfd::ReticleGroup reticle;
     reticle.id = id;
-    reticle.editor.layerId = layerId;
+    reticle.layerId = layerId;
     return reticle;
 }
 
@@ -27,6 +27,10 @@ mfd::PageDefinition MakeLayeredPage()
 {
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers = {
+        mfd::PageLayerDefinition {"base"},
+        mfd::PageLayerDefinition {"overlay"},
+        mfd::PageLayerDefinition {"hidden"}};
     page.editor.layers = {
         mfd::EditorLayerDefinition {"base", true},
         mfd::EditorLayerDefinition {"overlay", true},

@@ -22,6 +22,24 @@ namespace
 {
 namespace pb = ::mfd::transport;
 
+bool ContainsControlCharacters(const std::string_view value) noexcept
+{
+    for (const unsigned char character : value)
+    {
+        if (character < 0x20U || character == 0x7FU)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool IsValidFeedbackIdentifier(const std::string_view value) noexcept
+{
+    return !value.empty() && !ContainsControlCharacters(value);
+}
+
 void FillProtoVec2(const Vec2& value, pb::Vec2* target)
 {
     target->set_x(value.x);
@@ -205,6 +223,11 @@ std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view
         if (envelope.payload_case() == pb::FeedbackEnvelope::kStrobeStatus)
         {
             const pb::StrobeStatusFeedback& message = envelope.strobe_status();
+            if (!IsValidFeedbackIdentifier(message.page()) ||
+                !IsValidFeedbackIdentifier(message.strobe_id()))
+            {
+                throw std::runtime_error("Unsupported feedback payload");
+            }
 
             StrobeStatusFeedback feedback;
             feedback.sequence = message.sequence();
@@ -239,6 +262,11 @@ std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view
         if (envelope.payload_case() == pb::FeedbackEnvelope::kActivePage)
         {
             const pb::ActivePageFeedback& message = envelope.active_page();
+            if (!IsValidFeedbackIdentifier(message.page()))
+            {
+                throw std::runtime_error("Unsupported feedback payload");
+            }
+
             ActivePageFeedback feedback;
             feedback.sequence = message.sequence();
             feedback.pageName = message.page();

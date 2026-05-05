@@ -27,10 +27,14 @@
 
 namespace
 {
+constexpr std::string_view kDefaultLayerId = mfd::kDefaultPageLayerId;
+constexpr std::string_view kDefaultDynamicTemplateId = "dynamic_default";
+
 mfd::ReticleGroup MakeReticle(const std::string_view id)
 {
     mfd::ReticleGroup reticle;
     reticle.id = std::string(id);
+    reticle.layerId = std::string(kDefaultLayerId);
 
     mfd::Primitive primitive;
     primitive.id = "shape";
@@ -44,6 +48,7 @@ mfd::ReticleGroup MakeTextReticle(const std::string_view id)
 {
     mfd::ReticleGroup reticle;
     reticle.id = std::string(id);
+    reticle.layerId = std::string(kDefaultLayerId);
 
     mfd::Primitive title;
     title.id = "title";
@@ -70,6 +75,7 @@ mfd::ReticleGroup MakeGeometryPatchReticle(const std::string_view id)
 {
     mfd::ReticleGroup reticle;
     reticle.id = std::string(id);
+    reticle.layerId = std::string(kDefaultLayerId);
 
     mfd::Primitive ring;
     ring.id = "ring";
@@ -104,12 +110,21 @@ mfd::ReticleGroup MakeGeometryPatchReticle(const std::string_view id)
     return reticle;
 }
 
+mfd::ReticleGroup MakeDynamicTextReticle(const std::string_view id,
+                                         const std::string_view templateId = kDefaultDynamicTemplateId)
+{
+    mfd::ReticleGroup reticle = MakeTextReticle(id);
+    reticle.sourceTemplateId = std::string(templateId);
+    return reticle;
+}
+
 mfd::PageDefinition MakeBlinkPage()
 {
     mfd::PageDefinition page;
     page.name = "Radar";
     page.normalizedName = "radar";
     page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
     page.blinkTypes = {
         {"slow", "slow", 120},
         {"caution", "caution", 120},
@@ -137,6 +152,14 @@ mfd::PageDefinition MakeRuntimePage()
     page.view.center = {0.1f, -0.2f};
     page.view.zoom = 1.25f;
     page.staticReticles.push_back(MakeTextReticle("textual"));
+    page.dynamicReticleBindings.push_back(
+        mfd::DynamicReticleLayerBinding {std::string(kDefaultDynamicTemplateId), std::string(kDefaultLayerId), 0U});
+    page.dynamicReticleBindings.push_back(
+        mfd::DynamicReticleLayerBinding {"track_template", std::string(kDefaultLayerId), 0U});
+    page.dynamicReticleBindings.push_back(
+        mfd::DynamicReticleLayerBinding {"radar_tracks", std::string(kDefaultLayerId), 0U});
+    page.dynamicReticleBindings.push_back(
+        mfd::DynamicReticleLayerBinding {"waypoints", std::string(kDefaultLayerId), 1U});
 
     mfd::PageStrobeDefinition strobe;
     strobe.reticle = MakeReticle("strobe");
@@ -196,6 +219,7 @@ TEST(SceneRegistryTests, ActivatesFirstPageAndIgnoresUnknownPage)
     secondPage.name = "Navigation";
     secondPage.normalizedName = "navigation";
     secondPage.title = "Navigation";
+    secondPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
     secondPage.staticReticles.push_back(MakeReticle("nav_symbol"));
 
     mfd::MfdDocument document;
@@ -217,6 +241,7 @@ TEST(SceneRegistryTests, CollectPageReticleViewsDrawsTopReticlesAfterRegularOnes
     page.name = "Images";
     page.normalizedName = "images";
     page.title = "Images";
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
 
     mfd::ReticleGroup overlay = MakeReticle("overlay");
     overlay.drawOnTop = true;
@@ -236,6 +261,53 @@ TEST(SceneRegistryTests, CollectPageReticleViewsDrawsTopReticlesAfterRegularOnes
     EXPECT_EQ(views[1].group->id, "overlay");
 }
 
+TEST(SceneRegistryTests, CollectPageReticlesUsesCaseInsensitiveLayerLookupAcrossDrawPasses)
+{
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.normalizedName = "radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"Background"});
+    page.layers.push_back(mfd::PageLayerDefinition {"Overlay"});
+    page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_template", "overlay", 0});
+
+    mfd::ReticleGroup overlayTop = MakeReticle("overlay_top");
+    overlayTop.layerId = "OVERLAY";
+    overlayTop.drawOnTop = true;
+
+    mfd::ReticleGroup background = MakeReticle("background");
+    background.layerId = "background";
+
+    mfd::ReticleGroup overlayNormal = MakeReticle("overlay_normal");
+    overlayNormal.layerId = "overlay";
+
+    page.staticReticles.push_back(std::move(overlayTop));
+    page.staticReticles.push_back(std::move(background));
+    page.staticReticles.push_back(std::move(overlayNormal));
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup dynamicNormal = MakeDynamicTextReticle("dynamic_normal", "track_template");
+    dynamicNormal.layerId = "Overlay";
+    registry.UpsertDynamicReticle("Radar", dynamicNormal);
+
+    mfd::ReticleGroup dynamicTop = MakeDynamicTextReticle("dynamic_top", "track_template");
+    dynamicTop.layerId = "overlay";
+    dynamicTop.drawOnTop = true;
+    registry.UpsertDynamicReticle("Radar", dynamicTop);
+
+    const auto ordered = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(ordered.size(), 5U);
+    EXPECT_EQ(ordered[0]->id, "background");
+    EXPECT_EQ(ordered[1]->id, "overlay_normal");
+    EXPECT_EQ(ordered[2]->id, "dynamic_normal");
+    EXPECT_EQ(ordered[3]->id, "overlay_top");
+    EXPECT_EQ(ordered[4]->id, "dynamic_top");
+}
+
 TEST(SceneRegistryTests, ActivatesMarkedDefaultPageWhenPresent)
 {
     mfd::PageDefinition firstPage = MakeBlinkPage();
@@ -244,6 +316,7 @@ TEST(SceneRegistryTests, ActivatesMarkedDefaultPageWhenPresent)
     secondPage.normalizedName = "navigation";
     secondPage.title = "Navigation";
     secondPage.defaultPage = true;
+    secondPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
     secondPage.staticReticles.push_back(MakeReticle("nav_symbol"));
 
     mfd::MfdDocument document;
@@ -331,7 +404,7 @@ TEST(SceneRegistryTests, ReticleViewsMatchCopyPathOrderPointersAndResolvedVisibi
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup dynamicReticle = MakeTextReticle("track_alpha");
+    mfd::ReticleGroup dynamicReticle = MakeDynamicTextReticle("track_alpha");
     dynamicReticle.transform.position = {0.15f, -0.10f};
     registry.UpsertDynamicReticle("Radar", std::move(dynamicReticle));
 
@@ -358,11 +431,11 @@ TEST(SceneRegistryTests, UpsertingExistingDynamicReticleKeepsSingleOrderedEntry)
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup firstVersion = MakeTextReticle("track_alpha");
+    mfd::ReticleGroup firstVersion = MakeDynamicTextReticle("track_alpha");
     firstVersion.transform.position = {0.1f, 0.2f};
     registry.UpsertDynamicReticle("Radar", firstVersion);
 
-    mfd::ReticleGroup secondVersion = MakeTextReticle("track_alpha");
+    mfd::ReticleGroup secondVersion = MakeDynamicTextReticle("track_alpha");
     secondVersion.transform.position = {-0.3f, 0.4f};
     registry.UpsertDynamicReticle("Radar", secondVersion);
 
@@ -705,14 +778,14 @@ TEST(SceneRegistryTests, DynamicReticlesSupportLifecyclePatchingAndOrdering)
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup dynamicOne = MakeTextReticle("track_alpha");
+    mfd::ReticleGroup dynamicOne = MakeDynamicTextReticle("track_alpha");
     dynamicOne.sourceTemplateId = "track_template";
     dynamicOne.info.label = "Track Alpha";
     dynamicOne.info.category = "track";
     dynamicOne.info.metadata["threat"] = "high";
     dynamicOne.transform.position = {0.1f, 0.2f};
 
-    mfd::ReticleGroup dynamicTwo = MakeTextReticle("track_bravo");
+    mfd::ReticleGroup dynamicTwo = MakeDynamicTextReticle("track_bravo");
     dynamicTwo.transform.position = {-0.2f, 0.1f};
 
     registry.UpsertDynamicReticle("Radar", dynamicOne);
@@ -755,10 +828,13 @@ TEST(SceneRegistryTests, DynamicReticlesSupportLifecyclePatchingAndOrdering)
     registry.ClearDynamicReticles("Radar");
     EXPECT_FALSE(registry.HasDynamicReticle("Radar", "track_bravo"));
 
-    registry.UpsertDynamicReticle("Radar", MakeTextReticle("track_charlie"));
+    registry.UpsertDynamicReticle("Radar", MakeDynamicTextReticle("track_charlie"));
     mfd::PageDefinition secondaryPage;
     secondaryPage.name = "Nav";
     secondaryPage.normalizedName = "nav";
+    secondaryPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+    secondaryPage.dynamicReticleBindings.push_back(
+        mfd::DynamicReticleLayerBinding {std::string(kDefaultDynamicTemplateId), std::string(kDefaultLayerId), 0U});
     secondaryPage.staticReticles.push_back(MakeReticle("nav_symbol"));
 
     mfd::MfdDocument secondDocument;
@@ -766,8 +842,8 @@ TEST(SceneRegistryTests, DynamicReticlesSupportLifecyclePatchingAndOrdering)
     secondDocument.pages.push_back(std::move(secondaryPage));
 
     mfd::SceneRegistry secondRegistry(std::move(secondDocument));
-    secondRegistry.UpsertDynamicReticle("Radar", MakeTextReticle("track_delta"));
-    secondRegistry.UpsertDynamicReticle("Nav", MakeTextReticle("ghost"));
+    secondRegistry.UpsertDynamicReticle("Radar", MakeDynamicTextReticle("track_delta"));
+    secondRegistry.UpsertDynamicReticle("Nav", MakeDynamicTextReticle("ghost"));
     secondRegistry.ClearAllDynamicReticles();
     EXPECT_FALSE(secondRegistry.HasDynamicReticle("Radar", "track_delta"));
     EXPECT_FALSE(secondRegistry.HasDynamicReticle("Nav", "ghost"));
@@ -783,6 +859,9 @@ TEST(SceneRegistryTests, ActiveReticleViewsTrackPerPageDynamicLifecycle)
     navPage.name = "Nav";
     navPage.normalizedName = "nav";
     navPage.title = "Navigation";
+    navPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+    navPage.dynamicReticleBindings.push_back(
+        mfd::DynamicReticleLayerBinding {std::string(kDefaultDynamicTemplateId), std::string(kDefaultLayerId), 0U});
     navPage.staticReticles.push_back(MakeReticle("nav_symbol"));
 
     mfd::MfdDocument document;
@@ -791,8 +870,8 @@ TEST(SceneRegistryTests, ActiveReticleViewsTrackPerPageDynamicLifecycle)
 
     mfd::SceneRegistry registry(std::move(document));
 
-    registry.UpsertDynamicReticle("Radar", MakeTextReticle("track_alpha"));
-    registry.UpsertDynamicReticle("Nav", MakeTextReticle("ghost"));
+    registry.UpsertDynamicReticle("Radar", MakeDynamicTextReticle("track_alpha"));
+    registry.UpsertDynamicReticle("Nav", MakeDynamicTextReticle("ghost"));
 
     const auto radarViews = registry.CollectActiveReticleViews();
     ASSERT_EQ(radarViews.size(), 5U);
@@ -830,17 +909,17 @@ TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamic
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup nearTrack = MakeTextReticle("near_track");
+    mfd::ReticleGroup nearTrack = MakeDynamicTextReticle("near_track", "track_template");
     nearTrack.sourceTemplateId = "track_template";
     nearTrack.info.label = "Near";
     nearTrack.info.category = "friendly";
     nearTrack.info.metadata["callsign"] = "N1";
     nearTrack.transform.position = {0.1f, 0.0f};
 
-    mfd::ReticleGroup farTrack = MakeTextReticle("far_track");
+    mfd::ReticleGroup farTrack = MakeDynamicTextReticle("far_track", "track_template");
     farTrack.transform.position = {0.32f, 0.0f};
 
-    mfd::ReticleGroup hiddenTrack = MakeTextReticle("hidden_track");
+    mfd::ReticleGroup hiddenTrack = MakeDynamicTextReticle("hidden_track", "track_template");
     hiddenTrack.transform.position = {0.08f, 0.0f};
     hiddenTrack.visible = false;
 
@@ -909,7 +988,7 @@ TEST(SceneRegistryTests, StrobeMagnetVisualShapeIsOptionalAndRestoresAuthoredRet
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup track = MakeTextReticle("track_alpha");
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
     track.transform.position = {0.10f, 0.00f};
     registry.UpsertDynamicReticle("Radar", std::move(track));
 
@@ -973,7 +1052,7 @@ TEST(SceneRegistryTests, StrobeMagnetizationIgnoresNonFiniteDynamicPositions)
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup invalidTrack = MakeTextReticle("invalid_track");
+    mfd::ReticleGroup invalidTrack = MakeDynamicTextReticle("invalid_track");
     invalidTrack.transform.position = {std::numeric_limits<float>::quiet_NaN(), 0.0f};
     registry.UpsertDynamicReticle("Radar", std::move(invalidTrack));
 
@@ -994,7 +1073,7 @@ TEST(SceneRegistryTests, StrobeMagnetizationFollowsMovingDynamicReticle)
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup track = MakeTextReticle("track_alpha");
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
     track.sourceTemplateId = "track_template";
     track.transform.position = {0.10f, 0.00f};
     registry.UpsertDynamicReticle("Radar", std::move(track));
@@ -1038,7 +1117,7 @@ TEST(SceneRegistryTests, ManualStrobeMoveBreaksStickyMagnetization)
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup track = MakeTextReticle("track_alpha");
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha");
     track.transform.position = {0.10f, 0.00f};
     registry.UpsertDynamicReticle("Radar", std::move(track));
 
@@ -1077,9 +1156,9 @@ TEST(SceneRegistryTests, DynamicTemplateVisibilityMasksOnlyMatchingDynamicReticl
 
     mfd::SceneRegistry registry(std::move(document));
 
-    mfd::ReticleGroup track = MakeTextReticle("track_alpha");
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "radar_tracks");
     track.sourceTemplateId = "radar_tracks";
-    mfd::ReticleGroup waypoint = MakeTextReticle("wp_alpha");
+    mfd::ReticleGroup waypoint = MakeDynamicTextReticle("wp_alpha", "waypoints");
     waypoint.sourceTemplateId = "waypoints";
 
     registry.UpsertDynamicReticle("Radar", std::move(track));
@@ -1116,6 +1195,9 @@ TEST(SceneRegistryTests, ResetToInitialStateRestoresDefaultPageWindowAndViewsAnd
     navPage.title = "Navigation";
     navPage.view.center = {0.35f, 0.1f};
     navPage.view.zoom = 1.75f;
+    navPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+    navPage.dynamicReticleBindings.push_back(
+        mfd::DynamicReticleLayerBinding {std::string(kDefaultDynamicTemplateId), std::string(kDefaultLayerId), 0U});
     navPage.staticReticles.push_back(MakeReticle("nav_symbol"));
 
     mfd::MfdDocument document;
@@ -1131,8 +1213,8 @@ TEST(SceneRegistryTests, ResetToInitialStateRestoresDefaultPageWindowAndViewsAnd
     EXPECT_TRUE(registry.SetWindowColorInverted(true));
     EXPECT_TRUE(registry.SetWindowBrightness(0.15f));
     EXPECT_TRUE(registry.SetWindowDisabled(true));
-    registry.UpsertDynamicReticle("Radar", MakeTextReticle("track_alpha"));
-    registry.UpsertDynamicReticle("Nav", MakeTextReticle("ghost"));
+    registry.UpsertDynamicReticle("Radar", MakeDynamicTextReticle("track_alpha"));
+    registry.UpsertDynamicReticle("Nav", MakeDynamicTextReticle("ghost"));
     registry.SetActivePage("Nav");
 
     registry.ResetToInitialState();
@@ -1169,7 +1251,7 @@ TEST(SceneRegistryTests, CommandProcessorResetWindowCommandResetsRuntimeState)
 
     EXPECT_TRUE(registry.SetPageViewCenter("Radar", {0.4f, 0.5f}));
     EXPECT_TRUE(registry.SetWindowDisabled(true));
-    registry.UpsertDynamicReticle("Radar", MakeTextReticle("track_alpha"));
+    registry.UpsertDynamicReticle("Radar", MakeDynamicTextReticle("track_alpha"));
     EXPECT_TRUE(registry.SetStrobeActive("Radar", false));
 
     EXPECT_TRUE(processor.Submit(mfd::UserCommand {mfd::ResetWindowCommand {}}));

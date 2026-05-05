@@ -202,6 +202,13 @@ Canonical example:
   "name": "Radar",
   "title": "Radar",
   "backgroundColor": "#08131BFF",
+  "layers": [
+    { "id": "base" },
+    { "id": "overlay" }
+  ],
+  "dynamicReticleBindings": [
+    { "templateId": "radar_track", "layerId": "overlay", "orderInLayer": 0 }
+  ],
   "blinkTypes": [
     { "name": "slow", "durationMs": 1000 },
     { "name": "fast", "durationMs": 320 },
@@ -216,6 +223,7 @@ Canonical example:
     {
       "id": "grid",
       "template": "radar_grid",
+      "layerId": "base",
       "blink": "fast"
     }
   ],
@@ -239,6 +247,8 @@ Canonical example:
 | `id` | string | yes unless `name` is used | Alternative page identifier. | none |
 | `title` | string | no | Human-readable page title. | none |
 | `backgroundColor` | color | no | Page background color. | `background`, `bgColor`, `bg` |
+| `layers` | array | yes | Ordered runtime page layers. Every static reticle and dynamic binding must target one of these ids. | none |
+| `dynamicReticleBindings` | array | no | Dynamic-template bindings to one runtime layer plus one authored order within that layer. | none |
 | `blinkTypes` | array | no | Named blink types owned by this page. | `blinks` |
 | `defaultBlink` | string | no | Default page blink type used when a reticle enables blink without naming a type. | `defaultBlinkType` |
 | `view` | object | no | Page view settings. | none |
@@ -251,9 +261,46 @@ Canonical example:
 Notes:
 
 - the page name must be unique within the window
+- `layers` is the runtime source of truth for draw ordering on the page
+- `dynamicReticleBindings` is the runtime source of truth for generated dynamic reticles on the page
 - blink synchronization is done per page and by effective duration
 - static reticle ids must be unique within the page
 - the strobe id must also be unique within the page
+
+## 4.1 Page Layers
+
+Canonical example:
+
+```json
+"layers": [
+  { "id": "base" },
+  { "id": "overlay" }
+]
+```
+
+Rules:
+
+- the array order is the authored runtime draw order
+- each layer id must be non-empty and unique within the page
+- the editor may keep one visibility state per layer inside `_editor.layers`, but
+  that does not replace the runtime `layers` list
+
+## 4.2 Dynamic Reticle Bindings
+
+Canonical example:
+
+```json
+"dynamicReticleBindings": [
+  { "templateId": "radar_track", "layerId": "overlay", "orderInLayer": 0 }
+]
+```
+
+Rules:
+
+- one page template binding is keyed by `templateId`
+- `layerId` must reference one page layer declared in `layers`
+- `orderInLayer` is authored per layer and must be unique inside that layer
+- runtime dynamic reticles inherit their `layerId` from this binding
 
 ## 5. `view` object
 
@@ -323,6 +370,7 @@ Canonical example:
 {
   "id": "status_clock",
   "template": "status_clock",
+  "layerId": "overlay",
   "position": [0.62, 0.77],
   "stroke": "#EAD29BFF"
 }
@@ -334,6 +382,7 @@ Fields:
 | --- | --- | --- | --- |
 | `id` | string | recommended | Runtime reticle id on the page. Must be unique in the page. |
 | `template` | string | yes for template instance | Reticle template id from the library. |
+| `layerId` | string | yes | Runtime page-layer id declared in the parent page. |
 | `label` | string | no | User-facing label override. |
 | `name` | string | no | Alias source for `label` in info metadata. |
 | `category` | string | no | User-facing category override. |
@@ -388,6 +437,7 @@ Canonical example:
 ```json
 {
   "id": "inline_marker",
+  "layerId": "overlay",
   "elements": [
     {
       "id": "shape",

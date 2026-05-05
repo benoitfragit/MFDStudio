@@ -94,6 +94,7 @@ ReticleGroup InstantiateReticle(const ReticleGroup& templ,
     ReticleGroup result = templ;
     result.id = std::move(instanceId);
     result.sourceTemplateId = templ.sourceTemplateId.empty() ? templ.id : templ.sourceTemplateId;
+    result.layerId.clear();
     result.transform = CombineTransforms(templ.transform, transform);
     result.overrides = MergeOverrides(templ.overrides, overrides);
     return result;

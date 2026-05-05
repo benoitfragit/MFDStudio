@@ -100,6 +100,7 @@ void AddPage(mfd::LoadedWindowConfiguration& loaded,
     page.name = name;
     page.normalizedName = mfd::NormalizePageName(name);
     page.title = name;
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
 
     for (const auto& [reticleId, templateId] : staticReticles)
@@ -107,7 +108,7 @@ void AddPage(mfd::LoadedWindowConfiguration& loaded,
         mfd::ReticleGroup reticle;
         reticle.id = reticleId;
         reticle.sourceTemplateId = templateId;
-        reticle.editor.layerId = "layer";
+        reticle.layerId = "layer";
         page.staticReticles.push_back(std::move(reticle));
     }
 

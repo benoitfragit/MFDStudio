@@ -2,6 +2,18 @@
   "name": "Radar",
   "title": "Radar",
   "bg": "#061306FF",
+  "layers": [
+    {
+      "id": "default"
+    }
+  ],
+  "dynamicReticleBindings": [
+    {
+      "templateId": "radar_track",
+      "layerId": "default",
+      "orderInLayer": 0
+    }
+  ],
   "blinkTypes": [
     {
       "name": "slow",
@@ -17,11 +29,6 @@
     }
   ],
   "defaultBlink": "slow",
-  "_editor": {
-    "dynamicReticleTemplates": [
-      "radar_track"
-    ]
-  },
   "strobe": {
     "id": "radar_strobe",
     "template": "strobe_cursor",
@@ -41,11 +48,13 @@
     {
       "id": "radar_grid_view",
       "template": "radar_grid",
+      "layerId": "default",
       "stroke": "hud"
     },
     {
       "id": "fixed_track_alpha",
       "template": "radar_track",
+      "layerId": "default",
       "blink": "slow",
       "at": [-0.3333, 0.2708],
       "angle": 18,
@@ -55,6 +64,7 @@
     {
       "id": "fixed_track_bravo",
       "template": "radar_track",
+      "layerId": "default",
       "blink": "caution",
       "at": [0.3854, -0.2188],
       "angle": -32,
@@ -63,6 +73,7 @@
     },
     {
       "id": "radar_caption",
+      "layerId": "default",
       "blink": "fast",
       "stroke": "ghost",
       "elements": [

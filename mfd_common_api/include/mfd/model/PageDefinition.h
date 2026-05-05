@@ -99,14 +99,44 @@ struct PageBlinkDefinition
 };
 
 /**
- * @brief Editor-only layer definition attached to one page.
+ * @brief Default runtime page layer id injected for legacy or underspecified content.
+ */
+inline constexpr std::string_view kDefaultPageLayerId = "default";
+
+/**
+ * @brief Runtime layer definition owned by one page.
  *
- * @note Layers are used exclusively by the editor UI to group page reticles and
- * temporarily hide them while authoring. Runtime rendering ignores them.
+ * @note The order of `PageDefinition::layers` is the source of truth for the
+ * main inter-layer render order.
+ */
+struct PageLayerDefinition
+{
+    /** @brief Stable page-local layer identifier referenced by static reticles and dynamic bindings. */
+    std::string id;
+};
+
+/**
+ * @brief Runtime binding associating one dynamic reticle template to one page layer.
+ */
+struct DynamicReticleLayerBinding
+{
+    /** @brief Shared reticle template id authorized on the page. */
+    std::string templateId;
+    /** @brief Runtime page layer id assigned to instances created from the template. */
+    std::string layerId;
+    /** @brief Stable intra-layer ordering key used to sort dynamic templates inside one layer. */
+    int orderInLayer = 0;
+};
+
+/**
+ * @brief Editor-only layer presentation state attached to one runtime page layer.
+ *
+ * @note This state never defines runtime layers by itself. It only stores UI
+ * metadata keyed by one `PageLayerDefinition::id`.
  */
 struct EditorLayerDefinition
 {
-    /** @brief User-facing layer id referenced by page reticles in editor mode. */
+    /** @brief Runtime page layer id targeted by this editor presentation state. */
     std::string id;
     /** @brief Indicates whether the layer is currently visible in the editor. */
     bool visible = true;
@@ -117,16 +147,8 @@ struct EditorLayerDefinition
  */
 struct PageEditorState
 {
-    /** @brief Ordered list of editor layers available on the page. */
+    /** @brief Optional editor-only presentation states keyed by runtime page layer ids. */
     std::vector<EditorLayerDefinition> layers;
-    /**
-     * @brief Optional explicit list of shared reticle templates exposed as generated dynamic sets for this page.
-     *
-     * @note `std::nullopt` means the page does not opt into generated dynamic
-     * sets yet. An empty vector explicitly keeps the generated dynamic API
-     * empty for this page as well.
-     */
-    std::optional<std::vector<std::string>> dynamicReticleTemplateIds;
 };
 
 /**
@@ -152,10 +174,14 @@ struct PageDefinition
     std::string defaultBlinkTypeName;
     /** @brief Normalized default blink type used internally for fast lookup. */
     std::string normalizedDefaultBlinkTypeName;
+    /** @brief Ordered runtime layers used by the renderer to compute the page draw order. */
+    std::vector<PageLayerDefinition> layers;
     /** @brief Editor-only page metadata ignored by the runtime. */
     PageEditorState editor {};
     /** @brief Static reticles drawn whenever the page is active. */
     std::vector<ReticleGroup> staticReticles;
+    /** @brief Runtime bindings authorizing dynamic reticle templates on the page. */
+    std::vector<DynamicReticleLayerBinding> dynamicReticleBindings;
     /** @brief Optional strobe definition for pages that support capture. */
     std::optional<PageStrobeDefinition> strobe;
 };
@@ -216,5 +242,74 @@ inline const PageBlinkDefinition* FindPageBlinkDefinition(const PageDefinition& 
     }
 
     return nullptr;
+}
+
+/**
+ * @brief Finds one runtime layer definition inside a page.
+ * @param page Page to inspect.
+ * @param layerId Layer id in authored or normalized form.
+ * @return Pointer to the matching layer, or `nullptr` if it does not exist.
+ */
+inline const PageLayerDefinition* FindPageLayerDefinition(const PageDefinition& page,
+                                                          const std::string_view layerId)
+{
+    const std::string normalizedLayerId = NormalizePageName(layerId);
+
+    for (const auto& layer : page.layers)
+    {
+        if (NormalizePageName(layer.id) == normalizedLayerId)
+        {
+            return &layer;
+        }
+    }
+
+    return nullptr;
+}
+
+/**
+ * @brief Finds one runtime layer definition inside a mutable page.
+ * @param page Page to inspect.
+ * @param layerId Layer id in authored or normalized form.
+ * @return Pointer to the matching layer, or `nullptr` if it does not exist.
+ */
+inline PageLayerDefinition* FindPageLayerDefinition(PageDefinition& page, const std::string_view layerId)
+{
+    return const_cast<PageLayerDefinition*>(
+        FindPageLayerDefinition(static_cast<const PageDefinition&>(page), layerId));
+}
+
+/**
+ * @brief Finds one dynamic reticle layer binding by template id inside a page.
+ * @param page Page to inspect.
+ * @param templateId Template id in authored or normalized form.
+ * @return Pointer to the matching binding, or `nullptr` if it does not exist.
+ */
+inline const DynamicReticleLayerBinding* FindDynamicReticleLayerBinding(const PageDefinition& page,
+                                                                        const std::string_view templateId)
+{
+    const std::string normalizedTemplateId = NormalizePageName(templateId);
+
+    for (const auto& binding : page.dynamicReticleBindings)
+    {
+        if (NormalizePageName(binding.templateId) == normalizedTemplateId)
+        {
+            return &binding;
+        }
+    }
+
+    return nullptr;
+}
+
+/**
+ * @brief Finds one dynamic reticle layer binding by template id inside a mutable page.
+ * @param page Page to inspect.
+ * @param templateId Template id in authored or normalized form.
+ * @return Pointer to the matching binding, or `nullptr` if it does not exist.
+ */
+inline DynamicReticleLayerBinding* FindDynamicReticleLayerBinding(PageDefinition& page,
+                                                                  const std::string_view templateId)
+{
+    return const_cast<DynamicReticleLayerBinding*>(
+        FindDynamicReticleLayerBinding(static_cast<const PageDefinition&>(page), templateId));
 }
 } // namespace mfd

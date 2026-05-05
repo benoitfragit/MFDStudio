@@ -494,48 +494,50 @@ void ProcessPageDocument(const ParsedAssetFile& asset,
         }
     }
 
-    const json* editorNode = FindField(pageNode, {"_editor"});
-    if (editorNode != nullptr && editorNode->is_object())
+    const json* dynamicBindings = FindField(pageNode, {"dynamicReticleBindings"});
+    if (dynamicBindings != nullptr)
     {
-        const json* dynamicTemplates = FindField(*editorNode, {"dynamicReticleTemplates"});
-        if (dynamicTemplates != nullptr)
+        if (!dynamicBindings->is_array())
         {
-            if (!dynamicTemplates->is_array())
+            AddScanError(index, asset.file, "Page dynamicReticleBindings field must be a JSON array");
+        }
+        else
+        {
+            for (const auto& entry : *dynamicBindings)
             {
-                AddScanError(index, asset.file, "Page editor dynamicReticleTemplates field must be a JSON array");
-            }
-            else
-            {
-                for (const auto& entry : *dynamicTemplates)
+                if (!entry.is_object())
                 {
-                    if (!entry.is_string())
-                    {
-                        AddScanError(index, asset.file, "Page editor dynamic reticle template ids must be strings");
-                        continue;
-                    }
+                    AddScanError(index, asset.file, "Page dynamicReticleBindings entries must be JSON objects");
+                    continue;
+                }
 
-                    const std::string templateId = entry.get<std::string>();
-                    const auto iterator = templateFilesById.find(templateId);
-                    AddReference(index,
-                                 ReticleReferenceKind::PageDynamicTemplate,
-                                 asset.file,
-                                 iterator != templateFilesById.end() ? iterator->second : std::filesystem::path {},
-                                 asset.pageName,
-                                 {},
-                                 templateId);
+                if (!entry.contains("templateId") || !entry.at("templateId").is_string())
+                {
+                    AddScanError(index, asset.file, "Page dynamicReticleBindings.templateId fields must be strings");
+                    continue;
+                }
 
-                    if (iterator == templateFilesById.end())
-                    {
-                        AddMissingAsset(index,
-                                        MissingAssetKind::ReticleTemplate,
-                                        asset.file,
-                                        {},
-                                        asset.pageName,
-                                        {},
-                                        templateId,
-                                        {},
-                                        "Editor dynamic reticle template id was not found under the scanned assets root");
-                    }
+                const std::string templateId = entry.at("templateId").get<std::string>();
+                const auto iterator = templateFilesById.find(templateId);
+                AddReference(index,
+                             ReticleReferenceKind::PageDynamicTemplate,
+                             asset.file,
+                             iterator != templateFilesById.end() ? iterator->second : std::filesystem::path {},
+                             asset.pageName,
+                             {},
+                             templateId);
+
+                if (iterator == templateFilesById.end())
+                {
+                    AddMissingAsset(index,
+                                    MissingAssetKind::ReticleTemplate,
+                                    asset.file,
+                                    {},
+                                    asset.pageName,
+                                    {},
+                                    templateId,
+                                    {},
+                                    "Dynamic reticle binding template id was not found under the scanned assets root");
                 }
             }
         }

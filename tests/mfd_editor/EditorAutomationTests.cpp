@@ -412,6 +412,7 @@ TEST(EditorAutomationTests, PageAssetReplacementDeletionPreviewAndSelectionSuppo
 TEST(EditorAutomationTests, ReticleAssetAndPageReticleLifecycleSupportsFlagsLayerClippingAndDeletion)
 {
     FakeEditorAutomationBridge bridge = MakeSeedEditorAutomationBridge();
+    bridge.loaded_.document.pages.front().layers.push_back(mfd::PageLayerDefinition {"overlay"});
     bridge.loaded_.document.pages.front().editor.layers.push_back(mfd::EditorLayerDefinition {"overlay", true});
     std::unique_ptr<editor::automation::IEditorAutomationFacade> facade =
         editor::automation::CreateEditorAutomationFacade(bridge);
@@ -486,7 +487,7 @@ TEST(EditorAutomationTests, ReticleAssetAndPageReticleLifecycleSupportsFlagsLaye
     EXPECT_TRUE(bridge.loaded_.document.reticleLibrary.at("track_box").drawOnTop);
     EXPECT_FALSE(page.staticReticles.front().visible);
     EXPECT_TRUE(page.staticReticles.front().drawOnTop);
-    EXPECT_EQ(page.staticReticles.front().editor.layerId, "overlay");
+    EXPECT_EQ(page.staticReticles.front().layerId, "overlay");
     EXPECT_EQ(bridge.loaded_.document.reticleLibrary.at("track_box").clipping.mode, mfd::ReticleClipMode::Inner);
     EXPECT_EQ(page.staticReticles.front().clipping.mode, mfd::ReticleClipMode::Outer);
 
@@ -936,7 +937,7 @@ TEST(EditorAutomationTests, WindowLayerAndPrimitiveSelectionActionsSupportAutoma
             session.value,
             editor::automation::SetPageReticleLayerRequest {pageReticleId, overlayLayerId}});
     ASSERT_TRUE(assignLayerStatus.ok()) << assignLayerStatus.error.message;
-    EXPECT_EQ(page.staticReticles.front().editor.layerId, "overlay");
+    EXPECT_EQ(page.staticReticles.front().layerId, "overlay");
 
     const auto replaceLayerStatus = facade->SessionService().ApplyAction(
         editor::automation::ApplyActionRequest {
@@ -947,14 +948,15 @@ TEST(EditorAutomationTests, WindowLayerAndPrimitiveSelectionActionsSupportAutoma
                 mfd::EditorLayerDefinition {"overlay_top", true}}});
     ASSERT_TRUE(replaceLayerStatus.ok()) << replaceLayerStatus.error.message;
     EXPECT_EQ(page.editor.layers.front().id, "overlay_top");
-    EXPECT_EQ(page.staticReticles.front().editor.layerId, "overlay_top");
+    EXPECT_EQ(page.staticReticles.front().layerId, "overlay_top");
 
-    const auto clearLayerStatus = facade->SessionService().ApplyAction(
+    const editor::automation::LayerId baseLayerId = editor::automation::MakeLayerId(page, page.editor.layers.back());
+    const auto reassignLayerStatus = facade->SessionService().ApplyAction(
         editor::automation::ApplyActionRequest {
             session.value,
-            editor::automation::SetPageReticleLayerRequest {pageReticleId, {}}});
-    ASSERT_TRUE(clearLayerStatus.ok()) << clearLayerStatus.error.message;
-    EXPECT_TRUE(page.staticReticles.front().editor.layerId.empty());
+            editor::automation::SetPageReticleLayerRequest {pageReticleId, baseLayerId}});
+    ASSERT_TRUE(reassignLayerStatus.ok()) << reassignLayerStatus.error.message;
+    EXPECT_EQ(page.staticReticles.front().layerId, "layer");
 
     overlayLayerId = editor::automation::MakeLayerId(page, page.editor.layers.front());
     const auto deleteLayerStatus = facade->SessionService().ApplyAction(
@@ -1188,6 +1190,8 @@ TEST(EditorAutomationTests, ValidationAndEventQueueCoverDiagnosticsAndSessionLif
     mfd::PageDefinition page;
     page.name = "Validate";
     page.title = "Validate";
+    page.layers.push_back(mfd::PageLayerDefinition {"dup"});
+    page.layers.push_back(mfd::PageLayerDefinition {"dup"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"dup", true});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"dup", false});
 

@@ -100,6 +100,9 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
                   R"json({
   "name": "Main",
   "title": "Main Page",
+  "layers": [
+    { "id": "default" }
+  ],
   "blinkTypes": [
     { "name": "slow", "durationMs": 1200 },
     { "name": "caution", "durationMs": 1200 },
@@ -107,8 +110,8 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
   ],
   "defaultBlink": "slow",
   "staticReticles": [
-    { "id": "default_marker", "template": "marker", "blink": true },
-    { "id": "caution_marker", "template": "marker", "blink": "caution" }
+    { "id": "default_marker", "template": "marker", "layerId": "default", "blink": true },
+    { "id": "caution_marker", "template": "marker", "layerId": "default", "blink": "caution" }
   ]
 })json");
 
@@ -247,12 +250,15 @@ TEST(JsonLoaderTests, LoadDocumentRejectsUnknownDefaultBlinkType)
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "blinkTypes": [
         { "name": "slow", "durationMs": 1000 }
       ],
       "defaultBlink": "missing",
       "staticReticles": [
-        { "id": "marker_1", "template": "marker" }
+        { "id": "marker_1", "template": "marker", "layerId": "default" }
       ]
     }
   ]
@@ -282,11 +288,14 @@ TEST(JsonLoaderTests, LoadDocumentRejectsUnknownReticleBlinkType)
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "blinkTypes": [
         { "name": "slow", "durationMs": 1000 }
       ],
       "staticReticles": [
-        { "id": "marker_1", "template": "marker", "blink": "fast" }
+        { "id": "marker_1", "template": "marker", "layerId": "default", "blink": "fast" }
       ]
     }
   ]
@@ -351,6 +360,9 @@ TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliases
                   R"json({
   "page": {
     "id": "Main",
+    "layers": [
+      { "id": "default" }
+    ],
     "view": {
       "center": [0.25, -0.5],
       "zoom": 0.0
@@ -363,6 +375,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliases
       {
         "id": "marker_1",
         "template": "filename_marker",
+        "layerId": "default",
         "blink": {
           "enabled": true,
           "blinkType": "slow"
@@ -479,10 +492,14 @@ TEST(JsonLoaderTests, LoadDocumentParsesInlineAndTemplateReticleClipping)
   "pages": [
     {
       "name": "Radar",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
         {
           "id": "template_instance",
           "template": "mask_template",
+          "layerId": "default",
           "clipping": {
             "mode": "inner",
             "primitive": "body"
@@ -490,10 +507,12 @@ TEST(JsonLoaderTests, LoadDocumentParsesInlineAndTemplateReticleClipping)
         },
         {
           "id": "template_inherited",
-          "template": "mask_template"
+          "template": "mask_template",
+          "layerId": "default"
         },
         {
           "id": "inline_instance",
+          "layerId": "default",
           "clipping": {
             "mode": "outer",
             "primitive": "clip"
@@ -549,8 +568,11 @@ TEST(JsonLoaderTests, LoadDocumentParsesExposedPrimitiveFlags)
   "pages": [
     {
       "name": "Page2",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
-        { "id": "progress_bar_01", "template": "progress_bar" }
+        { "id": "progress_bar_01", "template": "progress_bar", "layerId": "default" }
       ]
     }
   ]
@@ -567,7 +589,7 @@ TEST(JsonLoaderTests, LoadDocumentParsesExposedPrimitiveFlags)
     EXPECT_FALSE(templateIt->second.primitives[2].exposed);
 }
 
-TEST(JsonLoaderTests, LoadDocumentParsesPageDynamicTemplateSelections)
+TEST(JsonLoaderTests, LoadDocumentParsesPageDynamicReticleBindings)
 {
     TemporaryFolder workspace;
     const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
@@ -594,14 +616,15 @@ TEST(JsonLoaderTests, LoadDocumentParsesPageDynamicTemplateSelections)
   "pages": [
     {
       "name": "Radar",
-      "_editor": {
-        "dynamicReticleTemplates": [
-          "radar_track",
-          "cursor"
-        ]
-      },
+      "layers": [
+        { "id": "default" }
+      ],
+      "dynamicReticleBindings": [
+        { "templateId": "radar_track", "layerId": "default", "orderInLayer": 0 },
+        { "templateId": "cursor", "layerId": "default", "orderInLayer": 1 }
+      ],
       "staticReticles": [
-        { "id": "track_1", "template": "radar_track" }
+        { "id": "track_1", "template": "radar_track", "layerId": "default" }
       ]
     }
   ]
@@ -611,10 +634,15 @@ TEST(JsonLoaderTests, LoadDocumentParsesPageDynamicTemplateSelections)
     const mfd::MfdDocument loaded = loader.LoadDocument(pagesFile);
 
     ASSERT_EQ(loaded.pages.size(), 1U);
-    ASSERT_TRUE(loaded.pages.front().editor.dynamicReticleTemplateIds.has_value());
-    ASSERT_EQ(loaded.pages.front().editor.dynamicReticleTemplateIds->size(), 2U);
-    EXPECT_EQ(loaded.pages.front().editor.dynamicReticleTemplateIds->at(0), "radar_track");
-    EXPECT_EQ(loaded.pages.front().editor.dynamicReticleTemplateIds->at(1), "cursor");
+    ASSERT_EQ(loaded.pages.front().layers.size(), 1U);
+    EXPECT_EQ(loaded.pages.front().layers.front().id, "default");
+    ASSERT_EQ(loaded.pages.front().dynamicReticleBindings.size(), 2U);
+    EXPECT_EQ(loaded.pages.front().dynamicReticleBindings.at(0).templateId, "radar_track");
+    EXPECT_EQ(loaded.pages.front().dynamicReticleBindings.at(0).layerId, "default");
+    EXPECT_EQ(loaded.pages.front().dynamicReticleBindings.at(0).orderInLayer, 0);
+    EXPECT_EQ(loaded.pages.front().dynamicReticleBindings.at(1).templateId, "cursor");
+    EXPECT_EQ(loaded.pages.front().dynamicReticleBindings.at(1).layerId, "default");
+    EXPECT_EQ(loaded.pages.front().dynamicReticleBindings.at(1).orderInLayer, 1);
 }
 
 TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUnknownDefaultPageName)
@@ -635,16 +663,22 @@ TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUnknownDefaultPageName)
     WriteTextFile(pagesFolder / "main.json",
                   R"json({
   "name": "Main",
+  "layers": [
+    { "id": "default" }
+  ],
   "staticReticles": [
-    { "id": "marker_1", "template": "marker" }
+    { "id": "marker_1", "template": "marker", "layerId": "default" }
   ]
 })json");
 
     WriteTextFile(pagesFolder / "radar.json",
                   R"json({
   "name": "Radar",
+  "layers": [
+    { "id": "default" }
+  ],
   "staticReticles": [
-    { "id": "marker_2", "template": "marker" }
+    { "id": "marker_2", "template": "marker", "layerId": "default" }
   ]
 })json");
 
@@ -680,8 +714,11 @@ TEST(JsonLoaderTests, LoadWindowConfigurationRejectsLegacyPageEntryDefaultFlag)
     WriteTextFile(pagesFolder / "main.json",
                   R"json({
   "name": "Main",
+  "layers": [
+    { "id": "default" }
+  ],
   "staticReticles": [
-    { "id": "marker_1", "template": "marker" }
+    { "id": "marker_1", "template": "marker", "layerId": "default" }
   ]
 })json");
 
@@ -717,12 +754,15 @@ TEST(JsonLoaderTests, LoadDocumentRejectsDuplicateBlinkTypeNamesAfterNormalizati
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "blinkTypes": [
         { "name": "Slow", "durationMs": 1000 },
         { "name": " slow ", "durationMs": 800 }
       ],
       "staticReticles": [
-        { "id": "marker_1", "template": "marker" }
+        { "id": "marker_1", "template": "marker", "layerId": "default" }
       ]
     }
   ]
@@ -752,8 +792,11 @@ TEST(JsonLoaderTests, LoadDocumentRejectsBlinkEnabledWithoutDeclaredPageBlinkTyp
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
-        { "id": "marker_1", "template": "marker", "blink": true }
+        { "id": "marker_1", "template": "marker", "layerId": "default", "blink": true }
       ]
     }
   ]
@@ -783,8 +826,11 @@ TEST(JsonLoaderTests, LoadDocumentRejectsDuplicateReticleIdsIncludingStrobe)
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
-        { "id": "dup", "template": "marker" }
+        { "id": "dup", "template": "marker", "layerId": "default" }
       ],
       "strobe": {
         "id": "dup",
@@ -818,6 +864,9 @@ TEST(JsonLoaderTests, LoadDocumentParsesOptionalStrobeMagnetVisualShape)
   "pages": [
     {
       "name": "DefaultVisual",
+      "layers": [
+        { "id": "default" }
+      ],
       "strobe": {
         "id": "default_strobe",
         "template": "marker",
@@ -830,6 +879,9 @@ TEST(JsonLoaderTests, LoadDocumentParsesOptionalStrobeMagnetVisualShape)
     },
     {
       "name": "SquareVisual",
+      "layers": [
+        { "id": "default" }
+      ],
       "strobe": {
         "id": "visual_strobe",
         "template": "marker",
@@ -909,9 +961,13 @@ TEST(JsonLoaderTests, LoadDocumentRejectsTemplateChainingInReticleLibrary)
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
         {
           "id": "inline_marker",
+          "layerId": "default",
           "elements": [
             { "id": "shape", "type": "circle", "radius": 0.05 }
           ]
@@ -1056,7 +1112,14 @@ TEST(JsonLoaderTests, LoadWindowConfigurationRejectsNonPositiveUdpPacketSizes)
     const std::filesystem::path windowFile = workspace.Path() / "window.json";
     const std::filesystem::path pageFile = workspace.Path() / "page.json";
 
-    WriteTextFile(pageFile, R"json({ "name": "Main" })json");
+    WriteTextFile(pageFile,
+                  R"json({
+  "name": "Main",
+  "layers": [
+    { "id": "default" }
+  ],
+  "staticReticles": []
+})json");
     WriteTextFile(windowFile,
                   R"json({
   "commands": {
@@ -1079,7 +1142,14 @@ TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUdpPacketSizesOutsideSupport
     const std::filesystem::path lowWindowFile = workspace.Path() / "window_low.json";
     const std::filesystem::path pageFile = workspace.Path() / "page.json";
 
-    WriteTextFile(pageFile, R"json({ "name": "Main" })json");
+    WriteTextFile(pageFile,
+                  R"json({
+  "name": "Main",
+  "layers": [
+    { "id": "default" }
+  ],
+  "staticReticles": []
+})json");
     WriteTextFile(highWindowFile,
                   R"json({
   "commands": {
@@ -1112,7 +1182,14 @@ TEST(JsonLoaderTests, LoadWindowConfigurationRejectsWindowMetricsOutsideSignedIn
     const std::filesystem::path windowFile = workspace.Path() / "window.json";
     const std::filesystem::path pageFile = workspace.Path() / "page.json";
 
-    WriteTextFile(pageFile, R"json({ "name": "Main" })json");
+    WriteTextFile(pageFile,
+                  R"json({
+  "name": "Main",
+  "layers": [
+    { "id": "default" }
+  ],
+  "staticReticles": []
+})json");
     WriteTextFile(windowFile,
                   R"json({
   "width": 3000000000,
@@ -1134,9 +1211,13 @@ TEST(JsonLoaderTests, LoadDocumentRejectsTriangleWithMoreThanThreePoints)
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
         {
           "id": "shape",
+          "layerId": "default",
           "elements": [
             {
               "id": "tri",
@@ -1164,9 +1245,13 @@ TEST(JsonLoaderTests, LoadDocumentRejectsBezierWithAmbiguousPointFields)
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
         {
           "id": "shape",
+          "layerId": "default",
           "elements": [
             {
               "id": "curve",
@@ -1199,9 +1284,13 @@ TEST(JsonLoaderTests, LoadDocumentParsesArcPrimitiveWithAnglesAndSegments)
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
         {
           "id": "shape",
+          "layerId": "default",
           "elements": [
             {
               "id": "scan_arc",
@@ -1248,9 +1337,13 @@ TEST(JsonLoaderTests, LoadDocumentParsesPrimitiveLineStylesFromDirectAndNestedFi
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
         {
           "id": "shape",
+          "layerId": "default",
           "elements": [
             {
               "id": "solid_line",
@@ -1308,9 +1401,13 @@ TEST(JsonLoaderTests, LoadDocumentResolvesImagePrimitivePathsAndDrawOnTop)
   "pages": [
     {
       "name": "Images",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
         {
           "id": "badge_layer",
+          "layerId": "default",
           "drawOnTop": true,
           "elements": [
             {
@@ -1367,10 +1464,14 @@ TEST(JsonLoaderTests, LoadDocumentKeepsNonZeroRingBandWhenOnlyOuterRadiusIsProvi
   "pages": [
     {
       "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
       "staticReticles": [
         {
           "id": "shape",
-          "template": "small_ring"
+          "template": "small_ring",
+          "layerId": "default"
         }
       ]
     }

@@ -64,6 +64,7 @@ mfd::PageDefinition MakePage(const std::string& name, const bool defaultPage)
     page.normalizedName = mfd::NormalizePageName(name);
     page.title = name;
     page.defaultPage = defaultPage;
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     return page;
 }
@@ -102,6 +103,9 @@ std::pair<mfd::LoadedWindowConfiguration, editor::EditorFileLayout> MakeCurrentW
                   R"json({
   "name": "Home",
   "title": "Home",
+  "layers": [
+    { "id": "layer" }
+  ],
   "staticReticles": []
 })json");
     std::filesystem::create_directories(reticleFolder);
@@ -137,6 +141,9 @@ TEST(PageImportServiceTests, ImportsSimplePageWithoutReticleDependency)
                   R"json({
   "name": "Support",
   "title": "Support",
+  "layers": [
+    { "id": "layer" }
+  ],
   "staticReticles": []
 })json");
 
@@ -184,10 +191,14 @@ TEST(PageImportServiceTests, ImportsPageWithReticleDependencyIntoCurrentLibrary)
     WriteTextFile(sourcePageFile,
                   R"json({
   "name": "Radar",
+  "layers": [
+    { "id": "layer" }
+  ],
   "staticReticles": [
     {
       "id": "track_1",
-      "template": "track_box"
+      "template": "track_box",
+      "layerId": "layer"
     }
   ]
 })json");
@@ -238,10 +249,14 @@ TEST(PageImportServiceTests, RewritesRelativeImagePathsFromImportedReticleTempla
     WriteTextFile(sourcePageFile,
                   R"json({
   "name": "Picture",
+  "layers": [
+    { "id": "layer" }
+  ],
   "staticReticles": [
     {
       "id": "badge_1",
-      "template": "badge"
+      "template": "badge",
+      "layerId": "layer"
     }
   ]
 })json");
@@ -274,6 +289,9 @@ TEST(PageImportServiceTests, RenamesImportedPageWhenNameAlreadyExistsInCurrentWi
                   R"json({
   "name": "Home",
   "title": "Imported Home",
+  "layers": [
+    { "id": "layer" }
+  ],
   "staticReticles": []
 })json");
 
@@ -312,10 +330,14 @@ TEST(PageImportServiceTests, KeepsExistingReticleTemplateWhenTheCurrentLibraryAl
     WriteTextFile(sourcePageFile,
                   R"json({
   "name": "Radar",
+  "layers": [
+    { "id": "layer" }
+  ],
   "staticReticles": [
     {
       "id": "track_1",
-      "template": "track_box"
+      "template": "track_box",
+      "layerId": "layer"
     }
   ]
 })json");
@@ -368,10 +390,14 @@ TEST(PageImportServiceTests, RenamesImportedReticleTemplateWhenTheCurrentLibrary
     WriteTextFile(sourcePageFile,
                   R"json({
   "name": "Radar",
+  "layers": [
+    { "id": "layer" }
+  ],
   "staticReticles": [
     {
       "id": "track_1",
-      "template": "track_box"
+      "template": "track_box",
+      "layerId": "layer"
     }
   ]
 })json");
@@ -400,10 +426,14 @@ TEST(PageImportServiceTests, ReportsMissingReticleDependencyClearly)
     WriteTextFile(sourcePageFile,
                   R"json({
   "name": "Radar",
+  "layers": [
+    { "id": "layer" }
+  ],
   "staticReticles": [
     {
       "id": "track_1",
-      "template": "missing_box"
+      "template": "missing_box",
+      "layerId": "layer"
     }
   ]
 })json");
@@ -440,6 +470,9 @@ TEST(PageImportServiceTests, DroppedPageJsonCanReuseTheSameImportPlanningPath)
                   R"json({
   "page": {
     "id": "DroppedPage",
+    "layers": [
+      { "id": "layer" }
+    ],
     "staticReticles": []
   }
 })json");

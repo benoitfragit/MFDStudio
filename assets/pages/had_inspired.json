@@ -1,42 +1,310 @@
 {
-  "name": "HAD_INSPIRED",
-  "title": "HAD Inspired",
-  "bg": "#071407FF",
-  "staticReticles": [
-    { "id": "osb", "template": "inspired_osb_ring", "stroke": "hud" },
-    { "id": "scope", "template": "inspired_hsd_compass", "stroke": "ghost" },
-    { "id": "detection_rings", "stroke": "ghost", "elements": [
-      { "id": "inner", "type": "circle", "radius": 0.24 },
-      { "id": "mid", "type": "circle", "radius": 0.44 },
-      { "id": "radial_a", "type": "line", "start": [-0.48, 0.30], "end": [0.48, 0.30] },
-      { "id": "radial_b", "type": "line", "start": [-0.52, -0.18], "end": [0.52, -0.18] }
-    ]},
-    { "id": "cursor", "template": "inspired_target_bracket", "at": [0.08, -0.04], "scale": 0.72, "stroke": "hud" },
-    { "id": "threat_sa6", "template": "inspired_target_bracket", "at": [-0.34, 0.18], "scale": 0.58, "stroke": "warning" },
-    { "id": "threat_sa3", "template": "inspired_target_bracket", "at": [0.26, 0.30], "scale": 0.48, "stroke": "ghost" },
-    { "id": "threat_aaa", "template": "inspired_target_bracket", "at": [0.38, -0.22], "scale": 0.42, "stroke": "hostile" },
-    { "id": "threat_lines", "stroke": "ghost", "elements": [
-      { "id": "line_sa6", "type": "line", "start": [0.08, -0.04], "end": [-0.34, 0.18] },
-      { "id": "line_sa3", "type": "line", "start": [0.08, -0.04], "end": [0.26, 0.30] }
-    ]},
-    { "id": "azimuth", "stroke": "hud", "elements": [
-      { "id": "north", "type": "line", "start": [0.0, 0.0], "end": [0.0, 0.58] },
-      { "id": "sector_left", "type": "line", "start": [0.0, 0.0], "end": [-0.46, -0.22] },
-      { "id": "sector_right", "type": "line", "start": [0.0, 0.0], "end": [0.46, -0.22] }
-    ]},
-    { "id": "labels", "stroke": "ghost", "elements": [
-      { "id": "title", "type": "text", "text": "HAD / THREAT", "at": [-0.56, 0.80], "size": 0.040 },
-      { "id": "mode", "type": "text", "text": "HANDOFF", "at": [0.54, 0.80], "size": 0.040 },
-      { "id": "sa6", "type": "text", "text": "29", "at": [-0.34, 0.08], "size": 0.036 },
-      { "id": "sa3", "type": "text", "text": "2", "at": [0.26, 0.20], "size": 0.034 },
-      { "id": "aaa", "type": "text", "text": "AAA", "at": [0.38, -0.32], "size": 0.030 },
-      { "id": "cursor_text", "type": "text", "text": "PRI", "at": [0.08, -0.15], "size": 0.030 },
-      { "id": "hts", "type": "text", "text": "HTS", "at": [-0.06, 0.68], "size": 0.028 },
-      { "id": "range_1", "type": "text", "text": "15", "at": [0.04, 0.25], "size": 0.024 },
-      { "id": "range_2", "type": "text", "text": "30", "at": [0.04, 0.45], "size": 0.024 },
-      { "id": "footer_left", "type": "text", "text": "THRT 3", "at": [-0.50, -0.80], "size": 0.034 },
-      { "id": "footer_mid", "type": "text", "text": "POS 056", "at": [0.00, -0.80], "size": 0.034 },
-      { "id": "footer_right", "type": "text", "text": "HARM", "at": [0.50, -0.80], "size": 0.034 }
-    ]}
-  ]
+    "name":  "HAD_INSPIRED",
+    "title":  "HAD Inspired",
+    "bg":  "#071407FF",
+    "staticReticles":  [
+                           {
+                               "id":  "osb",
+                               "template":  "inspired_osb_ring",
+                               "stroke":  "hud",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "scope",
+                               "template":  "inspired_hsd_compass",
+                               "stroke":  "ghost",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "detection_rings",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "inner",
+                                                    "type":  "circle",
+                                                    "radius":  0.24
+                                                },
+                                                {
+                                                    "id":  "mid",
+                                                    "type":  "circle",
+                                                    "radius":  0.44
+                                                },
+                                                {
+                                                    "id":  "radial_a",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.48,
+                                                                  0.30
+                                                              ],
+                                                    "end":  [
+                                                                0.48,
+                                                                0.30
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "radial_b",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.52,
+                                                                  -0.18
+                                                              ],
+                                                    "end":  [
+                                                                0.52,
+                                                                -0.18
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "cursor",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          0.08,
+                                          -0.04
+                                      ],
+                               "scale":  0.72,
+                               "stroke":  "hud",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "threat_sa6",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          -0.34,
+                                          0.18
+                                      ],
+                               "scale":  0.58,
+                               "stroke":  "warning",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "threat_sa3",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          0.26,
+                                          0.30
+                                      ],
+                               "scale":  0.48,
+                               "stroke":  "ghost",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "threat_aaa",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          0.38,
+                                          -0.22
+                                      ],
+                               "scale":  0.42,
+                               "stroke":  "hostile",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "threat_lines",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "line_sa6",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.08,
+                                                                  -0.04
+                                                              ],
+                                                    "end":  [
+                                                                -0.34,
+                                                                0.18
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "line_sa3",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.08,
+                                                                  -0.04
+                                                              ],
+                                                    "end":  [
+                                                                0.26,
+                                                                0.30
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "azimuth",
+                               "stroke":  "hud",
+                               "elements":  [
+                                                {
+                                                    "id":  "north",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.0,
+                                                                  0.0
+                                                              ],
+                                                    "end":  [
+                                                                0.0,
+                                                                0.58
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "sector_left",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.0,
+                                                                  0.0
+                                                              ],
+                                                    "end":  [
+                                                                -0.46,
+                                                                -0.22
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "sector_right",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.0,
+                                                                  0.0
+                                                              ],
+                                                    "end":  [
+                                                                0.46,
+                                                                -0.22
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "labels",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "title",
+                                                    "type":  "text",
+                                                    "text":  "HAD / THREAT",
+                                                    "at":  [
+                                                               -0.56,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.040
+                                                },
+                                                {
+                                                    "id":  "mode",
+                                                    "type":  "text",
+                                                    "text":  "HANDOFF",
+                                                    "at":  [
+                                                               0.54,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.040
+                                                },
+                                                {
+                                                    "id":  "sa6",
+                                                    "type":  "text",
+                                                    "text":  "29",
+                                                    "at":  [
+                                                               -0.34,
+                                                               0.08
+                                                           ],
+                                                    "size":  0.036
+                                                },
+                                                {
+                                                    "id":  "sa3",
+                                                    "type":  "text",
+                                                    "text":  "2",
+                                                    "at":  [
+                                                               0.26,
+                                                               0.20
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "aaa",
+                                                    "type":  "text",
+                                                    "text":  "AAA",
+                                                    "at":  [
+                                                               0.38,
+                                                               -0.32
+                                                           ],
+                                                    "size":  0.030
+                                                },
+                                                {
+                                                    "id":  "cursor_text",
+                                                    "type":  "text",
+                                                    "text":  "PRI",
+                                                    "at":  [
+                                                               0.08,
+                                                               -0.15
+                                                           ],
+                                                    "size":  0.030
+                                                },
+                                                {
+                                                    "id":  "hts",
+                                                    "type":  "text",
+                                                    "text":  "HTS",
+                                                    "at":  [
+                                                               -0.06,
+                                                               0.68
+                                                           ],
+                                                    "size":  0.028
+                                                },
+                                                {
+                                                    "id":  "range_1",
+                                                    "type":  "text",
+                                                    "text":  "15",
+                                                    "at":  [
+                                                               0.04,
+                                                               0.25
+                                                           ],
+                                                    "size":  0.024
+                                                },
+                                                {
+                                                    "id":  "range_2",
+                                                    "type":  "text",
+                                                    "text":  "30",
+                                                    "at":  [
+                                                               0.04,
+                                                               0.45
+                                                           ],
+                                                    "size":  0.024
+                                                },
+                                                {
+                                                    "id":  "footer_left",
+                                                    "type":  "text",
+                                                    "text":  "THRT 3",
+                                                    "at":  [
+                                                               -0.50,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "footer_mid",
+                                                    "type":  "text",
+                                                    "text":  "POS 056",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "footer_right",
+                                                    "type":  "text",
+                                                    "text":  "HARM",
+                                                    "at":  [
+                                                               0.50,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           }
+                       ],
+    "layers":  [
+                   {
+                       "id":  "default"
+                   }
+               ]
 }

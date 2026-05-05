@@ -1,50 +1,418 @@
 {
-  "name": "FCR_INSPIRED",
-  "title": "FCR Inspired",
-  "bg": "#061306FF",
-  "staticReticles": [
-    { "id": "osb", "template": "inspired_osb_ring", "stroke": "hud" },
-    { "id": "grid", "template": "radar_grid", "stroke": "hud" },
-    { "id": "scan_volume", "stroke": "ghost", "elements": [
-      { "id": "top_bar", "type": "line", "start": [-0.52, 0.50], "end": [0.52, 0.50] },
-      { "id": "left_bar", "type": "line", "start": [-0.52, -0.44], "end": [-0.52, 0.50] },
-      { "id": "right_bar", "type": "line", "start": [0.52, -0.44], "end": [0.52, 0.50] },
-      { "id": "bottom_stub_l", "type": "line", "start": [-0.22, -0.44], "end": [-0.04, -0.44] },
-      { "id": "bottom_stub_r", "type": "line", "start": [0.04, -0.44], "end": [0.22, -0.44] },
-      { "id": "az_left", "type": "text", "text": "-30", "at": [-0.44, 0.56], "size": 0.024 },
-      { "id": "az_mid", "type": "text", "text": "0", "at": [0.00, 0.56], "size": 0.024 },
-      { "id": "az_right", "type": "text", "text": "30", "at": [0.44, 0.56], "size": 0.024 }
-    ]},
-    { "id": "sweep", "stroke": "ghost", "elements": [
-      { "id": "scan_bar", "type": "line", "start": [-0.50, 0.44], "end": [0.50, 0.44] },
-      { "id": "cursor_h", "type": "line", "start": [-0.08, 0.00], "end": [0.08, 0.00] },
-      { "id": "cursor_v", "type": "line", "start": [0.00, -0.08], "end": [0.00, 0.08] },
-      { "id": "range_caret", "type": "polyline", "points": [[-0.04, 0.48], [0.00, 0.52], [0.04, 0.48]] }
-    ]},
-    { "id": "tgt_1", "template": "inspired_target_bracket", "at": [-0.22, 0.18], "stroke": "radar" },
-    { "id": "tgt_2", "template": "inspired_target_bracket", "at": [0.31, -0.24], "stroke": "warning" },
-    { "id": "tgt_3", "template": "inspired_target_bracket", "at": [-0.34, -0.08], "scale": 0.78, "stroke": "ghost" },
-    { "id": "tgt_4", "template": "inspired_target_bracket", "at": [0.12, 0.30], "scale": 0.72, "stroke": "ghost" },
-    { "id": "track_vectors", "stroke": "ghost", "elements": [
-      { "id": "vec_1", "type": "line", "start": [-0.22, 0.18], "end": [-0.14, 0.28] },
-      { "id": "vec_2", "type": "line", "start": [0.31, -0.24], "end": [0.40, -0.34] },
-      { "id": "vec_3", "type": "line", "start": [-0.34, -0.08], "end": [-0.42, -0.18] },
-      { "id": "vec_4", "type": "line", "start": [0.12, 0.30], "end": [0.20, 0.38] },
-      { "id": "bug_line", "type": "line", "start": [0.00, 0.00], "end": [0.31, -0.24] }
-    ]},
-    { "id": "labels", "stroke": "ghost", "elements": [
-      { "id": "mode", "type": "text", "text": "FCR RWS 40NM", "at": [-0.57, 0.80], "size": 0.04 },
-      { "id": "cntl", "type": "text", "text": "4B 60AZ", "at": [0.52, 0.80], "size": 0.04 },
-      { "id": "track_1", "type": "text", "text": "021/18", "at": [-0.21, 0.08], "size": 0.032 },
-      { "id": "track_2", "type": "text", "text": "BUG 036/27", "at": [0.30, -0.34], "size": 0.032 },
-      { "id": "track_3", "type": "text", "text": "017/22", "at": [-0.34, -0.18], "size": 0.028 },
-      { "id": "track_4", "type": "text", "text": "045/16", "at": [0.12, 0.20], "size": 0.028 },
-      { "id": "range_top", "type": "text", "text": "40", "at": [0.56, 0.46], "size": 0.024 },
-      { "id": "range_mid", "type": "text", "text": "20", "at": [0.56, 0.02], "size": 0.024 },
-      { "id": "range_low", "type": "text", "text": "0", "at": [0.56, -0.42], "size": 0.024 },
-      { "id": "footer_left", "type": "text", "text": "NORM", "at": [-0.52, -0.80], "size": 0.034 },
-      { "id": "footer_mid", "type": "text", "text": "TMS RIGHT TO BUG", "at": [0.00, -0.80], "size": 0.034 },
-      { "id": "footer_right", "type": "text", "text": "ATTACK", "at": [0.50, -0.80], "size": 0.034 }
-    ]}
-  ]
+    "name":  "FCR_INSPIRED",
+    "title":  "FCR Inspired",
+    "bg":  "#061306FF",
+    "staticReticles":  [
+                           {
+                               "id":  "osb",
+                               "template":  "inspired_osb_ring",
+                               "stroke":  "hud",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "grid",
+                               "template":  "radar_grid",
+                               "stroke":  "hud",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "scan_volume",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "top_bar",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.52,
+                                                                  0.50
+                                                              ],
+                                                    "end":  [
+                                                                0.52,
+                                                                0.50
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "left_bar",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.52,
+                                                                  -0.44
+                                                              ],
+                                                    "end":  [
+                                                                -0.52,
+                                                                0.50
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "right_bar",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.52,
+                                                                  -0.44
+                                                              ],
+                                                    "end":  [
+                                                                0.52,
+                                                                0.50
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "bottom_stub_l",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.22,
+                                                                  -0.44
+                                                              ],
+                                                    "end":  [
+                                                                -0.04,
+                                                                -0.44
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "bottom_stub_r",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.04,
+                                                                  -0.44
+                                                              ],
+                                                    "end":  [
+                                                                0.22,
+                                                                -0.44
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "az_left",
+                                                    "type":  "text",
+                                                    "text":  "-30",
+                                                    "at":  [
+                                                               -0.44,
+                                                               0.56
+                                                           ],
+                                                    "size":  0.024
+                                                },
+                                                {
+                                                    "id":  "az_mid",
+                                                    "type":  "text",
+                                                    "text":  "0",
+                                                    "at":  [
+                                                               0.00,
+                                                               0.56
+                                                           ],
+                                                    "size":  0.024
+                                                },
+                                                {
+                                                    "id":  "az_right",
+                                                    "type":  "text",
+                                                    "text":  "30",
+                                                    "at":  [
+                                                               0.44,
+                                                               0.56
+                                                           ],
+                                                    "size":  0.024
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "sweep",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "scan_bar",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.50,
+                                                                  0.44
+                                                              ],
+                                                    "end":  [
+                                                                0.50,
+                                                                0.44
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "cursor_h",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.08,
+                                                                  0.00
+                                                              ],
+                                                    "end":  [
+                                                                0.08,
+                                                                0.00
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "cursor_v",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.00,
+                                                                  -0.08
+                                                              ],
+                                                    "end":  [
+                                                                0.00,
+                                                                0.08
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "range_caret",
+                                                    "type":  "polyline",
+                                                    "points":  [
+                                                                   [
+                                                                       -0.04,
+                                                                       0.48
+                                                                   ],
+                                                                   [
+                                                                       0.00,
+                                                                       0.52
+                                                                   ],
+                                                                   [
+                                                                       0.04,
+                                                                       0.48
+                                                                   ]
+                                                               ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "tgt_1",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          -0.22,
+                                          0.18
+                                      ],
+                               "stroke":  "radar",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "tgt_2",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          0.31,
+                                          -0.24
+                                      ],
+                               "stroke":  "warning",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "tgt_3",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          -0.34,
+                                          -0.08
+                                      ],
+                               "scale":  0.78,
+                               "stroke":  "ghost",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "tgt_4",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          0.12,
+                                          0.30
+                                      ],
+                               "scale":  0.72,
+                               "stroke":  "ghost",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "track_vectors",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "vec_1",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.22,
+                                                                  0.18
+                                                              ],
+                                                    "end":  [
+                                                                -0.14,
+                                                                0.28
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "vec_2",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.31,
+                                                                  -0.24
+                                                              ],
+                                                    "end":  [
+                                                                0.40,
+                                                                -0.34
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "vec_3",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.34,
+                                                                  -0.08
+                                                              ],
+                                                    "end":  [
+                                                                -0.42,
+                                                                -0.18
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "vec_4",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.12,
+                                                                  0.30
+                                                              ],
+                                                    "end":  [
+                                                                0.20,
+                                                                0.38
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "bug_line",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.00,
+                                                                  0.00
+                                                              ],
+                                                    "end":  [
+                                                                0.31,
+                                                                -0.24
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "labels",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "mode",
+                                                    "type":  "text",
+                                                    "text":  "FCR RWS 40NM",
+                                                    "at":  [
+                                                               -0.57,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.04
+                                                },
+                                                {
+                                                    "id":  "cntl",
+                                                    "type":  "text",
+                                                    "text":  "4B 60AZ",
+                                                    "at":  [
+                                                               0.52,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.04
+                                                },
+                                                {
+                                                    "id":  "track_1",
+                                                    "type":  "text",
+                                                    "text":  "021/18",
+                                                    "at":  [
+                                                               -0.21,
+                                                               0.08
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "track_2",
+                                                    "type":  "text",
+                                                    "text":  "BUG 036/27",
+                                                    "at":  [
+                                                               0.30,
+                                                               -0.34
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "track_3",
+                                                    "type":  "text",
+                                                    "text":  "017/22",
+                                                    "at":  [
+                                                               -0.34,
+                                                               -0.18
+                                                           ],
+                                                    "size":  0.028
+                                                },
+                                                {
+                                                    "id":  "track_4",
+                                                    "type":  "text",
+                                                    "text":  "045/16",
+                                                    "at":  [
+                                                               0.12,
+                                                               0.20
+                                                           ],
+                                                    "size":  0.028
+                                                },
+                                                {
+                                                    "id":  "range_top",
+                                                    "type":  "text",
+                                                    "text":  "40",
+                                                    "at":  [
+                                                               0.56,
+                                                               0.46
+                                                           ],
+                                                    "size":  0.024
+                                                },
+                                                {
+                                                    "id":  "range_mid",
+                                                    "type":  "text",
+                                                    "text":  "20",
+                                                    "at":  [
+                                                               0.56,
+                                                               0.02
+                                                           ],
+                                                    "size":  0.024
+                                                },
+                                                {
+                                                    "id":  "range_low",
+                                                    "type":  "text",
+                                                    "text":  "0",
+                                                    "at":  [
+                                                               0.56,
+                                                               -0.42
+                                                           ],
+                                                    "size":  0.024
+                                                },
+                                                {
+                                                    "id":  "footer_left",
+                                                    "type":  "text",
+                                                    "text":  "NORM",
+                                                    "at":  [
+                                                               -0.52,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "footer_mid",
+                                                    "type":  "text",
+                                                    "text":  "TMS RIGHT TO BUG",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "footer_right",
+                                                    "type":  "text",
+                                                    "text":  "ATTACK",
+                                                    "at":  [
+                                                               0.50,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           }
+                       ],
+    "layers":  [
+                   {
+                       "id":  "default"
+                   }
+               ]
 }

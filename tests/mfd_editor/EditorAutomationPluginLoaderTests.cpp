@@ -95,7 +95,7 @@ TEST(EditorAutomationPluginLoaderTests, LoadsPluginAndLetsItMutateTheDocument)
     EXPECT_EQ(bridge.loaded_.document.pages.back().staticReticles.front().id, "plugin_track");
     EXPECT_FALSE(bridge.loaded_.document.pages.back().staticReticles.front().visible);
     EXPECT_TRUE(bridge.loaded_.document.pages.back().staticReticles.front().drawOnTop);
-    EXPECT_EQ(bridge.loaded_.document.pages.back().staticReticles.front().editor.layerId, "plugin_overlay");
+    EXPECT_EQ(bridge.loaded_.document.pages.back().staticReticles.front().layerId, "plugin_overlay");
     ASSERT_EQ(bridge.loaded_.document.pages.back().editor.layers.size(), 2U);
     EXPECT_EQ(bridge.loaded_.document.pages.back().editor.layers.back().id, "plugin_overlay");
     EXPECT_TRUE(bridge.loaded_.document.pages.back().editor.layers.back().visible);

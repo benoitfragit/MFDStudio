@@ -125,7 +125,13 @@ Each generated page MUST expose:
 - one generated member per authored static reticle on that page
 - one generated member per authored page-local blink type
 - one generated `strobe` handle
-- one generated dynamic-set accessor per authored reticle template
+- one generated dynamic-set accessor per authored page dynamic binding
+
+Dynamic-set accessors are authored from `dynamicReticleBindings`, not from one
+client-side layer API. The generator MUST validate the page runtime contract
+(`layers`, static `layerId`, and dynamic binding coherence), but the generated
+client surface MUST NOT expose any operation that changes one reticle layer at
+runtime.
 
 ### 5.3 Reticle Surface
 

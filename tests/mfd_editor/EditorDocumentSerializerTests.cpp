@@ -119,6 +119,138 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenPageLayoutDoesNot
     EXPECT_NE(error.find("Page file layout does not match"), std::string::npos);
 }
 
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenPageHasNoRuntimeLayers)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("non-empty layers array"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenStaticReticleHasNoLayerId)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+
+    mfd::ReticleGroup reticle;
+    reticle.id = "track_alpha";
+    page.staticReticles.push_back(std::move(reticle));
+
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("Static reticle 'track_alpha' must define layerId"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenDynamicBindingTemplateIdIsMissing)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"", "default", 0});
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("non-empty templateId"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenDynamicBindingLayerIdIsMissing)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_template", "", 0});
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("non-empty layerId"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenDynamicBindingReferencesUnknownLayer)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_template", "overlay", 0});
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("unknown runtime layer 'overlay'"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateIncludesTemplateId)
 {
     mfd::ReticleGroup reticle;
@@ -240,7 +372,7 @@ TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverride
     reticle.transform.position = {0.25f, -0.1f};
     reticle.overrides.color = mfd::ColorRgba {1, 2, 3, 255};
     reticle.overrides.thickness = 0.006f;
-    reticle.editor.layerId = "tracks";
+    reticle.layerId = "tracks";
     reticle.blink.enabled = false;
     reticle.blink.typeName = "slow";
     reticle.clipping.mode = mfd::ReticleClipMode::None;
@@ -262,7 +394,7 @@ TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverride
     EXPECT_EQ(jsonNode.at("at"), nlohmann::json::array({0.25f, -0.1f}));
     EXPECT_EQ(jsonNode.at("stroke").get<std::string>(), "#010203FF");
     EXPECT_FLOAT_EQ(jsonNode.at("lineWidth").get<float>(), 0.006f);
-    EXPECT_EQ(jsonNode.at("_editor").at("layer").get<std::string>(), "tracks");
+    EXPECT_EQ(jsonNode.at("layerId").get<std::string>(), "tracks");
     EXPECT_FALSE(jsonNode.at("blink").at("enabled").get<bool>());
     EXPECT_EQ(jsonNode.at("blink").at("type").get<std::string>(), "slow");
     EXPECT_EQ(jsonNode.at("clipping").at("mode").get<std::string>(), "none");
@@ -306,7 +438,8 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     page.title = "Radar Page";
     page.defaultPage = true;
     page.backgroundColor = mfd::ColorRgba {10, 20, 30, 255};
-    page.editor.dynamicReticleTemplateIds = std::vector<std::string> {"radar_track"};
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"radar_track", "default", 0});
 
     mfd::PageStrobeDefinition strobe;
     strobe.reticle.id = "strobe";
@@ -325,6 +458,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     pageReticle.id = "track_alpha";
     pageReticle.sourceTemplateId = "radar_track";
     pageReticle.transform.position = {0.1f, 0.2f};
+    pageReticle.layerId = "default";
     page.staticReticles.push_back(std::move(pageReticle));
 
     loaded.document.pages.push_back(std::move(page));
@@ -374,12 +508,17 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     EXPECT_TRUE(pageJson.at("strobe").at("magnet").at("visual").at("enabled").get<bool>());
     EXPECT_EQ(pageJson.at("strobe").at("magnet").at("visual").at("shape").get<std::string>(), "square");
     EXPECT_FLOAT_EQ(pageJson.at("strobe").at("magnet").at("visual").at("size").get<float>(), 0.18f);
-    ASSERT_TRUE(pageJson.contains("_editor"));
-    ASSERT_TRUE(pageJson.at("_editor").contains("dynamicReticleTemplates"));
-    ASSERT_EQ(pageJson.at("_editor").at("dynamicReticleTemplates").size(), 1U);
-    EXPECT_EQ(pageJson.at("_editor").at("dynamicReticleTemplates").at(0).get<std::string>(), "radar_track");
+    ASSERT_TRUE(pageJson.contains("layers"));
+    ASSERT_EQ(pageJson.at("layers").size(), 1U);
+    EXPECT_EQ(pageJson.at("layers").at(0).at("id").get<std::string>(), "default");
+    ASSERT_TRUE(pageJson.contains("dynamicReticleBindings"));
+    ASSERT_EQ(pageJson.at("dynamicReticleBindings").size(), 1U);
+    EXPECT_EQ(pageJson.at("dynamicReticleBindings").at(0).at("templateId").get<std::string>(), "radar_track");
+    EXPECT_EQ(pageJson.at("dynamicReticleBindings").at(0).at("layerId").get<std::string>(), "default");
+    EXPECT_EQ(pageJson.at("dynamicReticleBindings").at(0).at("orderInLayer").get<int>(), 0);
     ASSERT_EQ(pageJson.at("staticReticles").size(), 1U);
     EXPECT_EQ(pageJson.at("staticReticles").at(0).at("template").get<std::string>(), "radar_track");
+    EXPECT_EQ(pageJson.at("staticReticles").at(0).at("layerId").get<std::string>(), "default");
 
     std::ifstream templateStream(templateFile);
     ASSERT_TRUE(templateStream.is_open());

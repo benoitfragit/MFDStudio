@@ -1,10 +1,8 @@
 # Editor Layer Focus Mode
 
-The page-preview `Layer Inspector` dock is an editor-only focusing workflow
-built on top of the existing page editor-layer metadata.
-
-This feature does not add a new runtime layer model, does not change the page
-schema, and does not serialize any new JSON fields.
+The page-preview `Layer Inspector` dock is an authoring workflow built on top
+of the runtime page-layer model plus one editor-only visibility state per
+layer.
 
 ## Goal
 
@@ -14,7 +12,7 @@ edit one subset.
 
 Layer focus solves that by separating two concerns:
 
-- visibility: existing editor layers can already be shown or hidden
+- visibility: each runtime page layer can be shown or hidden in the editor preview
 - edit focus: one visible layer can temporarily become the only editable layer
 
 ## Current Behavior
@@ -23,7 +21,7 @@ When `View > Layer Inspector` is enabled, the page preview shows one docked
 panel on the left containing:
 
 - `Full View`
-- every existing editor layer in page order
+- every runtime page layer in page order
 - one small thumbnail preview per entry
 - one reticle count per entry
 

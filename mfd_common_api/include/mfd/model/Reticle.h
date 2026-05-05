@@ -270,18 +270,6 @@ struct ReticleBlinkState
 };
 
 /**
- * @brief Editor-only metadata attached to one page reticle instance.
- *
- * @note Runtime rendering and command processing ignore this state. It is used
- * by the authoring tool to organize symbols inside editor layers.
- */
-struct ReticleEditorState
-{
-    /** @brief Optional page-local editor layer id used only by the editor UI. */
-    std::string layerId;
-};
-
-/**
  * @brief Local clipping mode applied to one reticle instance.
  *
  * @note `Inner` clips the inside of the mask shape, while `Outer` clips
@@ -324,6 +312,8 @@ struct ReticleGroup
 {
     std::string id;
     std::string sourceTemplateId;
+    /** @brief Runtime page layer id used to compute the draw order of page-owned reticles. */
+    std::string layerId;
     ReticleInfo info;
     /** @brief Optional page-level blink assignment attached to this instance. */
     ReticleBlinkState blink;
@@ -332,8 +322,6 @@ struct ReticleGroup
     bool drawOnTop = false;
     Transform2D transform {};
     ReticleStyleOverride overrides {};
-    /** @brief Editor-only state ignored by the runtime. */
-    ReticleEditorState editor {};
     /** @brief Optional local clipping state resolved against one primitive id. */
     ReticleClipState clipping {};
     std::vector<Primitive> primitives;
@@ -366,6 +354,9 @@ MFD_API ReticleStyleOverride MergeOverrides(const ReticleStyleOverride& base, co
  * @param instanceId Public id assigned to the new instance.
  * @param transform Additional transform applied to the template transform.
  * @param overrides Additional style overrides applied on top of the template overrides.
+ * @note The returned instance leaves `layerId` empty. Page-local layer
+ * attachment must be assigned explicitly by the page authoring model or the
+ * runtime dynamic binding that owns the instance.
  * @return New reticle instance ready to be inserted in a page or in the runtime scene.
  */
 MFD_API ReticleGroup InstantiateReticle(const ReticleGroup& templ,

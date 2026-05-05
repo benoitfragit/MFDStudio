@@ -79,6 +79,7 @@ void AddPage(mfd::LoadedWindowConfiguration& loaded,
     page.normalizedName = mfd::NormalizePageName(name);
     page.title = name;
     page.defaultPage = defaultPage;
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
 
     loaded.document.pages.push_back(page);

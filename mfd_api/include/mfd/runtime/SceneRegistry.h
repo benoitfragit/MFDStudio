@@ -286,6 +286,10 @@ public:
     bool ApplyReticlePatch(std::string_view pageName, std::string_view reticleId, const ReticlePatch& patch) noexcept;
     /** @brief Returns `true` when a dynamic reticle exists on a page. */
     bool HasDynamicReticle(std::string_view pageName, std::string_view reticleId) const noexcept;
+    /** @brief Returns `true` when one dynamic reticle is backed by one specific template on a page. */
+    bool DynamicReticleUsesTemplate(std::string_view pageName,
+                                    std::string_view reticleId,
+                                    std::string_view templateId) const noexcept;
     /** @brief Applies a patch to an existing dynamic reticle in one lookup. */
     bool ApplyDynamicReticlePatch(std::string_view pageName,
                                   std::string_view reticleId,
@@ -419,6 +423,9 @@ private:
     std::string MakeDynamicTemplateLookupKey(std::string_view normalizedPageName, std::string_view templateId) const;
     /** @brief Returns whether one dynamic template set is currently visible on one page. */
     bool IsDynamicTemplateVisible(std::string_view normalizedPageName, std::string_view templateId) const noexcept;
+    /** @brief Returns the dynamic reticle binding configured for one page/template pair, when it exists. */
+    const DynamicReticleLayerBinding* FindDynamicReticleLayerBinding(std::string_view normalizedPageName,
+                                                                     std::string_view templateId) const noexcept;
     /** @brief Inserts one reticle entity into the ordered draw list of a page. */
     void InsertReticleIntoPageDrawList(std::string_view normalizedPageName, entt::entity entity);
     /** @brief Removes one reticle entity from the ordered draw list of a page. */
@@ -470,9 +477,8 @@ private:
     std::unordered_map<TransportId, TransportPrimitiveLookup> transportPrimitives_ {};
     /** @brief Generated blink lookup indexed by generated transport id. */
     std::unordered_map<TransportId, TransportBlinkLookup> transportBlinks_ {};
-    /** @brief Monotonic ordering counter used to place dynamic reticles after authored content. */
-    std::size_t nextDynamicOrder_ = 10000;
-    std::size_t nextDynamicDrawOnTopOrder_ = 1010000;
+    /** @brief Monotonic creation sequence used to keep dynamic instance ordering stable inside one template binding. */
+    std::uint64_t nextDynamicCreationSequence_ = 1;
     /** @brief Normalized name of the currently active page. */
     std::string activePage_ {};
     /** @brief Whole-window display post-process state. */

@@ -117,6 +117,31 @@ After creation:
 2. Select a page in the tree.
 3. In the page inspector, toggle **Default page for this window** on the page that should open at startup.
 
+### Dynamic reticles on a page
+
+In the selected page inspector, the **Dynamic reticles** section now keeps the
+workflow explicit and local to the page:
+
+1. choose one reticle template in the **Reticle template** combo
+2. choose one runtime page layer in the **Layer** combo
+3. click **Add**
+
+Each added entry then stays in the page list with:
+
+- its template id
+- one **Layer** combo to move it to another page layer
+- **Move earlier** / **Move later** to adjust `orderInLayer` inside that layer
+- **Remove** to delete the binding
+
+Important: these are runtime bindings only. Adding `mfd_tutorial_radar_track`
+or `inspired_steering_cue` here does not create authored static reticles on the
+canvas by itself. They remain stored in `dynamicReticleBindings`, and the live
+client later creates the actual runtime instances.
+
+The generated client API keeps the same boundary: it validates that these page
+bindings are coherent, but it does not expose any client-side control to move a
+dynamic reticle to another layer at runtime.
+
 ## Step 7 - Use the page-preview selection workflow
 
 Once a page contains several reticles, the page preview supports direct authoring gestures:
@@ -290,6 +315,7 @@ Current behavior:
 - the template JSON `id` is always rewritten
 - page `staticReticles[*].template` references are rewritten
 - page `strobe.template` references are rewritten
+- page `dynamicReticleBindings[*].templateId` references are rewritten too
 - you can choose between logical rename only and logical rename plus template-file rename
 - when the template file moves, relative image paths are rewritten automatically
 - the scan includes staged `_Exec` assets too when they are part of the scanned asset tree
@@ -327,7 +353,7 @@ default.
 When you enable **View > Layer Inspector**:
 
 1. the preview shows a docked panel on the left with **Full View** plus the
-   current editor layers
+   current runtime page layers
 2. each entry now includes one small thumbnail preview and one reticle count
 3. hidden layers keep a dimmed thumbnail so you can still identify them
 4. click **Full View** to keep the normal selection behavior
@@ -340,8 +366,8 @@ In focus mode:
 - `Esc` exits the focus layer first, then falls back to the normal selection
   clear shortcut
 
-This workflow reuses the existing editor-only layer metadata. It does not add
-or document any new runtime JSON layer schema.
+This workflow uses the authored runtime page-layer order together with one
+editor-only preview visibility state per layer.
 
 ## Step 16 - Export design documentation
 

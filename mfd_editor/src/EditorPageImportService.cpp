@@ -287,28 +287,29 @@ PageSourceMetadata ParsePageSourceMetadata(const std::filesystem::path& sourcePa
         }
     }
 
-    if (pageNode.contains("_editor") && pageNode.at("_editor").is_object())
+    if (pageNode.contains("dynamicReticleBindings"))
     {
-        const auto& editorNode = pageNode.at("_editor");
-        if (editorNode.contains("dynamicReticleTemplates"))
+        if (!pageNode.at("dynamicReticleBindings").is_array())
         {
-            if (!editorNode.at("dynamicReticleTemplates").is_array())
+            throw std::runtime_error("Page dynamicReticleBindings field must be a JSON array.");
+        }
+
+        for (const auto& entry : pageNode.at("dynamicReticleBindings"))
+        {
+            if (!entry.is_object())
             {
-                throw std::runtime_error("Page editor dynamicReticleTemplates field must be a JSON array.");
+                throw std::runtime_error("Page dynamicReticleBindings entries must be JSON objects.");
             }
 
-            for (const auto& entry : editorNode.at("dynamicReticleTemplates"))
+            if (!entry.contains("templateId") || !entry.at("templateId").is_string())
             {
-                if (!entry.is_string())
-                {
-                    throw std::runtime_error("Page editor dynamic reticle template ids must be strings.");
-                }
+                throw std::runtime_error("Page dynamicReticleBindings.templateId fields must be strings.");
+            }
 
-                const std::string templateId = entry.get<std::string>();
-                if (seenTemplateIds.insert(templateId).second)
-                {
-                    metadata.templateIds.push_back(templateId);
-                }
+            const std::string templateId = entry.at("templateId").get<std::string>();
+            if (seenTemplateIds.insert(templateId).second)
+            {
+                metadata.templateIds.push_back(templateId);
             }
         }
     }
@@ -498,15 +499,12 @@ void ApplyTemplateIdRemap(
         remapOne(page.strobe->reticle);
     }
 
-    if (page.editor.dynamicReticleTemplateIds.has_value())
+    for (auto& binding : page.dynamicReticleBindings)
     {
-        for (std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+        const auto iterator = remap.find(binding.templateId);
+        if (iterator != remap.end())
         {
-            const auto iterator = remap.find(templateId);
-            if (iterator != remap.end())
-            {
-                templateId = iterator->second;
-            }
+            binding.templateId = iterator->second;
         }
     }
 }

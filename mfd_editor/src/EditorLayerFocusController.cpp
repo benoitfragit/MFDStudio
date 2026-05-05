@@ -23,7 +23,7 @@ std::size_t CountLayerReticles(const mfd::PageDefinition& page, const std::strin
         page.staticReticles.end(),
         [layerId](const mfd::ReticleGroup& reticle)
         {
-            return reticle.editor.layerId == layerId;
+            return reticle.layerId == layerId;
         }));
 }
 
@@ -92,7 +92,7 @@ bool LayerFocusController::IsReticleSelectable(const mfd::PageDefinition& page,
         return true;
     }
 
-    return !reticle.editor.layerId.empty() && reticle.editor.layerId == state.focusedLayerId;
+    return !reticle.layerId.empty() && reticle.layerId == state.focusedLayerId;
 }
 
 bool LayerFocusController::ShouldReticleBeDimmed(const mfd::PageDefinition& page,

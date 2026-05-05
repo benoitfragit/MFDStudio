@@ -1486,7 +1486,7 @@ std::string BuildPageMarkdown(const DesignExportPlan& plan,
                << EscapeMarkdownCell(plan.includeCanvasCoordinates ? FormatFloat(reticle.transform.position.y) : "not exported")
                << " | " << EscapeMarkdownCell(FormatFloat(reticle.transform.rotationDegrees)) << " | "
                << EscapeMarkdownCell(FormatFloat(scale)) << " | " << FormatBool(reticle.visible) << " | "
-               << EscapeMarkdownCell(SafeString(reticle.editor.layerId)) << " | "
+               << EscapeMarkdownCell(SafeString(reticle.layerId)) << " | "
                << EscapeMarkdownCell(AccessorNameOrNotAvailable()) << " | "
                << EscapeMarkdownCell(reticleEntry == nullptr ? "not available" : TransportIdOrNotAvailable(reticleEntry->id))
                << " |\n";
@@ -1506,7 +1506,7 @@ std::string BuildPageMarkdown(const DesignExportPlan& plan,
         stream << "- rotation: `" << FormatFloat(reticle.transform.rotationDegrees) << "`\n";
         stream << "- scale: `" << FormatFloat(scale) << "`\n";
         stream << "- visible: `" << FormatBool(reticle.visible) << "`\n";
-        stream << "- layer: `" << SafeString(reticle.editor.layerId) << "`\n";
+        stream << "- layer: `" << SafeString(reticle.layerId) << "`\n";
         stream << "- template: `" << SafeString(reticle.sourceTemplateId) << "`\n";
         stream << "- generated accessor: `" << AccessorNameOrNotAvailable() << "`\n";
         stream << "- transport id: `"

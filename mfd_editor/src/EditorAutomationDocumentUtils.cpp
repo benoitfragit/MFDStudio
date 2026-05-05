@@ -372,17 +372,41 @@ const mfd::EditorLayerDefinition* FindLayerById(const mfd::LoadedWindowConfigura
 
 void BootstrapEditorLayersForPage(mfd::PageDefinition& page)
 {
-    if (!page.editor.layers.empty())
+    if (page.layers.empty())
     {
-        return;
+        page.layers.push_back(mfd::PageLayerDefinition {std::string(mfd::kDefaultPageLayerId)});
     }
 
-    page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
+    std::vector<mfd::EditorLayerDefinition> synchronizedStates;
+    synchronizedStates.reserve(page.layers.size());
+    for (const mfd::PageLayerDefinition& runtimeLayer : page.layers)
+    {
+        const auto iterator = std::find_if(page.editor.layers.begin(),
+                                           page.editor.layers.end(),
+                                           [&runtimeLayer](const mfd::EditorLayerDefinition& layer)
+                                           {
+                                               return MatchesNormalized(layer.id, runtimeLayer.id);
+                                           });
+        synchronizedStates.push_back(mfd::EditorLayerDefinition {
+            runtimeLayer.id,
+            iterator == page.editor.layers.end() ? true : iterator->visible});
+    }
+    page.editor.layers = std::move(synchronizedStates);
+
+    const std::string fallbackLayerId = page.layers.front().id;
     for (auto& reticle : page.staticReticles)
     {
-        if (reticle.editor.layerId.empty())
+        if (reticle.layerId.empty() || mfd::FindPageLayerDefinition(page, reticle.layerId) == nullptr)
         {
-            reticle.editor.layerId = page.editor.layers.front().id;
+            reticle.layerId = fallbackLayerId;
+        }
+    }
+
+    for (auto& binding : page.dynamicReticleBindings)
+    {
+        if (binding.layerId.empty() || mfd::FindPageLayerDefinition(page, binding.layerId) == nullptr)
+        {
+            binding.layerId = fallbackLayerId;
         }
     }
 }
@@ -618,7 +642,26 @@ ValidationReport ValidateAutomationState(const mfd::LoadedWindowConfiguration& l
                 ValidationDiagnostic {AutomationErrorCode::ValidationFailed, pageId.value, "Page ids must stay unique."});
         }
 
-        std::unordered_set<std::string> layerIds;
+        std::unordered_set<std::string> runtimeLayerIds;
+        for (const mfd::PageLayerDefinition& layer : page.layers)
+        {
+            if (layer.id.empty())
+            {
+                report.valid = false;
+                report.diagnostics.push_back(
+                    ValidationDiagnostic {AutomationErrorCode::ValidationFailed, pageId.value, "Page layer ids cannot be empty."});
+                continue;
+            }
+
+            if (!runtimeLayerIds.insert(NormalizeIdentifier(layer.id)).second)
+            {
+                report.valid = false;
+                report.diagnostics.push_back(
+                    ValidationDiagnostic {AutomationErrorCode::ValidationFailed, pageId.value, "Page layer ids must stay unique inside one page."});
+            }
+        }
+
+        std::unordered_set<std::string> editorLayerIds;
         for (const mfd::EditorLayerDefinition& layer : page.editor.layers)
         {
             if (layer.id.empty())
@@ -629,11 +672,19 @@ ValidationReport ValidateAutomationState(const mfd::LoadedWindowConfiguration& l
                 continue;
             }
 
-            if (!layerIds.insert(NormalizeIdentifier(layer.id)).second)
+            const std::string normalizedLayerId = NormalizeIdentifier(layer.id);
+            if (!editorLayerIds.insert(normalizedLayerId).second)
             {
                 report.valid = false;
                 report.diagnostics.push_back(
                     ValidationDiagnostic {AutomationErrorCode::ValidationFailed, pageId.value, "Editor layer ids must stay unique inside one page."});
+            }
+
+            if (runtimeLayerIds.find(normalizedLayerId) == runtimeLayerIds.end())
+            {
+                report.valid = false;
+                report.diagnostics.push_back(
+                    ValidationDiagnostic {AutomationErrorCode::ValidationFailed, pageId.value, "Editor layer state must reference one runtime page layer."});
             }
         }
 
@@ -667,39 +718,64 @@ ValidationReport ValidateAutomationState(const mfd::LoadedWindowConfiguration& l
                 "The page default blink type must resolve inside the page blink catalog."});
         }
 
-        if (page.editor.dynamicReticleTemplateIds.has_value())
+        std::unordered_set<std::string> dynamicTemplateIds;
+        std::unordered_map<std::string, std::unordered_set<int>> dynamicBindingOrdersByLayer;
+        for (const mfd::DynamicReticleLayerBinding& binding : page.dynamicReticleBindings)
         {
-            std::unordered_set<std::string> dynamicTemplateIds;
-            for (const std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+            if (binding.templateId.empty())
             {
-                if (templateId.empty())
-                {
-                    report.valid = false;
-                    report.diagnostics.push_back(ValidationDiagnostic {
-                        AutomationErrorCode::ValidationFailed,
-                        pageId.value,
-                        "Page dynamic reticle template ids cannot be empty."});
-                    continue;
-                }
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    pageId.value,
+                    "Page dynamic reticle bindings must define a template id."});
+                continue;
+            }
 
-                const std::string normalizedTemplateId = NormalizeIdentifier(templateId);
-                if (!dynamicTemplateIds.insert(normalizedTemplateId).second)
-                {
-                    report.valid = false;
-                    report.diagnostics.push_back(ValidationDiagnostic {
-                        AutomationErrorCode::ValidationFailed,
-                        pageId.value,
-                        "Page dynamic reticle template ids must stay unique inside one page."});
-                }
+            const std::string normalizedTemplateId = NormalizeIdentifier(binding.templateId);
+            if (!dynamicTemplateIds.insert(normalizedTemplateId).second)
+            {
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    pageId.value,
+                    "Page dynamic reticle binding template ids must stay unique inside one page."});
+            }
 
-                if (loaded.document.reticleLibrary.find(templateId) == loaded.document.reticleLibrary.end())
-                {
-                    report.valid = false;
-                    report.diagnostics.push_back(ValidationDiagnostic {
-                        AutomationErrorCode::ValidationFailed,
-                        pageId.value,
-                        "Page dynamic reticle template ids must resolve inside the loaded reticle library."});
-                }
+            if (loaded.document.reticleLibrary.find(binding.templateId) == loaded.document.reticleLibrary.end())
+            {
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    pageId.value,
+                    "Page dynamic reticle binding template ids must resolve inside the loaded reticle library."});
+            }
+
+            const std::string normalizedLayerId = NormalizeIdentifier(binding.layerId);
+            if (normalizedLayerId.empty())
+            {
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    pageId.value,
+                    "Page dynamic reticle bindings must define a layer id."});
+            }
+            else if (runtimeLayerIds.find(normalizedLayerId) == runtimeLayerIds.end())
+            {
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    pageId.value,
+                    "Page dynamic reticle bindings must reference one runtime page layer."});
+            }
+
+            if (!dynamicBindingOrdersByLayer[normalizedLayerId].insert(binding.orderInLayer).second)
+            {
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    pageId.value,
+                    "Page dynamic reticle binding orderInLayer values must stay unique inside one layer."});
             }
         }
 
@@ -729,6 +805,24 @@ ValidationReport ValidateAutomationState(const mfd::LoadedWindowConfiguration& l
                     AutomationErrorCode::ValidationFailed,
                     reticleId.value,
                     "Page reticle source template must resolve inside the loaded reticle library."});
+            }
+
+            const std::string normalizedLayerId = NormalizeIdentifier(reticle.layerId);
+            if (normalizedLayerId.empty())
+            {
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    reticleId.value,
+                    "Page reticles must define a runtime layer id."});
+            }
+            else if (runtimeLayerIds.find(normalizedLayerId) == runtimeLayerIds.end())
+            {
+                report.valid = false;
+                report.diagnostics.push_back(ValidationDiagnostic {
+                    AutomationErrorCode::ValidationFailed,
+                    reticleId.value,
+                    "Page reticles must reference an existing runtime page layer."});
             }
 
             AppendPrimitiveDiagnostics(reticle.primitives, reticleId.value, report);

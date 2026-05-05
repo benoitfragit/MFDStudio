@@ -52,17 +52,20 @@ class GenerateUiTests(unittest.TestCase):
                     {
                         "page": {
                             "name": "Radar",
-                            "_editor": {
-                                "dynamicReticleTemplates": ["status_template"],
-                            },
+                            "layers": [{"id": "default"}],
+                            "dynamicReticleBindings": [
+                                {"templateId": "status_template", "layerId": "default", "orderInLayer": 0}
+                            ],
                             "blinkTypes": [{"name": "attention"}],
                             "staticReticles": [
                                 {
                                     "id": "radar_status",
                                     "template": "status_template",
+                                    "layerId": "default",
                                 },
                                 {
                                     "id": "track_box",
+                                    "layerId": "default",
                                     "elements": [{"id": "shape", "type": "line"}],
                                 },
                             ],
@@ -76,9 +79,11 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "System",
+                        "layers": [{"id": "default"}],
                         "staticReticles": [
                             {
                                 "id": "systemStatus",
+                                "layerId": "default",
                                 "elements": [{"id": "systemStatus_value", "type": "text"}],
                             }
                         ],
@@ -255,16 +260,19 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "Radar",
-                        "_editor": {
-                            "dynamicReticleTemplates": ["geometry_template"],
-                        },
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "geometry_template", "layerId": "default", "orderInLayer": 0}
+                        ],
                         "staticReticles": [
                             {
                                 "id": "geometry_widget",
                                 "template": "geometry_template",
+                                "layerId": "default",
                             },
                             {
                                 "id": "geometry_panel",
+                                "layerId": "default",
                                 "elements": [
                                     {"id": "ellipse_zone", "type": "ellipse", "exposed": True},
                                     {"id": "square_marker", "type": "square", "exposed": True},
@@ -409,9 +417,10 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "Alpha",
-                        "_editor": {
-                            "dynamicReticleTemplates": ["alpha_template"],
-                        },
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "alpha_template", "layerId": "default", "orderInLayer": 0}
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -422,9 +431,10 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "Beta",
-                        "_editor": {
-                            "dynamicReticleTemplates": ["beta_template"],
-                        },
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "beta_template", "layerId": "default", "orderInLayer": 0}
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -515,6 +525,7 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "Alpha",
+                        "layers": [{"id": "default"}],
                     }
                 ),
                 encoding="utf-8",
@@ -561,6 +572,175 @@ class GenerateUiTests(unittest.TestCase):
             self.assertNotIn("DynamicAlphaTemplate()", source_content)
             self.assertEqual(map_content["templates"], [])
 
+    def test_rejects_page_without_layers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(json.dumps({"name": "Alpha"}), encoding="utf-8")
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Page layers must be a non-empty JSON array", completed.stderr)
+
+    def test_rejects_static_reticle_without_layer_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [
+                            {
+                                "id": "track_box",
+                                "elements": [{"id": "shape", "type": "line"}],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Static reticle 'track_box' must define a non-empty layerId", completed.stderr)
+
+    def test_rejects_dynamic_binding_with_unknown_layer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+            (template_dir / "track_template.json").write_text(
+                json.dumps({"id": "track_template", "elements": [{"id": "shape", "type": "line"}]}),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "track_template", "layerId": "overlay", "orderInLayer": 0}
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("references unknown runtime layer 'overlay'", completed.stderr)
+
+    def test_rejects_duplicate_dynamic_binding_order_within_one_layer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+            (template_dir / "alpha_template.json").write_text(
+                json.dumps({"id": "alpha_template", "elements": [{"id": "shape", "type": "line"}]}),
+                encoding="utf-8",
+            )
+            (template_dir / "beta_template.json").write_text(
+                json.dumps({"id": "beta_template", "elements": [{"id": "shape", "type": "line"}]}),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "alpha_template", "layerId": "default", "orderInLayer": 0},
+                            {"templateId": "beta_template", "layerId": "default", "orderInLayer": 0},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Duplicate page dynamic binding orderInLayer 0 on layer 'default'", completed.stderr)
+
 
 
     def test_detects_single_text_primitive_without_suffix_hint(self) -> None:
@@ -571,9 +751,11 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "Main",
+                        "layers": [{"id": "default"}],
                         "staticReticles": [
                             {
                                 "id": "multi_element_status",
+                                "layerId": "default",
                                 "elements": [
                                     {"id": "label", "type": "text"},
                                     {"id": "shape_one", "type": "line"},
@@ -613,7 +795,7 @@ class GenerateUiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             page = root / "page.json"
-            page.write_text(json.dumps({"name": "Main"}), encoding="utf-8")
+            page.write_text(json.dumps({"name": "Main", "layers": [{"id": "default"}]}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
 
@@ -645,7 +827,7 @@ class GenerateUiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             page = root / "page.json"
-            page.write_text(json.dumps({"name": "Main"}), encoding="utf-8")
+            page.write_text(json.dumps({"name": "Main", "layers": [{"id": "default"}]}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
 
@@ -675,7 +857,7 @@ class GenerateUiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             page = root / "page.json"
-            page.write_text(json.dumps({"name": "Main"}), encoding="utf-8")
+            page.write_text(json.dumps({"name": "Main", "layers": [{"id": "default"}]}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
 
@@ -705,8 +887,8 @@ class GenerateUiTests(unittest.TestCase):
             root = Path(temp_dir)
             page_one = root / "page_one.json"
             page_two = root / "page_two.json"
-            page_one.write_text(json.dumps({"name": "Radar Main"}), encoding="utf-8")
-            page_two.write_text(json.dumps({"name": "Radar_Main"}), encoding="utf-8")
+            page_one.write_text(json.dumps({"name": "Radar Main", "layers": [{"id": "default"}]}), encoding="utf-8")
+            page_two.write_text(json.dumps({"name": "Radar_Main", "layers": [{"id": "default"}]}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page_one.name, page_two.name]}), encoding="utf-8")
 
@@ -737,9 +919,18 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "Radar",
+                        "layers": [{"id": "default"}],
                         "staticReticles": [
-                            {"id": "lock-box", "elements": [{"id": "left_value", "type": "text"}]},
-                            {"id": "lock_box", "elements": [{"id": "right_value", "type": "text"}]},
+                            {
+                                "id": "lock-box",
+                                "layerId": "default",
+                                "elements": [{"id": "left_value", "type": "text"}],
+                            },
+                            {
+                                "id": "lock_box",
+                                "layerId": "default",
+                                "elements": [{"id": "right_value", "type": "text"}],
+                            },
                         ],
                     }
                 ),
@@ -775,9 +966,11 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps(
                     {
                         "name": "Radar",
+                        "layers": [{"id": "default"}],
                         "staticReticles": [
                             {
                                 "id": "geometry_panel",
+                                "layerId": "default",
                                 "elements": [
                                     {"id": "track-label", "type": "text", "exposed": True},
                                     {"id": "track_label", "type": "line", "exposed": True},
@@ -814,7 +1007,7 @@ class GenerateUiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             page = root / "page.json"
-            page.write_text(json.dumps({"name": "Main"}), encoding="utf-8")
+            page.write_text(json.dumps({"name": "Main", "layers": [{"id": "default"}]}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
             output_header = root / "GeneratedUi.h"

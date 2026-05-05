@@ -73,11 +73,14 @@ void WriteBasicWindowAssets(const TemporaryFolder& workspace)
     WriteTextFile(workspace.Path() / "pages" / "main.json",
                   R"json({
   "name": "Main",
+  "layers": [
+    { "id": "default" }
+  ],
   "blinkTypes": [
     { "name": "slow", "durationMs": 750 }
   ],
   "staticReticles": [
-    { "id": "status", "template": "status_template" }
+    { "id": "status", "template": "status_template", "layerId": "default" }
   ]
 })json");
 

@@ -134,18 +134,21 @@ TEST(AssetReferenceIndexServiceTests, BuildIndexTracksWindowPagesTemplatesImages
     WriteTextFile(pageFile,
                   R"({
   "name": "Radar",
-  "_editor": {
-    "dynamicReticleTemplates": [
-      "radar_track"
-    ]
-  },
+  "layers": [
+    { "id": "default" }
+  ],
+  "dynamicReticleBindings": [
+    { "templateId": "radar_track", "layerId": "default", "orderInLayer": 0 }
+  ],
   "staticReticles": [
     {
       "id": "track_alpha",
-      "template": "radar_track"
+      "template": "radar_track",
+      "layerId": "default"
     },
     {
       "id": "inline_badge",
+      "layerId": "default",
       "elements": [
         {
           "id": "page_picture",

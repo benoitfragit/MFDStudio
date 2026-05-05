@@ -1,248 +1,936 @@
 {
-  "name": "Cockpit",
-  "title": "Integrated Cockpit",
-  "backgroundColor": "#05080CFF",
-  "blinkTypes": [
-    {
-      "name": "overspeed",
-      "durationMs": 220
-    },
-    {
-      "name": "threat",
-      "durationMs": 360
-    }
-  ],
-  "defaultBlink": "overspeed",
-  "_editor": {
-    "dynamicReticleTemplates": [
-      "cockpit_radar_contact"
-    ]
-  },
-  "staticReticles": [
-    {
-      "id": "cockpit_shell",
-      "stroke": "#45617AFF",
-      "fill": "#091119FF",
-      "lineWidth": 0.0030,
-      "elements": [
-        { "id": "adi_back", "type": "rectangle", "at": [-1.03, 0.0], "width": 0.90, "height": 1.52 },
-        { "id": "hud_back", "type": "rectangle", "at": [0.0, 0.0], "width": 1.06, "height": 1.52 },
-        { "id": "radar_back", "type": "rectangle", "at": [1.03, 0.0], "width": 0.90, "height": 1.52 },
-        { "id": "left_top_label", "type": "text", "text": "ADI", "at": [-1.03, 0.84], "size": 0.050, "stroke": "#D7E6F7FF" },
-        { "id": "center_top_label", "type": "text", "text": "HUD", "at": [0.0, 0.84], "size": 0.050, "stroke": "#A2FFD3FF" },
-        { "id": "right_top_label", "type": "text", "text": "RADAR", "at": [1.03, 0.84], "size": 0.050, "stroke": "#A2FFD3FF" },
-        { "id": "left_separator", "type": "line", "start": [-0.57, 0.80], "end": [-0.57, -0.80] },
-        { "id": "right_separator", "type": "line", "start": [0.57, 0.80], "end": [0.57, -0.80] },
-        { "id": "status_strip", "type": "rectangle", "at": [0.0, -0.90], "width": 2.90, "height": 0.12, "fill": "#070D14FF", "stroke": "#223240FF" }
-      ]
-    },
-    { "id": "adi_ball_sky", "template": "adi_ball_sky", "at": [-1.03, 0.00] },
-    { "id": "adi_ball_ground", "template": "adi_ball_ground", "at": [-1.03, 0.00] },
-    { "id": "adi_ball_horizon", "template": "adi_ball_horizon", "at": [-1.03, 0.00] },
-    { "id": "adi_ball_ladder", "template": "adi_ball_ladder", "at": [-1.03, 0.00] },
-    { "id": "adi_outer_mask", "template": "adi_outer_mask", "at": [-1.03, 0.00] },
-    { "id": "adi_ball_bezel", "template": "adi_ball_bezel", "at": [-1.03, 0.00] },
-    { "id": "adi_bank_scale", "template": "adi_bank_scale", "at": [-1.03, 0.00] },
-    { "id": "adi_bank_pointer", "template": "adi_bank_pointer", "at": [-1.03, 0.00] },
-    { "id": "adi_heading_card", "template": "adi_heading_card", "at": [-1.03, 0.00] },
-    { "id": "adi_heading_command_bug", "template": "adi_heading_command_bug", "at": [-1.03, 0.00] },
-    { "id": "adi_heading_lubber", "template": "adi_heading_lubber", "at": [-1.03, 0.00] },
-    { "id": "adi_aircraft_reference", "template": "adi_aircraft_reference", "at": [-1.03, 0.00] },
-    {
-      "id": "adi_heading_box",
-      "stroke": "#9BC7F1FF",
-      "fill": "#0A1522D0",
-      "lineWidth": 0.0024,
-      "elements": [
-        { "id": "heading_back", "type": "rectangle", "at": [-1.03, -0.66], "width": 0.62, "height": 0.10 },
-        { "id": "heading_label", "type": "text", "text": "HDG", "at": [-1.22, -0.66], "size": 0.028 },
-        { "id": "heading_value", "type": "text", "text": "032", "at": [-1.09, -0.66], "size": 0.036 },
-        { "id": "command_label", "type": "text", "text": "SEL", "at": [-0.96, -0.66], "size": 0.026 },
-        { "id": "command_value", "type": "text", "text": "032", "at": [-0.85, -0.66], "size": 0.036 }
-      ]
-    },
-    {
-      "id": "adi_pitch_box",
-      "stroke": "#9BC7F1FF",
-      "fill": "#0A1522D0",
-      "lineWidth": 0.0024,
-      "elements": [
-        { "id": "pitch_back", "type": "rectangle", "at": [-1.27, -0.80], "width": 0.34, "height": 0.10 },
-        { "id": "pitch_label", "type": "text", "text": "PITCH", "at": [-1.35, -0.80], "size": 0.026 },
-        { "id": "pitch_value", "type": "text", "text": "+02.0", "at": [-1.20, -0.80], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "adi_roll_box",
-      "stroke": "#9BC7F1FF",
-      "fill": "#0A1522D0",
-      "lineWidth": 0.0024,
-      "elements": [
-        { "id": "roll_back", "type": "rectangle", "at": [-0.79, -0.80], "width": 0.30, "height": 0.10 },
-        { "id": "roll_label", "type": "text", "text": "ROLL", "at": [-0.87, -0.80], "size": 0.026 },
-        { "id": "roll_value", "type": "text", "text": "+00", "at": [-0.73, -0.80], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "hud_radar_panel_reset",
-      "stroke": "#45617AFF",
-      "fill": "#091119FF",
-      "lineWidth": 0.0030,
-      "elements": [
-        { "id": "hud_back_refresh", "type": "rectangle", "at": [0.0, 0.0], "width": 1.06, "height": 1.52 },
-        { "id": "radar_back_refresh", "type": "rectangle", "at": [1.03, 0.0], "width": 0.90, "height": 1.52 },
-        { "id": "left_separator_refresh", "type": "line", "start": [-0.57, 0.80], "end": [-0.57, -0.80] },
-        { "id": "right_separator_refresh", "type": "line", "start": [0.57, 0.80], "end": [0.57, -0.80] }
-      ]
-    },
-    { "id": "hud_frame", "template": "hud_frame" },
-    { "id": "hud_pitch_ladder", "template": "hud_pitch_ladder" },
-    { "id": "hud_waterline", "template": "hud_waterline" },
-    { "id": "hud_velocity_vector", "template": "hud_velocity_vector" },
-    {
-      "id": "hud_speed_box",
-      "stroke": "#2EFFA2FF",
-      "fill": "#041C12D0",
-      "lineWidth": 0.0026,
-      "elements": [
-        { "id": "speed_back", "type": "rectangle", "at": [-0.44, 0.30], "width": 0.30, "height": 0.13 },
-        { "id": "speed_label", "type": "text", "text": "SPD", "at": [-0.51, 0.34], "size": 0.027 },
-        { "id": "speed_value", "type": "text", "text": "320", "at": [-0.43, 0.26], "size": 0.054 },
-        { "id": "speed_unit", "type": "text", "text": "KTS", "at": [-0.34, 0.34], "size": 0.024 }
-      ]
-    },
-    {
-      "id": "hud_mach_box",
-      "stroke": "#2EFFA2FF",
-      "fill": "#041C12D0",
-      "lineWidth": 0.0026,
-      "elements": [
-        { "id": "mach_back", "type": "rectangle", "at": [0.44, 0.30], "width": 0.30, "height": 0.13 },
-        { "id": "mach_label", "type": "text", "text": "MACH", "at": [0.35, 0.34], "size": 0.027 },
-        { "id": "mach_value", "type": "text", "text": "0.48", "at": [0.46, 0.26], "size": 0.054 }
-      ]
-    },
-    {
-      "id": "hud_heading_box",
-      "stroke": "#2EFFA2FF",
-      "fill": "#041C12D0",
-      "lineWidth": 0.0022,
-      "elements": [
-        { "id": "heading_back", "type": "rectangle", "at": [0.0, 0.64], "width": 0.26, "height": 0.10 },
-        { "id": "heading_label", "type": "text", "text": "HDG", "at": [-0.06, 0.64], "size": 0.026 },
-        { "id": "heading_value", "type": "text", "text": "032", "at": [0.08, 0.64], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "hud_fpa_box",
-      "stroke": "#2EFFA2FF",
-      "fill": "#041C12D0",
-      "lineWidth": 0.0022,
-      "elements": [
-        { "id": "fpa_back", "type": "rectangle", "at": [0.0, 0.52], "width": 0.28, "height": 0.10 },
-        { "id": "fpa_label", "type": "text", "text": "FPA", "at": [-0.06, 0.52], "size": 0.026 },
-        { "id": "fpa_value", "type": "text", "text": "+1.5", "at": [0.08, 0.52], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "hud_throttle_box",
-      "stroke": "#2EFFA2FF",
-      "fill": "#041C12D0",
-      "lineWidth": 0.0022,
-      "elements": [
-        { "id": "throttle_back", "type": "rectangle", "at": [-0.33, -0.66], "width": 0.30, "height": 0.10 },
-        { "id": "throttle_label", "type": "text", "text": "THR", "at": [-0.42, -0.66], "size": 0.026 },
-        { "id": "throttle_value", "type": "text", "text": "48%", "at": [-0.25, -0.66], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "hud_radar_box",
-      "stroke": "#2EFFA2FF",
-      "fill": "#041C12D0",
-      "lineWidth": 0.0022,
-      "elements": [
-        { "id": "radar_back", "type": "rectangle", "at": [0.33, -0.66], "width": 0.30, "height": 0.10 },
-        { "id": "radar_label", "type": "text", "text": "RADAR", "at": [0.23, -0.66], "size": 0.026 },
-        { "id": "radar_value", "type": "text", "text": "EMIT", "at": [0.41, -0.66], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "radar_scope",
-      "template": "radar_grid",
-      "at": [1.03, -0.02],
-      "scale": 0.48,
-      "stroke": "#56F4A2FF",
-      "lineWidth": 0.0030
-    },
-    {
-      "id": "radar_ownship",
-      "template": "aircraft_symbol",
-      "at": [1.03, -0.02],
-      "scale": 0.22,
-      "stroke": "#D6FFE9FF",
-      "lineWidth": 0.0032
-    },
-    {
-      "id": "radar_sweep",
-      "at": [1.03, -0.02],
-      "stroke": "#56F4A2FF",
-      "lineWidth": 0.0030,
-      "elements": [
-        { "id": "sweep_line", "type": "line", "start": [0.0, 0.0], "end": [0.0, 0.33] },
-        { "id": "tip_left", "type": "line", "start": [-0.016, 0.30], "end": [0.0, 0.33] },
-        { "id": "tip_right", "type": "line", "start": [0.016, 0.30], "end": [0.0, 0.33] }
-      ]
-    },
-    {
-      "id": "radar_heading_box",
-      "stroke": "#56F4A2FF",
-      "fill": "#062017D0",
-      "lineWidth": 0.0022,
-      "elements": [
-        { "id": "heading_back", "type": "rectangle", "at": [1.03, 0.64], "width": 0.34, "height": 0.10 },
-        { "id": "heading_label", "type": "text", "text": "HDG", "at": [0.94, 0.64], "size": 0.026 },
-        { "id": "heading_value", "type": "text", "text": "032", "at": [1.10, 0.64], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "radar_speed_box",
-      "stroke": "#56F4A2FF",
-      "fill": "#062017D0",
-      "lineWidth": 0.0022,
-      "elements": [
-        { "id": "speed_back", "type": "rectangle", "at": [1.03, 0.52], "width": 0.34, "height": 0.10 },
-        { "id": "speed_label", "type": "text", "text": "SPD", "at": [0.94, 0.52], "size": 0.026 },
-        { "id": "speed_value", "type": "text", "text": "320", "at": [1.10, 0.52], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "radar_status_box",
-      "stroke": "#56F4A2FF",
-      "fill": "#062017D0",
-      "lineWidth": 0.0022,
-      "elements": [
-        { "id": "status_back", "type": "rectangle", "at": [1.03, -0.66], "width": 0.42, "height": 0.10 },
-        { "id": "status_label", "type": "text", "text": "MODE", "at": [0.91, -0.66], "size": 0.026 },
-        { "id": "status_value", "type": "text", "text": "SEARCH", "at": [1.11, -0.66], "size": 0.034 }
-      ]
-    },
-    {
-      "id": "radar_off_overlay",
-      "visible": false,
-      "stroke": "#FFC66DFF",
-      "fill": "#2A1600D8",
-      "lineWidth": 0.0028,
-      "elements": [
-        { "id": "overlay_back", "type": "rectangle", "at": [1.03, -0.02], "width": 0.44, "height": 0.16 },
-        { "id": "overlay_text", "type": "text", "text": "RADAR STBY", "at": [1.03, -0.02], "size": 0.046 }
-      ]
-    },
-    {
-      "id": "cockpit_status",
-      "stroke": "#A8BCCCFF",
-      "elements": [
-        { "id": "status_caption", "type": "text", "text": "Pilotable cockpit composite page driven live over UDP", "at": [0.0, -0.90], "size": 0.030 }
-      ]
-    }
-  ]
+    "name":  "Cockpit",
+    "title":  "Integrated Cockpit",
+    "backgroundColor":  "#05080CFF",
+    "layers":  [
+                   {
+                       "id":  "default"
+                   }
+               ],
+    "dynamicReticleBindings":  [
+                                   {
+                                       "templateId":  "cockpit_radar_contact",
+                                       "layerId":  "default",
+                                       "orderInLayer":  0
+                                   }
+                               ],
+    "blinkTypes":  [
+                       {
+                           "name":  "overspeed",
+                           "durationMs":  220
+                       },
+                       {
+                           "name":  "threat",
+                           "durationMs":  360
+                       }
+                   ],
+    "defaultBlink":  "overspeed",
+    "staticReticles":  [
+                           {
+                               "id":  "cockpit_shell",
+                               "stroke":  "#45617AFF",
+                               "fill":  "#091119FF",
+                               "lineWidth":  0.0030,
+                               "elements":  [
+                                                {
+                                                    "id":  "adi_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               -1.03,
+                                                               0.0
+                                                           ],
+                                                    "width":  0.90,
+                                                    "height":  1.52
+                                                },
+                                                {
+                                                    "id":  "hud_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               0.0,
+                                                               0.0
+                                                           ],
+                                                    "width":  1.06,
+                                                    "height":  1.52
+                                                },
+                                                {
+                                                    "id":  "radar_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               1.03,
+                                                               0.0
+                                                           ],
+                                                    "width":  0.90,
+                                                    "height":  1.52
+                                                },
+                                                {
+                                                    "id":  "left_top_label",
+                                                    "type":  "text",
+                                                    "text":  "ADI",
+                                                    "at":  [
+                                                               -1.03,
+                                                               0.84
+                                                           ],
+                                                    "size":  0.050,
+                                                    "stroke":  "#D7E6F7FF"
+                                                },
+                                                {
+                                                    "id":  "center_top_label",
+                                                    "type":  "text",
+                                                    "text":  "HUD",
+                                                    "at":  [
+                                                               0.0,
+                                                               0.84
+                                                           ],
+                                                    "size":  0.050,
+                                                    "stroke":  "#A2FFD3FF"
+                                                },
+                                                {
+                                                    "id":  "right_top_label",
+                                                    "type":  "text",
+                                                    "text":  "RADAR",
+                                                    "at":  [
+                                                               1.03,
+                                                               0.84
+                                                           ],
+                                                    "size":  0.050,
+                                                    "stroke":  "#A2FFD3FF"
+                                                },
+                                                {
+                                                    "id":  "left_separator",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.57,
+                                                                  0.80
+                                                              ],
+                                                    "end":  [
+                                                                -0.57,
+                                                                -0.80
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "right_separator",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.57,
+                                                                  0.80
+                                                              ],
+                                                    "end":  [
+                                                                0.57,
+                                                                -0.80
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "status_strip",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               0.0,
+                                                               -0.90
+                                                           ],
+                                                    "width":  2.90,
+                                                    "height":  0.12,
+                                                    "fill":  "#070D14FF",
+                                                    "stroke":  "#223240FF"
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_ball_sky",
+                               "template":  "adi_ball_sky",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_ball_ground",
+                               "template":  "adi_ball_ground",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_ball_horizon",
+                               "template":  "adi_ball_horizon",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_ball_ladder",
+                               "template":  "adi_ball_ladder",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_outer_mask",
+                               "template":  "adi_outer_mask",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_ball_bezel",
+                               "template":  "adi_ball_bezel",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_bank_scale",
+                               "template":  "adi_bank_scale",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_bank_pointer",
+                               "template":  "adi_bank_pointer",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_heading_card",
+                               "template":  "adi_heading_card",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_heading_command_bug",
+                               "template":  "adi_heading_command_bug",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_heading_lubber",
+                               "template":  "adi_heading_lubber",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_aircraft_reference",
+                               "template":  "adi_aircraft_reference",
+                               "at":  [
+                                          -1.03,
+                                          0.00
+                                      ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_heading_box",
+                               "stroke":  "#9BC7F1FF",
+                               "fill":  "#0A1522D0",
+                               "lineWidth":  0.0024,
+                               "elements":  [
+                                                {
+                                                    "id":  "heading_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               -1.03,
+                                                               -0.66
+                                                           ],
+                                                    "width":  0.62,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "heading_label",
+                                                    "type":  "text",
+                                                    "text":  "HDG",
+                                                    "at":  [
+                                                               -1.22,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.028
+                                                },
+                                                {
+                                                    "id":  "heading_value",
+                                                    "type":  "text",
+                                                    "text":  "032",
+                                                    "at":  [
+                                                               -1.09,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.036
+                                                },
+                                                {
+                                                    "id":  "command_label",
+                                                    "type":  "text",
+                                                    "text":  "SEL",
+                                                    "at":  [
+                                                               -0.96,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "command_value",
+                                                    "type":  "text",
+                                                    "text":  "032",
+                                                    "at":  [
+                                                               -0.85,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.036
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_pitch_box",
+                               "stroke":  "#9BC7F1FF",
+                               "fill":  "#0A1522D0",
+                               "lineWidth":  0.0024,
+                               "elements":  [
+                                                {
+                                                    "id":  "pitch_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               -1.27,
+                                                               -0.80
+                                                           ],
+                                                    "width":  0.34,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "pitch_label",
+                                                    "type":  "text",
+                                                    "text":  "PITCH",
+                                                    "at":  [
+                                                               -1.35,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "pitch_value",
+                                                    "type":  "text",
+                                                    "text":  "+02.0",
+                                                    "at":  [
+                                                               -1.20,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "adi_roll_box",
+                               "stroke":  "#9BC7F1FF",
+                               "fill":  "#0A1522D0",
+                               "lineWidth":  0.0024,
+                               "elements":  [
+                                                {
+                                                    "id":  "roll_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               -0.79,
+                                                               -0.80
+                                                           ],
+                                                    "width":  0.30,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "roll_label",
+                                                    "type":  "text",
+                                                    "text":  "ROLL",
+                                                    "at":  [
+                                                               -0.87,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "roll_value",
+                                                    "type":  "text",
+                                                    "text":  "+00",
+                                                    "at":  [
+                                                               -0.73,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_radar_panel_reset",
+                               "stroke":  "#45617AFF",
+                               "fill":  "#091119FF",
+                               "lineWidth":  0.0030,
+                               "elements":  [
+                                                {
+                                                    "id":  "hud_back_refresh",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               0.0,
+                                                               0.0
+                                                           ],
+                                                    "width":  1.06,
+                                                    "height":  1.52
+                                                },
+                                                {
+                                                    "id":  "radar_back_refresh",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               1.03,
+                                                               0.0
+                                                           ],
+                                                    "width":  0.90,
+                                                    "height":  1.52
+                                                },
+                                                {
+                                                    "id":  "left_separator_refresh",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.57,
+                                                                  0.80
+                                                              ],
+                                                    "end":  [
+                                                                -0.57,
+                                                                -0.80
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "right_separator_refresh",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.57,
+                                                                  0.80
+                                                              ],
+                                                    "end":  [
+                                                                0.57,
+                                                                -0.80
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_frame",
+                               "template":  "hud_frame",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_pitch_ladder",
+                               "template":  "hud_pitch_ladder",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_waterline",
+                               "template":  "hud_waterline",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_velocity_vector",
+                               "template":  "hud_velocity_vector",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_speed_box",
+                               "stroke":  "#2EFFA2FF",
+                               "fill":  "#041C12D0",
+                               "lineWidth":  0.0026,
+                               "elements":  [
+                                                {
+                                                    "id":  "speed_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               -0.44,
+                                                               0.30
+                                                           ],
+                                                    "width":  0.30,
+                                                    "height":  0.13
+                                                },
+                                                {
+                                                    "id":  "speed_label",
+                                                    "type":  "text",
+                                                    "text":  "SPD",
+                                                    "at":  [
+                                                               -0.51,
+                                                               0.34
+                                                           ],
+                                                    "size":  0.027
+                                                },
+                                                {
+                                                    "id":  "speed_value",
+                                                    "type":  "text",
+                                                    "text":  "320",
+                                                    "at":  [
+                                                               -0.43,
+                                                               0.26
+                                                           ],
+                                                    "size":  0.054
+                                                },
+                                                {
+                                                    "id":  "speed_unit",
+                                                    "type":  "text",
+                                                    "text":  "KTS",
+                                                    "at":  [
+                                                               -0.34,
+                                                               0.34
+                                                           ],
+                                                    "size":  0.024
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_mach_box",
+                               "stroke":  "#2EFFA2FF",
+                               "fill":  "#041C12D0",
+                               "lineWidth":  0.0026,
+                               "elements":  [
+                                                {
+                                                    "id":  "mach_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               0.44,
+                                                               0.30
+                                                           ],
+                                                    "width":  0.30,
+                                                    "height":  0.13
+                                                },
+                                                {
+                                                    "id":  "mach_label",
+                                                    "type":  "text",
+                                                    "text":  "MACH",
+                                                    "at":  [
+                                                               0.35,
+                                                               0.34
+                                                           ],
+                                                    "size":  0.027
+                                                },
+                                                {
+                                                    "id":  "mach_value",
+                                                    "type":  "text",
+                                                    "text":  "0.48",
+                                                    "at":  [
+                                                               0.46,
+                                                               0.26
+                                                           ],
+                                                    "size":  0.054
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_heading_box",
+                               "stroke":  "#2EFFA2FF",
+                               "fill":  "#041C12D0",
+                               "lineWidth":  0.0022,
+                               "elements":  [
+                                                {
+                                                    "id":  "heading_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               0.0,
+                                                               0.64
+                                                           ],
+                                                    "width":  0.26,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "heading_label",
+                                                    "type":  "text",
+                                                    "text":  "HDG",
+                                                    "at":  [
+                                                               -0.06,
+                                                               0.64
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "heading_value",
+                                                    "type":  "text",
+                                                    "text":  "032",
+                                                    "at":  [
+                                                               0.08,
+                                                               0.64
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_fpa_box",
+                               "stroke":  "#2EFFA2FF",
+                               "fill":  "#041C12D0",
+                               "lineWidth":  0.0022,
+                               "elements":  [
+                                                {
+                                                    "id":  "fpa_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               0.0,
+                                                               0.52
+                                                           ],
+                                                    "width":  0.28,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "fpa_label",
+                                                    "type":  "text",
+                                                    "text":  "FPA",
+                                                    "at":  [
+                                                               -0.06,
+                                                               0.52
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "fpa_value",
+                                                    "type":  "text",
+                                                    "text":  "+1.5",
+                                                    "at":  [
+                                                               0.08,
+                                                               0.52
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_throttle_box",
+                               "stroke":  "#2EFFA2FF",
+                               "fill":  "#041C12D0",
+                               "lineWidth":  0.0022,
+                               "elements":  [
+                                                {
+                                                    "id":  "throttle_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               -0.33,
+                                                               -0.66
+                                                           ],
+                                                    "width":  0.30,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "throttle_label",
+                                                    "type":  "text",
+                                                    "text":  "THR",
+                                                    "at":  [
+                                                               -0.42,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "throttle_value",
+                                                    "type":  "text",
+                                                    "text":  "48%",
+                                                    "at":  [
+                                                               -0.25,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "hud_radar_box",
+                               "stroke":  "#2EFFA2FF",
+                               "fill":  "#041C12D0",
+                               "lineWidth":  0.0022,
+                               "elements":  [
+                                                {
+                                                    "id":  "radar_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               0.33,
+                                                               -0.66
+                                                           ],
+                                                    "width":  0.30,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "radar_label",
+                                                    "type":  "text",
+                                                    "text":  "RADAR",
+                                                    "at":  [
+                                                               0.23,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "radar_value",
+                                                    "type":  "text",
+                                                    "text":  "EMIT",
+                                                    "at":  [
+                                                               0.41,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "radar_scope",
+                               "template":  "radar_grid",
+                               "at":  [
+                                          1.03,
+                                          -0.02
+                                      ],
+                               "scale":  0.48,
+                               "stroke":  "#56F4A2FF",
+                               "lineWidth":  0.0030,
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "radar_ownship",
+                               "template":  "aircraft_symbol",
+                               "at":  [
+                                          1.03,
+                                          -0.02
+                                      ],
+                               "scale":  0.22,
+                               "stroke":  "#D6FFE9FF",
+                               "lineWidth":  0.0032,
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "radar_sweep",
+                               "at":  [
+                                          1.03,
+                                          -0.02
+                                      ],
+                               "stroke":  "#56F4A2FF",
+                               "lineWidth":  0.0030,
+                               "elements":  [
+                                                {
+                                                    "id":  "sweep_line",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.0,
+                                                                  0.0
+                                                              ],
+                                                    "end":  [
+                                                                0.0,
+                                                                0.33
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "tip_left",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.016,
+                                                                  0.30
+                                                              ],
+                                                    "end":  [
+                                                                0.0,
+                                                                0.33
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "tip_right",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.016,
+                                                                  0.30
+                                                              ],
+                                                    "end":  [
+                                                                0.0,
+                                                                0.33
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "radar_heading_box",
+                               "stroke":  "#56F4A2FF",
+                               "fill":  "#062017D0",
+                               "lineWidth":  0.0022,
+                               "elements":  [
+                                                {
+                                                    "id":  "heading_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               1.03,
+                                                               0.64
+                                                           ],
+                                                    "width":  0.34,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "heading_label",
+                                                    "type":  "text",
+                                                    "text":  "HDG",
+                                                    "at":  [
+                                                               0.94,
+                                                               0.64
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "heading_value",
+                                                    "type":  "text",
+                                                    "text":  "032",
+                                                    "at":  [
+                                                               1.10,
+                                                               0.64
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "radar_speed_box",
+                               "stroke":  "#56F4A2FF",
+                               "fill":  "#062017D0",
+                               "lineWidth":  0.0022,
+                               "elements":  [
+                                                {
+                                                    "id":  "speed_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               1.03,
+                                                               0.52
+                                                           ],
+                                                    "width":  0.34,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "speed_label",
+                                                    "type":  "text",
+                                                    "text":  "SPD",
+                                                    "at":  [
+                                                               0.94,
+                                                               0.52
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "speed_value",
+                                                    "type":  "text",
+                                                    "text":  "320",
+                                                    "at":  [
+                                                               1.10,
+                                                               0.52
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "radar_status_box",
+                               "stroke":  "#56F4A2FF",
+                               "fill":  "#062017D0",
+                               "lineWidth":  0.0022,
+                               "elements":  [
+                                                {
+                                                    "id":  "status_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               1.03,
+                                                               -0.66
+                                                           ],
+                                                    "width":  0.42,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "status_label",
+                                                    "type":  "text",
+                                                    "text":  "MODE",
+                                                    "at":  [
+                                                               0.91,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "status_value",
+                                                    "type":  "text",
+                                                    "text":  "SEARCH",
+                                                    "at":  [
+                                                               1.11,
+                                                               -0.66
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "radar_off_overlay",
+                               "visible":  false,
+                               "stroke":  "#FFC66DFF",
+                               "fill":  "#2A1600D8",
+                               "lineWidth":  0.0028,
+                               "elements":  [
+                                                {
+                                                    "id":  "overlay_back",
+                                                    "type":  "rectangle",
+                                                    "at":  [
+                                                               1.03,
+                                                               -0.02
+                                                           ],
+                                                    "width":  0.44,
+                                                    "height":  0.16
+                                                },
+                                                {
+                                                    "id":  "overlay_text",
+                                                    "type":  "text",
+                                                    "text":  "RADAR STBY",
+                                                    "at":  [
+                                                               1.03,
+                                                               -0.02
+                                                           ],
+                                                    "size":  0.046
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "cockpit_status",
+                               "stroke":  "#A8BCCCFF",
+                               "elements":  [
+                                                {
+                                                    "id":  "status_caption",
+                                                    "type":  "text",
+                                                    "text":  "Pilotable cockpit composite page driven live over UDP",
+                                                    "at":  [
+                                                               0.0,
+                                                               -0.90
+                                                           ],
+                                                    "size":  0.030
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           }
+                       ]
 }

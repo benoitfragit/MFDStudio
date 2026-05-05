@@ -19,6 +19,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -491,20 +492,148 @@ std::optional<json> SerializePageBlinkTypes(const mfd::PageDefinition& page)
     return blinkTypes;
 }
 
-void WriteReticleEditorFields(json& node, const mfd::ReticleGroup& reticle)
+struct SerializedPageLayerState
 {
-    if (reticle.editor.layerId.empty())
+    json layers = json::array();
+    std::unordered_set<std::string> normalizedLayerIds;
+};
+
+void WriteReticleLayerField(json& node, const mfd::ReticleGroup& reticle, const bool required)
+{
+    if (mfd::NormalizePageName(reticle.layerId).empty())
     {
+        if (required)
+        {
+            throw std::runtime_error("Reticle '" + reticle.id + "' must define layerId before serialization.");
+        }
+
         return;
     }
 
-    node["_editor"] = json {
-        {"layer", reticle.editor.layerId}};
+    node["layerId"] = reticle.layerId;
+}
+
+SerializedPageLayerState SerializePageLayers(const mfd::PageDefinition& page)
+{
+    if (page.layers.empty())
+    {
+        throw std::runtime_error("Page '" + page.name + "' must define a non-empty layers array before saving.");
+    }
+
+    SerializedPageLayerState result;
+    result.normalizedLayerIds.reserve(page.layers.size());
+    for (const auto& layer : page.layers)
+    {
+        const std::string normalizedLayerId = mfd::NormalizePageName(layer.id);
+        if (normalizedLayerId.empty())
+        {
+            throw std::runtime_error("Page '" + page.name + "' contains a runtime layer with an empty id.");
+        }
+
+        if (!result.normalizedLayerIds.insert(normalizedLayerId).second)
+        {
+            throw std::runtime_error("Page '" + page.name + "' contains duplicate runtime layer id '" + layer.id + "'.");
+        }
+
+        result.layers.push_back(json {{"id", layer.id}});
+    }
+
+    return result;
+}
+
+void ValidateStaticReticleLayers(const mfd::PageDefinition& page,
+                                 const std::unordered_set<std::string>& normalizedLayerIds)
+{
+    for (const auto& reticle : page.staticReticles)
+    {
+        const std::string normalizedLayerId = mfd::NormalizePageName(reticle.layerId);
+        if (normalizedLayerId.empty())
+        {
+            throw std::runtime_error(
+                "Static reticle '" + reticle.id + "' must define layerId on page '" + page.name + "' before saving.");
+        }
+
+        if (normalizedLayerIds.find(normalizedLayerId) == normalizedLayerIds.end())
+        {
+            throw std::runtime_error(
+                "Static reticle '" + reticle.id + "' references unknown runtime layer '" + reticle.layerId +
+                "' on page '" + page.name + "'.");
+        }
+    }
+}
+
+std::optional<json> SerializeDynamicReticleBindings(const mfd::PageDefinition& page,
+                                                    const std::unordered_set<std::string>& normalizedLayerIds)
+{
+    if (page.dynamicReticleBindings.empty())
+    {
+        return std::nullopt;
+    }
+
+    json bindings = json::array();
+    std::unordered_set<std::string> normalizedTemplateIds;
+    std::unordered_map<std::string, std::unordered_set<int>> orderInLayerByLayer;
+    for (const auto& binding : page.dynamicReticleBindings)
+    {
+        const std::string normalizedTemplateId = mfd::NormalizePageName(binding.templateId);
+        if (normalizedTemplateId.empty())
+        {
+            throw std::runtime_error("Dynamic reticle bindings on page '" + page.name +
+                                     "' must define a non-empty templateId before saving.");
+        }
+
+        if (!normalizedTemplateIds.insert(normalizedTemplateId).second)
+        {
+            throw std::runtime_error(
+                "Page '" + page.name + "' contains duplicate dynamic reticle binding template '" + binding.templateId +
+                "'.");
+        }
+
+        const std::string normalizedLayerId = mfd::NormalizePageName(binding.layerId);
+        if (normalizedLayerId.empty())
+        {
+            throw std::runtime_error("Dynamic reticle binding '" + binding.templateId +
+                                     "' on page '" + page.name +
+                                     "' must define a non-empty layerId before saving.");
+        }
+
+        if (normalizedLayerIds.find(normalizedLayerId) == normalizedLayerIds.end())
+        {
+            throw std::runtime_error(
+                "Dynamic reticle binding '" + binding.templateId + "' references unknown runtime layer '" +
+                binding.layerId + "' on page '" + page.name + "'.");
+        }
+
+        if (!orderInLayerByLayer[normalizedLayerId].insert(binding.orderInLayer).second)
+        {
+            throw std::runtime_error(
+                "Page '" + page.name + "' contains duplicate dynamic reticle binding orderInLayer " +
+                std::to_string(binding.orderInLayer) + " on runtime layer '" + binding.layerId + "'.");
+        }
+
+        bindings.push_back(json {
+            {"templateId", binding.templateId},
+            {"layerId", binding.layerId},
+            {"orderInLayer", binding.orderInLayer}});
+    }
+
+    if (bindings.empty())
+    {
+        return std::nullopt;
+    }
+
+    return bindings;
 }
 
 std::optional<json> SerializePageEditorState(const mfd::PageDefinition& page)
 {
-    if (page.editor.layers.empty() && !page.editor.dynamicReticleTemplateIds.has_value())
+    const bool hasHiddenLayer = std::any_of(page.editor.layers.begin(),
+                                            page.editor.layers.end(),
+                                            [](const mfd::EditorLayerDefinition& layer)
+                                            {
+                                                return !layer.id.empty() && !layer.visible;
+                                            });
+    if (!hasHiddenLayer)
     {
         return std::nullopt;
     }
@@ -532,19 +661,6 @@ std::optional<json> SerializePageEditorState(const mfd::PageDefinition& page)
     if (!layers.empty())
     {
         editorState["layers"] = std::move(layers);
-    }
-
-    if (page.editor.dynamicReticleTemplateIds.has_value())
-    {
-        json dynamicTemplates = json::array();
-        for (const std::string& templateId : *page.editor.dynamicReticleTemplateIds)
-        {
-            if (!templateId.empty())
-            {
-                dynamicTemplates.push_back(templateId);
-            }
-        }
-        editorState["dynamicReticleTemplates"] = std::move(dynamicTemplates);
     }
 
     if (editorState.empty())
@@ -615,6 +731,7 @@ json SerializeInlineReticle(const mfd::ReticleGroup& reticle, const std::filesys
         node["drawOnTop"] = true;
     }
 
+    WriteReticleLayerField(node, reticle, false);
     WriteTransformFields(node, reticle.transform);
     WriteReticleOverrideFields(node, reticle.overrides);
     if (const auto clipping = SerializeReticleClipping(reticle.clipping); clipping.has_value())
@@ -655,7 +772,7 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle,
 
         WriteTransformFields(node, reticle.transform);
         WriteReticleOverrideFields(node, reticle.overrides);
-        WriteReticleEditorFields(node, reticle);
+        WriteReticleLayerField(node, reticle, true);
 
         if (const auto texts = SerializeTextOverrides(reticle); texts.has_value())
         {
@@ -683,7 +800,6 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle,
     }
 
     json node = SerializeInlineReticle(reticle, baseFolder);
-    WriteReticleEditorFields(node, reticle);
     if (const auto blink = SerializeBlinkBinding(reticle.blink); blink.has_value())
     {
         node["blink"] = *blink;
@@ -753,6 +869,9 @@ json SerializePage(const mfd::PageDefinition& page,
                    const mfd::ReticleLibrary& library,
                    const std::filesystem::path& baseFolder)
 {
+    const SerializedPageLayerState pageLayers = SerializePageLayers(page);
+    ValidateStaticReticleLayers(page, pageLayers.normalizedLayerIds);
+
     json node = json::object();
     node["name"] = page.name;
     node["title"] = page.title;
@@ -778,6 +897,13 @@ json SerializePage(const mfd::PageDefinition& page,
     if (!page.defaultBlinkTypeName.empty())
     {
         node["defaultBlink"] = page.defaultBlinkTypeName;
+    }
+
+    node["layers"] = pageLayers.layers;
+
+    if (const auto bindings = SerializeDynamicReticleBindings(page, pageLayers.normalizedLayerIds); bindings.has_value())
+    {
+        node["dynamicReticleBindings"] = *bindings;
     }
 
     if (const auto editorState = SerializePageEditorState(page); editorState.has_value())
@@ -1042,16 +1168,19 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
             throw std::runtime_error("Page file layout does not match the number of pages");
         }
 
-        WriteJsonFile(loaded.window.sourceFile, SerializeWindow(loaded.window, loaded.document, layout));
+        const json windowDocument = SerializeWindow(loaded.window, loaded.document, layout);
 
+        std::vector<json> pageDocuments;
+        pageDocuments.reserve(loaded.document.pages.size());
         for (std::size_t index = 0; index < loaded.document.pages.size(); ++index)
         {
-            WriteJsonFile(layout.pageFiles[index],
-                          SerializePage(loaded.document.pages[index],
-                                        loaded.document.reticleLibrary,
-                                        layout.pageFiles[index].parent_path()));
+            pageDocuments.push_back(SerializePage(loaded.document.pages[index],
+                                                  loaded.document.reticleLibrary,
+                                                  layout.pageFiles[index].parent_path()));
         }
 
+        std::vector<std::pair<std::filesystem::path, json>> templateDocuments;
+        templateDocuments.reserve(loaded.document.reticleLibrary.size());
         std::vector<std::string> templateIds;
         templateIds.reserve(loaded.document.reticleLibrary.size());
         for (const auto& entry : loaded.document.reticleLibrary)
@@ -1074,7 +1203,21 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
                     ? fileIterator->second
                     : DefaultTemplateFilePath(loaded.window.reticleLibraryFolder, templateId);
 
-            WriteJsonFile(templatePath, SerializeInlineReticle(iterator->second, templatePath.parent_path()));
+            templateDocuments.emplace_back(
+                templatePath,
+                SerializeInlineReticle(iterator->second, templatePath.parent_path()));
+        }
+
+        WriteJsonFile(loaded.window.sourceFile, windowDocument);
+
+        for (std::size_t index = 0; index < pageDocuments.size(); ++index)
+        {
+            WriteJsonFile(layout.pageFiles[index], pageDocuments[index]);
+        }
+
+        for (const auto& [templatePath, templateDocument] : templateDocuments)
+        {
+            WriteJsonFile(templatePath, templateDocument);
         }
 
         const auto makePathKey = [](const std::filesystem::path& path)

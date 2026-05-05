@@ -120,7 +120,7 @@ mfd::ReticleGroup MakeReticle(const std::string& id,
     reticle.transform.rotationDegrees = 12.5f;
     reticle.transform.scale = {1.0f, 1.0f};
     reticle.visible = true;
-    reticle.editor.layerId = layerId;
+    reticle.layerId = layerId;
     reticle.primitives.push_back(MakeTextPrimitive("label", "TRK", true));
     return reticle;
 }
@@ -154,6 +154,7 @@ DesignExportFixture MakeFixture(const std::filesystem::path& root, const std::st
     page.normalizedName = mfd::NormalizePageName(pageName);
     page.title = pageName;
     page.defaultPage = true;
+    page.layers.push_back(mfd::PageLayerDefinition {"hud"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"hud", true});
     page.blinkTypes.push_back(mfd::PageBlinkDefinition {"warning", mfd::NormalizePageName("warning"), 750U});
     page.defaultBlinkTypeName = "warning";

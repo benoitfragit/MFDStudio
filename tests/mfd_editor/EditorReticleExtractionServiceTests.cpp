@@ -97,7 +97,7 @@ mfd::ReticleGroup MakePageReticle(const std::string& id,
     reticle.visible = true;
     reticle.drawOnTop = drawOnTop;
     reticle.transform = transform;
-    reticle.editor.layerId = layerId;
+    reticle.layerId = layerId;
     reticle.primitives = std::move(primitives);
     return reticle;
 }
@@ -156,6 +156,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanExtractsTwoPageReticlesIntoOneTempl
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     page.staticReticles.push_back(
         MakePageReticle("alpha",
@@ -194,6 +195,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanConvertsPrimitiveTransformsToNewLoc
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
 
     mfd::ReticleGroup reticle = MakePageReticle(
@@ -237,6 +239,7 @@ TEST(ReticleExtractionServiceTests, ExecuteReplacesSelectionWhilePreservingPrimi
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     page.staticReticles.push_back(
         MakePageReticle("alpha",
@@ -295,6 +298,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRenamesTemplateIdWhenLibraryCollisi
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     page.staticReticles.push_back(
         MakePageReticle("alpha",
@@ -327,6 +331,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRenamesTemplateFileWhenPreferredPat
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     page.staticReticles.push_back(
         MakePageReticle("alpha",
@@ -370,6 +375,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRejectsUnsupportedClippingSelection
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     mfd::ReticleGroup reticle = MakePageReticle(
         "alpha",
@@ -398,6 +404,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRejectsNonContiguousSelection)
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     page.staticReticles.push_back(
         MakePageReticle("alpha",
@@ -443,6 +450,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRejectsImageDependencyOutsideAssets
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     page.staticReticles.push_back(
         MakePageReticle("alpha",
@@ -470,6 +478,7 @@ TEST(ReticleExtractionServiceTests, CallerSnapshotCanRestoreStateAfterExecute)
 
     mfd::PageDefinition page;
     page.name = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     page.staticReticles.push_back(
         MakePageReticle("alpha",

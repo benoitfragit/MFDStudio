@@ -323,14 +323,14 @@ bool HasDuplicatePageReticleId(const mfd::PageDefinition& page, const std::strin
 bool HasDuplicateLayerId(const mfd::PageDefinition& page, const std::string_view layerId, const int ignoredIndex = -1)
 {
     const std::string normalizedLayerId = mfd::NormalizePageName(layerId);
-    for (int index = 0; index < static_cast<int>(page.editor.layers.size()); ++index)
+    for (int index = 0; index < static_cast<int>(page.layers.size()); ++index)
     {
         if (index == ignoredIndex)
         {
             continue;
         }
 
-        if (mfd::NormalizePageName(page.editor.layers[static_cast<std::size_t>(index)].id) == normalizedLayerId)
+        if (mfd::NormalizePageName(page.layers[static_cast<std::size_t>(index)].id) == normalizedLayerId)
         {
             return true;
         }
@@ -516,31 +516,19 @@ void RenameEditorLayerReferences(mfd::PageDefinition& page,
 
     for (mfd::ReticleGroup& reticle : page.staticReticles)
     {
-        if (reticle.editor.layerId == previousLayerId)
+        if (reticle.layerId == previousLayerId)
         {
-            reticle.editor.layerId = nextLayerId;
-        }
-    }
-}
-
-std::size_t ClearEditorLayerReferences(mfd::PageDefinition& page, const std::string_view removedLayerId)
-{
-    if (removedLayerId.empty())
-    {
-        return 0U;
-    }
-
-    std::size_t clearedCount = 0U;
-    for (mfd::ReticleGroup& reticle : page.staticReticles)
-    {
-        if (reticle.editor.layerId == removedLayerId)
-        {
-            reticle.editor.layerId.clear();
-            ++clearedCount;
+            reticle.layerId = nextLayerId;
         }
     }
 
-    return clearedCount;
+    for (mfd::DynamicReticleLayerBinding& binding : page.dynamicReticleBindings)
+    {
+        if (binding.layerId == previousLayerId)
+        {
+            binding.layerId = nextLayerId;
+        }
+    }
 }
 
 mfd::PageStrobeDefinition MakePageStrobeFromTemplate(const mfd::PageDefinition& page,
@@ -564,7 +552,6 @@ mfd::PageStrobeDefinition MakePageStrobeFromTemplate(const mfd::PageDefinition& 
         strobe.reticle.overrides = previousStrobe->reticle.overrides;
         strobe.reticle.blink = previousStrobe->reticle.blink;
         strobe.reticle.clipping = previousStrobe->reticle.clipping;
-        strobe.reticle.editor = previousStrobe->reticle.editor;
         strobe.capture = previousStrobe->capture;
         strobe.magnet = previousStrobe->magnet;
     }
@@ -1026,14 +1013,11 @@ private:
                     page.strobe->reticle.sourceTemplateId = replacement.id;
                 }
 
-                if (page.editor.dynamicReticleTemplateIds.has_value())
+                for (auto& binding : page.dynamicReticleBindings)
                 {
-                    for (std::string& templateId : *page.editor.dynamicReticleTemplateIds)
+                    if (mfd::NormalizePageName(binding.templateId) == mfd::NormalizePageName(oldKey))
                     {
-                        if (mfd::NormalizePageName(templateId) == mfd::NormalizePageName(oldKey))
-                        {
-                            templateId = replacement.id;
-                        }
+                        binding.templateId = replacement.id;
                     }
                 }
             }
@@ -1082,12 +1066,11 @@ private:
                                      "Cannot delete one reticle asset while one page strobe still references it.");
             }
 
-            if (page.editor.dynamicReticleTemplateIds.has_value() &&
-                std::any_of(page.editor.dynamicReticleTemplateIds->begin(),
-                            page.editor.dynamicReticleTemplateIds->end(),
-                            [&existing](const std::string& templateId)
+            if (std::any_of(page.dynamicReticleBindings.begin(),
+                            page.dynamicReticleBindings.end(),
+                            [&existing](const mfd::DynamicReticleLayerBinding& binding)
                             {
-                                return mfd::NormalizePageName(templateId) == mfd::NormalizePageName(existing->id);
+                                return mfd::NormalizePageName(binding.templateId) == mfd::NormalizePageName(existing->id);
                             }))
             {
                 return FailureStatus(
@@ -1139,10 +1122,10 @@ private:
         }
 
         mfd::ReticleGroup instance = mfd::InstantiateReticle(*templateReticle, instanceId, request.transform, {});
-        if (request.assignDefaultLayer && instance.editor.layerId.empty())
+        if (request.assignDefaultLayer && instance.layerId.empty())
         {
             BootstrapEditorLayersForPage(*page);
-            instance.editor.layerId = DefaultEditorLayerId(*page);
+            instance.layerId = DefaultEditorLayerId(*page);
         }
 
         page->staticReticles.push_back(std::move(instance));
@@ -1512,21 +1495,20 @@ private:
 
         if (request.layerId.empty())
         {
-            reticle->editor.layerId.clear();
-            context_.events.Push(AutomationEventKind::DocumentChanged,
-                                 request.pageReticleId.value,
-                                 "Automation cleared the page reticle layer assignment.");
-            return AutomationStatus::Success();
+            return FailureStatus(AutomationErrorCode::InvalidArgument, "Layer id cannot be empty.");
         }
 
+        int layerIndex = -1;
         const mfd::EditorLayerDefinition* layer =
-            FindLayerById(context_.bridge.Loaded(), MakePageId(*page), request.layerId, nullptr);
-        if (layer == nullptr)
+            FindLayerById(context_.bridge.Loaded(), MakePageId(*page), request.layerId, &layerIndex);
+        if (layer == nullptr ||
+            layerIndex < 0 ||
+            layerIndex >= static_cast<int>(page->layers.size()))
         {
             return FailureStatus(AutomationErrorCode::NotFound, "Unknown layer id.");
         }
 
-        reticle->editor.layerId = layer->id;
+        reticle->layerId = page->layers[static_cast<std::size_t>(layerIndex)].id;
         context_.events.Push(AutomationEventKind::DocumentChanged,
                              request.pageReticleId.value,
                              "Automation updated page reticle layer assignment.");
@@ -1550,12 +1532,13 @@ private:
         }
 
         const int insertIndex = request.insertIndex.has_value()
-                                    ? std::clamp(*request.insertIndex, 0, static_cast<int>(page->editor.layers.size()))
-                                    : static_cast<int>(page->editor.layers.size());
+                                    ? std::clamp(*request.insertIndex, 0, static_cast<int>(page->layers.size()))
+                                    : static_cast<int>(page->layers.size());
+        page->layers.insert(page->layers.begin() + insertIndex, mfd::PageLayerDefinition {request.layer.id});
         page->editor.layers.insert(page->editor.layers.begin() + insertIndex, request.layer);
         context_.events.Push(AutomationEventKind::DocumentChanged,
                              MakeLayerId(*page, page->editor.layers[static_cast<std::size_t>(insertIndex)]).value,
-                             "Automation created one editor layer.");
+                             "Automation created one page layer.");
         return AutomationStatus::Success();
     }
 
@@ -1579,11 +1562,12 @@ private:
         }
 
         const std::string previousId = layer->id;
+        page->layers[static_cast<std::size_t>(layerIndex)].id = request.layer.id;
         *layer = request.layer;
-        RenameEditorLayerReferences(*page, previousId, layer->id);
+        RenameEditorLayerReferences(*page, previousId, request.layer.id);
         context_.events.Push(AutomationEventKind::DocumentChanged,
                              MakeLayerId(*page, *layer).value,
-                             "Automation replaced one editor layer.");
+                             "Automation replaced one page layer.");
         return AutomationStatus::Success();
     }
 
@@ -1597,12 +1581,32 @@ private:
         {
             return FailureStatus(AutomationErrorCode::NotFound, "Unknown layer id.");
         }
+        if (page->layers.size() <= 1U)
+        {
+            return FailureStatus(AutomationErrorCode::Conflict, "A page must keep at least one runtime layer.");
+        }
+        if (std::any_of(page->staticReticles.begin(),
+                        page->staticReticles.end(),
+                        [&layer](const mfd::ReticleGroup& reticle)
+                        {
+                            return reticle.layerId == layer->id;
+                        }) ||
+            std::any_of(page->dynamicReticleBindings.begin(),
+                        page->dynamicReticleBindings.end(),
+                        [&layer](const mfd::DynamicReticleLayerBinding& binding)
+                        {
+                            return binding.layerId == layer->id;
+                        }))
+        {
+            return FailureStatus(AutomationErrorCode::Conflict,
+                                 "Cannot delete one runtime layer while reticles or dynamic bindings still reference it.");
+        }
 
-        ClearEditorLayerReferences(*page, layer->id);
+        page->layers.erase(page->layers.begin() + layerIndex);
         page->editor.layers.erase(page->editor.layers.begin() + layerIndex);
         context_.events.Push(AutomationEventKind::DocumentChanged,
                              request.layerId.value,
-                             "Automation deleted one editor layer and cleared its assignments.");
+                             "Automation deleted one page layer.");
         return AutomationStatus::Success();
     }
 

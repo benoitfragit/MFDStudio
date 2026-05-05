@@ -25,6 +25,8 @@
 
 namespace
 {
+constexpr std::string_view kDefaultLayerId = mfd::kDefaultPageLayerId;
+
 class ScriptedExchangeChannel final : public mfd::IExchangeChannel
 {
 public:
@@ -82,9 +84,11 @@ mfd::SceneRegistry MakeRegistry()
     page.name = "Radar";
     page.normalizedName = "radar";
     page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
 
     mfd::ReticleGroup reticle;
     reticle.id = "heading_box";
+    reticle.layerId = std::string(kDefaultLayerId);
 
     mfd::Primitive primitive;
     primitive.id = "heading_value";
@@ -116,6 +120,9 @@ mfd::SceneRegistry MakeRuntimeRegistry()
     page.normalizedName = "radar";
     page.title = "Radar";
     page.defaultPage = true;
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+    page.dynamicReticleBindings.push_back(
+        mfd::DynamicReticleLayerBinding {"radar_track", std::string(kDefaultLayerId), 0U});
 
     mfd::PageStrobeDefinition strobe;
     strobe.reticle.id = "strobe";

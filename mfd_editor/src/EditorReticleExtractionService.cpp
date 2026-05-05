@@ -408,9 +408,9 @@ std::optional<std::string> ValidateSelectionCompatibility(const mfd::PageDefinit
 
         if (!sharedLayerId.has_value())
         {
-            sharedLayerId = reticle.editor.layerId;
+            sharedLayerId = reticle.layerId;
         }
-        else if (*sharedLayerId != reticle.editor.layerId)
+        else if (*sharedLayerId != reticle.layerId)
         {
             return std::string {"Smart extraction currently requires the selected page reticles to stay on the same editor layer."};
         }
@@ -533,7 +533,7 @@ ReticleExtractionPlan ReticleExtractionService::BuildPlan(const mfd::LoadedWindo
     plan.insertionIndex = plan.reticleIndices.front();
     plan.anchor = AverageAnchor(page, plan.reticleIndices);
     plan.drawOnTop = page.staticReticles[static_cast<std::size_t>(plan.reticleIndices.front())].drawOnTop;
-    plan.targetLayerId = page.staticReticles[static_cast<std::size_t>(plan.reticleIndices.front())].editor.layerId;
+    plan.targetLayerId = page.staticReticles[static_cast<std::size_t>(plan.reticleIndices.front())].layerId;
 
     std::unordered_set<std::string> usedPrimitiveIds;
     for (const int reticleIndex : plan.reticleIndices)
@@ -565,7 +565,6 @@ ReticleExtractionPlan ReticleExtractionService::BuildPlan(const mfd::LoadedWindo
     plan.extractedTemplate.drawOnTop = plan.drawOnTop;
     plan.extractedTemplate.transform = {};
     plan.extractedTemplate.overrides = {};
-    plan.extractedTemplate.editor = {};
     plan.extractedTemplate.clipping = {};
     plan.extractedTemplate.blink = {};
 
@@ -585,7 +584,7 @@ ReticleExtractionPlan ReticleExtractionService::BuildPlan(const mfd::LoadedWindo
         plan.replacementInstanceId,
         mfd::Transform2D {plan.anchor, 0.0f, {1.0f, 1.0f}},
         {});
-    plan.replacementInstance.editor.layerId = plan.targetLayerId;
+    plan.replacementInstance.layerId = plan.targetLayerId;
     plan.replacementInstance.drawOnTop = plan.drawOnTop;
     plan.canExecute = true;
     return plan;

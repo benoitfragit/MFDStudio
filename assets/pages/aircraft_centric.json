@@ -1,86 +1,130 @@
 {
-  "name": "AircraftCentric",
-  "title": "Aircraft-Centric",
-  "backgroundColor": "#08131BFF",
-  "staticReticles": [
-    {
-      "id": "range_reference",
-      "stroke": "#3A5F66FF",
-      "thickness": 0.0025,
-      "elements": [
-        {
-          "id": "ring_5_nm",
-          "type": "circle",
-          "radius": 0.2,
-          "position": [0.0, -0.3]
-        },
-        {
-          "id": "ring_10_nm",
-          "type": "circle",
-          "radius": 0.4,
-          "position": [0.0, -0.3]
-        },
-        {
-          "id": "physical_x_axis",
-          "type": "line",
-          "start": [0.0, -0.3],
-          "end": [0.0, 0.42]
-        },
-        {
-          "id": "physical_y_axis",
-          "type": "line",
-          "start": [0.0, -0.3],
-          "end": [0.48, -0.3]
-        }
-      ]
-    },
-    {
-      "id": "aircraft_anchor",
-      "template": "aircraft_symbol",
-      "position": [0.0, -0.3],
-      "stroke": "#FFF1C1FF",
-      "thickness": 0.0042
-    },
-    {
-      "id": "page_annotations",
-      "stroke": "#9AD6E0FF",
-      "elements": [
-        {
-          "id": "title",
-          "type": "text",
-          "text": "Aircraft origin anchored at (0.0, -0.3)",
-          "position": [0.0, 0.87],
-          "fontSize": 0.038
-        },
-        {
-          "id": "physical_x_label",
-          "type": "text",
-          "text": "+Physical X -> +Page Y",
-          "position": [0.2, 0.46],
-          "fontSize": 0.034
-        },
-        {
-          "id": "physical_y_label",
-          "type": "text",
-          "text": "+Physical Y -> +Page X",
-          "position": [0.58, -0.25],
-          "fontSize": 0.034
-        },
-        {
-          "id": "scale_label_5",
-          "type": "text",
-          "text": "5 NM ring = 0.20 page units",
-          "position": [0.57, 0.05],
-          "fontSize": 0.028
-        },
-        {
-          "id": "scale_label_10",
-          "type": "text",
-          "text": "10 NM ring = 0.40 page units",
-          "position": [0.61, 0.27],
-          "fontSize": 0.028
-        }
-      ]
-    }
-  ]
+    "name":  "AircraftCentric",
+    "title":  "Aircraft-Centric",
+    "backgroundColor":  "#08131BFF",
+    "staticReticles":  [
+                           {
+                               "id":  "range_reference",
+                               "stroke":  "#3A5F66FF",
+                               "thickness":  0.0025,
+                               "elements":  [
+                                                {
+                                                    "id":  "ring_5_nm",
+                                                    "type":  "circle",
+                                                    "radius":  0.2,
+                                                    "position":  [
+                                                                     0.0,
+                                                                     -0.3
+                                                                 ]
+                                                },
+                                                {
+                                                    "id":  "ring_10_nm",
+                                                    "type":  "circle",
+                                                    "radius":  0.4,
+                                                    "position":  [
+                                                                     0.0,
+                                                                     -0.3
+                                                                 ]
+                                                },
+                                                {
+                                                    "id":  "physical_x_axis",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.0,
+                                                                  -0.3
+                                                              ],
+                                                    "end":  [
+                                                                0.0,
+                                                                0.42
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "physical_y_axis",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.0,
+                                                                  -0.3
+                                                              ],
+                                                    "end":  [
+                                                                0.48,
+                                                                -0.3
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "aircraft_anchor",
+                               "template":  "aircraft_symbol",
+                               "position":  [
+                                                0.0,
+                                                -0.3
+                                            ],
+                               "stroke":  "#FFF1C1FF",
+                               "thickness":  0.0042,
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "page_annotations",
+                               "stroke":  "#9AD6E0FF",
+                               "elements":  [
+                                                {
+                                                    "id":  "title",
+                                                    "type":  "text",
+                                                    "text":  "Aircraft origin anchored at (0.0, -0.3)",
+                                                    "position":  [
+                                                                     0.0,
+                                                                     0.87
+                                                                 ],
+                                                    "fontSize":  0.038
+                                                },
+                                                {
+                                                    "id":  "physical_x_label",
+                                                    "type":  "text",
+                                                    "text":  "+Physical X -\u003e +Page Y",
+                                                    "position":  [
+                                                                     0.2,
+                                                                     0.46
+                                                                 ],
+                                                    "fontSize":  0.034
+                                                },
+                                                {
+                                                    "id":  "physical_y_label",
+                                                    "type":  "text",
+                                                    "text":  "+Physical Y -\u003e +Page X",
+                                                    "position":  [
+                                                                     0.58,
+                                                                     -0.25
+                                                                 ],
+                                                    "fontSize":  0.034
+                                                },
+                                                {
+                                                    "id":  "scale_label_5",
+                                                    "type":  "text",
+                                                    "text":  "5 NM ring = 0.20 page units",
+                                                    "position":  [
+                                                                     0.57,
+                                                                     0.05
+                                                                 ],
+                                                    "fontSize":  0.028
+                                                },
+                                                {
+                                                    "id":  "scale_label_10",
+                                                    "type":  "text",
+                                                    "text":  "10 NM ring = 0.40 page units",
+                                                    "position":  [
+                                                                     0.61,
+                                                                     0.27
+                                                                 ],
+                                                    "fontSize":  0.028
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           }
+                       ],
+    "layers":  [
+                   {
+                       "id":  "default"
+                   }
+               ]
 }

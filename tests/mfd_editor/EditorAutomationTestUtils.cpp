@@ -195,6 +195,7 @@ FakeEditorAutomationBridge MakeSeedEditorAutomationBridge()
     page.normalizedName = mfd::NormalizePageName(page.name);
     page.title = "Radar";
     page.defaultPage = true;
+    page.layers.push_back(mfd::PageLayerDefinition {"layer"});
     page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
     bridge.loaded_.document.pages.push_back(page);
     bridge.files_.pageFiles.push_back(bridge.windowFile_.parent_path() / "radar.json");

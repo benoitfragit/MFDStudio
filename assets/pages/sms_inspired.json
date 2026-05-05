@@ -1,43 +1,343 @@
 {
-  "name": "SMS_INSPIRED",
-  "title": "SMS Inspired",
-  "bg": "#081808FF",
-  "staticReticles": [
-    { "id": "osb", "template": "inspired_osb_ring", "stroke": "hud" },
-    { "id": "jet", "template": "aircraft_symbol", "at": [0.0, -0.03], "stroke": "radar", "scale": 0.5 },
-    { "id": "stations", "stroke": "ghost", "elements": [
-      { "id": "left_upper", "type": "line", "start": [-0.32, 0.28], "end": [-0.12, 0.08] },
-      { "id": "left_lower", "type": "line", "start": [-0.32, 0.08], "end": [-0.12, -0.02] },
-      { "id": "left_tip", "type": "line", "start": [-0.40, 0.46], "end": [-0.18, 0.12] },
-      { "id": "right_upper", "type": "line", "start": [0.32, 0.28], "end": [0.12, 0.08] },
-      { "id": "right_lower", "type": "line", "start": [0.32, 0.08], "end": [0.12, -0.02] },
-      { "id": "right_tip", "type": "line", "start": [0.40, 0.46], "end": [0.18, 0.12] }
-    ]},
-    { "id": "station_boxes", "stroke": "hud", "elements": [
-      { "id": "box_l_tip", "type": "rect", "at": [-0.48, 0.52], "width": 0.22, "height": 0.10 },
-      { "id": "box_l_up", "type": "rect", "at": [-0.48, 0.28], "width": 0.22, "height": 0.10 },
-      { "id": "box_l_low", "type": "rect", "at": [-0.48, 0.08], "width": 0.22, "height": 0.10 },
-      { "id": "box_r_up", "type": "rect", "at": [0.48, 0.28], "width": 0.22, "height": 0.10 },
-      { "id": "box_r_low", "type": "rect", "at": [0.48, 0.08], "width": 0.22, "height": 0.10 },
-      { "id": "box_r_tip", "type": "rect", "at": [0.48, 0.52], "width": 0.22, "height": 0.10 },
-      { "id": "box_ctr", "type": "rect", "at": [0.00, -0.54], "width": 0.30, "height": 0.12 },
-      { "id": "selected", "type": "rect", "at": [-0.48, 0.52], "width": 0.26, "height": 0.14, "stroke": "#FFDD55FF" }
-    ]},
-    { "id": "labels", "stroke": "hud", "elements": [
-      { "id": "mode", "type": "text", "text": "SMS", "at": [-0.58, 0.80], "size": 0.04 },
-      { "id": "profile", "type": "text", "text": "A-A PRI", "at": [0.00, 0.80], "size": 0.04 },
-      { "id": "inv", "type": "text", "text": "INV", "at": [0.58, 0.80], "size": 0.04 },
-      { "id": "l0", "type": "text", "text": "9X x1", "at": [-0.48, 0.50], "size": 0.032 },
-      { "id": "l1", "type": "text", "text": "120C x1", "at": [-0.48, 0.26], "size": 0.032 },
-      { "id": "l2", "type": "text", "text": "370", "at": [-0.48, 0.06], "size": 0.032 },
-      { "id": "r1", "type": "text", "text": "GBU12 x2", "at": [0.48, 0.26], "size": 0.032 },
-      { "id": "r2", "type": "text", "text": "LITEN", "at": [0.48, 0.06], "size": 0.032 },
-      { "id": "r0", "type": "text", "text": "9X x1", "at": [0.48, 0.50], "size": 0.032 },
-      { "id": "ctr", "type": "text", "text": "300GAL", "at": [0.00, -0.54], "size": 0.032 },
-      { "id": "sel", "type": "text", "text": "SEL", "at": [-0.60, 0.50], "size": 0.026 },
-      { "id": "gun", "type": "text", "text": "GUN 510", "at": [-0.50, -0.74], "size": 0.034 },
-      { "id": "master", "type": "text", "text": "MASTER ARM: SIM", "at": [0.00, -0.74], "size": 0.034 },
-      { "id": "jett", "type": "text", "text": "JETT SAFE", "at": [0.50, -0.74], "size": 0.034 }
-    ]}
-  ]
+    "name":  "SMS_INSPIRED",
+    "title":  "SMS Inspired",
+    "bg":  "#081808FF",
+    "staticReticles":  [
+                           {
+                               "id":  "osb",
+                               "template":  "inspired_osb_ring",
+                               "stroke":  "hud",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "jet",
+                               "template":  "aircraft_symbol",
+                               "at":  [
+                                          0.0,
+                                          -0.03
+                                      ],
+                               "stroke":  "radar",
+                               "scale":  0.5,
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "stations",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "left_upper",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.32,
+                                                                  0.28
+                                                              ],
+                                                    "end":  [
+                                                                -0.12,
+                                                                0.08
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "left_lower",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.32,
+                                                                  0.08
+                                                              ],
+                                                    "end":  [
+                                                                -0.12,
+                                                                -0.02
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "left_tip",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.40,
+                                                                  0.46
+                                                              ],
+                                                    "end":  [
+                                                                -0.18,
+                                                                0.12
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "right_upper",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.32,
+                                                                  0.28
+                                                              ],
+                                                    "end":  [
+                                                                0.12,
+                                                                0.08
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "right_lower",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.32,
+                                                                  0.08
+                                                              ],
+                                                    "end":  [
+                                                                0.12,
+                                                                -0.02
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "right_tip",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.40,
+                                                                  0.46
+                                                              ],
+                                                    "end":  [
+                                                                0.18,
+                                                                0.12
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "station_boxes",
+                               "stroke":  "hud",
+                               "elements":  [
+                                                {
+                                                    "id":  "box_l_tip",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.52
+                                                           ],
+                                                    "width":  0.22,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "box_l_up",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.28
+                                                           ],
+                                                    "width":  0.22,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "box_l_low",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.08
+                                                           ],
+                                                    "width":  0.22,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "box_r_up",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               0.48,
+                                                               0.28
+                                                           ],
+                                                    "width":  0.22,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "box_r_low",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               0.48,
+                                                               0.08
+                                                           ],
+                                                    "width":  0.22,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "box_r_tip",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               0.48,
+                                                               0.52
+                                                           ],
+                                                    "width":  0.22,
+                                                    "height":  0.10
+                                                },
+                                                {
+                                                    "id":  "box_ctr",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.54
+                                                           ],
+                                                    "width":  0.30,
+                                                    "height":  0.12
+                                                },
+                                                {
+                                                    "id":  "selected",
+                                                    "type":  "rect",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.52
+                                                           ],
+                                                    "width":  0.26,
+                                                    "height":  0.14,
+                                                    "stroke":  "#FFDD55FF"
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "labels",
+                               "stroke":  "hud",
+                               "elements":  [
+                                                {
+                                                    "id":  "mode",
+                                                    "type":  "text",
+                                                    "text":  "SMS",
+                                                    "at":  [
+                                                               -0.58,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.04
+                                                },
+                                                {
+                                                    "id":  "profile",
+                                                    "type":  "text",
+                                                    "text":  "A-A PRI",
+                                                    "at":  [
+                                                               0.00,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.04
+                                                },
+                                                {
+                                                    "id":  "inv",
+                                                    "type":  "text",
+                                                    "text":  "INV",
+                                                    "at":  [
+                                                               0.58,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.04
+                                                },
+                                                {
+                                                    "id":  "l0",
+                                                    "type":  "text",
+                                                    "text":  "9X x1",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.50
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "l1",
+                                                    "type":  "text",
+                                                    "text":  "120C x1",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.26
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "l2",
+                                                    "type":  "text",
+                                                    "text":  "370",
+                                                    "at":  [
+                                                               -0.48,
+                                                               0.06
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "r1",
+                                                    "type":  "text",
+                                                    "text":  "GBU12 x2",
+                                                    "at":  [
+                                                               0.48,
+                                                               0.26
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "r2",
+                                                    "type":  "text",
+                                                    "text":  "LITEN",
+                                                    "at":  [
+                                                               0.48,
+                                                               0.06
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "r0",
+                                                    "type":  "text",
+                                                    "text":  "9X x1",
+                                                    "at":  [
+                                                               0.48,
+                                                               0.50
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "ctr",
+                                                    "type":  "text",
+                                                    "text":  "300GAL",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.54
+                                                           ],
+                                                    "size":  0.032
+                                                },
+                                                {
+                                                    "id":  "sel",
+                                                    "type":  "text",
+                                                    "text":  "SEL",
+                                                    "at":  [
+                                                               -0.60,
+                                                               0.50
+                                                           ],
+                                                    "size":  0.026
+                                                },
+                                                {
+                                                    "id":  "gun",
+                                                    "type":  "text",
+                                                    "text":  "GUN 510",
+                                                    "at":  [
+                                                               -0.50,
+                                                               -0.74
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "master",
+                                                    "type":  "text",
+                                                    "text":  "MASTER ARM: SIM",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.74
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "jett",
+                                                    "type":  "text",
+                                                    "text":  "JETT SAFE",
+                                                    "at":  [
+                                                               0.50,
+                                                               -0.74
+                                                           ],
+                                                    "size":  0.034
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           }
+                       ],
+    "layers":  [
+                   {
+                       "id":  "default"
+                   }
+               ]
 }

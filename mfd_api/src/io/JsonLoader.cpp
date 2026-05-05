@@ -33,10 +33,12 @@ using json = nlohmann::json;
 
 ReticleInfo ParseReticleInfo(const json& node);
 ReticleBlinkState ParseReticleBlinkState(const json& node);
-ReticleEditorState ParseReticleEditorState(const json& node);
+std::string ParseReticleLayerId(const json& node);
 ReticleClipState ParseReticleClipState(const json& node);
 std::vector<PageBlinkDefinition> ParsePageBlinkDefinitions(const json& node);
+std::vector<PageLayerDefinition> ParsePageLayerDefinitions(const json& node);
 PageEditorState ParsePageEditorState(const json& node);
+std::vector<DynamicReticleLayerBinding> ParseDynamicReticleLayerBindings(const json& node);
 StrobeCaptureConfig ParseStrobeCaptureConfig(const json& node);
 StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node);
 PageStrobeDefinition ParsePageStrobe(const json& node,
@@ -1235,7 +1237,7 @@ ReticleGroup ParseInlineReticle(const json& node, const std::filesystem::path& b
         throw std::runtime_error("Inline reticle must declare an elements array");
     }
 
-    ReticleGroup group;
+ReticleGroup group;
     group.id = node.value("id", "");
     group.sourceTemplateId = node.value("sourceTemplateId", "");
     group.info = ParseReticleInfo(node);
@@ -1243,7 +1245,7 @@ ReticleGroup ParseInlineReticle(const json& node, const std::filesystem::path& b
     group.drawOnTop = node.value("drawOnTop", node.value("onTop", false));
     group.transform = ParseTransform(node);
     group.overrides = ParseReticleOverrides(node);
-    group.editor = ParseReticleEditorState(node);
+    group.layerId = ParseReticleLayerId(node);
     group.clipping = ParseReticleClipState(node);
 
     for (const auto& element : node.at("elements"))
@@ -1288,7 +1290,7 @@ ReticleGroup ParseReticle(const json& node,
         group.blink = ParseReticleBlinkState(node);
         group.visible = ParseVisibleFlag(node).value_or(group.visible);
         group.drawOnTop = node.value("drawOnTop", node.value("onTop", group.drawOnTop));
-        group.editor = ParseReticleEditorState(node);
+        group.layerId = ParseReticleLayerId(node);
         if (FindField(node, {"clipping", "clip"}) != nullptr)
         {
             group.clipping = ParseReticleClipState(node);
@@ -1508,22 +1510,19 @@ ReticleBlinkState ParseReticleBlinkState(const json& node)
     return blink;
 }
 
-ReticleEditorState ParseReticleEditorState(const json& node)
+std::string ParseReticleLayerId(const json& node)
 {
-    ReticleEditorState editorState;
-
-    if (const json* layer = FindEditorField(node, {"layer", "layerId"});
-        layer != nullptr && !layer->is_null())
+    if (const json* layer = FindField(node, {"layerId"}); layer != nullptr && !layer->is_null())
     {
         if (!layer->is_string())
         {
-            throw std::runtime_error("Reticle editor layer must be a string");
+            throw std::runtime_error("Reticle layerId must be a string");
         }
 
-        editorState.layerId = layer->get<std::string>();
+        return layer->get<std::string>();
     }
 
-    return editorState;
+    return {};
 }
 
 ReticleClipState ParseReticleClipState(const json& node)
@@ -1641,6 +1640,54 @@ std::vector<PageBlinkDefinition> ParsePageBlinkDefinitions(const json& node)
     return blinkTypes;
 }
 
+std::vector<PageLayerDefinition> ParsePageLayerDefinitions(const json& node)
+{
+    const json* layersNode = FindField(node, {"layers"});
+    if (layersNode == nullptr || layersNode->is_null())
+    {
+        return {};
+    }
+
+    if (!layersNode->is_array())
+    {
+        throw std::runtime_error("Page layers must be an array");
+    }
+
+    std::vector<PageLayerDefinition> layers;
+    layers.reserve(layersNode->size());
+    std::unordered_set<std::string> normalizedLayerIds;
+
+    for (const auto& entry : *layersNode)
+    {
+        if (!entry.is_object())
+        {
+            throw std::runtime_error("Each page layer must be an object");
+        }
+
+        if (!entry.contains("id") || !entry.at("id").is_string())
+        {
+            throw std::runtime_error("Each page layer must define a string id");
+        }
+
+        PageLayerDefinition layer;
+        layer.id = entry.at("id").get<std::string>();
+        const std::string normalizedLayerId = NormalizePageName(layer.id);
+        if (normalizedLayerId.empty())
+        {
+            throw std::runtime_error("Page layer id cannot be empty");
+        }
+
+        if (!normalizedLayerIds.insert(normalizedLayerId).second)
+        {
+            throw std::runtime_error("Duplicate page layer id: " + layer.id);
+        }
+
+        layers.push_back(std::move(layer));
+    }
+
+    return layers;
+}
+
 PageEditorState ParsePageEditorState(const json& node)
 {
     PageEditorState editorState;
@@ -1667,12 +1714,13 @@ PageEditorState ParsePageEditorState(const json& node)
 
             EditorLayerDefinition layer;
             layer.id = entry.at("id").get<std::string>();
-            if (layer.id.empty())
+            const std::string normalizedLayerId = NormalizePageName(layer.id);
+            if (normalizedLayerId.empty())
             {
                 throw std::runtime_error("Page editor layer id cannot be empty");
             }
 
-            if (!layerIds.insert(layer.id).second)
+            if (!layerIds.insert(normalizedLayerId).second)
             {
                 throw std::runtime_error("Duplicate page editor layer id: " + layer.id);
             }
@@ -1691,43 +1739,54 @@ PageEditorState ParsePageEditorState(const json& node)
         }
     }
 
-    const json* dynamicTemplates = FindEditorField(node, {"dynamicReticleTemplates"});
-    if (dynamicTemplates != nullptr && !dynamicTemplates->is_null())
+    return editorState;
+}
+
+std::vector<DynamicReticleLayerBinding> ParseDynamicReticleLayerBindings(const json& node)
+{
+    const json* bindingsNode = FindField(node, {"dynamicReticleBindings"});
+    if (bindingsNode == nullptr || bindingsNode->is_null())
     {
-        if (!dynamicTemplates->is_array())
-        {
-            throw std::runtime_error("Page editor dynamicReticleTemplates must be an array");
-        }
-
-        std::vector<std::string> templateIds;
-        templateIds.reserve(dynamicTemplates->size());
-        std::unordered_set<std::string> normalizedTemplateIds;
-        for (const auto& entry : *dynamicTemplates)
-        {
-            if (!entry.is_string())
-            {
-                throw std::runtime_error("Each page editor dynamic reticle template id must be a string");
-            }
-
-            const std::string templateId = entry.get<std::string>();
-            if (templateId.empty())
-            {
-                throw std::runtime_error("Page editor dynamic reticle template ids cannot be empty");
-            }
-
-            const std::string normalizedTemplateId = NormalizePageName(templateId);
-            if (!normalizedTemplateIds.insert(normalizedTemplateId).second)
-            {
-                throw std::runtime_error("Duplicate page editor dynamic reticle template id: " + templateId);
-            }
-
-            templateIds.push_back(templateId);
-        }
-
-        editorState.dynamicReticleTemplateIds = std::move(templateIds);
+        return {};
     }
 
-    return editorState;
+    if (!bindingsNode->is_array())
+    {
+        throw std::runtime_error("dynamicReticleBindings must be an array");
+    }
+
+    std::vector<DynamicReticleLayerBinding> bindings;
+    bindings.reserve(bindingsNode->size());
+    for (const auto& entry : *bindingsNode)
+    {
+        if (!entry.is_object())
+        {
+            throw std::runtime_error("Each dynamic reticle binding must be an object");
+        }
+
+        if (!entry.contains("templateId") || !entry.at("templateId").is_string())
+        {
+            throw std::runtime_error("Each dynamic reticle binding must define a string templateId");
+        }
+
+        if (!entry.contains("layerId") || !entry.at("layerId").is_string())
+        {
+            throw std::runtime_error("Each dynamic reticle binding must define a string layerId");
+        }
+
+        if (!entry.contains("orderInLayer") || !entry.at("orderInLayer").is_number_integer())
+        {
+            throw std::runtime_error("Each dynamic reticle binding must define an integer orderInLayer");
+        }
+
+        DynamicReticleLayerBinding binding;
+        binding.templateId = entry.at("templateId").get<std::string>();
+        binding.layerId = entry.at("layerId").get<std::string>();
+        binding.orderInLayer = entry.at("orderInLayer").get<int>();
+        bindings.push_back(std::move(binding));
+    }
+
+    return bindings;
 }
 
 bool ResolveReticleBlinkState(const PageDefinition& page, ReticleGroup& reticle)
@@ -1940,6 +1999,7 @@ PageStrobeDefinition ParsePageStrobe(const json& node,
 {
     PageStrobeDefinition strobe;
     strobe.reticle = ParseReticle(node, library, baseFolder);
+    strobe.reticle.layerId.clear();
     strobe.capture = ParseStrobeCaptureConfig(node);
     strobe.magnet = ParseStrobeMagnetConfig(node);
     return strobe;
@@ -2150,18 +2210,13 @@ PageDefinition ParsePage(const json& node,
     page.backgroundColor = ParseBackgroundColor(node);
     page.view = ParsePageViewState(node);
     page.blinkTypes = ParsePageBlinkDefinitions(node);
+    page.layers = ParsePageLayerDefinitions(node);
     page.editor = ParsePageEditorState(node);
+    page.dynamicReticleBindings = ParseDynamicReticleLayerBindings(node);
 
-    if (page.editor.dynamicReticleTemplateIds.has_value())
+    if (page.layers.empty())
     {
-        for (const std::string& templateId : *page.editor.dynamicReticleTemplateIds)
-        {
-            if (library.find(templateId) == library.end())
-            {
-                throw std::runtime_error(
-                    "Unknown page editor dynamic reticle template '" + templateId + "' on page: " + page.name);
-            }
-        }
+        throw std::runtime_error("Page must define a non-empty layers array: " + page.name);
     }
 
     if (const json* defaultBlink = FindField(node, {"defaultBlink", "defaultBlinkType"});
@@ -2217,9 +2272,61 @@ PageDefinition ParsePage(const json& node,
 
     std::unordered_set<std::string> reticleIds;
     std::unordered_set<std::string> pageLayerIds;
-    for (const auto& layer : page.editor.layers)
+    for (const auto& layer : page.layers)
     {
-        pageLayerIds.insert(layer.id);
+        pageLayerIds.insert(NormalizePageName(layer.id));
+    }
+
+    for (const auto& editorLayer : page.editor.layers)
+    {
+        if (pageLayerIds.find(NormalizePageName(editorLayer.id)) == pageLayerIds.end())
+        {
+            throw std::runtime_error(
+                "Unknown runtime layer '" + editorLayer.id + "' referenced by page editor state on page: " + page.name);
+        }
+    }
+
+    std::unordered_set<std::string> normalizedDynamicTemplateIds;
+    std::unordered_map<std::string, std::unordered_set<int>> bindingOrdersByLayer;
+    for (const auto& binding : page.dynamicReticleBindings)
+    {
+        const std::string normalizedTemplateId = NormalizePageName(binding.templateId);
+        if (normalizedTemplateId.empty())
+        {
+            throw std::runtime_error("Dynamic reticle bindings must define a non-empty templateId on page: " + page.name);
+        }
+
+        if (library.find(binding.templateId) == library.end())
+        {
+            throw std::runtime_error(
+                "Unknown dynamic reticle template '" + binding.templateId + "' on page: " + page.name);
+        }
+
+        if (!normalizedDynamicTemplateIds.insert(normalizedTemplateId).second)
+        {
+            throw std::runtime_error(
+                "Duplicate dynamic reticle binding template '" + binding.templateId + "' on page: " + page.name);
+        }
+
+        const std::string normalizedLayerId = NormalizePageName(binding.layerId);
+        if (normalizedLayerId.empty())
+        {
+            throw std::runtime_error("Dynamic reticle bindings must define a non-empty layerId on page: " + page.name);
+        }
+
+        if (pageLayerIds.find(normalizedLayerId) == pageLayerIds.end())
+        {
+            throw std::runtime_error(
+                "Unknown runtime layer '" + binding.layerId + "' for dynamic reticle binding '" + binding.templateId +
+                "' on page: " + page.name);
+        }
+
+        if (!bindingOrdersByLayer[normalizedLayerId].insert(binding.orderInLayer).second)
+        {
+            throw std::runtime_error(
+                "Duplicate dynamic reticle binding orderInLayer " + std::to_string(binding.orderInLayer) +
+                " on layer '" + binding.layerId + "' for page: " + page.name);
+        }
     }
 
     for (const auto& reticle : page.staticReticles)
@@ -2230,10 +2337,16 @@ PageDefinition ParsePage(const json& node,
             throw std::runtime_error("Static reticles must define a non-empty id on page: " + page.name);
         }
 
-        if (!reticle.editor.layerId.empty() && pageLayerIds.find(reticle.editor.layerId) == pageLayerIds.end())
+        if (reticle.layerId.empty())
         {
             throw std::runtime_error(
-                "Unknown editor layer '" + reticle.editor.layerId + "' for reticle '" + reticle.id +
+                "Static reticle '" + reticle.id + "' must define layerId on page: " + page.name);
+        }
+
+        if (pageLayerIds.find(NormalizePageName(reticle.layerId)) == pageLayerIds.end())
+        {
+            throw std::runtime_error(
+                "Unknown runtime layer '" + reticle.layerId + "' for reticle '" + reticle.id +
                 "' on page: " + page.name);
         }
 

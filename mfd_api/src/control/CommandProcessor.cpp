@@ -657,6 +657,7 @@ void CommandProcessor::OnUpdateStrobe(const UpdateStrobeCommand& command)
 
 void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command)
 {
+    const std::string normalizedPageName = mfd::NormalizePageName(command.target.page);
     if (!scene_.HasPage(command.target.page))
     {
         SetFailure("Unknown page: " + command.target.page);
@@ -670,10 +671,27 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
         return;
     }
 
+    const DynamicReticleLayerBinding* binding =
+        scene_.FindDynamicReticleLayerBinding(normalizedPageName, command.templateId);
+    if (binding == nullptr)
+    {
+        SetFailure("Dynamic reticle template '" + command.templateId +
+                   "' is not bound on page '" + command.target.page + "'");
+        return;
+    }
+
+    if (scene_.HasDynamicReticle(command.target.page, command.target.reticleId) &&
+        !scene_.DynamicReticleUsesTemplate(command.target.page, command.target.reticleId, command.templateId))
+    {
+        SetFailure("Dynamic reticle '" + command.target.reticleId + "' on page '" + command.target.page +
+                   "' already belongs to another template");
+        return;
+    }
+
     if (scene_.HasDynamicReticle(command.target.page, command.target.reticleId))
     {
         scene_.SetDynamicReticleRuntimeIdentifiers(
-            mfd::NormalizePageName(command.target.page),
+            normalizedPageName,
             command.target.reticleId,
             command.target.runtimeReticleId,
             command.templateTransportId);
@@ -686,9 +704,10 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
     }
 
     ReticleGroup reticle = InstantiateReticle(templateIterator->second, command.target.reticleId);
+    reticle.layerId = binding->layerId;
     scene_.UpsertDynamicReticle(command.target.page, std::move(reticle));
     scene_.SetDynamicReticleRuntimeIdentifiers(
-        mfd::NormalizePageName(command.target.page),
+        normalizedPageName,
         command.target.reticleId,
         command.target.runtimeReticleId,
         command.templateTransportId);
@@ -701,6 +720,7 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
 
 void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command)
 {
+    const std::string normalizedPageName = mfd::NormalizePageName(command.page);
     if (!scene_.HasPage(command.page))
     {
         SetFailure("Unknown page: " + command.page);
@@ -714,12 +734,29 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
         return;
     }
 
+    const DynamicReticleLayerBinding* binding =
+        scene_.FindDynamicReticleLayerBinding(normalizedPageName, command.templateId);
+    if (binding == nullptr)
+    {
+        SetFailure("Dynamic reticle template '" + command.templateId +
+                   "' is not bound on page '" + command.page + "'");
+        return;
+    }
+
     for (const DynamicReticleState& state : command.reticles)
     {
+        if (scene_.HasDynamicReticle(command.page, state.reticleId) &&
+            !scene_.DynamicReticleUsesTemplate(command.page, state.reticleId, command.templateId))
+        {
+            SetFailure("Dynamic reticle '" + state.reticleId + "' on page '" + command.page +
+                       "' already belongs to another template");
+            return;
+        }
+
         if (scene_.HasDynamicReticle(command.page, state.reticleId))
         {
             scene_.SetDynamicReticleRuntimeIdentifiers(
-                mfd::NormalizePageName(command.page),
+                normalizedPageName,
                 state.reticleId,
                 state.runtimeReticleId,
                 command.templateTransportId);
@@ -733,9 +770,10 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
         }
 
         ReticleGroup reticle = InstantiateReticle(templateIterator->second, state.reticleId);
+        reticle.layerId = binding->layerId;
         scene_.UpsertDynamicReticle(command.page, std::move(reticle));
         scene_.SetDynamicReticleRuntimeIdentifiers(
-            mfd::NormalizePageName(command.page),
+            normalizedPageName,
             state.reticleId,
             state.runtimeReticleId,
             command.templateTransportId);

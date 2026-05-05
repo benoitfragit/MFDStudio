@@ -1,32 +1,251 @@
 {
-  "name": "TGP_INSPIRED",
-  "title": "TGP Inspired",
-  "bg": "#050C05FF",
-  "staticReticles": [
-    { "id": "osb", "template": "inspired_osb_ring", "stroke": "hud" },
-    { "id": "crosshair", "template": "inspired_sensor_crosshair", "stroke": "hud" },
-    { "id": "target_box", "template": "inspired_target_bracket", "at": [0.20, -0.12], "scale": 0.80, "stroke": "warning" },
-    { "id": "frame", "stroke": "ghost", "elements": [
-      { "id": "outer", "type": "rect", "width": 1.10, "height": 1.10 },
-      { "id": "inner", "type": "rect", "width": 0.92, "height": 0.92 },
-      { "id": "terrain", "type": "polyline", "points": [[-0.42, -0.30], [-0.20, -0.18], [-0.04, -0.22], [0.16, -0.06], [0.34, -0.10], [0.44, 0.04]] },
-      { "id": "horizon", "type": "line", "start": [-0.44, 0.22], "end": [0.44, 0.22] },
-      { "id": "los", "type": "line", "start": [0.00, 0.00], "end": [0.20, -0.12] },
-      { "id": "gate_top", "type": "line", "start": [-0.12, 0.34], "end": [0.12, 0.34] },
-      { "id": "gate_left", "type": "line", "start": [-0.34, -0.12], "end": [-0.34, 0.12] },
-      { "id": "gate_right", "type": "line", "start": [0.34, -0.12], "end": [0.34, 0.12] }
-    ]},
-    { "id": "status", "stroke": "hud", "elements": [
-      { "id": "title", "type": "text", "text": "TGP / A-G", "at": [-0.58, 0.80], "size": 0.040 },
-      { "id": "zoom", "type": "text", "text": "NARO", "at": [0.56, 0.80], "size": 0.040 },
-      { "id": "fov", "type": "text", "text": "FOV 2.0", "at": [0.00, 0.80], "size": 0.034 },
-      { "id": "north", "type": "text", "text": "N", "at": [0.00, 0.38], "size": 0.028 },
-      { "id": "lase", "type": "text", "text": "L ARM", "at": [-0.52, -0.80], "size": 0.034 },
-      { "id": "range", "type": "text", "text": "RNG 07.4", "at": [0.00, -0.80], "size": 0.034 },
-      { "id": "coords", "type": "text", "text": "TGT 42 18", "at": [0.52, -0.80], "size": 0.034 },
-      { "id": "target", "type": "text", "text": "AREA", "at": [0.20, -0.24], "size": 0.028 },
-      { "id": "trk", "type": "text", "text": "INR", "at": [-0.54, 0.70], "size": 0.028 },
-      { "id": "slv", "type": "text", "text": "SLV", "at": [0.54, 0.70], "size": 0.028 }
-    ]}
-  ]
+    "name":  "TGP_INSPIRED",
+    "title":  "TGP Inspired",
+    "bg":  "#050C05FF",
+    "staticReticles":  [
+                           {
+                               "id":  "osb",
+                               "template":  "inspired_osb_ring",
+                               "stroke":  "hud",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "crosshair",
+                               "template":  "inspired_sensor_crosshair",
+                               "stroke":  "hud",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "target_box",
+                               "template":  "inspired_target_bracket",
+                               "at":  [
+                                          0.20,
+                                          -0.12
+                                      ],
+                               "scale":  0.80,
+                               "stroke":  "warning",
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "frame",
+                               "stroke":  "ghost",
+                               "elements":  [
+                                                {
+                                                    "id":  "outer",
+                                                    "type":  "rect",
+                                                    "width":  1.10,
+                                                    "height":  1.10
+                                                },
+                                                {
+                                                    "id":  "inner",
+                                                    "type":  "rect",
+                                                    "width":  0.92,
+                                                    "height":  0.92
+                                                },
+                                                {
+                                                    "id":  "terrain",
+                                                    "type":  "polyline",
+                                                    "points":  [
+                                                                   [
+                                                                       -0.42,
+                                                                       -0.30
+                                                                   ],
+                                                                   [
+                                                                       -0.20,
+                                                                       -0.18
+                                                                   ],
+                                                                   [
+                                                                       -0.04,
+                                                                       -0.22
+                                                                   ],
+                                                                   [
+                                                                       0.16,
+                                                                       -0.06
+                                                                   ],
+                                                                   [
+                                                                       0.34,
+                                                                       -0.10
+                                                                   ],
+                                                                   [
+                                                                       0.44,
+                                                                       0.04
+                                                                   ]
+                                                               ]
+                                                },
+                                                {
+                                                    "id":  "horizon",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.44,
+                                                                  0.22
+                                                              ],
+                                                    "end":  [
+                                                                0.44,
+                                                                0.22
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "los",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.00,
+                                                                  0.00
+                                                              ],
+                                                    "end":  [
+                                                                0.20,
+                                                                -0.12
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "gate_top",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.12,
+                                                                  0.34
+                                                              ],
+                                                    "end":  [
+                                                                0.12,
+                                                                0.34
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "gate_left",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  -0.34,
+                                                                  -0.12
+                                                              ],
+                                                    "end":  [
+                                                                -0.34,
+                                                                0.12
+                                                            ]
+                                                },
+                                                {
+                                                    "id":  "gate_right",
+                                                    "type":  "line",
+                                                    "start":  [
+                                                                  0.34,
+                                                                  -0.12
+                                                              ],
+                                                    "end":  [
+                                                                0.34,
+                                                                0.12
+                                                            ]
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           },
+                           {
+                               "id":  "status",
+                               "stroke":  "hud",
+                               "elements":  [
+                                                {
+                                                    "id":  "title",
+                                                    "type":  "text",
+                                                    "text":  "TGP / A-G",
+                                                    "at":  [
+                                                               -0.58,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.040
+                                                },
+                                                {
+                                                    "id":  "zoom",
+                                                    "type":  "text",
+                                                    "text":  "NARO",
+                                                    "at":  [
+                                                               0.56,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.040
+                                                },
+                                                {
+                                                    "id":  "fov",
+                                                    "type":  "text",
+                                                    "text":  "FOV 2.0",
+                                                    "at":  [
+                                                               0.00,
+                                                               0.80
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "north",
+                                                    "type":  "text",
+                                                    "text":  "N",
+                                                    "at":  [
+                                                               0.00,
+                                                               0.38
+                                                           ],
+                                                    "size":  0.028
+                                                },
+                                                {
+                                                    "id":  "lase",
+                                                    "type":  "text",
+                                                    "text":  "L ARM",
+                                                    "at":  [
+                                                               -0.52,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "range",
+                                                    "type":  "text",
+                                                    "text":  "RNG 07.4",
+                                                    "at":  [
+                                                               0.00,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "coords",
+                                                    "type":  "text",
+                                                    "text":  "TGT 42 18",
+                                                    "at":  [
+                                                               0.52,
+                                                               -0.80
+                                                           ],
+                                                    "size":  0.034
+                                                },
+                                                {
+                                                    "id":  "target",
+                                                    "type":  "text",
+                                                    "text":  "AREA",
+                                                    "at":  [
+                                                               0.20,
+                                                               -0.24
+                                                           ],
+                                                    "size":  0.028
+                                                },
+                                                {
+                                                    "id":  "trk",
+                                                    "type":  "text",
+                                                    "text":  "INR",
+                                                    "at":  [
+                                                               -0.54,
+                                                               0.70
+                                                           ],
+                                                    "size":  0.028
+                                                },
+                                                {
+                                                    "id":  "slv",
+                                                    "type":  "text",
+                                                    "text":  "SLV",
+                                                    "at":  [
+                                                               0.54,
+                                                               0.70
+                                                           ],
+                                                    "size":  0.028
+                                                }
+                                            ],
+                               "layerId":  "default"
+                           }
+                       ],
+    "layers":  [
+                   {
+                       "id":  "default"
+                   }
+               ]
 }

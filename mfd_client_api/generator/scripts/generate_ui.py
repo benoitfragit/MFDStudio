@@ -493,31 +493,102 @@ def resolve_strobe_spec(page_root: dict) -> StrobeSpec:
     )
 
 
-def resolve_page_dynamic_template_ids(page_root: dict, template_library: dict[str, dict]) -> list[str]:
-    editor_node = extract_page_editor_node(page_root)
-    if editor_node is None or "dynamicReticleTemplates" not in editor_node:
+def resolve_page_dynamic_template_ids(page_root: dict,
+                                      template_library: dict[str, dict],
+                                      normalized_layer_ids: set[str]) -> list[str]:
+    dynamic_bindings = page_root.get("dynamicReticleBindings")
+    if dynamic_bindings is None:
         return []
 
-    dynamic_templates = editor_node.get("dynamicReticleTemplates")
-    if not isinstance(dynamic_templates, list):
-        raise RuntimeError("Page _editor.dynamicReticleTemplates must be a JSON array")
+    if not isinstance(dynamic_bindings, list):
+        raise RuntimeError("Page dynamicReticleBindings must be a JSON array")
 
     selected_template_ids: list[str] = []
     seen_template_ids: set[str] = set()
-    for entry in dynamic_templates:
-        if not isinstance(entry, str) or not entry:
-            raise RuntimeError("Each page _editor.dynamicReticleTemplates entry must be a non-empty string")
+    seen_orders_by_layer: dict[str, set[int]] = {}
+    for entry in dynamic_bindings:
+        if not isinstance(entry, dict):
+            raise RuntimeError("Each page dynamicReticleBindings entry must be a JSON object")
 
-        normalized_template_id = normalize_lookup_name(entry)
+        template_id = entry.get("templateId")
+        if not isinstance(template_id, str) or not template_id:
+            raise RuntimeError("Each page dynamicReticleBindings entry must define a non-empty templateId")
+
+        layer_id = entry.get("layerId")
+        if not isinstance(layer_id, str) or not layer_id:
+            raise RuntimeError("Each page dynamicReticleBindings entry must define a non-empty layerId")
+        normalized_layer_id = normalize_lookup_name(layer_id)
+        if normalized_layer_id not in normalized_layer_ids:
+            raise RuntimeError(f"Dynamic reticle binding '{template_id}' references unknown runtime layer '{layer_id}'")
+
+        order_in_layer = entry.get("orderInLayer")
+        if not isinstance(order_in_layer, int):
+            raise RuntimeError("Each page dynamicReticleBindings entry must define an integer orderInLayer")
+
+        normalized_template_id = normalize_lookup_name(template_id)
         if normalized_template_id in seen_template_ids:
-            raise RuntimeError(f"Duplicate page dynamic template id: '{entry}'")
-        if entry not in template_library:
-            raise RuntimeError(f"Unknown page dynamic template id: '{entry}'")
+            raise RuntimeError(f"Duplicate page dynamic template binding: '{template_id}'")
+        if template_id not in template_library:
+            raise RuntimeError(f"Unknown page dynamic template id: '{template_id}'")
+        if order_in_layer in seen_orders_by_layer.setdefault(normalized_layer_id, set()):
+            raise RuntimeError(
+                f"Duplicate page dynamic binding orderInLayer {order_in_layer} on layer '{layer_id}'"
+            )
 
         seen_template_ids.add(normalized_template_id)
-        selected_template_ids.append(entry)
+        seen_orders_by_layer[normalized_layer_id].add(order_in_layer)
+        selected_template_ids.append(template_id)
 
     return selected_template_ids
+
+
+def resolve_page_layers(page_root: dict) -> set[str]:
+    layers = page_root.get("layers")
+    if not isinstance(layers, list) or not layers:
+        raise RuntimeError("Page layers must be a non-empty JSON array")
+
+    normalized_layer_ids: set[str] = set()
+    for entry in layers:
+        if not isinstance(entry, dict):
+            raise RuntimeError("Each page layer must be a JSON object")
+
+        layer_id = entry.get("id")
+        if not isinstance(layer_id, str) or not layer_id:
+            raise RuntimeError("Each page layer must define a non-empty id")
+
+        normalized_layer_id = normalize_lookup_name(layer_id)
+        if normalized_layer_id in normalized_layer_ids:
+            raise RuntimeError(f"Duplicate page layer id: '{layer_id}'")
+
+        normalized_layer_ids.add(normalized_layer_id)
+
+    return normalized_layer_ids
+
+
+def validate_page_static_reticles(page_root: dict, normalized_layer_ids: set[str]) -> list[dict]:
+    static_reticles = page_root.get("staticReticles", [])
+    if not isinstance(static_reticles, list):
+        raise RuntimeError("Page staticReticles must be a JSON array")
+
+    validated_reticles: list[dict] = []
+    for reticle in static_reticles:
+        if not isinstance(reticle, dict):
+            raise RuntimeError("Each page staticReticles entry must be a JSON object")
+
+        reticle_id = reticle.get("id")
+        if not isinstance(reticle_id, str) or not reticle_id:
+            raise RuntimeError("Each page staticReticles entry must define a non-empty id")
+
+        layer_id = reticle.get("layerId")
+        if not isinstance(layer_id, str) or not layer_id:
+            raise RuntimeError(f"Static reticle '{reticle_id}' must define a non-empty layerId")
+
+        if normalize_lookup_name(layer_id) not in normalized_layer_ids:
+            raise RuntimeError(f"Static reticle '{reticle_id}' references unknown runtime layer '{layer_id}'")
+
+        validated_reticles.append(reticle)
+
+    return validated_reticles
 
 
 def build_template_specs(template_library: dict[str, dict], included_template_ids: set[str]) -> list[TemplateSpec]:
@@ -578,15 +649,10 @@ def build_page_specs(window_root: dict,
             raise RuntimeError(f"Transport ID collision detected for page '{page_name}'")
         seen_ids.add(page_transport_id)
 
+        normalized_layer_ids = resolve_page_layers(page_root)
         reticles: list[ReticleSpec] = []
-        for reticle in page_root.get("staticReticles", []):
-            if not isinstance(reticle, dict):
-                continue
-
-            reticle_id = reticle.get("id")
-            if not isinstance(reticle_id, str) or not reticle_id:
-                continue
-
+        for reticle in validate_page_static_reticles(page_root, normalized_layer_ids):
+            reticle_id = reticle["id"]
             member_name = camel_case(reticle_id)
             canonical_key = f"page/{normalize_lookup_name(page_name)}/reticle/{normalize_lookup_name(reticle_id)}"
             transport_id = stable_transport_id(canonical_key)
@@ -630,7 +696,7 @@ def build_page_specs(window_root: dict,
                     transport_id=transport_id,
                 ))
 
-        dynamic_template_ids = resolve_page_dynamic_template_ids(page_root, template_library)
+        dynamic_template_ids = resolve_page_dynamic_template_ids(page_root, template_library, normalized_layer_ids)
         used_dynamic_template_ids.update(dynamic_template_ids)
 
         expected_status_name = f"{camel_case(page_name)}Status"

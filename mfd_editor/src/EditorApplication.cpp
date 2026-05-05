@@ -19,8 +19,10 @@
 #include <exception>
 #include <functional>
 #include <limits>
+#include <numeric>
 #include <random>
 #include <stdexcept>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -1177,7 +1179,7 @@ const mfd::EditorLayerDefinition* FindEditorLayer(const mfd::PageDefinition& pag
 
 bool IsReticleVisibleInEditor(const mfd::PageDefinition& page, const mfd::ReticleGroup& reticle)
 {
-    if (const mfd::EditorLayerDefinition* layer = FindEditorLayer(page, reticle.editor.layerId); layer != nullptr)
+    if (const mfd::EditorLayerDefinition* layer = FindEditorLayer(page, reticle.layerId); layer != nullptr)
     {
         return layer->visible;
     }
@@ -1428,8 +1430,49 @@ std::size_t CountEditorLayerAssignments(const mfd::PageDefinition& page, const s
         page.staticReticles.end(),
         [layerId](const mfd::ReticleGroup& reticle)
         {
-            return reticle.editor.layerId == layerId;
+            return reticle.layerId == layerId;
+         }));
+}
+
+std::size_t CountDynamicLayerBindings(const mfd::PageDefinition& page, const std::string_view layerId)
+{
+    if (layerId.empty())
+    {
+        return 0;
+    }
+
+    return static_cast<std::size_t>(std::count_if(
+        page.dynamicReticleBindings.begin(),
+        page.dynamicReticleBindings.end(),
+        [layerId](const mfd::DynamicReticleLayerBinding& binding)
+        {
+            return mfd::PageNamesEqual(binding.layerId, layerId);
         }));
+}
+
+std::string SummarizeDynamicLayerBindings(const mfd::PageDefinition& page, const std::string_view layerId)
+{
+    if (layerId.empty())
+    {
+        return {};
+    }
+
+    std::string summary;
+    for (const mfd::DynamicReticleLayerBinding& binding : page.dynamicReticleBindings)
+    {
+        if (!mfd::PageNamesEqual(binding.layerId, layerId))
+        {
+            continue;
+        }
+
+        if (!summary.empty())
+        {
+            summary += ", ";
+        }
+        summary += binding.templateId;
+    }
+
+    return summary;
 }
 
 void RenameEditorLayerReferences(mfd::PageDefinition& page,
@@ -1443,9 +1486,17 @@ void RenameEditorLayerReferences(mfd::PageDefinition& page,
 
     for (auto& reticle : page.staticReticles)
     {
-        if (reticle.editor.layerId == previousLayerId)
+        if (reticle.layerId == previousLayerId)
         {
-            reticle.editor.layerId = nextLayerId;
+            reticle.layerId = nextLayerId;
+        }
+    }
+
+    for (auto& binding : page.dynamicReticleBindings)
+    {
+        if (binding.layerId == previousLayerId)
+        {
+            binding.layerId = nextLayerId;
         }
     }
 }
@@ -1460,9 +1511,18 @@ std::size_t ClearEditorLayerReferences(mfd::PageDefinition& page, const std::str
     std::size_t clearedCount = 0;
     for (auto& reticle : page.staticReticles)
     {
-        if (reticle.editor.layerId == removedLayerId)
+        if (reticle.layerId == removedLayerId)
         {
-            reticle.editor.layerId.clear();
+            reticle.layerId.clear();
+            ++clearedCount;
+        }
+    }
+
+    for (auto& binding : page.dynamicReticleBindings)
+    {
+        if (binding.layerId == removedLayerId)
+        {
+            binding.layerId.clear();
             ++clearedCount;
         }
     }
@@ -1494,17 +1554,41 @@ std::string DefaultEditorLayerId(const mfd::PageDefinition& page)
 
 void BootstrapEditorLayersForPage(mfd::PageDefinition& page)
 {
-    if (!page.editor.layers.empty())
+    if (page.layers.empty())
     {
-        return;
+        page.layers.push_back(mfd::PageLayerDefinition {std::string(mfd::kDefaultPageLayerId)});
     }
 
-    page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
+    std::vector<mfd::EditorLayerDefinition> synchronizedStates;
+    synchronizedStates.reserve(page.layers.size());
+    for (const mfd::PageLayerDefinition& runtimeLayer : page.layers)
+    {
+        const auto iterator = std::find_if(page.editor.layers.begin(),
+                                           page.editor.layers.end(),
+                                           [&runtimeLayer](const mfd::EditorLayerDefinition& layer)
+                                           {
+                                               return mfd::PageNamesEqual(layer.id, runtimeLayer.id);
+                                           });
+        synchronizedStates.push_back(mfd::EditorLayerDefinition {
+            runtimeLayer.id,
+            iterator == page.editor.layers.end() ? true : iterator->visible});
+    }
+    page.editor.layers = std::move(synchronizedStates);
+
+    const std::string fallbackLayerId = page.layers.front().id;
     for (auto& reticle : page.staticReticles)
     {
-        if (reticle.editor.layerId.empty())
+        if (reticle.layerId.empty() || mfd::FindPageLayerDefinition(page, reticle.layerId) == nullptr)
         {
-            reticle.editor.layerId = page.editor.layers.front().id;
+            reticle.layerId = fallbackLayerId;
+        }
+    }
+
+    for (auto& binding : page.dynamicReticleBindings)
+    {
+        if (binding.layerId.empty() || mfd::FindPageLayerDefinition(page, binding.layerId) == nullptr)
+        {
+            binding.layerId = fallbackLayerId;
         }
     }
 }
@@ -2498,12 +2582,11 @@ void EditorApplication::DeleteSelectedLibraryReticle()
             return;
         }
 
-        if (page.editor.dynamicReticleTemplateIds.has_value() &&
-            std::any_of(page.editor.dynamicReticleTemplateIds->begin(),
-                        page.editor.dynamicReticleTemplateIds->end(),
-                        [&reticleId](const std::string& templateId)
+        if (std::any_of(page.dynamicReticleBindings.begin(),
+                        page.dynamicReticleBindings.end(),
+                        [&reticleId](const mfd::DynamicReticleLayerBinding& binding)
                         {
-                            return mfd::PageNamesEqual(templateId, reticleId);
+                            return mfd::PageNamesEqual(binding.templateId, reticleId);
                         }))
         {
             RebuildStatus("Cannot delete library reticle '" + reticleId +
@@ -3396,12 +3479,12 @@ void EditorApplication::DrawPageTree()
                     }
                 }
 
-                if (!reticle.editor.layerId.empty())
+                if (!reticle.layerId.empty())
                 {
                     ImGui::SameLine();
                     const bool layerVisible = IsReticleVisibleInEditor(page, reticle);
                     ImGui::TextDisabled("[%s%s]",
-                                        reticle.editor.layerId.c_str(),
+                                        reticle.layerId.c_str(),
                                         layerVisible ? "" : " hidden");
                 }
                 ImGui::EndDisabled();
@@ -3761,7 +3844,7 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
             return IsReticleVisibleInEditor(page, reticle);
         }
 
-        return reticle.editor.layerId == entry.layerId;
+        return reticle.layerId == entry.layerId;
     };
 
     for (const mfd::ReticleGroup& reticle : page.staticReticles)
@@ -6487,13 +6570,13 @@ void EditorApplication::PasteCopiedPageReticles()
         pastedReticle.id = MakeUniqueReticleId(page->staticReticles, baseId);
         pastedReticle.transform.position.x = std::clamp(pastedReticle.transform.position.x + offset, -1.0f, 1.0f);
         pastedReticle.transform.position.y = std::clamp(pastedReticle.transform.position.y - offset, -1.0f, 1.0f);
-        if (!pastedReticle.editor.layerId.empty() && FindEditorLayer(*page, pastedReticle.editor.layerId) == nullptr)
+        if (!pastedReticle.layerId.empty() && FindEditorLayer(*page, pastedReticle.layerId) == nullptr)
         {
-            pastedReticle.editor.layerId = ActiveInsertionLayerId(*page);
+            pastedReticle.layerId = ActiveInsertionLayerId(*page);
         }
-        else if (pastedReticle.editor.layerId.empty())
+        else if (pastedReticle.layerId.empty())
         {
-            pastedReticle.editor.layerId = ActiveInsertionLayerId(*page);
+            pastedReticle.layerId = ActiveInsertionLayerId(*page);
         }
 
         page->staticReticles.push_back(std::move(pastedReticle));
@@ -9083,7 +9166,8 @@ bool EditorApplication::CreateNewWindow()
         page.title = newWindowDraft_.firstPageTitle.data();
         page.backgroundColor = ToColorRgba(newWindowDraft_.firstPageBackground);
         page.defaultPage = true;
-        page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
+        page.layers.push_back(mfd::PageLayerDefinition {std::string(mfd::kDefaultPageLayerId)});
+        BootstrapEditorLayersForPage(page);
         next.document.pages.push_back(page);
 
         std::filesystem::path pageFile = std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal();
@@ -9149,7 +9233,8 @@ bool EditorApplication::CreateNewPage()
     page.normalizedName = mfd::NormalizePageName(pageName);
     page.title = newPageDraft_.title.data();
     page.backgroundColor = ToColorRgba(newPageDraft_.background);
-    page.editor.layers.push_back(mfd::EditorLayerDefinition {"layer", true});
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(mfd::kDefaultPageLayerId)});
+    BootstrapEditorLayersForPage(page);
 
     loaded_.document.pages.push_back(page);
     files_.pageFiles.push_back(pageFile.lexically_normal());
@@ -9241,7 +9326,7 @@ bool EditorApplication::CreatePageReticleInstanceFromTemplate(const std::string_
         mfd::Transform2D {position, 0.0f, {1.0f, 1.0f}},
         {});
     instance.visible = true;
-    instance.editor.layerId = ActiveInsertionLayerId(*page);
+    instance.layerId = ActiveInsertionLayerId(*page);
 
     const LogicalBounds localBounds = ComputeReticleLocalBounds(instance);
     if (localBounds.valid)
@@ -9349,7 +9434,6 @@ mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
         strobe.reticle.overrides = previousStrobe->reticle.overrides;
         strobe.reticle.blink = previousStrobe->reticle.blink;
         strobe.reticle.clipping = previousStrobe->reticle.clipping;
-        strobe.reticle.editor = previousStrobe->reticle.editor;
         strobe.capture = previousStrobe->capture;
         strobe.magnet = previousStrobe->magnet;
     }
@@ -9387,9 +9471,9 @@ std::string EditorApplication::MakeUniqueLayerId(const mfd::PageDefinition& page
 
     auto exists = [&page](const std::string& id)
     {
-        return std::any_of(page.editor.layers.begin(),
-                           page.editor.layers.end(),
-                           [&id](const mfd::EditorLayerDefinition& layer)
+        return std::any_of(page.layers.begin(),
+                           page.layers.end(),
+                           [&id](const mfd::PageLayerDefinition& layer)
                            {
                                return layer.id == id;
                            });
@@ -9547,9 +9631,9 @@ void EditorApplication::DrawPageInspector()
     ImGui::TextDisabled("If no page is marked default, the runtime opens the first page in the window JSON.");
 
     DrawPageBlinkInspector(*page);
+    DrawPageLayerInspector(*page);
     DrawPageDynamicTemplateInspector(*page);
     DrawPageStrobeInspector(*page);
-    DrawPageLayerInspector(*page);
 
     ImGui::Spacing();
     ImGui::TextDisabled("Static reticles: %d", static_cast<int>(page->staticReticles.size()));
@@ -9568,6 +9652,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     struct TutorialDynamicTemplateInfo
     {
         std::string_view templateId;
+        std::string_view preferredLayerId;
         std::string_view targetId;
         const char* label;
         const char* reason;
@@ -9575,19 +9660,33 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
 
     constexpr std::array<TutorialDynamicTemplateInfo, 2> kTutorialDynamicTemplates {{
         {"mfd_tutorial_radar_track",
+         "default",
          "page_dynamic_template_mfd_tutorial_radar_track",
          "Enable mfd_tutorial_radar_track",
          "Allow the tutorial radar-track template on Page1 so the generated client can create runtime dynamic tracks."},
         {"inspired_steering_cue",
+         "overlay",
          "page_dynamic_template_inspired_steering_cue",
          "Enable inspired_steering_cue",
          "Allow the authored steering cue template on Page1 so the generated client can build the persistent cue link."},
     }};
 
+    struct DynamicBindingDraftState
+    {
+        std::string templateId;
+        std::string layerId;
+    };
+
+    static std::unordered_map<std::string, DynamicBindingDraftState, mfd::TransparentStringHash, mfd::TransparentStringEqual>
+        s_bindingDrafts;
+
+    BootstrapEditorLayersForPage(page);
+
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Generated dynamic API");
-    ImGui::TextDisabled("Choose which library reticle templates are exposed as dynamic sets for this page.");
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Dynamic reticles");
+    ImGui::TextDisabled("Choose one reticle template, choose one page layer, then click Add.");
+    ImGui::TextDisabled("These entries are runtime-only bindings. They do not create authored static reticles on the page canvas.");
 
     std::vector<std::string> templateIds;
     templateIds.reserve(loaded_.document.reticleLibrary.size() + files_.templateFiles.size());
@@ -9602,56 +9701,116 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     std::sort(templateIds.begin(), templateIds.end());
     templateIds.erase(std::unique(templateIds.begin(), templateIds.end()), templateIds.end());
 
-    const auto isSelected = [&page](const std::string_view templateId)
+    DynamicBindingDraftState& draft = s_bindingDrafts[page.normalizedName];
+    if ((draft.layerId.empty() || mfd::FindPageLayerDefinition(page, draft.layerId) == nullptr) && !page.layers.empty())
     {
-        return page.editor.dynamicReticleTemplateIds.has_value() &&
-               std::any_of(page.editor.dynamicReticleTemplateIds->begin(),
-                           page.editor.dynamicReticleTemplateIds->end(),
-                           [templateId](const std::string& candidate)
-                           {
-                               return mfd::PageNamesEqual(candidate, templateId);
-                           });
-    };
-    const auto assignAllTemplates = [&page, &templateIds]()
+        draft.layerId = page.layers.front().id;
+    }
+
+    const TutorialDynamicTemplateInfo* activeTutorialTemplate = nullptr;
+    for (const TutorialDynamicTemplateInfo& tutorialTemplate : kTutorialDynamicTemplates)
     {
-        page.editor.dynamicReticleTemplateIds = templateIds;
-    };
-    const auto removeTemplate = [&page](const std::string_view templateId)
-    {
-        if (!page.editor.dynamicReticleTemplateIds.has_value())
+        if (tutorial_->MatchesTarget(tutorialTemplate.targetId))
         {
-            return;
+            activeTutorialTemplate = &tutorialTemplate;
+            break;
+        }
+    }
+
+    const auto layerOrder = [&page](const std::string_view layerId) -> std::size_t
+    {
+        for (std::size_t index = 0; index < page.layers.size(); ++index)
+        {
+            if (mfd::PageNamesEqual(page.layers[index].id, layerId))
+            {
+                return index;
+            }
         }
 
-        std::vector<std::string>& selectedTemplateIds = *page.editor.dynamicReticleTemplateIds;
-        selectedTemplateIds.erase(
-            std::remove_if(selectedTemplateIds.begin(),
-                           selectedTemplateIds.end(),
-                           [templateId](const std::string& candidate)
-                           {
-                               return mfd::PageNamesEqual(candidate, templateId);
-                           }),
-            selectedTemplateIds.end());
-
-        if (selectedTemplateIds.empty())
-        {
-            page.editor.dynamicReticleTemplateIds.reset();
-        }
+        return page.layers.size();
     };
-    const bool tutorialDynamicTemplateStepActive =
-        std::any_of(kTutorialDynamicTemplates.begin(),
-                    kTutorialDynamicTemplates.end(),
-                    [this](const TutorialDynamicTemplateInfo& tutorialTemplate)
+
+    const auto hasTemplateBinding = [&page](const std::string_view templateId)
+    {
+        return mfd::FindDynamicReticleLayerBinding(page, templateId) != nullptr;
+    };
+
+    const auto hasOrderConflict = [&page](const std::string_view layerId,
+                                          const int orderInLayer,
+                                          const int ignoredIndex = -1)
+    {
+        for (int index = 0; index < static_cast<int>(page.dynamicReticleBindings.size()); ++index)
+        {
+            if (index == ignoredIndex)
+            {
+                continue;
+            }
+
+            const mfd::DynamicReticleLayerBinding& binding = page.dynamicReticleBindings[static_cast<std::size_t>(index)];
+            if (mfd::PageNamesEqual(binding.layerId, layerId) && binding.orderInLayer == orderInLayer)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    const auto nextOrderInLayer = [&page, &hasOrderConflict](const std::string_view layerId,
+                                                             const int ignoredIndex = -1)
+    {
+        int nextOrder = 0;
+        while (hasOrderConflict(layerId, nextOrder, ignoredIndex))
+        {
+            ++nextOrder;
+        }
+
+        return nextOrder;
+    };
+
+    std::vector<std::string> availableTemplateIds;
+    availableTemplateIds.reserve(templateIds.size());
+    for (const std::string& templateId : templateIds)
+    {
+        if (!hasTemplateBinding(templateId))
+        {
+            availableTemplateIds.push_back(templateId);
+        }
+    }
+
+    if (activeTutorialTemplate != nullptr &&
+        std::any_of(availableTemplateIds.begin(),
+                    availableTemplateIds.end(),
+                    [activeTutorialTemplate](const std::string& candidate)
                     {
-                        return tutorial_->MatchesTarget(tutorialTemplate.targetId.data());
-                    });
+                        return mfd::PageNamesEqual(candidate, activeTutorialTemplate->templateId);
+                    }))
+    {
+        draft.templateId = std::string(activeTutorialTemplate->templateId);
+    }
+    else if (!availableTemplateIds.empty() &&
+             !std::any_of(availableTemplateIds.begin(),
+                          availableTemplateIds.end(),
+                          [&draft](const std::string& candidate)
+                          {
+                              return candidate == draft.templateId;
+                          }))
+    {
+        draft.templateId = availableTemplateIds.front();
+    }
+    else if (availableTemplateIds.empty())
+    {
+        draft.templateId.clear();
+    }
 
-    ImGui::TextDisabled("Selected templates: %d / %d",
-                        page.editor.dynamicReticleTemplateIds.has_value()
-                            ? static_cast<int>(page.editor.dynamicReticleTemplateIds->size())
-                            : 0,
-                        static_cast<int>(templateIds.size()));
-    ImGui::TextDisabled("Only checked templates generate page-scoped dynamic accessors. If nothing is selected, no dynamic set is generated.");
+    if (activeTutorialTemplate != nullptr &&
+        mfd::FindPageLayerDefinition(page, activeTutorialTemplate->preferredLayerId) != nullptr)
+    {
+        draft.layerId = std::string(activeTutorialTemplate->preferredLayerId);
+    }
+
+    ImGui::TextDisabled("Configured on this page: %d", static_cast<int>(page.dynamicReticleBindings.size()));
+    ImGui::TextDisabled("Each reticle template can appear at most once in this dynamic list.");
 
     if (templateIds.empty())
     {
@@ -9659,68 +9818,202 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
         return;
     }
 
-    ImGui::BeginDisabled(tutorialDynamicTemplateStepActive);
-    if (ImGui::Button("Select all"))
+    if (page.layers.empty())
     {
-        PushUndoSnapshot();
-        assignAllTemplates();
+        ImGui::TextDisabled("No page layer is available yet. Add one in Page layers first.");
+        return;
     }
-    ShowItemTooltip("Authorize every library template for generated dynamic access on this page.");
 
-    ImGui::SameLine();
-    if (ImGui::Button("Clear all"))
-    {
-        PushUndoSnapshot();
-        page.editor.dynamicReticleTemplateIds.reset();
-    }
-    ShowItemTooltip("Generate no dynamic-set accessor for this page until you re-enable one or more templates.");
-    ImGui::EndDisabled();
+    const bool canAddBinding = !draft.templateId.empty() && !draft.layerId.empty() &&
+                               mfd::FindPageLayerDefinition(page, draft.layerId) != nullptr;
 
-    for (const std::string& templateId : templateIds)
+    if (ImGui::BeginCombo("Reticle template", draft.templateId.empty() ? "<none>" : draft.templateId.c_str()))
     {
-        bool selected = isSelected(templateId);
-        const bool wasSelected = selected;
-        if (ImGui::Checkbox(templateId.c_str(), &selected))
+        if (availableTemplateIds.empty())
         {
-            PushUndoSnapshot();
+            ImGui::TextDisabled("All library templates are already bound on this page.");
+        }
+        else
+        {
+            for (const std::string& templateId : availableTemplateIds)
+            {
+                const bool selected = draft.templateId == templateId;
+                if (ImGui::Selectable(templateId.c_str(), selected))
+                {
+                    draft.templateId = templateId;
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+        }
+        ImGui::EndCombo();
+    }
+    ShowItemTooltip("Choose one unbound library reticle template to expose as one page-scoped dynamic reticle type.");
+
+    if (ImGui::BeginCombo("Layer", draft.layerId.empty() ? "<none>" : draft.layerId.c_str()))
+    {
+        for (const mfd::PageLayerDefinition& layer : page.layers)
+        {
+            const bool selected = draft.layerId == layer.id;
+            if (ImGui::Selectable(layer.id.c_str(), selected))
+            {
+                draft.layerId = layer.id;
+            }
             if (selected)
             {
-                if (!page.editor.dynamicReticleTemplateIds.has_value())
-                {
-                    page.editor.dynamicReticleTemplateIds = std::vector<std::string> {};
-                }
-
-                page.editor.dynamicReticleTemplateIds->push_back(templateId);
-            }
-            else
-            {
-                removeTemplate(templateId);
-            }
-
-            for (const TutorialDynamicTemplateInfo& tutorialTemplate : kTutorialDynamicTemplates)
-            {
-                if (!wasSelected &&
-                    selected &&
-                    templateId == tutorialTemplate.templateId &&
-                    tutorial_->MatchesTarget(tutorialTemplate.targetId.data()))
-                {
-                    tutorial_->CompleteStep();
-                    break;
-                }
+                ImGui::SetItemDefaultFocus();
             }
         }
+        ImGui::EndCombo();
+    }
+    ShowItemTooltip("Choose which page layer will own runtime instances created from this dynamic reticle type.");
 
-        for (const TutorialDynamicTemplateInfo& tutorialTemplate : kTutorialDynamicTemplates)
+    ImGui::BeginDisabled(!canAddBinding);
+    if (AccentButton("Add"))
+    {
+        if (activeTutorialTemplate != nullptr &&
+            !mfd::PageNamesEqual(draft.templateId, activeTutorialTemplate->templateId))
         {
-            if (templateId == tutorialTemplate.templateId)
+            RebuildStatus("Tutorial: choose '" + std::string(activeTutorialTemplate->templateId) + "' before clicking Add.", true);
+        }
+        else
+        {
+            PushUndoSnapshot();
+            page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {
+                draft.templateId,
+                draft.layerId,
+                nextOrderInLayer(draft.layerId)});
+
+            if (activeTutorialTemplate != nullptr)
             {
-                tutorial_->DrawHalo(
-                    tutorialTemplate.targetId.data(),
-                    tutorialTemplate.label,
-                    tutorialTemplate.reason);
-                break;
+                tutorial_->CompleteStep();
+            }
+
+            RebuildStatus("Dynamic reticle '" + draft.templateId + "' added on layer '" + draft.layerId +
+                              "' for page '" + page.name + "'.",
+                          false);
+        }
+    }
+    ImGui::EndDisabled();
+    ShowItemTooltip("Add the selected reticle template to the page dynamic-reticle list with the chosen layer.");
+
+    if (activeTutorialTemplate != nullptr &&
+        mfd::PageNamesEqual(draft.templateId, activeTutorialTemplate->templateId))
+    {
+        tutorial_->DrawHalo(
+            activeTutorialTemplate->targetId.data(),
+            activeTutorialTemplate->label,
+            activeTutorialTemplate->reason);
+    }
+
+    if (page.dynamicReticleBindings.empty())
+    {
+        ImGui::TextDisabled("No dynamic reticle is configured on this page yet.");
+        return;
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("Dynamic reticles on this page:");
+
+    std::vector<std::size_t> sortedBindingIndexes(page.dynamicReticleBindings.size());
+    std::iota(sortedBindingIndexes.begin(), sortedBindingIndexes.end(), 0U);
+    std::sort(sortedBindingIndexes.begin(),
+              sortedBindingIndexes.end(),
+              [&page, &layerOrder](const std::size_t lhsIndex, const std::size_t rhsIndex)
+              {
+                  const auto& lhs = page.dynamicReticleBindings[lhsIndex];
+                  const auto& rhs = page.dynamicReticleBindings[rhsIndex];
+                  if (layerOrder(lhs.layerId) != layerOrder(rhs.layerId))
+                  {
+                      return layerOrder(lhs.layerId) < layerOrder(rhs.layerId);
+                  }
+                  if (lhs.orderInLayer != rhs.orderInLayer)
+                  {
+                      return lhs.orderInLayer < rhs.orderInLayer;
+                  }
+                  return lhs.templateId < rhs.templateId;
+              });
+
+    for (std::size_t displayIndex = 0; displayIndex < sortedBindingIndexes.size(); ++displayIndex)
+    {
+        const std::size_t bindingIndex = sortedBindingIndexes[displayIndex];
+        mfd::DynamicReticleLayerBinding& binding = page.dynamicReticleBindings[bindingIndex];
+
+        ImGui::PushID(static_cast<int>(bindingIndex));
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Text("%s", binding.templateId.c_str());
+        ImGui::TextDisabled("orderInLayer %d", binding.orderInLayer);
+
+        if (ImGui::BeginCombo("Layer", binding.layerId.c_str()))
+        {
+            for (const mfd::PageLayerDefinition& layer : page.layers)
+            {
+                const bool selected = binding.layerId == layer.id;
+                if (ImGui::Selectable(layer.id.c_str(), selected))
+                {
+                    PushUndoSnapshot();
+                    binding.layerId = layer.id;
+                    binding.orderInLayer = nextOrderInLayer(binding.layerId, static_cast<int>(bindingIndex));
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Choose which page layer owns runtime instances of this dynamic reticle type.");
+
+        ImGui::SameLine();
+        if (ImGui::Button("Remove"))
+        {
+            PushUndoSnapshot();
+            const std::string removedTemplateId = binding.templateId;
+            page.dynamicReticleBindings.erase(page.dynamicReticleBindings.begin() + static_cast<std::ptrdiff_t>(bindingIndex));
+            RebuildStatus("Dynamic reticle '" + removedTemplateId + "' removed from page '" + page.name + "'.", false);
+            ImGui::PopID();
+            break;
+        }
+        ShowItemTooltip("Remove this dynamic reticle type from the page.");
+
+        std::vector<std::size_t> siblingIndexes;
+        for (std::size_t siblingIndex : sortedBindingIndexes)
+        {
+            if (mfd::PageNamesEqual(page.dynamicReticleBindings[siblingIndex].layerId, binding.layerId))
+            {
+                siblingIndexes.push_back(siblingIndex);
             }
         }
+
+        const auto siblingIterator = std::find(siblingIndexes.begin(), siblingIndexes.end(), bindingIndex);
+        const bool hasPreviousSibling = siblingIterator != siblingIndexes.begin() && siblingIterator != siblingIndexes.end();
+        const bool hasNextSibling = siblingIterator != siblingIndexes.end() && std::next(siblingIterator) != siblingIndexes.end();
+
+        ImGui::BeginDisabled(!hasPreviousSibling);
+        if (ImGui::Button("Move earlier"))
+        {
+            PushUndoSnapshot();
+            mfd::DynamicReticleLayerBinding& previous = page.dynamicReticleBindings[*std::prev(siblingIterator)];
+            std::swap(binding.orderInLayer, previous.orderInLayer);
+        }
+        ImGui::EndDisabled();
+        ShowItemTooltip("Swap orderInLayer with the previous dynamic binding on the same runtime layer.");
+
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!hasNextSibling);
+        if (ImGui::Button("Move later"))
+        {
+            PushUndoSnapshot();
+            mfd::DynamicReticleLayerBinding& next = page.dynamicReticleBindings[*std::next(siblingIterator)];
+            std::swap(binding.orderInLayer, next.orderInLayer);
+        }
+        ImGui::EndDisabled();
+        ShowItemTooltip("Swap orderInLayer with the next dynamic binding on the same runtime layer.");
+
+        ImGui::PopID();
     }
 
 }
@@ -9976,53 +10269,60 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
 
 void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
 {
+    BootstrapEditorLayersForPage(page);
+
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.82f, 0.73f, 0.94f, 1.0f), "Editor layers");
-    ImGui::TextDisabled("Layers only affect the editor preview. Runtime rendering ignores them.");
+    ImGui::TextColored(ImVec4(0.82f, 0.73f, 0.94f, 1.0f), "Page layers");
+    ImGui::TextDisabled("Page layers drive runtime draw order. Visibility below only affects the editor preview.");
 
     if (AccentButton("Add layer"))
     {
         const bool tutorialAddLayerMatched = tutorial_->MatchesTarget("inspector_add_layer");
         PushUndoSnapshot();
-        page.editor.layers.push_back(mfd::EditorLayerDefinition {MakeUniqueLayerId(page, "layer"), true});
+        const std::string newLayerId = MakeUniqueLayerId(page, "layer");
+        page.layers.push_back(mfd::PageLayerDefinition {newLayerId});
+        page.editor.layers.push_back(mfd::EditorLayerDefinition {newLayerId, true});
         if (tutorialAddLayerMatched)
         {
-            tutorial_->SetFocusLayerId(page.editor.layers.back().id);
+            tutorial_->SetFocusLayerId(page.layers.back().id);
             tutorial_->AdvancePhase();
         }
-        RebuildStatus("Editor layer added to page '" + page.name + "'.", false);
+        RebuildStatus("Runtime layer added to page '" + page.name + "'.", false);
     }
-    ShowItemTooltip("Create an editor-only visibility layer to group reticles while authoring.");
+    ShowItemTooltip("Create one new runtime page layer. The editor also tracks its temporary visibility state.");
     tutorial_->DrawHalo(
         "inspector_add_layer",
         "Click Add layer",
-        "Create one extra editor-only layer so the tutorial can show how authoring visibility works.");
+        "Create one extra page layer so the tutorial can show how layer-based authoring visibility works.");
 
-    if (page.editor.layers.empty())
+    if (page.layers.empty())
     {
-        ImGui::TextDisabled("No editor layer yet. Reticles without layer always stay visible.");
+        ImGui::TextDisabled("No runtime layer exists on this page yet.");
         return;
     }
 
-    for (std::size_t index = 0; index < page.editor.layers.size(); ++index)
+    for (std::size_t index = 0; index < page.layers.size(); ++index)
     {
-        mfd::EditorLayerDefinition& layer = page.editor.layers[index];
+        mfd::PageLayerDefinition& layer = page.layers[index];
+        mfd::EditorLayerDefinition& editorLayer = page.editor.layers[index];
         const std::size_t assignedReticles = CountEditorLayerAssignments(page, layer.id);
+        const std::size_t assignedBindings = CountDynamicLayerBindings(page, layer.id);
+        const std::string dynamicBindingSummary = SummarizeDynamicLayerBindings(page, layer.id);
 
         ImGui::PushID(static_cast<int>(index));
         ImGui::Spacing();
         ImGui::Separator();
 
-        bool visible = layer.visible;
+        bool visible = editorLayer.visible;
         if (ImGui::Checkbox("Visible", &visible))
         {
             PushUndoSnapshot();
-            layer.visible = visible;
+            editorLayer.visible = visible;
             SanitizePageReticleSelectionForCurrentFocus();
             if (tutorial_->MatchesTarget("inspector_layer_visibility") &&
                 layer.id == tutorial_->FocusLayerId() &&
-                !layer.visible)
+                !editorLayer.visible)
             {
                 tutorial_->CompleteStep();
             }
@@ -10033,11 +10333,20 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             tutorial_->DrawHalo(
                 "inspector_layer_visibility",
                 "Click Visible",
-                "Hide the layer you just created to confirm that editor layers only affect authoring visibility.");
+                "Hide the layer you just created to confirm that editor visibility stays separate from runtime layer order.");
         }
 
         ImGui::SameLine();
-        ImGui::TextDisabled("%zu reticle%s", assignedReticles, assignedReticles == 1U ? "" : "s");
+        ImGui::TextDisabled("%zu reticle%s | %zu dynamic binding%s",
+                            assignedReticles,
+                            assignedReticles == 1U ? "" : "s",
+                            assignedBindings,
+                            assignedBindings == 1U ? "" : "s");
+
+        if (!dynamicBindingSummary.empty())
+        {
+            ImGui::TextDisabled("Dynamic reticles: %s", dynamicBindingSummary.c_str());
+        }
 
         std::array<char, 128> layerName {};
         CopyTextBuffer(layerName, layer.id);
@@ -10051,9 +10360,9 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
         {
             const std::string nextId = layerName.data();
             const bool duplicateId = std::any_of(
-                page.editor.layers.begin(),
-                page.editor.layers.end(),
-                [&layer, &nextId](const mfd::EditorLayerDefinition& candidate)
+                page.layers.begin(),
+                page.layers.end(),
+                [&layer, &nextId](const mfd::PageLayerDefinition& candidate)
                 {
                     return &candidate != &layer && candidate.id == nextId;
                 });
@@ -10070,6 +10379,7 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             {
                 const std::string previousId = layer.id;
                 layer.id = nextId;
+                editorLayer.id = nextId;
                 RenameEditorLayerReferences(page, previousId, layer.id);
                 if (layerFocusState_.focusedLayerId == previousId)
                 {
@@ -10079,28 +10389,22 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             }
         }
 
+        ImGui::BeginDisabled(page.layers.size() <= 1U || assignedReticles > 0U || assignedBindings > 0U);
         if (ImGui::Button("Remove layer"))
         {
             const std::string removedLayerId = layer.id;
-            const std::size_t clearedReticles = CountEditorLayerAssignments(page, removedLayerId);
-
             PushUndoSnapshot();
-            ClearEditorLayerReferences(page, removedLayerId);
+            page.layers.erase(page.layers.begin() + static_cast<std::ptrdiff_t>(index));
             page.editor.layers.erase(page.editor.layers.begin() + static_cast<std::ptrdiff_t>(index));
             SanitizeLayerFocusForActivePage();
             SanitizePageReticleSelectionForCurrentFocus();
-
-            std::string status = "Editor layer '" + removedLayerId + "' removed from page '" + page.name + "'.";
-            if (clearedReticles > 0U)
-            {
-                status += " Cleared " + std::to_string(clearedReticles) + " reticle assignment(s).";
-            }
-            RebuildStatus(status, false);
+            RebuildStatus("Runtime layer '" + removedLayerId + "' removed from page '" + page.name + "'.", false);
 
             ImGui::PopID();
             break;
         }
-        ShowItemTooltip("Delete this editor-only layer and clear its assignments.");
+        ImGui::EndDisabled();
+        ShowItemTooltip("Delete one unused runtime layer. A layer cannot be removed while reticles or dynamic bindings still reference it.");
 
         ImGui::PopID();
     }
@@ -10452,14 +10756,14 @@ void EditorApplication::DrawPageReticleInspector()
     ImGui::TextDisabled("Esc clears the current page-reticle selection.");
     ImGui::TextDisabled("Draw order: %d / %d", reticleIndex + 1, std::max(1, static_cast<int>(page->staticReticles.size())));
 
-    const std::string currentLayerLabel = reticle->editor.layerId.empty() ? std::string {"<none>"} : reticle->editor.layerId;
+    const std::string currentLayerLabel = reticle->layerId.empty() ? std::string {"<none>"} : reticle->layerId;
     if (ImGui::BeginCombo("Editor layer", currentLayerLabel.c_str()))
     {
-        const bool noLayerSelected = reticle->editor.layerId.empty();
+        const bool noLayerSelected = reticle->layerId.empty();
         if (ImGui::Selectable("<none>", noLayerSelected))
         {
             PushUndoSnapshot();
-            reticle->editor.layerId.clear();
+            reticle->layerId.clear();
         }
         if (noLayerSelected)
         {
@@ -10468,12 +10772,12 @@ void EditorApplication::DrawPageReticleInspector()
 
         for (const auto& layer : page->editor.layers)
         {
-            const bool selected = reticle->editor.layerId == layer.id;
+            const bool selected = reticle->layerId == layer.id;
             const std::string label = layer.id + (layer.visible ? "" : " (hidden)");
             if (ImGui::Selectable(label.c_str(), selected))
             {
                 PushUndoSnapshot();
-                reticle->editor.layerId = layer.id;
+                reticle->layerId = layer.id;
             }
             if (selected)
             {

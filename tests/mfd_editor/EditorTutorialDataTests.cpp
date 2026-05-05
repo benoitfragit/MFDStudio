@@ -152,12 +152,19 @@ TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps
     const auto& dynamicTemplateStep = Step(editor::tutorial::TutorialStepId::AllowPage1DynamicReticleTemplate);
     EXPECT_STREQ(dynamicTemplateStep.targetId, "page_dynamic_template_mfd_tutorial_radar_track");
     EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("mfd_tutorial_radar_track"), std::string_view::npos);
+    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("default"), std::string_view::npos);
+    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("Dynamic reticles"), std::string_view::npos);
 
     const auto& cueDynamicTemplateStep =
         Step(editor::tutorial::TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate);
     EXPECT_STREQ(cueDynamicTemplateStep.targetId, "page_dynamic_template_inspired_steering_cue");
     EXPECT_NE(std::string_view(cueDynamicTemplateStep.instruction).find("inspired_steering_cue"),
               std::string_view::npos);
+    EXPECT_NE(std::string_view(cueDynamicTemplateStep.instruction).find("overlay"), std::string_view::npos);
+
+    const auto& page1JsonStep = Step(editor::tutorial::TutorialStepId::ReviewPage1StrobeJson);
+    EXPECT_NE(std::string_view(page1JsonStep.explanation).find("runtime-only bindings"), std::string_view::npos);
+    EXPECT_NE(std::string_view(page1JsonStep.explanation).find("dynamicReticleBindings"), std::string_view::npos);
 
     const auto& importStep = Step(editor::tutorial::TutorialStepId::InspectPageImportWorkflow);
     EXPECT_STREQ(importStep.targetId, "menu_page");

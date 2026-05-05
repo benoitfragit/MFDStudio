@@ -28,6 +28,7 @@
 namespace
 {
 using json = nlohmann::json;
+constexpr std::string_view kDefaultLayerId = "default";
 
 class ScopedTempDir
 {
@@ -100,6 +101,7 @@ void WritePageJson(const std::filesystem::path& pageFile,
     json page = json::object();
     page["name"] = pageName;
     page["title"] = pageName;
+    page["layers"] = json::array({json {{"id", std::string(kDefaultLayerId)}}});
     page["staticReticles"] = json::array();
 
     for (const auto& [reticleId, templateId] : staticReticles)
@@ -107,6 +109,7 @@ void WritePageJson(const std::filesystem::path& pageFile,
         json reticle = json::object();
         reticle["id"] = reticleId;
         reticle["template"] = templateId;
+        reticle["layerId"] = std::string(kDefaultLayerId);
         page["staticReticles"].push_back(std::move(reticle));
     }
 
@@ -154,6 +157,7 @@ mfd::PageDefinition MakePage(const std::string& name, const bool defaultPage = f
     page.normalizedName = mfd::NormalizePageName(name);
     page.title = name;
     page.defaultPage = defaultPage;
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
     return page;
 }
 
@@ -164,6 +168,7 @@ void AddStaticTemplateReference(mfd::PageDefinition& page,
     mfd::ReticleGroup reticle;
     reticle.id = reticleId;
     reticle.sourceTemplateId = templateId;
+    reticle.layerId = std::string(kDefaultLayerId);
     page.staticReticles.push_back(std::move(reticle));
 }
 
@@ -356,6 +361,111 @@ TEST(ReticleRenameServiceTests, RenamesReticleUsedBySeveralPagesIncludingStrobe)
     ASSERT_TRUE(loaded.document.pages[1].strobe.has_value());
     EXPECT_EQ(loaded.document.pages[1].strobe->reticle.sourceTemplateId, "threat_box");
     EXPECT_EQ(json::parse(ReadTextFile(tacticalFile)).at("staticReticles").front().at("template").get<std::string>(), "threat_box");
+}
+
+TEST(ReticleRenameServiceTests, RenamesDynamicBindingsWithoutEditorState)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
+    const std::filesystem::path reticleFolder = assetsRoot / "reticles";
+    const std::filesystem::path windowFile = assetsRoot / "windows" / "current.json";
+    const std::filesystem::path radarFile = assetsRoot / "pages" / "radar.json";
+    const std::filesystem::path templateFile = reticleFolder / "track_box.json";
+
+    const json pageDocument = {
+        {"name", "Radar"},
+        {"title", "Radar"},
+        {"layers", json::array({json {{"id", "default"}}})},
+        {"dynamicReticleBindings",
+         json::array({json {{"templateId", "track_box"}, {"layerId", "default"}, {"orderInLayer", 0}}})},
+        {"staticReticles", json::array()}};
+    WriteTextFile(radarFile, pageDocument.dump(2) + '\n');
+    WriteTemplateJson(templateFile, "track_box");
+    WriteWindowJson(windowFile, reticleFolder, {radarFile}, "Radar");
+
+    mfd::PageDefinition radarPage = MakePage("Radar", true);
+    radarPage.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_box", "default", 0});
+
+    auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {{radarFile, radarPage}});
+    AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
+
+    editor::ReticleRenameService service;
+    const editor::RenameReticlePlan plan = service.BuildPlan(
+        loaded,
+        files,
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    ASSERT_EQ(plan.references.size(), 1U);
+
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+
+    ASSERT_EQ(loaded.document.pages.front().dynamicReticleBindings.size(), 1U);
+    EXPECT_EQ(loaded.document.pages.front().dynamicReticleBindings.front().templateId, "threat_box");
+
+    const json persistedPage = json::parse(ReadTextFile(radarFile));
+    ASSERT_TRUE(persistedPage.at("dynamicReticleBindings").is_array());
+    EXPECT_EQ(persistedPage.at("dynamicReticleBindings").front().at("templateId").get<std::string>(), "threat_box");
+}
+
+TEST(ReticleRenameServiceTests, RenamesDynamicBindingsWhenEditorStateIsPresent)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
+    const std::filesystem::path reticleFolder = assetsRoot / "reticles";
+    const std::filesystem::path windowFile = assetsRoot / "windows" / "current.json";
+    const std::filesystem::path radarFile = assetsRoot / "pages" / "radar.json";
+    const std::filesystem::path templateFile = reticleFolder / "track_box.json";
+
+    const json pageDocument = {
+        {"name", "Radar"},
+        {"title", "Radar"},
+        {"layers", json::array({json {{"id", "default"}}})},
+        {"dynamicReticleBindings",
+         json::array({json {{"templateId", "track_box"}, {"layerId", "default"}, {"orderInLayer", 0}}})},
+        {"staticReticles", json::array({json {{"id", "track"}, {"template", "track_box"}}})},
+        {"strobe",
+         json {{"id", "cursor"},
+               {"template", "track_box"},
+               {"capture", json {{"shape", "circle"}, {"radius", 0.1f}}}}},
+        {"_editor", json {{"layers", json::array({json {{"id", "default"}, {"visible", false}}})}}}};
+    WriteTextFile(radarFile, pageDocument.dump(2) + '\n');
+    WriteTemplateJson(templateFile, "track_box");
+    WriteWindowJson(windowFile, reticleFolder, {radarFile}, "Radar");
+
+    mfd::PageDefinition radarPage = MakePage("Radar", true);
+    radarPage.editor.layers.push_back(mfd::EditorLayerDefinition {"default", false});
+    radarPage.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_box", "default", 0});
+    AddStaticTemplateReference(radarPage, "track", "track_box");
+    SetStrobeTemplateReference(radarPage, "cursor", "track_box");
+
+    auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {{radarFile, radarPage}});
+    AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
+
+    editor::ReticleRenameService service;
+    const editor::RenameReticlePlan plan = service.BuildPlan(
+        loaded,
+        files,
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    ASSERT_EQ(plan.references.size(), 3U);
+
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+
+    ASSERT_EQ(loaded.document.pages.front().dynamicReticleBindings.size(), 1U);
+    EXPECT_EQ(loaded.document.pages.front().staticReticles.front().sourceTemplateId, "threat_box");
+    ASSERT_TRUE(loaded.document.pages.front().strobe.has_value());
+    EXPECT_EQ(loaded.document.pages.front().strobe->reticle.sourceTemplateId, "threat_box");
+    EXPECT_EQ(loaded.document.pages.front().dynamicReticleBindings.front().templateId, "threat_box");
+
+    const json persistedPage = json::parse(ReadTextFile(radarFile));
+    EXPECT_EQ(persistedPage.at("staticReticles").front().at("template").get<std::string>(), "threat_box");
+    EXPECT_EQ(persistedPage.at("strobe").at("template").get<std::string>(), "threat_box");
+    EXPECT_EQ(persistedPage.at("dynamicReticleBindings").front().at("templateId").get<std::string>(), "threat_box");
+    EXPECT_FALSE(persistedPage.at("_editor").at("layers").empty());
 }
 
 TEST(ReticleRenameServiceTests, RefusesCollisionInsideOnePage)

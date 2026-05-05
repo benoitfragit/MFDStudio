@@ -75,7 +75,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0},
     {TutorialStepKind::UiAction,
      "Allow the tutorial dynamic reticle on Page1",
-     "On Page1, enable `mfd_tutorial_radar_track` in the generated dynamic-template list so the generated client can create runtime tutorial tracks.",
+     "On Page1, in `Dynamic reticles`, choose `mfd_tutorial_radar_track`, keep layer `default`, then click `Add` so the generated client can create runtime tutorial tracks on the authored layer order.",
      "page_dynamic_template_mfd_tutorial_radar_track",
      nullptr,
      nullptr,
@@ -86,7 +86,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0},
     {TutorialStepKind::UiAction,
      "Allow the steering cue dynamic reticle on Page1",
-     "On Page1, enable `inspired_steering_cue` in the generated dynamic-template list so the generated client can build the persistent cue link used by the tutorial.",
+     "On Page1, in `Dynamic reticles`, choose `inspired_steering_cue`, set layer `overlay`, then click `Add` so the generated client can build the persistent cue link used by the tutorial.",
      "page_dynamic_template_inspired_steering_cue",
      nullptr,
      nullptr,
@@ -130,7 +130,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0},
     {TutorialStepKind::UiAction,
      "Add and hide an editor layer",
-     "Create one extra editor-only layer and hide it to understand that authoring layers never affect runtime rendering.",
+     "Create one extra runtime page layer and hide it in the editor to understand that preview visibility stays separate from runtime draw order.",
      "inspector_add_layer",
      nullptr,
      nullptr,
@@ -196,7 +196,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      0},
     {TutorialStepKind::UiAction,
      "Enable the layer inspector",
-     "Open the page-preview View menu and enable Layer Inspector to inspect editor-only layers with their thumbnails and focus strip.",
+     "Open the page-preview View menu and enable Layer Inspector to inspect runtime page layers with their thumbnails and focus strip.",
      "page_preview_view_menu",
      nullptr,
      nullptr,
@@ -313,24 +313,28 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "  \"name\": \"Page1\",\n"
      "  \"title\": \"Page 1\",\n"
      "  \"backgroundColor\": [0, 32, 96, 255],\n"
-     "  \"_editor\": {\n"
-     "    \"dynamicReticleTemplates\": [\n"
-     "      \"mfd_tutorial_radar_track\",\n"
-     "      \"inspired_steering_cue\"\n"
-     "    ]\n"
-     "  },\n"
+     "  \"layers\": [\n"
+     "    { \"id\": \"default\" },\n"
+     "    { \"id\": \"overlay\" }\n"
+     "  ],\n"
+     "  \"dynamicReticleBindings\": [\n"
+     "    { \"templateId\": \"mfd_tutorial_radar_track\", \"layerId\": \"default\", \"orderInLayer\": 0 },\n"
+     "    { \"templateId\": \"inspired_steering_cue\", \"layerId\": \"overlay\", \"orderInLayer\": 0 }\n"
+     "  ],\n"
      "  \"staticReticles\": []\n"
      "}",
      "{\n"
      "  \"name\": \"Page1\",\n"
      "  \"title\": \"Page 1\",\n"
      "  \"backgroundColor\": [0, 32, 96, 255],\n"
-     "  \"_editor\": {\n"
-     "    \"dynamicReticleTemplates\": [\n"
-     "      \"mfd_tutorial_radar_track\",\n"
-     "      \"inspired_steering_cue\"\n"
-     "    ]\n"
-     "  },\n"
+     "  \"layers\": [\n"
+     "    { \"id\": \"default\" },\n"
+     "    { \"id\": \"overlay\" }\n"
+     "  ],\n"
+     "  \"dynamicReticleBindings\": [\n"
+     "    { \"templateId\": \"mfd_tutorial_radar_track\", \"layerId\": \"default\", \"orderInLayer\": 0 },\n"
+     "    { \"templateId\": \"inspired_steering_cue\", \"layerId\": \"overlay\", \"orderInLayer\": 0 }\n"
+     "  ],\n"
      "  \"strobe\": {\n"
      "    \"id\": \"tutorial_strobe\",\n"
      "    \"template\": \"mfd_tutorial_strobe_cursor\",\n"
@@ -341,7 +345,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "  },\n"
      "  \"staticReticles\": []\n"
      "}",
-     "The page now keeps the tutorial radar-track template in its generated dynamic list, while the strobe block references the small cross cursor authored earlier in the editor and still declares the capture shape used by the runtime when the client moves the strobe over new tracks. Magnetized visual shape changes remain opt-in through the strobe magnet visual settings.",
+     "The page now declares its runtime layer order directly, binds each generated dynamic template to one layer, and still references the small cross cursor authored earlier in the editor through the strobe block. `mfd_tutorial_radar_track` and `inspired_steering_cue` remain visible here through `dynamicReticleBindings`: they are runtime-only bindings, so they are not duplicated inside `staticReticles` until the tutorial client creates instances.",
      "Next",
      1,
      1},
