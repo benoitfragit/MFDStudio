@@ -141,7 +141,7 @@ The real build graph is split into:
 | Target | Role |
 | --- | --- |
 | `mfd_window` | Generic runtime host that loads a window JSON and exposes the integrated `F1` debug overlay |
-| `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting the framebuffer callback symbol expected by `mfd_window` |
+| `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting the stable framebuffer plugin ABI expected by `mfd_window` |
 | `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client used to exercise the public API without linking raylib |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
 | `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive plus Page1 strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is registered automatically in `examples/CMakeLists.txt` when the integrated tutorial completes once the tutorial asset set exists |

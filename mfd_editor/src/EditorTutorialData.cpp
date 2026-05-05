@@ -604,26 +604,20 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "The launcher can expose raw RGBA32 pixels through a plugin callback so the tutorial can verify what the runtime is rendering.",
      "",
      "examples/mfd_framebuffer_stdout_plugin/src/FramebufferStdoutPlugin.cpp",
-     "extern \"C\" __declspec(dllexport) void MfdWindowFramebufferCallback(\n"
-     "    const int width,\n"
-     "    const int height,\n"
-     "    const mfd::ByteView pixels)\n"
+     "extern \"C\" __declspec(dllexport) MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL\n"
+     "MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindowUtf8Buffer* error) noexcept\n"
      "{\n"
      "}",
-     "extern \"C\" __declspec(dllexport) void MfdWindowFramebufferCallback(\n"
-     "    const int width,\n"
-     "    const int height,\n"
-     "    const mfd::ByteView pixels)\n"
+     "extern \"C\" __declspec(dllexport) MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL\n"
+     "MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindowUtf8Buffer* error) noexcept\n"
      "{\n"
-     "    static bool printed = false;\n"
-     "    if (!printed)\n"
-     "    {\n"
-     "        std::cout << \"RGBA32 framebuffer callback active: \" << width << \"x\" << height\n"
-     "                  << \" pixels=\" << pixels.size() << '\\n';\n"
-     "        printed = true;\n"
-     "    }\n"
+     "    outApi->init = &InitPlugin;\n"
+     "    outApi->submit_frame = &SubmitFramePlugin;\n"
+     "    outApi->close = &ClosePlugin;\n"
+     "    outApi->destroy = &DestroyPlugin;\n"
+     "    return MfdWindowFramebufferPluginResultCode_Success;\n"
      "}",
-     "The framebuffer callback now lives in a dedicated DLL consumed by `mfd_window --framebuffer-plugin`, which keeps the generic launcher reusable.",
+     "The framebuffer capture now lives behind a dedicated stable plugin ABI consumed by `mfd_window --framebuffer-plugin`, which keeps the generic launcher reusable while still forwarding raw `RGBA32` frames.",
      "Next",
      1,
      1},

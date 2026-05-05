@@ -5,33 +5,35 @@
  */
 /**
  * @file
- * @brief Implementation of the framebuffer-plugin ABI helpers.
+ * @brief Implementation of the stable framebuffer plugin ABI helpers.
  */
 
 #include "mfd/window/WindowLauncherPlugin.h"
 
 #include <limits>
 
-namespace mfd::window
+extern "C"
 {
-std::size_t ComputeFramebufferRgba32ByteCount(const int width, const int height) noexcept
+MFD_WINDOW_PLUGIN_API size_t MFD_WINDOW_PLUGIN_CALL MfdWindowComputeFramebufferRgba32ByteCount(
+    const int32_t width,
+    const int32_t height) noexcept
 {
     if (width <= 0 || height <= 0)
     {
         return 0;
     }
 
-    const std::size_t widthBytes = static_cast<std::size_t>(width);
-    const std::size_t heightBytes = static_cast<std::size_t>(height);
-    constexpr std::size_t kBytesPerPixel = 4U;
+    const size_t widthBytes = static_cast<size_t>(width);
+    const size_t heightBytes = static_cast<size_t>(height);
+    constexpr size_t kBytesPerPixel = 4U;
 
-    if (widthBytes > std::numeric_limits<std::size_t>::max() / heightBytes)
+    if (widthBytes > std::numeric_limits<size_t>::max() / heightBytes)
     {
         return 0;
     }
 
-    const std::size_t pixelCount = widthBytes * heightBytes;
-    if (pixelCount > std::numeric_limits<std::size_t>::max() / kBytesPerPixel)
+    const size_t pixelCount = widthBytes * heightBytes;
+    if (pixelCount > std::numeric_limits<size_t>::max() / kBytesPerPixel)
     {
         return 0;
     }
@@ -39,11 +41,32 @@ std::size_t ComputeFramebufferRgba32ByteCount(const int width, const int height)
     return pixelCount * kBytesPerPixel;
 }
 
-bool ValidateFramebufferRgba32Layout(const int width,
-                                     const int height,
-                                     const mfd::ByteView rgba32Bytes) noexcept
+MFD_WINDOW_PLUGIN_API int MFD_WINDOW_PLUGIN_CALL MfdWindowValidateFramebufferRgba32Layout(
+    const int32_t width,
+    const int32_t height,
+    const void* pixels,
+    const size_t pixel_bytes) noexcept
 {
-    const std::size_t expectedByteCount = ComputeFramebufferRgba32ByteCount(width, height);
-    return expectedByteCount != 0 && rgba32Bytes.size() == expectedByteCount;
+    const size_t expectedByteCount = MfdWindowComputeFramebufferRgba32ByteCount(width, height);
+    return expectedByteCount != 0 && pixels != nullptr && pixel_bytes == expectedByteCount ? 1 : 0;
 }
-} // namespace mfd::window
+
+MFD_WINDOW_PLUGIN_API int MFD_WINDOW_PLUGIN_CALL MfdWindowValidateFramebufferFrame(
+    const MfdWindowFramebufferFrame* frame) noexcept
+{
+    if (frame == nullptr || frame->struct_size < sizeof(MfdWindowFramebufferFrame) ||
+        frame->pixel_format != MfdWindowFramebufferPixelFormat_Rgba32)
+    {
+        return 0;
+    }
+
+    const size_t expectedByteCount = MfdWindowComputeFramebufferRgba32ByteCount(frame->width, frame->height);
+    if (expectedByteCount == 0 || frame->pixels == nullptr || frame->pixel_bytes != expectedByteCount)
+    {
+        return 0;
+    }
+
+    const size_t expectedRowStride = expectedByteCount / static_cast<size_t>(frame->height);
+    return frame->row_stride_bytes == expectedRowStride ? 1 : 0;
+}
+} // extern "C"

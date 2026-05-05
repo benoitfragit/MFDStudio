@@ -10,11 +10,13 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <string>
 
 #include "mfd/window/WindowLauncher.h"
+#include "mfd/window/WindowLauncherPlugin.h"
 
 /**
  * @brief Verifies custom config values are reflected in usage text.
@@ -277,4 +279,52 @@ TEST(WindowLauncherTests, FramebufferCallbackReceivesDimensionsAndByteSpan)
     EXPECT_EQ(receivedWidth, 2);
     EXPECT_EQ(receivedHeight, 2);
     EXPECT_EQ(receivedByteCount, pixels.size());
+}
+
+/**
+ * @brief Validates the stable raw-frame helper accepts one complete tightly packed `RGBA32` frame.
+ */
+TEST(WindowLauncherTests, StableFramebufferFrameValidationAcceptsCompleteRgba32Frame)
+{
+    const std::array<std::uint8_t, 16> pixels {};
+
+    MfdWindowFramebufferFrame frame {};
+    frame.struct_size = sizeof(frame);
+    frame.pixel_format = MfdWindowFramebufferPixelFormat_Rgba32;
+    frame.width = 2;
+    frame.height = 2;
+    frame.row_stride_bytes = 8;
+    frame.pixels = pixels.data();
+    frame.pixel_bytes = pixels.size();
+
+    EXPECT_TRUE(mfd::window::ValidateFramebufferFrame(frame));
+    EXPECT_TRUE(mfd::window::ValidateFramebufferRgba32Layout(
+        frame.width,
+        frame.height,
+        frame.pixels,
+        frame.pixel_bytes));
+}
+
+/**
+ * @brief Rejects malformed stable raw-frame descriptors.
+ */
+TEST(WindowLauncherTests, StableFramebufferFrameValidationRejectsInvalidLayout)
+{
+    const std::array<std::uint8_t, 12> pixels {};
+
+    MfdWindowFramebufferFrame frame {};
+    frame.struct_size = sizeof(frame);
+    frame.pixel_format = MfdWindowFramebufferPixelFormat_Rgba32;
+    frame.width = 2;
+    frame.height = 2;
+    frame.row_stride_bytes = 6;
+    frame.pixels = pixels.data();
+    frame.pixel_bytes = pixels.size();
+
+    EXPECT_FALSE(mfd::window::ValidateFramebufferFrame(frame));
+    EXPECT_FALSE(mfd::window::ValidateFramebufferRgba32Layout(
+        frame.width,
+        frame.height,
+        frame.pixels,
+        frame.pixel_bytes));
 }

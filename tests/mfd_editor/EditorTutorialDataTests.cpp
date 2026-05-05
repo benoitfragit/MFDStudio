@@ -127,7 +127,8 @@ TEST(EditorTutorialDataTests, TutorialMetadataReflectsSharedWindowLauncherFlow)
 {
     const auto& framebufferStep = Step(editor::tutorial::TutorialStepId::ReviewRgba32FramebufferCapture);
     EXPECT_STREQ(framebufferStep.filePath, "examples/mfd_framebuffer_stdout_plugin/src/FramebufferStdoutPlugin.cpp");
-    EXPECT_NE(std::string_view(framebufferStep.afterText).find("MfdWindowFramebufferCallback"), std::string_view::npos);
+    EXPECT_NE(std::string_view(framebufferStep.afterText).find("MfdGetWindowFramebufferPluginApi"),
+              std::string_view::npos);
     EXPECT_EQ(std::string_view(framebufferStep.afterText).find("RunLauncher"), std::string_view::npos);
 
     const auto& buildGateStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialClientBuildGate);

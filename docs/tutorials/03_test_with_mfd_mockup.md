@@ -88,8 +88,8 @@ The window must load a root JSON file that contains a valid `commands.udp`
 configuration.
 
 `Start-MfdMinimal.bat` and, once the tutorial assets exist, `Start-MfdTutorial.bat` also pass the sample
-framebuffer plugin DLL so you can see the callback wiring without compiling a
-custom host executable.
+framebuffer plugin DLL so you can inspect the stable plugin ABI wiring without
+compiling a custom host executable.
 
 ## Step 3 - Start `client_mockup`
 

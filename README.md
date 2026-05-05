@@ -14,6 +14,7 @@ In the codebase, the historical technical prefix remains `mfd`
 - edit those assets visually in `mfd_editor`
 - run them in `mfd_window`
 - drive the live runtime from `client_mockup` or your own UDP client
+- capture the rendered window through a stable `RGBA32` framebuffer plugin ABI
 - generate typed client-side C++ helpers for one authored window
 - inspect the live runtime with the integrated `F1` debug overlay
 
@@ -100,7 +101,7 @@ Useful companion pages:
 | `client_mockup` | Live UDP client for pages, reticles, strobe, feedback, and radar stress tests |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
-| `mfd_framebuffer_stdout_plugin` | Sample framebuffer callback plugin for `mfd_window` |
+| `mfd_framebuffer_stdout_plugin` | Sample stable framebuffer plugin for `mfd_window` |
 
 ## Repository Layout
 

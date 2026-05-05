@@ -8,8 +8,9 @@
 #include <cstddef>
 #include <filesystem>
 #include <functional>
-#include "mfd/window/WindowLauncherPlugin.h"
 #include <string>
+
+#include "mfd/core/ArrayView.h"
 
 namespace mfd::window
 {

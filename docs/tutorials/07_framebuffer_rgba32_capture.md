@@ -113,23 +113,28 @@ mfd_window --window assets/windows/demo_pages_minimal.json --framebuffer-plugin 
 ```
 
 The sample plugin target is `mfd_framebuffer_stdout_plugin`. It exports one
-symbol with the exact signature expected by the launcher:
+stable entry point returning a versioned callback table:
 
 ```cpp
-extern "C" __declspec(dllexport) void MfdWindowFramebufferCallback(
-    int width,
-    int height,
-    mfd::ByteView pixels)
+extern "C" __declspec(dllexport) MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL
+MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindowUtf8Buffer*) noexcept
 {
-    static bool printed = false;
-    if (!printed)
-    {
-        std::cout << "RGBA32 framebuffer callback active: " << width << "x" << height
-                  << " pixels=" << pixels.size() << '\n';
-        printed = true;
-    }
+    outApi->init = &InitPlugin;
+    outApi->submit_frame = &SubmitFramePlugin;
+    outApi->close = &ClosePlugin;
+    outApi->destroy = &DestroyPlugin;
+    return MfdWindowFramebufferPluginResultCode_Success;
 }
 ```
+
+During `submit_frame`, the plugin receives one raw descriptor containing:
+
+- `frame->width`
+- `frame->height`
+- `frame->pixels`
+- `frame->pixel_bytes`
+- `frame->row_stride_bytes`
+- `frame->pixel_format == MfdWindowFramebufferPixelFormat_Rgba32`
 
 If no callback is provided to `RunLauncher()` and no `--framebuffer-plugin`
 argument is passed to `mfd_window`, the launcher keeps the framebuffer capture

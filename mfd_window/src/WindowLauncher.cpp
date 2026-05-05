@@ -9,6 +9,7 @@
  */
 
 #include "mfd/window/WindowLauncher.h"
+#include "mfd/window/WindowLauncherPlugin.h"
 
 #include <algorithm>
 #include <array>
@@ -73,7 +74,54 @@ namespace
 constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
 constexpr unsigned int kCaptureRingSize = 2;
 constexpr std::size_t kMaxCommandsPerFrame = 512;
+constexpr std::size_t kPluginErrorBufferCapacity = 1024U;
 using GlSyncHandle = void*;
+
+void ResetPluginErrorBuffer(MfdWindowUtf8Buffer& buffer, char* storage, const std::size_t capacity) noexcept
+{
+    if (storage != nullptr && capacity > 0U)
+    {
+        storage[0] = '\0';
+    }
+
+    buffer.data = storage;
+    buffer.capacity = capacity;
+    buffer.size = 0U;
+}
+
+std::string PluginErrorBufferToString(const MfdWindowUtf8Buffer& buffer)
+{
+    if (buffer.data == nullptr)
+    {
+        return {};
+    }
+
+    const std::size_t readable = buffer.capacity == 0U ? 0U : (std::min)(buffer.size, buffer.capacity - 1U);
+    return std::string(buffer.data, buffer.data + readable);
+}
+
+std::string PluginResultCodeDescription(const MfdWindowFramebufferPluginResultCode code)
+{
+    switch (code)
+    {
+    case MfdWindowFramebufferPluginResultCode_Success:
+        return "success";
+    case MfdWindowFramebufferPluginResultCode_BufferTooSmall:
+        return "buffer too small";
+    case MfdWindowFramebufferPluginResultCode_InvalidArgument:
+        return "invalid argument";
+    case MfdWindowFramebufferPluginResultCode_InvalidState:
+        return "invalid state";
+    case MfdWindowFramebufferPluginResultCode_Unsupported:
+        return "unsupported";
+    case MfdWindowFramebufferPluginResultCode_InternalFailure:
+        return "internal failure";
+    case MfdWindowFramebufferPluginResultCode_AbiMismatch:
+        return "ABI mismatch";
+    }
+
+    return "unknown failure";
+}
 
 #if defined(_WIN32)
 using GLenum = unsigned int;
@@ -754,31 +802,214 @@ public:
             return false;
         }
 
-        callback_ = reinterpret_cast<mfd::window::LauncherFramebufferPluginEntryPoint>(symbol);
-        return callback_ != nullptr;
+        const auto getApi = reinterpret_cast<MfdGetWindowFramebufferPluginApiFn>(symbol);
+        if (getApi == nullptr)
+        {
+            error = "The framebuffer plugin '" + pluginFile.string() + "' exposes an invalid stable entry point.";
+            Unload();
+            return false;
+        }
+
+        hostApi_ = {};
+        hostApi_.struct_size = sizeof(hostApi_);
+        hostApi_.abi_version = MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION;
+
+        std::array<char, kPluginErrorBufferCapacity> errorStorage {};
+        MfdWindowUtf8Buffer errorBuffer {};
+        ResetPluginErrorBuffer(errorBuffer, errorStorage.data(), errorStorage.size());
+
+        pluginApi_ = {};
+        pluginApi_.struct_size = sizeof(pluginApi_);
+        const MfdWindowFramebufferPluginResultCode getApiStatus = getApi(&pluginApi_, &errorBuffer);
+        if (getApiStatus != MfdWindowFramebufferPluginResultCode_Success)
+        {
+            error = PluginErrorBufferToString(errorBuffer);
+            if (error.empty())
+            {
+                error = "The framebuffer plugin factory failed: " + PluginResultCodeDescription(getApiStatus) + ".";
+            }
+            Unload();
+            return false;
+        }
+
+        if (pluginApi_.struct_size < offsetof(MfdWindowFramebufferPluginApi, destroy) + sizeof(pluginApi_.destroy) ||
+            pluginApi_.info.struct_size < offsetof(MfdWindowFramebufferPluginInfo, display_name) +
+                                               sizeof(pluginApi_.info.display_name))
+        {
+            error = "The framebuffer plugin '" + pluginFile.string() + "' returned an incomplete ABI descriptor.";
+            Unload();
+            return false;
+        }
+
+        if (pluginApi_.info.abi_version != MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION)
+        {
+            error = "The framebuffer plugin '" + pluginFile.string() + "' targets ABI version " +
+                    std::to_string(pluginApi_.info.abi_version) + " instead of " +
+                    std::to_string(MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION) + ".";
+            Unload();
+            return false;
+        }
+
+        if (pluginApi_.init == nullptr ||
+            pluginApi_.submit_frame == nullptr ||
+            pluginApi_.close == nullptr ||
+            pluginApi_.destroy == nullptr)
+        {
+            error = "The framebuffer plugin '" + pluginFile.string() + "' returned one incomplete callback table.";
+            Unload();
+            return false;
+        }
+
+        ResetPluginErrorBuffer(errorBuffer, errorStorage.data(), errorStorage.size());
+        try
+        {
+            const MfdWindowFramebufferPluginResultCode initStatus =
+                pluginApi_.init(pluginApi_.plugin_context, &hostApi_, &errorBuffer);
+            if (initStatus != MfdWindowFramebufferPluginResultCode_Success)
+            {
+                error = PluginErrorBufferToString(errorBuffer);
+                if (error.empty())
+                {
+                    error = "The framebuffer plugin refused to initialize: " +
+                            PluginResultCodeDescription(initStatus) + ".";
+                }
+                Unload();
+                return false;
+            }
+        }
+        catch (const std::exception& exception)
+        {
+            error = "The framebuffer plugin init routine threw: " + std::string(exception.what());
+            Unload();
+            return false;
+        }
+        catch (...)
+        {
+            error = "The framebuffer plugin init routine threw an unknown exception.";
+            Unload();
+            return false;
+        }
+
+        pluginInitialized_ = true;
+        return true;
 #else
         error = "Framebuffer plugins are only supported on Windows.";
         return false;
 #endif
     }
 
-    [[nodiscard]] mfd::window::LauncherFramebufferCallback CreateCallback() const
+    [[nodiscard]] mfd::window::LauncherFramebufferCallback CreateCallback()
     {
-        if (callback_ == nullptr)
+        if (!pluginInitialized_ || pluginApi_.submit_frame == nullptr)
         {
             return {};
         }
 
-        const mfd::window::LauncherFramebufferPluginEntryPoint callback = callback_;
-        return [callback](const int width, const int height, const mfd::ByteView rgba32Bytes)
+        return [this](const int width, const int height, const mfd::ByteView rgba32Bytes)
         {
-            callback(width, height, rgba32Bytes);
+            SubmitFrame(width, height, rgba32Bytes);
         };
     }
 
 private:
+    void SubmitFrame(const int width, const int height, const mfd::ByteView rgba32Bytes) noexcept
+    {
+        if (!pluginInitialized_ || pluginApi_.submit_frame == nullptr)
+        {
+            return;
+        }
+
+        const std::size_t byteCount = mfd::window::ComputeFramebufferRgba32ByteCount(width, height);
+
+        MfdWindowFramebufferFrame frame {};
+        frame.struct_size = sizeof(frame);
+        frame.pixel_format = MfdWindowFramebufferPixelFormat_Rgba32;
+        frame.width = width;
+        frame.height = height;
+        frame.row_stride_bytes =
+            (byteCount != 0U && height > 0) ? byteCount / static_cast<std::size_t>(height) : 0U;
+        frame.pixels = reinterpret_cast<const std::uint8_t*>(rgba32Bytes.data());
+        frame.pixel_bytes = rgba32Bytes.size();
+
+        std::array<char, kPluginErrorBufferCapacity> errorStorage {};
+        MfdWindowUtf8Buffer errorBuffer {};
+        ResetPluginErrorBuffer(errorBuffer, errorStorage.data(), errorStorage.size());
+
+        try
+        {
+            const MfdWindowFramebufferPluginResultCode submitStatus =
+                pluginApi_.submit_frame(pluginApi_.plugin_context, &frame, &errorBuffer);
+            if (submitStatus == MfdWindowFramebufferPluginResultCode_Success)
+            {
+                lastRuntimeError_.clear();
+                lastReportedRuntimeError_.clear();
+                return;
+            }
+
+            std::string runtimeError = PluginErrorBufferToString(errorBuffer);
+            if (runtimeError.empty())
+            {
+                runtimeError = PluginResultCodeDescription(submitStatus);
+            }
+            ReportRuntimeError(std::move(runtimeError));
+        }
+        catch (const std::exception& exception)
+        {
+            ReportRuntimeError(exception.what());
+        }
+        catch (...)
+        {
+            ReportRuntimeError("Unknown framebuffer plugin exception.");
+        }
+    }
+
+    void ReportRuntimeError(std::string message) noexcept
+    {
+        if (message.empty())
+        {
+            message = "Unknown framebuffer plugin runtime failure.";
+        }
+
+        lastRuntimeError_ = message;
+        if (lastReportedRuntimeError_ == lastRuntimeError_)
+        {
+            return;
+        }
+
+        lastReportedRuntimeError_ = lastRuntimeError_;
+        std::cerr << "Framebuffer plugin runtime error: " << lastRuntimeError_ << '\n';
+    }
+
     void Unload() noexcept
     {
+        if (pluginInitialized_ && pluginApi_.close != nullptr)
+        {
+            try
+            {
+                pluginApi_.close(pluginApi_.plugin_context);
+            }
+            catch (...)
+            {
+            }
+        }
+
+        if (pluginApi_.destroy != nullptr)
+        {
+            try
+            {
+                pluginApi_.destroy(pluginApi_.plugin_context);
+            }
+            catch (...)
+            {
+            }
+        }
+
+        pluginInitialized_ = false;
+        pluginApi_ = {};
+        hostApi_ = {};
+        lastRuntimeError_.clear();
+        lastReportedRuntimeError_.clear();
+
 #if defined(_WIN32)
         if (handle_ != nullptr)
         {
@@ -786,13 +1017,16 @@ private:
             handle_ = nullptr;
         }
 #endif
-        callback_ = nullptr;
     }
 
 #if defined(_WIN32)
     HMODULE handle_ = nullptr;
 #endif
-    mfd::window::LauncherFramebufferPluginEntryPoint callback_ = nullptr;
+    MfdWindowFramebufferPluginHostApi hostApi_ {};
+    MfdWindowFramebufferPluginApi pluginApi_ {};
+    bool pluginInitialized_ = false;
+    std::string lastRuntimeError_ {};
+    std::string lastReportedRuntimeError_ {};
 };
 
 bool ParseCommandLine(const int argc,
@@ -1403,7 +1637,8 @@ std::string BuildUsageText(const LauncherConfig& config)
         output << "If no window JSON is provided, the launcher defaults to '"
                << config.defaultWindowFile.string() << "'.\n";
     }
-    output << "Optional framebuffer plugins must export '" << kLauncherFramebufferPluginEntryPointName << "'.\n";
+    output << "Optional framebuffer plugins must export '" << kLauncherFramebufferPluginEntryPointName
+           << "' and implement the stable framebuffer-plugin ABI.\n";
     output << "Shortcuts:\n";
     output << "  F1 toggles the integrated runtime debug overlay\n";
     output << "  R reloads the current window JSON from disk\n";
