@@ -79,7 +79,7 @@ starting from handwritten JSON.
 | Work visually in the editor | [Quick Start](./docs/QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md) |
 | Integrate a live client | [Quick Start](./docs/QUICKSTART.md) | [Drive A Window From A Live Client](./docs/tutorials/04_drive_a_window_from_a_live_client.md) |
 | Use the generated client API | [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md) | [Generated Client API Standardization](./docs/standards/mfd_generated_client_api_standardization.md) |
-| Build or contribute to the repo | [Development Guide](./docs/DEVELOPMENT.md) | [Run The Automated Runtime Tests](./docs/tutorials/12_run_the_automated_runtime_tests.md) |
+| Build or contribute to the repo | [Development Guide](./docs/DEVELOPMENT.md) | [MFDStudio C++ Repository Maintenance Standard](./docs/standards/mfd_cpp_repository_maintenance_standard.md), [Run The Automated Runtime Tests](./docs/tutorials/12_run_the_automated_runtime_tests.md) |
 | Answer one practical usage question quickly | [FAQ](./docs/FAQ.md) | [Documentation Guide](./docs/README.md) |
 | See the current highlights of the tree | [What's New](./docs/WHATS_NEW.md) | [Documentation Guide](./docs/README.md) |
 
@@ -141,6 +141,9 @@ cmake --preset vs2022-win32
 cmake --build --preset debug-win32
 ctest --preset test-debug-win32
 ```
+
+The Visual Studio 2022 presets are pinned to the `v142` MSVC toolset so local
+builds, staged `_Exec/` outputs, and delivery packages stay aligned.
 
 Generate delivery packages with the dedicated script:
 

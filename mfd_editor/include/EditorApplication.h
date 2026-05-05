@@ -360,6 +360,10 @@ private:
     void DrawEmptyWorkspacePlaceholder();
     /** @brief Draws the right-hand inspector for the current selection. */
     void DrawInspector();
+    /** @brief Returns whether the reticle-studio split workspace is the active editor mode. */
+    [[nodiscard]] bool IsLibraryStudioWorkspaceVisible() const;
+    /** @brief Returns whether the fullscreen page preview can be toggled from the current workspace. */
+    [[nodiscard]] bool CanToggleFullscreenPagePreview() const;
 
     /** @brief Draws the authored page tree. */
     void DrawPageTree();
@@ -388,8 +392,17 @@ private:
     void DrawPagePreview(const ViewportState& viewport);
     /** @brief Draws the selected library reticle into the studio preview viewport. */
     void DrawLibraryPreview(const ViewportState& viewport);
+    /** @brief Draws the shared page-preview workspace used by page view and page-context view. */
+    void DrawPagePreviewWorkspace(const std::vector<std::string>& pagePreviewProblems,
+                                  const char* previewChildId,
+                                  const char* layersChildId,
+                                  const char* problemsChildId,
+                                  bool drawPreviewOverlays,
+                                  bool handlePreviewInteraction);
+    /** @brief Draws the reticle-studio panel with one optional explicit width. */
+    void DrawReticleStudioPanel(float width = 0.0f);
     /** @brief Draws the page-preview header controls shared by normal and context previews. */
-    void DrawPagePreviewHeaderControls(const char* buttonId, bool showProblemsIndicator);
+    void DrawPagePreviewHeaderControls(const char* buttonId, bool showProblemsIndicator, bool allowFullscreenToggle = true);
     /** @brief Draws guides, selection boxes and coordinate overlays on the page preview. */
     void DrawPreviewOverlays(const ViewportState& viewport);
     /** @brief Draws the optional page-preview minimap overlay. */

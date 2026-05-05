@@ -43,6 +43,7 @@
 /_Exec/*
 /_Deliveries/*
 /build/*
+/AGENTS.md
 /assets/windows/*.generated.map
 /examples/client_mockup/generated/*
 /examples/client_mockup_minimal/generated/*

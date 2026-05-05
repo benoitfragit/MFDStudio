@@ -69,13 +69,9 @@ bool AccentButton(const char* label)
 
 bool DrawVerticalSplitter(const char* id, const float height)
 {
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.10f, 0.16f, 0.21f, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.41f, 0.49f, 0.18f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.24f, 0.56f, 0.66f, 0.28f));
-    const bool pressed = ImGui::Button(id, ImVec2(kPaneSplitterWidth, height));
+    const bool pressed = ImGui::InvisibleButton(id, ImVec2(kPaneSplitterWidth, height));
     const bool hovered = ImGui::IsItemHovered();
     const bool active = ImGui::IsItemActive();
-    ImGui::PopStyleColor(3);
 
     if (hovered || active)
     {
@@ -91,8 +87,8 @@ bool DrawVerticalSplitter(const char* id, const float height)
                                : hovered
                                    ? ImVec4(0.24f, 0.72f, 0.83f, 0.70f)
                                    : ImVec4(0.16f, 0.28f, 0.34f, 0.75f));
-    const float centerX = (min.x + max.x) * 0.5f;
-    drawList->AddLine(ImVec2(centerX, min.y + 4.0f), ImVec2(centerX, max.y - 4.0f), color, 2.0f);
+    const float centerX = std::floor((min.x + max.x) * 0.5f) + 0.5f;
+    drawList->AddLine(ImVec2(centerX, min.y + 4.0f), ImVec2(centerX, max.y - 4.0f), color, active ? 2.0f : 1.5f);
 
     return pressed || active;
 }

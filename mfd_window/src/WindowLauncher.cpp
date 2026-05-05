@@ -75,6 +75,7 @@ constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
 constexpr unsigned int kCaptureRingSize = 2;
 constexpr std::size_t kMaxCommandsPerFrame = 512;
 constexpr std::size_t kPluginErrorBufferCapacity = 1024U;
+constexpr int kFramebufferResizeCooldownFrames = 3;
 using GlSyncHandle = void*;
 
 void ResetPluginErrorBuffer(MfdWindowUtf8Buffer& buffer, char* storage, const std::size_t capacity) noexcept
@@ -1567,16 +1568,56 @@ private:
         std::cout << "Shortcuts: F1 toggles runtime debug, R reloads, 1..9 switch pages\n";
     }
 
-    void PublishFramebuffer()
+    [[nodiscard]] bool PrepareFramebufferCapture()
     {
-        if (!framebufferCallback_ || framebufferCapture_ == nullptr)
+        if (!framebufferCallback_)
         {
-            return;
+            return false;
         }
 
         const int renderWidth = GetRenderWidth();
         const int renderHeight = GetRenderHeight();
         if (renderWidth <= 0 || renderHeight <= 0)
+        {
+            framebufferCapture_.reset();
+            lastObservedRenderWidth_ = 0;
+            lastObservedRenderHeight_ = 0;
+            framebufferResizeCooldownFrames_ = 0;
+            return false;
+        }
+
+        if (lastObservedRenderWidth_ <= 0 || lastObservedRenderHeight_ <= 0)
+        {
+            lastObservedRenderWidth_ = renderWidth;
+            lastObservedRenderHeight_ = renderHeight;
+        }
+        else if (renderWidth != lastObservedRenderWidth_ || renderHeight != lastObservedRenderHeight_)
+        {
+            // Tear down the readback path while the host recreates its swapchain-sized resources.
+            lastObservedRenderWidth_ = renderWidth;
+            lastObservedRenderHeight_ = renderHeight;
+            framebufferCapture_.reset();
+            framebufferResizeCooldownFrames_ = kFramebufferResizeCooldownFrames;
+            return false;
+        }
+
+        if (framebufferResizeCooldownFrames_ > 0)
+        {
+            --framebufferResizeCooldownFrames_;
+            return false;
+        }
+
+        if (framebufferCapture_ == nullptr)
+        {
+            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>();
+        }
+
+        return framebufferCapture_ != nullptr;
+    }
+
+    void PublishFramebuffer()
+    {
+        if (!PrepareFramebufferCapture())
         {
             return;
         }
@@ -1606,6 +1647,9 @@ private:
     float strobeFeedbackAccumulator_ = 0.0f;
     std::uint32_t nextStrobeFeedbackSequence_ = 1;
     bool receivedFirstClientCommand_ = false;
+    int lastObservedRenderWidth_ = 0;
+    int lastObservedRenderHeight_ = 0;
+    int framebufferResizeCooldownFrames_ = 0;
     std::filesystem::path resolvedIconFile_ {};
     std::string brandingStatus_ {};
     std::string lastCommandStatus_ {};

@@ -171,8 +171,11 @@ actual page canvas stay visible and interactive while you review the issues.
 
 ### Fullscreen preview
 
-The page preview header now exposes one small fullscreen toggle immediately next
-to **View**.
+The page-preview editing header now exposes one small fullscreen toggle
+immediately next to **View**.
+
+The toggle is only available in the page-editing workspace, not in the
+reticle-studio **Page context** panel.
 
 Use it when you want to edit the page with the editor chrome hidden:
 

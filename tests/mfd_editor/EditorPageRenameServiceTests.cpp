@@ -518,7 +518,7 @@ TEST(PageRenameServiceTests, IncludesExecWindowsWhenScanningAssetRoot)
 TEST(PageRenameServiceTests, AllowsRenameInsideExecAssetTree)
 {
     ScopedTempDir tempDir;
-    const std::filesystem::path assetRoot = tempDir.Path() / "_Exec" / "v143" / "Win32" / "Debug" / "assets";
+    const std::filesystem::path assetRoot = tempDir.Path() / "_Exec" / "v142" / "Win32" / "Debug" / "assets";
     const std::filesystem::path windowFile = assetRoot / "windows" / "demo.json";
     const std::filesystem::path radarFile = assetRoot / "pages" / "radar.json";
 

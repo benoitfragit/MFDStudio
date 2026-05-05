@@ -43,7 +43,7 @@ If this is your first session with the project, read in this order:
 | drive the runtime from a client | [Quick Start](./QUICKSTART.md) | [Drive A Window From A Live Client](./tutorials/04_drive_a_window_from_a_live_client.md) |
 | understand `client_mockup` as a reference implementation | [Test A Window With The Mockup](./tutorials/03_test_with_mfd_mockup.md) | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) |
 | use the generated client API | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) | [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md) |
-| work on the repository itself | [Development Guide](./DEVELOPMENT.md) | [Run The Automated Runtime Tests](./tutorials/12_run_the_automated_runtime_tests.md) |
+| work on the repository itself | [Development Guide](./DEVELOPMENT.md) | [MFDStudio C++ Repository Maintenance Standard](./standards/mfd_cpp_repository_maintenance_standard.md), [Run The Automated Runtime Tests](./tutorials/12_run_the_automated_runtime_tests.md) |
 | review formal contracts and compatibility | [Interoperability Standards](./standards/README.md) | [Architecture Notes](./architecture/README.md) |
 
 ## Quick Utility Pages
@@ -62,6 +62,7 @@ If this is your first session with the project, read in this order:
 ### Build And Contribute
 
 - [Development Guide](./DEVELOPMENT.md): build presets, tests, staging, and repository layout
+- [MFDStudio C++ Repository Maintenance Standard](./standards/mfd_cpp_repository_maintenance_standard.md): repository expectations for C++17 architecture, API discipline, tests, performance, and Doxygen
 
 ### Authoring Reference
 
@@ -102,9 +103,10 @@ If this is your first session with the project, read in this order:
 ### Contributor
 
 1. [Development Guide](./DEVELOPMENT.md)
-2. [Core Concepts](./CONCEPTS.md)
-3. [Tutorial Index](./tutorials/README.md)
-4. the specific reference or architecture page related to the feature you touch
+2. [MFDStudio C++ Repository Maintenance Standard](./standards/mfd_cpp_repository_maintenance_standard.md)
+3. [Core Concepts](./CONCEPTS.md)
+4. [Tutorial Index](./tutorials/README.md)
+5. the specific reference or architecture page related to the feature you touch
 
 ## Common First-Time Mistakes
 

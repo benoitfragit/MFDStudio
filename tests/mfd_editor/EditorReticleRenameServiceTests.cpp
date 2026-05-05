@@ -648,7 +648,7 @@ TEST(ReticleRenameServiceTests, IncludesExecPagesWhenScanningAssetRoot)
 TEST(ReticleRenameServiceTests, AllowsRenameInsideExecAssetTree)
 {
     ScopedTempDir tempDir;
-    const std::filesystem::path assetsRoot = tempDir.Path() / "_Exec" / "v143" / "Win32" / "Debug" / "assets";
+    const std::filesystem::path assetsRoot = tempDir.Path() / "_Exec" / "v142" / "Win32" / "Debug" / "assets";
     const std::filesystem::path reticleFolder = assetsRoot / "reticles";
     const std::filesystem::path windowFile = assetsRoot / "windows" / "current.json";
     const std::filesystem::path radarFile = assetsRoot / "pages" / "radar.json";

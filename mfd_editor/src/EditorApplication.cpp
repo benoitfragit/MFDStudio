@@ -1756,7 +1756,7 @@ void EditorApplication::HandleShortcuts()
 
     const ImGuiIO& io = ImGui::GetIO();
 
-    if (!io.WantTextInput && HasOpenWindow() && ImGui::IsKeyPressed(ImGuiKey_F11))
+    if (!io.WantTextInput && CanToggleFullscreenPagePreview() && ImGui::IsKeyPressed(ImGuiKey_F11))
     {
         ToggleFullscreenPagePreview();
     }
@@ -2120,7 +2120,7 @@ void EditorApplication::ApplyFullscreenPreviewLayoutState(const editor::Fullscre
 
 void EditorApplication::ToggleFullscreenPagePreview()
 {
-    if (!HasOpenWindow() && !fullscreenPreviewController_.IsActive())
+    if (!CanToggleFullscreenPagePreview())
     {
         return;
     }
@@ -2876,7 +2876,7 @@ void EditorApplication::DrawRootLayout()
     {
         const float maxSidebarWidth = std::max(
             kMinSidebarWidth, totalWidth - reservedInspectorWidth - kMinWorkspaceWidth - splitterCount * editor::ui::kPaneSplitterWidth);
-        sidebarWidth_ = std::clamp(sidebarWidth_, kMinSidebarWidth, maxSidebarWidth);
+        sidebarWidth_ = std::floor(std::clamp(sidebarWidth_, kMinSidebarWidth, maxSidebarWidth));
     }
 
     if (inspectorVisible_)
@@ -2884,7 +2884,7 @@ void EditorApplication::DrawRootLayout()
         const float maxInspectorWidth = std::max(
             kMinInspectorWidth, totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) - kMinWorkspaceWidth -
                                    splitterCount * editor::ui::kPaneSplitterWidth);
-        inspectorWidth_ = std::clamp(inspectorWidth_, kMinInspectorWidth, maxInspectorWidth);
+        inspectorWidth_ = std::floor(std::clamp(inspectorWidth_, kMinInspectorWidth, maxInspectorWidth));
     }
 
     if (sidebarVisible_)
@@ -2901,16 +2901,16 @@ void EditorApplication::DrawRootLayout()
                 std::max(kMinSidebarWidth,
                          totalWidth - (inspectorVisible_ ? inspectorWidth_ : 0.0f) - kMinWorkspaceWidth -
                              splitterCount * editor::ui::kPaneSplitterWidth);
-            sidebarWidth_ = std::clamp(nextSidebarWidth, kMinSidebarWidth, nextMaxSidebarWidth);
+            sidebarWidth_ = std::floor(std::clamp(nextSidebarWidth, kMinSidebarWidth, nextMaxSidebarWidth));
         }
 
         ImGui::SameLine();
     }
 
-    const float workspaceWidth = std::max(kMinWorkspaceWidth,
-                                          totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) -
-                                              (inspectorVisible_ ? inspectorWidth_ : 0.0f) -
-                                              splitterCount * editor::ui::kPaneSplitterWidth);
+    const float workspaceWidth = std::floor(std::max(kMinWorkspaceWidth,
+                                                     totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) -
+                                                         (inspectorVisible_ ? inspectorWidth_ : 0.0f) -
+                                                         splitterCount * editor::ui::kPaneSplitterWidth));
     ImGui::BeginChild("Workspace", ImVec2(workspaceWidth, 0.0f), true);
     DrawWorkspace();
     ImGui::EndChild();
@@ -2925,16 +2925,38 @@ void EditorApplication::DrawRootLayout()
                 std::max(kMinInspectorWidth,
                          totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) - kMinWorkspaceWidth -
                              splitterCount * editor::ui::kPaneSplitterWidth);
-            inspectorWidth_ = std::clamp(nextInspectorWidth, kMinInspectorWidth, nextMaxInspectorWidth);
+            inspectorWidth_ = std::floor(std::clamp(nextInspectorWidth, kMinInspectorWidth, nextMaxInspectorWidth));
         }
 
         ImGui::SameLine();
-        ImGui::BeginChild("Inspector", ImVec2(0.0f, 0.0f), true);
+        const float inspectorPanelWidth = std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
+        ImGui::BeginChild("Inspector", ImVec2(inspectorPanelWidth, 0.0f), true);
         DrawInspector();
         ImGui::EndChild();
     }
 
     ImGui::End();
+}
+
+bool EditorApplication::IsLibraryStudioWorkspaceVisible() const
+{
+    using editor::tutorial::TutorialStepId;
+
+    const bool forcePagePreviewTutorialWorkspace =
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowLayerInspector)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowMinimap)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowProblemsPanel)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::ToggleFullscreenPreview)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectDesignExportWorkflow));
+    return !forcePagePreviewTutorialWorkspace &&
+           (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive);
+}
+
+bool EditorApplication::CanToggleFullscreenPagePreview() const
+{
+    return fullscreenPreviewController_.IsActive() || (HasOpenWindow() && !IsLibraryStudioWorkspaceVisible());
 }
 
 void EditorApplication::DrawSidebar()
@@ -2974,8 +2996,6 @@ void EditorApplication::DrawSidebar()
 
 void EditorApplication::DrawWorkspace()
 {
-    using editor::tutorial::TutorialStepId;
-
     if (!HasOpenWindow())
     {
         tutorial_->DrawCoach();
@@ -2985,102 +3005,8 @@ void EditorApplication::DrawWorkspace()
 
     const std::vector<std::string> pagePreviewProblems = BuildPagePreviewProblemMessages();
     const bool hasPagePreviewProblems = !pagePreviewProblems.empty();
-    const bool forcePagePreviewTutorialWorkspace =
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowLayerInspector)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowMinimap)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowProblemsPanel)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ToggleFullscreenPreview)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectDesignExportWorkflow));
-    const bool libraryStudioVisible =
-        !forcePagePreviewTutorialWorkspace &&
-        (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive);
+    const bool libraryStudioVisible = IsLibraryStudioWorkspaceVisible();
     const bool fullscreenPreviewActive = fullscreenPreviewController_.IsActive();
-
-    const auto drawPagePreviewWorkspace = [this, &pagePreviewProblems](
-                                             const char* previewChildId,
-                                             const char* layersChildId,
-                                             const char* problemsChildId,
-                                             const bool drawPreviewOverlays,
-                                             const bool handlePreviewInteraction)
-    {
-        const ImVec2 available = ImGui::GetContentRegionAvail();
-        editor::WorkspaceLayoutRequest layoutRequest;
-        layoutRequest.width = available.x;
-        layoutRequest.height = available.y;
-        layoutRequest.spacing = ImGui::GetStyle().ItemSpacing.y;
-        layoutRequest.showLeadingPanel = pagePreviewViewOptions_.showLayerInspector;
-        layoutRequest.leadingPanelWidth = kLayerInspectorDockWidth;
-        layoutRequest.minLeadingPanelWidth = 196.0f;
-        layoutRequest.showBottomPanel = pagePreviewViewOptions_.showProblemsPanel;
-        layoutRequest.bottomPanelHeight = kPreviewProblemsDockHeight;
-        layoutRequest.minBottomPanelHeight = 88.0f;
-        layoutRequest.minCenterWidth = 220.0f;
-        layoutRequest.minCenterHeight = 168.0f;
-        const editor::WorkspaceLayoutResult layout = editor::ComputeWorkspaceLayout(layoutRequest);
-        const mfd::PageDefinition* activePage = ActivePage();
-
-        if (layout.leadingPanel.IsVisible())
-        {
-            ImGui::BeginChild(layersChildId, ImVec2(layout.leadingPanel.width, layout.leadingPanel.height), true);
-            if (activePage != nullptr)
-            {
-                DrawLayerInspectorPanel(*activePage);
-            }
-            else
-            {
-                ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
-                ImGui::TextDisabled("Open one page to inspect editor layers.");
-            }
-            ImGui::EndChild();
-            ImGui::SameLine();
-        }
-
-        ImGui::BeginGroup();
-        if (layout.previewPanel.IsVisible())
-        {
-            ImGui::BeginChild(previewChildId, ImVec2(layout.previewPanel.width, layout.previewPanel.height), true);
-
-            ViewportState pageViewport;
-            pageViewport.origin = ImGui::GetCursorScreenPos();
-            pageViewport.size = ImGui::GetContentRegionAvail();
-            pageViewport.valid = pageViewport.size.x > 8.0f && pageViewport.size.y > 8.0f;
-
-            if (activePage != nullptr)
-            {
-                pageViewport.view = pagePreviewView_;
-            }
-
-            if (pageViewport.valid && activePage != nullptr)
-            {
-                DrawPagePreview(pageViewport);
-                if (drawPreviewOverlays)
-                {
-                    DrawPreviewOverlays(pageViewport);
-                }
-                if (handlePreviewInteraction)
-                {
-                    HandlePreviewInteraction(pageViewport);
-                }
-                DrawPageReticleContextMenu();
-            }
-            else
-            {
-                ImGui::TextDisabled("No active page to preview.");
-            }
-
-            ImGui::EndChild();
-        }
-
-        if (layout.bottomPanel.IsVisible())
-        {
-            ImGui::BeginChild(problemsChildId, ImVec2(layout.bottomPanel.width, layout.bottomPanel.height), true);
-            DrawProblemsPanel(pagePreviewProblems);
-            ImGui::EndChild();
-        }
-        ImGui::EndGroup();
-    };
 
     if (fullscreenPreviewActive)
     {
@@ -3090,7 +3016,8 @@ void EditorApplication::DrawWorkspace()
         tutorial_->DrawCoach();
         ImGui::Separator();
 
-        drawPagePreviewWorkspace(
+        DrawPagePreviewWorkspace(
+            pagePreviewProblems,
             "FullscreenPagePreviewPanel", "FullscreenPageLayersPanel", "FullscreenPageProblemsPanel", true, true);
         return;
     }
@@ -3100,49 +3027,9 @@ void EditorApplication::DrawWorkspace()
         const float totalWidth = ImGui::GetContentRegionAvail().x;
         const float totalHeight = ImGui::GetContentRegionAvail().y;
 
-        auto drawReticleStudioPanel = [this]()
-        {
-            ImGui::BeginChild("ReticleStudioPanel", ImVec2(0.0f, 0.0f), true);
-            ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
-
-            const ImGuiStyle& style = ImGui::GetStyle();
-            const float buttonWidth = ImGui::CalcTextSize("View").x + style.FramePadding.x * 2.0f;
-            ImGui::SameLine();
-            ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - buttonWidth));
-            if (ImGui::Button("View##ReticleStudioDisplay"))
-            {
-                ImGui::OpenPopup(kReticleStudioDisplayPopupId);
-            }
-
-            if (ImGui::BeginPopup(kReticleStudioDisplayPopupId))
-            {
-                ImGui::Checkbox("Show page context", &pagePreviewViewOptions_.showPageContext);
-                ImGui::Checkbox("Show primitive names", &libraryStudioShowPrimitiveLabels_);
-                ImGui::Checkbox("Show gizmos", &libraryStudioShowGizmos_);
-                ImGui::EndPopup();
-            }
-
-            ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry.");
-            ImGui::Separator();
-
-            ViewportState studioViewport;
-            studioViewport.origin = ImGui::GetCursorScreenPos();
-            studioViewport.size = ImGui::GetContentRegionAvail();
-            studioViewport.valid = studioViewport.size.x > 8.0f && studioViewport.size.y > 8.0f;
-            studioViewport.view = libraryPreviewView_;
-
-            if (studioViewport.valid)
-            {
-                DrawLibraryPreview(studioViewport);
-                DrawLibraryPreviewOverlays(studioViewport);
-                HandleLibraryPreviewInteraction(studioViewport);
-            }
-            ImGui::EndChild();
-        };
-
         if (!pagePreviewViewOptions_.showPageContext)
         {
-            drawReticleStudioPanel();
+            DrawReticleStudioPanel();
             return;
         }
 
@@ -3153,17 +3040,20 @@ void EditorApplication::DrawWorkspace()
 
         const float maxPageWidth = std::max(kMinPageContextWidth,
                                             totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
-        libraryStudioPageWidth_ = std::clamp(libraryStudioPageWidth_, kMinPageContextWidth, maxPageWidth);
+        libraryStudioPageWidth_ = std::floor(std::clamp(libraryStudioPageWidth_, kMinPageContextWidth, maxPageWidth));
         const float pageWidth = libraryStudioPageWidth_;
+        const float studioWidth = std::max(kMinReticleStudioWidth,
+                                           std::floor(totalWidth - pageWidth - editor::ui::kPaneSplitterWidth));
 
         ImGui::BeginChild("PageContextPanel", ImVec2(pageWidth, 0.0f), true);
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page context");
-        DrawPagePreviewHeaderControls("##PageContextViewMenu", hasPagePreviewProblems);
+        DrawPagePreviewHeaderControls("##PageContextViewMenu", hasPagePreviewProblems, false);
         ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
         tutorial_->DrawCoach();
         ImGui::Separator();
 
-        drawPagePreviewWorkspace("PageContextPreviewPanel",
+        DrawPagePreviewWorkspace(pagePreviewProblems,
+                                 "PageContextPreviewPanel",
                                  "PageContextLayersPanel",
                                  "PageContextProblemsPanel",
                                  selection_.kind == SelectionKind::PageReticle,
@@ -3176,11 +3066,11 @@ void EditorApplication::DrawWorkspace()
             const float nextPageWidth = libraryStudioPageWidth_ + ImGui::GetIO().MouseDelta.x;
             const float nextMaxPageWidth = std::max(kMinPageContextWidth,
                                                     totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
-            libraryStudioPageWidth_ = std::clamp(nextPageWidth, kMinPageContextWidth, nextMaxPageWidth);
+            libraryStudioPageWidth_ = std::floor(std::clamp(nextPageWidth, kMinPageContextWidth, nextMaxPageWidth));
         }
 
         ImGui::SameLine();
-        drawReticleStudioPanel();
+        DrawReticleStudioPanel(studioWidth);
         return;
     }
 
@@ -3190,8 +3080,134 @@ void EditorApplication::DrawWorkspace()
     tutorial_->DrawCoach();
     ImGui::Separator();
 
-    drawPagePreviewWorkspace(
+    DrawPagePreviewWorkspace(
+        pagePreviewProblems,
         "MainPagePreviewPanel", "MainPageLayersPanel", "MainPageProblemsPanel", true, true);
+}
+
+void EditorApplication::DrawPagePreviewWorkspace(const std::vector<std::string>& pagePreviewProblems,
+                                                 const char* previewChildId,
+                                                 const char* layersChildId,
+                                                 const char* problemsChildId,
+                                                 const bool drawPreviewOverlays,
+                                                 const bool handlePreviewInteraction)
+{
+    const ImVec2 available = ImGui::GetContentRegionAvail();
+    editor::WorkspaceLayoutRequest layoutRequest;
+    layoutRequest.width = std::max(0.0f, std::floor(available.x));
+    layoutRequest.height = std::max(0.0f, std::floor(available.y));
+    layoutRequest.spacing = ImGui::GetStyle().ItemSpacing.y;
+    layoutRequest.showLeadingPanel = pagePreviewViewOptions_.showLayerInspector;
+    layoutRequest.leadingPanelWidth = kLayerInspectorDockWidth;
+    layoutRequest.minLeadingPanelWidth = 196.0f;
+    layoutRequest.showBottomPanel = pagePreviewViewOptions_.showProblemsPanel;
+    layoutRequest.bottomPanelHeight = kPreviewProblemsDockHeight;
+    layoutRequest.minBottomPanelHeight = 88.0f;
+    layoutRequest.minCenterWidth = 220.0f;
+    layoutRequest.minCenterHeight = 168.0f;
+    const editor::WorkspaceLayoutResult layout = editor::ComputeWorkspaceLayout(layoutRequest);
+    const mfd::PageDefinition* activePage = ActivePage();
+
+    if (layout.leadingPanel.IsVisible())
+    {
+        ImGui::BeginChild(layersChildId, ImVec2(layout.leadingPanel.width, layout.leadingPanel.height), true);
+        if (activePage != nullptr)
+        {
+            DrawLayerInspectorPanel(*activePage);
+        }
+        else
+        {
+            ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
+            ImGui::TextDisabled("Open one page to inspect editor layers.");
+        }
+        ImGui::EndChild();
+        ImGui::SameLine();
+    }
+
+    ImGui::BeginGroup();
+    if (layout.previewPanel.IsVisible())
+    {
+        ImGui::BeginChild(previewChildId, ImVec2(layout.previewPanel.width, layout.previewPanel.height), true);
+
+        ViewportState pageViewport;
+        pageViewport.origin = ImGui::GetCursorScreenPos();
+        pageViewport.size = ImGui::GetContentRegionAvail();
+        pageViewport.valid = pageViewport.size.x > 8.0f && pageViewport.size.y > 8.0f;
+
+        if (activePage != nullptr)
+        {
+            pageViewport.view = pagePreviewView_;
+        }
+
+        if (pageViewport.valid && activePage != nullptr)
+        {
+            DrawPagePreview(pageViewport);
+            if (drawPreviewOverlays)
+            {
+                DrawPreviewOverlays(pageViewport);
+            }
+            if (handlePreviewInteraction)
+            {
+                HandlePreviewInteraction(pageViewport);
+            }
+            DrawPageReticleContextMenu();
+        }
+        else
+        {
+            ImGui::TextDisabled("No active page to preview.");
+        }
+
+        ImGui::EndChild();
+    }
+
+    if (layout.bottomPanel.IsVisible())
+    {
+        ImGui::BeginChild(problemsChildId, ImVec2(layout.bottomPanel.width, layout.bottomPanel.height), true);
+        DrawProblemsPanel(pagePreviewProblems);
+        ImGui::EndChild();
+    }
+    ImGui::EndGroup();
+}
+
+void EditorApplication::DrawReticleStudioPanel(const float width)
+{
+    const float panelWidth = width > 0.0f ? width : std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
+    ImGui::BeginChild("ReticleStudioPanel", ImVec2(panelWidth, 0.0f), true);
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
+
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const float buttonWidth = ImGui::CalcTextSize("View").x + style.FramePadding.x * 2.0f;
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - buttonWidth));
+    if (ImGui::Button("View##ReticleStudioDisplay"))
+    {
+        ImGui::OpenPopup(kReticleStudioDisplayPopupId);
+    }
+
+    if (ImGui::BeginPopup(kReticleStudioDisplayPopupId))
+    {
+        ImGui::Checkbox("Show page context", &pagePreviewViewOptions_.showPageContext);
+        ImGui::Checkbox("Show primitive names", &libraryStudioShowPrimitiveLabels_);
+        ImGui::Checkbox("Show gizmos", &libraryStudioShowGizmos_);
+        ImGui::EndPopup();
+    }
+
+    ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry.");
+    ImGui::Separator();
+
+    ViewportState studioViewport;
+    studioViewport.origin = ImGui::GetCursorScreenPos();
+    studioViewport.size = ImGui::GetContentRegionAvail();
+    studioViewport.valid = studioViewport.size.x > 8.0f && studioViewport.size.y > 8.0f;
+    studioViewport.view = libraryPreviewView_;
+
+    if (studioViewport.valid)
+    {
+        DrawLibraryPreview(studioViewport);
+        DrawLibraryPreviewOverlays(studioViewport);
+        HandleLibraryPreviewInteraction(studioViewport);
+    }
+    ImGui::EndChild();
 }
 
 void EditorApplication::DrawEmptyWorkspacePlaceholder()
@@ -4067,7 +4083,9 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
         true);
 }
 
-void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId, const bool showProblemsIndicator)
+void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
+                                                      const bool showProblemsIndicator,
+                                                      const bool allowFullscreenToggle)
 {
     using editor::tutorial::TutorialStepId;
 
@@ -4076,8 +4094,10 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId, cons
         showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel ? "View !" : "View";
     const std::string buttonLabel = label + (buttonId == nullptr ? "##PagePreviewViewMenu" : buttonId);
     const float buttonWidth = ImGui::CalcTextSize(label.c_str()).x + style.FramePadding.x * 2.0f;
-    const float fullscreenButtonWidth = ImGui::CalcTextSize("[]").x + style.FramePadding.x * 2.0f;
-    const float controlsWidth = buttonWidth + style.ItemSpacing.x + fullscreenButtonWidth;
+    const float fullscreenButtonWidth =
+        allowFullscreenToggle ? ImGui::CalcTextSize("[]").x + style.FramePadding.x * 2.0f : 0.0f;
+    const float controlsWidth =
+        buttonWidth + (allowFullscreenToggle ? style.ItemSpacing.x + fullscreenButtonWidth : 0.0f);
 
     ImGui::SameLine();
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - controlsWidth));
@@ -4095,29 +4115,32 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId, cons
         "Click View",
         "Open the page-preview helper menu so the coach can walk through the editor-only overlays one by one.");
 
-    ImGui::SameLine();
-    if (ImGui::Button("[]##PagePreviewFullscreenToggle"))
+    if (allowFullscreenToggle)
     {
-        ToggleFullscreenPagePreview();
-        if (tutorial_->MatchesTarget("page_preview_fullscreen"))
+        ImGui::SameLine();
+        if (ImGui::Button("[]##PagePreviewFullscreenToggle"))
         {
-            if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 0))
+            ToggleFullscreenPagePreview();
+            if (tutorial_->MatchesTarget("page_preview_fullscreen"))
             {
-                tutorial_->AdvancePhase();
-            }
-            else
-            {
-                tutorial_->CompleteStep();
+                if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 0))
+                {
+                    tutorial_->AdvancePhase();
+                }
+                else
+                {
+                    tutorial_->CompleteStep();
+                }
             }
         }
+        ShowItemTooltip(fullscreenPreviewController_.IsActive() ? "Exit fullscreen preview" : "Fullscreen page preview");
+        tutorial_->DrawHalo(
+            "page_preview_fullscreen",
+            "Toggle fullscreen preview",
+            tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 0)
+                ? "Enter fullscreen preview to focus on the page canvas."
+                : "Leave fullscreen preview to restore the normal editor layout.");
     }
-    ShowItemTooltip(fullscreenPreviewController_.IsActive() ? "Exit fullscreen preview" : "Fullscreen page preview");
-    tutorial_->DrawHalo(
-        "page_preview_fullscreen",
-        "Toggle fullscreen preview",
-        tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 0)
-            ? "Enter fullscreen preview to focus on the page canvas."
-            : "Leave fullscreen preview to restore the normal editor layout.");
 
     if (ImGui::BeginPopup(kPagePreviewDisplayPopupId))
     {

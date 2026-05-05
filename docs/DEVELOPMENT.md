@@ -15,6 +15,17 @@ The repository currently targets:
 The first configure downloads third-party dependencies automatically, so the
 first build is expected to be noticeably slower than incremental builds.
 
+## Contributor Standard
+
+Before making structural or public-surface changes, read
+[MFDStudio C++ Repository Maintenance Standard](./standards/mfd_cpp_repository_maintenance_standard.md).
+That document is the versioned source of truth for repository expectations
+around C++17, architecture, API discipline, performance, tests, and Doxygen.
+
+A root `AGENTS.md` may exist locally for user- or tool-specific instructions,
+but it is intentionally ignored by Git. Do not treat that local file as the
+repository source of truth.
+
 ## Recommended First Build
 
 For day-to-day debugging on Windows, start with the Win32 debug preset:
@@ -23,6 +34,9 @@ For day-to-day debugging on Windows, start with the Win32 debug preset:
 cmake --preset vs2022-win32
 cmake --build --preset debug-win32
 ```
+
+The Visual Studio presets explicitly target the `v142` toolset so the local
+build trees match the delivery packaging layout.
 
 Use the x64 presets when you specifically want the 64-bit binaries:
 
@@ -338,6 +352,7 @@ Use the documentation layers intentionally:
 - [`docs/README.md`](../docs/README.md): documentation map and reading paths
 - [`docs/QUICKSTART.md`](./QUICKSTART.md): first visible result
 - [`docs/CONCEPTS.md`](./CONCEPTS.md): vocabulary and mental model
+- [`docs/standards/mfd_cpp_repository_maintenance_standard.md`](./standards/mfd_cpp_repository_maintenance_standard.md): repository-wide engineering bar for C++17 maintenance
 - [`docs/reference`](./reference/README.md): exact JSON and authoring rules
 - [`docs/tutorials`](./tutorials/README.md): step-by-step workflows
 - [`docs/standards`](./standards/README.md): generated client API standardization, replacement-client contract, and conformance evidence

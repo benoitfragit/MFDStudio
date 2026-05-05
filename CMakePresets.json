@@ -10,6 +10,7 @@
       "name": "vs2022-base",
       "hidden": true,
       "generator": "Visual Studio 17 2022",
+      "toolset": "v142",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "MFD_BUILD_DEMO": "ON"

@@ -21,8 +21,11 @@ They do not rewrite the authored window, page, or reticle JSON files.
 
 ## Fullscreen Preview
 
-The page preview header also exposes one small fullscreen button immediately
+The page-preview editing header exposes one small fullscreen button immediately
 next to **View**.
+
+The button is intentionally hidden from the reticle-studio **Page context**
+panel so fullscreen stays scoped to the page-editing workspace.
 
 Behavior:
 
@@ -39,7 +42,7 @@ fullscreen preview exits.
 
 ## Shortcuts
 
-- `F11`: toggle fullscreen preview
+- `F11`: toggle fullscreen preview while the page-editing workspace is active
 - `Esc`: exit fullscreen preview first, then fall back to the normal selection clear workflow
 
 ## Persistence
