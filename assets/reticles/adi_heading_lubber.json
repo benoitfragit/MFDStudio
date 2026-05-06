@@ -1,18 +1,39 @@
 {
-  "id": "adi_heading_lubber",
-  "stroke": "#FFF4D2FF",
-  "fill": "#FFF4D2FF",
-  "lineWidth": 0.0028,
   "elements": [
-    { "id": "lubber_line", "type": "line", "start": [0.000, 0.425], "end": [0.000, 0.505] },
+    {
+      "end": [
+        0.0,
+        0.5049999952316284
+      ],
+      "id": "lubber_line",
+      "start": [
+        0.0,
+        0.42500001192092896
+      ],
+      "type": "line"
+    },
     {
       "id": "lubber_tip",
-      "type": "triangle",
       "points": [
-        [-0.015, 0.505],
-        [0.015, 0.505],
-        [0.000, 0.540]
-      ]
+        [
+          -0.014999999664723873,
+          0.5049999952316284
+        ],
+        [
+          0.014999999664723873,
+          0.5049999952316284
+        ],
+        [
+          0.0,
+          0.5400000214576721
+        ]
+      ],
+      "type": "triangle"
     }
-  ]
+  ],
+  "fill": "#FFF4D2FF",
+  "filled": true,
+  "id": "adi_heading_lubber",
+  "lineWidth": 0.00279999990016222,
+  "stroke": "#FFF4D2FF"
 }

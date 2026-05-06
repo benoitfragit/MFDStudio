@@ -1,59 +1,82 @@
 {
-  "id": "compass_rose",
   "elements": [
     {
       "id": "outer_ring",
-      "type": "circle",
-      "radius": 0.5208,
-      "thickness": 0.0042
+      "radius": 0.520799994468689,
+      "type": "circle"
     },
     {
       "id": "inner_ring",
-      "type": "circle",
-      "radius": 0.3958,
-      "thickness": 0.0031
+      "lineWidth": 0.003100000089034438,
+      "radius": 0.39579999446868896,
+      "type": "circle"
     },
     {
+      "end": [
+        0.541700005531311,
+        0.0
+      ],
       "id": "cross_h",
-      "type": "line",
-      "start": { "x": -0.5417, "y": 0.0 },
-      "end": { "x": 0.5417, "y": 0.0 },
-      "thickness": 0.0031
+      "lineWidth": 0.003100000089034438,
+      "start": [
+        -0.541700005531311,
+        0.0
+      ],
+      "type": "line"
     },
     {
+      "end": [
+        0.0,
+        0.541700005531311
+      ],
       "id": "cross_v",
-      "type": "line",
-      "start": { "x": 0.0, "y": -0.5417 },
-      "end": { "x": 0.0, "y": 0.5417 },
-      "thickness": 0.0031
+      "lineWidth": 0.003100000089034438,
+      "start": [
+        0.0,
+        -0.541700005531311
+      ],
+      "type": "line"
     },
     {
+      "at": [
+        0.0,
+        0.47920000553131104
+      ],
       "id": "north",
-      "type": "text",
+      "size": 0.05829999968409538,
       "text": "N",
-      "position": { "x": 0.0, "y": 0.4792 },
-      "fontSize": 0.0583
+      "type": "text"
     },
     {
+      "at": [
+        0.0,
+        -0.47920000553131104
+      ],
       "id": "south",
-      "type": "text",
+      "size": 0.05829999968409538,
       "text": "S",
-      "position": { "x": 0.0, "y": -0.4792 },
-      "fontSize": 0.0583
+      "type": "text"
     },
     {
+      "at": [
+        0.47920000553131104,
+        0.0
+      ],
       "id": "east",
-      "type": "text",
+      "size": 0.05829999968409538,
       "text": "E",
-      "position": { "x": 0.4792, "y": 0.0 },
-      "fontSize": 0.0583
+      "type": "text"
     },
     {
+      "at": [
+        -0.47920000553131104,
+        0.0
+      ],
       "id": "west",
-      "type": "text",
+      "size": 0.05829999968409538,
       "text": "W",
-      "position": { "x": -0.4792, "y": 0.0 },
-      "fontSize": 0.0583
+      "type": "text"
     }
-  ]
+  ],
+  "id": "compass_rose"
 }

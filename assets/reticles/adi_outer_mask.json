@@ -1,15 +1,16 @@
 {
-  "id": "adi_outer_mask",
-  "stroke": "#05080CFF",
-  "fill": "#05080CFF",
-  "lineWidth": 0.0020,
   "elements": [
     {
       "id": "ball_mask_ring",
-      "type": "ring",
-      "innerRadius": 0.406,
-      "outerRadius": 0.920,
-      "segments": 160
+      "innerRadius": 0.4059999883174896,
+      "outerRadius": 0.9200000166893005,
+      "segments": 160,
+      "type": "ring"
     }
-  ]
+  ],
+  "fill": "#05080CFF",
+  "filled": true,
+  "id": "adi_outer_mask",
+  "lineWidth": 0.0020000000949949026,
+  "stroke": "#05080CFF"
 }

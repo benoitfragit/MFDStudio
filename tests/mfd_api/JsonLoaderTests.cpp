@@ -365,7 +365,7 @@ TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliases
     ],
     "view": {
       "center": [0.25, -0.5],
-      "zoom": 0.0
+      "zoom": 1.0
     },
     "blinks": [
       { "id": "slow", "periodMs": 750 }
@@ -1488,4 +1488,210 @@ TEST(JsonLoaderTests, LoadDocumentKeepsNonZeroRingBandWhenOnlyOuterRadiusIsProvi
     const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry);
     ASSERT_NE(ring, nullptr);
     EXPECT_LT(ring->innerRadius, ring->outerRadius);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsConflictingTransformAliases)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": [
+        {
+          "id": "shape",
+          "layerId": "default",
+          "position": [0.1, 0.2],
+          "at": [-0.3, 0.4],
+          "elements": [
+            { "id": "circle", "type": "circle", "radius": 0.05 }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadWindowConfigurationRejectsFloatingPointUdpPort)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path windowFile = workspace.Path() / "window.json";
+    const std::filesystem::path pageFile = workspace.Path() / "page.json";
+
+    WriteTextFile(pageFile,
+                  R"json({
+  "name": "Main",
+  "layers": [
+    { "id": "default" }
+  ],
+  "staticReticles": []
+})json");
+
+    WriteTextFile(windowFile,
+                  R"json({
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "port": 48000.0
+    }
+  },
+  "pages": ["page.json"]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadWindowConfiguration(windowFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsVec2ArraysWithExtraCoordinates)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": [
+        {
+          "id": "shape",
+          "layerId": "default",
+          "elements": [
+            {
+              "id": "line",
+              "type": "line",
+              "start": [0.0, 0.0, 1.0],
+              "end": [1.0, 1.0]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsPolylinePointListsExceedingRuntimeBudget)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    std::ostringstream points;
+    for (std::size_t index = 0; index < 2049U; ++index)
+    {
+        if (index > 0U)
+        {
+            points << ',';
+        }
+
+        points << '[' << static_cast<double>(index) * 0.001 << ",0.0]";
+    }
+
+    const std::string document =
+        std::string(R"json({
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": [
+        {
+          "id": "shape",
+          "layerId": "default",
+          "elements": [
+            {
+              "id": "poly",
+              "type": "polyline",
+              "points": [)json") +
+        points.str() +
+        R"json(]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+})json";
+
+    WriteTextFile(pagesFile, document);
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsPrimitiveSegmentsOutsideRuntimeBudget)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": [
+        {
+          "id": "shape",
+          "layerId": "default",
+          "elements": [
+            {
+              "id": "scan_arc",
+              "type": "arc",
+              "radius": 0.24,
+              "segments": 5000
+            }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsNonPositivePageZoom)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "view": {
+        "center": [0.0, 0.0],
+        "zoom": 0.0
+      },
+      "staticReticles": []
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }

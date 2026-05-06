@@ -388,3 +388,163 @@ TEST(CommandProcessorTests, BulkDynamicRadarBatchSupportsOneHundredTracks)
     EXPECT_EQ(reticles.size(), 101U);
     EXPECT_EQ(dynamicTrackCount, 100U);
 }
+
+TEST(CommandProcessorTests, BatchRollsBackEarlierMutationsWhenALaterCommandFails)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch firstPatch;
+    firstPatch.text = "111";
+
+    mfd::ReticlePatch thirdPatch;
+    thirdPatch.text = "222";
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, firstPatch});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, thirdPatch});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "000");
+}
+
+TEST(CommandProcessorTests, ArrayViewSubmissionStopsOnFirstFailureAndKeepsDiagnostic)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch patch;
+    patch.text = "999";
+
+    std::vector<mfd::UserCommand> commands;
+    commands.emplace_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+    commands.emplace_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, patch});
+
+    EXPECT_FALSE(processor.Submit(mfd::ArrayView<const mfd::UserCommand>(commands)));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "000");
+}
+
+TEST(CommandProcessorTests, RejectsDuplicateOrOutOfOrderSequencedBatches)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch firstBatch;
+    firstBatch.mappingHash = "map_hash";
+    firstBatch.sequence = 7U;
+    firstBatch.commands.push_back(mfd::ActivatePageCommand {"", 11U});
+
+    mfd::CommandBatch duplicateBatch = firstBatch;
+    mfd::CommandBatch olderBatch = firstBatch;
+    olderBatch.sequence = 6U;
+
+    EXPECT_TRUE(processor.Submit(firstBatch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    EXPECT_FALSE(processor.Submit(duplicateBatch));
+    EXPECT_EQ(processor.LastError(), "Dropped stale or duplicate command batch");
+
+    EXPECT_FALSE(processor.Submit(olderBatch));
+    EXPECT_EQ(processor.LastError(), "Dropped stale or duplicate command batch");
+}
+
+TEST(CommandProcessorTests, AllowsSameSequenceAcrossNameBasedBatchesWithoutMappingHash)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch firstBatch;
+    firstBatch.sequence = 1U;
+    firstBatch.commands.push_back(mfd::ActivatePageCommand {"Radar", 0U});
+
+    mfd::ReticlePatch patch;
+    patch.text = "321";
+
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 1U;
+    secondBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, patch});
+
+    EXPECT_TRUE(processor.Submit(firstBatch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    EXPECT_TRUE(processor.Submit(secondBatch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "321");
+}
+
+TEST(CommandProcessorTests, ArrayViewSubmissionRollsBackEarlierMutationsWhenALaterCommandFails)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch firstPatch;
+    firstPatch.text = "777";
+
+    std::vector<mfd::UserCommand> commands;
+    commands.emplace_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, firstPatch});
+    commands.emplace_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(mfd::ArrayView<const mfd::UserCommand>(commands)));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "000");
+}
+
+TEST(CommandProcessorTests, ResetToInitialStatePreservesGeneratedTransportMapLookups)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    registry.ResetToInitialState();
+    ASSERT_TRUE(registry.HasTransportMap());
+
+    mfd::PrimitivePatch primitivePatch;
+    primitivePatch.text = "456";
+
+    mfd::ReticlePatch patch;
+    patch.primitivePatchesById.emplace(33U, primitivePatch);
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
+
+    EXPECT_TRUE(processor.Submit(batch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "456");
+}

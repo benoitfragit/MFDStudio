@@ -1,40 +1,47 @@
 {
-  "id": "status_clock",
   "elements": [
     {
+      "fill": "#10202ECC",
+      "filled": true,
+      "height": 0.14000000059604645,
       "id": "panel",
+      "lineWidth": 0.003100000089034438,
       "type": "rectangle",
-      "width": 0.42,
-      "height": 0.14,
-      "thickness": 0.0031,
-      "filled": true,
-      "fill": "#10202ECC"
+      "width": 0.41999998688697815
     },
     {
+      "at": [
+        -0.14579999446868896,
+        0.0
+      ],
+      "fill": "#78FF9AFF",
+      "filled": true,
       "id": "indicator",
-      "type": "ellipse",
-      "position": { "x": -0.1458, "y": 0.0 },
-      "width": 0.0729,
-      "height": 0.0729,
-      "thickness": 0.0025,
-      "filled": true,
-      "fill": "friendly"
+      "lineWidth": 0.0024999999441206455,
+      "size": 0.07289999723434448,
+      "type": "ellipse"
     },
     {
+      "at": [
+        -0.010400000028312206,
+        0.02500000037252903
+      ],
       "id": "mode_label",
-      "type": "text",
+      "size": 0.02710000053048134,
       "text": "UTC",
-      "position": { "x": -0.0104, "y": 0.025 },
-      "fontSize": 0.0271
+      "type": "text"
     },
     {
-      "id": "clock_value",
-      "type": "time",
+      "at": [
+        0.0625,
+        -0.020800000056624413
+      ],
       "format": "%H:%M:%S",
-      "utc": true,
-      "position": { "x": 0.0625, "y": -0.0208 },
-      "fontSize": 0.0333,
-      "letterSpacing": 0.0021
+      "id": "clock_value",
+      "size": 0.0333000011742115,
+      "type": "time",
+      "utc": true
     }
-  ]
+  ],
+  "id": "status_clock"
 }

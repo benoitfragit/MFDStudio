@@ -23,6 +23,17 @@ namespace mfd
 namespace
 {
 using BlinkClock = std::chrono::steady_clock;
+constexpr float kMaxAbsCoordinate = 1'000'000.0f;
+constexpr float kMaxAbsScale = 1'000.0f;
+constexpr float kMaxAbsAngleDegrees = 1'000'000.0f;
+constexpr float kMaxLogicalSize = 1'000'000.0f;
+constexpr float kMaxThickness = 100.0f;
+constexpr float kMaxZoom = 1'000.0f;
+constexpr int kMaxPrimitiveSegments = 1024;
+constexpr std::size_t kMaxPrimitivePoints = 2048U;
+constexpr std::size_t kMaxFilledPolygonPoints = 512U;
+constexpr std::size_t kMaxPatchEntryCount = 2048U;
+constexpr std::size_t kMaxTextBytes = 4096U;
 
 enum class ReticleDrawPass : std::uint8_t
 {
@@ -89,6 +100,244 @@ bool operator<(const ReticleDrawOrderKey& lhs, const ReticleDrawOrderKey& rhs) n
 std::string NormalizeReticleId(const std::string_view value)
 {
     return NormalizePageName(value);
+}
+
+bool IsFiniteVec2(const Vec2& value) noexcept
+{
+    return std::isfinite(value.x) && std::isfinite(value.y);
+}
+
+bool IsFiniteAbsWithin(const float value, const float maxAbs) noexcept
+{
+    return std::isfinite(value) && std::abs(value) <= maxAbs;
+}
+
+bool IsPositiveFiniteWithin(const float value, const float maxValue) noexcept
+{
+    return std::isfinite(value) && value > 0.0f && value <= maxValue;
+}
+
+bool IsValidVec2(const Vec2& value, const float maxAbs = kMaxAbsCoordinate) noexcept
+{
+    return IsFiniteVec2(value) &&
+           std::abs(value.x) <= maxAbs &&
+           std::abs(value.y) <= maxAbs;
+}
+
+bool IsValidScale(const Vec2& value) noexcept
+{
+    return IsValidVec2(value, kMaxAbsScale);
+}
+
+bool IsValidTextPayload(const std::string& value) noexcept
+{
+    return value.size() <= kMaxTextBytes;
+}
+
+bool AreValidPoints(const std::vector<Vec2>& points, const std::size_t minimumCount) noexcept
+{
+    if (points.size() < minimumCount || points.size() > kMaxPrimitivePoints)
+    {
+        return false;
+    }
+
+    for (const Vec2& point : points)
+    {
+        if (!IsValidVec2(point))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IsValidPrimitivePatch(const PrimitivePatch& patch) noexcept
+{
+    if (patch.position.has_value() && !IsValidVec2(*patch.position))
+    {
+        return false;
+    }
+
+    if (patch.rotationDegrees.has_value() &&
+        !IsFiniteAbsWithin(*patch.rotationDegrees, kMaxAbsAngleDegrees))
+    {
+        return false;
+    }
+
+    if (patch.scale.has_value() && !IsValidScale(*patch.scale))
+    {
+        return false;
+    }
+
+    if (patch.thickness.has_value() &&
+        !IsPositiveFiniteWithin(*patch.thickness, kMaxThickness))
+    {
+        return false;
+    }
+
+    if (patch.text.has_value() && !IsValidTextPayload(*patch.text))
+    {
+        return false;
+    }
+
+    if (patch.letterSpacing.has_value() &&
+        !IsFiniteAbsWithin(*patch.letterSpacing, kMaxLogicalSize))
+    {
+        return false;
+    }
+
+    if (patch.lineStart.has_value() && !IsValidVec2(*patch.lineStart))
+    {
+        return false;
+    }
+
+    if (patch.lineEnd.has_value() && !IsValidVec2(*patch.lineEnd))
+    {
+        return false;
+    }
+
+    if ((patch.radius.has_value() && !IsFiniteAbsWithin(*patch.radius, kMaxLogicalSize)) ||
+        (patch.innerRadius.has_value() && !IsFiniteAbsWithin(*patch.innerRadius, kMaxLogicalSize)) ||
+        (patch.outerRadius.has_value() && !IsFiniteAbsWithin(*patch.outerRadius, kMaxLogicalSize)) ||
+        (patch.width.has_value() && !IsFiniteAbsWithin(*patch.width, kMaxLogicalSize)) ||
+        (patch.height.has_value() && !IsFiniteAbsWithin(*patch.height, kMaxLogicalSize)) ||
+        (patch.startAngleDegrees.has_value() &&
+         !IsFiniteAbsWithin(*patch.startAngleDegrees, kMaxAbsAngleDegrees)) ||
+        (patch.endAngleDegrees.has_value() &&
+         !IsFiniteAbsWithin(*patch.endAngleDegrees, kMaxAbsAngleDegrees)))
+    {
+        return false;
+    }
+
+    if (patch.size.has_value() && !IsValidVec2(*patch.size, kMaxLogicalSize))
+    {
+        return false;
+    }
+
+    if (patch.points.has_value())
+    {
+        if (!AreValidPoints(*patch.points, 2U))
+        {
+            return false;
+        }
+
+        if (patch.closed.value_or(false) && patch.points->size() > kMaxFilledPolygonPoints)
+        {
+            return false;
+        }
+    }
+
+    if (patch.segments.has_value() &&
+        (*patch.segments < 2 || *patch.segments > kMaxPrimitiveSegments))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool IsValidReticlePatch(const ReticlePatch& patch) noexcept
+{
+    if (patch.position.has_value() && !IsValidVec2(*patch.position))
+    {
+        return false;
+    }
+
+    if (patch.rotationDegrees.has_value() &&
+        !IsFiniteAbsWithin(*patch.rotationDegrees, kMaxAbsAngleDegrees))
+    {
+        return false;
+    }
+
+    if (patch.thickness.has_value() &&
+        !IsPositiveFiniteWithin(*patch.thickness, kMaxThickness))
+    {
+        return false;
+    }
+
+    if (patch.text.has_value() && !IsValidTextPayload(*patch.text))
+    {
+        return false;
+    }
+
+    if (patch.letterSpacing.has_value() &&
+        !IsFiniteAbsWithin(*patch.letterSpacing, kMaxLogicalSize))
+    {
+        return false;
+    }
+
+    if (patch.texts.size() > kMaxPatchEntryCount ||
+        patch.textsById.size() > kMaxPatchEntryCount ||
+        patch.letterSpacings.size() > kMaxPatchEntryCount ||
+        patch.letterSpacingsById.size() > kMaxPatchEntryCount ||
+        patch.primitivePatches.size() > kMaxPatchEntryCount ||
+        patch.primitivePatchesById.size() > kMaxPatchEntryCount)
+    {
+        return false;
+    }
+
+    for (const auto& [primitiveId, text] : patch.texts)
+    {
+        static_cast<void>(primitiveId);
+        if (!IsValidTextPayload(text))
+        {
+            return false;
+        }
+    }
+
+    for (const auto& [primitiveId, text] : patch.textsById)
+    {
+        static_cast<void>(primitiveId);
+        if (!IsValidTextPayload(text))
+        {
+            return false;
+        }
+    }
+
+    for (const auto& [primitiveId, spacing] : patch.letterSpacings)
+    {
+        static_cast<void>(primitiveId);
+        if (!IsFiniteAbsWithin(spacing, kMaxLogicalSize))
+        {
+            return false;
+        }
+    }
+
+    for (const auto& [primitiveId, spacing] : patch.letterSpacingsById)
+    {
+        static_cast<void>(primitiveId);
+        if (!IsFiniteAbsWithin(spacing, kMaxLogicalSize))
+        {
+            return false;
+        }
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
+    {
+        static_cast<void>(primitiveId);
+        if (!IsValidPrimitivePatch(primitivePatch))
+        {
+            return false;
+        }
+    }
+
+    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatchesById)
+    {
+        static_cast<void>(primitiveId);
+        if (!IsValidPrimitivePatch(primitivePatch))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IsValidPageView(const PageViewState& view) noexcept
+{
+    return IsValidVec2(view.center) &&
+           IsPositiveFiniteWithin(view.zoom, kMaxZoom);
 }
 
 float DistanceSquared(const Vec2& lhs, const Vec2& rhs) noexcept
@@ -1002,9 +1251,21 @@ void SceneRegistry::RebuildTransportIndexes()
 
     for (const auto& reticle : transportMap_->reticles)
     {
+        std::string pageName;
+        if (reticle.pageId != 0)
+        {
+            const auto pageNameIt = transportPageNames_.find(reticle.pageId);
+            if (pageNameIt == transportPageNames_.end())
+            {
+                continue;
+            }
+
+            pageName = pageNameIt->second;
+        }
+
         transportReticles_.emplace(
             reticle.id,
-            TransportReticleLookup {reticle.pageId, reticle.pageId == 0 ? std::string {} : transportPageNames_[reticle.pageId], reticle.reticleId});
+            TransportReticleLookup {reticle.pageId, std::move(pageName), reticle.reticleId});
     }
 
     for (const auto& templ : transportMap_->templates)
@@ -1319,6 +1580,225 @@ WindowDisplayState SceneRegistry::WindowDisplay() const noexcept
     return windowDisplay_;
 }
 
+SceneRegistry::RuntimeSnapshot SceneRegistry::CaptureRuntimeSnapshot() const
+{
+    RuntimeSnapshot snapshot;
+    snapshot.activePage = activePage_;
+    snapshot.windowDisplay = windowDisplay_;
+    snapshot.nextDynamicCreationSequence = nextDynamicCreationSequence_;
+
+    snapshot.pages.reserve(pageEntities_.size());
+    for (const auto& [normalizedPageName, entity] : pageEntities_)
+    {
+        static_cast<void>(normalizedPageName);
+
+        if (const PageComponent* page = registry_.try_get<PageComponent>(entity))
+        {
+            snapshot.pages.push_back(RuntimeSnapshot::PageState {
+                page->normalizedName,
+                page->view,
+                page->blinkEpoch});
+
+            for (const auto& [normalizedTemplateId, binding] : page->dynamicBindingsByTemplate)
+            {
+                static_cast<void>(binding);
+
+                if (!IsDynamicTemplateVisible(page->normalizedName, normalizedTemplateId))
+                {
+                    snapshot.dynamicTemplateVisibility.push_back(
+                        RuntimeSnapshot::DynamicTemplateVisibilityState {
+                            page->normalizedName,
+                            normalizedTemplateId,
+                            false});
+                }
+            }
+        }
+    }
+
+    auto reticleView = registry_.view<PageMembership, ReticleComponent>();
+    for (const entt::entity entity : reticleView)
+    {
+        const auto& membership = reticleView.get<PageMembership>(entity);
+        const auto& reticle = reticleView.get<ReticleComponent>(entity);
+
+        if (registry_.all_of<StrobeTag>(entity))
+        {
+            if (const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(entity))
+            {
+                snapshot.strobes.push_back(RuntimeSnapshot::StrobeState {
+                    membership.pageName,
+                    reticle.group,
+                    behavior->capture,
+                    behavior->magnet,
+                    behavior->authoredPrimitives,
+                    behavior->authoredOverrides,
+                    behavior->authoredClipping,
+                    behavior->visualShapeApplied,
+                    behavior->lockedReticleId});
+            }
+
+            continue;
+        }
+
+        if (registry_.all_of<DynamicTag>(entity))
+        {
+            snapshot.dynamicReticles.push_back(RuntimeSnapshot::DynamicReticleState {
+                membership.pageName,
+                reticle.group,
+                reticle.runtimeReticleId,
+                reticle.sourceTemplateTransportId,
+                reticle.dynamicCreationSequence});
+            continue;
+        }
+
+        snapshot.staticReticles.push_back(RuntimeSnapshot::ReticleState {
+            membership.pageName,
+            reticle.group});
+    }
+
+    auto byPageAndId = [](const auto& lhs, const auto& rhs)
+    {
+        if (lhs.normalizedPageName != rhs.normalizedPageName)
+        {
+            return lhs.normalizedPageName < rhs.normalizedPageName;
+        }
+
+        return lhs.group.id < rhs.group.id;
+    };
+
+    std::sort(snapshot.pages.begin(),
+              snapshot.pages.end(),
+              [](const RuntimeSnapshot::PageState& lhs, const RuntimeSnapshot::PageState& rhs)
+              {
+                  return lhs.normalizedPageName < rhs.normalizedPageName;
+              });
+    std::sort(snapshot.staticReticles.begin(), snapshot.staticReticles.end(), byPageAndId);
+    std::sort(snapshot.strobes.begin(), snapshot.strobes.end(), byPageAndId);
+    std::sort(snapshot.dynamicReticles.begin(),
+              snapshot.dynamicReticles.end(),
+              [](const RuntimeSnapshot::DynamicReticleState& lhs, const RuntimeSnapshot::DynamicReticleState& rhs)
+              {
+                  if (lhs.dynamicCreationSequence != rhs.dynamicCreationSequence)
+                  {
+                      return lhs.dynamicCreationSequence < rhs.dynamicCreationSequence;
+                  }
+
+                  if (lhs.normalizedPageName != rhs.normalizedPageName)
+                  {
+                      return lhs.normalizedPageName < rhs.normalizedPageName;
+                  }
+
+                  return lhs.group.id < rhs.group.id;
+              });
+    std::sort(snapshot.dynamicTemplateVisibility.begin(),
+              snapshot.dynamicTemplateVisibility.end(),
+              [](const RuntimeSnapshot::DynamicTemplateVisibilityState& lhs,
+                 const RuntimeSnapshot::DynamicTemplateVisibilityState& rhs)
+              {
+                  if (lhs.normalizedPageName != rhs.normalizedPageName)
+                  {
+                      return lhs.normalizedPageName < rhs.normalizedPageName;
+                  }
+
+                  return lhs.normalizedTemplateId < rhs.normalizedTemplateId;
+              });
+
+    return snapshot;
+}
+
+void SceneRegistry::RestoreRuntimeSnapshot(const RuntimeSnapshot& snapshot)
+{
+    LoadDocument(document_, transportMap_);
+
+    windowDisplay_ = snapshot.windowDisplay;
+
+    for (const RuntimeSnapshot::PageState& pageState : snapshot.pages)
+    {
+        if (PageComponent* page = FindPage(pageState.normalizedPageName))
+        {
+            page->view = pageState.view;
+            page->blinkEpoch = pageState.blinkEpoch;
+        }
+    }
+
+    for (const RuntimeSnapshot::ReticleState& reticleState : snapshot.staticReticles)
+    {
+        const entt::entity entity = FindReticleEntity(reticleState.normalizedPageName, reticleState.group.id);
+        if (ReticleComponent* component = registry_.try_get<ReticleComponent>(entity))
+        {
+            component->group = reticleState.group;
+        }
+    }
+
+    for (const RuntimeSnapshot::DynamicTemplateVisibilityState& visibilityState : snapshot.dynamicTemplateVisibility)
+    {
+        if (!visibilityState.visible)
+        {
+            dynamicTemplateVisibility_[MakeDynamicTemplateLookupKey(visibilityState.normalizedPageName,
+                                                                    visibilityState.normalizedTemplateId)] = false;
+        }
+    }
+
+    for (const RuntimeSnapshot::DynamicReticleState& reticleState : snapshot.dynamicReticles)
+    {
+        UpsertDynamicReticle(reticleState.normalizedPageName, reticleState.group);
+
+        const entt::entity entity = FindReticleEntity(reticleState.normalizedPageName, reticleState.group.id);
+        if (entity == entt::null)
+        {
+            continue;
+        }
+
+        PageComponent* page = FindPage(reticleState.normalizedPageName);
+        ReticleComponent* component = registry_.try_get<ReticleComponent>(entity);
+        if (page == nullptr || component == nullptr)
+        {
+            continue;
+        }
+
+        component->runtimeReticleId = reticleState.runtimeReticleId;
+        component->sourceTemplateTransportId = reticleState.sourceTemplateTransportId;
+        component->dynamicCreationSequence = reticleState.dynamicCreationSequence;
+        component->drawOrder = BuildDynamicReticleDrawOrderKey(*page,
+                                                               component->group,
+                                                               reticleState.dynamicCreationSequence);
+        RemoveReticleFromPageDrawList(reticleState.normalizedPageName, entity);
+        InsertReticleIntoPageDrawList(reticleState.normalizedPageName, entity);
+    }
+
+    for (const RuntimeSnapshot::StrobeState& strobeState : snapshot.strobes)
+    {
+        const auto iterator = strobeEntities_.find(strobeState.normalizedPageName);
+        if (iterator == strobeEntities_.end())
+        {
+            continue;
+        }
+
+        if (ReticleComponent* component = registry_.try_get<ReticleComponent>(iterator->second))
+        {
+            component->group = strobeState.group;
+        }
+
+        if (StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second))
+        {
+            behavior->capture = strobeState.capture;
+            behavior->magnet = strobeState.magnet;
+            behavior->authoredPrimitives = strobeState.authoredPrimitives;
+            behavior->authoredOverrides = strobeState.authoredOverrides;
+            behavior->authoredClipping = strobeState.authoredClipping;
+            behavior->visualShapeApplied = strobeState.visualShapeApplied;
+            behavior->lockedReticleId = strobeState.lockedReticleId;
+        }
+    }
+
+    if (!snapshot.activePage.empty())
+    {
+        SetActivePage(snapshot.activePage);
+    }
+
+    nextDynamicCreationSequence_ = std::max<std::uint64_t>(1U, snapshot.nextDynamicCreationSequence);
+}
+
 std::vector<ReticleGroup> SceneRegistry::CollectPageReticles(const std::string_view pageName) const
 {
     return CollectPageReticlesByKey(NormalizePageName(pageName));
@@ -1426,6 +1906,11 @@ std::vector<const ReticleGroup*> SceneRegistry::CollectActiveReticlePointers() c
 
 bool SceneRegistry::SetPageView(const std::string_view pageName, const PageViewState& view) noexcept
 {
+    if (!IsValidPageView(view))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr)
@@ -1440,6 +1925,11 @@ bool SceneRegistry::SetPageView(const std::string_view pageName, const PageViewS
 
 bool SceneRegistry::SetPageViewCenter(const std::string_view pageName, const Vec2 center) noexcept
 {
+    if (!IsValidVec2(center))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr)
@@ -1453,6 +1943,11 @@ bool SceneRegistry::SetPageViewCenter(const std::string_view pageName, const Vec
 
 bool SceneRegistry::SetPageZoom(const std::string_view pageName, const float zoom) noexcept
 {
+    if (!IsPositiveFiniteWithin(zoom, kMaxZoom))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr)
@@ -1561,6 +2056,11 @@ bool SceneRegistry::SetReticlePosition(const std::string_view pageName,
                                        const std::string_view reticleId,
                                        const Vec2 position) noexcept
 {
+    if (!IsValidVec2(position))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
     {
@@ -1575,6 +2075,11 @@ bool SceneRegistry::SetReticleRotation(const std::string_view pageName,
                                        const std::string_view reticleId,
                                        const float rotationDegrees) noexcept
 {
+    if (!IsFiniteAbsWithin(rotationDegrees, kMaxAbsAngleDegrees))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     if (ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId))
     {
@@ -1609,7 +2114,7 @@ bool SceneRegistry::SetReticleThickness(const std::string_view pageName,
                                         const std::string_view reticleId,
                                         const float thickness) noexcept
 {
-    if (!std::isfinite(thickness) || thickness <= 0.0f)
+    if (!IsPositiveFiniteWithin(thickness, kMaxThickness))
     {
         return false;
     }
@@ -1634,6 +2139,11 @@ bool SceneRegistry::SetReticleText(const std::string_view pageName,
                                    const std::string_view reticleId,
                                    std::string value) noexcept
 {
+    if (!IsValidTextPayload(value))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
     ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
@@ -1672,6 +2182,11 @@ bool SceneRegistry::SetReticleText(const std::string_view pageName,
                                    const std::string_view primitiveId,
                                    std::string value) noexcept
 {
+    if (!IsValidTextPayload(value))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
     ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
@@ -1706,7 +2221,7 @@ bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
                                             const std::string_view reticleId,
                                             const float letterSpacing) noexcept
 {
-    if (!std::isfinite(letterSpacing))
+    if (!IsFiniteAbsWithin(letterSpacing, kMaxLogicalSize))
     {
         return false;
     }
@@ -1749,7 +2264,7 @@ bool SceneRegistry::SetReticleLetterSpacing(const std::string_view pageName,
                                             const std::string_view primitiveId,
                                             const float letterSpacing) noexcept
 {
-    if (!std::isfinite(letterSpacing))
+    if (!IsFiniteAbsWithin(letterSpacing, kMaxLogicalSize))
     {
         return false;
     }
@@ -1788,6 +2303,11 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
                                       const std::string_view reticleId,
                                       const ReticlePatch& patch) noexcept
 {
+    if (!IsValidReticlePatch(patch))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
@@ -1854,6 +2374,11 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
                                              const std::string_view reticleId,
                                              const ReticlePatch& patch) noexcept
 {
+    if (!IsValidReticlePatch(patch))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
@@ -2080,6 +2605,11 @@ bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool 
 
 bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec2 position) noexcept
 {
+    if (!IsValidVec2(position))
+    {
+        return false;
+    }
+
     const std::string normalizedPageName = NormalizePageName(pageName);
     const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
     if (iterator == strobeEntities_.end())
@@ -2341,7 +2871,7 @@ void SceneRegistry::ClearAllDynamicReticles()
 
 void SceneRegistry::ResetToInitialState()
 {
-    LoadDocument(document_);
+    LoadDocument(document_, transportMap_);
 }
 
 entt::registry& SceneRegistry::Raw() noexcept

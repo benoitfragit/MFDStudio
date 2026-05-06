@@ -10,10 +10,14 @@
 
 #include "mfd/control/CommandTypes.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 #include "mfd_commands.pb.h"
 
@@ -23,9 +27,415 @@ namespace
 {
 namespace pb = ::mfd::transport;
 constexpr std::size_t kMaxCommandPayloadBytes = 1024U * 1024U;
+constexpr std::size_t kMaxCommandsPerEnvelope = 1024U;
+constexpr float kMaxAbsCoordinate = 1'000'000.0f;
+constexpr float kMaxAbsScale = 1'000.0f;
+constexpr float kMaxAbsAngleDegrees = 1'000'000.0f;
+constexpr float kMaxThickness = 100.0f;
+constexpr float kMaxLogicalSize = 1'000'000.0f;
+constexpr float kMaxZoom = 1'000.0f;
+constexpr int kMaxPrimitiveSegments = 1024;
+constexpr std::size_t kMaxPrimitivePoints = 2048U;
+constexpr std::size_t kMaxFilledPolygonPoints = 512U;
+constexpr std::size_t kMaxPatchEntryCount = 2048U;
+constexpr std::size_t kMaxDynamicReticlesPerBatch = 4096U;
+constexpr std::size_t kMaxTextBytes = 4096U;
 
 template <typename>
 inline constexpr bool kUnsupportedCommand = false;
+
+bool IsFiniteVec2(const Vec2& value) noexcept
+{
+    return std::isfinite(value.x) && std::isfinite(value.y);
+}
+
+void ValidateFiniteAbs(const float value, const char* fieldName, const float maxAbs)
+{
+    if (!std::isfinite(value))
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be finite");
+    }
+
+    if (std::abs(value) > maxAbs)
+    {
+        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
+    }
+}
+
+void ValidatePositiveFinite(const float value, const char* fieldName, const float maxValue)
+{
+    if (!std::isfinite(value) || value <= 0.0f)
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be strictly positive and finite");
+    }
+
+    if (value > maxValue)
+    {
+        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
+    }
+}
+
+void ValidateVec2(const Vec2& value, const char* fieldName, const float maxAbs = kMaxAbsCoordinate)
+{
+    if (!IsFiniteVec2(value))
+    {
+        throw std::runtime_error(std::string(fieldName) + " must contain finite coordinates");
+    }
+
+    if (std::abs(value.x) > maxAbs || std::abs(value.y) > maxAbs)
+    {
+        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
+    }
+}
+
+void ValidateScale(const Vec2& value, const char* fieldName)
+{
+    ValidateVec2(value, fieldName, kMaxAbsScale);
+}
+
+void ValidateContainerSize(const std::size_t size, const std::size_t maxSize, const char* fieldName)
+{
+    if (size > maxSize)
+    {
+        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
+    }
+}
+
+void ValidateTextPayload(const std::string& value, const char* fieldName)
+{
+    if (value.size() > kMaxTextBytes)
+    {
+        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
+    }
+}
+
+void ValidateSegmentCount(const int value, const char* fieldName)
+{
+    if (value < 2 || value > kMaxPrimitiveSegments)
+    {
+        throw std::runtime_error(std::string(fieldName) + " must stay in [2, " +
+                                 std::to_string(kMaxPrimitiveSegments) + "]");
+    }
+}
+
+void ValidatePointList(const std::vector<Vec2>& points, const char* fieldName)
+{
+    ValidateContainerSize(points.size(), kMaxPrimitivePoints, fieldName);
+    if (points.size() == 1U)
+    {
+        throw std::runtime_error(std::string(fieldName) + " must contain at least 2 points");
+    }
+
+    for (const Vec2& point : points)
+    {
+        ValidateVec2(point, "PrimitivePatch point");
+    }
+}
+
+void ValidatePrimitivePatch(const PrimitivePatch& patch)
+{
+    if (patch.position.has_value())
+    {
+        ValidateVec2(*patch.position, "PrimitivePatch.position");
+    }
+
+    if (patch.rotationDegrees.has_value())
+    {
+        ValidateFiniteAbs(*patch.rotationDegrees, "PrimitivePatch.rotationDegrees", kMaxAbsAngleDegrees);
+    }
+
+    if (patch.scale.has_value())
+    {
+        ValidateScale(*patch.scale, "PrimitivePatch.scale");
+    }
+
+    if (patch.thickness.has_value())
+    {
+        ValidatePositiveFinite(*patch.thickness, "PrimitivePatch.thickness", kMaxThickness);
+    }
+
+    if (patch.text.has_value())
+    {
+        ValidateTextPayload(*patch.text, "PrimitivePatch.text");
+    }
+
+    if (patch.letterSpacing.has_value())
+    {
+        ValidateFiniteAbs(*patch.letterSpacing, "PrimitivePatch.letterSpacing", kMaxLogicalSize);
+    }
+
+    if (patch.lineStart.has_value())
+    {
+        ValidateVec2(*patch.lineStart, "PrimitivePatch.lineStart");
+    }
+
+    if (patch.lineEnd.has_value())
+    {
+        ValidateVec2(*patch.lineEnd, "PrimitivePatch.lineEnd");
+    }
+
+    if (patch.radius.has_value())
+    {
+        ValidateFiniteAbs(*patch.radius, "PrimitivePatch.radius", kMaxLogicalSize);
+    }
+
+    if (patch.innerRadius.has_value())
+    {
+        ValidateFiniteAbs(*patch.innerRadius, "PrimitivePatch.innerRadius", kMaxLogicalSize);
+    }
+
+    if (patch.outerRadius.has_value())
+    {
+        ValidateFiniteAbs(*patch.outerRadius, "PrimitivePatch.outerRadius", kMaxLogicalSize);
+    }
+
+    if (patch.width.has_value())
+    {
+        ValidateFiniteAbs(*patch.width, "PrimitivePatch.width", kMaxLogicalSize);
+    }
+
+    if (patch.height.has_value())
+    {
+        ValidateFiniteAbs(*patch.height, "PrimitivePatch.height", kMaxLogicalSize);
+    }
+
+    if (patch.size.has_value())
+    {
+        ValidateVec2(*patch.size, "PrimitivePatch.size", kMaxLogicalSize);
+    }
+
+    if (patch.points.has_value())
+    {
+        ValidatePointList(*patch.points, "PrimitivePatch.points");
+        if (patch.closed.value_or(false) && patch.points->size() > kMaxFilledPolygonPoints)
+        {
+            throw std::runtime_error("PrimitivePatch.points exceeds filled polygon runtime safety limits");
+        }
+    }
+
+    if (patch.segments.has_value())
+    {
+        ValidateSegmentCount(*patch.segments, "PrimitivePatch.segments");
+    }
+
+    if (patch.startAngleDegrees.has_value())
+    {
+        ValidateFiniteAbs(*patch.startAngleDegrees, "PrimitivePatch.startAngleDegrees", kMaxAbsAngleDegrees);
+    }
+
+    if (patch.endAngleDegrees.has_value())
+    {
+        ValidateFiniteAbs(*patch.endAngleDegrees, "PrimitivePatch.endAngleDegrees", kMaxAbsAngleDegrees);
+    }
+}
+
+void ValidateReticlePatch(const ReticlePatch& patch)
+{
+    if (patch.position.has_value())
+    {
+        ValidateVec2(*patch.position, "ReticlePatch.position");
+    }
+
+    if (patch.rotationDegrees.has_value())
+    {
+        ValidateFiniteAbs(*patch.rotationDegrees, "ReticlePatch.rotationDegrees", kMaxAbsAngleDegrees);
+    }
+
+    if (patch.thickness.has_value())
+    {
+        ValidatePositiveFinite(*patch.thickness, "ReticlePatch.thickness", kMaxThickness);
+    }
+
+    if (patch.text.has_value())
+    {
+        ValidateTextPayload(*patch.text, "ReticlePatch.text");
+    }
+
+    if (patch.letterSpacing.has_value())
+    {
+        ValidateFiniteAbs(*patch.letterSpacing, "ReticlePatch.letterSpacing", kMaxLogicalSize);
+    }
+
+    ValidateContainerSize(patch.texts.size(), kMaxPatchEntryCount, "ReticlePatch.texts");
+    for (const auto& [primitiveId, text] : patch.texts)
+    {
+        static_cast<void>(primitiveId);
+        ValidateTextPayload(text, "ReticlePatch.texts[]");
+    }
+
+    ValidateContainerSize(patch.textsById.size(), kMaxPatchEntryCount, "ReticlePatch.textsById");
+    for (const auto& [primitiveId, text] : patch.textsById)
+    {
+        static_cast<void>(primitiveId);
+        ValidateTextPayload(text, "ReticlePatch.textsById[]");
+    }
+
+    ValidateContainerSize(patch.letterSpacings.size(), kMaxPatchEntryCount, "ReticlePatch.letterSpacings");
+    for (const auto& [primitiveId, spacing] : patch.letterSpacings)
+    {
+        static_cast<void>(primitiveId);
+        ValidateFiniteAbs(spacing, "ReticlePatch.letterSpacings[]", kMaxLogicalSize);
+    }
+
+    ValidateContainerSize(patch.letterSpacingsById.size(), kMaxPatchEntryCount, "ReticlePatch.letterSpacingsById");
+    for (const auto& [primitiveId, spacing] : patch.letterSpacingsById)
+    {
+        static_cast<void>(primitiveId);
+        ValidateFiniteAbs(spacing, "ReticlePatch.letterSpacingsById[]", kMaxLogicalSize);
+    }
+
+    ValidateContainerSize(patch.primitivePatches.size(), kMaxPatchEntryCount, "ReticlePatch.primitivePatches");
+    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
+    {
+        static_cast<void>(primitiveId);
+        ValidatePrimitivePatch(primitivePatch);
+    }
+
+    ValidateContainerSize(patch.primitivePatchesById.size(), kMaxPatchEntryCount, "ReticlePatch.primitivePatchesById");
+    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatchesById)
+    {
+        static_cast<void>(primitiveId);
+        ValidatePrimitivePatch(primitivePatch);
+    }
+}
+
+void ValidatePageViewState(const PageViewState& view)
+{
+    ValidateVec2(view.center, "SetPageViewCommand.center");
+    ValidatePositiveFinite(view.zoom, "SetPageViewCommand.zoom", kMaxZoom);
+}
+
+void ValidateWindowDisplayPatch(const WindowDisplayPatch& patch)
+{
+    if (patch.brightness.has_value() && !std::isfinite(*patch.brightness))
+    {
+        throw std::runtime_error("WindowDisplayPatch.brightness must be finite");
+    }
+}
+
+void ValidateDynamicReticleState(const DynamicReticleState& state)
+{
+    if (state.runtimeReticleId == 0 && state.reticleId.empty())
+    {
+        throw std::runtime_error("Dynamic reticle updates require a runtimeReticleId or a local reticleId");
+    }
+
+    ValidateReticlePatch(state.patch);
+}
+
+void ValidateUserCommand(const UserCommand& command)
+{
+    std::visit(
+        [](const auto& value)
+        {
+            using Command = std::decay_t<decltype(value)>;
+
+            if constexpr (std::is_same_v<Command, ActivatePageCommand>)
+            {
+                if (value.pageId == 0 && value.page.empty())
+                {
+                    throw std::runtime_error("ActivatePageCommand requires a pageId or page name");
+                }
+            }
+            else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
+            {
+                if (value.pageId == 0 && value.page.empty())
+                {
+                    throw std::runtime_error("SetPageViewCommand requires a pageId or page name");
+                }
+
+                ValidatePageViewState(value.view);
+            }
+            else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand>)
+            {
+                ValidateWindowDisplayPatch(value.patch);
+            }
+            else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
+            {
+                if ((value.target.pageId == 0 && value.target.page.empty()) ||
+                    (value.target.reticleId == 0 && value.target.reticle.empty()))
+                {
+                    throw std::runtime_error("UpdateReticleCommand requires a target page and reticle");
+                }
+
+                ValidateReticlePatch(value.patch);
+            }
+            else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
+            {
+                if (value.pageId == 0 && value.page.empty())
+                {
+                    throw std::runtime_error("UpdateStrobeCommand requires a pageId or page name");
+                }
+
+                if (value.position.has_value())
+                {
+                    ValidateVec2(*value.position, "UpdateStrobeCommand.position");
+                }
+            }
+            else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
+            {
+                if ((value.target.pageId == 0 && value.target.page.empty()) ||
+                    (value.target.runtimeReticleId == 0 && value.target.reticleId.empty()) ||
+                    (value.templateTransportId == 0 && value.templateId.empty()))
+                {
+                    throw std::runtime_error(
+                        "UpsertDynamicReticleCommand requires page, target reticle and template identifiers");
+                }
+
+                ValidateReticlePatch(value.patch);
+            }
+            else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
+            {
+                if ((value.pageId == 0 && value.page.empty()) ||
+                    (value.templateTransportId == 0 && value.templateId.empty()))
+                {
+                    throw std::runtime_error(
+                        "UpsertDynamicReticlesCommand requires page and template identifiers");
+                }
+
+                ValidateContainerSize(
+                    value.reticles.size(),
+                    kMaxDynamicReticlesPerBatch,
+                    "UpsertDynamicReticlesCommand.reticles");
+                for (const DynamicReticleState& state : value.reticles)
+                {
+                    ValidateDynamicReticleState(state);
+                }
+            }
+            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
+            {
+                if ((value.pageId == 0 && value.page.empty()) ||
+                    (value.templateTransportId == 0 && value.templateId.empty()))
+                {
+                    throw std::runtime_error(
+                        "SetDynamicReticleSetVisibilityCommand requires page and template identifiers");
+                }
+            }
+            else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
+            {
+                if ((value.target.pageId == 0 && value.target.page.empty()) ||
+                    (value.target.runtimeReticleId == 0 && value.target.reticleId.empty()))
+                {
+                    throw std::runtime_error("RemoveDynamicReticleCommand requires a target page and reticle");
+                }
+            }
+        },
+        command);
+}
+
+void ValidateCommandBatch(const CommandBatch& batch)
+{
+    ValidateContainerSize(batch.commands.size(), kMaxCommandsPerEnvelope, "CommandEnvelope.commands");
+    if (batch.commands.empty())
+    {
+        throw std::runtime_error("Protocol Buffers command payload does not contain any command");
+    }
+
+    for (const UserCommand& command : batch.commands)
+    {
+        ValidateUserCommand(command);
+    }
+}
 
 std::uint32_t PackColor(const ColorRgba& color) noexcept
 {
@@ -50,9 +460,11 @@ void FillProtoVec2(const Vec2& value, pb::Vec2* target)
     target->set_y(value.y);
 }
 
-Vec2 FromProtoVec2(const pb::Vec2& value) noexcept
+Vec2 FromProtoVec2(const pb::Vec2& value)
 {
-    return Vec2 {value.x(), value.y()};
+    const Vec2 result {value.x(), value.y()};
+    ValidateVec2(result, "Protocol Buffers Vec2");
+    return result;
 }
 
 pb::PrimitiveLineStyle ToProtoLineStyle(const LineStyle value) noexcept
@@ -69,7 +481,7 @@ pb::PrimitiveLineStyle ToProtoLineStyle(const LineStyle value) noexcept
     }
 }
 
-LineStyle FromProtoLineStyle(const pb::PrimitiveLineStyle value) noexcept
+LineStyle FromProtoLineStyle(const pb::PrimitiveLineStyle value)
 {
     switch (value)
     {
@@ -78,9 +490,11 @@ LineStyle FromProtoLineStyle(const pb::PrimitiveLineStyle value) noexcept
     case pb::PRIMITIVE_LINE_STYLE_DASHED:
         return LineStyle::Dashed;
     case pb::PRIMITIVE_LINE_STYLE_SOLID:
-    case pb::PRIMITIVE_LINE_STYLE_UNSPECIFIED:
-    default:
         return LineStyle::Solid;
+    case pb::PRIMITIVE_LINE_STYLE_UNSPECIFIED:
+        throw std::runtime_error("PrimitivePatch.lineStyle cannot be explicitly set to UNSPECIFIED");
+    default:
+        throw std::runtime_error("PrimitivePatch.lineStyle enum value is unknown");
     }
 }
 
@@ -256,6 +670,11 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
 
     if (value.has_line_style())
     {
+        if (value.line_style() == pb::PRIMITIVE_LINE_STYLE_UNSPECIFIED)
+        {
+            throw std::runtime_error("PrimitivePatch.lineStyle cannot be explicitly set to UNSPECIFIED");
+        }
+
         patch.lineStyle = FromProtoLineStyle(value.line_style());
     }
 
@@ -311,6 +730,10 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
 
     if (value.points_size() > 0)
     {
+        ValidateContainerSize(
+            static_cast<std::size_t>(value.points_size()),
+            kMaxPrimitivePoints,
+            "Protocol Buffers PrimitivePatch.points");
         std::vector<Vec2> points;
         points.reserve(static_cast<std::size_t>(value.points_size()));
         for (const pb::Vec2& point : value.points())
@@ -340,6 +763,7 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
         patch.endAngleDegrees = value.end_angle_degrees();
     }
 
+    ValidatePrimitivePatch(patch);
     return patch;
 }
 
@@ -380,6 +804,7 @@ WindowDisplayPatch FromProtoWindowDisplayPatch(const pb::WindowDisplayPatch& val
         patch.disabled = value.disabled();
     }
 
+    ValidateWindowDisplayPatch(patch);
     return patch;
 }
 
@@ -512,6 +937,7 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
         patch.text = value.text();
     }
 
+    ValidateContainerSize(value.texts_by_id().size(), kMaxPatchEntryCount, "Protocol Buffers ReticlePatch.textsById");
     for (const auto& [primitiveId, text] : value.texts_by_id())
     {
         patch.textsById.emplace(primitiveId, text);
@@ -522,16 +948,25 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
         patch.letterSpacing = value.letter_spacing();
     }
 
+    ValidateContainerSize(
+        value.letter_spacings_by_id().size(),
+        kMaxPatchEntryCount,
+        "Protocol Buffers ReticlePatch.letterSpacingsById");
     for (const auto& [primitiveId, spacing] : value.letter_spacings_by_id())
     {
         patch.letterSpacingsById.emplace(primitiveId, spacing);
     }
 
+    ValidateContainerSize(
+        value.primitive_patches_by_id().size(),
+        kMaxPatchEntryCount,
+        "Protocol Buffers ReticlePatch.primitivePatchesById");
     for (const auto& [primitiveId, primitivePatch] : value.primitive_patches_by_id())
     {
         patch.primitivePatchesById.emplace(primitiveId, FromProtoPrimitivePatch(primitivePatch));
     }
 
+    ValidateReticlePatch(patch);
     return patch;
 }
 
@@ -592,6 +1027,7 @@ DynamicReticleState FromProtoDynamicReticleState(const pb::DynamicReticleState& 
     {
         state.patch = FromProtoReticlePatch(value.patch());
     }
+    ValidateDynamicReticleState(state);
     return state;
 }
 
@@ -745,6 +1181,7 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
         }
         command.view.zoom = value.set_page_view().zoom();
         command.pageId = value.set_page_view().page_id();
+        ValidatePageViewState(command.view);
         return command;
     }
 
@@ -801,6 +1238,10 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
         UpsertDynamicReticlesCommand command;
         command.pageId = value.upsert_dynamic_reticles().page_id();
         command.templateTransportId = value.upsert_dynamic_reticles().template_transport_id();
+        ValidateContainerSize(
+            static_cast<std::size_t>(value.upsert_dynamic_reticles().reticles_size()),
+            kMaxDynamicReticlesPerBatch,
+            "Protocol Buffers UpsertDynamicReticlesCommand.reticles");
         command.reticles.reserve(value.upsert_dynamic_reticles().reticles_size());
 
         for (const pb::DynamicReticleState& reticle : value.upsert_dynamic_reticles().reticles())
@@ -857,6 +1298,7 @@ std::string SerializeUserCommand(const UserCommand& command)
 
 std::string SerializeCommandBatch(const CommandBatch& batch)
 {
+    ValidateCommandBatch(batch);
     const pb::CommandEnvelope envelope = BuildEnvelope(batch);
     std::string payload;
     if (!envelope.SerializeToString(&payload))
@@ -920,6 +1362,15 @@ std::optional<CommandBatch> DeserializeCommandBatch(const std::string_view paylo
         CommandBatch batch;
         batch.sequence = envelope.sequence();
         batch.mappingHash = envelope.mapping_hash();
+        if (envelope.commands_size() == 0)
+        {
+            throw std::runtime_error("Protocol Buffers command payload is empty");
+        }
+
+        ValidateContainerSize(
+            static_cast<std::size_t>(envelope.commands_size()),
+            kMaxCommandsPerEnvelope,
+            "Protocol Buffers CommandEnvelope.commands");
         batch.commands.reserve(envelope.commands_size());
 
         for (const pb::UserCommand& command : envelope.commands())
@@ -927,6 +1378,7 @@ std::optional<CommandBatch> DeserializeCommandBatch(const std::string_view paylo
             batch.commands.push_back(FromProtoUserCommand(command));
         }
 
+        ValidateCommandBatch(batch);
         return batch;
     }
     catch (const std::exception& exception)

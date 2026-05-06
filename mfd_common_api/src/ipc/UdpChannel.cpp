@@ -28,6 +28,7 @@ struct UdpChannel::Impl
     bool ready = false;
     std::string lastError;
     std::size_t maxPacketSize = kUdpDefaultPayloadBytes;
+    std::vector<std::byte> receiveBuffer {};
 
 #ifdef _WIN32
     SOCKET socketHandle = INVALID_SOCKET;
@@ -104,6 +105,7 @@ UdpChannel::UdpChannel(const UdpChannelConfig& config)
     : impl_(std::make_unique<Impl>())
 {
     impl_->maxPacketSize = std::clamp(config.maxPacketSize, kUdpMinPayloadBytes, kUdpMaxPayloadBytes);
+    impl_->receiveBuffer.resize(impl_->maxPacketSize);
 
 #ifdef _WIN32
     if (!EnsureWinsock(impl_->lastError))
@@ -226,13 +228,17 @@ std::optional<std::vector<std::byte>> UdpChannel::TryReceive()
     }
 
 #ifdef _WIN32
-    std::vector<std::byte> buffer(impl_->maxPacketSize);
+    if (impl_->receiveBuffer.size() != impl_->maxPacketSize)
+    {
+        impl_->receiveBuffer.resize(impl_->maxPacketSize);
+    }
+
     sockaddr_in senderAddress {};
     int senderAddressSize = sizeof(senderAddress);
 
     const int receivedBytes = recvfrom(impl_->socketHandle,
-                                       reinterpret_cast<char*>(buffer.data()),
-                                       static_cast<int>(buffer.size()),
+                                       reinterpret_cast<char*>(impl_->receiveBuffer.data()),
+                                       static_cast<int>(impl_->receiveBuffer.size()),
                                        0,
                                        reinterpret_cast<sockaddr*>(&senderAddress),
                                        &senderAddressSize);
@@ -245,13 +251,20 @@ std::optional<std::vector<std::byte>> UdpChannel::TryReceive()
             return std::nullopt;
         }
 
+        if (socketError == WSAEMSGSIZE)
+        {
+            impl_->lastError = "UDP datagram exceeded receive buffer and was dropped";
+            return std::nullopt;
+        }
+
         impl_->lastError = SocketError("Unable to receive UDP payload");
         return std::nullopt;
     }
 
-    buffer.resize(static_cast<std::size_t>(receivedBytes));
     impl_->lastError.clear();
-    return buffer;
+    return std::vector<std::byte>(
+        impl_->receiveBuffer.begin(),
+        impl_->receiveBuffer.begin() + static_cast<std::size_t>(receivedBytes));
 #else
     return std::nullopt;
 #endif

@@ -1,9 +1,19 @@
 {
-  "id": "adi_ball_bezel",
-  "stroke": "#9BBAD2FF",
-  "lineWidth": 0.0030,
   "elements": [
-    { "id": "ball_outer_circle", "type": "circle", "radius": 0.41 },
-    { "id": "ball_inner_circle", "type": "circle", "radius": 0.34, "stroke": "#A7C0D7FF", "lineWidth": 0.0022 }
-  ]
+    {
+      "id": "ball_outer_circle",
+      "radius": 0.4099999964237213,
+      "type": "circle"
+    },
+    {
+      "id": "ball_inner_circle",
+      "lineWidth": 0.002199999988079071,
+      "radius": 0.3400000035762787,
+      "stroke": "#A7C0D7FF",
+      "type": "circle"
+    }
+  ],
+  "id": "adi_ball_bezel",
+  "lineWidth": 0.003000000026077032,
+  "stroke": "#9BBAD2FF"
 }

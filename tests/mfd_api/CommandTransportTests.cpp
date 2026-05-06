@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -112,6 +113,22 @@ std::optional<std::vector<std::byte>> WaitForPayload(mfd::IExchangeChannel& rece
     }
 
     return receiver.TryReceive();
+}
+
+bool WaitUntil(const std::chrono::milliseconds timeout, const std::function<bool()>& predicate)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        if (predicate())
+        {
+            return true;
+        }
+
+        std::this_thread::sleep_for(kLoopbackPollInterval);
+    }
+
+    return predicate();
 }
 
 mfd::ByteView AsByteView(const std::string& payload)
@@ -309,6 +326,57 @@ TEST(CommandTransportTests, UdpChannelRejectsPayloadsLargerThanSupportedDatagram
     std::vector<std::byte> payload(mfd::kUdpMaxPayloadBytes + 1U, std::byte {0x2A});
     EXPECT_FALSE(channel.Send(mfd::ByteView(payload.data(), payload.size())));
     EXPECT_EQ(channel.LastError(), "UDP payload exceeds maximum datagram size");
+#endif
+}
+
+TEST(CommandTransportTests, UdpChannelDropsDatagramsThatExceedReceiveBuffer)
+{
+#ifndef _WIN32
+    GTEST_SKIP() << "UDP loopback transport is implemented for Windows targets in this project";
+#else
+    std::unique_ptr<mfd::UdpChannel> receiver;
+    mfd::UdpChannelConfig receiverConfig;
+    receiverConfig.bindAddress = "127.0.0.1";
+    receiverConfig.maxPacketSize = 256U;
+
+    const auto seed = static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count()) + 1234U;
+    for (std::size_t attempt = 0; attempt < 256U; ++attempt)
+    {
+        receiverConfig.bindPort = MakeCandidatePort(seed, attempt);
+        auto candidate = std::make_unique<mfd::UdpChannel>(receiverConfig);
+        if (candidate->IsReady())
+        {
+            receiver = std::move(candidate);
+            break;
+        }
+    }
+
+    ASSERT_NE(receiver, nullptr);
+    ASSERT_NE(receiverConfig.bindPort, 0U);
+
+    mfd::UdpChannelConfig senderConfig;
+    senderConfig.bindAddress = "127.0.0.1";
+    senderConfig.bindPort = 0U;
+    senderConfig.remoteAddress = "127.0.0.1";
+    senderConfig.remotePort = receiverConfig.bindPort;
+    senderConfig.maxPacketSize = 2048U;
+
+    mfd::UdpChannel sender(senderConfig);
+    ASSERT_TRUE(sender.IsReady()) << sender.LastError();
+
+    std::vector<std::byte> payload(1024U, std::byte {0x5A});
+    ASSERT_TRUE(sender.Send(mfd::ByteView(payload.data(), payload.size()))) << sender.LastError();
+
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&receiver]()
+        {
+            static_cast<void>(receiver->TryReceive());
+            return receiver->LastError() == "UDP datagram exceeded receive buffer and was dropped";
+        }));
+
+    EXPECT_FALSE(receiver->TryReceive().has_value());
+    EXPECT_EQ(receiver->LastError(), "UDP datagram exceeded receive buffer and was dropped");
 #endif
 }
 

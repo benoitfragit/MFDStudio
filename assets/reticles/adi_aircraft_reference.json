@@ -1,14 +1,81 @@
 {
-  "id": "adi_aircraft_reference",
-  "stroke": "#FFF4D2FF",
-  "lineWidth": 0.0040,
   "elements": [
-    { "id": "left_wing", "type": "line", "start": [-0.24, 0.0], "end": [-0.07, 0.0] },
-    { "id": "right_wing", "type": "line", "start": [0.07, 0.0], "end": [0.24, 0.0] },
-    { "id": "left_hook", "type": "line", "start": [-0.07, 0.0], "end": [-0.03, 0.04] },
-    { "id": "right_hook", "type": "line", "start": [0.07, 0.0], "end": [0.03, 0.04] },
-    { "id": "nose", "type": "line", "start": [0.0, 0.02], "end": [0.0, 0.11] },
-    { "id": "center_box", "type": "rectangle", "width": 0.06, "height": 0.04 },
-    { "id": "center_dot", "type": "circle", "radius": 0.008, "fill": "#FFF4D2FF", "stroke": "#FFF4D2FF" }
-  ]
+    {
+      "end": [
+        -0.07000000029802322,
+        0.0
+      ],
+      "id": "left_wing",
+      "start": [
+        -0.23999999463558197,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        0.23999999463558197,
+        0.0
+      ],
+      "id": "right_wing",
+      "start": [
+        0.07000000029802322,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        -0.029999999329447746,
+        0.03999999910593033
+      ],
+      "id": "left_hook",
+      "start": [
+        -0.07000000029802322,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        0.029999999329447746,
+        0.03999999910593033
+      ],
+      "id": "right_hook",
+      "start": [
+        0.07000000029802322,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        0.0,
+        0.10999999940395355
+      ],
+      "id": "nose",
+      "start": [
+        0.0,
+        0.019999999552965164
+      ],
+      "type": "line"
+    },
+    {
+      "height": 0.03999999910593033,
+      "id": "center_box",
+      "type": "rectangle",
+      "width": 0.05999999865889549
+    },
+    {
+      "fill": "#FFF4D2FF",
+      "filled": true,
+      "id": "center_dot",
+      "radius": 0.00800000037997961,
+      "stroke": "#FFF4D2FF",
+      "type": "circle"
+    }
+  ],
+  "id": "adi_aircraft_reference",
+  "lineWidth": 0.004000000189989805,
+  "stroke": "#FFF4D2FF"
 }

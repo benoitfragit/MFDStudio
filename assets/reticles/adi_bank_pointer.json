@@ -1,16 +1,26 @@
 {
-  "id": "adi_bank_pointer",
-  "stroke": "#FFF4D2FF",
-  "fill": "#FFF4D2FF",
   "elements": [
     {
       "id": "pointer",
-      "type": "triangle",
       "points": [
-        [-0.020, 0.47],
-        [0.020, 0.47],
-        [0.0, 0.40]
-      ]
+        [
+          -0.019999999552965164,
+          0.4699999988079071
+        ],
+        [
+          0.019999999552965164,
+          0.4699999988079071
+        ],
+        [
+          0.0,
+          0.4000000059604645
+        ]
+      ],
+      "type": "triangle"
     }
-  ]
+  ],
+  "fill": "#FFF4D2FF",
+  "filled": true,
+  "id": "adi_bank_pointer",
+  "stroke": "#FFF4D2FF"
 }

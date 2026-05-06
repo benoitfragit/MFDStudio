@@ -1,38 +1,60 @@
 {
-  "id": "strobe_cursor",
-  "style": {
-    "stroke": "white",
-    "lineWidth": 0.0042
-  },
   "elements": [
     {
       "id": "ring",
-      "type": "circle",
-      "radius": 0.0875
+      "radius": 0.08749999850988388,
+      "type": "circle"
     },
     {
+      "end": [
+        -0.05829999968409538,
+        0.0
+      ],
       "id": "left_tick",
-      "type": "line",
-      "start": [-0.1208, 0.0],
-      "end": [-0.0583, 0.0]
+      "start": [
+        -0.12080000340938568,
+        0.0
+      ],
+      "type": "line"
     },
     {
+      "end": [
+        0.12080000340938568,
+        0.0
+      ],
       "id": "right_tick",
-      "type": "line",
-      "start": [0.0583, 0.0],
-      "end": [0.1208, 0.0]
+      "start": [
+        0.05829999968409538,
+        0.0
+      ],
+      "type": "line"
     },
     {
+      "end": [
+        0.0,
+        0.05829999968409538
+      ],
       "id": "top_tick",
-      "type": "line",
-      "start": [0.0, 0.1208],
-      "end": [0.0, 0.0583]
+      "start": [
+        0.0,
+        0.12080000340938568
+      ],
+      "type": "line"
     },
     {
+      "end": [
+        0.0,
+        -0.12080000340938568
+      ],
       "id": "bottom_tick",
-      "type": "line",
-      "start": [0.0, -0.0583],
-      "end": [0.0, -0.1208]
+      "start": [
+        0.0,
+        -0.05829999968409538
+      ],
+      "type": "line"
     }
-  ]
+  ],
+  "id": "strobe_cursor",
+  "lineWidth": 0.00419999985024333,
+  "stroke": "#FFFFFFFF"
 }

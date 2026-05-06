@@ -12,6 +12,7 @@
 
 #include <entt/entt.hpp>
 
+#include <chrono>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -333,6 +334,68 @@ public:
 
 private:
     friend class CommandProcessor;
+
+    /**
+     * @brief Complete runtime snapshot used to roll back a partially applied command batch.
+     */
+    struct RuntimeSnapshot
+    {
+        struct PageState
+        {
+            std::string normalizedPageName;
+            PageViewState view {};
+            std::chrono::steady_clock::time_point blinkEpoch {};
+        };
+
+        struct ReticleState
+        {
+            std::string normalizedPageName;
+            ReticleGroup group;
+        };
+
+        struct DynamicReticleState
+        {
+            std::string normalizedPageName;
+            ReticleGroup group;
+            RuntimeDynamicId runtimeReticleId = 0;
+            TransportId sourceTemplateTransportId = 0;
+            std::uint64_t dynamicCreationSequence = 0;
+        };
+
+        struct StrobeState
+        {
+            std::string normalizedPageName;
+            ReticleGroup group;
+            StrobeCaptureConfig capture;
+            StrobeMagnetConfig magnet;
+            std::vector<Primitive> authoredPrimitives;
+            ReticleStyleOverride authoredOverrides;
+            ReticleClipState authoredClipping {};
+            bool visualShapeApplied = false;
+            std::string lockedReticleId;
+        };
+
+        struct DynamicTemplateVisibilityState
+        {
+            std::string normalizedPageName;
+            std::string normalizedTemplateId;
+            bool visible = true;
+        };
+
+        std::vector<PageState> pages;
+        std::vector<ReticleState> staticReticles;
+        std::vector<DynamicReticleState> dynamicReticles;
+        std::vector<StrobeState> strobes;
+        std::vector<DynamicTemplateVisibilityState> dynamicTemplateVisibility;
+        std::uint64_t nextDynamicCreationSequence = 1;
+        std::string activePage;
+        WindowDisplayState windowDisplay {};
+    };
+
+    /** @brief Captures the full mutable runtime state needed to roll back one failed batch. */
+    RuntimeSnapshot CaptureRuntimeSnapshot() const;
+    /** @brief Restores one previously captured mutable runtime state. */
+    void RestoreRuntimeSnapshot(const RuntimeSnapshot& snapshot);
 
     /** @brief Per-page runtime component stored in the EnTT registry. */
     struct PageComponent;

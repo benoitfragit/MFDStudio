@@ -548,14 +548,14 @@ TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
 
     ASSERT_TRUE(registry.ViewForPage("Radar").has_value());
     EXPECT_TRUE(registry.SetPageViewCenter("Radar", {0.4f, -0.3f}));
-    EXPECT_TRUE(registry.SetPageZoom("Radar", -5.0f));
+    EXPECT_FALSE(registry.SetPageZoom("Radar", -5.0f));
     EXPECT_FALSE(registry.SetPageViewCenter("Unknown", {0.0f, 0.0f}));
 
     const auto view = registry.ViewForPage("Radar");
     ASSERT_TRUE(view.has_value());
     EXPECT_FLOAT_EQ(view->center.x, 0.4f);
     EXPECT_FLOAT_EQ(view->center.y, -0.3f);
-    EXPECT_FLOAT_EQ(view->zoom, 1.0f);
+    EXPECT_FLOAT_EQ(view->zoom, 1.25f);
 
     EXPECT_TRUE(registry.SetReticleVisible("Radar", "textual", false));
     EXPECT_TRUE(registry.SetReticlePosition("Radar", "textual", {0.25f, 0.35f}));
@@ -1267,4 +1267,109 @@ TEST(SceneRegistryTests, CommandProcessorResetWindowCommandResetsRuntimeState)
     EXPECT_TRUE(registry.ActiveStrobeSummary()->visible);
     EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.0f);
     EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.y, 0.0f);
+}
+
+TEST(SceneRegistryTests, RuntimeSettersRejectNonFiniteAndOutOfBudgetValues)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+    const auto initialView = registry.ViewForPage("Radar");
+    ASSERT_TRUE(initialView.has_value());
+
+    EXPECT_FALSE(registry.SetPageView("Radar",
+                                      mfd::PageViewState {
+                                          {0.0f, 0.0f},
+                                          std::numeric_limits<float>::infinity()}));
+    EXPECT_FALSE(registry.SetPageViewCenter(
+        "Radar",
+        {std::numeric_limits<float>::quiet_NaN(), 0.0f}));
+    EXPECT_FALSE(registry.SetPageZoom("Radar", 50000.0f));
+    EXPECT_FALSE(registry.SetReticlePosition(
+        "Radar",
+        "default",
+        {std::numeric_limits<float>::infinity(), 0.0f}));
+    EXPECT_FALSE(registry.SetReticleRotation(
+        "Radar",
+        "default",
+        std::numeric_limits<float>::quiet_NaN()));
+    EXPECT_FALSE(registry.SetStrobePosition(
+        "Radar",
+        {0.0f, std::numeric_limits<float>::quiet_NaN()}));
+
+    const auto finalView = registry.ViewForPage("Radar");
+    ASSERT_TRUE(finalView.has_value());
+    EXPECT_FLOAT_EQ(finalView->center.x, initialView->center.x);
+    EXPECT_FLOAT_EQ(finalView->center.y, initialView->center.y);
+    EXPECT_FLOAT_EQ(finalView->zoom, initialView->zoom);
+}
+
+TEST(SceneRegistryTests, ApplyReticlePatchRejectsInvalidPayloadsWithoutMutatingState)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+    const mfd::ReticleGroup* textual = FindReticle(registry.CollectPageReticlePointers("Radar"), "textual");
+    ASSERT_NE(textual, nullptr);
+    const auto* originalText = FindTextGeometry(*textual, "title");
+    ASSERT_NE(originalText, nullptr);
+
+    mfd::ReticlePatch invalidPatch;
+    invalidPatch.position = mfd::Vec2 {std::numeric_limits<float>::infinity(), 0.0f};
+    invalidPatch.text = std::string(5000U, 'X');
+
+    EXPECT_FALSE(registry.ApplyReticlePatch("Radar", "textual", invalidPatch));
+
+    textual = FindReticle(registry.CollectPageReticlePointers("Radar"), "textual");
+    ASSERT_NE(textual, nullptr);
+    const auto* patchedText = FindTextGeometry(*textual, "title");
+    ASSERT_NE(patchedText, nullptr);
+    EXPECT_EQ(textual->transform.position.x, 0.0f);
+    EXPECT_EQ(textual->transform.position.y, 0.0f);
+    EXPECT_EQ(patchedText->text, "INIT");
+}
+
+TEST(SceneRegistryTests, ApplyDynamicReticlePatchRejectsInvalidPayloadsWithoutMutatingState)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
+    track.transform.position = {0.10f, 0.00f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    mfd::ReticlePatch invalidPatch;
+    invalidPatch.position = mfd::Vec2 {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+
+    EXPECT_FALSE(registry.ApplyDynamicReticlePatch("Radar", "track_alpha", invalidPatch));
+
+    const mfd::ReticleGroup* dynamic = FindReticle(registry.CollectPageReticlePointers("Radar"), "track_alpha");
+    ASSERT_NE(dynamic, nullptr);
+    EXPECT_FLOAT_EQ(dynamic->transform.position.x, 0.10f);
+    EXPECT_FLOAT_EQ(dynamic->transform.position.y, 0.00f);
+}
+
+TEST(SceneRegistryTests, MissingTransportPageReferenceLeavesGeneratedReticleLookupUnusable)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeBlinkPage());
+
+    mfd::GeneratedTransportMap map;
+    map.mappingHash = "map_hash";
+    map.pages.push_back({11U, "Radar", "radar", true, false});
+    map.reticles.push_back({22U, 999U, "heading_box", "heading_box", "static"});
+
+    mfd::SceneRegistry registry(std::move(document), std::move(map));
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_EQ(processor.LastError(), "Unknown generated static reticle transport id 22");
 }

@@ -147,16 +147,28 @@ const nlohmann::json* FindField(const nlohmann::json& node, const std::initializ
         return nullptr;
     }
 
+    const nlohmann::json* matchedField = nullptr;
+    const char* matchedName = nullptr;
     for (const char* fieldName : fieldNames)
     {
         const auto iterator = node.find(fieldName);
         if (iterator != node.end())
         {
-            return &(*iterator);
+            if (matchedField != nullptr)
+            {
+                throw std::runtime_error(std::string("Conflicting JSON aliases: '") +
+                                         matchedName +
+                                         "' and '" +
+                                         fieldName +
+                                         "' cannot be used together");
+            }
+
+            matchedField = &(*iterator);
+            matchedName = fieldName;
         }
     }
 
-    return nullptr;
+    return matchedField;
 }
 
 const nlohmann::json* FindEditorField(const nlohmann::json& node,

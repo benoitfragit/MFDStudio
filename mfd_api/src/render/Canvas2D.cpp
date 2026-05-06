@@ -29,6 +29,10 @@ namespace mfd
 {
 namespace
 {
+constexpr float kMinSegmentLength = 0.0001f;
+constexpr int kMaxPrimitiveSegments = 1024;
+constexpr std::size_t kMaxStrokeFragmentsPerSegment = 4096U;
+
 Color ToRayColor(const ColorRgba& color)
 {
     return Color {color.r, color.g, color.b, color.a};
@@ -46,6 +50,32 @@ Vector2 LerpVector2(const Vector2& lhs, const Vector2& rhs, const float factor) 
     return Vector2 {
         lhs.x + (rhs.x - lhs.x) * factor,
         lhs.y + (rhs.y - lhs.y) * factor};
+}
+
+bool IsFiniteVector(const Vector2& value) noexcept
+{
+    return std::isfinite(value.x) && std::isfinite(value.y);
+}
+
+bool IsFiniteVec2(const Vec2& value) noexcept
+{
+    return std::isfinite(value.x) && std::isfinite(value.y);
+}
+
+int SanitizeSegmentCount(const int requested, const int minimum) noexcept
+{
+    return std::clamp(requested, minimum, kMaxPrimitiveSegments);
+}
+
+bool TryMeasureFiniteSegment(const Vector2& start, const Vector2& end, float& segmentLength) noexcept
+{
+    if (!IsFiniteVector(start) || !IsFiniteVector(end))
+    {
+        return false;
+    }
+
+    segmentLength = Distance(start, end);
+    return std::isfinite(segmentLength) && segmentLength > kMinSegmentLength;
 }
 
 void FillConvexPolygon(const ArrayView<const Vector2> points, const Color color)
@@ -85,7 +115,7 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
                         const Color color,
                         const LineStyle lineStyle)
 {
-    if (points.size() < 2)
+    if (points.size() < 2 || !std::isfinite(thickness) || thickness <= 0.0f)
     {
         return;
     }
@@ -94,12 +124,20 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
     {
         for (std::size_t index = 0; index + 1 < points.size(); ++index)
         {
-            DrawLineEx(points[index], points[index + 1], thickness, color);
+            float segmentLength = 0.0f;
+            if (TryMeasureFiniteSegment(points[index], points[index + 1], segmentLength))
+            {
+                DrawLineEx(points[index], points[index + 1], thickness, color);
+            }
         }
 
         if (closed)
         {
-            DrawLineEx(points.back(), points.front(), thickness, color);
+            float segmentLength = 0.0f;
+            if (TryMeasureFiniteSegment(points.back(), points.front(), segmentLength))
+            {
+                DrawLineEx(points.back(), points.front(), thickness, color);
+            }
         }
 
         return;
@@ -113,21 +151,36 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
 
         auto drawDottedSegment = [&](const Vector2 start, const Vector2 end)
         {
-            const float segmentLength = Distance(start, end);
-            if (segmentLength <= 0.0001f)
+            float segmentLength = 0.0f;
+            if (!TryMeasureFiniteSegment(start, end, segmentLength))
             {
                 return;
             }
 
+            if (!std::isfinite(distanceToNextDot) || distanceToNextDot < 0.0f)
+            {
+                distanceToNextDot = 0.0f;
+            }
+
+            std::size_t fragmentCount = 0U;
             while (distanceToNextDot <= segmentLength + 0.0001f)
             {
                 const float factor = std::clamp(distanceToNextDot / segmentLength, 0.0f, 1.0f);
+                if (!std::isfinite(factor) || ++fragmentCount > kMaxStrokeFragmentsPerSegment)
+                {
+                    break;
+                }
+
                 DrawCircleV(LerpVector2(start, end, factor), dotRadius, color);
                 distanceToNextDot += dotSpacing;
+                if (!std::isfinite(distanceToNextDot))
+                {
+                    break;
+                }
             }
 
             distanceToNextDot -= segmentLength;
-            if (distanceToNextDot <= 0.0001f)
+            if (!std::isfinite(distanceToNextDot) || distanceToNextDot <= 0.0001f)
             {
                 distanceToNextDot = dotSpacing;
             }
@@ -151,18 +204,29 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
 
     auto drawDashedSegment = [&](const Vector2 start, const Vector2 end)
     {
-        const float segmentLength = Distance(start, end);
-        if (!std::isfinite(segmentLength) || segmentLength <= 0.0001f)
+        float segmentLength = 0.0f;
+        if (!TryMeasureFiniteSegment(start, end, segmentLength))
         {
             return;
         }
 
         float dashStartOffset = 0.0f;
+        std::size_t fragmentCount = 0U;
         while (dashStartOffset < segmentLength)
         {
+            if (++fragmentCount > kMaxStrokeFragmentsPerSegment)
+            {
+                break;
+            }
+
             const float dashEndOffset = std::min(dashStartOffset + dashLength, segmentLength);
             const Vector2 dashStart = LerpVector2(start, end, dashStartOffset / segmentLength);
             const Vector2 dashEnd = LerpVector2(start, end, dashEndOffset / segmentLength);
+            if (!IsFiniteVector(dashStart) || !IsFiniteVector(dashEnd))
+            {
+                break;
+            }
+
             DrawLineEx(dashStart, dashEnd, thickness, color);
             dashStartOffset = dashEndOffset + gapLength;
         }
@@ -229,7 +293,7 @@ void SampleBezierInto(const BezierGeometry& geometry,
                       std::vector<Vec2>& destination,
                       std::vector<Vec2>& workingPoints)
 {
-    const int segmentCount = std::max(2, geometry.segments);
+    const int segmentCount = SanitizeSegmentCount(geometry.segments, 2);
     destination.clear();
     destination.reserve(static_cast<std::size_t>(segmentCount) + 1U);
 
@@ -242,7 +306,7 @@ void SampleBezierInto(const BezierGeometry& geometry,
 
 void SampleArcInto(const ArcGeometry& geometry, std::vector<Vec2>& destination)
 {
-    const int segmentCount = std::max(2, geometry.segments);
+    const int segmentCount = SanitizeSegmentCount(geometry.segments, 2);
     const float radius = std::max(0.0f, std::abs(geometry.radius));
     const float startAngleRadians = geometry.startAngleDegrees * PI / 180.0f;
     const float sweepRadians = (geometry.endAngleDegrees - geometry.startAngleDegrees) * PI / 180.0f;
@@ -262,7 +326,7 @@ void SampleArcInto(const ArcGeometry& geometry, std::vector<Vec2>& destination)
 
 void SampleEllipseInto(const EllipseGeometry& geometry, const int segments, std::vector<Vec2>& destination)
 {
-    const int segmentCount = std::max(12, segments);
+    const int segmentCount = SanitizeSegmentCount(segments, 12);
     const float halfWidth = geometry.width * 0.5f;
     const float halfHeight = geometry.height * 0.5f;
 
@@ -432,7 +496,18 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
     detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Replace,
                                       detail::GlStencilOperation::Replace,
                                       detail::GlStencilOperation::Replace);
-    DrawClipMaskPrimitive(primitive, group);
+    if (!DrawClipMaskPrimitive(primitive, group))
+    {
+        rlDrawRenderBatchActive();
+        detail::OpenGlSetColorWriteMask(true, true, true, true);
+        detail::OpenGlSetStencilMask(0xFF);
+        detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Keep,
+                                          detail::GlStencilOperation::Keep,
+                                          detail::GlStencilOperation::Keep);
+        detail::OpenGlSetStencilFunction(detail::GlStencilCompare::Always, 0, 0xFF);
+        detail::OpenGlSetStencilEnabled(false);
+        return;
+    }
 
     rlDrawRenderBatchActive();
     detail::OpenGlSetColorWriteMask(true, true, true, true);
@@ -443,17 +518,20 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
     detail::OpenGlSetStencilFunction(group.clipping.mode == ReticleClipMode::Inner
                                          ? detail::GlStencilCompare::NotEqual
                                          : detail::GlStencilCompare::Equal,
-                                     0,
-                                     0xFF);
-
+                                      0,
+                                      0xFF);
     DrawRectangle(0, 0, width_, height_, backgroundColor_);
 
     rlDrawRenderBatchActive();
     detail::OpenGlSetStencilMask(0xFF);
+    detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Keep,
+                                      detail::GlStencilOperation::Keep,
+                                      detail::GlStencilOperation::Keep);
+    detail::OpenGlSetStencilFunction(detail::GlStencilCompare::Always, 0, 0xFF);
     detail::OpenGlSetStencilEnabled(false);
 }
 
-void Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGroup& group) const
+bool Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGroup& group) const
 {
     constexpr Color kClipMaskColor {255, 255, 255, 255};
 
@@ -461,56 +539,88 @@ void Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGr
     {
     case PrimitiveType::Circle:
     {
-        const auto& circle = std::get<CircleGeometry>(primitive.geometry);
+        const auto* circle = std::get_if<CircleGeometry>(&primitive.geometry);
+        if (circle == nullptr)
+        {
+            break;
+        }
+
         const float radius = std::max(0.0f,
-                                      std::abs(ToViewPixels(circle.radius * AverageScale(group.transform,
-                                                                                         primitive.transform))));
+                                      std::abs(ToViewPixels(circle->radius * AverageScale(group.transform,
+                                                                                          primitive.transform))));
         const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
+        if (!std::isfinite(radius) || !IsFiniteVector(center))
+        {
+            break;
+        }
+
         DrawCircleV(center, radius, kClipMaskColor);
-        break;
+        return true;
     }
     case PrimitiveType::Rectangle:
     {
-        const auto& rectangle = std::get<RectangleGeometry>(primitive.geometry);
+        const auto* rectangle = std::get_if<RectangleGeometry>(&primitive.geometry);
+        if (rectangle == nullptr)
+        {
+            break;
+        }
+
         const std::array<Vec2, 4> logicalPoints { {
-            {-rectangle.width * 0.5f, -rectangle.height * 0.5f},
-            {rectangle.width * 0.5f, -rectangle.height * 0.5f},
-            {rectangle.width * 0.5f, rectangle.height * 0.5f},
-            {-rectangle.width * 0.5f, rectangle.height * 0.5f}} };
+            {-rectangle->width * 0.5f, -rectangle->height * 0.5f},
+            {rectangle->width * 0.5f, -rectangle->height * 0.5f},
+            {rectangle->width * 0.5f, rectangle->height * 0.5f},
+            {-rectangle->width * 0.5f, rectangle->height * 0.5f}} };
         BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
         FillConvexPolygon(screenScratchA_, kClipMaskColor);
-        break;
+        return !screenScratchA_.empty();
     }
     case PrimitiveType::Ellipse:
     {
-        const auto& ellipse = std::get<EllipseGeometry>(primitive.geometry);
-        SampleEllipseInto(ellipse, 64, logicalScratchA_);
+        const auto* ellipse = std::get_if<EllipseGeometry>(&primitive.geometry);
+        if (ellipse == nullptr)
+        {
+            break;
+        }
+
+        SampleEllipseInto(*ellipse, 64, logicalScratchA_);
         BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
         FillConvexPolygon(screenScratchA_, kClipMaskColor);
-        break;
+        return !screenScratchA_.empty();
     }
     case PrimitiveType::Square:
     {
-        const auto& square = std::get<SquareGeometry>(primitive.geometry);
+        const auto* square = std::get_if<SquareGeometry>(&primitive.geometry);
+        if (square == nullptr)
+        {
+            break;
+        }
+
         const std::array<Vec2, 4> logicalPoints { {
-            {-square.width * 0.5f, -square.height * 0.5f},
-            {square.width * 0.5f, -square.height * 0.5f},
-            {square.width * 0.5f, square.height * 0.5f},
-            {-square.width * 0.5f, square.height * 0.5f}} };
+            {-square->width * 0.5f, -square->height * 0.5f},
+            {square->width * 0.5f, -square->height * 0.5f},
+            {square->width * 0.5f, square->height * 0.5f},
+            {-square->width * 0.5f, square->height * 0.5f}} };
         BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
         FillConvexPolygon(screenScratchA_, kClipMaskColor);
-        break;
+        return !screenScratchA_.empty();
     }
     case PrimitiveType::Triangle:
     {
-        const auto& triangle = std::get<TriangleGeometry>(primitive.geometry);
-        BuildScreenPointsInto(triangle.points.data(), triangle.points.size(), primitive, group, screenScratchA_);
+        const auto* triangle = std::get_if<TriangleGeometry>(&primitive.geometry);
+        if (triangle == nullptr)
+        {
+            break;
+        }
+
+        BuildScreenPointsInto(triangle->points.data(), triangle->points.size(), primitive, group, screenScratchA_);
         FillConvexPolygon(screenScratchA_, kClipMaskColor);
-        break;
+        return !screenScratchA_.empty();
     }
     default:
         break;
     }
+
+    return false;
 }
 
 Vector2 Canvas2D::ToScreen(const Vec2& logical) const noexcept
@@ -539,7 +649,16 @@ void Canvas2D::BuildScreenPointsInto(const Vec2* points,
 
     for (std::size_t index = 0; index < pointCount; ++index)
     {
-        destination.push_back(ToScreen(TransformPoint(points[index], primitive, group)));
+        if (!IsFiniteVec2(points[index]))
+        {
+            continue;
+        }
+
+        const Vector2 screenPoint = ToScreen(TransformPoint(points[index], primitive, group));
+        if (IsFiniteVector(screenPoint))
+        {
+            destination.push_back(screenPoint);
+        }
     }
 }
 
@@ -550,24 +669,45 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     const Color fillColor = ToRayColor(style.fillColor);
     const float strokeThickness = std::max(1.0f, std::abs(ToViewPixels(style.thickness)));
     const Transform2D combinedTransform = CombineTransforms(group.transform, primitive.transform);
+    if (!std::isfinite(strokeThickness) ||
+        !IsFiniteVec2(combinedTransform.position) ||
+        !std::isfinite(combinedTransform.rotationDegrees) ||
+        !IsFiniteVec2(combinedTransform.scale))
+    {
+        return;
+    }
 
     switch (primitive.type)
     {
     case PrimitiveType::Text:
     {
-        const auto& text = std::get<TextGeometry>(primitive.geometry);
+        const auto* text = std::get_if<TextGeometry>(&primitive.geometry);
+        if (text == nullptr)
+        {
+            break;
+        }
+
         const Font font = TextFont();
         const float textScale = AverageScale(group.transform, primitive.transform);
         const float fontSize = std::max(1.0f,
-                                        std::abs(ToViewPixels(text.fontSize * textScale)));
-        const float letterSpacing = std::isfinite(text.letterSpacing)
-                                        ? ToViewPixels(text.letterSpacing * textScale)
+                                        std::abs(ToViewPixels(text->fontSize * textScale)));
+        const float letterSpacing = std::isfinite(text->letterSpacing)
+                                        ? ToViewPixels(text->letterSpacing * textScale)
                                         : ToViewPixels(kDefaultTextLetterSpacing * textScale);
         const Vector2 screenPosition = ToScreen(TransformPoint({}, primitive, group));
-        const Vector2 textSize = MeasureTextEx(font, text.text.c_str(), fontSize, letterSpacing);
-        const Vector2 origin {textSize.x * 0.5f, textSize.y * 0.5f};
+        if (!std::isfinite(fontSize) || !std::isfinite(letterSpacing) || !IsFiniteVector(screenPosition))
+        {
+            break;
+        }
 
-        DrawCenteredText(text.text,
+        const Vector2 textSize = MeasureTextEx(font, text->text.c_str(), fontSize, letterSpacing);
+        const Vector2 origin {textSize.x * 0.5f, textSize.y * 0.5f};
+        if (!IsFiniteVector(textSize) || !IsFiniteVector(origin))
+        {
+            break;
+        }
+
+        DrawCenteredText(text->text,
                          font,
                          fontSize,
                          letterSpacing,
@@ -579,18 +719,32 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     }
     case PrimitiveType::Time:
     {
-        const auto& time = std::get<TimeGeometry>(primitive.geometry);
-        const std::string text = FormatTimeText(time);
+        const auto* time = std::get_if<TimeGeometry>(&primitive.geometry);
+        if (time == nullptr)
+        {
+            break;
+        }
+
+        const std::string text = FormatTimeText(*time);
         const Font font = TextFont();
         const float textScale = AverageScale(group.transform, primitive.transform);
         const float fontSize = std::max(1.0f,
-                                        std::abs(ToViewPixels(time.fontSize * textScale)));
-        const float letterSpacing = std::isfinite(time.letterSpacing)
-                                        ? ToViewPixels(time.letterSpacing * textScale)
+                                        std::abs(ToViewPixels(time->fontSize * textScale)));
+        const float letterSpacing = std::isfinite(time->letterSpacing)
+                                        ? ToViewPixels(time->letterSpacing * textScale)
                                         : ToViewPixels(kDefaultTextLetterSpacing * textScale);
         const Vector2 screenPosition = ToScreen(TransformPoint({}, primitive, group));
+        if (!std::isfinite(fontSize) || !std::isfinite(letterSpacing) || !IsFiniteVector(screenPosition))
+        {
+            break;
+        }
+
         const Vector2 textSize = MeasureTextEx(font, text.c_str(), fontSize, letterSpacing);
         const Vector2 origin {textSize.x * 0.5f, textSize.y * 0.5f};
+        if (!IsFiniteVector(textSize) || !IsFiniteVector(origin))
+        {
+            break;
+        }
 
         DrawCenteredText(text,
                          font,
@@ -604,41 +758,60 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     }
     case PrimitiveType::Line:
     {
-        const auto& line = std::get<LineGeometry>(primitive.geometry);
-        const Vector2 start = ToScreen(TransformPoint(line.start, primitive, group));
-        const Vector2 end = ToScreen(TransformPoint(line.end, primitive, group));
+        const auto* line = std::get_if<LineGeometry>(&primitive.geometry);
+        if (line == nullptr)
+        {
+            break;
+        }
+
+        const Vector2 start = ToScreen(TransformPoint(line->start, primitive, group));
+        const Vector2 end = ToScreen(TransformPoint(line->end, primitive, group));
         const std::array<Vector2, 2> linePoints {{start, end}};
         DrawPolylineStroke(linePoints, false, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Circle:
     {
-        const auto& circle = std::get<CircleGeometry>(primitive.geometry);
+        const auto* circle = std::get_if<CircleGeometry>(&primitive.geometry);
+        if (circle == nullptr)
+        {
+            break;
+        }
+
         const float radius = std::max(0.0f,
-                                      std::abs(ToViewPixels(circle.radius * AverageScale(group.transform,
-                                                                                         primitive.transform))));
+                                      std::abs(ToViewPixels(circle->radius * AverageScale(group.transform,
+                                                                                          primitive.transform))));
         const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
+        if (!std::isfinite(radius) || !IsFiniteVector(center))
+        {
+            break;
+        }
 
         if (style.filled)
         {
             DrawCircleV(center, radius, fillColor);
         }
 
-        SampleEllipseInto(EllipseGeometry {circle.radius * 2.0f, circle.radius * 2.0f}, 64, logicalScratchA_);
+        SampleEllipseInto(EllipseGeometry {circle->radius * 2.0f, circle->radius * 2.0f}, 64, logicalScratchA_);
         BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
         DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Ring:
     {
-        const auto& ring = std::get<RingGeometry>(primitive.geometry);
+        const auto* ring = std::get_if<RingGeometry>(&primitive.geometry);
+        if (ring == nullptr)
+        {
+            break;
+        }
+
         SampleEllipseInto(
-            EllipseGeometry {ring.outerRadius * 2.0f, ring.outerRadius * 2.0f},
-            ring.segments,
+            EllipseGeometry {ring->outerRadius * 2.0f, ring->outerRadius * 2.0f},
+            ring->segments,
             logicalScratchA_);
         SampleEllipseInto(
-            EllipseGeometry {ring.innerRadius * 2.0f, ring.innerRadius * 2.0f},
-            ring.segments,
+            EllipseGeometry {ring->innerRadius * 2.0f, ring->innerRadius * 2.0f},
+            ring->segments,
             logicalScratchB_);
         BuildScreenPointsInto(
             logicalScratchA_.data(),
@@ -664,12 +837,17 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     }
     case PrimitiveType::Rectangle:
     {
-        const auto& rectangle = std::get<RectangleGeometry>(primitive.geometry);
+        const auto* rectangle = std::get_if<RectangleGeometry>(&primitive.geometry);
+        if (rectangle == nullptr)
+        {
+            break;
+        }
+
         const std::array<Vec2, 4> logicalPoints {{
-            {-rectangle.width * 0.5f, -rectangle.height * 0.5f},
-            {rectangle.width * 0.5f, -rectangle.height * 0.5f},
-            {rectangle.width * 0.5f, rectangle.height * 0.5f},
-            {-rectangle.width * 0.5f, rectangle.height * 0.5f}}};
+            {-rectangle->width * 0.5f, -rectangle->height * 0.5f},
+            {rectangle->width * 0.5f, -rectangle->height * 0.5f},
+            {rectangle->width * 0.5f, rectangle->height * 0.5f},
+            {-rectangle->width * 0.5f, rectangle->height * 0.5f}}};
         BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
 
         if (style.filled)
@@ -682,8 +860,13 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     }
     case PrimitiveType::Ellipse:
     {
-        const auto& ellipse = std::get<EllipseGeometry>(primitive.geometry);
-        SampleEllipseInto(ellipse, 64, logicalScratchA_);
+        const auto* ellipse = std::get_if<EllipseGeometry>(&primitive.geometry);
+        if (ellipse == nullptr)
+        {
+            break;
+        }
+
+        SampleEllipseInto(*ellipse, 64, logicalScratchA_);
         BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
 
         if (style.filled)
@@ -696,12 +879,17 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     }
     case PrimitiveType::Square:
     {
-        const auto& square = std::get<SquareGeometry>(primitive.geometry);
+        const auto* square = std::get_if<SquareGeometry>(&primitive.geometry);
+        if (square == nullptr)
+        {
+            break;
+        }
+
         const std::array<Vec2, 4> logicalPoints {{
-            {-square.width * 0.5f, -square.height * 0.5f},
-            {square.width * 0.5f, -square.height * 0.5f},
-            {square.width * 0.5f, square.height * 0.5f},
-            {-square.width * 0.5f, square.height * 0.5f}}};
+            {-square->width * 0.5f, -square->height * 0.5f},
+            {square->width * 0.5f, -square->height * 0.5f},
+            {square->width * 0.5f, square->height * 0.5f},
+            {-square->width * 0.5f, square->height * 0.5f}}};
         BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
 
         if (style.filled)
@@ -714,12 +902,17 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     }
     case PrimitiveType::Diamond:
     {
-        const auto& diamond = std::get<DiamondGeometry>(primitive.geometry);
+        const auto* diamond = std::get_if<DiamondGeometry>(&primitive.geometry);
+        if (diamond == nullptr)
+        {
+            break;
+        }
+
         const std::array<Vec2, 4> logicalPoints {{
-            {0.0f, diamond.height * 0.5f},
-            {diamond.width * 0.5f, 0.0f},
-            {0.0f, -diamond.height * 0.5f},
-            {-diamond.width * 0.5f, 0.0f}}};
+            {0.0f, diamond->height * 0.5f},
+            {diamond->width * 0.5f, 0.0f},
+            {0.0f, -diamond->height * 0.5f},
+            {-diamond->width * 0.5f, 0.0f}}};
         BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
 
         if (style.filled)
@@ -732,8 +925,13 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     }
     case PrimitiveType::Triangle:
     {
-        const auto& triangle = std::get<TriangleGeometry>(primitive.geometry);
-        BuildScreenPointsInto(triangle.points.data(), triangle.points.size(), primitive, group, screenScratchA_);
+        const auto* triangle = std::get_if<TriangleGeometry>(&primitive.geometry);
+        if (triangle == nullptr)
+        {
+            break;
+        }
+
+        BuildScreenPointsInto(triangle->points.data(), triangle->points.size(), primitive, group, screenScratchA_);
 
         if (style.filled)
         {
@@ -745,10 +943,15 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     }
     case PrimitiveType::Polyline:
     {
-        const auto& polyline = std::get<PolylineGeometry>(primitive.geometry);
-        BuildScreenPointsInto(polyline.points.data(), polyline.points.size(), primitive, group, screenScratchA_);
+        const auto* polyline = std::get_if<PolylineGeometry>(&primitive.geometry);
+        if (polyline == nullptr)
+        {
+            break;
+        }
 
-        if (style.filled && polyline.closed)
+        BuildScreenPointsInto(polyline->points.data(), polyline->points.size(), primitive, group, screenScratchA_);
+
+        if (style.filled && polyline->closed)
         {
             if (detail::PolygonIsConvex(screenScratchA_))
             {
@@ -764,21 +967,31 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             }
         }
 
-        DrawPolylineStroke(screenScratchA_, polyline.closed, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, polyline->closed, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Bezier:
     {
-        const auto& bezier = std::get<BezierGeometry>(primitive.geometry);
-        SampleBezierInto(bezier, logicalScratchA_, logicalScratchB_);
+        const auto* bezier = std::get_if<BezierGeometry>(&primitive.geometry);
+        if (bezier == nullptr)
+        {
+            break;
+        }
+
+        SampleBezierInto(*bezier, logicalScratchA_, logicalScratchB_);
         BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
         DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
     case PrimitiveType::Arc:
     {
-        const auto& arc = std::get<ArcGeometry>(primitive.geometry);
-        SampleArcInto(arc, logicalScratchA_);
+        const auto* arc = std::get_if<ArcGeometry>(&primitive.geometry);
+        if (arc == nullptr)
+        {
+            break;
+        }
+
+        SampleArcInto(*arc, logicalScratchA_);
         BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
 
         if (style.filled)
@@ -804,16 +1017,26 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        const auto& image = std::get<ImageGeometry>(primitive.geometry);
-        const Texture2D* texture = imageCache_->Resolve(image.file);
+        const auto* image = std::get_if<ImageGeometry>(&primitive.geometry);
+        if (image == nullptr)
+        {
+            break;
+        }
+
+        const Texture2D* texture = imageCache_->Resolve(image->file);
         if (texture == nullptr || texture->id == 0)
         {
             break;
         }
 
         const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
-        const float width = std::max(1.0f, ToViewPixels(image.width * std::abs(combinedTransform.scale.x)));
-        const float height = std::max(1.0f, ToViewPixels(image.height * std::abs(combinedTransform.scale.y)));
+        const float width = std::max(1.0f, ToViewPixels(image->width * std::abs(combinedTransform.scale.x)));
+        const float height = std::max(1.0f, ToViewPixels(image->height * std::abs(combinedTransform.scale.y)));
+        if (!IsFiniteVector(center) || !std::isfinite(width) || !std::isfinite(height))
+        {
+            break;
+        }
+
         const Rectangle source {
             0.0f,
             0.0f,

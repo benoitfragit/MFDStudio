@@ -111,7 +111,12 @@ std::string SerializePathRelativeTo(const std::filesystem::path& path, const std
 
     std::error_code relativeError;
     const std::filesystem::path relativePath = std::filesystem::relative(path, baseFolder, relativeError);
-    return relativeError ? path.generic_string() : relativePath.generic_string();
+    if (relativeError || relativePath.empty())
+    {
+        return path.generic_string();
+    }
+
+    return relativePath.generic_string();
 }
 
 void WriteTransformFields(json& node, const mfd::Transform2D& transform)
@@ -933,10 +938,9 @@ json SerializeWindow(const mfd::WindowAssetDefinition& window,
     node["targetFps"] = window.targetFps;
     if (!window.fontFile.empty())
     {
-        node["fontFile"] = std::filesystem::relative(window.fontFile, baseFolder).generic_string();
+        node["fontFile"] = SerializePathRelativeTo(window.fontFile, baseFolder);
     }
-    node["reticleLibraryFolder"] =
-        std::filesystem::relative(window.reticleLibraryFolder, baseFolder).generic_string();
+    node["reticleLibraryFolder"] = SerializePathRelativeTo(window.reticleLibraryFolder, baseFolder);
 
     if (window.commandTransports.udp.has_value())
     {
@@ -972,8 +976,7 @@ json SerializeWindow(const mfd::WindowAssetDefinition& window,
     std::optional<std::string> defaultPageName;
     for (std::size_t index = 0; index < layout.pageFiles.size() && index < document.pages.size(); ++index)
     {
-        const std::string relativePageFile =
-            std::filesystem::relative(layout.pageFiles[index], baseFolder).generic_string();
+        const std::string relativePageFile = SerializePathRelativeTo(layout.pageFiles[index], baseFolder);
         pages.push_back(relativePageFile);
 
         if (document.pages[index].defaultPage && !document.pages[index].name.empty())

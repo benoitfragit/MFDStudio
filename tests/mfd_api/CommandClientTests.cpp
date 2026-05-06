@@ -543,3 +543,28 @@ TEST(CommandClientTests, MaxPayloadBytesUsesSharedUdpBounds)
     mfd::CommandClient largeClient(largeConfig);
     EXPECT_EQ(largeClient.MaxPayloadBytes(), mfd::kUdpMaxPayloadBytes);
 }
+
+TEST(CommandClientTests, RejectsBulkDynamicReticleUpdatesBeyondRuntimeSafetyLimits)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::UpsertDynamicReticlesCommand command;
+    command.page = "Radar";
+    command.templateId = "radar_track";
+    command.reticles.reserve(4097U);
+    for (std::size_t index = 0; index < 4097U; ++index)
+    {
+        mfd::DynamicReticleState state;
+        state.reticleId = "track_" + std::to_string(index);
+        state.patch.visible = true;
+        command.reticles.push_back(std::move(state));
+    }
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(std::move(command));
+
+    EXPECT_FALSE(client.SendBatch(batch));
+    EXPECT_NE(client.LastError().find("safety limits"), std::string::npos);
+}

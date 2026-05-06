@@ -30,6 +30,7 @@ namespace mfd
 namespace
 {
 constexpr RuntimeDynamicId kGeneratedDynamicRuntimeIdBit = RuntimeDynamicId {1} << 63U;
+constexpr std::size_t kMaxDynamicReticlesPerSplit = 4096U;
 
 bool PatchUsesGeneratedIdentifiers(const ReticlePatch& patch) noexcept
 {
@@ -288,6 +289,12 @@ std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand&
                 {
                     error = "A single command exceeds the configured UDP payload limit of " +
                             std::to_string(maxPayloadBytes) + " bytes";
+                    return std::nullopt;
+                }
+
+                if (value.reticles.size() > kMaxDynamicReticlesPerSplit)
+                {
+                    error = "Dynamic reticle bulk update exceeds runtime safety limits";
                     return std::nullopt;
                 }
 

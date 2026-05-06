@@ -1,11 +1,48 @@
 {
-  "id": "hud_velocity_vector",
-  "stroke": "#2EFFA2FF",
-  "lineWidth": 0.0032,
   "elements": [
-    { "id": "vv_circle", "type": "circle", "radius": 0.034 },
-    { "id": "vv_left", "type": "line", "start": [-0.070, 0.0], "end": [-0.034, 0.0] },
-    { "id": "vv_right", "type": "line", "start": [0.034, 0.0], "end": [0.070, 0.0] },
-    { "id": "vv_tail", "type": "line", "start": [0.0, -0.034], "end": [0.0, -0.078] }
-  ]
+    {
+      "id": "vv_circle",
+      "radius": 0.03400000184774399,
+      "type": "circle"
+    },
+    {
+      "end": [
+        -0.03400000184774399,
+        0.0
+      ],
+      "id": "vv_left",
+      "start": [
+        -0.07000000029802322,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        0.07000000029802322,
+        0.0
+      ],
+      "id": "vv_right",
+      "start": [
+        0.03400000184774399,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        0.0,
+        -0.07800000160932541
+      ],
+      "id": "vv_tail",
+      "start": [
+        0.0,
+        -0.03400000184774399
+      ],
+      "type": "line"
+    }
+  ],
+  "id": "hud_velocity_vector",
+  "lineWidth": 0.0031999999191612005,
+  "stroke": "#2EFFA2FF"
 }

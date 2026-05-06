@@ -19,6 +19,12 @@ namespace mfd::detail
 namespace
 {
 constexpr float kGeometryEpsilon = 1.0e-5f;
+constexpr std::size_t kMaxFilledPolygonPoints = 512U;
+
+bool IsFinitePoint(const Vector2& point) noexcept
+{
+    return std::isfinite(point.x) && std::isfinite(point.y);
+}
 
 float SignedTwiceArea(const ArrayView<const Vector2> points) noexcept
 {
@@ -93,9 +99,17 @@ bool IsEar(const ArrayView<const Vector2> points,
 
 bool PolygonIsConvex(const ArrayView<const Vector2> points) noexcept
 {
-    if (points.size() < 3)
+    if (points.size() < 3 || points.size() > kMaxFilledPolygonPoints)
     {
         return false;
+    }
+
+    for (const Vector2& point : points)
+    {
+        if (!IsFinitePoint(point))
+        {
+            return false;
+        }
     }
 
     float expectedSign = 0.0f;
@@ -129,9 +143,17 @@ bool PolygonIsConvex(const ArrayView<const Vector2> points) noexcept
 bool TriangulateSimplePolygon(const ArrayView<const Vector2> points, std::vector<std::size_t>& triangleIndices)
 {
     triangleIndices.clear();
-    if (points.size() < 3)
+    if (points.size() < 3 || points.size() > kMaxFilledPolygonPoints)
     {
         return false;
+    }
+
+    for (const Vector2& point : points)
+    {
+        if (!IsFinitePoint(point))
+        {
+            return false;
+        }
     }
 
     const float signedArea = SignedTwiceArea(points);

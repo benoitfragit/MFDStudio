@@ -101,6 +101,286 @@ using json_loader_detail::ParseWindowSize;
 using json_loader_detail::ResolvePath;
 using json_loader_detail::TrimAsciiWhitespace;
 
+constexpr float kMaxAbsCoordinate = 1'000'000.0f;
+constexpr float kMaxAbsScale = 1'000.0f;
+constexpr float kMaxAbsAngleDegrees = 1'000'000.0f;
+constexpr float kMaxThickness = 100.0f;
+constexpr float kMaxLogicalSize = 1'000'000.0f;
+constexpr float kMaxZoom = 1'000.0f;
+constexpr int kMaxPrimitiveSegments = 1024;
+constexpr std::size_t kMaxPrimitivePoints = 2048U;
+constexpr std::size_t kMaxFilledPolygonPoints = 512U;
+constexpr std::size_t kMaxTextBytes = 4096U;
+
+float ParseFiniteFloat(const json& value, const char* fieldName)
+{
+    if (!value.is_number())
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be numeric");
+    }
+
+    const float parsed = value.get<float>();
+    if (!std::isfinite(parsed))
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be finite");
+    }
+
+    return parsed;
+}
+
+bool IsFiniteVec2(const Vec2& value) noexcept
+{
+    return std::isfinite(value.x) && std::isfinite(value.y);
+}
+
+void ValidateFiniteAbs(const float value, const char* fieldName, const float maxAbs)
+{
+    if (!std::isfinite(value))
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be finite");
+    }
+
+    if (std::abs(value) > maxAbs)
+    {
+        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
+    }
+}
+
+void ValidatePositiveFinite(const float value, const char* fieldName, const float maxValue)
+{
+    if (!std::isfinite(value) || value <= 0.0f)
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be strictly positive and finite");
+    }
+
+    if (value > maxValue)
+    {
+        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
+    }
+}
+
+void ValidateVec2(const Vec2& value, const char* fieldName, const float maxAbs = kMaxAbsCoordinate)
+{
+    if (!IsFiniteVec2(value))
+    {
+        throw std::runtime_error(std::string(fieldName) + " must contain finite coordinates");
+    }
+
+    if (std::abs(value.x) > maxAbs || std::abs(value.y) > maxAbs)
+    {
+        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
+    }
+}
+
+void ValidateScale(const Vec2& value, const char* fieldName)
+{
+    ValidateVec2(value, fieldName, kMaxAbsScale);
+}
+
+void ValidateSegmentCount(const int value, const char* fieldName)
+{
+    if (value < 2 || value > kMaxPrimitiveSegments)
+    {
+        throw std::runtime_error(std::string(fieldName) + " must stay in [2, " +
+                                 std::to_string(kMaxPrimitiveSegments) + "]");
+    }
+}
+
+void ValidatePointCount(const std::size_t value, const std::size_t minimum, const char* fieldName)
+{
+    if (value < minimum || value > kMaxPrimitivePoints)
+    {
+        throw std::runtime_error(std::string(fieldName) + " must stay in [" +
+                                 std::to_string(minimum) + ", " +
+                                 std::to_string(kMaxPrimitivePoints) + "]");
+    }
+}
+
+void ValidatePrimitiveStyle(const PrimitiveStyle& style)
+{
+    if (!std::isfinite(style.thickness) || style.thickness <= 0.0f || style.thickness > kMaxThickness)
+    {
+        throw std::runtime_error("Primitive thickness exceeds runtime safety limits");
+    }
+}
+
+void ValidateTextGeometry(const TextGeometry& geometry)
+{
+    ValidatePositiveFinite(geometry.fontSize, "Text font size", kMaxLogicalSize);
+    ValidateFiniteAbs(geometry.letterSpacing, "Text letter spacing", kMaxLogicalSize);
+    if (geometry.text.size() > kMaxTextBytes)
+    {
+        throw std::runtime_error("Text payload exceeds runtime safety limits");
+    }
+}
+
+void ValidateTimeGeometry(const TimeGeometry& geometry)
+{
+    ValidatePositiveFinite(geometry.fontSize, "Time font size", kMaxLogicalSize);
+    ValidateFiniteAbs(geometry.letterSpacing, "Time letter spacing", kMaxLogicalSize);
+    if (geometry.format.size() > kMaxTextBytes)
+    {
+        throw std::runtime_error("Time format exceeds runtime safety limits");
+    }
+}
+
+void ValidatePrimitiveForRuntime(const Primitive& primitive)
+{
+    ValidateVec2(primitive.transform.position, "Primitive position");
+    ValidateFiniteAbs(primitive.transform.rotationDegrees, "Primitive rotation", kMaxAbsAngleDegrees);
+    ValidateScale(primitive.transform.scale, "Primitive scale");
+    ValidatePrimitiveStyle(primitive.style);
+
+    std::visit(
+        [&](const auto& geometry)
+        {
+            using Geometry = std::decay_t<decltype(geometry)>;
+
+            if constexpr (std::is_same_v<Geometry, TextGeometry>)
+            {
+                ValidateTextGeometry(geometry);
+            }
+            else if constexpr (std::is_same_v<Geometry, TimeGeometry>)
+            {
+                ValidateTimeGeometry(geometry);
+            }
+            else if constexpr (std::is_same_v<Geometry, LineGeometry>)
+            {
+                ValidateVec2(geometry.start, "Line start");
+                ValidateVec2(geometry.end, "Line end");
+            }
+            else if constexpr (std::is_same_v<Geometry, CircleGeometry>)
+            {
+                ValidateFiniteAbs(geometry.radius, "Circle radius", kMaxLogicalSize);
+            }
+            else if constexpr (std::is_same_v<Geometry, RingGeometry>)
+            {
+                ValidateFiniteAbs(geometry.innerRadius, "Ring inner radius", kMaxLogicalSize);
+                ValidateFiniteAbs(geometry.outerRadius, "Ring outer radius", kMaxLogicalSize);
+                ValidateSegmentCount(geometry.segments, "Ring segments");
+            }
+            else if constexpr (std::is_same_v<Geometry, RectangleGeometry> ||
+                               std::is_same_v<Geometry, EllipseGeometry> ||
+                               std::is_same_v<Geometry, SquareGeometry> ||
+                               std::is_same_v<Geometry, DiamondGeometry>)
+            {
+                ValidateFiniteAbs(geometry.width, "Primitive width", kMaxLogicalSize);
+                ValidateFiniteAbs(geometry.height, "Primitive height", kMaxLogicalSize);
+            }
+            else if constexpr (std::is_same_v<Geometry, TriangleGeometry>)
+            {
+                for (const Vec2& point : geometry.points)
+                {
+                    ValidateVec2(point, "Triangle point");
+                }
+            }
+            else if constexpr (std::is_same_v<Geometry, PolylineGeometry>)
+            {
+                ValidatePointCount(geometry.points.size(), 2U, "Polyline point count");
+                if (geometry.closed && geometry.points.size() > kMaxFilledPolygonPoints)
+                {
+                    throw std::runtime_error("Closed polyline exceeds filled polygon runtime safety limits");
+                }
+
+                for (const Vec2& point : geometry.points)
+                {
+                    ValidateVec2(point, "Polyline point");
+                }
+            }
+            else if constexpr (std::is_same_v<Geometry, BezierGeometry>)
+            {
+                ValidatePointCount(geometry.controlPoints.size(), 2U, "Bezier control point count");
+                ValidateSegmentCount(geometry.segments, "Bezier segments");
+                for (const Vec2& point : geometry.controlPoints)
+                {
+                    ValidateVec2(point, "Bezier control point");
+                }
+            }
+            else if constexpr (std::is_same_v<Geometry, ArcGeometry>)
+            {
+                ValidateFiniteAbs(geometry.radius, "Arc radius", kMaxLogicalSize);
+                ValidateFiniteAbs(geometry.startAngleDegrees, "Arc start angle", kMaxAbsAngleDegrees);
+                ValidateFiniteAbs(geometry.endAngleDegrees, "Arc end angle", kMaxAbsAngleDegrees);
+                ValidateSegmentCount(geometry.segments, "Arc segments");
+            }
+            else if constexpr (std::is_same_v<Geometry, ImageGeometry>)
+            {
+                ValidateFiniteAbs(geometry.width, "Image width", kMaxLogicalSize);
+                ValidateFiniteAbs(geometry.height, "Image height", kMaxLogicalSize);
+                if (geometry.file.string().size() > kMaxTextBytes)
+                {
+                    throw std::runtime_error("Image path exceeds runtime safety limits");
+                }
+            }
+        },
+        primitive.geometry);
+}
+
+void ValidateReticleGroupForRuntime(const ReticleGroup& group)
+{
+    ValidateVec2(group.transform.position, "Reticle position");
+    ValidateFiniteAbs(group.transform.rotationDegrees, "Reticle rotation", kMaxAbsAngleDegrees);
+    ValidateScale(group.transform.scale, "Reticle scale");
+
+    if (group.overrides.thickness.has_value() &&
+        (!std::isfinite(*group.overrides.thickness) ||
+         *group.overrides.thickness <= 0.0f ||
+         *group.overrides.thickness > kMaxThickness))
+    {
+        throw std::runtime_error("Reticle override thickness exceeds runtime safety limits");
+    }
+
+    if (!group.clipping.primitiveId.empty() && group.clipping.primitiveId.size() > kMaxTextBytes)
+    {
+        throw std::runtime_error("Reticle clipping primitive id exceeds runtime safety limits");
+    }
+
+    for (const Primitive& primitive : group.primitives)
+    {
+        ValidatePrimitiveForRuntime(primitive);
+    }
+}
+
+void ValidatePageViewStateForRuntime(const PageViewState& view)
+{
+    ValidateVec2(view.center, "Page view center");
+    ValidatePositiveFinite(view.zoom, "Page view zoom", kMaxZoom);
+}
+
+void ValidateStrobeCaptureConfigForRuntime(const StrobeCaptureConfig& config)
+{
+    ValidateFiniteAbs(config.radius, "Strobe capture radius", kMaxLogicalSize);
+    ValidateVec2(config.size, "Strobe capture size", kMaxLogicalSize);
+}
+
+void ValidateStrobeMagnetConfigForRuntime(const StrobeMagnetConfig& config)
+{
+    ValidateFiniteAbs(config.radius, "Strobe magnet radius", kMaxLogicalSize);
+    if (!std::isfinite(config.strength) || config.strength < 0.0f || config.strength > 1.0f)
+    {
+        throw std::runtime_error("Strobe magnet strength must stay in [0, 1]");
+    }
+
+    ValidatePositiveFinite(config.visualShapeSize, "Strobe visual shape size", kMaxLogicalSize);
+}
+
+void ValidatePageDefinitionForRuntime(const PageDefinition& page)
+{
+    ValidatePageViewStateForRuntime(page.view);
+
+    for (const ReticleGroup& reticle : page.staticReticles)
+    {
+        ValidateReticleGroupForRuntime(reticle);
+    }
+
+    if (page.strobe.has_value())
+    {
+        ValidateReticleGroupForRuntime(page.strobe->reticle);
+        ValidateStrobeCaptureConfigForRuntime(page.strobe->capture);
+        ValidateStrobeMagnetConfigForRuntime(page.strobe->magnet);
+    }
+}
+
 std::optional<std::string> ParseDefaultPageName(const json& root, const char* sourceLabel)
 {
     const json* defaultPage = FindField(root, {"defaultPage"});
@@ -540,17 +820,21 @@ Vec2 ParseVec2(const json& value)
 {
     if (value.is_array())
     {
-        if (value.size() < 2)
+        if (value.size() != 2)
         {
-            throw std::runtime_error("Vec2 array must contain at least 2 values");
+            throw std::runtime_error("Vec2 array must contain exactly 2 values");
         }
 
-        return Vec2 {value.at(0).get<float>(), value.at(1).get<float>()};
+        return Vec2 {
+            ParseFiniteFloat(value.at(0), "Vec2.x"),
+            ParseFiniteFloat(value.at(1), "Vec2.y")};
     }
 
     if (value.is_object())
     {
-        return Vec2 {value.value("x", 0.0f), value.value("y", 0.0f)};
+        return Vec2 {
+            ParseFiniteFloat(value.contains("x") ? value.at("x") : json(0.0f), "Vec2.x"),
+            ParseFiniteFloat(value.contains("y") ? value.at("y") : json(0.0f), "Vec2.y")};
     }
 
     throw std::runtime_error("Unsupported Vec2 format");
@@ -560,7 +844,7 @@ Vec2 ParseScale(const json& value)
 {
     if (value.is_number())
     {
-        const float scalar = value.get<float>();
+        const float scalar = ParseFiniteFloat(value, "Scale");
         return Vec2 {scalar, scalar};
     }
 
@@ -611,7 +895,7 @@ std::optional<float> ParseThicknessField(const json& node)
 {
     if (const json* width = FindField(node, {"lineWidth", "strokeWidth", "thickness", "strokeThickness"}))
     {
-        return width->get<float>();
+        return ParseFiniteFloat(*width, "Primitive thickness");
     }
 
     return std::nullopt;
@@ -657,12 +941,7 @@ std::optional<float> ParseLetterSpacingField(const json& node)
 {
     if (const json* spacing = FindField(node, {"letterSpacing", "spacing", "tracking"}))
     {
-        if (!spacing->is_number())
-        {
-            throw std::runtime_error("Text letter spacing must be numeric");
-        }
-
-        return spacing->get<float>();
+        return ParseFiniteFloat(*spacing, "Text letter spacing");
     }
 
     return std::nullopt;
@@ -723,13 +1002,13 @@ void ApplyTransformFields(const json& node, Transform2D& transform)
     if (node.contains("x") || node.contains("y"))
     {
         transform.position = {
-            node.value("x", transform.position.x),
-            node.value("y", transform.position.y)};
+            ParseFiniteFloat(node.contains("x") ? node.at("x") : json(transform.position.x), "Transform x"),
+            ParseFiniteFloat(node.contains("y") ? node.at("y") : json(transform.position.y), "Transform y")};
     }
 
     if (const json* angle = FindField(node, {"rotationDegrees", "angle", "rotation"}))
     {
-        transform.rotationDegrees = angle->get<float>();
+        transform.rotationDegrees = ParseFiniteFloat(*angle, "Transform rotation");
     }
 
     if (const json* scale = FindField(node, {"scale", "zoom"}))
@@ -741,8 +1020,14 @@ void ApplyTransformFields(const json& node, Transform2D& transform)
         node.contains("scaleX") || node.contains("scaleY"))
     {
         transform.scale = {
-            node.value("sx", node.value("scaleX", transform.scale.x)),
-            node.value("sy", node.value("scaleY", transform.scale.y))};
+            ParseFiniteFloat(
+                node.contains("sx") ? node.at("sx") :
+                (node.contains("scaleX") ? node.at("scaleX") : json(transform.scale.x)),
+                "Transform scale x"),
+            ParseFiniteFloat(
+                node.contains("sy") ? node.at("sy") :
+                (node.contains("scaleY") ? node.at("scaleY") : json(transform.scale.y)),
+                "Transform scale y")};
     }
 }
 
@@ -769,13 +1054,13 @@ void ApplyPageViewFields(const json& node, PageViewState& view)
     if (node.contains("x") || node.contains("y"))
     {
         view.center = {
-            node.value("x", view.center.x),
-            node.value("y", view.center.y)};
+            ParseFiniteFloat(node.contains("x") ? node.at("x") : json(view.center.x), "Page view x"),
+            ParseFiniteFloat(node.contains("y") ? node.at("y") : json(view.center.y), "Page view y")};
     }
 
     if (const json* zoom = FindField(node, {"zoom", "zoomLevel"}))
     {
-        view.zoom = zoom->get<float>();
+        view.zoom = ParseFiniteFloat(*zoom, "Page view zoom");
     }
 }
 
@@ -789,7 +1074,7 @@ PageViewState ParsePageViewState(const json& node)
     }
 
     ApplyPageViewFields(node, view);
-    view.zoom = SanitizeZoom(view.zoom);
+    ValidatePageViewStateForRuntime(view);
     return view;
 }
 
@@ -893,6 +1178,8 @@ std::vector<Vec2> ParsePointList(const json& value, const std::size_t minimumCou
     {
         throw std::runtime_error("Point list must be a JSON array");
     }
+
+    ValidatePointCount(value.size(), minimumCount, "Point list size");
 
     std::vector<Vec2> points;
     points.reserve(value.size());
@@ -1172,12 +1459,12 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
 
         if (const json* startAngle = FindField(node, {"startAngleDegrees", "startAngle", "fromDegrees", "angleStart"}))
         {
-            geometry.startAngleDegrees = startAngle->get<float>();
+            geometry.startAngleDegrees = ParseFiniteFloat(*startAngle, "Arc start angle");
         }
 
         if (const json* endAngle = FindField(node, {"endAngleDegrees", "endAngle", "toDegrees", "angleEnd"}))
         {
-            geometry.endAngleDegrees = endAngle->get<float>();
+            geometry.endAngleDegrees = ParseFiniteFloat(*endAngle, "Arc end angle");
         }
 
         primitive.geometry = std::move(geometry);
@@ -1198,7 +1485,7 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
         {
             if (size->is_number())
             {
-                const float scalar = size->get<float>();
+                const float scalar = ParseFiniteFloat(*size, "Image size");
                 geometry.width = scalar;
                 geometry.height = scalar;
             }
@@ -1212,12 +1499,12 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
 
         if (const json* width = FindField(node, {"width"}))
         {
-            geometry.width = width->get<float>();
+            geometry.width = ParseFiniteFloat(*width, "Image width");
         }
 
         if (const json* height = FindField(node, {"height"}))
         {
-            geometry.height = height->get<float>();
+            geometry.height = ParseFiniteFloat(*height, "Image height");
         }
 
         geometry.width = std::max(0.001f, geometry.width);
@@ -1237,7 +1524,7 @@ ReticleGroup ParseInlineReticle(const json& node, const std::filesystem::path& b
         throw std::runtime_error("Inline reticle must declare an elements array");
     }
 
-ReticleGroup group;
+    ReticleGroup group;
     group.id = node.value("id", "");
     group.sourceTemplateId = node.value("sourceTemplateId", "");
     group.info = ParseReticleInfo(node);
@@ -1254,6 +1541,7 @@ ReticleGroup group;
     }
 
     ApplyReticleTextOverrides(node, group);
+    ValidateReticleGroupForRuntime(group);
 
     return group;
 }
@@ -1296,11 +1584,13 @@ ReticleGroup ParseReticle(const json& node,
             group.clipping = ParseReticleClipState(node);
         }
         ApplyReticleTextOverrides(node, group);
+        ValidateReticleGroupForRuntime(group);
         return group;
     }
 
     ReticleGroup group = ParseInlineReticle(node, baseFolder);
     group.blink = ParseReticleBlinkState(node);
+    ValidateReticleGroupForRuntime(group);
     return group;
 }
 
@@ -1353,12 +1643,10 @@ void ApplyReticleTextOverrides(const json& node, ReticleGroup& group)
     {
         for (const auto& [primitiveId, primitiveSpacing] : letterSpacings->items())
         {
-            if (!primitiveSpacing.is_number())
-            {
-                throw std::runtime_error("Reticle letter spacing overrides must be numeric values");
-            }
-
-            SetTextPrimitiveLetterSpacing(group, primitiveId, primitiveSpacing.get<float>());
+            SetTextPrimitiveLetterSpacing(
+                group,
+                primitiveId,
+                ParseFiniteFloat(primitiveSpacing, "Reticle letter spacing override"));
         }
     }
 }
@@ -1884,14 +2172,14 @@ StrobeCaptureConfig ParseStrobeCaptureConfig(const json& node)
 
     if (const json* radius = FindField(node, {"radius", "captureRadius"}))
     {
-        config.radius = radius->get<float>();
+        config.radius = ParseFiniteFloat(*radius, "Strobe capture radius");
     }
 
     if (const json* size = FindField(node, {"size", "captureSize"}))
     {
         if (size->is_number())
         {
-            const float scalar = size->get<float>();
+            const float scalar = ParseFiniteFloat(*size, "Strobe capture size");
             config.size = {scalar, scalar};
         }
         else
@@ -1903,8 +2191,8 @@ StrobeCaptureConfig ParseStrobeCaptureConfig(const json& node)
     if (node.contains("width") || node.contains("height"))
     {
         config.size = {
-            node.value("width", config.size.x),
-            node.value("height", config.size.y)};
+            ParseFiniteFloat(node.contains("width") ? node.at("width") : json(config.size.x), "Strobe capture width"),
+            ParseFiniteFloat(node.contains("height") ? node.at("height") : json(config.size.y), "Strobe capture height")};
     }
 
     return config;
@@ -1935,12 +2223,12 @@ StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node)
 
     if (const json* radius = FindField(*magnetNode, {"radius", "magnetRadius", "snapRadius", "distance"}))
     {
-        config.radius = radius->get<float>();
+        config.radius = ParseFiniteFloat(*radius, "Strobe magnet radius");
     }
 
     if (const json* strength = FindField(*magnetNode, {"strength", "magnetStrength", "snapStrength", "blend"}))
     {
-        config.strength = std::clamp(strength->get<float>(), 0.0f, 1.0f);
+        config.strength = std::clamp(ParseFiniteFloat(*strength, "Strobe magnet strength"), 0.0f, 1.0f);
     }
 
     const json* visualNode =
@@ -1965,7 +2253,7 @@ StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node)
             }
             if (const json* size = FindField(*visualNode, {"size", "radius", "width"}))
             {
-                config.visualShapeSize = std::max(0.001f, size->get<float>());
+                config.visualShapeSize = std::max(0.001f, ParseFiniteFloat(*size, "Strobe visual shape size"));
             }
         }
         else
@@ -1987,7 +2275,7 @@ StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node)
 
     if (const json* visualSize = FindField(*magnetNode, {"visualShapeSize", "visualSize"}))
     {
-        config.visualShapeSize = std::max(0.001f, visualSize->get<float>());
+        config.visualShapeSize = std::max(0.001f, ParseFiniteFloat(*visualSize, "Strobe visual shape size"));
     }
 
     return config;
@@ -2370,6 +2658,7 @@ PageDefinition ParsePage(const json& node,
         }
     }
 
+    ValidatePageDefinitionForRuntime(page);
     return page;
 }
 

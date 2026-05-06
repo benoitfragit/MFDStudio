@@ -41,11 +41,22 @@ TEST(JsonNumberParsingTests, ParsePixelNumberRejectsValuesOutsideSignedIntRange)
                  std::runtime_error);
 }
 
-TEST(JsonNumberParsingTests, ParseDurationRejectsNonPositiveValuesAfterRounding)
+TEST(JsonNumberParsingTests, ParsePortAndPacketSizeRejectFloatingPointValues)
+{
+    EXPECT_THROW(mfd::json_loader_detail::ParsePortNumber(nlohmann::json(48000.0), "commands.udp.port"),
+                 std::runtime_error);
+    EXPECT_THROW(
+        mfd::json_loader_detail::ParsePositivePacketSize(nlohmann::json(1400.5), "commands.udp.maxPacketSize"),
+        std::runtime_error);
+}
+
+TEST(JsonNumberParsingTests, ParseDurationRequiresStrictlyPositiveIntegerMilliseconds)
 {
     EXPECT_THROW(mfd::json_loader_detail::ParseDurationMilliseconds(nlohmann::json(0), "blink duration"),
                  std::runtime_error);
-    EXPECT_THROW(mfd::json_loader_detail::ParseDurationMilliseconds(nlohmann::json(-0.49), "blink duration"),
+    EXPECT_THROW(mfd::json_loader_detail::ParseDurationMilliseconds(nlohmann::json(-1), "blink duration"),
                  std::runtime_error);
-    EXPECT_EQ(mfd::json_loader_detail::ParseDurationMilliseconds(nlohmann::json(12.6), "blink duration"), 13U);
+    EXPECT_THROW(mfd::json_loader_detail::ParseDurationMilliseconds(nlohmann::json(12.6), "blink duration"),
+                 std::runtime_error);
+    EXPECT_EQ(mfd::json_loader_detail::ParseDurationMilliseconds(nlohmann::json(13), "blink duration"), 13U);
 }

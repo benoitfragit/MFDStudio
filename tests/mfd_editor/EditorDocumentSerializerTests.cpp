@@ -402,6 +402,37 @@ TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverride
     EXPECT_FLOAT_EQ(jsonNode.at("letterSpacings").at("track_label").get<float>(), 0.01f);
 }
 
+TEST(EditorDocumentSerializerTests, SerializeWindowFallsBackToAbsolutePathsWhenRelativePathsCannotBeComputed)
+{
+#ifndef _WIN32
+    GTEST_SKIP() << "This regression targets Windows path roots";
+#else
+    mfd::WindowAssetDefinition window;
+    window.sourceFile = std::filesystem::path("C:/workspace/window.json");
+    window.title = "Demo";
+    window.fontFile = std::filesystem::path("D:/assets/fonts/hud.ttf");
+    window.reticleLibraryFolder = std::filesystem::path("D:/assets/reticles");
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.defaultPage = true;
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(std::filesystem::path("D:/assets/pages/radar.json"));
+
+    const auto jsonNode = nlohmann::json::parse(editor::SerializeWindowToJsonString(window, document, layout));
+
+    EXPECT_EQ(jsonNode.at("fontFile").get<std::string>(), "D:/assets/fonts/hud.ttf");
+    EXPECT_EQ(jsonNode.at("reticleLibraryFolder").get<std::string>(), "D:/assets/reticles");
+    ASSERT_EQ(jsonNode.at("pages").size(), 1U);
+    EXPECT_EQ(jsonNode.at("pages").at(0).get<std::string>(), "D:/assets/pages/radar.json");
+#endif
+}
+
 TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemovesObsoleteOnes)
 {
     ScopedTempDir tempDir;

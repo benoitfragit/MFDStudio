@@ -1,17 +1,27 @@
 {
-  "id": "adi_heading_command_bug",
-  "stroke": "#FFC66DFF",
-  "fill": "#FFC66DFF",
-  "lineWidth": 0.0024,
   "elements": [
     {
       "id": "command_bug",
-      "type": "triangle",
       "points": [
-        [-0.018, 0.525],
-        [0.018, 0.525],
-        [0.000, 0.470]
-      ]
+        [
+          -0.017999999225139618,
+          0.5249999761581421
+        ],
+        [
+          0.017999999225139618,
+          0.5249999761581421
+        ],
+        [
+          0.0,
+          0.4699999988079071
+        ]
+      ],
+      "type": "triangle"
     }
-  ]
+  ],
+  "fill": "#FFC66DFF",
+  "filled": true,
+  "id": "adi_heading_command_bug",
+  "lineWidth": 0.002400000113993883,
+  "stroke": "#FFC66DFF"
 }

@@ -36,6 +36,16 @@ double ParseFiniteNumber(const nlohmann::json& value, const char* fieldName)
 
     return raw;
 }
+
+int ParseStrictInteger(const nlohmann::json& value, const char* fieldName)
+{
+    if (!value.is_number_integer())
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be an integer");
+    }
+
+    return ParsePixelNumber(value, fieldName);
+}
 } // namespace
 
 int ParsePixelNumber(const nlohmann::json& value, const char* fieldName)
@@ -108,7 +118,7 @@ void ParseWindowPosition(const nlohmann::json& value, int& x, int& y)
 
 std::uint16_t ParsePortNumber(const nlohmann::json& value, const char* fieldName)
 {
-    const int port = ParsePixelNumber(value, fieldName);
+    const int port = ParseStrictInteger(value, fieldName);
     if (port < 0 || port > 65535)
     {
         throw std::runtime_error(std::string(fieldName) + " must be in [0, 65535]");
@@ -119,7 +129,7 @@ std::uint16_t ParsePortNumber(const nlohmann::json& value, const char* fieldName
 
 std::size_t ParsePositivePacketSize(const nlohmann::json& value, const char* fieldName)
 {
-    const int packetSize = ParsePixelNumber(value, fieldName);
+    const int packetSize = ParseStrictInteger(value, fieldName);
     if (packetSize < static_cast<int>(kUdpMinPayloadBytes) ||
         packetSize > static_cast<int>(kUdpMaxPayloadBytes))
     {
@@ -133,7 +143,7 @@ std::size_t ParsePositivePacketSize(const nlohmann::json& value, const char* fie
 
 std::uint32_t ParseDurationMilliseconds(const nlohmann::json& value, const char* fieldName)
 {
-    const int durationMs = ParsePixelNumber(value, fieldName);
+    const int durationMs = ParseStrictInteger(value, fieldName);
     if (durationMs <= 0)
     {
         throw std::runtime_error(std::string(fieldName) + " must be strictly positive");

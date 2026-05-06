@@ -1,32 +1,45 @@
 {
-  "id": "radar_track",
-  "style": {
-    "lineWidth": 0.0042
-  },
   "elements": [
     {
+      "end": [
+        0.0,
+        -0.18330000340938568
+      ],
       "id": "track_vector",
-      "type": "line",
-      "start": [0.0, -0.0375],
-      "end": [0.0, -0.1833]
+      "start": [
+        0.0,
+        -0.03750000149011612
+      ],
+      "type": "line"
     },
     {
       "id": "track_head",
-      "type": "diamond",
-      "size": 0.0583
+      "size": 0.05829999968409538,
+      "type": "diamond"
     },
     {
+      "end": [
+        0.02500000037252903,
+        0.0
+      ],
       "id": "track_cross",
-      "type": "line",
-      "start": [-0.025, 0.0],
-      "end": [0.025, 0.0]
+      "start": [
+        -0.02500000037252903,
+        0.0
+      ],
+      "type": "line"
     },
     {
+      "at": [
+        0.05829999968409538,
+        0.016699999570846558
+      ],
       "id": "track_label",
-      "type": "text",
+      "size": 0.03750000149011612,
       "text": "TRK",
-      "at": [0.0583, 0.0167],
-      "size": 0.0375
+      "type": "text"
     }
-  ]
+  ],
+  "id": "radar_track",
+  "lineWidth": 0.00419999985024333
 }

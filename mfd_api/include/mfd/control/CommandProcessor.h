@@ -11,9 +11,11 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 #include "mfd/core/ArrayView.h"
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 #include <entt/entt.hpp>
 
@@ -121,6 +123,7 @@ private:
     void OnResetWindow(const ResetWindowCommand& command);
 
     bool SubmitResolved(UserCommand command, std::string_view mappingHash);
+    bool DispatchResolved(const UserCommand& command);
     bool ResolveCommandIdentifiers(UserCommand& command, std::string_view mappingHash);
 
     void SetFailure(std::string message);
@@ -128,6 +131,7 @@ private:
     SceneRegistry& scene_;
     entt::dispatcher dispatcher_ {};
     std::string lastError_ {};
+    std::unordered_map<std::string, std::uint32_t> lastAppliedSequencesByMappingHash_ {};
     bool lastCommandSucceeded_ = true;
 };
 } // namespace mfd

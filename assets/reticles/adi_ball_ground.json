@@ -1,25 +1,188 @@
 {
-  "id": "adi_ball_ground",
-  "stroke": "#8B6338FF",
-  "fill": "#8B6338FF",
   "elements": [
-    { "id": "ground_background", "type": "rectangle", "at": [0.0, -0.37], "width": 1.02, "height": 0.74 },
-    { "id": "ground_m1", "type": "rectangle", "at": [0.0, -0.01], "width": 0.6797, "height": 0.02 },
-    { "id": "ground_m3", "type": "rectangle", "at": [0.0, -0.03], "width": 0.6773, "height": 0.02 },
-    { "id": "ground_m5", "type": "rectangle", "at": [0.0, -0.05], "width": 0.6726, "height": 0.02 },
-    { "id": "ground_m7", "type": "rectangle", "at": [0.0, -0.07], "width": 0.6654, "height": 0.02 },
-    { "id": "ground_m9", "type": "rectangle", "at": [0.0, -0.09], "width": 0.6557, "height": 0.02 },
-    { "id": "ground_m11", "type": "rectangle", "at": [0.0, -0.11], "width": 0.6434, "height": 0.02 },
-    { "id": "ground_m13", "type": "rectangle", "at": [0.0, -0.13], "width": 0.6283, "height": 0.02 },
-    { "id": "ground_m15", "type": "rectangle", "at": [0.0, -0.15], "width": 0.6102, "height": 0.02 },
-    { "id": "ground_m17", "type": "rectangle", "at": [0.0, -0.17], "width": 0.5889, "height": 0.02 },
-    { "id": "ground_m19", "type": "rectangle", "at": [0.0, -0.19], "width": 0.5639, "height": 0.02 },
-    { "id": "ground_m21", "type": "rectangle", "at": [0.0, -0.21], "width": 0.5348, "height": 0.02 },
-    { "id": "ground_m23", "type": "rectangle", "at": [0.0, -0.23], "width": 0.5008, "height": 0.02 },
-    { "id": "ground_m25", "type": "rectangle", "at": [0.0, -0.25], "width": 0.4609, "height": 0.02 },
-    { "id": "ground_m27", "type": "rectangle", "at": [0.0, -0.27], "width": 0.4133, "height": 0.02 },
-    { "id": "ground_m29", "type": "rectangle", "at": [0.0, -0.29], "width": 0.3550, "height": 0.02 },
-    { "id": "ground_m31", "type": "rectangle", "at": [0.0, -0.31], "width": 0.2793, "height": 0.02 },
-    { "id": "ground_m33", "type": "rectangle", "at": [0.0, -0.33], "width": 0.1637, "height": 0.02 }
-  ]
+    {
+      "at": [
+        0.0,
+        -0.3700000047683716
+      ],
+      "height": 0.7400000095367432,
+      "id": "ground_background",
+      "type": "rectangle",
+      "width": 1.0199999809265137
+    },
+    {
+      "at": [
+        0.0,
+        -0.009999999776482582
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m1",
+      "type": "rectangle",
+      "width": 0.6797000169754028
+    },
+    {
+      "at": [
+        0.0,
+        -0.029999999329447746
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m3",
+      "type": "rectangle",
+      "width": 0.677299976348877
+    },
+    {
+      "at": [
+        0.0,
+        -0.05000000074505806
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m5",
+      "type": "rectangle",
+      "width": 0.6725999712944031
+    },
+    {
+      "at": [
+        0.0,
+        -0.07000000029802322
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m7",
+      "type": "rectangle",
+      "width": 0.6654000282287598
+    },
+    {
+      "at": [
+        0.0,
+        -0.09000000357627869
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m9",
+      "type": "rectangle",
+      "width": 0.6557000279426575
+    },
+    {
+      "at": [
+        0.0,
+        -0.10999999940395355
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m11",
+      "type": "rectangle",
+      "width": 0.6434000134468079
+    },
+    {
+      "at": [
+        0.0,
+        -0.12999999523162842
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m13",
+      "type": "rectangle",
+      "width": 0.6283000111579895
+    },
+    {
+      "at": [
+        0.0,
+        -0.15000000596046448
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m15",
+      "type": "rectangle",
+      "width": 0.6101999878883362
+    },
+    {
+      "at": [
+        0.0,
+        -0.17000000178813934
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m17",
+      "type": "rectangle",
+      "width": 0.5889000296592712
+    },
+    {
+      "at": [
+        0.0,
+        -0.1899999976158142
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m19",
+      "type": "rectangle",
+      "width": 0.5638999938964844
+    },
+    {
+      "at": [
+        0.0,
+        -0.20999999344348907
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m21",
+      "type": "rectangle",
+      "width": 0.5347999930381775
+    },
+    {
+      "at": [
+        0.0,
+        -0.23000000417232513
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m23",
+      "type": "rectangle",
+      "width": 0.5008000135421753
+    },
+    {
+      "at": [
+        0.0,
+        -0.25
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m25",
+      "type": "rectangle",
+      "width": 0.4609000086784363
+    },
+    {
+      "at": [
+        0.0,
+        -0.27000001072883606
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m27",
+      "type": "rectangle",
+      "width": 0.4133000075817108
+    },
+    {
+      "at": [
+        0.0,
+        -0.28999999165534973
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m29",
+      "type": "rectangle",
+      "width": 0.35499998927116394
+    },
+    {
+      "at": [
+        0.0,
+        -0.3100000023841858
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m31",
+      "type": "rectangle",
+      "width": 0.2793000042438507
+    },
+    {
+      "at": [
+        0.0,
+        -0.33000001311302185
+      ],
+      "height": 0.019999999552965164,
+      "id": "ground_m33",
+      "type": "rectangle",
+      "width": 0.16369999945163727
+    }
+  ],
+  "fill": "#8B6338FF",
+  "filled": true,
+  "id": "adi_ball_ground",
+  "stroke": "#8B6338FF"
 }

@@ -1,47 +1,60 @@
 {
-  "id": "radar_grid",
-  "style": {
-    "lineWidth": 0.0031
-  },
   "elements": [
     {
       "id": "range_1",
-      "type": "circle",
-      "radius": 0.1667
+      "radius": 0.16670000553131104,
+      "type": "circle"
     },
     {
       "id": "range_2",
-      "type": "circle",
-      "radius": 0.3333
+      "radius": 0.33329999446868896,
+      "type": "circle"
     },
     {
       "id": "range_3",
-      "type": "circle",
-      "radius": 0.5
+      "radius": 0.5,
+      "type": "circle"
     },
     {
       "id": "range_4",
-      "type": "circle",
-      "radius": 0.6667
+      "radius": 0.666700005531311,
+      "type": "circle"
     },
     {
+      "end": [
+        0.6875,
+        0.0
+      ],
       "id": "x_axis",
-      "type": "line",
-      "start": [-0.6875, 0.0],
-      "end": [0.6875, 0.0]
+      "start": [
+        -0.6875,
+        0.0
+      ],
+      "type": "line"
     },
     {
+      "end": [
+        0.0,
+        0.6875
+      ],
       "id": "y_axis",
-      "type": "line",
-      "start": [0.0, -0.6875],
-      "end": [0.0, 0.6875]
+      "start": [
+        0.0,
+        -0.6875
+      ],
+      "type": "line"
     },
     {
+      "at": [
+        0.0,
+        0.7124999761581421
+      ],
       "id": "north",
-      "type": "text",
+      "size": 0.05000000074505806,
       "text": "N",
-      "at": [0.0, 0.7125],
-      "size": 0.05
+      "type": "text"
     }
-  ]
+  ],
+  "id": "radar_grid",
+  "lineWidth": 0.003100000089034438
 }

@@ -1,85 +1,80 @@
 {
-  "id": "picture_demo_badge",
   "elements": [
     {
-      "id": "card",
-      "type": "rectangle",
-      "width": 0.74,
-      "height": 0.54,
-      "thickness": 0.0042,
-      "filled": true,
       "fill": "#10202ECC",
-      "stroke": "#EAD29BFF"
-    },
-    {
-      "id": "card_glow",
-      "type": "ellipse",
-      "width": 0.40,
-      "height": 0.40,
-      "thickness": 0.0021,
       "filled": true,
+      "height": 0.5400000214576721,
+      "id": "card",
+      "stroke": "#EAD29BFF",
+      "type": "rectangle",
+      "width": 0.7400000095367432
+    },
+    {
       "fill": "#12344FB0",
-      "stroke": "#335A7444"
+      "filled": true,
+      "id": "card_glow",
+      "lineWidth": 0.002099999925121665,
+      "size": 0.4000000059604645,
+      "stroke": "#335A7444",
+      "type": "ellipse"
     },
     {
-      "id": "demo_picture",
-      "type": "image",
+      "exposed": true,
       "file": "../picture/mfdstudio_badge.png",
-      "size": [
-        0.30,
-        0.30
-      ],
-      "exposed": true
+      "id": "demo_picture",
+      "size": 0.30000001192092896,
+      "type": "image"
     },
     {
+      "end": [
+        0.23999999463558197,
+        0.0
+      ],
       "id": "badge_axis_x",
-      "type": "line",
+      "lineWidth": 0.002099999925121665,
       "start": [
-        -0.24,
+        -0.23999999463558197,
         0.0
       ],
-      "end": [
-        0.24,
-        0.0
-      ],
-      "thickness": 0.0021,
-      "stroke": "#2C5E7A66"
+      "stroke": "#2C5E7A66",
+      "type": "line"
     },
     {
+      "end": [
+        0.0,
+        0.23999999463558197
+      ],
       "id": "badge_axis_y",
-      "type": "line",
+      "lineWidth": 0.002099999925121665,
       "start": [
         0.0,
-        -0.24
+        -0.23999999463558197
       ],
-      "end": [
-        0.0,
-        0.24
-      ],
-      "thickness": 0.0021,
-      "stroke": "#2C5E7A66"
+      "stroke": "#2C5E7A66",
+      "type": "line"
     },
     {
+      "at": [
+        0.0,
+        0.20000000298023224
+      ],
       "id": "badge_title",
-      "type": "text",
+      "size": 0.03400000184774399,
+      "stroke": "#FFF5D6FF",
       "text": "PICTURE / SCALE / ROTATION",
-      "position": [
-        0.0,
-        0.20
-      ],
-      "fontSize": 0.034,
-      "stroke": "#FFF5D6FF"
+      "type": "text"
     },
     {
-      "id": "badge_hint",
-      "type": "text",
-      "text": "Drive demo_picture through ImageHandle",
-      "position": [
+      "at": [
         0.0,
-        -0.21
+        -0.20999999344348907
       ],
-      "fontSize": 0.026,
-      "stroke": "#9DE3FFFF"
+      "id": "badge_hint",
+      "size": 0.026000000536441803,
+      "stroke": "#9DE3FFFF",
+      "text": "Drive demo_picture through ImageHandle",
+      "type": "text"
     }
-  ]
+  ],
+  "id": "picture_demo_badge"
 }

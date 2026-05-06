@@ -10,11 +10,13 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "mfd/control/CommandTypes.h"
+#include "mfd_commands.pb.h"
 
 TEST(CommandTypesTests, DeserializeUserCommandsRejectsEmptyPayload)
 {
@@ -110,4 +112,105 @@ TEST(CommandTypesTests, SerializeCommandBatchRejectsLegacyNamedTargetsWithoutGen
         {}});
 
     EXPECT_THROW(mfd::SerializeCommandBatch(batch), std::runtime_error);
+}
+
+TEST(CommandTypesTests, DeserializeCommandBatchRejectsNonFinitePageViewValues)
+{
+    mfd::transport::CommandEnvelope envelope;
+    auto* pageView = envelope.add_commands()->mutable_set_page_view();
+    pageView->set_page_id(11U);
+    pageView->mutable_center()->set_x(std::numeric_limits<float>::quiet_NaN());
+    pageView->mutable_center()->set_y(0.0f);
+    pageView->set_zoom(1.0f);
+
+    std::string payload;
+    ASSERT_TRUE(envelope.SerializeToString(&payload));
+
+    std::string error;
+    const auto decoded = mfd::DeserializeCommandBatch(payload, &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_NE(error.find("finite"), std::string::npos);
+}
+
+TEST(CommandTypesTests, DeserializeCommandBatchRejectsExplicitUnspecifiedPrimitiveLineStyle)
+{
+    mfd::transport::CommandEnvelope envelope;
+    auto* update = envelope.add_commands()->mutable_update_reticle();
+    update->mutable_target()->set_page_id(11U);
+    update->mutable_target()->set_reticle_id(22U);
+    (*update->mutable_patch()->mutable_primitive_patches_by_id())[33U]
+        .set_line_style(mfd::transport::PRIMITIVE_LINE_STYLE_UNSPECIFIED);
+
+    std::string payload;
+    ASSERT_TRUE(envelope.SerializeToString(&payload));
+
+    std::string error;
+    const auto decoded = mfd::DeserializeCommandBatch(payload, &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_NE(error.find("UNSPECIFIED"), std::string::npos);
+}
+
+TEST(CommandTypesTests, DeserializeCommandBatchRejectsTooManyCommands)
+{
+    mfd::transport::CommandEnvelope envelope;
+    for (std::size_t index = 0; index < 1025U; ++index)
+    {
+        envelope.add_commands()->mutable_reset_window();
+    }
+
+    std::string payload;
+    ASSERT_TRUE(envelope.SerializeToString(&payload));
+
+    std::string error;
+    const auto decoded = mfd::DeserializeCommandBatch(payload, &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_NE(error.find("CommandEnvelope.commands"), std::string::npos);
+}
+
+TEST(CommandTypesTests, DeserializeCommandBatchRejectsTooManyDynamicReticles)
+{
+    mfd::transport::CommandEnvelope envelope;
+    auto* command = envelope.add_commands()->mutable_upsert_dynamic_reticles();
+    command->set_page_id(11U);
+    command->set_template_transport_id(55U);
+    for (std::size_t index = 0; index < 4097U; ++index)
+    {
+        command->add_reticles()->set_runtime_reticle_id(static_cast<std::uint64_t>(index + 1U));
+    }
+
+    std::string payload;
+    ASSERT_TRUE(envelope.SerializeToString(&payload));
+
+    std::string error;
+    const auto decoded = mfd::DeserializeCommandBatch(payload, &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_NE(error.find("reticles"), std::string::npos);
+}
+
+TEST(CommandTypesTests, DeserializeCommandBatchRejectsOversizedPrimitivePointLists)
+{
+    mfd::transport::CommandEnvelope envelope;
+    auto* update = envelope.add_commands()->mutable_update_reticle();
+    update->mutable_target()->set_page_id(11U);
+    update->mutable_target()->set_reticle_id(22U);
+    auto* primitivePatch = &(*update->mutable_patch()->mutable_primitive_patches_by_id())[33U];
+    for (std::size_t index = 0; index < 2049U; ++index)
+    {
+        auto* point = primitivePatch->add_points();
+        point->set_x(static_cast<float>(index) * 0.01f);
+        point->set_y(0.0f);
+    }
+
+    std::string payload;
+    ASSERT_TRUE(envelope.SerializeToString(&payload));
+
+    std::string error;
+    const auto decoded = mfd::DeserializeCommandBatch(payload, &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_NE(error.find("PrimitivePatch.points"), std::string::npos);
 }
