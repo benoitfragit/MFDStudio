@@ -1,0 +1,129 @@
+# Review The Integrated Editor Tutorial Outputs
+
+The integrated editor tutorial now stops after the authoring flow and the
+editor workflow discovery steps.
+
+This page is the follow-up hand-off: open the real files on disk, confirm what
+the tutorial saved, then continue with the runtime and generated-client docs.
+
+## What The Tutorial Changes
+
+- only the tutorial assets under `assets/`
+- no repository source rewrite during the walkthrough
+- `examples/CMakeLists.txt` already contains `add_subdirectory(client_tutorial)` in Git
+- `examples/client_tutorial/CMakeLists.txt` still returns immediately when the tutorial assets are missing
+
+## Step 1 - Inspect `Page1`
+
+Open:
+
+- `assets/pages/mfd_tutorial_page1.json`
+
+Focus on these authored sections:
+
+- `layers`
+- `dynamicReticleBindings`
+- `strobe`
+- `staticReticles`
+
+The important Page1 rule is:
+
+- `inspired_steering_cue` stays where it already was
+- the tutorial adds `mfd_tutorial_radar_track` on `RadarTrackLayer`
+
+Minimal before / after for `dynamicReticleBindings`:
+
+Before:
+
+```json
+[
+  { "templateId": "inspired_steering_cue", "layerId": "overlay", "orderInLayer": 0 }
+]
+```
+
+After:
+
+```json
+[
+  { "templateId": "inspired_steering_cue", "layerId": "overlay", "orderInLayer": 0 },
+  { "templateId": "mfd_tutorial_radar_track", "layerId": "RadarTrackLayer", "orderInLayer": 0 }
+]
+```
+
+The tutorial should not ask the user to reconfigure the cue.
+
+## Step 2 - Inspect The Window Asset
+
+Open:
+
+- `assets/windows/mfd_tutorial.json`
+
+Confirm that the window points to:
+
+- the tutorial page files
+- the tutorial reticle library folder
+- the UDP command / feedback setup used by `client_tutorial`
+
+## Step 3 - Inspect The Tutorial Reticles
+
+Open these files as needed:
+
+- `assets/reticles/mfd_tutorial_radar_track.json`
+- `assets/reticles/mfd_tutorial_circle.json`
+- `assets/reticles/mfd_tutorial_progress_bar.json`
+- `assets/reticles/mfd_tutorial_strobe_cursor.json`
+
+These are the only authored reticle templates created by the integrated
+tutorial flow.
+
+## Step 4 - Inspect The Generated Runtime Map
+
+Open:
+
+- `assets/windows/mfd_tutorial.generated.map`
+
+Use it to confirm that:
+
+- `Page1` and `Page2` are exported
+- authored static reticles are mapped
+- dynamic templates are registered for generated client usage
+
+## Step 5 - Inspect The Runtime Entry Point
+
+Open:
+
+- `examples/client_tutorial/src/main.cpp`
+
+This file shows how the saved assets are consumed:
+
+- `Page1()` and `Page2()` typed handles
+- `DynamicMfdTutorialRadarTrack()` for runtime track instances
+- the existing `DynamicInspiredSteeringCue()` link left unchanged by the tutorial step
+- `strobe` feedback and the Page2 progress bar animation
+
+## Step 6 - Inspect The Build Gate
+
+Open:
+
+- `examples/client_tutorial/CMakeLists.txt`
+
+The tutorial client is part of the examples tree by default, but the target
+still self-skips until these assets exist:
+
+- `assets/windows/mfd_tutorial.json`
+- `assets/pages/mfd_tutorial_page1.json`
+- `assets/pages/mfd_tutorial_page2.json`
+- the tutorial reticle JSON files
+
+That keeps a fresh clone buildable while avoiding any tutorial-time rewrite of
+repository source files.
+
+## Next Reading Order
+
+Continue with:
+
+1. [Create A Window From Scratch In `mfd_editor`](./13_create_window_from_editor.md)
+2. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
+3. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
+4. [Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
+5. [Generated Client API Architecture](../architecture/generated_client_api.md)

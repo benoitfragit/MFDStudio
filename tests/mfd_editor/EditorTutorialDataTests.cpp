@@ -30,10 +30,10 @@ TEST(EditorTutorialDataTests, StepCountMatchesExposedSpanSize)
     ASSERT_GT(editor::tutorial::StepCount(), 0);
 }
 
-TEST(EditorTutorialDataTests, StepsExposeNonEmptyTextFields)
+TEST(EditorTutorialDataTests, StepsExposeNonEmptyCoreFields)
 {
     int uiStepCount = 0;
-    int fileStepCount = 0;
+    int referenceStepCount = 0;
     for (const auto& step : editor::tutorial::Steps())
     {
         ASSERT_NE(step.title, nullptr);
@@ -48,67 +48,36 @@ TEST(EditorTutorialDataTests, StepsExposeNonEmptyTextFields)
             EXPECT_FALSE(std::string_view(step.targetId).empty());
         }
 
-        if (editor::tutorial::IsFileReviewStep(step))
+        if (editor::tutorial::IsReferenceDocumentStep(step))
         {
-            ++fileStepCount;
+            ++referenceStepCount;
             ASSERT_NE(step.filePath, nullptr);
-            ASSERT_NE(step.beforeText, nullptr);
-            ASSERT_NE(step.afterText, nullptr);
             ASSERT_NE(step.explanation, nullptr);
             ASSERT_NE(step.advanceLabel, nullptr);
             EXPECT_FALSE(std::string_view(step.filePath).empty());
-            EXPECT_FALSE(std::string_view(step.beforeText).empty());
-            EXPECT_FALSE(std::string_view(step.afterText).empty());
             EXPECT_FALSE(std::string_view(step.explanation).empty());
             EXPECT_FALSE(std::string_view(step.advanceLabel).empty());
-            EXPECT_GE(step.beforeFirstLine, 1);
-            EXPECT_GE(step.afterFirstLine, 1);
         }
     }
 
     EXPECT_GT(uiStepCount, 0);
-    EXPECT_GT(fileStepCount, 0);
+    EXPECT_GT(referenceStepCount, 0);
 }
 
-TEST(EditorTutorialDataTests, TutorialSnippetsPreferGeneratedHandlesWithoutUserManagedIds)
+TEST(EditorTutorialDataTests, TutorialMetadataGuidesRadarTrackLayerFlow)
 {
-    const std::string_view creationAfter = Step(editor::tutorial::TutorialStepId::ReviewDynamicReticleCreation).afterText;
-    EXPECT_NE(creationAfter.find("generatedDynamicTracks.Create()"), std::string_view::npos);
-    EXPECT_NE(creationAfter.find("tutorial_ui::LineStyle::Dashed"), std::string_view::npos);
-    EXPECT_EQ(creationAfter.find("Upsert("), std::string_view::npos);
-    EXPECT_EQ(creationAfter.find("trackId"), std::string_view::npos);
+    const auto& createLayerStep = Step(editor::tutorial::TutorialStepId::CreateRadarTrackLayerOnPage1);
+    EXPECT_STREQ(createLayerStep.targetId, "inspector_add_radar_track_layer");
+    EXPECT_NE(std::string_view(createLayerStep.instruction).find("RadarTrackLayer"), std::string_view::npos);
+    EXPECT_NE(std::string_view(createLayerStep.instruction).find("steering cue"), std::string_view::npos);
 
-    const std::string_view removalAfter = Step(editor::tutorial::TutorialStepId::ReviewDynamicReticleRemoval).afterText;
-    EXPECT_NE(removalAfter.find("generatedDynamicTracks.Remove"), std::string_view::npos);
-    EXPECT_EQ(removalAfter.find("RemoveDynamicReticle"), std::string_view::npos);
-
-    const std::string_view staticAfter = Step(editor::tutorial::TutorialStepId::ReviewStaticReticleCommands).afterText;
-    EXPECT_NE(staticAfter.find("page1Circle.Primitive01().SetRadius"), std::string_view::npos);
-    EXPECT_NE(staticAfter.find("page1Circle.Primitive01().SetLineStyle"), std::string_view::npos);
-    EXPECT_NE(staticAfter.find("progressFill.SetSize"), std::string_view::npos);
-    EXPECT_NE(staticAfter.find("page2ProgressBar.SetVisible"), std::string_view::npos);
-
-    const std::string_view integrationAfter = Step(editor::tutorial::TutorialStepId::ReviewGeneratedUiIntegration).afterText;
-    EXPECT_NE(integrationAfter.find("DynamicMfdTutorialRadarTrack()"), std::string_view::npos);
-    EXPECT_NE(integrationAfter.find("DynamicInspiredSteeringCue()"), std::string_view::npos);
-    EXPECT_NE(integrationAfter.find("page1.strobe"), std::string_view::npos);
-    EXPECT_NE(integrationAfter.find("page2.mfdTutorialProgressBar"), std::string_view::npos);
-    EXPECT_NE(integrationAfter.find("FillBar()"), std::string_view::npos);
-}
-
-TEST(EditorTutorialDataTests, TutorialMetadataHighlightsGeneratedHeaderAndTransportMap)
-{
-    const auto& headerStep = Step(editor::tutorial::TutorialStepId::ReviewGeneratedUiHeader);
-    EXPECT_STREQ(headerStep.filePath, "examples/client_tutorial/generated/TutorialUi.h");
-    EXPECT_NE(std::string_view(headerStep.afterText).find("Page1() noexcept"), std::string_view::npos);
-    EXPECT_NE(std::string_view(headerStep.afterText).find("BuildCommandBatch"), std::string_view::npos);
-    EXPECT_NE(std::string_view(headerStep.afterText).find("PollFeedback"), std::string_view::npos);
-    EXPECT_NE(std::string_view(headerStep.afterText).find("DynamicInspiredSteeringCue()"), std::string_view::npos);
-
-    const auto& mapStep = Step(editor::tutorial::TutorialStepId::ReviewGeneratedTransportMap);
-    EXPECT_STREQ(mapStep.filePath, "assets/windows/mfd_tutorial.generated.map");
-    EXPECT_NE(std::string_view(mapStep.afterText).find("\"mappingHash\""), std::string_view::npos);
-    EXPECT_NE(std::string_view(mapStep.afterText).find("\"transportId\""), std::string_view::npos);
+    const auto& dynamicTemplateStep = Step(editor::tutorial::TutorialStepId::AllowPage1DynamicReticleTemplate);
+    EXPECT_STREQ(dynamicTemplateStep.targetId, "page_dynamic_template_mfd_tutorial_radar_track");
+    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("mfd_tutorial_radar_track"),
+              std::string_view::npos);
+    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("RadarTrackLayer"), std::string_view::npos);
+    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("inspired_steering_cue"),
+              std::string_view::npos);
 }
 
 TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)
@@ -123,48 +92,10 @@ TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)
     EXPECT_STREQ(addStep.targetId, "library_add_to_page");
 }
 
-TEST(EditorTutorialDataTests, TutorialMetadataReflectsSharedWindowLauncherFlow)
-{
-    const auto& framebufferStep = Step(editor::tutorial::TutorialStepId::ReviewRgba32FramebufferCapture);
-    EXPECT_STREQ(framebufferStep.filePath, "examples/mfd_framebuffer_stdout_plugin/src/FramebufferStdoutPlugin.cpp");
-    EXPECT_NE(std::string_view(framebufferStep.afterText).find("MfdGetWindowFramebufferPluginApi"),
-              std::string_view::npos);
-    EXPECT_EQ(std::string_view(framebufferStep.afterText).find("RunLauncher"), std::string_view::npos);
-
-    const auto& buildGateStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialClientBuildGate);
-    EXPECT_STREQ(buildGateStep.filePath, "examples/client_tutorial/CMakeLists.txt");
-    EXPECT_NE(std::string_view(buildGateStep.afterText).find("Skipping client_tutorial"), std::string_view::npos);
-    EXPECT_NE(std::string_view(buildGateStep.explanation).find("default examples build"), std::string_view::npos);
-
-    const auto& registrationStep = Step(editor::tutorial::TutorialStepId::ReviewTutorialTargetRegistration);
-    EXPECT_NE(std::string_view(registrationStep.afterText).find("add_subdirectory(client_tutorial)"),
-              std::string_view::npos);
-    EXPECT_EQ(std::string_view(registrationStep.afterText).find("add_subdirectory(examples/mfd_tutorial)"),
-              std::string_view::npos);
-    EXPECT_NE(std::string_view(registrationStep.explanation).find("writes this registration"), std::string_view::npos);
-}
-
 TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps)
 {
     const auto& pageContextStep = Step(editor::tutorial::TutorialStepId::ShowPageContext);
     EXPECT_STREQ(pageContextStep.targetId, "page_preview_view_menu");
-
-    const auto& dynamicTemplateStep = Step(editor::tutorial::TutorialStepId::AllowPage1DynamicReticleTemplate);
-    EXPECT_STREQ(dynamicTemplateStep.targetId, "page_dynamic_template_mfd_tutorial_radar_track");
-    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("mfd_tutorial_radar_track"), std::string_view::npos);
-    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("default"), std::string_view::npos);
-    EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("Dynamic reticles"), std::string_view::npos);
-
-    const auto& cueDynamicTemplateStep =
-        Step(editor::tutorial::TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate);
-    EXPECT_STREQ(cueDynamicTemplateStep.targetId, "page_dynamic_template_inspired_steering_cue");
-    EXPECT_NE(std::string_view(cueDynamicTemplateStep.instruction).find("inspired_steering_cue"),
-              std::string_view::npos);
-    EXPECT_NE(std::string_view(cueDynamicTemplateStep.instruction).find("overlay"), std::string_view::npos);
-
-    const auto& page1JsonStep = Step(editor::tutorial::TutorialStepId::ReviewPage1StrobeJson);
-    EXPECT_NE(std::string_view(page1JsonStep.explanation).find("runtime-only bindings"), std::string_view::npos);
-    EXPECT_NE(std::string_view(page1JsonStep.explanation).find("dynamicReticleBindings"), std::string_view::npos);
 
     const auto& importStep = Step(editor::tutorial::TutorialStepId::InspectPageImportWorkflow);
     EXPECT_STREQ(importStep.targetId, "menu_page");
@@ -182,14 +113,15 @@ TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps
     EXPECT_NE(std::string_view(exportStep.instruction).find("export"), std::string_view::npos);
 }
 
-TEST(EditorTutorialDataTests, TutorialMetadataPointsToDocumentationNextSteps)
+TEST(EditorTutorialDataTests, TutorialMetadataPointsToFollowUpDocuments)
 {
+    const auto& followUpStep = Step(editor::tutorial::TutorialStepId::OpenTutorialFollowUpGuide);
+    EXPECT_STREQ(followUpStep.filePath, "docs/tutorials/15_review_integrated_editor_tutorial_outputs.md");
+    EXPECT_NE(std::string_view(followUpStep.explanation).find("authoring"), std::string_view::npos);
+    EXPECT_NE(std::string_view(followUpStep.explanation).find("runtime"), std::string_view::npos);
+
     const auto& documentationStep = Step(editor::tutorial::TutorialStepId::ReviewDocumentationPath);
-    EXPECT_STREQ(documentationStep.filePath, "docs/README.md");
-    EXPECT_NE(std::string_view(documentationStep.afterText).find("Use The Mockup As A Client API Reference"),
-              std::string_view::npos);
-    EXPECT_NE(std::string_view(documentationStep.afterText).find("Generated Client API Standardization"),
-              std::string_view::npos);
-    EXPECT_NE(std::string_view(documentationStep.afterText).find("Generated Client API Architecture"),
-              std::string_view::npos);
+    EXPECT_STREQ(documentationStep.filePath, "docs/tutorials/README.md");
+    EXPECT_NE(std::string_view(documentationStep.explanation).find("mockup"), std::string_view::npos);
+    EXPECT_NE(std::string_view(documentationStep.explanation).find("generated client API"), std::string_view::npos);
 }

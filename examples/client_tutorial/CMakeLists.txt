@@ -26,7 +26,7 @@ if(MFD_CLIENT_TUTORIAL_MISSING_FILES)
     message(STATUS
         "Skipping client_tutorial because the tutorial asset set is incomplete.\n"
         "  - ${MFD_CLIENT_TUTORIAL_MISSING_FILES_TEXT}\n"
-        "Finish the editor tutorial and save the authored assets before reconfiguring.")
+        "Author or restore the tutorial assets under assets/, then re-run CMake configuration.")
     return()
 endif()
 

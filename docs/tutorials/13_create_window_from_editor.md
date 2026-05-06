@@ -20,7 +20,7 @@ You will learn how to:
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
 - understand how the generated C++17 client API mirrors the authored window
-- let the integrated tutorial register `client_tutorial` automatically instead of building it by default from a fresh clone
+- create `RadarTrackLayer` on `Page1` and bind `mfd_tutorial_radar_track` without changing the existing steering cue
 - continue with the right generated-API and documentation path once the editor tour is done
 
 ## Guided Tour Overview
@@ -30,13 +30,12 @@ The integrated editor tutorial is available from:
 - **Help > Tutorial**
 - the empty-state **Launch the tutorial** button
 
-That guided flow is intentionally split into five phases:
+That guided flow is intentionally split into four phases:
 
-1. **Author in editor**: create the tutorial window, pages, shared reticles, strobe, layer, and exposed primitive.
+1. **Author in editor**: create the tutorial window, pages, shared reticles, strobe, `RadarTrackLayer`, and the exposed primitive.
 2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / export workflows without mutating the tutorial assets.
-3. **Read generated artifacts**: inspect the saved page JSON, generated `TutorialUi.h`, and companion `.generated.map`.
-4. **Drive the runtime**: review how `client_tutorial` uses typed page, reticle, primitive, dynamic-set, and feedback handles.
-5. **Register and continue**: review the build gate, let the tutorial register `client_tutorial`, and leave with the right doc path.
+3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
+4. **Continue in docs**: follow the mockup, generated-client, and architecture reading path.
 
 The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step.
 
@@ -65,13 +64,13 @@ Use the **Browse ... folder** buttons when creating new assets. The editor still
 
 The editor no longer treats `_Exec` as one blocked special case during authoring or reference scans. You can still open or scan staged runtime copies when needed, but the source `assets/` tree remains the recommended location for long-term editing and generated-client workflows.
 
-This also matters for the integrated tutorial: `client_tutorial` stays out of
-the default examples build until the walkthrough completes. At completion, the
-tutorial adds `add_subdirectory(client_tutorial)` to
-`examples/CMakeLists.txt` automatically. Re-run CMake configuration, then
-build the new target. `Scripts/Start-MfdTutorial.bat` becomes usable from the
-repository, and the staged `Start-MfdTutorial.bat` is copied next to
-`mfd_window` at the same point.
+This also matters for the integrated tutorial: `client_tutorial` is already
+registered in `examples/CMakeLists.txt`, but its own
+`examples/client_tutorial/CMakeLists.txt` returns immediately while the
+tutorial assets are missing. The walkthrough now writes only the tutorial
+assets under `assets/`, then hands off to one follow-up doc that tells you
+which runtime files to inspect next. `Scripts/Start-MfdTutorial.bat` becomes
+usable as soon as the assets exist and the target has been configured.
 
 That source-tree discipline also feeds the editor asset reference index used by upcoming safe import, rename, highlight, and diagnostics workflows. Keeping authored windows, pages, reticles, fonts, and images under the real repository asset tree is what lets those tools resolve dependencies reliably.
 
@@ -137,6 +136,11 @@ Important: these are runtime bindings only. Adding `mfd_tutorial_radar_track`
 or `inspired_steering_cue` here does not create authored static reticles on the
 canvas by itself. They remain stored in `dynamicReticleBindings`, and the live
 client later creates the actual runtime instances.
+
+In the integrated tutorial, `Page1` already keeps `inspired_steering_cue` on
+its authored layer. The guided flow first creates `RadarTrackLayer` in
+**Page layers**, then asks you to add only `mfd_tutorial_radar_track` on that
+new layer. The cue stays unchanged during this step.
 
 The generated client API keeps the same boundary: it validates that these page
 bindings are coherent, but it does not expose any client-side control to move a
@@ -403,34 +407,37 @@ This integrated flow does more than explain clicks:
 - it seeds the editor popups with the tutorial window, page, and reticle values
 - it highlights the exact control expected by the current step
 - it explains why each authored asset matters for the runtime contract
-- it now covers the preview tools and the main editor workflows before switching to generated API and documentation review steps
+- it now stays focused on authoring plus editor workflows, then hands off the saved-file review to one dedicated follow-up doc
 
 By the end of the integrated flow, the user should understand the full chain:
 
 - editor action
 - saved authored JSON
+- `RadarTrackLayer` plus the `mfd_tutorial_radar_track` binding on `Page1`
 - generated transport map
 - generated C++17 page and reticle wrappers
 - runtime client loop
 - documentation path for deeper study
 
-## Step 18 - Register the tutorial client, then continue with the generated API docs
+## Step 18 - Open the follow-up guide, then continue with the generated API docs
 
-`client_tutorial` is still intentionally excluded from the default examples
-build until the integrated walkthrough finishes.
+`client_tutorial` is part of the examples tree by default, but it still
+self-skips while the tutorial assets do not exist.
 
-That remains the expected behavior:
+The integrated walkthrough now keeps the repository source tree stable:
 
-- the repository version of `examples/CMakeLists.txt` does not register `client_tutorial` by default
+- `examples/CMakeLists.txt` already registers `client_tutorial`
 - `examples/client_tutorial/CMakeLists.txt` still self-skips when the tutorial asset set is incomplete
-- when the tutorial completes, it writes `add_subdirectory(client_tutorial)` automatically so the target becomes buildable after the next CMake reconfigure
+- the walkthrough itself only writes the tutorial assets under `assets/`
+- the saved-file and runtime follow-up now lives in [Review The Integrated Editor Tutorial Outputs](./15_review_integrated_editor_tutorial_outputs.md)
 
 After the integrated tour, the recommended follow-up order is:
 
-1. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
-2. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
-3. [Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
-4. [Generated Client API Architecture](../architecture/generated_client_api.md)
+1. [Review The Integrated Editor Tutorial Outputs](./15_review_integrated_editor_tutorial_outputs.md)
+2. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
+3. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
+4. [Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
+5. [Generated Client API Architecture](../architecture/generated_client_api.md)
 
 ## Undo behavior
 

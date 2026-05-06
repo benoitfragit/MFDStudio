@@ -8863,7 +8863,6 @@ void EditorApplication::PrepareTutorialStep()
     tutorial_->ClampStepIndex();
     tutorial_->ResetPhase();
     tutorial_->ClearFocusLayer();
-    tutorial_->ResetFileReviewView();
 
     const auto setPrimitiveDraft = [&](const mfd::PrimitiveType primitiveType)
     {
@@ -8905,7 +8904,7 @@ void EditorApplication::PrepareTutorialStep()
     const auto tutorialSteps = editor::tutorial::Steps();
     const editor::tutorial::TutorialStepDefinition& step =
         tutorialSteps[static_cast<std::size_t>(tutorial_->StepIndex())];
-    if (editor::tutorial::IsFileReviewStep(step))
+    if (!editor::tutorial::IsUiStep(step))
     {
         return;
     }
@@ -8954,8 +8953,10 @@ void EditorApplication::PrepareTutorialStep()
         CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page1.json").string());
         newPageDraft_.background = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
+    case static_cast<int>(TutorialStepId::CreateRadarTrackLayerOnPage1):
+        selectTutorialPageOrFallback("Page1");
+        break;
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
-    case static_cast<int>(TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate):
         selectTutorialPageOrFallback("Page1");
         break;
     case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
@@ -9200,6 +9201,8 @@ bool EditorApplication::CreateNewWindow()
 
 bool EditorApplication::CreateNewPage()
 {
+    using editor::tutorial::TutorialStepId;
+
     const std::string pageName = newPageDraft_.name.data();
     if (pageName.empty())
     {
@@ -9234,6 +9237,16 @@ bool EditorApplication::CreateNewPage()
     page.title = newPageDraft_.title.data();
     page.backgroundColor = ToColorRgba(newPageDraft_.background);
     page.layers.push_back(mfd::PageLayerDefinition {std::string(mfd::kDefaultPageLayerId)});
+    if (tutorial_ != nullptr &&
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::CreatePage1)) &&
+        page.name == "Page1")
+    {
+        page.layers.push_back(mfd::PageLayerDefinition {"overlay"});
+        page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {
+            "inspired_steering_cue",
+            "overlay",
+            0});
+    }
     BootstrapEditorLayersForPage(page);
 
     loaded_.document.pages.push_back(page);
@@ -9658,17 +9671,12 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
         const char* reason;
     };
 
-    constexpr std::array<TutorialDynamicTemplateInfo, 2> kTutorialDynamicTemplates {{
+    constexpr std::array<TutorialDynamicTemplateInfo, 1> kTutorialDynamicTemplates {{
         {"mfd_tutorial_radar_track",
-         "default",
+         "RadarTrackLayer",
          "page_dynamic_template_mfd_tutorial_radar_track",
-         "Enable mfd_tutorial_radar_track",
-         "Allow the tutorial radar-track template on Page1 so the generated client can create runtime dynamic tracks."},
-        {"inspired_steering_cue",
-         "overlay",
-         "page_dynamic_template_inspired_steering_cue",
-         "Enable inspired_steering_cue",
-         "Allow the authored steering cue template on Page1 so the generated client can build the persistent cue link."},
+         "Add mfd_tutorial_radar_track",
+         "Bind the tutorial radar-track template to RadarTrackLayer on Page1 without touching the existing steering cue."},
     }};
 
     struct DynamicBindingDraftState
@@ -10278,12 +10286,25 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
 
     if (AccentButton("Add layer"))
     {
+        const bool tutorialRadarTrackLayerMatched = tutorial_->MatchesTarget("inspector_add_radar_track_layer");
         const bool tutorialAddLayerMatched = tutorial_->MatchesTarget("inspector_add_layer");
+        if (tutorialRadarTrackLayerMatched && mfd::FindPageLayerDefinition(page, "RadarTrackLayer") != nullptr)
+        {
+            tutorial_->CompleteStep();
+            RebuildStatus("RadarTrackLayer is already present on page '" + page.name + "'.", false);
+            return;
+        }
+
         PushUndoSnapshot();
-        const std::string newLayerId = MakeUniqueLayerId(page, "layer");
+        const std::string newLayerId = tutorialRadarTrackLayerMatched ? std::string {"RadarTrackLayer"}
+                                                                      : MakeUniqueLayerId(page, "layer");
         page.layers.push_back(mfd::PageLayerDefinition {newLayerId});
         page.editor.layers.push_back(mfd::EditorLayerDefinition {newLayerId, true});
-        if (tutorialAddLayerMatched)
+        if (tutorialRadarTrackLayerMatched)
+        {
+            tutorial_->CompleteStep();
+        }
+        else if (tutorialAddLayerMatched)
         {
             tutorial_->SetFocusLayerId(page.layers.back().id);
             tutorial_->AdvancePhase();
@@ -10291,6 +10312,10 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
         RebuildStatus("Runtime layer added to page '" + page.name + "'.", false);
     }
     ShowItemTooltip("Create one new runtime page layer. The editor also tracks its temporary visibility state.");
+    tutorial_->DrawHalo(
+        "inspector_add_radar_track_layer",
+        "Create RadarTrackLayer",
+        "Create one dedicated runtime layer for Page1 radar tracks. The existing steering cue already stays on its own layer.");
     tutorial_->DrawHalo(
         "inspector_add_layer",
         "Click Add layer",

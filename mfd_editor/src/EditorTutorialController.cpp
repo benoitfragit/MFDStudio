@@ -13,12 +13,8 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cstdio>
 #include <fstream>
-#include <iterator>
-#include <limits>
 #include <optional>
-#include <sstream>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -45,9 +41,6 @@ constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strob
 constexpr std::string_view kTutorialProgressBarTemplateId = "mfd_tutorial_progress_bar";
 constexpr std::string_view kTutorialProgressBarFillPrimitiveId = "fill_bar";
 constexpr std::string_view kTutorialProgressBarFramePrimitiveId = "frame";
-constexpr std::array<std::string_view, 1> kTutorialExampleTargetRegistrations {{
-    "add_subdirectory(client_tutorial)",
-}};
 
 bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool vertical) noexcept
 {
@@ -127,37 +120,6 @@ std::string ToLowerAscii(std::string value)
     return value;
 }
 
-std::string_view TrimAsciiWhitespace(std::string_view value) noexcept
-{
-    std::size_t first = 0;
-    while (first < value.size() &&
-           std::isspace(static_cast<unsigned char>(value[first])) != 0)
-    {
-        ++first;
-    }
-
-    std::size_t last = value.size();
-    while (last > first &&
-           std::isspace(static_cast<unsigned char>(value[last - 1])) != 0)
-    {
-        --last;
-    }
-
-    return value.substr(first, last - first);
-}
-
-std::string LeadingWhitespace(std::string_view value)
-{
-    std::size_t count = 0;
-    while (count < value.size() &&
-           (value[count] == ' ' || value[count] == '\t'))
-    {
-        ++count;
-    }
-
-    return std::string(value.substr(0, count));
-}
-
 std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
 {
     std::filesystem::path current = std::filesystem::absolute(start);
@@ -235,136 +197,9 @@ void RemoveEmptyDirectoryChain(const std::filesystem::path& start, const std::fi
     }
 }
 
-bool IsTutorialTargetRegistrationLine(std::string_view line) noexcept
-{
-    const std::string_view trimmed = TrimAsciiWhitespace(line);
-    return std::find(kTutorialExampleTargetRegistrations.begin(),
-                     kTutorialExampleTargetRegistrations.end(),
-                     trimmed) != kTutorialExampleTargetRegistrations.end();
-}
-
-void EnsureTutorialTargetRegistration(const std::filesystem::path& projectRoot)
-{
-    const std::filesystem::path cmakeFile = projectRoot / "examples" / "CMakeLists.txt";
-    std::ifstream input(cmakeFile, std::ios::binary);
-    if (!input.is_open())
-    {
-        return;
-    }
-
-    const std::string content {
-        std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>()};
-    if (content.empty())
-    {
-        return;
-    }
-
-    const std::string newline = content.find("\r\n") != std::string::npos ? "\r\n" : "\n";
-    const bool hasTrailingNewline =
-        content.size() >= newline.size() &&
-        content.compare(content.size() - newline.size(), newline.size(), newline) == 0;
-
-    std::istringstream stream(content);
-    std::vector<std::string> lines;
-    lines.reserve(64);
-
-    std::array<bool, kTutorialExampleTargetRegistrations.size()> hasTargetRegistrations {};
-    std::size_t insertionIndex = std::numeric_limits<std::size_t>::max();
-    std::string insertionIndentation;
-    std::size_t appendIndex = std::numeric_limits<std::size_t>::max();
-
-    for (std::string line; std::getline(stream, line);)
-    {
-        if (!line.empty() && line.back() == '\r')
-        {
-            line.pop_back();
-        }
-
-        const std::string_view trimmed = TrimAsciiWhitespace(line);
-        for (std::size_t index = 0; index < kTutorialExampleTargetRegistrations.size(); ++index)
-        {
-            if (trimmed == kTutorialExampleTargetRegistrations[index])
-            {
-                hasTargetRegistrations[index] = true;
-                break;
-            }
-        }
-
-        if (trimmed.rfind("add_subdirectory(", 0) == 0)
-        {
-            appendIndex = lines.size() + 1U;
-            if (insertionIndentation.empty())
-            {
-                insertionIndentation = LeadingWhitespace(line);
-            }
-        }
-
-        if (trimmed.rfind("# client_tutorial is intentionally wired", 0) == 0 &&
-            insertionIndex == std::numeric_limits<std::size_t>::max())
-        {
-            insertionIndex = lines.size();
-            insertionIndentation = LeadingWhitespace(line);
-        }
-
-        lines.push_back(std::move(line));
-    }
-
-    if (std::all_of(hasTargetRegistrations.begin(), hasTargetRegistrations.end(), [](const bool present)
-                    { return present; }) ||
-        insertionIndex == std::numeric_limits<std::size_t>::max())
-    {
-        if (std::all_of(hasTargetRegistrations.begin(), hasTargetRegistrations.end(), [](const bool present)
-                        { return present; }))
-        {
-            return;
-        }
-
-        insertionIndex = appendIndex;
-        if (insertionIndex == std::numeric_limits<std::size_t>::max())
-        {
-            return;
-        }
-    }
-
-    std::vector<std::string> insertedLines;
-    insertedLines.reserve(kTutorialExampleTargetRegistrations.size());
-    for (std::size_t index = 0; index < kTutorialExampleTargetRegistrations.size(); ++index)
-    {
-        if (!hasTargetRegistrations[index])
-        {
-            insertedLines.push_back(insertionIndentation + std::string(kTutorialExampleTargetRegistrations[index]));
-        }
-    }
-
-    lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(insertionIndex),
-                 insertedLines.begin(),
-                 insertedLines.end());
-
-    std::ofstream output(cmakeFile, std::ios::binary | std::ios::trunc);
-    if (!output.is_open())
-    {
-        return;
-    }
-
-    for (std::size_t index = 0; index < lines.size(); ++index)
-    {
-        if (index != 0)
-        {
-            output << newline;
-        }
-        output << lines[index];
-    }
-
-    if (hasTrailingNewline && !lines.empty())
-    {
-        output << newline;
-    }
-}
-
 void RemoveTutorialGeneratedSourceFiles(const std::filesystem::path& projectRoot)
 {
-    const std::array<std::filesystem::path, 14> generatedFiles {{
+    const std::array<std::filesystem::path, 10> generatedFiles {{
         projectRoot / "assets/windows/mfd_tutorial.json",
         projectRoot / "assets/windows/mfd_tutorial.generated.map",
         projectRoot / "assets/pages/mfd_tutorial_page1.json",
@@ -375,10 +210,6 @@ void RemoveTutorialGeneratedSourceFiles(const std::filesystem::path& projectRoot
         projectRoot / "assets/reticles/mfd_tutorial_progress_bar.json",
         projectRoot / "assets/reticles/mfd_tutorial_text.json",
         projectRoot / "assets/reticles/mfd_tutorial_strobe_cursor.json",
-        projectRoot / "examples/client_tutorial/generated/TutorialUi.h",
-        projectRoot / "examples/client_tutorial/generated/TutorialUi.cpp",
-        projectRoot / "examples/client_tutorial/generated/MfdTutorialMockupUi.h",
-        projectRoot / "examples/client_tutorial/generated/MfdTutorialMockupUi.cpp",
     }};
 
     for (const auto& path : generatedFiles)
@@ -401,8 +232,6 @@ void RemoveTutorialBuildOutputs(const std::filesystem::path& projectRoot)
                 RemovePathQuietly(targetRoot / (std::string(targetName) + ".dir") / std::string(configuration));
             }
         }
-
-        RemovePathQuietly(buildDirectory / "examples/client_tutorial/generated");
     }
 }
 
@@ -462,38 +291,6 @@ std::filesystem::path NormalizeAgainstWorkingDirectory(const std::filesystem::pa
                : std::filesystem::absolute(path).lexically_normal();
 }
 
-template <typename Callback>
-void ForEachTutorialLine(std::string_view text, Callback&& callback)
-{
-    std::size_t lineStart = 0;
-    int lineIndex = 0;
-
-    while (lineStart <= text.size())
-    {
-        const std::size_t lineEnd = text.find('\n', lineStart);
-        const std::size_t nextStart = lineEnd == std::string_view::npos ? text.size() : lineEnd;
-        callback(lineIndex++, text.substr(lineStart, nextStart - lineStart));
-        if (lineEnd == std::string_view::npos)
-        {
-            break;
-        }
-
-        lineStart = lineEnd + 1U;
-    }
-}
-
-int CountTutorialLines(std::string_view text)
-{
-    int lineCount = 0;
-    ForEachTutorialLine(
-        text,
-        [&lineCount](const int, std::string_view)
-        {
-            ++lineCount;
-        });
-    return std::max(1, lineCount);
-}
-
 struct TutorialStageInfo
 {
     const char* title;
@@ -502,26 +299,22 @@ struct TutorialStageInfo
     int lastStep = 0;
 };
 
-constexpr std::array<TutorialStageInfo, 5> kTutorialStages {{
+constexpr std::array<TutorialStageInfo, 4> kTutorialStages {{
     {"Stage 1 - Author In Editor",
-     "Create the tutorial window, page assets, reusable reticle templates, the Page1 dynamic-template selection, editor-only layers, and the exposed primitive that will feed the generated client.",
+     "Create the tutorial window, page assets, reusable reticle templates, `RadarTrackLayer`, the Page1 dynamic-template binding, editor-only layers, and the exposed primitive that will feed the generated client.",
      static_cast<int>(editor::tutorial::TutorialStepId::CreateWindow),
      static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
     {"Stage 2 - Explore Editor Tools",
      "Use the page-preview helper panels, save the tutorial assets, and discover the import, rename, and export workflows directly from the editor.",
      static_cast<int>(editor::tutorial::TutorialStepId::ShowPageContext),
      static_cast<int>(editor::tutorial::TutorialStepId::InspectDesignExportWorkflow)},
-    {"Stage 3 - Read Generated Artifacts",
-     "Connect the editor actions to the JSON page file, the generated C++17 header, and the companion transport map written on disk.",
-     static_cast<int>(editor::tutorial::TutorialStepId::ReviewPage1StrobeJson),
-     static_cast<int>(editor::tutorial::TutorialStepId::ReviewGeneratedTransportMap)},
-    {"Stage 4 - Drive The Runtime",
-     "Follow the typed client flow from generated page handles to dynamic reticles, static reticles, strobe feedback, and optional framebuffer inspection.",
-     static_cast<int>(editor::tutorial::TutorialStepId::ReviewGeneratedUiIntegration),
-     static_cast<int>(editor::tutorial::TutorialStepId::ReviewRgba32FramebufferCapture)},
-    {"Stage 5 - Register And Continue",
-     "Review the tutorial client build gate, let the tutorial register the example target automatically at completion, and leave with the right documentation path for the rest of the project.",
-     static_cast<int>(editor::tutorial::TutorialStepId::ReviewTutorialClientBuildGate),
+    {"Stage 3 - Review Saved Outputs",
+     "Open the dedicated follow-up guide to inspect the authored assets, the generated map, and the runtime entry points without replaying long code snippets inside the editor.",
+     static_cast<int>(editor::tutorial::TutorialStepId::OpenTutorialFollowUpGuide),
+     static_cast<int>(editor::tutorial::TutorialStepId::OpenTutorialFollowUpGuide)},
+    {"Stage 4 - Continue In Docs",
+     "Leave the editor with the right next reading path for the runtime mockup, the generated client API, and the deeper architecture notes.",
+     static_cast<int>(editor::tutorial::TutorialStepId::ReviewDocumentationPath),
      static_cast<int>(editor::tutorial::TutorialStepId::ReviewDocumentationPath)},
 }};
 
@@ -664,12 +457,8 @@ void EditorTutorialController::Finish()
     focusLayerId_.clear();
     showCoach_ = false;
     ClearProgress();
-    if (const auto projectRoot = FindProjectRoot(std::filesystem::current_path()); projectRoot.has_value())
-    {
-        EnsureTutorialTargetRegistration(*projectRoot);
-    }
     app_.RebuildStatus(
-        "Tutorial completed. The tutorial registered 'client_tutorial' in 'examples/CMakeLists.txt'. Re-run CMake configuration, rebuild, then continue with tutorials 03, 11 and the generated-client architecture notes.",
+        "Tutorial completed. Only the tutorial assets were updated. Continue with the follow-up guide, then tutorials 03 and 11 plus the generated-client architecture notes.",
         false);
 }
 
@@ -686,7 +475,7 @@ void EditorTutorialController::DrawCoach()
         tutorialSteps[static_cast<std::size_t>(stepIndex_)];
     const TutorialStageInfo& stage = StageForStep(stepIndex_);
     const int stageIndex = StageIndexForStep(stepIndex_);
-    const float panelHeight = editor::tutorial::IsFileReviewStep(step) ? 420.0f : 220.0f;
+    const float panelHeight = editor::tutorial::IsReferenceDocumentStep(step) ? 250.0f : 220.0f;
 
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.05f, 0.09f, 0.12f, 1.0f));
     if (!ImGui::BeginChild("TutorialCoachPanel", ImVec2(0.0f, panelHeight), true, ImGuiWindowFlags_HorizontalScrollbar))
@@ -712,9 +501,9 @@ void EditorTutorialController::DrawCoach()
     ImGui::TextWrapped("%s", step.instruction);
     ImGui::Spacing();
 
-    if (editor::tutorial::IsFileReviewStep(step))
+    if (editor::tutorial::IsReferenceDocumentStep(step))
     {
-        DrawFileReview();
+        DrawReferenceDocument();
     }
     else
     {
@@ -847,13 +636,6 @@ void EditorTutorialController::ResetPhase() noexcept
 void EditorTutorialController::ClampStepIndex() noexcept
 {
     stepIndex_ = std::clamp(stepIndex_, kTutorialStepMin, editor::tutorial::StepCount() - 1);
-}
-
-void EditorTutorialController::ResetFileReviewView() noexcept
-{
-    fileViewZoom_ = 1.0f;
-    fileViewScrollX_ = 0.0f;
-    fileViewScrollY_ = 0.0f;
 }
 
 void EditorTutorialController::ClearTrackedReticle() noexcept
@@ -1155,7 +937,7 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     const auto tutorialSteps = editor::tutorial::Steps();
     const editor::tutorial::TutorialStepDefinition& step =
         tutorialSteps[static_cast<std::size_t>(stepIndex_)];
-    if (editor::tutorial::IsFileReviewStep(step))
+    if (!editor::tutorial::IsUiStep(step))
     {
         return {};
     }
@@ -1175,10 +957,10 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     case static_cast<int>(TutorialStepId::CreatePage1):
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "menu_page" : (stepPhase_ == 1 ? "menu_page_new" : "popup_page_create");
+    case static_cast<int>(TutorialStepId::CreateRadarTrackLayerOnPage1):
+        return "inspector_add_radar_track_layer";
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
         return "page_dynamic_template_mfd_tutorial_radar_track";
-    case static_cast<int>(TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate):
-        return "page_dynamic_template_inspired_steering_cue";
     case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
         return stepPhase_ == 0 ? "menu_reticle" :
                                  (stepPhase_ == 1 ? "menu_reticle_new" :
@@ -1248,10 +1030,10 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "Click Page." :
                                  (stepPhase_ == 1 ? "Click New page." : "Click Create page.");
+    case static_cast<int>(TutorialStepId::CreateRadarTrackLayerOnPage1):
+        return "Click Add layer to create RadarTrackLayer.";
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
-        return "Enable mfd_tutorial_radar_track.";
-    case static_cast<int>(TutorialStepId::AllowPage1SteeringCueDynamicReticleTemplate):
-        return "Enable inspired_steering_cue.";
+        return "Add mfd_tutorial_radar_track on RadarTrackLayer.";
     case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
         return stepPhase_ == 0 ? "Click Reticle." :
                                  (stepPhase_ == 1 ? "Click New library reticle from primitive." :
@@ -1331,135 +1113,16 @@ void EditorTutorialController::CleanupGeneratedFiles()
     RemoveTutorialStageArtifacts(*projectRoot);
 }
 
-void EditorTutorialController::DrawFileReview()
+void EditorTutorialController::DrawReferenceDocument()
 {
     ClampStepIndex();
     const auto tutorialSteps = editor::tutorial::Steps();
     const editor::tutorial::TutorialStepDefinition& step =
         tutorialSteps[static_cast<std::size_t>(stepIndex_)];
 
-    struct TutorialPaneResult
-    {
-        bool hovered = false;
-        float scrollX = 0.0f;
-        float scrollY = 0.0f;
-    };
-
-    auto drawPane = [&](const char* childId,
-                        const char* label,
-                        const ImVec4 color,
-                        const char* content,
-                        const int firstLine,
-                        const ImVec2 size) -> TutorialPaneResult
-    {
-        ImGui::TextColored(color, "%s", label);
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.05f, 0.08f, 0.11f, 1.0f));
-        ImGui::BeginChild(childId, size, true, ImGuiWindowFlags_HorizontalScrollbar);
-        ImGui::SetWindowFontScale(fileViewZoom_);
-        ImGui::SetScrollX(fileViewScrollX_);
-        ImGui::SetScrollY(fileViewScrollY_);
-
-        const std::string_view contentView = content == nullptr ? std::string_view {} : std::string_view(content);
-        const int lineCount = CountTutorialLines(contentView);
-        const int lastLine = std::max(firstLine, firstLine + lineCount - 1);
-        char numberWidthBuffer[32] {};
-        std::snprintf(numberWidthBuffer, sizeof(numberWidthBuffer), "%d", lastLine);
-        const float lineNumberWidth = ImGui::CalcTextSize(numberWidthBuffer).x + 20.0f;
-
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 2.0f));
-        ForEachTutorialLine(
-            contentView,
-            [&](const int lineOffset, const std::string_view line)
-            {
-                const int lineNumber = firstLine + lineOffset;
-                char numberBuffer[32] {};
-                std::snprintf(numberBuffer, sizeof(numberBuffer), "%d", lineNumber);
-                ImGui::TextDisabled("%s", numberBuffer);
-                ImGui::SameLine(lineNumberWidth);
-                if (line.empty())
-                {
-                    ImGui::TextUnformatted("");
-                }
-                else
-                {
-                    ImGui::TextUnformatted(line.data(), line.data() + line.size());
-                }
-            });
-        ImGui::PopStyleVar();
-
-        TutorialPaneResult result {};
-        result.hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-        result.scrollX = ImGui::GetScrollX();
-        result.scrollY = ImGui::GetScrollY();
-
-        ImGui::SetWindowFontScale(1.0f);
-        ImGui::EndChild();
-        ImGui::PopStyleColor();
-        return result;
-    };
-
     ImGui::TextDisabled("Path");
     ImGui::SameLine();
     ImGui::TextUnformatted(step.filePath);
-    ImGui::SameLine();
-    if (ImGui::Button("A-"))
-    {
-        fileViewZoom_ = std::max(0.75f, fileViewZoom_ - 0.10f);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("A+"))
-    {
-        fileViewZoom_ = std::min(2.25f, fileViewZoom_ + 0.10f);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Reset view"))
-    {
-        ResetFileReviewView();
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("Zoom %.0f%%", fileViewZoom_ * 100.0f);
-
-    const ImVec2 available = ImGui::GetContentRegionAvail();
-    const float paneHeight = std::max(260.0f, available.y - 110.0f);
-
-    TutorialPaneResult beforePane {};
-    TutorialPaneResult afterPane {};
-    if (ImGui::BeginTable(
-            "##tutorial_file_review",
-            2,
-            ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_NoSavedSettings))
-    {
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0);
-        beforePane = drawPane(
-            "##tutorial_before",
-            "Before",
-            ImVec4(0.95f, 0.68f, 0.28f, 1.0f),
-            step.beforeText,
-            std::max(1, step.beforeFirstLine),
-            ImVec2(0.0f, paneHeight));
-
-        ImGui::TableSetColumnIndex(1);
-        afterPane = drawPane(
-            "##tutorial_after",
-            "After",
-            ImVec4(0.35f, 0.88f, 0.62f, 1.0f),
-            step.afterText,
-            std::max(1, step.afterFirstLine),
-            ImVec2(0.0f, paneHeight));
-        ImGui::EndTable();
-    }
-
-    if (beforePane.hovered)
-    {
-        fileViewScrollX_ = beforePane.scrollX;
-        fileViewScrollY_ = beforePane.scrollY;
-    }
-    else if (afterPane.hovered)
-    {
-        fileViewScrollX_ = afterPane.scrollX;
-        fileViewScrollY_ = afterPane.scrollY;
-    }
 
     ImGui::Spacing();
     ImGui::TextWrapped("%s", step.explanation);

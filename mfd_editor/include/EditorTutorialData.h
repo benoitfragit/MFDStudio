@@ -27,8 +27,8 @@ enum class TutorialStepId : int
     CreateCircleReticle,
     CreateStrobeCursorReticle,
     CreatePage1,
+    CreateRadarTrackLayerOnPage1,
     AllowPage1DynamicReticleTemplate,
-    AllowPage1SteeringCueDynamicReticleTemplate,
     AssignPage1StrobeTemplate,
     AddCircleReticleToPage1,
     ClipCircleOutside,
@@ -48,20 +48,7 @@ enum class TutorialStepId : int
     InspectPageRenameWorkflow,
     InspectReticleRenameWorkflow,
     InspectDesignExportWorkflow,
-    ReviewPage1StrobeJson,
-    ReviewGeneratedUiHeader,
-    ReviewGeneratedTransportMap,
-    ReviewGeneratedUiIntegration,
-    ReviewPageSwitchingInClient,
-    ReviewDynamicReticleCreation,
-    ReviewDynamicReticleUpdates,
-    ReviewDynamicDeclutter,
-    ReviewDynamicReticleRemoval,
-    ReviewStaticReticleCommands,
-    ReviewStrobeFeedbackHandling,
-    ReviewRgba32FramebufferCapture,
-    ReviewTutorialClientBuildGate,
-    ReviewTutorialTargetRegistration,
+    OpenTutorialFollowUpGuide,
     ReviewDocumentationPath,
     Count
 };
@@ -69,7 +56,7 @@ enum class TutorialStepId : int
 enum class TutorialStepKind
 {
     UiAction,
-    FileReview
+    ReferenceDocument
 };
 
 /**
@@ -82,12 +69,8 @@ struct TutorialStepDefinition
     const char* instruction;
     const char* targetId;
     const char* filePath;
-    const char* beforeText;
-    const char* afterText;
     const char* explanation;
     const char* advanceLabel;
-    int beforeFirstLine;
-    int afterFirstLine;
 };
 
 /**
@@ -106,7 +89,7 @@ int StepCount() noexcept;
 bool IsUiStep(const TutorialStepDefinition& step) noexcept;
 
 /**
- * @brief Returns `true` when the provided step is a file-review step.
+ * @brief Returns `true` when the provided step opens one reference document.
  */
-bool IsFileReviewStep(const TutorialStepDefinition& step) noexcept;
+bool IsReferenceDocumentStep(const TutorialStepDefinition& step) noexcept;
 } // namespace editor::tutorial

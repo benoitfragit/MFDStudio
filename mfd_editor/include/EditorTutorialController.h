@@ -78,8 +78,6 @@ public:
     void ResetPhase() noexcept;
     /** @brief Clamps the stored step index inside the valid tutorial range. */
     void ClampStepIndex() noexcept;
-    /** @brief Resets the shared file-review zoom and scroll values. */
-    void ResetFileReviewView() noexcept;
     /** @brief Clears the tracked reticle id used by multi-step tutorial actions. */
     void ClearTrackedReticle() noexcept;
     /** @brief Updates the tracked reticle id used by multi-step tutorial actions. */
@@ -144,8 +142,8 @@ private:
     void ClearProgress();
     /** @brief Cleans generated tutorial files and staged tutorial artifacts. */
     void CleanupGeneratedFiles();
-    /** @brief Draws the synchronized file review UI used by tutorial file steps. */
-    void DrawFileReview();
+    /** @brief Draws the lightweight document hand-off used by tutorial doc steps. */
+    void DrawReferenceDocument();
 
     /** @brief Editor shell hosting the tutorial workflow. */
     EditorApplication& app_;
@@ -165,10 +163,4 @@ private:
     std::string trackedReticleId_ {};
     /** @brief Editor layer currently highlighted by the tutorial, when applicable. */
     std::string focusLayerId_ {};
-    /** @brief Shared zoom used by both tutorial file panes. */
-    float fileViewZoom_ = 1.0f;
-    /** @brief Shared horizontal scroll used by both tutorial file panes. */
-    float fileViewScrollX_ = 0.0f;
-    /** @brief Shared vertical scroll used by both tutorial file panes. */
-    float fileViewScrollY_ = 0.0f;
 };
