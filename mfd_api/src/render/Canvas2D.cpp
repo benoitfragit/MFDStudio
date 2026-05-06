@@ -148,34 +148,23 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
 
     const float dashLength = std::max(6.0f, thickness * 4.0f);
     const float gapLength = std::max(4.0f, thickness * 2.0f);
-    const float patternLength = dashLength + gapLength;
-    float phase = 0.0f;
 
     auto drawDashedSegment = [&](const Vector2 start, const Vector2 end)
     {
         const float segmentLength = Distance(start, end);
-        if (segmentLength <= 0.0001f)
+        if (!std::isfinite(segmentLength) || segmentLength <= 0.0001f)
         {
             return;
         }
 
-        float segmentOffset = 0.0f;
-        while (segmentOffset < segmentLength)
+        float dashStartOffset = 0.0f;
+        while (dashStartOffset < segmentLength)
         {
-            const float cycleOffset = std::fmod(phase, patternLength);
-            const bool drawingDash = cycleOffset < dashLength;
-            const float remainingPattern = drawingDash ? (dashLength - cycleOffset) : (patternLength - cycleOffset);
-            const float step = std::min(remainingPattern, segmentLength - segmentOffset);
-
-            if (drawingDash && step > 0.0f)
-            {
-                const Vector2 dashStart = LerpVector2(start, end, segmentOffset / segmentLength);
-                const Vector2 dashEnd = LerpVector2(start, end, (segmentOffset + step) / segmentLength);
-                DrawLineEx(dashStart, dashEnd, thickness, color);
-            }
-
-            segmentOffset += step;
-            phase += step;
+            const float dashEndOffset = std::min(dashStartOffset + dashLength, segmentLength);
+            const Vector2 dashStart = LerpVector2(start, end, dashStartOffset / segmentLength);
+            const Vector2 dashEnd = LerpVector2(start, end, dashEndOffset / segmentLength);
+            DrawLineEx(dashStart, dashEnd, thickness, color);
+            dashStartOffset = dashEndOffset + gapLength;
         }
     };
 
