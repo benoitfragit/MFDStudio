@@ -1,0 +1,44 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam packageStyle rectangle
+skinparam ArrowColor #386641
+skinparam ArrowThickness 1.1
+skinparam rectangle {
+  RoundCorner 14
+  BorderColor #386641
+  FontColor #1F2933
+}
+left to right direction
+
+package "mfd_editor - page workspace" {
+  rectangle "Left tree   \n   Window   \n   Pages   \n   Reticle library" as Tree #E9F5DB
+  rectangle "Central canvas   \n   page preview   \n   selection / gizmos   \n   zoom / pan" as Canvas #D9EDFF
+  rectangle "Right Inspectors   \n   Window   \n   Page   \n   Reticle   \n   Strobe" as Inspector #FFF3D6
+  rectangle "Optional Docks   \n   Layer Inspector   \n   Problems   \n   Minimap" as Docks #F3E8FF
+  rectangle "Protected workflows   \n   Import page   \n   Rename page   \n   Rename reticle   \n   Export design" as Workflows #FFE5EC
+}
+
+rectangle "window.json" as WindowJson #F8FAFC
+rectangle "page.json" as PageJson #F8FAFC
+rectangle "reticle.json" as ReticleJson #F8FAFC
+rectangle "images / fonts" as ExternalAssets #F8FAFC
+
+Tree --> Canvas : choose the context
+Inspector --> Canvas : modify the selection
+Docks --> Canvas : visual aid without mutating the JSON
+Workflows --> Tree : operations de structure
+Workflows --> WindowJson : rewritten if necessary
+Workflows --> PageJson : rewritten if necessary
+Workflows --> ReticleJson : rewritten if necessary
+ReticleJson --> Canvas : geometres reutilisees
+PageJson --> Canvas : page instances
+WindowJson --> Canvas : size / pages / transports
+ExternalAssets --> Canvas : fontes / images
+
+note bottom of Docks
+View options are session preferences.
+They do not write to author assets.
+end note
+@enduml

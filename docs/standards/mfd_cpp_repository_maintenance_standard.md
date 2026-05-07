@@ -1,6 +1,10 @@
 # MFDStudio C++ Repository Maintenance Standard
 
-This standard defines the default engineering bar for versioned contributions
+Status: versioned contributor standard
+Audience: contributors changing C++, CMake, tests, or contributor-facing
+documentation
+
+This document defines the default engineering bar for versioned contributions
 touching C++, CMake, tests, or contributor-facing documentation in this
 repository.
 
@@ -9,15 +13,20 @@ expectations. A local root `AGENTS.md` may exist for user- or tool-specific
 instructions, but that file is intentionally ignored by Git and must not
 replace this versioned standard.
 
-## Goals
+If you are trying to launch the product, author JSON, or understand the user
+workflow, start with [Documentation Guide](../README.md) and
+[Quick Start](../QUICKSTART.md) instead of this page.
 
-Every change should preserve these properties:
+## Quick Checklist
 
-- the code remains C++17-only and portable across the supported toolchain
-- modules stay small enough to understand, test, and evolve independently
-- public APIs stay intentional and minimal
-- ownership, lifetime, and runtime costs stay explicit
-- tests and documentation move with the code instead of lagging behind it
+Every contribution should preserve these properties:
+
+- the code remains C++17-only
+- modules stay small, focused, and composable
+- public APIs stay minimal and intentional
+- ownership, lifetime, and runtime cost stay explicit
+- tests and documentation move with the code
+- public headers stay documented with current Doxygen comments
 
 ## Scope
 

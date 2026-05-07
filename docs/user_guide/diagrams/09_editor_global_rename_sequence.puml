@@ -1,0 +1,58 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam sequence {
+  ArrowColor #386641
+  LifeLineBorderColor #386641
+  LifeLineBackgroundColor #F8FAFC
+  ParticipantBorderColor #386641
+  ParticipantBackgroundColor #E9F5DB
+}
+
+actor "User" as User
+participant "Editor UI   \n   rename popup" as Ui
+participant "Rename service" as RenameService
+participant "AssetReferenceIndexService" as Index
+participant "Filesystem" as Fs
+participant "Live document editor" as LiveDoc
+
+User -> Ui : Rename ... globally
+
+alt page rename
+  Ui -> RenameService : BuildPlan(currentPageIndex, \n newPageName, assetRoot)
+  RenameService -> Fs : reload page JSON from disk
+  RenameService -> Index : find window -> page references
+  RenameService -> LiveDoc : overlay current unsaved page list
+  RenameService -> Fs : detect page-name collisions \n and invalid scanned windows
+  RenameService --> Ui : page rename plan
+  User -> Ui : confirm
+  Ui -> RenameService : Execute(plan)
+  RenameService -> Fs : rewrite page JSON name and legacy id
+  RenameService -> Fs : rewrite impacted window defaultPage values
+  RenameService -> LiveDoc : update current page name / id
+else reticle rename
+  Ui -> RenameService : BuildPlan(templateId, \n newTemplateId, assetRoot, \n renameTemplateFile?)
+  RenameService -> Index : find page, strobe and dynamic binding references
+  RenameService -> LiveDoc : overlay current unsaved pages and library state
+  RenameService -> Fs : detect template-id collisions \n and file move collisions
+  RenameService --> Ui : reticle rename plan
+  User -> Ui : confirm
+  Ui -> RenameService : Execute(plan)
+  RenameService -> Fs : rewrite template JSON id
+  RenameService -> Fs : rewrite staticReticles[*].template
+  RenameService -> Fs : rewrite strobe.template
+  RenameService -> Fs : rewrite dynamicReticleBindings[*].templateId
+  opt template file move requested
+    RenameService -> Fs : move template file
+    RenameService -> Fs : rewrite relative image paths
+  end
+  RenameService -> LiveDoc : update reticle library and current page references
+end
+
+note over Ui, Fs
+Both rename workflows are direct-to-disk operations.
+Regenerate the generated API afterwards because names
+can change generated wrappers and mappingHash.
+end note
+@enduml

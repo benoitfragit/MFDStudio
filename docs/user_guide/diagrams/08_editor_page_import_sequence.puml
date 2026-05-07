@@ -1,0 +1,44 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam sequence {
+  ArrowColor #355070
+  LifeLineBorderColor #355070
+  LifeLineBackgroundColor #F8FAFC
+  ParticipantBorderColor #355070
+  ParticipantBackgroundColor #EAF4F4
+}
+
+actor "User" as User
+participant "Editor UI   \n   menu / drag & drop" as Ui
+participant "PageImportService" as ImportService
+participant "AssetReferenceIndexService" as Index
+participant "Filesystem" as Fs
+participant "Live document editor" as LiveDoc
+
+User -> Ui : Page > Import page... \n or drop page.json
+Ui -> ImportService : BuildPlan(sourcePageJson, scannedAssetRoot)
+ImportService -> Fs : validate source page file
+ImportService -> Index : discover referenced templates
+Index -> Fs : scan page / reticle assets
+ImportService -> Fs : compute target page file \n and target template files
+ImportService --> Ui : plan { references, collisions, \n copy/reuse/rename policy, canExecute }
+
+alt plan is executable
+  User -> Ui : confirm import
+  Ui -> ImportService : Execute(plan)
+  ImportService -> Fs : load page through a temporary wrapper window
+  ImportService -> Fs : copy / reuse / rename referenced templates
+  ImportService -> LiveDoc : append imported page
+  ImportService -> LiveDoc : merge imported templates in library
+  ImportService --> Ui : import result + warnings
+  note right of LiveDoc
+  Import mutates the in-memory editor state immediately.
+  Authored JSON files are still persisted later
+  through the normal File > Save flow.
+  end note
+else plan blocked
+  Ui --> User : show blocking collisions / invalid assets
+end
+@enduml

@@ -1,0 +1,43 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam ArrowColor #6D597A
+skinparam ArrowThickness 1.2
+skinparam rectangle {
+  RoundCorner 16
+  BorderColor #6D597A
+  FontColor #1F2933
+}
+left to right direction
+
+rectangle "WindowJSON" as WindowJson #E9F5DB
+rectangle "generate_ui.py" as Generator #FFF3D6
+rectangle "Generated UI root   \n   Window()   \n   Page accessors   \n   BuildBatch()   \n   BuildCommandBatch()" as UiRoot #D9EDFF
+rectangle "Generated page   \n   Name()   \n   GeneratedId()   \n   MappingHash()   \n   IsActive()" as Page #D9EDFF
+rectangle "Static reticle   \n   SetVisible()   \n   SetPosition()   \n   SetColor()" as Reticle #D9EDFF
+rectangle "Primitive handle   \n   TextHandle / LineHandle / ...   \n   SetText / SetScale / SetLineStyle" as Primitive #D9EDFF
+rectangle "Dynamic set   \n   Create()   \n   Remove()   \n   SetVisible()" as DynamicSet #D9EDFF
+rectangle "Dynamic reticle   \n   IsStrobeCaptured()" as DynamicReticle #D9EDFF
+rectangle ".generated.map   \n   pages / reticles /   \n   primitives / templates /   \n   blinkTypes / mappingHash" as Map #FFF7B3
+rectangle "CommandClient" as Client #FFE5EC
+rectangle "Running window" as Runtime #FFE3E3
+
+WindowJson --> Generator
+Generator --> UiRoot
+Generator --> Map
+UiRoot --> Page
+Page --> Reticle
+Reticle --> Primitive
+Page --> DynamicSet
+DynamicSet --> DynamicReticle
+DynamicReticle --> Primitive
+UiRoot --> Client : generic batches
+Map --> Client : local resolution of \n names if raw API desired
+Client --> Runtime : ID + mappingHash commands
+
+note bottom of UiRoot
+Generated path hides transport IDs
+to the application business code.
+end note
+@enduml

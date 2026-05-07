@@ -1,0 +1,56 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam sequence {
+  ArrowColor #7F5539
+  LifeLineBorderColor #7F5539
+  LifeLineBackgroundColor #F8FAFC
+  ParticipantBorderColor #7F5539
+  ParticipantBackgroundColor #FFF3D6
+}
+
+participant "WindowLauncher" as Launcher
+participant "LoadedFramebufferPlugin" as Loader
+participant "Plugin DLL" as Plugin
+participant "AsyncFramebufferCapture" as Capture
+participant "OpenGL / PBO ring" as Pbo
+
+Launcher -> Loader : Load(plugin.dll)
+Loader -> Plugin : LoadLibrary + GetProcAddress(entry point)
+Plugin --> Loader : callback table + plugin_context
+Loader -> Plugin : init(plugin_context, hostApi, errorBuffer)
+
+loop each rendered frame
+  Launcher -> Capture : Capture()
+  alt OpenGL PBO path available
+    Capture -> Pbo : submit glReadPixels readback
+    Capture -> Pbo : poll previous fence
+    Pbo --> Capture : ready RGBA32 frame \n or latest cached frame
+  else synchronous fallback
+    Capture -> Pbo : direct framebuffer readback
+    Pbo --> Capture : RGBA32 frame
+  end
+
+  Launcher -> Loader : submit rgba32 bytes
+  Loader -> Plugin : submit_frame(plugin_context, frame, errorBuffer)
+  note right of Loader
+  frame.struct_size
+  frame.pixel_format = Rgba32
+  frame.width / frame.height
+  frame.row_stride_bytes
+  frame.pixels
+  frame.pixel_bytes
+  end note
+
+  alt plugin returns success
+    Plugin --> Loader : Success
+  else plugin returns error
+    Plugin --> Loader : result code + UTF-8 message
+    Loader -> Launcher : report one distinct runtime error
+  end
+end
+
+Launcher -> Loader : close()
+Launcher -> Loader : destroy()
+@enduml

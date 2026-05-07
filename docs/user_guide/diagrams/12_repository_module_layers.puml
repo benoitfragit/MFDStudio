@@ -1,0 +1,75 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam packageStyle rectangle
+skinparam ArrowColor #264653
+skinparam ArrowThickness 1.1
+skinparam rectangle {
+  RoundCorner 12
+  BorderColor #264653
+  FontColor #1F2933
+}
+skinparam package {
+  BorderColor #264653
+  BackgroundColor #F8FAFC
+  FontColor #1F2933
+}
+top to bottom direction
+
+package "Authoring layer" {
+  rectangle "mfd_editor" as Editor #D9EDFF
+  rectangle "PageImportService /  \n  PageRenameService /  \n  ReticleRenameService" as EditorServices #EAF4F4
+  rectangle "AssetReferenceIndexService" as AssetIndex #EAF4F4
+  rectangle "assets/windows" as WindowAssets #E9F5DB
+  rectangle "assets/pages" as PageAssets #E9F5DB
+  rectangle "assets/reticles" as ReticleAssets #E9F5DB
+}
+
+package "Generation layer" {
+  rectangle "mfd_client_api/generator  \n  ClientApiGenerator.cmake  \n  + generate_ui.py" as Generator #FFF3D6
+  rectangle "Generated Ui.h / Ui.cpp" as GeneratedUi #FFF7B3
+  rectangle "<window>.generated.map" as GeneratedMap #FFF7B3
+}
+
+package "Client integration layer" {
+  rectangle "Client application" as ClientApp #FFE5EC
+  rectangle "mfd_client_api  \n  LatestBatchPublisher" as ClientApi #F3E8FF
+  rectangle "mfd_common_api  \n  CommandClient / FeedbackTransport" as CommonApi #F3E8FF
+}
+
+package "Runtime layer" {
+  rectangle "mfd_api  \n  JsonLoader / SceneRegistry /  \n  MfdRenderer" as RuntimeCore #FFE3E3
+  rectangle "mfd_window  \n  WindowLauncher /  \n  UdpRuntimeBridge /  \n  overlay" as RuntimeHost #FFE3E3
+}
+
+package "Plugin boundary" {
+  rectangle "mfd_window_plugin_api" as PluginApi #FDE2E4
+  rectangle "Framebuffer plugin DLL" as PluginDll #FDE2E4
+}
+
+Editor --> EditorServices : invokes protected workflows
+EditorServices --> AssetIndex : scans references
+Editor --> WindowAssets : reads / writes
+Editor --> PageAssets : reads / writes
+Editor --> ReticleAssets : reads / writes
+Generator --> WindowAssets : reads window JSON
+Generator --> PageAssets : reads page JSON
+Generator --> ReticleAssets : reads reticle templates
+Generator --> GeneratedUi : emits typed wrappers
+Generator --> GeneratedMap : emits stable transport map
+ClientApp --> GeneratedUi : uses generated classes
+GeneratedUi --> ClientApi : SubmitLatest(...)
+GeneratedUi --> CommonApi : BuildCommandBatch() \n ActivateGeneratedPage(...)
+RuntimeHost --> RuntimeCore : load assets / render / mutate scene
+RuntimeHost --> CommonApi : command + feedback transport semantics
+RuntimeHost --> PluginDll : submit_frame(...)
+PluginDll --> PluginApi : stable C ABI
+
+note bottom of RuntimeHost
+Ownership rule:
+- authoring owns JSON assets
+- client owns live business data
+- runtime owns rendered scene state
+end note
+@enduml

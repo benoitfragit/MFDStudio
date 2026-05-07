@@ -1,0 +1,54 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam packageStyle rectangle
+skinparam ArrowColor #264653
+skinparam ArrowThickness 1.2
+skinparam rectangle {
+  RoundCorner 18
+  BorderColor #264653
+  FontColor #1F2933
+}
+skinparam package {
+  BorderColor #264653
+  FontColor #1F2933
+  BackgroundColor #F8FAFC
+}
+skinparam actor {
+  BorderColor #264653
+  FontColor #1F2933
+}
+left to right direction
+
+actor "MFD author" as Author
+actor "C++ integrator" as Integrator
+actor "Runtime operator" as Operator
+
+package "MFDStudio repository" {
+  rectangle "assets/\nwindow, pages,\nreticles, images" as Assets #E9F5DB
+  rectangle "mfd_editor\nvisual authoring" as Editor #D9EDFF
+  rectangle "mfd_client_api/generator\nC++ UI + .generated.map" as Generator #FFF3D6
+  rectangle "Client application\ncockpit-specific logic" as ClientApp #FFF3D6
+  rectangle "mfd_window\nruntime + F1 overlay" as Runtime #FFE3E3
+  rectangle "Framebuffer plugin\nstable DLL ABI" as Plugin #F3E8FF
+}
+
+Author --> Editor : design and save
+Editor --> Assets : write authored model
+Assets --> Generator : input source
+Integrator --> Generator : configure generation
+Generator --> ClientApp : emit generated headers / sources
+Generator --> Assets : write <window>.generated.map
+Integrator --> ClientApp : implement business logic
+Operator --> ClientApp : provide live data
+ClientApp --> Runtime : UDP protobuf commands
+Runtime --> ClientApp : optional UDP feedback
+Runtime --> Plugin : submit RGBA32 frames
+Operator --> Runtime : observe rendered window
+
+note bottom of Runtime
+The runtime owns rendered scene state.
+The client owns business data and publish cadence.
+end note
+@enduml
