@@ -151,9 +151,13 @@ struct MfdRenderer::Impl
 
     void ResetTextFont() noexcept
     {
+        const bool windowReady = IsWindowReady();
         if (textFontReady)
         {
-            UnloadFont(textFont);
+            if (windowReady)
+            {
+                UnloadFont(textFont);
+            }
             textFont = {};
             textFontReady = false;
         }
@@ -163,11 +167,16 @@ struct MfdRenderer::Impl
 
     void Release() noexcept
     {
+        imageCache.Clear();
         ResetTextFont();
+        const bool windowReady = IsWindowReady();
 
         if (renderTargetReady)
         {
-            UnloadRenderTexture(renderTarget);
+            if (windowReady)
+            {
+                UnloadRenderTexture(renderTarget);
+            }
             renderTarget = {};
             renderTargetReady = false;
             renderTargetStencilReady = false;
@@ -175,7 +184,10 @@ struct MfdRenderer::Impl
 
         if (shaderReady)
         {
-            UnloadShader(shader);
+            if (windowReady)
+            {
+                UnloadShader(shader);
+            }
             shader = {};
             shaderReady = false;
             brightnessLocation = -1;

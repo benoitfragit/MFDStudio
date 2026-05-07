@@ -1194,7 +1194,7 @@ public:
         }
 
         debugOverlay_.Shutdown();
-        framebufferCapture_.reset();
+        ReleaseRenderResourcesBeforeWindowClose();
         CloseWindow();
         return 0;
     }
@@ -1629,6 +1629,17 @@ private:
         }
 
         framebufferCallback_(framebuffer->width, framebuffer->height, framebuffer->Bytes());
+    }
+
+    void ReleaseRenderResourcesBeforeWindowClose() noexcept
+    {
+        framebufferCapture_.reset();
+
+        // Destroy the renderer while the OpenGL context is still valid so its
+        // cached textures, fonts, shaders and render targets can be released
+        // deterministically before CloseWindow() tears the context down.
+        mfd::MfdRenderer releasedRenderer = std::move(renderer_);
+        (void)releasedRenderer;
     }
 
     std::string applicationName_;

@@ -452,6 +452,8 @@ private:
     void ReleaseTooltipPreviewTexture();
     /** @brief Releases every cached layer-preview thumbnail texture. */
     void ReleaseLayerPreviewTextures() noexcept;
+    /** @brief Releases every preview-side GPU resource before shutdown. */
+    void ReleasePreviewGpuResources() noexcept;
     /** @brief Applies the font file declared by the loaded window configuration. */
     void ApplyPreviewFontFile(std::filesystem::path fontFile);
     /** @brief Lazily loads the configured preview font once raylib is ready. */

@@ -82,9 +82,10 @@ void ImageTextureCache::Clear() noexcept
         return;
     }
 
+    const bool windowReady = IsWindowReady();
     for (auto& entry : impl_->entries)
     {
-        if (entry.second.ready)
+        if (entry.second.ready && windowReady)
         {
             UnloadTexture(entry.second.texture);
         }

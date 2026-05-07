@@ -1765,10 +1765,7 @@ EditorApplication::EditorApplication()
 
 EditorApplication::~EditorApplication()
 {
-    ReleaseLayerPreviewTextures();
-    ReleaseTooltipPreviewTexture();
-    ReleasePreviewTexture();
-    ReleasePreviewFont();
+    ReleasePreviewGpuResources();
 }
 
 float EditorApplication::ViewportState::LogicalScale() const noexcept
@@ -1848,10 +1845,7 @@ int EditorApplication::Run()
     }
 
     rlImGuiShutdown();
-    ReleaseLayerPreviewTextures();
-    ReleaseTooltipPreviewTexture();
-    ReleasePreviewTexture();
-    ReleasePreviewFont();
+    ReleasePreviewGpuResources();
     CloseWindow();
     return 0;
 }
@@ -3846,9 +3840,13 @@ void EditorApplication::EnsurePreviewTexture(const int width, const int height)
 
 void EditorApplication::ReleasePreviewTexture()
 {
+    const bool windowReady = IsWindowReady();
     if (previewTextureReady_)
     {
-        UnloadRenderTexture(previewTexture_);
+        if (windowReady)
+        {
+            UnloadRenderTexture(previewTexture_);
+        }
         previewTexture_ = {};
     }
 
@@ -3874,9 +3872,13 @@ void EditorApplication::EnsureTooltipPreviewTexture(const int width, const int h
 
 void EditorApplication::ReleaseTooltipPreviewTexture()
 {
+    const bool windowReady = IsWindowReady();
     if (tooltipPreviewTextureReady_)
     {
-        UnloadRenderTexture(tooltipPreviewTexture_);
+        if (windowReady)
+        {
+            UnloadRenderTexture(tooltipPreviewTexture_);
+        }
         tooltipPreviewTexture_ = {};
     }
 
@@ -3886,11 +3888,15 @@ void EditorApplication::ReleaseTooltipPreviewTexture()
 
 void EditorApplication::ReleaseLayerPreviewTextures() noexcept
 {
+    const bool windowReady = IsWindowReady();
     for (LayerPreviewTextureSlot& slot : layerPreviewTextures_)
     {
         if (slot.ready)
         {
-            UnloadRenderTexture(slot.texture);
+            if (windowReady)
+            {
+                UnloadRenderTexture(slot.texture);
+            }
             slot.texture = {};
         }
 
@@ -3901,6 +3907,15 @@ void EditorApplication::ReleaseLayerPreviewTextures() noexcept
     }
 
     layerPreviewTextures_.clear();
+}
+
+void EditorApplication::ReleasePreviewGpuResources() noexcept
+{
+    previewImageCache_.Clear();
+    ReleaseLayerPreviewTextures();
+    ReleaseTooltipPreviewTexture();
+    ReleasePreviewTexture();
+    ReleasePreviewFont();
 }
 
 const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std::size_t thumbnailIndex,
@@ -4042,9 +4057,13 @@ void EditorApplication::EnsurePreviewFont()
 
 void EditorApplication::ReleasePreviewFont() noexcept
 {
+    const bool windowReady = IsWindowReady();
     if (previewFontReady_)
     {
-        UnloadFont(previewFont_);
+        if (windowReady)
+        {
+            UnloadFont(previewFont_);
+        }
         previewFont_ = {};
         previewFontReady_ = false;
     }
