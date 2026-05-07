@@ -125,6 +125,17 @@ private:
     bool SubmitResolved(UserCommand command, std::string_view mappingHash);
     bool DispatchResolved(const UserCommand& command);
     bool ResolveCommandIdentifiers(UserCommand& command, std::string_view mappingHash);
+    bool ResolveGeneratedPage(std::string& page, TransportId pageId);
+    bool ResolveGeneratedStaticReticle(StaticReticleHandle& target);
+    bool ResolveGeneratedDynamicReticle(DynamicReticleHandle& target);
+    bool ResolveGeneratedTemplate(std::string& templateId, TransportId templateTransportId);
+    const std::string* ResolveGeneratedPrimitiveId(TransportId staticReticleId,
+                                                   TransportId templateTransportId,
+                                                   TransportId primitiveId) const noexcept;
+    bool ResolveGeneratedPatchPrimitiveIds(ReticlePatch& patch,
+                                           TransportId pageId,
+                                           TransportId staticReticleId,
+                                           TransportId templateTransportId);
 
     void SetFailure(std::string message);
 

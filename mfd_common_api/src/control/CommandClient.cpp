@@ -96,25 +96,24 @@ bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
         command);
 }
 
+std::uint64_t AppendFnv1aHash(std::uint64_t hash, const std::string_view value) noexcept
+{
+    constexpr std::uint64_t kFnvPrime = 1099511628211ull;
+    for (const unsigned char ch : value)
+    {
+        hash ^= static_cast<std::uint64_t>(ch);
+        hash *= kFnvPrime;
+    }
+
+    return hash;
+}
+
 std::uint64_t HashNormalizedIdentifier(std::string_view lhs, std::string_view rhs) noexcept
 {
     constexpr std::uint64_t kFnvOffset = 1469598103934665603ull;
-    constexpr std::uint64_t kFnvPrime = 1099511628211ull;
-
-    auto append = [kFnvPrime](std::uint64_t hash, const std::string_view value) noexcept
-    {
-        for (const unsigned char ch : value)
-        {
-            hash ^= static_cast<std::uint64_t>(ch);
-            hash *= kFnvPrime;
-        }
-
-        return hash;
-    };
-
-    std::uint64_t hash = append(kFnvOffset, lhs);
-    hash = append(hash, std::string_view {"\x1F", 1});
-    hash = append(hash, rhs);
+    std::uint64_t hash = AppendFnv1aHash(kFnvOffset, lhs);
+    hash = AppendFnv1aHash(hash, std::string_view {"\x1F", 1});
+    hash = AppendFnv1aHash(hash, rhs);
     return hash;
 }
 
@@ -260,20 +259,350 @@ std::optional<std::string> TrySerializeBatch(const CommandBatch& batch, std::str
     }
 }
 
+bool FitsAsSingleCommandPayload(const UserCommand& command,
+                                const std::uint32_t sequence,
+                                const std::string_view mappingHash,
+                                const std::size_t maxPayloadBytes,
+                                std::string& error)
+{
+    const auto payload = TrySerializeBatch(
+        MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {command}),
+        error);
+    return payload.has_value() && payload->size() <= maxPayloadBytes;
+}
+
+const GeneratedTransportMap* RequireTransportMap(const std::optional<GeneratedTransportMap>& transportMap,
+                                                 std::string& lastError,
+                                                 const std::string_view context)
+{
+    if (!transportMap.has_value())
+    {
+        lastError = "Command transport normalization requires a generated transport map: " + std::string(context);
+        return nullptr;
+    }
+
+    return &(*transportMap);
+}
+
+bool ResolveGeneratedPage(const std::optional<GeneratedTransportMap>& transportMap,
+                          std::string& lastError,
+                          std::string& page,
+                          TransportId& pageId,
+                          const std::string_view context)
+{
+    if (pageId != 0)
+    {
+        if (transportMap.has_value())
+        {
+            const TransportMapPageEntry* resolved = FindPageById(*transportMap, pageId);
+            if (resolved == nullptr)
+            {
+                lastError =
+                    "Unknown generated page id " + std::to_string(pageId) + " while normalizing " + std::string(context);
+                return false;
+            }
+
+            if (!page.empty() && NormalizePageName(page) != resolved->normalizedName)
+            {
+                lastError = "Generated page id " + std::to_string(pageId) + " does not match page '" + page + "'";
+                return false;
+            }
+
+            page = resolved->name;
+        }
+
+        return true;
+    }
+
+    if (page.empty())
+    {
+        lastError = std::string(context) + " requires a target page";
+        return false;
+    }
+
+    const GeneratedTransportMap* map = RequireTransportMap(transportMap, lastError, context);
+    if (map == nullptr)
+    {
+        return false;
+    }
+
+    const TransportMapPageEntry* resolved = FindPageByName(*map, page);
+    if (resolved == nullptr)
+    {
+        lastError = "Unknown page '" + page + "' while normalizing " + std::string(context);
+        return false;
+    }
+
+    pageId = resolved->id;
+    page = resolved->name;
+    return true;
+}
+
+bool ResolveGeneratedStaticReticle(const std::optional<GeneratedTransportMap>& transportMap,
+                                   std::string& lastError,
+                                   StaticReticleHandle& target,
+                                   const std::string_view context)
+{
+    if (target.pageId == 0)
+    {
+        lastError = std::string(context) + " requires a generated pageId";
+        return false;
+    }
+
+    if (target.reticleId != 0)
+    {
+        if (transportMap.has_value())
+        {
+            const auto iterator = std::find_if(
+                transportMap->reticles.begin(),
+                transportMap->reticles.end(),
+                [&target](const TransportMapReticleEntry& entry)
+                {
+                    return entry.id == target.reticleId;
+                });
+            if (iterator == transportMap->reticles.end())
+            {
+                lastError = "Unknown generated static reticle id " + std::to_string(target.reticleId);
+                return false;
+            }
+
+            if (iterator->pageId != target.pageId)
+            {
+                lastError = "Generated static reticle id " + std::to_string(target.reticleId) +
+                            " does not belong to page id " + std::to_string(target.pageId);
+                return false;
+            }
+
+            if (!target.reticle.empty() && NormalizePageName(target.reticle) != iterator->normalizedReticleId)
+            {
+                lastError = "Generated static reticle id " + std::to_string(target.reticleId) +
+                            " does not match reticle '" + target.reticle + "'";
+                return false;
+            }
+
+            target.reticle = iterator->reticleId;
+        }
+
+        return true;
+    }
+
+    if (target.reticle.empty())
+    {
+        lastError = std::string(context) + " requires a target reticle";
+        return false;
+    }
+
+    const GeneratedTransportMap* map = RequireTransportMap(transportMap, lastError, context);
+    if (map == nullptr)
+    {
+        return false;
+    }
+
+    const TransportMapReticleEntry* resolved = FindStaticReticle(*map, target.pageId, target.reticle);
+    if (resolved == nullptr)
+    {
+        lastError = "Unknown static reticle '" + target.reticle + "' on page '" + target.page + "'";
+        return false;
+    }
+
+    target.reticleId = resolved->id;
+    target.reticle = resolved->reticleId;
+    return true;
+}
+
+bool ResolveGeneratedTemplate(const std::optional<GeneratedTransportMap>& transportMap,
+                              std::string& lastError,
+                              std::string& templateId,
+                              TransportId& templateTransportId,
+                              const std::string_view context)
+{
+    if (templateTransportId != 0)
+    {
+        if (transportMap.has_value())
+        {
+            const TransportMapTemplateEntry* resolved = FindTemplateById(*transportMap, templateTransportId);
+            if (resolved == nullptr)
+            {
+                lastError = "Unknown generated template id " + std::to_string(templateTransportId);
+                return false;
+            }
+
+            if (!templateId.empty() && NormalizePageName(templateId) != resolved->normalizedTemplateId)
+            {
+                lastError = "Generated template id " + std::to_string(templateTransportId) +
+                            " does not match template '" + templateId + "'";
+                return false;
+            }
+
+            templateId = resolved->templateId;
+        }
+
+        return true;
+    }
+
+    if (templateId.empty())
+    {
+        lastError = std::string(context) + " requires a dynamic template";
+        return false;
+    }
+
+    const GeneratedTransportMap* map = RequireTransportMap(transportMap, lastError, context);
+    if (map == nullptr)
+    {
+        return false;
+    }
+
+    const TransportMapTemplateEntry* resolved = FindTemplateByName(*map, templateId);
+    if (resolved == nullptr)
+    {
+        lastError = "Unknown dynamic template '" + templateId + "'";
+        return false;
+    }
+
+    templateTransportId = resolved->id;
+    templateId = resolved->templateId;
+    return true;
+}
+
+bool ResolveDynamicRuntimeId(std::string& lastError,
+                             const std::string_view page,
+                             DynamicReticleHandle& target,
+                             const std::string_view context)
+{
+    if (target.runtimeReticleId != 0)
+    {
+        return true;
+    }
+
+    if (target.reticleId.empty())
+    {
+        lastError = std::string(context) + " requires a dynamic reticle runtime id or alias";
+        return false;
+    }
+
+    target.runtimeReticleId = MakeStableNamedRuntimeDynamicId(page, target.reticleId);
+    return true;
+}
+
+bool ResolveDynamicStateIds(std::string& lastError,
+                            const std::string_view page,
+                            std::vector<DynamicReticleState>& states,
+                            const std::string_view context)
+{
+    for (DynamicReticleState& state : states)
+    {
+        if (state.runtimeReticleId != 0)
+        {
+            continue;
+        }
+
+        if (state.reticleId.empty())
+        {
+            lastError = std::string(context) + " requires a dynamic reticle runtime id or alias";
+            return false;
+        }
+
+        state.runtimeReticleId = MakeStableNamedRuntimeDynamicId(page, state.reticleId);
+    }
+
+    return true;
+}
+
+template <typename TValue>
+bool MoveNamedPrimitiveFields(const GeneratedTransportMap& map,
+                              std::unordered_map<std::string, TValue>& named,
+                              std::unordered_map<TransportId, TValue>& byId,
+                              const TransportPrimitiveOwnerKind ownerKind,
+                              const TransportId ownerId,
+                              std::string& lastError,
+                              const std::string_view context)
+{
+    for (const auto& [primitiveId, value] : named)
+    {
+        const TransportMapPrimitiveEntry* resolved = FindPrimitiveByOwner(map, ownerKind, ownerId, primitiveId);
+        if (resolved == nullptr)
+        {
+            lastError = "Unknown primitive '" + primitiveId + "' while normalizing " + std::string(context);
+            return false;
+        }
+
+        byId.insert_or_assign(resolved->id, value);
+    }
+
+    named.clear();
+    return true;
+}
+
+bool NormalizePatchForTransport(const std::optional<GeneratedTransportMap>& transportMap,
+                                std::string& lastError,
+                                ReticlePatch& patch,
+                                const TransportId pageId,
+                                const TransportPrimitiveOwnerKind ownerKind,
+                                const TransportId ownerId,
+                                const std::string_view context)
+{
+    if (patch.blinkType.has_value() && !patch.blinkTypeId.has_value())
+    {
+        if (patch.blinkType->empty())
+        {
+            patch.blinkTypeId = TransportId {0};
+        }
+        else
+        {
+            const GeneratedTransportMap* map = RequireTransportMap(transportMap, lastError, context);
+            if (map == nullptr)
+            {
+                return false;
+            }
+
+            if (pageId == 0)
+            {
+                lastError = std::string(context) + " requires a generated pageId to resolve blinkType";
+                return false;
+            }
+
+            const TransportMapBlinkTypeEntry* resolved = FindBlinkType(*map, pageId, *patch.blinkType);
+            if (resolved == nullptr)
+            {
+                lastError = "Unknown blink type '" + *patch.blinkType + "'";
+                return false;
+            }
+
+            patch.blinkTypeId = resolved->id;
+        }
+    }
+
+    if (patch.texts.empty() && patch.letterSpacings.empty() && patch.primitivePatches.empty())
+    {
+        return true;
+    }
+
+    if (ownerId == 0)
+    {
+        lastError = std::string(context) + " requires generated owner ids to resolve named primitive fields";
+        return false;
+    }
+
+    const GeneratedTransportMap* map = RequireTransportMap(transportMap, lastError, context);
+    if (map == nullptr)
+    {
+        return false;
+    }
+
+    return MoveNamedPrimitiveFields(*map, patch.texts, patch.textsById, ownerKind, ownerId, lastError, context) &&
+           MoveNamedPrimitiveFields(
+               *map, patch.letterSpacings, patch.letterSpacingsById, ownerKind, ownerId, lastError, context) &&
+           MoveNamedPrimitiveFields(
+               *map, patch.primitivePatches, patch.primitivePatchesById, ownerKind, ownerId, lastError, context);
+}
+
 std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand& command,
                                                               const std::uint32_t sequence,
                                                               const std::string_view mappingHash,
                                                               const std::size_t maxPayloadBytes,
                                                               std::string& error)
 {
-    const auto fitsAsSingleCommand =
-        [&command, sequence, mappingHash, maxPayloadBytes, &error]() -> bool
-    {
-        auto payload = TrySerializeBatch(MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {command}), error);
-        return payload.has_value() && payload->size() <= maxPayloadBytes;
-    };
-
-    if (fitsAsSingleCommand())
+    if (FitsAsSingleCommandPayload(command, sequence, mappingHash, maxPayloadBytes, error))
     {
         return std::vector<UserCommand> {command};
     }
@@ -407,373 +736,20 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
 {
     normalizedBatch = sourceBatch;
 
-    auto requireTransportMap = [this](const std::string_view context) -> const GeneratedTransportMap*
-    {
-        if (!transportMap_.has_value())
-        {
-            lastError_ = "Command transport normalization requires a generated transport map: " + std::string(context);
-            return nullptr;
-        }
-
-        return &(*transportMap_);
-    };
-
-    auto resolvePage = [this, &requireTransportMap](std::string& page,
-                                                    TransportId& pageId,
-                                                    const std::string_view context) -> bool
-    {
-        if (pageId != 0)
-        {
-            if (transportMap_.has_value())
-            {
-                const TransportMapPageEntry* resolved = FindPageById(*transportMap_, pageId);
-                if (resolved == nullptr)
-                {
-                    lastError_ = "Unknown generated page id " + std::to_string(pageId) + " while normalizing " +
-                                 std::string(context);
-                    return false;
-                }
-
-                if (!page.empty() && NormalizePageName(page) != resolved->normalizedName)
-                {
-                    lastError_ = "Generated page id " + std::to_string(pageId) + " does not match page '" + page + "'";
-                    return false;
-                }
-
-                page = resolved->name;
-            }
-
-            return true;
-        }
-
-        if (page.empty())
-        {
-            lastError_ = std::string(context) + " requires a target page";
-            return false;
-        }
-
-        const GeneratedTransportMap* map = requireTransportMap(context);
-        if (map == nullptr)
-        {
-            return false;
-        }
-
-        const TransportMapPageEntry* resolved = FindPageByName(*map, page);
-        if (resolved == nullptr)
-        {
-            lastError_ = "Unknown page '" + page + "' while normalizing " + std::string(context);
-            return false;
-        }
-
-        pageId = resolved->id;
-        page = resolved->name;
-        return true;
-    };
-
-    auto resolveStaticReticle = [this, &requireTransportMap](StaticReticleHandle& target,
-                                                             const std::string_view context) -> bool
-    {
-        if (target.pageId == 0)
-        {
-            lastError_ = std::string(context) + " requires a generated pageId";
-            return false;
-        }
-
-        if (target.reticleId != 0)
-        {
-            if (transportMap_.has_value())
-            {
-                const auto iterator = std::find_if(
-                    transportMap_->reticles.begin(),
-                    transportMap_->reticles.end(),
-                    [&target](const TransportMapReticleEntry& entry)
-                    {
-                        return entry.id == target.reticleId;
-                    });
-                if (iterator == transportMap_->reticles.end())
-                {
-                    lastError_ = "Unknown generated static reticle id " + std::to_string(target.reticleId);
-                    return false;
-                }
-
-                if (iterator->pageId != target.pageId)
-                {
-                    lastError_ = "Generated static reticle id " + std::to_string(target.reticleId) +
-                                 " does not belong to page id " + std::to_string(target.pageId);
-                    return false;
-                }
-
-                if (!target.reticle.empty() && NormalizePageName(target.reticle) != iterator->normalizedReticleId)
-                {
-                    lastError_ = "Generated static reticle id " + std::to_string(target.reticleId) +
-                                 " does not match reticle '" + target.reticle + "'";
-                    return false;
-                }
-
-                target.reticle = iterator->reticleId;
-            }
-
-            return true;
-        }
-
-        if (target.reticle.empty())
-        {
-            lastError_ = std::string(context) + " requires a target reticle";
-            return false;
-        }
-
-        const GeneratedTransportMap* map = requireTransportMap(context);
-        if (map == nullptr)
-        {
-            return false;
-        }
-
-        const TransportMapReticleEntry* resolved = FindStaticReticle(*map, target.pageId, target.reticle);
-        if (resolved == nullptr)
-        {
-            lastError_ = "Unknown static reticle '" + target.reticle + "' on page '" + target.page + "'";
-            return false;
-        }
-
-        target.reticleId = resolved->id;
-        target.reticle = resolved->reticleId;
-        return true;
-    };
-
-    auto resolveTemplate = [this, &requireTransportMap](std::string& templateId,
-                                                        TransportId& templateTransportId,
-                                                        const std::string_view context) -> bool
-    {
-        if (templateTransportId != 0)
-        {
-            if (transportMap_.has_value())
-            {
-                const TransportMapTemplateEntry* resolved = FindTemplateById(*transportMap_, templateTransportId);
-                if (resolved == nullptr)
-                {
-                    lastError_ = "Unknown generated template id " + std::to_string(templateTransportId);
-                    return false;
-                }
-
-                if (!templateId.empty() && NormalizePageName(templateId) != resolved->normalizedTemplateId)
-                {
-                    lastError_ = "Generated template id " + std::to_string(templateTransportId) +
-                                 " does not match template '" + templateId + "'";
-                    return false;
-                }
-
-                templateId = resolved->templateId;
-            }
-
-            return true;
-        }
-
-        if (templateId.empty())
-        {
-            lastError_ = std::string(context) + " requires a dynamic template";
-            return false;
-        }
-
-        const GeneratedTransportMap* map = requireTransportMap(context);
-        if (map == nullptr)
-        {
-            return false;
-        }
-
-        const TransportMapTemplateEntry* resolved = FindTemplateByName(*map, templateId);
-        if (resolved == nullptr)
-        {
-            lastError_ = "Unknown dynamic template '" + templateId + "'";
-            return false;
-        }
-
-        templateTransportId = resolved->id;
-        templateId = resolved->templateId;
-        return true;
-    };
-
-    auto resolveDynamicRuntimeId = [this](const std::string_view page,
-                                          DynamicReticleHandle& target,
-                                          const std::string_view context) -> bool
-    {
-        if (target.runtimeReticleId != 0)
-        {
-            return true;
-        }
-
-        if (target.reticleId.empty())
-        {
-            lastError_ = std::string(context) + " requires a dynamic reticle runtime id or alias";
-            return false;
-        }
-
-        target.runtimeReticleId = MakeStableNamedRuntimeDynamicId(page, target.reticleId);
-        return true;
-    };
-
-    auto resolveDynamicStateIds = [this](const std::string_view page,
-                                         std::vector<DynamicReticleState>& states,
-                                         const std::string_view context) -> bool
-    {
-        for (DynamicReticleState& state : states)
-        {
-            if (state.runtimeReticleId != 0)
-            {
-                continue;
-            }
-
-            if (state.reticleId.empty())
-            {
-                lastError_ = std::string(context) + " requires a dynamic reticle runtime id or alias";
-                return false;
-            }
-
-            state.runtimeReticleId = MakeStableNamedRuntimeDynamicId(page, state.reticleId);
-        }
-
-        return true;
-    };
-
-    auto normalizePatch = [this, &requireTransportMap](ReticlePatch& patch,
-                                                       const TransportId pageId,
-                                                       const TransportPrimitiveOwnerKind ownerKind,
-                                                       const TransportId ownerId,
-                                                       const std::string_view context) -> bool
-    {
-        if (patch.blinkType.has_value() && !patch.blinkTypeId.has_value())
-        {
-            if (patch.blinkType->empty())
-            {
-                patch.blinkTypeId = TransportId {0};
-            }
-            else
-            {
-                const GeneratedTransportMap* map = requireTransportMap(context);
-                if (map == nullptr)
-                {
-                    return false;
-                }
-
-                if (pageId == 0)
-                {
-                    lastError_ = std::string(context) + " requires a generated pageId to resolve blinkType";
-                    return false;
-                }
-
-                const TransportMapBlinkTypeEntry* resolved = FindBlinkType(*map, pageId, *patch.blinkType);
-                if (resolved == nullptr)
-                {
-                    lastError_ = "Unknown blink type '" + *patch.blinkType + "'";
-                    return false;
-                }
-
-                patch.blinkTypeId = resolved->id;
-            }
-        }
-
-        if (!patch.texts.empty() || !patch.letterSpacings.empty() || !patch.primitivePatches.empty())
-        {
-            if (ownerId == 0)
-            {
-                lastError_ = std::string(context) + " requires generated owner ids to resolve named primitive fields";
-                return false;
-            }
-
-            const GeneratedTransportMap* map = requireTransportMap(context);
-            if (map == nullptr)
-            {
-                return false;
-            }
-
-            auto moveNamedText = [&map, ownerKind, ownerId, this, &context](std::unordered_map<std::string, std::string>& named,
-                                                                            std::unordered_map<TransportId, std::string>& byId) -> bool
-            {
-                for (const auto& [primitiveId, value] : named)
-                {
-                    const TransportMapPrimitiveEntry* resolved = FindPrimitiveByOwner(*map, ownerKind, ownerId, primitiveId);
-                    if (resolved == nullptr)
-                    {
-                        lastError_ = "Unknown primitive '" + primitiveId + "' while normalizing " + std::string(context);
-                        return false;
-                    }
-
-                    byId.insert_or_assign(resolved->id, value);
-                }
-
-                named.clear();
-                return true;
-            };
-
-            auto moveNamedSpacing = [&map, ownerKind, ownerId, this, &context](std::unordered_map<std::string, float>& named,
-                                                                               std::unordered_map<TransportId, float>& byId) -> bool
-            {
-                for (const auto& [primitiveId, value] : named)
-                {
-                    const TransportMapPrimitiveEntry* resolved = FindPrimitiveByOwner(*map, ownerKind, ownerId, primitiveId);
-                    if (resolved == nullptr)
-                    {
-                        lastError_ = "Unknown primitive '" + primitiveId + "' while normalizing " + std::string(context);
-                        return false;
-                    }
-
-                    byId.insert_or_assign(resolved->id, value);
-                }
-
-                named.clear();
-                return true;
-            };
-
-            auto moveNamedPatch = [&map, ownerKind, ownerId, this, &context](
-                                      std::unordered_map<std::string, PrimitivePatch>& named,
-                                      std::unordered_map<TransportId, PrimitivePatch>& byId) -> bool
-            {
-                for (const auto& [primitiveId, value] : named)
-                {
-                    const TransportMapPrimitiveEntry* resolved = FindPrimitiveByOwner(*map, ownerKind, ownerId, primitiveId);
-                    if (resolved == nullptr)
-                    {
-                        lastError_ = "Unknown primitive '" + primitiveId + "' while normalizing " + std::string(context);
-                        return false;
-                    }
-
-                    byId.insert_or_assign(resolved->id, value);
-                }
-
-                named.clear();
-                return true;
-            };
-
-            if (!moveNamedText(patch.texts, patch.textsById) ||
-                !moveNamedSpacing(patch.letterSpacings, patch.letterSpacingsById) ||
-                !moveNamedPatch(patch.primitivePatches, patch.primitivePatchesById))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    };
-
     for (UserCommand& command : normalizedBatch.commands)
     {
         const bool ok = std::visit(
-            [this,
-             &resolvePage,
-             &resolveStaticReticle,
-             &resolveTemplate,
-             &resolveDynamicRuntimeId,
-             &resolveDynamicStateIds,
-             &normalizePatch](auto& value) -> bool
+            [this](auto& value) -> bool
             {
                 using Command = std::decay_t<decltype(value)>;
 
                 if constexpr (std::is_same_v<Command, ActivatePageCommand>)
                 {
-                    return resolvePage(value.page, value.pageId, "ActivatePageCommand");
+                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, "ActivatePageCommand");
                 }
                 else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
                 {
-                    return resolvePage(value.page, value.pageId, "SetPageViewCommand");
+                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, "SetPageViewCommand");
                 }
                 else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand> ||
                                    std::is_same_v<Command, ResetWindowCommand>)
@@ -782,9 +758,12 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
                 }
                 else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
                 {
-                    return resolvePage(value.target.page, value.target.pageId, "UpdateReticleCommand") &&
-                           resolveStaticReticle(value.target, "UpdateReticleCommand") &&
-                           normalizePatch(
+                    return ResolveGeneratedPage(
+                               transportMap_, lastError_, value.target.page, value.target.pageId, "UpdateReticleCommand") &&
+                           ResolveGeneratedStaticReticle(transportMap_, lastError_, value.target, "UpdateReticleCommand") &&
+                           NormalizePatchForTransport(
+                               transportMap_,
+                               lastError_,
                                value.patch,
                                value.target.pageId,
                                TransportPrimitiveOwnerKind::Reticle,
@@ -793,17 +772,27 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
                 }
                 else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
                 {
-                    return resolvePage(value.page, value.pageId, "UpdateStrobeCommand");
+                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, "UpdateStrobeCommand");
                 }
                 else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
                 {
-                    return resolvePage(value.target.page, value.target.pageId, "UpsertDynamicReticleCommand") &&
-                           resolveDynamicRuntimeId(value.target.page, value.target, "UpsertDynamicReticleCommand") &&
-                           resolveTemplate(
+                    return ResolveGeneratedPage(
+                               transportMap_,
+                               lastError_,
+                               value.target.page,
+                               value.target.pageId,
+                               "UpsertDynamicReticleCommand") &&
+                           ResolveDynamicRuntimeId(
+                               lastError_, value.target.page, value.target, "UpsertDynamicReticleCommand") &&
+                           ResolveGeneratedTemplate(
+                               transportMap_,
+                               lastError_,
                                value.templateId,
                                value.templateTransportId,
                                "UpsertDynamicReticleCommand") &&
-                           normalizePatch(
+                           NormalizePatchForTransport(
+                               transportMap_,
+                               lastError_,
                                value.patch,
                                value.target.pageId,
                                TransportPrimitiveOwnerKind::Template,
@@ -812,19 +801,29 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
                 }
                 else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
                 {
-                    if (!resolvePage(value.page, value.pageId, "UpsertDynamicReticlesCommand") ||
-                        !resolveTemplate(
+                    if (!ResolveGeneratedPage(
+                            transportMap_,
+                            lastError_,
+                            value.page,
+                            value.pageId,
+                            "UpsertDynamicReticlesCommand") ||
+                        !ResolveGeneratedTemplate(
+                            transportMap_,
+                            lastError_,
                             value.templateId,
                             value.templateTransportId,
                             "UpsertDynamicReticlesCommand") ||
-                        !resolveDynamicStateIds(value.page, value.reticles, "UpsertDynamicReticlesCommand"))
+                        !ResolveDynamicStateIds(
+                            lastError_, value.page, value.reticles, "UpsertDynamicReticlesCommand"))
                     {
                         return false;
                     }
 
                     for (DynamicReticleState& state : value.reticles)
                     {
-                        if (!normalizePatch(
+                        if (!NormalizePatchForTransport(
+                                transportMap_,
+                                lastError_,
                                 state.patch,
                                 value.pageId,
                                 TransportPrimitiveOwnerKind::Template,
@@ -839,16 +838,29 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
                 }
                 else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
                 {
-                    return resolvePage(value.page, value.pageId, "SetDynamicReticleSetVisibilityCommand") &&
-                           resolveTemplate(
+                    return ResolveGeneratedPage(
+                               transportMap_,
+                               lastError_,
+                               value.page,
+                               value.pageId,
+                               "SetDynamicReticleSetVisibilityCommand") &&
+                           ResolveGeneratedTemplate(
+                               transportMap_,
+                               lastError_,
                                value.templateId,
                                value.templateTransportId,
                                "SetDynamicReticleSetVisibilityCommand");
                 }
                 else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
                 {
-                    return resolvePage(value.target.page, value.target.pageId, "RemoveDynamicReticleCommand") &&
-                           resolveDynamicRuntimeId(value.target.page, value.target, "RemoveDynamicReticleCommand");
+                    return ResolveGeneratedPage(
+                               transportMap_,
+                               lastError_,
+                               value.target.page,
+                               value.target.pageId,
+                               "RemoveDynamicReticleCommand") &&
+                           ResolveDynamicRuntimeId(
+                               lastError_, value.target.page, value.target, "RemoveDynamicReticleCommand");
                 }
                 else
                 {
@@ -875,7 +887,7 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
     {
         if (normalizedBatch.mappingHash.empty())
         {
-            const GeneratedTransportMap* map = requireTransportMap("mapping hash");
+            const GeneratedTransportMap* map = RequireTransportMap(transportMap_, lastError_, "mapping hash");
             if (map == nullptr)
             {
                 return false;
@@ -1204,6 +1216,29 @@ bool CommandClient::SendPayload(const std::string_view payload)
     return true;
 }
 
+bool CommandClient::FlushPayloadChunk(CommandBatch& currentChunk, std::string& error)
+{
+    if (currentChunk.commands.empty())
+    {
+        return true;
+    }
+
+    const auto payload = TrySerializeBatch(currentChunk, error);
+    if (!payload.has_value())
+    {
+        lastError_ = std::move(error);
+        return false;
+    }
+
+    if (!SendPayload(*payload))
+    {
+        return false;
+    }
+
+    currentChunk.commands.clear();
+    return true;
+}
+
 bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
 {
     if (batch.commands.empty())
@@ -1244,29 +1279,6 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
     currentChunk.sequence = normalizedBatch.sequence;
     currentChunk.mappingHash = normalizedBatch.mappingHash;
 
-    auto flushCurrentChunk = [this, &currentChunk, &error]() -> bool
-    {
-        if (currentChunk.commands.empty())
-        {
-            return true;
-        }
-
-        const auto payload = TrySerializeBatch(currentChunk, error);
-        if (!payload.has_value())
-        {
-            lastError_ = std::move(error);
-            return false;
-        }
-
-        if (!SendPayload(*payload))
-        {
-            return false;
-        }
-
-        currentChunk.commands.clear();
-        return true;
-    };
-
     for (const UserCommand& command : expandedCommands)
     {
         CommandBatch candidate = currentChunk;
@@ -1285,7 +1297,7 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
             continue;
         }
 
-        if (!flushCurrentChunk())
+        if (!FlushPayloadChunk(currentChunk, error))
         {
             return false;
         }
@@ -1312,6 +1324,6 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
         currentChunk = std::move(singleCommandChunk);
     }
 
-    return flushCurrentChunk();
+    return FlushPayloadChunk(currentChunk, error);
 }
 } // namespace mfd

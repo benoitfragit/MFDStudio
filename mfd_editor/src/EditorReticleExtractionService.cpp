@@ -164,16 +164,15 @@ std::filesystem::path SuggestUniqueJsonPath(const std::filesystem::path& preferr
     return normalizedPreferred;
 }
 
+bool TryReserveNormalizedId(std::unordered_set<std::string>& usedIds, const std::string& candidate)
+{
+    return usedIds.insert(NormalizeIdentifier(candidate)).second;
+}
+
 std::string SuggestUniquePrimitiveId(const std::string_view baseId, std::unordered_set<std::string>& usedIds)
 {
     const std::string safeBaseId = TrimAsciiWhitespace(baseId).empty() ? std::string {"primitive"} : std::string(baseId);
-    auto reserveId = [&usedIds](const std::string& candidate)
-    {
-        const std::string normalized = NormalizeIdentifier(candidate);
-        return usedIds.insert(normalized).second;
-    };
-
-    if (reserveId(safeBaseId))
+    if (TryReserveNormalizedId(usedIds, safeBaseId))
     {
         return safeBaseId;
     }
@@ -181,7 +180,7 @@ std::string SuggestUniquePrimitiveId(const std::string_view baseId, std::unorder
     for (int suffix = 2; suffix < 10000; ++suffix)
     {
         const std::string candidate = safeBaseId + "_" + std::to_string(suffix);
-        if (reserveId(candidate))
+        if (TryReserveNormalizedId(usedIds, candidate))
         {
             return candidate;
         }
@@ -278,40 +277,42 @@ std::optional<std::filesystem::path> FindAncestorNamed(std::filesystem::path pat
     return std::nullopt;
 }
 
+std::filesystem::path ResolveCandidateAssetRoot(const std::filesystem::path& candidate)
+{
+    if (candidate.empty())
+    {
+        return {};
+    }
+
+    if (const auto assetsRoot = FindAncestorNamed(candidate, "assets"); assetsRoot.has_value())
+    {
+        return assetsRoot->lexically_normal();
+    }
+
+    return {};
+}
+
 std::filesystem::path ResolveExtractionAssetRoot(const mfd::LoadedWindowConfiguration& loaded,
                                                  const EditorFileLayout& files,
                                                  const int pageIndex)
 {
-    const auto resolveOne = [](const std::filesystem::path& candidate)
-    {
-        if (candidate.empty())
-        {
-            return std::filesystem::path {};
-        }
-
-        if (const auto assetsRoot = FindAncestorNamed(candidate, "assets"); assetsRoot.has_value())
-        {
-            return assetsRoot->lexically_normal();
-        }
-
-        return std::filesystem::path {};
-    };
-
-    if (const std::filesystem::path assetRoot = resolveOne(loaded.window.reticleLibraryFolder); !assetRoot.empty())
+    if (const std::filesystem::path assetRoot = ResolveCandidateAssetRoot(loaded.window.reticleLibraryFolder);
+        !assetRoot.empty())
     {
         return assetRoot;
     }
 
     if (pageIndex >= 0 && pageIndex < static_cast<int>(files.pageFiles.size()))
     {
-        if (const std::filesystem::path assetRoot = resolveOne(files.pageFiles[static_cast<std::size_t>(pageIndex)]);
+        if (const std::filesystem::path assetRoot =
+                ResolveCandidateAssetRoot(files.pageFiles[static_cast<std::size_t>(pageIndex)]);
             !assetRoot.empty())
         {
             return assetRoot;
         }
     }
 
-    return resolveOne(loaded.window.sourceFile);
+    return ResolveCandidateAssetRoot(loaded.window.sourceFile);
 }
 
 bool PathStartsWith(const std::filesystem::path& candidate, const std::filesystem::path& root)
@@ -494,17 +495,17 @@ ReticleExtractionPlan ReticleExtractionService::BuildPlan(const mfd::LoadedWindo
     }
 
     const std::string baseTemplateId = ResolveRequestedTemplateId(page, plan.reticleIndices, plan.requestedTemplateId);
-    const auto isTemplateIdTaken = [&loaded](const std::string_view candidate)
-    {
-        return std::any_of(loaded.document.reticleLibrary.begin(),
-                           loaded.document.reticleLibrary.end(),
-                           [candidate](const auto& entry)
-                           {
-                               return mfd::PageNamesEqual(entry.first, candidate);
-                           });
-    };
-
-    plan.targetTemplateId = SuggestUniqueTemplateId(baseTemplateId, isTemplateIdTaken);
+    plan.targetTemplateId = SuggestUniqueTemplateId(
+        baseTemplateId,
+        [&loaded](const std::string_view candidate)
+        {
+            return std::any_of(loaded.document.reticleLibrary.begin(),
+                               loaded.document.reticleLibrary.end(),
+                               [candidate](const auto& entry)
+                               {
+                                   return mfd::PageNamesEqual(entry.first, candidate);
+                               });
+        });
     plan.templateIdAdjusted = !mfd::PageNamesEqual(plan.targetTemplateId, baseTemplateId) || plan.targetTemplateId != baseTemplateId;
 
     std::filesystem::path preferredTemplateFile =
@@ -517,17 +518,18 @@ ReticleExtractionPlan ReticleExtractionService::BuildPlan(const mfd::LoadedWindo
     }
     preferredTemplateFile = EnsureJsonFilePath(preferredTemplateFile);
 
-    const auto isTemplateFileTaken = [&files](const std::filesystem::path& candidate)
-    {
-        return PathExists(candidate) ||
-               std::any_of(files.templateFiles.begin(),
-                           files.templateFiles.end(),
-                           [&candidate](const auto& entry)
-                           {
-                               return PathsEqual(entry.second, candidate);
-                           });
-    };
-    plan.targetTemplateFile = SuggestUniqueJsonPath(preferredTemplateFile, isTemplateFileTaken);
+    plan.targetTemplateFile = SuggestUniqueJsonPath(
+        preferredTemplateFile,
+        [&files](const std::filesystem::path& candidate)
+        {
+            return PathExists(candidate) ||
+                   std::any_of(files.templateFiles.begin(),
+                               files.templateFiles.end(),
+                               [&candidate](const auto& entry)
+                               {
+                                   return PathsEqual(entry.second, candidate);
+                               });
+        });
     plan.templateFileAdjusted = !PathsEqual(plan.targetTemplateFile, preferredTemplateFile);
 
     plan.insertionIndex = plan.reticleIndices.front();
@@ -569,16 +571,19 @@ ReticleExtractionPlan ReticleExtractionService::BuildPlan(const mfd::LoadedWindo
     plan.extractedTemplate.blink = {};
 
     const std::vector<int> remainingIndices = RemainingReticleIndices(page.staticReticles.size(), plan.reticleIndices);
-    auto isReplacementIdTaken = [&page, &remainingIndices](const std::string_view candidate)
-    {
-        return std::any_of(remainingIndices.begin(),
-                           remainingIndices.end(),
-                           [&page, candidate](const int reticleIndex)
-                           {
-                               return mfd::PageNamesEqual(page.staticReticles[static_cast<std::size_t>(reticleIndex)].id, candidate);
-                           });
-    };
-    plan.replacementInstanceId = SuggestUniqueTemplateId(plan.targetTemplateId, isReplacementIdTaken);
+    plan.replacementInstanceId = SuggestUniqueTemplateId(
+        plan.targetTemplateId,
+        [&page, &remainingIndices](const std::string_view candidate)
+        {
+            return std::any_of(remainingIndices.begin(),
+                               remainingIndices.end(),
+                               [&page, candidate](const int reticleIndex)
+                               {
+                                   return mfd::PageNamesEqual(
+                                       page.staticReticles[static_cast<std::size_t>(reticleIndex)].id,
+                                       candidate);
+                               });
+        });
     plan.replacementInstance = mfd::InstantiateReticle(
         plan.extractedTemplate,
         plan.replacementInstanceId,

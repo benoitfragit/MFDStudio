@@ -121,6 +121,12 @@ struct StaleGeneratedRadarPage
         return "stale_map_hash";
     }
 };
+
+std::optional<mfd::CommandBatch> DecodeBatchPayload(const std::vector<std::byte>& payloadBytes)
+{
+    const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
+    return mfd::DeserializeCommandBatch(payload);
+}
 } // namespace
 
 TEST(CommandClientTests, ResetWindowHelperSendsResetWindowCommand)
@@ -242,13 +248,7 @@ TEST(CommandClientTests, DynamicHelpersDeriveStableHiddenRuntimeIdWhenTransportM
     ASSERT_TRUE(client.RemoveDynamicReticle("Radar", "track_042")) << client.LastError();
     ASSERT_EQ(rawChannel->SentPayloads().size(), 2U);
 
-    auto decodeBatch = [](const std::vector<std::byte>& payloadBytes)
-    {
-        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
-        return mfd::DeserializeCommandBatch(payload);
-    };
-
-    const auto upsertBatch = decodeBatch(rawChannel->SentPayloads().front());
+    const auto upsertBatch = DecodeBatchPayload(rawChannel->SentPayloads().front());
     ASSERT_TRUE(upsertBatch.has_value());
     EXPECT_EQ(upsertBatch->mappingHash, "map_hash");
     ASSERT_EQ(upsertBatch->commands.size(), 1U);
@@ -261,7 +261,7 @@ TEST(CommandClientTests, DynamicHelpersDeriveStableHiddenRuntimeIdWhenTransportM
     EXPECT_TRUE(upsertCommand->target.page.empty());
     EXPECT_TRUE(upsertCommand->target.reticleId.empty());
 
-    const auto removeBatch = decodeBatch(rawChannel->SentPayloads().back());
+    const auto removeBatch = DecodeBatchPayload(rawChannel->SentPayloads().back());
     ASSERT_TRUE(removeBatch.has_value());
     EXPECT_EQ(removeBatch->mappingHash, "map_hash");
     ASSERT_EQ(removeBatch->commands.size(), 1U);
@@ -356,13 +356,7 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     ASSERT_TRUE(client.SetDynamicReticleSetVisible("Radar", "radar_track", false)) << client.LastError();
     ASSERT_EQ(rawChannel->SentPayloads().size(), 5U);
 
-    auto decodeBatch = [](const std::vector<std::byte>& payloadBytes)
-    {
-        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
-        return mfd::DeserializeCommandBatch(payload);
-    };
-
-    const auto activateBatch = decodeBatch(rawChannel->SentPayloads()[0]);
+    const auto activateBatch = DecodeBatchPayload(rawChannel->SentPayloads()[0]);
     ASSERT_TRUE(activateBatch.has_value());
     EXPECT_EQ(activateBatch->mappingHash, "map_hash");
     const auto* activate = std::get_if<mfd::ActivatePageCommand>(&activateBatch->commands.front());
@@ -370,7 +364,7 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     EXPECT_EQ(activate->pageId, 11U);
     EXPECT_TRUE(activate->page.empty());
 
-    const auto pageViewBatch = decodeBatch(rawChannel->SentPayloads()[1]);
+    const auto pageViewBatch = DecodeBatchPayload(rawChannel->SentPayloads()[1]);
     ASSERT_TRUE(pageViewBatch.has_value());
     EXPECT_EQ(pageViewBatch->mappingHash, "map_hash");
     const auto* pageView = std::get_if<mfd::SetPageViewCommand>(&pageViewBatch->commands.front());
@@ -381,7 +375,7 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     EXPECT_FLOAT_EQ(pageView->view.center.y, -0.5f);
     EXPECT_FLOAT_EQ(pageView->view.zoom, 1.75f);
 
-    const auto strobeActiveBatch = decodeBatch(rawChannel->SentPayloads()[2]);
+    const auto strobeActiveBatch = DecodeBatchPayload(rawChannel->SentPayloads()[2]);
     ASSERT_TRUE(strobeActiveBatch.has_value());
     EXPECT_EQ(strobeActiveBatch->mappingHash, "map_hash");
     const auto* strobeActive = std::get_if<mfd::UpdateStrobeCommand>(&strobeActiveBatch->commands.front());
@@ -392,7 +386,7 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     EXPECT_TRUE(*strobeActive->active);
     EXPECT_FALSE(strobeActive->position.has_value());
 
-    const auto strobePositionBatch = decodeBatch(rawChannel->SentPayloads()[3]);
+    const auto strobePositionBatch = DecodeBatchPayload(rawChannel->SentPayloads()[3]);
     ASSERT_TRUE(strobePositionBatch.has_value());
     EXPECT_EQ(strobePositionBatch->mappingHash, "map_hash");
     const auto* strobePosition = std::get_if<mfd::UpdateStrobeCommand>(&strobePositionBatch->commands.front());
@@ -404,7 +398,7 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     EXPECT_FLOAT_EQ(strobePosition->position->x, 0.1f);
     EXPECT_FLOAT_EQ(strobePosition->position->y, -0.2f);
 
-    const auto setVisibilityBatch = decodeBatch(rawChannel->SentPayloads()[4]);
+    const auto setVisibilityBatch = DecodeBatchPayload(rawChannel->SentPayloads()[4]);
     ASSERT_TRUE(setVisibilityBatch.has_value());
     EXPECT_EQ(setVisibilityBatch->mappingHash, "map_hash");
     const auto* setVisibility =
@@ -430,13 +424,7 @@ TEST(CommandClientTests, WindowDisplayHelpersSendWithoutTransportMap)
     ASSERT_TRUE(client.SetWindowDisabled(true));
     ASSERT_EQ(rawChannel->SentPayloads().size(), 3U);
 
-    auto decodeBatch = [](const std::vector<std::byte>& payloadBytes)
-    {
-        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
-        return mfd::DeserializeCommandBatch(payload);
-    };
-
-    const auto invertBatch = decodeBatch(rawChannel->SentPayloads()[0]);
+    const auto invertBatch = DecodeBatchPayload(rawChannel->SentPayloads()[0]);
     ASSERT_TRUE(invertBatch.has_value());
     EXPECT_TRUE(invertBatch->mappingHash.empty());
     const auto* invert = std::get_if<mfd::UpdateWindowDisplayCommand>(&invertBatch->commands.front());
@@ -444,14 +432,14 @@ TEST(CommandClientTests, WindowDisplayHelpersSendWithoutTransportMap)
     ASSERT_TRUE(invert->patch.invertColors.has_value());
     EXPECT_TRUE(*invert->patch.invertColors);
 
-    const auto brightnessBatch = decodeBatch(rawChannel->SentPayloads()[1]);
+    const auto brightnessBatch = DecodeBatchPayload(rawChannel->SentPayloads()[1]);
     ASSERT_TRUE(brightnessBatch.has_value());
     const auto* brightness = std::get_if<mfd::UpdateWindowDisplayCommand>(&brightnessBatch->commands.front());
     ASSERT_NE(brightness, nullptr);
     ASSERT_TRUE(brightness->patch.brightness.has_value());
     EXPECT_FLOAT_EQ(*brightness->patch.brightness, 0.55f);
 
-    const auto disabledBatch = decodeBatch(rawChannel->SentPayloads()[2]);
+    const auto disabledBatch = DecodeBatchPayload(rawChannel->SentPayloads()[2]);
     ASSERT_TRUE(disabledBatch.has_value());
     const auto* disabled = std::get_if<mfd::UpdateWindowDisplayCommand>(&disabledBatch->commands.front());
     ASSERT_NE(disabled, nullptr);
@@ -472,13 +460,7 @@ TEST(CommandClientTests, GeneratedPageHelpersCarryMappingHashWithoutTransportMap
     ASSERT_TRUE(client.SetPageView(radarPage, {0.2f, -0.3f}, 1.4f)) << client.LastError();
     ASSERT_EQ(rawChannel->SentPayloads().size(), 2U);
 
-    auto decodeBatch = [](const std::vector<std::byte>& payloadBytes)
-    {
-        const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
-        return mfd::DeserializeCommandBatch(payload);
-    };
-
-    const auto activateBatch = decodeBatch(rawChannel->SentPayloads()[0]);
+    const auto activateBatch = DecodeBatchPayload(rawChannel->SentPayloads()[0]);
     ASSERT_TRUE(activateBatch.has_value());
     EXPECT_EQ(activateBatch->mappingHash, "map_hash");
     const auto* activate = std::get_if<mfd::ActivatePageCommand>(&activateBatch->commands.front());
@@ -486,7 +468,7 @@ TEST(CommandClientTests, GeneratedPageHelpersCarryMappingHashWithoutTransportMap
     EXPECT_EQ(activate->pageId, 11U);
     EXPECT_TRUE(activate->page.empty());
 
-    const auto pageViewBatch = decodeBatch(rawChannel->SentPayloads()[1]);
+    const auto pageViewBatch = DecodeBatchPayload(rawChannel->SentPayloads()[1]);
     ASSERT_TRUE(pageViewBatch.has_value());
     EXPECT_EQ(pageViewBatch->mappingHash, "map_hash");
     const auto* pageView = std::get_if<mfd::SetPageViewCommand>(&pageViewBatch->commands.front());

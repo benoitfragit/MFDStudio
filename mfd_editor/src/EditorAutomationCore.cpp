@@ -443,29 +443,29 @@ void RefreshBlinkBinding(const mfd::PageDefinition& page, mfd::ReticleBlinkState
         defaultBlinkTypeIndex == static_cast<std::size_t>(-1) ? 0U : page.blinkTypes[defaultBlinkTypeIndex].durationMs;
 }
 
+void ClearInvalidBlinkReference(mfd::PageDefinition& page, mfd::ReticleBlinkState& blink)
+{
+    if (blink.typeName.empty())
+    {
+        return;
+    }
+
+    if (FindBlinkTypeIndex(page, blink.typeName) == static_cast<std::size_t>(-1))
+    {
+        blink = {};
+    }
+}
+
 void ClearInvalidBlinkReferences(mfd::PageDefinition& page)
 {
-    const auto clearInvalidReference = [&page](mfd::ReticleBlinkState& blink)
-    {
-        if (blink.typeName.empty())
-        {
-            return;
-        }
-
-        if (FindBlinkTypeIndex(page, blink.typeName) == static_cast<std::size_t>(-1))
-        {
-            blink = {};
-        }
-    };
-
     for (mfd::ReticleGroup& reticle : page.staticReticles)
     {
-        clearInvalidReference(reticle.blink);
+        ClearInvalidBlinkReference(page, reticle.blink);
     }
 
     if (page.strobe.has_value())
     {
-        clearInvalidReference(page.strobe->reticle.blink);
+        ClearInvalidBlinkReference(page, page.strobe->reticle.blink);
     }
 }
 

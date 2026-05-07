@@ -636,6 +636,11 @@ void IncludeLogicalBounds(LogicalBounds& bounds, const LogicalBounds& other)
     IncludeLogicalPoint(bounds, other.max);
 }
 
+void IncludePrimitiveTransformedPoint(LogicalBounds& bounds, const mfd::Primitive& primitive, const mfd::Vec2 localPoint)
+{
+    IncludeLogicalPoint(bounds, mfd::ApplyTransform(localPoint, primitive.transform));
+}
+
 LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
 {
     LogicalBounds bounds;
@@ -644,94 +649,89 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
         return bounds;
     }
 
-    auto includeTransformedPoint = [&](const mfd::Vec2 localPoint)
-    {
-        IncludeLogicalPoint(bounds, mfd::ApplyTransform(localPoint, primitive.transform));
-    };
-
     if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
     {
         const float halfWidth = EstimatedTextHalfWidth(*text);
         const float halfHeight = EstimatedTextHalfHeight(*text);
-        includeTransformedPoint({-halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, halfHeight});
-        includeTransformedPoint({-halfWidth, halfHeight});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-halfWidth, -halfHeight});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {halfWidth, -halfHeight});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {halfWidth, halfHeight});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-halfWidth, halfHeight});
     }
     else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
     {
         const float halfWidth = EstimatedTextHalfWidth(*time);
         const float halfHeight = EstimatedTextHalfHeight(*time);
-        includeTransformedPoint({-halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, halfHeight});
-        includeTransformedPoint({-halfWidth, halfHeight});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-halfWidth, -halfHeight});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {halfWidth, -halfHeight});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {halfWidth, halfHeight});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-halfWidth, halfHeight});
     }
     else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint(line->start);
-        includeTransformedPoint(line->end);
+        IncludePrimitiveTransformedPoint(bounds, primitive, line->start);
+        IncludePrimitiveTransformedPoint(bounds, primitive, line->end);
     }
     else if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint({-circle->radius, -circle->radius});
-        includeTransformedPoint({circle->radius, -circle->radius});
-        includeTransformedPoint({circle->radius, circle->radius});
-        includeTransformedPoint({-circle->radius, circle->radius});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-circle->radius, -circle->radius});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {circle->radius, -circle->radius});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {circle->radius, circle->radius});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-circle->radius, circle->radius});
     }
     else if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint({-ring->outerRadius, -ring->outerRadius});
-        includeTransformedPoint({ring->outerRadius, -ring->outerRadius});
-        includeTransformedPoint({ring->outerRadius, ring->outerRadius});
-        includeTransformedPoint({-ring->outerRadius, ring->outerRadius});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-ring->outerRadius, -ring->outerRadius});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {ring->outerRadius, -ring->outerRadius});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {ring->outerRadius, ring->outerRadius});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-ring->outerRadius, ring->outerRadius});
     }
     else if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint({-rectangle->width * 0.5f, -rectangle->height * 0.5f});
-        includeTransformedPoint({rectangle->width * 0.5f, -rectangle->height * 0.5f});
-        includeTransformedPoint({rectangle->width * 0.5f, rectangle->height * 0.5f});
-        includeTransformedPoint({-rectangle->width * 0.5f, rectangle->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-rectangle->width * 0.5f, -rectangle->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {rectangle->width * 0.5f, -rectangle->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {rectangle->width * 0.5f, rectangle->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-rectangle->width * 0.5f, rectangle->height * 0.5f});
     }
     else if (const auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint({-ellipse->width * 0.5f, -ellipse->height * 0.5f});
-        includeTransformedPoint({ellipse->width * 0.5f, -ellipse->height * 0.5f});
-        includeTransformedPoint({ellipse->width * 0.5f, ellipse->height * 0.5f});
-        includeTransformedPoint({-ellipse->width * 0.5f, ellipse->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-ellipse->width * 0.5f, -ellipse->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {ellipse->width * 0.5f, -ellipse->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {ellipse->width * 0.5f, ellipse->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-ellipse->width * 0.5f, ellipse->height * 0.5f});
     }
     else if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint({-square->width * 0.5f, -square->height * 0.5f});
-        includeTransformedPoint({square->width * 0.5f, -square->height * 0.5f});
-        includeTransformedPoint({square->width * 0.5f, square->height * 0.5f});
-        includeTransformedPoint({-square->width * 0.5f, square->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-square->width * 0.5f, -square->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {square->width * 0.5f, -square->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {square->width * 0.5f, square->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-square->width * 0.5f, square->height * 0.5f});
     }
     else if (const auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint({0.0f, diamond->height * 0.5f});
-        includeTransformedPoint({diamond->width * 0.5f, 0.0f});
-        includeTransformedPoint({0.0f, -diamond->height * 0.5f});
-        includeTransformedPoint({-diamond->width * 0.5f, 0.0f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {0.0f, diamond->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {diamond->width * 0.5f, 0.0f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {0.0f, -diamond->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-diamond->width * 0.5f, 0.0f});
     }
     else if (const auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint(triangle->points[0]);
-        includeTransformedPoint(triangle->points[1]);
-        includeTransformedPoint(triangle->points[2]);
+        IncludePrimitiveTransformedPoint(bounds, primitive, triangle->points[0]);
+        IncludePrimitiveTransformedPoint(bounds, primitive, triangle->points[1]);
+        IncludePrimitiveTransformedPoint(bounds, primitive, triangle->points[2]);
     }
     else if (const auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive.geometry))
     {
         for (const auto& point : polyline->points)
         {
-            includeTransformedPoint(point);
+            IncludePrimitiveTransformedPoint(bounds, primitive, point);
         }
     }
     else if (const auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive.geometry))
     {
         for (const auto& point : bezier->controlPoints)
         {
-            includeTransformedPoint(point);
+            IncludePrimitiveTransformedPoint(bounds, primitive, point);
         }
     }
     else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
@@ -739,20 +739,20 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
         for (const auto& point :
              ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments))
         {
-            includeTransformedPoint(point);
+            IncludePrimitiveTransformedPoint(bounds, primitive, point);
         }
 
         if (primitive.style.filled)
         {
-            includeTransformedPoint({});
+            IncludePrimitiveTransformedPoint(bounds, primitive, {});
         }
     }
     else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
     {
-        includeTransformedPoint({-image->width * 0.5f, -image->height * 0.5f});
-        includeTransformedPoint({image->width * 0.5f, -image->height * 0.5f});
-        includeTransformedPoint({image->width * 0.5f, image->height * 0.5f});
-        includeTransformedPoint({-image->width * 0.5f, image->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-image->width * 0.5f, -image->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {image->width * 0.5f, -image->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {image->width * 0.5f, image->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-image->width * 0.5f, image->height * 0.5f});
     }
 
     FinalizeLogicalBounds(bounds);

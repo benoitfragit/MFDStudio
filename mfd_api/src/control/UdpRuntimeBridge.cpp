@@ -116,6 +116,134 @@ struct UdpRuntimeBridge::Impl
         std::lock_guard lock(stateMutex);
         return feedbackReady;
     }
+
+    void PushQueuedBatch(CommandBatch&& batch)
+    {
+        if (batch.commands.empty())
+        {
+            return;
+        }
+
+        std::lock_guard lock(inboundMutex);
+
+        const std::size_t overflow =
+            inboundBatches.size() + 1U > kMaxQueuedBatches
+                ? inboundBatches.size() + 1U - kMaxQueuedBatches
+                : 0U;
+
+        for (std::size_t index = 0; index < overflow && !inboundBatches.empty(); ++index)
+        {
+            inboundBatches.pop_front();
+        }
+
+        if (overflow > 0U)
+        {
+            SetCommandStatus("UDP command batch queue overflow, dropping oldest batches");
+        }
+
+        inboundBatches.push_back(std::move(batch));
+    }
+
+    bool FlushQueuedFeedback()
+    {
+        if (!IsFeedbackReady() || feedbackSender == nullptr)
+        {
+            return false;
+        }
+
+        std::deque<FeedbackPayload> localQueue;
+        {
+            std::lock_guard lock(outboundMutex);
+            if (outboundFeedback.empty())
+            {
+                return false;
+            }
+
+            localQueue.swap(outboundFeedback);
+        }
+
+        bool sentAny = false;
+        while (!localQueue.empty())
+        {
+            FeedbackPayload feedback = std::move(localQueue.front());
+            localQueue.pop_front();
+
+            try
+            {
+                const std::string payload = SerializeFeedbackPayload(feedback);
+                const auto* payloadBytes = reinterpret_cast<const std::byte*>(payload.data());
+                if (!feedbackSender->Send(ByteView(payloadBytes, payload.size())))
+                {
+                    SetFeedbackStatus(feedbackSender->LastError());
+                    continue;
+                }
+
+                SetFeedbackStatus("UDP runtime feedback sent for " + DescribeFeedbackTarget(feedback));
+                sentAny = true;
+            }
+            catch (const std::exception& exception)
+            {
+                SetFeedbackStatus(exception.what());
+            }
+            catch (...)
+            {
+                SetFeedbackStatus("Unknown exception while sending runtime feedback");
+            }
+        }
+
+        return sentAny;
+    }
+
+    bool PumpQueuedCommands()
+    {
+        if (!IsCommandReady() || commandReceiver == nullptr)
+        {
+            return false;
+        }
+
+        bool receivedAny = false;
+        for (std::size_t packetIndex = 0; packetIndex < kMaxPacketsPerPump; ++packetIndex)
+        {
+            try
+            {
+                const auto payload = commandReceiver->TryReceive();
+                if (!payload.has_value())
+                {
+                    break;
+                }
+
+                receivedAny = true;
+
+                const auto* raw = reinterpret_cast<const char*>(payload->data());
+                std::string error;
+                auto batch = DeserializeCommandBatch(std::string_view(raw, payload->size()), &error);
+                if (!batch.has_value())
+                {
+                    SetCommandStatus(error);
+                    continue;
+                }
+
+                PushQueuedBatch(std::move(*batch));
+            }
+            catch (const std::exception& exception)
+            {
+                SetCommandStatus(exception.what());
+                break;
+            }
+            catch (...)
+            {
+                SetCommandStatus("Unknown exception while receiving UDP commands");
+                break;
+            }
+        }
+
+        if (commandReceiver != nullptr && !commandReceiver->LastError().empty())
+        {
+            SetCommandStatus(commandReceiver->LastError());
+        }
+
+        return receivedAny;
+    }
 };
 
 UdpRuntimeBridge::UdpRuntimeBridge(WindowCommandTransportConfig commandConfig,
@@ -209,135 +337,6 @@ bool UdpRuntimeBridge::Start()
     impl_->worker = std::thread(
         [impl = impl_.get()]()
         {
-            auto pushBatch = [impl](CommandBatch&& batch)
-            {
-                if (batch.commands.empty())
-                {
-                    return;
-                }
-
-                std::lock_guard lock(impl->inboundMutex);
-
-                const std::size_t overflow =
-                    impl->inboundBatches.size() + 1U > kMaxQueuedBatches
-                        ? impl->inboundBatches.size() + 1U - kMaxQueuedBatches
-                        : 0;
-
-                for (std::size_t index = 0; index < overflow && !impl->inboundBatches.empty(); ++index)
-                {
-                    impl->inboundBatches.pop_front();
-                }
-
-                if (overflow > 0)
-                {
-                    impl->SetCommandStatus("UDP command batch queue overflow, dropping oldest batches");
-                }
-
-                impl->inboundBatches.push_back(std::move(batch));
-            };
-
-            auto flushFeedback = [impl]() -> bool
-            {
-                if (!impl->IsFeedbackReady() || impl->feedbackSender == nullptr)
-                {
-                    return false;
-                }
-
-                std::deque<FeedbackPayload> localQueue;
-                {
-                    std::lock_guard lock(impl->outboundMutex);
-                    if (impl->outboundFeedback.empty())
-                    {
-                        return false;
-                    }
-
-                    localQueue.swap(impl->outboundFeedback);
-                }
-
-                bool sentAny = false;
-                while (!localQueue.empty())
-                {
-                    FeedbackPayload feedback = std::move(localQueue.front());
-                    localQueue.pop_front();
-
-                    try
-                    {
-                        const std::string payload = SerializeFeedbackPayload(feedback);
-                        const auto* payloadBytes = reinterpret_cast<const std::byte*>(payload.data());
-                        if (!impl->feedbackSender->Send(ByteView(payloadBytes, payload.size())))
-                        {
-                            impl->SetFeedbackStatus(impl->feedbackSender->LastError());
-                            continue;
-                        }
-
-                        impl->SetFeedbackStatus(
-                            "UDP runtime feedback sent for " + DescribeFeedbackTarget(feedback));
-                        sentAny = true;
-                    }
-                    catch (const std::exception& exception)
-                    {
-                        impl->SetFeedbackStatus(exception.what());
-                    }
-                    catch (...)
-                    {
-                        impl->SetFeedbackStatus("Unknown exception while sending runtime feedback");
-                    }
-                }
-
-                return sentAny;
-            };
-
-            auto pumpCommands = [impl, &pushBatch]() -> bool
-            {
-                if (!impl->IsCommandReady() || impl->commandReceiver == nullptr)
-                {
-                    return false;
-                }
-
-                bool receivedAny = false;
-                for (std::size_t packetIndex = 0; packetIndex < kMaxPacketsPerPump; ++packetIndex)
-                {
-                    try
-                    {
-                        const auto payload = impl->commandReceiver->TryReceive();
-                        if (!payload.has_value())
-                        {
-                            break;
-                        }
-
-                        receivedAny = true;
-
-                        const auto* raw = reinterpret_cast<const char*>(payload->data());
-                        std::string error;
-                        auto batch = DeserializeCommandBatch(std::string_view(raw, payload->size()), &error);
-                        if (!batch.has_value())
-                        {
-                            impl->SetCommandStatus(error);
-                            continue;
-                        }
-
-                        pushBatch(std::move(*batch));
-                    }
-                    catch (const std::exception& exception)
-                    {
-                        impl->SetCommandStatus(exception.what());
-                        break;
-                    }
-                    catch (...)
-                    {
-                        impl->SetCommandStatus("Unknown exception while receiving UDP commands");
-                        break;
-                    }
-                }
-
-                if (impl->commandReceiver != nullptr && !impl->commandReceiver->LastError().empty())
-                {
-                    impl->SetCommandStatus(impl->commandReceiver->LastError());
-                }
-
-                return receivedAny;
-            };
-
             while (true)
             {
                 {
@@ -347,8 +346,8 @@ bool UdpRuntimeBridge::Start()
                     }
                 }
 
-                const bool receivedCommands = pumpCommands();
-                const bool sentFeedback = flushFeedback();
+                const bool receivedCommands = impl->PumpQueuedCommands();
+                const bool sentFeedback = impl->FlushQueuedFeedback();
 
                 if (!receivedCommands && !sentFeedback)
                 {
@@ -363,7 +362,7 @@ bool UdpRuntimeBridge::Start()
                 }
             }
 
-            flushFeedback();
+            impl->FlushQueuedFeedback();
             {
                 std::lock_guard lock(impl->stateMutex);
                 impl->running = false;

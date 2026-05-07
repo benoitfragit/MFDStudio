@@ -350,6 +350,11 @@ Color ToRayColor(const mfd::ColorRgba& color)
     return Color {color.r, color.g, color.b, color.a};
 }
 
+std::uint8_t ToColorChannelByte(const float value) noexcept
+{
+    return static_cast<std::uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
+}
+
 void ApplyBilinearFilterToFont(const Font font) noexcept
 {
     if (font.texture.id != 0)
@@ -369,16 +374,11 @@ ImVec4 ToImGuiColor(const mfd::ColorRgba& color)
 
 mfd::ColorRgba ToColorRgba(const ImVec4& color)
 {
-    auto toByte = [](const float value) -> std::uint8_t
-    {
-        return static_cast<std::uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
-    };
-
     return mfd::ColorRgba {
-        toByte(color.x),
-        toByte(color.y),
-        toByte(color.z),
-        toByte(color.w)};
+        ToColorChannelByte(color.x),
+        ToColorChannelByte(color.y),
+        ToColorChannelByte(color.z),
+        ToColorChannelByte(color.w)};
 }
 
 void ShowHoveredRegionTooltip(const bool hovered, const char* text)
@@ -625,6 +625,97 @@ float Distance(const ImVec2 lhs, const ImVec2 rhs)
     return std::sqrt(dx * dx + dy * dy);
 }
 
+bool BlinkStateMatchesNormalizedName(const mfd::ReticleBlinkState& blink,
+                                     const std::string_view normalizedBlinkTypeName)
+{
+    const std::string currentNormalizedName =
+        blink.normalizedTypeName.empty() ? mfd::NormalizePageName(blink.typeName) : blink.normalizedTypeName;
+    return currentNormalizedName == normalizedBlinkTypeName;
+}
+
+std::filesystem::path ConfiguredPathFolder(const std::filesystem::path& configuredPath)
+{
+    if (configuredPath.empty())
+    {
+        return {};
+    }
+
+    return configuredPath.has_extension() ? configuredPath.parent_path() : configuredPath;
+}
+
+bool ReticleIdExistsExact(const std::vector<mfd::ReticleGroup>& groups, const std::string_view id)
+{
+    return std::any_of(groups.begin(),
+                       groups.end(),
+                       [id](const mfd::ReticleGroup& reticle)
+                       {
+                           return reticle.id == id;
+                       });
+}
+
+bool PageLayerIdExistsExact(const mfd::PageDefinition& page, const std::string_view id)
+{
+    return std::any_of(page.layers.begin(),
+                       page.layers.end(),
+                       [id](const mfd::PageLayerDefinition& layer)
+                       {
+                           return layer.id == id;
+                       });
+}
+
+std::size_t PageLayerOrder(const mfd::PageDefinition& page, const std::string_view layerId)
+{
+    for (std::size_t index = 0; index < page.layers.size(); ++index)
+    {
+        if (mfd::PageNamesEqual(page.layers[index].id, layerId))
+        {
+            return index;
+        }
+    }
+
+    return page.layers.size();
+}
+
+bool PageHasDynamicTemplateBinding(const mfd::PageDefinition& page, const std::string_view templateId)
+{
+    return mfd::FindDynamicReticleLayerBinding(page, templateId) != nullptr;
+}
+
+bool PageHasDynamicOrderConflict(const mfd::PageDefinition& page,
+                                 const std::string_view layerId,
+                                 const int orderInLayer,
+                                 const int ignoredIndex = -1)
+{
+    for (int index = 0; index < static_cast<int>(page.dynamicReticleBindings.size()); ++index)
+    {
+        if (index == ignoredIndex)
+        {
+            continue;
+        }
+
+        const mfd::DynamicReticleLayerBinding& binding = page.dynamicReticleBindings[static_cast<std::size_t>(index)];
+        if (mfd::PageNamesEqual(binding.layerId, layerId) && binding.orderInLayer == orderInLayer)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int NextPageDynamicOrderInLayer(const mfd::PageDefinition& page,
+                                const std::string_view layerId,
+                                const int ignoredIndex = -1)
+{
+    int nextOrder = 0;
+    while (PageHasDynamicOrderConflict(page, layerId, nextOrder, ignoredIndex))
+    {
+        ++nextOrder;
+    }
+
+    return nextOrder;
+}
+
 struct LogicalBounds
 {
     mfd::Vec2 min {};
@@ -645,6 +736,39 @@ struct PageMinimapState
     mfd::Vec2 logicalCenter {};
     float pixelsPerLogicalUnit = 1.0f;
     bool valid = false;
+};
+
+struct PageReticleHit
+{
+    int reticleIndex = -1;
+    float distance = std::numeric_limits<float>::max();
+    float area = std::numeric_limits<float>::max();
+    bool directHit = false;
+    bool boundsHit = false;
+    int drawPriority = 0;
+};
+
+struct PageClipPrimitiveHit
+{
+    int reticleIndex = -1;
+    int primitiveIndex = -1;
+    float primitiveDistance = std::numeric_limits<float>::max();
+    float reticleDistance = std::numeric_limits<float>::max();
+};
+
+struct TutorialDynamicTemplateInfo
+{
+    std::string_view templateId;
+    std::string_view preferredLayerId;
+    std::string_view targetId;
+    const char* label;
+    const char* reason;
+};
+
+struct DynamicBindingDraftState
+{
+    std::string templateId;
+    std::string layerId;
 };
 
 void IncludeLogicalPoint(LogicalBounds& bounds, const mfd::Vec2 point)
@@ -1042,23 +1166,17 @@ std::size_t CountBlinkReferences(const mfd::PageDefinition& page, const std::str
         return 0;
     }
 
-    const auto matches = [&normalizedBlinkTypeName](const mfd::ReticleBlinkState& blink)
-    {
-        const std::string currentNormalizedName =
-            blink.normalizedTypeName.empty() ? mfd::NormalizePageName(blink.typeName) : blink.normalizedTypeName;
-        return currentNormalizedName == normalizedBlinkTypeName;
-    };
-
     std::size_t count = 0;
     for (const auto& reticle : page.staticReticles)
     {
-        if (matches(reticle.blink))
+        if (BlinkStateMatchesNormalizedName(reticle.blink, normalizedBlinkTypeName))
         {
             ++count;
         }
     }
 
-    if (page.strobe.has_value() && matches(page.strobe->reticle.blink))
+    if (page.strobe.has_value() &&
+        BlinkStateMatchesNormalizedName(page.strobe->reticle.blink, normalizedBlinkTypeName))
     {
         ++count;
     }
@@ -3636,21 +3754,11 @@ void EditorApplication::OpenAssetFolderPicker(const AssetFolderPickerTarget targ
 {
     assetFolderPickerTarget_ = target;
 
-    auto folderFromConfiguredPath = [](const std::filesystem::path& configuredPath) -> std::filesystem::path
-    {
-        if (configuredPath.empty())
-        {
-            return {};
-        }
-
-        return configuredPath.has_extension() ? configuredPath.parent_path() : configuredPath;
-    };
-
     switch (target)
     {
     case AssetFolderPickerTarget::WindowFile:
         assetFolderPickerCurrentFolder_ =
-            folderFromConfiguredPath(std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal());
+            ConfiguredPathFolder(std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal());
         if (assetFolderPickerCurrentFolder_.empty())
         {
             assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/windows");
@@ -3659,7 +3767,7 @@ void EditorApplication::OpenAssetFolderPicker(const AssetFolderPickerTarget targ
 
     case AssetFolderPickerTarget::ReticleLibraryFolder:
         assetFolderPickerCurrentFolder_ =
-            folderFromConfiguredPath(std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal());
+            ConfiguredPathFolder(std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal());
         if (assetFolderPickerCurrentFolder_.empty())
         {
             assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/reticles");
@@ -3668,7 +3776,7 @@ void EditorApplication::OpenAssetFolderPicker(const AssetFolderPickerTarget targ
 
     case AssetFolderPickerTarget::FirstPageFile:
         assetFolderPickerCurrentFolder_ =
-            folderFromConfiguredPath(std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal());
+            ConfiguredPathFolder(std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal());
         if (assetFolderPickerCurrentFolder_.empty())
         {
             assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/pages");
@@ -3677,7 +3785,7 @@ void EditorApplication::OpenAssetFolderPicker(const AssetFolderPickerTarget targ
 
     case AssetFolderPickerTarget::NewPageFile:
         assetFolderPickerCurrentFolder_ =
-            folderFromConfiguredPath(std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal());
+            ConfiguredPathFolder(std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal());
         if (assetFolderPickerCurrentFolder_.empty())
         {
             assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/pages");
@@ -5408,13 +5516,6 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         ImVec2(bounds.min.x, bounds.max.y)};
     const ImVec2 rotateHandle((bounds.min.x + bounds.max.x) * 0.5f, bounds.min.y - 26.0f);
 
-    auto distance = [](const ImVec2 lhs, const ImVec2 rhs) -> float
-    {
-        const float dx = lhs.x - rhs.x;
-        const float dy = lhs.y - rhs.y;
-        return std::sqrt(dx * dx + dy * dy);
-    };
-
     interactionReticleIndex_ = selection_.pageReticleIndex;
     interactionReticleIndices_ = {selection_.pageReticleIndex};
     interactionStartReticleTransforms_ = {reticle->transform};
@@ -5435,7 +5536,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     interactionStartCenterScreen_ = viewport.ToScreen(interactionPivotLogical);
     interactionStartCornerScreen_ = center;
 
-    if (pagePreviewViewOptions_.showGizmos && distance(mouse, rotateHandle) <= 16.0f)
+    if (pagePreviewViewOptions_.showGizmos && Distance(mouse, rotateHandle) <= 16.0f)
     {
         PushUndoSnapshot();
         interactionMode_ = InteractionMode::RotateReticle;
@@ -5447,7 +5548,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         {
             for (const ImVec2 corner : corners)
             {
-                if (distance(mouse, corner) <= 16.0f)
+                if (Distance(mouse, corner) <= 16.0f)
                 {
                     PushUndoSnapshot();
                     interactionMode_ = InteractionMode::ScaleReticle;
@@ -7201,17 +7302,7 @@ std::vector<int> EditorApplication::CollectPageReticlesAt(const ViewportState& v
         return {};
     }
 
-    struct ReticleHit
-    {
-        int reticleIndex = -1;
-        float distance = std::numeric_limits<float>::max();
-        float area = std::numeric_limits<float>::max();
-        bool directHit = false;
-        bool boundsHit = false;
-        int drawPriority = 0;
-    };
-
-    std::vector<ReticleHit> hits;
+    std::vector<PageReticleHit> hits;
     for (int reticleIndex = 0; reticleIndex < static_cast<int>(page->staticReticles.size()); ++reticleIndex)
     {
         const auto& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
@@ -7242,12 +7333,12 @@ std::vector<int> EditorApplication::CollectPageReticlesAt(const ViewportState& v
         }
 
         const float area = std::max(1.0f, (bounds.max.x - bounds.min.x) * (bounds.max.y - bounds.min.y));
-        hits.push_back(ReticleHit {reticleIndex, distance, area, directHit, mouseInsideBounds, reticle.drawOnTop ? 1 : 0});
+        hits.push_back(PageReticleHit {reticleIndex, distance, area, directHit, mouseInsideBounds, reticle.drawOnTop ? 1 : 0});
     }
 
     std::sort(hits.begin(),
               hits.end(),
-              [](const ReticleHit& lhs, const ReticleHit& rhs)
+              [](const PageReticleHit& lhs, const PageReticleHit& rhs)
               {
                   if (lhs.directHit != rhs.directHit)
                   {
@@ -7274,7 +7365,7 @@ std::vector<int> EditorApplication::CollectPageReticlesAt(const ViewportState& v
 
     std::vector<int> reticleIndices;
     reticleIndices.reserve(hits.size());
-    for (const ReticleHit& hit : hits)
+    for (const PageReticleHit& hit : hits)
     {
         reticleIndices.push_back(hit.reticleIndex);
     }
@@ -7297,14 +7388,7 @@ std::vector<EditorApplication::PageClipTarget> EditorApplication::CollectPageCli
         return {};
     }
 
-    struct PrimitiveHit
-    {
-        PageClipTarget target {};
-        float primitiveDistance = std::numeric_limits<float>::max();
-        float reticleDistance = std::numeric_limits<float>::max();
-    };
-
-    std::vector<PrimitiveHit> hits;
+    std::vector<PageClipPrimitiveHit> hits;
     for (int reticleIndex = 0; reticleIndex < static_cast<int>(page->staticReticles.size()); ++reticleIndex)
     {
         const auto& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
@@ -7342,8 +7426,9 @@ std::vector<EditorApplication::PageClipTarget> EditorApplication::CollectPageCli
                 continue;
             }
 
-            hits.push_back(PrimitiveHit {
-                PageClipTarget {reticleIndex, primitiveIndex},
+            hits.push_back(PageClipPrimitiveHit {
+                reticleIndex,
+                primitiveIndex,
                 primitiveDistance,
                 reticleDistance});
         }
@@ -7351,7 +7436,7 @@ std::vector<EditorApplication::PageClipTarget> EditorApplication::CollectPageCli
 
     std::sort(hits.begin(),
               hits.end(),
-              [](const PrimitiveHit& lhs, const PrimitiveHit& rhs)
+              [](const PageClipPrimitiveHit& lhs, const PageClipPrimitiveHit& rhs)
               {
                   if (std::abs(lhs.primitiveDistance - rhs.primitiveDistance) > 0.25f)
                   {
@@ -7361,18 +7446,18 @@ std::vector<EditorApplication::PageClipTarget> EditorApplication::CollectPageCli
                   {
                       return lhs.reticleDistance < rhs.reticleDistance;
                   }
-                  if (lhs.target.reticleIndex != rhs.target.reticleIndex)
+                  if (lhs.reticleIndex != rhs.reticleIndex)
                   {
-                      return lhs.target.reticleIndex > rhs.target.reticleIndex;
+                      return lhs.reticleIndex > rhs.reticleIndex;
                   }
-                  return lhs.target.primitiveIndex > rhs.target.primitiveIndex;
+                  return lhs.primitiveIndex > rhs.primitiveIndex;
               });
 
     std::vector<PageClipTarget> targets;
     targets.reserve(hits.size());
-    for (const PrimitiveHit& hit : hits)
+    for (const PageClipPrimitiveHit& hit : hits)
     {
-        targets.push_back(hit.target);
+        targets.push_back(PageClipTarget {hit.reticleIndex, hit.primitiveIndex});
     }
     return targets;
 }
@@ -9459,17 +9544,7 @@ std::string EditorApplication::MakeUniqueReticleId(const std::vector<mfd::Reticl
     std::string candidate = std::string(baseId);
     int suffix = 1;
 
-    auto exists = [&](const std::string& id)
-    {
-        return std::any_of(groups.begin(),
-                           groups.end(),
-                           [&id](const mfd::ReticleGroup& reticle)
-                           {
-                               return reticle.id == id;
-                           });
-    };
-
-    while (exists(candidate))
+    while (ReticleIdExistsExact(groups, candidate))
     {
         candidate = std::string(baseId) + "_" + std::to_string(suffix++);
     }
@@ -9482,17 +9557,7 @@ std::string EditorApplication::MakeUniqueLayerId(const mfd::PageDefinition& page
     std::string candidate = baseId.empty() ? std::string {"layer"} : std::string(baseId);
     int suffix = 2;
 
-    auto exists = [&page](const std::string& id)
-    {
-        return std::any_of(page.layers.begin(),
-                           page.layers.end(),
-                           [&id](const mfd::PageLayerDefinition& layer)
-                           {
-                               return layer.id == id;
-                           });
-    };
-
-    while (exists(candidate))
+    while (PageLayerIdExistsExact(page, candidate))
     {
         candidate = std::string(baseId.empty() ? "layer" : baseId) + "_" + std::to_string(suffix++);
     }
@@ -9662,15 +9727,6 @@ void EditorApplication::DrawPageInspector()
 
 void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& page)
 {
-    struct TutorialDynamicTemplateInfo
-    {
-        std::string_view templateId;
-        std::string_view preferredLayerId;
-        std::string_view targetId;
-        const char* label;
-        const char* reason;
-    };
-
     constexpr std::array<TutorialDynamicTemplateInfo, 1> kTutorialDynamicTemplates {{
         {"mfd_tutorial_radar_track",
          "RadarTrackLayer",
@@ -9678,12 +9734,6 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
          "Add mfd_tutorial_radar_track",
          "Bind the tutorial radar-track template to RadarTrackLayer on Page1 without touching the existing steering cue."},
     }};
-
-    struct DynamicBindingDraftState
-    {
-        std::string templateId;
-        std::string layerId;
-    };
 
     static std::unordered_map<std::string, DynamicBindingDraftState, mfd::TransparentStringHash, mfd::TransparentStringEqual>
         s_bindingDrafts;
@@ -9725,62 +9775,11 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
         }
     }
 
-    const auto layerOrder = [&page](const std::string_view layerId) -> std::size_t
-    {
-        for (std::size_t index = 0; index < page.layers.size(); ++index)
-        {
-            if (mfd::PageNamesEqual(page.layers[index].id, layerId))
-            {
-                return index;
-            }
-        }
-
-        return page.layers.size();
-    };
-
-    const auto hasTemplateBinding = [&page](const std::string_view templateId)
-    {
-        return mfd::FindDynamicReticleLayerBinding(page, templateId) != nullptr;
-    };
-
-    const auto hasOrderConflict = [&page](const std::string_view layerId,
-                                          const int orderInLayer,
-                                          const int ignoredIndex = -1)
-    {
-        for (int index = 0; index < static_cast<int>(page.dynamicReticleBindings.size()); ++index)
-        {
-            if (index == ignoredIndex)
-            {
-                continue;
-            }
-
-            const mfd::DynamicReticleLayerBinding& binding = page.dynamicReticleBindings[static_cast<std::size_t>(index)];
-            if (mfd::PageNamesEqual(binding.layerId, layerId) && binding.orderInLayer == orderInLayer)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    };
-
-    const auto nextOrderInLayer = [&page, &hasOrderConflict](const std::string_view layerId,
-                                                             const int ignoredIndex = -1)
-    {
-        int nextOrder = 0;
-        while (hasOrderConflict(layerId, nextOrder, ignoredIndex))
-        {
-            ++nextOrder;
-        }
-
-        return nextOrder;
-    };
-
     std::vector<std::string> availableTemplateIds;
     availableTemplateIds.reserve(templateIds.size());
     for (const std::string& templateId : templateIds)
     {
-        if (!hasTemplateBinding(templateId))
+        if (!PageHasDynamicTemplateBinding(page, templateId))
         {
             availableTemplateIds.push_back(templateId);
         }
@@ -9892,7 +9891,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
             page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {
                 draft.templateId,
                 draft.layerId,
-                nextOrderInLayer(draft.layerId)});
+                NextPageDynamicOrderInLayer(page, draft.layerId)});
 
             if (activeTutorialTemplate != nullptr)
             {
@@ -9929,13 +9928,13 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     std::iota(sortedBindingIndexes.begin(), sortedBindingIndexes.end(), 0U);
     std::sort(sortedBindingIndexes.begin(),
               sortedBindingIndexes.end(),
-              [&page, &layerOrder](const std::size_t lhsIndex, const std::size_t rhsIndex)
+              [&page](const std::size_t lhsIndex, const std::size_t rhsIndex)
               {
                   const auto& lhs = page.dynamicReticleBindings[lhsIndex];
                   const auto& rhs = page.dynamicReticleBindings[rhsIndex];
-                  if (layerOrder(lhs.layerId) != layerOrder(rhs.layerId))
+                  if (PageLayerOrder(page, lhs.layerId) != PageLayerOrder(page, rhs.layerId))
                   {
-                      return layerOrder(lhs.layerId) < layerOrder(rhs.layerId);
+                      return PageLayerOrder(page, lhs.layerId) < PageLayerOrder(page, rhs.layerId);
                   }
                   if (lhs.orderInLayer != rhs.orderInLayer)
                   {
@@ -9964,7 +9963,8 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
                 {
                     PushUndoSnapshot();
                     binding.layerId = layer.id;
-                    binding.orderInLayer = nextOrderInLayer(binding.layerId, static_cast<int>(bindingIndex));
+                    binding.orderInLayer =
+                        NextPageDynamicOrderInLayer(page, binding.layerId, static_cast<int>(bindingIndex));
                 }
                 if (selected)
                 {

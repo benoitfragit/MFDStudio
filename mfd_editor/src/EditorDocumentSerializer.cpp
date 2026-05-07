@@ -1075,6 +1075,11 @@ std::optional<std::string> TryReadTemplateId(const std::filesystem::path& path)
 
     return node.at("id").get<std::string>();
 }
+
+std::string MakeNormalizedGenericPathKey(const std::filesystem::path& path)
+{
+    return path.lexically_normal().generic_string();
+}
 } // namespace
 
 std::filesystem::path DefaultPageFilePath(const std::filesystem::path& windowFile, const std::string_view pageName)
@@ -1223,20 +1228,15 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
             WriteJsonFile(templatePath, templateDocument);
         }
 
-        const auto makePathKey = [](const std::filesystem::path& path)
-        {
-            return path.lexically_normal().generic_string();
-        };
-
         std::unordered_set<std::string> currentPageFiles;
         currentPageFiles.reserve(layout.pageFiles.size());
         for (const auto& pageFile : layout.pageFiles)
         {
-            currentPageFiles.insert(makePathKey(pageFile));
+            currentPageFiles.insert(MakeNormalizedGenericPathKey(pageFile));
         }
         for (const auto& removedPageFile : layout.removedPageFiles)
         {
-            if (currentPageFiles.find(makePathKey(removedPageFile)) == currentPageFiles.end())
+            if (currentPageFiles.find(MakeNormalizedGenericPathKey(removedPageFile)) == currentPageFiles.end())
             {
                 DeleteFileIfPresent(removedPageFile);
             }
@@ -1246,12 +1246,12 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
         currentTemplateFiles.reserve(layout.templateFiles.size());
         for (const auto& entry : layout.templateFiles)
         {
-            currentTemplateFiles.insert(makePathKey(entry.second));
+            currentTemplateFiles.insert(MakeNormalizedGenericPathKey(entry.second));
         }
 
         for (const auto& removedTemplateFile : layout.removedTemplateFiles)
         {
-            if (currentTemplateFiles.find(makePathKey(removedTemplateFile)) == currentTemplateFiles.end())
+            if (currentTemplateFiles.find(MakeNormalizedGenericPathKey(removedTemplateFile)) == currentTemplateFiles.end())
             {
                 DeleteFileIfPresent(removedTemplateFile);
             }

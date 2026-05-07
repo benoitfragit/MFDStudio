@@ -186,6 +186,41 @@ MfdEditorAutomationResultCode MapAutomationErrorCode(const editor::automation::A
     return MfdEditorAutomationResultCode_InternalFailure;
 }
 
+template <typename TPrimitives>
+bool ResolveStablePrimitiveId(const TPrimitives& primitives,
+                              const std::string_view requestedPrimitiveId,
+                              std::string& outPrimitiveId)
+{
+    for (const auto& primitive : primitives)
+    {
+        if (primitive.id.value == requestedPrimitiveId)
+        {
+            outPrimitiveId = primitive.primitive.id;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+template <typename TPrimitives>
+bool ResolveStablePrimitiveSelector(const TPrimitives& primitives,
+                                    const std::string_view requestedPrimitiveId,
+                                    editor::automation::PrimitiveSelector& outSelector)
+{
+    for (const auto& primitive : primitives)
+    {
+        if (primitive.id.value == requestedPrimitiveId)
+        {
+            outSelector.primitiveId = primitive.primitive.id;
+            outSelector.primitiveIndex = primitive.index;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 std::string ResultCodeDescription(const MfdEditorAutomationResultCode code)
 {
     switch (code)
@@ -647,19 +682,6 @@ MfdEditorAutomationResultCode ResolveClipPrimitiveId(const HostApiState& state,
         return MapAutomationErrorCode(snapshot.error.code);
     }
 
-    const auto tryResolve = [&requestedPrimitiveId, &outPrimitiveId](const auto& primitives) {
-        for (const auto& primitive : primitives)
-        {
-            if (primitive.id.value == requestedPrimitiveId)
-            {
-                outPrimitiveId = primitive.primitive.id;
-                return true;
-            }
-        }
-
-        return false;
-    };
-
     switch (targetKind)
     {
     case editor::automation::AutomationReticleTargetKind::ReticleAsset:
@@ -670,7 +692,7 @@ MfdEditorAutomationResultCode ResolveClipPrimitiveId(const HostApiState& state,
                 continue;
             }
 
-            if (tryResolve(reticle.primitives))
+            if (ResolveStablePrimitiveId(reticle.primitives, requestedPrimitiveId, outPrimitiveId))
             {
                 return MfdEditorAutomationResultCode_Success;
             }
@@ -689,7 +711,7 @@ MfdEditorAutomationResultCode ResolveClipPrimitiveId(const HostApiState& state,
                     continue;
                 }
 
-                if (tryResolve(reticle.primitives))
+                if (ResolveStablePrimitiveId(reticle.primitives, requestedPrimitiveId, outPrimitiveId))
                 {
                     return MfdEditorAutomationResultCode_Success;
                 }
@@ -727,20 +749,6 @@ MfdEditorAutomationResultCode ResolvePrimitiveSelector(const HostApiState& state
         return MapAutomationErrorCode(snapshot.error.code);
     }
 
-    const auto tryResolve = [&requestedPrimitiveId, &outSelector](const auto& primitives) {
-        for (const auto& primitive : primitives)
-        {
-            if (primitive.id.value == requestedPrimitiveId)
-            {
-                outSelector.primitiveId = primitive.primitive.id;
-                outSelector.primitiveIndex = primitive.index;
-                return true;
-            }
-        }
-
-        return false;
-    };
-
     switch (ownerKind)
     {
     case editor::automation::AutomationPrimitiveOwnerKind::ReticleAsset:
@@ -751,7 +759,7 @@ MfdEditorAutomationResultCode ResolvePrimitiveSelector(const HostApiState& state
                 continue;
             }
 
-            if (tryResolve(reticle.primitives))
+            if (ResolveStablePrimitiveSelector(reticle.primitives, requestedPrimitiveId, outSelector))
             {
                 return MfdEditorAutomationResultCode_Success;
             }
@@ -770,7 +778,7 @@ MfdEditorAutomationResultCode ResolvePrimitiveSelector(const HostApiState& state
                     continue;
                 }
 
-                if (tryResolve(reticle.primitives))
+                if (ResolveStablePrimitiveSelector(reticle.primitives, requestedPrimitiveId, outSelector))
                 {
                     return MfdEditorAutomationResultCode_Success;
                 }

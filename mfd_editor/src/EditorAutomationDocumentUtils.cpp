@@ -433,6 +433,16 @@ std::string DefaultEditorLayerId(const mfd::PageDefinition& page)
     return firstLayer == page.editor.layers.end() ? std::string {} : firstLayer->id;
 }
 
+bool ReticleIdExists(const std::vector<mfd::ReticleGroup>& groups, const std::string_view candidateId)
+{
+    return std::any_of(groups.begin(),
+                       groups.end(),
+                       [candidateId](const mfd::ReticleGroup& reticle)
+                       {
+                           return MatchesNormalized(reticle.id, candidateId);
+                       });
+}
+
 std::string MakeUniqueReticleId(const std::vector<mfd::ReticleGroup>& groups, const std::string_view baseId)
 {
     std::string candidate = Trimmed(baseId);
@@ -443,17 +453,7 @@ std::string MakeUniqueReticleId(const std::vector<mfd::ReticleGroup>& groups, co
 
     const std::string normalizedBase = NormalizeIdentifier(candidate);
     int suffix = 1;
-    auto exists = [&groups](const std::string_view candidateId)
-    {
-        return std::any_of(groups.begin(),
-                           groups.end(),
-                           [candidateId](const mfd::ReticleGroup& reticle)
-                           {
-                               return MatchesNormalized(reticle.id, candidateId);
-                           });
-    };
-
-    while (exists(candidate))
+    while (ReticleIdExists(groups, candidate))
     {
         candidate = normalizedBase + "_" + std::to_string(suffix++);
     }

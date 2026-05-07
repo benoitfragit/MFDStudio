@@ -768,6 +768,11 @@ int main()
 
 namespace
 {
+std::uint8_t ToColorChannelByte(const float value) noexcept
+{
+    return static_cast<std::uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
+}
+
 ImVec4 ToImGuiColor(const mfd::ColorRgba& color)
 {
     return ImVec4(
@@ -779,16 +784,11 @@ ImVec4 ToImGuiColor(const mfd::ColorRgba& color)
 
 mfd::ColorRgba ToColorRgba(const ImVec4& color)
 {
-    auto toByte = [](const float value) -> std::uint8_t
-    {
-        return static_cast<std::uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
-    };
-
     return mfd::ColorRgba {
-        toByte(color.x),
-        toByte(color.y),
-        toByte(color.z),
-        toByte(color.w)};
+        ToColorChannelByte(color.x),
+        ToColorChannelByte(color.y),
+        ToColorChannelByte(color.z),
+        ToColorChannelByte(color.w)};
 }
 
 const mfd::Primitive* FindFirstTextPrimitive(const mfd::ReticleGroup& reticle)

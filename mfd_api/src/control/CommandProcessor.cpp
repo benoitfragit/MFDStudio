@@ -412,6 +412,237 @@ const entt::dispatcher& CommandProcessor::Dispatcher() const noexcept
     return dispatcher_;
 }
 
+bool CommandProcessor::ResolveGeneratedPage(std::string& page, const TransportId pageId)
+{
+    if (pageId == 0)
+    {
+        return !page.empty();
+    }
+
+    const std::string* resolvedPage = scene_.ResolvePageName(pageId);
+    if (resolvedPage == nullptr)
+    {
+        SetFailure("Unknown generated page transport id " + std::to_string(pageId));
+        return false;
+    }
+
+    if (!page.empty() && NormalizePageName(page) != NormalizePageName(*resolvedPage))
+    {
+        SetFailure("Generated page transport id " + std::to_string(pageId) + " does not match page '" + page + "'");
+        return false;
+    }
+
+    page = *resolvedPage;
+    return true;
+}
+
+bool CommandProcessor::ResolveGeneratedStaticReticle(StaticReticleHandle& target)
+{
+    if (target.reticleId == 0)
+    {
+        return ResolveGeneratedPage(target.page, target.pageId) && !target.reticle.empty();
+    }
+
+    const SceneRegistry::TransportReticleLookup* resolvedReticle = scene_.ResolveStaticReticle(target.reticleId);
+    if (resolvedReticle == nullptr)
+    {
+        SetFailure("Unknown generated static reticle transport id " + std::to_string(target.reticleId));
+        return false;
+    }
+
+    if (target.pageId != 0 && target.pageId != resolvedReticle->pageId)
+    {
+        SetFailure("Generated static reticle transport id " + std::to_string(target.reticleId) +
+                   " does not belong to page transport id " + std::to_string(target.pageId));
+        return false;
+    }
+
+    if (!target.page.empty() && NormalizePageName(target.page) != NormalizePageName(resolvedReticle->pageName))
+    {
+        SetFailure("Generated static reticle transport id " + std::to_string(target.reticleId) +
+                   " does not belong to page '" + target.page + "'");
+        return false;
+    }
+
+    if (!target.reticle.empty() && NormalizePageName(target.reticle) != NormalizePageName(resolvedReticle->reticleId))
+    {
+        SetFailure("Generated static reticle transport id " + std::to_string(target.reticleId) +
+                   " does not match reticle '" + target.reticle + "'");
+        return false;
+    }
+
+    target.pageId = resolvedReticle->pageId;
+    target.page = resolvedReticle->pageName;
+    target.reticle = resolvedReticle->reticleId;
+    return true;
+}
+
+bool CommandProcessor::ResolveGeneratedDynamicReticle(DynamicReticleHandle& target)
+{
+    if (!ResolveGeneratedPage(target.page, target.pageId))
+    {
+        return false;
+    }
+
+    if (target.runtimeReticleId != 0)
+    {
+        if (target.reticleId.empty())
+        {
+            target.reticleId = MakeRuntimeDynamicReticleAlias(target.runtimeReticleId);
+        }
+
+        return true;
+    }
+
+    return !target.reticleId.empty();
+}
+
+bool CommandProcessor::ResolveGeneratedTemplate(std::string& templateId, const TransportId templateTransportId)
+{
+    if (templateTransportId == 0)
+    {
+        return !templateId.empty();
+    }
+
+    const std::string* resolvedTemplate = scene_.ResolveTemplateId(templateTransportId);
+    if (resolvedTemplate == nullptr)
+    {
+        SetFailure("Unknown generated template transport id " + std::to_string(templateTransportId));
+        return false;
+    }
+
+    if (!templateId.empty() && NormalizePageName(templateId) != NormalizePageName(*resolvedTemplate))
+    {
+        SetFailure("Generated template transport id " + std::to_string(templateTransportId) +
+                   " does not match template '" + templateId + "'");
+        return false;
+    }
+
+    templateId = *resolvedTemplate;
+    return true;
+}
+
+const std::string* CommandProcessor::ResolveGeneratedPrimitiveId(const TransportId staticReticleId,
+                                                                 const TransportId templateTransportId,
+                                                                 const TransportId primitiveId) const noexcept
+{
+    if (staticReticleId != 0)
+    {
+        return scene_.ResolvePrimitiveIdForReticle(staticReticleId, primitiveId);
+    }
+
+    if (templateTransportId != 0)
+    {
+        return scene_.ResolvePrimitiveIdForTemplate(templateTransportId, primitiveId);
+    }
+
+    return nullptr;
+}
+
+bool CommandProcessor::ResolveGeneratedPatchPrimitiveIds(ReticlePatch& patch,
+                                                         const TransportId pageId,
+                                                         const TransportId staticReticleId,
+                                                         const TransportId templateTransportId)
+{
+    if (patch.blinkTypeId.has_value())
+    {
+        if (*patch.blinkTypeId == 0)
+        {
+            if (patch.blinkType.has_value() && !patch.blinkType->empty())
+            {
+                SetFailure("Generated blink transport id clears the blink type but a named blink type was also provided");
+                return false;
+            }
+
+            patch.blinkType = std::string {};
+        }
+        else
+        {
+            const std::string* resolvedBlinkType = scene_.ResolveBlinkType(pageId, *patch.blinkTypeId);
+            if (resolvedBlinkType == nullptr)
+            {
+                SetFailure("Unknown generated blink transport id " + std::to_string(*patch.blinkTypeId));
+                return false;
+            }
+
+            if (patch.blinkType.has_value() &&
+                NormalizePageName(*patch.blinkType) != NormalizePageName(*resolvedBlinkType))
+            {
+                SetFailure("Generated blink transport id " + std::to_string(*patch.blinkTypeId) +
+                           " does not match blink type '" + *patch.blinkType + "'");
+                return false;
+            }
+
+            patch.blinkType = *resolvedBlinkType;
+        }
+    }
+
+    for (const auto& [primitiveTransportId, text] : patch.textsById)
+    {
+        const std::string* primitiveId =
+            ResolveGeneratedPrimitiveId(staticReticleId, templateTransportId, primitiveTransportId);
+        if (primitiveId == nullptr)
+        {
+            SetFailure("Unknown generated primitive transport id " + std::to_string(primitiveTransportId));
+            return false;
+        }
+
+        const auto iterator = patch.texts.find(*primitiveId);
+        if (iterator != patch.texts.end() && iterator->second != text)
+        {
+            SetFailure("Generated primitive transport id " + std::to_string(primitiveTransportId) +
+                       " conflicts with an explicit primitive text override");
+            return false;
+        }
+
+        patch.texts[*primitiveId] = text;
+    }
+
+    for (const auto& [primitiveTransportId, spacing] : patch.letterSpacingsById)
+    {
+        const std::string* primitiveId =
+            ResolveGeneratedPrimitiveId(staticReticleId, templateTransportId, primitiveTransportId);
+        if (primitiveId == nullptr)
+        {
+            SetFailure("Unknown generated primitive transport id " + std::to_string(primitiveTransportId));
+            return false;
+        }
+
+        const auto iterator = patch.letterSpacings.find(*primitiveId);
+        if (iterator != patch.letterSpacings.end() && iterator->second != spacing)
+        {
+            SetFailure("Generated primitive transport id " + std::to_string(primitiveTransportId) +
+                       " conflicts with an explicit primitive letter spacing override");
+            return false;
+        }
+
+        patch.letterSpacings[*primitiveId] = spacing;
+    }
+
+    for (const auto& [primitiveTransportId, primitivePatch] : patch.primitivePatchesById)
+    {
+        const std::string* primitiveId =
+            ResolveGeneratedPrimitiveId(staticReticleId, templateTransportId, primitiveTransportId);
+        if (primitiveId == nullptr)
+        {
+            SetFailure("Unknown generated primitive transport id " + std::to_string(primitiveTransportId));
+            return false;
+        }
+
+        const auto iterator = patch.primitivePatches.find(*primitiveId);
+        if (iterator != patch.primitivePatches.end())
+        {
+            SetFailure("Generated primitive transport id " + std::to_string(primitiveTransportId) +
+                       " conflicts with an explicit primitive patch override");
+            return false;
+        }
+
+        patch.primitivePatches[*primitiveId] = primitivePatch;
+    }
+
+    return true;
+}
+
 bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std::string_view mappingHash)
 {
     if (mappingHash.empty())
@@ -425,244 +656,18 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
         return true;
     }
 
-    auto resolvePage = [this](std::string& page, const TransportId pageId) -> bool
-    {
-        if (pageId == 0)
-        {
-            return !page.empty();
-        }
-
-        const std::string* resolvedPage = scene_.ResolvePageName(pageId);
-        if (resolvedPage == nullptr)
-        {
-            SetFailure("Unknown generated page transport id " + std::to_string(pageId));
-            return false;
-        }
-
-        if (!page.empty() && NormalizePageName(page) != NormalizePageName(*resolvedPage))
-        {
-            SetFailure("Generated page transport id " + std::to_string(pageId) + " does not match page '" + page + "'");
-            return false;
-        }
-
-        page = *resolvedPage;
-        return true;
-    };
-
-    auto resolveStaticReticle = [this, &resolvePage](StaticReticleHandle& target) -> bool
-    {
-        if (target.reticleId == 0)
-        {
-            return resolvePage(target.page, target.pageId) && !target.reticle.empty();
-        }
-
-        const SceneRegistry::TransportReticleLookup* resolvedReticle = scene_.ResolveStaticReticle(target.reticleId);
-        if (resolvedReticle == nullptr)
-        {
-            SetFailure("Unknown generated static reticle transport id " + std::to_string(target.reticleId));
-            return false;
-        }
-
-        if (target.pageId != 0 && target.pageId != resolvedReticle->pageId)
-        {
-            SetFailure("Generated static reticle transport id " + std::to_string(target.reticleId) +
-                       " does not belong to page transport id " + std::to_string(target.pageId));
-            return false;
-        }
-
-        if (!target.page.empty() && NormalizePageName(target.page) != NormalizePageName(resolvedReticle->pageName))
-        {
-            SetFailure("Generated static reticle transport id " + std::to_string(target.reticleId) +
-                       " does not belong to page '" + target.page + "'");
-            return false;
-        }
-
-        if (!target.reticle.empty() && NormalizePageName(target.reticle) != NormalizePageName(resolvedReticle->reticleId))
-        {
-            SetFailure("Generated static reticle transport id " + std::to_string(target.reticleId) +
-                       " does not match reticle '" + target.reticle + "'");
-            return false;
-        }
-
-        target.pageId = resolvedReticle->pageId;
-        target.page = resolvedReticle->pageName;
-        target.reticle = resolvedReticle->reticleId;
-        return true;
-    };
-
-    auto resolveDynamicReticle = [&resolvePage](DynamicReticleHandle& target) -> bool
-    {
-        if (!resolvePage(target.page, target.pageId))
-        {
-            return false;
-        }
-
-        if (target.runtimeReticleId != 0)
-        {
-            if (target.reticleId.empty())
-            {
-                target.reticleId = MakeRuntimeDynamicReticleAlias(target.runtimeReticleId);
-            }
-
-            return true;
-        }
-
-        return !target.reticleId.empty();
-    };
-
-    auto resolveTemplate = [this](std::string& templateId, const TransportId templateTransportId) -> bool
-    {
-        if (templateTransportId == 0)
-        {
-            return !templateId.empty();
-        }
-
-        const std::string* resolvedTemplate = scene_.ResolveTemplateId(templateTransportId);
-        if (resolvedTemplate == nullptr)
-        {
-            SetFailure("Unknown generated template transport id " + std::to_string(templateTransportId));
-            return false;
-        }
-
-        if (!templateId.empty() && NormalizePageName(templateId) != NormalizePageName(*resolvedTemplate))
-        {
-            SetFailure("Generated template transport id " + std::to_string(templateTransportId) +
-                       " does not match template '" + templateId + "'");
-            return false;
-        }
-
-        templateId = *resolvedTemplate;
-        return true;
-    };
-
-    auto resolvePatchPrimitiveIds = [this](ReticlePatch& patch,
-                                           const TransportId pageId,
-                                           const TransportId staticReticleId,
-                                           const TransportId templateTransportId) -> bool
-    {
-        if (patch.blinkTypeId.has_value())
-        {
-            if (*patch.blinkTypeId == 0)
-            {
-                if (patch.blinkType.has_value() && !patch.blinkType->empty())
-                {
-                    SetFailure("Generated blink transport id clears the blink type but a named blink type was also provided");
-                    return false;
-                }
-
-                patch.blinkType = std::string {};
-            }
-            else
-            {
-                const std::string* resolvedBlinkType = scene_.ResolveBlinkType(pageId, *patch.blinkTypeId);
-                if (resolvedBlinkType == nullptr)
-                {
-                    SetFailure("Unknown generated blink transport id " + std::to_string(*patch.blinkTypeId));
-                    return false;
-                }
-
-                if (patch.blinkType.has_value() &&
-                    NormalizePageName(*patch.blinkType) != NormalizePageName(*resolvedBlinkType))
-                {
-                    SetFailure("Generated blink transport id " + std::to_string(*patch.blinkTypeId) +
-                               " does not match blink type '" + *patch.blinkType + "'");
-                    return false;
-                }
-
-                patch.blinkType = *resolvedBlinkType;
-            }
-        }
-
-        auto resolvePrimitiveId = [this, staticReticleId, templateTransportId](const TransportId primitiveId) -> const std::string*
-        {
-            if (staticReticleId != 0)
-            {
-                return scene_.ResolvePrimitiveIdForReticle(staticReticleId, primitiveId);
-            }
-
-            if (templateTransportId != 0)
-            {
-                return scene_.ResolvePrimitiveIdForTemplate(templateTransportId, primitiveId);
-            }
-
-            return nullptr;
-        };
-
-        for (const auto& [primitiveTransportId, text] : patch.textsById)
-        {
-            const std::string* primitiveId = resolvePrimitiveId(primitiveTransportId);
-            if (primitiveId == nullptr)
-            {
-                SetFailure("Unknown generated primitive transport id " + std::to_string(primitiveTransportId));
-                return false;
-            }
-
-            const auto iterator = patch.texts.find(*primitiveId);
-            if (iterator != patch.texts.end() && iterator->second != text)
-            {
-                SetFailure("Generated primitive transport id " + std::to_string(primitiveTransportId) +
-                           " conflicts with an explicit primitive text override");
-                return false;
-            }
-
-            patch.texts[*primitiveId] = text;
-        }
-
-        for (const auto& [primitiveTransportId, spacing] : patch.letterSpacingsById)
-        {
-            const std::string* primitiveId = resolvePrimitiveId(primitiveTransportId);
-            if (primitiveId == nullptr)
-            {
-                SetFailure("Unknown generated primitive transport id " + std::to_string(primitiveTransportId));
-                return false;
-            }
-
-            const auto iterator = patch.letterSpacings.find(*primitiveId);
-            if (iterator != patch.letterSpacings.end() && iterator->second != spacing)
-            {
-                SetFailure("Generated primitive transport id " + std::to_string(primitiveTransportId) +
-                           " conflicts with an explicit primitive letter spacing override");
-                return false;
-            }
-
-            patch.letterSpacings[*primitiveId] = spacing;
-        }
-
-        for (const auto& [primitiveTransportId, primitivePatch] : patch.primitivePatchesById)
-        {
-            const std::string* primitiveId = resolvePrimitiveId(primitiveTransportId);
-            if (primitiveId == nullptr)
-            {
-                SetFailure("Unknown generated primitive transport id " + std::to_string(primitiveTransportId));
-                return false;
-            }
-
-            const auto iterator = patch.primitivePatches.find(*primitiveId);
-            if (iterator != patch.primitivePatches.end())
-            {
-                SetFailure("Generated primitive transport id " + std::to_string(primitiveTransportId) +
-                           " conflicts with an explicit primitive patch override");
-                return false;
-            }
-
-            patch.primitivePatches[*primitiveId] = primitivePatch;
-        }
-
-        return true;
-    };
-
     return std::visit(
-        [this, &resolvePage, &resolveStaticReticle, &resolveDynamicReticle, &resolveTemplate, &resolvePatchPrimitiveIds](auto& value) -> bool
+        [this](auto& value) -> bool
         {
             using Command = std::decay_t<decltype(value)>;
 
             if constexpr (std::is_same_v<Command, ActivatePageCommand>)
             {
-                return resolvePage(value.page, value.pageId);
+                return ResolveGeneratedPage(value.page, value.pageId);
             }
             else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
             {
-                return resolvePage(value.page, value.pageId);
+                return ResolveGeneratedPage(value.page, value.pageId);
             }
             else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand> ||
                                std::is_same_v<Command, ResetWindowCommand>)
@@ -671,23 +676,23 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
             }
             else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
             {
-                return resolveStaticReticle(value.target) &&
-                       resolvePatchPrimitiveIds(value.patch, value.target.pageId, value.target.reticleId, 0);
+                return ResolveGeneratedStaticReticle(value.target) &&
+                       ResolveGeneratedPatchPrimitiveIds(value.patch, value.target.pageId, value.target.reticleId, 0);
             }
             else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
             {
-                return resolvePage(value.page, value.pageId);
+                return ResolveGeneratedPage(value.page, value.pageId);
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
             {
-                return resolveDynamicReticle(value.target) &&
-                       resolveTemplate(value.templateId, value.templateTransportId) &&
-                       resolvePatchPrimitiveIds(value.patch, value.target.pageId, 0, value.templateTransportId);
+                return ResolveGeneratedDynamicReticle(value.target) &&
+                       ResolveGeneratedTemplate(value.templateId, value.templateTransportId) &&
+                       ResolveGeneratedPatchPrimitiveIds(value.patch, value.target.pageId, 0, value.templateTransportId);
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
             {
-                if (!resolvePage(value.page, value.pageId) ||
-                    !resolveTemplate(value.templateId, value.templateTransportId))
+                if (!ResolveGeneratedPage(value.page, value.pageId) ||
+                    !ResolveGeneratedTemplate(value.templateId, value.templateTransportId))
                 {
                     return false;
                 }
@@ -700,7 +705,7 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
                     }
 
                     if ((state.runtimeReticleId == 0 && state.reticleId.empty()) ||
-                        !resolvePatchPrimitiveIds(state.patch, value.pageId, 0, value.templateTransportId))
+                        !ResolveGeneratedPatchPrimitiveIds(state.patch, value.pageId, 0, value.templateTransportId))
                     {
                         return false;
                     }
@@ -710,12 +715,12 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
             }
             else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
             {
-                return resolvePage(value.page, value.pageId) &&
-                       resolveTemplate(value.templateId, value.templateTransportId);
+                return ResolveGeneratedPage(value.page, value.pageId) &&
+                       ResolveGeneratedTemplate(value.templateId, value.templateTransportId);
             }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
-                return resolveDynamicReticle(value.target);
+                return ResolveGeneratedDynamicReticle(value.target);
             }
             else
             {

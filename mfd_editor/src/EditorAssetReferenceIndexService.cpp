@@ -555,35 +555,43 @@ void ProcessTemplateDocument(const ParsedAssetFile& asset, AssetReferenceIndex& 
     ScanImageElements(*elements, asset.file, {}, asset.templateId, asset.templateId, index);
 }
 
+std::string GenericPathKey(const std::filesystem::path& path)
+{
+    return path.generic_string();
+}
+
 void SortIndex(AssetReferenceIndex& index)
 {
-    const auto pathKey = [](const std::filesystem::path& path)
-    {
-        return path.generic_string();
-    };
-
     std::sort(index.pages.begin(),
               index.pages.end(),
-              [&pathKey](const PageReference& lhs, const PageReference& rhs)
+              [](const PageReference& lhs, const PageReference& rhs)
               {
-                  return std::make_tuple(pathKey(lhs.windowFile), pathKey(lhs.pageFile), lhs.pageName, lhs.defaultPage) <
-                         std::make_tuple(pathKey(rhs.windowFile), pathKey(rhs.pageFile), rhs.pageName, rhs.defaultPage);
+                  return std::make_tuple(
+                             GenericPathKey(lhs.windowFile),
+                             GenericPathKey(lhs.pageFile),
+                             lhs.pageName,
+                             lhs.defaultPage) <
+                         std::make_tuple(
+                             GenericPathKey(rhs.windowFile),
+                             GenericPathKey(rhs.pageFile),
+                             rhs.pageName,
+                             rhs.defaultPage);
               });
 
     std::sort(index.reticles.begin(),
               index.reticles.end(),
-              [&pathKey](const ReticleReference& lhs, const ReticleReference& rhs)
+              [](const ReticleReference& lhs, const ReticleReference& rhs)
               {
                   return std::make_tuple(static_cast<int>(lhs.kind),
-                                         pathKey(lhs.ownerFile),
-                                         pathKey(lhs.targetFile),
+                                         GenericPathKey(lhs.ownerFile),
+                                         GenericPathKey(lhs.targetFile),
                                          lhs.pageName,
                                          lhs.reticleId,
                                          lhs.templateId,
                                          lhs.primitiveId) <
                          std::make_tuple(static_cast<int>(rhs.kind),
-                                         pathKey(rhs.ownerFile),
-                                         pathKey(rhs.targetFile),
+                                         GenericPathKey(rhs.ownerFile),
+                                         GenericPathKey(rhs.targetFile),
                                          rhs.pageName,
                                          rhs.reticleId,
                                          rhs.templateId,
@@ -592,19 +600,19 @@ void SortIndex(AssetReferenceIndex& index)
 
     std::sort(index.missingAssets.begin(),
               index.missingAssets.end(),
-              [&pathKey](const MissingAssetReference& lhs, const MissingAssetReference& rhs)
+              [](const MissingAssetReference& lhs, const MissingAssetReference& rhs)
               {
                   return std::make_tuple(static_cast<int>(lhs.kind),
-                                         pathKey(lhs.ownerFile),
-                                         pathKey(lhs.referencedPath),
+                                         GenericPathKey(lhs.ownerFile),
+                                         GenericPathKey(lhs.referencedPath),
                                          lhs.pageName,
                                          lhs.reticleId,
                                          lhs.templateId,
                                          lhs.primitiveId,
                                          lhs.detail) <
                          std::make_tuple(static_cast<int>(rhs.kind),
-                                         pathKey(rhs.ownerFile),
-                                         pathKey(rhs.referencedPath),
+                                         GenericPathKey(rhs.ownerFile),
+                                         GenericPathKey(rhs.referencedPath),
                                          rhs.pageName,
                                          rhs.reticleId,
                                          rhs.templateId,
@@ -614,10 +622,10 @@ void SortIndex(AssetReferenceIndex& index)
 
     std::sort(index.errors.begin(),
               index.errors.end(),
-              [&pathKey](const AssetScanError& lhs, const AssetScanError& rhs)
+              [](const AssetScanError& lhs, const AssetScanError& rhs)
               {
-                  return std::make_tuple(pathKey(lhs.file), lhs.message) <
-                         std::make_tuple(pathKey(rhs.file), rhs.message);
+                  return std::make_tuple(GenericPathKey(lhs.file), lhs.message) <
+                         std::make_tuple(GenericPathKey(rhs.file), rhs.message);
               });
 }
 } // namespace

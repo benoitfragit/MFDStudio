@@ -543,6 +543,30 @@ json& ExtractMutablePageNode(json& document)
     return document;
 }
 
+void RewriteTemplateReferenceField(json& node,
+                                   const std::string_view normalizedOldTemplateId,
+                                   const std::string_view newTemplateId,
+                                   std::size_t& updatedReferenceCount)
+{
+    if (!node.is_object() || !node.contains("template"))
+    {
+        return;
+    }
+
+    if (!node.at("template").is_string())
+    {
+        throw std::runtime_error("Page reticle template fields must be strings.");
+    }
+
+    if (NormalizeIdentifier(node.at("template").get<std::string>()) != normalizedOldTemplateId)
+    {
+        return;
+    }
+
+    node["template"] = std::string(newTemplateId);
+    ++updatedReferenceCount;
+}
+
 std::size_t RewritePageTemplateReferences(json& document,
                                           const std::string_view oldTemplateId,
                                           const std::string_view newTemplateId)
@@ -556,27 +580,6 @@ std::size_t RewritePageTemplateReferences(json& document,
     const std::string normalizedOldTemplateId = NormalizeIdentifier(oldTemplateId);
     std::size_t updatedReferenceCount = 0U;
 
-    const auto rewriteTemplateField = [&normalizedOldTemplateId, &newTemplateId, &updatedReferenceCount](json& node)
-    {
-        if (!node.is_object() || !node.contains("template"))
-        {
-            return;
-        }
-
-        if (!node.at("template").is_string())
-        {
-            throw std::runtime_error("Page reticle template fields must be strings.");
-        }
-
-        if (NormalizeIdentifier(node.at("template").get<std::string>()) != normalizedOldTemplateId)
-        {
-            return;
-        }
-
-        node["template"] = std::string(newTemplateId);
-        ++updatedReferenceCount;
-    };
-
     if (pageNode.contains("staticReticles"))
     {
         if (!pageNode.at("staticReticles").is_array())
@@ -586,7 +589,7 @@ std::size_t RewritePageTemplateReferences(json& document,
 
         for (auto& reticleNode : pageNode.at("staticReticles"))
         {
-            rewriteTemplateField(reticleNode);
+            RewriteTemplateReferenceField(reticleNode, normalizedOldTemplateId, newTemplateId, updatedReferenceCount);
         }
     }
 
@@ -597,7 +600,7 @@ std::size_t RewritePageTemplateReferences(json& document,
             throw std::runtime_error("Page strobe field must be a JSON object.");
         }
 
-        rewriteTemplateField(pageNode.at("strobe"));
+        RewriteTemplateReferenceField(pageNode.at("strobe"), normalizedOldTemplateId, newTemplateId, updatedReferenceCount);
     }
 
     if (pageNode.contains("_editor"))

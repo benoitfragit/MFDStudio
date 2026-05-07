@@ -109,6 +109,83 @@ void FillIndexedTriangles(const ArrayView<const Vector2> points,
     }
 }
 
+void DrawDottedStrokeSegment(const Vector2 start,
+                             const Vector2 end,
+                             const float dotSpacing,
+                             const float dotRadius,
+                             const Color color,
+                             float& distanceToNextDot)
+{
+    float segmentLength = 0.0f;
+    if (!TryMeasureFiniteSegment(start, end, segmentLength))
+    {
+        return;
+    }
+
+    if (!std::isfinite(distanceToNextDot) || distanceToNextDot < 0.0f)
+    {
+        distanceToNextDot = 0.0f;
+    }
+
+    std::size_t fragmentCount = 0U;
+    while (distanceToNextDot <= segmentLength + 0.0001f)
+    {
+        const float factor = std::clamp(distanceToNextDot / segmentLength, 0.0f, 1.0f);
+        if (!std::isfinite(factor) || ++fragmentCount > kMaxStrokeFragmentsPerSegment)
+        {
+            break;
+        }
+
+        DrawCircleV(LerpVector2(start, end, factor), dotRadius, color);
+        distanceToNextDot += dotSpacing;
+        if (!std::isfinite(distanceToNextDot))
+        {
+            break;
+        }
+    }
+
+    distanceToNextDot -= segmentLength;
+    if (!std::isfinite(distanceToNextDot) || distanceToNextDot <= 0.0001f)
+    {
+        distanceToNextDot = dotSpacing;
+    }
+}
+
+void DrawDashedStrokeSegment(const Vector2 start,
+                             const Vector2 end,
+                             const float dashLength,
+                             const float gapLength,
+                             const float thickness,
+                             const Color color)
+{
+    float segmentLength = 0.0f;
+    if (!TryMeasureFiniteSegment(start, end, segmentLength))
+    {
+        return;
+    }
+
+    float dashStartOffset = 0.0f;
+    std::size_t fragmentCount = 0U;
+    while (dashStartOffset < segmentLength)
+    {
+        if (++fragmentCount > kMaxStrokeFragmentsPerSegment)
+        {
+            break;
+        }
+
+        const float dashEndOffset = std::min(dashStartOffset + dashLength, segmentLength);
+        const Vector2 dashStart = LerpVector2(start, end, dashStartOffset / segmentLength);
+        const Vector2 dashEnd = LerpVector2(start, end, dashEndOffset / segmentLength);
+        if (!IsFiniteVector(dashStart) || !IsFiniteVector(dashEnd))
+        {
+            break;
+        }
+
+        DrawLineEx(dashStart, dashEnd, thickness, color);
+        dashStartOffset = dashEndOffset + gapLength;
+    }
+}
+
 void DrawPolylineStroke(const ArrayView<const Vector2> points,
                         const bool closed,
                         const float thickness,
@@ -149,51 +226,14 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
         const float dotRadius = std::max(1.0f, thickness * 0.5f);
         float distanceToNextDot = 0.0f;
 
-        auto drawDottedSegment = [&](const Vector2 start, const Vector2 end)
-        {
-            float segmentLength = 0.0f;
-            if (!TryMeasureFiniteSegment(start, end, segmentLength))
-            {
-                return;
-            }
-
-            if (!std::isfinite(distanceToNextDot) || distanceToNextDot < 0.0f)
-            {
-                distanceToNextDot = 0.0f;
-            }
-
-            std::size_t fragmentCount = 0U;
-            while (distanceToNextDot <= segmentLength + 0.0001f)
-            {
-                const float factor = std::clamp(distanceToNextDot / segmentLength, 0.0f, 1.0f);
-                if (!std::isfinite(factor) || ++fragmentCount > kMaxStrokeFragmentsPerSegment)
-                {
-                    break;
-                }
-
-                DrawCircleV(LerpVector2(start, end, factor), dotRadius, color);
-                distanceToNextDot += dotSpacing;
-                if (!std::isfinite(distanceToNextDot))
-                {
-                    break;
-                }
-            }
-
-            distanceToNextDot -= segmentLength;
-            if (!std::isfinite(distanceToNextDot) || distanceToNextDot <= 0.0001f)
-            {
-                distanceToNextDot = dotSpacing;
-            }
-        };
-
         for (std::size_t index = 0; index + 1 < points.size(); ++index)
         {
-            drawDottedSegment(points[index], points[index + 1]);
+            DrawDottedStrokeSegment(points[index], points[index + 1], dotSpacing, dotRadius, color, distanceToNextDot);
         }
 
         if (closed)
         {
-            drawDottedSegment(points.back(), points.front());
+            DrawDottedStrokeSegment(points.back(), points.front(), dotSpacing, dotRadius, color, distanceToNextDot);
         }
 
         return;
@@ -202,44 +242,14 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
     const float dashLength = std::max(6.0f, thickness * 4.0f);
     const float gapLength = std::max(4.0f, thickness * 2.0f);
 
-    auto drawDashedSegment = [&](const Vector2 start, const Vector2 end)
-    {
-        float segmentLength = 0.0f;
-        if (!TryMeasureFiniteSegment(start, end, segmentLength))
-        {
-            return;
-        }
-
-        float dashStartOffset = 0.0f;
-        std::size_t fragmentCount = 0U;
-        while (dashStartOffset < segmentLength)
-        {
-            if (++fragmentCount > kMaxStrokeFragmentsPerSegment)
-            {
-                break;
-            }
-
-            const float dashEndOffset = std::min(dashStartOffset + dashLength, segmentLength);
-            const Vector2 dashStart = LerpVector2(start, end, dashStartOffset / segmentLength);
-            const Vector2 dashEnd = LerpVector2(start, end, dashEndOffset / segmentLength);
-            if (!IsFiniteVector(dashStart) || !IsFiniteVector(dashEnd))
-            {
-                break;
-            }
-
-            DrawLineEx(dashStart, dashEnd, thickness, color);
-            dashStartOffset = dashEndOffset + gapLength;
-        }
-    };
-
     for (std::size_t index = 0; index + 1 < points.size(); ++index)
     {
-        drawDashedSegment(points[index], points[index + 1]);
+        DrawDashedStrokeSegment(points[index], points[index + 1], dashLength, gapLength, thickness, color);
     }
 
     if (closed)
     {
-        drawDashedSegment(points.back(), points.front());
+        DrawDashedStrokeSegment(points.back(), points.front(), dashLength, gapLength, thickness, color);
     }
 }
 

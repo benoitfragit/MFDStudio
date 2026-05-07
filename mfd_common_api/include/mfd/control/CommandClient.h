@@ -308,6 +308,7 @@ private:
      */
     bool SetGeneratedPageView(TransportId pageId, std::string_view mappingHash, Vec2 center, float zoom);
     bool NormalizeBatchForTransport(const CommandBatch& sourceBatch, CommandBatch& normalizedBatch);
+    bool FlushPayloadChunk(CommandBatch& currentChunk, std::string& error);
     bool SendPayload(std::string_view payload);
     bool SendBatchedPayloads(const CommandBatch& batch);
 

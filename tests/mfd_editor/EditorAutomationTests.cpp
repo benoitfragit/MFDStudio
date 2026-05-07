@@ -10,12 +10,29 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <string>
 
 #include "EditorAutomationDocumentUtils.h"
 #include "EditorAutomationServices.h"
 
 #include "EditorAutomationTestUtils.h"
+
+namespace
+{
+bool ValidationHasDiagnostic(const editor::automation::ValidationReport& validation,
+                             const std::string_view targetId,
+                             const std::string_view fragment)
+{
+    return std::any_of(validation.diagnostics.begin(),
+                       validation.diagnostics.end(),
+                       [&](const editor::automation::ValidationDiagnostic& diagnostic)
+                       {
+                           return diagnostic.entityId == targetId &&
+                                  diagnostic.message.find(fragment) != std::string::npos;
+                       });
+}
+} // namespace
 
 TEST(EditorAutomationTests, BuildDocumentSnapshotExposesStableIds)
 {
@@ -1152,25 +1169,14 @@ TEST(EditorAutomationTests, ValidationReportsInvalidBlinkCatalogAndBindings)
     ASSERT_TRUE(validation.ok());
     EXPECT_FALSE(validation.value.valid);
 
-    auto hasDiagnostic = [&](const std::string_view targetId, const std::string_view fragment)
-    {
-        return std::any_of(validation.value.diagnostics.begin(),
-                           validation.value.diagnostics.end(),
-                           [&](const editor::automation::ValidationDiagnostic& diagnostic)
-                           {
-                               return diagnostic.entityId == targetId &&
-                                      diagnostic.message.find(fragment) != std::string::npos;
-                           });
-    };
-
     const editor::automation::PageId pageId = editor::automation::MakePageId(page);
     const editor::automation::PageReticleInstanceId pageReticleId =
         editor::automation::MakePageReticleInstanceId(page, page.staticReticles.front());
 
-    EXPECT_TRUE(hasDiagnostic(pageId.value, "Blink type names must stay unique"));
-    EXPECT_TRUE(hasDiagnostic(pageId.value, "default blink type must resolve"));
-    EXPECT_TRUE(hasDiagnostic(pageReticleId.value, "blink bindings must reference"));
-    EXPECT_TRUE(hasDiagnostic(pageId.value, "strobe blink bindings must reference"));
+    EXPECT_TRUE(ValidationHasDiagnostic(validation.value, pageId.value, "Blink type names must stay unique"));
+    EXPECT_TRUE(ValidationHasDiagnostic(validation.value, pageId.value, "default blink type must resolve"));
+    EXPECT_TRUE(ValidationHasDiagnostic(validation.value, pageReticleId.value, "blink bindings must reference"));
+    EXPECT_TRUE(ValidationHasDiagnostic(validation.value, pageId.value, "strobe blink bindings must reference"));
 }
 
 TEST(EditorAutomationTests, ValidationAndEventQueueCoverDiagnosticsAndSessionLifecycle)

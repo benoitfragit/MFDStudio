@@ -471,32 +471,34 @@ void RenameImportedTemplate(mfd::ReticleGroup& reticle, const std::string& targe
     reticle.sourceTemplateId = targetTemplateId;
 }
 
+void ApplyReticleTemplateIdRemap(
+    mfd::ReticleGroup& reticle,
+    const std::unordered_map<std::string, std::string, mfd::TransparentStringHash, mfd::TransparentStringEqual>& remap)
+{
+    if (reticle.sourceTemplateId.empty())
+    {
+        return;
+    }
+
+    const auto iterator = remap.find(reticle.sourceTemplateId);
+    if (iterator != remap.end())
+    {
+        reticle.sourceTemplateId = iterator->second;
+    }
+}
+
 void ApplyTemplateIdRemap(
     mfd::PageDefinition& page,
     const std::unordered_map<std::string, std::string, mfd::TransparentStringHash, mfd::TransparentStringEqual>& remap)
 {
-    const auto remapOne = [&remap](mfd::ReticleGroup& reticle)
-    {
-        if (reticle.sourceTemplateId.empty())
-        {
-            return;
-        }
-
-        const auto iterator = remap.find(reticle.sourceTemplateId);
-        if (iterator != remap.end())
-        {
-            reticle.sourceTemplateId = iterator->second;
-        }
-    };
-
     for (auto& reticle : page.staticReticles)
     {
-        remapOne(reticle);
+        ApplyReticleTemplateIdRemap(reticle, remap);
     }
 
     if (page.strobe.has_value())
     {
-        remapOne(page.strobe->reticle);
+        ApplyReticleTemplateIdRemap(page.strobe->reticle, remap);
     }
 
     for (auto& binding : page.dynamicReticleBindings)
@@ -634,16 +636,6 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
 
         std::unordered_set<std::string> sourceReticleFolders;
 
-        const auto isTemplateIdTaken = [&reservedTemplateIds](const std::string_view templateId)
-        {
-            return reservedTemplateIds.find(NormalizeIdentifier(templateId)) != reservedTemplateIds.end();
-        };
-
-        const auto isTemplatePathTaken = [&files](const std::filesystem::path& candidate)
-        {
-            return PathExists(candidate) || PathInTemplateMap(files, candidate);
-        };
-
         for (const std::string& sourceTemplateId : sourceMetadata.templateIds)
         {
             const auto missingIterator =
@@ -705,15 +697,20 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
                 }
                 else
                 {
-                    reticlePlan.targetTemplateId = SuggestUniqueImportedId(sourceTemplateId, isTemplateIdTaken);
+                    reticlePlan.targetTemplateId = SuggestUniqueImportedId(
+                        sourceTemplateId,
+                        [&reservedTemplateIds](const std::string_view templateId)
+                        {
+                            return reservedTemplateIds.find(NormalizeIdentifier(templateId)) != reservedTemplateIds.end();
+                        });
                     reticlePlan.targetFile =
                         NormalizePath(DefaultTemplateFilePath(plan.targetReticleLibraryFolder, reticlePlan.targetTemplateId));
                     reticlePlan.disposition = ImportDisposition::RenameCopy;
                     reticlePlan.targetFile = SuggestUniqueJsonPath(
                         reticlePlan.targetFile,
-                        [&isTemplatePathTaken](const std::filesystem::path& candidate)
+                        [&files](const std::filesystem::path& candidate)
                         {
-                            return isTemplatePathTaken(candidate);
+                            return PathExists(candidate) || PathInTemplateMap(files, candidate);
                         });
                 }
             }
@@ -724,15 +721,20 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
             }
             else if (PathExists(reticlePlan.targetFile) || PathInTemplateMap(files, reticlePlan.targetFile))
             {
-                reticlePlan.targetTemplateId = SuggestUniqueImportedId(sourceTemplateId, isTemplateIdTaken);
+                reticlePlan.targetTemplateId = SuggestUniqueImportedId(
+                    sourceTemplateId,
+                    [&reservedTemplateIds](const std::string_view templateId)
+                    {
+                        return reservedTemplateIds.find(NormalizeIdentifier(templateId)) != reservedTemplateIds.end();
+                    });
                 reticlePlan.targetFile =
                     NormalizePath(DefaultTemplateFilePath(plan.targetReticleLibraryFolder, reticlePlan.targetTemplateId));
                 reticlePlan.disposition = ImportDisposition::RenameCopy;
                 reticlePlan.targetFile = SuggestUniqueJsonPath(
                     reticlePlan.targetFile,
-                    [&isTemplatePathTaken](const std::filesystem::path& candidate)
+                    [&files](const std::filesystem::path& candidate)
                     {
-                        return isTemplatePathTaken(candidate);
+                        return PathExists(candidate) || PathInTemplateMap(files, candidate);
                     });
             }
 
@@ -773,15 +775,15 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
         plan.targetPageFile =
             NormalizePath(plan.targetPageFolder / std::filesystem::path(mfd::NormalizePageName(plan.targetPageName) + ".json"));
 
-        const auto isPagePathTaken = [&files](const std::filesystem::path& candidate)
-        {
-            return PathInList(files.pageFiles, candidate) || PathExists(candidate);
-        };
-
         if (pageRequiresRewrite)
         {
             const std::filesystem::path preferredPageFile = plan.targetPageFile;
-            plan.targetPageFile = SuggestUniqueJsonPath(preferredPageFile, isPagePathTaken);
+            plan.targetPageFile = SuggestUniqueJsonPath(
+                preferredPageFile,
+                [&files](const std::filesystem::path& candidate)
+                {
+                    return PathInList(files.pageFiles, candidate) || PathExists(candidate);
+                });
             plan.pageDisposition =
                 PathKey(plan.targetPageFile) == PathKey(preferredPageFile) &&
                         mfd::PageNamesEqual(plan.targetPageName, plan.sourcePageName)
@@ -790,7 +792,12 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
         }
         else if (PathInList(files.pageFiles, plan.targetPageFile))
         {
-            plan.targetPageFile = SuggestUniqueJsonPath(plan.targetPageFile, isPagePathTaken);
+            plan.targetPageFile = SuggestUniqueJsonPath(
+                plan.targetPageFile,
+                [&files](const std::filesystem::path& candidate)
+                {
+                    return PathInList(files.pageFiles, candidate) || PathExists(candidate);
+                });
             plan.pageDisposition = ImportDisposition::RenameCopy;
         }
         else if (PathExists(plan.targetPageFile) &&
@@ -800,7 +807,12 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
         }
         else if (PathExists(plan.targetPageFile))
         {
-            plan.targetPageFile = SuggestUniqueJsonPath(plan.targetPageFile, isPagePathTaken);
+            plan.targetPageFile = SuggestUniqueJsonPath(
+                plan.targetPageFile,
+                [&files](const std::filesystem::path& candidate)
+                {
+                    return PathInList(files.pageFiles, candidate) || PathExists(candidate);
+                });
             plan.pageDisposition = ImportDisposition::RenameCopy;
         }
         else
