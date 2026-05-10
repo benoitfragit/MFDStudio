@@ -13,8 +13,10 @@ skinparam sequence {
 participant "WindowLauncher" as Launcher
 participant "LoadedFramebufferPlugin" as Loader
 participant "Plugin DLL" as Plugin
+participant "Plugin Context\nring buffer / staging" as Context
 participant "AsyncFramebufferCapture" as Capture
 participant "OpenGL / PBO ring" as Pbo
+participant "Encoder / IPC thread" as Consumer
 
 Launcher -> Loader : Load(plugin.dll)
 Loader -> Plugin : LoadLibrary + GetProcAddress(entry point)
@@ -34,6 +36,8 @@ loop each rendered frame
 
   Launcher -> Loader : submit rgba32 bytes
   Loader -> Plugin : submit_frame(plugin_context, frame, errorBuffer)
+  Plugin -> Context : copy or publish frame handoff
+  Context -> Consumer : newest ready frame
   note right of Loader
   frame.struct_size
   frame.pixel_format = Rgba32

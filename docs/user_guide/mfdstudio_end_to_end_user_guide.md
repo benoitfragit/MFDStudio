@@ -43,6 +43,8 @@ The historical technical prefix of the repository remains `mfd` in namespaces, C
 
 ![Pipeline authoring to runtime](../../docs/user_guide/rendered/02_authoring_runtime_pipeline.png)
 
+![End-to-end workflow for an author, integrator, and runtime operator](../../docs/user_guide/rendered/14_end_to_end_user_workflow.png)
+
 The normal flow of an MFDStudio project is as follows:
 
 1. we author a window and its pages in `assets/` with `mfd_editor`
@@ -588,41 +590,29 @@ Options available in the popup:
 
 # 5. Generate the client API from the generator
 
-This section covers the official generator `mfd_client_api/generator`.
+For a C++ integrator, the generator is not a convenience wrapper. It is the compatibility boundary between authored JSON assets and the code that will publish live commands at runtime.
+
+If generation is treated as a real build step, you get a typed, repeatable, window-specific integration contract. If generation is skipped, or if the generated files are stale, you lose the proof that the client and the runtime still agree on the same authored surface.
 
 ## 5.1 Entry, exit, contract
 
-The generator takes as input:
+The generator consumes one authored window entry point:
 
-- a root window JSON
+- one root window JSON
+- every referenced page JSON
+- every reticle template reachable from the window
 
-It produces:
+It emits three integration artifacts:
 
-- a generated C++ header
-- a generated C++ source
-- A `.generated.map ` optional but highly recommended
+- one generated C++ header
+- one generated C++ source
+- one `<window>.generated.map` sidecar
 
-The generator parses:
-
-- the window
-- the referenced pages
-- the reticle library
-
-He deduces:
-
-- the pages exposed
-- static reticles
-- the primitives exposed
-- dynamic templates
-- the blink types
-- stable transport IDs
-- THE `mappingHash`
+These outputs are one contract, not three independent files. The generated C++ layer bakes generated transport ids and the `mappingHash` into the typed wrappers. The `.generated.map` exposes the same canonical transport surface to the client, the runtime, and any raw-name tooling.
 
 ## 5.2 Official CMake macro
 
-The normal path is the `client_api_generate_ui(...)` CMake macro.
-
-Complete example:
+The supported integration path is the `client_api_generate_ui(...)` CMake macro.
 
 ```cmake
 client_api_generate_ui(
@@ -635,178 +625,221 @@ client_api_generate_ui(
     HEADER_INCLUDE "MockupUi.h")
 ```
 
+Do not replace this macro with an ad hoc custom command unless you also reproduce its input-tracking behavior. The difficult part is not launching Python; the difficult part is ensuring CMake knows when authoring assets changed.
+
 ## 5.3 `client_api_generate_ui` arguments
 
-| Argument | Mandatory | Use |
+| Argument | Mandatory | Integration meaning |
 | --- | --- | --- |
-| `WINDOW_JSON` | yes | root window to parse |
-| `OUTPUT_HEADER` | yes | generated header |
-| `OUTPUT_SOURCE` | yes | generated source |
-| `OUTPUT_MAP` | recommended | generated transport map |
-| `NAMESPACE` | no | generated C++ namespace |
+| `WINDOW_JSON` | yes | authored root window to parse |
+| `OUTPUT_HEADER` | yes | generated typed API header |
+| `OUTPUT_SOURCE` | yes | generated typed API source |
+| `OUTPUT_MAP` | recommended | generated transport sidecar used by runtime and raw helpers |
+| `NAMESPACE` | no | namespace exposed to the client target |
 | `UI_CLASS_NAME` | no | explicit UI root class name |
-| `PAGE_CLASS_SUFFIX` | no | generated page class suffix |
-| `UI_CLASS_SUFFIX` | no | generated UI root suffix when `UI_CLASS_NAME` is omitted |
-| `HEADER_INCLUDE` | no | header name included by the generated `.cpp` |
-| `CONFIGURE_DEPENDS` | no | extra CMake regeneration dependencies |
+| `PAGE_CLASS_SUFFIX` | no | suffix appended to generated page wrapper names |
+| `UI_CLASS_SUFFIX` | no | suffix appended to the UI root if `UI_CLASS_NAME` is omitted |
+| `HEADER_INCLUDE` | no | include path written into the generated `.cpp` |
+| `CONFIGURE_DEPENDS` | no | extra paths that must also trigger CMake reconfigure |
 
-## 5.4 What the CMake macro does
+The important point is that `WINDOW_JSON` is only the entry point. The real dependency set is broader, which is why the input-scan mode exists.
+
+## 5.4 What the CMake macro really does
 
 ![Client API generation sequence](../../docs/user_guide/rendered/10_client_api_generation_sequence.png)
 
-The macro:
+The macro performs two distinct passes:
 
-1. resolves the generator script path
-2. resolves source and output paths
-3. locates a Python 3 interpreter
-4. runs an input scan via `--print-inputs`
-5. records those inputs in `CMAKE_CONFIGURE_DEPENDS`
-6. runs the real generation with `--force-overwrite`
+1. a configure-time scan through `generate_ui.py --print-inputs`
+2. a real generation pass through `generate_ui.py --force-overwrite ...`
 
-Result:
+The input scan discovers the actual dependency graph behind the window:
 
-- when one source asset changes, CMake knows it must regenerate
-- generated outputs stay marked as `GENERATED`
+- the root window JSON
+- every referenced page JSON
+- every template file in the active reticle library
 
-## 5.5 Underlying Python script
+Those paths are appended to `CMAKE_CONFIGURE_DEPENDS`, which means CMake knows that an authoring change can invalidate the generated client contract even if no C++ file changed.
 
-The main script is:
+![Developer workflow from authoring change to regenerated client API](../../docs/user_guide/rendered/15_generator_regeneration_decision_flow.png)
 
-```text
-mfd_client_api/generator/scripts/generate_ui.py
+## 5.5 Why `--print-inputs` matters for incremental builds
+
+The generator supports a discovery mode:
+
+```powershell
+py -3 mfd_client_api/generator/scripts/generate_ui.py `
+  --window-json assets/windows/demo_pages_cockpit.json `
+  --output-header generated/MockupUi.h `
+  --output-source generated/MockupUi.cpp `
+  --print-inputs
 ```
 
-Main CLI interface:
+The output is a newline-separated list of absolute input paths. `ClientApiGenerator.cmake` captures that stdout and registers each path in `CMAKE_CONFIGURE_DEPENDS`.
 
-```text
---window-json
---output-header
---output-source
---output-map
---namespace
---ui-class-name
---page-class-suffix
---ui-class-suffix
---header-include
---print-inputs
---force-overwrite
+Why this matters in practice:
+
+- if a page file changes, the generated API is invalidated
+- if a reticle template changes, the generated API is invalidated
+- if a new dynamic template binding is added to a page, the generated API is invalidated
+
+Without `--print-inputs`, CMake would only see the top-level generator invocation. It would not know that editing a page or template changed the transport surface behind the generated code.
+
+> Integration note:
+> `--print-inputs` is part of the build contract, not a debugging option. Removing it from the CMake path makes stale generated code much more likely.
+
+## 5.6 What breaks if you do not regenerate
+
+The most visible failure mode is a `mappingHash` mismatch after an authored change that altered the transport surface:
+
+- page rename
+- static reticle rename
+- exposed primitive rename
+- dynamic template binding added or removed
+- blink type rename
+
+Typical sequence:
+
+1. an author changes the authored model
+2. `mfd_window` loads the new window JSON and the new `.generated.map`
+3. the client executable is still compiled against the old generated `Ui.cpp`
+4. the first id-based batch is rejected before the runtime mutates any scene state
+
+Concrete example:
+
+```diff
+// Scenario: the client still ships yesterday's generated UI after a page rename.
+- batch.mappingHash = "3852bb1a1250284ed4db4ed38d08ea5da4a2044632441bc7afdac7d5cf5885e4";
++ batch.mappingHash = "91a4d9cd12cb6b75c96c0f8f1a3d8d9f6dd8c0f6d2d9bb4a60ee8d8f4261d4ab";
+
+- runtime error: "Generated transport map hash mismatch between the client batch and the runtime window"
++ after regeneration: batch accepted and generated ids resolve again
 ```
 
-## 5.6 Important generation rules
+Two related mismatch cases matter operationally:
 
-The generator:
+| Failure point | Exact symptom | What it usually means |
+| --- | --- | --- |
+| client-side normalization | `Command batch mappingHash does not match the generated transport map configured on the client` | the executable loads a newer `.generated.map` but still embeds older generated C++ |
+| runtime command processor | `Generated transport map hash mismatch between the client batch and the runtime window` | the client batch was built from a different generated revision than the runtime window |
 
-- derives transport IDs from stable hashes of canonical keys
-- emits the `mappingHash` from the canonical mapping payload
-- rejects ID collisions
-- checks the uniqueness of generated C++ names
-- validates `dynamicReticleBindings` consistency
-- exposes primitives according to the authored asset rules
+If the transport surface changed, the only correct fix is:
+
+1. regenerate `Ui.h`, `Ui.cpp`, and `.generated.map`
+2. rebuild the client target
+3. relaunch the runtime with the same authored asset revision
 
 ## 5.7 Rules for exposing primitives
 
-A primitive becomes a generated client handle when:
+The generated API should model operational control, not authoring noise.
 
-- it is explicitly marked exposed
-- or the generator deduces that it must be according to the rules in force
+Good exposure candidates:
 
-The type of handle issued depends on the type of primitive:
+- labels updated from live avionics data such as heading, Mach, or threat text
+- geometry that the client must steer at runtime such as a command bug, a cue line, or a steering symbol
+- dynamic template families that represent tracks, threats, waypoints, or cues
 
-| Primitive author | Handle generated |
-| --- | --- |
-| `text` | `TextHandle` |
-| `time` | `TimeHandle` |
-| `line` | `LineHandle` |
-| `circle` | `CircleHandle` |
-| `ring` | `RingHandle` |
-| `rectangle` | `RectangleHandle` |
-| `ellipse` | `EllipseHandle` |
-| `square` | `SquareHandle` |
-| `diamond` | `DiamondHandle` |
-| `triangle` | `TriangleHandle` |
-| `polyline` | `PolylineHandle` |
-| `bezier` | `BezierHandle` |
-| `arc` | `ArcHandle` |
-| `image` | `ImageHandle` |
+Bad exposure candidates:
+
+- decorative lines that never move independently
+- duplicated framing labels
+- unstable implementation-only primitives that have no meaning to the integrator
+
+Practical rule: if the client code would never mention the primitive in a requirements review, do not expose it.
 
 ## 5.8 What the generated API contains
 
-The generated API typically exposes:
+The generated output builds one typed object tree per authored window:
 
-- a UI root
-- one class per page
-- one class per static reticle
-- a dynamic set per dynamic template
-- one handle per exposed primitive
-- of the `BlinkType` of page
-- A `StrobeHandle` of page
+- one UI root class such as `CockpitMockupUi`
+- one page wrapper per page
+- one static reticle wrapper per static reticle
+- one specialized handle per exposed primitive
+- one generated dynamic-reticle set per page/template binding
+- one optional `strobe` handle per authored page strobe
+- one feedback layer that drives `IsActive()` and `IsStrobeCaptured()`
 
-## 5.9 What it contains `.generated.map `
+This is why the generated path should be the default integration path. The business code manipulates typed handles and leaves transport ids, runtime dynamic ids, and patch serialization to the generated layer.
 
-The JSON map contains:
+## 5.9 What the `.generated.map` sidecar contains
 
-| Painting | Content |
+The `.generated.map` file is not redundant output. It is the canonical transport description used by both the client and the runtime.
+
+| Table | Runtime meaning |
 | --- | --- |
-| `pages` | Stable page IDs |
-| `reticles` | Stable static reticle IDs |
-| `primitives` | Stable IDs of exposed primitives |
-| `templates` | Stable IDs of dynamic templates |
-| `blinkTypes` | Stable IDs of blink types |
+| `pages` | page transport ids and default page marker |
+| `reticles` | static reticle ids keyed by page |
+| `primitives` | exposed primitive ids keyed by reticle or template |
+| `templates` | generated ids for dynamic templates |
+| `blinkTypes` | generated ids for per-page blink types |
+| `mappingHash` | canonical compatibility fingerprint for the whole transport surface |
 
-The top-level also contains:
-
-- `schemaVersion`
-- `mappingHash`
-- window metadata
+Keep the sidecar next to the authored window. When the client also needs raw-name helpers, the same map lets `CommandClient` normalize names and detect stale compiled code.
 
 ## 5.10 Example of integration into a CMake target
 
-Minimal extract:
-
-``` cmake
-set(MY_GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/generated)
-
+```cmake
 client_api_generate_ui(
-    WINDOW_JSON "assets/windows/my_window.json"
-    OUTPUT_HEADER "${MY_GENERATED_DIR}/MyWindowUi.h"
-    OUTPUT_SOURCE "${MY_GENERATED_DIR}/MyWindowUi.cpp"
-    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/my_window.generated.map"
-    NAMESPACE "my_window_ui"
-    UI_CLASS_NAME "MyWindowUi"
-    HEADER_INCLUDE "MyWindowUi.h")
+    WINDOW_JSON "assets/windows/demo_pages_cockpit.json"
+    OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.h"
+    OUTPUT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/MockupUi.cpp"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/demo_pages_cockpit.generated.map"
+    NAMESPACE "mockup_ui"
+    UI_CLASS_NAME "CockpitMockupUi"
+    HEADER_INCLUDE "MockupUi.h")
 
-add_executable(my_client
+add_executable(client_mission
     src/main.cpp
-    ${MY_GENERATED_DIR}/MyWindowUi.cpp
-    ${MY_GENERATED_DIR}/MyWindowUi.h)
+    generated/MockupUi.cpp)
 
-target_include_directories(my_client PRIVATE ${MY_GENERATED_DIR})
-target_link_libraries(my_client PRIVATE mfd::client mfd::io_json)
+target_include_directories(client_mission
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/generated)
+
+target_link_libraries(client_mission
+    PRIVATE
+        mfd_client_api
+        mfd_common_api
+        mfd_api)
 ```
+
+The generated `.cpp` belongs in the target sources. Do not treat the generated layer as header-only: the source file carries the baked `mappingHash`, generated ids, feedback glue, and batch builders.
 
 ## 5.11 When to regenerate
 
-You must regenerate if you modify:
+Regenerate whenever the authored transport surface changes.
 
-- the name of a page
-- the name of a reticle template
-- the primitives exposed
-- the blink types
-- dynamic bindings
-- the visible structure of the window
+Must regenerate:
 
-## 5.12 Common causes of generation failure
+- page names
+- static reticle ids
+- exposed primitive ids
+- template ids used by dynamic bindings
+- dynamic page bindings
+- page blink types
+- the default page when startup behavior depends on it
 
-| Cause | Effect |
-| --- | --- |
-| JSON invalid window or page | parse failure |
-| C++ generated name collision | generator abort |
-| `dynamicReticleBindings` inconsistent | generator abort |
-| unknown template | abortion |
-| already existing output file without overwrite | abortion |
+Usually does not require regeneration:
+
+- purely decorative geometry changes that do not affect exposed ids
+- static color or layout changes on content that is not exposed to the client
+- runtime logic changes inside the client executable only
+
+Safe rule: if the client-visible contract changed, regenerate before the next compile.
+
+## 5.12 Troubleshooting the generator
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| generated header does not expose a new accessor | the primitive was not exposed or the build reused stale outputs | expose the primitive if needed, then rerun generation |
+| runtime rejects the first batch with a hash mismatch | generated C++ and runtime assets are from different revisions | regenerate outputs, rebuild the client, relaunch with matching assets |
+| CMake did not rerun generation after a template edit | the build bypassed `client_api_generate_ui(...)` or `--print-inputs` was removed | restore the official macro flow |
+| generator fails with duplicate generated names | two authored ids normalize to the same C++ name | rename the authored ids to distinct stable names |
+| generator fails on unknown dynamic layer | `dynamicReticleBindings[*].layerId` references a layer not declared in the page | declare the layer or fix the binding |
+| generator refuses to overwrite outputs | the Python entry point was run directly without `--force-overwrite` | use the CMake macro or pass `--force-overwrite` intentionally |
 
 > Important:
-> The generator is not a cosmetic convenience. It formalizes the customer contract. Any author development that changes this contract must be considered as an interface change.
+> The generator is not cosmetic. It defines the transport contract between authored assets, runtime, and client code. Any authoring change that affects that contract must be treated like an interface change.
 
 <!-- PAGEBREAK -->
 
@@ -814,192 +847,274 @@ You must regenerate if you modify:
 
 ![`client_mockup` runtime client screenshot](../../docs/images/client_mockup_demo.png)
 
-This section details the recommended way to drive a runtime window via the generated API.
+This chapter focuses on the recommended client pattern for a real integration: local state mutation first, coherent batch publication second, feedback-driven gating third.
 
-## 6.1 Two layers to distinguish
+## 6.1 Two layers to keep separate
 
 ![Generated API user contract](../../docs/user_guide/rendered/13_generated_api_user_contract.png)
 
-You should distinguish two layers:
+Keep these two layers conceptually separate:
 
-- the generated layer, which is oriented around authored concepts
-- `CommandClient`, which remains the final transport-sending boundary
+- the generated typed API, which models one authored window as pages, reticles, primitive handles, dynamic sets, and feedback helpers
+- the transport layer `mfd::CommandClient`, which serializes and sends `UserCommand` or `CommandBatch` payloads
 
-The recommended usage is:
+The intended use is:
 
-1. mutate the generated handles
-2. build a batch
-3. send it through `CommandClient` or `LatestBatchPublisher`
+1. mutate generated handles locally
+2. let the generated layer collect only dirty state
+3. build one `CommandBatch`
+4. publish it through `CommandClient` or `LatestBatchPublisher`
 
-## 6.2 Load window configuration
+> Common mistake:
+> Wrong: call `client.Send(...)` or `client.SendBatch(...)` after every `SetText()` and `SetPosition()`.
+> Right: update the full frame locally, then send one coherent batch for that frame.
 
-The loading entry point is `mfd::JsonLoader`.
+## 6.2 Load the authored window, transport, and feedback channel
 
-``` cpp
+Start from the real authored window file emitted by the project:
+
+```cpp
+// Scenario: bootstrap a cockpit client that will drive HUD and radar content.
+#include "MockupUi.h"
+#include "mfd/control/FeedbackTransport.h"
 #include "mfd/io/JsonLoader.h"
 
 mfd::JsonLoader loader;
-const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages_cockpit.json");
-```
+const mfd::LoadedWindowConfiguration loaded =
+    loader.LoadWindowConfiguration(std::string(mockup_ui::CockpitMockupUi::WindowFile()));
 
-The result contains:
-
-- `loaded.window`
-- `loaded.document`
-- `loaded.generatedTransportMap`
-
-## 6.3 Create the `CommandClient`
-
-``` cpp
-#include "mfd/control/CommandClient.h"
-
-if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
+if (!loaded.window.commandTransports.udp.has_value())
 {
-    return 1;
+    throw std::runtime_error("The window does not expose an enabled UDP command transport");
+}
+if (!loaded.generatedTransportMap.has_value())
+{
+    throw std::runtime_error("The window does not expose a generated transport map");
 }
 
-mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
+std::unique_ptr<mfd::IExchangeChannel> feedbackChannel;
+if (loaded.window.feedbackTransports.udp.has_value())
+{
+    feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);
+}
+```
+
+If the generated map is missing, the generated path loses one of its main safety rails. You can still compile code that includes the generated header, but you can no longer prove transport compatibility through the map sidecar.
+
+## 6.3 Create `CommandClient` from the generated transport map
+
+```cpp
+// Scenario: create the transport bridge used by the cockpit control loop.
+mfd::CommandClient client(
+    *loaded.window.commandTransports.udp,
+    loaded.generatedTransportMap);
+
 if (!client.IsReady())
 {
-    // Inspect client.LastError()
-    return 1;
+    throw std::runtime_error("Unable to initialize the command client: " + client.LastError());
 }
 ```
 
-## 6.4 Generated UI root
+`CommandClient` owns:
 
-Example with a generated UI:
+- transport readiness
+- serialization
+- UDP payload splitting when one batch exceeds the configured packet size
+- normalization of generated ids and named authored ids
+- compatibility checks against the loaded transport map
 
-``` cpp
-#include "MockupUi.h"
+## 6.4 UI root, startup, and authored default view
 
+The generated UI root centralizes the typed surface for one authored window:
+
+```cpp
+// Scenario: prime the cockpit window before entering the realtime loop.
 mockup_ui::CockpitMockupUi ui;
+auto& cockpit = ui.Cockpit();
+
+if (!ui.SendStartup(
+        client,
+        mfd::PageViewState {{0.0f, 0.0f}, 1.0f},
+        std::string {"WP-03 READY | awaiting first radar frame"}))
+{
+    throw std::runtime_error("Unable to send startup batch: " + client.LastError());
+}
 ```
 
-Recommended startup skeleton:
+`SendStartup(...)` is useful when your integration needs one predictable initial page, one predictable authored view, and one initial status caption before the continuous loop starts.
+
+> Common mistake:
+> Wrong: send startup page activation, page view, and initial labels through three unrelated command bursts.
+> Right: use one explicit startup sequence so the runtime transitions from cold start to the first meaningful frame atomically.
+
+## 6.5 Real-time loop pattern at 60 Hz
+
+![60 Hz generated client loop with one batch per frame](../../docs/user_guide/rendered/16_client_loop_60hz_timing.png)
+
+For a classic external avionics client, the correct pattern is one loop at 60 Hz:
+
+1. sample external state
+2. mutate generated handles
+3. call `BuildCommandBatch(sequence)`
+4. publish the batch once
+5. sleep until the next tick
 
 ```cpp
-auto& radar = ui.Radar();
+// Scenario: 60 Hz cockpit loop publishing HUD values, radar contacts, and status text.
+using clock = std::chrono::steady_clock;
+constexpr auto kTick = std::chrono::milliseconds(16);
 
-radar.fixedTrackAlpha.SetVisible(true);
-radar.fixedTrackAlpha.TrackLabel().SetText("MOCK");
+std::uint32_t sequence = 1U;
+auto nextTick = clock::now();
 
-client.ActivatePage(radar);
-client.SetPageView(radar, {0.0f, 0.0f}, 1.0f);
-client.SendBatch(ui.BuildCommandBatch(42U));
+while (running)
+{
+    const auto frameStart = clock::now();                           // t = 0.0 ms
+    const MissionSample sample = ReadMissionComputer();             // t = 0.2 ms
+
+    ui.Reset();                                                     // t = 0.3 ms
+    PopulateHud(ui.Cockpit(), sample.hud);                          // t = 0.9 ms
+    PopulateRadar(ui.Cockpit(), sample.radarTracks);                // t = 1.8 ms
+    ui.Cockpit().SetStatusCaption("WP-03 PUSH | THREAT SA-10");     // t = 2.0 ms
+
+    const mfd::CommandBatch batch = ui.BuildCommandBatch(sequence); // t = 2.2 ms
+    if (!client.SendBatch(batch))                                   // t = 2.5 ms
+    {
+        throw std::runtime_error("Unable to send frame batch: " + client.LastError());
+    }
+
+    ++sequence;
+    nextTick += kTick;
+
+    if (const auto now = clock::now(); now < nextTick)
+    {
+        std::this_thread::sleep_until(nextTick);                    // t = 16.6 ms target
+    }
+    else
+    {
+        nextTick = now;
+    }
+}
 ```
 
-The UI root generally exposes:
+This is the reference pattern because the runtime processes a coherent per-frame command set. Scattering multiple send calls through the frame destroys sequencing, increases packet count, and makes feedback interpretation harder.
 
-| Method | Role |
-| --- | --- |
-| `Window()` | patch whole-window display |
-| page accessors | typed navigation |
-| `BuildBatch()` | builds the staged `UserCommand` list |
-| `BuildCommandBatch(sequence)` | builds a `CommandBatch` carrying the generated `mappingHash` |
-| `SubmitLatest(publisher, sequence)` | publishes through `LatestBatchPublisher` |
-| `ApplyFeedback(...)` | integrates decoded feedback |
-| `ApplyFeedbackPayload(...)` | decodes one raw payload |
-| `PollFeedback(...)` | drains a feedback channel |
-| `Reset()` | resets the local staged state |
+> Common mistake:
+> Wrong: one `SendBatch()` for HUD text, another for page view, another for radar tracks.
+> Right: one batch per client frame, one `sequence`, one coherent state transition.
 
-## 6.5 Page wrappers
+## 6.6 Page wrappers and authoritative active-page feedback
 
-Each generated page typically exposes:
+Each generated page wrapper exposes authored identity and authoritative active-page feedback:
 
-| Member / method | Role |
-| --- | --- |
-| `Name()` | authored page name |
-| `GeneratedId()` | stable transport ID |
-| `MappingHash()` | compatibility hash |
-| `IsActive()` | authoritative runtime state when feedback is connected |
-| static reticle members | direct access |
-| `strobe` | `StrobeHandle` of page |
-| dynamic sets | one per dynamic template |
-| blink types | `BlinkType` of page |
+- `Name()`
+- `GeneratedId()`
+- `MappingHash()`
+- `IsActive()`
 
-## 6.6 Activate a page and adjust its view
+`IsActive()` is intentionally feedback-driven. It becomes true only when the runtime reports that the page is currently rendered as active. It does not become true merely because your client requested page activation.
 
-The recommended route is to pass the generated page wrapper:
+This distinction matters for gating client logic. If your application should only publish page-specific overlays when the page is actually being rendered, gate that behavior on `IsActive()` rather than on your own last requested page variable.
 
-``` cpp
-auto& radar = ui.Radar();
-client.ActivatePage(radar);
-client.SetPageView(radar, {0.0f, 0.0f}, 1.0f);
-```
+## 6.7 Window-level display controls
 
-This forces the use:
-
-- of the generated page ID
-- of `mappingHash` partner
-
-## 6.7 Modify the overall window display
-
-The UI root exposes `Window()`:
+The UI root exposes `Window()` for whole-window state that is not tied to one page:
 
 ```cpp
+// Scenario: dim the entire window for a night attack profile.
 ui.Window().SetColorInverted(false);
-ui.Window().SetBrightness(0.65f);
+ui.Window().SetBrightness(0.42f);
 ui.Window().SetDisabled(false);
-client.SendBatch(ui.BuildCommandBatch(42U));
+
+if (!client.SendBatch(ui.BuildCommandBatch(104U)))
+{
+    throw std::runtime_error(client.LastError());
+}
 ```
 
-## 6.8 Mutate a static reticle
+Use this layer for whole-window presentation state such as brightness, inversion, or blackout. Do not overload reticle-level color changes when the real operational intent is a window-wide display mode change.
 
-Example :
+## 6.8 Static reticle wrappers for persistent avionics values
 
-``` cpp
-auto& radar = ui.Radar();
+Static reticle wrappers are the right surface for authored elements that always exist on the page and only need live value updates.
 
-radar.fixedTrackAlpha.SetVisible(true);
-radar.fixedTrackAlpha.SetBlinkType(radar.fast);
-radar.fixedTrackAlpha.SetPosition({0.30f, 0.18f});
-radar.fixedTrackAlpha.SetRotationDegrees(-15.0f);
-radar.fixedTrackAlpha.SetColor({77, 224, 255, 255});
-radar.fixedTrackAlpha.TrackLabel().SetText("MOCK");
+```cpp
+// Scenario: update persistent HUD boxes with real mission values.
+auto& cockpit = ui.Cockpit();
 
-client.SendBatch(ui.BuildBatch());
+cockpit.hudSpeedBox.SetValue("420");
+cockpit.hudMachBox.SetValue("0.64");
+cockpit.hudHeadingBox.SetValue("045");
+cockpit.hudFpaBox.SetValue("+02.5");
+cockpit.hudThrottleBox.SetValue("88%");
+cockpit.hudRadarBox.SetValue("EMIT");
+
+if (overspeed)
+{
+    cockpit.hudSpeedBox.Blink = cockpit.overspeed;
+    cockpit.hudMachBox.Blink = cockpit.overspeed;
+}
+else
+{
+    cockpit.hudSpeedBox.Blink = nullptr;
+    cockpit.hudMachBox.Blink = nullptr;
+}
 ```
 
-Static wrappers derive from the `mfd::client::Reticle` contract.
+This pattern keeps authored structure static while letting the client update operational values every frame.
+
+> Common mistake:
+> Wrong: rebuild the authored HUD layout as dynamic reticles just to update speed, heading, or throttle text.
+> Right: keep persistent authored elements static and use the generated static wrappers as the live control surface.
 
 ### Common reticle surface
 
-| Method | Effect |
+| Method | Use |
 | --- | --- |
-| `SetVisible` | visibility |
-| `SetBlinkEnabled` | activate or not the blink |
-| `SetBlink` | active + type |
-| `SetBlinkType` | explicit blink type |
-| `ClearBlinkType` | return to default blink page |
-| `SetPosition` | logical position |
-| `SetRotationDegrees` | rotation |
-| `SetColor` | color stroke |
-| `SetThickness` | thickness |
-| `SetText` | text |
-| `SetLetterSpacing` | text spacing |
+| `SetVisible(bool)` | show or hide the reticle |
+| `SetBlinkEnabled(bool)` | toggle blinking without changing the blink type |
+| `SetBlinkType(const BlinkType&)` | use one explicit page blink type |
+| `ClearBlinkType()` | fall back to the page default blink behavior |
+| `SetPosition(Vec2)` | move the whole reticle |
+| `SetRotationDegrees(float)` | rotate the whole reticle |
+| `SetColor(ColorRgba)` | override stroke color |
+| `SetThickness(float)` | override line thickness |
+| `SetText(std::string)` | update the first text primitive or generated status primitive |
+| `SetLetterSpacing(float)` | update authored text spacing |
 
-## 6.9 Using exposed primitive handles
+## 6.9 Primitive handles for exposed geometry and text
 
-The great advantage of the generated API is to drive an exposed primitive without rebuilding the entire reticle.
+Primitive handles are what make the generated API feel like an integration API instead of a string-based patch list. They let the client touch only the authored surface that was explicitly meant to move.
+
+```cpp
+// Scenario: steer the heading command bug and bank pointer from flight guidance.
+auto& cockpit = ui.Cockpit();
+
+cockpit.adiHeadingCommandBug.CommandBug().SetRotationDegrees(+27.0f);
+cockpit.adiBankPointer.Pointer().SetRotationDegrees(-12.0f);
+cockpit.adiHeadingBox.CommandValue().SetText("072");
+cockpit.adiHeadingBox.HeadingValue().SetText("045");
+```
+
+Use primitive handles when the client needs one sub-element to move independently from the reticle that owns it. That is typical for command bugs, cue lines, text fields, and dynamic geometry markers.
 
 ### Common primitive surface
 
-| Method | Effect |
+| Method | Use |
 | --- | --- |
-| `SetVisible` | primitive visibility |
-| `SetPosition` | local translation |
-| `SetRotationDegrees` | local rotation |
-| `SetScale` | ladder |
-| `SetColor` | line color |
-| `SetFillColor` | fill color |
-| `SetFilled` | fill flag |
-| `SetThickness` | thickness |
-| `SetLineStyle` | `solid`, `dotted`, `dashed` |
+| `SetVisible(bool)` | toggle only this primitive |
+| `SetPosition(Vec2)` | local translation inside the reticle |
+| `SetRotationDegrees(float)` | local rotation |
+| `SetScale(Vec2)` | local scale |
+| `SetColor(ColorRgba)` | stroke color |
+| `SetFillColor(ColorRgba)` | fill color |
+| `SetFilled(bool)` | fill toggle |
+| `SetThickness(float)` | line thickness |
+| `SetLineStyle(LineStyle)` | line style override |
 
 ### Specialized surfaces
 
-| Handle | Extensions |
+| Handle | Extra methods |
 | --- | --- |
 | `TextHandle` | `SetText`, `SetLetterSpacing` |
 | `TimeHandle` | `SetLetterSpacing` |
@@ -1014,170 +1129,218 @@ The great advantage of the generated API is to drive an exposed primitive withou
 | `PolylineHandle` | `SetPoints`, `SetClosed` |
 | `BezierHandle` | `SetControlPoints`, `SetSegments` |
 | `ArcHandle` | `SetRadius`, `SetStartAngleDegrees`, `SetEndAngleDegrees`, `SetSegments` |
-| `ImageHandle` | common area only |
+| `ImageHandle` | common primitive surface only |
 
-### Example of exposed primitive
+> Common mistake:
+> Wrong: expose every decorative primitive and then patch them from business code.
+> Right: expose only the sub-elements that correspond to a real runtime control requirement.
 
-``` cpp
-auto& picture = ui.PictureDemo().pictureDemo;
-picture.DemoPicture().SetVisible(true);
-picture.DemoPicture().SetPosition({0.0f, 0.0f});
-picture.DemoPicture().SetScale({1.10f, 1.10f});
-picture.DemoPicture().SetRotationDegrees(8.0f);
-client.SendBatch(ui.BuildBatch());
-```
+## 6.10 Dynamic reticles for radar tracks, threats, and steering cues
 
-## 6.10 Manage dynamic reticles
-
-The recommended route is the generated dynamic set.
+Dynamic reticles are the right model for runtime entities that appear, move, and disappear independently from the static page layout.
 
 ```cpp
-auto& tracks = ui.Radar().DynamicRadarTrack();
-auto& track = tracks.Create();
+// Scenario: publish two live radar contacts and one threat cue on the cockpit page.
+auto& cockpit = ui.Cockpit();
+auto& contacts = cockpit.DynamicCockpitRadarContact();
 
-track.SetVisible(true);
-track.SetPosition({0.18f, -0.24f});
-track.SetRotationDegrees(55.0f);
-track.TrackLabel().SetText("B21");
+auto& lead = contacts.Create();
+lead.SetVisible(true);
+lead.SetPosition({1.18f, 0.17f});
+lead.SetRotationDegrees(-18.0f);
+lead.SetColor({86, 244, 162, 255});
+lead.ContactLabel().SetText("BRAA 045/32");
 
-client.SendBatch(ui.BuildBatch());
+auto& threat = contacts.Create();
+threat.SetVisible(true);
+threat.SetPosition({0.92f, -0.08f});
+threat.SetRotationDegrees(+36.0f);
+threat.SetColor({255, 198, 109, 255});
+threat.ContactLabel().SetText("THREAT SA-10");
+threat.Blink = cockpit.threat;
+
+cockpit.radarStatusBox.SetValue("THREAT SA-10");
+cockpit.SetStatusCaption("WP-03 PUSH | COMMIT NORTH");
 ```
 
-To delete one instance:
+To remove one dynamic instance, remove the handle from the generated set and let the next batch carry the removal command:
 
 ```cpp
-tracks.Remove(track);
-client.SendBatch(ui.BuildBatch());
+// Scenario: delete a stale contact when the track drops from the tactical picture.
+contacts.Remove(threat);
 ```
 
-### Surface of one generated dynamic set
+The generated set hides three pieces of bookkeeping that user code should not own:
 
-| Method | Role |
-| --- | --- |
-| `Create()` | allocates a typed handle and a runtime id cache |
-| `Remove(handle)` | deletes one instance |
-| `SetVisible(bool)` | hides or shows the whole dynamic family |
-| `AppendCommands` | builds runtime commands |
+- the runtime reticle identifier
+- the template transport id
+- the `mappingHash` carried by the final batch
 
-### What the dynamic set hides
+> Common mistake:
+> Wrong: invent your own runtime-reticle-id scheme outside the generated set.
+> Right: let `Create()` and `Remove()` manage lifecycle commands, then publish the resulting batch once per frame.
 
-The business code does not have to manage:
+## 6.11 Build one coherent batch per frame
 
-- the `runtimeReticleId`
-- the `mappingHash`
-- transport template ID
+The two generated batch builders exist for different levels of transport control:
 
-## 6.11 Publish in batches
+- `BuildBatch()` returns raw `std::vector<mfd::UserCommand>`
+- `BuildCommandBatch(sequence)` returns one `mfd::CommandBatch` with both `sequence` and `mappingHash`
 
-Two forms are common.
-
-### Batch without sequence
+For production code, prefer the second form:
 
 ```cpp
-client.SendBatch(ui.BuildBatch());
+// Scenario: publish one frame-aligned command batch with sequence tracking.
+const mfd::CommandBatch batch = ui.BuildCommandBatch(sequence);
+if (!client.SendBatch(batch))
+{
+    throw std::runtime_error(client.LastError());
+}
 ```
 
-### Batch with sequence and mappingHash
+Use `sequence` when the client operates in explicit update cycles. The runtime uses `sequence` together with `mappingHash` to reject stale or duplicate batches.
+
+## 6.12 When to prefer `LatestBatchPublisher`
+
+Use `LatestBatchPublisher` when the client continuously computes the latest state and only the freshest unsent frame matters.
+
+Typical fit:
+
+- radar sweeps
+- HUD state streams
+- synthetic moving maps
+- continuously refreshed flight-symbology clients
+
+Poor fit:
+
+- low-rate command tools where every transaction must be delivered
+- one-shot administrative commands
+- flows where dropping intermediate pending frames is unacceptable
 
 ```cpp
-const auto batch = ui.BuildCommandBatch(42U);
-client.SendBatch(batch);
-```
-
-The `sequence` is useful to:
-
-- identify one external cycle
-- group one coherent burst of mutations
-
-## 6.12 Use `LatestBatchPublisher`
-
-When a real-time client continuously computes the latest state, `LatestBatchPublisher` lets you publish the freshest batch through one dedicated path.
-
-```cpp
-#include "mfd/client/LatestBatchPublisher.h"
-
+// Scenario: stream the freshest cockpit frame without blocking the producer loop.
 mfd::client::LatestBatchPublisher publisher(*loaded.window.commandTransports.udp);
 if (!publisher.IsReady())
 {
-    return 1;
+    throw std::runtime_error("Unable to create realtime publisher: " + publisher.LastError());
 }
 
-ui.SubmitLatest(publisher, 43U);
-```
-
-## 6.13 Use strobe and feedback
-
-The strobe remains page-scoped.
-
-```cpp
-auto& radar = ui.Radar();
-if (radar.strobe.IsValid())
+if (!ui.SubmitLatest(publisher, sequence))
 {
-    radar.strobe.SetActive(true);
-    radar.strobe.SetPosition({0.15f, -0.08f});
-    client.SendBatch(ui.BuildBatch());
+    throw std::runtime_error("Unable to queue latest frame: " + publisher.LastError());
 }
 ```
 
-Runtime feedback can then be connected:
+Implementation-backed behavior to know:
+
+- one dedicated worker thread serializes sends
+- `SubmitLatest()` replaces any older pending unsent batch with the newest one
+- dynamic reticle lifecycle commands are preserved across pending-batch replacement when the `mappingHash` stays the same
+- `Flush()` blocks until the current send completes and no pending batch remains
+- `Stop()` drops any unsent pending batch and terminates the worker thread
+
+This makes `LatestBatchPublisher` a state-stream helper, not a guaranteed delivery queue.
+
+> Common mistake:
+> Wrong: use `LatestBatchPublisher` for every command path in the application.
+> Right: reserve it for high-rate "latest state wins" publishing, and keep plain `SendBatch()` for explicit control transactions.
+
+## 6.13 Feedback-driven state machine
+
+![Feedback-driven page activity and capture state machine](../../docs/user_guide/rendered/17_feedback_state_machine.png)
+
+`IsActive()` and `IsStrobeCaptured()` should gate client behavior, not just feed telemetry logs.
 
 ```cpp
-#include "mfd/control/FeedbackTransport.h"
+// Scenario: only commit the intercept logic when the runtime confirms both page activity and strobe capture.
+std::string feedbackError;
+if (feedbackChannel)
+{
+    ui.PollFeedback(*feedbackChannel, 8U, &feedbackError);
+}
 
-auto feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);
-std::string error;
-ui.PollFeedback(*feedbackChannel, 8U, &error);
+auto& cockpit = ui.Cockpit();
 
-const bool pageActive = ui.Radar().IsActive();
+if (!cockpit.IsActive())
+{
+    HoldRadarOverlay();
+    return;
+}
+
+if (track != nullptr && track->IsStrobeCaptured())
+{
+    AuthorizeCommit("THREAT SA-10");
+    cockpit.SetStatusCaption("WP-03 PUSH | CAPTURE CONFIRMED");
+}
+else
+{
+    ContinueSearch();
+    cockpit.SetStatusCaption("WP-03 PUSH | SEARCHING");
+}
 ```
 
-For a dynamic reticle:
+Both signals are authoritative runtime feedback:
 
-```cpp
-const bool captured = track.IsStrobeCaptured();
-```
+- `IsActive()` means the runtime is actually rendering that page
+- `IsStrobeCaptured()` means the runtime confirmed that exact dynamic instance as the captured target
+
+> Common mistake:
+> Wrong: assume capture as soon as the client places the strobe on top of a track.
+> Right: wait for the runtime feedback path to confirm the active page and the captured runtime reticle.
 
 ## 6.14 What feedback guarantees
 
-`Page::IsActive()` is true only when the runtime confirms that the page is currently rendered as active.
+The generated feedback helpers intentionally expose only authoritative runtime state:
 
-`DynamicReticle::IsStrobeCaptured()` is true only when the latest strobe feedback points to that exact runtime instance.
+- `Page::IsActive()` is false until `ActivePageFeedback` is received
+- `DynamicReticle::IsStrobeCaptured()` is false until the strobe feedback identifies that exact runtime reticle
+- stale feedback sequences are ignored by the runtime-feedback tracker
+- if the feedback channel is disabled, these helpers remain conservative rather than speculative
+
+This makes the generated feedback surface safe to use in client state machines.
 
 ## 6.15 Client sanitization and hygiene
 
-The reference client applies safeguards that are worth keeping:
+The generated layer makes publication easier, but it does not sanitize domain data for you. A robust client still needs to validate its own upstream inputs.
 
-- clamp positions in `[-1, 1]`
+Recommended safeguards:
+
+- clamp logical coordinates to the authored range you accept
+- reject or normalize non-finite floats before touching generated handles
 - clamp brightness to `[0, 1]`
-- zoom clean before sending
-- rejection of empty dynamic ids
-- verification of `client.IsReady()`
-- display of `client.LastError()` on failure
+- cap loop delta time to avoid huge catch-up steps after a debugger stop
+- keep one clear owner for dynamic-reticle lifecycle decisions
+- surface `client.LastError()` and `publisher.LastError()` in operational logs
 
-## 6.16 When to use raw API
+If your upstream data can contain `NaN`, `Inf`, or impossible kinematic values, sanitize before mutating the generated state tree.
 
-The Raw API `CommandClient` by author names remains useful for:
+## 6.16 When the raw API is still appropriate
 
-- generic tools
-- transition code
-- low level debugging
+The generated layer should be the default for window-specific integrations, but the raw `CommandClient` helpers still have a place:
 
-Example :
+- generic tooling that targets several windows
+- low-level debugging tools
+- migration code that predates the generated client surface
 
-``` cpp
+```cpp
+// Scenario: a generic tactical tool injects one named dynamic reticle without including the generated header.
 mfd::ReticlePatch patch;
 patch.visible = true;
-patch.position = mfd::Vec2 {0.25f, 0.10f};
-patch.text = std::string {"T42"};
+patch.position = mfd::Vec2 {0.24f, -0.11f};
+patch.text = std::string {"BRAA 045/32"};
 
-client.UpsertDynamicReticle("Radar", "track_42", "radar_track", patch);
+if (!client.UpsertDynamicReticle("Cockpit", "lead_track", "cockpit_radar_contact", patch))
+{
+    throw std::runtime_error(client.LastError());
+}
 ```
 
-But for a window-specific client, the generated path remains the right one.
+Use the raw path for genericity, not as a substitute for the generated path in a window-specific product client.
 
 ## 6.17 Minimal end-to-end example
 
-``` cpp
+```cpp
+// Scenario: minimum typed client that activates the cockpit page and publishes one radar-ready frame.
 #include "MockupUi.h"
 #include "mfd/control/CommandClient.h"
 #include "mfd/io/JsonLoader.h"
@@ -1185,13 +1348,18 @@ But for a window-specific client, the generated path remains the right one.
 int main()
 {
     mfd::JsonLoader loader;
-    const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages_cockpit.json");
-    if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
+    const mfd::LoadedWindowConfiguration loaded =
+        loader.LoadWindowConfiguration(std::string(mockup_ui::CockpitMockupUi::WindowFile()));
+
+    if (!loaded.window.commandTransports.udp.has_value() ||
+        !loaded.generatedTransportMap.has_value())
     {
         return 1;
     }
 
-    mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
+    mfd::CommandClient client(
+        *loaded.window.commandTransports.udp,
+        loaded.generatedTransportMap);
     if (!client.IsReady())
     {
         return 1;
@@ -1200,18 +1368,19 @@ int main()
     mockup_ui::CockpitMockupUi ui;
     auto& cockpit = ui.Cockpit();
 
-    client.ActivatePage(cockpit);
-    ui.Window().SetBrightness(0.65f);
-    cockpit.strobe.SetActive(true);
-    cockpit.strobe.SetPosition({0.12f, -0.05f});
+    if (!client.ActivatePage(cockpit))
+    {
+        return 1;
+    }
 
-    client.SendBatch(ui.BuildCommandBatch(1U));
-    return 0;
+    ui.Window().SetBrightness(0.65f);
+    cockpit.hudHeadingBox.SetValue("045");
+    cockpit.radarStatusBox.SetValue("SEARCH");
+    cockpit.SetStatusCaption("WP-03 READY | BRAA 045/32");
+
+    return client.SendBatch(ui.BuildCommandBatch(1U)) ? 0 : 1;
 }
 ```
-
-> Important:
-> The recommended model is not "directly call the network everywhere". The recommended model is "mutate a local generated state, then build a coherent batch".
 
 <!-- PAGEBREAK -->
 
@@ -1219,16 +1388,27 @@ int main()
 
 ![ABI framebuffer plugin](../../docs/user_guide/rendered/06_framebuffer_plugin_abi.png)
 
-The framebuffer plugin path lets `mfd_window` hand each final frame to one dynamically loaded DLL as a raw `RGBA32` buffer.
+This chapter is intentionally written as a standalone integration guide. You should be able to implement, validate, and test a framebuffer plugin without reading the rest of the manual first.
 
-## 7.1 Why a stable C ABI
+Recommended order:
 
-The ABI is in C to avoid:
+1. scaffold the plugin and export the stable entry point
+2. validate the ABI contract in the factory and `init`
+3. validate every frame descriptor
+4. copy or hand off the pixels before `submit_frame` returns
+5. connect the async encoder or IPC path behind that handoff
 
-- STL incompatibilities
-- C++ ABI differences
-- exceptions across the DLL boundary
-- sharing host-owned graphic objects
+![Framebuffer plugin integration workflow for an application team](../../docs/user_guide/rendered/18_framebuffer_plugin_integration_steps.png)
+
+## 7.1 Why the framebuffer plugin ABI is C-only
+
+The plugin ABI intentionally avoids C++ implementation details across the DLL boundary:
+
+- no STL containers
+- no C++ class layout assumptions
+- no exceptions across the boundary
+- no host-owned graphics objects
+- no dependency on one compiler-specific ABI
 
 The public header is:
 
@@ -1236,108 +1416,84 @@ The public header is:
 mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h
 ```
 
-## 7.2 Mandatory entry point
+If you keep the DLL boundary C-only, you can freely choose your internal C++17 implementation behind that boundary.
 
-The mandatory export symbol is:
+## 7.2 Step 1: scaffold the plugin and export the entry point
+
+The runtime looks for one exported symbol:
 
 ```cpp
 MfdGetWindowFramebufferPluginApi
 ```
 
-The name constant also exists in the header:
+The public header also exposes the same name through:
 
 ```cpp
 MFD_WINDOW_FRAMEBUFFER_PLUGIN_ENTRY_POINT
 ```
 
-## 7.3 Structure `MfdWindowFramebufferPluginApi`
+Your first deliverable is a DLL that exports that factory symbol and fills one `MfdWindowFramebufferPluginApi` structure.
 
-The exported callback table contains:
+## 7.3 Step 2: validate ABI and host contract during startup
 
-| Field | Role |
+`MfdWindowFramebufferPluginApi` is the exported callback table:
+
+| Field | Why it matters |
 | --- | --- |
-| `struct_size` | structure versioning |
-| `info` | plugin metadata |
-| `plugin_context` | plugin-owned opaque context |
-| `init` | plugin initialization |
-| `submit_frame` | per-frame callback |
-| `close` | shutdown callback |
-| `destroy` | final context destruction |
+| `struct_size` | forward-compatibility and layout validation |
+| `info` | immutable plugin metadata |
+| `plugin_context` | plugin-owned opaque state |
+| `init` | host-to-plugin startup callback |
+| `submit_frame` | per-frame entry point |
+| `close` | shutdown callback before unload |
+| `destroy` | final context destruction hook |
 
-## 7.4 Structure `MfdWindowFramebufferPluginInfo`
+`MfdWindowFramebufferPluginInfo` describes the plugin instance:
 
-| Field | Role |
+| Field | Use |
 | --- | --- |
-| `struct_size` | versioning |
-| `abi_version` | expected ABI |
-| `plugin_id` | stable identifier |
-| `display_name` | human-readable display name |
+| `struct_size` | versioned metadata layout |
+| `abi_version` | expected ABI revision |
+| `plugin_id` | stable machine-readable plugin identifier |
+| `display_name` | human-readable plugin name |
 
-## 7.5 Structure `MfdWindowFramebufferFrame`
+At minimum, validate these conditions in the factory and `init`:
 
-The runtime returns a raw frame descriptor:
+- `outApi != nullptr`
+- `host != nullptr`
+- `host->abi_version == MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION`
+- every mandatory callback is populated
+
+## 7.4 Step 3: understand the frame descriptor you receive
+
+`submit_frame` receives one `MfdWindowFramebufferFrame` borrowed from the host:
 
 | Field | Meaning |
 | --- | --- |
-| `struct_size` | structure size |
-| `pixel_format` | pixel format, currently `MfdWindowFramebufferPixelFormat_Rgba32` |
-| `width` | width in pixels |
-| `height` | height in pixels |
-| `row_stride_bytes` | stride per line |
-| `pixels` | raw pointer to bytes |
-| `pixel_bytes` | total number of bytes available |
+| `struct_size` | versioned frame structure size |
+| `pixel_format` | currently `MfdWindowFramebufferPixelFormat_Rgba32` |
+| `width` | frame width in pixels |
+| `height` | frame height in pixels |
+| `row_stride_bytes` | number of bytes between two rows |
+| `pixels` | borrowed pointer to the first pixel byte |
+| `pixel_bytes` | total byte count available through `pixels` |
 
-## 7.6 Validation helpers provided
+Assume only what the ABI states. Do not infer that GPU resources are shared, that another pixel format will appear with the same layout, or that the pixel memory survives beyond the callback.
 
-The header also exports C helpers:
+## 7.5 Step 4: validate every frame descriptor defensively
 
-| Function | Use |
+The ABI already exposes helpers for the most important validation steps:
+
+| Helper | Use |
 | --- | --- |
-| `MfdWindowComputeFramebufferRgba32ByteCount` | calculation of expected size |
-| `MfdWindowValidateFramebufferRgba32Layout` | checks a raw RGBA32 buffer |
-| `MfdWindowValidateFramebufferFrame` | validate one frame structure |
+| `MfdWindowComputeFramebufferRgba32ByteCount` | expected byte count for one width/height pair |
+| `MfdWindowValidateFramebufferRgba32Layout` | validate raw `RGBA32` layout and byte count |
+| `MfdWindowValidateFramebufferFrame` | validate the full frame descriptor |
 
-They must be used defensively in the plugin.
+Use them at the start of `submit_frame`:
 
-## 7.7 Plugin lifecycle
-
-![Framebuffer capture runtime sequence and plugin](../../docs/user_guide/rendered/11_framebuffer_plugin_runtime_sequence.png)
-
-The normal lifecycle is:
-
-1. `mfd_window` loads the DLL
-2. the runtime calls `MfdGetWindowFramebufferPluginApi`
-3. the plugin allocates its context
-4. the runtime calls `init`
-5. the runtime calls `submit_frame` every frame
-6. the runtime calls `close` at shutdown
-7. the runtime calls `destroy` to free the context
-
-## 7.8 Minimal plugin skeleton
-
-``` cpp
-#include "mfd/window/WindowLauncherPlugin.h"
-
-struct MyPluginContext
-{
-    bool initialized = false;
-};
-
-MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL InitPlugin(
-    void* pluginContext,
-    const MfdWindowFramebufferPluginHostApi* host,
-    MfdWindowUtf8Buffer* error) noexcept
-{
-    if (pluginContext == nullptr || host == nullptr ||
-        host->abi_version != MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION)
-    {
-        return MfdWindowFramebufferPluginResultCode_InvalidArgument;
-    }
-
-    static_cast<MyPluginContext*>(pluginContext)->initialized = true;
-    return MfdWindowFramebufferPluginResultCode_Success;
-}
-
+```cpp
+// Scenario: reject malformed frames before touching plugin-owned buffers.
 MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL SubmitFramePlugin(
     void* pluginContext,
     const MfdWindowFramebufferFrame* frame,
@@ -1353,7 +1509,51 @@ MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL SubmitFramePlugin(
         return MfdWindowFramebufferPluginResultCode_InvalidArgument;
     }
 
-    // Copier ou consommer frame->pixels ici.
+    return MfdWindowFramebufferPluginResultCode_Success;
+}
+```
+
+If validation fails, return one explicit ABI result code and write one human-readable error string into the provided UTF-8 buffer when possible.
+
+## 7.6 Step 5: know the lifecycle before you attach real logic
+
+![Framebuffer capture runtime sequence and async frame handoff](../../docs/user_guide/rendered/11_framebuffer_plugin_runtime_sequence.png)
+
+The normal runtime lifecycle is:
+
+1. `mfd_window` loads the DLL
+2. the loader calls `MfdGetWindowFramebufferPluginApi`
+3. the plugin allocates its context and returns the callback table
+4. the runtime calls `init`
+5. the runtime calls `submit_frame` once per rendered frame
+6. the runtime calls `close`
+7. the runtime calls `destroy`
+
+Design your context so that `init`, `submit_frame`, `close`, and `destroy` each have one clear responsibility. Do not let `submit_frame` lazily initialize half of the encoder stack unless you are forced to.
+
+## 7.7 Minimal plugin scaffold
+
+```cpp
+// Scenario: minimal plugin factory that validates ABI and returns one callback table.
+#include "mfd/window/WindowLauncherPlugin.h"
+
+struct PluginContext
+{
+    bool initialized = false;
+};
+
+MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL InitPlugin(
+    void* pluginContext,
+    const MfdWindowFramebufferPluginHostApi* host,
+    MfdWindowUtf8Buffer* error) noexcept
+{
+    if (pluginContext == nullptr || host == nullptr ||
+        host->abi_version != MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION)
+    {
+        return MfdWindowFramebufferPluginResultCode_InvalidArgument;
+    }
+
+    static_cast<PluginContext*>(pluginContext)->initialized = true;
     return MfdWindowFramebufferPluginResultCode_Success;
 }
 
@@ -1364,7 +1564,7 @@ void MFD_WINDOW_PLUGIN_CALL ClosePlugin(void* pluginContext) noexcept
 
 void MFD_WINDOW_PLUGIN_CALL DestroyPlugin(void* pluginContext) noexcept
 {
-    delete static_cast<MyPluginContext*>(pluginContext);
+    delete static_cast<PluginContext*>(pluginContext);
 }
 
 extern "C" __declspec(dllexport) MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL
@@ -1375,7 +1575,12 @@ MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindo
         return MfdWindowFramebufferPluginResultCode_InvalidArgument;
     }
 
-    auto* context = new MyPluginContext();
+    auto* context = new (std::nothrow) PluginContext();
+    if (context == nullptr)
+    {
+        return MfdWindowFramebufferPluginResultCode_InternalFailure;
+    }
+
     *outApi = {};
     outApi->struct_size = sizeof(*outApi);
     outApi->info.struct_size = sizeof(outApi->info);
@@ -1389,68 +1594,198 @@ MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindo
 }
 ```
 
-## 7.9 Example of repository reference plugin
+This is the correct starting point: a tiny stable C boundary, and all implementation detail hidden behind `plugin_context`.
 
-The repository provides:
+## 7.8 Copy pixels safely inside `submit_frame`
 
-``` text
+The runtime owns `frame->pixels`. Your plugin only borrows that memory during the callback.
+
+```cpp
+// Scenario: copy one RGBA32 frame into plugin-owned storage before returning.
+struct PluginContext
+{
+    std::vector<std::uint8_t> staging;
+    int width = 0;
+    int height = 0;
+    std::size_t stride = 0;
+};
+
+MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL SubmitFramePlugin(
+    void* pluginContext,
+    const MfdWindowFramebufferFrame* frame,
+    MfdWindowUtf8Buffer* error) noexcept
+{
+    if (pluginContext == nullptr || frame == nullptr ||
+        MfdWindowValidateFramebufferFrame(frame) == 0)
+    {
+        return MfdWindowFramebufferPluginResultCode_InvalidArgument;
+    }
+
+    auto& context = *static_cast<PluginContext*>(pluginContext);
+    context.staging.resize(frame->pixel_bytes);
+    std::memcpy(context.staging.data(), frame->pixels, frame->pixel_bytes);
+    context.width = frame->width;
+    context.height = frame->height;
+    context.stride = frame->row_stride_bytes;
+    return MfdWindowFramebufferPluginResultCode_Success;
+}
+```
+
+> DANGER:
+> Never keep `frame->pixels` after `submit_frame` returns. The pointer is borrowed host memory whose lifetime is only guaranteed for the duration of the callback.
+
+## 7.9 Connect an async encoder or IPC path without blocking `submit_frame`
+
+Once the safe copy rule is respected, the usual next step is to hand the copied frame to another thread.
+
+```cpp
+// Scenario: pseudocode for a lock-free ring buffer handoff to an encoder thread.
+struct FrameSlot
+{
+    std::atomic<bool> ready {false};
+    std::vector<std::uint8_t> pixels;
+    int width = 0;
+    int height = 0;
+    std::size_t stride = 0;
+};
+
+struct PluginContext
+{
+    std::array<FrameSlot, 3> ring;
+    std::atomic<std::uint32_t> writeIndex {0};
+    std::atomic<std::uint32_t> readIndex {0};
+};
+
+MfdWindowFramebufferPluginResultCode SubmitFramePlugin(...) noexcept
+{
+    FrameSlot& slot = context.ring[context.writeIndex.load() % context.ring.size()];
+    if (slot.ready.load(std::memory_order_acquire))
+    {
+        return MfdWindowFramebufferPluginResultCode_Success; // drop this frame instead of blocking
+    }
+
+    slot.pixels.resize(frame->pixel_bytes);
+    std::memcpy(slot.pixels.data(), frame->pixels, frame->pixel_bytes);
+    slot.width = frame->width;
+    slot.height = frame->height;
+    slot.stride = frame->row_stride_bytes;
+    slot.ready.store(true, std::memory_order_release);
+    context.writeIndex.fetch_add(1, std::memory_order_relaxed);
+    return MfdWindowFramebufferPluginResultCode_Success;
+}
+
+void EncoderThreadMain(PluginContext& context)
+{
+    for (;;)
+    {
+        FrameSlot& slot = context.ring[context.readIndex.load() % context.ring.size()];
+        if (!slot.ready.load(std::memory_order_acquire))
+        {
+            continue;
+        }
+
+        EncodeOrPublish(slot.width, slot.height, slot.stride, slot.pixels);
+        slot.ready.store(false, std::memory_order_release);
+        context.readIndex.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+```
+
+This pattern gives `submit_frame` a bounded job:
+
+- validate the frame
+- copy it into owned storage
+- publish the ownership handoff
+- return immediately
+
+That is the right place to connect video encoding, shared memory publication, or IPC forwarding.
+
+## 7.10 What not to do
+
+Do not:
+
+- keep `frame->pixels` beyond the callback
+- throw exceptions across the ABI
+- assume a pixel format other than the one validated by the helpers
+- block the render loop on disk I/O, encoding, or network publication
+- write into the memory exposed by `frame->pixels`
+
+If your plugin must choose between dropping one frame and blocking the render loop, prefer the explicit drop strategy and expose it in diagnostics.
+
+## 7.11 Test the plugin without the full runtime
+
+You can unit-test most of the plugin contract without launching `mfd_window`. Build a fake frame on the stack and call your callbacks directly.
+
+```cpp
+// Scenario: unit-test the plugin against one synthetic 2x2 RGBA32 frame.
+std::array<std::uint8_t, 16> pixels {};
+
+MfdWindowFramebufferFrame frame {};
+frame.struct_size = sizeof(frame);
+frame.pixel_format = MfdWindowFramebufferPixelFormat_Rgba32;
+frame.width = 2;
+frame.height = 2;
+frame.row_stride_bytes = 8;
+frame.pixels = pixels.data();
+frame.pixel_bytes = pixels.size();
+
+EXPECT_NE(MfdWindowValidateFramebufferFrame(&frame), 0);
+
+PluginContext context;
+MfdWindowUtf8Buffer error {};
+EXPECT_EQ(
+    SubmitFramePlugin(&context, &frame, &error),
+    MfdWindowFramebufferPluginResultCode_Success);
+EXPECT_EQ(context.staging.size(), pixels.size());
+```
+
+This isolates plugin logic from runtime launch, OpenGL capture, and DLL loading. It is the fastest way to prove:
+
+- frame validation works
+- copy logic works
+- async queue handoff works
+- error reporting works on malformed descriptors
+
+## 7.12 Repository reference plugin
+
+The repository already includes one minimal reference implementation:
+
+```text
 examples/mfd_framebuffer_stdout_plugin/src/FramebufferStdoutPlugin.cpp
 ```
 
-This plugin:
+That sample proves:
 
-- validate the frame
-- displays a single line in the first frame
-- illustrates context allocation and destruction
+- callback-table export
+- ABI validation
+- safe frame validation
+- context allocation and destruction
 
-## 7.10 What to do in `submit_frame`
+Start from it if you need a clean skeleton, then add your own queueing, encoder integration, or IPC path.
 
-In `submit_frame`, you should:
+## 7.13 CMake and build notes
 
-1. check `pluginContext != nullptr`
-2. check `frame != nullptr`
-3. call `MfdWindowValidateFramebufferFrame(frame)`
-4. consume or copy `frame->pixels`
-5. return a clear error code on failure
+The reference plugin is a standard C++17 DLL. The critical points are not CMake tricks; they are ABI correctness and symbol export.
 
-## 7.11 What not to do
+Checklist:
 
-You should not:
+- compile as a DLL
+- include `mfd/window/WindowLauncherPlugin.h`
+- export `MfdGetWindowFramebufferPluginApi`
+- keep the DLL boundary `noexcept`
+- keep implementation detail in private C++ types behind `plugin_context`
 
-- keep a pointer `frame->pixels` after return of callback without copy
-- throw exceptions through the ABI
-- assume another format than `RGBA32`
-- assume the host is sharing GPU objects
-- write to the memory pointed to by `pixels`
+## 7.14 Final integration checklist
 
-## 7.12 Practical consumption strategy
+Before wiring the plugin into a full runtime launch, verify all of the following:
 
-Depending on the need, the plugin can:
-
-- copy the frame to a private CPU buffer
-- push the frame to an internal lock-free queue
-- convert the frame for an encoder
-- publish the frame to another IPC system
-
-The important rule is: the lifetime of raw bytes is only guaranteed during the call.
-
-## 7.13 CMake build of the plugin
-
-The reference plugin is a classic C++17 DLL. The critical point is not CMake itself, but:
-
-- exporting the symbol `MfdGetWindowFramebufferPluginApi`
-- the inclusion of the public header of the API plugin
-- strict compliance with the ABI
-
-## 7.14 Recommended testing strategy
-
-To validate a framebuffer plugin:
-
-1. start with a "stdout" or "log" plugin
-2. check that `init` is called
-3. check that `submit_frame` receives the expected dimensions
-4. check the byte size via the validation helper
-5. then connect the consumption business logic
+1. the DLL exports `MfdGetWindowFramebufferPluginApi`
+2. `info.abi_version` matches `MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION`
+3. `init`, `submit_frame`, `close`, and `destroy` are all populated
+4. `submit_frame` validates the descriptor before touching pixels
+5. pixels are copied or handed off before the callback returns
+6. the async path does not block the render thread
+7. the plugin can be exercised with a synthetic stack-allocated frame
 
 <!-- PAGEBREAK -->
 
@@ -1458,63 +1793,67 @@ To validate a framebuffer plugin:
 
 ![Launch script flow](../../docs/user_guide/rendered/07_launcher_script_flow.png)
 
-The repository provides a reusable batch launcher:
+The repository already ships a reusable batch launcher:
 
-``` text
+```text
 Scripts/Start-MfdWindow.bat
 ```
 
-## 8.1 Use of the script
+## 8.1 Use the launcher as the stable runtime entry point
 
-The script expects at least:
+Minimum call:
 
 ```text
 Start-MfdWindow.bat <window.json>
 ```
 
-Full usage:
+Full call shape:
 
 ```text
 Start-MfdWindow.bat <window.json> [--runtime-dir <dir>] [--framebuffer-plugin <plugin.dll>] [--wait] [extra launcher args]
 ```
 
+Use this script when you want one repeatable runtime entry point for authored windows, staged binaries, and optional framebuffer-plugin injection.
+
 ## 8.2 Supported arguments
 
-| Argument | Effect |
+| Argument | Use |
 | --- | --- |
-| `<window.json>` | window to launch |
-| `--runtime-dir <dir>` | force the folder containing `mfd_window.exe` |
-| `--framebuffer-plugin <plugin.dll>` | explicitly injects a framebuffer plugin |
-| `--wait` | synchronous runtime call |
-| `extra launcher args` | args transmitted to the launcher |
+| `<window.json>` | authored window to load |
+| `--runtime-dir <dir>` | explicit folder that contains `mfd_window.exe` |
+| `--framebuffer-plugin <plugin.dll>` | plugin DLL to inject into the runtime |
+| `--wait` | keep the launcher attached to the child process |
+| `extra launcher args` | forwarded to `mfd_window` |
 
-## 8.3 Runtime resolution
+## 8.3 How the script resolves `mfd_window.exe`
 
-The script is looking for `mfd_window.exe` in this order:
+Resolution order:
 
-1. the folder passed via `--runtime-dir`
-2. the script folder if `mfd_window.exe` is present there
+1. the folder passed through `--runtime-dir`
+2. the script folder if `mfd_window.exe` is already there
 3. `_Exec/<toolset>/<platform>/<config>`
 4. a fallback scan under `_Exec`
 
-## 8.4 Plugin resolution
+This makes the same script usable from a staged delivery tree and from a developer build tree.
 
-The plugin can come:
+## 8.4 How plugin resolution works
 
-- from `--framebuffer-plugin`
-- or from the `MFD_DEFAULT_FRAMEBUFFER_PLUGIN` environment variable
+The plugin path can come from:
 
-The script then resolves the path:
+- `--framebuffer-plugin`
+- `MFD_DEFAULT_FRAMEBUFFER_PLUGIN`
 
-- absolute if given directly
-- relative to the runtime folder
-- relating to the root of the deposit
-- relative to the script folder
-- relating to the current file
+The script then resolves the path relative to:
 
-## 8.5 Example with the minimal script from the repository
+- the explicit absolute path if already absolute
+- the runtime directory
+- the repository root
+- the script directory
+- the current working directory
 
-`Scripts/Start-MfdMinimal.bat` preconfigured:
+## 8.5 Example of a preconfigured project launcher
+
+`Scripts/Start-MfdMinimal.bat` is intentionally small:
 
 ```bat
 @echo off
@@ -1524,118 +1863,133 @@ call "%~dp0Start-MfdWindow.bat" "assets/windows/demo_pages_minimal.json" %*
 exit /b %ERRORLEVEL%
 ```
 
-So the simplest call is:
+This is a good pattern for project-specific launchers: set one default window, optionally set one default plugin, then delegate everything else to `Start-MfdWindow.bat`.
+
+## 8.6 Example with an explicit custom plugin
 
 ```powershell
-.\Scripts\Start-MfdMinimal.bat
+.\Scripts\Start-MfdWindow.bat `
+  "assets/windows/demo_pages_minimal.json" `
+  --framebuffer-plugin "build\vs2022-win32\examples\Debug\my_framebuffer_plugin.dll" `
+  --wait
 ```
 
-This is functionally equivalent to launching `mfd_window` with:
+Equivalent direct runtime call:
 
-- the window `assets/windows/demo_pages_minimal.json`
-- the plugin `mfd_framebuffer_stdout_plugin.dll`
-
-## 8.6 Explicit example with custom plugin
-
-``` powershell
-.\Scripts\Start-MfdWindow.bat `"assets/windows/demo_pages_minimal.json"`
-  --framebuffer-plugin "build\vs2022-win32\examples\Debug\my_framebuffer_plugin.dll" `--wait```## 8.7 Command line equivalent` mfd_window `The runtime directly accepts:``` powershell
+```powershell
 mfd_window --window assets/windows/demo_pages_minimal.json --framebuffer-plugin my_framebuffer_plugin.dll
 ```
 
-The launcher usage text also covers:
+## 8.7 Why the script is still useful when the CLI exists
 
-- `--help `
-- the absence or not of a default window
-- the shortcuts `F1`, `R`, `1..9`
+The script already solves three tedious runtime problems:
 
-## 8.8 Write your own project launch script
+- finding the staged executable
+- resolving the plugin path from several likely locations
+- keeping a consistent project-local launch convention
 
-A clean project script generally contains:
+That is why it remains the preferred operator entry point even when the underlying `mfd_window` CLI is available.
 
-1. the target window
-2. an optional default plugin variable
-3. the call has `Start-MfdWindow.bat`
+## 8.8 Write your own project launcher
 
-Example :
-
-``` bat
+```bat
 @echo off
 setlocal
-set "MFD_DEFAULT_FRAMEBUFFER_PLUGIN=my_framebuffer_plugin.dll"
+set "MFD_DEFAULT_FRAMEBUFFER_PLUGIN=my_encoder_plugin.dll"
 call "%~dp0Start-MfdWindow.bat" "assets/windows/my_window.json" %*
 exit /b %ERRORLEVEL%
 ```
 
-## 8.9 Launch checklist with plugin
+Keep the custom script small. Let the shared launcher own path resolution and argument parsing.
 
-Before launching, check:
+## 8.9 Launch checklist with a framebuffer plugin
 
-- the JSON window exists
-- `mfd_window.exe` was well constructed
-- the plugin DLL exists in a resolvable path
-- the symbol `MfdGetWindowFramebufferPluginApi` is exported
-- the ABI of the plugin corresponds to the expected version
+Before launch, verify:
+
+- the window JSON exists
+- `mfd_window.exe` exists in one resolvable location
+- the plugin DLL exists in one resolvable location
+- the plugin exports `MfdGetWindowFramebufferPluginApi`
+- the plugin ABI version matches the runtime
 
 ## 8.10 If the plugin does not load
 
-Check in order:
+Check in this order:
 
-1. correct dll path
-2. DLL runtime dependencies present
-3. symbol name exports correct
-4. `struct_size` And `abi_version` correctly informed
-5. absence of crashes in `init`
+1. incorrect DLL path
+2. missing DLL runtime dependencies
+3. missing exported entry point
+4. incomplete callback table
+5. invalid `struct_size` or `abi_version`
+6. crash or invalid return inside `init`
 
 <!-- PAGEBREAK -->
 
-# 9. Overall Checklist Recommends
+# 9. Overall recommended checklist
 
-## 9.1 Complete project workflow
+## 9.1 End-to-end project workflow
 
-1. author the window and pages in `mfd_editor`
-2. save as ` assets/`
-3. expose only the necessary primitives to the client
-4. declare dynamic templates and strobe if necessary
-5. generate `Ui.h`, `Ui.cpp` And `<window>.generated.map `
-6. integrate the generated API into a C++17 client target
-7. throw `mfd_window`
-8. post orders via `CommandClient`
-9. plug in UDP feedback if authoritative runtime state is required
-10. plug in a framebuffer plugin if the image output needs to be captured
+1. author the window and its pages in `mfd_editor`
+2. save the authored assets in `assets/`
+3. expose only the runtime surface the client really needs
+4. declare dynamic template bindings and page strobe behavior intentionally
+5. regenerate `Ui.h`, `Ui.cpp`, and `<window>.generated.map`
+6. rebuild the client target that includes the generated `.cpp`
+7. launch `mfd_window`
+8. publish coherent batches through `CommandClient` or `LatestBatchPublisher`
+9. poll feedback if page activity or strobe capture matters
+10. attach a framebuffer plugin when the rendered image must leave the runtime
 
 ## 9.2 Design errors to avoid
 
 - author directly in `_Exec`
-- expose too many primitives without business need
-- drive text names everywhere while a generated API exists
-- keep pointers to the framebuffer after the callback returns
-- forget to regenerate the API after renaming the page/template
-- mix client business logic and visual authoring
+- expose too many primitives without operational value
+- keep stale generated outputs after an authored contract change
+- scatter `SendBatch()` calls throughout the frame
+- bypass runtime feedback when logic depends on authoritative page or capture state
+- keep framebuffer pointers after `submit_frame` returns
 
-## 9.3 Most important files to know
+## 9.3 Files every integrator should know
 
-| File | Why it is important |
+| File | Why it matters |
 | --- | --- |
-| `assets/windows/<window>.json` | runtime and generator entry point |
-| `assets/windows/<window>.generated.map` | stable transport mapping |
-| `mfd_client_api/generator/scripts/generate_ui.py` | generator source |
-| `mfd_common_api/include/mfd/control/CommandClient.h` | public transport facade |
-| `mfd_client_api/include/mfd/client/Animation.h` | public client handles |
-| `mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h` | ABI framebuffer plugin |
-| `Scripts/Start-MfdWindow.bat` | resolution and launch logic |
+| `assets/windows/<window>.json` | generator and runtime entry point |
+| `assets/windows/<window>.generated.map` | transport ids and compatibility hash |
+| `mfd_client_api/generator/scripts/generate_ui.py` | generation logic and `--print-inputs` behavior |
+| `mfd_client_api/generator/ClientApiGenerator.cmake` | official CMake integration path |
+| `mfd_common_api/include/mfd/control/CommandClient.h` | transport publication facade |
+| `mfd_client_api/include/mfd/client/Animation.h` | generated-handle runtime behavior and feedback helpers |
+| `mfd_client_api/include/mfd/client/LatestBatchPublisher.h` | latest-state asynchronous publisher |
+| `mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h` | stable framebuffer-plugin ABI |
+| `Scripts/Start-MfdWindow.bat` | runtime and plugin launch path |
 
-## 9.4 Conclusion
+## 9.4 Final takeaway
 
-The recommended path in MFDStudio is clear:
+The clean MFDStudio path is:
 
-- author the structure in the editor
-- generate a typical C++ contract from the window
-- control the window live in batches
-- capture the rendering via a stable ABI plugin if necessary
+- author the visual structure in the editor
+- generate one typed C++ contract from the authored window
+- publish one coherent client batch per frame
+- let runtime feedback confirm page activity and strobe capture
+- copy framebuffer pixels safely before crossing into async plugin logic
 
-This flow keeps:
+This keeps the repository modular, the client surface intentional, and the runtime behavior debuggable.
 
-- a modular architecture
-- an intentional API surface
-- good traceability between assets, client and runtime
+<!-- PAGEBREAK -->
+
+# Appendix A. Quick Reference
+
+This appendix is the one-page cheat sheet for the API calls that appear most often in a production client.
+
+| API call | Signature | 3-word use |
+| --- | --- | --- |
+| activate page | `bool ActivatePage(const GeneratedPage& page)` | select active page |
+| set page view | `bool SetPageView(const GeneratedPage& page, Vec2 center, float zoom)` | pan and zoom |
+| access whole window | `WindowDisplay& Window() noexcept` | window display state |
+| collect dirty commands | `std::vector<mfd::UserCommand> BuildBatch()` | gather dirty commands |
+| build tracked batch | `mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0)` | attach hash sequence |
+| send one frame | `bool SendBatch(const mfd::CommandBatch& batch)` | publish current frame |
+| queue freshest frame | `bool SubmitLatest(LatestBatchPublisher&, std::uint32_t sequence = 0)` | stream latest state |
+| poll runtime feedback | `std::size_t PollFeedback(IExchangeChannel&, std::size_t maxMessages = 64, std::string* error = nullptr)` | drain feedback packets |
+| check page activity | `bool IsActive() const noexcept` | runtime page active |
+| check capture state | `bool IsStrobeCaptured() const noexcept` | runtime target captured |

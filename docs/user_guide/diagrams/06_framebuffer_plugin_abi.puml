@@ -4,32 +4,30 @@ skinparam shadowing false
 skinparam defaultFontName Segoe UI
 skinparam ArrowColor #7F5539
 skinparam ArrowThickness 1.2
-skinparam rectangle {
-  RoundCorner 16
+skinparam activity {
+  DiamondBorderColor #7F5539
+  DiamondBackgroundColor #FFF3D6
   BorderColor #7F5539
+  BackgroundColor #FDEBD3
   FontColor #1F2933
 }
-left to right direction
 
-rectangle "mfd_window" as Host #FFE3E3
-rectangle "LoadLibrary(plugin.dll)" as Loader #FFF3D6
-rectangle "MfdGetWindowFramebufferPluginApi" as Entry #FFF7B3
-rectangle "MfdWindowFramebufferPluginApi\nstruct_size\ninfo\nplugin_context\ninit\nsubmit_frame\nclose\ndestroy" as ApiTable #D9EDFF
-rectangle "Plugin context\nplugin-owned allocation" as Context #F3E8FF
-rectangle "submit_frame(frame)\nwidth\nheight\npixels\npixel_bytes\nrow_stride_bytes\npixel_format=Rgba32" as Submit #E9F5DB
+start
+:mfd_window loads plugin.dll;
+:Search exported symbol\nMfdGetWindowFramebufferPluginApi;
+:Fill MfdWindowFramebufferPluginApi\nstruct_size / info / callbacks;
+:Allocate plugin_context;
+:init(...);
+:submit_frame(frame)\nwidth / height / pixels\npixel_bytes / row_stride\nRGBA32;
+:Copy or hand off pixels into\nplugin-owned memory;
+:close();
+:destroy();
+stop
 
-Host --> Loader : load the DLL
-Loader --> Entry : search the exported symbol
-Entry --> ApiTable : fill the ABI table
-ApiTable --> Context : hold plugin state
-Host --> ApiTable : init(...)
-Host --> Submit : submit_frame(...) on each frame
-Host --> ApiTable : close() at loop shutdown
-Host --> ApiTable : destroy() on unload
-
-note bottom of ApiTable
-The ABI stays stable and C-only:
-no STL, no exceptions,
-no shared graphics objects.
+note right
+Stable C ABI only:
+- no STL across the boundary
+- no exceptions across the boundary
+- no shared graphics objects
 end note
 @enduml

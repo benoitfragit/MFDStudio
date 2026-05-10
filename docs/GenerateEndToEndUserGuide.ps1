@@ -1,7 +1,7 @@
 param(
     [string]$SourcePath = "docs/user_guide/mfdstudio_end_to_end_user_guide.md",
     [string]$OutputPath = "docs/user_guide/MFDStudio_End_To_End_User_Guide.docx",
-    [string]$RenderedDiagramDirectory = "docs/user_guide/rendered",
+    [string]$RenderedDiagramDirectory = "build/user_guide/rendered",
     [switch]$SkipDiagramRendering,
     [switch]$SkipPdfExport
 )
@@ -127,24 +127,39 @@ if ($LASTEXITCODE -ne 0) {
 
 $absoluteOutputPath = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputPath))
 $absolutePdfPath = [System.IO.Path]::ChangeExtension($absoluteOutputPath, ".pdf")
+$temporaryPdfPath = Join-Path ([System.IO.Path]::GetDirectoryName($absolutePdfPath)) `
+    ([System.IO.Path]::GetFileNameWithoutExtension($absolutePdfPath) + ".tmp.pdf")
 
 $word = $null
 $document = $null
 try {
     $word = New-Object -ComObject Word.Application
     $word.Visible = $false
-    $document = $word.Documents.Open($absoluteOutputPath)
-    $document.Fields.Update() | Out-Null
+    $word.DisplayAlerts = 0
+    $document = $word.Documents.Open($absoluteOutputPath, $false, $false)
     if ($document.TablesOfContents.Count -gt 0) {
         $document.TablesOfContents.Item(1).Update() | Out-Null
     }
     $document.Save()
 
     if (-not $SkipPdfExport) {
-        $document.ExportAsFixedFormat($absolutePdfPath, 17)
+        if (Test-Path -LiteralPath $temporaryPdfPath) {
+            Remove-Item -LiteralPath $temporaryPdfPath -Force
+        }
+
+        $document.ExportAsFixedFormat($temporaryPdfPath, 17)
+
+        if (Test-Path -LiteralPath $absolutePdfPath) {
+            Remove-Item -LiteralPath $absolutePdfPath -Force
+        }
+
+        Move-Item -LiteralPath $temporaryPdfPath -Destination $absolutePdfPath -Force
     }
 }
 finally {
+    if (Test-Path -LiteralPath $temporaryPdfPath) {
+        Remove-Item -LiteralPath $temporaryPdfPath -Force -ErrorAction SilentlyContinue
+    }
     if ($null -ne $document) {
         $document.Close([ref]0)
         [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($document)

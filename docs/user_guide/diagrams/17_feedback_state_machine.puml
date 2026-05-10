@@ -1,0 +1,28 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam ArrowColor #264653
+skinparam ArrowThickness 1.1
+skinparam rectangle {
+  RoundCorner 14
+  BorderColor #264653
+  FontColor #1F2933
+}
+top to bottom direction
+
+rectangle "UNKNOWN\nNo feedback yet\nIsActive() == false\nIsStrobeCaptured() == false" as Unknown #EAF4F4
+rectangle "ACTIVE\nRuntime confirms Cockpit\nClient may gate overlays\nand capture logic here" as Active #D9EDFF
+rectangle "INACTIVE\nAnother page is active\nHold page-specific logic" as Inactive #F8FAFC
+
+Unknown --> Active : page == Cockpit
+Unknown --> Inactive : page != Cockpit
+Active --> Inactive : another page becomes active
+Inactive --> Active : Cockpit becomes active again
+
+note bottom of Active
+While ACTIVE, strobe feedback can still
+toggle the capture state of the current
+dynamic reticle.
+end note
+@enduml

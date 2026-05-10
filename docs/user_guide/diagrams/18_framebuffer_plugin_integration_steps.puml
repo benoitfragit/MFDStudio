@@ -1,0 +1,29 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam activity {
+  DiamondBorderColor #7F5539
+  DiamondBackgroundColor #FFF3D6
+  BorderColor #7F5539
+  BackgroundColor #FDEBD3
+  FontColor #1F2933
+  ArrowColor #7F5539
+}
+
+start
+:Step 1\nScaffold the DLL and export\nMfdGetWindowFramebufferPluginApi;
+
+:Step 2\nValidate outApi, host,\nabi_version, and callback table;
+
+:Step 3\nValidate every\nMfdWindowFramebufferFrame;
+
+if (Frame layout valid?) then (yes)
+  :Step 4\nCopy RGBA32 bytes into\nplugin-owned storage;
+  :Step 5\nHand the owned frame to\nencoder / IPC / shared memory;
+else (no)
+  :Return one explicit ABI error\nand fill the UTF-8 error buffer;
+endif
+
+stop
+@enduml

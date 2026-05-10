@@ -1,0 +1,36 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam sequence {
+  ArrowColor #355070
+  LifeLineBorderColor #355070
+  LifeLineBackgroundColor #F8FAFC
+  ParticipantBorderColor #355070
+  ParticipantBackgroundColor #EAF4F4
+}
+
+participant "60 Hz scheduler" as Scheduler
+participant "Mission computer\nsensors / tracks" as Sensors
+participant "Generated UI root" as Ui
+participant "CommandClient" as Client
+participant "mfd_window" as Runtime
+
+loop every 16.67 ms
+  Scheduler -> Sensors : sample avionics state\n(t = 0.0 ms)
+  Sensors --> Scheduler : heading / speed /\ntracks / threat state
+  Scheduler -> Ui : Reset()
+  Scheduler -> Ui : mutate HUD values,\nradar tracks, threat cues\n(t = 0.3 .. 2.0 ms)
+  Scheduler -> Ui : BuildCommandBatch(sequence)\n(t = 2.2 ms)
+  Ui --> Scheduler : CommandBatch
+  Scheduler -> Client : SendBatch(batch)\n(t = 2.5 ms)
+  Client -> Runtime : one coherent frame batch
+  Runtime --> Scheduler : publish accepted frame
+  Scheduler -> Scheduler : sleep until next tick\n(target t = 16.67 ms)
+end
+
+note over Scheduler
+One frame = one local state update + one published batch.
+Do not scatter several SendBatch() calls inside the same client tick.
+end note
+@enduml
