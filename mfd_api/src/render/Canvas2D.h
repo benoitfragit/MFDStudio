@@ -22,6 +22,7 @@ namespace mfd
 {
 class BezierPolylineCache;
 class ImageTextureCache;
+class TextLayoutCache;
 
 /**
  * @brief Lightweight 2D renderer turning reticle data into raylib draw calls.
@@ -39,6 +40,7 @@ public:
      * @param clippingEnabled Enables clipping-mask evaluation for clipping primitives.
      * @param bezierCache Optional persistent cache used to flatten Bézier primitives once.
      * @param imageCache Optional texture cache used by image primitives.
+     * @param textLayoutCache Optional text-layout cache reused across frames.
      */
     Canvas2D(int width,
              int height,
@@ -47,7 +49,8 @@ public:
              Color backgroundColor = BLACK,
              bool clippingEnabled = false,
              BezierPolylineCache* bezierCache = nullptr,
-             ImageTextureCache* imageCache = nullptr);
+             ImageTextureCache* imageCache = nullptr,
+             TextLayoutCache* textLayoutCache = nullptr);
 
     /**
      * @brief Draws one full reticle group.
@@ -88,6 +91,7 @@ private:
     bool clippingEnabled_ = false;
     BezierPolylineCache* bezierCache_ = nullptr;
     ImageTextureCache* imageCache_ = nullptr;
+    TextLayoutCache* textLayoutCache_ = nullptr;
     mutable std::vector<Vec2> logicalScratchA_ {};
     mutable std::vector<Vec2> logicalScratchB_ {};
     mutable std::vector<Vector2> screenScratchA_ {};

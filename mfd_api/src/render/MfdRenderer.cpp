@@ -23,6 +23,7 @@
 #include "BezierPolylineCache.h"
 #include "ImageTextureCache.h"
 #include "RenderTextureUtils.h"
+#include "TextLayoutCache.h"
 
 namespace mfd
 {
@@ -93,7 +94,8 @@ void DrawActivePageContent(const SceneRegistry& scene,
                            const Font* textFont,
                            const bool clippingEnabled,
                            BezierPolylineCache* bezierCache,
-                           ImageTextureCache* imageCache)
+                           ImageTextureCache* imageCache,
+                           TextLayoutCache* textLayoutCache)
 {
     const auto activePage = scene.ActivePageSummary();
     if (!activePage.has_value())
@@ -109,7 +111,8 @@ void DrawActivePageContent(const SceneRegistry& scene,
         ToRayColor(scene.ActiveBackgroundColor()),
         clippingEnabled,
         bezierCache,
-        imageCache);
+        imageCache,
+        textLayoutCache);
 
     for (const ReticleRenderView& reticle : activeReticles)
     {
@@ -148,6 +151,7 @@ struct MfdRenderer::Impl
     std::vector<ReticleRenderView> activeReticlesScratch {};
     BezierPolylineCache bezierCache {};
     ImageTextureCache imageCache {};
+    TextLayoutCache textLayoutCache {};
 
     ~Impl()
     {
@@ -156,6 +160,7 @@ struct MfdRenderer::Impl
 
     void ResetTextFont() noexcept
     {
+        textLayoutCache.Clear();
         const bool windowReady = IsWindowReady();
         if (textFontReady)
         {
@@ -398,7 +403,8 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             textFont,
             false,
             impl_ == nullptr ? nullptr : &impl_->bezierCache,
-            impl_ == nullptr ? nullptr : &impl_->imageCache);
+            impl_ == nullptr ? nullptr : &impl_->imageCache,
+            impl_ == nullptr ? nullptr : &impl_->textLayoutCache);
         return;
     }
 
@@ -416,7 +422,8 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             textFont,
             false,
             impl_ == nullptr ? nullptr : &impl_->bezierCache,
-            impl_ == nullptr ? nullptr : &impl_->imageCache);
+            impl_ == nullptr ? nullptr : &impl_->imageCache,
+            impl_ == nullptr ? nullptr : &impl_->textLayoutCache);
 
         if (display.brightness < 0.9995f)
         {
@@ -438,7 +445,8 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         textFont,
         impl_->renderTargetStencilReady,
         &impl_->bezierCache,
-        &impl_->imageCache);
+        &impl_->imageCache,
+        &impl_->textLayoutCache);
     EndTextureMode();
 
     const Rectangle source {

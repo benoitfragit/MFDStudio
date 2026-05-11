@@ -22,9 +22,10 @@
 #include <rlgl.h>
 
 #include "BezierPolylineCache.h"
-#include "OpenGlCompat.h"
 #include "ImageTextureCache.h"
+#include "OpenGlCompat.h"
 #include "PolygonTriangulation.h"
+#include "TextLayoutCache.h"
 
 namespace mfd
 {
@@ -378,7 +379,8 @@ Canvas2D::Canvas2D(const int width,
                    const Color backgroundColor,
                    const bool clippingEnabled,
                    BezierPolylineCache* bezierCache,
-                   ImageTextureCache* imageCache)
+                   ImageTextureCache* imageCache,
+                   TextLayoutCache* textLayoutCache)
     : width_(width)
     , height_(height)
     , view_(view)
@@ -387,6 +389,7 @@ Canvas2D::Canvas2D(const int width,
     , clippingEnabled_(clippingEnabled)
     , bezierCache_(bezierCache)
     , imageCache_(imageCache)
+    , textLayoutCache_(textLayoutCache)
 {
 }
 
@@ -677,19 +680,31 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        const Vector2 textSize = MeasureTextEx(font, text->text.c_str(), fontSize, letterSpacing);
-        const Vector2 origin {textSize.x * 0.5f, textSize.y * 0.5f};
-        if (!IsFiniteVector(textSize) || !IsFiniteVector(origin))
+        CachedTextLayout fallbackLayout;
+        const CachedTextLayout* layout = nullptr;
+        if (textLayoutCache_ != nullptr)
+        {
+            layout = &textLayoutCache_->ResolveStaticText(text->text, font, fontSize, letterSpacing);
+        }
+        else
+        {
+            fallbackLayout.text = text->text;
+            fallbackLayout.size = MeasureTextEx(font, fallbackLayout.text.c_str(), fontSize, letterSpacing);
+            fallbackLayout.origin = Vector2 {fallbackLayout.size.x * 0.5f, fallbackLayout.size.y * 0.5f};
+            layout = &fallbackLayout;
+        }
+
+        if (layout == nullptr || !IsFiniteVector(layout->size) || !IsFiniteVector(layout->origin))
         {
             break;
         }
 
-        DrawCenteredText(text->text,
+        DrawCenteredText(layout->text,
                          font,
                          fontSize,
                          letterSpacing,
                          screenPosition,
-                         origin,
+                         layout->origin,
                          -combinedTransform.rotationDegrees,
                          strokeColor);
         break;
@@ -702,7 +717,6 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        const std::string text = FormatTimeText(*time);
         const Font font = TextFont();
         const float textScale = AverageScale(group.transform, primitive.transform);
         const float fontSize = std::max(1.0f,
@@ -716,19 +730,31 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        const Vector2 textSize = MeasureTextEx(font, text.c_str(), fontSize, letterSpacing);
-        const Vector2 origin {textSize.x * 0.5f, textSize.y * 0.5f};
-        if (!IsFiniteVector(textSize) || !IsFiniteVector(origin))
+        CachedTextLayout fallbackLayout;
+        const CachedTextLayout* layout = nullptr;
+        if (textLayoutCache_ != nullptr)
+        {
+            layout = &textLayoutCache_->ResolveTimeText(*time, font, fontSize, letterSpacing);
+        }
+        else
+        {
+            fallbackLayout.text = FormatTimeText(*time);
+            fallbackLayout.size = MeasureTextEx(font, fallbackLayout.text.c_str(), fontSize, letterSpacing);
+            fallbackLayout.origin = Vector2 {fallbackLayout.size.x * 0.5f, fallbackLayout.size.y * 0.5f};
+            layout = &fallbackLayout;
+        }
+
+        if (layout == nullptr || !IsFiniteVector(layout->size) || !IsFiniteVector(layout->origin))
         {
             break;
         }
 
-        DrawCenteredText(text,
+        DrawCenteredText(layout->text,
                          font,
                          fontSize,
                          letterSpacing,
                          screenPosition,
-                         origin,
+                         layout->origin,
                          -combinedTransform.rotationDegrees,
                          strokeColor);
         break;

@@ -71,7 +71,8 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/TextLayoutCache.h)
 
 set(MFD_RENDER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/BezierPolylineCache.cpp
@@ -82,6 +83,7 @@ set(MFD_RENDER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/TextLayoutCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/WindowBranding.cpp)
 
 add_library(mfd_render_raylib STATIC
