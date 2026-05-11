@@ -38,12 +38,6 @@
 
 class EditorTutorialController;
 
-namespace editor::automation
-{
-class EditorApplicationAutomationBridge;
-class IEditorAutomationFacade;
-}
-
 /**
  * @brief Interactive editor for authored MFD assets.
  *
@@ -54,10 +48,11 @@ class IEditorAutomationFacade;
 class EditorApplication
 {
     friend class EditorTutorialController;
-    friend class editor::automation::EditorApplicationAutomationBridge;
 
 public:
-    /** @brief Builds the editor shell with its default startup file and UI state. */
+    /**
+     * @brief Builds the editor shell with its default UI state.
+     */
     EditorApplication();
     /** @brief Releases runtime preview resources such as off-screen textures. */
     ~EditorApplication();
@@ -702,10 +697,6 @@ private:
     int pageReticlePasteSerial_ = 0;
     /** @brief Private controller that owns the guided tutorial state and workflow. */
     std::unique_ptr<EditorTutorialController> tutorial_ {};
-    /** @brief Hidden bridge mapping the live editor state to the automation subsystem. */
-    std::unique_ptr<editor::automation::EditorApplicationAutomationBridge> automationBridge_ {};
-    /** @brief Hidden facade exposing generic editor automation services to future in-process automation plugins. */
-    std::unique_ptr<editor::automation::IEditorAutomationFacade> automationFacade_ {};
     /** @brief Stateless service owning the page remove/delete planning logic. */
     editor::PageManagementService pageManagementService_ {};
     /** @brief Stateless service owning the page import planning logic. */

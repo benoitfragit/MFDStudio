@@ -131,7 +131,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/mfd_client_api/generator/ClientApiGenerator.
 add_subdirectory(mfd_client_api)
 add_subdirectory(mfd_window_plugin_api)
 add_subdirectory(mfd_window)
-add_subdirectory(mfd_editor_plugin_api)
 add_subdirectory(mfd_editor)
 
 if(MFD_BUILD_TESTS)

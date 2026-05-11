@@ -399,17 +399,6 @@ try {
         Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_api" -Configuration $buildVariant.Configuration -FileName "mfd_api.lib") -Destination (Join-Path $clientLibRoot "mfd_api.lib")
     }
 
-    $editorPluginPackageRoot = Join-Path $packagesRoot "MFDStudioEditorPlugin/build/native"
-    $editorPluginIncludeRoot = Join-Path $editorPluginPackageRoot "include"
-    $editorPluginCMakeRoot = Join-Path $editorPluginPackageRoot "cmake"
-    $editorPluginExamplesRoot = Join-Path $editorPluginPackageRoot "examples"
-    $editorPluginManifestPath = Join-Path $editorPluginPackageRoot "share/MFDStudioEditorPlugin/package_manifest.json"
-    Copy-DirectoryStrict -Source (Join-Path $repositoryRoot "mfd_editor_plugin_api/include") -Destination $editorPluginIncludeRoot
-    Copy-DirectoryStrict -Source (Join-Path $repositoryRoot "examples/mfd_editor_automation_sample_plugin") -Destination (Join-Path $editorPluginExamplesRoot "mfd_editor_automation_sample_plugin")
-    Write-PackageConfigFile -TemplatePath (Join-Path $repositoryRoot "cmake/packages/MFDStudioEditorPluginConfig.cmake.in") -DestinationPath (Join-Path $editorPluginCMakeRoot "MFDStudioEditorPluginConfig.cmake") -Toolset $toolset -ImportedTargetName "MFDStudio::EditorPluginApi"
-    Write-PackageConfigVersionFile -Path (Join-Path $editorPluginCMakeRoot "MFDStudioEditorPluginConfigVersion.cmake") -ProjectVersion $projectVersion
-    Write-PackageManifest -Path $editorPluginManifestPath -PackageName "MFDStudioEditorPlugin" -PackageKind "development" -ProjectVersion $projectVersion -Toolset $toolset -Targets @("mfd_editor_plugin_api")
-
     $windowLauncherPackageRoot = Join-Path $packagesRoot "MFDStudioWindowLauncherPlugin/build/native"
     $windowLauncherIncludeRoot = Join-Path $windowLauncherPackageRoot "include"
     $windowLauncherCMakeRoot = Join-Path $windowLauncherPackageRoot "cmake"
@@ -457,11 +446,8 @@ try {
     Assert-PathExists -Path $packagesRoot
     Assert-PathExists -Path $runtimePackagesRoot
     Assert-PathExists -Path (Join-Path $clientCMakeRoot "MFDStudioClientApiConfig.cmake")
-    Assert-PathExists -Path (Join-Path $editorPluginCMakeRoot "MFDStudioEditorPluginConfig.cmake")
     Assert-PathExists -Path (Join-Path $windowLauncherCMakeRoot "MFDStudioWindowLauncherPluginConfig.cmake")
     Assert-PathExists -Path (Join-Path $clientPackageRoot "tools/generator/scripts/generate_ui.py")
-    Assert-PathExists -Path (Join-Path $editorPluginPackageRoot "examples/mfd_editor_automation_sample_plugin/CMakeLists.txt")
-    Assert-PathMissing -Path (Join-Path $editorPluginPackageRoot "libs")
 
     foreach ($buildVariant in $buildVariants) {
         $clientLibRoot = Join-Path $clientPackageRoot ("libs/{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)

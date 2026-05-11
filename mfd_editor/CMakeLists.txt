@@ -6,7 +6,6 @@ if(MFD_BUILD_DEMO)
         ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetReferenceIndexService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationPluginLoader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDesignExportService.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp
@@ -26,11 +25,6 @@ if(MFD_BUILD_DEMO)
     set(MFD_EDITOR_HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAssetReferenceIndexService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorApplication.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationBridge.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationDocumentUtils.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationPluginLoader.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationServices.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutomationTypes.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDesignExportService.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
@@ -59,12 +53,6 @@ if(MFD_BUILD_DEMO)
         ${MFD_EDITOR_HEADERS}
         ${MFD_EDITOR_WINDOWS_RESOURCES})
 
-    target_sources(mfd_editor
-        PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationBridge.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationCore.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAutomationDocumentUtils.cpp)
-
     target_include_directories(mfd_editor
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -73,8 +61,7 @@ if(MFD_BUILD_DEMO)
     target_link_libraries(mfd_editor
         PRIVATE
             mfd::io_json
-            mfd::render_raylib
-            mfd::editor_plugin_api)
+            mfd::render_raylib)
 
     mfd_private_library(mfd_editor imgui)
     mfd_private_library(mfd_editor nlohmann_json::nlohmann_json)

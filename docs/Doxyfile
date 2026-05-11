@@ -41,7 +41,6 @@ INPUT                  = README.md \
                          mfd_common_api/include \
                          mfd_api/include \
                          mfd_client_api/include \
-                         mfd_editor_plugin_api/include \
                          mfd_window/include \
                          mfd_window_plugin_api/include
 USE_MDFILE_AS_MAINPAGE = docs/API_REFERENCE_MAINPAGE.md
@@ -115,6 +114,4 @@ PLANTUML_JAR_PATH      =
 PLANTUML_CFG_FILE      = docs/doxygen/plantuml-theme.puml
 PREDEFINED             = MFD_API= \
                          MFD_CLIENT_API= \
-                         MFD_WINDOW_PLUGIN_API= \
-                         MFD_EDITOR_AUTOMATION_CALL= \
-                         MFD_EDITOR_AUTOMATION_EXPORT=
+                         MFD_WINDOW_PLUGIN_API=

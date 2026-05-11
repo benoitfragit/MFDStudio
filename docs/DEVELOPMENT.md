@@ -131,8 +131,7 @@ Example:
 target_link_libraries(mfd_editor
     PRIVATE
         mfd::io_json
-        mfd::render_raylib
-        mfd::editor_plugin_api)
+        mfd::render_raylib)
 
 mfd_private_library(mfd_editor imgui)
 mfd_private_library(mfd_editor nlohmann_json::nlohmann_json)
@@ -293,7 +292,6 @@ The delivery script populates `_Deliveries` with:
 Generated package families:
 
 - `MFDStudioClientApi`: client headers, package config files, generator helpers, and Win32/x64 import libraries for `mfd_client_api` and `mfd_api`
-- `MFDStudioEditorPlugin`: header-only SDK plus the sample editor automation plugin example
 - `MFDStudioWindowLauncherPlugin`: public plugin headers, package config files, and Win32/x64 import libraries for `mfd_window_plugin_api`
 - `MFDStudioClientApi.Install`: runtime DLL payload for `mfd_client_api` and `mfd_api`
 - `MFDStudioEditor.Install`: `mfd_editor.exe` plus shared branding
@@ -372,7 +370,6 @@ headers under:
 - `mfd_common_api/include`
 - `mfd_api/include`
 - `mfd_client_api/include`
-- `mfd_editor_plugin_api/include`
 - `mfd_window/include`
 - `mfd_window_plugin_api/include`
 

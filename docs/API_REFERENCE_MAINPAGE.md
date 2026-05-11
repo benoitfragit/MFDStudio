@@ -36,8 +36,7 @@ It brings together:
 - the internal `mfd_common_api` build-graph note describing the shared static
   low-level module
 - the versioned C++ header surface exposed from `mfd_common_api/include`,
-  `mfd_api/include`, `mfd_client_api/include`,
-  `mfd_editor_plugin_api/include`, `mfd_window/include`, and
+  `mfd_api/include`, `mfd_client_api/include`, `mfd_window/include`, and
   `mfd_window_plugin_api/include`
 
 Internally, the repository implementation now starts from the dedicated

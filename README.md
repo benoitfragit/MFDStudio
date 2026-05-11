@@ -117,7 +117,7 @@ Contributor-oriented details live in
 | --- | --- |
 | `assets` | Window, page, reticle, and image assets |
 | `docs` | Onboarding, tutorials, reference, standards, and architecture notes |
-| `examples` | Example clients and sample plugins |
+| `examples` | Example clients and runtime plugin samples |
 | `mfd_common_api` | Shared low-level authored-model and transport layer |
 | `mfd_api` | JSON loading, runtime, and public low-level API |
 | `mfd_client_api` | Higher-level client helpers and generated client integration |

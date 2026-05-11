@@ -7,7 +7,7 @@
 
 /**
  * @file
- * @brief Page removal and delete planning helpers used by the editor shell and automation services.
+ * @brief Page removal and delete planning helpers used by the editor shell.
  */
 
 #include <filesystem>
