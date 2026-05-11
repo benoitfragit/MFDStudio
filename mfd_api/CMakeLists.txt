@@ -66,6 +66,7 @@ set(MFD_RENDER_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/render/WindowBranding.h)
 
 set(MFD_RENDER_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/BezierPolylineCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.h
@@ -73,6 +74,7 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h)
 
 set(MFD_RENDER_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/BezierPolylineCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp

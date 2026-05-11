@@ -20,6 +20,7 @@
 
 namespace mfd
 {
+class BezierPolylineCache;
 class ImageTextureCache;
 
 /**
@@ -36,6 +37,7 @@ public:
      * @param textFont Optional font override used for text-like primitives.
      * @param backgroundColor Color restored when one clipping primitive erases part of the page.
      * @param clippingEnabled Enables clipping-mask evaluation for clipping primitives.
+     * @param bezierCache Optional persistent cache used to flatten Bézier primitives once.
      * @param imageCache Optional texture cache used by image primitives.
      */
     Canvas2D(int width,
@@ -44,6 +46,7 @@ public:
              const Font* textFont = nullptr,
              Color backgroundColor = BLACK,
              bool clippingEnabled = false,
+             BezierPolylineCache* bezierCache = nullptr,
              ImageTextureCache* imageCache = nullptr);
 
     /**
@@ -82,6 +85,7 @@ private:
     const Font* textFont_ = nullptr;
     Color backgroundColor_ = BLACK;
     bool clippingEnabled_ = false;
+    BezierPolylineCache* bezierCache_ = nullptr;
     ImageTextureCache* imageCache_ = nullptr;
     mutable std::vector<Vec2> logicalScratchA_ {};
     mutable std::vector<Vec2> logicalScratchB_ {};

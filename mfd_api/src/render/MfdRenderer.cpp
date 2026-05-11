@@ -20,6 +20,7 @@
 #include <raylib.h>
 
 #include "Canvas2D.h"
+#include "BezierPolylineCache.h"
 #include "ImageTextureCache.h"
 #include "RenderTextureUtils.h"
 
@@ -91,6 +92,7 @@ void DrawActivePageContent(const SceneRegistry& scene,
                            const int height,
                            const Font* textFont,
                            const bool clippingEnabled,
+                           BezierPolylineCache* bezierCache,
                            ImageTextureCache* imageCache)
 {
     const auto activePage = scene.ActivePageSummary();
@@ -106,6 +108,7 @@ void DrawActivePageContent(const SceneRegistry& scene,
         textFont,
         ToRayColor(scene.ActiveBackgroundColor()),
         clippingEnabled,
+        bezierCache,
         imageCache);
 
     for (const ReticleRenderView& reticle : activeReticles)
@@ -142,6 +145,7 @@ struct MfdRenderer::Impl
     Font textFont {};
     bool textFontReady = false;
     bool textFontLoadAttempted = false;
+    BezierPolylineCache bezierCache {};
     ImageTextureCache imageCache {};
 
     ~Impl()
@@ -167,6 +171,7 @@ struct MfdRenderer::Impl
 
     void Release() noexcept
     {
+        bezierCache.Clear();
         imageCache.Clear();
         ResetTextFont();
         const bool windowReady = IsWindowReady();
@@ -379,6 +384,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             viewportHeight,
             textFont,
             false,
+            impl_ == nullptr ? nullptr : &impl_->bezierCache,
             impl_ == nullptr ? nullptr : &impl_->imageCache);
         return;
     }
@@ -396,6 +402,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             viewportHeight,
             textFont,
             false,
+            impl_ == nullptr ? nullptr : &impl_->bezierCache,
             impl_ == nullptr ? nullptr : &impl_->imageCache);
 
         if (display.brightness < 0.9995f)
@@ -417,6 +424,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         viewportHeight,
         textFont,
         impl_->renderTargetStencilReady,
+        &impl_->bezierCache,
         &impl_->imageCache);
     EndTextureMode();
 

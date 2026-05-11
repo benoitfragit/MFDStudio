@@ -21,6 +21,7 @@
 
 #include <rlgl.h>
 
+#include "BezierPolylineCache.h"
 #include "OpenGlCompat.h"
 #include "ImageTextureCache.h"
 #include "PolygonTriangulation.h"
@@ -270,50 +271,6 @@ void FillRing(const ArrayView<const Vector2> outerPoints,
     }
 }
 
-Vec2 Lerp(const Vec2& lhs, const Vec2& rhs, const float factor)
-{
-    return {
-        lhs.x + (rhs.x - lhs.x) * factor,
-        lhs.y + (rhs.y - lhs.y) * factor};
-}
-
-Vec2 EvaluateBezier(const std::vector<Vec2>& controlPoints,
-                    const float factor,
-                    std::vector<Vec2>& workingPoints)
-{
-    if (controlPoints.empty())
-    {
-        return {};
-    }
-
-    workingPoints.assign(controlPoints.begin(), controlPoints.end());
-
-    for (std::size_t activePointCount = workingPoints.size(); activePointCount > 1; --activePointCount)
-    {
-        for (std::size_t index = 0; index + 1 < activePointCount; ++index)
-        {
-            workingPoints[index] = Lerp(workingPoints[index], workingPoints[index + 1], factor);
-        }
-    }
-
-    return workingPoints.front();
-}
-
-void SampleBezierInto(const BezierGeometry& geometry,
-                      std::vector<Vec2>& destination,
-                      std::vector<Vec2>& workingPoints)
-{
-    const int segmentCount = SanitizeSegmentCount(geometry.segments, 2);
-    destination.clear();
-    destination.reserve(static_cast<std::size_t>(segmentCount) + 1U);
-
-    for (int index = 0; index <= segmentCount; ++index)
-    {
-        const float factor = static_cast<float>(index) / static_cast<float>(segmentCount);
-        destination.push_back(EvaluateBezier(geometry.controlPoints, factor, workingPoints));
-    }
-}
-
 void SampleArcInto(const ArcGeometry& geometry, std::vector<Vec2>& destination)
 {
     const int segmentCount = SanitizeSegmentCount(geometry.segments, 2);
@@ -420,6 +377,7 @@ Canvas2D::Canvas2D(const int width,
                    const Font* textFont,
                    const Color backgroundColor,
                    const bool clippingEnabled,
+                   BezierPolylineCache* bezierCache,
                    ImageTextureCache* imageCache)
     : width_(width)
     , height_(height)
@@ -427,6 +385,7 @@ Canvas2D::Canvas2D(const int width,
     , textFont_(textFont)
     , backgroundColor_(backgroundColor)
     , clippingEnabled_(clippingEnabled)
+    , bezierCache_(bezierCache)
     , imageCache_(imageCache)
 {
 }
@@ -988,8 +947,28 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        SampleBezierInto(*bezier, logicalScratchA_, logicalScratchB_);
-        BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
+        const std::vector<Vec2>* sampledPoints = nullptr;
+        if (bezierCache_ != nullptr)
+        {
+            sampledPoints = &bezierCache_->Resolve(*bezier);
+        }
+        else
+        {
+            BezierPolylineCache::BuildPolyline(*bezier, logicalScratchA_);
+            sampledPoints = &logicalScratchA_;
+        }
+
+        if (sampledPoints == nullptr)
+        {
+            break;
+        }
+
+        BuildScreenPointsInto(
+            sampledPoints->data(),
+            sampledPoints->size(),
+            primitive,
+            group,
+            screenScratchA_);
         DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle);
         break;
     }
