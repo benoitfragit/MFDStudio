@@ -261,6 +261,27 @@ TEST(SceneRegistryTests, CollectPageReticleViewsDrawsTopReticlesAfterRegularOnes
     EXPECT_EQ(views[1].group->id, "overlay");
 }
 
+TEST(SceneRegistryTests, CollectPageReticleViewsBufferOverloadMatchesValueOverloadAndClearsDestination)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+    std::vector<mfd::ReticleRenderView> destination(3U, mfd::ReticleRenderView {nullptr, false});
+
+    registry.CollectPageReticleViews("Radar", destination);
+    const std::vector<mfd::ReticleRenderView> expected = registry.CollectPageReticleViews("Radar");
+
+    ASSERT_EQ(destination.size(), expected.size());
+    for (std::size_t index = 0; index < expected.size(); ++index)
+    {
+        ASSERT_NE(destination[index].group, nullptr);
+        ASSERT_NE(expected[index].group, nullptr);
+        EXPECT_EQ(destination[index].group->id, expected[index].group->id);
+        EXPECT_EQ(destination[index].visible, expected[index].visible);
+    }
+}
+
 TEST(SceneRegistryTests, CollectPageReticlesUsesCaseInsensitiveLayerLookupAcrossDrawPasses)
 {
     mfd::PageDefinition page;
@@ -887,6 +908,17 @@ TEST(SceneRegistryTests, ActiveReticleViewsTrackPerPageDynamicLifecycle)
     ASSERT_EQ(navViews.size(), 2U);
     EXPECT_EQ(navViews[0].group->id, "nav_symbol");
     EXPECT_EQ(navViews[1].group->id, "ghost");
+
+    std::vector<mfd::ReticleRenderView> navDestination;
+    registry.CollectActiveReticleViews(navDestination);
+    ASSERT_EQ(navDestination.size(), navViews.size());
+    for (std::size_t index = 0; index < navViews.size(); ++index)
+    {
+        ASSERT_NE(navDestination[index].group, nullptr);
+        ASSERT_NE(navViews[index].group, nullptr);
+        EXPECT_EQ(navDestination[index].group->id, navViews[index].group->id);
+        EXPECT_EQ(navDestination[index].visible, navViews[index].visible);
+    }
 
     EXPECT_TRUE(registry.RemoveDynamicReticle("Nav", "ghost"));
 

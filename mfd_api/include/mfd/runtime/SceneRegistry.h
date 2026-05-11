@@ -227,8 +227,19 @@ public:
     std::vector<ReticleGroup> CollectActiveReticles() const;
     /** @brief Collects non-owning render views on a given page with blink-resolved visibility. */
     std::vector<ReticleRenderView> CollectPageReticleViews(std::string_view pageName) const;
+    /**
+     * @brief Fills one caller-owned buffer with non-owning render views for a given page.
+     * @param pageName Page to inspect.
+     * @param destination Buffer cleared then filled with blink-resolved render views.
+     */
+    void CollectPageReticleViews(std::string_view pageName, std::vector<ReticleRenderView>& destination) const;
     /** @brief Collects non-owning render views on the active page with blink-resolved visibility. */
     std::vector<ReticleRenderView> CollectActiveReticleViews() const;
+    /**
+     * @brief Fills one caller-owned buffer with non-owning render views for the active page.
+     * @param destination Buffer cleared then filled with blink-resolved render views.
+     */
+    void CollectActiveReticleViews(std::vector<ReticleRenderView>& destination) const;
     /** @brief Collects pointers to all reticles on a given page without copying them. */
     std::vector<const ReticleGroup*> CollectPageReticlePointers(std::string_view pageName) const;
     /** @brief Collects pointers to all reticles on the active page without copying them. */
@@ -459,6 +470,8 @@ private:
     std::vector<ReticleGroup> CollectPageReticlesByKey(std::string_view pageName) const;
     /** @brief Collects non-owning render views for one normalized page key. */
     std::vector<ReticleRenderView> CollectPageReticleViewsByKey(std::string_view pageName) const;
+    /** @brief Fills one caller-owned render-view buffer for one normalized page key. */
+    void CollectPageReticleViewsByKey(std::string_view pageName, std::vector<ReticleRenderView>& destination) const;
     /** @brief Collects reticle pointers for one normalized page key without copying. */
     std::vector<const ReticleGroup*> CollectPageReticlePointersByKey(std::string_view pageName) const;
     /** @brief Builds the composite lookup key used by the reticle entity index. */

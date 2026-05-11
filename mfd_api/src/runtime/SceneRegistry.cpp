@@ -1806,37 +1806,13 @@ std::vector<ReticleGroup> SceneRegistry::CollectPageReticles(const std::string_v
 
 std::vector<ReticleGroup> SceneRegistry::CollectPageReticlesByKey(const std::string_view pageName) const
 {
-    const std::vector<ReticleRenderView> reticleViews = CollectPageReticleViewsByKey(pageName);
-    std::vector<ReticleGroup> result;
-    result.reserve(reticleViews.size());
-
-    for (const ReticleRenderView& reticleView : reticleViews)
-    {
-        if (reticleView.group != nullptr)
-        {
-            ReticleGroup copy = *reticleView.group;
-            copy.visible = reticleView.visible;
-            result.push_back(std::move(copy));
-        }
-    }
-
-    return result;
-}
-
-std::vector<ReticleRenderView> SceneRegistry::CollectPageReticleViews(const std::string_view pageName) const
-{
-    return CollectPageReticleViewsByKey(NormalizePageName(pageName));
-}
-
-std::vector<ReticleRenderView> SceneRegistry::CollectPageReticleViewsByKey(const std::string_view pageName) const
-{
     const PageComponent* page = FindPage(pageName);
     if (page == nullptr)
     {
         return {};
     }
 
-    std::vector<ReticleRenderView> result;
+    std::vector<ReticleGroup> result;
     result.reserve(page->orderedReticleEntities.size());
     const BlinkClock::time_point now = BlinkClock::now();
 
@@ -1854,12 +1830,64 @@ std::vector<ReticleRenderView> SceneRegistry::CollectPageReticleViewsByKey(const
             visible = IsDynamicTemplateVisible(pageName, reticle->group.sourceTemplateId);
         }
 
-        result.push_back(ReticleRenderView {
-            &reticle->group,
-            visible});
+        ReticleGroup copy = reticle->group;
+        copy.visible = visible;
+        result.push_back(std::move(copy));
     }
 
     return result;
+}
+
+std::vector<ReticleRenderView> SceneRegistry::CollectPageReticleViews(const std::string_view pageName) const
+{
+    return CollectPageReticleViewsByKey(NormalizePageName(pageName));
+}
+
+void SceneRegistry::CollectPageReticleViews(const std::string_view pageName,
+                                            std::vector<ReticleRenderView>& destination) const
+{
+    CollectPageReticleViewsByKey(NormalizePageName(pageName), destination);
+}
+
+std::vector<ReticleRenderView> SceneRegistry::CollectPageReticleViewsByKey(const std::string_view pageName) const
+{
+    std::vector<ReticleRenderView> result;
+    CollectPageReticleViewsByKey(pageName, result);
+    return result;
+}
+
+void SceneRegistry::CollectPageReticleViewsByKey(const std::string_view pageName,
+                                                 std::vector<ReticleRenderView>& destination) const
+{
+    destination.clear();
+
+    const PageComponent* page = FindPage(pageName);
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    destination.reserve(page->orderedReticleEntities.size());
+    const BlinkClock::time_point now = BlinkClock::now();
+
+    for (const entt::entity entity : page->orderedReticleEntities)
+    {
+        const ReticleComponent* reticle = registry_.try_get<ReticleComponent>(entity);
+        if (reticle == nullptr)
+        {
+            continue;
+        }
+
+        bool visible = IsReticleVisibleNow(*page, reticle->group, now);
+        if (visible && registry_.all_of<DynamicTag>(entity))
+        {
+            visible = IsDynamicTemplateVisible(pageName, reticle->group.sourceTemplateId);
+        }
+
+        destination.push_back(ReticleRenderView {
+            &reticle->group,
+            visible});
+    }
 }
 
 std::vector<const ReticleGroup*> SceneRegistry::CollectPageReticlePointers(const std::string_view pageName) const
@@ -1897,6 +1925,11 @@ std::vector<ReticleGroup> SceneRegistry::CollectActiveReticles() const
 std::vector<ReticleRenderView> SceneRegistry::CollectActiveReticleViews() const
 {
     return CollectPageReticleViewsByKey(activePage_);
+}
+
+void SceneRegistry::CollectActiveReticleViews(std::vector<ReticleRenderView>& destination) const
+{
+    CollectPageReticleViewsByKey(activePage_, destination);
 }
 
 std::vector<const ReticleGroup*> SceneRegistry::CollectActiveReticlePointers() const

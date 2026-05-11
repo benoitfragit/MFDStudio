@@ -145,6 +145,7 @@ struct MfdRenderer::Impl
     Font textFont {};
     bool textFontReady = false;
     bool textFontLoadAttempted = false;
+    std::vector<ReticleRenderView> activeReticlesScratch {};
     BezierPolylineCache bezierCache {};
     ImageTextureCache imageCache {};
 
@@ -369,17 +370,29 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
 
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();
     ApplyBilinearFilterToFont(ResolveTextFont(textFont));
-    const std::vector<ReticleRenderView> activeReticles = scene.CollectActiveReticleViews();
+    std::vector<ReticleRenderView> fallbackActiveReticles;
+    const std::vector<ReticleRenderView>* activeReticles = nullptr;
+    if (impl_ != nullptr)
+    {
+        scene.CollectActiveReticleViews(impl_->activeReticlesScratch);
+        activeReticles = &impl_->activeReticlesScratch;
+    }
+    else
+    {
+        fallbackActiveReticles = scene.CollectActiveReticleViews();
+        activeReticles = &fallbackActiveReticles;
+    }
+
     const bool usesFullScreenViewport = viewportWidth == screenWidth && viewportHeight == screenHeight;
     const bool needsRenderTarget =
         !usesFullScreenViewport ||
         NeedsWindowPostProcess(display) ||
-        ActiveReticleViewsUseClipping(activeReticles);
+        ActiveReticleViewsUseClipping(*activeReticles);
     if (!needsRenderTarget)
     {
         DrawActivePageContent(
             scene,
-            activeReticles,
+            *activeReticles,
             viewportWidth,
             viewportHeight,
             textFont,
@@ -397,7 +410,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     {
         DrawActivePageContent(
             scene,
-            activeReticles,
+            *activeReticles,
             viewportWidth,
             viewportHeight,
             textFont,
@@ -419,7 +432,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
     DrawActivePageContent(
         scene,
-        activeReticles,
+        *activeReticles,
         viewportWidth,
         viewportHeight,
         textFont,
