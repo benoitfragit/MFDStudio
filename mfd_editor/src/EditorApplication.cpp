@@ -3957,7 +3957,9 @@ void EditorApplication::ReleaseLayerPreviewTextures() noexcept
 
 void EditorApplication::ReleasePreviewGpuResources() noexcept
 {
+    previewBezierCache_.Clear();
     previewImageCache_.Clear();
+    previewTextLayoutCache_.Clear();
     ReleaseLayerPreviewTextures();
     ReleaseTooltipPreviewTexture();
     ReleasePreviewTexture();
@@ -4040,7 +4042,9 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
                              PreviewTextFont(),
                              background,
                              slot.stencilReady,
-                             &previewImageCache_);
+                             &previewBezierCache_,
+                             &previewImageCache_,
+                             &previewTextLayoutCache_);
 
         for (const mfd::ReticleGroup& reticle : page.staticReticles)
         {
@@ -4374,7 +4378,9 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             PreviewTextFont(),
             ToRayColor(page->backgroundColor),
             previewTextureStencilReady_,
-            &previewImageCache_);
+            &previewBezierCache_,
+            &previewImageCache_,
+            &previewTextLayoutCache_);
         const auto drawReticlePass = [&](const bool drawOnTop)
         {
             for (const auto& reticle : page->staticReticles)
@@ -4432,7 +4438,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     tutorial_->DrawHalo(
         "page_preview_clip_source",
         "Right-click the circle reticle",
-        "Open the clipping context menu on the tutorial mask so you can keep only the outside region.");
+        "Open the clipping context menu on the tutorial mask so you can keep only the inside region.");
 
         if (ImGui::BeginDragDropTarget())
     {
@@ -4486,7 +4492,9 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
             PreviewTextFont(),
             Color {10, 18, 24, 255},
             previewTextureStencilReady_,
-            &previewImageCache_);
+            &previewBezierCache_,
+            &previewImageCache_,
+            &previewTextLayoutCache_);
         canvas.DrawReticle(*reticle);
     }
     EndTextureMode();
@@ -5933,7 +5941,7 @@ void EditorApplication::DrawPageReticleContextMenu()
         tutorial_->DrawHalo(
             "context_clip_outer",
             "Click Clip outside",
-            "Keep only the outside of the tutorial circle so you can discover page-level masking.");
+            "Keep only the inside of the tutorial circle so you can discover page-level masking.");
 
         if (ImGui::MenuItem("Disable clipping",
                             nullptr,
@@ -7019,7 +7027,9 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
                              PreviewTextFont(),
                              backgroundColor,
                              tooltipPreviewTextureStencilReady_,
-                             &previewImageCache_);
+                             &previewBezierCache_,
+                             &previewImageCache_,
+                             &previewTextLayoutCache_);
         canvas.DrawReticle(previewReticle);
     }
     EndTextureMode();
@@ -9460,14 +9470,16 @@ bool EditorApplication::CreateNewWindow()
     mfd::WindowUdpCommandTransport commandUdp {};
     commandUdp.enabled = newWindowDraft_.commandUdpEnabled;
     commandUdp.address = newWindowDraft_.commandAddress.data();
-    commandUdp.port = std::max(0, newWindowDraft_.commandPort);
+    commandUdp.port = static_cast<std::uint16_t>(
+        std::clamp(newWindowDraft_.commandPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
     commandUdp.maxPacketSize = std::max(512, newWindowDraft_.commandMaxPacketSize);
     next.window.commandTransports.udp = commandUdp;
 
     mfd::WindowUdpFeedbackTransport feedbackUdp {};
     feedbackUdp.enabled = newWindowDraft_.feedbackUdpEnabled;
     feedbackUdp.address = newWindowDraft_.feedbackAddress.data();
-    feedbackUdp.port = std::max(0, newWindowDraft_.feedbackPort);
+    feedbackUdp.port = static_cast<std::uint16_t>(
+        std::clamp(newWindowDraft_.feedbackPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
     feedbackUdp.maxPacketSize = std::max(512, newWindowDraft_.feedbackMaxPacketSize);
     next.window.feedbackTransports.udp = feedbackUdp;
 

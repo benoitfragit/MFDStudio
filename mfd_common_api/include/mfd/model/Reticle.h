@@ -270,10 +270,10 @@ struct ReticleBlinkState
 };
 
 /**
- * @brief Local clipping mode applied to one reticle instance.
+ * @brief Reticle masking mode applied against the page content already drawn underneath one reticle instance.
  *
- * @note `Inner` clips the inside of the mask shape, while `Outer` clips
- * everything outside of the mask shape.
+ * @note `Inner` erases the inside of the mask shape toward the page background,
+ * while `Outer` erases everything outside of the mask shape.
  */
 enum class ReticleClipMode
 {

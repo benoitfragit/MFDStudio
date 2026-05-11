@@ -30,7 +30,7 @@ mfd::ColorRgba Green() noexcept
 mfd::Primitive MakeFilledRectangle()
 {
     mfd::Primitive primitive;
-    primitive.id = "body";
+    primitive.id = "background";
     primitive.type = mfd::PrimitiveType::Rectangle;
     primitive.geometry = mfd::RectangleGeometry {1.60f, 1.60f};
     primitive.style.color = Green();
@@ -49,13 +49,16 @@ mfd::Primitive MakeInvisibleCircleMask()
     return primitive;
 }
 
-mfd::SceneRegistry MakeClippedScene(const mfd::ReticleClipMode clipMode)
+mfd::SceneRegistry MakeMaskedScene(const mfd::ReticleClipMode clipMode)
 {
+    mfd::ReticleGroup backdrop;
+    backdrop.id = "backdrop";
+    backdrop.primitives.push_back(MakeFilledRectangle());
+
     mfd::ReticleGroup reticle;
-    reticle.id = "scope";
+    reticle.id = "mask";
     reticle.clipping.mode = clipMode;
     reticle.clipping.primitiveId = "mask";
-    reticle.primitives.push_back(MakeFilledRectangle());
     reticle.primitives.push_back(MakeInvisibleCircleMask());
 
     mfd::PageDefinition page;
@@ -64,6 +67,7 @@ mfd::SceneRegistry MakeClippedScene(const mfd::ReticleClipMode clipMode)
     page.title = page.name;
     page.defaultPage = true;
     page.backgroundColor = {0, 0, 0, 255};
+    page.staticReticles.push_back(std::move(backdrop));
     page.staticReticles.push_back(std::move(reticle));
 
     mfd::MfdDocument document;
@@ -116,9 +120,9 @@ void ExpectBlack(const mfd::Rgba8Pixel& pixel)
 }
 } // namespace
 
-TEST(CanvasClippingRenderTests, OuterClippingKeepsPixelsInsideMaskOnly)
+TEST(CanvasClippingRenderTests, OuterClippingErasesPreviouslyDrawnPixelsOutsideMaskOnly)
 {
-    const mfd::Rgba32Framebuffer framebuffer = RenderScene(MakeClippedScene(mfd::ReticleClipMode::Outer));
+    const mfd::Rgba32Framebuffer framebuffer = RenderScene(MakeMaskedScene(mfd::ReticleClipMode::Outer));
     ASSERT_EQ(framebuffer.width, kRenderSize);
     ASSERT_EQ(framebuffer.height, kRenderSize);
 
@@ -126,9 +130,9 @@ TEST(CanvasClippingRenderTests, OuterClippingKeepsPixelsInsideMaskOnly)
     ExpectBlack(PixelAt(framebuffer, 12, 12));
 }
 
-TEST(CanvasClippingRenderTests, InnerClippingRemovesPixelsInsideMaskOnly)
+TEST(CanvasClippingRenderTests, InnerClippingErasesPreviouslyDrawnPixelsInsideMaskOnly)
 {
-    const mfd::Rgba32Framebuffer framebuffer = RenderScene(MakeClippedScene(mfd::ReticleClipMode::Inner));
+    const mfd::Rgba32Framebuffer framebuffer = RenderScene(MakeMaskedScene(mfd::ReticleClipMode::Inner));
     ASSERT_EQ(framebuffer.width, kRenderSize);
     ASSERT_EQ(framebuffer.height, kRenderSize);
 

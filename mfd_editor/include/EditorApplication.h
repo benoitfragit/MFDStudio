@@ -34,7 +34,9 @@
 #include "EditorReticleRenameService.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
+#include "BezierPolylineCache.h"
 #include "ImageTextureCache.h"
+#include "TextLayoutCache.h"
 
 class EditorTutorialController;
 
@@ -624,8 +626,12 @@ private:
     bool previewTextureReady_ = false;
     /** @brief Indicates whether the preview texture was successfully created with stencil support. */
     bool previewTextureStencilReady_ = false;
+    /** @brief Shared BÃ©zier polyline cache reused by preview canvases across frames. */
+    mfd::BezierPolylineCache previewBezierCache_ {};
     /** @brief Shared texture cache used by image primitives in preview canvases. */
     mfd::ImageTextureCache previewImageCache_ {};
+    /** @brief Shared text-layout cache reused by preview canvases across frames. */
+    mfd::TextLayoutCache previewTextLayoutCache_ {};
     /** @brief Off-screen texture dedicated to tree-item hover previews. */
     RenderTexture2D tooltipPreviewTexture_ {};
     /** @brief Indicates whether the hover-preview texture currently owns GPU resources. */

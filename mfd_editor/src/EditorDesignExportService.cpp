@@ -31,9 +31,11 @@
 #include <nlohmann/json.hpp>
 #include <raylib.h>
 
+#include "BezierPolylineCache.h"
 #include "Canvas2D.h"
 #include "ImageTextureCache.h"
 #include "RenderTextureUtils.h"
+#include "TextLayoutCache.h"
 #include "mfd/model/PageName.h"
 
 namespace editor
@@ -1941,7 +1943,9 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
     }
 
     bool success = false;
+    mfd::BezierPolylineCache bezierCache;
     mfd::ImageTextureCache imageCache;
+    mfd::TextLayoutCache textLayoutCache;
     BeginTextureMode(previewTexture);
     ClearBackground(ToRayColor(page.backgroundColor));
     {
@@ -1951,7 +1955,9 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
                              nullptr,
                              ToRayColor(page.backgroundColor),
                              previewTextureStencilReady,
-                             &imageCache);
+                             &bezierCache,
+                             &imageCache,
+                             &textLayoutCache);
         for (const auto& reticle : page.staticReticles)
         {
             canvas.DrawReticle(reticle);

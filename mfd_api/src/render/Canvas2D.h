@@ -78,8 +78,7 @@ private:
                                const ReticleGroup& group,
                                std::vector<Vector2>& destination) const;
     void DrawReticlePrimitives(const ReticleGroup& reticle) const;
-    bool BeginClipMask(const Primitive& primitive, const ReticleGroup& group) const;
-    void EndClipMask() const noexcept;
+    void ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const;
     bool DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
     void DrawPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
 
