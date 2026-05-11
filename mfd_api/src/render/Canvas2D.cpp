@@ -432,7 +432,12 @@ void Canvas2D::DrawReticle(const ReticleGroup& reticle, const bool visible) cons
         if (const Primitive* clipPrimitive = ResolveClipPrimitive(reticle);
             clipPrimitive != nullptr && detail::OpenGlStencilApiAvailable())
         {
-            ApplyClipMask(*clipPrimitive, reticle);
+            if (BeginClipMask(*clipPrimitive, reticle))
+            {
+                DrawReticlePrimitives(reticle);
+                EndClipMask();
+                return;
+            }
         }
     }
 
@@ -452,7 +457,7 @@ void Canvas2D::DrawReticlePrimitives(const ReticleGroup& reticle) const
     }
 }
 
-void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const
+bool Canvas2D::BeginClipMask(const Primitive& primitive, const ReticleGroup& group) const
 {
     rlDrawRenderBatchActive();
     detail::OpenGlSetStencilEnabled(true);
@@ -475,7 +480,7 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
                                           detail::GlStencilOperation::Keep);
         detail::OpenGlSetStencilFunction(detail::GlStencilCompare::Always, 0, 0xFF);
         detail::OpenGlSetStencilEnabled(false);
-        return;
+        return false;
     }
 
     rlDrawRenderBatchActive();
@@ -487,10 +492,13 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
     detail::OpenGlSetStencilFunction(group.clipping.mode == ReticleClipMode::Inner
                                          ? detail::GlStencilCompare::NotEqual
                                          : detail::GlStencilCompare::Equal,
-                                      0,
+                                      1,
                                       0xFF);
-    DrawRectangle(0, 0, width_, height_, backgroundColor_);
+    return true;
+}
 
+void Canvas2D::EndClipMask() const noexcept
+{
     rlDrawRenderBatchActive();
     detail::OpenGlSetStencilMask(0xFF);
     detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Keep,
