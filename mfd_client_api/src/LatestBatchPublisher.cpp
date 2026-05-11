@@ -44,6 +44,12 @@ struct LatestBatchPublisher::Impl
 
 namespace
 {
+struct DynamicLifecycleOperation
+{
+    std::string key;
+    mfd::UserCommand command;
+};
+
 using DynamicOperationMap = std::unordered_map<std::string, std::size_t>;
 
 std::string MakeDynamicReticleKey(const std::string& page,
@@ -63,53 +69,48 @@ std::string MakeDynamicTemplateKey(const std::string& page, const std::string& t
     return page + '\x1E' + templateId;
 }
 
-void PutDynamicLifecycleCommand(std::vector<mfd::UserCommand>& operations,
+std::string MakeDynamicLifecycleKey(const mfd::UpsertDynamicReticleCommand& command)
+{
+    return MakeDynamicReticleKey(command.target.page, command.target.reticleId, command.target.runtimeReticleId);
+}
+
+std::string MakeDynamicLifecycleKey(const mfd::RemoveDynamicReticleCommand& command)
+{
+    return MakeDynamicReticleKey(command.target.page, command.target.reticleId, command.target.runtimeReticleId);
+}
+
+std::string MakeDynamicLifecycleKey(const mfd::SetDynamicReticleSetVisibilityCommand& command)
+{
+    return MakeDynamicTemplateKey(command.page, command.templateId);
+}
+
+void PutDynamicLifecycleCommand(std::vector<DynamicLifecycleOperation>& operations,
                                 DynamicOperationMap& operationIndexes,
+                                std::string key,
                                 mfd::UserCommand command)
 {
-    auto key = std::visit(
-        [](const auto& value) -> std::string
-        {
-            using Command = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
-            {
-                return MakeDynamicReticleKey(value.target.page, value.target.reticleId, value.target.runtimeReticleId);
-            }
-            else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
-            {
-                return MakeDynamicReticleKey(value.target.page, value.target.reticleId, value.target.runtimeReticleId);
-            }
-            else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
-            {
-                return MakeDynamicTemplateKey(value.page, value.templateId);
-            }
-            else
-            {
-                return {};
-            }
-        },
-        command);
-
     if (key.empty())
     {
         return;
     }
 
-    const auto indexIt = operationIndexes.find(key);
-    if (indexIt == operationIndexes.end())
+    const auto [indexIt, inserted] = operationIndexes.try_emplace(key, operations.size());
+    if (inserted)
     {
-        operationIndexes.emplace(std::move(key), operations.size());
-        operations.push_back(std::move(command));
+        operations.push_back(DynamicLifecycleOperation {std::move(key), std::move(command)});
         return;
     }
 
-    operations[indexIt->second] = std::move(command);
+    operations[indexIt->second].command = std::move(command);
 }
 
 void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source,
-                                     std::vector<mfd::UserCommand>& operations,
+                                     std::vector<DynamicLifecycleOperation>& operations,
                                      DynamicOperationMap& operationIndexes)
 {
+    operations.reserve(operations.size() + source.size());
+    operationIndexes.reserve(operationIndexes.size() + source.size());
+
     for (const mfd::UserCommand& command : source)
     {
         std::visit(
@@ -118,14 +119,25 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
                 using Command = std::decay_t<decltype(value)>;
                 if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
                 {
-                    PutDynamicLifecycleCommand(operations, operationIndexes, value);
+                    PutDynamicLifecycleCommand(
+                        operations,
+                        operationIndexes,
+                        MakeDynamicLifecycleKey(value),
+                        value);
                 }
                 else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
                 {
-                    PutDynamicLifecycleCommand(operations, operationIndexes, value);
+                    PutDynamicLifecycleCommand(
+                        operations,
+                        operationIndexes,
+                        MakeDynamicLifecycleKey(value),
+                        value);
                 }
                 else if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticlesCommand>)
                 {
+                    operations.reserve(operations.size() + value.reticles.size());
+                    operationIndexes.reserve(operationIndexes.size() + value.reticles.size());
+
                     for (const mfd::DynamicReticleState& state : value.reticles)
                     {
                         mfd::UpsertDynamicReticleCommand command;
@@ -137,12 +149,17 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
                         PutDynamicLifecycleCommand(
                             operations,
                             operationIndexes,
+                            MakeDynamicLifecycleKey(command),
                             std::move(command));
                     }
                 }
                 else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
                 {
-                    PutDynamicLifecycleCommand(operations, operationIndexes, value);
+                    PutDynamicLifecycleCommand(
+                        operations,
+                        operationIndexes,
+                        MakeDynamicLifecycleKey(value),
+                        value);
                 }
             },
             command);
@@ -164,45 +181,22 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
         return;
     }
 
-    std::vector<mfd::UserCommand> pendingDynamicOperations;
+    std::vector<DynamicLifecycleOperation> pendingDynamicOperations;
     DynamicOperationMap pendingIndexes;
     CollectDynamicLifecycleCommands(pendingBatch->commands, pendingDynamicOperations, pendingIndexes);
 
-    std::vector<mfd::UserCommand> newestDynamicOperations;
+    std::vector<DynamicLifecycleOperation> newestDynamicOperations;
     DynamicOperationMap newestIndexes;
     CollectDynamicLifecycleCommands(newestBatch.commands, newestDynamicOperations, newestIndexes);
 
     std::vector<mfd::UserCommand> carriedOperations;
     carriedOperations.reserve(pendingDynamicOperations.size());
 
-    for (const mfd::UserCommand& command : pendingDynamicOperations)
+    for (DynamicLifecycleOperation& operation : pendingDynamicOperations)
     {
-        const auto key = std::visit(
-            [](const auto& value) -> std::string
-            {
-                using Command = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
-                {
-                    return MakeDynamicReticleKey(value.target.page, value.target.reticleId, value.target.runtimeReticleId);
-                }
-                else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
-                {
-                    return MakeDynamicReticleKey(value.target.page, value.target.reticleId, value.target.runtimeReticleId);
-                }
-                else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
-                {
-                    return MakeDynamicTemplateKey(value.page, value.templateId);
-                }
-                else
-                {
-                    return {};
-                }
-            },
-            command);
-
-        if (!key.empty() && newestIndexes.find(key) == newestIndexes.end())
+        if (newestIndexes.find(operation.key) == newestIndexes.end())
         {
-            carriedOperations.push_back(command);
+            carriedOperations.push_back(std::move(operation.command));
         }
     }
 

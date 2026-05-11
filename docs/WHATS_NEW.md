@@ -72,6 +72,14 @@ It is useful not just as a test tool, but as a concrete example for:
 - strobe commands and feedback
 - cockpit and radar simulations
 
+### The Client API Is More Stable Under Cyclic Workloads
+
+`mfd_client_api` now avoids more redundant deep patch comparisons when no new
+state change happened since the last published batch.
+
+This specifically helps tight client loops where reticles, dynamic tracks, or
+window display state are evaluated every frame but do not always change.
+
 ### The Transport Story Is Clearer
 
 The current doc set is much more explicit about:

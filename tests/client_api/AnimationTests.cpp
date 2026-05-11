@@ -131,6 +131,20 @@ protected:
         return std::make_unique<GeneratedDynamicFixtureReticle>(reticleId);
     }
 };
+
+class RawPatchFixtureReticle final : public mfd::client::Reticle
+{
+public:
+    RawPatchFixtureReticle()
+        : mfd::client::Reticle("HUD", "raw_patch")
+    {
+    }
+
+    void SetRawText(std::string value)
+    {
+        MutableDesiredPatch().text = std::move(value);
+    }
+};
 } // namespace
 
 TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
@@ -1020,6 +1034,45 @@ TEST(AnimationTests, ReticleResetSuppressesEmissionUntilANewMutation)
     EXPECT_FALSE(*update->patch.visible);
 }
 
+TEST(AnimationTests, ReticleReapplyingSameStateDoesNotEmitRedundantCommand)
+{
+    mfd::client::Reticle reticle("HUD", "waterline");
+    reticle.SetVisible(true);
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    commands.clear();
+    reticle.SetVisible(true);
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
+
+    commands.clear();
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
+}
+
+TEST(AnimationTests, DirectReticlePatchMutationStillEmitsAfterPreviousPublish)
+{
+    RawPatchFixtureReticle reticle;
+
+    reticle.SetVisible(true);
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    commands.clear();
+    reticle.SetRawText("RAW");
+    EXPECT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    ASSERT_TRUE(update->patch.text.has_value());
+    EXPECT_EQ(*update->patch.text, "RAW");
+}
+
 /**
  * @brief Validates dynamic reticle updates emit only field deltas after first publish.
  */
@@ -1050,6 +1103,26 @@ TEST(AnimationTests, DynamicReticleSetEmitsOnlyChangedFieldsOnSecondPublish)
     EXPECT_FLOAT_EQ(patch.position->x, 0.6f);
     EXPECT_FLOAT_EQ(patch.position->y, -0.4f);
     EXPECT_FALSE(patch.color.has_value());
+}
+
+TEST(AnimationTests, GeneratedDynamicReticleSetReapplyingSameStateDoesNotEmitRedundantUpdate)
+{
+    GeneratedDynamicFixtureSet set;
+    GeneratedDynamicFixtureReticle& track = set.Create();
+    track.label.SetText("A1");
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    commands.clear();
+    track.label.SetText("A1");
+    EXPECT_EQ(set.AppendCommands(commands), 0U);
+    EXPECT_TRUE(commands.empty());
+
+    commands.clear();
+    EXPECT_EQ(set.AppendCommands(commands), 0U);
+    EXPECT_TRUE(commands.empty());
 }
 
 /**

@@ -33,6 +33,12 @@ bool SequenceIsNewer(const std::uint32_t sequence, const std::uint32_t previous)
     return sequence >= previous;
 }
 
+template <typename T>
+bool Equal(const T& lhs, const T& rhs)
+{
+    return lhs == rhs;
+}
+
 bool Equal(const mfd::Vec2& lhs, const mfd::Vec2& rhs) noexcept
 {
     return lhs.x == rhs.x && lhs.y == rhs.y;
@@ -1139,6 +1145,7 @@ bool Reticle::AppendCommands(std::vector<mfd::UserCommand>& commands)
 
     if (Equal(desiredPatch_, lastSentPatch_))
     {
+        dirty_ = false;
         return false;
     }
 
@@ -1148,6 +1155,7 @@ bool Reticle::AppendCommands(std::vector<mfd::UserCommand>& commands)
     PopulateGeneratedIdentifiers(command);
     commands.emplace_back(std::move(command));
     lastSentPatch_ = desiredPatch_;
+    dirty_ = false;
     return true;
 }
 
@@ -1158,6 +1166,7 @@ const mfd::ReticlePatch& Reticle::DesiredPatch() const noexcept
 
 mfd::ReticlePatch& Reticle::MutableDesiredPatch() noexcept
 {
+    dirty_ = true;
     return desiredPatch_;
 }
 
@@ -1288,10 +1297,12 @@ bool StrobeHandle::AppendCommands(std::vector<mfd::UserCommand>& commands)
 
     if (!emitted)
     {
+        dirty_ = false;
         return false;
     }
 
     commands.emplace_back(std::move(command));
+    dirty_ = false;
     return true;
 }
 
@@ -1322,6 +1333,7 @@ bool DynamicReticle::IsStrobeCaptured() const noexcept
 void DynamicReticle::SetVisible(const bool visible)
 {
     PatchSetVisible(desiredPatch_, visible);
+    dirty_ = true;
 }
 
 void DynamicReticle::SetBlinkEnabled(const bool enabled)
@@ -1347,45 +1359,54 @@ void DynamicReticle::ClearBlinkType()
 void DynamicReticle::SetPosition(const mfd::Vec2 position)
 {
     PatchSetPosition(desiredPatch_, position);
+    dirty_ = true;
 }
 
 void DynamicReticle::SetRotationDegrees(const float rotationDegrees)
 {
     PatchSetRotationDegrees(desiredPatch_, rotationDegrees);
+    dirty_ = true;
 }
 
 void DynamicReticle::SetColor(const mfd::ColorRgba color)
 {
     PatchSetColor(desiredPatch_, color);
+    dirty_ = true;
 }
 
 void DynamicReticle::SetThickness(const float thickness)
 {
     PatchSetThickness(desiredPatch_, thickness);
+    dirty_ = true;
 }
 
 void DynamicReticle::SetText(std::string value)
 {
     PatchSetText(desiredPatch_, std::move(value));
+    dirty_ = true;
 }
 
 void DynamicReticle::SetText(const std::string_view primitiveId, std::string value)
 {
     PatchSetText(desiredPatch_, primitiveId, std::move(value));
+    dirty_ = true;
 }
 
 void DynamicReticle::SetLetterSpacing(const float letterSpacing)
 {
     PatchSetLetterSpacing(desiredPatch_, letterSpacing);
+    dirty_ = true;
 }
 
 void DynamicReticle::SetLetterSpacing(const std::string_view primitiveId, const float letterSpacing)
 {
     PatchSetLetterSpacing(desiredPatch_, primitiveId, letterSpacing);
+    dirty_ = true;
 }
 
 mfd::ReticlePatch& DynamicReticle::MutableDesiredPatch() noexcept
 {
+    dirty_ = true;
     return desiredPatch_;
 }
 
@@ -1514,12 +1535,13 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
             updates.push_back(
                 mfd::DynamicReticleState {reticle.reticleId_, reticle.runtimeReticleId_, std::move(patch)});
             reticle.lastSentPatch_ = reticle.desiredPatch_;
+            reticle.dirty_ = false;
             reticle.published_ = true;
             ++count;
             continue;
         }
 
-        if (!Equal(reticle.desiredPatch_, reticle.lastSentPatch_))
+        if (reticle.dirty_ && !Equal(reticle.desiredPatch_, reticle.lastSentPatch_))
         {
             mfd::ReticlePatch patch = BuildDeltaPatch(reticle.desiredPatch_, reticle.lastSentPatch_);
             reticle.PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
@@ -1528,6 +1550,8 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
             reticle.lastSentPatch_ = reticle.desiredPatch_;
             ++count;
         }
+
+        reticle.dirty_ = false;
     }
 
     if (!updates.empty())
@@ -1693,9 +1717,10 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
                 updates.push_back(
                     mfd::DynamicReticleState {reticle->reticleId_, reticle->runtimeReticleId_, std::move(patch)});
                 reticle->lastSentPatch_ = reticle->desiredPatch_;
+                reticle->dirty_ = false;
                 ++count;
             }
-            else if (!Equal(reticle->desiredPatch_, reticle->lastSentPatch_))
+            else if (reticle->dirty_ && !Equal(reticle->desiredPatch_, reticle->lastSentPatch_))
             {
                 mfd::ReticlePatch patch = BuildDeltaPatch(reticle->desiredPatch_, reticle->lastSentPatch_);
                 reticle->PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
@@ -1707,6 +1732,7 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
                 ++count;
             }
 
+            reticle->dirty_ = false;
             reticle->published_ = true;
             continue;
         }
@@ -1814,11 +1840,13 @@ bool WindowDisplay::AppendCommands(std::vector<mfd::UserCommand>& commands)
 
     if (Equal(desiredPatch_, lastSentPatch_))
     {
+        dirty_ = false;
         return false;
     }
 
     commands.emplace_back(mfd::UpdateWindowDisplayCommand {BuildDeltaPatch(desiredPatch_, lastSentPatch_)});
     lastSentPatch_ = desiredPatch_;
+    dirty_ = false;
     return true;
 }
 } // namespace mfd::client
