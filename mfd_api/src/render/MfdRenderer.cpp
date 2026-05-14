@@ -75,6 +75,26 @@ bool ActiveSceneUsesReticleClipping(const SceneRegistry& scene)
     return false;
 }
 
+/**
+ * @brief Builds a consistent offscreen failure payload.
+ *
+ * @param request Original offscreen request.
+ * @param status Offscreen status to report.
+ * @param message Short diagnostics string for host-side logs.
+ * @return Failure result with request dimensions copied and zero-sized output.
+ */
+OffscreenRenderResult MakeOffscreenFailure(const OffscreenRenderRequest& request,
+                                          const OffscreenRenderStatus status,
+                                          const char* message)
+{
+    OffscreenRenderResult result {};
+    result.status = status;
+    result.message = message;
+    result.requestedWidth = request.width;
+    result.requestedHeight = request.height;
+    return result;
+}
+
 void DrawActivePageContent(const SceneRegistry& scene,
                            const int width,
                            const int height,
@@ -392,4 +412,66 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     DrawTexturePro(impl_->renderTarget.texture, source, destination, Vector2 {0.0f, 0.0f}, 0.0f, WHITE);
     EndShaderMode();
 }
+
+/**
+ * @brief Renders the active page into the internal offscreen render target.
+ *
+ * @param scene Scene registry providing active page and reticles.
+ * @param request Requested output dimensions.
+ * @return Offscreen rendering result, including status, dimensions and non-owning texture handle.
+ */
+OffscreenRenderResult MfdRenderer::RenderActivePageOffscreen(const SceneRegistry& scene,
+                                                             const OffscreenRenderRequest& request)
+{
+    if (!request.HasValidDimensions())
+    {
+        return MakeOffscreenFailure(request,
+                                    OffscreenRenderStatus::InvalidDimensions,
+                                    "invalid offscreen dimensions");
+    }
+
+    const WindowDisplayState display = scene.WindowDisplay();
+    if (display.disabled)
+    {
+        return MakeOffscreenFailure(request,
+                                    OffscreenRenderStatus::DisplayDisabled,
+                                    "window display disabled");
+    }
+
+    if (!scene.ActivePageSummary().has_value())
+    {
+        return MakeOffscreenFailure(request,
+                                    OffscreenRenderStatus::NoActivePage,
+                                    "no active page");
+    }
+
+    if (impl_ != nullptr)
+    {
+        (void)impl_->EnsureTextFont();
+    }
+
+    if (impl_ == nullptr || !impl_->EnsureRenderTarget(request.width, request.height))
+    {
+        return MakeOffscreenFailure(request,
+                                    OffscreenRenderStatus::RenderTargetUnavailable,
+                                    "offscreen render target unavailable");
+    }
+
+    const Font* textFont = impl_->ActiveTextFont();
+    BeginTextureMode(impl_->renderTarget);
+    ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
+    DrawActivePageContent(scene, request.width, request.height, textFont, impl_->renderTargetStencilReady);
+    EndTextureMode();
+
+    OffscreenRenderResult result {};
+    result.status = OffscreenRenderStatus::Success;
+    result.message = "ok";
+    result.requestedWidth = request.width;
+    result.requestedHeight = request.height;
+    result.actualWidth = impl_->renderTarget.texture.width;
+    result.actualHeight = impl_->renderTarget.texture.height;
+    result.texture.backendTextureId = impl_->renderTarget.texture.id;
+    return result;
+}
+
 } // namespace mfd

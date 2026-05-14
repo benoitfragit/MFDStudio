@@ -225,3 +225,8 @@ enough.
 
 An inventory of external dependencies and copied license texts is available in
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+
+
+### Offscreen active-page rendering
+
+`mfd::MfdRenderer::RenderActivePageOffscreen(...)` renders the active page into an internal texture and returns a non-owning backend texture handle view. The handle is invalidated on offscreen target resize/recreate and renderer destruction.
