@@ -276,3 +276,7 @@ Repository setting required once:
 
 1. open `Settings > Pages`
 2. choose `GitHub Actions` as the build and deployment source
+
+## Offscreen Rendering (API)
+
+`mfd::MfdRenderer` now exposes `RenderActivePageOffscreen(request)` to render the active page into an internal offscreen texture and return a non-owning backend texture handle (`OffscreenTextureHandleView`). The handle is invalidated when the internal render target is recreated (resize) or when the renderer is destroyed.
