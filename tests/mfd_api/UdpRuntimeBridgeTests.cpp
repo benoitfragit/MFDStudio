@@ -343,7 +343,7 @@ TEST(UdpRuntimeBridgeTests, DrainReceivedBatchesForCommandBudgetLeavesExcessQueu
     bridge.Stop();
 }
 
-TEST(UdpRuntimeBridgeTests, DrainReceivedBatchesForCommandBudgetDoesNotSplitOversizedBatch)
+TEST(UdpRuntimeBridgeTests, DrainReceivedBatchesForCommandBudgetStillDrainsFrontOversizedBatch)
 {
     auto receiverState = std::make_shared<FakeChannelState>();
     auto senderState = std::make_shared<FakeChannelState>();
@@ -369,17 +369,15 @@ TEST(UdpRuntimeBridgeTests, DrainReceivedBatchesForCommandBudgetDoesNotSplitOver
         }));
 
     std::vector<mfd::CommandBatch> drained;
-    EXPECT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 1U), 0U);
-    EXPECT_TRUE(drained.empty());
-
-    mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
-    EXPECT_EQ(metrics.drainedBatches, 0U);
-    EXPECT_EQ(metrics.drainedCommands, 0U);
-    EXPECT_EQ(metrics.inboundQueueDepth, 1U);
-
-    EXPECT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 2U), 1U);
+    EXPECT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 1U), 1U);
     ASSERT_EQ(drained.size(), 1U);
     EXPECT_EQ(drained.front().sequence, 9U);
+    EXPECT_EQ(drained.front().commands.size(), 2U);
+
+    mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.drainedBatches, 1U);
+    EXPECT_EQ(metrics.drainedCommands, 2U);
+    EXPECT_EQ(metrics.inboundQueueDepth, 0U);
     bridge.Stop();
 }
 

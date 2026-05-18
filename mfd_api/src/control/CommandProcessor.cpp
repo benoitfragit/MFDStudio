@@ -25,6 +25,8 @@ namespace mfd
 namespace
 {
 constexpr std::size_t kMaxCommandsPerPoll = 64;
+constexpr std::uint64_t kFnvOffsetBasis = 1469598103934665603ULL;
+constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 
 bool PatchUsesGeneratedIdentifiers(const ReticlePatch& patch) noexcept
 {
@@ -106,6 +108,23 @@ bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
         command);
 }
 
+std::size_t HashBatchFingerprintPayload(const std::string_view payload) noexcept
+{
+    std::uint64_t hash = kFnvOffsetBasis;
+    for (const unsigned char byte : payload)
+    {
+        hash ^= static_cast<std::uint64_t>(byte);
+        hash *= kFnvPrime;
+    }
+
+    return static_cast<std::size_t>(hash);
+}
+
+std::size_t BuildSequencedBatchFingerprint(const CommandBatch& batch)
+{
+    return HashBatchFingerprintPayload(SerializeCommandBatch(batch));
+}
+
 } // namespace
 
 CommandProcessor::CommandProcessor(SceneRegistry& scene)
@@ -150,11 +169,33 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
         return false;
     }
 
+    std::optional<std::size_t> batchFingerprint;
     if (batch.sequence != 0 && !batch.mappingHash.empty())
     {
-        const auto sequenceIt = lastAppliedSequencesByMappingHash_.find(batch.mappingHash);
-        if (sequenceIt != lastAppliedSequencesByMappingHash_.end() &&
-            batch.sequence <= sequenceIt->second)
+        auto& sequenceState = sequencedBatchesByMappingHash_[batch.mappingHash];
+        if (batch.sequence < sequenceState.lastSequence)
+        {
+            SetFailure("Dropped stale or duplicate command batch");
+            return false;
+        }
+
+        try
+        {
+            batchFingerprint = BuildSequencedBatchFingerprint(batch);
+        }
+        catch (const std::exception& exception)
+        {
+            SetFailure(exception.what());
+            return false;
+        }
+        catch (...)
+        {
+            SetFailure("Unknown exception while fingerprinting a sequenced command batch");
+            return false;
+        }
+
+        if (batch.sequence == sequenceState.lastSequence &&
+            sequenceState.acceptedFingerprints.find(*batchFingerprint) != sequenceState.acceptedFingerprints.end())
         {
             SetFailure("Dropped stale or duplicate command batch");
             return false;
@@ -219,7 +260,17 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
 
     if (batch.sequence != 0 && !batch.mappingHash.empty())
     {
-        lastAppliedSequencesByMappingHash_[batch.mappingHash] = batch.sequence;
+        auto& sequenceState = sequencedBatchesByMappingHash_[batch.mappingHash];
+        if (batch.sequence > sequenceState.lastSequence)
+        {
+            sequenceState.lastSequence = batch.sequence;
+            sequenceState.acceptedFingerprints.clear();
+        }
+
+        if (batchFingerprint.has_value())
+        {
+            sequenceState.acceptedFingerprints.insert(*batchFingerprint);
+        }
     }
 
     return true;

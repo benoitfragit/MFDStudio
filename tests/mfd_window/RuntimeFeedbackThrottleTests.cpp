@@ -10,7 +10,7 @@
 
 #include <gtest/gtest.h>
 
-#include "RuntimeFeedbackThrottle.hpp"
+#include "mfd/window/RuntimeFeedbackThrottle.hpp"
 
 TEST(RuntimeFeedbackThrottleTests, SendsFirstChangedFeedbackImmediately)
 {

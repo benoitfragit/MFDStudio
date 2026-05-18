@@ -3,11 +3,11 @@
 # Repository: https://github.com/benoitfragit/MFDStudio
 set(MFD_WINDOW_LAUNCHER_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/WindowLauncher.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugInspectorFrameState.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugOverlay.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugPreview.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugState.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeFeedbackThrottle.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/debug/RuntimeDebugInspectorFrameState.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/debug/RuntimeDebugOverlay.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/debug/RuntimeDebugPreview.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/debug/RuntimeDebugState.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/RuntimeFeedbackThrottle.hpp)
 
 set(MFD_WINDOW_LAUNCHER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/WindowLauncher.cpp

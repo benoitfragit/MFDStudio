@@ -991,6 +991,15 @@ std::size_t UdpRuntimeBridge::DrainReceivedBatchesForCommandBudget(std::vector<C
         const std::size_t nextCommandCount = CountCommands(impl_->inboundBatches.front());
         if (commandCount + nextCommandCount > maxCommands)
         {
+            // Always drain at least the front batch so one oversized packet
+            // cannot permanently stall the inbound queue.
+            if (batchCount == 0U)
+            {
+                commandCount += nextCommandCount;
+                ++batchCount;
+                destination.push_back(std::move(impl_->inboundBatches.front()));
+                impl_->inboundBatches.pop_front();
+            }
             break;
         }
 

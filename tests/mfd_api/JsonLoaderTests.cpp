@@ -1250,6 +1250,41 @@ TEST(JsonLoaderTests, LoadWindowConfigurationRejectsWindowMetricsOutsideSignedIn
     EXPECT_THROW(loader.LoadWindowConfiguration(windowFile), std::runtime_error);
 }
 
+TEST(JsonLoaderTests, LoadWindowConfigurationRejectsNonPositiveOrOversizedWindowDimensions)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path invalidSizeFile = workspace.Path() / "window_invalid_size.json";
+    const std::filesystem::path oversizedFile = workspace.Path() / "window_oversized.json";
+    const std::filesystem::path pageFile = workspace.Path() / "page.json";
+
+    WriteTextFile(pageFile,
+                  R"json({
+  "name": "Main",
+  "layers": [
+    { "id": "default" }
+  ],
+  "staticReticles": []
+})json");
+
+    WriteTextFile(invalidSizeFile,
+                  R"json({
+  "width": 0,
+  "height": -1,
+  "pages": ["page.json"]
+})json");
+
+    WriteTextFile(oversizedFile,
+                  R"json({
+  "width": 16385,
+  "height": 600,
+  "pages": ["page.json"]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadWindowConfiguration(invalidSizeFile), std::runtime_error);
+    EXPECT_THROW(loader.LoadWindowConfiguration(oversizedFile), std::runtime_error);
+}
+
 TEST(JsonLoaderTests, LoadDocumentRejectsTriangleWithMoreThanThreePoints)
 {
     TemporaryFolder workspace;

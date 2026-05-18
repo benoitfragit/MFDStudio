@@ -63,8 +63,8 @@ extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* na
 #include "mfd/render/WindowBranding.h"
 #include "mfd/runtime/SceneRegistry.h"
 
-#include "RuntimeDebugOverlay.hpp"
-#include "RuntimeFeedbackThrottle.hpp"
+#include "mfd/window/RuntimeFeedbackThrottle.hpp"
+#include "mfd/window/debug/RuntimeDebugOverlay.hpp"
 
 #if defined(_WIN32)
 extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();

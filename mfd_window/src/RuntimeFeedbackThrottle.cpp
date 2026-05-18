@@ -8,7 +8,7 @@
  * @brief Implementation of runtime UDP feedback cadence control.
  */
 
-#include "RuntimeFeedbackThrottle.hpp"
+#include "mfd/window/RuntimeFeedbackThrottle.hpp"
 
 #include <cmath>
 

@@ -112,6 +112,7 @@ constexpr int kMaxPrimitiveSegments = 1024;
 constexpr std::size_t kMaxPrimitivePoints = 2048U;
 constexpr std::size_t kMaxFilledPolygonPoints = 512U;
 constexpr std::size_t kMaxTextBytes = 4096U;
+constexpr int kMaxWindowExtent = 16384;
 
 float ParseFiniteFloat(const json& value, const char* fieldName)
 {
@@ -176,6 +177,15 @@ void ValidateVec2(const Vec2& value, const char* fieldName, const float maxAbs =
 void ValidateScale(const Vec2& value, const char* fieldName)
 {
     ValidateVec2(value, fieldName, kMaxAbsScale);
+}
+
+void ValidateWindowExtent(const int value, const char* fieldName)
+{
+    if (value <= 0 || value > kMaxWindowExtent)
+    {
+        throw std::runtime_error(
+            std::string(fieldName) + " must be in [1, " + std::to_string(kMaxWindowExtent) + "]");
+    }
 }
 
 void ValidateSegmentCount(const int value, const char* fieldName)
@@ -2462,6 +2472,9 @@ WindowAssetDefinition ParseWindowAssetDefinition(const json& root,
         window.width = ParsePixelNumber(root.value("width", json(window.width)), "window width");
         window.height = ParsePixelNumber(root.value("height", json(window.height)), "window height");
     }
+
+    ValidateWindowExtent(window.width, "window width");
+    ValidateWindowExtent(window.height, "window height");
 
     if (const json* position = FindField(root, {"position", "windowPosition", "screenPosition"}))
     {

@@ -17,7 +17,7 @@
 #include "mfd/control/CommandProcessor.h"
 #include "mfd/runtime/SceneRegistry.h"
 
-#include "RuntimeDebugState.hpp"
+#include "mfd/window/debug/RuntimeDebugState.hpp"
 
 namespace mfd::window::debug
 {

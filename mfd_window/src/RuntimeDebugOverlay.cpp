@@ -8,9 +8,9 @@
  * @brief Implementation of the integrated runtime debug overlay.
  */
 
-#include "RuntimeDebugOverlay.hpp"
+#include "mfd/window/debug/RuntimeDebugOverlay.hpp"
 
-#include "RuntimeDebugInspectorFrameState.hpp"
+#include "mfd/window/debug/RuntimeDebugInspectorFrameState.hpp"
 
 #include <algorithm>
 #include <array>

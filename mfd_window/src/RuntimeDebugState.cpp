@@ -8,7 +8,7 @@
  * @brief Implementation of the internal runtime-debug state model.
  */
 
-#include "RuntimeDebugState.hpp"
+#include "mfd/window/debug/RuntimeDebugState.hpp"
 
 #include <functional>
 #include <utility>

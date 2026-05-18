@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <entt/entt.hpp>
 
@@ -111,6 +112,12 @@ public:
     const entt::dispatcher& Dispatcher() const noexcept;
 
 private:
+    struct SequencedBatchState
+    {
+        std::uint32_t lastSequence = 0;
+        std::unordered_set<std::size_t> acceptedFingerprints {};
+    };
+
     void OnActivatePage(const ActivatePageCommand& command);
     void OnSetPageView(const SetPageViewCommand& command);
     void OnUpdateWindowDisplay(const UpdateWindowDisplayCommand& command);
@@ -142,7 +149,7 @@ private:
     SceneRegistry& scene_;
     entt::dispatcher dispatcher_ {};
     std::string lastError_ {};
-    std::unordered_map<std::string, std::uint32_t> lastAppliedSequencesByMappingHash_ {};
+    std::unordered_map<std::string, SequencedBatchState> sequencedBatchesByMappingHash_ {};
     bool lastCommandSucceeded_ = true;
 };
 } // namespace mfd

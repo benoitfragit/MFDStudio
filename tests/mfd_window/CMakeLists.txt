@@ -12,10 +12,6 @@ add_executable(mfd_window_tests ${MFD_WINDOW_TEST_SOURCES})
 
 mfd_configure_test_runtime_output(mfd_window_tests)
 
-target_include_directories(mfd_window_tests
-    PRIVATE
-        ${MFD_ROOT_DIR}/mfd_window/src)
-
 target_link_libraries(mfd_window_tests
     PRIVATE
         mfd::window_launcher)

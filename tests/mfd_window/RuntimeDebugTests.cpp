@@ -21,9 +21,9 @@
 #include "mfd/model/PageName.h"
 #include "mfd/runtime/SceneRegistry.h"
 
-#include "RuntimeDebugPreview.hpp"
-#include "RuntimeDebugInspectorFrameState.hpp"
-#include "RuntimeDebugState.hpp"
+#include "mfd/window/debug/RuntimeDebugInspectorFrameState.hpp"
+#include "mfd/window/debug/RuntimeDebugPreview.hpp"
+#include "mfd/window/debug/RuntimeDebugState.hpp"
 
 namespace
 {

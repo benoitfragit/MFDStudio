@@ -466,6 +466,38 @@ TEST(CommandProcessorTests, RejectsDuplicateOrOutOfOrderSequencedBatches)
     EXPECT_EQ(processor.LastError(), "Dropped stale or duplicate command batch");
 }
 
+TEST(CommandProcessorTests, AcceptsDistinctSequencedBatchesWithSameSequenceToSupportChunkedPayloads)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch firstChunk;
+    firstChunk.mappingHash = "map_hash";
+    firstChunk.sequence = 12U;
+    firstChunk.commands.push_back(mfd::ActivatePageCommand {"", 11U});
+
+    mfd::ReticlePatch patch;
+    patch.text = "321";
+
+    mfd::CommandBatch secondChunk;
+    secondChunk.mappingHash = "map_hash";
+    secondChunk.sequence = 12U;
+    secondChunk.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
+
+    EXPECT_TRUE(processor.Submit(firstChunk));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    EXPECT_TRUE(processor.Submit(secondChunk));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "321");
+}
+
 TEST(CommandProcessorTests, AllowsSameSequenceAcrossNameBasedBatchesWithoutMappingHash)
 {
     mfd::SceneRegistry registry = MakeRegistry();

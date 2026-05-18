@@ -8,7 +8,7 @@
  * @brief Implementation of the internal runtime debug preview scene.
  */
 
-#include "RuntimeDebugPreview.hpp"
+#include "mfd/window/debug/RuntimeDebugPreview.hpp"
 
 #include <algorithm>
 #include <cmath>

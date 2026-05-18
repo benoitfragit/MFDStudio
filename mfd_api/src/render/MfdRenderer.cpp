@@ -74,6 +74,54 @@ bool NeedsWindowPostProcess(const WindowDisplayState& display) noexcept
     return display.invertColors || display.brightness < 0.9995f;
 }
 
+class TextureModeScope
+{
+public:
+    explicit TextureModeScope(const RenderTexture2D target) noexcept
+        : active_(true)
+    {
+        BeginTextureMode(target);
+    }
+
+    ~TextureModeScope()
+    {
+        if (active_)
+        {
+            EndTextureMode();
+        }
+    }
+
+    TextureModeScope(const TextureModeScope&) = delete;
+    TextureModeScope& operator=(const TextureModeScope&) = delete;
+
+private:
+    bool active_ = false;
+};
+
+class ShaderModeScope
+{
+public:
+    explicit ShaderModeScope(const Shader shader) noexcept
+        : active_(true)
+    {
+        BeginShaderMode(shader);
+    }
+
+    ~ShaderModeScope()
+    {
+        if (active_)
+        {
+            EndShaderMode();
+        }
+    }
+
+    ShaderModeScope(const ShaderModeScope&) = delete;
+    ShaderModeScope& operator=(const ShaderModeScope&) = delete;
+
+private:
+    bool active_ = false;
+};
+
 bool ActiveReticleViewsUseClipping(const std::vector<ReticleRenderView>& activeReticles)
 {
     for (const ReticleRenderView& reticle : activeReticles)
@@ -435,19 +483,20 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         return;
     }
 
-    BeginTextureMode(impl_->renderTarget);
-    ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
-    DrawActivePageContent(
-        scene,
-        *activeReticles,
-        viewportWidth,
-        viewportHeight,
-        textFont,
-        impl_->renderTargetStencilReady,
-        &impl_->bezierCache,
-        &impl_->imageCache,
-        &impl_->textLayoutCache);
-    EndTextureMode();
+    {
+        TextureModeScope textureMode(impl_->renderTarget);
+        ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
+        DrawActivePageContent(
+            scene,
+            *activeReticles,
+            viewportWidth,
+            viewportHeight,
+            textFont,
+            impl_->renderTargetStencilReady,
+            &impl_->bezierCache,
+            &impl_->imageCache,
+            &impl_->textLayoutCache);
+    }
 
     const Rectangle source {
         0.0f,
@@ -467,8 +516,9 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     SetShaderValue(impl_->shader, impl_->brightnessLocation, &brightness, SHADER_UNIFORM_FLOAT);
     SetShaderValue(impl_->shader, impl_->invertColorsLocation, &invertColors, SHADER_UNIFORM_FLOAT);
 
-    BeginShaderMode(impl_->shader);
-    DrawTexturePro(impl_->renderTarget.texture, source, destination, Vector2 {0.0f, 0.0f}, 0.0f, WHITE);
-    EndShaderMode();
+    {
+        ShaderModeScope shaderMode(impl_->shader);
+        DrawTexturePro(impl_->renderTarget.texture, source, destination, Vector2 {0.0f, 0.0f}, 0.0f, WHITE);
+    }
 }
 } // namespace mfd

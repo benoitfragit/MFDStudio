@@ -18,8 +18,8 @@
 #include "mfd/io/JsonLoader.h"
 #include "mfd/runtime/SceneRegistry.h"
 
-#include "RuntimeDebugPreview.hpp"
-#include "RuntimeDebugState.hpp"
+#include "mfd/window/debug/RuntimeDebugPreview.hpp"
+#include "mfd/window/debug/RuntimeDebugState.hpp"
 
 namespace mfd::window::debug
 {
