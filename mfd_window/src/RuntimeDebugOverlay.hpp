@@ -114,9 +114,14 @@ private:
     void Deactivate();
     bool RefreshPreviewFromLive(const SceneRegistry& liveScene);
     void RecordObservedRuntimeState(const std::vector<CommandBatch>& drainedBatches);
+    [[nodiscard]] bool UsesPreviewScene() const noexcept;
+    [[nodiscard]] UdpRuntimeBridgeMetrics CollectTransportMetrics(const UdpRuntimeBridge* bridge,
+                                                                  std::size_t observedCommandCount);
 
     RuntimeDebugState state_ {};
     RuntimeDebugPreview preview_ {};
     bool initialized_ = false;
+    bool transportMetricsRefreshInitialized_ = false;
+    RuntimeDebugState::Clock::time_point lastTransportMetricsRefresh_ {};
 };
 } // namespace mfd::window::debug

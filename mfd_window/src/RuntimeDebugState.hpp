@@ -259,6 +259,12 @@ public:
     [[nodiscard]] std::vector<ReticleKey> BypassedReticles() const;
 
     /**
+     * @brief Returns whether the overlay currently owns any local runtime override.
+     * @return `true` when one page or reticle bypass is active.
+     */
+    [[nodiscard]] bool HasInteractiveOverrides() const noexcept;
+
+    /**
      * @brief Stores the last known visibility of one dynamic-reticle template set.
      * @param pageName Owning page name.
      * @param templateId Template id identifying the set.

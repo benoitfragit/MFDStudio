@@ -267,6 +267,30 @@ TEST(RuntimeDebugStateTests, DeactivateClearsInteractiveOverridesButKeepsObserve
 }
 
 /**
+ * @brief Confirms preview ownership is required only when one local bypass is active.
+ */
+TEST(RuntimeDebugStateTests, HasInteractiveOverridesTracksPageAndReticleBypasses)
+{
+    using namespace mfd::window::debug;
+
+    RuntimeDebugState state;
+    EXPECT_FALSE(state.HasInteractiveOverrides());
+
+    state.EnablePageBypass("Radar");
+    EXPECT_TRUE(state.HasInteractiveOverrides());
+
+    state.DisablePageBypass();
+    EXPECT_FALSE(state.HasInteractiveOverrides());
+
+    const ReticleKey key {"Radar", "Ownship", ReticleKind::Static};
+    state.EnsureReticleBypass(key, MakeReticle("Ownship"));
+    EXPECT_TRUE(state.HasInteractiveOverrides());
+
+    state.ReleaseReticleBypass(key);
+    EXPECT_FALSE(state.HasInteractiveOverrides());
+}
+
+/**
  * @brief Confirms observed runtime telemetry can be reset independently from interactive state.
  */
 TEST(RuntimeDebugStateTests, ResetObservedRuntimeStateClearsTransportAndTemplateVisibility)

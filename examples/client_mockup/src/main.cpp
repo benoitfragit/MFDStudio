@@ -371,6 +371,7 @@ void PopulateRadarSimulationUi(WindowUi& ui,
     ui.Reset();
     auto& radar = ui.Radar();
     auto& tracks = radar.DynamicRadarTrack();
+    tracks.SetVisible(true);
     EnsureGeneratedDynamicReticles(tracks, generatedTracks, static_cast<std::size_t>(kRadarSimulationTrackCount));
 
     for (int index = 0; index < kRadarSimulationTrackCount; ++index)
@@ -387,6 +388,7 @@ void PopulateRadarSimulationUi(WindowUi& ui,
         const float headingDegrees = angle * kRadiansToDegrees + 90.0f;
 
         DynamicTrack& track = *generatedTracks[static_cast<std::size_t>(index)];
+        track.SetVisible(true);
         track.SetPosition(mfd::Vec2 {x, y});
         track.SetRotationDegrees(headingDegrees);
         track.SetColor(kTrackPalette[static_cast<std::size_t>(index) % kTrackPalette.size()]);
@@ -1841,7 +1843,7 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
         return false;
     }
 
-    std::vector<mfd::UserCommand> commands;
+    mfd::CommandBatch batch;
 
     switch (DetectWindowPresetKind(windowFile_))
     {
@@ -1863,7 +1865,7 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
                 fullDemoRadarTracks_,
                 radarSimulation_.elapsedSeconds);
         }
-        commands = fullDemoGeneratedUi_->BuildBatch();
+        batch = fullDemoGeneratedUi_->BuildCommandBatch(radarSimulation_.nextSequence);
         break;
     case WindowPresetKind::MinimalRadar:
         if (minimalRadarGeneratedUi_ == nullptr)
@@ -1883,7 +1885,7 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
                 minimalRadarRadarTracks_,
                 radarSimulation_.elapsedSeconds);
         }
-        commands = minimalRadarGeneratedUi_->BuildBatch();
+        batch = minimalRadarGeneratedUi_->BuildCommandBatch(radarSimulation_.nextSequence);
         break;
     default:
         SetStatus("No generated radar client API is available for the selected window preset.", true);
@@ -1891,8 +1893,8 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
     }
 
     const double sendStart = TimeSeconds();
-    const int commandCount = static_cast<int>(commands.size());
-    const bool submitted = realtimePublisher_->SubmitLatest(std::move(commands), radarSimulation_.nextSequence);
+    const int commandCount = static_cast<int>(batch.commands.size());
+    const bool submitted = realtimePublisher_->SubmitLatest(std::move(batch));
     const double sendEnd = TimeSeconds();
 
     radarSimulation_.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
@@ -1962,11 +1964,11 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
         cockpitGeneratedUi_ = std::make_unique<cockpit_demo_ui::CockpitDemoMockupUi>();
     }
     PopulateCockpitSimulationUi(*cockpitGeneratedUi_, cockpitRadarContacts_, simulation);
-    std::vector<mfd::UserCommand> commands = cockpitGeneratedUi_->BuildBatch();
+    mfd::CommandBatch batch = cockpitGeneratedUi_->BuildCommandBatch(simulation.nextSequence);
 
     const double sendStart = TimeSeconds();
-    const int commandCount = static_cast<int>(commands.size());
-    const bool submitted = realtimePublisher_->SubmitLatest(std::move(commands), simulation.nextSequence);
+    const int commandCount = static_cast<int>(batch.commands.size());
+    const bool submitted = realtimePublisher_->SubmitLatest(std::move(batch));
     const double sendEnd = TimeSeconds();
 
     simulation.lastSendDurationMs = static_cast<float>((sendEnd - sendStart) * 1000.0);
@@ -2968,7 +2970,6 @@ void MockupApplication::DrawRadarSimulationPanel()
             radarSimulation_.lastObservedCycleMs = 0.0f;
             radarSimulation_.lastSendDurationMs = 0.0f;
             radarSimulation_.lastCommandCount = 0;
-            radarSimulation_.nextSequence = 1;
             radarSimulation_.previousSendTimestamp = 0.0;
             radarSimulation_.clearRequested = false;
             if (ActivateRadarSimulationPage())

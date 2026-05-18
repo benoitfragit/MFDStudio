@@ -175,6 +175,11 @@ std::vector<ReticleKey> RuntimeDebugState::BypassedReticles() const
     return keys;
 }
 
+bool RuntimeDebugState::HasInteractiveOverrides() const noexcept
+{
+    return pageBypassed_ || !reticleBypasses_.empty();
+}
+
 void RuntimeDebugState::SetDynamicTemplateVisibility(std::string pageName, std::string templateId, const bool visible)
 {
     dynamicTemplateVisibility_[DynamicTemplateKey {std::move(pageName), std::move(templateId)}] = visible;

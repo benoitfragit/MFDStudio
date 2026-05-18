@@ -624,6 +624,24 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     EXPECT_NE(remove->target.runtimeReticleId, 0U);
 }
 
+TEST(AnimationTests, GeneratedDynamicReticleInitialPatchCarriesExplicitVisibility)
+{
+    GeneratedDynamicFixtureSet set;
+    GeneratedDynamicFixtureReticle& track = set.Create();
+    track.SetVisible(true);
+    track.SetPosition({0.12f, -0.08f});
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands.front());
+    ASSERT_NE(upsert, nullptr);
+    ASSERT_EQ(upsert->reticles.size(), 1U);
+    ASSERT_TRUE(upsert->reticles.front().patch.visible.has_value());
+    EXPECT_TRUE(*upsert->reticles.front().patch.visible);
+}
+
 TEST(AnimationTests, GeneratedDynamicReticleSetAppendRemovalCommandsClearsPublishedEntries)
 {
     GeneratedDynamicFixtureSet set;

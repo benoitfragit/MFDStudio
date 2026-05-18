@@ -1505,13 +1505,7 @@ private:
             if (drainedBatches > 0)
             {
                 receivedFirstClientCommand_ = true;
-                std::size_t drainedCommands = 0;
                 bool success = true;
-
-                for (const mfd::CommandBatch& batch : pendingCommandBatches_)
-                {
-                    drainedCommands += batch.commands.size();
-                }
 
                 std::size_t appliedCommands = 0;
                 std::size_t skippedCommands = 0;
@@ -1528,7 +1522,10 @@ private:
                     {
                         skippedCommands += batchCommandCount;
                     }
-                    appliedCommandBatches_.push_back(batch);
+                    if (batchApplied)
+                    {
+                        appliedCommandBatches_.push_back(batch);
+                    }
                 }
 
                 udpRuntimeBridge_->RecordCommandProcessingResult(

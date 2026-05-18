@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -35,6 +36,7 @@ constexpr int kDebugPanelWidth = 620;
 constexpr float kLeftPaneWidth = 330.0f;
 constexpr float kBottomPanelHeight = 168.0f;
 constexpr std::size_t kTextBufferBaseSize = 256U;
+constexpr auto kTransportMetricsRefreshInterval = std::chrono::milliseconds(250);
 
 struct ReticleUiEntry
 {
@@ -403,8 +405,9 @@ void RuntimeDebugOverlay::OnRuntimeReloaded(const SceneRegistry& liveScene)
 {
     state_.ResetObservedRuntimeState();
     state_.ResetInteractiveState();
+    transportMetricsRefreshInitialized_ = false;
 
-    if (state_.Active())
+    if (state_.Active() && state_.HasInteractiveOverrides())
     {
         RefreshPreviewFromLive(liveScene);
     }
@@ -420,11 +423,17 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
                                       const std::string_view feedbackStatus,
                                       const std::vector<CommandBatch>& drainedBatches)
 {
+    std::size_t commandCount = 0;
+    for (const CommandBatch& batch : drainedBatches)
+    {
+        commandCount += batch.commands.size();
+    }
+
     const bool commandConfigured = bridge != nullptr && bridge->HasCommandReceiver();
     const bool commandReady = bridge != nullptr && bridge->CommandTransportReady();
     const bool feedbackConfigured = bridge != nullptr && bridge->HasFeedbackSender();
     const bool feedbackReady = bridge != nullptr && bridge->FeedbackTransportReady();
-    const UdpRuntimeBridgeMetrics metrics = bridge != nullptr ? bridge->MetricsSnapshot() : UdpRuntimeBridgeMetrics {};
+    const UdpRuntimeBridgeMetrics metrics = CollectTransportMetrics(bridge, commandCount);
 
     state_.UpdateTransportState(
         commandConfigured,
@@ -435,16 +444,15 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
         std::string(commandStatus),
         std::string(feedbackStatus));
 
-    std::size_t commandCount = 0;
-    for (const CommandBatch& batch : drainedBatches)
-    {
-        commandCount += batch.commands.size();
-    }
-
     state_.NoteCommandTraffic(drainedBatches.size(), commandCount);
     RecordObservedRuntimeState(drainedBatches);
 
     if (!state_.Active())
+    {
+        return;
+    }
+
+    if (!state_.HasInteractiveOverrides())
     {
         return;
     }
@@ -483,7 +491,7 @@ int RuntimeDebugOverlay::PreferredPanelWidth() const noexcept
 
 const SceneRegistry& RuntimeDebugOverlay::RenderScene(const SceneRegistry& liveScene) const noexcept
 {
-    return state_.Active() && preview_.Ready() ? preview_.Scene() : liveScene;
+    return UsesPreviewScene() ? preview_.Scene() : liveScene;
 }
 
 void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
@@ -496,7 +504,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         return;
     }
 
-    const SceneRegistry& displayScene = preview_.Ready() ? preview_.Scene() : liveScene;
+    const SceneRegistry& displayScene = UsesPreviewScene() ? preview_.Scene() : liveScene;
     const auto pages = displayScene.Pages();
 
     auto selectFirstReticle =
@@ -1285,16 +1293,13 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
 
 bool RuntimeDebugOverlay::Activate(const SceneRegistry& liveScene)
 {
+    (void)liveScene;
     state_.Activate();
     state_.ResetInteractiveState();
-
-    if (!RefreshPreviewFromLive(liveScene))
-    {
-        Deactivate();
-        return false;
-    }
-
-    state_.SetTestPanelStatus("Runtime debug mode enabled. All local bypasses start from the current live UDP state.");
+    preview_.Invalidate();
+    transportMetricsRefreshInitialized_ = false;
+    state_.SetTestPanelStatus(
+        "Runtime debug mode enabled. The live scene stays in control until one local bypass is enabled.");
     return true;
 }
 
@@ -1302,6 +1307,7 @@ void RuntimeDebugOverlay::Deactivate()
 {
     state_.Deactivate();
     preview_.Invalidate();
+    transportMetricsRefreshInitialized_ = false;
 }
 
 bool RuntimeDebugOverlay::RefreshPreviewFromLive(const SceneRegistry& liveScene)
@@ -1337,5 +1343,40 @@ void RuntimeDebugOverlay::RecordObservedRuntimeState(const std::vector<CommandBa
                 command);
         }
     }
+}
+
+bool RuntimeDebugOverlay::UsesPreviewScene() const noexcept
+{
+    return state_.Active() && state_.HasInteractiveOverrides() && preview_.Ready();
+}
+
+UdpRuntimeBridgeMetrics RuntimeDebugOverlay::CollectTransportMetrics(const UdpRuntimeBridge* const bridge,
+                                                                    const std::size_t observedCommandCount)
+{
+    if (bridge == nullptr)
+    {
+        return {};
+    }
+
+    UdpRuntimeBridgeMetrics metrics = state_.Transport().metrics;
+    if (!state_.Active())
+    {
+        return metrics;
+    }
+
+    const RuntimeDebugState::Clock::time_point now = RuntimeDebugState::Clock::now();
+    const bool refreshDue =
+        !transportMetricsRefreshInitialized_ ||
+        observedCommandCount > 0U ||
+        now - lastTransportMetricsRefresh_ >= kTransportMetricsRefreshInterval;
+    if (!refreshDue)
+    {
+        return metrics;
+    }
+
+    metrics = bridge->MetricsSnapshot();
+    lastTransportMetricsRefresh_ = now;
+    transportMetricsRefreshInitialized_ = true;
+    return metrics;
 }
 } // namespace mfd::window::debug
