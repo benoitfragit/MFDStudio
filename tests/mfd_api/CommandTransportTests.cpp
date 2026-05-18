@@ -306,6 +306,8 @@ TEST(CommandTransportTests, UdpChannelRequiresRemoteEndpointBeforeSending)
     const std::string payload = "abc";
     EXPECT_FALSE(channel.Send(AsByteView(payload)));
     EXPECT_EQ(channel.LastError(), "UDP remote address is not configured");
+    EXPECT_FALSE(channel.TryReceive().has_value());
+    EXPECT_TRUE(channel.LastError().empty());
 #endif
 }
 
@@ -376,7 +378,7 @@ TEST(CommandTransportTests, UdpChannelDropsDatagramsThatExceedReceiveBuffer)
         }));
 
     EXPECT_FALSE(receiver->TryReceive().has_value());
-    EXPECT_EQ(receiver->LastError(), "UDP datagram exceeded receive buffer and was dropped");
+    EXPECT_TRUE(receiver->LastError().empty());
 #endif
 }
 

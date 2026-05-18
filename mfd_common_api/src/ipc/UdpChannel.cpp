@@ -248,6 +248,7 @@ std::optional<std::vector<std::byte>> UdpChannel::TryReceive()
         const int socketError = WSAGetLastError();
         if (socketError == WSAEWOULDBLOCK)
         {
+            impl_->lastError.clear();
             return std::nullopt;
         }
 
