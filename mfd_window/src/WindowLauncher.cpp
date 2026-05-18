@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include <cmath>
 #include <cstring>
 #include <cstdint>
 #include <exception>
@@ -28,6 +27,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -64,6 +64,7 @@ extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* na
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "RuntimeDebugOverlay.hpp"
+#include "RuntimeFeedbackThrottle.hpp"
 
 #if defined(_WIN32)
 extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
@@ -71,7 +72,6 @@ extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 
 namespace
 {
-constexpr float kStrobeFeedbackIntervalSeconds = 0.020f;
 constexpr unsigned int kCaptureRingSize = 2;
 constexpr std::size_t kMaxCommandsPerFrame = 512;
 constexpr std::size_t kPluginErrorBufferCapacity = 1024U;
@@ -695,6 +695,66 @@ mfd::StrobeFeedbackMagnet ToFeedbackMagnet(const std::optional<mfd::StrobeMagnet
         magnetSummary->reticleId,
         magnetSummary->targetPosition,
         magnetSummary->distance};
+}
+
+bool SameVec2(const mfd::Vec2& lhs, const mfd::Vec2& rhs) noexcept
+{
+    return lhs.x == rhs.x && lhs.y == rhs.y;
+}
+
+bool SameCaptureConfig(const mfd::StrobeCaptureConfig& lhs, const mfd::StrobeCaptureConfig& rhs) noexcept
+{
+    return lhs.shape == rhs.shape &&
+           lhs.radius == rhs.radius &&
+           SameVec2(lhs.size, rhs.size);
+}
+
+bool SameFeedbackMagnet(const mfd::StrobeFeedbackMagnet& lhs, const mfd::StrobeFeedbackMagnet& rhs)
+{
+    return lhs.enabled == rhs.enabled &&
+           lhs.radius == rhs.radius &&
+           lhs.strength == rhs.strength &&
+           lhs.magnetized == rhs.magnetized &&
+           lhs.runtimeReticleId == rhs.runtimeReticleId &&
+           lhs.reticleId == rhs.reticleId &&
+           SameVec2(lhs.targetPosition, rhs.targetPosition) &&
+           lhs.distance == rhs.distance;
+}
+
+bool SameFeedbackCapture(const mfd::StrobeFeedbackCapture& lhs, const mfd::StrobeFeedbackCapture& rhs)
+{
+    return lhs.runtimeReticleId == rhs.runtimeReticleId &&
+           lhs.sourceTemplateTransportId == rhs.sourceTemplateTransportId &&
+           lhs.reticleId == rhs.reticleId &&
+           lhs.sourceTemplateId == rhs.sourceTemplateId &&
+           lhs.label == rhs.label &&
+           lhs.category == rhs.category &&
+           SameVec2(lhs.position, rhs.position) &&
+           lhs.distance == rhs.distance &&
+           lhs.metadata == rhs.metadata;
+}
+
+bool SameOptionalFeedbackCapture(const std::optional<mfd::StrobeFeedbackCapture>& lhs,
+                                 const std::optional<mfd::StrobeFeedbackCapture>& rhs)
+{
+    if (lhs.has_value() != rhs.has_value())
+    {
+        return false;
+    }
+
+    return !lhs.has_value() || SameFeedbackCapture(*lhs, *rhs);
+}
+
+bool SameStrobeFeedbackState(const mfd::StrobeStatusFeedback& lhs, const mfd::StrobeStatusFeedback& rhs)
+{
+    return lhs.pageId == rhs.pageId &&
+           lhs.pageName == rhs.pageName &&
+           lhs.strobeId == rhs.strobeId &&
+           lhs.active == rhs.active &&
+           SameVec2(lhs.position, rhs.position) &&
+           SameCaptureConfig(lhs.capture, rhs.capture) &&
+           SameFeedbackMagnet(lhs.magnet, rhs.magnet) &&
+           SameOptionalFeedbackCapture(lhs.captureResult, rhs.captureResult);
 }
 
 #if defined(_WIN32)
@@ -1342,7 +1402,9 @@ private:
                 scene_.SetActivePage(previousPage);
             }
 
-            strobeFeedbackAccumulator_ = 0.0f;
+            runtimeFeedbackThrottle_.Reset();
+            lastPublishedStrobeFeedbacks_.clear();
+            lastPublishedActivePage_.reset();
             nextStrobeFeedbackSequence_ = 1;
             receivedFirstClientCommand_ = false;
             lastRuntimeError_.clear();
@@ -1515,6 +1577,31 @@ private:
             appliedCommandBatches_);
     }
 
+    [[nodiscard]] std::optional<mfd::StrobeStatusFeedback> BuildStrobeFeedback(const std::string& pageName) const
+    {
+        const auto strobe = scene_.StrobeForPage(pageName);
+        if (!strobe.has_value())
+        {
+            return std::nullopt;
+        }
+
+        mfd::StrobeStatusFeedback feedback;
+        feedback.pageId = strobe->pageId;
+        feedback.pageName = strobe->pageName;
+        feedback.strobeId = strobe->reticleId;
+        feedback.active = strobe->visible;
+        feedback.position = strobe->position;
+        feedback.capture = strobe->capture;
+        feedback.magnet = ToFeedbackMagnet(scene_.StrobeMagnetForPage(pageName));
+
+        if (const auto capture = scene_.CaptureWithStrobe(pageName); capture.has_value())
+        {
+            feedback.captureResult = ToFeedbackCapture(*capture);
+        }
+
+        return feedback;
+    }
+
     void PublishStrobeFeedbacks(const float deltaSeconds)
     {
         if (udpRuntimeBridge_ == nullptr || !udpRuntimeBridge_->FeedbackTransportReady())
@@ -1522,13 +1609,13 @@ private:
             return;
         }
 
-        strobeFeedbackAccumulator_ += std::max(deltaSeconds, 0.0f);
-        if (strobeFeedbackAccumulator_ < kStrobeFeedbackIntervalSeconds)
-        {
-            return;
-        }
-
-        strobeFeedbackAccumulator_ = std::fmod(strobeFeedbackAccumulator_, kStrobeFeedbackIntervalSeconds);
+        runtimeFeedbackThrottle_.Advance(deltaSeconds);
+        const float fastInterval = windowDefinition_.feedbackFastIntervalSeconds;
+        const float heartbeatInterval = windowDefinition_.feedbackHeartbeatIntervalSeconds;
+        const bool changedDue = runtimeFeedbackThrottle_.ShouldSendChanged(fastInterval);
+        const bool heartbeatDue = runtimeFeedbackThrottle_.ShouldSendHeartbeat(heartbeatInterval);
+        bool sentChanged = false;
+        bool sentHeartbeat = false;
 
         for (const mfd::PageSummary& page : scene_.Pages())
         {
@@ -1537,34 +1624,59 @@ private:
                 continue;
             }
 
-            const auto strobe = scene_.StrobeForPage(page.name);
-            if (!strobe.has_value())
+            std::optional<mfd::StrobeStatusFeedback> feedback = BuildStrobeFeedback(page.name);
+            if (!feedback.has_value())
             {
                 continue;
             }
 
-            mfd::StrobeStatusFeedback feedback;
-            feedback.sequence = nextStrobeFeedbackSequence_++;
-            feedback.pageId = strobe->pageId;
-            feedback.pageName = strobe->pageName;
-            feedback.strobeId = strobe->reticleId;
-            feedback.active = strobe->visible;
-            feedback.position = strobe->position;
-            feedback.capture = strobe->capture;
-            feedback.magnet = ToFeedbackMagnet(scene_.StrobeMagnetForPage(page.name));
-
-            if (const auto capture = scene_.CaptureWithStrobe(page.name); capture.has_value())
+            const auto previous = lastPublishedStrobeFeedbacks_.find(page.name);
+            const bool changed = previous == lastPublishedStrobeFeedbacks_.end() ||
+                                 !SameStrobeFeedbackState(previous->second, *feedback);
+            if (changed && changedDue)
             {
-                feedback.captureResult = ToFeedbackCapture(*capture);
+                feedback->sequence = nextStrobeFeedbackSequence_++;
+                udpRuntimeBridge_->EnqueueStrobeFeedback(*feedback);
+                lastPublishedStrobeFeedbacks_[page.name] = std::move(*feedback);
+                sentChanged = true;
             }
-
-            udpRuntimeBridge_->EnqueueStrobeFeedback(std::move(feedback));
+            else if (!changed && heartbeatDue)
+            {
+                feedback->sequence = nextStrobeFeedbackSequence_++;
+                udpRuntimeBridge_->EnqueueStrobeFeedback(*feedback);
+                sentHeartbeat = true;
+            }
         }
 
-        mfd::ActivePageFeedback activePageFeedback;
-        activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
-        activePageFeedback.pageName = scene_.ActivePageName();
-        udpRuntimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
+        const std::string activePageName = scene_.ActivePageName();
+        const bool activePageChanged =
+            !lastPublishedActivePage_.has_value() || *lastPublishedActivePage_ != activePageName;
+        if (activePageChanged && changedDue)
+        {
+            mfd::ActivePageFeedback activePageFeedback;
+            activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
+            activePageFeedback.pageName = activePageName;
+            udpRuntimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
+            lastPublishedActivePage_ = activePageName;
+            sentChanged = true;
+        }
+        else if (!activePageChanged && heartbeatDue)
+        {
+            mfd::ActivePageFeedback activePageFeedback;
+            activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
+            activePageFeedback.pageName = activePageName;
+            udpRuntimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
+            sentHeartbeat = true;
+        }
+
+        if (sentChanged)
+        {
+            runtimeFeedbackThrottle_.MarkChangedSent(fastInterval);
+        }
+        else if (sentHeartbeat)
+        {
+            runtimeFeedbackThrottle_.MarkHeartbeatSent(heartbeatInterval);
+        }
 
         if (!udpRuntimeBridge_->LastFeedbackStatus().empty())
         {
@@ -1672,7 +1784,9 @@ private:
     std::unique_ptr<mfd::UdpRuntimeBridge> udpRuntimeBridge_ {};
     std::vector<mfd::CommandBatch> pendingCommandBatches_ {};
     std::vector<mfd::CommandBatch> appliedCommandBatches_ {};
-    float strobeFeedbackAccumulator_ = 0.0f;
+    mfd::window::RuntimeFeedbackThrottle runtimeFeedbackThrottle_ {};
+    std::unordered_map<std::string, mfd::StrobeStatusFeedback> lastPublishedStrobeFeedbacks_ {};
+    std::optional<std::string> lastPublishedActivePage_ {};
     std::uint32_t nextStrobeFeedbackSequence_ = 1;
     bool receivedFirstClientCommand_ = false;
     int lastObservedRenderWidth_ = 0;

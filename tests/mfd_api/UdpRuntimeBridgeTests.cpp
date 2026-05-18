@@ -585,6 +585,41 @@ TEST(UdpRuntimeBridgeTests, SendsQueuedActivePageFeedbackFromWorkerThread)
     EXPECT_FALSE(bridge.IsRunning());
 }
 
+TEST(UdpRuntimeBridgeTests, CountsFeedbackQueueOverflowDrops)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+    receiverState->ready = false;
+    senderState->ready = false;
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    EXPECT_FALSE(bridge.Start());
+    ASSERT_TRUE(bridge.HasFeedbackSender());
+
+    for (std::size_t index = 0; index < 260U; ++index)
+    {
+        mfd::ActivePageFeedback feedback;
+        feedback.sequence = static_cast<std::uint32_t>(index + 1U);
+        feedback.pageName = "Page1";
+        bridge.EnqueueActivePageFeedback(std::move(feedback));
+    }
+
+    const mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.feedbackQueued, 260U);
+    EXPECT_EQ(metrics.feedbackDropped, 4U);
+    EXPECT_EQ(metrics.outboundQueueDepth, 256U);
+    bridge.Stop();
+}
+
 TEST(UdpRuntimeBridgeTests, ReportsInboundBatchOverflowUsingBatchTerminology)
 {
     auto receiverState = std::make_shared<FakeChannelState>();

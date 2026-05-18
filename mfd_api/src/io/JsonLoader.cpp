@@ -2386,6 +2386,59 @@ WindowFeedbackTransportConfig ParseWindowFeedbackTransportConfig(const json& roo
     return config;
 }
 
+float ParsePositiveIntervalSeconds(const json& node, const char* fieldName)
+{
+    const float value = ParseFiniteFloat(node, fieldName);
+    if (value <= 0.0f)
+    {
+        throw std::runtime_error(std::string(fieldName) + " must be strictly positive");
+    }
+
+    return value;
+}
+
+float ParsePositiveIntervalMilliseconds(const json& node, const char* fieldName)
+{
+    return ParsePositiveIntervalSeconds(node, fieldName) / 1000.0f;
+}
+
+void ParseFeedbackCadence(const json& root, WindowAssetDefinition& window)
+{
+    const json* feedback = FindField(root,
+                                     {"feedback", "feedbackTransport", "feedbackTransports", "strobeFeedback", "events"});
+    if (feedback == nullptr || !feedback->is_object())
+    {
+        return;
+    }
+
+    if (const json* fastSeconds = FindField(*feedback, {"fastIntervalSeconds", "changedIntervalSeconds"}))
+    {
+        window.feedbackFastIntervalSeconds =
+            ParsePositiveIntervalSeconds(*fastSeconds, "feedback.fastIntervalSeconds");
+    }
+    else if (const json* fastMilliseconds = FindField(*feedback, {"fastIntervalMs", "changedIntervalMs"}))
+    {
+        window.feedbackFastIntervalSeconds =
+            ParsePositiveIntervalMilliseconds(*fastMilliseconds, "feedback.fastIntervalMs");
+    }
+
+    if (const json* heartbeatSeconds = FindField(*feedback, {"heartbeatIntervalSeconds", "unchangedIntervalSeconds"}))
+    {
+        window.feedbackHeartbeatIntervalSeconds =
+            ParsePositiveIntervalSeconds(*heartbeatSeconds, "feedback.heartbeatIntervalSeconds");
+    }
+    else if (const json* heartbeatMilliseconds = FindField(*feedback, {"heartbeatIntervalMs", "unchangedIntervalMs"}))
+    {
+        window.feedbackHeartbeatIntervalSeconds =
+            ParsePositiveIntervalMilliseconds(*heartbeatMilliseconds, "feedback.heartbeatIntervalMs");
+    }
+
+    if (window.feedbackHeartbeatIntervalSeconds < window.feedbackFastIntervalSeconds)
+    {
+        throw std::runtime_error("feedback.heartbeatIntervalSeconds must be greater than or equal to feedback.fastIntervalSeconds");
+    }
+}
+
 const json& ExtractPageNode(const json& root)
 {
     if (const json* page = FindField(root, {"page"}))
@@ -2464,6 +2517,7 @@ WindowAssetDefinition ParseWindowAssetDefinition(const json& root,
     window.pageFiles = ParsePageFileList(root, windowFile.parent_path());
     window.commandTransports = ParseWindowCommandTransportConfig(root);
     window.feedbackTransports = ParseWindowFeedbackTransportConfig(root);
+    ParseFeedbackCadence(root, window);
     return window;
 }
 

@@ -6,13 +6,15 @@ set(MFD_WINDOW_LAUNCHER_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugInspectorFrameState.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugOverlay.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugPreview.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugState.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugState.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeFeedbackThrottle.hpp)
 
 set(MFD_WINDOW_LAUNCHER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/WindowLauncher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugOverlay.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugPreview.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugState.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugState.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeFeedbackThrottle.cpp)
 
 add_library(mfd_window_launcher STATIC
     ${MFD_WINDOW_LAUNCHER_HEADERS}

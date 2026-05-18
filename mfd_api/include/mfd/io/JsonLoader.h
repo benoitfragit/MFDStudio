@@ -54,6 +54,10 @@ struct WindowAssetDefinition
     WindowCommandTransportConfig commandTransports {};
     /** @brief Feedback transport configuration exposed by the window. */
     WindowFeedbackTransportConfig feedbackTransports {};
+    /** @brief Minimum seconds between changed runtime feedback bursts. */
+    float feedbackFastIntervalSeconds = 0.020f;
+    /** @brief Minimum seconds between unchanged runtime feedback heartbeat bursts. */
+    float feedbackHeartbeatIntervalSeconds = 0.350f;
 };
 
 /**

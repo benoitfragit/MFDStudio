@@ -136,6 +136,8 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
     }
   },
   "feedback": {
+    "fastIntervalMs": 25,
+    "heartbeatIntervalMs": 400,
     "udp": {
       "enabled": true,
       "address": "127.0.0.1",
@@ -213,6 +215,8 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
     ASSERT_TRUE(loaded.window.feedbackTransports.udp.has_value());
     EXPECT_EQ(loaded.window.commandTransports.udp->port, 48000);
     EXPECT_EQ(loaded.window.feedbackTransports.udp->port, 48001);
+    EXPECT_FLOAT_EQ(loaded.window.feedbackFastIntervalSeconds, 0.025f);
+    EXPECT_FLOAT_EQ(loaded.window.feedbackHeartbeatIntervalSeconds, 0.400f);
     EXPECT_EQ(loaded.window.reticleLibraryFolder.lexically_normal(), reticleFolder.lexically_normal());
     ASSERT_EQ(loaded.window.pageFiles.size(), 1U);
     EXPECT_EQ(loaded.window.pageFiles.front().lexically_normal(), pageFile.lexically_normal());
