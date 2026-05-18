@@ -6,12 +6,14 @@ set(MFD_RUNTIME_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandProcessor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/UdpRuntimeBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/UserSpaceProjector.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/DocumentSemanticValidator.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/SceneRegistry.h)
 
 set(MFD_RUNTIME_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandProcessor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UdpRuntimeBridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UserSpaceProjector.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/DocumentSemanticValidator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/SceneRegistry.cpp)
 
 add_library(mfd_runtime STATIC
@@ -58,6 +60,7 @@ target_link_libraries(mfd_io_json
         mfd::model
         mfd::transport
     PRIVATE
+        mfd::runtime
         nlohmann_json::nlohmann_json)
 
 set(MFD_RENDER_PUBLIC_HEADERS

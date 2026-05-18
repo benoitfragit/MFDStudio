@@ -550,6 +550,51 @@ TEST(JsonLoaderTests, LoadDocumentParsesInlineAndTemplateReticleClipping)
     EXPECT_EQ(loaded.pages.front().staticReticles[2].clipping.primitiveId, "clip");
 }
 
+TEST(JsonLoaderTests, LoadDocumentReportsSemanticClippingDiagnostics)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    std::filesystem::create_directories(workspace.Path() / "reticles");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": [
+        {
+          "id": "adi_group",
+          "layerId": "default",
+          "clipping": { "mode": "inner" },
+          "elements": [
+            { "id": "mask", "type": "circle", "radius": 0.1 }
+          ]
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(
+        {
+            try
+            {
+                static_cast<void>(loader.LoadDocument(pagesFile));
+            }
+            catch (const std::runtime_error& exception)
+            {
+                EXPECT_NE(std::string(exception.what()).find("MFD016"), std::string::npos);
+                throw;
+            }
+        },
+        std::runtime_error);
+}
+
 TEST(JsonLoaderTests, LoadDocumentParsesExposedPrimitiveFlags)
 {
     TemporaryFolder workspace;

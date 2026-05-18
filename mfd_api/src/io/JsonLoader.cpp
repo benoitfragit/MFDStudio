@@ -24,6 +24,7 @@
 
 #include "json/JsonNumberParsing.h"
 #include "json/JsonValueHelpers.h"
+#include "mfd/runtime/DocumentSemanticValidator.h"
 
 namespace mfd
 {
@@ -1863,11 +1864,6 @@ ReticleClipState ParseReticleClipState(const json& node)
         clipping.primitiveId = primitiveNode->get<std::string>();
     }
 
-    if (clipping.mode != ReticleClipMode::None && clipping.primitiveId.empty())
-    {
-        throw std::runtime_error("clipping requires a primitive id when enabled");
-    }
-
     return clipping;
 }
 
@@ -3031,6 +3027,7 @@ LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesys
                                                     loaded.document);
     }
 
+    ThrowIfDocumentSemanticsInvalid(loaded.document);
     return loaded;
 }
 
@@ -3075,6 +3072,7 @@ MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) con
     }
 
     ApplyDefaultPageName(document, defaultPageName, "pages JSON");
+    ThrowIfDocumentSemanticsInvalid(document);
     return document;
 }
 } // namespace mfd

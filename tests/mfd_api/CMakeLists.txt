@@ -12,6 +12,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/CommandProcessorTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CommandTransportTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CommandTypesTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/DocumentSemanticValidatorTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedTransportMapTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonNumberParsingTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
