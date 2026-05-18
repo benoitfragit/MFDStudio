@@ -174,6 +174,38 @@ mfd::CommandBatch MakeResetBatch(const std::uint32_t sequence, const std::size_t
 
     return batch;
 }
+
+/**
+ * @brief Builds one reticle position update command for coalescing tests.
+ */
+mfd::UserCommand MakeReticlePositionCommand(const float x)
+{
+    mfd::UpdateReticleCommand command;
+    command.target.pageId = 11U;
+    command.target.reticleId = 23U;
+    command.patch.position = mfd::Vec2 {x, 0.0f};
+    return command;
+}
+
+/**
+ * @brief Builds one window brightness update command for coalescing tests.
+ */
+mfd::UserCommand MakeWindowBrightnessCommand(const float brightness)
+{
+    mfd::UpdateWindowDisplayCommand command;
+    command.patch.brightness = brightness;
+    return command;
+}
+
+/**
+ * @brief Builds one window disabled-state update command for coalescing tests.
+ */
+mfd::UserCommand MakeWindowDisabledCommand(const bool disabled)
+{
+    mfd::UpdateWindowDisplayCommand command;
+    command.patch.disabled = disabled;
+    return command;
+}
 } // namespace
 
 TEST(UdpRuntimeBridgeTests, DrainsReceivedBatchesFromWorkerQueue)
@@ -348,6 +380,137 @@ TEST(UdpRuntimeBridgeTests, DrainReceivedBatchesForCommandBudgetDoesNotSplitOver
     EXPECT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 2U), 1U);
     ASSERT_EQ(drained.size(), 1U);
     EXPECT_EQ(drained.front().sequence, 9U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescesRepeatedStateLikeCommandsInQueuedBatch)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 31U;
+    batch.commands.push_back(MakeReticlePositionCommand(0.1f));
+    batch.commands.push_back(MakeReticlePositionCommand(0.2f));
+    batch.commands.push_back(MakeReticlePositionCommand(0.3f));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+
+    const auto* command = std::get_if<mfd::UpdateReticleCommand>(&drained.front().commands.front());
+    ASSERT_NE(command, nullptr);
+    ASSERT_TRUE(command->patch.position.has_value());
+    EXPECT_FLOAT_EQ(command->patch.position->x, 0.3f);
+
+    const mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.coalescedCommands, 2U);
+    EXPECT_EQ(metrics.drainedCommands, 1U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingPreservesEventLikeCommandBarriers)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 32U;
+    batch.commands.push_back(MakeReticlePositionCommand(0.1f));
+    batch.commands.push_back(mfd::ResetWindowCommand {});
+    batch.commands.push_back(MakeReticlePositionCommand(0.2f));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 3U);
+    EXPECT_NE(std::get_if<mfd::UpdateReticleCommand>(&drained.front().commands[0]), nullptr);
+    EXPECT_NE(std::get_if<mfd::ResetWindowCommand>(&drained.front().commands[1]), nullptr);
+    EXPECT_NE(std::get_if<mfd::UpdateReticleCommand>(&drained.front().commands[2]), nullptr);
+    EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 0U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingMergesStatePatchFields)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 33U;
+    batch.commands.push_back(MakeWindowBrightnessCommand(0.35f));
+    batch.commands.push_back(MakeWindowDisabledCommand(true));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+
+    const auto* command = std::get_if<mfd::UpdateWindowDisplayCommand>(&drained.front().commands.front());
+    ASSERT_NE(command, nullptr);
+    ASSERT_TRUE(command->patch.brightness.has_value());
+    ASSERT_TRUE(command->patch.disabled.has_value());
+    EXPECT_FLOAT_EQ(*command->patch.brightness, 0.35f);
+    EXPECT_TRUE(*command->patch.disabled);
+    EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 1U);
     bridge.Stop();
 }
 

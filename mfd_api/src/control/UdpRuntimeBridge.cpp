@@ -20,8 +20,11 @@
 #include <exception>
 #include <functional>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <thread>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 #include "mfd/control/CommandTransport.h"
@@ -38,6 +41,24 @@ constexpr std::size_t kMaxPacketsPerPump = 64;
 constexpr std::size_t kMaxQueuedBatches = 8192;
 constexpr std::size_t kMaxQueuedFeedback = 256;
 constexpr auto kIdleWait = std::chrono::milliseconds(2);
+
+enum class CommandCoalescingKind
+{
+    ActivatePage,
+    SetPageView,
+    UpdateWindowDisplay,
+    UpdateReticle,
+    UpdateStrobe
+};
+
+struct CommandCoalescingKey
+{
+    CommandCoalescingKind kind = CommandCoalescingKind::ActivatePage;
+    std::string page;
+    std::string reticle;
+    TransportId pageId = 0;
+    TransportId reticleId = 0;
+};
 
 struct UdpRuntimeCounters
 {
@@ -56,6 +77,35 @@ struct UdpRuntimeCounters
     std::atomic<std::uint64_t> feedbackQueued {0};
     std::atomic<std::uint64_t> feedbackSent {0};
     std::atomic<std::uint64_t> feedbackDropped {0};
+};
+
+bool operator==(const CommandCoalescingKey& lhs, const CommandCoalescingKey& rhs) noexcept
+{
+    return lhs.kind == rhs.kind &&
+           lhs.page == rhs.page &&
+           lhs.reticle == rhs.reticle &&
+           lhs.pageId == rhs.pageId &&
+           lhs.reticleId == rhs.reticleId;
+}
+
+template <typename Value>
+void HashCombine(std::size_t& seed, const Value& value) noexcept
+{
+    seed ^= std::hash<Value> {}(value) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+}
+
+struct CommandCoalescingKeyHash
+{
+    std::size_t operator()(const CommandCoalescingKey& key) const noexcept
+    {
+        std::size_t seed = 0U;
+        HashCombine(seed, static_cast<std::size_t>(key.kind));
+        HashCombine(seed, key.page);
+        HashCombine(seed, key.reticle);
+        HashCombine(seed, key.pageId);
+        HashCombine(seed, key.reticleId);
+        return seed;
+    }
 };
 
 std::uint64_t LoadCounter(const std::atomic<std::uint64_t>& counter) noexcept
@@ -77,6 +127,340 @@ std::size_t CountCommands(const CommandBatch& batch) noexcept
 {
     return batch.commands.size();
 }
+
+void MergePrimitivePatch(PrimitivePatch& target, const PrimitivePatch& source)
+{
+    if (source.visible.has_value())
+    {
+        target.visible = source.visible;
+    }
+    if (source.position.has_value())
+    {
+        target.position = source.position;
+    }
+    if (source.rotationDegrees.has_value())
+    {
+        target.rotationDegrees = source.rotationDegrees;
+    }
+    if (source.scale.has_value())
+    {
+        target.scale = source.scale;
+    }
+    if (source.color.has_value())
+    {
+        target.color = source.color;
+    }
+    if (source.fillColor.has_value())
+    {
+        target.fillColor = source.fillColor;
+    }
+    if (source.filled.has_value())
+    {
+        target.filled = source.filled;
+    }
+    if (source.thickness.has_value())
+    {
+        target.thickness = source.thickness;
+    }
+    if (source.lineStyle.has_value())
+    {
+        target.lineStyle = source.lineStyle;
+    }
+    if (source.text.has_value())
+    {
+        target.text = source.text;
+    }
+    if (source.letterSpacing.has_value())
+    {
+        target.letterSpacing = source.letterSpacing;
+    }
+    if (source.lineStart.has_value())
+    {
+        target.lineStart = source.lineStart;
+    }
+    if (source.lineEnd.has_value())
+    {
+        target.lineEnd = source.lineEnd;
+    }
+    if (source.radius.has_value())
+    {
+        target.radius = source.radius;
+    }
+    if (source.innerRadius.has_value())
+    {
+        target.innerRadius = source.innerRadius;
+    }
+    if (source.outerRadius.has_value())
+    {
+        target.outerRadius = source.outerRadius;
+    }
+    if (source.width.has_value())
+    {
+        target.width = source.width;
+    }
+    if (source.height.has_value())
+    {
+        target.height = source.height;
+    }
+    if (source.size.has_value())
+    {
+        target.size = source.size;
+    }
+    if (source.points.has_value())
+    {
+        target.points = source.points;
+    }
+    if (source.closed.has_value())
+    {
+        target.closed = source.closed;
+    }
+    if (source.segments.has_value())
+    {
+        target.segments = source.segments;
+    }
+    if (source.startAngleDegrees.has_value())
+    {
+        target.startAngleDegrees = source.startAngleDegrees;
+    }
+    if (source.endAngleDegrees.has_value())
+    {
+        target.endAngleDegrees = source.endAngleDegrees;
+    }
+}
+
+void MergeReticlePatch(ReticlePatch& target, const ReticlePatch& source)
+{
+    if (source.visible.has_value())
+    {
+        target.visible = source.visible;
+    }
+    if (source.blinkEnabled.has_value())
+    {
+        target.blinkEnabled = source.blinkEnabled;
+    }
+    if (source.blinkType.has_value())
+    {
+        target.blinkType = source.blinkType;
+    }
+    if (source.blinkTypeId.has_value())
+    {
+        target.blinkTypeId = source.blinkTypeId;
+    }
+    if (source.position.has_value())
+    {
+        target.position = source.position;
+    }
+    if (source.rotationDegrees.has_value())
+    {
+        target.rotationDegrees = source.rotationDegrees;
+    }
+    if (source.color.has_value())
+    {
+        target.color = source.color;
+    }
+    if (source.thickness.has_value())
+    {
+        target.thickness = source.thickness;
+    }
+    if (source.text.has_value())
+    {
+        target.text = source.text;
+    }
+    if (source.letterSpacing.has_value())
+    {
+        target.letterSpacing = source.letterSpacing;
+    }
+
+    for (const auto& entry : source.texts)
+    {
+        target.texts[entry.first] = entry.second;
+    }
+
+    for (const auto& entry : source.textsById)
+    {
+        target.textsById[entry.first] = entry.second;
+    }
+
+    for (const auto& entry : source.letterSpacings)
+    {
+        target.letterSpacings[entry.first] = entry.second;
+    }
+
+    for (const auto& entry : source.letterSpacingsById)
+    {
+        target.letterSpacingsById[entry.first] = entry.second;
+    }
+
+    for (const auto& entry : source.primitivePatches)
+    {
+        PrimitivePatch& targetPatch = target.primitivePatches[entry.first];
+        MergePrimitivePatch(targetPatch, entry.second);
+    }
+
+    for (const auto& entry : source.primitivePatchesById)
+    {
+        PrimitivePatch& targetPatch = target.primitivePatchesById[entry.first];
+        MergePrimitivePatch(targetPatch, entry.second);
+    }
+}
+
+void MergeWindowDisplayPatch(WindowDisplayPatch& target, const WindowDisplayPatch& source)
+{
+    if (source.invertColors.has_value())
+    {
+        target.invertColors = source.invertColors;
+    }
+    if (source.brightness.has_value())
+    {
+        target.brightness = source.brightness;
+    }
+    if (source.disabled.has_value())
+    {
+        target.disabled = source.disabled;
+    }
+}
+
+void MergeStrobeCommand(UpdateStrobeCommand& target, const UpdateStrobeCommand& source)
+{
+    if (source.active.has_value())
+    {
+        target.active = source.active;
+    }
+    if (source.position.has_value())
+    {
+        target.position = source.position;
+    }
+}
+
+struct CommandCoalescingKeyVisitor
+{
+    std::optional<CommandCoalescingKey> operator()(const ActivatePageCommand&) const
+    {
+        return CommandCoalescingKey {CommandCoalescingKind::ActivatePage};
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const SetPageViewCommand& command) const
+    {
+        CommandCoalescingKey key;
+        key.kind = CommandCoalescingKind::SetPageView;
+        key.page = command.page;
+        key.pageId = command.pageId;
+        return key;
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const UpdateWindowDisplayCommand&) const
+    {
+        return CommandCoalescingKey {CommandCoalescingKind::UpdateWindowDisplay};
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const UpdateReticleCommand& command) const
+    {
+        CommandCoalescingKey key;
+        key.kind = CommandCoalescingKind::UpdateReticle;
+        key.page = command.target.page;
+        key.reticle = command.target.reticle;
+        key.pageId = command.target.pageId;
+        key.reticleId = command.target.reticleId;
+        return key;
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const UpdateStrobeCommand& command) const
+    {
+        CommandCoalescingKey key;
+        key.kind = CommandCoalescingKind::UpdateStrobe;
+        key.page = command.page;
+        key.pageId = command.pageId;
+        return key;
+    }
+
+    template <typename Command>
+    std::optional<CommandCoalescingKey> operator()(const Command&) const
+    {
+        return std::nullopt;
+    }
+};
+
+std::optional<CommandCoalescingKey> MakeCommandCoalescingKey(const UserCommand& command)
+{
+    return std::visit(CommandCoalescingKeyVisitor {}, command);
+}
+
+void MergeCoalescedCommand(UserCommand& target, const UserCommand& source)
+{
+    if (const auto* sourceCommand = std::get_if<UpdateWindowDisplayCommand>(&source))
+    {
+        auto* targetCommand = std::get_if<UpdateWindowDisplayCommand>(&target);
+        if (targetCommand != nullptr)
+        {
+            MergeWindowDisplayPatch(targetCommand->patch, sourceCommand->patch);
+            return;
+        }
+    }
+
+    if (const auto* sourceCommand = std::get_if<UpdateReticleCommand>(&source))
+    {
+        auto* targetCommand = std::get_if<UpdateReticleCommand>(&target);
+        if (targetCommand != nullptr)
+        {
+            MergeReticlePatch(targetCommand->patch, sourceCommand->patch);
+            return;
+        }
+    }
+
+    if (const auto* sourceCommand = std::get_if<UpdateStrobeCommand>(&source))
+    {
+        auto* targetCommand = std::get_if<UpdateStrobeCommand>(&target);
+        if (targetCommand != nullptr)
+        {
+            MergeStrobeCommand(*targetCommand, *sourceCommand);
+            return;
+        }
+    }
+
+    target = source;
+}
+
+class CommandCoalescer
+{
+public:
+    std::size_t Coalesce(CommandBatch& batch) const
+    {
+        if (batch.commands.size() < 2U)
+        {
+            return 0;
+        }
+
+        std::vector<UserCommand> commands;
+        commands.reserve(batch.commands.size());
+        std::unordered_map<CommandCoalescingKey, std::size_t, CommandCoalescingKeyHash> indexes;
+        std::size_t coalescedCommands = 0;
+
+        for (const UserCommand& command : batch.commands)
+        {
+            const std::optional<CommandCoalescingKey> key = MakeCommandCoalescingKey(command);
+            if (!key.has_value())
+            {
+                indexes.clear();
+                commands.push_back(command);
+                continue;
+            }
+
+            const auto iterator = indexes.find(*key);
+            if (iterator == indexes.end())
+            {
+                indexes.emplace(*key, commands.size());
+                commands.push_back(command);
+                continue;
+            }
+
+            MergeCoalescedCommand(commands[iterator->second], command);
+            ++coalescedCommands;
+        }
+
+        batch.commands = std::move(commands);
+        return coalescedCommands;
+    }
+};
 
 std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
 {
@@ -164,6 +548,12 @@ struct UdpRuntimeBridge::Impl
         if (batch.commands.empty())
         {
             return;
+        }
+
+        const std::size_t coalescedCommandCount = CommandCoalescer {}.Coalesce(batch);
+        if (coalescedCommandCount > 0U)
+        {
+            AddCounter(counters.coalescedCommands, static_cast<std::uint64_t>(coalescedCommandCount));
         }
 
         std::lock_guard lock(inboundMutex);
