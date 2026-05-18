@@ -195,6 +195,50 @@ TEST(UdpRuntimeBridgeTests, DrainsReceivedBatchesFromWorkerQueue)
     EXPECT_EQ(drained.front().mappingHash, "map_hash");
     ASSERT_EQ(drained.front().commands.size(), 1U);
     EXPECT_NE(std::get_if<mfd::ResetWindowCommand>(&drained.front().commands.front()), nullptr);
+    const mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.receivedPackets, 1U);
+    EXPECT_GT(metrics.receivedBytes, 0U);
+    EXPECT_EQ(metrics.decodedBatches, 1U);
+    EXPECT_EQ(metrics.decodeErrors, 0U);
+    EXPECT_EQ(metrics.queuedBatches, 1U);
+    EXPECT_EQ(metrics.drainedBatches, 1U);
+    EXPECT_EQ(metrics.drainedCommands, 1U);
+    EXPECT_EQ(metrics.inboundQueueDepth, 0U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, MetricsSnapshotCountsDecodeErrorsAndQueueDepth)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    receiverState->PushInbound(ToBytes("not a command envelope"));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().decodeErrors == 1U;
+        }));
+
+    const mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.receivedPackets, 1U);
+    EXPECT_GT(metrics.receivedBytes, 0U);
+    EXPECT_EQ(metrics.decodedBatches, 0U);
+    EXPECT_EQ(metrics.queuedBatches, 0U);
+    EXPECT_EQ(metrics.inboundQueueDepth, 0U);
     bridge.Stop();
 }
 
@@ -262,6 +306,10 @@ TEST(UdpRuntimeBridgeTests, SendsQueuedActivePageFeedbackFromWorkerThread)
         }));
 
     bridge.Stop();
+    const mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.feedbackQueued, 1U);
+    EXPECT_EQ(metrics.feedbackSent, 1U);
+    EXPECT_EQ(metrics.feedbackDropped, 0U);
     EXPECT_FALSE(bridge.IsRunning());
 }
 

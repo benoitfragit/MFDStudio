@@ -11,9 +11,11 @@
 #include "mfd/control/UdpRuntimeBridge.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <exception>
 #include <functional>
@@ -36,6 +38,45 @@ constexpr std::size_t kMaxPacketsPerPump = 64;
 constexpr std::size_t kMaxQueuedBatches = 8192;
 constexpr std::size_t kMaxQueuedFeedback = 256;
 constexpr auto kIdleWait = std::chrono::milliseconds(2);
+
+struct UdpRuntimeCounters
+{
+    std::atomic<std::uint64_t> receivedPackets {0};
+    std::atomic<std::uint64_t> receivedBytes {0};
+    std::atomic<std::uint64_t> decodedBatches {0};
+    std::atomic<std::uint64_t> decodeErrors {0};
+    std::atomic<std::uint64_t> queuedBatches {0};
+    std::atomic<std::uint64_t> droppedBatches {0};
+    std::atomic<std::uint64_t> drainedBatches {0};
+    std::atomic<std::uint64_t> drainedCommands {0};
+    std::atomic<std::uint64_t> appliedCommands {0};
+    std::atomic<std::uint64_t> skippedCommands {0};
+    std::atomic<std::uint64_t> coalescedCommands {0};
+    std::atomic<std::uint64_t> truncatedBatches {0};
+    std::atomic<std::uint64_t> feedbackQueued {0};
+    std::atomic<std::uint64_t> feedbackSent {0};
+    std::atomic<std::uint64_t> feedbackDropped {0};
+};
+
+std::uint64_t LoadCounter(const std::atomic<std::uint64_t>& counter) noexcept
+{
+    return counter.load(std::memory_order_relaxed);
+}
+
+void AddCounter(std::atomic<std::uint64_t>& counter, const std::uint64_t amount) noexcept
+{
+    counter.fetch_add(amount, std::memory_order_relaxed);
+}
+
+void IncrementCounter(std::atomic<std::uint64_t>& counter) noexcept
+{
+    AddCounter(counter, 1U);
+}
+
+std::size_t CountCommands(const CommandBatch& batch) noexcept
+{
+    return batch.commands.size();
+}
 
 std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
 {
@@ -70,6 +111,7 @@ struct UdpRuntimeBridge::Impl
 
     std::deque<CommandBatch> inboundBatches;
     std::deque<FeedbackPayload> outboundFeedback;
+    UdpRuntimeCounters counters;
 
     mutable std::mutex stateMutex;
     mutable std::mutex inboundMutex;
@@ -138,10 +180,12 @@ struct UdpRuntimeBridge::Impl
 
         if (overflow > 0U)
         {
+            AddCounter(counters.droppedBatches, static_cast<std::uint64_t>(overflow));
             SetCommandStatus("UDP command batch queue overflow, dropping oldest batches");
         }
 
         inboundBatches.push_back(std::move(batch));
+        IncrementCounter(counters.queuedBatches);
     }
 
     bool FlushQueuedFeedback()
@@ -174,19 +218,23 @@ struct UdpRuntimeBridge::Impl
                 const auto* payloadBytes = reinterpret_cast<const std::byte*>(payload.data());
                 if (!feedbackSender->Send(ByteView(payloadBytes, payload.size())))
                 {
+                    IncrementCounter(counters.feedbackDropped);
                     SetFeedbackStatus(feedbackSender->LastError());
                     continue;
                 }
 
+                IncrementCounter(counters.feedbackSent);
                 SetFeedbackStatus("UDP runtime feedback sent for " + DescribeFeedbackTarget(feedback));
                 sentAny = true;
             }
             catch (const std::exception& exception)
             {
+                IncrementCounter(counters.feedbackDropped);
                 SetFeedbackStatus(exception.what());
             }
             catch (...)
             {
+                IncrementCounter(counters.feedbackDropped);
                 SetFeedbackStatus("Unknown exception while sending runtime feedback");
             }
         }
@@ -213,16 +261,20 @@ struct UdpRuntimeBridge::Impl
                 }
 
                 receivedAny = true;
+                IncrementCounter(counters.receivedPackets);
+                AddCounter(counters.receivedBytes, static_cast<std::uint64_t>(payload->size()));
 
                 const auto* raw = reinterpret_cast<const char*>(payload->data());
                 std::string error;
                 auto batch = DeserializeCommandBatch(std::string_view(raw, payload->size()), &error);
                 if (!batch.has_value())
                 {
+                    IncrementCounter(counters.decodeErrors);
                     SetCommandStatus(error);
                     continue;
                 }
 
+                IncrementCounter(counters.decodedBatches);
                 PushQueuedBatch(std::move(*batch));
             }
             catch (const std::exception& exception)
@@ -467,6 +519,43 @@ bool UdpRuntimeBridge::FeedbackTransportReady() const noexcept
     return impl_->feedbackReady;
 }
 
+UdpRuntimeBridgeMetrics UdpRuntimeBridge::MetricsSnapshot() const
+{
+    UdpRuntimeBridgeMetrics snapshot;
+    if (impl_ == nullptr)
+    {
+        return snapshot;
+    }
+
+    snapshot.receivedPackets = LoadCounter(impl_->counters.receivedPackets);
+    snapshot.receivedBytes = LoadCounter(impl_->counters.receivedBytes);
+    snapshot.decodedBatches = LoadCounter(impl_->counters.decodedBatches);
+    snapshot.decodeErrors = LoadCounter(impl_->counters.decodeErrors);
+    snapshot.queuedBatches = LoadCounter(impl_->counters.queuedBatches);
+    snapshot.droppedBatches = LoadCounter(impl_->counters.droppedBatches);
+    snapshot.drainedBatches = LoadCounter(impl_->counters.drainedBatches);
+    snapshot.drainedCommands = LoadCounter(impl_->counters.drainedCommands);
+    snapshot.appliedCommands = LoadCounter(impl_->counters.appliedCommands);
+    snapshot.skippedCommands = LoadCounter(impl_->counters.skippedCommands);
+    snapshot.coalescedCommands = LoadCounter(impl_->counters.coalescedCommands);
+    snapshot.truncatedBatches = LoadCounter(impl_->counters.truncatedBatches);
+    snapshot.feedbackQueued = LoadCounter(impl_->counters.feedbackQueued);
+    snapshot.feedbackSent = LoadCounter(impl_->counters.feedbackSent);
+    snapshot.feedbackDropped = LoadCounter(impl_->counters.feedbackDropped);
+
+    {
+        std::lock_guard lock(impl_->inboundMutex);
+        snapshot.inboundQueueDepth = impl_->inboundBatches.size();
+    }
+
+    {
+        std::lock_guard lock(impl_->outboundMutex);
+        snapshot.outboundQueueDepth = impl_->outboundFeedback.size();
+    }
+
+    return snapshot;
+}
+
 std::size_t UdpRuntimeBridge::DrainReceivedBatches(std::vector<CommandBatch>& destination,
                                                    const std::size_t maxBatches)
 {
@@ -478,13 +567,17 @@ std::size_t UdpRuntimeBridge::DrainReceivedBatches(std::vector<CommandBatch>& de
     std::lock_guard lock(impl_->inboundMutex);
     const std::size_t batchCount = std::min(maxBatches, impl_->inboundBatches.size());
     destination.reserve(destination.size() + batchCount);
+    std::size_t commandCount = 0;
 
     for (std::size_t index = 0; index < batchCount; ++index)
     {
+        commandCount += CountCommands(impl_->inboundBatches.front());
         destination.push_back(std::move(impl_->inboundBatches.front()));
         impl_->inboundBatches.pop_front();
     }
 
+    AddCounter(impl_->counters.drainedBatches, static_cast<std::uint64_t>(batchCount));
+    AddCounter(impl_->counters.drainedCommands, static_cast<std::uint64_t>(commandCount));
     return batchCount;
 }
 
@@ -524,9 +617,26 @@ std::size_t UdpRuntimeBridge::DrainReceivedCommands(std::vector<UserCommand>& de
             impl_->inboundBatches.push_front(std::move(batch));
             break;
         }
+
+        IncrementCounter(impl_->counters.drainedBatches);
     }
 
+    AddCounter(impl_->counters.drainedCommands, static_cast<std::uint64_t>(commandCount));
     return commandCount;
+}
+
+void UdpRuntimeBridge::RecordCommandProcessingResult(const std::size_t appliedCommands,
+                                                     const std::size_t skippedCommands,
+                                                     const std::size_t truncatedBatches)
+{
+    if (impl_ == nullptr)
+    {
+        return;
+    }
+
+    AddCounter(impl_->counters.appliedCommands, static_cast<std::uint64_t>(appliedCommands));
+    AddCounter(impl_->counters.skippedCommands, static_cast<std::uint64_t>(skippedCommands));
+    AddCounter(impl_->counters.truncatedBatches, static_cast<std::uint64_t>(truncatedBatches));
 }
 
 void UdpRuntimeBridge::EnqueueStrobeFeedback(StrobeStatusFeedback feedback)
@@ -541,10 +651,12 @@ void UdpRuntimeBridge::EnqueueStrobeFeedback(StrobeStatusFeedback feedback)
         if (impl_->outboundFeedback.size() >= kMaxQueuedFeedback)
         {
             impl_->outboundFeedback.pop_front();
+            IncrementCounter(impl_->counters.feedbackDropped);
             impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest runtime feedback");
         }
 
         impl_->outboundFeedback.emplace_back(std::move(feedback));
+        IncrementCounter(impl_->counters.feedbackQueued);
     }
 
     impl_->waitCondition.notify_all();
@@ -562,10 +674,12 @@ void UdpRuntimeBridge::EnqueueActivePageFeedback(ActivePageFeedback feedback)
         if (impl_->outboundFeedback.size() >= kMaxQueuedFeedback)
         {
             impl_->outboundFeedback.pop_front();
+            IncrementCounter(impl_->counters.feedbackDropped);
             impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest runtime feedback");
         }
 
         impl_->outboundFeedback.emplace_back(std::move(feedback));
+        IncrementCounter(impl_->counters.feedbackQueued);
     }
 
     impl_->waitCondition.notify_all();

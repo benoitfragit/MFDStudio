@@ -11,6 +11,7 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -24,6 +25,51 @@
 
 namespace mfd
 {
+/**
+ * @brief Thread-safe value snapshot of UDP bridge runtime pressure counters.
+ *
+ * @note Counters are monotonic for the lifetime of one bridge instance. Queue
+ * depths describe the moment when `UdpRuntimeBridge::MetricsSnapshot` was
+ * called.
+ */
+struct UdpRuntimeBridgeMetrics
+{
+    /** @brief UDP datagrams received by the command worker. */
+    std::uint64_t receivedPackets = 0;
+    /** @brief Total command datagram payload bytes received by the worker. */
+    std::uint64_t receivedBytes = 0;
+    /** @brief Command batches decoded successfully. */
+    std::uint64_t decodedBatches = 0;
+    /** @brief Command datagrams rejected during decoding or validation. */
+    std::uint64_t decodeErrors = 0;
+    /** @brief Command batches accepted into the inbound queue. */
+    std::uint64_t queuedBatches = 0;
+    /** @brief Command batches intentionally dropped before application. */
+    std::uint64_t droppedBatches = 0;
+    /** @brief Command batches drained by the render thread. */
+    std::uint64_t drainedBatches = 0;
+    /** @brief Commands drained by the render thread. */
+    std::uint64_t drainedCommands = 0;
+    /** @brief Commands reported as applied by the render thread. */
+    std::uint64_t appliedCommands = 0;
+    /** @brief Commands reported as skipped or rejected by the render thread. */
+    std::uint64_t skippedCommands = 0;
+    /** @brief State-like commands collapsed by latest-wins coalescing. */
+    std::uint64_t coalescedCommands = 0;
+    /** @brief Batches intentionally truncated by a frame processing budget. */
+    std::uint64_t truncatedBatches = 0;
+    /** @brief Feedback payloads accepted into the outbound queue. */
+    std::uint64_t feedbackQueued = 0;
+    /** @brief Feedback payloads sent successfully. */
+    std::uint64_t feedbackSent = 0;
+    /** @brief Feedback payloads intentionally dropped or lost after send failure. */
+    std::uint64_t feedbackDropped = 0;
+    /** @brief Command batches currently queued for the render thread. */
+    std::size_t inboundQueueDepth = 0;
+    /** @brief Feedback payloads currently queued for the UDP worker. */
+    std::size_t outboundQueueDepth = 0;
+};
+
 /**
  * @brief Background UDP I/O bridge used by a window application.
  *
@@ -101,6 +147,12 @@ public:
     bool FeedbackTransportReady() const noexcept;
 
     /**
+     * @brief Returns a thread-safe snapshot of UDP runtime pressure counters.
+     * @return Value-type metrics snapshot.
+     */
+    [[nodiscard]] UdpRuntimeBridgeMetrics MetricsSnapshot() const;
+
+    /**
      * @brief Drains received command batches into a caller-owned vector.
      * @param destination Vector receiving the drained batches. New batches are appended.
      * @param maxBatches Maximum number of batches drained during this call.
@@ -124,6 +176,16 @@ public:
      */
     std::size_t DrainReceivedCommands(std::vector<UserCommand>& destination,
                                       std::size_t maxCommands = 256);
+
+    /**
+     * @brief Records render-thread command processing outcomes in bridge metrics.
+     * @param appliedCommands Commands successfully applied to the runtime scene.
+     * @param skippedCommands Commands rejected, skipped or left unapplied after draining.
+     * @param truncatedBatches Batches intentionally truncated by the caller.
+     */
+    void RecordCommandProcessingResult(std::size_t appliedCommands,
+                                       std::size_t skippedCommands,
+                                       std::size_t truncatedBatches);
 
     /**
      * @brief Queues a strobe feedback payload to be sent by the worker thread.

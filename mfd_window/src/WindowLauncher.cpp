@@ -1449,25 +1449,46 @@ private:
                     drainedCommands += batch.commands.size();
                 }
 
+                std::size_t processedCommands = 0;
                 std::size_t appliedCommands = 0;
+                std::size_t skippedCommands = 0;
+                std::size_t truncatedBatchCount = 0;
                 for (const mfd::CommandBatch& batch : pendingCommandBatches_)
                 {
-                    if (appliedCommands >= kMaxCommandsPerFrame)
+                    if (processedCommands >= kMaxCommandsPerFrame)
                     {
+                        truncated = true;
+                        skippedCommands += drainedCommands - processedCommands;
                         break;
                     }
 
                     const std::size_t batchCommandCount = batch.commands.size();
-                    if (appliedCommands + batchCommandCount > kMaxCommandsPerFrame)
+                    if (processedCommands + batchCommandCount > kMaxCommandsPerFrame)
                     {
                         truncated = true;
+                        ++truncatedBatchCount;
+                        skippedCommands += drainedCommands - processedCommands;
                         break;
                     }
 
-                    success = commandProcessor_.Submit(batch) && success;
-                    appliedCommands += batchCommandCount;
+                    const bool batchApplied = commandProcessor_.Submit(batch);
+                    success = batchApplied && success;
+                    processedCommands += batchCommandCount;
+                    if (batchApplied)
+                    {
+                        appliedCommands += batchCommandCount;
+                    }
+                    else
+                    {
+                        skippedCommands += batchCommandCount;
+                    }
                     appliedCommandBatches_.push_back(batch);
                 }
+
+                udpRuntimeBridge_->RecordCommandProcessingResult(
+                    appliedCommands,
+                    skippedCommands,
+                    truncatedBatchCount);
 
                 if (success)
                 {
