@@ -16,7 +16,7 @@ and APIs.
 - drive the live runtime from `client_mockup` or your own UDP client
 - capture the rendered window through a stable `RGBA32` framebuffer plugin ABI
 - generate typed C++ client helpers for one authored window
-- inspect the live runtime with the integrated `F1` debug overlay
+- inspect the live runtime with the integrated `F1` debug overlay, including UDP pressure diagnostics
 
 ## Start With The Right Page
 

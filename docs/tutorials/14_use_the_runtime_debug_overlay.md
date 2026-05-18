@@ -61,10 +61,16 @@ They tell you:
 - whether command traffic was observed recently
 - whether the UDP feedback sender is configured
 - whether the feedback sender is ready
+- current inbound command queue depth
+- current outbound feedback queue depth
+- received packets and decoded command batches
+- dropped batches, coalesced commands, applied commands, and skipped commands
+- queued, sent, and dropped feedback payloads
+- the last command-side and feedback-side status messages
 
 UDP is connectionless, so the overlay intentionally does not claim a true
 "connected" state. The useful signal is whether traffic is configured, ready,
-and actually observed.
+actually observed, and not building pressure in the queues.
 
 ## Step 3 - Inspect and bypass the active page
 

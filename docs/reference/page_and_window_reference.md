@@ -178,11 +178,13 @@ Canonical example:
     "address": "127.0.0.1",
     "port": 47221,
     "maxPacketSize": 4096
-  }
+  },
+  "fastIntervalMs": 20,
+  "heartbeatIntervalMs": 350
 }
 ```
 
-Fields are identical to the command transport:
+UDP fields are identical to the command transport:
 
 | Field | Type | Required | Description | Aliases |
 | --- | --- | --- | --- | --- |
@@ -190,6 +192,15 @@ Fields are identical to the command transport:
 | `address` | string | no | Numeric IPv4 bind or target address. Keep `127.0.0.1` for trusted local feedback streams unless you explicitly want network exposure. | `bindAddress`, `host` |
 | `port` | integer | recommended | UDP port. | `listenPort` |
 | `maxPacketSize` | integer | no | Maximum protobuf UDP payload size in the supported `[64, 65507]` range. | `packetSize`, `bufferSize` |
+
+Feedback cadence fields live directly under `feedback`:
+
+| Field | Type | Required | Description | Aliases |
+| --- | --- | --- | --- | --- |
+| `fastIntervalSeconds` | number | no | Minimum interval for feedback after meaningful runtime state changes. Default is `0.020`. | `changedIntervalSeconds` |
+| `fastIntervalMs` | number | no | Millisecond form of the fast changed-state interval. | `changedIntervalMs` |
+| `heartbeatIntervalSeconds` | number | no | Minimum interval for unchanged-state heartbeat feedback. Default is `0.350`. Must be greater than or equal to the fast interval. | `unchangedIntervalSeconds` |
+| `heartbeatIntervalMs` | number | no | Millisecond form of the unchanged-state heartbeat interval. | `unchangedIntervalMs` |
 
 ## 4. Page JSON
 
@@ -395,6 +406,7 @@ Fields:
 | `overrides` | object | no | Additional reticle-level style override block. |
 | `blink` | bool, string, or object | no | Page-managed blink binding for this page instance. |
 | `drawOnTop` | bool | no | Defers this reticle draw pass until after normal page reticles. |
+| `clipping` | object | no | Optional reticle-local erase/mask behavior resolved against one primitive id in the same reticle. |
 | `text` | string | no | Override the first text primitive. |
 | `texts` | object | no | Override named text primitives by primitive id. |
 | `letterSpacing` | number | no | Override the first text-like primitive spacing. |
@@ -429,6 +441,37 @@ Rules:
 - a string means "blink using this explicit page type"
 - the object form can preserve a type while keeping the reticle currently disabled
 - `onTop` is accepted as a short alias of `drawOnTop`
+
+### Reticle clipping syntax
+
+Reticle clipping is an existing stencil erase/mask behavior, not nested clipping.
+The renderer keeps the authored `Inner` and `Outer` behavior unchanged.
+
+```json
+"clipping": {
+  "mode": "outer",
+  "primitive": "ball_outer_circle"
+}
+```
+
+Fields:
+
+| Field | Type | Required | Description | Aliases |
+| --- | --- | --- | --- | --- |
+| `mode` | string | yes | `none`, `inner`, or `outer`. | `type` |
+| `primitive` | string | yes when mode is `inner` or `outer` | Primitive id used as the mask shape. | `primitiveId`, `mask` |
+
+Semantic validation reports invalid clipping references before the scene is
+loaded. The supported mask primitive geometries are `circle`, `rectangle`,
+`ellipse`, `square`, and `triangle`.
+
+Diagnostics include:
+
+- `MFD014` when the clipping primitive id cannot be found in the reticle
+- `MFD015` when the referenced primitive cannot be used as a clipping mask
+- `MFD016` when clipping is enabled but the primitive id is empty
+- `MFD017` when a reticle defines duplicate primitive ids
+- `MFD018` when reticle ids collide after normalization
 
 ### 7.2 Inline reticle
 

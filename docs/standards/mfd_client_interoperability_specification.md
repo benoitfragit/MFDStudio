@@ -325,11 +325,16 @@ If the window exposes:
     "address": "127.0.0.1",
     "port": 47221,
     "maxPacketSize": 4096
-  }
+  },
+  "fastIntervalMs": 20,
+  "heartbeatIntervalMs": 350
 }
 ```
 
 then a Profile C client MAY receive runtime feedback on that UDP endpoint.
+Changed runtime state may be emitted on the fast interval, while unchanged
+state is heartbeat-throttled. Clients MUST keep treating feedback payloads as
+authoritative snapshots rather than acknowledgements.
 
 ### 8.3 Reliability Model
 

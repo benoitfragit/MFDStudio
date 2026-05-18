@@ -55,7 +55,9 @@ Example:
       "address": "127.0.0.1",
       "port": 47221,
       "maxPacketSize": 4096
-    }
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
   }
 }
 ```
@@ -66,6 +68,12 @@ That stream can multiplex:
 
 - `StrobeStatusFeedback` for the resolved strobe state
 - `ActivePageFeedback` for the page currently rendered as active
+
+Feedback payloads keep the same shape, but unchanged state is heartbeat-throttled
+instead of being emitted at the fast cadence indefinitely. Meaningful runtime
+changes can still be emitted on the fast interval; unchanged snapshots use the
+slower heartbeat interval. If the interval fields are omitted, the defaults are
+20 ms for changed state and 350 ms for unchanged-state heartbeat.
 
 The generated client API consumes both so it can expose `Page::IsActive()` and
 `DynamicReticle::IsStrobeCaptured()` without forcing the user to decode packets
