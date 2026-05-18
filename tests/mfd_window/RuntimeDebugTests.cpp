@@ -90,6 +90,21 @@ mfd::SceneRegistry MakeScene()
     return scene;
 }
 
+mfd::UdpRuntimeBridgeMetrics MakeTransportMetrics()
+{
+    mfd::UdpRuntimeBridgeMetrics metrics;
+    metrics.receivedPackets = 12U;
+    metrics.decodedBatches = 9U;
+    metrics.droppedBatches = 2U;
+    metrics.appliedCommands = 21U;
+    metrics.coalescedCommands = 5U;
+    metrics.feedbackSent = 7U;
+    metrics.feedbackDropped = 1U;
+    metrics.inboundQueueDepth = 3U;
+    metrics.outboundQueueDepth = 4U;
+    return metrics;
+}
+
 void AddBlinkCatalogToPage(mfd::MfdDocument& document,
                            const std::string_view pageName,
                            std::vector<mfd::PageBlinkDefinition> blinkTypes,
@@ -232,7 +247,7 @@ TEST(RuntimeDebugStateTests, DeactivateClearsInteractiveOverridesButKeepsObserve
     state.SelectReticle(key);
     state.EnsureReticleBypass(key, MakeReticle("Ownship"));
     state.SetDynamicTemplateVisibility("Radar", "tracks", false);
-    state.UpdateTransportState(true, true, false, false, "ready", "feedback disabled");
+    state.UpdateTransportState(true, true, false, false, MakeTransportMetrics(), "ready", "feedback disabled");
     state.NoteCommandTraffic(1U, 3U);
     state.SetTestPanelStatus("mutated");
 
@@ -248,6 +263,7 @@ TEST(RuntimeDebugStateTests, DeactivateClearsInteractiveOverridesButKeepsObserve
     EXPECT_FALSE(*state.DynamicTemplateVisibility("Radar", "tracks"));
     EXPECT_TRUE(state.Transport().commandConfigured);
     EXPECT_TRUE(state.Transport().observedCommandTraffic);
+    EXPECT_EQ(state.Transport().metrics.appliedCommands, 21U);
 }
 
 /**
@@ -259,7 +275,7 @@ TEST(RuntimeDebugStateTests, ResetObservedRuntimeStateClearsTransportAndTemplate
 
     RuntimeDebugState state;
     state.SetDynamicTemplateVisibility("Radar", "tracks", true);
-    state.UpdateTransportState(true, true, true, true, "commands ready", "feedback ready");
+    state.UpdateTransportState(true, true, true, true, MakeTransportMetrics(), "commands ready", "feedback ready");
     state.NoteCommandTraffic(2U, 5U);
 
     state.ResetObservedRuntimeState();
@@ -268,7 +284,38 @@ TEST(RuntimeDebugStateTests, ResetObservedRuntimeStateClearsTransportAndTemplate
     EXPECT_FALSE(state.Transport().commandConfigured);
     EXPECT_FALSE(state.Transport().feedbackConfigured);
     EXPECT_FALSE(state.Transport().observedCommandTraffic);
+    EXPECT_EQ(state.Transport().metrics.receivedPackets, 0U);
+    EXPECT_EQ(state.Transport().metrics.inboundQueueDepth, 0U);
     EXPECT_LT(state.SecondsSinceLastCommandTraffic(), 0.0);
+}
+
+/**
+ * @brief Confirms the overlay state stores the UDP runtime metrics snapshot verbatim.
+ */
+TEST(RuntimeDebugStateTests, UpdateTransportStateStoresUdpMetricsSnapshot)
+{
+    using namespace mfd::window::debug;
+
+    RuntimeDebugState state;
+    const mfd::UdpRuntimeBridgeMetrics metrics = MakeTransportMetrics();
+
+    state.UpdateTransportState(true, false, true, false, metrics, "command warning", "feedback warning");
+
+    EXPECT_TRUE(state.Transport().commandConfigured);
+    EXPECT_FALSE(state.Transport().commandReady);
+    EXPECT_TRUE(state.Transport().feedbackConfigured);
+    EXPECT_FALSE(state.Transport().feedbackReady);
+    EXPECT_EQ(state.Transport().metrics.receivedPackets, 12U);
+    EXPECT_EQ(state.Transport().metrics.decodedBatches, 9U);
+    EXPECT_EQ(state.Transport().metrics.droppedBatches, 2U);
+    EXPECT_EQ(state.Transport().metrics.appliedCommands, 21U);
+    EXPECT_EQ(state.Transport().metrics.coalescedCommands, 5U);
+    EXPECT_EQ(state.Transport().metrics.feedbackSent, 7U);
+    EXPECT_EQ(state.Transport().metrics.feedbackDropped, 1U);
+    EXPECT_EQ(state.Transport().metrics.inboundQueueDepth, 3U);
+    EXPECT_EQ(state.Transport().metrics.outboundQueueDepth, 4U);
+    EXPECT_EQ(state.Transport().commandStatus, "command warning");
+    EXPECT_EQ(state.Transport().feedbackStatus, "feedback warning");
 }
 
 /**

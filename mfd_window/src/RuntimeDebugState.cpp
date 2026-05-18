@@ -214,6 +214,7 @@ void RuntimeDebugState::UpdateTransportState(const bool commandConfigured,
                                              const bool commandReady,
                                              const bool feedbackConfigured,
                                              const bool feedbackReady,
+                                             const UdpRuntimeBridgeMetrics& metrics,
                                              std::string commandStatus,
                                              std::string feedbackStatus)
 {
@@ -221,6 +222,7 @@ void RuntimeDebugState::UpdateTransportState(const bool commandConfigured,
     transport_.commandReady = commandReady;
     transport_.feedbackConfigured = feedbackConfigured;
     transport_.feedbackReady = feedbackReady;
+    transport_.metrics = metrics;
     transport_.commandStatus = std::move(commandStatus);
     transport_.feedbackStatus = std::move(feedbackStatus);
 }

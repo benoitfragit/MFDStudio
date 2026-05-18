@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "mfd/control/UdpRuntimeBridge.h"
 #include "mfd/model/Reticle.h"
 
 namespace mfd::window::debug
@@ -110,6 +111,8 @@ struct TransportState
     std::size_t observedBatchCount = 0;
     /** @brief Total number of observed commands since the current window load. */
     std::size_t observedCommandCount = 0;
+    /** @brief Latest thread-safe UDP runtime metrics snapshot. */
+    UdpRuntimeBridgeMetrics metrics {};
     /** @brief Last command-side status surfaced by the runtime. */
     std::string commandStatus;
     /** @brief Last feedback-side status surfaced by the runtime. */
@@ -289,6 +292,7 @@ public:
      * @param commandReady Whether the command receiver is ready.
      * @param feedbackConfigured Whether the feedback sender is configured.
      * @param feedbackReady Whether the feedback sender is ready.
+     * @param metrics Latest UDP runtime metrics snapshot.
      * @param commandStatus Last command-side runtime status.
      * @param feedbackStatus Last feedback-side runtime status.
      */
@@ -296,6 +300,7 @@ public:
                               bool commandReady,
                               bool feedbackConfigured,
                               bool feedbackReady,
+                              const UdpRuntimeBridgeMetrics& metrics,
                               std::string commandStatus,
                               std::string feedbackStatus);
 

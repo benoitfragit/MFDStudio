@@ -317,6 +317,43 @@ void DrawPrimitiveTree(const ReticleGroup& reticle)
         }
     }
 }
+
+void DrawTransportMetrics(const UdpRuntimeBridgeMetrics& metrics)
+{
+    ImGui::Text(
+        "Queues: inbound %llu batch(es), outbound %llu feedback payload(s)",
+        static_cast<unsigned long long>(metrics.inboundQueueDepth),
+        static_cast<unsigned long long>(metrics.outboundQueueDepth));
+    ImGui::Text(
+        "Received: %llu packet(s), %llu byte(s)",
+        static_cast<unsigned long long>(metrics.receivedPackets),
+        static_cast<unsigned long long>(metrics.receivedBytes));
+    ImGui::Text(
+        "Batches: decoded %llu, queued %llu, drained %llu, dropped %llu",
+        static_cast<unsigned long long>(metrics.decodedBatches),
+        static_cast<unsigned long long>(metrics.queuedBatches),
+        static_cast<unsigned long long>(metrics.drainedBatches),
+        static_cast<unsigned long long>(metrics.droppedBatches));
+    ImGui::Text(
+        "Commands: drained %llu, applied %llu, skipped %llu, coalesced %llu, truncated %llu",
+        static_cast<unsigned long long>(metrics.drainedCommands),
+        static_cast<unsigned long long>(metrics.appliedCommands),
+        static_cast<unsigned long long>(metrics.skippedCommands),
+        static_cast<unsigned long long>(metrics.coalescedCommands),
+        static_cast<unsigned long long>(metrics.truncatedBatches));
+    ImGui::Text(
+        "Feedback: queued %llu, sent %llu, dropped %llu",
+        static_cast<unsigned long long>(metrics.feedbackQueued),
+        static_cast<unsigned long long>(metrics.feedbackSent),
+        static_cast<unsigned long long>(metrics.feedbackDropped));
+    if (metrics.decodeErrors > 0U)
+    {
+        ImGui::TextColored(
+            ImVec4(1.00f, 0.62f, 0.25f, 1.00f),
+            "Decode errors: %llu",
+            static_cast<unsigned long long>(metrics.decodeErrors));
+    }
+}
 } // namespace
 
 void RuntimeDebugOverlay::Initialize()
@@ -387,12 +424,14 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
     const bool commandReady = bridge != nullptr && bridge->CommandTransportReady();
     const bool feedbackConfigured = bridge != nullptr && bridge->HasFeedbackSender();
     const bool feedbackReady = bridge != nullptr && bridge->FeedbackTransportReady();
+    const UdpRuntimeBridgeMetrics metrics = bridge != nullptr ? bridge->MetricsSnapshot() : UdpRuntimeBridgeMetrics {};
 
     state_.UpdateTransportState(
         commandConfigured,
         commandReady,
         feedbackConfigured,
         feedbackReady,
+        metrics,
         std::string(commandStatus),
         std::string(feedbackStatus));
 
@@ -643,6 +682,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     }
     ImGui::TextWrapped("Command status: %s", transport.commandStatus.c_str());
     ImGui::TextWrapped("Feedback status: %s", transport.feedbackStatus.c_str());
+    DrawTransportMetrics(transport.metrics);
 
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Page override");
