@@ -165,6 +165,21 @@ public:
                                      std::size_t maxBatches = 256);
 
     /**
+     * @brief Drains whole command batches without exceeding a command budget.
+     * @param destination Vector receiving the drained batches. New batches are appended.
+     * @param maxCommands Maximum number of commands the caller can process.
+     * @param maxBatches Maximum number of batches drained during this call.
+     * @return Number of batches appended to the destination vector.
+     *
+     * @note Batches are never split by this method. If the next queued batch
+     * does not fit the remaining command budget, it stays queued with its
+     * sequence and mapping hash intact.
+     */
+    std::size_t DrainReceivedBatchesForCommandBudget(std::vector<CommandBatch>& destination,
+                                                     std::size_t maxCommands,
+                                                     std::size_t maxBatches = 256);
+
+    /**
      * @brief Drains received commands into a caller-owned vector.
      * @param destination Vector receiving the drained commands. New commands are appended.
      * @param maxCommands Maximum number of commands drained during this call.

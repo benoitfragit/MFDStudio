@@ -581,6 +581,40 @@ std::size_t UdpRuntimeBridge::DrainReceivedBatches(std::vector<CommandBatch>& de
     return batchCount;
 }
 
+std::size_t UdpRuntimeBridge::DrainReceivedBatchesForCommandBudget(std::vector<CommandBatch>& destination,
+                                                                   const std::size_t maxCommands,
+                                                                   const std::size_t maxBatches)
+{
+    if (impl_ == nullptr || maxCommands == 0 || maxBatches == 0)
+    {
+        return 0;
+    }
+
+    std::lock_guard lock(impl_->inboundMutex);
+    const std::size_t reserveCount = std::min(maxBatches, impl_->inboundBatches.size());
+    destination.reserve(destination.size() + reserveCount);
+
+    std::size_t batchCount = 0;
+    std::size_t commandCount = 0;
+    while (!impl_->inboundBatches.empty() && batchCount < maxBatches)
+    {
+        const std::size_t nextCommandCount = CountCommands(impl_->inboundBatches.front());
+        if (commandCount + nextCommandCount > maxCommands)
+        {
+            break;
+        }
+
+        commandCount += nextCommandCount;
+        ++batchCount;
+        destination.push_back(std::move(impl_->inboundBatches.front()));
+        impl_->inboundBatches.pop_front();
+    }
+
+    AddCounter(impl_->counters.drainedBatches, static_cast<std::uint64_t>(batchCount));
+    AddCounter(impl_->counters.drainedCommands, static_cast<std::uint64_t>(commandCount));
+    return batchCount;
+}
+
 std::size_t UdpRuntimeBridge::DrainReceivedCommands(std::vector<UserCommand>& destination,
                                                     const std::size_t maxCommands)
 {

@@ -12,6 +12,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <deque>
 #include <functional>
@@ -156,6 +157,23 @@ std::vector<std::byte> ToBytes(const std::string& payload)
     std::memcpy(bytes.data(), payload.data(), payload.size());
     return bytes;
 }
+
+/**
+ * @brief Builds a command batch containing repeated reset commands.
+ */
+mfd::CommandBatch MakeResetBatch(const std::uint32_t sequence, const std::size_t commandCount)
+{
+    mfd::CommandBatch batch;
+    batch.sequence = sequence;
+    batch.mappingHash = "map_hash";
+    batch.commands.reserve(commandCount);
+    for (std::size_t index = 0; index < commandCount; ++index)
+    {
+        batch.commands.push_back(mfd::ResetWindowCommand {});
+    }
+
+    return batch;
+}
 } // namespace
 
 TEST(UdpRuntimeBridgeTests, DrainsReceivedBatchesFromWorkerQueue)
@@ -239,6 +257,97 @@ TEST(UdpRuntimeBridgeTests, MetricsSnapshotCountsDecodeErrorsAndQueueDepth)
     EXPECT_EQ(metrics.decodedBatches, 0U);
     EXPECT_EQ(metrics.queuedBatches, 0U);
     EXPECT_EQ(metrics.inboundQueueDepth, 0U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, DrainReceivedBatchesForCommandBudgetLeavesExcessQueued)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(MakeResetBatch(1U, 2U))));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(MakeResetBatch(2U, 2U))));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(MakeResetBatch(3U, 1U))));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 3U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    EXPECT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 3U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    EXPECT_EQ(drained.front().sequence, 1U);
+    EXPECT_EQ(drained.front().commands.size(), 2U);
+
+    mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.drainedBatches, 1U);
+    EXPECT_EQ(metrics.drainedCommands, 2U);
+    EXPECT_EQ(metrics.inboundQueueDepth, 2U);
+
+    drained.clear();
+    EXPECT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 3U), 2U);
+    ASSERT_EQ(drained.size(), 2U);
+    EXPECT_EQ(drained[0].sequence, 2U);
+    EXPECT_EQ(drained[1].sequence, 3U);
+
+    metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.drainedBatches, 3U);
+    EXPECT_EQ(metrics.drainedCommands, 5U);
+    EXPECT_EQ(metrics.inboundQueueDepth, 0U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, DrainReceivedBatchesForCommandBudgetDoesNotSplitOversizedBatch)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(MakeResetBatch(9U, 2U))));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    EXPECT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 1U), 0U);
+    EXPECT_TRUE(drained.empty());
+
+    mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.drainedBatches, 0U);
+    EXPECT_EQ(metrics.drainedCommands, 0U);
+    EXPECT_EQ(metrics.inboundQueueDepth, 1U);
+
+    EXPECT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 2U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    EXPECT_EQ(drained.front().sequence, 9U);
     bridge.Stop();
 }
 

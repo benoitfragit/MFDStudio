@@ -1436,44 +1436,28 @@ private:
         if (udpRuntimeBridge_ != nullptr)
         {
             pendingCommandBatches_.clear();
-            const std::size_t drainedBatches = udpRuntimeBridge_->DrainReceivedBatches(pendingCommandBatches_);
+            const std::size_t drainedBatches =
+                udpRuntimeBridge_->DrainReceivedBatchesForCommandBudget(
+                    pendingCommandBatches_,
+                    kMaxCommandsPerFrame);
             if (drainedBatches > 0)
             {
                 receivedFirstClientCommand_ = true;
                 std::size_t drainedCommands = 0;
                 bool success = true;
-                bool truncated = false;
 
                 for (const mfd::CommandBatch& batch : pendingCommandBatches_)
                 {
                     drainedCommands += batch.commands.size();
                 }
 
-                std::size_t processedCommands = 0;
                 std::size_t appliedCommands = 0;
                 std::size_t skippedCommands = 0;
-                std::size_t truncatedBatchCount = 0;
                 for (const mfd::CommandBatch& batch : pendingCommandBatches_)
                 {
-                    if (processedCommands >= kMaxCommandsPerFrame)
-                    {
-                        truncated = true;
-                        skippedCommands += drainedCommands - processedCommands;
-                        break;
-                    }
-
                     const std::size_t batchCommandCount = batch.commands.size();
-                    if (processedCommands + batchCommandCount > kMaxCommandsPerFrame)
-                    {
-                        truncated = true;
-                        ++truncatedBatchCount;
-                        skippedCommands += drainedCommands - processedCommands;
-                        break;
-                    }
-
                     const bool batchApplied = commandProcessor_.Submit(batch);
                     success = batchApplied && success;
-                    processedCommands += batchCommandCount;
                     if (batchApplied)
                     {
                         appliedCommands += batchCommandCount;
@@ -1488,25 +1472,37 @@ private:
                 udpRuntimeBridge_->RecordCommandProcessingResult(
                     appliedCommands,
                     skippedCommands,
-                    truncatedBatchCount);
+                    0U);
 
                 if (success)
                 {
-                    lastCommandStatus_ = truncated
-                                             ? "Applied " + std::to_string(appliedCommands) +
-                                                   " command(s) from the UDP I/O thread (truncated from " +
-                                                   std::to_string(drainedCommands) + ")."
-                                             : "Applied " + std::to_string(appliedCommands) +
-                                                   " command(s) from the UDP I/O thread.";
+                    lastCommandStatus_ = "Applied " + std::to_string(appliedCommands) +
+                                         " command(s) from the UDP I/O thread.";
+                    const mfd::UdpRuntimeBridgeMetrics metrics = udpRuntimeBridge_->MetricsSnapshot();
+                    if (metrics.inboundQueueDepth > 0U)
+                    {
+                        lastCommandStatus_ += " " + std::to_string(metrics.inboundQueueDepth) +
+                                              " batch(es) remain queued by the frame budget.";
+                    }
                 }
                 else if (!commandProcessor_.LastError().empty())
                 {
                     lastCommandStatus_ = commandProcessor_.LastError();
                 }
             }
-            else if (!udpRuntimeBridge_->LastCommandStatus().empty())
+            else
             {
-                lastCommandStatus_ = udpRuntimeBridge_->LastCommandStatus();
+                const mfd::UdpRuntimeBridgeMetrics metrics = udpRuntimeBridge_->MetricsSnapshot();
+                if (metrics.inboundQueueDepth > 0U)
+                {
+                    lastCommandStatus_ = "UDP command queue is frame-budget limited; " +
+                                         std::to_string(metrics.inboundQueueDepth) +
+                                         " batch(es) remain queued.";
+                }
+                else if (!udpRuntimeBridge_->LastCommandStatus().empty())
+                {
+                    lastCommandStatus_ = udpRuntimeBridge_->LastCommandStatus();
+                }
             }
         }
 
