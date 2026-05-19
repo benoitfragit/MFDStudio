@@ -147,6 +147,16 @@ std::string Lowercase(const std::string_view value)
     return lowered;
 }
 
+float ClampFeedbackFastIntervalSeconds(const float seconds) noexcept
+{
+    return std::max(0.001f, seconds);
+}
+
+float ClampFeedbackHeartbeatIntervalSeconds(const float heartbeatSeconds, const float fastSeconds) noexcept
+{
+    return std::max(ClampFeedbackFastIntervalSeconds(fastSeconds), heartbeatSeconds);
+}
+
 const char* ReticleReferenceKindLabel(const editor::ReticleReferenceKind kind) noexcept
 {
     switch (kind)
@@ -2929,6 +2939,17 @@ void EditorApplication::DrawMenuBar()
         ImGui::EndMenu();
     }
 
+    if (ImGui::BeginMenu("Window", hasOpenWindow))
+    {
+        const bool editWindowRequested = ImGui::MenuItem("Window settings");
+        ShowItemTooltip("Reopen the window-level inspector to tune transports, cadence and display metadata.");
+        if (editWindowRequested)
+        {
+            SelectWindow();
+        }
+        ImGui::EndMenu();
+    }
+
     const bool pageMenuOpen = ImGui::BeginMenu("Page", hasOpenWindow);
     tutorial_->DrawHalo("menu_page", "Click Page", "Open the page-authoring actions used by the current tutorial step.");
     if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_page"))
@@ -3513,6 +3534,9 @@ void EditorApplication::DrawInspector()
 
     switch (selection_.kind)
     {
+    case SelectionKind::Window:
+        DrawWindowInspector();
+        break;
     case SelectionKind::Page:
         DrawPageInspector();
         break;
@@ -3527,6 +3551,282 @@ void EditorApplication::DrawInspector()
         ImGui::Separator();
         DrawLibraryPrimitiveInspector();
         break;
+    }
+}
+
+void EditorApplication::DrawWindowInspector()
+{
+    if (!HasOpenWindow())
+    {
+        ImGui::TextDisabled("No window selected.");
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Window");
+    ImGui::TextDisabled("Tune the root window asset, transports and runtime feedback cadence.");
+    ImGui::TextDisabled("Source file: %s", loaded_.window.sourceFile.string().c_str());
+    ImGui::TextDisabled("Loaded pages: %d", static_cast<int>(loaded_.document.pages.size()));
+
+    std::array<char, 128> title {};
+    std::array<char, kPathTextCapacity> fontFile {};
+    std::array<char, kPathTextCapacity> reticleLibraryFolder {};
+    CopyTextBuffer(title, loaded_.window.title);
+    CopyTextBuffer(fontFile, loaded_.window.fontFile.string());
+    CopyTextBuffer(reticleLibraryFolder, loaded_.window.reticleLibraryFolder.string());
+
+    const bool titleChanged = ImGui::InputText("Window title", title.data(), title.size());
+    ShowItemTooltip("Human-readable title stored in the root window JSON.");
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+    if (titleChanged)
+    {
+        loaded_.window.title = title.data();
+    }
+
+    int windowSize[2] {loaded_.window.width, loaded_.window.height};
+    const bool sizeChanged = ImGui::InputInt2("Size (px)", windowSize);
+    ShowItemTooltip("Initial native window size in pixels.");
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+    if (sizeChanged)
+    {
+        loaded_.window.width = std::max(1, windowSize[0]);
+        loaded_.window.height = std::max(1, windowSize[1]);
+    }
+
+    int windowPosition[2] {loaded_.window.positionX, loaded_.window.positionY};
+    const bool positionChanged = ImGui::InputInt2("Position (px)", windowPosition);
+    ShowItemTooltip("Initial native window position in pixels.");
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+    if (positionChanged)
+    {
+        loaded_.window.positionX = windowPosition[0];
+        loaded_.window.positionY = windowPosition[1];
+    }
+
+    int targetFps = loaded_.window.targetFps;
+    const bool targetFpsChanged = ImGui::InputInt("Target FPS", &targetFps);
+    ShowItemTooltip("Requested runtime cadence for the host window loop.");
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+    if (targetFpsChanged)
+    {
+        loaded_.window.targetFps = std::max(1, targetFps);
+    }
+
+    const bool fontChanged = ImGui::InputText("Font file", fontFile.data(), fontFile.size());
+    ShowItemTooltip("Optional font file resolved from the window JSON.");
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+    if (fontChanged)
+    {
+        loaded_.window.fontFile = std::filesystem::path(fontFile.data()).lexically_normal();
+        ApplyPreviewFontFile(loaded_.window.fontFile);
+    }
+
+    const bool reticleFolderChanged =
+        ImGui::InputText("Reticle library folder", reticleLibraryFolder.data(), reticleLibraryFolder.size());
+    ShowItemTooltip("Folder containing the reusable reticle JSON templates referenced by this window.");
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+    if (reticleFolderChanged)
+    {
+        loaded_.window.reticleLibraryFolder = std::filesystem::path(reticleLibraryFolder.data()).lexically_normal();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Commands UDP");
+
+    bool hasCommandUdp = loaded_.window.commandTransports.udp.has_value();
+    if (ImGui::Checkbox("Expose command UDP", &hasCommandUdp))
+    {
+        PushUndoSnapshot();
+        if (hasCommandUdp)
+        {
+            loaded_.window.commandTransports.udp = loaded_.window.commandTransports.udp.value_or(mfd::WindowUdpCommandTransport {});
+        }
+        else
+        {
+            loaded_.window.commandTransports.udp.reset();
+        }
+    }
+    ShowItemTooltip("Persist one optional UDP command endpoint in the root window JSON.");
+
+    if (loaded_.window.commandTransports.udp.has_value())
+    {
+        auto& commandUdp = *loaded_.window.commandTransports.udp;
+        const bool enabledChanged = ImGui::Checkbox("Enable command UDP", &commandUdp.enabled);
+        ShowItemTooltip("Enable or disable the runtime UDP command listener.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        static_cast<void>(enabledChanged);
+
+        std::array<char, 64> commandAddress {};
+        CopyTextBuffer(commandAddress, commandUdp.address);
+        const bool commandAddressChanged =
+            ImGui::InputText("Command address", commandAddress.data(), commandAddress.size());
+        ShowItemTooltip("Numeric IPv4 bind address for incoming command packets.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (commandAddressChanged)
+        {
+            commandUdp.address = commandAddress.data();
+        }
+
+        int commandPort = static_cast<int>(commandUdp.port);
+        const bool commandPortChanged = ImGui::InputInt("Command port", &commandPort);
+        ShowItemTooltip("UDP port used by the command listener.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (commandPortChanged)
+        {
+            commandUdp.port = static_cast<std::uint16_t>(
+                std::clamp(commandPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
+        }
+
+        int commandMaxPacketSize = commandUdp.maxPacketSize;
+        const bool commandMaxPacketChanged = ImGui::InputInt("Command max packet", &commandMaxPacketSize);
+        ShowItemTooltip("Maximum protobuf UDP payload accepted by the command endpoint.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (commandMaxPacketChanged)
+        {
+            commandUdp.maxPacketSize = std::max(512, commandMaxPacketSize);
+        }
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Feedback UDP");
+
+    bool hasFeedbackUdp = loaded_.window.feedbackTransports.udp.has_value();
+    if (ImGui::Checkbox("Expose feedback UDP", &hasFeedbackUdp))
+    {
+        PushUndoSnapshot();
+        if (hasFeedbackUdp)
+        {
+            loaded_.window.feedbackTransports.udp = loaded_.window.feedbackTransports.udp.value_or(mfd::WindowUdpFeedbackTransport {});
+        }
+        else
+        {
+            loaded_.window.feedbackTransports.udp.reset();
+        }
+    }
+    ShowItemTooltip("Persist one optional UDP runtime-feedback endpoint in the root window JSON.");
+
+    if (loaded_.window.feedbackTransports.udp.has_value())
+    {
+        auto& feedbackUdp = *loaded_.window.feedbackTransports.udp;
+        const bool enabledChanged = ImGui::Checkbox("Enable feedback UDP", &feedbackUdp.enabled);
+        ShowItemTooltip("Enable or disable the runtime UDP feedback stream.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        static_cast<void>(enabledChanged);
+
+        std::array<char, 64> feedbackAddress {};
+        CopyTextBuffer(feedbackAddress, feedbackUdp.address);
+        const bool feedbackAddressChanged =
+            ImGui::InputText("Feedback address", feedbackAddress.data(), feedbackAddress.size());
+        ShowItemTooltip("Numeric IPv4 destination used by the runtime feedback stream.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (feedbackAddressChanged)
+        {
+            feedbackUdp.address = feedbackAddress.data();
+        }
+
+        int feedbackPort = static_cast<int>(feedbackUdp.port);
+        const bool feedbackPortChanged = ImGui::InputInt("Feedback port", &feedbackPort);
+        ShowItemTooltip("UDP port used by the runtime feedback stream.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (feedbackPortChanged)
+        {
+            feedbackUdp.port = static_cast<std::uint16_t>(
+                std::clamp(feedbackPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
+        }
+
+        int feedbackMaxPacketSize = feedbackUdp.maxPacketSize;
+        const bool feedbackMaxPacketChanged = ImGui::InputInt("Feedback max packet", &feedbackMaxPacketSize);
+        ShowItemTooltip("Maximum protobuf UDP payload emitted by the feedback endpoint.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (feedbackMaxPacketChanged)
+        {
+            feedbackUdp.maxPacketSize = std::max(512, feedbackMaxPacketSize);
+        }
+
+        const bool fastIntervalChanged =
+            ImGui::DragFloat("Fast interval", &loaded_.window.feedbackFastIntervalSeconds, 0.001f, 0.001f, 10.0f, "%.3f s");
+        ShowItemTooltip("Minimum cadence used when the active-page feedback state changes.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (fastIntervalChanged)
+        {
+            loaded_.window.feedbackFastIntervalSeconds =
+                ClampFeedbackFastIntervalSeconds(loaded_.window.feedbackFastIntervalSeconds);
+            loaded_.window.feedbackHeartbeatIntervalSeconds =
+                ClampFeedbackHeartbeatIntervalSeconds(
+                    loaded_.window.feedbackHeartbeatIntervalSeconds,
+                    loaded_.window.feedbackFastIntervalSeconds);
+        }
+
+        const bool heartbeatIntervalChanged =
+            ImGui::DragFloat("Heartbeat interval",
+                             &loaded_.window.feedbackHeartbeatIntervalSeconds,
+                             0.001f,
+                             loaded_.window.feedbackFastIntervalSeconds,
+                             10.0f,
+                             "%.3f s");
+        ShowItemTooltip("Minimum cadence used for unchanged active-page heartbeat snapshots.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (heartbeatIntervalChanged)
+        {
+            loaded_.window.feedbackFastIntervalSeconds =
+                ClampFeedbackFastIntervalSeconds(loaded_.window.feedbackFastIntervalSeconds);
+            loaded_.window.feedbackHeartbeatIntervalSeconds =
+                ClampFeedbackHeartbeatIntervalSeconds(
+                    loaded_.window.feedbackHeartbeatIntervalSeconds,
+                    loaded_.window.feedbackFastIntervalSeconds);
+        }
+
+        ImGui::TextDisabled("Fast: %.0f ms", loaded_.window.feedbackFastIntervalSeconds * 1000.0f);
+        ImGui::TextDisabled("Heartbeat: %.0f ms", loaded_.window.feedbackHeartbeatIntervalSeconds * 1000.0f);
     }
 }
 
@@ -6607,6 +6907,23 @@ void EditorApplication::SelectPage(const int pageIndex)
     ResetPagePreviewView();
 }
 
+void EditorApplication::SelectWindow()
+{
+    selection_.kind = SelectionKind::Window;
+    selection_.pageReticleIndex = -1;
+    selection_.pageReticleIndices.clear();
+    selection_.libraryReticleId.clear();
+    selection_.libraryBrowserReticleId.clear();
+    selection_.primitiveIndex = -1;
+    interactionMode_ = InteractionMode::None;
+    interactionPrimitiveIndex_ = -1;
+    interactionReticleIndex_ = -1;
+    interactionReticleIndices_.clear();
+    interactionStartReticleTransforms_.clear();
+    interactionHandleIndex_ = -1;
+    interactionHandleKind_ = PrimitiveHandleKind::None;
+}
+
 void EditorApplication::SelectPageReticle(const int pageIndex, const int reticleIndex)
 {
     if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
@@ -8024,6 +8341,31 @@ void EditorApplication::DrawPopups()
         ImGui::InputText("Feedback address", newWindowDraft_.feedbackAddress.data(), newWindowDraft_.feedbackAddress.size());
         ImGui::InputInt("Feedback port", &newWindowDraft_.feedbackPort);
         ImGui::InputInt("Feedback max packet", &newWindowDraft_.feedbackMaxPacketSize);
+        if (ImGui::DragFloat("Fast interval", &newWindowDraft_.feedbackFastIntervalSeconds, 0.001f, 0.001f, 10.0f, "%.3f s"))
+        {
+            newWindowDraft_.feedbackFastIntervalSeconds =
+                ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
+            newWindowDraft_.feedbackHeartbeatIntervalSeconds =
+                ClampFeedbackHeartbeatIntervalSeconds(
+                    newWindowDraft_.feedbackHeartbeatIntervalSeconds,
+                    newWindowDraft_.feedbackFastIntervalSeconds);
+        }
+        ShowItemTooltip("Minimum cadence used when the active-page feedback state changes.");
+        if (ImGui::DragFloat("Heartbeat interval",
+                             &newWindowDraft_.feedbackHeartbeatIntervalSeconds,
+                             0.001f,
+                             newWindowDraft_.feedbackFastIntervalSeconds,
+                             10.0f,
+                             "%.3f s"))
+        {
+            newWindowDraft_.feedbackFastIntervalSeconds =
+                ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
+            newWindowDraft_.feedbackHeartbeatIntervalSeconds =
+                ClampFeedbackHeartbeatIntervalSeconds(
+                    newWindowDraft_.feedbackHeartbeatIntervalSeconds,
+                    newWindowDraft_.feedbackFastIntervalSeconds);
+        }
+        ShowItemTooltip("Minimum cadence used for unchanged active-page heartbeat snapshots.");
 
         ImGui::SeparatorText("Initial content");
         ImGui::Checkbox("Create one initial page", &newWindowDraft_.createInitialPage);
@@ -9268,6 +9610,8 @@ void EditorApplication::PrepareTutorialStep()
         CopyTextBuffer(newWindowDraft_.feedbackAddress, "127.0.0.1");
         newWindowDraft_.feedbackPort = 49001;
         newWindowDraft_.feedbackMaxPacketSize = 65507;
+        newWindowDraft_.feedbackFastIntervalSeconds = 0.020f;
+        newWindowDraft_.feedbackHeartbeatIntervalSeconds = 0.350f;
         newWindowDraft_.createInitialPage = false;
         CopyTextBuffer(newWindowDraft_.firstPageName, "Page1");
         CopyTextBuffer(newWindowDraft_.firstPageTitle, "Page 1");
@@ -9437,6 +9781,18 @@ bool EditorApplication::CreateNewWindow()
         return false;
     }
 
+    if (newWindowDraft_.feedbackFastIntervalSeconds <= 0.0f)
+    {
+        RebuildStatus("Feedback fast interval must be strictly positive.", true);
+        return false;
+    }
+
+    if (newWindowDraft_.feedbackHeartbeatIntervalSeconds < newWindowDraft_.feedbackFastIntervalSeconds)
+    {
+        RebuildStatus("Feedback heartbeat interval must stay greater than or equal to the fast interval.", true);
+        return false;
+    }
+
     const std::filesystem::path windowBaseFolder = windowFile.parent_path();
 
     mfd::LoadedWindowConfiguration next {};
@@ -9447,6 +9803,12 @@ bool EditorApplication::CreateNewWindow()
     next.window.positionX = newWindowDraft_.positionX;
     next.window.positionY = newWindowDraft_.positionY;
     next.window.targetFps = 60;
+    next.window.feedbackFastIntervalSeconds =
+        ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
+    next.window.feedbackHeartbeatIntervalSeconds =
+        ClampFeedbackHeartbeatIntervalSeconds(
+            newWindowDraft_.feedbackHeartbeatIntervalSeconds,
+            next.window.feedbackFastIntervalSeconds);
 
     const std::filesystem::path fontPath = std::filesystem::path(newWindowDraft_.fontFile.data()).lexically_normal();
     if (!fontPath.empty())

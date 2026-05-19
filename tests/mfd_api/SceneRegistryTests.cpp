@@ -1004,6 +1004,50 @@ TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamic
     EXPECT_FALSE(registry.CaptureActivePageStrobe().has_value());
 }
 
+TEST(SceneRegistryTests, InactivePageStrobeStateStaysUnavailableUntilPageBecomesActive)
+{
+    mfd::PageDefinition radarPage = MakeRuntimePage();
+    radarPage.defaultPage = true;
+
+    mfd::PageDefinition navPage = MakeRuntimePage();
+    navPage.name = "Nav";
+    navPage.normalizedName = "nav";
+    navPage.title = "Navigation";
+    navPage.defaultPage = false;
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(radarPage));
+    document.pages.push_back(std::move(navPage));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup navTrack = MakeDynamicTextReticle("nav_track", "track_template");
+    navTrack.transform.position = {0.1f, 0.0f};
+    registry.UpsertDynamicReticle("Nav", std::move(navTrack));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Nav", {0.08f, 0.02f}));
+    EXPECT_FALSE(registry.StrobeForPage("Nav").has_value());
+    EXPECT_FALSE(registry.StrobeMagnetForPage("Nav").has_value());
+    EXPECT_FALSE(registry.CaptureWithStrobe("Nav").has_value());
+
+    registry.SetActivePage("Nav");
+
+    const auto strobe = registry.StrobeForPage("Nav");
+    ASSERT_TRUE(strobe.has_value());
+    EXPECT_TRUE(strobe->visible);
+    EXPECT_FLOAT_EQ(strobe->position.x, 0.08f);
+    EXPECT_FLOAT_EQ(strobe->position.y, 0.02f);
+
+    const auto magnet = registry.StrobeMagnetForPage("Nav");
+    ASSERT_TRUE(magnet.has_value());
+    EXPECT_TRUE(magnet->enabled);
+
+    const auto capture = registry.CaptureWithStrobe("Nav");
+    ASSERT_TRUE(capture.has_value());
+    EXPECT_EQ(capture->pageName, "Nav");
+    EXPECT_EQ(capture->reticleId, "nav_track");
+}
+
 TEST(SceneRegistryTests, StrobeMagnetVisualShapeIsOptionalAndRestoresAuthoredReticle)
 {
     mfd::PageDefinition page = MakeRuntimePage();

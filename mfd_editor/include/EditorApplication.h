@@ -72,6 +72,7 @@ private:
     /** @brief Current high-level selection type shown in the inspector. */
     enum class SelectionKind
     {
+        Window,
         Page,
         PageReticle,
         LibraryReticle,
@@ -195,6 +196,8 @@ private:
         std::array<char, 64> feedbackAddress {};
         int feedbackPort = 49001;
         int feedbackMaxPacketSize = 65507;
+        float feedbackFastIntervalSeconds = 0.020f;
+        float feedbackHeartbeatIntervalSeconds = 0.350f;
         bool createInitialPage = true;
         std::array<char, 64> firstPageName {};
         std::array<char, 64> firstPageTitle {};
@@ -366,6 +369,8 @@ private:
     void DrawPageTree();
     /** @brief Draws the reticle-library tree. */
     void DrawLibraryTree();
+    /** @brief Draws window-level properties such as transports and feedback cadence. */
+    void DrawWindowInspector();
     /** @brief Draws page-level properties such as view and blink types. */
     void DrawPageInspector();
     /** @brief Draws the page-level strobe selector and its basic configuration. */
@@ -516,6 +521,8 @@ private:
     /** @brief Seeds a default save location for the page-creation popup. */
     void SeedNewPageAssetDraftPath();
 
+    /** @brief Selects the window-level inspector without changing the active page context. */
+    void SelectWindow();
     /** @brief Selects one page and updates the inspector focus accordingly. */
     void SelectPage(int pageIndex);
     /** @brief Selects one page reticle instance. */

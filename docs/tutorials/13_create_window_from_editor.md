@@ -87,8 +87,17 @@ That source-tree discipline also feeds the editor asset reference index used by 
 - **Feedback address**
 - **Feedback port**
 - **Feedback max packet**
+- **Fast interval**
+- **Heartbeat interval**
 
 Use loopback (`127.0.0.1`) when the client and runtime are on the same machine.
+The cadence fields define how quickly active-page feedback changes are emitted
+versus unchanged heartbeat snapshots.
+
+Once the window already exists, reopen the same window-level inspector from
+**Window > Window settings**. That menu sits before **Page** in the menu bar
+and lets you retune transports, title, size, and feedback cadence without
+switching page context.
 
 ## Step 4 - Create the initial page
 

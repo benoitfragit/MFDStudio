@@ -408,7 +408,8 @@ mfd::TransportId BlinkType::GeneratedId() const noexcept
 
 bool RuntimeFeedbackState::Apply(const mfd::StrobeStatusFeedback& feedback)
 {
-    const auto applyCaptureState = [&feedback](PageCaptureState& state)
+    const std::string normalizedPageName = NormalizeFeedbackKey(feedback.pageName);
+    const auto applyCaptureState = [&feedback, &normalizedPageName](PageCaptureState& state)
     {
         if (state.hasSequence && !SequenceIsNewer(feedback.sequence, state.lastStrobeSequence))
         {
@@ -420,12 +421,14 @@ bool RuntimeFeedbackState::Apply(const mfd::StrobeStatusFeedback& feedback)
             nextCaptured ? feedback.captureResult->runtimeReticleId : mfd::RuntimeDynamicId {0};
         const bool changed = !state.hasSequence ||
                              state.captured != nextCaptured ||
-                             state.capturedRuntimeReticleId != nextRuntimeReticleId;
+                             state.capturedRuntimeReticleId != nextRuntimeReticleId ||
+                             state.pageNameNormalized != normalizedPageName;
 
         state.lastStrobeSequence = feedback.sequence;
         state.hasSequence = true;
         state.captured = nextCaptured;
         state.capturedRuntimeReticleId = nextRuntimeReticleId;
+        state.pageNameNormalized = normalizedPageName;
         return changed;
     };
 
@@ -454,6 +457,20 @@ bool RuntimeFeedbackState::Apply(const mfd::ActivePageFeedback& feedback)
     activePageNameNormalized_ = normalizedPageName;
     lastActivePageSequence_ = feedback.sequence;
     hasActivePage_ = true;
+
+    if (changed)
+    {
+        for (auto& [pageId, state] : pageCaptureById_)
+        {
+            static_cast<void>(pageId);
+            if (state.lastStrobeSequence < feedback.sequence)
+            {
+                state.captured = false;
+                state.capturedRuntimeReticleId = 0;
+            }
+        }
+    }
+
     return changed;
 }
 
@@ -551,7 +568,7 @@ bool RuntimeFeedbackState::IsPageActive(const std::string_view pageName) const n
 bool RuntimeFeedbackState::IsDynamicReticleCaptured(const mfd::TransportId pageId,
                                                     const mfd::RuntimeDynamicId runtimeReticleId) const noexcept
 {
-    if (pageId == 0 || runtimeReticleId == 0)
+    if (pageId == 0 || runtimeReticleId == 0 || !hasActivePage_)
     {
         return false;
     }
@@ -563,7 +580,9 @@ bool RuntimeFeedbackState::IsDynamicReticleCaptured(const mfd::TransportId pageI
     }
 
     const PageCaptureState& state = pageIt->second;
-    return state.captured && state.capturedRuntimeReticleId == runtimeReticleId;
+    return state.captured &&
+           state.capturedRuntimeReticleId == runtimeReticleId &&
+           state.pageNameNormalized == activePageNameNormalized_;
 }
 
 ReticleBlink::ReticleBlink(mfd::ReticlePatch& patch, bool* dirty) noexcept :

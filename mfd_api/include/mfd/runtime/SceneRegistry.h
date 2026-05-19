@@ -208,11 +208,11 @@ public:
     std::optional<PageViewState> ViewForPage(std::string_view pageName) const noexcept;
     /** @brief Returns the current active page view. */
     PageViewState ActivePageView() const noexcept;
-    /** @brief Returns the strobe state of a page when it exists. */
+    /** @brief Returns the live strobe state of a page when that page is currently active. */
     std::optional<StrobeSummary> StrobeForPage(std::string_view pageName) const;
     /** @brief Returns the strobe state of the active page when it exists. */
     std::optional<StrobeSummary> ActiveStrobeSummary() const;
-    /** @brief Returns the current strobe magnetization state of a page when it exists. */
+    /** @brief Returns the current strobe magnetization state of a page when that page is currently active. */
     std::optional<StrobeMagnetSummary> StrobeMagnetForPage(std::string_view pageName) const;
     /** @brief Returns the current strobe magnetization state of the active page when it exists. */
     std::optional<StrobeMagnetSummary> ActiveStrobeMagnetSummary() const;
@@ -317,7 +317,7 @@ public:
     bool SetStrobePosition(std::string_view pageName, Vec2 position) noexcept;
     /** @brief Offsets the strobe position by a delta. */
     bool OffsetStrobe(std::string_view pageName, Vec2 delta) noexcept;
-    /** @brief Attempts to capture a dynamic reticle with a page strobe. */
+    /** @brief Attempts to capture a dynamic reticle with a page strobe when that page is currently active. */
     std::optional<StrobeCaptureResult> CaptureWithStrobe(std::string_view pageName) const;
     /** @brief Attempts to capture a dynamic reticle with the active page strobe. */
     std::optional<StrobeCaptureResult> CaptureActivePageStrobe() const;
@@ -447,6 +447,8 @@ private:
     bool HasNormalizedPage(std::string_view pageName) const noexcept;
     /** @brief Returns `true` when a normalized page key owns a strobe in the scene indexes. */
     bool HasNormalizedStrobe(std::string_view pageName) const noexcept;
+    /** @brief Returns `true` when a normalized page key matches the current active page. */
+    bool IsActivePageKey(std::string_view pageName) const noexcept;
     /** @brief Returns a strobe summary from a normalized page key. */
     std::optional<StrobeSummary> StrobeForPageKey(std::string_view pageName) const;
     /** @brief Returns a strobe-magnet summary from a normalized page key. */

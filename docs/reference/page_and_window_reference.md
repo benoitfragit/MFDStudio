@@ -39,7 +39,9 @@ Canonical example:
       "address": "127.0.0.1",
       "port": 47301,
       "maxPacketSize": 4096
-    }
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
   },
   "defaultPage": "Radar",
   "pages": [
@@ -201,6 +203,13 @@ Feedback cadence fields live directly under `feedback`:
 | `fastIntervalMs` | number | no | Millisecond form of the fast changed-state interval. | `changedIntervalMs` |
 | `heartbeatIntervalSeconds` | number | no | Minimum interval for unchanged-state heartbeat feedback. Default is `0.350`. Must be greater than or equal to the fast interval. | `unchangedIntervalSeconds` |
 | `heartbeatIntervalMs` | number | no | Millisecond form of the unchanged-state heartbeat interval. | `unchangedIntervalMs` |
+
+Runtime note:
+
+- `ActivePageFeedback` reports the single page currently rendered as active
+- `StrobeStatusFeedback` is emitted only for that active page strobe
+- inactive pages keep their authored strobe definition, but they do not expose
+  live strobe, magnetization, or capture state until they become active
 
 ## 4. Page JSON
 

@@ -75,6 +75,12 @@ changes can still be emitted on the fast interval; unchanged snapshots use the
 slower heartbeat interval. If the interval fields are omitted, the defaults are
 20 ms for changed state and 350 ms for unchanged-state heartbeat.
 
+Only the strobe of the page currently rendered as active emits live
+`StrobeStatusFeedback`. Inactive pages keep their authored strobe definition,
+but they do not publish live strobe position, magnetization, or capture state
+until they become active. `ActivePageFeedback` is therefore the authoritative
+context used to interpret strobe feedback.
+
 The generated client API consumes both so it can expose `Page::IsActive()` and
 `DynamicReticle::IsStrobeCaptured()` without forcing the user to decode packets
 and correlate ids manually.
@@ -83,9 +89,15 @@ Keep the feedback endpoint on `127.0.0.1` for the default trusted-local setup.
 If you expose it on `0.0.0.0`, any reachable host can receive the stream.
 `maxPacketSize` must stay in the supported `[64, 65507]` range.
 
-If you author the page in `mfd_editor`, select the page and use
-`Page inspector > Strobe > Strobe template` to assign one of the library
-reticles as the page strobe before saving.
+If you author the page in `mfd_editor`, use:
+
+- `Page inspector > Strobe > Strobe template` to assign one of the library
+  reticles as the page strobe
+- `Window > Window settings` to tune the feedback UDP endpoint plus the fast
+  and heartbeat cadence after the window already exists
+
+The same cadence fields are also available in the initial `Create new window`
+popup before the first save.
 
 In the recommended runtime model:
 
@@ -221,9 +233,11 @@ This is the preferred high-level flow for generated clients:
 
 `track.IsStrobeCaptured()`:
 
-- is `true` only when the latest authoritative strobe feedback points to that
-  exact dynamic reticle
+- is `true` only when the latest authoritative strobe feedback for the
+  currently active page points to that exact dynamic reticle
 - becomes `false` again when capture is lost
+- becomes `false` again when another page becomes active until a fresh strobe
+  snapshot arrives for the newly active page
 - becomes `false` again when the strobe captures another dynamic reticle
 
 ## Step 7 - Use the raw decoder only when you intentionally stay low-level
@@ -281,7 +295,8 @@ Important fields are:
 `strobeId` is informational feedback from the runtime. When you use generated
 client bindings, control remains page-scoped through `page.strobe` and the
 authoritative runtime queries stay available directly on the generated page and
-dynamic reticle handles.
+dynamic reticle handles. Always pair `StrobeStatusFeedback` with the latest
+`ActivePageFeedback`, because only the active page strobe is live.
 
 ## Step 9 - Test quickly with the mockup
 

@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-option(MFD_BUILD_DEMO "Build the demo MFD executable" ON)
+option(MFD_BUILD_DEMO "Build optional example and demo applications" ON)
 option(MFD_BUILD_TESTS "Build GoogleTest-based runtime and loading tests" ON)
 option(MFD_ENABLE_WARNINGS "Enable strict compiler warnings" ON)
 

@@ -150,7 +150,7 @@ common reticle controls already exposed by `mfd::client::Reticle` and
 - `SetThickness`
 
 Each generated dynamic reticle MUST also expose `IsStrobeCaptured()` as the
-authoritative runtime capture query backed by the feedback stream.
+authoritative runtime capture query backed by the active-page feedback stream.
 
 ### 5.4 Primitive Surface
 
@@ -313,7 +313,11 @@ Normative expectations:
 - `Page::IsActive()` MUST return `true` only when the latest authoritative
   active-page feedback reports that page as the currently rendered page
 - `DynamicReticle::IsStrobeCaptured()` MUST return `true` only when the latest
-  authoritative strobe feedback reports that exact dynamic reticle as captured
+  authoritative strobe feedback for the currently active page reports that
+  exact dynamic reticle as captured
+- `DynamicReticle::IsStrobeCaptured()` MUST return `false` again when another
+  page becomes active until a fresh strobe snapshot arrives for the new active
+  page
 - `DynamicReticle::IsStrobeCaptured()` MUST return `false` again when capture
   is lost or when the strobe captures another dynamic reticle
 - clients MUST NOT have to manage the low-level strobe capture bookkeeping
@@ -418,7 +422,7 @@ surface.
 | Primitive handles | exposed primitives use the most specific handle type available |
 | Image primitives | exposed bitmap primitives use `ImageHandle` |
 | Dynamic sets | `Create()` and `Remove(handle)` hide runtime IDs |
-| Dynamic runtime queries | `IsStrobeCaptured()` exposes capture state without manual feedback correlation |
+| Dynamic runtime queries | `IsStrobeCaptured()` exposes active-page capture state without manual feedback correlation |
 | Strobe | page-scoped handle only, no generated strobe transport object |
 | Transport bridge | generated batches preserve `mappingHash` and command semantics |
 | Authoring link | `exposed` and `drawOnTop` remain preserved by the model and serializer |

@@ -19,7 +19,9 @@
       "address": "127.0.0.1",
       "port": 47231,
       "maxPacketSize": 4096
-    }
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
   },
   "defaultPage": "Radar",
   "pages": [

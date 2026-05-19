@@ -334,7 +334,9 @@ If the window exposes:
 then a Profile C client MAY receive runtime feedback on that UDP endpoint.
 Changed runtime state may be emitted on the fast interval, while unchanged
 state is heartbeat-throttled. Clients MUST keep treating feedback payloads as
-authoritative snapshots rather than acknowledgements.
+authoritative snapshots rather than acknowledgements. `ActivePageFeedback`
+identifies the single rendered active page, and `StrobeStatusFeedback` applies
+only to that active page strobe.
 
 ### 8.3 Reliability Model
 
@@ -599,6 +601,11 @@ Normative rules:
   the requested position
 - `ActivePageFeedback` MUST be treated as authoritative for which page is
   currently rendered as active
+- a feedback-capable client MUST treat `StrobeStatusFeedback` as valid only for
+  the currently active page strobe
+- when the authoritative active page changes, a feedback-capable client MUST
+  clear or conservatively ignore stale captured-target state until a newer
+  strobe snapshot arrives for the new active page
 - if magnetization is enabled, the feedback position MAY snap to a dynamic
   target
 - if capture is active, `captureResult` MAY describe the captured target

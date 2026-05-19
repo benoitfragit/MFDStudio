@@ -1614,41 +1614,10 @@ private:
         bool sentChanged = false;
         bool sentHeartbeat = false;
 
-        for (const mfd::PageSummary& page : scene_.Pages())
-        {
-            if (!page.hasStrobe)
-            {
-                continue;
-            }
-
-            std::optional<mfd::StrobeStatusFeedback> feedback = BuildStrobeFeedback(page.name);
-            if (!feedback.has_value())
-            {
-                continue;
-            }
-
-            const auto previous = lastPublishedStrobeFeedbacks_.find(page.name);
-            const bool changed = previous == lastPublishedStrobeFeedbacks_.end() ||
-                                 !SameStrobeFeedbackState(previous->second, *feedback);
-            if (changed && changedDue)
-            {
-                feedback->sequence = nextStrobeFeedbackSequence_++;
-                udpRuntimeBridge_->EnqueueStrobeFeedback(*feedback);
-                lastPublishedStrobeFeedbacks_[page.name] = std::move(*feedback);
-                sentChanged = true;
-            }
-            else if (!changed && heartbeatDue)
-            {
-                feedback->sequence = nextStrobeFeedbackSequence_++;
-                udpRuntimeBridge_->EnqueueStrobeFeedback(*feedback);
-                sentHeartbeat = true;
-            }
-        }
-
         const std::string activePageName = scene_.ActivePageName();
         const bool activePageChanged =
             !lastPublishedActivePage_.has_value() || *lastPublishedActivePage_ != activePageName;
-        if (activePageChanged && changedDue)
+        if (!activePageName.empty() && activePageChanged && changedDue)
         {
             mfd::ActivePageFeedback activePageFeedback;
             activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
@@ -1657,13 +1626,38 @@ private:
             lastPublishedActivePage_ = activePageName;
             sentChanged = true;
         }
-        else if (!activePageChanged && heartbeatDue)
+        else if (!activePageName.empty() && !activePageChanged && heartbeatDue)
         {
             mfd::ActivePageFeedback activePageFeedback;
             activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
             activePageFeedback.pageName = activePageName;
             udpRuntimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
             sentHeartbeat = true;
+        }
+
+        if (scene_.ActivePageHasStrobe())
+        {
+            std::optional<mfd::StrobeStatusFeedback> feedback = BuildStrobeFeedback(activePageName);
+            if (feedback.has_value())
+            {
+                const auto previous = lastPublishedStrobeFeedbacks_.find(activePageName);
+                const bool changed = previous == lastPublishedStrobeFeedbacks_.end() ||
+                                     !SameStrobeFeedbackState(previous->second, *feedback);
+                const bool shouldSendChanged = activePageChanged || changed;
+                if (shouldSendChanged && changedDue)
+                {
+                    feedback->sequence = nextStrobeFeedbackSequence_++;
+                    udpRuntimeBridge_->EnqueueStrobeFeedback(*feedback);
+                    lastPublishedStrobeFeedbacks_[activePageName] = std::move(*feedback);
+                    sentChanged = true;
+                }
+                else if (!shouldSendChanged && heartbeatDue)
+                {
+                    feedback->sequence = nextStrobeFeedbackSequence_++;
+                    udpRuntimeBridge_->EnqueueStrobeFeedback(*feedback);
+                    sentHeartbeat = true;
+                }
+            }
         }
 
         if (sentChanged)

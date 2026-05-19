@@ -1405,6 +1405,11 @@ bool SceneRegistry::HasNormalizedStrobe(const std::string_view pageName) const n
     return strobeEntities_.find(std::string(pageName)) != strobeEntities_.end();
 }
 
+bool SceneRegistry::IsActivePageKey(const std::string_view pageName) const noexcept
+{
+    return !activePage_.empty() && pageName == activePage_;
+}
+
 void SceneRegistry::SetActivePage(const std::string_view pageName) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
@@ -1416,6 +1421,7 @@ void SceneRegistry::SetActivePage(const std::string_view pageName) noexcept
     SetActiveFlag(activePage_, false);
     activePage_ = normalizedPageName;
     SetActiveFlag(activePage_, true);
+    RefreshStickyStrobePosition(activePage_);
 }
 
 std::string SceneRegistry::ActivePageName() const
@@ -1470,6 +1476,11 @@ std::optional<StrobeSummary> SceneRegistry::ActiveStrobeSummary() const
 
 std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_view pageName) const
 {
+    if (!IsActivePageKey(pageName))
+    {
+        return std::nullopt;
+    }
+
     const auto iterator = strobeEntities_.find(std::string(pageName));
     if (iterator == strobeEntities_.end())
     {
@@ -1515,6 +1526,11 @@ std::optional<StrobeMagnetSummary> SceneRegistry::ActiveStrobeMagnetSummary() co
 
 std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const std::string_view pageName) const
 {
+    if (!IsActivePageKey(pageName))
+    {
+        return std::nullopt;
+    }
+
     const auto iterator = strobeEntities_.find(std::string(pageName));
     if (iterator == strobeEntities_.end())
     {
@@ -2477,6 +2493,11 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindLockedStrobeMagnetTarg
     const std::string_view normalizedPageName,
     const std::string_view reticleId) const noexcept
 {
+    if (!IsActivePageKey(normalizedPageName))
+    {
+        return nullptr;
+    }
+
     if (reticleId.empty())
     {
         return nullptr;
@@ -2516,6 +2537,11 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindNearestStrobeMagnetTar
     const Vec2 position,
     const float radius) const noexcept
 {
+    if (!IsActivePageKey(normalizedPageName))
+    {
+        return nullptr;
+    }
+
     const PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr || radius <= 0.0f)
     {
@@ -2593,6 +2619,11 @@ void SceneRegistry::ApplyStrobeMagnetVisualShape(ReticleComponent& strobe,
 
 void SceneRegistry::RefreshStickyStrobePosition(const std::string_view normalizedPageName) noexcept
 {
+    if (!IsActivePageKey(normalizedPageName))
+    {
+        return;
+    }
+
     const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
     if (iterator == strobeEntities_.end())
     {
@@ -2713,6 +2744,11 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureActivePageStrobe() cons
 
 std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std::string_view pageName) const
 {
+    if (!IsActivePageKey(pageName))
+    {
+        return std::nullopt;
+    }
+
     const auto strobeIterator = strobeEntities_.find(std::string(pageName));
     if (strobeIterator == strobeEntities_.end())
     {

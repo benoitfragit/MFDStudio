@@ -1282,7 +1282,8 @@ else
 Both signals are authoritative runtime feedback:
 
 - `IsActive()` means the runtime is actually rendering that page
-- `IsStrobeCaptured()` means the runtime confirmed that exact dynamic instance as the captured target
+- `IsStrobeCaptured()` means the runtime confirmed that exact dynamic instance
+  as the captured target on the currently active page strobe
 
 > Common mistake:
 > Wrong: assume capture as soon as the client places the strobe on top of a track.
@@ -1293,7 +1294,10 @@ Both signals are authoritative runtime feedback:
 The generated feedback helpers intentionally expose only authoritative runtime state:
 
 - `Page::IsActive()` is false until `ActivePageFeedback` is received
-- `DynamicReticle::IsStrobeCaptured()` is false until the strobe feedback identifies that exact runtime reticle
+- `DynamicReticle::IsStrobeCaptured()` is false until the strobe feedback for
+  the currently active page identifies that exact runtime reticle
+- `DynamicReticle::IsStrobeCaptured()` becomes false again when another page
+  becomes active until a fresh strobe snapshot arrives for the new active page
 - stale feedback sequences are ignored by the runtime-feedback tracker
 - if the feedback channel is disabled, these helpers remain conservative rather than speculative
 
@@ -1992,4 +1996,4 @@ This appendix is the one-page cheat sheet for the API calls that appear most oft
 | queue freshest frame | `bool SubmitLatest(LatestBatchPublisher&, std::uint32_t sequence = 0)` | stream latest state |
 | poll runtime feedback | `std::size_t PollFeedback(IExchangeChannel&, std::size_t maxMessages = 64, std::string* error = nullptr)` | drain feedback packets |
 | check page activity | `bool IsActive() const noexcept` | runtime page active |
-| check capture state | `bool IsStrobeCaptured() const noexcept` | runtime target captured |
+| check capture state | `bool IsStrobeCaptured() const noexcept` | runtime target captured on the active page strobe |

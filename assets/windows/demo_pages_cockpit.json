@@ -13,7 +13,9 @@
       "enabled": true,
       "maxPacketSize": 4096,
       "port": 47221
-    }
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
   },
   "pages": [
     "../pages/cockpit.json"

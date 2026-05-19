@@ -309,8 +309,10 @@ if (ui.PollFeedback(*feedbackChannel, 8U) > 0U)
 `IsStrobeCaptured()` is intentionally a runtime-state query, not a staged local
 flag:
 
-- it becomes `true` only when the latest authoritative strobe feedback reports
-  that exact dynamic handle as captured
+- it becomes `true` only when the latest authoritative strobe feedback for the
+  currently active page reports that exact dynamic handle as captured
+- it becomes `false` again when another page becomes active until a fresh
+  strobe snapshot arrives for the new active page
 - it becomes `false` again when capture is lost or when the strobe captures a
   different dynamic reticle
 
@@ -354,7 +356,7 @@ It then powers two user-facing convenience queries:
 - `Page::IsActive()`, which is `true` only while the render thread reports that
   page as active
 - `DynamicReticle::IsStrobeCaptured()`, which is `true` only while the latest
-  strobe feedback points to that exact dynamic reticle
+  active-page strobe feedback points to that exact dynamic reticle
 
 This keeps the user API ergonomic while preserving one important rule:
 

@@ -63,6 +63,8 @@ Confirm that the window points to:
 - the tutorial page files
 - the tutorial reticle library folder
 - the UDP command / feedback setup used by `client_tutorial`
+- the explicit `fastIntervalMs` / `heartbeatIntervalMs` cadence fields used for
+  active-page strobe feedback
 
 ## Step 3 - Inspect The Tutorial Reticles
 

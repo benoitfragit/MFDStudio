@@ -68,7 +68,7 @@ cmake --build --preset debug-x64
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `MFD_BUILD_DEMO` | `ON` | Builds the runtime applications, examples, and editor |
+| `MFD_BUILD_DEMO` | `ON` | Builds the optional example and demo applications under `examples/`; it does not gate `mfd_editor` |
 | `MFD_BUILD_TESTS` | `ON` | Builds and registers the automated test suite |
 | `MFD_ENABLE_WARNINGS` | `ON` | Enables the stricter compiler warning profile |
 | `USE_LOCAL_PACKAGE` | `OFF` | Keeps the remote Git-based `FetchContent` behavior; set it to `ON` to use local third-party source archives from `MFD_LOCAL_PACKAGE_ROOT` |
@@ -157,7 +157,7 @@ The real build graph is split into:
 | `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting the stable framebuffer plugin ABI expected by `mfd_window` |
 | `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client used to exercise the public API without linking raylib |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
-| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive plus Page1 strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is registered directly in `examples/CMakeLists.txt` and self-skips until the tutorial asset set exists |
+| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive plus Page1 active-page-scoped strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is registered directly in `examples/CMakeLists.txt` and self-skips until the tutorial asset set exists |
 | `mfd_editor` | Visual authoring tool |
 | `mfd_api_tests` | Runtime and JSON loading test executable |
 | `client_api_tests` | Client-side helper test executable |

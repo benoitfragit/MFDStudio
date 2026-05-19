@@ -152,8 +152,9 @@ public:
      * @brief Returns whether one dynamic reticle instance is currently captured by its page strobe.
      * @param pageId Generated transport id of the page owning the reticle.
      * @param runtimeReticleId Runtime-scoped identifier of the dynamic reticle instance.
-     * @return `true` only when the latest authoritative strobe feedback reports
-     * that exact runtime reticle instance as captured.
+     * @return `true` only when the latest authoritative feedback for the
+     * currently active page reports that exact runtime reticle instance as
+     * captured.
      */
     bool IsDynamicReticleCaptured(mfd::TransportId pageId, mfd::RuntimeDynamicId runtimeReticleId) const noexcept;
 
@@ -164,6 +165,7 @@ private:
         bool hasSequence = false;
         bool captured = false;
         mfd::RuntimeDynamicId capturedRuntimeReticleId = 0;
+        std::string pageNameNormalized {};
     };
 
     std::unordered_map<mfd::TransportId, PageCaptureState> pageCaptureById_ {};

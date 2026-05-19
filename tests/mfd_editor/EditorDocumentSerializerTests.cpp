@@ -433,6 +433,41 @@ TEST(EditorDocumentSerializerTests, SerializeWindowFallsBackToAbsolutePathsWhenR
 #endif
 }
 
+TEST(EditorDocumentSerializerTests, SerializeWindowWritesFeedbackCadenceFields)
+{
+    mfd::WindowAssetDefinition window;
+    window.sourceFile = std::filesystem::path("C:/workspace/window.json");
+    window.title = "Demo";
+    window.reticleLibraryFolder = std::filesystem::path("reticles");
+    window.feedbackFastIntervalSeconds = 0.025f;
+    window.feedbackHeartbeatIntervalSeconds = 0.400f;
+
+    mfd::WindowUdpFeedbackTransport feedbackUdp;
+    feedbackUdp.enabled = true;
+    feedbackUdp.address = "127.0.0.1";
+    feedbackUdp.port = 47221;
+    feedbackUdp.maxPacketSize = 4096;
+    window.feedbackTransports.udp = feedbackUdp;
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(std::filesystem::path("C:/workspace/pages/radar.json"));
+
+    const auto jsonNode = nlohmann::json::parse(editor::SerializeWindowToJsonString(window, document, layout));
+    ASSERT_TRUE(jsonNode.contains("feedback"));
+    const auto& feedbackNode = jsonNode.at("feedback");
+    EXPECT_EQ(feedbackNode.at("fastIntervalMs").get<int>(), 25);
+    EXPECT_EQ(feedbackNode.at("heartbeatIntervalMs").get<int>(), 400);
+    EXPECT_FALSE(feedbackNode.contains("fastIntervalSeconds"));
+    EXPECT_FALSE(feedbackNode.contains("heartbeatIntervalSeconds"));
+}
+
 TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemovesObsoleteOnes)
 {
     ScopedTempDir tempDir;

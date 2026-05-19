@@ -119,6 +119,22 @@ std::string SerializePathRelativeTo(const std::filesystem::path& path, const std
     return relativePath.generic_string();
 }
 
+void WriteFeedbackIntervalField(json& feedbackNode,
+                                const char* millisecondsKey,
+                                const char* secondsKey,
+                                const float seconds)
+{
+    const double milliseconds = static_cast<double>(seconds) * 1000.0;
+    const double roundedMilliseconds = std::round(milliseconds);
+    if (std::abs(milliseconds - roundedMilliseconds) < 0.001)
+    {
+        feedbackNode[millisecondsKey] = static_cast<int>(roundedMilliseconds);
+        return;
+    }
+
+    feedbackNode[secondsKey] = seconds;
+}
+
 void WriteTransformFields(json& node, const mfd::Transform2D& transform)
 {
     if (!IsZero(transform.position.x) || !IsZero(transform.position.y))
@@ -962,7 +978,7 @@ json SerializeWindow(const mfd::WindowAssetDefinition& window,
     if (window.feedbackTransports.udp.has_value())
     {
         const auto& udp = *window.feedbackTransports.udp;
-        node["feedback"] = json {
+        json feedback = json {
             {"udp",
              {
                  {"enabled", udp.enabled},
@@ -970,6 +986,17 @@ json SerializeWindow(const mfd::WindowAssetDefinition& window,
                  {"port", udp.port},
                  {"maxPacketSize", udp.maxPacketSize},
              }}};
+        WriteFeedbackIntervalField(
+            feedback,
+            "fastIntervalMs",
+            "fastIntervalSeconds",
+            window.feedbackFastIntervalSeconds);
+        WriteFeedbackIntervalField(
+            feedback,
+            "heartbeatIntervalMs",
+            "heartbeatIntervalSeconds",
+            window.feedbackHeartbeatIntervalSeconds);
+        node["feedback"] = std::move(feedback);
     }
 
     json pages = json::array();
