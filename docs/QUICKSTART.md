@@ -46,6 +46,13 @@ If you want the editor too:
 cmake --build --preset debug-win32 --target mfd_editor
 ```
 
+The editor seeds new window, page, font, and reticle paths from the source
+`assets/` tree by default. To use another authored asset root:
+
+```powershell
+mfd_editor.exe --asset-directory C:\Path\To\assets
+```
+
 For a clean staged runtime refresh:
 
 ```powershell

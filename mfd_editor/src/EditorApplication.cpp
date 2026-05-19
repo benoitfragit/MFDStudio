@@ -64,76 +64,6 @@ constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
 constexpr const char* kPagePreviewDisplayPopupId = "PagePreviewDisplayPopup";
 constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
 
-std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start)
-{
-    std::filesystem::path current = std::filesystem::absolute(start);
-
-    while (true)
-    {
-        if (std::filesystem::exists(current / "CMakeLists.txt") &&
-            std::filesystem::exists(current / "assets") &&
-            std::filesystem::exists(current / "mfd_editor"))
-        {
-            return current;
-        }
-
-        if (current == current.root_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return std::nullopt;
-}
-
-std::filesystem::path DefaultProjectAssetFolder(const std::string_view relativeAssetFolder)
-{
-    if (const auto projectRoot = FindProjectRoot(std::filesystem::current_path()); projectRoot.has_value())
-    {
-        return (*projectRoot / std::filesystem::path(relativeAssetFolder)).lexically_normal();
-    }
-
-    return std::filesystem::absolute(std::filesystem::path(relativeAssetFolder)).lexically_normal();
-}
-
-std::filesystem::path DefaultSiblingAssetFile(const std::filesystem::path& anchorFile,
-                                              const std::string_view siblingFolder,
-                                              const std::string_view fileName)
-{
-    if (anchorFile.empty())
-    {
-        return (DefaultProjectAssetFolder(std::string("assets/") + std::string(siblingFolder)) /
-                std::filesystem::path(fileName))
-            .lexically_normal();
-    }
-
-    const std::filesystem::path anchorFolder = anchorFile.parent_path();
-    const std::filesystem::path candidateRoot =
-        anchorFolder.filename() == std::filesystem::path(siblingFolder)
-            ? anchorFolder
-            : (anchorFolder.has_parent_path() ? anchorFolder.parent_path() / std::filesystem::path(siblingFolder)
-                                              : anchorFolder / std::filesystem::path(siblingFolder));
-    return (candidateRoot / std::filesystem::path(fileName)).lexically_normal();
-}
-
-std::filesystem::path JsonFileNameOrFallback(const std::filesystem::path& candidate, const std::string_view fallbackFileName)
-{
-    std::filesystem::path fileName = candidate.filename();
-    if (fileName.empty() || fileName == "." || fileName == "..")
-    {
-        fileName = std::filesystem::path(fallbackFileName);
-    }
-
-    if (fileName.extension().empty())
-    {
-        fileName += ".json";
-    }
-
-    return fileName;
-}
-
 std::string Lowercase(const std::string_view value)
 {
     std::string lowered;
@@ -169,118 +99,6 @@ const char* ReticleReferenceKindLabel(const editor::ReticleReferenceKind kind) n
     default:
         return "Page reticle";
     }
-}
-
-bool PathContainsSegment(const std::filesystem::path& path, const std::string_view segment)
-{
-    if (segment.empty())
-    {
-        return false;
-    }
-
-    std::string normalizedSegment(segment);
-    std::transform(normalizedSegment.begin(),
-                   normalizedSegment.end(),
-                   normalizedSegment.begin(),
-                   [](const unsigned char ch)
-                   {
-                       return static_cast<char>(std::tolower(ch));
-                   });
-
-    for (const auto& part : path)
-    {
-        std::string candidate = part.string();
-        std::transform(candidate.begin(),
-                       candidate.end(),
-                       candidate.begin(),
-                       [](const unsigned char ch)
-                       {
-                           return static_cast<char>(std::tolower(ch));
-                       });
-        if (candidate == normalizedSegment)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool IsExecStagingPath(const std::filesystem::path& path)
-{
-    if (path.empty())
-    {
-        return false;
-    }
-
-    const std::filesystem::path absolutePath =
-        path.is_absolute() ? path.lexically_normal() : std::filesystem::absolute(path).lexically_normal();
-    return PathContainsSegment(absolutePath, "_Exec");
-}
-
-std::optional<std::filesystem::path> FindAncestorNamed(std::filesystem::path path, const std::string_view folderName)
-{
-    path = path.empty() ? std::filesystem::path {} : std::filesystem::absolute(path).lexically_normal();
-    const std::string normalizedFolderName = Lowercase(folderName);
-
-    while (!path.empty())
-    {
-        if (Lowercase(path.filename().string()) == normalizedFolderName)
-        {
-            return path;
-        }
-
-        if (!path.has_parent_path() || path == path.parent_path())
-        {
-            break;
-        }
-
-        path = path.parent_path();
-    }
-
-    return std::nullopt;
-}
-
-std::filesystem::path ResolveAssetRootForPath(const std::filesystem::path& path)
-{
-    if (const auto assetsRoot = FindAncestorNamed(path, "assets"); assetsRoot.has_value())
-    {
-        return assetsRoot->lexically_normal();
-    }
-
-    return DefaultProjectAssetFolder("assets");
-}
-
-std::filesystem::path CurrentPageImportTargetFolder(const std::filesystem::path& windowFile,
-                                                    const editor::EditorFileLayout& files)
-{
-    if (!files.pageFiles.empty())
-    {
-        const std::filesystem::path firstFolder = files.pageFiles.front().parent_path();
-        const bool allPageFoldersMatch = std::all_of(files.pageFiles.begin(),
-                                                     files.pageFiles.end(),
-                                                     [&firstFolder](const std::filesystem::path& pageFile)
-                                                     {
-                                                         return pageFile.parent_path().lexically_normal() ==
-                                                                firstFolder.lexically_normal();
-                                                     });
-        if (allPageFoldersMatch && !firstFolder.empty())
-        {
-            return firstFolder.lexically_normal();
-        }
-    }
-
-    if (const auto assetsRoot = FindAncestorNamed(windowFile.parent_path(), "assets"); assetsRoot.has_value())
-    {
-        return (*assetsRoot / "pages").lexically_normal();
-    }
-
-    if (Lowercase(windowFile.parent_path().filename().string()) == "windows" && windowFile.parent_path().has_parent_path())
-    {
-        return (windowFile.parent_path().parent_path() / "pages").lexically_normal();
-    }
-
-    return windowFile.empty() ? DefaultProjectAssetFolder("assets/pages") : windowFile.parent_path().lexically_normal();
 }
 
 const char* ImportDispositionLabel(const editor::ImportDisposition disposition) noexcept
@@ -639,16 +457,6 @@ bool BlinkStateMatchesNormalizedName(const mfd::ReticleBlinkState& blink,
     const std::string currentNormalizedName =
         blink.normalizedTypeName.empty() ? mfd::NormalizePageName(blink.typeName) : blink.normalizedTypeName;
     return currentNormalizedName == normalizedBlinkTypeName;
-}
-
-std::filesystem::path ConfiguredPathFolder(const std::filesystem::path& configuredPath)
-{
-    if (configuredPath.empty())
-    {
-        return {};
-    }
-
-    return configuredPath.has_extension() ? configuredPath.parent_path() : configuredPath;
 }
 
 bool ReticleIdExistsExact(const std::vector<mfd::ReticleGroup>& groups, const std::string_view id)
@@ -1795,22 +1603,23 @@ bool IsRaylibControlChordPressed(const std::initializer_list<int> keys)
 }
 } // namespace
 
-EditorApplication::EditorApplication()
+EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
+    : assetPaths_(std::move(assetDirectory))
 {
     sidebarWidth_ = kSidebarWidth;
     inspectorWidth_ = kInspectorWidth;
     tutorial_ = std::make_unique<EditorTutorialController>(*this);
     CopyTextBuffer(newPageDraft_.name, "NewPage");
     CopyTextBuffer(newPageDraft_.title, "New Page");
-    CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/new_page.json").string());
-    CopyTextBuffer(newWindowDraft_.windowFile, DefaultProjectAssetFolder("assets/windows/new_window.json").string());
+    CopyTextBuffer(newPageDraft_.fileName, assetPaths_.DefaultAssetPath("assets/pages/new_page.json").string());
+    CopyTextBuffer(newWindowDraft_.windowFile, assetPaths_.DefaultAssetPath("assets/windows/new_window.json").string());
     CopyTextBuffer(newWindowDraft_.title, "New MFD Window");
-    CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, DefaultProjectAssetFolder("assets/reticles").string());
+    CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, assetPaths_.DefaultAssetPath("assets/reticles").string());
     CopyTextBuffer(newWindowDraft_.commandAddress, "127.0.0.1");
     CopyTextBuffer(newWindowDraft_.feedbackAddress, "127.0.0.1");
     CopyTextBuffer(newWindowDraft_.firstPageName, "Page1");
     CopyTextBuffer(newWindowDraft_.firstPageTitle, "Page 1");
-    CopyTextBuffer(newWindowDraft_.firstPageFile, DefaultProjectAssetFolder("assets/pages/page1.json").string());
+    CopyTextBuffer(newWindowDraft_.firstPageFile, assetPaths_.DefaultAssetPath("assets/pages/page1.json").string());
     CopyTextBuffer(newLibraryReticleDraft_.id, "new_reticle");
     CopyTextBuffer(duplicateLibraryReticleDraft_.id, "reticle_copy");
     ResetPagePreviewView();
@@ -2227,7 +2036,7 @@ editor::PageImportRequest EditorApplication::BuildPageImportRequest(const std::f
 {
     return editor::PageImportRequest {
         sourcePageFile,
-        CurrentPageImportTargetFolder(windowFile_, files_),
+        assetPaths_.CurrentPageImportTargetFolder(windowFile_, files_),
         loaded_.window.reticleLibraryFolder};
 }
 
@@ -2241,7 +2050,7 @@ editor::RenamePageRequest EditorApplication::BuildPageRenameRequest(const int pa
     return editor::RenamePageRequest {
         pageIndex,
         std::string(newPageName),
-        ResolveAssetRootForPath(pageFile)};
+        assetPaths_.ResolveAssetRootForPath(pageFile)};
 }
 
 void EditorApplication::OpenReticleRenamePopup(std::string templateId)
@@ -2323,7 +2132,7 @@ editor::RenameReticleRequest EditorApplication::BuildReticleRenameRequest(const 
     return editor::RenameReticleRequest {
         std::string(oldTemplateId),
         std::string(newTemplateId),
-        ResolveAssetRootForPath(templateFile),
+        assetPaths_.ResolveAssetRootForPath(templateFile),
         renameTemplateFile};
 }
 
@@ -2392,7 +2201,7 @@ void EditorApplication::ToggleFullscreenPagePreview()
 void EditorApplication::OpenDesignExportPopup()
 {
     const std::filesystem::path defaultFolder =
-        windowFile_.empty() ? DefaultProjectAssetFolder("MFDStudioDesignExport")
+        windowFile_.empty() ? (assetPaths_.DefaultAssetPath("assets").parent_path() / "MFDStudioDesignExport")
                             : (windowFile_.parent_path() / std::filesystem::path("MFDStudioDesignExport"));
     CopyTextBuffer(designExportPopup_.outputFolder, defaultFolder.lexically_normal().string());
     designExportPopup_.exportCompleted = false;
@@ -4051,7 +3860,8 @@ void EditorApplication::OpenNewWindowPopup()
 bool EditorApplication::OpenWindowAssetFromFileExplorer()
 {
     const std::filesystem::path initialFolder =
-        HasOpenWindow() && windowFile_.has_parent_path() ? windowFile_.parent_path() : DefaultProjectAssetFolder("assets/windows");
+        HasOpenWindow() && windowFile_.has_parent_path() ? windowFile_.parent_path()
+                                                         : assetPaths_.DefaultAssetPath("assets/windows");
     std::string error;
     const std::optional<std::filesystem::path> selectedFile = editor::OpenWindowAssetFileDialog(initialFolder, &error);
     if (!selectedFile.has_value())
@@ -4074,7 +3884,7 @@ bool EditorApplication::OpenPageAssetImportFromFileExplorer()
         return false;
     }
 
-    const std::filesystem::path initialFolder = CurrentPageImportTargetFolder(windowFile_, files_);
+    const std::filesystem::path initialFolder = assetPaths_.CurrentPageImportTargetFolder(windowFile_, files_);
     std::string error;
     const std::optional<std::filesystem::path> selectedFile = editor::OpenPageAssetFileDialog(initialFolder, &error);
     if (!selectedFile.has_value())
@@ -4090,60 +3900,110 @@ bool EditorApplication::OpenPageAssetImportFromFileExplorer()
     return true;
 }
 
-void EditorApplication::OpenAssetFolderPicker(const AssetFolderPickerTarget target)
+void EditorApplication::BrowseNewWindowFile()
 {
-    assetFolderPickerTarget_ = target;
+    const std::filesystem::path currentFile =
+        std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
+    const std::filesystem::path suggestedFile =
+        currentFile.empty() ? assetPaths_.DefaultAssetPath("assets/windows/new_window.json") : currentFile;
 
-    switch (target)
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFile =
+        editor::SaveJsonAssetFileDialog(suggestedFile, "Select MFD window JSON file", &error);
+    if (selectedFile.has_value())
     {
-    case AssetFolderPickerTarget::WindowFile:
-        assetFolderPickerCurrentFolder_ =
-            ConfiguredPathFolder(std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal());
-        if (assetFolderPickerCurrentFolder_.empty())
-        {
-            assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/windows");
-        }
-        break;
+        CopyTextBuffer(newWindowDraft_.windowFile, selectedFile->lexically_normal().string());
+    }
+    else if (!error.empty())
+    {
+        RebuildStatus(error, true);
+    }
+    showNewWindowPopup_ = true;
+}
 
-    case AssetFolderPickerTarget::ReticleLibraryFolder:
-        assetFolderPickerCurrentFolder_ =
-            ConfiguredPathFolder(std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal());
-        if (assetFolderPickerCurrentFolder_.empty())
-        {
-            assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/reticles");
-        }
-        break;
+void EditorApplication::BrowseNewWindowFontFile()
+{
+    const std::filesystem::path currentFile =
+        std::filesystem::path(newWindowDraft_.fontFile.data()).lexically_normal();
+    const std::filesystem::path initialFolder =
+        currentFile.empty() ? assetPaths_.DefaultAssetPath("assets/fonts")
+                            : editor::EditorAssetPathService::ConfiguredPathFolder(currentFile);
 
-    case AssetFolderPickerTarget::FirstPageFile:
-        assetFolderPickerCurrentFolder_ =
-            ConfiguredPathFolder(std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal());
-        if (assetFolderPickerCurrentFolder_.empty())
-        {
-            assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/pages");
-        }
-        break;
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFile = editor::OpenFontAssetFileDialog(initialFolder, &error);
+    if (selectedFile.has_value())
+    {
+        CopyTextBuffer(newWindowDraft_.fontFile, selectedFile->lexically_normal().string());
+    }
+    else if (!error.empty())
+    {
+        RebuildStatus(error, true);
+    }
+    showNewWindowPopup_ = true;
+}
 
-    case AssetFolderPickerTarget::NewPageFile:
-        assetFolderPickerCurrentFolder_ =
-            ConfiguredPathFolder(std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal());
-        if (assetFolderPickerCurrentFolder_.empty())
-        {
-            assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/pages");
-        }
-        break;
-
-    case AssetFolderPickerTarget::None:
-    default:
-        assetFolderPickerCurrentFolder_.clear();
-        break;
+void EditorApplication::BrowseNewWindowReticleLibraryFolder()
+{
+    std::filesystem::path initialFolder = editor::EditorAssetPathService::ConfiguredPathFolder(
+        std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal());
+    if (initialFolder.empty())
+    {
+        initialFolder = assetPaths_.DefaultAssetPath("assets/reticles");
     }
 
-    if (assetFolderPickerCurrentFolder_.is_relative())
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFolder =
+        editor::OpenFolderDialog(initialFolder, "Select reticle library folder", &error);
+    if (selectedFolder.has_value())
     {
-        assetFolderPickerCurrentFolder_ = std::filesystem::absolute(assetFolderPickerCurrentFolder_).lexically_normal();
+        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, selectedFolder->lexically_normal().string());
     }
+    else if (!error.empty())
+    {
+        RebuildStatus(error, true);
+    }
+    showNewWindowPopup_ = true;
+}
 
-    showAssetFolderPickerPopup_ = true;
+void EditorApplication::BrowseNewWindowFirstPageFile()
+{
+    const std::filesystem::path currentFile =
+        std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal();
+    const std::filesystem::path suggestedFile =
+        currentFile.empty() ? assetPaths_.DefaultAssetPath("assets/pages/page1.json") : currentFile;
+
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFile =
+        editor::SaveJsonAssetFileDialog(suggestedFile, "Select initial page JSON file", &error);
+    if (selectedFile.has_value())
+    {
+        CopyTextBuffer(newWindowDraft_.firstPageFile, selectedFile->lexically_normal().string());
+    }
+    else if (!error.empty())
+    {
+        RebuildStatus(error, true);
+    }
+    showNewWindowPopup_ = true;
+}
+
+void EditorApplication::BrowseNewPageFile()
+{
+    const std::filesystem::path currentFile = std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal();
+    const std::filesystem::path suggestedFile =
+        currentFile.empty() ? assetPaths_.DefaultAssetPath("assets/pages/new_page.json") : currentFile;
+
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFile =
+        editor::SaveJsonAssetFileDialog(suggestedFile, "Select page JSON file", &error);
+    if (selectedFile.has_value())
+    {
+        CopyTextBuffer(newPageDraft_.fileName, selectedFile->lexically_normal().string());
+    }
+    else if (!error.empty())
+    {
+        RebuildStatus(error, true);
+    }
+    showNewPagePopup_ = true;
 }
 
 void EditorApplication::OpenNewLibraryReticlePopup()
@@ -5541,7 +5401,7 @@ const editor::ReticleUsageHighlightResult* EditorApplication::ResolveReticleUsag
         templateFile = iterator->second;
     }
 
-    const std::filesystem::path assetsRoot = ResolveAssetRootForPath(templateFile);
+    const std::filesystem::path assetsRoot = assetPaths_.ResolveAssetRootForPath(templateFile);
     if (!reticleUsageHighlightCache_.dirty &&
         mfd::PageNamesEqual(reticleUsageHighlightCache_.templateId, selectedReticle->id) &&
         reticleUsageHighlightCache_.assetsRoot == assetsRoot)
@@ -8217,12 +8077,6 @@ void EditorApplication::DrawPopups()
         ImGui::OpenPopup("Create new window");
         showNewWindowPopup_ = false;
     }
-    if (showAssetFolderPickerPopup_)
-    {
-        ImGui::OpenPopup("Choose asset folder");
-        showAssetFolderPickerPopup_ = false;
-    }
-
     if (showNewLibraryReticlePopup_)
     {
         ImGui::OpenPopup("Create new library reticle");
@@ -8303,11 +8157,11 @@ void EditorApplication::DrawPopups()
         ImGui::TextDisabled("Window file and runtime parameters");
         ImGui::InputText("Window file", newWindowDraft_.windowFile.data(), newWindowDraft_.windowFile.size());
         ImGui::SameLine();
-        if (ImGui::Button("Browse window folder..."))
+        if (ImGui::Button("Browse window file..."))
         {
-            OpenAssetFolderPicker(AssetFolderPickerTarget::WindowFile);
+            BrowseNewWindowFile();
         }
-        ShowItemTooltip("Choose the folder that will receive the new window JSON. Prefer the source repo assets folder, not _Exec.");
+        ShowItemTooltip("Choose the new window JSON path with the native Windows file picker.");
         ImGui::InputText("Window title", newWindowDraft_.title.data(), newWindowDraft_.title.size());
         int windowSize[2] {newWindowDraft_.width, newWindowDraft_.height};
         if (ImGui::InputInt2("Size (px)", windowSize))
@@ -8322,13 +8176,19 @@ void EditorApplication::DrawPopups()
             newWindowDraft_.positionY = windowPosition[1];
         }
         ImGui::InputText("Font file (optional)", newWindowDraft_.fontFile.data(), newWindowDraft_.fontFile.size());
+        ImGui::SameLine();
+        if (ImGui::Button("Browse font file..."))
+        {
+            BrowseNewWindowFontFile();
+        }
+        ShowItemTooltip("Choose an existing .ttf or .otf font file with the native Windows file picker.");
         ImGui::InputText("Reticle library folder", newWindowDraft_.reticleLibraryFolder.data(), newWindowDraft_.reticleLibraryFolder.size());
         ImGui::SameLine();
         if (ImGui::Button("Browse reticle folder..."))
         {
-            OpenAssetFolderPicker(AssetFolderPickerTarget::ReticleLibraryFolder);
+            BrowseNewWindowReticleLibraryFolder();
         }
-        ShowItemTooltip("Choose where new reticle template JSON files should be saved.");
+        ShowItemTooltip("Choose where new reticle template JSON files should be saved with the native Windows folder picker.");
 
         ImGui::SeparatorText("Commands UDP (incoming)");
         ImGui::Checkbox("Enable command UDP", &newWindowDraft_.commandUdpEnabled);
@@ -8375,11 +8235,11 @@ void EditorApplication::DrawPopups()
             ImGui::InputText("First page title", newWindowDraft_.firstPageTitle.data(), newWindowDraft_.firstPageTitle.size());
             ImGui::InputText("First page file", newWindowDraft_.firstPageFile.data(), newWindowDraft_.firstPageFile.size());
             ImGui::SameLine();
-            if (ImGui::Button("Browse page folder..."))
+            if (ImGui::Button("Browse page file..."))
             {
-                OpenAssetFolderPicker(AssetFolderPickerTarget::FirstPageFile);
+                BrowseNewWindowFirstPageFile();
             }
-            ShowItemTooltip("Choose the folder that will receive the first page JSON.");
+            ShowItemTooltip("Choose the first page JSON path with the native Windows file picker.");
             ImGui::ColorEdit4("First page background", &newWindowDraft_.firstPageBackground.x);
         }
 
@@ -8423,11 +8283,11 @@ void EditorApplication::DrawPopups()
         ImGui::InputText("File", newPageDraft_.fileName.data(), newPageDraft_.fileName.size());
         ShowItemTooltip("JSON file path written for this page. The .json extension is added automatically when missing.");
         ImGui::SameLine();
-        if (ImGui::Button("Browse page folder..."))
+        if (ImGui::Button("Browse page file..."))
         {
-            OpenAssetFolderPicker(AssetFolderPickerTarget::NewPageFile);
+            BrowseNewPageFile();
         }
-        ShowItemTooltip("Choose the folder that will receive the new page JSON. Prefer the source repo assets folder, not _Exec.");
+        ShowItemTooltip("Choose the page JSON path with the native Windows file picker.");
         ImGui::ColorEdit4("Background", &newPageDraft_.background.x);
         ShowItemTooltip("Initial page background color.");
         ImGui::TextDisabled("Use the repo source assets folders, not the staged runtime copy under _Exec.");
@@ -8463,7 +8323,6 @@ void EditorApplication::DrawPopups()
         ImGui::EndPopup();
     }
 
-    DrawAssetFolderPickerPopup();
     DrawPageImportPopup();
     DrawPageRenamePopup();
     DrawReticleRenamePopup();
@@ -8544,166 +8403,6 @@ void EditorApplication::DrawPopups()
         ShowItemTooltip("Close this dialog without duplicating the reticle.");
         ImGui::EndPopup();
     }
-}
-
-void EditorApplication::DrawAssetFolderPickerPopup()
-{
-    if (!ImGui::BeginPopupModal("Choose asset folder", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-    {
-        return;
-    }
-
-    const auto defaultFolderForTarget = [this]() -> std::filesystem::path
-    {
-        switch (assetFolderPickerTarget_)
-        {
-        case AssetFolderPickerTarget::WindowFile:
-            return DefaultProjectAssetFolder("assets/windows");
-        case AssetFolderPickerTarget::ReticleLibraryFolder:
-            return DefaultProjectAssetFolder("assets/reticles");
-        case AssetFolderPickerTarget::FirstPageFile:
-        case AssetFolderPickerTarget::NewPageFile:
-            return DefaultProjectAssetFolder("assets/pages");
-        case AssetFolderPickerTarget::None:
-        default:
-            return DefaultProjectAssetFolder("assets");
-        }
-    };
-
-    if (assetFolderPickerCurrentFolder_.empty())
-    {
-        assetFolderPickerCurrentFolder_ = defaultFolderForTarget();
-    }
-    if (assetFolderPickerCurrentFolder_.is_relative())
-    {
-        assetFolderPickerCurrentFolder_ = std::filesystem::absolute(assetFolderPickerCurrentFolder_).lexically_normal();
-    }
-
-    ImGui::TextWrapped("Choose where the new asset should be written. Keep authored JSON files in the source assets tree, not in _Exec.");
-    ImGui::Separator();
-    ImGui::TextDisabled("Current folder");
-    ImGui::TextWrapped("%s", assetFolderPickerCurrentFolder_.string().c_str());
-
-    if (ImGui::Button("Project assets"))
-    {
-        assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets");
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Windows"))
-    {
-        assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/windows");
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Pages"))
-    {
-        assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/pages");
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Reticles"))
-    {
-        assetFolderPickerCurrentFolder_ = DefaultProjectAssetFolder("assets/reticles");
-    }
-
-    const bool canGoUp = assetFolderPickerCurrentFolder_.has_parent_path() &&
-                         assetFolderPickerCurrentFolder_ != assetFolderPickerCurrentFolder_.root_path();
-    ImGui::BeginDisabled(!canGoUp);
-    if (ImGui::Button("Up"))
-    {
-        assetFolderPickerCurrentFolder_ = assetFolderPickerCurrentFolder_.parent_path();
-    }
-    ImGui::EndDisabled();
-
-    ImGui::Spacing();
-    ImGui::BeginChild("AssetFolderList", ImVec2(560.0f, 260.0f), true);
-    std::vector<std::filesystem::path> childFolders;
-    std::error_code directoryError;
-    if (std::filesystem::is_directory(assetFolderPickerCurrentFolder_, directoryError))
-    {
-        for (const auto& entry : std::filesystem::directory_iterator(assetFolderPickerCurrentFolder_, directoryError))
-        {
-            if (entry.is_directory())
-            {
-                childFolders.push_back(entry.path());
-            }
-        }
-    }
-    std::sort(childFolders.begin(), childFolders.end());
-    for (const std::filesystem::path& childFolder : childFolders)
-    {
-        const std::string label = childFolder.filename().string();
-        if (ImGui::Selectable(label.c_str(), false))
-        {
-            assetFolderPickerCurrentFolder_ = childFolder.lexically_normal();
-        }
-    }
-    if (childFolders.empty())
-    {
-        ImGui::TextDisabled("No subfolders in this directory.");
-    }
-    ImGui::EndChild();
-
-    const bool blockedFolder = IsExecStagingPath(assetFolderPickerCurrentFolder_);
-    if (blockedFolder)
-    {
-        ImGui::TextColored(
-            ImVec4(0.95f, 0.38f, 0.38f, 1.0f),
-            "This folder is inside _Exec. Choose the source assets tree instead.");
-    }
-
-    if (AccentButton("Use this folder"))
-    {
-        if (!blockedFolder)
-        {
-            switch (assetFolderPickerTarget_)
-            {
-            case AssetFolderPickerTarget::WindowFile:
-            {
-                const std::filesystem::path fileName = JsonFileNameOrFallback(
-                    std::filesystem::path(newWindowDraft_.windowFile.data()),
-                    "new_window.json");
-                CopyTextBuffer(newWindowDraft_.windowFile, (assetFolderPickerCurrentFolder_ / fileName).lexically_normal().string());
-                break;
-            }
-
-            case AssetFolderPickerTarget::ReticleLibraryFolder:
-                CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, assetFolderPickerCurrentFolder_.lexically_normal().string());
-                break;
-
-            case AssetFolderPickerTarget::FirstPageFile:
-            {
-                const std::filesystem::path fileName = JsonFileNameOrFallback(
-                    std::filesystem::path(newWindowDraft_.firstPageFile.data()),
-                    "page1.json");
-                CopyTextBuffer(newWindowDraft_.firstPageFile, (assetFolderPickerCurrentFolder_ / fileName).lexically_normal().string());
-                break;
-            }
-
-            case AssetFolderPickerTarget::NewPageFile:
-            {
-                const std::filesystem::path fileName = JsonFileNameOrFallback(
-                    std::filesystem::path(newPageDraft_.fileName.data()),
-                    "new_page.json");
-                CopyTextBuffer(newPageDraft_.fileName, (assetFolderPickerCurrentFolder_ / fileName).lexically_normal().string());
-                break;
-            }
-
-            case AssetFolderPickerTarget::None:
-            default:
-                break;
-            }
-
-            assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
-            ImGui::CloseCurrentPopup();
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel"))
-    {
-        assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
-        ImGui::CloseCurrentPopup();
-    }
-
-    ImGui::EndPopup();
 }
 
 void EditorApplication::DrawPageImportPopup()
@@ -9446,7 +9145,7 @@ void EditorApplication::DrawPageManagementPopup()
                                                files_,
                                                editor::PageDeleteRequest {pageManagementPopup_.pageIndex,
                                                                           replacementPageIndex,
-                                                                          DefaultProjectAssetFolder("assets"),
+                                                                          assetPaths_.DefaultAssetPath("assets"),
                                                                           pageManagementPopup_.allowOutsideAssetsRoot});
 
     if (deleteAsset)
@@ -9503,38 +9202,39 @@ void EditorApplication::DrawPageManagementPopup()
 void EditorApplication::SeedNewWindowAssetDraftPaths()
 {
     const std::filesystem::path windowFile = std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
-    if (windowFile.empty() || !windowFile.is_absolute() || IsExecStagingPath(windowFile))
+    if (windowFile.empty() || !windowFile.is_absolute() || editor::EditorAssetPathService::IsExecStagingPath(windowFile))
     {
-        CopyTextBuffer(newWindowDraft_.windowFile, DefaultProjectAssetFolder("assets/windows/new_window.json").string());
+        CopyTextBuffer(newWindowDraft_.windowFile, assetPaths_.DefaultAssetPath("assets/windows/new_window.json").string());
     }
 
     const std::filesystem::path resolvedWindowFile = std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
     const std::filesystem::path reticleFolder = std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal();
-    if (reticleFolder.empty() || !reticleFolder.is_absolute() || IsExecStagingPath(reticleFolder))
+    if (reticleFolder.empty() || !reticleFolder.is_absolute() || editor::EditorAssetPathService::IsExecStagingPath(reticleFolder))
     {
-        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, DefaultSiblingAssetFile(resolvedWindowFile, "reticles", "").string());
+        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, assetPaths_.DefaultSiblingAssetFile(resolvedWindowFile, "reticles", "").string());
     }
 
     const std::filesystem::path firstPageFile = std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal();
-    if (firstPageFile.empty() || !firstPageFile.is_absolute() || IsExecStagingPath(firstPageFile))
+    if (firstPageFile.empty() || !firstPageFile.is_absolute() || editor::EditorAssetPathService::IsExecStagingPath(firstPageFile))
     {
-        CopyTextBuffer(newWindowDraft_.firstPageFile, DefaultSiblingAssetFile(resolvedWindowFile, "pages", "page1.json").string());
+        CopyTextBuffer(newWindowDraft_.firstPageFile, assetPaths_.DefaultSiblingAssetFile(resolvedWindowFile, "pages", "page1.json").string());
     }
 }
 
 void EditorApplication::SeedNewPageAssetDraftPath()
 {
     const std::filesystem::path pageFile = std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal();
-    if (!pageFile.empty() && pageFile.is_absolute() && !IsExecStagingPath(pageFile))
+    if (!pageFile.empty() && pageFile.is_absolute() && !editor::EditorAssetPathService::IsExecStagingPath(pageFile))
     {
         return;
     }
 
     const std::filesystem::path windowFile = loaded_.window.sourceFile.empty()
-                                                 ? DefaultProjectAssetFolder("assets/windows/new_window.json")
+                                                 ? assetPaths_.DefaultAssetPath("assets/windows/new_window.json")
                                                  : loaded_.window.sourceFile;
-    const std::filesystem::path defaultFileName = JsonFileNameOrFallback(pageFile, "new_page.json");
-    CopyTextBuffer(newPageDraft_.fileName, DefaultSiblingAssetFile(windowFile, "pages", defaultFileName.string()).string());
+    const std::filesystem::path defaultFileName =
+        editor::EditorAssetPathService::JsonFileNameOrFallback(pageFile, "new_page.json");
+    CopyTextBuffer(newPageDraft_.fileName, assetPaths_.DefaultSiblingAssetFile(windowFile, "pages", defaultFileName.string()).string());
 }
 
 void EditorApplication::PrepareTutorialStep()
@@ -9594,14 +9294,14 @@ void EditorApplication::PrepareTutorialStep()
     {
     case static_cast<int>(TutorialStepId::CreateWindow):
         tutorial_->ClearTrackedReticle();
-        CopyTextBuffer(newWindowDraft_.windowFile, DefaultProjectAssetFolder("assets/windows/mfd_tutorial.json").string());
+        CopyTextBuffer(newWindowDraft_.windowFile, assetPaths_.DefaultAssetPath("assets/windows/mfd_tutorial.json").string());
         CopyTextBuffer(newWindowDraft_.title, "MFD Tutorial");
         newWindowDraft_.width = 480;
         newWindowDraft_.height = 480;
         newWindowDraft_.positionX = 120;
         newWindowDraft_.positionY = 80;
         CopyTextBuffer(newWindowDraft_.fontFile, "");
-        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, DefaultProjectAssetFolder("assets/reticles").string());
+        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, assetPaths_.DefaultAssetPath("assets/reticles").string());
         newWindowDraft_.commandUdpEnabled = true;
         CopyTextBuffer(newWindowDraft_.commandAddress, "127.0.0.1");
         newWindowDraft_.commandPort = 49000;
@@ -9615,7 +9315,7 @@ void EditorApplication::PrepareTutorialStep()
         newWindowDraft_.createInitialPage = false;
         CopyTextBuffer(newWindowDraft_.firstPageName, "Page1");
         CopyTextBuffer(newWindowDraft_.firstPageTitle, "Page 1");
-        CopyTextBuffer(newWindowDraft_.firstPageFile, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page1.json").string());
+        CopyTextBuffer(newWindowDraft_.firstPageFile, assetPaths_.DefaultAssetPath("assets/pages/mfd_tutorial_page1.json").string());
         newWindowDraft_.firstPageBackground = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
     case static_cast<int>(TutorialStepId::CreateRadarTrackReticle):
@@ -9633,7 +9333,7 @@ void EditorApplication::PrepareTutorialStep()
     case static_cast<int>(TutorialStepId::CreatePage1):
         CopyTextBuffer(newPageDraft_.name, "Page1");
         CopyTextBuffer(newPageDraft_.title, "Page 1");
-        CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page1.json").string());
+        CopyTextBuffer(newPageDraft_.fileName, assetPaths_.DefaultAssetPath("assets/pages/mfd_tutorial_page1.json").string());
         newPageDraft_.background = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
     case static_cast<int>(TutorialStepId::CreateRadarTrackLayerOnPage1):
@@ -9676,7 +9376,7 @@ void EditorApplication::PrepareTutorialStep()
     case static_cast<int>(TutorialStepId::CreatePage2):
         CopyTextBuffer(newPageDraft_.name, "Page2");
         CopyTextBuffer(newPageDraft_.title, "Page 2");
-        CopyTextBuffer(newPageDraft_.fileName, DefaultProjectAssetFolder("assets/pages/mfd_tutorial_page2.json").string());
+        CopyTextBuffer(newPageDraft_.fileName, assetPaths_.DefaultAssetPath("assets/pages/mfd_tutorial_page2.json").string());
         newPageDraft_.background = ImVec4(0.04f, 0.08f, 0.14f, 1.0f);
         break;
     case static_cast<int>(TutorialStepId::CreateProgressBarReticle):
@@ -9762,7 +9462,7 @@ bool EditorApplication::CreateNewWindow()
         RebuildStatus("Window file cannot be empty.", true);
         return false;
     }
-    if (IsExecStagingPath(windowFile))
+    if (editor::EditorAssetPathService::IsExecStagingPath(windowFile))
     {
         RebuildStatus("Choose a source assets folder for the window JSON, not a staged _Exec folder.", true);
         return false;
@@ -9819,8 +9519,8 @@ bool EditorApplication::CreateNewWindow()
     const std::filesystem::path reticleFolder =
         std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal();
     const std::filesystem::path effectiveReticleFolder =
-        reticleFolder.empty() ? DefaultSiblingAssetFile(windowFile, "reticles", "") : reticleFolder;
-    if (IsExecStagingPath(effectiveReticleFolder))
+        reticleFolder.empty() ? assetPaths_.DefaultSiblingAssetFile(windowFile, "reticles", "") : reticleFolder;
+    if (editor::EditorAssetPathService::IsExecStagingPath(effectiveReticleFolder))
     {
         RebuildStatus("Choose a source assets folder for the reticle library, not a staged _Exec folder.", true);
         return false;
@@ -9883,7 +9583,7 @@ bool EditorApplication::CreateNewWindow()
         {
             pageFile = (windowBaseFolder / pageFile).lexically_normal();
         }
-        if (IsExecStagingPath(pageFile))
+        if (editor::EditorAssetPathService::IsExecStagingPath(pageFile))
         {
             RebuildStatus("Choose a source assets folder for the first page JSON, not a staged _Exec folder.", true);
             return false;
@@ -9926,7 +9626,7 @@ bool EditorApplication::CreateNewPage()
     {
         pageFile += ".json";
     }
-    if (IsExecStagingPath(pageFile))
+    if (editor::EditorAssetPathService::IsExecStagingPath(pageFile))
     {
         RebuildStatus("Choose a source assets folder for the page JSON, not a staged _Exec folder.", true);
         return false;

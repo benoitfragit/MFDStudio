@@ -34,6 +34,25 @@ std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const std::filesy
 std::optional<std::filesystem::path> OpenPageAssetFileDialog(const std::filesystem::path& initialFolder,
                                                              std::string* error);
 /**
+ * @brief Opens a native save-file dialog to choose one JSON asset path.
+ * @param suggestedFile Suggested target file shown by the dialog.
+ * @param title Window title shown by the native picker.
+ * @param error Optional error message populated when the dialog fails.
+ * @return Selected JSON path, or `std::nullopt` when the user cancels.
+ * @note The selected file does not need to exist yet.
+ */
+std::optional<std::filesystem::path> SaveJsonAssetFileDialog(const std::filesystem::path& suggestedFile,
+                                                             std::string_view title,
+                                                             std::string* error);
+/**
+ * @brief Opens a native file-explorer dialog to pick one existing font asset.
+ * @param initialFolder Folder opened first by the dialog.
+ * @param error Optional error message populated when the dialog fails.
+ * @return Selected font path, or `std::nullopt` when the user cancels.
+ */
+std::optional<std::filesystem::path> OpenFontAssetFileDialog(const std::filesystem::path& initialFolder,
+                                                             std::string* error);
+/**
  * @brief Opens a native folder picker used by export workflows.
  * @param initialFolder Folder opened first by the dialog.
  * @param title Window title shown by the native picker.

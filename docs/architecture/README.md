@@ -25,6 +25,7 @@ first, then come back here for the design detail behind those rules.
 | --- | --- |
 | [Generated Client API Architecture](./generated_client_api.md) | you are shaping the typed generated client layer exposed to applications |
 | [Generated Transport Map Specification](./generated_transport_map.md) | you need the stable rules mapping authored names to runtime transport IDs |
+| [Editor Asset Path Defaults](./editor_asset_paths.md) | you are changing editor default asset roots, native picker entry points, or `_Exec` path guards |
 | [Editor Asset Reference Index](./editor_asset_reference_index.md) | you are changing editor workflows that need one shared source of truth for `window -> page -> reticle -> asset` dependencies |
 | [Editor Page Import Workflow](./editor_page_import_workflow.md) | you are changing how external page JSON assets and reticle dependencies are planned, staged, or persisted inside `mfd_editor` |
 | [Editor Layer Focus Mode](./editor_layer_focus_mode.md) | you are changing how the page preview temporarily focuses one editor layer without introducing a new runtime layer schema |

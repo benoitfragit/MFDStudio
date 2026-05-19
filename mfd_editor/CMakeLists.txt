@@ -4,11 +4,13 @@
 set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetReferenceIndexService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetPathService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDesignExportService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFullscreenPreviewController.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorLaunchOptions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorWorkspaceLayout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorLayerFocusController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageManagementService.cpp
@@ -23,11 +25,13 @@ set(MFD_EDITOR_SOURCES
 
 set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAssetReferenceIndexService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAssetPathService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorApplication.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDesignExportService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFullscreenPreviewController.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLaunchOptions.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorWorkspaceLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLayerFocusController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageManagementService.h

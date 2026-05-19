@@ -21,6 +21,7 @@
 #include <imgui.h>
 #include <raylib.h>
 
+#include "EditorAssetPathService.h"
 #include "EditorDocumentSerializer.h"
 #include "EditorDesignExportService.h"
 #include "EditorFullscreenPreviewController.h"
@@ -54,8 +55,9 @@ class EditorApplication
 public:
     /**
      * @brief Builds the editor shell with its default UI state.
+     * @param assetDirectory Optional authored asset root used for default paths.
      */
-    EditorApplication();
+    explicit EditorApplication(std::filesystem::path assetDirectory = {});
     /** @brief Releases runtime preview resources such as off-screen textures. */
     ~EditorApplication();
 
@@ -100,16 +102,6 @@ private:
         Radius,
         RectangleCorner,
         DiamondAxis
-    };
-
-    /** @brief Asset path field currently driven by the folder-picker popup. */
-    enum class AssetFolderPickerTarget
-    {
-        None,
-        WindowFile,
-        ReticleLibraryFolder,
-        FirstPageFile,
-        NewPageFile
     };
 
     /** @brief Current tree selection routed to the inspector and the preview overlays. */
@@ -485,12 +477,18 @@ private:
     void OpenDuplicateLibraryReticlePopup();
     /** @brief Opens a native file-explorer dialog to import one external page JSON asset. */
     bool OpenPageAssetImportFromFileExplorer();
-    /** @brief Opens the guided folder-picker popup for one asset-location field. */
-    void OpenAssetFolderPicker(AssetFolderPickerTarget target);
+    /** @brief Opens a native save-file dialog for the new-window root JSON field. */
+    void BrowseNewWindowFile();
+    /** @brief Opens a native open-file dialog for the optional new-window font file field. */
+    void BrowseNewWindowFontFile();
+    /** @brief Opens a native folder picker for the new-window reticle-library field. */
+    void BrowseNewWindowReticleLibraryFolder();
+    /** @brief Opens a native save-file dialog for the new-window initial page JSON field. */
+    void BrowseNewWindowFirstPageFile();
+    /** @brief Opens a native save-file dialog for the new-page JSON field. */
+    void BrowseNewPageFile();
     /** @brief Draws and resolves all modal popups owned by the editor. */
     void DrawPopups();
-    /** @brief Draws the guided folder-picker popup used by new-asset dialogs. */
-    void DrawAssetFolderPickerPopup();
     /** @brief Draws the remove/delete page confirmation popup. */
     void DrawPageManagementPopup();
     /** @brief Draws the page-import planning popup. */
@@ -619,6 +617,8 @@ private:
     std::filesystem::path windowFile_ {};
     /** @brief Loader used to resolve the root window file and its referenced assets. */
     mfd::JsonLoader loader_ {};
+    /** @brief Centralized source for editor asset path defaults and guards. */
+    editor::EditorAssetPathService assetPaths_ {};
     /** @brief In-memory authored document currently being edited. */
     mfd::LoadedWindowConfiguration loaded_ {};
     /** @brief Layout metadata tracking which authored object belongs to which file. */
@@ -678,8 +678,6 @@ private:
     bool showNewLibraryReticlePopup_ = false;
     /** @brief Popup visibility flag for library reticle duplication. */
     bool showDuplicateLibraryReticlePopup_ = false;
-    /** @brief Popup visibility flag for the guided asset-folder picker. */
-    bool showAssetFolderPickerPopup_ = false;
     /** @brief Page-creation draft values. */
     NewPageDraft newPageDraft_ {};
     /** @brief Window-creation draft values. */
@@ -700,10 +698,6 @@ private:
     ReticleExtractionPopupState reticleExtractionPopup_ {};
     /** @brief Confirmation-popup state used by design export. */
     DesignExportPopupState designExportPopup_ {};
-    /** @brief Asset field currently edited through the guided folder picker. */
-    AssetFolderPickerTarget assetFolderPickerTarget_ = AssetFolderPickerTarget::None;
-    /** @brief Current folder displayed by the guided asset-folder picker. */
-    std::filesystem::path assetFolderPickerCurrentFolder_ {};
     /** @brief Internal clipboard used by copy/paste on page reticles. */
     std::vector<mfd::ReticleGroup> pageReticleClipboard_ {};
     /** @brief Paste counter used to offset successive pasted copies. */

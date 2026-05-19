@@ -48,6 +48,13 @@ The coach is integrated at the top of the page preview as one scrollable panel. 
 
 The popup creates an in-memory window draft. Nothing is written on disk until you click **File > Save**.
 
+By default, the editor seeds creation paths from the repository source
+`assets/` tree. If your authored assets live elsewhere, launch:
+
+```powershell
+mfd_editor.exe --asset-directory C:\Path\To\assets
+```
+
 ## Step 2 - Fill the window fields
 
 In **Create new window**, set:
@@ -60,7 +67,14 @@ In **Create new window**, set:
 
 These fields map directly to the root window JSON.
 
-Use the **Browse ... folder** buttons when creating new assets. The editor still guides you toward the source `assets/` tree because that is the safest place to keep authored JSON, fonts, and images under version control.
+Use the **Browse window file...**, **Browse page file...**, and
+**Browse font file...** buttons to open native Windows file pickers. Use
+**Browse reticle folder...** to open the native Windows folder picker. Returning
+from those native pickers keeps the **Create new window** popup open so you can
+finish the draft without re-opening the wizard.
+
+The editor still guides you toward the source `assets/` tree because that is
+the safest place to keep authored JSON, fonts, and images under version control.
 
 The editor no longer treats `_Exec` as one blocked special case during authoring or reference scans. You can still open or scan staged runtime copies when needed, but the source `assets/` tree remains the recommended location for long-term editing and generated-client workflows.
 

@@ -111,6 +111,11 @@ The documented workflow includes:
 The current workflow is explicit about staying in the real source `assets/`
 tree instead of accidentally editing staged `_Exec` copies.
 
+The new-window and new-page creation popups now use native Windows file and
+folder pickers instead of the previous custom folder browser. `mfd_editor` also
+accepts `--asset-directory <path>` to seed editor defaults from a chosen
+authored asset root.
+
 ## For Contributors
 
 ### The Internal Layering Is Cleaner

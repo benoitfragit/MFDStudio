@@ -4,6 +4,7 @@
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
 #include "EditorApplication.h"
+#include "EditorLaunchOptions.h"
 
 /**
  * @file
@@ -26,10 +27,13 @@ void PrintUsage(const std::string_view applicationName)
     const std::string label = applicationName.empty() ? "mfd_editor" : std::string(applicationName);
     std::cout << "Usage:\n";
     std::cout << "  " << label << '\n';
+    std::cout << "  " << label << " --asset-directory <path>\n";
     std::cout << "  " << label << " --help\n\n";
     std::cout << "Options:\n";
     std::cout << "  --help, -h\n";
     std::cout << "      Print this command-line help.\n";
+    std::cout << "  --asset-directory <path>\n";
+    std::cout << "      Use <path> as the authored assets root for editor defaults.\n";
 }
 } // namespace
 
@@ -38,31 +42,30 @@ int main(int argc, char** argv)
     const std::string applicationName =
         (argc > 0 && argv != nullptr && argv[0] != nullptr) ? std::string(argv[0]) : std::string("mfd_editor");
 
-    if (argc > 1)
+    const editor::EditorLaunchOptionsParseResult launchOptions = editor::ParseEditorLaunchOptions(argc, argv);
+    if (!launchOptions.error.empty())
     {
-        const std::string_view argument = argv[1] != nullptr ? std::string_view {argv[1]} : std::string_view {};
-        if (argc == 2 && (argument == "--help" || argument == "-h"))
-        {
-            PrintUsage(applicationName);
-            return 0;
-        }
-
-        std::cerr << "mfd_editor command-line error: unknown option.\n";
+        std::cerr << "mfd_editor command-line error: " << launchOptions.error << '\n';
         PrintUsage(applicationName);
         return 1;
+    }
+    if (launchOptions.options.showHelp)
+    {
+        PrintUsage(applicationName);
+        return 0;
     }
 
 #if defined(_WIN32)
     if (::IsDebuggerPresent() != 0)
     {
-        EditorApplication application;
+        EditorApplication application(launchOptions.options.assetDirectory);
         return application.Run();
     }
 #endif
 
     try
     {
-        EditorApplication application;
+        EditorApplication application(launchOptions.options.assetDirectory);
         return application.Run();
     }
     catch (const std::exception& exception)

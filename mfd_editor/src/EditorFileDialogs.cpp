@@ -15,6 +15,7 @@
 
 #include "EditorFileDialogs.h"
 
+#include <algorithm>
 #include <array>
 #include <string_view>
 
@@ -64,20 +65,24 @@ private:
     bool ready_ = false;
 };
 
-std::optional<std::filesystem::path> OpenJsonAssetFileDialog(const [[maybe_unused]] std::filesystem::path& initialFolder,
-                                                             const wchar_t* dialogTitle,
-                                                             std::string* error)
+std::wstring ToWideString(const std::string_view text)
+{
+    return std::wstring(text.begin(), text.end());
+}
+
+std::optional<std::filesystem::path> OpenExistingFileDialog(const [[maybe_unused]] std::filesystem::path& initialFolder,
+                                                            [[maybe_unused]] const wchar_t* dialogTitle,
+                                                            [[maybe_unused]] const wchar_t* filter,
+                                                            std::string* error)
 {
 #if defined(_WIN32)
-    static constexpr wchar_t kJsonAssetFilter[] = L"JSON Assets (*.json)\0*.json\0All Files (*.*)\0*.*\0";
-
     std::wstring initialFolderWide = initialFolder.wstring();
     std::array<wchar_t, 4096> selectedFileBuffer {};
 
     OPENFILENAMEW dialog {};
     dialog.lStructSize = sizeof(dialog);
     dialog.hwndOwner = GetActiveWindow();
-    dialog.lpstrFilter = kJsonAssetFilter;
+    dialog.lpstrFilter = filter;
     dialog.lpstrFile = selectedFileBuffer.data();
     dialog.nMaxFile = static_cast<DWORD>(selectedFileBuffer.size());
     dialog.lpstrInitialDir = initialFolderWide.c_str();
@@ -89,7 +94,7 @@ std::optional<std::filesystem::path> OpenJsonAssetFileDialog(const [[maybe_unuse
         const DWORD dialogError = CommDlgExtendedError();
         if (dialogError != 0 && error != nullptr)
         {
-            *error = "Opening the JSON asset picker failed.";
+            *error = "Opening the native file picker failed.";
         }
         return std::nullopt;
     }
@@ -103,6 +108,14 @@ std::optional<std::filesystem::path> OpenJsonAssetFileDialog(const [[maybe_unuse
     return std::nullopt;
 #endif
 }
+
+std::optional<std::filesystem::path> OpenJsonAssetFileDialog(const std::filesystem::path& initialFolder,
+                                                             const wchar_t* dialogTitle,
+                                                             std::string* error)
+{
+    static constexpr wchar_t kJsonAssetFilter[] = L"JSON Assets (*.json)\0*.json\0All Files (*.*)\0*.*\0";
+    return OpenExistingFileDialog(initialFolder, dialogTitle, kJsonAssetFilter, error);
+}
 } // namespace
 
 std::optional<std::filesystem::path> OpenWindowAssetFileDialog(const std::filesystem::path& initialFolder,
@@ -115,6 +128,67 @@ std::optional<std::filesystem::path> OpenPageAssetFileDialog(const std::filesyst
                                                              std::string* error)
 {
     return OpenJsonAssetFileDialog(initialFolder, L"Import MFD page asset", error);
+}
+
+std::optional<std::filesystem::path> SaveJsonAssetFileDialog([[maybe_unused]] const std::filesystem::path& suggestedFile,
+                                                             [[maybe_unused]] const std::string_view title,
+                                                             std::string* error)
+{
+#if defined(_WIN32)
+    static constexpr wchar_t kJsonAssetFilter[] = L"JSON Assets (*.json)\0*.json\0All Files (*.*)\0*.*\0";
+
+    const std::filesystem::path normalizedSuggestedFile =
+        suggestedFile.empty() ? std::filesystem::path("new_asset.json") : suggestedFile.lexically_normal();
+    const std::filesystem::path initialFolder =
+        normalizedSuggestedFile.has_parent_path()
+            ? normalizedSuggestedFile.parent_path()
+            : std::filesystem::current_path();
+    const std::wstring initialFolderWide = initialFolder.wstring();
+
+    std::array<wchar_t, 4096> selectedFileBuffer {};
+    const std::wstring fileNameWide = normalizedSuggestedFile.filename().wstring();
+    const std::size_t fileNameSize = std::min(fileNameWide.size(), selectedFileBuffer.size() - 1U);
+    std::copy_n(fileNameWide.c_str(), fileNameSize, selectedFileBuffer.data());
+    selectedFileBuffer[fileNameSize] = L'\0';
+
+    const std::wstring titleWide = ToWideString(title);
+    OPENFILENAMEW dialog {};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = GetActiveWindow();
+    dialog.lpstrFilter = kJsonAssetFilter;
+    dialog.lpstrFile = selectedFileBuffer.data();
+    dialog.nMaxFile = static_cast<DWORD>(selectedFileBuffer.size());
+    dialog.lpstrInitialDir = initialFolderWide.c_str();
+    dialog.lpstrTitle = titleWide.c_str();
+    dialog.lpstrDefExt = L"json";
+    dialog.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR | OFN_EXPLORER;
+
+    if (!GetSaveFileNameW(&dialog))
+    {
+        const DWORD dialogError = CommDlgExtendedError();
+        if (dialogError != 0 && error != nullptr)
+        {
+            *error = "Opening the native JSON save picker failed.";
+        }
+        return std::nullopt;
+    }
+
+    return std::filesystem::path(dialog.lpstrFile);
+#else
+    if (error != nullptr)
+    {
+        *error = "Native file explorer integration is only available on Windows in this build.";
+    }
+    return std::nullopt;
+#endif
+}
+
+std::optional<std::filesystem::path> OpenFontAssetFileDialog(const std::filesystem::path& initialFolder,
+                                                             std::string* error)
+{
+    static constexpr wchar_t kFontAssetFilter[] =
+        L"Font Assets (*.ttf;*.otf)\0*.ttf;*.otf\0All Files (*.*)\0*.*\0";
+    return OpenExistingFileDialog(initialFolder, L"Select MFD window font", kFontAssetFilter, error);
 }
 
 std::optional<std::filesystem::path> OpenFolderDialog(const std::filesystem::path& initialFolder,
@@ -148,7 +222,7 @@ std::optional<std::filesystem::path> OpenFolderDialog(const std::filesystem::pat
     dialog->GetOptions(&options);
     dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR);
 
-    const std::wstring titleWide(title.begin(), title.end());
+    const std::wstring titleWide = ToWideString(title);
     dialog->SetTitle(titleWide.c_str());
 
     const std::filesystem::path normalizedInitialFolder =

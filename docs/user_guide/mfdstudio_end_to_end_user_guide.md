@@ -237,6 +237,8 @@ Once `mfd_editor` is built:
 
 - launch `mfd_editor.exe`
 - or launch the staged executable under `_Exec`
+- optionally pass `--asset-directory C:\Path\To\assets` to use another
+  authored asset root for default window, page, font, and reticle paths
 
 At startup, the editor does not automatically reload a copy from `_Exec`. It opens an empty document until the user:
 
@@ -274,6 +276,11 @@ The popup allows you to enter:
 | `Reticle library folder` | reusable templates folder |
 
 These fields correspond directly to the root of the JSON window.
+
+The creation popup uses native Windows pickers: save-file pickers for new
+window and page JSON files, an open-file picker for the optional font, and a
+folder picker for the reticle library. The popup stays open after each picker
+returns so the draft can be completed in one pass.
 
 ## 4.4 Configure UDP transports
 

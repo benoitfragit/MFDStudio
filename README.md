@@ -69,7 +69,7 @@ For the guided version, use [Quick Start](./docs/QUICKSTART.md).
 | --- | --- |
 | `mfd_window` | Generic runtime launcher that loads one window JSON file |
 | `client_mockup` | Live UDP client for pages, reticles, strobe, feedback, and stress tests |
-| `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
+| `mfd_editor` | Visual authoring tool for windows, pages, and reticles. Use `--asset-directory <path>` to override the default authored asset root. |
 | `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin implementing the stable capture ABI |
 
 ## Documentation Shelves
