@@ -522,13 +522,13 @@ private:
     /** @brief Selects the window-level inspector without changing the active page context. */
     void SelectWindow();
     /** @brief Selects one page and updates the inspector focus accordingly. */
-    void SelectPage(int pageIndex);
+    void SelectPage(int pageIndex, bool resetPreviewView = true);
     /** @brief Selects one page reticle instance. */
     void SelectPageReticle(int pageIndex, int reticleIndex);
     /** @brief Toggles one page reticle inside the multi-selection. */
     void TogglePageReticleSelection(int pageIndex, int reticleIndex);
     /** @brief Selects one reticle template in the library tree. */
-    void SelectLibraryReticle(std::string templateId);
+    void SelectLibraryReticle(std::string templateId, bool resetPreviewView = true);
     /** @brief Selects one primitive inside the selected library reticle. */
     void SelectLibraryPrimitive(std::string templateId, int primitiveIndex);
 

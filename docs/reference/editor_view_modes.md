@@ -7,6 +7,12 @@ This page documents the editor-only page preview modes available in
 
 The page preview header exposes one **View** menu.
 
+The page and reticle viewports also expose two compact toolbar buttons in the
+top-left corner:
+
+- `?`: open the interaction help for the current viewport
+- `R`: recenter the current editor camera without changing the authored JSON
+
 These toggles are session-only editor preferences:
 
 - **Layer Inspector**

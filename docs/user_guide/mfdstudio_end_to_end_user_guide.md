@@ -430,6 +430,13 @@ The page preview supports:
 - `Esc` to empty the selection
 - dragging a selection to move a group
 - `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Del`
+- toolbar `R` button to recenter the preview camera on the authored page view
+
+The reticle studio supports:
+
+- clicking one primitive to focus it in the inspector
+- dragging gizmos to edit the selected primitive geometry
+- toolbar `R` button to recenter the studio camera
 
 In case of superimposed reticles:
 

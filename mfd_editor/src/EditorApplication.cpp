@@ -1147,7 +1147,8 @@ struct ViewportToolbarLayout
 {
     ImVec2 toolbarMin {};
     ImVec2 toolbarMax {};
-    ImVec2 buttonPos {};
+    ImVec2 helpButtonPos {};
+    ImVec2 resetButtonPos {};
     ImVec2 buttonSize {};
     ImVec2 textPos {};
     std::array<char, 96> infoLabel {};
@@ -1182,13 +1183,15 @@ ViewportToolbarLayout ComputeViewportToolbarLayout(const ImVec2 viewportOrigin,
     layout.buttonSize = ImVec2(
         buttonLabelSize.x + style.FramePadding.x * 2.0f,
         buttonLabelSize.y + style.FramePadding.y * 2.0f);
-    layout.buttonPos = ImVec2(viewportOrigin.x + 12.0f, viewportOrigin.y + 12.0f);
-    layout.textPos = ImVec2(layout.buttonPos.x + layout.buttonSize.x + style.ItemSpacing.x,
-                            layout.buttonPos.y + style.FramePadding.y);
-    layout.toolbarMin = layout.buttonPos;
+    layout.helpButtonPos = ImVec2(viewportOrigin.x + 12.0f, viewportOrigin.y + 12.0f);
+    layout.resetButtonPos = ImVec2(layout.helpButtonPos.x + layout.buttonSize.x + style.ItemSpacing.x,
+                                   layout.helpButtonPos.y);
+    layout.textPos = ImVec2(layout.resetButtonPos.x + layout.buttonSize.x + style.ItemSpacing.x,
+                            layout.helpButtonPos.y + style.FramePadding.y);
+    layout.toolbarMin = layout.helpButtonPos;
     layout.toolbarMax = ImVec2(
         layout.textPos.x + textSize.x,
-        layout.buttonPos.y + std::max(layout.buttonSize.y, textSize.y + style.FramePadding.y * 2.0f));
+        layout.helpButtonPos.y + std::max(layout.buttonSize.y, textSize.y + style.FramePadding.y * 2.0f));
     return layout;
 }
 
@@ -1198,6 +1201,7 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
     {
         ImGui::TextDisabled("Reticle studio");
         ImGui::Separator();
+        ImGui::BulletText("Toolbar R: recenter the studio camera.");
         ImGui::BulletText("Mouse wheel: zoom the studio camera.");
         ImGui::BulletText("Right-drag: pan the studio camera.");
         ImGui::BulletText("Click a primitive: focus it in the studio and inspector.");
@@ -1212,6 +1216,7 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
         ImGui::BulletText("Drag a selected reticle: move the whole selected group.");
         ImGui::BulletText("Blue handle: rotate the selected reticle.");
         ImGui::BulletText("Corner handles: scale the selected reticle.");
+        ImGui::BulletText("Toolbar R: recenter the page camera.");
         ImGui::BulletText("Mouse wheel: zoom the page camera.");
         ImGui::BulletText("Right-drag: pan the page camera.");
         ImGui::BulletText("Right-click: open selection and clipping actions.");
@@ -1226,30 +1231,42 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
     ImGui::BulletText("Delete current selection: Del");
 }
 
-void DrawViewportToolbar(const ImVec2 viewportOrigin,
+bool DrawViewportToolbar(const ImVec2 viewportOrigin,
                          const float zoom,
                          const std::optional<mfd::Vec2>& mouseLogical,
-                         const char* buttonId,
+                         const char* helpButtonId,
+                         const char* resetButtonId,
                          const char* popupId,
                          const bool libraryPreview)
 {
     const ViewportToolbarLayout layout = ComputeViewportToolbarLayout(viewportOrigin, zoom, mouseLogical);
-    ImGui::SetCursorScreenPos(layout.buttonPos);
-    if (ImGui::Button(buttonId, layout.buttonSize))
+    bool resetRequested = false;
+
+    ImGui::SetCursorScreenPos(layout.helpButtonPos);
+    if (ImGui::Button(helpButtonId, layout.buttonSize))
     {
         ImGui::OpenPopup(popupId);
     }
     ShowItemTooltip("Open a compact summary of the controls available in this view.");
 
+    ImGui::SetCursorScreenPos(layout.resetButtonPos);
+    resetRequested = ImGui::Button(resetButtonId, layout.buttonSize);
+    ShowItemTooltip(libraryPreview ? "Recenter the reticle-studio camera on its neutral view."
+                                   : "Recenter the page camera on the authored page view.");
+
     ImGui::SetCursorScreenPos(layout.textPos);
     ImGui::TextDisabled("%s", layout.infoLabel.data());
 
-    ImGui::SetNextWindowPos(ImVec2(layout.buttonPos.x, layout.buttonPos.y + layout.buttonSize.y + 6.0f), ImGuiCond_Appearing);
+    ImGui::SetNextWindowPos(
+        ImVec2(layout.helpButtonPos.x, layout.helpButtonPos.y + layout.buttonSize.y + 6.0f),
+        ImGuiCond_Appearing);
     if (ImGui::BeginPopup(popupId))
     {
         DrawViewportHelpPopupContent(libraryPreview);
         ImGui::EndPopup();
     }
+
+    return resetRequested;
 }
 
 ImVec2 ToMinimapScreen(const PageMinimapState& minimap, const mfd::Vec2 logical)
@@ -1706,7 +1723,7 @@ void EditorApplication::HandleShortcuts()
 
         if (selection_.kind == SelectionKind::PageReticle && !SelectedPageReticleIndices().empty())
         {
-            SelectPage(selection_.pageIndex);
+            SelectPage(selection_.pageIndex, false);
             RebuildStatus("Page reticle selection cleared.", false);
         }
     }
@@ -3756,13 +3773,17 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         ImGui::EndDragDropTarget();
     }
 
-    DrawViewportToolbar(
+    if (DrawViewportToolbar(
         viewport.origin,
         mfd::SanitizeZoom(pagePreviewView_.zoom),
         mouseLogical,
         "?##PagePreviewHelp",
+        "R##PagePreviewRecenter",
         kPagePreviewHelpPopupId,
-        false);
+        false))
+    {
+        ResetPagePreviewView();
+    }
 }
 
 void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
@@ -3816,13 +3837,17 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
         mouseLogical = viewport.ToLogical(mouse);
     }
 
-    DrawViewportToolbar(
+    if (DrawViewportToolbar(
         viewport.origin,
         mfd::SanitizeZoom(libraryPreviewView_.zoom),
         mouseLogical,
         "?##LibraryPreviewHelp",
+        "R##LibraryPreviewRecenter",
         kLibraryPreviewHelpPopupId,
-        true);
+        true))
+    {
+        ResetLibraryPreviewView();
+    }
 }
 
 void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
@@ -5640,7 +5665,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     std::optional<int> bestPrimitiveIndex = FindNearestLibraryPrimitive(viewport, mouse);
     if (!bestPrimitiveIndex.has_value())
     {
-        SelectLibraryReticle(reticle->id);
+        SelectLibraryReticle(reticle->id, false);
         return;
     }
 
@@ -5880,7 +5905,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     interactionPrimitiveIndex_ = -1;
 }
 
-void EditorApplication::SelectPage(const int pageIndex)
+void EditorApplication::SelectPage(const int pageIndex, const bool resetPreviewView)
 {
     const int previousPageIndex = selection_.pageIndex;
     selection_.kind = SelectionKind::Page;
@@ -5903,7 +5928,10 @@ void EditorApplication::SelectPage(const int pageIndex)
     interactionStartReticleTransforms_.clear();
     interactionHandleIndex_ = -1;
     interactionHandleKind_ = PrimitiveHandleKind::None;
-    ResetPagePreviewView();
+    if (resetPreviewView)
+    {
+        ResetPagePreviewView();
+    }
 }
 
 void EditorApplication::SelectWindow()
@@ -5993,7 +6021,7 @@ void EditorApplication::TogglePageReticleSelection(const int pageIndex, const in
     }
 }
 
-void EditorApplication::SelectLibraryReticle(std::string templateId)
+void EditorApplication::SelectLibraryReticle(std::string templateId, const bool resetPreviewView)
 {
     selection_.kind = SelectionKind::LibraryReticle;
     selection_.libraryReticleId = std::move(templateId);
@@ -6008,7 +6036,10 @@ void EditorApplication::SelectLibraryReticle(std::string templateId)
     interactionPrimitiveIndex_ = -1;
     interactionHandleIndex_ = -1;
     interactionHandleKind_ = PrimitiveHandleKind::None;
-    ResetLibraryPreviewView();
+    if (resetPreviewView)
+    {
+        ResetLibraryPreviewView();
+    }
 }
 
 void EditorApplication::SelectLibraryPrimitive(std::string templateId, const int primitiveIndex)
@@ -6860,7 +6891,7 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
     }
     else if (!additiveSelection)
     {
-        SelectPage(selection_.pageIndex);
+        SelectPage(selection_.pageIndex, false);
     }
 }
 
