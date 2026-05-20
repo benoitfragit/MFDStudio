@@ -77,6 +77,7 @@ private:
         Window,
         Page,
         PageReticle,
+        PageStrobe,
         LibraryReticle,
         LibraryPrimitive
     };
@@ -373,6 +374,8 @@ private:
     void DrawPageDynamicTemplateInspector(mfd::PageDefinition& page);
     /** @brief Draws the inspector for one page reticle instance. */
     void DrawPageReticleInspector();
+    /** @brief Draws the inspector for the selected page strobe instance. */
+    void DrawSelectedPageStrobeInspector();
     /** @brief Draws the page-local blink-type editor. */
     void DrawPageBlinkInspector(mfd::PageDefinition& page);
     /** @brief Draws the page-reticle blink assignment editor. */
@@ -529,6 +532,8 @@ private:
     void SelectPage(int pageIndex, bool resetPreviewView = true);
     /** @brief Selects one page reticle instance. */
     void SelectPageReticle(int pageIndex, int reticleIndex);
+    /** @brief Selects the page-level strobe instance when the active page exposes one. */
+    void SelectPageStrobe(int pageIndex);
     /** @brief Toggles one page reticle inside the multi-selection. */
     void TogglePageReticleSelection(int pageIndex, int reticleIndex);
     /** @brief Selects one reticle template in the library tree. */
@@ -544,6 +549,14 @@ private:
     mfd::ReticleGroup* SelectedPageReticle() noexcept;
     /** @brief Returns the selected page reticle instance when available. */
     const mfd::ReticleGroup* SelectedPageReticle() const noexcept;
+    /** @brief Returns the selected page strobe reticle instance when available. */
+    mfd::ReticleGroup* SelectedPageStrobeReticle() noexcept;
+    /** @brief Returns the selected page strobe reticle instance when available. */
+    const mfd::ReticleGroup* SelectedPageStrobeReticle() const noexcept;
+    /** @brief Returns the currently selected editable page reticle, including the page strobe. */
+    mfd::ReticleGroup* SelectedEditablePageReticle() noexcept;
+    /** @brief Returns the currently selected editable page reticle, including the page strobe. */
+    const mfd::ReticleGroup* SelectedEditablePageReticle() const noexcept;
     /** @brief Returns the selected reticle template when available. */
     mfd::ReticleGroup* SelectedLibraryReticle() noexcept;
     /** @brief Returns the selected reticle template when available. */
@@ -564,6 +577,8 @@ private:
                                         Color backgroundColor);
     /** @brief Returns `true` when one page reticle is part of the current selection. */
     bool HasSelectedPageReticle(int pageIndex, int reticleIndex) const noexcept;
+    /** @brief Returns `true` when the page-level strobe currently owns the selection. */
+    bool IsPageStrobeSelected() const noexcept;
     /** @brief Returns the selected page reticle indices on the active page. */
     std::vector<int> SelectedPageReticleIndices() const;
     /** @brief Returns the current number of selected page reticles. */
