@@ -32,6 +32,7 @@ namespace mfd
 namespace
 {
 constexpr float kMinSegmentLength = 0.0001f;
+constexpr float kTargetCirclePixelsPerSegment = 3.0f;
 constexpr int kMaxPrimitiveSegments = 1024;
 constexpr std::size_t kMaxStrokeFragmentsPerSegment = 4096U;
 
@@ -158,7 +159,9 @@ void DrawDashedStrokeSegment(const Vector2 start,
                              const float dashLength,
                              const float gapLength,
                              const float thickness,
-                             const Color color)
+                             const Color color,
+                             float& distanceToNextTransition,
+                             bool& drawingDash)
 {
     float segmentLength = 0.0f;
     if (!TryMeasureFiniteSegment(start, end, segmentLength))
@@ -166,26 +169,62 @@ void DrawDashedStrokeSegment(const Vector2 start,
         return;
     }
 
-    float dashStartOffset = 0.0f;
+    if (!std::isfinite(distanceToNextTransition) || distanceToNextTransition <= 0.0f)
+    {
+        distanceToNextTransition = drawingDash ? dashLength : gapLength;
+    }
+
+    float traversedLength = 0.0f;
     std::size_t fragmentCount = 0U;
-    while (dashStartOffset < segmentLength)
+    while (traversedLength < segmentLength)
     {
         if (++fragmentCount > kMaxStrokeFragmentsPerSegment)
         {
             break;
         }
 
-        const float dashEndOffset = std::min(dashStartOffset + dashLength, segmentLength);
-        const Vector2 dashStart = LerpVector2(start, end, dashStartOffset / segmentLength);
-        const Vector2 dashEnd = LerpVector2(start, end, dashEndOffset / segmentLength);
-        if (!IsFiniteVector(dashStart) || !IsFiniteVector(dashEnd))
+        const float consumedLength = std::min(distanceToNextTransition, segmentLength - traversedLength);
+        if (!std::isfinite(consumedLength) || consumedLength <= 0.0f)
         {
             break;
         }
 
-        DrawLineEx(dashStart, dashEnd, thickness, color);
-        dashStartOffset = dashEndOffset + gapLength;
+        const Vector2 fragmentStart = LerpVector2(start, end, traversedLength / segmentLength);
+        const Vector2 fragmentEnd = LerpVector2(start, end, (traversedLength + consumedLength) / segmentLength);
+        if (!IsFiniteVector(fragmentStart) || !IsFiniteVector(fragmentEnd))
+        {
+            break;
+        }
+
+        if (drawingDash)
+        {
+            float dashFragmentLength = 0.0f;
+            if (TryMeasureFiniteSegment(fragmentStart, fragmentEnd, dashFragmentLength))
+            {
+                DrawLineEx(fragmentStart, fragmentEnd, thickness, color);
+            }
+        }
+
+        traversedLength += consumedLength;
+        distanceToNextTransition -= consumedLength;
+        if (!std::isfinite(distanceToNextTransition) || distanceToNextTransition <= 0.0001f)
+        {
+            drawingDash = !drawingDash;
+            distanceToNextTransition = drawingDash ? dashLength : gapLength;
+        }
     }
+}
+
+int EstimateCircleSegmentCount(const float radiusPixels, const int minimum) noexcept
+{
+    if (!std::isfinite(radiusPixels) || radiusPixels <= 0.0f)
+    {
+        return SanitizeSegmentCount(minimum, minimum);
+    }
+
+    const float circumferencePixels = 2.0f * PI * radiusPixels;
+    const int estimated = static_cast<int>(std::ceil(circumferencePixels / kTargetCirclePixelsPerSegment));
+    return SanitizeSegmentCount(std::max(minimum, estimated), minimum);
 }
 
 void DrawPolylineStroke(const ArrayView<const Vector2> points,
@@ -243,15 +282,33 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
 
     const float dashLength = std::max(6.0f, thickness * 4.0f);
     const float gapLength = std::max(4.0f, thickness * 2.0f);
+    float distanceToNextTransition = dashLength;
+    bool drawingDash = true;
 
     for (std::size_t index = 0; index + 1 < points.size(); ++index)
     {
-        DrawDashedStrokeSegment(points[index], points[index + 1], dashLength, gapLength, thickness, color);
+        DrawDashedStrokeSegment(
+            points[index],
+            points[index + 1],
+            dashLength,
+            gapLength,
+            thickness,
+            color,
+            distanceToNextTransition,
+            drawingDash);
     }
 
     if (closed)
     {
-        DrawDashedStrokeSegment(points.back(), points.front(), dashLength, gapLength, thickness, color);
+        DrawDashedStrokeSegment(
+            points.back(),
+            points.front(),
+            dashLength,
+            gapLength,
+            thickness,
+            color,
+            distanceToNextTransition,
+            drawingDash);
     }
 }
 
@@ -787,7 +844,11 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             DrawCircleV(center, radius, fillColor);
         }
 
-        SampleEllipseInto(EllipseGeometry {circle->radius * 2.0f, circle->radius * 2.0f}, 64, logicalScratchA_);
+        const int segmentCount = EstimateCircleSegmentCount(radius, 64);
+        SampleEllipseInto(
+            EllipseGeometry {circle->radius * 2.0f, circle->radius * 2.0f},
+            segmentCount,
+            logicalScratchA_);
         BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
         DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
@@ -800,13 +861,18 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
+        const float outerRadiusPixels =
+            std::max(0.0f,
+                     std::abs(ToViewPixels(ring->outerRadius * AverageScale(group.transform, primitive.transform))));
+        const int segmentCount =
+            std::max(SanitizeSegmentCount(ring->segments, 12), EstimateCircleSegmentCount(outerRadiusPixels, 64));
         SampleEllipseInto(
             EllipseGeometry {ring->outerRadius * 2.0f, ring->outerRadius * 2.0f},
-            ring->segments,
+            segmentCount,
             logicalScratchA_);
         SampleEllipseInto(
             EllipseGeometry {ring->innerRadius * 2.0f, ring->innerRadius * 2.0f},
-            ring->segments,
+            segmentCount,
             logicalScratchB_);
         BuildScreenPointsInto(
             logicalScratchA_.data(),
