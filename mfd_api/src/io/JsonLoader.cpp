@@ -22,6 +22,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "../runtime/RuntimeValidation.h"
 #include "json/JsonNumberParsing.h"
 #include "json/JsonValueHelpers.h"
 #include "mfd/runtime/DocumentSemanticValidator.h"
@@ -102,16 +103,17 @@ using json_loader_detail::ParseWindowSize;
 using json_loader_detail::ResolvePath;
 using json_loader_detail::TrimAsciiWhitespace;
 
-constexpr float kMaxAbsCoordinate = 1'000'000.0f;
-constexpr float kMaxAbsScale = 1'000.0f;
-constexpr float kMaxAbsAngleDegrees = 1'000'000.0f;
-constexpr float kMaxThickness = 100.0f;
-constexpr float kMaxLogicalSize = 1'000'000.0f;
-constexpr float kMaxZoom = 1'000.0f;
-constexpr int kMaxPrimitiveSegments = 1024;
-constexpr std::size_t kMaxPrimitivePoints = 2048U;
-constexpr std::size_t kMaxFilledPolygonPoints = 512U;
-constexpr std::size_t kMaxTextBytes = 4096U;
+using runtime_validation::kMaxAbsAngleDegrees;
+using runtime_validation::kMaxAbsCoordinate;
+using runtime_validation::kMaxAbsScale;
+using runtime_validation::kMaxFilledPolygonPoints;
+using runtime_validation::kMaxLogicalSize;
+using runtime_validation::kMaxPrimitivePoints;
+using runtime_validation::kMaxPrimitiveSegments;
+using runtime_validation::kMaxTextBytes;
+using runtime_validation::kMaxThickness;
+using runtime_validation::kMaxZoom;
+
 constexpr int kMaxWindowExtent = 16384;
 
 float ParseFiniteFloat(const json& value, const char* fieldName)
@@ -130,11 +132,6 @@ float ParseFiniteFloat(const json& value, const char* fieldName)
     return parsed;
 }
 
-bool IsFiniteVec2(const Vec2& value) noexcept
-{
-    return std::isfinite(value.x) && std::isfinite(value.y);
-}
-
 void ValidateFiniteAbs(const float value, const char* fieldName, const float maxAbs)
 {
     if (!std::isfinite(value))
@@ -142,7 +139,7 @@ void ValidateFiniteAbs(const float value, const char* fieldName, const float max
         throw std::runtime_error(std::string(fieldName) + " must be finite");
     }
 
-    if (std::abs(value) > maxAbs)
+    if (!runtime_validation::IsFiniteAbsWithin(value, maxAbs))
     {
         throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
     }
@@ -155,7 +152,7 @@ void ValidatePositiveFinite(const float value, const char* fieldName, const floa
         throw std::runtime_error(std::string(fieldName) + " must be strictly positive and finite");
     }
 
-    if (value > maxValue)
+    if (!runtime_validation::IsPositiveFiniteWithin(value, maxValue))
     {
         throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
     }
@@ -163,12 +160,12 @@ void ValidatePositiveFinite(const float value, const char* fieldName, const floa
 
 void ValidateVec2(const Vec2& value, const char* fieldName, const float maxAbs = kMaxAbsCoordinate)
 {
-    if (!IsFiniteVec2(value))
+    if (!runtime_validation::IsFiniteVec2(value))
     {
         throw std::runtime_error(std::string(fieldName) + " must contain finite coordinates");
     }
 
-    if (std::abs(value.x) > maxAbs || std::abs(value.y) > maxAbs)
+    if (!runtime_validation::IsValidVec2(value, maxAbs))
     {
         throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
     }
@@ -209,7 +206,7 @@ void ValidatePointCount(const std::size_t value, const std::size_t minimum, cons
 
 void ValidatePrimitiveStyle(const PrimitiveStyle& style)
 {
-    if (!std::isfinite(style.thickness) || style.thickness <= 0.0f || style.thickness > kMaxThickness)
+    if (!runtime_validation::IsPositiveFiniteWithin(style.thickness, kMaxThickness))
     {
         throw std::runtime_error("Primitive thickness exceeds runtime safety limits");
     }

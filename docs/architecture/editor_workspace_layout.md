@@ -63,3 +63,20 @@ unit tests.
 Overlay-only features such as gizmos, minimap labels and reticle annotations
 still stay in `DrawPreviewOverlays()`. Only the persistent diagnostics panel
 and the layer-inspector dock have moved out of that overlay path.
+
+## Editor Shell Split
+
+The editor shell is still one class, but its implementation is now split by
+responsibility:
+
+- `mfd_editor/src/EditorApplication.cpp` keeps the main shell, page-preview
+  layout, geometry helpers, direct manipulation, and the frame-by-frame draw
+  path
+- `mfd_editor/src/EditorApplicationWorkflow.cpp` owns modal workflows, native
+  file-dialog orchestration, safe asset-management popups, and tutorial-driven
+  authoring actions
+- `mfd_editor/src/EditorApplicationInternal.h` centralizes small private
+  helpers reused by both implementation units without widening the public API
+
+This keeps workspace-layout behavior close to the preview code while moving the
+long authoring and popup workflows out of the main shell compilation unit.

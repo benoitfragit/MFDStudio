@@ -6,6 +6,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetReferenceIndexService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetPathService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplicationWorkflow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDesignExportService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp

@@ -55,6 +55,7 @@ directory, for example:
 The first test files are:
 
 - `tests/mfd_api/JsonLoaderTests.cpp`
+- `tests/mfd_api/RuntimeValidationTests.cpp`
 - `tests/mfd_api/SceneRegistryTests.cpp`
 - `tests/mfd_api/StrobeFeedbackTests.cpp`
 - `tests/mfd_api/CommandTransportTests.cpp`
@@ -73,6 +74,12 @@ live physically under `mfd_common_api/include`, `mfd_common_api/src`, and
 - rejecting an unknown page default blink type
 - rejecting an unknown reticle blink type
 - a smoke test on the repository cockpit window configuration
+
+`RuntimeValidationTests.cpp` covers:
+
+- the shared numeric input budgets now reused by `JsonLoader` and `SceneRegistry`
+- rejection of non-finite or out-of-budget coordinates
+- rejection of oversized text payloads and authored point lists
 
 `SceneRegistryTests.cpp` covers:
 
@@ -133,6 +140,12 @@ You can run the executable directly:
 
 ```powershell
 .\build\vs2022-win32\tests\Debug\mfd_api_tests.exe
+```
+
+Or target only the shared validation and runtime-loading suites while iterating:
+
+```powershell
+.\build\vs2022-win32\tests\Debug\mfd_api_tests.exe --gtest_filter="JsonLoaderTests.*:SceneRegistryTests.*:RuntimeValidationTests.*"
 ```
 
 All GoogleTest executables are grouped under `build/<preset>/tests/<config>/`.

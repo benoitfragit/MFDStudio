@@ -91,10 +91,12 @@ These tests validate command normalization and runtime application:
 
 - `tests/mfd_api/CommandClientTests.cpp`
 - `tests/mfd_api/CommandProcessorTests.cpp`
+- `tests/mfd_api/RuntimeValidationTests.cpp`
 - `tests/mfd_api/SceneRegistryTests.cpp`
 
 They are especially relevant for:
 
+- shared numeric and payload validation budgets enforced before runtime mutation
 - `mappingHash`
 - generated ID normalization
 - bulk dynamic updates

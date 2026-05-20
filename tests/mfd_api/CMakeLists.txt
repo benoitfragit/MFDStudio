@@ -20,6 +20,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/PublicRenderFacadeHeadersTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RenderResourceLifetimeTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ReticleTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/RuntimeValidationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SceneRegistryTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/StrobeFeedbackTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/TextLayoutCacheTests.cpp
@@ -45,6 +46,7 @@ target_include_directories(mfd_api_tests
     PRIVATE
         ${CMAKE_BINARY_DIR}/mfd_common_api/generated
         ${MFD_ROOT_DIR}/mfd_api/src/io/json
+        ${MFD_ROOT_DIR}/mfd_api/src/runtime
         ${MFD_ROOT_DIR}/mfd_api/src/render)
 
 mfd_enable_target_warnings(mfd_api_tests)

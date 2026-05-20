@@ -11,6 +11,7 @@
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "mfd/control/CommandTypes.h"
+#include "RuntimeValidation.h"
 
 #include <algorithm>
 #include <chrono>
@@ -23,17 +24,20 @@ namespace mfd
 namespace
 {
 using BlinkClock = std::chrono::steady_clock;
-constexpr float kMaxAbsCoordinate = 1'000'000.0f;
-constexpr float kMaxAbsScale = 1'000.0f;
-constexpr float kMaxAbsAngleDegrees = 1'000'000.0f;
-constexpr float kMaxLogicalSize = 1'000'000.0f;
-constexpr float kMaxThickness = 100.0f;
-constexpr float kMaxZoom = 1'000.0f;
-constexpr int kMaxPrimitiveSegments = 1024;
-constexpr std::size_t kMaxPrimitivePoints = 2048U;
-constexpr std::size_t kMaxFilledPolygonPoints = 512U;
+using runtime_validation::AreValidPoints;
+using runtime_validation::IsFiniteAbsWithin;
+using runtime_validation::IsPositiveFiniteWithin;
+using runtime_validation::IsValidScale;
+using runtime_validation::IsValidTextPayload;
+using runtime_validation::IsValidVec2;
+using runtime_validation::kMaxAbsAngleDegrees;
+using runtime_validation::kMaxFilledPolygonPoints;
+using runtime_validation::kMaxLogicalSize;
+using runtime_validation::kMaxPrimitiveSegments;
+using runtime_validation::kMaxThickness;
+using runtime_validation::kMaxZoom;
+
 constexpr std::size_t kMaxPatchEntryCount = 2048U;
-constexpr std::size_t kMaxTextBytes = 4096U;
 
 enum class ReticleDrawPass : std::uint8_t
 {
@@ -100,56 +104,6 @@ bool operator<(const ReticleDrawOrderKey& lhs, const ReticleDrawOrderKey& rhs) n
 std::string NormalizeReticleId(const std::string_view value)
 {
     return NormalizePageName(value);
-}
-
-bool IsFiniteVec2(const Vec2& value) noexcept
-{
-    return std::isfinite(value.x) && std::isfinite(value.y);
-}
-
-bool IsFiniteAbsWithin(const float value, const float maxAbs) noexcept
-{
-    return std::isfinite(value) && std::abs(value) <= maxAbs;
-}
-
-bool IsPositiveFiniteWithin(const float value, const float maxValue) noexcept
-{
-    return std::isfinite(value) && value > 0.0f && value <= maxValue;
-}
-
-bool IsValidVec2(const Vec2& value, const float maxAbs = kMaxAbsCoordinate) noexcept
-{
-    return IsFiniteVec2(value) &&
-           std::abs(value.x) <= maxAbs &&
-           std::abs(value.y) <= maxAbs;
-}
-
-bool IsValidScale(const Vec2& value) noexcept
-{
-    return IsValidVec2(value, kMaxAbsScale);
-}
-
-bool IsValidTextPayload(const std::string& value) noexcept
-{
-    return value.size() <= kMaxTextBytes;
-}
-
-bool AreValidPoints(const std::vector<Vec2>& points, const std::size_t minimumCount) noexcept
-{
-    if (points.size() < minimumCount || points.size() > kMaxPrimitivePoints)
-    {
-        return false;
-    }
-
-    for (const Vec2& point : points)
-    {
-        if (!IsValidVec2(point))
-        {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 bool IsValidPrimitivePatch(const PrimitivePatch& patch) noexcept

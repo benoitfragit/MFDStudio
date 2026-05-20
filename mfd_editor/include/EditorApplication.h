@@ -730,16 +730,6 @@ private:
         std::filesystem::path assetsRoot {};
         editor::ReticleUsageHighlightResult result {};
     } reticleUsageHighlightCache_ {};
-    /** @brief Future hidden conversation-surface state kept invisible until one UI consumer is explicitly added. */
-    struct HiddenConversationSurfaceState
-    {
-        /** @brief Enables one future docked conversation panel once the product decides to expose it. */
-        bool panelEnabled = false;
-        /** @brief Enables one future detached overlay window once the product decides to expose it. */
-        bool overlayWindowEnabled = false;
-        /** @brief Stores the last external-agent session id for future hidden conversation adapters. */
-        std::string lastExternalAgentSessionId {};
-    } hiddenConversationSurface_ {};
     /** @brief Current direct-manipulation mode active in the preview. */
     InteractionMode interactionMode_ = InteractionMode::None;
     /** @brief Reticle currently manipulated by the user, when relevant. */
