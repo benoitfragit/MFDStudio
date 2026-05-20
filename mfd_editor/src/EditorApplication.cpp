@@ -377,6 +377,22 @@ bool ReticleIdExistsExact(const std::vector<mfd::ReticleGroup>& groups, const st
                        });
 }
 
+bool ReticleIdExistsNormalized(const std::vector<mfd::ReticleGroup>& groups, const std::string_view id)
+{
+    const std::string normalizedId = mfd::NormalizePageName(id);
+    if (normalizedId.empty())
+    {
+        return false;
+    }
+
+    return std::any_of(groups.begin(),
+                       groups.end(),
+                       [&normalizedId](const mfd::ReticleGroup& reticle)
+                       {
+                           return mfd::NormalizePageName(reticle.id) == normalizedId;
+                       });
+}
+
 bool PageLayerIdExistsExact(const mfd::PageDefinition& page, const std::string_view id)
 {
     return std::any_of(page.layers.begin(),
@@ -6632,7 +6648,7 @@ void EditorApplication::PasteCopiedPageReticles()
     {
         mfd::ReticleGroup pastedReticle = sourceReticle;
         const std::string baseId = pastedReticle.id.empty() ? std::string {"reticle"} : pastedReticle.id;
-        pastedReticle.id = MakeUniqueReticleId(page->staticReticles, baseId);
+        pastedReticle.id = MakeUniquePageReticleId(*page, baseId);
         pastedReticle.transform.position.x = std::clamp(pastedReticle.transform.position.x + offset, -1.0f, 1.0f);
         pastedReticle.transform.position.y = std::clamp(pastedReticle.transform.position.y - offset, -1.0f, 1.0f);
         if (!pastedReticle.layerId.empty() && FindEditorLayer(*page, pastedReticle.layerId) == nullptr)
@@ -8101,7 +8117,7 @@ bool EditorApplication::CreatePageReticleInstanceFromTemplate(const std::string_
 
     PushUndoSnapshot();
 
-    const std::string instanceId = MakeUniqueReticleId(page->staticReticles, templateId);
+    const std::string instanceId = MakeUniquePageReticleId(*page, templateId);
     mfd::ReticleGroup instance = mfd::InstantiateReticle(
         iterator->second,
         instanceId,
@@ -8145,7 +8161,12 @@ mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
             : (templ.id.empty() ? std::string {"strobe"} : templ.id + "_strobe");
 
     mfd::PageStrobeDefinition strobe;
-    strobe.reticle = mfd::InstantiateReticle(templ, MakeUniqueReticleId(page.staticReticles, baseId));
+    strobe.reticle = mfd::InstantiateReticle(
+        templ,
+        MakeUniquePageReticleId(
+            page,
+            baseId,
+            previousStrobe.has_value() ? std::string_view {previousStrobe->reticle.id} : std::string_view {}));
     strobe.reticle.visible = true;
 
     if (previousStrobe.has_value())
@@ -8170,6 +8191,50 @@ std::string EditorApplication::MakeUniqueReticleId(const std::vector<mfd::Reticl
     while (ReticleIdExistsExact(groups, candidate))
     {
         candidate = std::string(baseId) + "_" + std::to_string(suffix++);
+    }
+
+    return candidate;
+}
+
+std::string EditorApplication::MakeUniquePageReticleId(const mfd::PageDefinition& page,
+                                                       const std::string_view baseId,
+                                                       const std::string_view ignoredStrobeId)
+{
+    const std::string stableBase =
+        NormalizeEditorIdentifier(baseId).empty() ? std::string {"reticle"} : std::string(baseId);
+    std::string candidate = stableBase;
+    int suffix = 1;
+    const std::string ignoredNormalizedStrobeId = NormalizeEditorIdentifier(ignoredStrobeId);
+
+    const auto collidesWithPage = [&page, &ignoredNormalizedStrobeId](const std::string_view id)
+    {
+        if (ReticleIdExistsNormalized(page.staticReticles, id))
+        {
+            return true;
+        }
+
+        if (!page.strobe.has_value())
+        {
+            return false;
+        }
+
+        const std::string normalizedStrobeId = NormalizeEditorIdentifier(page.strobe->reticle.id);
+        if (normalizedStrobeId.empty())
+        {
+            return false;
+        }
+
+        if (!ignoredNormalizedStrobeId.empty() && normalizedStrobeId == ignoredNormalizedStrobeId)
+        {
+            return false;
+        }
+
+        return normalizedStrobeId == NormalizeEditorIdentifier(id);
+    };
+
+    while (collidesWithPage(candidate))
+    {
+        candidate = stableBase + "_" + std::to_string(suffix++);
     }
 
     return candidate;

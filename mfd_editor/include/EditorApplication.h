@@ -632,6 +632,10 @@ private:
                                                                 const std::optional<mfd::PageStrobeDefinition>& previousStrobe);
     /** @brief Generates a reticle id that does not collide inside the provided container. */
     static std::string MakeUniqueReticleId(const std::vector<mfd::ReticleGroup>& groups, std::string_view baseId);
+    /** @brief Generates a page reticle id that stays unique against static reticles and the optional page strobe after normalization. */
+    static std::string MakeUniquePageReticleId(const mfd::PageDefinition& page,
+                                               std::string_view baseId,
+                                               std::string_view ignoredStrobeId = {});
     /** @brief Generates a unique editor layer id inside one page. */
     static std::string MakeUniqueLayerId(const mfd::PageDefinition& page, std::string_view baseId);
     /** @brief Root window file currently open in the editor, or empty when no asset is loaded yet. */

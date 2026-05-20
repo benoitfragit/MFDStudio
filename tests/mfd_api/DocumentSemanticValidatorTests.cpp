@@ -181,3 +181,24 @@ TEST(DocumentSemanticValidatorTests, ReportsDuplicateReticleIdsAfterNormalizatio
 
     EXPECT_EQ(DiagnosticCodes(diagnostics), std::vector<std::string> {"MFD018"});
 }
+
+TEST(DocumentSemanticValidatorTests, ReportsDuplicateStaticReticleAndStrobeIdsAfterNormalization)
+{
+    mfd::PageDefinition page;
+    page.name = "Main";
+    page.normalizedName = "main";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    page.staticReticles.push_back(MakeReticle("cursor"));
+
+    mfd::PageStrobeDefinition strobe;
+    strobe.reticle = MakeReticle("Cursor");
+    page.strobe = std::move(strobe);
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    const std::vector<mfd::SemanticValidationDiagnostic> diagnostics =
+        mfd::DocumentSemanticValidator {}.Validate(document);
+
+    EXPECT_EQ(DiagnosticCodes(diagnostics), std::vector<std::string> {"MFD018"});
+}
