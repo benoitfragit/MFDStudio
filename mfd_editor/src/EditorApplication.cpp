@@ -98,11 +98,11 @@ Color ToRayColor(const mfd::ColorRgba& color)
     return Color {color.r, color.g, color.b, color.a};
 }
 
-void ApplyBilinearFilterToFont(const Font font) noexcept
+void ApplyPointFilterToFont(const Font font) noexcept
 {
     if (font.texture.id != 0)
     {
-        SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+        SetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
     }
 }
 
@@ -3351,7 +3351,7 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
     ClearBackground(background);
     {
         EnsurePreviewFont();
-        ApplyBilinearFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(width,
                              height,
                              previewView,
@@ -3416,7 +3416,7 @@ void EditorApplication::EnsurePreviewFont()
         return;
     }
 
-    ApplyBilinearFilterToFont(loadedFont);
+    ApplyPointFilterToFont(loadedFont);
     previewFont_ = loadedFont;
     previewFontReady_ = true;
 }
@@ -3686,7 +3686,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     ClearBackground(ToRayColor(page->backgroundColor));
     {
         EnsurePreviewFont();
-        ApplyBilinearFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
             previewTexture_.texture.width,
             previewTexture_.texture.height,
@@ -3804,7 +3804,7 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     ClearBackground(Color {10, 18, 24, 255});
     {
         EnsurePreviewFont();
-        ApplyBilinearFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
             previewTexture_.texture.width,
             previewTexture_.texture.height,
@@ -6379,7 +6379,7 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
     ClearBackground(backgroundColor);
     {
         EnsurePreviewFont();
-        ApplyBilinearFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(kTooltipPreviewWidth,
                              kTooltipPreviewHeight,
                              previewView,

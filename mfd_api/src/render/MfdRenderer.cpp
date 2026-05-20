@@ -39,11 +39,11 @@ Font ResolveTextFont(const Font* textFont) noexcept
     return textFont != nullptr ? *textFont : GetFontDefault();
 }
 
-void ApplyBilinearFilterToFont(const Font font) noexcept
+void ApplyPointFilterToFont(const Font font) noexcept
 {
     if (font.texture.id != 0)
     {
-        SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+        SetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
     }
 }
 
@@ -351,7 +351,7 @@ struct MfdRenderer::Impl
             return false;
         }
 
-        ApplyBilinearFilterToFont(loadedFont);
+        ApplyPointFilterToFont(loadedFont);
         textFont = loadedFont;
         textFontReady = true;
         return true;
@@ -422,7 +422,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     }
 
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();
-    ApplyBilinearFilterToFont(ResolveTextFont(textFont));
+    ApplyPointFilterToFont(ResolveTextFont(textFont));
     std::vector<ReticleRenderView> fallbackActiveReticles;
     const std::vector<ReticleRenderView>* activeReticles = nullptr;
     if (impl_ != nullptr)
