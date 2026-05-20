@@ -1227,8 +1227,16 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
     ImGui::TextDisabled("Global shortcuts");
     ImGui::BulletText("Save: Ctrl+S");
     ImGui::BulletText("Undo: Ctrl+Z");
-    ImGui::BulletText("Copy / Cut / Paste selected page reticles: Ctrl+C / Ctrl+X / Ctrl+V");
-    ImGui::BulletText("Delete current selection: Del");
+    if (libraryPreview)
+    {
+        ImGui::BulletText("Copy / Paste selected library reticle: Ctrl+C / Ctrl+V");
+        ImGui::BulletText("Delete current library reticle: Del");
+    }
+    else
+    {
+        ImGui::BulletText("Copy / Cut / Paste selected page reticles: Ctrl+C / Ctrl+X / Ctrl+V");
+        ImGui::BulletText("Delete current selection: Del");
+    }
 }
 
 bool DrawViewportToolbar(const ImVec2 viewportOrigin,
@@ -1658,6 +1666,9 @@ void EditorApplication::HandleShortcuts()
     HandleDroppedFiles();
 
     const ImGuiIO& io = ImGui::GetIO();
+    const bool hasFocusedLibraryReticle =
+        (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive) &&
+        SelectedLibraryReticle() != nullptr;
 
     if (!io.WantTextInput && CanToggleFullscreenPagePreview() && ImGui::IsKeyPressed(ImGuiKey_F11))
     {
@@ -1682,7 +1693,14 @@ void EditorApplication::HandleShortcuts()
         (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C, ImGuiInputFlags_RouteGlobal) ||
          IsRaylibControlChordPressed({KEY_C})))
     {
-        CopySelectedPageReticles();
+        if (hasFocusedLibraryReticle)
+        {
+            CopySelectedLibraryReticle();
+        }
+        else
+        {
+            CopySelectedPageReticles();
+        }
     }
 
     if (!io.WantTextInput &&
@@ -1696,7 +1714,14 @@ void EditorApplication::HandleShortcuts()
         (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_RouteGlobal) ||
          IsRaylibControlChordPressed({KEY_V})))
     {
-        PasteCopiedPageReticles();
+        if (hasFocusedLibraryReticle)
+        {
+            PasteCopiedLibraryReticle();
+        }
+        else
+        {
+            PasteCopiedPageReticles();
+        }
     }
 
     if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Delete))
@@ -2192,6 +2217,21 @@ void EditorApplication::DrawMenuBar()
         const bool hasFocusedLibraryReticle =
             (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive) &&
             SelectedLibraryReticle() != nullptr;
+        const bool copyLibraryReticleRequested =
+            ImGui::MenuItem("Copy selected library reticle", "Ctrl+C", false, hasFocusedLibraryReticle);
+        ShowItemTooltip("Copy the focused shared reticle template into the editor clipboard.");
+        if (copyLibraryReticleRequested)
+        {
+            CopySelectedLibraryReticle();
+        }
+
+        const bool pasteLibraryReticleRequested =
+            ImGui::MenuItem("Paste copied library reticle", "Ctrl+V", false, libraryReticleClipboard_.has_value());
+        ShowItemTooltip("Paste the copied shared reticle template as one new library entry.");
+        if (pasteLibraryReticleRequested)
+        {
+            PasteCopiedLibraryReticle();
+        }
 
         const bool duplicateReticleRequested =
             ImGui::MenuItem("Duplicate selected library reticle", nullptr, false, hasFocusedLibraryReticle);
@@ -3156,6 +3196,20 @@ void EditorApplication::DrawLibraryTree()
 
         if (ImGui::BeginPopupContextItem(("LibraryReticleContextMenu##" + templateId).c_str()))
         {
+            if (ImGui::MenuItem("Copy reticle", "Ctrl+C"))
+            {
+                SelectLibraryReticle(templateId);
+                CopySelectedLibraryReticle();
+            }
+
+            if (ImGui::MenuItem("Paste copied reticle", "Ctrl+V", false, libraryReticleClipboard_.has_value()))
+            {
+                SelectLibraryReticle(templateId, false);
+                PasteCopiedLibraryReticle();
+            }
+
+            ImGui::Separator();
+
             if (ImGui::MenuItem("Rename reticle globally..."))
             {
                 SelectLibraryReticle(templateId);
@@ -3828,6 +3882,40 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     ImGui::SetCursorScreenPos(viewport.origin);
     ImGui::SetNextItemAllowOverlap();
     ImGui::InvisibleButton("LibraryPreviewInput", viewport.size);
+    if (ImGui::BeginPopupContextItem("LibraryPreviewContextMenu"))
+    {
+        if (ImGui::MenuItem("Copy reticle", "Ctrl+C"))
+        {
+            CopySelectedLibraryReticle();
+        }
+        ShowItemTooltip("Copy the current shared reticle template.");
+
+        if (ImGui::MenuItem("Paste copied reticle", "Ctrl+V", false, libraryReticleClipboard_.has_value()))
+        {
+            PasteCopiedLibraryReticle();
+            ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+            return;
+        }
+        ShowItemTooltip("Paste the copied shared reticle template as one new library entry.");
+
+        ImGui::Separator();
+
+        if (ImGui::MenuItem("Rename reticle globally..."))
+        {
+            OpenReticleRenamePopup(reticle->id);
+        }
+
+        if (ImGui::MenuItem("Delete library reticle", "Del"))
+        {
+            DeleteSelectedLibraryReticle();
+            ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+            return;
+        }
+
+        ImGui::EndPopup();
+    }
 
     const ImVec2 mouse = ImGui::GetMousePos();
     const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
@@ -7717,6 +7805,20 @@ std::string EditorApplication::MakeUniqueReticleId(const std::vector<mfd::Reticl
     return candidate;
 }
 
+std::string EditorApplication::MakeUniqueLibraryReticleId(const std::string_view baseId) const
+{
+    const std::string stableBase = baseId.empty() ? std::string {"reticle"} : std::string(baseId);
+    std::string candidate = stableBase;
+    int suffix = 1;
+
+    while (loaded_.document.reticleLibrary.find(candidate) != loaded_.document.reticleLibrary.end())
+    {
+        candidate = stableBase + "_" + std::to_string(suffix++);
+    }
+
+    return candidate;
+}
+
 std::string EditorApplication::MakeUniqueLayerId(const mfd::PageDefinition& page, const std::string_view baseId)
 {
     std::string candidate = baseId.empty() ? std::string {"layer"} : std::string(baseId);
@@ -9421,6 +9523,24 @@ void EditorApplication::DrawLibraryReticleInspector()
     }
 
     ImGui::SameLine();
+    if (AccentButton("Copy"))
+    {
+        CopySelectedLibraryReticle();
+    }
+    ShowItemTooltip("Copy this shared reticle template.");
+
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!libraryReticleClipboard_.has_value());
+    if (ImGui::Button("Paste copy"))
+    {
+        PasteCopiedLibraryReticle();
+        ImGui::EndDisabled();
+        return;
+    }
+    ShowItemTooltip("Paste the copied shared reticle template as one new library entry.");
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
     if (ImGui::Button("Rename reticle globally..."))
     {
         OpenReticleRenamePopup(reticle->id);
@@ -9435,6 +9555,8 @@ void EditorApplication::DrawLibraryReticleInspector()
         return;
     }
     ShowItemTooltip("Delete this shared reticle template from the library.");
+
+    ImGui::TextDisabled("Shortcuts: Ctrl+C / Ctrl+V");
 
     ImGui::Separator();
 

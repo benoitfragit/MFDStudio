@@ -512,6 +512,10 @@ private:
     bool CreateNewLibraryReticleFromPrimitive();
     /** @brief Duplicates the selected library reticle under a new id. */
     void DuplicateSelectedLibraryReticle();
+    /** @brief Copies the selected library reticle into the editor clipboard. */
+    void CopySelectedLibraryReticle();
+    /** @brief Pastes the copied library reticle as one new template. */
+    void PasteCopiedLibraryReticle();
     /** @brief Instantiates one page reticle from a library template at a logical position. */
     bool CreatePageReticleInstanceFromTemplate(std::string_view templateId, mfd::Vec2 position);
     /** @brief Seeds default save locations for the window-creation popup. */
@@ -572,6 +576,8 @@ private:
     void CutSelectedPageReticles();
     /** @brief Pastes the page-reticle clipboard into the active page. */
     void PasteCopiedPageReticles();
+    /** @brief Returns one unique template id for the library clipboard and duplication flows. */
+    std::string MakeUniqueLibraryReticleId(std::string_view baseId) const;
 
     /** @brief Updates the current selection from a click inside the page preview. */
     void UpdateReticleSelectionFromClick(const ViewportState& viewport, bool additiveSelection);
@@ -700,6 +706,8 @@ private:
     DesignExportPopupState designExportPopup_ {};
     /** @brief Internal clipboard used by copy/paste on page reticles. */
     std::vector<mfd::ReticleGroup> pageReticleClipboard_ {};
+    /** @brief Internal clipboard used by copy/paste on library reticle templates. */
+    std::optional<mfd::ReticleGroup> libraryReticleClipboard_ {};
     /** @brief Paste counter used to offset successive pasted copies. */
     int pageReticlePasteSerial_ = 0;
     /** @brief Private controller that owns the guided tutorial state and workflow. */

@@ -764,7 +764,7 @@ void EditorApplication::OpenDuplicateLibraryReticlePopup()
         return;
     }
 
-    CopyTextBuffer(duplicateLibraryReticleDraft_.id, reticle->id + "_copy");
+    CopyTextBuffer(duplicateLibraryReticleDraft_.id, MakeUniqueLibraryReticleId(reticle->id + "_copy"));
     showDuplicateLibraryReticlePopup_ = true;
 }
 
@@ -2032,6 +2032,12 @@ void EditorApplication::DuplicateSelectedLibraryReticle()
         return;
     }
 
+    if (loaded_.document.reticleLibrary.find(newId) != loaded_.document.reticleLibrary.end())
+    {
+        RebuildStatus("Library reticle id '" + newId + "' already exists.", true);
+        return;
+    }
+
     PushUndoSnapshot();
     mfd::ReticleGroup copy = *source;
     copy.id = newId;
@@ -2040,6 +2046,39 @@ void EditorApplication::DuplicateSelectedLibraryReticle()
     files_.templateFiles[newId] = editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, newId);
     SelectLibraryReticle(newId);
     RebuildStatus("Library reticle duplicated as '" + newId + "'.", false);
+}
+
+void EditorApplication::CopySelectedLibraryReticle()
+{
+    const mfd::ReticleGroup* source = SelectedLibraryReticle();
+    if (source == nullptr)
+    {
+        RebuildStatus("No library reticle selected.", true);
+        return;
+    }
+
+    libraryReticleClipboard_ = *source;
+    RebuildStatus("Library reticle '" + source->id + "' copied.", false);
+}
+
+void EditorApplication::PasteCopiedLibraryReticle()
+{
+    if (!libraryReticleClipboard_.has_value())
+    {
+        RebuildStatus("No copied library reticle is available yet.", true);
+        return;
+    }
+
+    PushUndoSnapshot();
+
+    mfd::ReticleGroup copy = *libraryReticleClipboard_;
+    const std::string baseId = copy.id.empty() ? std::string {"reticle_copy"} : copy.id + "_copy";
+    copy.id = MakeUniqueLibraryReticleId(baseId);
+    copy.sourceTemplateId.clear();
+    loaded_.document.reticleLibrary[copy.id] = copy;
+    files_.templateFiles[copy.id] = editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, copy.id);
+    SelectLibraryReticle(copy.id);
+    RebuildStatus("Library reticle pasted as '" + copy.id + "'.", false);
 }
 
 mfd::ReticleGroup EditorApplication::MakePrimitiveReticle(std::string id, const mfd::PrimitiveType primitiveType)
