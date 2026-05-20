@@ -436,7 +436,8 @@ The reticle studio supports:
 
 - clicking one primitive to focus it in the inspector
 - dragging gizmos to edit the selected primitive geometry
-- `Ctrl+C` / `Ctrl+V` to copy and paste the selected library reticle template
+- `Ctrl+C` / `Ctrl+V` to duplicate the focused primitive inside the current reticle template
+- `Ctrl+C` / `Ctrl+V` with no primitive focused to copy and paste the selected library reticle template
 - toolbar `R` button to recenter the studio camera
 
 In case of superimposed reticles:

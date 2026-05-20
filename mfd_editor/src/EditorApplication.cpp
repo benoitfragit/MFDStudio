@@ -1246,7 +1246,8 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
     ImGui::BulletText("Undo: Ctrl+Z");
     if (libraryPreview)
     {
-        ImGui::BulletText("Copy / Paste selected library reticle: Ctrl+C / Ctrl+V");
+        ImGui::BulletText("Copy / Paste focused primitive: Ctrl+C / Ctrl+V");
+        ImGui::BulletText("Copy / Paste focused library reticle: Ctrl+C / Ctrl+V when no primitive is selected");
         ImGui::BulletText("Delete current library reticle: Del");
     }
     else
@@ -1683,6 +1684,8 @@ void EditorApplication::HandleShortcuts()
     HandleDroppedFiles();
 
     const ImGuiIO& io = ImGui::GetIO();
+    const bool hasSelectedLibraryPrimitive =
+        selection_.kind == SelectionKind::LibraryPrimitive && SelectedLibraryPrimitive() != nullptr;
     const bool hasFocusedLibraryReticle =
         (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive) &&
         SelectedLibraryReticle() != nullptr;
@@ -1710,7 +1713,11 @@ void EditorApplication::HandleShortcuts()
         (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_C, ImGuiInputFlags_RouteGlobal) ||
          IsRaylibControlChordPressed({KEY_C})))
     {
-        if (hasFocusedLibraryReticle)
+        if (hasSelectedLibraryPrimitive)
+        {
+            CopySelectedLibraryPrimitive();
+        }
+        else if (hasFocusedLibraryReticle)
         {
             CopySelectedLibraryReticle();
         }
@@ -1731,7 +1738,11 @@ void EditorApplication::HandleShortcuts()
         (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_V, ImGuiInputFlags_RouteGlobal) ||
          IsRaylibControlChordPressed({KEY_V})))
     {
-        if (hasFocusedLibraryReticle)
+        if (hasSelectedLibraryPrimitive)
+        {
+            PasteCopiedLibraryPrimitive();
+        }
+        else if (hasFocusedLibraryReticle)
         {
             PasteCopiedLibraryReticle();
         }
@@ -2257,20 +2268,48 @@ void EditorApplication::DrawMenuBar()
         const bool hasFocusedLibraryReticle =
             (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive) &&
             SelectedLibraryReticle() != nullptr;
-        const bool copyLibraryReticleRequested =
-            ImGui::MenuItem("Copy selected library reticle", "Ctrl+C", false, hasFocusedLibraryReticle);
-        ShowItemTooltip("Copy the focused shared reticle template into the editor clipboard.");
-        if (copyLibraryReticleRequested)
+        const bool hasSelectedLibraryPrimitive =
+            selection_.kind == SelectionKind::LibraryPrimitive && SelectedLibraryPrimitive() != nullptr;
+        const bool copyLibrarySelectionRequested = ImGui::MenuItem(
+            hasSelectedLibraryPrimitive ? "Copy selected primitive" : "Copy selected library reticle",
+            "Ctrl+C",
+            false,
+            hasSelectedLibraryPrimitive || hasFocusedLibraryReticle);
+        ShowItemTooltip(
+            hasSelectedLibraryPrimitive
+                ? "Copy the focused primitive into the reticle-studio clipboard."
+                : "Copy the focused shared reticle template into the editor clipboard.");
+        if (copyLibrarySelectionRequested)
         {
-            CopySelectedLibraryReticle();
+            if (hasSelectedLibraryPrimitive)
+            {
+                CopySelectedLibraryPrimitive();
+            }
+            else
+            {
+                CopySelectedLibraryReticle();
+            }
         }
 
-        const bool pasteLibraryReticleRequested =
-            ImGui::MenuItem("Paste copied library reticle", "Ctrl+V", false, libraryReticleClipboard_.has_value());
-        ShowItemTooltip("Paste the copied shared reticle template as one new library entry.");
-        if (pasteLibraryReticleRequested)
+        const bool pasteLibrarySelectionRequested = ImGui::MenuItem(
+            hasSelectedLibraryPrimitive ? "Paste copied primitive" : "Paste copied library reticle",
+            "Ctrl+V",
+            false,
+            hasSelectedLibraryPrimitive ? libraryPrimitiveClipboard_.has_value() : libraryReticleClipboard_.has_value());
+        ShowItemTooltip(
+            hasSelectedLibraryPrimitive
+                ? "Paste the copied primitive into the focused reticle template."
+                : "Paste the copied shared reticle template as one new library entry.");
+        if (pasteLibrarySelectionRequested)
         {
-            PasteCopiedLibraryReticle();
+            if (hasSelectedLibraryPrimitive)
+            {
+                PasteCopiedLibraryPrimitive();
+            }
+            else
+            {
+                PasteCopiedLibraryReticle();
+            }
         }
 
         const bool duplicateReticleRequested =
@@ -2679,7 +2718,7 @@ void EditorApplication::DrawReticleStudioPanel(const float width)
         ImGui::EndPopup();
     }
 
-    ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry.");
+    ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry, then use Ctrl+C / Ctrl+V to duplicate it.");
     ImGui::Separator();
 
     ViewportState studioViewport;
@@ -3958,20 +3997,48 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     ImGui::InvisibleButton("LibraryPreviewInput", viewport.size);
     if (ImGui::BeginPopupContextItem("LibraryPreviewContextMenu"))
     {
-        if (ImGui::MenuItem("Copy reticle", "Ctrl+C"))
+        const bool hasSelectedPrimitive = selection_.kind == SelectionKind::LibraryPrimitive &&
+                                          selection_.libraryReticleId == reticle->id &&
+                                          SelectedLibraryPrimitive() != nullptr;
+        if (ImGui::MenuItem(hasSelectedPrimitive ? "Copy primitive" : "Copy reticle", "Ctrl+C"))
         {
-            CopySelectedLibraryReticle();
+            if (hasSelectedPrimitive)
+            {
+                CopySelectedLibraryPrimitive();
+            }
+            else
+            {
+                CopySelectedLibraryReticle();
+            }
         }
-        ShowItemTooltip("Copy the current shared reticle template.");
+        ShowItemTooltip(
+            hasSelectedPrimitive
+                ? "Copy the focused primitive into the reticle-studio clipboard."
+                : "Copy the current shared reticle template.");
 
-        if (ImGui::MenuItem("Paste copied reticle", "Ctrl+V", false, libraryReticleClipboard_.has_value()))
+        const bool canPasteCurrentSelection =
+            hasSelectedPrimitive ? libraryPrimitiveClipboard_.has_value() : libraryReticleClipboard_.has_value();
+        if (ImGui::MenuItem(hasSelectedPrimitive ? "Paste copied primitive" : "Paste copied reticle",
+                            "Ctrl+V",
+                            false,
+                            canPasteCurrentSelection))
         {
-            PasteCopiedLibraryReticle();
+            if (hasSelectedPrimitive)
+            {
+                PasteCopiedLibraryPrimitive();
+            }
+            else
+            {
+                PasteCopiedLibraryReticle();
+            }
             ImGui::CloseCurrentPopup();
             ImGui::EndPopup();
             return;
         }
-        ShowItemTooltip("Paste the copied shared reticle template as one new library entry.");
+        ShowItemTooltip(
+            hasSelectedPrimitive
+                ? "Paste the copied primitive into the current reticle template."
+                : "Paste the copied shared reticle template as one new library entry.");
 
         ImGui::Separator();
 
@@ -10305,7 +10372,7 @@ void EditorApplication::DrawLibraryReticleInspector()
     }
     ShowItemTooltip("Delete this shared reticle template from the library.");
 
-    ImGui::TextDisabled("Shortcuts: Ctrl+C / Ctrl+V");
+    ImGui::TextDisabled("Template shortcuts: Ctrl+C / Ctrl+V while the reticle stays focused.");
 
     ImGui::Separator();
 
@@ -10405,6 +10472,31 @@ void EditorApplication::DrawLibraryReticleInspector()
     }
     ImGui::EndChild();
 
+    const bool hasSelectedPrimitive = selection_.kind == SelectionKind::LibraryPrimitive &&
+                                      selection_.libraryReticleId == reticle->id &&
+                                      SelectedLibraryPrimitive() != nullptr;
+    ImGui::BeginDisabled(!hasSelectedPrimitive);
+    if (AccentButton("Copy selected primitive"))
+    {
+        CopySelectedLibraryPrimitive();
+    }
+    ShowItemTooltip("Copy the focused primitive into the reticle-studio clipboard.");
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!libraryPrimitiveClipboard_.has_value());
+    if (ImGui::Button("Paste copied primitive"))
+    {
+        PasteCopiedLibraryPrimitive();
+    }
+    ShowItemTooltip("Paste the copied primitive into this reticle template.");
+    ImGui::EndDisabled();
+
+    if (hasSelectedPrimitive || libraryPrimitiveClipboard_.has_value())
+    {
+        ImGui::TextDisabled("Primitive shortcuts: Ctrl+C / Ctrl+V");
+    }
+
     if (ImGui::BeginCombo("Add primitive", PrimitiveTypeLabel(kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)]).c_str()))
     {
         for (int index = 0; index < static_cast<int>(kPrimitiveTypes.size()); ++index)
@@ -10484,6 +10576,24 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Primitive");
     ImGui::TextDisabled("Green handle moves the primitive. Orange handles edit geometry directly in the studio.");
+    if (AccentButton("Copy primitive"))
+    {
+        CopySelectedLibraryPrimitive();
+    }
+    ShowItemTooltip("Copy this primitive into the reticle-studio clipboard.");
+
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!libraryPrimitiveClipboard_.has_value());
+    if (ImGui::Button("Paste copied primitive"))
+    {
+        PasteCopiedLibraryPrimitive();
+        ImGui::EndDisabled();
+        return;
+    }
+    ShowItemTooltip("Paste the copied primitive into the current reticle template.");
+    ImGui::EndDisabled();
+    ImGui::TextDisabled("Shortcut: Ctrl+C / Ctrl+V");
+
     std::array<char, 128> primitiveId {};
     CopyTextBuffer(primitiveId, primitive->id);
     const bool idChanged = ImGui::InputText("Primitive id", primitiveId.data(), primitiveId.size());

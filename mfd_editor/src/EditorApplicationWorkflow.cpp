@@ -2081,6 +2081,54 @@ void EditorApplication::PasteCopiedLibraryReticle()
     RebuildStatus("Library reticle pasted as '" + copy.id + "'.", false);
 }
 
+void EditorApplication::CopySelectedLibraryPrimitive()
+{
+    const mfd::Primitive* source = SelectedLibraryPrimitive();
+    const mfd::ReticleGroup* reticle = SelectedLibraryReticle();
+    if (source == nullptr || reticle == nullptr)
+    {
+        RebuildStatus("No library primitive selected.", true);
+        return;
+    }
+
+    libraryPrimitiveClipboard_ = *source;
+    libraryPrimitivePasteSerial_ = 0;
+    const std::string primitiveLabel =
+        source->id.empty() ? std::string {"unnamed primitive"} : std::string {"'"} + source->id + "'";
+    RebuildStatus("Primitive " + primitiveLabel + " copied from library reticle '" + reticle->id + "'.", false);
+}
+
+void EditorApplication::PasteCopiedLibraryPrimitive()
+{
+    mfd::ReticleGroup* reticle = SelectedLibraryReticle();
+    if (reticle == nullptr)
+    {
+        RebuildStatus("Select a library reticle before pasting one primitive.", true);
+        return;
+    }
+
+    if (!libraryPrimitiveClipboard_.has_value())
+    {
+        RebuildStatus("No copied library primitive is available yet.", true);
+        return;
+    }
+
+    PushUndoSnapshot();
+
+    ++libraryPrimitivePasteSerial_;
+    const float offset = 0.018f * static_cast<float>(libraryPrimitivePasteSerial_);
+    const editor::PrimitivePastePlan plan = primitiveClipboardService_.BuildPastePlan(
+        editor::PrimitivePasteRequest {
+            *reticle,
+            *libraryPrimitiveClipboard_,
+            selection_.kind == SelectionKind::LibraryPrimitive ? selection_.primitiveIndex : -1,
+            mfd::Vec2 {offset, -offset}});
+
+    reticle->primitives.insert(reticle->primitives.begin() + plan.insertionIndex, plan.primitive);
+    SelectLibraryPrimitive(reticle->id, plan.insertionIndex);
+    RebuildStatus("Primitive '" + plan.primitive.id + "' pasted in library reticle '" + reticle->id + "'.", false);
+}
+
 mfd::ReticleGroup EditorApplication::MakePrimitiveReticle(std::string id, const mfd::PrimitiveType primitiveType)
 {
     mfd::ReticleGroup reticle;

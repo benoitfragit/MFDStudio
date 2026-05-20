@@ -30,6 +30,7 @@
 #include "EditorPageManagementService.h"
 #include "EditorPageRenameService.h"
 #include "EditorPagePreviewViewOptions.h"
+#include "EditorPrimitiveClipboardService.h"
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorReticleRenameService.h"
@@ -519,6 +520,10 @@ private:
     void CopySelectedLibraryReticle();
     /** @brief Pastes the copied library reticle as one new template. */
     void PasteCopiedLibraryReticle();
+    /** @brief Copies the selected library primitive into the reticle-studio clipboard. */
+    void CopySelectedLibraryPrimitive();
+    /** @brief Pastes the copied library primitive into the focused reticle template. */
+    void PasteCopiedLibraryPrimitive();
     /** @brief Instantiates one page reticle from a library template at a logical position. */
     bool CreatePageReticleInstanceFromTemplate(std::string_view templateId, mfd::Vec2 position);
     /** @brief Seeds default save locations for the window-creation popup. */
@@ -727,8 +732,12 @@ private:
     std::vector<mfd::ReticleGroup> pageReticleClipboard_ {};
     /** @brief Internal clipboard used by copy/paste on library reticle templates. */
     std::optional<mfd::ReticleGroup> libraryReticleClipboard_ {};
+    /** @brief Internal clipboard used by copy/paste on library primitives in the reticle studio. */
+    std::optional<mfd::Primitive> libraryPrimitiveClipboard_ {};
     /** @brief Paste counter used to offset successive pasted copies. */
     int pageReticlePasteSerial_ = 0;
+    /** @brief Paste counter used to offset successive pasted primitive copies inside one reticle. */
+    int libraryPrimitivePasteSerial_ = 0;
     /** @brief Private controller that owns the guided tutorial state and workflow. */
     std::unique_ptr<EditorTutorialController> tutorial_ {};
     /** @brief Stateless service owning the page remove/delete planning logic. */
@@ -737,6 +746,8 @@ private:
     editor::PageImportService pageImportService_ {};
     /** @brief Stateless service owning the global page-rename planning logic. */
     editor::PageRenameService pageRenameService_ {};
+    /** @brief Stateless service preparing primitive copy/paste operations in the reticle studio. */
+    editor::PrimitiveClipboardService primitiveClipboardService_ {};
     /** @brief Stateless service owning the global reticle-template rename planning logic. */
     editor::ReticleRenameService reticleRenameService_ {};
     /** @brief Stateless service generating design Markdown and exploded views for the current window. */
