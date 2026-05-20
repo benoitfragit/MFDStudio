@@ -4797,6 +4797,14 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         return;
     }
 
+    auto cancelPreviewInteraction = [this]()
+    {
+        interactionMode_ = InteractionMode::None;
+        interactionReticleIndex_ = -1;
+        interactionReticleIndices_.clear();
+        interactionStartReticleTransforms_.clear();
+    };
+
     ViewportState interactiveViewport = viewport;
     interactiveViewport.view = pagePreviewView_;
 
@@ -4811,17 +4819,17 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(pagePreviewView_.zoom), mouseLogical);
     const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
     const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
-    const bool helpPopupOpen = ImGui::IsPopupOpen(kPagePreviewHelpPopupId);
-    if (!mouseInsideViewport || mouseInsideToolbar || helpPopupOpen)
+    const bool anyPopupOpen = ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId);
+    if (!mouseInsideViewport || mouseInsideToolbar || anyPopupOpen)
     {
-        const bool interactionButtonReleased =
-            interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
-        if (interactionMode_ != InteractionMode::None && interactionButtonReleased)
+        if (interactionMode_ != InteractionMode::None)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndex_ = -1;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            const bool interactionButtonReleased =
+                interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
+            if (anyPopupOpen || interactionButtonReleased)
+            {
+                cancelPreviewInteraction();
+            }
         }
         return;
     }
@@ -4966,10 +4974,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
             interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
         if (interactionButtonReleased)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndex_ = -1;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            cancelPreviewInteraction();
         }
         return;
     }
@@ -5448,13 +5453,27 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         return;
     }
 
+    auto cancelLibraryPreviewInteraction = [this]()
+    {
+        interactionMode_ = InteractionMode::None;
+        interactionPrimitiveIndex_ = -1;
+        interactionHandleKind_ = PrimitiveHandleKind::None;
+        interactionHandleIndex_ = -1;
+    };
+
+    if (ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        cancelLibraryPreviewInteraction();
+        return;
+    }
+
     const bool leftMouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     const bool rightMouseDown = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
     if (interactionMode_ == InteractionMode::PanPage)
     {
         if (!rightMouseDown)
         {
-            interactionMode_ = InteractionMode::None;
+            cancelLibraryPreviewInteraction();
         }
         else
         {
@@ -5470,10 +5489,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     {
         if (interactionPrimitiveIndex_ < 0 || interactionPrimitiveIndex_ >= static_cast<int>(reticle->primitives.size()))
         {
-            interactionMode_ = InteractionMode::None;
-            interactionPrimitiveIndex_ = -1;
-            interactionHandleKind_ = PrimitiveHandleKind::None;
-            interactionHandleIndex_ = -1;
+            cancelLibraryPreviewInteraction();
             return;
         }
 
@@ -5600,10 +5616,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
 
         if (!leftMouseDown)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionPrimitiveIndex_ = -1;
-            interactionHandleKind_ = PrimitiveHandleKind::None;
-            interactionHandleIndex_ = -1;
+            cancelLibraryPreviewInteraction();
         }
         return;
     }
@@ -5617,8 +5630,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(libraryPreviewView_.zoom), mouseLogical);
     const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
     const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
-    const bool helpPopupOpen = ImGui::IsPopupOpen(kLibraryPreviewHelpPopupId);
-    if (!mouseInsideViewport || mouseInsideToolbar || helpPopupOpen)
+    if (!mouseInsideViewport || mouseInsideToolbar)
     {
         return;
     }
