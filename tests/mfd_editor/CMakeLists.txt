@@ -30,6 +30,7 @@ target_link_libraries(mfd_editor_tests
     PRIVATE
         mfd::io_json
         mfd::model
+        mfd::runtime
         mfd::render_raylib)
 
 mfd_private_library(mfd_editor_tests GTest::gtest_main)

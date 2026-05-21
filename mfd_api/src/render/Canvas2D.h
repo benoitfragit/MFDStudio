@@ -15,7 +15,6 @@
 
 #include <raylib.h>
 
-#include "mfd/MfdExport.h"
 #include "mfd/model/Reticle.h"
 
 namespace mfd
@@ -27,7 +26,7 @@ class TextLayoutCache;
 /**
  * @brief Lightweight 2D renderer turning reticle data into raylib draw calls.
  */
-class MFD_API Canvas2D
+class Canvas2D
 {
 public:
     /**

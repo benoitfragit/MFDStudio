@@ -5,7 +5,7 @@
  */
 /**
  * @file
- * @brief Compile-time smoke coverage for the remaining public render headers.
+ * @brief Compile-time smoke coverage for the repository host-side render headers.
  */
 
 #include <gtest/gtest.h>
@@ -16,7 +16,7 @@
 #include "mfd/render/OpenGlFramebufferReader.h"
 #include "mfd/render/WindowBranding.h"
 
-TEST(PublicRenderFacadeHeadersTests, PublicRenderFacadeTypesRemainAvailableWithoutLowLevelRaylibHeaders)
+TEST(PublicRenderFacadeHeadersTests, HostRenderTypesRemainAvailableWithoutLowLevelRaylibHeaders)
 {
     mfd::MfdRenderer renderer;
     (void)renderer;

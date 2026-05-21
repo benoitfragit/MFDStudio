@@ -74,8 +74,7 @@ range.
 ## Step 2 - Create a command client
 
 ```cpp
-#include "mfd/control/CommandClient.h"
-#include "mfd/io/JsonLoader.h"
+#include "mfd/client/ClientSdk.h"
 
 mfd::JsonLoader loader;
 const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages.json");
@@ -87,6 +86,11 @@ if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTranspo
 
 mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
 ```
+
+`mfd/client/ClientSdk.h` is the supported umbrella include for standalone
+client code and shipped examples. It keeps the integration on the
+`mfd_client_api` SDK surface even when the code uses raw `CommandClient` or
+`JsonLoader` helpers.
 
 Recommended first check:
 
@@ -149,8 +153,7 @@ This example updates one reticle every 20 ms through the generated API:
 
 ```cpp
 #include "FullDemoMockupUi.h"
-#include "mfd/control/CommandClient.h"
-#include "mfd/io/JsonLoader.h"
+#include "mfd/client/ClientSdk.h"
 
 #include <chrono>
 #include <cmath>

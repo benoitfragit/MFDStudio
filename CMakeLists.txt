@@ -4,9 +4,11 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(MFD
-    VERSION 1.8.5
+    VERSION 1.9.0
     DESCRIPTION "2D Multi-Function Display framework with JSON pages and reusable reticles"
     LANGUAGES C CXX)
+
+include(CMakePackageConfigHelpers)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,6 +18,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(MFD_BUILD_DEMO "Build optional example and demo applications" ON)
 option(MFD_BUILD_TESTS "Build GoogleTest-based runtime and loading tests" ON)
 option(MFD_ENABLE_WARNINGS "Enable strict compiler warnings" ON)
+option(MFD_API_BUILD_SHARED "Build mfd_api as one self-contained shared library" ON)
+
+set(MFD_PACKAGE_VERSION
+    "${PROJECT_VERSION}"
+    CACHE STRING
+    "Version string written into generated delivery package metadata.")
+
+if(MFD_PACKAGE_VERSION STREQUAL "")
+    message(FATAL_ERROR "MFD_PACKAGE_VERSION must not be empty.")
+endif()
 
 set(_mfd_use_local_package_is_defined OFF)
 set(_mfd_use_local_package_value OFF)
@@ -117,6 +129,24 @@ set(MFD_COMMON_API_PUBLIC_INCLUDE_DIR "${MFD_ROOT_DIR}/mfd_common_api/include")
 set(MFD_API_PUBLIC_INCLUDE_DIR "${MFD_ROOT_DIR}/mfd_api/include")
 
 include(RuntimePackaging)
+
+set(MFD_PACKAGE_TOOLSET "native")
+if(MSVC)
+    if(DEFINED CMAKE_VS_PLATFORM_TOOLSET AND NOT CMAKE_VS_PLATFORM_TOOLSET STREQUAL "")
+        set(MFD_PACKAGE_TOOLSET "${CMAKE_VS_PLATFORM_TOOLSET}")
+    elseif(DEFINED MSVC_TOOLSET_VERSION AND NOT MSVC_TOOLSET_VERSION STREQUAL "")
+        set(MFD_PACKAGE_TOOLSET "v${MSVC_TOOLSET_VERSION}")
+    endif()
+endif()
+
+set(MFD_PACKAGE_ARCH "${MFD_EXEC_PLATFORM_DIR}")
+set(MFD_PACKAGE_LIB_DESTINATION "libs/${MFD_PACKAGE_TOOLSET}/${MFD_PACKAGE_ARCH}/$<CONFIG>")
+
+set(MFD_COMPONENT_CLIENT_API_DEVELOPMENT mfd_client_api_development)
+set(MFD_COMPONENT_CLIENT_API_RUNTIME mfd_client_api_runtime)
+set(MFD_COMPONENT_WINDOW_PLUGIN_DEVELOPMENT mfd_window_plugin_api_development)
+set(MFD_COMPONENT_WINDOW_LAUNCHER_RUNTIME mfd_window_launcher_runtime)
+set(MFD_COMPONENT_EDITOR_RUNTIME mfd_editor_runtime)
 
 if(MFD_BUILD_TESTS)
     enable_testing()

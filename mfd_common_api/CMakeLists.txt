@@ -93,6 +93,9 @@ mfd_configure_component(
     mfd_model_objects
     PUBLIC_INCLUDE_DIRS
         "${MFD_COMMON_API_PUBLIC_INCLUDE_DIR}")
+if(MFD_API_BUILD_SHARED)
+    target_compile_definitions(mfd_model_objects PRIVATE MFD_API_EXPORTS)
+endif()
 
 add_library(mfd_model STATIC
     ${MFD_MODEL_PUBLIC_HEADERS}
@@ -134,6 +137,9 @@ mfd_configure_component(
     mfd_transport_objects
     PUBLIC_INCLUDE_DIRS
         "${MFD_COMMON_API_PUBLIC_INCLUDE_DIR}")
+if(MFD_API_BUILD_SHARED)
+    target_compile_definitions(mfd_transport_objects PRIVATE MFD_API_EXPORTS)
+endif()
 target_include_directories(mfd_transport_objects PRIVATE ${MFD_COMMON_API_PROTO_OUTPUT_DIR})
 target_link_libraries(mfd_transport_objects
     PUBLIC

@@ -46,6 +46,12 @@ public:
      * @param scene Scene registry updated by the received commands.
      */
     explicit CommandProcessor(SceneRegistry& scene);
+    ~CommandProcessor();
+
+    CommandProcessor(const CommandProcessor&) = delete;
+    CommandProcessor& operator=(const CommandProcessor&) = delete;
+    CommandProcessor(CommandProcessor&&) = delete;
+    CommandProcessor& operator=(CommandProcessor&&) = delete;
 
     /**
      * @brief Submits a typed command directly.

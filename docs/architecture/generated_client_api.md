@@ -27,6 +27,19 @@ That means:
 - transport IDs and `mappingHash` remain implementation detail
 - `CommandClient` stays the last-mile transport sender
 
+The generated header now includes a single `mfd_client_api` umbrella entry
+point, `mfd/client/GeneratedUiSupport.h`, so window-specific generated code no
+longer spells lower-level MFD module headers directly.
+
+The intended integration boundary is equally strict on the link side:
+
+- generated `.cpp` files include only `mfd/client/GeneratedUiSupport.h`
+- standalone client applications include `mfd/client/ClientSdk.h` when they need loader or transport helpers around the generated UI
+- generated code and shipped examples link only `mfd_client_api`
+
+They do not add `mfd_common_api`, `mfd_api`, or the repository host-side render
+layer to the client link line.
+
 ## Public Navigation Model
 
 The generated static navigation is:

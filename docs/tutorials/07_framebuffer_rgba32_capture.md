@@ -3,6 +3,10 @@
 This tutorial shows how to capture the rendered window as a CPU buffer using
 the OpenGL readback API.
 
+These helpers belong to the repository host-side render layer used by
+`mfd_window` and `mfd_editor`. They are not part of the standalone
+`mfd_client_api` integration surface.
+
 ## At A Glance
 
 \startuml

@@ -34,7 +34,10 @@ mfd_configure_test_runtime_output(mfd_api_tests)
 
 target_link_libraries(mfd_api_tests
     PRIVATE
-        mfd::api
+        mfd::model
+        mfd::transport
+        mfd::runtime
+        mfd::io_json
         mfd::render_raylib
         protobuf::libprotobuf)
 

@@ -92,7 +92,7 @@ The repository architecture is modular. Each module keeps a deliberately narrow 
 | Module | Primary Responsibility |
 | --- | --- |
 | `mfd_common_api` | common types, low-level authoring model, transport and commands |
-| `mfd_api` | loading JSON, runtime, rendering, scene registry |
+| `mfd_api` | loading JSON, runtime, scene registry, and low-level API |
 | `mfd_client_api` | client overlay: handles, batching, publication, feedback |
 | `mfd_client_api/generator` | derives a C++ UI and a transport map from a JSON window |
 | `mfd_editor` | visual authoring and protected workflows on assets |
@@ -814,12 +814,14 @@ target_include_directories(client_mission
 
 target_link_libraries(client_mission
     PRIVATE
-        mfd_client_api
-        mfd_common_api
-        mfd_api)
+        mfd_client_api)
 ```
 
 The generated `.cpp` belongs in the target sources. Do not treat the generated layer as header-only: the source file carries the baked `mappingHash`, generated ids, feedback glue, and batch builders.
+
+For standalone clients and generated code, `mfd_client_api` is the only MFD
+library that should appear on the link line. Do not add `mfd_common_api` or
+`mfd_api` to customer-facing client applications.
 
 ## 5.11 When to regenerate
 
@@ -892,8 +894,7 @@ Start from the real authored window file emitted by the project:
 ```cpp
 // Scenario: bootstrap a cockpit client that will drive HUD and radar content.
 #include "MockupUi.h"
-#include "mfd/control/FeedbackTransport.h"
-#include "mfd/io/JsonLoader.h"
+#include "mfd/client/ClientSdk.h"
 
 mfd::JsonLoader loader;
 const mfd::LoadedWindowConfiguration loaded =
@@ -914,6 +915,11 @@ if (loaded.window.feedbackTransports.udp.has_value())
     feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);
 }
 ```
+
+`mfd/client/ClientSdk.h` is the supported umbrella include for standalone
+client applications. It keeps generated code and example integrations on the
+`mfd_client_api` SDK surface while still exposing the raw transport helpers
+when they are needed.
 
 If the generated map is missing, the generated path loses one of its main safety rails. You can still compile code that includes the generated header, but you can no longer prove transport compatibility through the map sidecar.
 
@@ -1362,8 +1368,7 @@ Use the raw path for genericity, not as a substitute for the generated path in a
 ```cpp
 // Scenario: minimum typed client that activates the cockpit page and publishes one radar-ready frame.
 #include "MockupUi.h"
-#include "mfd/control/CommandClient.h"
-#include "mfd/io/JsonLoader.h"
+#include "mfd/client/ClientSdk.h"
 
 int main()
 {
@@ -1977,7 +1982,10 @@ Check in this order:
 | `assets/windows/<window>.generated.map` | transport ids and compatibility hash |
 | `mfd_client_api/generator/scripts/generate_ui.py` | generation logic and `--print-inputs` behavior |
 | `mfd_client_api/generator/ClientApiGenerator.cmake` | official CMake integration path |
-| `mfd_common_api/include/mfd/control/CommandClient.h` | transport publication facade |
+| `mfd_client_api/include/mfd/client/ClientSdk.h` | umbrella client SDK header for standalone applications and examples |
+| `mfd_client_api/include/mfd/client/GeneratedUiSupport.h` | single generated-code include bridging typed UI code to the packaged client SDK |
+| `mfd_common_api/include/mfd/control/CommandClient.h` | low-level typed command sender, republished through `ClientSdk.h` in the packaged client SDK |
+| `mfd_api/include/mfd/io/JsonLoader.h` | low-level authored window and page loader, republished through `ClientSdk.h` in the packaged client SDK |
 | `mfd_client_api/include/mfd/client/Animation.h` | generated-handle runtime behavior and feedback helpers |
 | `mfd_client_api/include/mfd/client/LatestBatchPublisher.h` | latest-state asynchronous publisher |
 | `mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h` | stable framebuffer-plugin ABI |

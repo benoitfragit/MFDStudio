@@ -149,6 +149,11 @@ The real build graph is split into:
 - `mfd::runtime`
 - `mfd::render_raylib`
 
+`mfd::render_raylib` is intentionally host-side only. It stays outside the
+`mfd_api` DLL boundary so repository applications such as `mfd_editor` and
+`mfd_window` keep one single static `raylib` / `rlgl` instance inside the host
+process.
+
 ## Common Targets
 
 | Target | Role |
@@ -268,16 +273,27 @@ outputs, runtime DLLs, assets, branding, and launch scripts.
 Delivery packages are produced through the dedicated repository script:
 
 ```powershell
-Scripts\BuildDeliveries.bat
+Scripts\BuildDeliveries.bat --version 1.8.5
 ```
 
-That script is the only supported entry point for `_Deliveries`. It performs
-four explicit phases:
+That script is the only supported entry point for `_Deliveries`. It now stays
+close to the real CMake packaging model:
 
-- configure `vs2022-win32` and `vs2022-x64`
-- build `debug-win32`, `release-win32`, `debug-x64`, and `release-x64`
-- copy the required SDK and install payloads from the build trees into `_Deliveries`
+- parse the package version from `--version`
+- optionally restrict the run to one configure preset with `--preset` or `-p`
+- expose `--help` or `-h` with the supported options and default preset list
+- configure `vs2022-win32-no-tests` and `vs2022-x64-no-tests` by default
+- build `Debug` and `Release` for both architectures
+- install the required components with `cmake --install`
 - verify the resulting delivery layout
+
+Examples:
+
+```powershell
+Scripts\BuildDeliveries.bat --version 1.8.5 --preset vs2022-win32-no-tests
+Scripts\BuildDeliveries.bat --version 1.8.5 --preset debug-win32-no-tests
+Scripts\BuildDeliveries.bat --help
+```
 
 `_Exec` and `_Deliveries` now have separate responsibilities:
 
@@ -291,9 +307,9 @@ The delivery script populates `_Deliveries` with:
 
 Generated package families:
 
-- `MFDStudioClientApi`: client headers, package config files, generator helpers, and Win32/x64 import libraries for `mfd_client_api` and `mfd_api`
+- `MFDStudioClientApi`: client headers, package config files, generator helpers, and Win32/x64 import libraries. Generated code and shipped examples link only `mfd_client_api`, and the package does not ship the host-side render layer.
 - `MFDStudioWindowLauncherPlugin`: public plugin headers, package config files, and Win32/x64 import libraries for `mfd_window_plugin_api`
-- `MFDStudioClientApi.Install`: runtime DLL payload for `mfd_client_api` and `mfd_api`
+- `MFDStudioClientApi.Install`: runtime DLL payload required by standalone client integrations
 - `MFDStudioEditor.Install`: `mfd_editor.exe` plus shared branding
 - `MFDStudioWindowLauncher.Install`: `mfd_window.exe`, `mfd_window_plugin_api.dll`, `Start-MfdWindow.bat`, and shared branding
 
@@ -305,7 +321,7 @@ Typical delivery validation flow:
 
 ```powershell
 Remove-Item -Recurse -Force .\_Deliveries -ErrorAction SilentlyContinue
-Scripts\BuildDeliveries.bat
+Scripts\BuildDeliveries.bat --version 1.8.5
 Test-Path .\_Deliveries\packages_windows
 Test-Path .\_Deliveries\packages_bin_windows
 Test-Path .\_Deliveries\packages_windows\MFDStudioClientApi\build\native\cmake\MFDStudioClientApiConfig.cmake
@@ -324,7 +340,7 @@ In practice the automated suite now covers three complementary layers:
 | Path | Role |
 | --- | --- |
 | `mfd_common_api` | Internal shared low-level module with its own `include/`, `src/`, and `proto/` trees, owning the reusable `mfd_model` and `mfd_transport` static libraries |
-| `mfd_api` | Core source tree producing `mfd_io_json`, `mfd_runtime`, the public low-level `mfd_api` DLL, and `mfd_render_raylib` plus the compatibility umbrella `mfd::api` |
+| `mfd_api` | Core source tree producing `mfd_io_json`, `mfd_runtime`, the public low-level `mfd_api` DLL, and the host-side static `mfd_render_raylib` layer plus the compatibility umbrella `mfd::api` |
 | `mfd_client_api` | Client-side helper layer built on top of the low-level command API and producing `mfd_client_api` |
 | `mfd_client_api/generator` | Python and CMake tooling generating typed client wrappers |
 | `mfd_window_plugin_api` | Public framebuffer-plugin SDK used by `MFDStudioWindowLauncherPlugin` |
@@ -431,7 +447,7 @@ git push origin 1.0.0
 
 The release workflow no longer uploads binary archives. If you need a local
 delivery layout for validation or internal distribution, generate it explicitly
-with `Scripts\BuildDeliveries.bat`.
+with `Scripts\BuildDeliveries.bat --version <semver>`.
 
 Published documentation includes:
 

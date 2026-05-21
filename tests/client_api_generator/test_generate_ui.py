@@ -138,6 +138,7 @@ class GenerateUiTests(unittest.TestCase):
 
             for expected in [
                 "AUTO-GENERATED FILE.",
+                '#include "mfd/client/GeneratedUiSupport.h"',
                 "class RadarMockupPage",
                 "class SystemMockupPage",
                 "class CockpitMockupUi",
@@ -181,6 +182,9 @@ class GenerateUiTests(unittest.TestCase):
             ]:
                 self.assertIn(expected, header_content)
 
+            self.assertNotIn('#include "mfd/control/CommandClient.h"', header_content)
+            self.assertNotIn('#include "mfd/client/Animation.h"', header_content)
+            self.assertNotIn('#include "mfd/client/LatestBatchPublisher.h"', header_content)
             self.assertNotIn("DynamicReticleSet& Dynamic(std::string_view templateId);", header_content)
 
             for expected in [

@@ -28,14 +28,7 @@
 #include "FullDemoMockupUi.h"
 #include "MinimalRadarMockupUi.h"
 #include "Win32Dx11ImGuiHost.h"
-#include "mfd/client/LatestBatchPublisher.h"
-#include "mfd/control/CommandClient.h"
-#include "mfd/control/FeedbackTransport.h"
-#include "mfd/control/StrobeFeedback.h"
-#include "mfd/io/JsonLoader.h"
-#include "mfd/ipc/ExchangeChannel.h"
-#include "mfd/model/PageName.h"
-#include "mfd/model/Reticle.h"
+#include "mfd/client/ClientSdk.h"
 
 #if defined(_WIN32)
 extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();

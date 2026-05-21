@@ -105,7 +105,25 @@ ctest --preset test-debug-win32
 Generate delivery packages with:
 
 ```powershell
-.\Scripts\BuildDeliveries.bat
+.\Scripts\BuildDeliveries.bat --version 1.8.5
+```
+
+Restrict the delivery run to one preset when needed:
+
+```powershell
+.\Scripts\BuildDeliveries.bat --version 1.8.5 --preset vs2022-win32-no-tests
+```
+
+Or target only one build configuration:
+
+```powershell
+.\Scripts\BuildDeliveries.bat --version 1.8.5 --preset debug-win32-no-tests
+```
+
+Show the available options and default presets with:
+
+```powershell
+.\Scripts\BuildDeliveries.bat --help
 ```
 
 Contributor-oriented details live in
@@ -119,8 +137,8 @@ Contributor-oriented details live in
 | `docs` | Onboarding, tutorials, reference, standards, and architecture notes |
 | `examples` | Example clients and runtime plugin samples |
 | `mfd_common_api` | Shared low-level authored-model and transport layer |
-| `mfd_api` | JSON loading, runtime, and public low-level API |
-| `mfd_client_api` | Higher-level client helpers and generated client integration |
+| `mfd_api` | JSON loading, runtime, scene registry, and the public low-level API; repository hosts add the static raylib render backend separately |
+| `mfd_client_api` | Higher-level client helpers, generated client integration, and the standalone client SDK used by generated code and shipped examples |
 | `mfd_editor` | Editor application |
 | `mfd_window` | Runtime host |
 | `tests` | Automated test suites |

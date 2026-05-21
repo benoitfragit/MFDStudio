@@ -15,8 +15,6 @@
 #include "mfd/core/ArrayView.h"
 #include <vector>
 
-#include "mfd/MfdExport.h"
-
 namespace mfd
 {
 /**
@@ -65,8 +63,15 @@ struct FramebufferCaptureRequest
 /**
  * @brief CPU-side RGBA32 framebuffer snapshot.
  */
-struct MFD_API Rgba32Framebuffer
+struct Rgba32Framebuffer
 {
+    Rgba32Framebuffer();
+    ~Rgba32Framebuffer();
+    Rgba32Framebuffer(const Rgba32Framebuffer& other);
+    Rgba32Framebuffer& operator=(const Rgba32Framebuffer& other);
+    Rgba32Framebuffer(Rgba32Framebuffer&& other) noexcept;
+    Rgba32Framebuffer& operator=(Rgba32Framebuffer&& other) noexcept;
+
     /** @brief Capture width in pixels. */
     int width = 0;
     /** @brief Capture height in pixels. */
@@ -103,8 +108,10 @@ struct MFD_API Rgba32Framebuffer
 
 /**
  * @brief Utility reading the current OpenGL framebuffer into RGBA8 memory.
+ *
+ * @note This helper belongs to the repository host-side raylib render layer.
  */
-class MFD_API OpenGlFramebufferReader
+class OpenGlFramebufferReader
 {
 public:
     /**

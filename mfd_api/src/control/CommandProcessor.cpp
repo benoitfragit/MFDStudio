@@ -142,6 +142,8 @@ CommandProcessor::CommandProcessor(SceneRegistry& scene)
     dispatcher_.sink<ResetWindowCommand>().connect<&CommandProcessor::OnResetWindow>(*this);
 }
 
+CommandProcessor::~CommandProcessor() = default;
+
 bool CommandProcessor::Submit(const UserCommand& command)
 {
     lastCommandSucceeded_ = true;

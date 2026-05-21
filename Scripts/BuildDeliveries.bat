@@ -3,5 +3,5 @@ setlocal
 
 cd /d "%~dp0\.."
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "Scripts\BuildDeliveries.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "Scripts\BuildDeliveries.ps1" %*
 exit /b %ERRORLEVEL%

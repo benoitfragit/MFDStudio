@@ -15,14 +15,12 @@
 
 #include <raylib.h>
 
-#include "mfd/MfdExport.h"
-
 namespace mfd
 {
 /**
  * @brief Loads and reuses raylib textures keyed by authored image file path.
  */
-class MFD_API ImageTextureCache
+class ImageTextureCache
 {
 public:
     ImageTextureCache();

@@ -13,8 +13,6 @@
 #include <filesystem>
 #include <string>
 
-#include "mfd/MfdExport.h"
-
 namespace mfd
 {
 /**
@@ -22,9 +20,11 @@ namespace mfd
  * @param preferredIconFile Explicit icon file chosen by the caller. May be empty.
  * @param sourceAnchor Optional source JSON file or asset folder used to look up the bundled branding image.
  * @return Resolved icon file path. The returned path may still not exist when no branding file is available.
+ *
+ * @note This helper belongs to the repository host-side raylib render layer.
  */
-MFD_API std::filesystem::path ResolveWindowBrandingIconFile(std::filesystem::path preferredIconFile = {},
-                                                            std::filesystem::path sourceAnchor = {});
+std::filesystem::path ResolveWindowBrandingIconFile(std::filesystem::path preferredIconFile = {},
+                                                    std::filesystem::path sourceAnchor = {});
 
 /**
  * @brief Applies one image file as the desktop icon of the currently open host window.
@@ -33,6 +33,7 @@ MFD_API std::filesystem::path ResolveWindowBrandingIconFile(std::filesystem::pat
  * @return `true` when the icon was applied successfully.
  *
  * @note On Windows this updates the icon used by the title bar and taskbar thumbnail.
+ * @note This helper belongs to the repository host-side raylib render layer.
  */
-MFD_API bool ApplyWindowIconFile(const std::filesystem::path& iconFile, std::string* error = nullptr);
+bool ApplyWindowIconFile(const std::filesystem::path& iconFile, std::string* error = nullptr);
 } // namespace mfd

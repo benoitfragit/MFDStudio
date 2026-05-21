@@ -13,7 +13,6 @@
 #include <filesystem>
 #include <memory>
 
-#include "mfd/MfdExport.h"
 #include "mfd/runtime/SceneRegistry.h"
 
 namespace mfd
@@ -24,7 +23,7 @@ namespace mfd
  * @details This facade belongs to the host-side raylib render layer used by
  * repository applications such as `mfd_window` and `mfd_editor`.
  */
-class MFD_API MfdRenderer
+class MfdRenderer
 {
 public:
     MfdRenderer();

@@ -21,6 +21,11 @@
 
 namespace mfd
 {
+SceneRegistry::SceneRegistry() = default;
+SceneRegistry::~SceneRegistry() = default;
+SceneRegistry::SceneRegistry(SceneRegistry&&) noexcept = default;
+SceneRegistry& SceneRegistry::operator=(SceneRegistry&&) noexcept = default;
+
 namespace
 {
 using BlinkClock = std::chrono::steady_clock;

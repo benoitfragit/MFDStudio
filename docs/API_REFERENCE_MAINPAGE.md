@@ -41,11 +41,21 @@ It brings together:
 
 Internally, the repository implementation now starts from the dedicated
 `mfd_common_api` module, which owns `mfd_model` and `mfd_transport`, then
-layers `mfd_io_json`, `mfd_runtime`, and the private `mfd_render_raylib`
-backend on top. The published client-facing documentation therefore stays
-render-agnostic: the public API focuses on authored data, command flow, runtime
-control, and generated clients rather than exposing one renderer as a required
-dependency.
+layers `mfd_io_json` and `mfd_runtime` into `mfd_api`, while the
+`mfd_render_raylib` backend stays host-side for repository applications. The
+published client-facing documentation therefore stays render-agnostic: the
+public API focuses on authored data, command flow, runtime control, and
+generated clients rather than exposing one renderer as a required dependency.
+
+For customer-facing client code, two umbrella entry points matter most:
+
+- `mfd/client/ClientSdk.h` for standalone applications and shipped examples
+- `mfd/client/GeneratedUiSupport.h` for generated source files emitted by the client API generator
+
+Generated code and shipped examples should therefore link only
+`mfd_client_api`, even when they reach lower-level helpers such as
+`CommandClient`, `JsonLoader`, or `UserSpaceProjector` through the packaged SDK
+surface.
 
 <div class="mfd-callout"><strong>Preferred client integration:</strong> for one C++ client specific to one authored window, start from the generated UI emitted by the generator, mutate generated page / reticle / primitive handles, then let <code>CommandClient</code> publish the resulting batch.</div>
 

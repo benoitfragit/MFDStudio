@@ -154,7 +154,12 @@ struct ReticleRenderView
 class MFD_API SceneRegistry
 {
 public:
-    SceneRegistry() = default;
+    SceneRegistry();
+    ~SceneRegistry();
+    SceneRegistry(const SceneRegistry&) = delete;
+    SceneRegistry& operator=(const SceneRegistry&) = delete;
+    SceneRegistry(SceneRegistry&&) noexcept;
+    SceneRegistry& operator=(SceneRegistry&&) noexcept;
 
     /**
      * @brief Creates a scene and immediately loads a document into it.

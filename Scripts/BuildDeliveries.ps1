@@ -1,495 +1,585 @@
 [CmdletBinding()]
-param()
+param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$RemainingArguments
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Write-Phase {
+function Get-RequiredOptionValue {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Name
+        [string[]]$Arguments,
+        [int]$CurrentIndex,
+        [string]$OptionName
     )
 
+    if ($CurrentIndex + 1 -ge $Arguments.Count) {
+        throw "Missing value after $OptionName."
+    }
+
+    return $Arguments[$CurrentIndex + 1]
+}
+
+function Set-SingleOptionValue {
+    param(
+        [string]$OptionName,
+        [string]$CurrentValue,
+        [string]$NewValue
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($CurrentValue)) {
+        throw "$OptionName was provided more than once."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($NewValue)) {
+        throw "$OptionName requires a non-empty value."
+    }
+
+    return $NewValue
+}
+
+function Get-DeliveryOptions {
+    param(
+        [string[]]$Arguments,
+        [object[]]$AvailableProfiles
+    )
+
+    $packageVersion = $null
+    $selectedPreset = $null
+    $showHelp = $false
+
+    for ($index = 0; $index -lt $Arguments.Count; ++$index) {
+        $argument = $Arguments[$index]
+
+        if ($argument -eq "--help" -or $argument -eq "-h" -or $argument -eq "-?") {
+            $showHelp = $true
+            continue
+        }
+
+        if ($argument -eq "--version" -or $argument -eq "-Version" -or $argument -eq "-v") {
+            $packageVersion = Set-SingleOptionValue `
+                -OptionName $argument `
+                -CurrentValue $packageVersion `
+                -NewValue (Get-RequiredOptionValue -Arguments $Arguments -CurrentIndex $index -OptionName $argument)
+            ++$index
+            continue
+        }
+
+        if ($argument.StartsWith("--version=")) {
+            $packageVersion = Set-SingleOptionValue `
+                -OptionName "--version" `
+                -CurrentValue $packageVersion `
+                -NewValue $argument.Substring("--version=".Length)
+            continue
+        }
+
+        if ($argument.StartsWith("-Version=")) {
+            $packageVersion = Set-SingleOptionValue `
+                -OptionName "-Version" `
+                -CurrentValue $packageVersion `
+                -NewValue $argument.Substring("-Version=".Length)
+            continue
+        }
+
+        if ($argument -eq "--preset" -or $argument -eq "-p") {
+            $selectedPreset = Set-SingleOptionValue `
+                -OptionName $argument `
+                -CurrentValue $selectedPreset `
+                -NewValue (Get-RequiredOptionValue -Arguments $Arguments -CurrentIndex $index -OptionName $argument)
+            ++$index
+            continue
+        }
+
+        if ($argument.StartsWith("--preset=")) {
+            $selectedPreset = Set-SingleOptionValue `
+                -OptionName "--preset" `
+                -CurrentValue $selectedPreset `
+                -NewValue $argument.Substring("--preset=".Length)
+            continue
+        }
+
+        if ($argument.StartsWith("-p=")) {
+            $selectedPreset = Set-SingleOptionValue `
+                -OptionName "-p" `
+                -CurrentValue $selectedPreset `
+                -NewValue $argument.Substring("-p=".Length)
+            continue
+        }
+
+        throw "Unknown argument '$argument'. Use --help to see supported options."
+    }
+
+    if (-not $showHelp -and [string]::IsNullOrWhiteSpace($packageVersion)) {
+        throw "BuildDeliveries.ps1 requires --version <value>."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($selectedPreset)) {
+        $availablePresetNames = New-Object System.Collections.Generic.List[string]
+        foreach ($profile in $AvailableProfiles) {
+            if (-not $availablePresetNames.Contains($profile.ConfigurePreset)) {
+                [void]$availablePresetNames.Add($profile.ConfigurePreset)
+            }
+            foreach ($build in $profile.Builds) {
+                if (-not $availablePresetNames.Contains($build.PresetName)) {
+                    [void]$availablePresetNames.Add($build.PresetName)
+                }
+            }
+        }
+        if ($selectedPreset -notin $availablePresetNames) {
+            throw "Unknown preset '$selectedPreset'. Use --help to see the available presets."
+        }
+    }
+
+    return [pscustomobject]@{
+        PackageVersion = $packageVersion
+        SelectedPreset = $selectedPreset
+        ShowHelp = $showHelp
+    }
+}
+
+function Show-Usage {
+    param([object[]]$AvailableProfiles)
+
+    Write-Host "Usage:"
+    Write-Host "  Scripts\BuildDeliveries.bat --version <value> [--preset <preset-name>]"
+    Write-Host "  Scripts\BuildDeliveries.ps1 --version <value> [--preset <preset-name>]"
     Write-Host ""
-    Write-Host "=== $Name ===" -ForegroundColor Cyan
+    Write-Host "Options:"
+    Write-Host "  --version, -v <value>   Package version written into manifests and ConfigVersion.cmake files."
+    Write-Host "  --preset, -p <name>    Restrict the delivery run to one configure preset or one build preset."
+    Write-Host "  --help, -h             Show this help and exit."
+    Write-Host ""
+    Write-Host "Available configure presets:"
+    foreach ($profile in $AvailableProfiles) {
+        $buildPresetNames = @($profile.Builds | ForEach-Object { $_.PresetName }) -join ", "
+        Write-Host ("  {0} [{1}] -> {2}" -f `
+            $profile.ConfigurePreset, `
+            $profile.Platform, `
+            $buildPresetNames)
+    }
+    Write-Host ""
+    Write-Host "Available build presets:"
+    foreach ($profile in $AvailableProfiles) {
+        foreach ($build in $profile.Builds) {
+            Write-Host ("  {0} [{1}/{2}]" -f `
+                $build.PresetName, `
+                $profile.Platform, `
+                $build.Configuration)
+        }
+    }
+    Write-Host ""
+    Write-Host "Examples:"
+    Write-Host "  Scripts\BuildDeliveries.bat --version 1.8.5"
+    Write-Host "  Scripts\BuildDeliveries.bat --version 1.8.5 --preset vs2022-win32-no-tests"
+    Write-Host "  Scripts\BuildDeliveries.bat --version 1.8.5 --preset debug-win32-no-tests"
+    Write-Host "  Scripts\BuildDeliveries.bat --version 1.8.5 --preset release-x64-no-tests"
+    Write-Host ""
+    Write-Host "Default behavior:"
+    Write-Host "  Without --preset, the script processes every preset listed above."
 }
 
-function Write-Step {
+function New-DeliveryProfileSelection {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Message
+        [object]$Profile,
+        [object[]]$Builds
     )
 
-    Write-Host "[delivery] $Message"
+    return [pscustomobject]@{
+        ConfigurePreset = $Profile.ConfigurePreset
+        BuildDirectory = $Profile.BuildDirectory
+        Platform = $Profile.Platform
+        Builds = @($Builds)
+    }
 }
 
-function New-Directory {
+function Select-DeliveryProfiles {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path
+        [object[]]$AvailableProfiles,
+        [string]$SelectedPreset
     )
 
-    [System.IO.Directory]::CreateDirectory($Path) | Out-Null
+    if ([string]::IsNullOrWhiteSpace($SelectedPreset)) {
+        return @(
+            $AvailableProfiles | ForEach-Object {
+                New-DeliveryProfileSelection -Profile $_ -Builds $_.Builds
+            }
+        )
+    }
+
+    $configureMatch = $AvailableProfiles | Where-Object { $_.ConfigurePreset -eq $SelectedPreset } | Select-Object -First 1
+    if ($null -ne $configureMatch) {
+        return @(New-DeliveryProfileSelection -Profile $configureMatch -Builds $configureMatch.Builds)
+    }
+
+    foreach ($profile in $AvailableProfiles) {
+        $buildMatch = $profile.Builds | Where-Object { $_.PresetName -eq $SelectedPreset } | Select-Object -First 1
+        if ($null -ne $buildMatch) {
+            return @(New-DeliveryProfileSelection -Profile $profile -Builds @($buildMatch))
+        }
+    }
+
+    throw "Unknown preset '$SelectedPreset'. Use --help to see the available presets."
 }
 
-function Write-Utf8File {
+function Invoke-Step {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-        [Parameter(Mandatory = $true)]
-        [string]$Content
+        [string]$Message,
+        [scriptblock]$Action
     )
 
-    $parentDirectory = Split-Path -Path $Path -Parent
-    if (-not [string]::IsNullOrWhiteSpace($parentDirectory)) {
-        New-Directory -Path $parentDirectory
-    }
-
-    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+    Write-Host "==> $Message"
+    & $Action
 }
 
-function Copy-FileStrict {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Source,
-        [Parameter(Mandatory = $true)]
-        [string]$Destination
-    )
+function Get-ConfigurePresetMap {
+    param([string]$PresetsFilePath)
 
-    if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
-        throw "Missing source file: $Source"
+    if (-not (Test-Path $PresetsFilePath)) {
+        return @{}
     }
 
-    $parentDirectory = Split-Path -Path $Destination -Parent
-    if (-not [string]::IsNullOrWhiteSpace($parentDirectory)) {
-        New-Directory -Path $parentDirectory
+    $presetsDocument = Get-Content -LiteralPath $PresetsFilePath -Raw | ConvertFrom-Json
+    $presetMap = @{}
+    foreach ($preset in $presetsDocument.configurePresets) {
+        $presetMap[$preset.name] = $preset
     }
 
-    Copy-Item -LiteralPath $Source -Destination $Destination -Force
+    return $presetMap
 }
 
-function Copy-DirectoryStrict {
+function Resolve-ConfigurePresetToolset {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Source,
-        [Parameter(Mandatory = $true)]
-        [string]$Destination
+        [string]$ConfigurePreset,
+        [hashtable]$ConfigurePresetMap
     )
 
-    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
-        throw "Missing source directory: $Source"
+    if ([string]::IsNullOrWhiteSpace($ConfigurePreset) -or $null -eq $ConfigurePresetMap) {
+        return $null
     }
 
-    if (Test-Path -LiteralPath $Destination) {
-        Remove-Item -LiteralPath $Destination -Recurse -Force
+    $visited = New-Object System.Collections.Generic.HashSet[string]
+
+    function Resolve-FromPreset {
+        param(
+            [string]$PresetName,
+            [hashtable]$PresetMap,
+            [System.Collections.Generic.HashSet[string]]$Seen
+        )
+
+        if ([string]::IsNullOrWhiteSpace($PresetName)) {
+            return $null
+        }
+
+        if (-not $Seen.Add($PresetName)) {
+            return $null
+        }
+
+        $preset = $PresetMap[$PresetName]
+        if ($null -eq $preset) {
+            return $null
+        }
+
+        if ($preset.PSObject.Properties.Name -contains "toolset" -and
+            -not [string]::IsNullOrWhiteSpace([string]$preset.toolset)) {
+            return [string]$preset.toolset
+        }
+
+        if (-not ($preset.PSObject.Properties.Name -contains "inherits")) {
+            return $null
+        }
+
+        $parents = @()
+        if ($preset.inherits -is [System.Array]) {
+            $parents = @($preset.inherits)
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace([string]$preset.inherits)) {
+            $parents = @([string]$preset.inherits)
+        }
+
+        foreach ($parent in $parents) {
+            $resolved = Resolve-FromPreset -PresetName $parent -PresetMap $PresetMap -Seen $Seen
+            if (-not [string]::IsNullOrWhiteSpace($resolved)) {
+                return $resolved
+            }
+        }
+
+        return $null
     }
 
-    $parentDirectory = Split-Path -Path $Destination -Parent
-    if (-not [string]::IsNullOrWhiteSpace($parentDirectory)) {
-        New-Directory -Path $parentDirectory
-    }
-
-    Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
+    return Resolve-FromPreset -PresetName $ConfigurePreset -PresetMap $ConfigurePresetMap -Seen $visited
 }
 
-function Invoke-ExternalCommand {
+function Get-DeliveryToolset {
     param(
-        [Parameter(Mandatory = $true)]
-        [string[]]$Command
+        [string]$ConfigurePreset,
+        [hashtable]$ConfigurePresetMap
     )
 
-    Write-Step ($Command -join " ")
-    & $Command[0] $Command[1..($Command.Length - 1)]
+    $presetToolset = Resolve-ConfigurePresetToolset `
+        -ConfigurePreset $ConfigurePreset `
+        -ConfigurePresetMap $ConfigurePresetMap
+    if (-not [string]::IsNullOrWhiteSpace($presetToolset)) {
+        return $presetToolset
+    }
+
+    return "native"
+}
+
+function Invoke-CMakeBuildPreset {
+    param(
+        [string]$PresetName,
+        [string]$BuildDirectory
+    )
+
+    & cmake --build --preset $PresetName
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    $lockedExecutables = Get-ChildItem `
+        -Path (Join-Path $BuildDirectory "tests") `
+        -Filter "mfd_api_tests.exe" `
+        -Recurse `
+        -ErrorAction SilentlyContinue
+
+    if (-not $lockedExecutables) {
+        throw "cmake --build --preset $PresetName failed."
+    }
+
+    Write-Warning "Retrying $PresetName after removing locked mfd_api_tests.exe."
+    foreach ($lockedExecutable in $lockedExecutables) {
+        Remove-Item -LiteralPath $lockedExecutable.FullName -Force -ErrorAction SilentlyContinue
+    }
+
+    & cmake --build --preset $PresetName
     if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $($Command -join ' ')"
+        throw "cmake --build --preset $PresetName failed after retry."
     }
 }
 
-function Get-ProjectVersion {
+function Install-Component {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$RootCMakeListsPath
+        [string]$BuildDirectory,
+        [string]$Configuration,
+        [string]$Component,
+        [string]$Prefix
     )
 
-    $content = Get-Content -LiteralPath $RootCMakeListsPath -Raw
-    $match = [regex]::Match($content, "project\s*\(\s*MFD\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    if (-not $match.Success) {
-        throw "Unable to resolve project version from $RootCMakeListsPath"
-    }
-
-    return $match.Groups[1].Value
-}
-
-function Get-IncludeRelativePath {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$SourcePath
-    )
-
-    $normalizedPath = $SourcePath.Replace("/", "\")
-    $marker = "\include\"
-    $index = $normalizedPath.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase)
-    if ($index -lt 0) {
-        throw "Unable to resolve include-relative path from $SourcePath"
-    }
-
-    return $normalizedPath.Substring($index + $marker.Length)
-}
-
-function Copy-PublicHeaders {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$RepositoryRoot,
-        [Parameter(Mandatory = $true)]
-        [string]$DestinationIncludeRoot,
-        [Parameter(Mandatory = $true)]
-        [string[]]$RelativeSourceFiles
-    )
-
-    foreach ($relativeSourceFile in $RelativeSourceFiles) {
-        $sourcePath = Join-Path $RepositoryRoot $relativeSourceFile
-        $includeRelativePath = Get-IncludeRelativePath -SourcePath $sourcePath
-        $destinationPath = Join-Path $DestinationIncludeRoot $includeRelativePath
-        Copy-FileStrict -Source $sourcePath -Destination $destinationPath
+    & cmake --install $BuildDirectory --config $Configuration --component $Component --prefix $Prefix
+    if ($LASTEXITCODE -ne 0) {
+        throw "cmake --install $BuildDirectory --config $Configuration --component $Component failed."
     }
 }
 
 function Write-PackageManifest {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-        [Parameter(Mandatory = $true)]
+        [string]$OutputFile,
         [string]$PackageName,
-        [Parameter(Mandatory = $true)]
         [string]$PackageKind,
-        [Parameter(Mandatory = $true)]
         [string]$ProjectVersion,
-        [Parameter(Mandatory = $true)]
         [string]$Toolset,
-        [Parameter(Mandatory = $true)]
         [string[]]$Targets
     )
 
-    $manifest = [ordered]@{
-        packageName    = $PackageName
-        packageKind    = $PackageKind
-        projectVersion = $ProjectVersion
-        toolset        = $Toolset
-        targets        = $Targets
+    $targetList = ($Targets | Where-Object { $_ -and $_.Trim().Length -gt 0 }) -join "|"
+    & cmake `
+        "-DOUTPUT_FILE=$OutputFile" `
+        "-DPACKAGE_NAME=$PackageName" `
+        "-DPACKAGE_KIND=$PackageKind" `
+        "-DPROJECT_VERSION=$ProjectVersion" `
+        "-DTOOLSET=$Toolset" `
+        "-DTARGETS=$targetList" `
+        -P "cmake/WritePackageManifest.cmake"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to write manifest for $PackageName."
     }
-
-    Write-Utf8File -Path $Path -Content (($manifest | ConvertTo-Json -Depth 4) + [Environment]::NewLine)
-}
-
-function Write-PackageConfigFile {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$TemplatePath,
-        [Parameter(Mandatory = $true)]
-        [string]$DestinationPath,
-        [Parameter(Mandatory = $true)]
-        [string]$Toolset,
-        [Parameter(Mandatory = $true)]
-        [string]$ImportedTargetName
-    )
-
-    $content = Get-Content -LiteralPath $TemplatePath -Raw
-    $content = $content.Replace("@PACKAGE_INIT@", "")
-    $content = $content.Replace("@MFD_PACKAGE_TOOLSET@", $Toolset)
-    $content = $content.Replace("@MFD_PACKAGE_IMPORTED_TARGET_NAME@", $ImportedTargetName)
-    $content = $content.TrimStart("`r", "`n")
-
-    Write-Utf8File -Path $DestinationPath -Content ($content + [Environment]::NewLine)
-}
-
-function Write-PackageConfigVersionFile {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-        [Parameter(Mandatory = $true)]
-        [string]$ProjectVersion
-    )
-
-    $majorVersion = $ProjectVersion.Split(".")[0]
-    $content = @"
-set(PACKAGE_VERSION "$ProjectVersion")
-
-if(NOT DEFINED PACKAGE_FIND_VERSION OR PACKAGE_FIND_VERSION STREQUAL "")
-    set(PACKAGE_VERSION_COMPATIBLE TRUE)
-    set(PACKAGE_VERSION_EXACT TRUE)
-    return()
-endif()
-
-if(PACKAGE_FIND_VERSION_RANGE)
-    if(NOT DEFINED PACKAGE_FIND_VERSION_MIN_MAJOR OR NOT PACKAGE_FIND_VERSION_MIN_MAJOR STREQUAL "$majorVersion")
-        set(PACKAGE_VERSION_COMPATIBLE FALSE)
-    elseif((PACKAGE_FIND_VERSION_RANGE_MAX STREQUAL "INCLUDE" AND PACKAGE_VERSION VERSION_LESS_EQUAL PACKAGE_FIND_VERSION_MAX) OR
-           (PACKAGE_FIND_VERSION_RANGE_MAX STREQUAL "EXCLUDE" AND PACKAGE_VERSION VERSION_LESS PACKAGE_FIND_VERSION_MAX))
-        set(PACKAGE_VERSION_COMPATIBLE TRUE)
-    else()
-        set(PACKAGE_VERSION_COMPATIBLE FALSE)
-    endif()
-elseif(PACKAGE_VERSION VERSION_LESS PACKAGE_FIND_VERSION)
-    set(PACKAGE_VERSION_COMPATIBLE FALSE)
-elseif(PACKAGE_FIND_VERSION_MAJOR STREQUAL "$majorVersion")
-    set(PACKAGE_VERSION_COMPATIBLE TRUE)
-else()
-    set(PACKAGE_VERSION_COMPATIBLE FALSE)
-endif()
-
-if(PACKAGE_FIND_VERSION STREQUAL PACKAGE_VERSION)
-    set(PACKAGE_VERSION_EXACT TRUE)
-endif()
-"@
-
-    Write-Utf8File -Path $Path -Content $content
-}
-
-function Resolve-BuildArtifactPath {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$RepositoryRoot,
-        [Parameter(Mandatory = $true)]
-        [string]$BuildDirectoryName,
-        [Parameter(Mandatory = $true)]
-        [string]$ModuleDirectory,
-        [Parameter(Mandatory = $true)]
-        [string]$Configuration,
-        [Parameter(Mandatory = $true)]
-        [string]$FileName
-    )
-
-    return (Join-Path $RepositoryRoot ("build/{0}/{1}/{2}/{3}" -f $BuildDirectoryName, $ModuleDirectory, $Configuration, $FileName))
 }
 
 function Assert-PathExists {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path
-    )
+    param([string]$PathToCheck)
 
-    if (-not (Test-Path -LiteralPath $Path)) {
-        throw "Missing expected path: $Path"
+    if (-not (Test-Path $PathToCheck)) {
+        throw "Expected path was not generated: $PathToCheck"
+    }
+}
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+Set-Location $repoRoot
+$configurePresetMap = Get-ConfigurePresetMap -PresetsFilePath (Join-Path $repoRoot "CMakePresets.json")
+
+$deliveryRoot = Join-Path $repoRoot "_Deliveries"
+$packagesRoot = Join-Path $deliveryRoot "packages_windows"
+$runtimePackagesRoot = Join-Path $deliveryRoot "packages_bin_windows"
+
+$deliveryProfiles = @(
+    [pscustomobject]@{
+        ConfigurePreset = "vs2022-win32-no-tests"
+        BuildDirectory = Join-Path $repoRoot "build/vs2022-win32-no-tests"
+        Platform = "win32"
+        Builds = @(
+            [pscustomobject]@{
+                PresetName = "debug-win32-no-tests"
+                Configuration = "Debug"
+            }
+            [pscustomobject]@{
+                PresetName = "release-win32-no-tests"
+                Configuration = "Release"
+            }
+        )
+    }
+    [pscustomobject]@{
+        ConfigurePreset = "vs2022-x64-no-tests"
+        BuildDirectory = Join-Path $repoRoot "build/vs2022-x64-no-tests"
+        Platform = "x64"
+        Builds = @(
+            [pscustomobject]@{
+                PresetName = "debug-x64-no-tests"
+                Configuration = "Debug"
+            }
+            [pscustomobject]@{
+                PresetName = "release-x64-no-tests"
+                Configuration = "Release"
+            }
+        )
+    }
+)
+
+$deliveryOptions = Get-DeliveryOptions -Arguments $RemainingArguments -AvailableProfiles $deliveryProfiles
+if ($deliveryOptions.ShowHelp) {
+    Show-Usage -AvailableProfiles $deliveryProfiles
+    return
+}
+
+$packageVersion = $deliveryOptions.PackageVersion
+$selectedProfiles = Select-DeliveryProfiles `
+    -AvailableProfiles $deliveryProfiles `
+    -SelectedPreset $deliveryOptions.SelectedPreset
+
+$developmentPackages = @(
+    [pscustomobject]@{
+        Name = "MFDStudioClientApi"
+        Component = "mfd_client_api_development"
+        Targets = @("mfd_client_api", "mfd_api")
+    }
+    [pscustomobject]@{
+        Name = "MFDStudioWindowLauncherPlugin"
+        Component = "mfd_window_plugin_api_development"
+        Targets = @("mfd_window_plugin_api")
+    }
+)
+
+$runtimePackages = @(
+    [pscustomobject]@{
+        Name = "MFDStudioClientApi.Install"
+        Component = "mfd_client_api_runtime"
+        Targets = @("mfd_client_api", "mfd_api")
+    }
+    [pscustomobject]@{
+        Name = "MFDStudioWindowLauncher.Install"
+        Component = "mfd_window_launcher_runtime"
+        Targets = @("mfd_window", "mfd_window_plugin_api")
+    }
+    [pscustomobject]@{
+        Name = "MFDStudioEditor.Install"
+        Component = "mfd_editor_runtime"
+        Targets = @("mfd_editor")
+    }
+)
+
+Invoke-Step -Message "Removing previous _Deliveries layout" -Action {
+    Remove-Item -LiteralPath $deliveryRoot -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $packagesRoot | Out-Null
+    New-Item -ItemType Directory -Path $runtimePackagesRoot | Out-Null
+}
+
+foreach ($profile in $selectedProfiles) {
+    Invoke-Step -Message "Configuring $($profile.ConfigurePreset) for package version $packageVersion" -Action {
+        & cmake --preset $profile.ConfigurePreset "-DMFD_PACKAGE_VERSION=$packageVersion" "-DMFD_API_BUILD_SHARED=ON"
+        if ($LASTEXITCODE -ne 0) {
+            throw "cmake --preset $($profile.ConfigurePreset) failed."
+        }
     }
 }
 
-function Assert-PathMissing {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path
-    )
-
-    if (Test-Path -LiteralPath $Path) {
-        throw "Unexpected packaged path: $Path"
+foreach ($profile in $selectedProfiles) {
+    foreach ($build in $profile.Builds) {
+        Invoke-Step -Message "Building $($build.PresetName)" -Action {
+            Invoke-CMakeBuildPreset -PresetName $build.PresetName -BuildDirectory $profile.BuildDirectory
+        }
     }
 }
 
-$scriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
-$repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory ".."))
-$deliveriesRoot = Join-Path $repositoryRoot "_Deliveries"
-$packagesRoot = Join-Path $deliveriesRoot "packages_windows"
-$runtimePackagesRoot = Join-Path $deliveriesRoot "packages_bin_windows"
-$toolset = "v142"
+foreach ($profile in $selectedProfiles) {
+    $toolset = Get-DeliveryToolset `
+        -ConfigurePreset $profile.ConfigurePreset `
+        -ConfigurePresetMap $configurePresetMap
 
-$configurePresets = @("vs2022-win32", "vs2022-x64")
-$buildVariants = @(
-    [pscustomobject]@{
-        BuildPreset       = "debug-win32"
-        BuildDirectory    = "vs2022-win32"
-        Platform          = "win32"
-        Configuration     = "Debug"
-        ConfigurationName = "Debug"
-    },
-    [pscustomobject]@{
-        BuildPreset       = "release-win32"
-        BuildDirectory    = "vs2022-win32"
-        Platform          = "win32"
-        Configuration     = "Release"
-        ConfigurationName = "Release"
-    },
-    [pscustomobject]@{
-        BuildPreset       = "debug-x64"
-        BuildDirectory    = "vs2022-x64"
-        Platform          = "x64"
-        Configuration     = "Debug"
-        ConfigurationName = "Debug"
-    },
-    [pscustomobject]@{
-        BuildPreset       = "release-x64"
-        BuildDirectory    = "vs2022-x64"
-        Platform          = "x64"
-        Configuration     = "Release"
-        ConfigurationName = "Release"
-    }
-)
-
-$clientApiPublicHeaders = @(
-    "mfd_client_api/include/mfd/client/Animation.h",
-    "mfd_client_api/include/mfd/client/ClientExport.h",
-    "mfd_client_api/include/mfd/client/LatestBatchPublisher.h",
-    "mfd_common_api/include/mfd/MfdExport.h",
-    "mfd_common_api/include/mfd/core/ArrayView.h",
-    "mfd_common_api/include/mfd/control/CommandClient.h",
-    "mfd_common_api/include/mfd/control/CommandTransport.h",
-    "mfd_common_api/include/mfd/control/CommandTypes.h",
-    "mfd_common_api/include/mfd/ipc/ExchangeChannel.h",
-    "mfd_common_api/include/mfd/ipc/UdpLimits.h",
-    "mfd_common_api/include/mfd/model/PageDefinition.h",
-    "mfd_common_api/include/mfd/model/PageName.h",
-    "mfd_common_api/include/mfd/model/Reticle.h",
-    "mfd_common_api/include/mfd/model/Types.h",
-    "mfd_common_api/include/mfd/runtime/GeneratedTransportMap.h"
-)
-
-$windowLauncherPublicHeaders = @(
-    "mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h",
-    "mfd_common_api/include/mfd/core/ArrayView.h"
-)
-
-Push-Location $repositoryRoot
-try {
-    Write-Phase -Name "Generation"
-    Write-Step "Repository root: $repositoryRoot"
-    if (Test-Path -LiteralPath $deliveriesRoot) {
-        Write-Step "Removing previous _Deliveries tree"
-        Remove-Item -LiteralPath $deliveriesRoot -Recurse -Force
-    }
-
-    foreach ($buildDirectoryName in @("vs2022-win32", "vs2022-x64")) {
-        $buildDirectoryPath = Join-Path $repositoryRoot ("build/{0}" -f $buildDirectoryName)
-        if (Test-Path -LiteralPath $buildDirectoryPath) {
-            Write-Step "Removing previous build tree $buildDirectoryPath"
-            Remove-Item -LiteralPath $buildDirectoryPath -Recurse -Force
+    foreach ($developmentPackage in $developmentPackages) {
+        $prefix = Join-Path $packagesRoot "$($developmentPackage.Name)/build/native"
+        foreach ($build in $profile.Builds) {
+            Invoke-Step -Message "Installing $($developmentPackage.Name) $($profile.Platform) $($build.Configuration)" -Action {
+                Install-Component -BuildDirectory $profile.BuildDirectory -Configuration $build.Configuration -Component $developmentPackage.Component -Prefix $prefix
+            }
         }
     }
 
-    foreach ($configurePreset in $configurePresets) {
-        Invoke-ExternalCommand -Command @("cmake", "-T", $toolset, "--preset", $configurePreset)
+    foreach ($runtimePackage in $runtimePackages) {
+        foreach ($build in $profile.Builds) {
+            $prefix = Join-Path $runtimePackagesRoot "$($runtimePackage.Name)/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)"
+            Invoke-Step -Message "Installing $($runtimePackage.Name) $($profile.Platform) $($build.Configuration)" -Action {
+                Install-Component -BuildDirectory $profile.BuildDirectory -Configuration $build.Configuration -Component $runtimePackage.Component -Prefix $prefix
+            }
+        }
     }
-
-    $projectVersion = Get-ProjectVersion -RootCMakeListsPath (Join-Path $repositoryRoot "CMakeLists.txt")
-    Write-Step "Detected project version: $projectVersion"
-    Write-Step "Using MSVC toolset: $toolset"
-
-    Write-Phase -Name "Build"
-    foreach ($buildVariant in $buildVariants) {
-        Invoke-ExternalCommand -Command @("cmake", "--build", "--preset", $buildVariant.BuildPreset)
-    }
-
-    Write-Phase -Name "Copy"
-    New-Directory -Path $packagesRoot
-    New-Directory -Path $runtimePackagesRoot
-
-    $clientPackageRoot = Join-Path $packagesRoot "MFDStudioClientApi/build/native"
-    $clientIncludeRoot = Join-Path $clientPackageRoot "include"
-    $clientCMakeRoot = Join-Path $clientPackageRoot "cmake"
-    $clientToolsRoot = Join-Path $clientPackageRoot "tools"
-    $clientManifestPath = Join-Path $clientPackageRoot "share/MFDStudioClientApi/package_manifest.json"
-    Copy-PublicHeaders -RepositoryRoot $repositoryRoot -DestinationIncludeRoot $clientIncludeRoot -RelativeSourceFiles $clientApiPublicHeaders
-    Copy-FileStrict -Source (Join-Path $repositoryRoot "mfd_client_api/generator/ClientApiGenerator.cmake") -Destination (Join-Path $clientCMakeRoot "ClientApiGenerator.cmake")
-    Copy-DirectoryStrict -Source (Join-Path $repositoryRoot "mfd_client_api/generator") -Destination (Join-Path $clientToolsRoot "generator")
-    Write-PackageConfigFile -TemplatePath (Join-Path $repositoryRoot "cmake/packages/MFDStudioClientApiConfig.cmake.in") -DestinationPath (Join-Path $clientCMakeRoot "MFDStudioClientApiConfig.cmake") -Toolset $toolset -ImportedTargetName "MFDStudio::ClientApi"
-    Write-PackageConfigVersionFile -Path (Join-Path $clientCMakeRoot "MFDStudioClientApiConfigVersion.cmake") -ProjectVersion $projectVersion
-    Write-PackageManifest -Path $clientManifestPath -PackageName "MFDStudioClientApi" -PackageKind "development" -ProjectVersion $projectVersion -Toolset $toolset -Targets @("mfd_client_api", "mfd_api")
-
-    foreach ($buildVariant in $buildVariants) {
-        $clientLibRoot = Join-Path $clientPackageRoot ("libs/{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_client_api" -Configuration $buildVariant.Configuration -FileName "mfd_client_api.lib") -Destination (Join-Path $clientLibRoot "mfd_client_api.lib")
-        Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_api" -Configuration $buildVariant.Configuration -FileName "mfd_api.lib") -Destination (Join-Path $clientLibRoot "mfd_api.lib")
-    }
-
-    $windowLauncherPackageRoot = Join-Path $packagesRoot "MFDStudioWindowLauncherPlugin/build/native"
-    $windowLauncherIncludeRoot = Join-Path $windowLauncherPackageRoot "include"
-    $windowLauncherCMakeRoot = Join-Path $windowLauncherPackageRoot "cmake"
-    $windowLauncherManifestPath = Join-Path $windowLauncherPackageRoot "share/MFDStudioWindowLauncherPlugin/package_manifest.json"
-    Copy-PublicHeaders -RepositoryRoot $repositoryRoot -DestinationIncludeRoot $windowLauncherIncludeRoot -RelativeSourceFiles $windowLauncherPublicHeaders
-    Write-PackageConfigFile -TemplatePath (Join-Path $repositoryRoot "cmake/packages/MFDStudioWindowLauncherPluginConfig.cmake.in") -DestinationPath (Join-Path $windowLauncherCMakeRoot "MFDStudioWindowLauncherPluginConfig.cmake") -Toolset $toolset -ImportedTargetName "MFDStudio::WindowLauncherPlugin"
-    Write-PackageConfigVersionFile -Path (Join-Path $windowLauncherCMakeRoot "MFDStudioWindowLauncherPluginConfigVersion.cmake") -ProjectVersion $projectVersion
-    Write-PackageManifest -Path $windowLauncherManifestPath -PackageName "MFDStudioWindowLauncherPlugin" -PackageKind "development" -ProjectVersion $projectVersion -Toolset $toolset -Targets @("mfd_window_plugin_api")
-
-    foreach ($buildVariant in $buildVariants) {
-        $windowLibRoot = Join-Path $windowLauncherPackageRoot ("libs/{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_window_plugin_api" -Configuration $buildVariant.Configuration -FileName "mfd_window_plugin_api.lib") -Destination (Join-Path $windowLibRoot "mfd_window_plugin_api.lib")
-    }
-
-    $clientInstallRoot = Join-Path $runtimePackagesRoot "MFDStudioClientApi.Install/_Exec"
-    Write-PackageManifest -Path (Join-Path $clientInstallRoot "_Conf/package_manifest.json") -PackageName "MFDStudioClientApi.Install" -PackageKind "runtime" -ProjectVersion $projectVersion -Toolset $toolset -Targets @("mfd_client_api", "mfd_api")
-
-    foreach ($buildVariant in $buildVariants) {
-        $runtimeRoot = Join-Path $clientInstallRoot ("{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_client_api" -Configuration $buildVariant.Configuration -FileName "mfd_client_api.dll") -Destination (Join-Path $runtimeRoot "mfd_client_api.dll")
-        Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_api" -Configuration $buildVariant.Configuration -FileName "mfd_api.dll") -Destination (Join-Path $runtimeRoot "mfd_api.dll")
-    }
-
-    $editorInstallRoot = Join-Path $runtimePackagesRoot "MFDStudioEditor.Install/_Exec"
-    Write-PackageManifest -Path (Join-Path $editorInstallRoot "_Conf/package_manifest.json") -PackageName "MFDStudioEditor.Install" -PackageKind "runtime" -ProjectVersion $projectVersion -Toolset $toolset -Targets @("mfd_editor")
-
-    foreach ($buildVariant in $buildVariants) {
-        $runtimeRoot = Join-Path $editorInstallRoot ("{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_editor" -Configuration $buildVariant.Configuration -FileName "mfd_editor.exe") -Destination (Join-Path $runtimeRoot "mfd_editor.exe")
-        Copy-DirectoryStrict -Source (Join-Path $repositoryRoot "branding") -Destination (Join-Path $runtimeRoot "branding")
-    }
-
-    $windowInstallRoot = Join-Path $runtimePackagesRoot "MFDStudioWindowLauncher.Install/_Exec"
-    Write-PackageManifest -Path (Join-Path $windowInstallRoot "_Conf/package_manifest.json") -PackageName "MFDStudioWindowLauncher.Install" -PackageKind "runtime" -ProjectVersion $projectVersion -Toolset $toolset -Targets @("mfd_window", "mfd_window_plugin_api")
-
-    foreach ($buildVariant in $buildVariants) {
-        $runtimeRoot = Join-Path $windowInstallRoot ("{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_window" -Configuration $buildVariant.Configuration -FileName "mfd_window.exe") -Destination (Join-Path $runtimeRoot "mfd_window.exe")
-        Copy-FileStrict -Source (Resolve-BuildArtifactPath -RepositoryRoot $repositoryRoot -BuildDirectoryName $buildVariant.BuildDirectory -ModuleDirectory "mfd_window_plugin_api" -Configuration $buildVariant.Configuration -FileName "mfd_window_plugin_api.dll") -Destination (Join-Path $runtimeRoot "mfd_window_plugin_api.dll")
-        Copy-FileStrict -Source (Join-Path $repositoryRoot "Scripts/Start-MfdWindow.bat") -Destination (Join-Path $runtimeRoot "Start-MfdWindow.bat")
-        Copy-DirectoryStrict -Source (Join-Path $repositoryRoot "branding") -Destination (Join-Path $runtimeRoot "branding")
-    }
-
-    Write-Phase -Name "Verification"
-    Assert-PathExists -Path $packagesRoot
-    Assert-PathExists -Path $runtimePackagesRoot
-    Assert-PathExists -Path (Join-Path $clientCMakeRoot "MFDStudioClientApiConfig.cmake")
-    Assert-PathExists -Path (Join-Path $windowLauncherCMakeRoot "MFDStudioWindowLauncherPluginConfig.cmake")
-    Assert-PathExists -Path (Join-Path $clientPackageRoot "tools/generator/scripts/generate_ui.py")
-
-    foreach ($buildVariant in $buildVariants) {
-        $clientLibRoot = Join-Path $clientPackageRoot ("libs/{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Assert-PathExists -Path (Join-Path $clientLibRoot "mfd_client_api.lib")
-        Assert-PathExists -Path (Join-Path $clientLibRoot "mfd_api.lib")
-        Assert-PathMissing -Path (Join-Path $clientLibRoot "mfd_model.lib")
-        Assert-PathMissing -Path (Join-Path $clientLibRoot "mfd_transport.lib")
-
-        $windowLibRoot = Join-Path $windowLauncherPackageRoot ("libs/{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Assert-PathExists -Path (Join-Path $windowLibRoot "mfd_window_plugin_api.lib")
-
-        $clientRuntimeRoot = Join-Path $clientInstallRoot ("{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Assert-PathExists -Path (Join-Path $clientRuntimeRoot "mfd_client_api.dll")
-        Assert-PathExists -Path (Join-Path $clientRuntimeRoot "mfd_api.dll")
-        Assert-PathMissing -Path (Join-Path $clientRuntimeRoot "assets")
-
-        $editorRuntimeRoot = Join-Path $editorInstallRoot ("{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Assert-PathExists -Path (Join-Path $editorRuntimeRoot "mfd_editor.exe")
-        Assert-PathExists -Path (Join-Path $editorRuntimeRoot "branding/mfdstudio_app_icon.png")
-        Assert-PathMissing -Path (Join-Path $editorRuntimeRoot "assets")
-        Assert-PathMissing -Path (Join-Path $editorRuntimeRoot "Start-MfdDemo.bat")
-
-        $windowRuntimeRoot = Join-Path $windowInstallRoot ("{0}/{1}/{2}" -f $toolset, $buildVariant.Platform, $buildVariant.ConfigurationName)
-        Assert-PathExists -Path (Join-Path $windowRuntimeRoot "mfd_window.exe")
-        Assert-PathExists -Path (Join-Path $windowRuntimeRoot "mfd_window_plugin_api.dll")
-        Assert-PathExists -Path (Join-Path $windowRuntimeRoot "Start-MfdWindow.bat")
-        Assert-PathExists -Path (Join-Path $windowRuntimeRoot "branding/mfdstudio_app_icon.png")
-        Assert-PathMissing -Path (Join-Path $windowRuntimeRoot "assets")
-        Assert-PathMissing -Path (Join-Path $windowRuntimeRoot "mfd_framebuffer_stdout_plugin.dll")
-        Assert-PathMissing -Path (Join-Path $windowRuntimeRoot "Start-MfdDemo.bat")
-        Assert-PathMissing -Path (Join-Path $windowRuntimeRoot "Start-MfdCockpit.bat")
-        Assert-PathMissing -Path (Join-Path $windowRuntimeRoot "Start-MfdMinimal.bat")
-        Assert-PathMissing -Path (Join-Path $windowRuntimeRoot "Start-MfdTutorial.bat")
-    }
-
-    Write-Step "Deliveries generated successfully under $deliveriesRoot"
-    exit 0
 }
-catch {
-    Write-Error $_
-    exit 1
+
+$manifestToolset = "native"
+foreach ($profile in $selectedProfiles) {
+    $manifestToolset = Get-DeliveryToolset `
+        -ConfigurePreset $profile.ConfigurePreset `
+        -ConfigurePresetMap $configurePresetMap
+    break
 }
-finally {
-    Pop-Location
+
+foreach ($developmentPackage in $developmentPackages) {
+    $packageRoot = Join-Path $packagesRoot "$($developmentPackage.Name)/build/native"
+    Write-PackageManifest `
+        -OutputFile (Join-Path $packageRoot "manifest.json") `
+        -PackageName $developmentPackage.Name `
+        -PackageKind "development" `
+        -ProjectVersion $packageVersion `
+        -Toolset $manifestToolset `
+        -Targets $developmentPackage.Targets
 }
+
+foreach ($runtimePackage in $runtimePackages) {
+    $packageRoot = Join-Path $runtimePackagesRoot $runtimePackage.Name
+    Write-PackageManifest `
+        -OutputFile (Join-Path $packageRoot "manifest.json") `
+        -PackageName $runtimePackage.Name `
+        -PackageKind "runtime" `
+        -ProjectVersion $packageVersion `
+        -Toolset $manifestToolset `
+        -Targets $runtimePackage.Targets
+}
+
+Invoke-Step -Message "Verifying delivery layout" -Action {
+    Assert-PathExists (Join-Path $packagesRoot "MFDStudioClientApi/build/native/cmake/MFDStudioClientApiConfig.cmake")
+    Assert-PathExists (Join-Path $packagesRoot "MFDStudioWindowLauncherPlugin/build/native/cmake/MFDStudioWindowLauncherPluginConfig.cmake")
+
+    foreach ($profile in $selectedProfiles) {
+        $toolset = Get-DeliveryToolset `
+            -ConfigurePreset $profile.ConfigurePreset `
+            -ConfigurePresetMap $configurePresetMap
+
+        foreach ($build in $profile.Builds) {
+            Assert-PathExists (Join-Path $runtimePackagesRoot "MFDStudioClientApi.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_client_api.dll")
+            Assert-PathExists (Join-Path $runtimePackagesRoot "MFDStudioWindowLauncher.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_window.exe")
+            Assert-PathExists (Join-Path $runtimePackagesRoot "MFDStudioWindowLauncher.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_window_plugin_api.dll")
+            Assert-PathExists (Join-Path $runtimePackagesRoot "MFDStudioEditor.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_editor.exe")
+        }
+    }
+}
+
+Write-Host ""
+Write-Host "Delivery packages generated under $deliveryRoot"

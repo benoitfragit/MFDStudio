@@ -66,7 +66,7 @@ target_include_directories(mfd_editor
 
 target_link_libraries(mfd_editor
     PRIVATE
-        mfd::io_json
+        mfd::api
         mfd::render_raylib)
 
 mfd_private_library(mfd_editor imgui)
@@ -107,3 +107,19 @@ add_custom_command(
     VERBATIM)
 
 mfd_stage_runtime(mfd_editor WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
+
+install(TARGETS mfd_editor
+    RUNTIME DESTINATION .
+    COMPONENT ${MFD_COMPONENT_EDITOR_RUNTIME})
+
+if(MFD_API_BUILD_SHARED)
+    install(FILES
+        "$<TARGET_FILE:mfd_api>"
+        DESTINATION .
+        COMPONENT ${MFD_COMPONENT_EDITOR_RUNTIME})
+endif()
+
+install(DIRECTORY
+    "${MFD_ROOT_DIR}/branding/"
+    DESTINATION branding
+    COMPONENT ${MFD_COMPONENT_EDITOR_RUNTIME})

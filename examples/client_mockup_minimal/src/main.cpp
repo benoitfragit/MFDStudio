@@ -24,9 +24,7 @@
 #include <vector>
 
 #include "MockupUi.h"
-#include "mfd/control/CommandClient.h"
-#include "mfd/io/JsonLoader.h"
-#include "mfd/model/PageDefinition.h"
+#include "mfd/client/ClientSdk.h"
 
 namespace
 {

@@ -218,12 +218,13 @@ client_api_generate_ui(
 This is exactly how `examples/client_mockup` and
 `examples/client_mockup_minimal` are wired.
 
+The consuming executable should then link only `mfd_client_api`.
+
 ### Step B - Use the generated types in your runtime client
 
 ```cpp
 #include "MockupUi.h"
-#include "mfd/control/CommandClient.h"
-#include "mfd/io/JsonLoader.h"
+#include "mfd/client/ClientSdk.h"
 
 mfd::JsonLoader loader;
 const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages_cockpit.json");
@@ -280,8 +281,7 @@ recreates a `CommandClient` when the operator changes target.
 Minimal equivalent:
 
 ```cpp
-#include "mfd/control/CommandClient.h"
-#include "mfd/io/JsonLoader.h"
+#include "mfd/client/ClientSdk.h"
 
 mfd::JsonLoader loader;
 const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages_cockpit.json");

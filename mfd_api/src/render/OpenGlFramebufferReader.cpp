@@ -59,6 +59,13 @@ void FlipRows(std::vector<Rgba8Pixel>& pixels, const int width, const int height
 }
 } // namespace
 
+Rgba32Framebuffer::Rgba32Framebuffer() = default;
+Rgba32Framebuffer::~Rgba32Framebuffer() = default;
+Rgba32Framebuffer::Rgba32Framebuffer(const Rgba32Framebuffer& other) = default;
+Rgba32Framebuffer& Rgba32Framebuffer::operator=(const Rgba32Framebuffer& other) = default;
+Rgba32Framebuffer::Rgba32Framebuffer(Rgba32Framebuffer&& other) noexcept = default;
+Rgba32Framebuffer& Rgba32Framebuffer::operator=(Rgba32Framebuffer&& other) noexcept = default;
+
 bool Rgba32Framebuffer::Empty() const noexcept
 {
     return pixels.empty();

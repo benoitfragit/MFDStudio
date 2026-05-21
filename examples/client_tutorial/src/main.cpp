@@ -20,10 +20,7 @@
 #include <thread>
 #include <vector>
 
-#include "mfd/control/CommandClient.h"
-#include "mfd/control/FeedbackTransport.h"
-#include "mfd/control/StrobeFeedback.h"
-#include "mfd/io/JsonLoader.h"
+#include "mfd/client/ClientSdk.h"
 #include "TutorialUi.h"
 
 namespace

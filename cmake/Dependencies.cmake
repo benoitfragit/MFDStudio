@@ -80,8 +80,9 @@ function(mfd_fetch_dependencies)
 
     # Local source archive when USE_LOCAL_PACKAGE is ON:
     # https://github.com/raysan5/raylib/archive/refs/tags/5.5.zip
-    # raylib stays static so each host embeds its own render layer instead of
-    # relying on one shared runtime DLL boundary.
+    # raylib intentionally stays static. The repository render layer is kept on
+    # the host side (`mfd::render_raylib`) so `mfd_api` itself remains
+    # render-agnostic and never needs to ship a separate raylib DLL.
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     mfd_declare_dependency(
         raylib

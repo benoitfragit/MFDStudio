@@ -12,8 +12,6 @@
 
 #include <raylib.h>
 
-#include "mfd/MfdExport.h"
-
 namespace mfd
 {
 /**
@@ -29,6 +27,7 @@ namespace mfd
  * attachment was successfully upgraded to depth/stencil.
  * @return A render texture compatible with `BeginTextureMode()` and
  * `UnloadRenderTexture()`.
+ * @note This helper belongs to the repository host-side raylib render layer.
  */
-MFD_API RenderTexture2D LoadRenderTextureWithStencil(int width, int height, bool* stencilAvailable = nullptr);
+RenderTexture2D LoadRenderTextureWithStencil(int width, int height, bool* stencilAvailable = nullptr);
 } // namespace mfd

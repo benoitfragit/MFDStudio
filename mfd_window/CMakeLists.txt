@@ -28,10 +28,10 @@ target_include_directories(mfd_window_launcher
 
 target_link_libraries(mfd_window_launcher
     PUBLIC
-        mfd::io_json
-        mfd::render_raylib
-        mfd::runtime
+        mfd::api
         mfd::window_plugin_api
+    PRIVATE
+        mfd::render_raylib
         rlimgui)
 
 mfd_enable_target_warnings(mfd_window_launcher)
@@ -133,3 +133,24 @@ mfd_stage_runtime(
     SCRIPT_SOURCE_DIR "${MFD_WINDOW_SCRIPT_SOURCE_DIR}"
     SCRIPT_NAMES
         ${MFD_WINDOW_LAUNCH_SCRIPT_NAMES})
+
+install(TARGETS mfd_window
+    RUNTIME DESTINATION .
+    COMPONENT ${MFD_COMPONENT_WINDOW_LAUNCHER_RUNTIME})
+
+if(MFD_API_BUILD_SHARED)
+    install(FILES
+        "$<TARGET_FILE:mfd_api>"
+        DESTINATION .
+        COMPONENT ${MFD_COMPONENT_WINDOW_LAUNCHER_RUNTIME})
+endif()
+
+install(FILES
+    "${MFD_WINDOW_SCRIPT_SOURCE_DIR}/Start-MfdWindow.bat"
+    DESTINATION .
+    COMPONENT ${MFD_COMPONENT_WINDOW_LAUNCHER_RUNTIME})
+
+install(DIRECTORY
+    "${MFD_ROOT_DIR}/branding/"
+    DESTINATION branding
+    COMPONENT ${MFD_COMPONENT_WINDOW_LAUNCHER_RUNTIME})
