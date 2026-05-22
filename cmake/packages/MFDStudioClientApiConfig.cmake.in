@@ -22,20 +22,48 @@ set(_mfdstudio_client_api_debug_implib
     "${MFDStudioClientApi_LIBRARY_DIR}/Debug/mfd_client_api.lib")
 set(_mfdstudio_client_api_release_implib
     "${MFDStudioClientApi_LIBRARY_DIR}/Release/mfd_client_api.lib")
+set(_mfdstudio_client_api_imported_configs "")
 
 if(NOT EXISTS "${MFDStudioClientApi_INCLUDE_DIR}")
     message(FATAL_ERROR "MFDStudioClientApi include directory not found: ${MFDStudioClientApi_INCLUDE_DIR}")
 endif()
 
+if(EXISTS "${_mfdstudio_client_api_debug_implib}")
+    list(APPEND _mfdstudio_client_api_imported_configs Debug)
+endif()
+
+if(EXISTS "${_mfdstudio_client_api_release_implib}")
+    list(APPEND _mfdstudio_client_api_imported_configs Release)
+endif()
+
+if(_mfdstudio_client_api_imported_configs STREQUAL "")
+    message(FATAL_ERROR
+        "MFDStudioClientApi import libraries not found under ${MFDStudioClientApi_LIBRARY_DIR}")
+endif()
+
 if(NOT TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@)
     add_library(@MFD_PACKAGE_IMPORTED_TARGET_NAME@ SHARED IMPORTED)
     set_target_properties(@MFD_PACKAGE_IMPORTED_TARGET_NAME@ PROPERTIES
-        IMPORTED_CONFIGURATIONS "Debug;Release"
-        IMPORTED_IMPLIB_DEBUG "${_mfdstudio_client_api_debug_implib}"
-        IMPORTED_IMPLIB_RELEASE "${_mfdstudio_client_api_release_implib}"
-        INTERFACE_COMPILE_DEFINITIONS "MFD_API_DLL;MFD_CLIENT_API_DLL;NOMINMAX;WIN32_LEAN_AND_MEAN"
+        IMPORTED_CONFIGURATIONS "${_mfdstudio_client_api_imported_configs}"
         INTERFACE_COMPILE_FEATURES "cxx_std_17"
         INTERFACE_INCLUDE_DIRECTORIES "${MFDStudioClientApi_INCLUDE_DIR}")
+    set_property(TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@
+        PROPERTY INTERFACE_COMPILE_DEFINITIONS
+            "MFD_API_DLL;MFD_CLIENT_API_DLL;NOMINMAX;WIN32_LEAN_AND_MEAN")
+    if(EXISTS "${_mfdstudio_client_api_debug_implib}")
+        set_property(TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@
+            PROPERTY IMPORTED_IMPLIB_DEBUG
+                "${_mfdstudio_client_api_debug_implib}")
+    endif()
+    if(EXISTS "${_mfdstudio_client_api_release_implib}")
+        set_property(TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@
+            PROPERTY IMPORTED_IMPLIB_RELEASE
+                "${_mfdstudio_client_api_release_implib}")
+        set_property(TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@
+            PROPERTY MAP_IMPORTED_CONFIG_MINSIZEREL Release)
+        set_property(TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@
+            PROPERTY MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
+    endif()
 endif()
 
 if(EXISTS "${MFDStudioClientApi_CMAKE_DIR}/ClientApiGenerator.cmake")

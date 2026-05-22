@@ -66,6 +66,7 @@ Use one of the shipped launchers:
 - `.\Scripts\Start-MfdDemo.bat`
 - `.\Scripts\Start-MfdCockpit.bat`
 - `.\Scripts\Start-MfdMinimal.bat`
+- `.\Scripts\Start-MfdPackageTest.bat`
 
 For a first run, `.\Scripts\Start-MfdDemo.bat` is the simplest choice.
 

@@ -162,6 +162,7 @@ process.
 | `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting the stable framebuffer plugin ABI expected by `mfd_window` |
 | `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client used to exercise the public API without linking raylib |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
+| `client_test_package` | Minimal package-consumer client that uses `find_package(MFDStudioClientApi)` from `_Deliveries`, enables itself only when at least one matching SDK/runtime config pair exists, and stays excluded from default builds for missing configs |
 | `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive plus Page1 active-page-scoped strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is registered directly in `examples/CMakeLists.txt` and self-skips until the tutorial asset set exists |
 | `mfd_editor` | Visual authoring tool |
 | `mfd_api_tests` | Runtime and JSON loading test executable |
@@ -177,6 +178,7 @@ committed under `Scripts/`:
 - `Scripts/Start-MfdDemo.bat`
 - `Scripts/Start-MfdCockpit.bat`
 - `Scripts/Start-MfdMinimal.bat`
+- `Scripts/Start-MfdPackageTest.bat`
 - `Scripts/Start-MfdTutorial.bat`
 - `Scripts/Start-MfdWindow.bat`
 
@@ -312,6 +314,11 @@ Generated package families:
 - `MFDStudioClientApi.Install`: standalone client runtime payload containing `mfd_client_api.dll` only
 - `MFDStudioEditor.Install`: `mfd_editor.exe` plus shared branding
 - `MFDStudioWindowLauncher.Install`: `mfd_window.exe`, `mfd_window_plugin_api.dll`, `Start-MfdWindow.bat`, and shared branding
+
+The `MFDStudioClientApiConfig.cmake` package file now exposes only the import
+library configurations that are actually present under `_Deliveries`. This
+allows a consumer build such as `client_test_package` to use a `Debug`-only or
+`Release`-only delivery without advertising a missing sibling config.
 
 The delivery script deliberately does not package repository demo assets into
 the install layouts, and it does not copy the repository demo launchers into

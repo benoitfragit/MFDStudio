@@ -1,0 +1,20 @@
+{
+  "title": "MFD Package Test",
+  "size": [360, 360],
+  "position": [180, 140],
+  "targetFps": 60,
+  "iconFile": "../../branding/mfdstudio_app_icon.png",
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47240,
+      "maxPacketSize": 4096
+    }
+  },
+  "defaultPage": "PackageTest",
+  "pages": [
+    "../pages/package_test_page.json"
+  ]
+}

@@ -130,6 +130,9 @@ The standalone client delivery is intentionally curated: `MFDStudioClientApi`
 ships only the `mfd_client_api` SDK surface plus the republished loader and
 projection headers needed by client integrations, and
 `MFDStudioClientApi.Install` ships `mfd_client_api.dll` without `mfd_api.dll`.
+When you generate only one build preset, the package config exposes only that
+delivered configuration, so package consumers such as `client_test_package`
+can build in `Debug` without requiring a `Release` delivery and inversement.
 
 Contributor-oriented details live in
 [Development Guide](./docs/DEVELOPMENT.md).

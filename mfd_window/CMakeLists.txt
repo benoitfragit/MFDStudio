@@ -64,6 +64,7 @@ set(MFD_WINDOW_LAUNCH_SCRIPT_NAMES
     Start-MfdDemo.bat
     Start-MfdCockpit.bat
     Start-MfdMinimal.bat
+    Start-MfdPackageTest.bat
     Start-MfdTutorial.bat)
 
 set(MFD_WINDOW_LAUNCH_SCRIPTS)
