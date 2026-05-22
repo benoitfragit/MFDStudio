@@ -142,6 +142,8 @@ endif()
 set(MFD_PACKAGE_ARCH "${MFD_EXEC_PLATFORM_DIR}")
 set(MFD_PACKAGE_LIB_DESTINATION "libs/${MFD_PACKAGE_TOOLSET}/${MFD_PACKAGE_ARCH}/$<CONFIG>")
 
+set(MFD_COMPONENT_API_DEVELOPMENT mfd_api_development)
+set(MFD_COMPONENT_API_RUNTIME mfd_api_runtime)
 set(MFD_COMPONENT_CLIENT_API_DEVELOPMENT mfd_client_api_development)
 set(MFD_COMPONENT_CLIENT_API_RUNTIME mfd_client_api_runtime)
 set(MFD_COMPONENT_WINDOW_PLUGIN_DEVELOPMENT mfd_window_plugin_api_development)

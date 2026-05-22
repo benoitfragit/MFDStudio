@@ -18,10 +18,6 @@ set(MFDStudioClientApi_GENERATOR_ROOT "${MFDStudioClientApi_TOOLS_DIR}/generator
 set(MFDStudioClientApi_GENERATOR_SCRIPT
     "${MFDStudioClientApi_GENERATOR_ROOT}/scripts/generate_ui.py")
 
-set(_mfdstudio_api_debug_implib
-    "${MFDStudioClientApi_LIBRARY_DIR}/Debug/mfd_api.lib")
-set(_mfdstudio_api_release_implib
-    "${MFDStudioClientApi_LIBRARY_DIR}/Release/mfd_api.lib")
 set(_mfdstudio_client_api_debug_implib
     "${MFDStudioClientApi_LIBRARY_DIR}/Debug/mfd_client_api.lib")
 set(_mfdstudio_client_api_release_implib
@@ -29,17 +25,6 @@ set(_mfdstudio_client_api_release_implib
 
 if(NOT EXISTS "${MFDStudioClientApi_INCLUDE_DIR}")
     message(FATAL_ERROR "MFDStudioClientApi include directory not found: ${MFDStudioClientApi_INCLUDE_DIR}")
-endif()
-
-if(NOT TARGET MFDStudio::Api)
-    add_library(MFDStudio::Api SHARED IMPORTED)
-    set_target_properties(MFDStudio::Api PROPERTIES
-        IMPORTED_CONFIGURATIONS "Debug;Release"
-        IMPORTED_IMPLIB_DEBUG "${_mfdstudio_api_debug_implib}"
-        IMPORTED_IMPLIB_RELEASE "${_mfdstudio_api_release_implib}"
-        INTERFACE_COMPILE_DEFINITIONS "MFD_API_DLL;NOMINMAX;WIN32_LEAN_AND_MEAN"
-        INTERFACE_COMPILE_FEATURES "cxx_std_17"
-        INTERFACE_INCLUDE_DIRECTORIES "${MFDStudioClientApi_INCLUDE_DIR}")
 endif()
 
 if(NOT TARGET @MFD_PACKAGE_IMPORTED_TARGET_NAME@)

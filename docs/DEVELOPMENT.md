@@ -307,9 +307,9 @@ The delivery script populates `_Deliveries` with:
 
 Generated package families:
 
-- `MFDStudioClientApi`: client headers, package config files, generator helpers, and Win32/x64 import libraries. Generated code and shipped examples link only `mfd_client_api`, and the package does not ship the host-side render layer.
+- `MFDStudioClientApi`: curated client headers, package config files, generator helpers, and Win32/x64 import libraries for `mfd_client_api`. Generated code and shipped examples link only `mfd_client_api`; the package keeps client-side helpers such as `UserSpaceProjector` but does not ship `mfd_api.lib`, `SceneRegistry.h`, `CommandProcessor.h`, or the host-side render layer.
 - `MFDStudioWindowLauncherPlugin`: public plugin headers, package config files, and Win32/x64 import libraries for `mfd_window_plugin_api`
-- `MFDStudioClientApi.Install`: runtime DLL payload required by standalone client integrations
+- `MFDStudioClientApi.Install`: standalone client runtime payload containing `mfd_client_api.dll` only
 - `MFDStudioEditor.Install`: `mfd_editor.exe` plus shared branding
 - `MFDStudioWindowLauncher.Install`: `mfd_window.exe`, `mfd_window_plugin_api.dll`, `Start-MfdWindow.bat`, and shared branding
 

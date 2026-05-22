@@ -126,6 +126,11 @@ Show the available options and default presets with:
 .\Scripts\BuildDeliveries.bat --help
 ```
 
+The standalone client delivery is intentionally curated: `MFDStudioClientApi`
+ships only the `mfd_client_api` SDK surface plus the republished loader and
+projection headers needed by client integrations, and
+`MFDStudioClientApi.Install` ships `mfd_client_api.dll` without `mfd_api.dll`.
+
 Contributor-oriented details live in
 [Development Guide](./docs/DEVELOPMENT.md).
 

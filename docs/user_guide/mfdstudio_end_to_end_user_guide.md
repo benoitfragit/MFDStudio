@@ -823,6 +823,12 @@ For standalone clients and generated code, `mfd_client_api` is the only MFD
 library that should appear on the link line. Do not add `mfd_common_api` or
 `mfd_api` to customer-facing client applications.
 
+The packaged client SDK is curated accordingly: it ships `mfd_client_api`,
+`ClientSdk.h`, the republished loader/transport/projection headers they
+require, and the generator helpers, but it does not ship `mfd_api.dll`,
+`mfd_api.lib`, `SceneRegistry.h`, `CommandProcessor.h`, or other host-runtime
+headers.
+
 ## 5.11 When to regenerate
 
 Regenerate whenever the authored transport surface changes.
@@ -1985,7 +1991,7 @@ Check in this order:
 | `mfd_client_api/include/mfd/client/ClientSdk.h` | umbrella client SDK header for standalone applications and examples |
 | `mfd_client_api/include/mfd/client/GeneratedUiSupport.h` | single generated-code include bridging typed UI code to the packaged client SDK |
 | `mfd_common_api/include/mfd/control/CommandClient.h` | low-level typed command sender, republished through `ClientSdk.h` in the packaged client SDK |
-| `mfd_api/include/mfd/io/JsonLoader.h` | low-level authored window and page loader, republished through `ClientSdk.h` in the packaged client SDK |
+| `mfd_api/include/mfd/io/JsonLoader.h` | low-level authored window and page loader; this is the only header republished from the low-level API into the packaged client SDK through `ClientSdk.h` |
 | `mfd_client_api/include/mfd/client/Animation.h` | generated-handle runtime behavior and feedback helpers |
 | `mfd_client_api/include/mfd/client/LatestBatchPublisher.h` | latest-state asynchronous publisher |
 | `mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h` | stable framebuffer-plugin ABI |

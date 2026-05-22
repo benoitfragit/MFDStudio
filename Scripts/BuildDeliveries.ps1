@@ -403,6 +403,26 @@ function Assert-PathExists {
         throw "Expected path was not generated: $PathToCheck"
     }
 }
+
+function Assert-PathMissing {
+    param([string]$PathToCheck)
+
+    if (Test-Path $PathToCheck) {
+        throw "Path must not be generated: $PathToCheck"
+    }
+}
+
+function Assert-FileDoesNotContain {
+    param(
+        [string]$PathToCheck,
+        [string]$Text
+    )
+
+    Assert-PathExists $PathToCheck
+    if (Select-String -Path $PathToCheck -Pattern $Text -SimpleMatch -Quiet) {
+        throw "File '$PathToCheck' must not contain '$Text'."
+    }
+}
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 $configurePresetMap = Get-ConfigurePresetMap -PresetsFilePath (Join-Path $repoRoot "CMakePresets.json")
@@ -459,7 +479,7 @@ $developmentPackages = @(
     [pscustomobject]@{
         Name = "MFDStudioClientApi"
         Component = "mfd_client_api_development"
-        Targets = @("mfd_client_api", "mfd_api")
+        Targets = @("mfd_client_api")
     }
     [pscustomobject]@{
         Name = "MFDStudioWindowLauncherPlugin"
@@ -472,7 +492,7 @@ $runtimePackages = @(
     [pscustomobject]@{
         Name = "MFDStudioClientApi.Install"
         Component = "mfd_client_api_runtime"
-        Targets = @("mfd_client_api", "mfd_api")
+        Targets = @("mfd_client_api")
     }
     [pscustomobject]@{
         Name = "MFDStudioWindowLauncher.Install"
@@ -564,8 +584,18 @@ foreach ($runtimePackage in $runtimePackages) {
 }
 
 Invoke-Step -Message "Verifying delivery layout" -Action {
-    Assert-PathExists (Join-Path $packagesRoot "MFDStudioClientApi/build/native/cmake/MFDStudioClientApiConfig.cmake")
+    $clientApiPackageRoot = Join-Path $packagesRoot "MFDStudioClientApi/build/native"
+    $clientApiConfig = Join-Path $clientApiPackageRoot "cmake/MFDStudioClientApiConfig.cmake"
+    Assert-PathExists $clientApiConfig
     Assert-PathExists (Join-Path $packagesRoot "MFDStudioWindowLauncherPlugin/build/native/cmake/MFDStudioWindowLauncherPluginConfig.cmake")
+
+    Assert-PathMissing (Join-Path $clientApiPackageRoot "include/mfd/control/CommandProcessor.h")
+    Assert-PathMissing (Join-Path $clientApiPackageRoot "include/mfd/control/UdpRuntimeBridge.h")
+    Assert-PathExists (Join-Path $clientApiPackageRoot "include/mfd/control/UserSpaceProjector.h")
+    Assert-PathMissing (Join-Path $clientApiPackageRoot "include/mfd/runtime/DocumentSemanticValidator.h")
+    Assert-PathMissing (Join-Path $clientApiPackageRoot "include/mfd/runtime/SceneRegistry.h")
+    Assert-FileDoesNotContain -PathToCheck $clientApiConfig -Text "MFDStudio::Api"
+    Assert-FileDoesNotContain -PathToCheck $clientApiConfig -Text "mfd_api.lib"
 
     foreach ($profile in $selectedProfiles) {
         $toolset = Get-DeliveryToolset `
@@ -573,7 +603,12 @@ Invoke-Step -Message "Verifying delivery layout" -Action {
             -ConfigurePresetMap $configurePresetMap
 
         foreach ($build in $profile.Builds) {
+            $clientApiLibRoot = Join-Path $clientApiPackageRoot "libs/$toolset/$($profile.Platform)/$($build.Configuration)"
+            Assert-PathExists (Join-Path $clientApiLibRoot "mfd_client_api.lib")
+            Assert-PathMissing (Join-Path $clientApiLibRoot "mfd_api.lib")
+
             Assert-PathExists (Join-Path $runtimePackagesRoot "MFDStudioClientApi.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_client_api.dll")
+            Assert-PathMissing (Join-Path $runtimePackagesRoot "MFDStudioClientApi.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_api.dll")
             Assert-PathExists (Join-Path $runtimePackagesRoot "MFDStudioWindowLauncher.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_window.exe")
             Assert-PathExists (Join-Path $runtimePackagesRoot "MFDStudioWindowLauncher.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_window_plugin_api.dll")
             Assert-PathExists (Join-Path $runtimePackagesRoot "MFDStudioEditor.Install/_Exec/$toolset/$($profile.Platform)/$($build.Configuration)/mfd_editor.exe")

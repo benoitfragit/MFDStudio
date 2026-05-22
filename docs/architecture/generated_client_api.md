@@ -40,6 +40,11 @@ The intended integration boundary is equally strict on the link side:
 They do not add `mfd_common_api`, `mfd_api`, or the repository host-side render
 layer to the client link line.
 
+The delivered SDK mirrors that boundary: the client package exposes only
+`mfd_client_api`, the curated headers needed by `ClientSdk.h` and client-side
+helpers such as `UserSpaceProjector`, and it does not ship `mfd_api.lib`,
+`mfd_api.dll`, or low-level runtime headers such as `SceneRegistry.h`.
+
 ## Public Navigation Model
 
 The generated static navigation is:

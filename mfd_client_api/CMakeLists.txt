@@ -94,6 +94,7 @@ install(FILES
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/control/CommandTypes.h
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/control/FeedbackTransport.h
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/control/StrobeFeedback.h
+    ${MFD_ROOT_DIR}/mfd_api/include/mfd/control/UserSpaceProjector.h
     DESTINATION include/mfd/control
     COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
 install(FILES
