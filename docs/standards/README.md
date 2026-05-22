@@ -53,6 +53,8 @@ changes. Publication-oriented artifacts remain alongside them when needed.
 - generated API standardization source: [mfd_generated_client_api_standardization.md](./mfd_generated_client_api_standardization.md)
 - interoperability specification source: [mfd_client_interoperability_specification.md](./mfd_client_interoperability_specification.md)
 - conformance evidence source: [mfd_client_conformance_matrix.md](./mfd_client_conformance_matrix.md)
+- Word publication draft: [MFDStudio_Generated_Client_API_Standardization.docx](./MFDStudio_Generated_Client_API_Standardization.docx)
+- generic Word export script: [GenerateClientInteropSpecDocx.ps1](../GenerateClientInteropSpecDocx.ps1) with `-SourcePath docs/standards/mfd_generated_client_api_standardization.md -OutputPath docs/standards/MFDStudio_Generated_Client_API_Standardization.docx`
 - Word publication draft: [MFDStudio_External_Client_Interoperability_Specification.docx](./MFDStudio_External_Client_Interoperability_Specification.docx)
 - export script: [GenerateClientInteropSpecDocx.ps1](../GenerateClientInteropSpecDocx.ps1)
 

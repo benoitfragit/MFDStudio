@@ -45,6 +45,12 @@ The delivered SDK mirrors that boundary: the client package exposes only
 helpers such as `UserSpaceProjector`, and it does not ship `mfd_api.lib`,
 `mfd_api.dll`, or low-level runtime headers such as `SceneRegistry.h`.
 
+The repository now also keeps one package-consumer reference target,
+`examples/client_test_package`, specifically to validate that boundary from the
+outside. That example resolves `MFDStudioClientApi` from `_Deliveries`, links
+only `MFDStudio::ClientApi`, and is excluded from default solution builds for
+configurations that are not actually present in the local delivery tree.
+
 ## Public Navigation Model
 
 The generated static navigation is:

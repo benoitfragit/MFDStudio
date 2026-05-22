@@ -829,6 +829,49 @@ require, and the generator helpers, but it does not ship `mfd_api.dll`,
 `mfd_api.lib`, `SceneRegistry.h`, `CommandProcessor.h`, or other host-runtime
 headers.
 
+## 5.10.1 Example of packaged consumption from `_Deliveries`
+
+The repository now carries one reference target,
+`examples/client_test_package`, whose job is to validate the package boundary
+itself. It does not link in-tree MFD targets directly; it consumes the staged
+delivery exactly like an external customer project would:
+
+```cmake
+find_package(MFDStudioClientApi REQUIRED CONFIG
+    PATHS "${MFD_ROOT_DIR}/_Deliveries/packages_windows/MFDStudioClientApi/build/native"
+    NO_DEFAULT_PATH)
+
+client_api_generate_ui(
+    WINDOW_JSON "${MFD_ROOT_DIR}/assets/windows/package_test_window.json"
+    OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/generated/PackageTestUi.h"
+    OUTPUT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/PackageTestUi.cpp"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/package_test_window.generated.map"
+    NAMESPACE "package_test_ui"
+    UI_CLASS_NAME "PackageTestUi"
+    HEADER_INCLUDE "PackageTestUi.h")
+
+target_link_libraries(client_test_package
+    PRIVATE
+        MFDStudio::ClientApi)
+```
+
+Important consequences:
+
+- the client runtime payload is `mfd_client_api.dll` only
+- a packaged client does not need `mfd_api.dll` on its side
+- the package config exposes only the build configurations actually delivered
+
+This means a local `Debug`-only delivery can validate `client_test_package`
+without also generating a `Release` delivery, and inversement.
+
+Typical local validation flow:
+
+```powershell
+.\Scripts\BuildDeliveries.bat --version 1.8.5 --preset debug-win32-no-tests
+cmake --preset vs2022-win32-no-tests
+cmake --build --preset debug-win32-no-tests --target client_test_package
+```
+
 ## 5.11 When to regenerate
 
 Regenerate whenever the authored transport surface changes.
@@ -1896,6 +1939,11 @@ exit /b %ERRORLEVEL%
 
 This is a good pattern for project-specific launchers: set one default window, optionally set one default plugin, then delegate everything else to `Start-MfdWindow.bat`.
 
+`Scripts/Start-MfdPackageTest.bat` follows the same pattern for the packaged
+SDK validation window. It launches the lightweight
+`assets/windows/package_test_window.json` asset set, which contains one rounded
+circle inside one small runtime window.
+
 ## 8.6 Example with an explicit custom plugin
 
 ```powershell
@@ -1996,6 +2044,10 @@ Check in this order:
 | `mfd_client_api/include/mfd/client/LatestBatchPublisher.h` | latest-state asynchronous publisher |
 | `mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h` | stable framebuffer-plugin ABI |
 | `Scripts/Start-MfdWindow.bat` | runtime and plugin launch path |
+| `Scripts/Start-MfdPackageTest.bat` | lightweight launcher for the package-consumer validation window |
+| `examples/client_test_package/CMakeLists.txt` | reference `find_package(MFDStudioClientApi)` consumer using the staged delivery |
+| `_Deliveries/packages_windows/MFDStudioClientApi/build/native/cmake/MFDStudioClientApiConfig.cmake` | packaged development SDK entry point exported for external CMake clients |
+| `_Deliveries/packages_bin_windows/MFDStudioClientApi.Install/_Exec/<toolset>/<platform>/<config>/mfd_client_api.dll` | standalone runtime payload required by packaged generated clients |
 
 ## 9.4 Final takeaway
 

@@ -57,6 +57,13 @@ Generated code and shipped examples should therefore link only
 `CommandClient`, `JsonLoader`, or `UserSpaceProjector` through the packaged SDK
 surface.
 
+The packaged SDK boundary is deliberately curated: external CMake consumers use
+`find_package(MFDStudioClientApi)` and `MFDStudio::ClientApi`, receive only the
+headers and import libraries required by generated clients, and depend on
+`mfd_client_api.dll` rather than `mfd_api.dll` on the client runtime side.
+The repository reference consumer for that path is
+`examples/client_test_package`.
+
 <div class="mfd-callout"><strong>Preferred client integration:</strong> for one C++ client specific to one authored window, start from the generated UI emitted by the generator, mutate generated page / reticle / primitive handles, then let <code>CommandClient</code> publish the resulting batch.</div>
 
 ## Start Here
@@ -105,6 +112,8 @@ The generated client-facing documentation now covers:
 - page-scoped strobe control and feedback
 - generated `BuildBatch()`, `BuildCommandBatch(sequence)`, and
   `SubmitLatest(...)` publication flows
+- package-consumer integration through `find_package(MFDStudioClientApi)` with
+  mono-config deliveries that expose only the shipped import configurations
 - authored `drawOnTop` and `exposed` rules as they affect generation and
   runtime behavior
 

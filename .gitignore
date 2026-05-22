@@ -48,3 +48,6 @@
 /examples/client_mockup/generated/*
 /examples/client_mockup_minimal/generated/*
 /examples/client_tutorial/generated/*
+
+/examples/client_test_package/generated/PackageTestUi.cpp
+/examples/client_test_package/generated/PackageTestUi.h

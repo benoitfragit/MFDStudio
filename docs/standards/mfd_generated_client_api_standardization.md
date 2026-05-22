@@ -35,6 +35,7 @@ This standardization note defines:
 - the expected generated root, page, reticle, primitive, strobe, and dynamic
   set surfaces
 - the required batch-building bridge to `CommandClient`
+- the packaged SDK boundary used by external CMake consumers
 - the authoring rules that decide which primitives become generated handles
 - the expected coverage for text, geometry, image, dynamic, and runtime-feedback features
 
@@ -190,6 +191,48 @@ Shared generated primitive controls MUST include:
 - `SetFilled`
 - `SetThickness`
 - `SetLineStyle`
+
+### 5.5 Packaged SDK Surface
+
+The official packaged-consumer path for one generated C++ client is
+`find_package(MFDStudioClientApi)` plus the imported target
+`MFDStudio::ClientApi`.
+
+The delivered client package MUST:
+
+- expose only `MFDStudio::ClientApi` as the client-facing imported library
+- ship only the curated headers required by generated code and
+  `mfd/client/ClientSdk.h`
+- keep client-side helpers such as `UserSpaceProjector`
+- ship `mfd_client_api.dll` as the standalone runtime payload
+- NOT ship `mfd_api.dll`, `mfd_api.lib`, or host-runtime headers such as
+  `SceneRegistry.h` or `CommandProcessor.h`
+- NOT advertise imported build configurations that are missing from the actual
+  delivery tree
+
+Representative package-consumer usage:
+
+```cmake
+find_package(MFDStudioClientApi REQUIRED CONFIG
+    PATHS "${MFD_ROOT_DIR}/_Deliveries/packages_windows/MFDStudioClientApi/build/native"
+    NO_DEFAULT_PATH)
+
+client_api_generate_ui(
+    WINDOW_JSON "${MFD_ROOT_DIR}/assets/windows/package_test_window.json"
+    OUTPUT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/generated/PackageTestUi.h"
+    OUTPUT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/generated/PackageTestUi.cpp"
+    OUTPUT_MAP "${MFD_ROOT_DIR}/assets/windows/package_test_window.generated.map"
+    NAMESPACE "package_test_ui"
+    UI_CLASS_NAME "PackageTestUi"
+    HEADER_INCLUDE "PackageTestUi.h")
+
+target_link_libraries(client_test_package
+    PRIVATE
+        MFDStudio::ClientApi)
+```
+
+The repository reference target for that contract is
+`examples/client_test_package`.
 
 ## 6. Standardized Feature Coverage
 
@@ -389,6 +432,8 @@ Normative rules:
 - low-level name-based helpers MAY exist, but they are not the preferred API
 - generated batches MUST preserve the same command semantics as manually built
   `CommandBatch` instances
+- packaged client applications MUST NOT need `mfd_api.dll` at runtime when
+  they stay on the curated `mfd_client_api` SDK path
 
 ## 9. Low-Level Compatibility Boundary
 
@@ -425,6 +470,7 @@ surface.
 | Dynamic runtime queries | `IsStrobeCaptured()` exposes active-page capture state without manual feedback correlation |
 | Strobe | page-scoped handle only, no generated strobe transport object |
 | Transport bridge | generated batches preserve `mappingHash` and command semantics |
+| Package boundary | `find_package(MFDStudioClientApi)` exposes only `MFDStudio::ClientApi`, only delivered build configs, and no `mfd_api.dll` client dependency |
 | Authoring link | `exposed` and `drawOnTop` remain preserved by the model and serializer |
 
 ## 11. Recommended Reading
