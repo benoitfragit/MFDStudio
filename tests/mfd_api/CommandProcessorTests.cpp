@@ -157,6 +157,52 @@ mfd::SceneRegistry MakeRuntimeRegistry()
 
     return mfd::SceneRegistry(std::move(document), std::move(map));
 }
+
+mfd::SceneRegistry MakeMultiStrobeRuntimeRegistry()
+{
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.normalizedName = "radar";
+    page.title = "Radar";
+    page.defaultPage = true;
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+
+    mfd::PageStrobeDefinition defaultStrobe;
+    defaultStrobe.name = "Default";
+    defaultStrobe.normalizedName = "default";
+    defaultStrobe.reticle.id = "strobe_default";
+    defaultStrobe.capture.shape = mfd::StrobeCaptureShape::Circle;
+    defaultStrobe.capture.radius = 0.12f;
+
+    mfd::PageStrobeDefinition alternateStrobe;
+    alternateStrobe.name = "Strobe1";
+    alternateStrobe.normalizedName = "strobe1";
+    alternateStrobe.reticle.id = "strobe_alt";
+    alternateStrobe.reticle.transform.position = mfd::Vec2 {0.32f, -0.14f};
+    alternateStrobe.capture.shape = mfd::StrobeCaptureShape::Circle;
+    alternateStrobe.capture.radius = 0.12f;
+
+    page.strobes.push_back(std::move(defaultStrobe));
+    page.strobes.push_back(std::move(alternateStrobe));
+    page.activeStrobeName = "Default";
+    page.normalizedActiveStrobeName = "default";
+
+    mfd::ReticleGroup reticle;
+    reticle.id = "heading_box";
+    reticle.layerId = std::string(kDefaultLayerId);
+
+    mfd::Primitive primitive;
+    primitive.id = "heading_value";
+    primitive.type = mfd::PrimitiveType::Text;
+    primitive.geometry = mfd::TextGeometry {"000", 0.04f, 0.002f};
+    reticle.primitives.push_back(std::move(primitive));
+    page.staticReticles.push_back(std::move(reticle));
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    return mfd::SceneRegistry(std::move(document), std::nullopt);
+}
 } // namespace
 
 TEST(CommandProcessorTests, PollDoesNotOverrideSuccessfulDispatchWithStickyChannelError)
@@ -446,6 +492,41 @@ TEST(CommandProcessorTests, BatchRollsBackEarlierMutationsWhenALaterCommandFails
     const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(text->text, "000");
+}
+
+TEST(CommandProcessorTests, BatchRollbackRestoresPreviouslySelectedRuntimeStrobe)
+{
+    mfd::SceneRegistry registry = MakeMultiStrobeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::UpdateStrobeCommand selectAlternate;
+    selectAlternate.page = "Radar";
+    selectAlternate.strobe = "Strobe1";
+    ASSERT_TRUE(processor.Submit(selectAlternate));
+
+    const auto before = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(before.has_value());
+    EXPECT_EQ(before->strobeName, "Strobe1");
+    EXPECT_EQ(before->reticleId, "strobe_alt");
+
+    mfd::UpdateStrobeCommand selectDefault;
+    selectDefault.page = "Radar";
+    selectDefault.strobe = "Default";
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(selectDefault);
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    const auto after = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(after.has_value());
+    EXPECT_EQ(after->strobeName, "Strobe1");
+    EXPECT_EQ(after->reticleId, "strobe_alt");
+    EXPECT_FLOAT_EQ(after->position.x, before->position.x);
+    EXPECT_FLOAT_EQ(after->position.y, before->position.y);
 }
 
 TEST(CommandProcessorTests, ArrayViewSubmissionStopsOnFirstFailureAndKeepsDiagnostic)

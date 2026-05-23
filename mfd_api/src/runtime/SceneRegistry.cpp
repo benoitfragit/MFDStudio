@@ -1635,6 +1635,7 @@ SceneRegistry::RuntimeSnapshot SceneRegistry::CaptureRuntimeSnapshot() const
         {
             snapshot.pages.push_back(RuntimeSnapshot::PageState {
                 page->normalizedName,
+                page->activeStrobeName,
                 page->view,
                 page->blinkEpoch});
 
@@ -1828,6 +1829,14 @@ void SceneRegistry::RestoreRuntimeSnapshot(const RuntimeSnapshot& snapshot)
             behavior->authoredClipping = strobeState.authoredClipping;
             behavior->visualShapeApplied = strobeState.visualShapeApplied;
             behavior->lockedReticleId = strobeState.lockedReticleId;
+        }
+    }
+
+    for (const RuntimeSnapshot::PageState& pageState : snapshot.pages)
+    {
+        if (!pageState.activeStrobeName.empty())
+        {
+            SelectStrobe(pageState.normalizedPageName, pageState.activeStrobeName);
         }
     }
 

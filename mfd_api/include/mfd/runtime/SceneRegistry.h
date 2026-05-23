@@ -367,6 +367,7 @@ private:
         struct PageState
         {
             std::string normalizedPageName;
+            std::string activeStrobeName;
             PageViewState view {};
             std::chrono::steady_clock::time_point blinkEpoch {};
         };
