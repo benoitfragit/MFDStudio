@@ -195,7 +195,8 @@ TEST(GeneratedTransportMapTests, JsonLoaderLoadsValidatedCompanionMapAndSceneKee
       "normalizedBlinkType": "slow",
       "durationMs": 750
     }
-  ]
+  ],
+  "strobes": []
 })json");
 
     mfd::JsonLoader loader;
@@ -269,7 +270,8 @@ TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapThatDriftsFromWind
       "normalizedBlinkType": "slow",
       "durationMs": 750
     }
-  ]
+  ],
+  "strobes": []
 })json");
 
     mfd::JsonLoader loader;
