@@ -477,6 +477,35 @@ void ProcessPageDocument(const ParsedAssetFile& asset,
         }
     }
 
+    if (const json* strobes = FindField(pageNode, {"strobes"}); strobes != nullptr)
+    {
+        if (!strobes->is_array())
+        {
+            AddScanError(index, asset.file, "Page strobes field must be a JSON array");
+        }
+        else
+        {
+            for (std::size_t indexValue = 0; indexValue < strobes->size(); ++indexValue)
+            {
+                const json& strobeNode = strobes->at(indexValue);
+                if (!strobeNode.is_object())
+                {
+                    AddScanError(index,
+                                 asset.file,
+                                 "Page strobes[" + std::to_string(indexValue) + "] entry must be a JSON object");
+                    continue;
+                }
+
+                ScanReticleNode(strobeNode,
+                                asset.file,
+                                asset.pageName,
+                                ReticleReferenceKind::PageStrobeTemplate,
+                                templateFilesById,
+                                index);
+            }
+        }
+    }
+
     if (const json* strobe = FindField(pageNode, {"strobe"}); strobe != nullptr)
     {
         if (!strobe->is_object())
