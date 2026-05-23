@@ -125,13 +125,17 @@ mfd::SceneRegistry MakeRuntimeRegistry()
         mfd::DynamicReticleLayerBinding {"radar_track", std::string(kDefaultLayerId), 0U});
 
     mfd::PageStrobeDefinition strobe;
+    strobe.name = "Default";
+    strobe.normalizedName = "default";
     strobe.reticle.id = "strobe";
     strobe.capture.shape = mfd::StrobeCaptureShape::Circle;
     strobe.capture.radius = 0.12f;
     strobe.magnet.enabled = true;
     strobe.magnet.radius = 0.15f;
     strobe.magnet.strength = 1.0f;
-    page.strobe = strobe;
+    page.strobes.push_back(strobe);
+    page.activeStrobeName = "Default";
+    page.normalizedActiveStrobeName = "default";
 
     mfd::ReticleGroup templateReticle;
     templateReticle.id = "radar_track";

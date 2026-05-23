@@ -113,7 +113,7 @@ private:
     bool Activate(const SceneRegistry& liveScene);
     void Deactivate();
     bool RefreshPreviewFromLive(const SceneRegistry& liveScene);
-    void RecordObservedRuntimeState(const std::vector<CommandBatch>& drainedBatches);
+    void RecordObservedRuntimeState(const SceneRegistry& liveScene, const std::vector<CommandBatch>& drainedBatches);
     [[nodiscard]] bool UsesPreviewScene() const noexcept;
     [[nodiscard]] UdpRuntimeBridgeMetrics CollectTransportMetrics(const UdpRuntimeBridge* bridge,
                                                                   std::size_t observedCommandCount);

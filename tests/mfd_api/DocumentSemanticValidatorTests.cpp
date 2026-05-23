@@ -191,8 +191,12 @@ TEST(DocumentSemanticValidatorTests, ReportsDuplicateStaticReticleAndStrobeIdsAf
     page.staticReticles.push_back(MakeReticle("cursor"));
 
     mfd::PageStrobeDefinition strobe;
+    strobe.name = "Default";
+    strobe.normalizedName = "default";
     strobe.reticle = MakeReticle("Cursor");
-    page.strobe = std::move(strobe);
+    page.strobes.push_back(std::move(strobe));
+    page.activeStrobeName = "Default";
+    page.normalizedActiveStrobeName = "default";
 
     mfd::MfdDocument document;
     document.pages.push_back(std::move(page));

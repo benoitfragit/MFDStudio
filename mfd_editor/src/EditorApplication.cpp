@@ -72,7 +72,6 @@ constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
 constexpr const char* kPagePreviewDisplayPopupId = "PagePreviewDisplayPopup";
 constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
-constexpr int kPageTitleInteractionIndex = -2;
 
 std::string Lowercase(const std::string_view value)
 {
@@ -205,6 +204,42 @@ const char* ReticleClipModeLabel(const mfd::ReticleClipMode mode) noexcept
     case mfd::ReticleClipMode::None:
     default:
         return "Disabled";
+    }
+}
+
+int FindActivePageStrobeIndex(const mfd::PageDefinition& page) noexcept
+{
+    if (const mfd::PageStrobeDefinition* active = mfd::FindActivePageStrobeDefinition(page); active != nullptr)
+    {
+        return static_cast<int>(active - page.strobes.data());
+    }
+
+    return -1;
+}
+
+void SetActivePageStrobe(mfd::PageDefinition& page, const mfd::PageStrobeDefinition& strobe)
+{
+    page.activeStrobeName = strobe.name;
+    page.normalizedActiveStrobeName = strobe.normalizedName;
+}
+
+std::string SuggestPageStrobeDraftName(const mfd::PageDefinition& page)
+{
+    if (page.strobes.empty() && mfd::FindPageStrobeDefinition(page, "Default") == nullptr)
+    {
+        return "Default";
+    }
+
+    int suffix = 1;
+    while (true)
+    {
+        const std::string candidate = "Strobe" + std::to_string(suffix);
+        if (mfd::FindPageStrobeDefinition(page, candidate) == nullptr)
+        {
+            return candidate;
+        }
+
+        ++suffix;
     }
 }
 
@@ -404,6 +439,30 @@ bool PageLayerIdExistsExact(const mfd::PageDefinition& page, const std::string_v
                        });
 }
 
+bool PageStrobeNameExistsExact(const mfd::PageDefinition& page, const std::string_view name)
+{
+    return std::any_of(page.strobes.begin(),
+                       page.strobes.end(),
+                       [name](const mfd::PageStrobeDefinition& strobe)
+                       {
+                           return strobe.name == name;
+                       });
+}
+
+std::string PageStrobeDisplayLabel(const mfd::PageDefinition& page,
+                                   const mfd::PageStrobeDefinition& strobe,
+                                   const std::size_t strobeIndex)
+{
+    const std::string baseName = strobe.name.empty() ? "strobe_" + std::to_string(strobeIndex + 1U) : strobe.name;
+    if (page.normalizedActiveStrobeName == strobe.normalizedName ||
+        (page.normalizedActiveStrobeName.empty() && strobeIndex == 0U))
+    {
+        return baseName + " (active)";
+    }
+
+    return baseName;
+}
+
 std::string NormalizeEditorIdentifier(const std::string_view value)
 {
     return mfd::NormalizePageName(value);
@@ -541,16 +600,6 @@ struct PageMinimapState
     mfd::Vec2 logicalCenter {};
     float pixelsPerLogicalUnit = 1.0f;
     bool valid = false;
-};
-
-struct PageReticleHit
-{
-    int reticleIndex = -1;
-    float distance = std::numeric_limits<float>::max();
-    float area = std::numeric_limits<float>::max();
-    bool directHit = false;
-    bool boundsHit = false;
-    int drawPriority = 0;
 };
 
 struct PageClipPrimitiveHit
@@ -938,10 +987,12 @@ std::size_t CountBlinkReferences(const mfd::PageDefinition& page, const std::str
         }
     }
 
-    if (page.strobe.has_value() &&
-        BlinkStateMatchesNormalizedName(page.strobe->reticle.blink, normalizedBlinkTypeName))
+    for (const auto& strobe : page.strobes)
     {
-        ++count;
+        if (BlinkStateMatchesNormalizedName(strobe.reticle.blink, normalizedBlinkTypeName))
+        {
+            ++count;
+        }
     }
 
     return count;
@@ -968,9 +1019,9 @@ void RenameBlinkReferences(mfd::PageDefinition& page,
         RenameBlinkReference(reticle.blink, previousNormalizedName, nextName, nextNormalizedName);
     }
 
-    if (page.strobe.has_value())
+    for (auto& strobe : page.strobes)
     {
-        RenameBlinkReference(page.strobe->reticle.blink, previousNormalizedName, nextName, nextNormalizedName);
+        RenameBlinkReference(strobe.reticle.blink, previousNormalizedName, nextName, nextNormalizedName);
     }
 }
 
@@ -992,9 +1043,9 @@ void ClearBlinkReferencesForRemovedType(mfd::PageDefinition& page, const std::st
         ClearBlinkReference(reticle.blink, removedNormalizedName);
     }
 
-    if (page.strobe.has_value())
+    for (auto& strobe : page.strobes)
     {
-        ClearBlinkReference(page.strobe->reticle.blink, removedNormalizedName);
+        ClearBlinkReference(strobe.reticle.blink, removedNormalizedName);
     }
 }
 
@@ -1036,9 +1087,9 @@ void RefreshPageBlinkStateForEditor(mfd::PageDefinition& page)
         RefreshBlinkBindingForEditor(page, reticle.blink);
     }
 
-    if (page.strobe.has_value())
+    for (auto& strobe : page.strobes)
     {
-        RefreshBlinkBindingForEditor(page, page.strobe->reticle.blink);
+        RefreshBlinkBindingForEditor(page, strobe.reticle.blink);
     }
 }
 
@@ -1066,6 +1117,27 @@ bool IsReticleVisibleInEditor(const mfd::PageDefinition& page, const mfd::Reticl
     }
 
     return true;
+}
+
+bool IsPageStrobeVisibleInEditor(const mfd::PageDefinition& page, const mfd::PageStrobeDefinition& strobe)
+{
+    const mfd::PageStrobeDefinition* activeStrobe = mfd::FindActivePageStrobeDefinition(page);
+    return activeStrobe != nullptr && activeStrobe == &strobe && IsReticleVisibleInEditor(page, strobe.reticle);
+}
+
+bool IsPageStrobeIndexVisibleInEditor(const mfd::PageDefinition& page, const int strobeIndex)
+{
+    if (strobeIndex < 0 || strobeIndex >= static_cast<int>(page.strobes.size()))
+    {
+        return false;
+    }
+
+    return IsPageStrobeVisibleInEditor(page, page.strobes[static_cast<std::size_t>(strobeIndex)]);
+}
+
+bool IsPageStrobeSelectableInEditor(const mfd::PageDefinition& page, const int strobeIndex)
+{
+    return strobeIndex >= 0 && strobeIndex < static_cast<int>(page.strobes.size());
 }
 
 template <typename ViewportStateT>
@@ -1112,9 +1184,12 @@ PageMinimapState ComputePageMinimapState(const mfd::PageDefinition& page, const 
         IncludeLogicalBounds(logicalBounds, ComputeReticleWorldBounds(reticle));
     }
 
-    if (page.strobe.has_value())
+    for (const auto& strobe : page.strobes)
     {
-        IncludeLogicalBounds(logicalBounds, ComputeReticleWorldBounds(page.strobe->reticle));
+        if (IsPageStrobeVisibleInEditor(page, strobe))
+        {
+            IncludeLogicalBounds(logicalBounds, ComputeReticleWorldBounds(strobe.reticle));
+        }
     }
 
     IncludeLogicalBounds(logicalBounds, ComputeViewportLogicalBounds(viewport));
@@ -1866,15 +1941,27 @@ void EditorApplication::DeleteSelection()
     if (selection_.kind == SelectionKind::PageStrobe)
     {
         mfd::PageDefinition* page = ActivePage();
-        if (page == nullptr || !page->strobe.has_value())
+        mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
+        if (page == nullptr || strobe == nullptr)
         {
             RebuildStatus("No page strobe selected to delete.", true);
             return;
         }
 
         PushUndoSnapshot();
-        const std::string removedStrobeId = page->strobe->reticle.id;
-        page->strobe.reset();
+        const std::string removedStrobeId = strobe->reticle.id;
+        const std::string removedNormalizedName = strobe->normalizedName;
+        page->strobes.erase(page->strobes.begin() + selection_.pageReticleIndex);
+        if (page->strobes.empty())
+        {
+            page->activeStrobeName.clear();
+            page->normalizedActiveStrobeName.clear();
+        }
+        else if (page->normalizedActiveStrobeName == removedNormalizedName)
+        {
+            page->activeStrobeName = page->strobes.front().name;
+            page->normalizedActiveStrobeName = page->strobes.front().normalizedName;
+        }
         SelectPage(selection_.pageIndex);
         RebuildStatus("Strobe '" + removedStrobeId + "' removed from page '" + page->name + "'.", false);
         return;
@@ -1986,10 +2073,15 @@ void EditorApplication::DeleteSelectedLibraryReticle()
             }
         }
 
-        if (page.strobe.has_value() && page.strobe->reticle.sourceTemplateId == reticleId)
+        if (std::any_of(page.strobes.begin(),
+                        page.strobes.end(),
+                        [&reticleId](const mfd::PageStrobeDefinition& strobe)
+                        {
+                            return strobe.reticle.sourceTemplateId == reticleId;
+                        }))
         {
             RebuildStatus("Cannot delete library reticle '" + reticleId +
-                              "' because strobe on page '" + page.name + "' still uses it.",
+                              "' because one strobe on page '" + page.name + "' still uses it.",
                           true);
             return;
         }
@@ -3275,31 +3367,34 @@ void EditorApplication::DrawPageTree()
                 ImGui::EndDisabled();
             }
 
-            if (page.strobe.has_value())
+            for (std::size_t strobeIndex = 0; strobeIndex < page.strobes.size(); ++strobeIndex)
             {
-                const mfd::ReticleGroup& strobeReticle = page.strobe->reticle;
-                const bool strobeSelectable = IsPageReticleSelectableInCurrentFocus(page, strobeReticle);
+                const mfd::PageStrobeDefinition& strobe = page.strobes[strobeIndex];
+                const mfd::ReticleGroup& strobeReticle = strobe.reticle;
+                const bool strobeSelectable = true;
                 ImGuiTreeNodeFlags leafFlags =
                     ImGuiTreeNodeFlags_Leaf |
                     ImGuiTreeNodeFlags_NoTreePushOnOpen |
                     ImGuiTreeNodeFlags_SpanAvailWidth;
-                if (selection_.kind == SelectionKind::PageStrobe && selection_.pageIndex == pageIndex)
+                if (selection_.kind == SelectionKind::PageStrobe &&
+                    selection_.pageIndex == pageIndex &&
+                    selection_.pageReticleIndex == static_cast<int>(strobeIndex))
                 {
                     leafFlags |= ImGuiTreeNodeFlags_Selected;
                 }
 
                 const std::string strobeLabel =
-                    "strobe: " + (strobeReticle.id.empty() ? std::string {"reticle"} : strobeReticle.id) +
-                    "##strobe_" + std::to_string(pageIndex);
+                    "strobe: " + PageStrobeDisplayLabel(page, strobe, strobeIndex) +
+                    "##strobe_" + std::to_string(pageIndex) + "_" + std::to_string(strobeIndex);
                 ImGui::BeginDisabled(!strobeSelectable);
                 ImGui::TreeNodeEx(strobeLabel.c_str(), leafFlags);
                 DrawReticleHoverPreviewTooltip(
                     strobeReticle,
-                    std::string("Page strobe: ") + (strobeReticle.id.empty() ? "reticle" : strobeReticle.id),
+                    std::string("Page strobe: ") + PageStrobeDisplayLabel(page, strobe, strobeIndex),
                     ToRayColor(page.backgroundColor));
                 if (strobeSelectable && ImGui::IsItemClicked())
                 {
-                    SelectPageStrobe(pageIndex);
+                    SelectPageStrobe(pageIndex, static_cast<int>(strobeIndex));
                 }
                 ImGui::EndDisabled();
             }
@@ -3853,17 +3948,19 @@ std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() co
             }
         }
 
-        if (page.strobe.has_value())
+        for (const auto& strobe : page.strobes)
         {
-            if (page.strobe->reticle.blink.enabled &&
-                !page.strobe->reticle.blink.typeName.empty() &&
-                mfd::FindPageBlinkDefinition(page, page.strobe->reticle.blink.typeName) == nullptr)
+            if (strobe.reticle.blink.enabled &&
+                !strobe.reticle.blink.typeName.empty() &&
+                mfd::FindPageBlinkDefinition(page, strobe.reticle.blink.typeName) == nullptr)
             {
-                PushProblem(messages, pageId, "Page strobe blink bindings must reference one page-local blink type.");
+                PushProblem(messages,
+                            pageId,
+                            "Page strobe blink bindings must reference one page-local blink type.");
             }
 
-            if (page.strobe->reticle.clipping.mode != mfd::ReticleClipMode::None &&
-                mfd::ResolveClipPrimitive(page.strobe->reticle) == nullptr)
+            if (strobe.reticle.clipping.mode != mfd::ReticleClipMode::None &&
+                mfd::ResolveClipPrimitive(strobe.reticle) == nullptr)
             {
                 PushProblem(messages, pageId, "Page strobe clipping must reference an existing supported primitive.");
             }
@@ -3946,16 +4043,14 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         drawReticlePass(false);
         drawReticlePass(true);
 
-        if (page->strobe.has_value())
+        for (const auto& strobe : page->strobes)
         {
-            if (ShouldDimPageReticleInCurrentFocus(*page, page->strobe->reticle))
+            if (!IsPageStrobeVisibleInEditor(*page, strobe))
             {
-                canvas.DrawReticle(MakeDimmedReticlePreviewCopy(page->strobe->reticle, 0.30f));
+                continue;
             }
-            else
-            {
-                canvas.DrawReticle(page->strobe->reticle);
-            }
+
+            canvas.DrawReticle(strobe.reticle);
         }
 
         const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(*page);
@@ -4572,16 +4667,24 @@ void EditorApplication::DrawPagePreviewMinimap(const ViewportState& viewport, co
                           selected ? 1.8f : 1.0f);
     }
 
-    if (page.strobe.has_value() && IsReticleVisibleInEditor(page, page.strobe->reticle))
+    for (std::size_t strobeIndex = 0; strobeIndex < page.strobes.size(); ++strobeIndex)
     {
-        const LogicalBounds worldBounds = ComputeReticleWorldBounds(page.strobe->reticle);
+        const mfd::PageStrobeDefinition& strobe = page.strobes[strobeIndex];
+        if (!IsPageStrobeVisibleInEditor(page, strobe))
+        {
+            continue;
+        }
+
+        const LogicalBounds worldBounds = ComputeReticleWorldBounds(strobe.reticle);
         if (worldBounds.valid)
         {
             const ImVec2 rectPointA = ToMinimapScreen(minimap, worldBounds.min);
             const ImVec2 rectPointB = ToMinimapScreen(minimap, worldBounds.max);
             const ImVec2 rectMin(std::min(rectPointA.x, rectPointB.x), std::min(rectPointA.y, rectPointB.y));
             const ImVec2 rectMax(std::max(rectPointA.x, rectPointB.x), std::max(rectPointA.y, rectPointB.y));
-            const bool selected = IsPageStrobeSelected();
+            const bool selected =
+                selection_.kind == SelectionKind::PageStrobe &&
+                SelectedPageStrobeReticle() == &strobe.reticle;
 
             if (rectMax.x - rectMin.x < 4.0f || rectMax.y - rectMin.y < 4.0f)
             {
@@ -4669,27 +4772,33 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
                           label.c_str());
     }
 
-    if (page.strobe.has_value() && IsReticleVisibleInEditor(page, page.strobe->reticle))
+    for (std::size_t strobeIndex = 0; strobeIndex < page.strobes.size(); ++strobeIndex)
     {
-        const mfd::ReticleGroup& strobeReticle = page.strobe->reticle;
+        const mfd::PageStrobeDefinition& strobe = page.strobes[strobeIndex];
+        const mfd::ReticleGroup& strobeReticle = strobe.reticle;
+        if (!IsPageStrobeVisibleInEditor(page, strobe))
+        {
+            continue;
+        }
+
         const ReticleScreenBounds bounds = ComputeReticleScreenBounds(strobeReticle, viewport);
         if (bounds.valid)
         {
-            const std::string label =
-                "strobe: " + (strobeReticle.id.empty() ? std::string {"reticle"} : strobeReticle.id);
+            const std::string label = "strobe: " + PageStrobeDisplayLabel(page, strobe, strobeIndex);
             const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
             const ImVec2 tagMin(bounds.min.x + 6.0f, bounds.min.y + 6.0f);
             const ImVec2 tagMax(tagMin.x + textSize.x + 12.0f, tagMin.y + textSize.y + 6.0f);
-            const bool selected = IsPageStrobeSelected();
-            const bool dimmed = ShouldDimPageReticleInCurrentFocus(page, strobeReticle);
+            const bool selected =
+                selection_.kind == SelectionKind::PageStrobe &&
+                SelectedPageStrobeReticle() == &strobe.reticle;
             drawList->AddRectFilled(tagMin,
                                     tagMax,
                                     selected ? IM_COL32(84, 219, 201, 220)
-                                             : (dimmed ? IM_COL32(24, 30, 36, 188) : IM_COL32(64, 58, 33, 210)),
+                                             : IM_COL32(64, 58, 33, 210),
                                     4.0f);
             drawList->AddText(ImVec2(tagMin.x + 6.0f, tagMin.y + 3.0f),
                               selected ? IM_COL32(12, 20, 26, 255)
-                                       : (dimmed ? IM_COL32(146, 160, 170, 220) : IM_COL32(255, 236, 196, 255)),
+                                       : IM_COL32(255, 236, 196, 255),
                               label.c_str());
         }
     }
@@ -4879,11 +4988,21 @@ void EditorApplication::DrawReticleUsageHighlightPlaceholder(const ViewportState
             drawList->AddRect(bounds.min, bounds.max, IM_COL32(255, 210, 102, 255), 5.0f, 0, 2.2f);
         }
 
-        if (currentPageHighlight->matchingStrobe && page->strobe.has_value())
+        if (currentPageHighlight->matchingStrobe)
         {
-            const ReticleScreenBounds strobeBounds = ComputeReticleScreenBounds(page->strobe->reticle, viewport);
-            if (strobeBounds.valid)
+            for (const auto& strobe : page->strobes)
             {
+                if (!IsPageStrobeVisibleInEditor(*page, strobe))
+                {
+                    continue;
+                }
+
+                const ReticleScreenBounds strobeBounds = ComputeReticleScreenBounds(strobe.reticle, viewport);
+                if (!strobeBounds.valid)
+                {
+                    continue;
+                }
+
                 drawList->AddRectFilled(strobeBounds.min, strobeBounds.max, IM_COL32(255, 210, 102, 18), 5.0f);
                 drawList->AddRect(strobeBounds.min, strobeBounds.max, IM_COL32(255, 210, 102, 220), 5.0f, 0, 2.0f);
             }
@@ -5021,7 +5140,8 @@ void EditorApplication::SanitizePageReticleSelectionForCurrentFocus()
 
     if (selection_.kind == SelectionKind::PageStrobe)
     {
-        if (!page->strobe.has_value() || !IsPageReticleSelectableInCurrentFocus(*page, page->strobe->reticle))
+        mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
+        if (strobe == nullptr)
         {
             SelectPage(selection_.pageIndex);
         }
@@ -5127,7 +5247,7 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
     if (selection_.kind == SelectionKind::PageStrobe)
     {
         const mfd::ReticleGroup* strobeReticle = SelectedPageStrobeReticle();
-        if (strobeReticle == nullptr || !IsReticleVisibleInEditor(page, *strobeReticle))
+        if (strobeReticle == nullptr || !IsPageStrobeIndexVisibleInEditor(page, selection_.pageReticleIndex))
         {
             return;
         }
@@ -5437,10 +5557,13 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         }
         else if (selection_.kind == SelectionKind::PageStrobe)
         {
-            if (const mfd::ReticleGroup* selectedReticle = SelectedPageStrobeReticle(); selectedReticle != nullptr)
+            if (IsPageStrobeIndexVisibleInEditor(*page, selection_.pageReticleIndex))
             {
-                selectedPreviewReticle = *selectedReticle;
-                selectedTransform = &selectedReticle->transform;
+                if (const mfd::ReticleGroup* selectedReticle = SelectedPageStrobeReticle(); selectedReticle != nullptr)
+                {
+                    selectedPreviewReticle = *selectedReticle;
+                    selectedTransform = &selectedReticle->transform;
+                }
             }
         }
         else if (mfd::ReticleGroup* selectedReticle = SelectedPageReticle(); selectedReticle != nullptr)
@@ -5469,8 +5592,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                 const auto initializeInteraction = [&](const InteractionMode mode, const ImVec2 cornerScreen)
                 {
                     interactionReticleIndex_ =
-                        selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex :
-                        (selection_.kind == SelectionKind::PageTitle ? kPageTitleInteractionIndex : -1);
+                        selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex : -1;
                     interactionReticleIndices_.clear();
                     interactionStartReticleTransforms_.clear();
                     if (selection_.kind == SelectionKind::PageReticle)
@@ -5562,10 +5684,13 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     }
     else if (selection_.kind == SelectionKind::PageStrobe)
     {
-        if (const mfd::ReticleGroup* reticle = SelectedPageStrobeReticle(); reticle != nullptr)
+        if (IsPageStrobeIndexVisibleInEditor(*page, selection_.pageReticleIndex))
         {
-            selectedPreviewReticle = *reticle;
-            selectedTransform = &reticle->transform;
+            if (const mfd::ReticleGroup* reticle = SelectedPageStrobeReticle(); reticle != nullptr)
+            {
+                selectedPreviewReticle = *reticle;
+                selectedTransform = &reticle->transform;
+            }
         }
     }
     else if (mfd::ReticleGroup* reticle = SelectedPageReticle(); reticle != nullptr)
@@ -5594,8 +5719,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     const ImVec2 rotateHandle((bounds.min.x + bounds.max.x) * 0.5f, bounds.min.y - 26.0f);
 
     interactionReticleIndex_ =
-        selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex :
-        (selection_.kind == SelectionKind::PageTitle ? kPageTitleInteractionIndex : -1);
+        selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex : -1;
     interactionReticleIndices_.clear();
     interactionStartReticleTransforms_.clear();
     if (selection_.kind == SelectionKind::PageReticle)
@@ -6513,7 +6637,7 @@ void EditorApplication::SelectPageTitle(const int pageIndex)
     interactionHandleKind_ = PrimitiveHandleKind::None;
 }
 
-void EditorApplication::SelectPageStrobe(const int pageIndex)
+void EditorApplication::SelectPageStrobe(const int pageIndex, const int strobeIndex)
 {
     if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
     {
@@ -6521,14 +6645,36 @@ void EditorApplication::SelectPageStrobe(const int pageIndex)
     }
 
     mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
-    if (!page.strobe.has_value() || !IsPageReticleSelectableInCurrentFocus(page, page.strobe->reticle))
+    if (page.strobes.empty())
+    {
+        return;
+    }
+
+    int resolvedStrobeIndex = strobeIndex;
+    if (resolvedStrobeIndex < 0 || resolvedStrobeIndex >= static_cast<int>(page.strobes.size()))
+    {
+        const mfd::PageStrobeDefinition* activeStrobe = mfd::FindActivePageStrobeDefinition(page);
+        if (activeStrobe == nullptr)
+        {
+            return;
+        }
+
+        resolvedStrobeIndex = static_cast<int>(activeStrobe - page.strobes.data());
+    }
+
+    if (resolvedStrobeIndex < 0 || resolvedStrobeIndex >= static_cast<int>(page.strobes.size()))
+    {
+        return;
+    }
+
+    if (!IsPageStrobeSelectableInEditor(page, resolvedStrobeIndex))
     {
         return;
     }
 
     selection_.kind = SelectionKind::PageStrobe;
     selection_.pageIndex = pageIndex;
-    selection_.pageReticleIndex = -1;
+    selection_.pageReticleIndex = resolvedStrobeIndex;
     selection_.pageReticleIndices.clear();
     interactionMode_ = InteractionMode::None;
     interactionReticleIndex_ = -1;
@@ -6668,24 +6814,52 @@ const mfd::ReticleGroup* EditorApplication::SelectedPageReticle() const noexcept
 
 mfd::ReticleGroup* EditorApplication::SelectedPageStrobeReticle() noexcept
 {
-    mfd::PageDefinition* page = ActivePage();
-    if (selection_.kind != SelectionKind::PageStrobe || page == nullptr || !page->strobe.has_value())
+    mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
+    if (strobe == nullptr)
     {
         return nullptr;
     }
 
-    return &page->strobe->reticle;
+    return &strobe->reticle;
 }
 
 const mfd::ReticleGroup* EditorApplication::SelectedPageStrobeReticle() const noexcept
 {
-    const mfd::PageDefinition* page = ActivePage();
-    if (selection_.kind != SelectionKind::PageStrobe || page == nullptr || !page->strobe.has_value())
+    const mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
+    if (strobe == nullptr)
     {
         return nullptr;
     }
 
-    return &page->strobe->reticle;
+    return &strobe->reticle;
+}
+
+mfd::PageStrobeDefinition* EditorApplication::SelectedPageStrobe() noexcept
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (selection_.kind != SelectionKind::PageStrobe ||
+        page == nullptr ||
+        selection_.pageReticleIndex < 0 ||
+        selection_.pageReticleIndex >= static_cast<int>(page->strobes.size()))
+    {
+        return nullptr;
+    }
+
+    return &page->strobes[static_cast<std::size_t>(selection_.pageReticleIndex)];
+}
+
+const mfd::PageStrobeDefinition* EditorApplication::SelectedPageStrobe() const noexcept
+{
+    const mfd::PageDefinition* page = ActivePage();
+    if (selection_.kind != SelectionKind::PageStrobe ||
+        page == nullptr ||
+        selection_.pageReticleIndex < 0 ||
+        selection_.pageReticleIndex >= static_cast<int>(page->strobes.size()))
+    {
+        return nullptr;
+    }
+
+    return &page->strobes[static_cast<std::size_t>(selection_.pageReticleIndex)];
 }
 
 mfd::PageTitleDisplayDefinition* EditorApplication::SelectedPageTitleDisplay() noexcept
@@ -6797,16 +6971,17 @@ void EditorApplication::CopySelectedPageReticles()
     mfd::PageDefinition* page = ActivePage();
     if (selection_.kind == SelectionKind::PageStrobe)
     {
-        if (page == nullptr || !page->strobe.has_value())
+        const mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
+        if (page == nullptr || strobe == nullptr)
         {
             RebuildStatus("Select the page strobe to copy it.", true);
             return;
         }
 
         pageReticleClipboard_.clear();
-        pageReticleClipboard_.push_back(page->strobe->reticle);
+        pageReticleClipboard_.push_back(strobe->reticle);
         pageReticlePasteSerial_ = 0;
-        RebuildStatus("Strobe '" + page->strobe->reticle.id + "' copied from page '" + page->name + "'.", false);
+        RebuildStatus("Strobe '" + strobe->reticle.id + "' copied from page '" + page->name + "'.", false);
         return;
     }
 
@@ -6842,19 +7017,31 @@ void EditorApplication::CutSelectedPageReticles()
     mfd::PageDefinition* page = ActivePage();
     if (selection_.kind == SelectionKind::PageStrobe)
     {
-        if (page == nullptr || !page->strobe.has_value())
+        mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
+        if (page == nullptr || strobe == nullptr)
         {
             RebuildStatus("Select the page strobe to cut it.", true);
             return;
         }
 
         pageReticleClipboard_.clear();
-        pageReticleClipboard_.push_back(page->strobe->reticle);
+        pageReticleClipboard_.push_back(strobe->reticle);
         pageReticlePasteSerial_ = 0;
 
         PushUndoSnapshot();
-        const std::string strobeId = page->strobe->reticle.id;
-        page->strobe.reset();
+        const std::string strobeId = strobe->reticle.id;
+        const std::string removedNormalizedName = strobe->normalizedName;
+        page->strobes.erase(page->strobes.begin() + selection_.pageReticleIndex);
+        if (page->strobes.empty())
+        {
+            page->activeStrobeName.clear();
+            page->normalizedActiveStrobeName.clear();
+        }
+        else if (page->normalizedActiveStrobeName == removedNormalizedName)
+        {
+            page->activeStrobeName = page->strobes.front().name;
+            page->normalizedActiveStrobeName = page->strobes.front().normalizedName;
+        }
         SelectPage(selection_.pageIndex);
         RebuildStatus("Strobe '" + strobeId + "' cut from page '" + page->name + "'.", false);
         return;
@@ -7536,6 +7723,79 @@ float EditorApplication::ReticleHitDistancePixels(const mfd::ReticleGroup& retic
     return bestDistance;
 }
 
+std::optional<EditorApplication::PageReticleHit> EditorApplication::BuildPageReticleHit(
+    const mfd::PageDefinition& page,
+    const ViewportState& viewport,
+    const ImVec2 mousePosition,
+    const editor::PagePreviewHitTarget target,
+    const mfd::ReticleGroup& reticle,
+    const int drawPriority) const
+{
+    const bool isPageTitle = target.kind == editor::PagePreviewHitKind::PageTitle;
+    const bool isPageStrobe = target.kind == editor::PagePreviewHitKind::PageStrobe;
+    if ((!isPageTitle && !IsReticleVisibleInEditor(page, reticle)) ||
+        (!isPageTitle && !isPageStrobe && !IsPageReticleSelectableInCurrentFocus(page, reticle)) ||
+        (isPageTitle && !reticle.visible))
+    {
+        return std::nullopt;
+    }
+
+    const ReticleScreenBounds bounds = ComputeReticleScreenBounds(reticle, viewport);
+    if (!bounds.valid)
+    {
+        return std::nullopt;
+    }
+
+    float distance = ReticleHitDistancePixels(reticle, viewport, mousePosition);
+    const bool mouseInsideBounds =
+        mousePosition.x >= bounds.min.x - 8.0f && mousePosition.x <= bounds.max.x + 8.0f &&
+        mousePosition.y >= bounds.min.y - 8.0f && mousePosition.y <= bounds.max.y + 8.0f;
+    const bool directHit = distance <= 6.0f;
+    if (mouseInsideBounds)
+    {
+        distance = std::min(distance, 4.0f);
+    }
+
+    if (!mouseInsideBounds && !directHit && distance > 36.0f)
+    {
+        return std::nullopt;
+    }
+
+    const float area = std::max(1.0f, (bounds.max.x - bounds.min.x) * (bounds.max.y - bounds.min.y));
+    return PageReticleHit {target, distance, area, directHit, mouseInsideBounds, drawPriority};
+}
+
+bool EditorApplication::PreferPageReticleHit(const PageReticleHit& lhs, const PageReticleHit& rhs) noexcept
+{
+    if (lhs.drawPriority != rhs.drawPriority)
+    {
+        return lhs.drawPriority > rhs.drawPriority;
+    }
+    if (lhs.directHit != rhs.directHit)
+    {
+        return lhs.directHit && !rhs.directHit;
+    }
+    if (lhs.boundsHit != rhs.boundsHit)
+    {
+        return lhs.boundsHit && !rhs.boundsHit;
+    }
+    if (std::abs(lhs.distance - rhs.distance) > 0.25f)
+    {
+        return lhs.distance < rhs.distance;
+    }
+    if (std::abs(lhs.area - rhs.area) > 0.5f)
+    {
+        return lhs.area < rhs.area;
+    }
+
+    if (lhs.target.kind != rhs.target.kind)
+    {
+        return static_cast<int>(lhs.target.kind) > static_cast<int>(rhs.target.kind);
+    }
+
+    return lhs.target.index > rhs.target.index;
+}
+
 mfd::ReticleGroup EditorApplication::BuildPageTitlePreviewReticle(const mfd::PageDefinition& page) const
 {
     return mfd::BuildPageTitleDisplayReticle(page.name, page.title, page.titleDisplay);
@@ -7550,98 +7810,57 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
     }
 
     const ImVec2 mousePosition = ImGui::GetMousePos();
-    const auto buildHit = [&](const int reticleIndex,
-                              const mfd::ReticleGroup& reticle,
-                              const int drawPriority) -> std::optional<PageReticleHit>
+    std::optional<PageReticleHit> bestHit;
+    for (int reticleIndex = 0; reticleIndex < static_cast<int>(page->staticReticles.size()); ++reticleIndex)
     {
-        const bool isPageTitle = reticleIndex == kPageTitleInteractionIndex;
-        if ((!isPageTitle && !IsReticleVisibleInEditor(*page, reticle)) ||
-            (!isPageTitle && !IsPageReticleSelectableInCurrentFocus(*page, reticle)) ||
-            (isPageTitle && !reticle.visible))
+        const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+        std::optional<PageReticleHit> candidate = BuildPageReticleHit(
+            *page,
+            viewport,
+            mousePosition,
+            editor::PagePreviewHitTarget::StaticReticle(reticleIndex),
+            reticle,
+            reticle.drawOnTop ? 1 : 0);
+        if (candidate.has_value() && (!bestHit.has_value() || PreferPageReticleHit(*candidate, *bestHit)))
         {
-            return std::nullopt;
+            bestHit = std::move(candidate);
         }
-
-        const ReticleScreenBounds bounds = ComputeReticleScreenBounds(reticle, viewport);
-        if (!bounds.valid)
-        {
-            return std::nullopt;
-        }
-
-        float distance = ReticleHitDistancePixels(reticle, viewport, mousePosition);
-        const bool mouseInsideBounds =
-            mousePosition.x >= bounds.min.x - 8.0f && mousePosition.x <= bounds.max.x + 8.0f &&
-            mousePosition.y >= bounds.min.y - 8.0f && mousePosition.y <= bounds.max.y + 8.0f;
-        const bool directHit = distance <= 6.0f;
-        if (mouseInsideBounds)
-        {
-            distance = std::min(distance, 4.0f);
-        }
-
-        if (!mouseInsideBounds && !directHit && distance > 36.0f)
-        {
-            return std::nullopt;
-        }
-
-        const float area = std::max(1.0f, (bounds.max.x - bounds.min.x) * (bounds.max.y - bounds.min.y));
-        return PageReticleHit {reticleIndex, distance, area, directHit, mouseInsideBounds, drawPriority};
-    };
-
-    const auto preferLhs = [](const PageReticleHit& lhs, const PageReticleHit& rhs)
-    {
-        if (lhs.directHit != rhs.directHit)
-        {
-            return lhs.directHit && !rhs.directHit;
-        }
-        if (lhs.boundsHit != rhs.boundsHit)
-        {
-            return lhs.boundsHit && !rhs.boundsHit;
-        }
-        if (lhs.drawPriority != rhs.drawPriority)
-        {
-            return lhs.drawPriority > rhs.drawPriority;
-        }
-        if (std::abs(lhs.distance - rhs.distance) > 0.25f)
-        {
-            return lhs.distance < rhs.distance;
-        }
-        if (std::abs(lhs.area - rhs.area) > 0.5f)
-        {
-            return lhs.area < rhs.area;
-        }
-        return lhs.reticleIndex > rhs.reticleIndex;
-    };
-
-    std::optional<PageReticleHit> bestStaticHit;
-    if (const auto reticleIndex = FindNearestPageReticle(viewport, mousePosition); reticleIndex.has_value())
-    {
-        bestStaticHit = buildHit(
-            *reticleIndex,
-            page->staticReticles[static_cast<std::size_t>(*reticleIndex)],
-            page->staticReticles[static_cast<std::size_t>(*reticleIndex)].drawOnTop ? 1 : 0);
     }
 
-    std::optional<PageReticleHit> strobeHit;
-    if (page->strobe.has_value())
+    for (int strobeIndex = 0; strobeIndex < static_cast<int>(page->strobes.size()); ++strobeIndex)
     {
-        strobeHit = buildHit(-1, page->strobe->reticle, 2);
+        if (!IsPageStrobeIndexVisibleInEditor(*page, strobeIndex))
+        {
+            continue;
+        }
+
+        std::optional<PageReticleHit> candidate = BuildPageReticleHit(
+            *page,
+            viewport,
+            mousePosition,
+            editor::PagePreviewHitTarget::PageStrobe(strobeIndex),
+            page->strobes[static_cast<std::size_t>(strobeIndex)].reticle,
+            2);
+        if (candidate.has_value() && (!bestHit.has_value() || PreferPageReticleHit(*candidate, *bestHit)))
+        {
+            bestHit = std::move(candidate);
+        }
     }
 
-    std::optional<PageReticleHit> titleHit;
     const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(*page);
     if (titleReticle.visible)
     {
-        titleHit = buildHit(kPageTitleInteractionIndex, titleReticle, 3);
-    }
-
-    std::optional<PageReticleHit> bestHit = bestStaticHit;
-    if (strobeHit.has_value() && (!bestHit.has_value() || preferLhs(*strobeHit, *bestHit)))
-    {
-        bestHit = strobeHit;
-    }
-    if (titleHit.has_value() && (!bestHit.has_value() || preferLhs(*titleHit, *bestHit)))
-    {
-        bestHit = titleHit;
+        std::optional<PageReticleHit> titleHit = BuildPageReticleHit(
+            *page,
+            viewport,
+            mousePosition,
+            editor::PagePreviewHitTarget::PageTitle(),
+            titleReticle,
+            3);
+        if (titleHit.has_value() && (!bestHit.has_value() || PreferPageReticleHit(*titleHit, *bestHit)))
+        {
+            bestHit = std::move(titleHit);
+        }
     }
 
     if (!bestHit.has_value())
@@ -7653,23 +7872,23 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
         return;
     }
 
-    if (bestHit->reticleIndex == kPageTitleInteractionIndex)
+    if (bestHit->target.kind == editor::PagePreviewHitKind::PageTitle)
     {
         SelectPageTitle(selection_.pageIndex);
     }
-    else if (bestHit->reticleIndex == -1)
+    else if (bestHit->target.kind == editor::PagePreviewHitKind::PageStrobe)
     {
-        SelectPageStrobe(selection_.pageIndex);
+        SelectPageStrobe(selection_.pageIndex, bestHit->target.index);
     }
     else
     {
         if (additiveSelection)
         {
-            TogglePageReticleSelection(selection_.pageIndex, bestHit->reticleIndex);
+            TogglePageReticleSelection(selection_.pageIndex, bestHit->target.index);
         }
         else
         {
-            SelectPageReticle(selection_.pageIndex, bestHit->reticleIndex);
+            SelectPageReticle(selection_.pageIndex, bestHit->target.index);
         }
     }
 }
@@ -7713,41 +7932,24 @@ std::vector<int> EditorApplication::CollectPageReticlesAt(const ViewportState& v
         }
 
         const float area = std::max(1.0f, (bounds.max.x - bounds.min.x) * (bounds.max.y - bounds.min.y));
-        hits.push_back(PageReticleHit {reticleIndex, distance, area, directHit, mouseInsideBounds, reticle.drawOnTop ? 1 : 0});
+        hits.push_back(PageReticleHit {
+            editor::PagePreviewHitTarget::StaticReticle(reticleIndex),
+            distance,
+            area,
+            directHit,
+            mouseInsideBounds,
+            reticle.drawOnTop ? 1 : 0});
     }
 
     std::sort(hits.begin(),
               hits.end(),
-              [](const PageReticleHit& lhs, const PageReticleHit& rhs)
-              {
-                  if (lhs.directHit != rhs.directHit)
-                  {
-                      return lhs.directHit && !rhs.directHit;
-                  }
-                  if (lhs.boundsHit != rhs.boundsHit)
-                  {
-                      return lhs.boundsHit && !rhs.boundsHit;
-                  }
-                  if (lhs.drawPriority != rhs.drawPriority)
-                  {
-                      return lhs.drawPriority > rhs.drawPriority;
-                  }
-                  if (std::abs(lhs.distance - rhs.distance) > 0.25f)
-                  {
-                      return lhs.distance < rhs.distance;
-                  }
-                  if (std::abs(lhs.area - rhs.area) > 0.5f)
-                  {
-                      return lhs.area < rhs.area;
-                  }
-                  return lhs.reticleIndex > rhs.reticleIndex;
-              });
+              PreferPageReticleHit);
 
     std::vector<int> reticleIndices;
     reticleIndices.reserve(hits.size());
     for (const PageReticleHit& hit : hits)
     {
-        reticleIndices.push_back(hit.reticleIndex);
+        reticleIndices.push_back(hit.target.index);
     }
     return reticleIndices;
 }
@@ -7941,7 +8143,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
     }
     else if (selection_.kind == SelectionKind::PageStrobe)
     {
-        if (page == nullptr || !page->strobe.has_value())
+        if (page == nullptr)
         {
             interactionMode_ = InteractionMode::None;
             interactionReticleIndex_ = -1;
@@ -7950,7 +8152,15 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
             return;
         }
 
-        reticle = &page->strobe->reticle;
+        reticle = SelectedPageStrobeReticle();
+        if (reticle == nullptr)
+        {
+            interactionMode_ = InteractionMode::None;
+            interactionReticleIndex_ = -1;
+            interactionReticleIndices_.clear();
+            interactionStartReticleTransforms_.clear();
+            return;
+        }
         reticleTransform = &reticle->transform;
     }
     else
@@ -8489,6 +8699,15 @@ mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
             : (templ.id.empty() ? std::string {"strobe"} : templ.id + "_strobe");
 
     mfd::PageStrobeDefinition strobe;
+    const std::string baseName =
+        previousStrobe.has_value() && !previousStrobe->name.empty()
+            ? previousStrobe->name
+            : (templ.id.empty() ? std::string {"Strobe"} : templ.id);
+    strobe.name = MakeUniqueStrobeName(
+        page,
+        baseName,
+        previousStrobe.has_value() ? std::string_view {previousStrobe->name} : std::string_view {});
+    strobe.normalizedName = mfd::NormalizePageName(strobe.name);
     strobe.reticle = mfd::InstantiateReticle(
         templ,
         MakeUniquePageReticleId(
@@ -8496,9 +8715,12 @@ mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
             baseId,
             previousStrobe.has_value() ? std::string_view {previousStrobe->reticle.id} : std::string_view {}));
     strobe.reticle.visible = true;
+    strobe.reticle.drawOnTop = true;
 
     if (previousStrobe.has_value())
     {
+        strobe.name = previousStrobe->name;
+        strobe.normalizedName = previousStrobe->normalizedName;
         strobe.reticle.visible = previousStrobe->reticle.visible;
         strobe.reticle.transform = previousStrobe->reticle.transform;
         strobe.reticle.overrides = previousStrobe->reticle.overrides;
@@ -8507,6 +8729,8 @@ mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
         strobe.capture = previousStrobe->capture;
         strobe.magnet = previousStrobe->magnet;
     }
+
+    strobe.reticle.drawOnTop = true;
 
     return strobe;
 }
@@ -8541,26 +8765,64 @@ std::string EditorApplication::MakeUniquePageReticleId(const mfd::PageDefinition
             return true;
         }
 
-        if (!page.strobe.has_value())
+        const std::string normalizedCandidateId = NormalizeEditorIdentifier(id);
+        for (const auto& strobe : page.strobes)
         {
-            return false;
+            const std::string normalizedStrobeId = NormalizeEditorIdentifier(strobe.reticle.id);
+            if (normalizedStrobeId.empty())
+            {
+                continue;
+            }
+
+            if (!ignoredNormalizedStrobeId.empty() && normalizedStrobeId == ignoredNormalizedStrobeId)
+            {
+                continue;
+            }
+
+            if (normalizedStrobeId == normalizedCandidateId)
+            {
+                return true;
+            }
         }
 
-        const std::string normalizedStrobeId = NormalizeEditorIdentifier(page.strobe->reticle.id);
-        if (normalizedStrobeId.empty())
-        {
-            return false;
-        }
-
-        if (!ignoredNormalizedStrobeId.empty() && normalizedStrobeId == ignoredNormalizedStrobeId)
-        {
-            return false;
-        }
-
-        return normalizedStrobeId == NormalizeEditorIdentifier(id);
+        return false;
     };
 
     while (collidesWithPage(candidate))
+    {
+        candidate = stableBase + "_" + std::to_string(suffix++);
+    }
+
+    return candidate;
+}
+
+std::string EditorApplication::MakeUniqueStrobeName(const mfd::PageDefinition& page,
+                                                    const std::string_view baseName,
+                                                    const std::string_view ignoredStrobeName)
+{
+    const std::string stableBase =
+        NormalizeEditorIdentifier(baseName).empty() ? std::string {"Strobe"} : std::string(baseName);
+    std::string candidate = stableBase;
+    int suffix = 2;
+    const std::string ignoredNormalizedName = NormalizeEditorIdentifier(ignoredStrobeName);
+
+    while (std::any_of(page.strobes.begin(),
+                       page.strobes.end(),
+                       [&candidate, &ignoredNormalizedName](const mfd::PageStrobeDefinition& strobe)
+                       {
+                           const std::string normalizedStrobeName = NormalizeEditorIdentifier(strobe.name);
+                           if (normalizedStrobeName.empty())
+                           {
+                               return false;
+                           }
+
+                           if (!ignoredNormalizedName.empty() && normalizedStrobeName == ignoredNormalizedName)
+                           {
+                               return false;
+                           }
+
+                           return normalizedStrobeName == NormalizeEditorIdentifier(candidate);
+                       }))
     {
         candidate = stableBase + "_" + std::to_string(suffix++);
     }
@@ -9075,14 +9337,63 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
 {
     using editor::tutorial::TutorialStepId;
 
-    constexpr std::string_view kTutorialStrobeTargetId = "page_strobe_template";
-    constexpr std::string_view kTutorialStrobeReticleId = "tutorial_strobe";
+    constexpr std::string_view kTutorialDefaultStrobeNameTargetId = "page_strobe_default_name";
+    constexpr std::string_view kTutorialDefaultStrobeTemplateTargetId = "page_strobe_default";
+    constexpr std::string_view kTutorialDefaultStrobeAddTargetId = "page_strobe_default_add";
+    constexpr std::string_view kTutorialAlternativeStrobeNameTargetId = "page_strobe_alternative_name";
+    constexpr std::string_view kTutorialAlternativeStrobeTemplateTargetId = "page_strobe_alternative";
+    constexpr std::string_view kTutorialAlternativeStrobeAddTargetId = "page_strobe_alternative_add";
+    struct StrobeDraftState
+    {
+        std::string name;
+        std::string templateId;
+    };
+
+    static std::unordered_map<std::string, StrobeDraftState> s_strobeDrafts;
+
+    const bool isDefaultStrobeTutorialStep = tutorial_->IsStep(static_cast<int>(TutorialStepId::AddPage1DefaultStrobe));
+    const bool isAlternativeStrobeTutorialStep =
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe));
+
+    std::string_view tutorialExpectedStrobeName {};
+    if (page.name == "Page1")
+    {
+        if (isDefaultStrobeTutorialStep)
+        {
+            tutorialExpectedStrobeName = "Default";
+        }
+        else if (isAlternativeStrobeTutorialStep)
+        {
+            tutorialExpectedStrobeName = "Strobe1";
+        }
+    }
+
+    const std::string_view tutorialTemplateTargetId =
+        isDefaultStrobeTutorialStep
+            ? kTutorialDefaultStrobeTemplateTargetId
+            : (isAlternativeStrobeTutorialStep ? kTutorialAlternativeStrobeTemplateTargetId : std::string_view {});
+    const std::string_view tutorialAddTargetId =
+        isDefaultStrobeTutorialStep
+            ? kTutorialDefaultStrobeAddTargetId
+            : (isAlternativeStrobeTutorialStep ? kTutorialAlternativeStrobeAddTargetId : std::string_view {});
+    const std::string_view tutorialNameTargetId =
+        isDefaultStrobeTutorialStep
+            ? kTutorialDefaultStrobeNameTargetId
+            : (isAlternativeStrobeTutorialStep ? kTutorialAlternativeStrobeNameTargetId : std::string_view {});
+    const char* const tutorialTemplateReason =
+        isAlternativeStrobeTutorialStep
+            ? "Reuse the tutorial cursor template so Page1 exposes one second strobe that the client can activate later."
+            : "Choose the tutorial cursor template so Page1 gets one first authored strobe with capture and feedback.";
+    const char* const tutorialAddReason =
+        isAlternativeStrobeTutorialStep
+            ? "Commit the second authored strobe so Page1 keeps Default plus one runtime-selectable alternative."
+            : "Commit the first authored strobe so Page1 has one default strobe before the runtime alternative is added.";
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Strobe");
-    ImGui::TextDisabled("Assign one library reticle template as the optional page strobe.");
-    ImGui::TextDisabled("Each page can expose at most one strobe.");
+    ImGui::TextDisabled("Each page exposes a list of named strobes, but only one is active at runtime.");
+    ImGui::TextDisabled("Add alternative strobes here, choose the default one, then edit the selected strobe below.");
 
     std::vector<std::string> templateIds;
     templateIds.reserve(loaded_.document.reticleLibrary.size());
@@ -9092,35 +9403,251 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     }
     std::sort(templateIds.begin(), templateIds.end());
 
-    const std::string currentTemplateId =
-        page.strobe.has_value() ? page.strobe->reticle.sourceTemplateId : std::string {};
-    const char* currentTemplateLabel =
-        !page.strobe.has_value() ? "None" : (currentTemplateId.empty() ? "<custom strobe>" : currentTemplateId.c_str());
-
-    if (ImGui::BeginCombo("Strobe template", currentTemplateLabel))
+    StrobeDraftState& draft = s_strobeDrafts[page.normalizedName.empty() ? page.name : page.normalizedName];
+    if (draft.name.empty())
     {
-        const bool noneSelected = !page.strobe.has_value();
-        if (ImGui::Selectable("None", noneSelected) && page.strobe.has_value())
+        draft.name = SuggestPageStrobeDraftName(page);
+    }
+    if (!tutorialExpectedStrobeName.empty())
+    {
+        draft.name = std::string(tutorialExpectedStrobeName);
+    }
+    if (!templateIds.empty() &&
+        std::find(templateIds.begin(), templateIds.end(), draft.templateId) == templateIds.end())
+    {
+        draft.templateId = templateIds.front();
+    }
+
+    std::array<char, 128> draftNameBuffer {};
+    CopyTextBuffer(draftNameBuffer, draft.name);
+    if (ImGui::InputText("New strobe name##strobe_draft_name", draftNameBuffer.data(), draftNameBuffer.size()))
+    {
+        draft.name = draftNameBuffer.data();
+    }
+    ShowItemTooltip("Name used by the editor, runtime selection, and generated client API.");
+    tutorial_->DrawHalo(
+        tutorialNameTargetId.data(),
+        "Keep the guided strobe name",
+        isAlternativeStrobeTutorialStep
+            ? "Keep `Strobe1` so the generated client exposes one clear runtime alternative next to Default."
+            : "Keep `Default` so the generated client exposes one stable default Page1 strobe.");
+    if (tutorial_->MatchesTarget(tutorialNameTargetId) && draft.name == tutorialExpectedStrobeName)
+    {
+        tutorial_->AdvancePhase();
+    }
+
+    if (ImGui::BeginCombo("Reticle template##strobe_draft_template",
+                          draft.templateId.empty() ? "<none>" : draft.templateId.c_str()))
+    {
+        if (templateIds.empty())
+        {
+            ImGui::TextDisabled("No library reticle is available yet.");
+        }
+        else
+        {
+            for (const std::string& templateId : templateIds)
+            {
+                const bool selected = draft.templateId == templateId;
+                if (ImGui::Selectable(templateId.c_str(), selected))
+                {
+                    draft.templateId = templateId;
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+    ShowItemTooltip("Choose which shared reticle template will be instantiated for the next strobe you add.");
+    tutorial_->DrawHalo(
+        tutorialTemplateTargetId.data(),
+        "Choose mfd_tutorial_strobe_cursor",
+        tutorialTemplateReason);
+    if (tutorial_->MatchesTarget(tutorialTemplateTargetId) && draft.templateId == kTutorialStrobeCursorTemplateId)
+    {
+        tutorial_->AdvancePhase();
+    }
+
+    const bool canAddStrobe = !draft.name.empty() && !draft.templateId.empty();
+    ImGui::BeginDisabled(!canAddStrobe);
+    if (AccentButton("Add strobe##page_strobe_add"))
+    {
+        if (tutorial_->MatchesTarget(tutorialAddTargetId) &&
+            draft.name != tutorialExpectedStrobeName)
+        {
+            RebuildStatus("Tutorial: keep the suggested Page1 strobe name before adding it.", true);
+        }
+        else if (tutorial_->MatchesTarget(tutorialAddTargetId) && draft.templateId != kTutorialStrobeCursorTemplateId)
+        {
+            RebuildStatus("Tutorial: choose 'mfd_tutorial_strobe_cursor' before adding the Page1 strobe.", true);
+        }
+        else if (const auto iterator = loaded_.document.reticleLibrary.find(draft.templateId);
+                 iterator != loaded_.document.reticleLibrary.end())
         {
             PushUndoSnapshot();
-            page.strobe.reset();
-            if (selection_.kind == SelectionKind::PageStrobe)
+            mfd::PageStrobeDefinition strobe = MakePageStrobeFromTemplate(page, iterator->second, std::nullopt);
+            strobe.name = MakeUniqueStrobeName(page, draft.name.empty() ? SuggestPageStrobeDraftName(page) : draft.name);
+            strobe.normalizedName = mfd::NormalizePageName(strobe.name);
+            RefreshBlinkBindingForEditor(page, strobe.reticle.blink);
+            page.strobes.push_back(std::move(strobe));
+            if (page.strobes.size() == 1U || page.normalizedActiveStrobeName.empty())
             {
-                SelectPage(selection_.pageIndex, false);
+                SetActivePageStrobe(page, page.strobes.back());
             }
-            RebuildStatus("Strobe removed from page '" + page.name + "'.", false);
+
+            const int newIndex = static_cast<int>(page.strobes.size()) - 1;
+            SelectPageStrobe(selection_.pageIndex, newIndex);
+            RebuildStatus("Strobe '" + page.strobes.back().name + "' added to page '" + page.name + "'.", false);
+            draft.name = SuggestPageStrobeDraftName(page);
+            if (tutorial_->MatchesTarget(tutorialAddTargetId))
+            {
+                tutorial_->CompleteStep();
+            }
         }
-        if (noneSelected)
+    }
+    ImGui::EndDisabled();
+    ShowItemTooltip("Instantiate one new strobe from the chosen library template and add it to this page.");
+    tutorial_->DrawHalo(
+        tutorialAddTargetId.data(),
+        "Add the guided strobe",
+        tutorialAddReason);
+
+    if (templateIds.empty())
+    {
+        ImGui::TextDisabled("No library reticle is available yet. Create one first.");
+        return;
+    }
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("Configured strobes: %d", static_cast<int>(page.strobes.size()));
+    ImGui::TextDisabled("Exactly one strobe is active at runtime. The default choice is stored on the page.");
+
+    bool removedStrobe = false;
+    for (std::size_t strobeIndex = 0; strobeIndex < page.strobes.size(); ++strobeIndex)
+    {
+        mfd::PageStrobeDefinition& strobe = page.strobes[strobeIndex];
+        const std::string strobeDisplayLabel = PageStrobeDisplayLabel(page, strobe, strobeIndex);
+        const std::string strobeSelectableLabel = strobeDisplayLabel + "##strobe_select";
+        const bool selected =
+            selection_.kind == SelectionKind::PageStrobe &&
+            selection_.pageReticleIndex == static_cast<int>(strobeIndex);
+        const bool active = page.normalizedActiveStrobeName == strobe.normalizedName ||
+                            (page.normalizedActiveStrobeName.empty() && strobeIndex == 0U);
+
+        ImGui::PushID(static_cast<int>(strobeIndex));
+        if (ImGui::Selectable(strobeSelectableLabel.c_str(), selected))
         {
-            ImGui::SetItemDefaultFocus();
+            SelectPageStrobe(selection_.pageIndex, static_cast<int>(strobeIndex));
         }
 
+        if (ImGui::RadioButton("Active by default##strobe_default", active) && !active)
+        {
+            PushUndoSnapshot();
+            SetActivePageStrobe(page, strobe);
+            SelectPageStrobe(selection_.pageIndex, static_cast<int>(strobeIndex));
+        }
+        ShowItemTooltip("Choose which authored strobe becomes active by default when the page loads.");
+
+        std::array<char, 128> strobeNameBuffer {};
+        CopyTextBuffer(strobeNameBuffer, strobe.name);
+        if (ImGui::InputText("Name##strobe_name", strobeNameBuffer.data(), strobeNameBuffer.size()))
+        {
+            const std::string previousNormalizedName = strobe.normalizedName;
+            std::string requestedName = strobeNameBuffer.data();
+            if (NormalizeEditorIdentifier(requestedName).empty())
+            {
+                requestedName = "Strobe";
+            }
+
+            strobe.name = MakeUniqueStrobeName(page, requestedName, strobe.name);
+            strobe.normalizedName = mfd::NormalizePageName(strobe.name);
+            if (page.normalizedActiveStrobeName == previousNormalizedName)
+            {
+                SetActivePageStrobe(page, strobe);
+            }
+        }
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        ShowItemTooltip("Rename this strobe. Names stay unique within the page.");
+
+        ImGui::TextDisabled("Template: %s",
+                            strobe.reticle.sourceTemplateId.empty() ? "<custom strobe>" : strobe.reticle.sourceTemplateId.c_str());
+
+        if (ImGui::Button("Remove strobe##page_strobe_remove"))
+        {
+            PushUndoSnapshot();
+            const std::string removedName = strobe.name;
+            const std::string removedNormalizedName = strobe.normalizedName;
+            page.strobes.erase(page.strobes.begin() + static_cast<std::ptrdiff_t>(strobeIndex));
+            if (page.strobes.empty())
+            {
+                page.activeStrobeName.clear();
+                page.normalizedActiveStrobeName.clear();
+                SelectPage(selection_.pageIndex, false);
+            }
+            else
+            {
+                if (page.normalizedActiveStrobeName == removedNormalizedName)
+                {
+                    SetActivePageStrobe(page, page.strobes.front());
+                }
+                SelectPageStrobe(selection_.pageIndex,
+                                 std::min<int>(static_cast<int>(strobeIndex), static_cast<int>(page.strobes.size()) - 1));
+            }
+            RebuildStatus("Strobe '" + removedName + "' removed from page '" + page.name + "'.", false);
+            removedStrobe = true;
+            ImGui::PopID();
+            break;
+        }
+        ShowItemTooltip("Remove this authored strobe from the page list.");
+
+        ImGui::Separator();
+        ImGui::PopID();
+    }
+
+    if (removedStrobe)
+    {
+        return;
+    }
+
+    if (page.strobes.empty())
+    {
+        ImGui::TextDisabled("No strobe assigned to this page.");
+        return;
+    }
+
+    int editedStrobeIndex = FindActivePageStrobeIndex(page);
+    if (selection_.kind == SelectionKind::PageStrobe &&
+        selection_.pageReticleIndex >= 0 &&
+        selection_.pageReticleIndex < static_cast<int>(page.strobes.size()))
+    {
+        editedStrobeIndex = selection_.pageReticleIndex;
+    }
+    if (editedStrobeIndex < 0 || editedStrobeIndex >= static_cast<int>(page.strobes.size()))
+    {
+        editedStrobeIndex = 0;
+    }
+
+    mfd::PageStrobeDefinition& editedStrobe = page.strobes[static_cast<std::size_t>(editedStrobeIndex)];
+    const std::string currentTemplateId = editedStrobe.reticle.sourceTemplateId;
+
+    ImGui::TextDisabled("Editing strobe: %s", editedStrobe.name.c_str());
+    if (ImGui::BeginCombo("Strobe template##page_strobe_template",
+                          currentTemplateId.empty() ? "<custom strobe>" : currentTemplateId.c_str()))
+    {
         for (const std::string& templateId : templateIds)
         {
-            const bool selected = page.strobe.has_value() && currentTemplateId == templateId;
+            const bool selected = currentTemplateId == templateId;
             if (ImGui::Selectable(templateId.c_str(), selected) && !selected)
             {
-                if (tutorial_->MatchesTarget(kTutorialStrobeTargetId) && templateId != kTutorialStrobeCursorTemplateId)
+                if ((tutorial_->MatchesTarget(kTutorialDefaultStrobeTemplateTargetId) ||
+                     tutorial_->MatchesTarget(kTutorialAlternativeStrobeTemplateTargetId)) &&
+                    templateId != kTutorialStrobeCursorTemplateId)
                 {
                     RebuildStatus("Tutorial: choose 'mfd_tutorial_strobe_cursor' as the Page1 strobe template.", true);
                     continue;
@@ -9130,17 +9657,9 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
                 if (iterator != loaded_.document.reticleLibrary.end())
                 {
                     PushUndoSnapshot();
-                    page.strobe = MakePageStrobeFromTemplate(page, iterator->second, page.strobe);
-                    if (tutorial_->MatchesTarget(kTutorialStrobeTargetId))
-                    {
-                        page.strobe->reticle.id = std::string(kTutorialStrobeReticleId);
-                    }
-                    RefreshBlinkBindingForEditor(page, page.strobe->reticle.blink);
-                    RebuildStatus("Strobe template '" + templateId + "' assigned to page '" + page.name + "'.", false);
-                    if (tutorial_->MatchesTarget(kTutorialStrobeTargetId))
-                    {
-                        tutorial_->CompleteStep();
-                    }
+                    const std::optional<mfd::PageStrobeDefinition> previousStrobe = editedStrobe;
+                    editedStrobe = MakePageStrobeFromTemplate(page, iterator->second, previousStrobe);
+                    RefreshBlinkBindingForEditor(page, editedStrobe.reticle.blink);
                 }
             }
             if (selected)
@@ -9148,68 +9667,36 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
                 ImGui::SetItemDefaultFocus();
             }
         }
-
         ImGui::EndCombo();
     }
-    ShowItemTooltip("Choose which shared reticle template is instantiated as the page strobe.");
-    tutorial_->DrawHalo(
-        kTutorialStrobeTargetId.data(),
-        "Choose mfd_tutorial_strobe_cursor",
-        "Assign the cross cursor as the real Page1 strobe before the tutorial client starts driving it.");
+    ShowItemTooltip("Replace the selected strobe instance with another shared reticle template while keeping its authored runtime settings.");
 
-    ImGui::BeginDisabled(!page.strobe.has_value());
-    if (ImGui::Button("Remove strobe") && page.strobe.has_value())
-    {
-        PushUndoSnapshot();
-        page.strobe.reset();
-        if (selection_.kind == SelectionKind::PageStrobe)
-        {
-            SelectPage(selection_.pageIndex, false);
-        }
-        RebuildStatus("Strobe removed from page '" + page.name + "'.", false);
-    }
-    ImGui::EndDisabled();
-    ShowItemTooltip("Remove the optional strobe definition from this page.");
-
-    if (!page.strobe.has_value())
-    {
-        if (templateIds.empty())
-        {
-            ImGui::TextDisabled("No library reticle is available yet. Create one first.");
-        }
-        else
-        {
-            ImGui::TextDisabled("No strobe assigned to this page.");
-        }
-        return;
-    }
-
-    ImGui::TextDisabled("Strobe id: %s", page.strobe->reticle.id.c_str());
+    ImGui::TextDisabled("Strobe id: %s", editedStrobe.reticle.id.c_str());
     if (!currentTemplateId.empty())
     {
         ImGui::TextDisabled("Source template: %s", currentTemplateId.c_str());
     }
 
     const char* captureShapeLabel =
-        page.strobe->capture.shape == mfd::StrobeCaptureShape::Circle ? "Circle" : "Rectangle";
+        editedStrobe.capture.shape == mfd::StrobeCaptureShape::Circle ? "Circle" : "Rectangle";
     if (ImGui::BeginCombo("Capture shape", captureShapeLabel))
     {
-        const bool circleSelected = page.strobe->capture.shape == mfd::StrobeCaptureShape::Circle;
+        const bool circleSelected = editedStrobe.capture.shape == mfd::StrobeCaptureShape::Circle;
         if (ImGui::Selectable("Circle", circleSelected) && !circleSelected)
         {
             PushUndoSnapshot();
-            page.strobe->capture.shape = mfd::StrobeCaptureShape::Circle;
+            editedStrobe.capture.shape = mfd::StrobeCaptureShape::Circle;
         }
         if (circleSelected)
         {
             ImGui::SetItemDefaultFocus();
         }
 
-        const bool rectangleSelected = page.strobe->capture.shape == mfd::StrobeCaptureShape::Rectangle;
+        const bool rectangleSelected = editedStrobe.capture.shape == mfd::StrobeCaptureShape::Rectangle;
         if (ImGui::Selectable("Rectangle", rectangleSelected) && !rectangleSelected)
         {
             PushUndoSnapshot();
-            page.strobe->capture.shape = mfd::StrobeCaptureShape::Rectangle;
+            editedStrobe.capture.shape = mfd::StrobeCaptureShape::Rectangle;
         }
         if (rectangleSelected)
         {
@@ -9220,91 +9707,91 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     }
     ShowItemTooltip("Choose the capture area shape used by the page strobe.");
 
-    if (page.strobe->capture.shape == mfd::StrobeCaptureShape::Circle)
+    if (editedStrobe.capture.shape == mfd::StrobeCaptureShape::Circle)
     {
-        if (ImGui::DragFloat("Capture radius", &page.strobe->capture.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (ImGui::DragFloat("Capture radius", &editedStrobe.capture.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
             if (ImGui::IsItemActivated())
             {
                 PushUndoSnapshot();
             }
-            page.strobe->capture.radius = std::max(0.001f, page.strobe->capture.radius);
+            editedStrobe.capture.radius = std::max(0.001f, editedStrobe.capture.radius);
         }
         ShowItemTooltip("Radius of the circular capture area around the strobe.");
     }
     else
     {
-        if (ImGui::DragFloat2("Capture size", &page.strobe->capture.size.x, 0.002f, 0.001f, 2.0f, "%.4f"))
+        if (ImGui::DragFloat2("Capture size", &editedStrobe.capture.size.x, 0.002f, 0.001f, 2.0f, "%.4f"))
         {
             if (ImGui::IsItemActivated())
             {
                 PushUndoSnapshot();
             }
-            page.strobe->capture.size.x = std::max(0.001f, page.strobe->capture.size.x);
-            page.strobe->capture.size.y = std::max(0.001f, page.strobe->capture.size.y);
+            editedStrobe.capture.size.x = std::max(0.001f, editedStrobe.capture.size.x);
+            editedStrobe.capture.size.y = std::max(0.001f, editedStrobe.capture.size.y);
         }
         ShowItemTooltip("Width and height of the rectangular capture area around the strobe.");
     }
 
-    bool magnetEnabled = page.strobe->magnet.enabled;
+    bool magnetEnabled = editedStrobe.magnet.enabled;
     if (ImGui::Checkbox("Magnet enabled", &magnetEnabled))
     {
         PushUndoSnapshot();
-        page.strobe->magnet.enabled = magnetEnabled;
+        editedStrobe.magnet.enabled = magnetEnabled;
     }
     ShowItemTooltip("Enable attraction toward nearby dynamic reticles when the strobe moves.");
 
-    if (page.strobe->magnet.enabled)
+    if (editedStrobe.magnet.enabled)
     {
-        if (ImGui::DragFloat("Magnet radius", &page.strobe->magnet.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (ImGui::DragFloat("Magnet radius", &editedStrobe.magnet.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
             if (ImGui::IsItemActivated())
             {
                 PushUndoSnapshot();
             }
-            page.strobe->magnet.radius = std::max(0.001f, page.strobe->magnet.radius);
+            editedStrobe.magnet.radius = std::max(0.001f, editedStrobe.magnet.radius);
         }
         ShowItemTooltip("Maximum distance used to snap the strobe toward nearby targets.");
 
-        if (ImGui::DragFloat("Magnet strength", &page.strobe->magnet.strength, 0.01f, 0.0f, 1.0f, "%.2f"))
+        if (ImGui::DragFloat("Magnet strength", &editedStrobe.magnet.strength, 0.01f, 0.0f, 1.0f, "%.2f"))
         {
             if (ImGui::IsItemActivated())
             {
                 PushUndoSnapshot();
             }
-            page.strobe->magnet.strength = std::clamp(page.strobe->magnet.strength, 0.0f, 1.0f);
+            editedStrobe.magnet.strength = std::clamp(editedStrobe.magnet.strength, 0.0f, 1.0f);
         }
         ShowItemTooltip("Blend factor applied when the strobe is attracted toward one target.");
 
-        bool visualShapeEnabled = page.strobe->magnet.visualShapeEnabled;
+        bool visualShapeEnabled = editedStrobe.magnet.visualShapeEnabled;
         if (ImGui::Checkbox("Change visual shape while magnetized", &visualShapeEnabled))
         {
             PushUndoSnapshot();
-            page.strobe->magnet.visualShapeEnabled = visualShapeEnabled;
+            editedStrobe.magnet.visualShapeEnabled = visualShapeEnabled;
         }
         ShowItemTooltip("Optional visual cue only: the authored strobe reticle is kept unless this is enabled.");
 
-        ImGui::BeginDisabled(!page.strobe->magnet.visualShapeEnabled);
+        ImGui::BeginDisabled(!editedStrobe.magnet.visualShapeEnabled);
         const char* visualShapeLabel =
-            page.strobe->magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle ? "Circle" : "Square";
+            editedStrobe.magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle ? "Circle" : "Square";
         if (ImGui::BeginCombo("Magnetized visual shape", visualShapeLabel))
         {
-            const bool circleSelected = page.strobe->magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle;
+            const bool circleSelected = editedStrobe.magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle;
             if (ImGui::Selectable("Circle", circleSelected) && !circleSelected)
             {
                 PushUndoSnapshot();
-                page.strobe->magnet.visualShape = mfd::StrobeMagnetVisualShape::Circle;
+                editedStrobe.magnet.visualShape = mfd::StrobeMagnetVisualShape::Circle;
             }
             if (circleSelected)
             {
                 ImGui::SetItemDefaultFocus();
             }
 
-            const bool squareSelected = page.strobe->magnet.visualShape == mfd::StrobeMagnetVisualShape::Square;
+            const bool squareSelected = editedStrobe.magnet.visualShape == mfd::StrobeMagnetVisualShape::Square;
             if (ImGui::Selectable("Square", squareSelected) && !squareSelected)
             {
                 PushUndoSnapshot();
-                page.strobe->magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
+                editedStrobe.magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
             }
             if (squareSelected)
             {
@@ -9315,13 +9802,18 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
         }
         ShowItemTooltip("Shape used only while the runtime reports this strobe as magnetized.");
 
-        if (ImGui::DragFloat("Magnetized visual size", &page.strobe->magnet.visualShapeSize, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (ImGui::DragFloat("Magnetized visual size",
+                             &editedStrobe.magnet.visualShapeSize,
+                             0.002f,
+                             0.001f,
+                             1.0f,
+                             "%.4f"))
         {
             if (ImGui::IsItemActivated())
             {
                 PushUndoSnapshot();
             }
-            page.strobe->magnet.visualShapeSize = std::max(0.001f, page.strobe->magnet.visualShapeSize);
+            editedStrobe.magnet.visualShapeSize = std::max(0.001f, editedStrobe.magnet.visualShapeSize);
         }
         ShowItemTooltip("Logical diameter/side length of the optional magnetized visual cue.");
         ImGui::EndDisabled();
@@ -10371,7 +10863,8 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
 {
     mfd::PageDefinition* page = ActivePage();
     mfd::ReticleGroup* reticle = SelectedPageStrobeReticle();
-    if (page == nullptr || reticle == nullptr || !page->strobe.has_value())
+    const mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
+    if (page == nullptr || reticle == nullptr || strobe == nullptr)
     {
         ImGui::TextDisabled("No page strobe selected.");
         return;
@@ -10379,6 +10872,7 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page strobe");
     ImGui::Text("Page: %s", page->name.c_str());
+    ImGui::Text("Name: %s", strobe->name.c_str());
     ImGui::Text("Strobe id: %s", reticle->id.c_str());
     if (!reticle->sourceTemplateId.empty())
     {

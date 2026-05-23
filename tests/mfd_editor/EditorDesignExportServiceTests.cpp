@@ -162,8 +162,12 @@ DesignExportFixture MakeFixture(const std::filesystem::path& root, const std::st
     page.staticReticles.push_back(MakeReticle("track_box_01", "track_box", 0.250f, -0.400f, "hud"));
 
     mfd::PageStrobeDefinition strobe;
+    strobe.name = "Default";
+    strobe.normalizedName = mfd::NormalizePageName(strobe.name);
     strobe.reticle = MakeReticle("strobe_cursor", "strobe_cursor", 0.000f, 0.000f, "hud");
-    page.strobe = strobe;
+    page.strobes.push_back(strobe);
+    page.activeStrobeName = strobe.name;
+    page.normalizedActiveStrobeName = strobe.normalizedName;
 
     fixture.loaded.document.pages.push_back(std::move(page));
     fixture.loaded.document.reticleLibrary.emplace("track_box", MakeReticle("track_box", "track_box", 0.0f, 0.0f, ""));

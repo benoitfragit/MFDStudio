@@ -489,6 +489,33 @@ bool CommandProcessor::ResolveGeneratedPage(std::string& page, const TransportId
     return true;
 }
 
+bool CommandProcessor::ResolveGeneratedStrobe(const TransportId pageId,
+                                              std::string& strobeName,
+                                              const TransportId strobeId)
+{
+    if (strobeId == 0)
+    {
+        return strobeName.empty() || !NormalizePageName(strobeName).empty();
+    }
+
+    const std::string* resolvedStrobe = scene_.ResolveStrobeName(pageId, strobeId);
+    if (resolvedStrobe == nullptr)
+    {
+        SetFailure("Unknown generated strobe transport id " + std::to_string(strobeId));
+        return false;
+    }
+
+    if (!strobeName.empty() && NormalizePageName(strobeName) != NormalizePageName(*resolvedStrobe))
+    {
+        SetFailure("Generated strobe transport id " + std::to_string(strobeId) +
+                   " does not match strobe '" + strobeName + "'");
+        return false;
+    }
+
+    strobeName = *resolvedStrobe;
+    return true;
+}
+
 bool CommandProcessor::ResolveGeneratedStaticReticle(StaticReticleHandle& target)
 {
     if (target.reticleId == 0)
@@ -734,7 +761,8 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
             }
             else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
             {
-                return ResolveGeneratedPage(value.page, value.pageId);
+                return ResolveGeneratedPage(value.page, value.pageId) &&
+                       ResolveGeneratedStrobe(value.pageId, value.strobe, value.strobeId);
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
             {
@@ -821,6 +849,11 @@ void CommandProcessor::OnUpdateReticle(const UpdateReticleCommand& command)
 void CommandProcessor::OnUpdateStrobe(const UpdateStrobeCommand& command)
 {
     bool success = true;
+
+    if (!command.strobe.empty())
+    {
+        success = scene_.SelectStrobe(command.page, command.strobe) && success;
+    }
 
     if (command.active.has_value())
     {

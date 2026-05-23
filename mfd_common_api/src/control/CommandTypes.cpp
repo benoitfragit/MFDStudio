@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "mfd_commands.pb.h"
+#include "mfd/model/PageName.h"
 
 namespace mfd
 {
@@ -365,6 +366,14 @@ void ValidateUserCommand(const UserCommand& command)
                 if (value.pageId == 0 && value.page.empty())
                 {
                     throw std::runtime_error("UpdateStrobeCommand requires a pageId or page name");
+                }
+
+                if (value.strobeId == 0 && !value.strobe.empty())
+                {
+                    if (NormalizePageName(value.strobe).empty())
+                    {
+                        throw std::runtime_error("UpdateStrobeCommand.strobe must not be empty");
+                    }
                 }
 
                 if (value.position.has_value())
@@ -1089,6 +1098,11 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
                 {
                     FillProtoVec2(*value.position, message->mutable_position());
                 }
+
+                if (value.strobeId != 0)
+                {
+                    message->set_strobe_id(value.strobeId);
+                }
             }
             else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
             {
@@ -1210,6 +1224,7 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
     {
         UpdateStrobeCommand command;
         command.pageId = value.update_strobe().page_id();
+        command.strobeId = value.update_strobe().strobe_id();
         if (value.update_strobe().has_active())
         {
             command.active = value.update_strobe().active();

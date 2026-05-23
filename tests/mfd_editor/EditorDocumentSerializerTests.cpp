@@ -508,6 +508,8 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"radar_track", "default", 0});
 
     mfd::PageStrobeDefinition strobe;
+    strobe.name = "Default";
+    strobe.normalizedName = mfd::NormalizePageName(strobe.name);
     strobe.reticle.id = "strobe";
     strobe.reticle.sourceTemplateId = "strobe_cursor";
     strobe.capture.shape = mfd::StrobeCaptureShape::Circle;
@@ -518,7 +520,9 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     strobe.magnet.visualShapeEnabled = true;
     strobe.magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
     strobe.magnet.visualShapeSize = 0.18f;
-    page.strobe = strobe;
+    page.strobes.push_back(strobe);
+    page.activeStrobeName = strobe.name;
+    page.normalizedActiveStrobeName = strobe.normalizedName;
 
     mfd::ReticleGroup pageReticle;
     pageReticle.id = "track_alpha";
@@ -567,13 +571,17 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     EXPECT_EQ(pageJson.at("name").get<std::string>(), "Radar");
     EXPECT_EQ(pageJson.at("title").get<std::string>(), "Radar Page");
     EXPECT_EQ(pageJson.at("bg").get<std::string>(), "#0A141EFF");
-    ASSERT_TRUE(pageJson.contains("strobe"));
-    EXPECT_EQ(pageJson.at("strobe").at("template").get<std::string>(), "strobe_cursor");
-    EXPECT_TRUE(pageJson.at("strobe").at("magnet").at("enabled").get<bool>());
-    ASSERT_TRUE(pageJson.at("strobe").at("magnet").contains("visual"));
-    EXPECT_TRUE(pageJson.at("strobe").at("magnet").at("visual").at("enabled").get<bool>());
-    EXPECT_EQ(pageJson.at("strobe").at("magnet").at("visual").at("shape").get<std::string>(), "square");
-    EXPECT_FLOAT_EQ(pageJson.at("strobe").at("magnet").at("visual").at("size").get<float>(), 0.18f);
+    ASSERT_TRUE(pageJson.contains("strobes"));
+    ASSERT_TRUE(pageJson.at("strobes").is_array());
+    ASSERT_EQ(pageJson.at("strobes").size(), 1U);
+    EXPECT_EQ(pageJson.at("activeStrobe").get<std::string>(), "Default");
+    EXPECT_EQ(pageJson.at("strobes").at(0).at("name").get<std::string>(), "Default");
+    EXPECT_EQ(pageJson.at("strobes").at(0).at("template").get<std::string>(), "strobe_cursor");
+    EXPECT_TRUE(pageJson.at("strobes").at(0).at("magnet").at("enabled").get<bool>());
+    ASSERT_TRUE(pageJson.at("strobes").at(0).at("magnet").contains("visual"));
+    EXPECT_TRUE(pageJson.at("strobes").at(0).at("magnet").at("visual").at("enabled").get<bool>());
+    EXPECT_EQ(pageJson.at("strobes").at(0).at("magnet").at("visual").at("shape").get<std::string>(), "square");
+    EXPECT_FLOAT_EQ(pageJson.at("strobes").at(0).at("magnet").at("visual").at("size").get<float>(), 0.18f);
     ASSERT_TRUE(pageJson.contains("layers"));
     ASSERT_EQ(pageJson.at("layers").size(), 1U);
     EXPECT_EQ(pageJson.at("layers").at(0).at("id").get<std::string>(), "default");

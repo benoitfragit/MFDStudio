@@ -445,17 +445,22 @@ void CollectCurrentPageUsage(const mfd::PageDefinition& page,
         }
     }
 
-    if (page.strobe.has_value() && !page.strobe->reticle.sourceTemplateId.empty())
+    for (const auto& strobe : page.strobes)
     {
-        const std::string normalizedStrobeTemplateId = NormalizeIdentifier(page.strobe->reticle.sourceTemplateId);
+        if (strobe.reticle.sourceTemplateId.empty())
+        {
+            continue;
+        }
+
+        const std::string normalizedStrobeTemplateId = NormalizeIdentifier(strobe.reticle.sourceTemplateId);
         if (normalizedStrobeTemplateId == normalizedOldTemplateId)
         {
             AddReferenceAccumulator(usage,
                                     ReticleReferenceKind::PageStrobeTemplate,
                                     pageFile,
                                     page.name,
-                                    page.strobe->reticle.id,
-                                    page.strobe->reticle.sourceTemplateId);
+                                    strobe.reticle.id,
+                                    strobe.reticle.sourceTemplateId);
         }
         else if (normalizedStrobeTemplateId == normalizedNewTemplateId)
         {
@@ -463,8 +468,8 @@ void CollectCurrentPageUsage(const mfd::PageDefinition& page,
                                     ReticleReferenceKind::PageStrobeTemplate,
                                     pageFile,
                                     page.name,
-                                    page.strobe->reticle.id,
-                                    page.strobe->reticle.sourceTemplateId);
+                                    strobe.reticle.id,
+                                    strobe.reticle.sourceTemplateId);
         }
     }
 
@@ -510,10 +515,14 @@ std::size_t RenamePageTemplateReferences(mfd::PageDefinition& page,
         ++updatedReferenceCount;
     }
 
-    if (page.strobe.has_value() &&
-        NormalizeIdentifier(page.strobe->reticle.sourceTemplateId) == normalizedOldTemplateId)
+    for (auto& strobe : page.strobes)
     {
-        page.strobe->reticle.sourceTemplateId = std::string(newTemplateId);
+        if (NormalizeIdentifier(strobe.reticle.sourceTemplateId) != normalizedOldTemplateId)
+        {
+            continue;
+        }
+
+        strobe.reticle.sourceTemplateId = std::string(newTemplateId);
         ++updatedReferenceCount;
     }
 

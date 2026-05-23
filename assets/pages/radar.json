@@ -29,21 +29,42 @@
     }
   ],
   "defaultBlink": "slow",
-  "strobe": {
-    "id": "radar_strobe",
-    "template": "strobe_cursor",
-    "at": [0.0, 0.0],
-    "stroke": "white",
-    "capture": {
-      "shape": "circle",
-      "radius": 0.1
+  "activeStrobe": "Default",
+  "strobes": [
+    {
+      "name": "Default",
+      "id": "radar_strobe_default",
+      "template": "strobe_cursor",
+      "at": [0.0, 0.0],
+      "stroke": "white",
+      "capture": {
+        "shape": "circle",
+        "radius": 0.1
+      },
+      "magnet": {
+        "enabled": true,
+        "radius": 0.075,
+        "strength": 1.0
+      }
     },
-    "magnet": {
-      "enabled": true,
-      "radius": 0.075,
-      "strength": 1.0
+    {
+      "name": "Designator",
+      "id": "radar_strobe_designator",
+      "template": "inspired_sensor_crosshair",
+      "at": [0.0, 0.0],
+      "stroke": "warning",
+      "capture": {
+        "shape": "rectangle",
+        "radius": 0.12,
+        "size": [0.28, 0.18]
+      },
+      "magnet": {
+        "enabled": false,
+        "radius": 0.09,
+        "strength": 1.0
+      }
     }
-  },
+  ],
   "staticReticles": [
     {
       "id": "radar_grid_view",

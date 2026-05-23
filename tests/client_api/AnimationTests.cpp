@@ -997,12 +997,18 @@ TEST(AnimationTests, StrobeHandleReportsValidityAndEmitsPageScopedCommands)
     info.magnet.radius = 0.3f;
     info.magnet.strength = 0.6f;
 
-    mfd::client::StrobeHandle strobe("Radar", info);
+    const mfd::client::StrobeType defaultStrobe("Default", info, 101U, true);
+    const mfd::client::StrobeType designatorStrobe("Designator", info, 102U, false);
+
+    mfd::client::StrobeHandle strobe("Radar", {defaultStrobe, designatorStrobe}, 11U);
     EXPECT_TRUE(strobe.IsValid());
     EXPECT_EQ(strobe.PageName(), "Radar");
+    ASSERT_NE(strobe.SelectedType(), nullptr);
+    EXPECT_EQ(strobe.SelectedType()->GeneratedId(), 101U);
     EXPECT_EQ(strobe.Info().capture.shape, mfd::StrobeCaptureShape::Rectangle);
     EXPECT_TRUE(strobe.Info().magnet.enabled);
 
+    strobe = designatorStrobe;
     strobe.SetActive(false);
     strobe.SetPosition({0.25f, -0.35f});
 
@@ -1013,6 +1019,8 @@ TEST(AnimationTests, StrobeHandleReportsValidityAndEmitsPageScopedCommands)
     const auto* update = std::get_if<mfd::UpdateStrobeCommand>(&commands.front());
     ASSERT_NE(update, nullptr);
     EXPECT_EQ(update->page, "Radar");
+    EXPECT_EQ(update->pageId, 11U);
+    EXPECT_EQ(update->strobeId, 102U);
     ASSERT_TRUE(update->active.has_value());
     ASSERT_TRUE(update->position.has_value());
     EXPECT_FALSE(*update->active);
@@ -1029,7 +1037,11 @@ TEST(AnimationTests, StrobeHandleUsesOnlyThePageScopeEvenWhenGeneratedPageIdsExi
     mfd::client::StrobeInfo info;
     info.valid = true;
 
-    mfd::client::StrobeHandle strobe("Radar", info, 11U);
+    const mfd::client::StrobeType defaultStrobe("Default", info, 21U, true);
+    const mfd::client::StrobeType searchStrobe("Search", info, 22U, false);
+
+    mfd::client::StrobeHandle strobe("Radar", {defaultStrobe, searchStrobe}, 11U);
+    strobe.Use(searchStrobe);
     strobe.SetActive(true);
 
     std::vector<mfd::UserCommand> commands;
@@ -1040,11 +1052,42 @@ TEST(AnimationTests, StrobeHandleUsesOnlyThePageScopeEvenWhenGeneratedPageIdsExi
     ASSERT_NE(update, nullptr);
     EXPECT_EQ(update->page, "Radar");
     EXPECT_EQ(update->pageId, 11U);
+    EXPECT_EQ(update->strobeId, 22U);
+}
+
+TEST(AnimationTests, StrobeHandleReplaysCurrentStateWhenSwitchingSelectedStrobe)
+{
+    mfd::client::StrobeInfo info;
+    info.valid = true;
+
+    const mfd::client::StrobeType defaultStrobe("Default", info, 31U, true);
+    const mfd::client::StrobeType strobe1("Strobe1", info, 32U, false);
+
+    mfd::client::StrobeHandle strobe("Radar", {defaultStrobe, strobe1}, 11U);
+    strobe.SetActive(true);
+    strobe.SetPosition({0.05f, -0.10f});
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(strobe.AppendCommands(commands));
+    commands.clear();
+
+    strobe = strobe1;
+    ASSERT_TRUE(strobe.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateStrobeCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->strobeId, 32U);
+    ASSERT_TRUE(update->active.has_value());
+    ASSERT_TRUE(update->position.has_value());
+    EXPECT_TRUE(*update->active);
+    EXPECT_FLOAT_EQ(update->position->x, 0.05f);
+    EXPECT_FLOAT_EQ(update->position->y, -0.10f);
 }
 
 TEST(AnimationTests, InvalidStrobeHandleSuppressesMutationsAndCommands)
 {
-    mfd::client::StrobeHandle strobe("System", {});
+    mfd::client::StrobeHandle strobe("System", mfd::client::StrobeInfo {});
     EXPECT_FALSE(strobe.IsValid());
 
     strobe.SetActive(true);

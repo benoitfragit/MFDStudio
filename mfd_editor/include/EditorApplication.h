@@ -12,6 +12,7 @@
 
 #include <array>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,6 +28,7 @@
 #include "EditorFullscreenPreviewController.h"
 #include "EditorLayerFocusController.h"
 #include "EditorPageImportService.h"
+#include "EditorPagePreviewHit.h"
 #include "EditorPageManagementService.h"
 #include "EditorPageRenameService.h"
 #include "EditorPagePreviewViewOptions.h"
@@ -151,6 +153,17 @@ private:
     {
         int reticleIndex = -1;
         int primitiveIndex = -1;
+    };
+
+    /** @brief Ranked hit candidate used by page-preview selection. */
+    struct PageReticleHit
+    {
+        editor::PagePreviewHitTarget target {};
+        float distance = std::numeric_limits<float>::max();
+        float area = std::numeric_limits<float>::max();
+        bool directHit = false;
+        bool boundsHit = false;
+        int drawPriority = 0;
     };
 
     /** @brief Full undo snapshot storing the loaded document, file layout and current selection. */
@@ -542,8 +555,8 @@ private:
     void SelectPageReticle(int pageIndex, int reticleIndex);
     /** @brief Selects the generated page title chrome on the active page. */
     void SelectPageTitle(int pageIndex);
-    /** @brief Selects the page-level strobe instance when the active page exposes one. */
-    void SelectPageStrobe(int pageIndex);
+    /** @brief Selects one page-level strobe instance. Defaults to the active authored strobe. */
+    void SelectPageStrobe(int pageIndex, int strobeIndex = -1);
     /** @brief Toggles one page reticle inside the multi-selection. */
     void TogglePageReticleSelection(int pageIndex, int reticleIndex);
     /** @brief Selects one reticle template in the library tree. */
@@ -563,6 +576,10 @@ private:
     mfd::ReticleGroup* SelectedPageStrobeReticle() noexcept;
     /** @brief Returns the selected page strobe reticle instance when available. */
     const mfd::ReticleGroup* SelectedPageStrobeReticle() const noexcept;
+    /** @brief Returns the selected page strobe definition when available. */
+    mfd::PageStrobeDefinition* SelectedPageStrobe() noexcept;
+    /** @brief Returns the selected page strobe definition when available. */
+    const mfd::PageStrobeDefinition* SelectedPageStrobe() const noexcept;
     /** @brief Returns the selected page title styling state when available. */
     mfd::PageTitleDisplayDefinition* SelectedPageTitleDisplay() noexcept;
     /** @brief Returns the selected page title styling state when available. */
@@ -616,6 +633,15 @@ private:
     std::vector<int> CollectPageReticlesAt(const ViewportState& viewport, ImVec2 mousePosition) const;
     /** @brief Finds the nearest page reticle to the mouse for hit-testing. */
     std::optional<int> FindNearestPageReticle(const ViewportState& viewport, ImVec2 mousePosition) const;
+    /** @brief Builds one ranked page-preview hit candidate for static reticles, the active strobe or the page title. */
+    std::optional<PageReticleHit> BuildPageReticleHit(const mfd::PageDefinition& page,
+                                                      const ViewportState& viewport,
+                                                      ImVec2 mousePosition,
+                                                      editor::PagePreviewHitTarget target,
+                                                      const mfd::ReticleGroup& reticle,
+                                                      int drawPriority) const;
+    /** @brief Returns `true` when the left candidate should outrank the right one for page-preview selection. */
+    static bool PreferPageReticleHit(const PageReticleHit& lhs, const PageReticleHit& rhs) noexcept;
     /** @brief Returns all clip-capable page primitives hit by the mouse, ordered by hit quality. */
     std::vector<PageClipTarget> CollectPageClipTargetsAt(const ViewportState& viewport, ImVec2 mousePosition) const;
     /** @brief Finds the nearest supported convex page primitive to the mouse for clipping actions. */
@@ -654,6 +680,10 @@ private:
     static std::string MakeUniquePageReticleId(const mfd::PageDefinition& page,
                                                std::string_view baseId,
                                                std::string_view ignoredStrobeId = {});
+    /** @brief Generates a unique strobe name inside one page. */
+    static std::string MakeUniqueStrobeName(const mfd::PageDefinition& page,
+                                            std::string_view baseName,
+                                            std::string_view ignoredStrobeName = {});
     /** @brief Generates a unique editor layer id inside one page. */
     static std::string MakeUniqueLayerId(const mfd::PageDefinition& page, std::string_view baseId);
     /** @brief Root window file currently open in the editor, or empty when no asset is loaded yet. */

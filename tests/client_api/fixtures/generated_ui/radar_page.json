@@ -18,21 +18,43 @@
       "orderInLayer": 0
     }
   ],
-  "strobe": {
-    "capture": {
-      "shape": "rectangle",
-      "radius": 0.12,
-      "size": [
-        0.3,
-        0.2
-      ]
+  "activeStrobe": "Default",
+  "strobes": [
+    {
+      "name": "Default",
+      "id": "radar_strobe_default",
+      "capture": {
+        "shape": "rectangle",
+        "radius": 0.12,
+        "size": [
+          0.3,
+          0.2
+        ]
+      },
+      "magnet": {
+        "enabled": true,
+        "radius": 0.18,
+        "strength": 0.65
+      }
     },
-    "magnet": {
-      "enabled": true,
-      "radius": 0.18,
-      "strength": 0.65
+    {
+      "name": "Strobe1",
+      "id": "radar_strobe_1",
+      "capture": {
+        "shape": "circle",
+        "radius": 0.09,
+        "size": [
+          0.18,
+          0.18
+        ]
+      },
+      "magnet": {
+        "enabled": false,
+        "radius": 0.10,
+        "strength": 1.0
+      }
     }
-  },
+  ],
   "staticReticles": [
     {
       "id": "radar_status",

@@ -906,6 +906,7 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle,
 json SerializeStrobe(const mfd::PageStrobeDefinition& strobe, const std::filesystem::path& /*baseFolder*/)
 {
     json node = json::object();
+    node["name"] = strobe.name;
     node["id"] = strobe.reticle.id;
 
     if (!strobe.reticle.sourceTemplateId.empty())
@@ -983,9 +984,16 @@ json SerializePage(const mfd::PageDefinition& page,
             {"zoom", page.view.zoom}};
     }
 
-    if (page.strobe.has_value())
+    if (!page.strobes.empty())
     {
-        node["strobe"] = SerializeStrobe(*page.strobe, baseFolder);
+        json strobes = json::array();
+        for (const auto& strobe : page.strobes)
+        {
+            strobes.push_back(SerializeStrobe(strobe, baseFolder));
+        }
+
+        node["strobes"] = std::move(strobes);
+        node["activeStrobe"] = page.activeStrobeName.empty() ? page.strobes.front().name : page.activeStrobeName;
     }
 
     if (const auto blinkTypes = SerializePageBlinkTypes(page); blinkTypes.has_value())

@@ -12,6 +12,7 @@
 
 #include <array>
 #include <cstddef>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -79,6 +80,58 @@ struct StrobeInfo
     mfd::StrobeCaptureConfig capture {};
     /** @brief Authored magnetization configuration of the page strobe. */
     mfd::StrobeMagnetConfig magnet {};
+};
+
+/**
+ * @brief One selectable authored strobe entry exposed by generated page APIs.
+ *
+ * @note This type stays page-scoped. Client code selects one of the generated
+ * entries through `StrobeHandle`, without addressing transport labels directly.
+ */
+class MFD_CLIENT_API StrobeType
+{
+public:
+    /**
+     * @brief Builds one authored strobe catalog entry.
+     * @param name User-facing strobe name emitted by the generator.
+     * @param info Authored capture and magnet configuration of the strobe.
+     * @param transportId Stable generated transport id of the strobe entry.
+     * @param defaultActive Indicates whether this strobe is the authored default on its page.
+     */
+    StrobeType(std::string_view name,
+               StrobeInfo info = {},
+               mfd::TransportId transportId = 0,
+               bool defaultActive = false);
+
+    /**
+     * @brief Returns the user-facing name of the strobe entry.
+     * @return Stable name emitted by the generator.
+     */
+    const std::string& Name() const noexcept;
+
+    /**
+     * @brief Returns the generated transport id of the strobe entry.
+     * @return Stable generated id, or `0` when the entry has no generated id.
+     */
+    mfd::TransportId GeneratedId() const noexcept;
+
+    /**
+     * @brief Returns the authored capture and magnet configuration of the strobe.
+     * @return Immutable authored strobe metadata.
+     */
+    const StrobeInfo& Info() const noexcept;
+
+    /**
+     * @brief Returns whether the authored page selects this strobe by default.
+     * @return `true` when this entry is the authored startup strobe.
+     */
+    bool IsDefaultActive() const noexcept;
+
+private:
+    std::string name_;
+    StrobeInfo info_ {};
+    mfd::TransportId transportId_ = 0;
+    bool defaultActive_ = false;
 };
 
 /**
@@ -494,13 +547,57 @@ public:
 class MFD_CLIENT_API StrobeHandle
 {
 public:
+    /**
+     * @brief Builds one page-scoped strobe handle for one legacy single-strobe page.
+     * @param pageName Owning authored page name.
+     * @param info Authored strobe metadata.
+     * @param pageTransportId Optional generated transport id of the owning page.
+     */
     StrobeHandle(std::string_view pageName, StrobeInfo info = {}, mfd::TransportId pageTransportId = 0);
+    /**
+     * @brief Builds one page-scoped strobe handle over an authored strobe catalog.
+     * @param pageName Owning authored page name.
+     * @param strobes Named selectable strobes exposed by the generated page.
+     * @param pageTransportId Optional generated transport id of the owning page.
+     *
+     * @note When `strobes` contains at least one default-active entry, that
+     * selection becomes the initial authored active strobe. Otherwise the first
+     * provided entry becomes the authored active strobe.
+     */
+    StrobeHandle(std::string_view pageName,
+                 std::initializer_list<StrobeType> strobes,
+                 mfd::TransportId pageTransportId = 0);
 
     void Reset() noexcept;
 
     bool IsValid() const noexcept;
     std::string_view PageName() const noexcept;
+    /**
+     * @brief Returns the currently selected authored strobe entry.
+     * @return Pointer to the current entry, or `nullptr` when the page has no strobe.
+     */
+    const StrobeType* SelectedType() const noexcept;
+    /**
+     * @brief Returns the authored metadata of the currently selected strobe.
+     * @return Metadata of the selected entry, or an invalid default metadata block.
+     */
     const StrobeInfo& Info() const noexcept;
+    /**
+     * @brief Selects one authored strobe entry on the page.
+     * @param strobeType Generated strobe entry emitted by the page API.
+     */
+    StrobeHandle& operator=(const StrobeType& strobeType);
+    /**
+     * @brief Selects one authored strobe entry on the page.
+     * @param strobeType Generated strobe entry emitted by the page API.
+     */
+    void Use(const StrobeType& strobeType);
+    /**
+     * @brief Reports whether one generated strobe entry is currently selected.
+     * @param strobeType Generated strobe entry emitted by the page API.
+     * @return `true` when the handle currently targets that entry.
+     */
+    bool IsSelected(const StrobeType& strobeType) const noexcept;
 
     void SetActive(bool active);
     void SetPosition(mfd::Vec2 position);
@@ -508,9 +605,14 @@ public:
     bool AppendCommands(std::vector<mfd::UserCommand>& commands);
 
 private:
+    const StrobeType* ResolveSelectedType() const noexcept;
+    void SelectDefaultStrobe() noexcept;
+
     std::string pageName_;
     mfd::TransportId pageTransportId_ = 0;
-    StrobeInfo info_ {};
+    std::vector<StrobeType> strobes_ {};
+    mfd::TransportId desiredStrobeId_ = 0;
+    mfd::TransportId lastSentStrobeId_ = 0;
     std::optional<bool> desiredActive_ {};
     std::optional<bool> lastSentActive_ {};
     std::optional<mfd::Vec2> desiredPosition_ {};

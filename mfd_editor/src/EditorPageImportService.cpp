@@ -496,9 +496,9 @@ void ApplyTemplateIdRemap(
         ApplyReticleTemplateIdRemap(reticle, remap);
     }
 
-    if (page.strobe.has_value())
+    for (auto& strobe : page.strobes)
     {
-        ApplyReticleTemplateIdRemap(page.strobe->reticle, remap);
+        ApplyReticleTemplateIdRemap(strobe.reticle, remap);
     }
 
     for (auto& binding : page.dynamicReticleBindings)

@@ -1680,7 +1680,8 @@ void EditorApplication::PrepareTutorialStep()
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
         selectTutorialPageOrFallback("Page1");
         break;
-    case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
+    case static_cast<int>(TutorialStepId::AddPage1DefaultStrobe):
+    case static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe):
         selectTutorialPageOrFallback("Page1");
         break;
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):

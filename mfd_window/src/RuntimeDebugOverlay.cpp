@@ -92,6 +92,57 @@ const PageDefinition* FindPage(const MfdDocument& document, std::string_view pag
     return FindPageDefinition(document, pageName);
 }
 
+const TransportMapPageEntry* FindTransportPageEntry(const GeneratedTransportMap& map, const TransportId pageId) noexcept
+{
+    const auto iterator = std::find_if(
+        map.pages.begin(),
+        map.pages.end(),
+        [pageId](const TransportMapPageEntry& page)
+        {
+            return page.id == pageId;
+        });
+    return iterator == map.pages.end() ? nullptr : &(*iterator);
+}
+
+const TransportMapTemplateEntry* FindTransportTemplateEntry(const GeneratedTransportMap& map,
+                                                           const TransportId templateId) noexcept
+{
+    const auto iterator = std::find_if(
+        map.templates.begin(),
+        map.templates.end(),
+        [templateId](const TransportMapTemplateEntry& entry)
+        {
+            return entry.id == templateId;
+        });
+    return iterator == map.templates.end() ? nullptr : &(*iterator);
+}
+
+std::string ResolveTransportPageName(const std::optional<GeneratedTransportMap>& transportMap,
+                                     const std::string_view pageName,
+                                     const TransportId pageId)
+{
+    if (!pageName.empty() || !transportMap.has_value() || pageId == 0)
+    {
+        return std::string(pageName);
+    }
+
+    const TransportMapPageEntry* pageEntry = FindTransportPageEntry(*transportMap, pageId);
+    return pageEntry == nullptr ? std::string(pageName) : pageEntry->name;
+}
+
+std::string ResolveTransportTemplateId(const std::optional<GeneratedTransportMap>& transportMap,
+                                       const std::string_view templateId,
+                                       const TransportId templateTransportId)
+{
+    if (!templateId.empty() || !transportMap.has_value() || templateTransportId == 0)
+    {
+        return std::string(templateId);
+    }
+
+    const TransportMapTemplateEntry* templateEntry = FindTransportTemplateEntry(*transportMap, templateTransportId);
+    return templateEntry == nullptr ? std::string(templateId) : templateEntry->templateId;
+}
+
 const PageBlinkDefinition* ResolvePageDefaultBlink(const PageDefinition& page)
 {
     if (page.defaultBlinkTypeName.empty())
@@ -129,7 +180,13 @@ std::string BuildBlinkTypePreviewLabel(const PageDefinition& page, const Reticle
 
 ReticleKind ClassifyReticle(const PageDefinition& page, std::string_view reticleId)
 {
-    if (page.strobe.has_value() && page.strobe->reticle.id == reticleId)
+    if (std::any_of(
+            page.strobes.begin(),
+            page.strobes.end(),
+            [reticleId](const PageStrobeDefinition& strobe)
+            {
+                return strobe.reticle.id == reticleId;
+            }))
     {
         return ReticleKind::Strobe;
     }
@@ -445,7 +502,7 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
         std::string(feedbackStatus));
 
     state_.NoteCommandTraffic(drainedBatches.size(), commandCount);
-    RecordObservedRuntimeState(drainedBatches);
+    RecordObservedRuntimeState(liveScene, drainedBatches);
 
     if (!state_.Active())
     {
@@ -506,6 +563,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
 
     const SceneRegistry& displayScene = UsesPreviewScene() ? preview_.Scene() : liveScene;
     const auto pages = displayScene.Pages();
+    RuntimeDebugInspectorFrameState sceneFrameState;
 
     auto selectFirstReticle =
         [&](std::string* statusOut) -> bool
@@ -717,271 +775,126 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         }
 
         RefreshPreviewFromLive(liveScene);
+        sceneFrameState.InvalidateSnapshot();
     }
 
-    ImGui::SameLine();
-    if (ImGui::BeginCombo("Preview page", comboPreview.c_str()))
+    if (sceneFrameState.SnapshotValid())
     {
-        for (const PageSummary& page : pages)
+        ImGui::SameLine();
+        if (ImGui::BeginCombo("Preview page", comboPreview.c_str()))
         {
-            ImGui::PushID(page.name.c_str());
-            const bool selected = comboPreview == page.name;
-            if (ImGui::Selectable(page.name.c_str(), selected))
+            for (const PageSummary& page : pages)
             {
-                state_.EnablePageBypass(page.name);
-                RefreshPreviewFromLive(liveScene);
-            }
+                ImGui::PushID(page.name.c_str());
+                const bool selected = comboPreview == page.name;
+                if (ImGui::Selectable(page.name.c_str(), selected))
+                {
+                    state_.EnablePageBypass(page.name);
+                    RefreshPreviewFromLive(liveScene);
+                    sceneFrameState.InvalidateSnapshot();
+                }
 
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+                ImGui::PopID();
             }
-            ImGui::PopID();
+            ImGui::EndCombo();
         }
-        ImGui::EndCombo();
     }
     ImGui::PopID();
 
-    ImGui::Text("Live active page: %s", liveScene.ActivePageName().c_str());
-    ImGui::Text("Preview active page: %s", displayScene.ActivePageName().c_str());
-
-    ImGui::BeginChild("DebugBody", ImVec2(0.0f, -kBottomPanelHeight), false);
-    ImGui::BeginChild("ReticleTreePane", ImVec2(treePaneWidth, 0.0f), true);
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Pages and reticles");
-    ImGui::TextDisabled("Select one reticle to inspect or bypass it locally.");
-    ImGui::Spacing();
-
-    for (const PageSummary& page : pages)
+    if (sceneFrameState.SnapshotValid())
     {
-        const PageDefinition* pageDefinition = FindPage(displayScene.Document(), page.name);
-        if (pageDefinition == nullptr)
-        {
-            continue;
-        }
-
-        const bool pageSelected = state_.SelectedPage() == page.name;
-        ImGuiTreeNodeFlags pageFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-        if (pageSelected)
-        {
-            pageFlags |= ImGuiTreeNodeFlags_Selected;
-        }
-
-        std::string pageLabel = page.name;
-        if (page.active)
-        {
-            pageLabel.append(" [active]");
-        }
-        if (state_.PageBypassed() && state_.ForcedActivePage() == page.name)
-        {
-            pageLabel.append(" [bypassed]");
-        }
-        ImGui::PushID(page.name.c_str());
-        const bool pageOpened = ImGui::TreeNodeEx("##page_tree", pageFlags, "%s", pageLabel.c_str());
-        if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
-        {
-            state_.SelectPage(page.name);
-        }
-
-        if (!pageOpened)
-        {
-            ImGui::PopID();
-            continue;
-        }
-
-        const auto reticleViews = displayScene.CollectPageReticleViews(page.name);
-        const auto reticlePointers = displayScene.CollectPageReticlePointers(page.name);
-        const std::size_t reticleCount = std::min(reticleViews.size(), reticlePointers.size());
-
-        for (std::size_t index = 0; index < reticleCount; ++index)
-        {
-            const ReticleGroup* reticle = reticlePointers[index];
-            if (reticle == nullptr)
-            {
-                continue;
-            }
-
-            ReticleUiEntry entry;
-            entry.key = ReticleKey {page.name, reticle->id, ClassifyReticle(*pageDefinition, reticle->id)};
-            entry.effectiveVisible = reticleViews[index].visible;
-            entry.label = std::string("[") + ReticleKindLabel(entry.key.kind) + "] " +
-                          (reticle->id.empty() ? std::string {"<unnamed>"} : reticle->id);
-            if (state_.ReticleBypassed(entry.key))
-            {
-                entry.label.append(" [bypassed]");
-            }
-            if (!entry.effectiveVisible)
-            {
-                entry.label.append(" [hidden]");
-            }
-            const bool reticleSelected =
-                state_.SelectedReticle().has_value() && *state_.SelectedReticle() == entry.key;
-            ImGuiTreeNodeFlags reticleFlags =
-                ImGuiTreeNodeFlags_Leaf |
-                ImGuiTreeNodeFlags_NoTreePushOnOpen |
-                ImGuiTreeNodeFlags_SpanAvailWidth;
-            if (reticleSelected)
-            {
-                reticleFlags |= ImGuiTreeNodeFlags_Selected;
-            }
-
-            ImGui::PushID(static_cast<int>(entry.key.kind));
-            ImGui::PushID(reticle->id.c_str());
-            ImGui::PushID(static_cast<int>(index));
-            ImGui::TreeNodeEx("##reticle_tree", reticleFlags, "%s", entry.label.c_str());
-            if (ImGui::IsItemClicked())
-            {
-                state_.SelectReticle(entry.key);
-            }
-            ImGui::PopID();
-            ImGui::PopID();
-            ImGui::PopID();
-        }
-
-        ImGui::TreePop();
-        ImGui::PopID();
-    }
-    ImGui::EndChild();
-
-    ImGui::SameLine();
-
-    ImGui::BeginChild("ReticleInspectorPane", ImVec2(0.0f, 0.0f), true);
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Inspector");
-    if (!state_.SelectedReticle().has_value())
-    {
-        ImGui::TextDisabled("Select one reticle in the tree to inspect it.");
+        ImGui::Text("Live active page: %s", liveScene.ActivePageName().c_str());
+        ImGui::Text("Preview active page: %s", displayScene.ActivePageName().c_str());
     }
     else
     {
-        const ReticleKey selectedKey = *state_.SelectedReticle();
-        const PageDefinition* page = FindPage(displayScene.Document(), selectedKey.pageName);
-        const ReticleGroup* inspectedReticle = findSelectedReticle();
-        if (page == nullptr || inspectedReticle == nullptr)
+        ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+    }
+
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Strobe override");
+
+    if (!sceneFrameState.SnapshotValid())
+    {
+        ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+    }
+    else
+    {
+        const std::string strobePageName = displayScene.ActivePageName();
+        const PageDefinition* strobePageDefinition = FindPage(displayScene.Document(), strobePageName);
+        if (strobePageDefinition == nullptr || strobePageDefinition->strobes.empty())
         {
-            ImGui::TextColored(ImVec4(1.00f, 0.45f, 0.45f, 1.00f), "The selected reticle is no longer available.");
+            ImGui::TextDisabled("The preview page does not expose any strobe.");
         }
         else
         {
-            const ReticleBypassState* bypass = state_.FindReticleBypass(selectedKey);
-            bool bypassed = bypass != nullptr;
-            const PageBlinkDefinition* defaultBlink = ResolvePageDefaultBlink(*page);
-            const bool pageHasNamedBlinkTypes = !page->blinkTypes.empty();
-            RuntimeDebugInspectorFrameState inspectorFrameState;
-            ImGui::PushID(selectedKey.pageName.c_str());
-            ImGui::PushID(static_cast<int>(selectedKey.kind));
-            ImGui::PushID(selectedKey.reticleId.c_str());
-            ImGui::Text("Page: %s", selectedKey.pageName.c_str());
-            ImGui::Text("Reticle: %s", selectedKey.reticleId.c_str());
-            ImGui::Text("Kind: %s", ReticleKindLabel(selectedKey.kind));
-            if (!inspectedReticle->sourceTemplateId.empty())
+            const std::optional<StrobeSummary> liveStrobe = liveScene.StrobeForPage(strobePageName);
+            const std::optional<StrobeSummary> previewStrobe = displayScene.StrobeForPage(strobePageName);
+            const std::optional<StrobeMagnetSummary> previewMagnet = displayScene.StrobeMagnetForPage(strobePageName);
+            const std::optional<StrobeCaptureResult> previewCapture = displayScene.CaptureWithStrobe(strobePageName);
+            const PageStrobeDefinition* authoredActiveStrobe = FindActivePageStrobeDefinition(*strobePageDefinition);
+
+            std::string previewStrobeName;
+            if (const std::string* forcedStrobe = state_.ForcedActiveStrobe(strobePageName); forcedStrobe != nullptr)
             {
-                ImGui::Text("Template: %s", inspectedReticle->sourceTemplateId.c_str());
+                previewStrobeName = *forcedStrobe;
+            }
+            else if (previewStrobe.has_value())
+            {
+                previewStrobeName = previewStrobe->strobeName;
+            }
+            else if (authoredActiveStrobe != nullptr)
+            {
+                previewStrobeName = authoredActiveStrobe->name;
+            }
+            else
+            {
+                previewStrobeName = strobePageDefinition->strobes.front().name;
             }
 
-            if (ImGui::Checkbox("Bypassed", &bypassed))
+            bool strobeBypassed = state_.StrobeBypassed(strobePageName);
+            ImGui::PushID("StrobeOverride");
+            if (ImGui::Checkbox("Bypass active strobe selection", &strobeBypassed))
             {
-                if (bypassed)
+                if (strobeBypassed)
                 {
-                    state_.EnsureReticleBypass(selectedKey, *inspectedReticle);
+                    state_.EnableStrobeBypass(strobePageName, previewStrobeName);
                     state_.SetTestPanelStatus(
-                        "Reticle '" + selectedKey.reticleId + "' is now owned by the debug overlay.");
+                        "Preview now forces strobe '" + previewStrobeName + "' on page '" + strobePageName + "'.");
                 }
                 else
                 {
-                    state_.ReleaseReticleBypass(selectedKey);
+                    state_.DisableStrobeBypass(strobePageName);
                     state_.SetTestPanelStatus(
-                        "Reticle '" + selectedKey.reticleId + "' now follows the last UDP state again.");
+                        "Preview now follows the live strobe selection again on page '" + strobePageName + "'.");
                 }
 
                 RefreshPreviewFromLive(liveScene);
-                inspectorFrameState.InvalidateSnapshot();
+                sceneFrameState.InvalidateSnapshot();
             }
 
-            if (inspectorFrameState.SnapshotValid())
+            if (sceneFrameState.SnapshotValid())
             {
-                ImGui::Separator();
-
-                bool visible = inspectedReticle->visible;
-                if (ImGui::Checkbox("Visible", &visible))
+                ImGui::SameLine();
+                if (ImGui::BeginCombo("Preview strobe", previewStrobeName.c_str()))
                 {
-                    mutateSelectedReticle(
-                        [&](ReticleGroup& draft)
-                        {
-                            draft.visible = visible;
-                        },
-                        "Updated reticle visibility through the manual debug bypass.");
-                    inspectorFrameState.InvalidateSnapshot();
-                }
-            }
-
-            if (inspectorFrameState.SnapshotValid())
-            {
-                bool blinkEnabled = inspectedReticle->blink.enabled;
-                const bool canEnableBlink =
-                    blinkEnabled || !inspectedReticle->blink.typeName.empty() || defaultBlink != nullptr;
-                ImGui::BeginDisabled(!canEnableBlink);
-                if (ImGui::Checkbox("Blink enabled", &blinkEnabled))
-                {
-                    mutateSelectedReticle(
-                        [&](ReticleGroup& draft)
-                        {
-                            draft.blink.enabled = blinkEnabled;
-                        },
-                        "Updated reticle blink state.");
-                    inspectorFrameState.InvalidateSnapshot();
-                }
-                ImGui::EndDisabled();
-            }
-
-            if (inspectorFrameState.SnapshotValid())
-            {
-                std::string blinkTypeName = inspectedReticle->blink.typeName;
-                const bool canClearToPageDefault = !blinkTypeName.empty() && defaultBlink != nullptr;
-                const bool canSelectNamedBlinkType = pageHasNamedBlinkTypes;
-                const bool canEditBlinkType = canClearToPageDefault || canSelectNamedBlinkType;
-                const std::string blinkTypePreview = BuildBlinkTypePreviewLabel(*page, inspectedReticle->blink);
-                ImGui::BeginDisabled(!canEditBlinkType);
-                if (ImGui::BeginCombo("Blink type", blinkTypePreview.c_str()))
-                {
-                    const bool noTypeSelected = blinkTypeName.empty();
-                    if (defaultBlink != nullptr && ImGui::Selectable("<page default>", noTypeSelected))
+                    for (const PageStrobeDefinition& strobe : strobePageDefinition->strobes)
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
-                            {
-                                draft.blink.typeName.clear();
-                                draft.blink.normalizedTypeName.clear();
-                                draft.blink.durationMs = 0;
-                            },
-                            "Cleared the reticle-specific blink type.");
-                        inspectorFrameState.InvalidateSnapshot();
-                    }
-                    if (inspectorFrameState.SnapshotValid() && noTypeSelected)
-                    {
-                        ImGui::SetItemDefaultFocus();
-                    }
-
-                    for (const PageBlinkDefinition& blinkType : page->blinkTypes)
-                    {
-                        if (!inspectorFrameState.SnapshotValid())
+                        const bool selected = previewStrobeName == strobe.name;
+                        if (ImGui::Selectable(strobe.name.c_str(), selected))
                         {
+                            state_.EnableStrobeBypass(strobePageName, strobe.name);
+                            state_.SetTestPanelStatus(
+                                "Preview now forces strobe '" + strobe.name + "' on page '" + strobePageName + "'.");
+                            RefreshPreviewFromLive(liveScene);
+                            sceneFrameState.InvalidateSnapshot();
                             break;
                         }
 
-                        const bool selected = blinkTypeName == blinkType.name;
-                        if (ImGui::Selectable(blinkType.name.c_str(), selected))
-                        {
-                            mutateSelectedReticle(
-                                [&](ReticleGroup& draft)
-                                {
-                                    draft.blink.enabled = true;
-                                    draft.blink.typeName = blinkType.name;
-                                    draft.blink.normalizedTypeName = blinkType.normalizedName;
-                                    draft.blink.durationMs = blinkType.durationMs;
-                                },
-                                "Updated the reticle-specific blink type.");
-                            inspectorFrameState.InvalidateSnapshot();
-                            break;
-                        }
                         if (selected)
                         {
                             ImGui::SetItemDefaultFocus();
@@ -989,198 +902,533 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     }
                     ImGui::EndCombo();
                 }
-                ImGui::EndDisabled();
-
-                if (!pageHasNamedBlinkTypes && defaultBlink == nullptr)
-                {
-                    ImGui::TextDisabled("This page does not define any blink type.");
-                }
-                else if (blinkTypeName.empty() && !CanResolveBlinkState(*page, inspectedReticle->blink))
-                {
-                    ImGui::TextDisabled("Pick one named blink type before enabling blinking on this page.");
-                }
             }
+            ImGui::PopID();
 
-            if (inspectorFrameState.SnapshotValid())
+            if (!sceneFrameState.SnapshotValid())
             {
-                std::array<float, 2> position {
-                    inspectedReticle->transform.position.x,
-                    inspectedReticle->transform.position.y};
-                if (ImGui::DragFloat2("Position", position.data(), 0.005f, -1.5f, 1.5f, "%.4f"))
-                {
-                    mutateSelectedReticle(
-                        [&](ReticleGroup& draft)
-                        {
-                            draft.transform.position = Vec2 {position[0], position[1]};
-                        },
-                        "Updated the reticle position.");
-                    inspectorFrameState.InvalidateSnapshot();
-                }
-            }
-
-            if (inspectorFrameState.SnapshotValid())
-            {
-                float rotation = inspectedReticle->transform.rotationDegrees;
-                if (ImGui::DragFloat("Rotation", &rotation, 0.25f, -360.0f, 360.0f, "%.3f"))
-                {
-                    mutateSelectedReticle(
-                        [&](ReticleGroup& draft)
-                        {
-                            draft.transform.rotationDegrees = rotation;
-                        },
-                        "Updated the reticle rotation.");
-                    inspectorFrameState.InvalidateSnapshot();
-                }
-            }
-
-            if (inspectorFrameState.SnapshotValid())
-            {
-                bool colorOverride = inspectedReticle->overrides.color.has_value();
-                ImVec4 color = ToImGuiColor(ResolveReticleColor(*inspectedReticle));
-                if (ImGui::Checkbox("Color override", &colorOverride))
-                {
-                    mutateSelectedReticle(
-                        [&](ReticleGroup& draft)
-                        {
-                            if (colorOverride)
-                            {
-                                draft.overrides.color = FromImGuiColor(color);
-                            }
-                            else
-                            {
-                                draft.overrides.color.reset();
-                            }
-                        },
-                        colorOverride ? "Enabled one local color override." : "Removed the local color override.");
-                    inspectorFrameState.InvalidateSnapshot();
-                }
-                if (inspectorFrameState.SnapshotValid() && colorOverride && ImGui::ColorEdit4("Color", &color.x))
-                {
-                    mutateSelectedReticle(
-                        [&](ReticleGroup& draft)
-                        {
-                            draft.overrides.color = FromImGuiColor(color);
-                        },
-                        "Updated the local reticle color override.");
-                    inspectorFrameState.InvalidateSnapshot();
-                }
-            }
-
-            if (inspectorFrameState.SnapshotValid())
-            {
-                bool thicknessOverride = inspectedReticle->overrides.thickness.has_value();
-                float thickness = ResolveReticleThickness(*inspectedReticle);
-                if (ImGui::Checkbox("Thickness override", &thicknessOverride))
-                {
-                    mutateSelectedReticle(
-                        [&](ReticleGroup& draft)
-                        {
-                            if (thicknessOverride)
-                            {
-                                draft.overrides.thickness = thickness;
-                            }
-                            else
-                            {
-                                draft.overrides.thickness.reset();
-                            }
-                        },
-                        thicknessOverride ? "Enabled one local thickness override."
-                                          : "Removed the local thickness override.");
-                    inspectorFrameState.InvalidateSnapshot();
-                }
-                if (inspectorFrameState.SnapshotValid() &&
-                    thicknessOverride &&
-                    ImGui::DragFloat("Thickness", &thickness, 0.0005f, 0.0001f, 0.05f, "%.4f"))
-                {
-                    mutateSelectedReticle(
-                        [&](ReticleGroup& draft)
-                        {
-                            draft.overrides.thickness = thickness;
-                        },
-                        "Updated the local reticle thickness override.");
-                    inspectorFrameState.InvalidateSnapshot();
-                }
-            }
-
-            if (inspectorFrameState.SnapshotValid())
-            {
-                ImGui::Separator();
-                ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Text primitives");
-                bool anyEditableText = false;
-                for (std::size_t primitiveIndex = 0; primitiveIndex < inspectedReticle->primitives.size(); ++primitiveIndex)
-                {
-                    const Primitive& primitive = inspectedReticle->primitives[primitiveIndex];
-                    if (auto* geometry = std::get_if<TextGeometry>(&primitive.geometry); geometry != nullptr)
-                    {
-                        anyEditableText = true;
-                        std::string text = geometry->text;
-                        const std::string textLabel =
-                            "Text##" + primitive.id + "_" + std::to_string(primitiveIndex);
-                        if (EditStringField(textLabel.c_str(), text))
-                        {
-                            mutateSelectedReticle(
-                                [&](ReticleGroup& draft)
-                                {
-                                    if (Primitive* editable = FindPrimitive(draft, primitive.id); editable != nullptr)
-                                    {
-                                        if (TextGeometry* editableText = std::get_if<TextGeometry>(&editable->geometry);
-                                            editableText != nullptr)
-                                        {
-                                            editableText->text = text;
-                                        }
-                                    }
-                                },
-                                "Updated one text primitive.");
-                            inspectorFrameState.InvalidateSnapshot();
-                            break;
-                        }
-
-                        float letterSpacing = geometry->letterSpacing;
-                        const std::string spacingLabel =
-                            "Letter spacing##" + primitive.id + "_" + std::to_string(primitiveIndex);
-                        if (ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, 0.0f, 0.2f, "%.4f"))
-                        {
-                            mutateSelectedReticle(
-                                [&](ReticleGroup& draft)
-                                {
-                                    if (Primitive* editable = FindPrimitive(draft, primitive.id); editable != nullptr)
-                                    {
-                                        if (TextGeometry* editableText = std::get_if<TextGeometry>(&editable->geometry);
-                                            editableText != nullptr)
-                                        {
-                                            editableText->letterSpacing = letterSpacing;
-                                        }
-                                    }
-                                },
-                                "Updated one text primitive letter spacing.");
-                            inspectorFrameState.InvalidateSnapshot();
-                            break;
-                        }
-                    }
-                }
-                if (inspectorFrameState.SnapshotValid() && !anyEditableText)
-                {
-                    ImGui::TextDisabled("No editable text primitive is attached to this reticle.");
-                }
-            }
-
-            if (inspectorFrameState.SnapshotValid())
-            {
-                ImGui::Separator();
-                ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Primitive tree");
-                DrawPrimitiveTree(*inspectedReticle);
+                ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
             }
             else
             {
-                ImGui::Separator();
-                ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+                if (liveStrobe.has_value())
+                {
+                    ImGui::Text("Live active strobe: %s", liveStrobe->strobeName.c_str());
+                }
+                else
+                {
+                    if (liveScene.ActivePageName() != strobePageName)
+                    {
+                        ImGui::TextDisabled("Live active strobe: page is not active in the live runtime.");
+                    }
+                    else
+                    {
+                        ImGui::TextDisabled("Live active strobe: unavailable.");
+                    }
+                }
+
+                if (previewStrobe.has_value())
+                {
+                    ImGui::Text("Preview active strobe: %s", previewStrobe->strobeName.c_str());
+                    bool previewStrobeVisible = previewStrobe->visible;
+                    ImGui::BeginDisabled(true);
+                    ImGui::Checkbox("Preview strobe visible", &previewStrobeVisible);
+                    ImGui::EndDisabled();
+                    ImGui::Text(
+                        "Preview position: (%.4f, %.4f)",
+                        previewStrobe->position.x,
+                        previewStrobe->position.y);
+
+                    if (previewStrobe->capture.shape == StrobeCaptureShape::Circle)
+                    {
+                        ImGui::Text("Capture: circle radius %.4f", previewStrobe->capture.radius);
+                    }
+                    else
+                    {
+                        ImGui::Text(
+                            "Capture: rectangle (%.4f, %.4f)",
+                            previewStrobe->capture.size.x,
+                            previewStrobe->capture.size.y);
+                    }
+                }
+                else
+                {
+                    ImGui::TextDisabled("Preview active strobe: unavailable.");
+                }
+
+                if (previewMagnet.has_value())
+                {
+                    ImGui::Text(
+                        "Preview magnet: %s | radius %.4f | strength %.4f",
+                        previewMagnet->enabled ? "enabled" : "disabled",
+                        previewMagnet->radius,
+                        previewMagnet->strength);
+                    if (previewMagnet->magnetized)
+                    {
+                        ImGui::Text(
+                            "Magnetized target: %s at (%.4f, %.4f)",
+                            previewMagnet->reticleId.c_str(),
+                            previewMagnet->targetPosition.x,
+                            previewMagnet->targetPosition.y);
+                    }
+                }
+
+                if (previewCapture.has_value())
+                {
+                    ImGui::Text(
+                        "Capture candidate: %s at (%.4f, %.4f)",
+                        previewCapture->reticleId.c_str(),
+                        previewCapture->position.x,
+                        previewCapture->position.y);
+                }
             }
-            ImGui::PopID();
-            ImGui::PopID();
-            ImGui::PopID();
         }
     }
-    ImGui::EndChild();
+
+    ImGui::BeginChild("DebugBody", ImVec2(0.0f, -kBottomPanelHeight), false);
+    if (!sceneFrameState.SnapshotValid())
+    {
+        ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+    }
+    else
+    {
+        ImGui::BeginChild("ReticleTreePane", ImVec2(treePaneWidth, 0.0f), true);
+        ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Pages and reticles");
+        ImGui::TextDisabled("Select one reticle to inspect or bypass it locally.");
+        ImGui::Spacing();
+
+        for (const PageSummary& page : pages)
+        {
+            const PageDefinition* pageDefinition = FindPage(displayScene.Document(), page.name);
+            if (pageDefinition == nullptr)
+            {
+                continue;
+            }
+
+            const bool pageSelected = state_.SelectedPage() == page.name;
+            ImGuiTreeNodeFlags pageFlags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
+            if (pageSelected)
+            {
+                pageFlags |= ImGuiTreeNodeFlags_Selected;
+            }
+
+            std::string pageLabel = page.name;
+            if (page.active)
+            {
+                pageLabel.append(" [active]");
+            }
+            if (state_.PageBypassed() && state_.ForcedActivePage() == page.name)
+            {
+                pageLabel.append(" [bypassed]");
+            }
+            ImGui::PushID(page.name.c_str());
+            const bool pageOpened = ImGui::TreeNodeEx("##page_tree", pageFlags, "%s", pageLabel.c_str());
+            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+            {
+                state_.SelectPage(page.name);
+            }
+
+            if (!pageOpened)
+            {
+                ImGui::PopID();
+                continue;
+            }
+
+            const auto reticleViews = displayScene.CollectPageReticleViews(page.name);
+            const auto reticlePointers = displayScene.CollectPageReticlePointers(page.name);
+            const std::size_t reticleCount = std::min(reticleViews.size(), reticlePointers.size());
+
+            for (std::size_t index = 0; index < reticleCount; ++index)
+            {
+                const ReticleGroup* reticle = reticlePointers[index];
+                if (reticle == nullptr)
+                {
+                    continue;
+                }
+
+                ReticleUiEntry entry;
+                entry.key = ReticleKey {page.name, reticle->id, ClassifyReticle(*pageDefinition, reticle->id)};
+                entry.effectiveVisible = reticleViews[index].visible;
+                entry.label = std::string("[") + ReticleKindLabel(entry.key.kind) + "] " +
+                              (reticle->id.empty() ? std::string {"<unnamed>"} : reticle->id);
+                if (state_.ReticleBypassed(entry.key))
+                {
+                    entry.label.append(" [bypassed]");
+                }
+                if (!entry.effectiveVisible)
+                {
+                    entry.label.append(" [hidden]");
+                }
+                const bool reticleSelected =
+                    state_.SelectedReticle().has_value() && *state_.SelectedReticle() == entry.key;
+                ImGuiTreeNodeFlags reticleFlags =
+                    ImGuiTreeNodeFlags_Leaf |
+                    ImGuiTreeNodeFlags_NoTreePushOnOpen |
+                    ImGuiTreeNodeFlags_SpanAvailWidth;
+                if (reticleSelected)
+                {
+                    reticleFlags |= ImGuiTreeNodeFlags_Selected;
+                }
+
+                ImGui::PushID(static_cast<int>(entry.key.kind));
+                ImGui::PushID(reticle->id.c_str());
+                ImGui::PushID(static_cast<int>(index));
+                ImGui::TreeNodeEx("##reticle_tree", reticleFlags, "%s", entry.label.c_str());
+                if (ImGui::IsItemClicked())
+                {
+                    state_.SelectReticle(entry.key);
+                }
+                ImGui::PopID();
+                ImGui::PopID();
+                ImGui::PopID();
+            }
+
+            ImGui::TreePop();
+            ImGui::PopID();
+        }
+
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+
+        ImGui::BeginChild("ReticleInspectorPane", ImVec2(0.0f, 0.0f), true);
+        ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Inspector");
+        if (!state_.SelectedReticle().has_value())
+        {
+            ImGui::TextDisabled("Select one reticle in the tree to inspect it.");
+        }
+        else
+        {
+            const ReticleKey selectedKey = *state_.SelectedReticle();
+            const PageDefinition* page = FindPage(displayScene.Document(), selectedKey.pageName);
+            const ReticleGroup* inspectedReticle = findSelectedReticle();
+            if (page == nullptr || inspectedReticle == nullptr)
+            {
+                ImGui::TextColored(ImVec4(1.00f, 0.45f, 0.45f, 1.00f), "The selected reticle is no longer available.");
+            }
+            else
+            {
+                const ReticleBypassState* bypass = state_.FindReticleBypass(selectedKey);
+                bool bypassed = bypass != nullptr;
+                const PageBlinkDefinition* defaultBlink = ResolvePageDefaultBlink(*page);
+                const bool pageHasNamedBlinkTypes = !page->blinkTypes.empty();
+                RuntimeDebugInspectorFrameState inspectorFrameState;
+                ImGui::PushID(selectedKey.pageName.c_str());
+                ImGui::PushID(static_cast<int>(selectedKey.kind));
+                ImGui::PushID(selectedKey.reticleId.c_str());
+                ImGui::Text("Page: %s", selectedKey.pageName.c_str());
+                ImGui::Text("Reticle: %s", selectedKey.reticleId.c_str());
+                ImGui::Text("Kind: %s", ReticleKindLabel(selectedKey.kind));
+                if (!inspectedReticle->sourceTemplateId.empty())
+                {
+                    ImGui::Text("Template: %s", inspectedReticle->sourceTemplateId.c_str());
+                }
+
+                if (ImGui::Checkbox("Bypassed", &bypassed))
+                {
+                    if (bypassed)
+                    {
+                        state_.EnsureReticleBypass(selectedKey, *inspectedReticle);
+                        state_.SetTestPanelStatus(
+                            "Reticle '" + selectedKey.reticleId + "' is now owned by the debug overlay.");
+                    }
+                    else
+                    {
+                        state_.ReleaseReticleBypass(selectedKey);
+                        state_.SetTestPanelStatus(
+                            "Reticle '" + selectedKey.reticleId + "' now follows the last UDP state again.");
+                    }
+
+                    RefreshPreviewFromLive(liveScene);
+                    inspectorFrameState.InvalidateSnapshot();
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    ImGui::Separator();
+
+                    bool visible = inspectedReticle->visible;
+                    if (ImGui::Checkbox("Visible", &visible))
+                    {
+                        mutateSelectedReticle(
+                            [&](ReticleGroup& draft)
+                            {
+                                draft.visible = visible;
+                            },
+                            "Updated reticle visibility through the manual debug bypass.");
+                        inspectorFrameState.InvalidateSnapshot();
+                    }
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    bool blinkEnabled = inspectedReticle->blink.enabled;
+                    const bool canEnableBlink =
+                        blinkEnabled || !inspectedReticle->blink.typeName.empty() || defaultBlink != nullptr;
+                    ImGui::BeginDisabled(!canEnableBlink);
+                    if (ImGui::Checkbox("Blink enabled", &blinkEnabled))
+                    {
+                        mutateSelectedReticle(
+                            [&](ReticleGroup& draft)
+                            {
+                                draft.blink.enabled = blinkEnabled;
+                            },
+                            "Updated reticle blink state.");
+                        inspectorFrameState.InvalidateSnapshot();
+                    }
+                    ImGui::EndDisabled();
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    std::string blinkTypeName = inspectedReticle->blink.typeName;
+                    const bool canClearToPageDefault = !blinkTypeName.empty() && defaultBlink != nullptr;
+                    const bool canSelectNamedBlinkType = pageHasNamedBlinkTypes;
+                    const bool canEditBlinkType = canClearToPageDefault || canSelectNamedBlinkType;
+                    const std::string blinkTypePreview = BuildBlinkTypePreviewLabel(*page, inspectedReticle->blink);
+                    ImGui::BeginDisabled(!canEditBlinkType);
+                    if (ImGui::BeginCombo("Blink type", blinkTypePreview.c_str()))
+                    {
+                        const bool noTypeSelected = blinkTypeName.empty();
+                        if (defaultBlink != nullptr && ImGui::Selectable("<page default>", noTypeSelected))
+                        {
+                            mutateSelectedReticle(
+                                [&](ReticleGroup& draft)
+                                {
+                                    draft.blink.typeName.clear();
+                                    draft.blink.normalizedTypeName.clear();
+                                    draft.blink.durationMs = 0;
+                                },
+                                "Cleared the reticle-specific blink type.");
+                            inspectorFrameState.InvalidateSnapshot();
+                        }
+                        if (inspectorFrameState.SnapshotValid() && noTypeSelected)
+                        {
+                            ImGui::SetItemDefaultFocus();
+                        }
+
+                        for (const PageBlinkDefinition& blinkType : page->blinkTypes)
+                        {
+                            if (!inspectorFrameState.SnapshotValid())
+                            {
+                                break;
+                            }
+
+                            const bool selected = blinkTypeName == blinkType.name;
+                            if (ImGui::Selectable(blinkType.name.c_str(), selected))
+                            {
+                                mutateSelectedReticle(
+                                    [&](ReticleGroup& draft)
+                                    {
+                                        draft.blink.enabled = true;
+                                        draft.blink.typeName = blinkType.name;
+                                        draft.blink.normalizedTypeName = blinkType.normalizedName;
+                                        draft.blink.durationMs = blinkType.durationMs;
+                                    },
+                                    "Updated the reticle-specific blink type.");
+                                inspectorFrameState.InvalidateSnapshot();
+                                break;
+                            }
+                            if (selected)
+                            {
+                                ImGui::SetItemDefaultFocus();
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
+                    ImGui::EndDisabled();
+
+                    if (!pageHasNamedBlinkTypes && defaultBlink == nullptr)
+                    {
+                        ImGui::TextDisabled("This page does not define any blink type.");
+                    }
+                    else if (blinkTypeName.empty() && !CanResolveBlinkState(*page, inspectedReticle->blink))
+                    {
+                        ImGui::TextDisabled("Pick one named blink type before enabling blinking on this page.");
+                    }
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    std::array<float, 2> position {
+                        inspectedReticle->transform.position.x,
+                        inspectedReticle->transform.position.y};
+                    if (ImGui::DragFloat2("Position", position.data(), 0.005f, -1.5f, 1.5f, "%.4f"))
+                    {
+                        mutateSelectedReticle(
+                            [&](ReticleGroup& draft)
+                            {
+                                draft.transform.position = Vec2 {position[0], position[1]};
+                            },
+                            "Updated the reticle position.");
+                        inspectorFrameState.InvalidateSnapshot();
+                    }
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    float rotation = inspectedReticle->transform.rotationDegrees;
+                    if (ImGui::DragFloat("Rotation", &rotation, 0.25f, -360.0f, 360.0f, "%.3f"))
+                    {
+                        mutateSelectedReticle(
+                            [&](ReticleGroup& draft)
+                            {
+                                draft.transform.rotationDegrees = rotation;
+                            },
+                            "Updated the reticle rotation.");
+                        inspectorFrameState.InvalidateSnapshot();
+                    }
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    bool colorOverride = inspectedReticle->overrides.color.has_value();
+                    ImVec4 color = ToImGuiColor(ResolveReticleColor(*inspectedReticle));
+                    if (ImGui::Checkbox("Color override", &colorOverride))
+                    {
+                        mutateSelectedReticle(
+                            [&](ReticleGroup& draft)
+                            {
+                                if (colorOverride)
+                                {
+                                    draft.overrides.color = FromImGuiColor(color);
+                                }
+                                else
+                                {
+                                    draft.overrides.color.reset();
+                                }
+                            },
+                            colorOverride ? "Enabled one local color override." : "Removed the local color override.");
+                        inspectorFrameState.InvalidateSnapshot();
+                    }
+                    if (inspectorFrameState.SnapshotValid() && colorOverride && ImGui::ColorEdit4("Color", &color.x))
+                    {
+                        mutateSelectedReticle(
+                            [&](ReticleGroup& draft)
+                            {
+                                draft.overrides.color = FromImGuiColor(color);
+                            },
+                            "Updated the local reticle color override.");
+                        inspectorFrameState.InvalidateSnapshot();
+                    }
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    bool thicknessOverride = inspectedReticle->overrides.thickness.has_value();
+                    float thickness = ResolveReticleThickness(*inspectedReticle);
+                    if (ImGui::Checkbox("Thickness override", &thicknessOverride))
+                    {
+                        mutateSelectedReticle(
+                            [&](ReticleGroup& draft)
+                            {
+                                if (thicknessOverride)
+                                {
+                                    draft.overrides.thickness = thickness;
+                                }
+                                else
+                                {
+                                    draft.overrides.thickness.reset();
+                                }
+                            },
+                            thicknessOverride ? "Enabled one local thickness override."
+                                              : "Removed the local thickness override.");
+                        inspectorFrameState.InvalidateSnapshot();
+                    }
+                    if (inspectorFrameState.SnapshotValid() &&
+                        thicknessOverride &&
+                        ImGui::DragFloat("Thickness", &thickness, 0.0005f, 0.0001f, 0.05f, "%.4f"))
+                    {
+                        mutateSelectedReticle(
+                            [&](ReticleGroup& draft)
+                            {
+                                draft.overrides.thickness = thickness;
+                            },
+                            "Updated the local reticle thickness override.");
+                        inspectorFrameState.InvalidateSnapshot();
+                    }
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Text primitives");
+                    bool anyEditableText = false;
+                    for (std::size_t primitiveIndex = 0; primitiveIndex < inspectedReticle->primitives.size(); ++primitiveIndex)
+                    {
+                        const Primitive& primitive = inspectedReticle->primitives[primitiveIndex];
+                        if (auto* geometry = std::get_if<TextGeometry>(&primitive.geometry); geometry != nullptr)
+                        {
+                            anyEditableText = true;
+                            std::string text = geometry->text;
+                            const std::string textLabel =
+                                "Text##" + primitive.id + "_" + std::to_string(primitiveIndex);
+                            if (EditStringField(textLabel.c_str(), text))
+                            {
+                                mutateSelectedReticle(
+                                    [&](ReticleGroup& draft)
+                                    {
+                                        if (Primitive* editable = FindPrimitive(draft, primitive.id); editable != nullptr)
+                                        {
+                                            if (TextGeometry* editableText = std::get_if<TextGeometry>(&editable->geometry);
+                                                editableText != nullptr)
+                                            {
+                                                editableText->text = text;
+                                            }
+                                        }
+                                    },
+                                    "Updated one text primitive.");
+                                inspectorFrameState.InvalidateSnapshot();
+                                break;
+                            }
+
+                            float letterSpacing = geometry->letterSpacing;
+                            const std::string spacingLabel =
+                                "Letter spacing##" + primitive.id + "_" + std::to_string(primitiveIndex);
+                            if (ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, 0.0f, 0.2f, "%.4f"))
+                            {
+                                mutateSelectedReticle(
+                                    [&](ReticleGroup& draft)
+                                    {
+                                        if (Primitive* editable = FindPrimitive(draft, primitive.id); editable != nullptr)
+                                        {
+                                            if (TextGeometry* editableText = std::get_if<TextGeometry>(&editable->geometry);
+                                                editableText != nullptr)
+                                            {
+                                                editableText->letterSpacing = letterSpacing;
+                                            }
+                                        }
+                                    },
+                                    "Updated one text primitive letter spacing.");
+                                inspectorFrameState.InvalidateSnapshot();
+                                break;
+                            }
+                        }
+                    }
+                    if (inspectorFrameState.SnapshotValid() && !anyEditableText)
+                    {
+                        ImGui::TextDisabled("No editable text primitive is attached to this reticle.");
+                    }
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Primitive tree");
+                    DrawPrimitiveTree(*inspectedReticle);
+                }
+                else
+                {
+                    ImGui::Separator();
+                    ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+                }
+                ImGui::PopID();
+                ImGui::PopID();
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndChild();
+    }
     ImGui::EndChild();
 
     ImGui::BeginChild("DebugTestPanel", ImVec2(0.0f, 0.0f), true);
@@ -1201,6 +1449,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     ImGui::SameLine();
     if (ImGui::Button("Release all bypasses"))
     {
+        state_.ReleaseAllStrobeBypasses();
         state_.ReleaseAllReticleBypasses();
         state_.DisablePageBypass();
         if (RefreshPreviewFromLive(liveScene))
@@ -1320,20 +1569,27 @@ bool RuntimeDebugOverlay::RefreshPreviewFromLive(const SceneRegistry& liveScene)
     return preview_.ResetFromLive(liveScene, state_);
 }
 
-void RuntimeDebugOverlay::RecordObservedRuntimeState(const std::vector<CommandBatch>& drainedBatches)
+void RuntimeDebugOverlay::RecordObservedRuntimeState(const SceneRegistry& liveScene,
+                                                     const std::vector<CommandBatch>& drainedBatches)
 {
     for (const CommandBatch& batch : drainedBatches)
     {
         for (const UserCommand& command : batch.commands)
         {
             std::visit(
-                [this](const auto& value)
+                [this, &liveScene](const auto& value)
                 {
                     using Command = std::decay_t<decltype(value)>;
 
                     if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
                     {
-                        state_.SetDynamicTemplateVisibility(value.page, value.templateId, value.visible);
+                        state_.SetDynamicTemplateVisibility(
+                            ResolveTransportPageName(liveScene.TransportMap(), value.page, value.pageId),
+                            ResolveTransportTemplateId(
+                                liveScene.TransportMap(),
+                                value.templateId,
+                                value.templateTransportId),
+                            value.visible);
                     }
                     else if constexpr (std::is_same_v<Command, ResetWindowCommand>)
                     {

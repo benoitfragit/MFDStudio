@@ -289,6 +289,15 @@ struct UpdateStrobeCommand
     std::string page;
     /** @brief Optional generated transport id of the page owning the strobe. */
     TransportId pageId = 0;
+    /**
+     * @brief Optional strobe catalog name selected on the page.
+     *
+     * @note This convenience field is resolved to `strobeId` before
+     * serialization. Protocol Buffers transport carries only `strobeId`.
+     */
+    std::string strobe;
+    /** @brief Optional generated transport id of the selected strobe entry. */
+    TransportId strobeId = 0;
     /** @brief Optional activation flag for the strobe. */
     std::optional<bool> active;
     /** @brief Optional logical position override for the strobe. */

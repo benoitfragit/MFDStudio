@@ -77,6 +77,10 @@ struct StrobeMagnetConfig
  */
 struct PageStrobeDefinition
 {
+    /** @brief User-facing strobe name used by the editor and generated APIs. */
+    std::string name;
+    /** @brief Normalized strobe name used internally for fast lookup. */
+    std::string normalizedName;
     /** @brief Reticle used to render the strobe cursor itself. */
     ReticleGroup reticle;
     /** @brief Capture parameters applied around the strobe cursor. */
@@ -243,8 +247,12 @@ struct PageDefinition
     std::vector<ReticleGroup> staticReticles;
     /** @brief Runtime bindings authorizing dynamic reticle templates on the page. */
     std::vector<DynamicReticleLayerBinding> dynamicReticleBindings;
-    /** @brief Optional strobe definition for pages that support capture. */
-    std::optional<PageStrobeDefinition> strobe;
+    /** @brief Named strobe catalog available on the page. */
+    std::vector<PageStrobeDefinition> strobes;
+    /** @brief User-facing active strobe name selected when the page loads. */
+    std::string activeStrobeName;
+    /** @brief Normalized active strobe name used internally for fast lookup. */
+    std::string normalizedActiveStrobeName;
 };
 
 /**
@@ -303,6 +311,75 @@ inline const PageBlinkDefinition* FindPageBlinkDefinition(const PageDefinition& 
     }
 
     return nullptr;
+}
+
+/**
+ * @brief Finds one strobe definition inside a page.
+ * @param page Page to inspect.
+ * @param strobeName Strobe name in user-facing or normalized form.
+ * @return Pointer to the matching strobe, or `nullptr` if it does not exist.
+ */
+inline const PageStrobeDefinition* FindPageStrobeDefinition(const PageDefinition& page,
+                                                            const std::string_view strobeName)
+{
+    const std::string normalizedStrobeName = NormalizePageName(strobeName);
+
+    for (const auto& strobe : page.strobes)
+    {
+        if (strobe.normalizedName == normalizedStrobeName)
+        {
+            return &strobe;
+        }
+    }
+
+    return nullptr;
+}
+
+/**
+ * @brief Finds one mutable strobe definition inside a page.
+ * @param page Page to inspect.
+ * @param strobeName Strobe name in user-facing or normalized form.
+ * @return Pointer to the matching strobe, or `nullptr` if it does not exist.
+ */
+inline PageStrobeDefinition* FindPageStrobeDefinition(PageDefinition& page, const std::string_view strobeName)
+{
+    return const_cast<PageStrobeDefinition*>(
+        FindPageStrobeDefinition(static_cast<const PageDefinition&>(page), strobeName));
+}
+
+/**
+ * @brief Returns the strobe currently marked active on one page.
+ * @param page Page to inspect.
+ * @return Pointer to the active strobe, or `nullptr` when the page has none.
+ */
+inline const PageStrobeDefinition* FindActivePageStrobeDefinition(const PageDefinition& page)
+{
+    if (page.strobes.empty())
+    {
+        return nullptr;
+    }
+
+    if (!page.normalizedActiveStrobeName.empty())
+    {
+        if (const PageStrobeDefinition* active = FindPageStrobeDefinition(page, page.normalizedActiveStrobeName);
+            active != nullptr)
+        {
+            return active;
+        }
+    }
+
+    return &page.strobes.front();
+}
+
+/**
+ * @brief Returns the mutable strobe currently marked active on one page.
+ * @param page Page to inspect.
+ * @return Pointer to the active strobe, or `nullptr` when the page has none.
+ */
+inline PageStrobeDefinition* FindActivePageStrobeDefinition(PageDefinition& page)
+{
+    return const_cast<PageStrobeDefinition*>(
+        FindActivePageStrobeDefinition(static_cast<const PageDefinition&>(page)));
 }
 
 /**

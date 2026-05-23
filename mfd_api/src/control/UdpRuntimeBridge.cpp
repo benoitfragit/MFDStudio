@@ -364,13 +364,18 @@ struct CommandCoalescingKeyVisitor
         return key;
     }
 
-    std::optional<CommandCoalescingKey> operator()(const UpdateStrobeCommand& command) const
+std::optional<CommandCoalescingKey> operator()(const UpdateStrobeCommand& command) const
+{
+    if (command.strobeId != 0 || !command.strobe.empty())
     {
-        CommandCoalescingKey key;
-        key.kind = CommandCoalescingKind::UpdateStrobe;
-        key.page = command.page;
-        key.pageId = command.pageId;
-        return key;
+        return std::nullopt;
+    }
+
+    CommandCoalescingKey key;
+    key.kind = CommandCoalescingKind::UpdateStrobe;
+    key.page = command.page;
+    key.pageId = command.pageId;
+    return key;
     }
 
     template <typename Command>

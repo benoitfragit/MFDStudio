@@ -162,13 +162,17 @@ mfd::PageDefinition MakeRuntimePage()
         mfd::DynamicReticleLayerBinding {"waypoints", std::string(kDefaultLayerId), 1U});
 
     mfd::PageStrobeDefinition strobe;
+    strobe.name = "Default";
+    strobe.normalizedName = "default";
     strobe.reticle = MakeReticle("strobe");
     strobe.capture.shape = mfd::StrobeCaptureShape::Circle;
     strobe.capture.radius = 0.12f;
     strobe.magnet.enabled = true;
     strobe.magnet.radius = 0.15f;
     strobe.magnet.strength = 1.0f;
-    page.strobe = std::move(strobe);
+    page.strobes.push_back(std::move(strobe));
+    page.activeStrobeName = "Default";
+    page.normalizedActiveStrobeName = "default";
     return page;
 }
 
@@ -1051,13 +1055,14 @@ TEST(SceneRegistryTests, InactivePageStrobeStateStaysUnavailableUntilPageBecomes
 TEST(SceneRegistryTests, StrobeMagnetVisualShapeIsOptionalAndRestoresAuthoredReticle)
 {
     mfd::PageDefinition page = MakeRuntimePage();
-    ASSERT_TRUE(page.strobe.has_value());
-    page.strobe->reticle.overrides.thickness = 0.007f;
-    page.strobe->reticle.clipping.mode = mfd::ReticleClipMode::Outer;
-    page.strobe->reticle.clipping.primitiveId = "shape";
-    page.strobe->magnet.visualShapeEnabled = true;
-    page.strobe->magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
-    page.strobe->magnet.visualShapeSize = 0.22f;
+    mfd::PageStrobeDefinition* strobe = mfd::FindActivePageStrobeDefinition(page);
+    ASSERT_NE(strobe, nullptr);
+    strobe->reticle.overrides.thickness = 0.007f;
+    strobe->reticle.clipping.mode = mfd::ReticleClipMode::Outer;
+    strobe->reticle.clipping.primitiveId = "shape";
+    strobe->magnet.visualShapeEnabled = true;
+    strobe->magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
+    strobe->magnet.visualShapeSize = 0.22f;
 
     mfd::MfdDocument document;
     document.pages.push_back(std::move(page));

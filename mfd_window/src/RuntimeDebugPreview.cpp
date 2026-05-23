@@ -48,11 +48,43 @@ const PageDefinition* FindPage(const MfdDocument& document, std::string_view pag
     return FindPageDefinition(document, pageName);
 }
 
+const TransportMapPageEntry* FindTransportPageEntry(const GeneratedTransportMap& map, const TransportId pageId) noexcept
+{
+    const auto iterator = std::find_if(
+        map.pages.begin(),
+        map.pages.end(),
+        [pageId](const TransportMapPageEntry& page)
+        {
+            return page.id == pageId;
+        });
+    return iterator == map.pages.end() ? nullptr : &(*iterator);
+}
+
+std::string ResolveTransportPageName(const std::optional<GeneratedTransportMap>& transportMap,
+                                     const std::string_view pageName,
+                                     const TransportId pageId)
+{
+    if (!pageName.empty() || !transportMap.has_value() || pageId == 0)
+    {
+        return std::string(pageName);
+    }
+
+    const TransportMapPageEntry* pageEntry = FindTransportPageEntry(*transportMap, pageId);
+    return pageEntry == nullptr ? std::string(pageName) : pageEntry->name;
+}
+
 const ReticleGroup* FindAuthoredReticle(const PageDefinition& page, std::string_view reticleId, const ReticleKind kind)
 {
     if (kind == ReticleKind::Strobe)
     {
-        return page.strobe.has_value() && page.strobe->reticle.id == reticleId ? &page.strobe->reticle : nullptr;
+        const auto iterator = std::find_if(
+            page.strobes.begin(),
+            page.strobes.end(),
+            [reticleId](const PageStrobeDefinition& strobe)
+            {
+                return strobe.reticle.id == reticleId;
+            });
+        return iterator == page.strobes.end() ? nullptr : &iterator->reticle;
     }
 
     const auto iterator = std::find_if(
@@ -67,7 +99,13 @@ const ReticleGroup* FindAuthoredReticle(const PageDefinition& page, std::string_
 
 ReticleKind ClassifyReticle(const PageDefinition& page, std::string_view reticleId)
 {
-    if (page.strobe.has_value() && page.strobe->reticle.id == reticleId)
+    if (std::any_of(
+            page.strobes.begin(),
+            page.strobes.end(),
+            [reticleId](const PageStrobeDefinition& strobe)
+            {
+                return strobe.reticle.id == reticleId;
+            }))
     {
         return ReticleKind::Strobe;
     }
@@ -341,7 +379,7 @@ bool ReticleHandleBypassed(const RuntimeDebugState& state, const std::string_vie
 
 std::optional<CommandBatch> FilterBatchForPreview(const CommandBatch& batch,
                                                   const RuntimeDebugState& state,
-                                                  const MfdDocument& document)
+                                                  const SceneRegistry& scene)
 {
     CommandBatch filtered;
     filtered.sequence = batch.sequence;
@@ -367,11 +405,8 @@ std::optional<CommandBatch> FilterBatchForPreview(const CommandBatch& batch,
                 }
                 else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
                 {
-                    const PageDefinition* page = FindPage(document, value.page);
-                    keep = page == nullptr ||
-                           !page->strobe.has_value() ||
-                           !state.ReticleBypassed(
-                               ReticleKey {page->name, page->strobe->reticle.id, ReticleKind::Strobe});
+                    keep = !state.StrobeBypassed(
+                        ResolveTransportPageName(scene.TransportMap(), value.page, value.pageId));
                 }
                 else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
                 {
@@ -422,6 +457,15 @@ bool RuntimeDebugPreview::ResetFromLive(const SceneRegistry& liveScene, const Ru
         scene_.LoadDocument(liveScene.Document(), liveScene.TransportMap());
         processor_ = std::make_unique<CommandProcessor>(scene_);
 
+        if (!liveScene.ActivePageName().empty())
+        {
+            scene_.SetActivePage(liveScene.ActivePageName());
+            if (const auto activeStrobe = liveScene.ActiveStrobeSummary(); activeStrobe.has_value())
+            {
+                scene_.SelectStrobe(activeStrobe->pageName, activeStrobe->strobeName);
+            }
+        }
+
         for (const PageSummary& page : liveScene.Pages())
         {
             if (const auto view = liveScene.ViewForPage(page.name); view.has_value())
@@ -467,11 +511,6 @@ bool RuntimeDebugPreview::ResetFromLive(const SceneRegistry& liveScene, const Ru
         windowPatch.disabled = liveDisplay.disabled;
         scene_.ApplyWindowDisplayPatch(windowPatch);
 
-        if (!liveScene.ActivePageName().empty())
-        {
-            scene_.SetActivePage(liveScene.ActivePageName());
-        }
-
         ready_ = true;
         lastError_.clear();
         if (!ApplyDynamicTemplateVisibility(state) || !ApplyStateOverrides(state))
@@ -504,7 +543,7 @@ bool RuntimeDebugPreview::ApplyLiveBatches(const std::vector<CommandBatch>& batc
 
     for (const CommandBatch& batch : batches)
     {
-        const auto filteredBatch = FilterBatchForPreview(batch, state, scene_.Document());
+        const auto filteredBatch = FilterBatchForPreview(batch, state, scene_);
         if (!filteredBatch.has_value())
         {
             continue;
@@ -531,6 +570,17 @@ bool RuntimeDebugPreview::ApplyStateOverrides(const RuntimeDebugState& state)
     if (!ApplyDynamicTemplateVisibility(state))
     {
         return false;
+    }
+
+    for (const StrobeBypassState& bypass : state.BypassedStrobes())
+    {
+        if (!scene_.SelectStrobe(bypass.pageName, bypass.strobeName))
+        {
+            lastError_ =
+                "Unable to force strobe '" + bypass.strobeName + "' on page '" + bypass.pageName + "' in the debug preview.";
+            ready_ = false;
+            return false;
+        }
     }
 
     if (state.PageBypassed() && !state.ForcedActivePage().empty())

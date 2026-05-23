@@ -88,6 +88,17 @@ TEST(EditorTutorialDataTests, TutorialMetadataGuidesRadarTrackLayerFlow)
     EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("RadarTrackLayer"), std::string_view::npos);
     EXPECT_NE(std::string_view(dynamicTemplateStep.instruction).find("inspired_steering_cue"),
               std::string_view::npos);
+
+    const auto& defaultStrobeStep = Step(editor::tutorial::TutorialStepId::AddPage1DefaultStrobe);
+    EXPECT_STREQ(defaultStrobeStep.targetId, "page_strobe_default");
+    EXPECT_NE(std::string_view(defaultStrobeStep.instruction).find("Default"), std::string_view::npos);
+    EXPECT_NE(std::string_view(defaultStrobeStep.instruction).find("mfd_tutorial_strobe_cursor"),
+              std::string_view::npos);
+
+    const auto& alternativeStrobeStep = Step(editor::tutorial::TutorialStepId::AddPage1AlternativeStrobe);
+    EXPECT_STREQ(alternativeStrobeStep.targetId, "page_strobe_alternative");
+    EXPECT_NE(std::string_view(alternativeStrobeStep.instruction).find("Strobe1"), std::string_view::npos);
+    EXPECT_NE(std::string_view(alternativeStrobeStep.instruction).find("runtime"), std::string_view::npos);
 }
 
 TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)

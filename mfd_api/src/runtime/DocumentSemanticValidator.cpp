@@ -152,22 +152,20 @@ void ValidatePageReticleIds(const PageDefinition& page, std::vector<SemanticVali
         }
     }
 
-    if (!page.strobe.has_value())
+    for (const PageStrobeDefinition& strobe : page.strobes)
     {
-        return;
-    }
-
-    const std::string normalizedId = NormalizePageName(page.strobe->reticle.id);
-    if (!normalizedId.empty() && !normalizedIds.insert(normalizedId).second)
-    {
-        AddDiagnostic(
-            diagnostics,
-            "MFD018",
-            "MFD018: page \"" + page.name + "\" contains duplicate reticle id \"" +
-                page.strobe->reticle.id + "\" after normalization.",
-            page.name,
-            page.strobe->reticle.id,
-            {});
+        const std::string normalizedId = NormalizePageName(strobe.reticle.id);
+        if (!normalizedId.empty() && !normalizedIds.insert(normalizedId).second)
+        {
+            AddDiagnostic(
+                diagnostics,
+                "MFD018",
+                "MFD018: page \"" + page.name + "\" contains duplicate reticle id \"" +
+                    strobe.reticle.id + "\" after normalization.",
+                page.name,
+                strobe.reticle.id,
+                {});
+        }
     }
 }
 
@@ -180,9 +178,9 @@ void ValidatePage(const PageDefinition& page, std::vector<SemanticValidationDiag
         ValidateReticle(page.name, reticle, diagnostics);
     }
 
-    if (page.strobe.has_value())
+    for (const PageStrobeDefinition& strobe : page.strobes)
     {
-        ValidateReticle(page.name, page.strobe->reticle, diagnostics);
+        ValidateReticle(page.name, strobe.reticle, diagnostics);
     }
 }
 

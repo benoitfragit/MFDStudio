@@ -36,14 +36,15 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLaunchOptions.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorWorkspaceLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLayerFocusController.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPagePreviewHit.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageManagementService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageImportService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageRenameService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPrimitiveClipboardService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleExtractionService.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleRenameService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPagePreviewViewOptions.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleUsageHighlightService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleRenameService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h)

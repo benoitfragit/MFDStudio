@@ -110,6 +110,7 @@ message UpdateStrobeCommand
   optional bool active = 1;
   optional Vec2 position = 2;
   uint64 page_id = 3;
+  uint64 strobe_id = 4;
 }
 
 message UpsertDynamicReticleCommand

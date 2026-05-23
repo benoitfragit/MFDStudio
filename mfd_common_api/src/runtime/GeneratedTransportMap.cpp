@@ -322,6 +322,33 @@ std::vector<TransportMapBlinkTypeEntry> ParseBlinkTypes(const json& node)
     return blinkTypes;
 }
 
+std::vector<TransportMapStrobeEntry> ParseStrobes(const json& node)
+{
+    std::vector<TransportMapStrobeEntry> strobes;
+    strobes.reserve(node.size());
+
+    for (std::size_t index = 0; index < node.size(); ++index)
+    {
+        const json& entry = node.at(index);
+        const std::string context = "strobes[" + std::to_string(index) + "]";
+        if (!entry.is_object())
+        {
+            throw std::runtime_error(context + " must be a JSON object");
+        }
+
+        TransportMapStrobeEntry strobe;
+        strobe.id = RequireTransportIdField(entry, context, "id");
+        strobe.pageId = RequireTransportIdField(entry, context, "pageId");
+        strobe.strobeName = RequireStringField(entry, context, "strobeName");
+        strobe.normalizedStrobeName = RequireStringField(entry, context, "normalizedStrobeName");
+        strobe.reticleId = RequireStringField(entry, context, "reticleId");
+        strobe.defaultActive = RequireBoolField(entry, context, "defaultActive");
+        strobes.push_back(std::move(strobe));
+    }
+
+    return strobes;
+}
+
 template <typename Entry>
 void EnsureUniqueIds(const std::vector<Entry>& entries,
                      const std::string_view tableName,
@@ -401,6 +428,16 @@ void ValidateReferences(const GeneratedTransportMap& map)
                 "' references unknown page id " + std::to_string(blinkType.pageId));
         }
     }
+
+    for (const auto& strobe : map.strobes)
+    {
+        if (pagesById.find(strobe.pageId) == pagesById.end())
+        {
+            throw std::runtime_error(
+                "Generated transport map strobe '" + strobe.strobeName +
+                "' references unknown page id " + std::to_string(strobe.pageId));
+        }
+    }
 }
 
 GeneratedTransportMap ParseGeneratedTransportMap(const std::filesystem::path& sourceFile, const json& root)
@@ -431,6 +468,7 @@ GeneratedTransportMap ParseGeneratedTransportMap(const std::filesystem::path& so
     map.primitives = ParsePrimitives(RequireArrayField(root, "generatedTransportMap", "primitives"));
     map.templates = ParseTemplates(RequireArrayField(root, "generatedTransportMap", "templates"));
     map.blinkTypes = ParseBlinkTypes(RequireArrayField(root, "generatedTransportMap", "blinkTypes"));
+    map.strobes = ParseStrobes(RequireArrayField(root, "generatedTransportMap", "strobes"));
 
     std::unordered_map<TransportId, std::string> idOwners;
     EnsureUniqueIds(map.pages, "pages", idOwners);
@@ -438,6 +476,7 @@ GeneratedTransportMap ParseGeneratedTransportMap(const std::filesystem::path& so
     EnsureUniqueIds(map.primitives, "primitives", idOwners);
     EnsureUniqueIds(map.templates, "templates", idOwners);
     EnsureUniqueIds(map.blinkTypes, "blinkTypes", idOwners);
+    EnsureUniqueIds(map.strobes, "strobes", idOwners);
     ValidateReferences(map);
     return map;
 }

@@ -63,6 +63,7 @@ void RuntimeDebugState::ResetInteractiveState()
     forcedActivePage_.clear();
     selectedPage_.clear();
     selectedReticle_.reset();
+    strobeBypasses_.clear();
     reticleBypasses_.clear();
     testPanelStatus_.clear();
 }
@@ -128,6 +129,51 @@ bool RuntimeDebugState::ReticleBypassed(const ReticleKey& key) const noexcept
     return reticleBypasses_.find(key) != reticleBypasses_.end();
 }
 
+bool RuntimeDebugState::StrobeBypassed(const std::string_view pageName) const noexcept
+{
+    return strobeBypasses_.find(std::string(pageName)) != strobeBypasses_.end();
+}
+
+const std::string* RuntimeDebugState::ForcedActiveStrobe(const std::string_view pageName) const noexcept
+{
+    const auto iterator = strobeBypasses_.find(std::string(pageName));
+    return iterator == strobeBypasses_.end() ? nullptr : &iterator->second;
+}
+
+void RuntimeDebugState::EnableStrobeBypass(std::string pageName, std::string strobeName)
+{
+    if (pageName.empty() || strobeName.empty())
+    {
+        return;
+    }
+
+    selectedPage_ = pageName;
+    strobeBypasses_.insert_or_assign(std::move(pageName), std::move(strobeName));
+}
+
+void RuntimeDebugState::DisableStrobeBypass(const std::string_view pageName)
+{
+    strobeBypasses_.erase(std::string(pageName));
+}
+
+void RuntimeDebugState::ReleaseAllStrobeBypasses()
+{
+    strobeBypasses_.clear();
+}
+
+std::vector<StrobeBypassState> RuntimeDebugState::BypassedStrobes() const
+{
+    std::vector<StrobeBypassState> bypasses;
+    bypasses.reserve(strobeBypasses_.size());
+
+    for (const auto& [pageName, strobeName] : strobeBypasses_)
+    {
+        bypasses.push_back(StrobeBypassState {pageName, strobeName});
+    }
+
+    return bypasses;
+}
+
 const ReticleBypassState* RuntimeDebugState::FindReticleBypass(const ReticleKey& key) const noexcept
 {
     const auto iterator = reticleBypasses_.find(key);
@@ -177,7 +223,7 @@ std::vector<ReticleKey> RuntimeDebugState::BypassedReticles() const
 
 bool RuntimeDebugState::HasInteractiveOverrides() const noexcept
 {
-    return pageBypassed_ || !reticleBypasses_.empty();
+    return pageBypassed_ || !strobeBypasses_.empty() || !reticleBypasses_.empty();
 }
 
 void RuntimeDebugState::SetDynamicTemplateVisibility(std::string pageName, std::string templateId, const bool visible)

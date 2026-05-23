@@ -406,6 +406,37 @@ mfd::TransportId BlinkType::GeneratedId() const noexcept
     return transportId_;
 }
 
+StrobeType::StrobeType(const std::string_view name,
+                       StrobeInfo info,
+                       const mfd::TransportId transportId,
+                       const bool defaultActive) :
+    name_(name),
+    info_(std::move(info)),
+    transportId_(transportId),
+    defaultActive_(defaultActive)
+{
+}
+
+const std::string& StrobeType::Name() const noexcept
+{
+    return name_;
+}
+
+mfd::TransportId StrobeType::GeneratedId() const noexcept
+{
+    return transportId_;
+}
+
+const StrobeInfo& StrobeType::Info() const noexcept
+{
+    return info_;
+}
+
+bool StrobeType::IsDefaultActive() const noexcept
+{
+    return defaultActive_;
+}
+
 bool RuntimeFeedbackState::Apply(const mfd::StrobeStatusFeedback& feedback)
 {
     const std::string normalizedPageName = NormalizeFeedbackKey(feedback.pageName);
@@ -1238,12 +1269,23 @@ void TextReticle::SetValue(std::string value)
 }
 
 StrobeHandle::StrobeHandle(const std::string_view pageName,
-                           StrobeInfo info,
+                            StrobeInfo info,
+                            const mfd::TransportId pageTransportId) :
+    pageName_(pageName),
+    pageTransportId_(pageTransportId),
+    strobes_ {StrobeType {"Default", std::move(info), 0, true}}
+{
+    SelectDefaultStrobe();
+}
+
+StrobeHandle::StrobeHandle(const std::string_view pageName,
+                           const std::initializer_list<StrobeType> strobes,
                            const mfd::TransportId pageTransportId) :
     pageName_(pageName),
     pageTransportId_(pageTransportId),
-    info_(std::move(info))
+    strobes_(strobes)
 {
+    SelectDefaultStrobe();
 }
 
 void StrobeHandle::Reset() noexcept
@@ -1253,7 +1295,8 @@ void StrobeHandle::Reset() noexcept
 
 bool StrobeHandle::IsValid() const noexcept
 {
-    return info_.valid;
+    const StrobeType* selectedType = ResolveSelectedType();
+    return selectedType != nullptr && selectedType->Info().valid;
 }
 
 std::string_view StrobeHandle::PageName() const noexcept
@@ -1261,9 +1304,54 @@ std::string_view StrobeHandle::PageName() const noexcept
     return pageName_;
 }
 
+const StrobeType* StrobeHandle::SelectedType() const noexcept
+{
+    return ResolveSelectedType();
+}
+
 const StrobeInfo& StrobeHandle::Info() const noexcept
 {
-    return info_;
+    static const StrobeInfo invalidInfo {};
+    const StrobeType* selectedType = ResolveSelectedType();
+    return selectedType != nullptr ? selectedType->Info() : invalidInfo;
+}
+
+StrobeHandle& StrobeHandle::operator=(const StrobeType& strobeType)
+{
+    Use(strobeType);
+    return *this;
+}
+
+void StrobeHandle::Use(const StrobeType& strobeType)
+{
+    if (strobes_.empty())
+    {
+        return;
+    }
+
+    const auto iterator = std::find_if(
+        strobes_.begin(),
+        strobes_.end(),
+        [&strobeType](const StrobeType& candidate)
+        {
+            return candidate.GeneratedId() == strobeType.GeneratedId() &&
+                   candidate.Name() == strobeType.Name();
+        });
+    if (iterator == strobes_.end())
+    {
+        return;
+    }
+
+    desiredStrobeId_ = iterator->GeneratedId();
+    dirty_ = true;
+}
+
+bool StrobeHandle::IsSelected(const StrobeType& strobeType) const noexcept
+{
+    const StrobeType* selectedType = ResolveSelectedType();
+    return selectedType != nullptr &&
+           selectedType->GeneratedId() == strobeType.GeneratedId() &&
+           selectedType->Name() == strobeType.Name();
 }
 
 void StrobeHandle::SetActive(const bool active)
@@ -1299,15 +1387,23 @@ bool StrobeHandle::AppendCommands(std::vector<mfd::UserCommand>& commands)
     mfd::UpdateStrobeCommand command;
     command.page = pageName_;
     command.pageId = pageTransportId_;
+    const bool selectionChanged = desiredStrobeId_ != lastSentStrobeId_;
 
-    if (!EqualOptional(desiredActive_, lastSentActive_))
+    if (selectionChanged)
+    {
+        command.strobeId = desiredStrobeId_;
+        lastSentStrobeId_ = desiredStrobeId_;
+        emitted = true;
+    }
+
+    if ((selectionChanged && desiredActive_.has_value()) || !EqualOptional(desiredActive_, lastSentActive_))
     {
         command.active = desiredActive_;
         lastSentActive_ = desiredActive_;
         emitted = true;
     }
 
-    if (!EqualOptional(desiredPosition_, lastSentPosition_))
+    if ((selectionChanged && desiredPosition_.has_value()) || !EqualOptional(desiredPosition_, lastSentPosition_))
     {
         command.position = desiredPosition_;
         lastSentPosition_ = desiredPosition_;
@@ -1323,6 +1419,49 @@ bool StrobeHandle::AppendCommands(std::vector<mfd::UserCommand>& commands)
     commands.emplace_back(std::move(command));
     dirty_ = false;
     return true;
+}
+
+const StrobeType* StrobeHandle::ResolveSelectedType() const noexcept
+{
+    if (strobes_.empty())
+    {
+        return nullptr;
+    }
+
+    if (desiredStrobeId_ != 0)
+    {
+        const auto iterator = std::find_if(
+            strobes_.begin(),
+            strobes_.end(),
+            [this](const StrobeType& strobe)
+            {
+                return strobe.GeneratedId() == desiredStrobeId_;
+            });
+        if (iterator != strobes_.end())
+        {
+            return &(*iterator);
+        }
+    }
+
+    return &strobes_.front();
+}
+
+void StrobeHandle::SelectDefaultStrobe() noexcept
+{
+    if (strobes_.empty())
+    {
+        desiredStrobeId_ = 0;
+        return;
+    }
+
+    const auto iterator = std::find_if(
+        strobes_.begin(),
+        strobes_.end(),
+        [](const StrobeType& strobe)
+        {
+            return strobe.IsDefaultActive();
+        });
+    desiredStrobeId_ = iterator != strobes_.end() ? iterator->GeneratedId() : strobes_.front().GeneratedId();
 }
 
 DynamicReticle::DynamicReticle(const std::string_view reticleId) :

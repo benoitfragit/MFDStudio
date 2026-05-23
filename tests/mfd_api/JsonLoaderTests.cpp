@@ -952,16 +952,18 @@ TEST(JsonLoaderTests, LoadDocumentParsesOptionalStrobeMagnetVisualShape)
     const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
 
     ASSERT_EQ(document.pages.size(), 2U);
-    ASSERT_TRUE(document.pages[0].strobe.has_value());
-    EXPECT_TRUE(document.pages[0].strobe->magnet.enabled);
-    EXPECT_FALSE(document.pages[0].strobe->magnet.visualShapeEnabled);
-    EXPECT_EQ(document.pages[0].strobe->magnet.visualShape, mfd::StrobeMagnetVisualShape::Circle);
+    const mfd::PageStrobeDefinition* defaultStrobe = mfd::FindActivePageStrobeDefinition(document.pages[0]);
+    ASSERT_NE(defaultStrobe, nullptr);
+    EXPECT_TRUE(defaultStrobe->magnet.enabled);
+    EXPECT_FALSE(defaultStrobe->magnet.visualShapeEnabled);
+    EXPECT_EQ(defaultStrobe->magnet.visualShape, mfd::StrobeMagnetVisualShape::Circle);
 
-    ASSERT_TRUE(document.pages[1].strobe.has_value());
-    EXPECT_TRUE(document.pages[1].strobe->magnet.enabled);
-    EXPECT_TRUE(document.pages[1].strobe->magnet.visualShapeEnabled);
-    EXPECT_EQ(document.pages[1].strobe->magnet.visualShape, mfd::StrobeMagnetVisualShape::Square);
-    EXPECT_FLOAT_EQ(document.pages[1].strobe->magnet.visualShapeSize, 0.11f);
+    const mfd::PageStrobeDefinition* visualStrobe = mfd::FindActivePageStrobeDefinition(document.pages[1]);
+    ASSERT_NE(visualStrobe, nullptr);
+    EXPECT_TRUE(visualStrobe->magnet.enabled);
+    EXPECT_TRUE(visualStrobe->magnet.visualShapeEnabled);
+    EXPECT_EQ(visualStrobe->magnet.visualShape, mfd::StrobeMagnetVisualShape::Square);
+    EXPECT_FLOAT_EQ(visualStrobe->magnet.visualShapeSize, 0.11f);
 }
 
 TEST(JsonLoaderTests, LoadWindowConfigurationRejectsInvalidPageEntryObject)

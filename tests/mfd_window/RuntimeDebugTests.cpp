@@ -54,6 +54,17 @@ mfd::PageBlinkDefinition MakeBlinkType(std::string name, const std::uint32_t dur
     return blinkType;
 }
 
+mfd::PageStrobeDefinition MakeStrobe(std::string name, std::string reticleId, const mfd::Vec2 position = {})
+{
+    mfd::PageStrobeDefinition strobe;
+    strobe.name = std::move(name);
+    strobe.normalizedName = mfd::NormalizePageName(strobe.name);
+    strobe.reticle = MakeReticle(std::move(reticleId), position);
+    strobe.capture.shape = mfd::StrobeCaptureShape::Circle;
+    strobe.capture.radius = 0.12f;
+    return strobe;
+}
+
 mfd::PageDefinition MakePage(std::string name, const bool defaultPage, std::vector<mfd::ReticleGroup> staticReticles)
 {
     mfd::PageDefinition page;
@@ -82,10 +93,57 @@ mfd::MfdDocument MakeRuntimeDebugDocument()
     return document;
 }
 
+mfd::MfdDocument MakeRuntimeDebugDocumentWithStrobes()
+{
+    mfd::MfdDocument document = MakeRuntimeDebugDocument();
+    for (mfd::PageDefinition& page : document.pages)
+    {
+        if (page.name != "Radar")
+        {
+            continue;
+        }
+
+        page.strobes.push_back(MakeStrobe("Default", "DefaultStrobe"));
+        page.strobes.push_back(MakeStrobe("Strobe1", "AlternativeStrobe", mfd::Vec2 {0.42f, -0.18f}));
+        page.activeStrobeName = "Default";
+        page.normalizedActiveStrobeName = mfd::NormalizePageName(page.activeStrobeName);
+        break;
+    }
+
+    return document;
+}
+
+mfd::GeneratedTransportMap MakeRuntimeDebugTransportMapWithStrobes()
+{
+    mfd::GeneratedTransportMap map;
+    map.mappingHash = "runtime_debug_map";
+    map.pages.push_back({11U, "Radar", mfd::NormalizePageName("Radar"), true, true});
+    map.pages.push_back({12U, "Nav", mfd::NormalizePageName("Nav"), false, false});
+    map.strobes.push_back({101U, 11U, "Default", mfd::NormalizePageName("Default"), "DefaultStrobe", true});
+    map.strobes.push_back({102U, 11U, "Strobe1", mfd::NormalizePageName("Strobe1"), "AlternativeStrobe", false});
+    return map;
+}
+
 mfd::SceneRegistry MakeScene()
 {
     mfd::SceneRegistry scene;
     scene.LoadDocument(MakeRuntimeDebugDocument());
+    scene.SetActivePage("Radar");
+    return scene;
+}
+
+mfd::SceneRegistry MakeMultiStrobeScene()
+{
+    mfd::SceneRegistry scene;
+    scene.LoadDocument(MakeRuntimeDebugDocumentWithStrobes());
+    scene.SetActivePage("Radar");
+    return scene;
+}
+
+mfd::SceneRegistry MakeMultiStrobeSceneWithTransportMap()
+{
+    mfd::SceneRegistry scene;
+    scene.LoadDocument(MakeRuntimeDebugDocumentWithStrobes(), MakeRuntimeDebugTransportMapWithStrobes());
     scene.SetActivePage("Radar");
     return scene;
 }
@@ -244,6 +302,7 @@ TEST(RuntimeDebugStateTests, DeactivateClearsInteractiveOverridesButKeepsObserve
 
     state.Activate();
     state.EnablePageBypass("Nav");
+    state.EnableStrobeBypass("Radar", "Strobe1");
     state.SelectReticle(key);
     state.EnsureReticleBypass(key, MakeReticle("Ownship"));
     state.SetDynamicTemplateVisibility("Radar", "tracks", false);
@@ -256,6 +315,8 @@ TEST(RuntimeDebugStateTests, DeactivateClearsInteractiveOverridesButKeepsObserve
     EXPECT_FALSE(state.Active());
     EXPECT_FALSE(state.PageBypassed());
     EXPECT_TRUE(state.ForcedActivePage().empty());
+    EXPECT_FALSE(state.StrobeBypassed("Radar"));
+    EXPECT_EQ(state.ForcedActiveStrobe("Radar"), nullptr);
     EXPECT_FALSE(state.SelectedReticle().has_value());
     EXPECT_TRUE(state.BypassedReticles().empty());
     EXPECT_TRUE(state.TestPanelStatus().empty());
@@ -280,6 +341,12 @@ TEST(RuntimeDebugStateTests, HasInteractiveOverridesTracksPageAndReticleBypasses
     EXPECT_TRUE(state.HasInteractiveOverrides());
 
     state.DisablePageBypass();
+    EXPECT_FALSE(state.HasInteractiveOverrides());
+
+    state.EnableStrobeBypass("Radar", "Strobe1");
+    EXPECT_TRUE(state.HasInteractiveOverrides());
+
+    state.DisableStrobeBypass("Radar");
     EXPECT_FALSE(state.HasInteractiveOverrides());
 
     const ReticleKey key {"Radar", "Ownship", ReticleKind::Static};
@@ -392,6 +459,31 @@ TEST(RuntimeDebugPreviewTests, ReleasingBypassRestoresLastLiveReticleState)
 }
 
 /**
+ * @brief Ensures preview rebuild mirrors the live active strobe selection on the current page.
+ */
+TEST(RuntimeDebugPreviewTests, ResetFromLiveMirrorsCurrentActiveStrobe)
+{
+    using namespace mfd::window::debug;
+
+    mfd::SceneRegistry liveScene = MakeMultiStrobeScene();
+    ASSERT_TRUE(liveScene.SelectStrobe("Radar", "Strobe1"));
+    ASSERT_TRUE(liveScene.SetStrobePosition("Radar", {0.26f, -0.14f}));
+
+    RuntimeDebugState state;
+    state.Activate();
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const auto previewStrobe = preview.Scene().ActiveStrobeSummary();
+    ASSERT_TRUE(previewStrobe.has_value());
+    EXPECT_EQ(previewStrobe->strobeName, "Strobe1");
+    EXPECT_EQ(previewStrobe->reticleId, "AlternativeStrobe");
+    EXPECT_FLOAT_EQ(previewStrobe->position.x, 0.26f);
+    EXPECT_FLOAT_EQ(previewStrobe->position.y, -0.14f);
+}
+
+/**
  * @brief Ensures live commands keep updating the preview except for locally bypassed reticles.
  */
 TEST(RuntimeDebugPreviewTests, ApplyLiveBatchesKeepsBypassedReticlesLocal)
@@ -437,6 +529,121 @@ TEST(RuntimeDebugPreviewTests, ApplyLiveBatchesKeepsBypassedReticlesLocal)
     EXPECT_FLOAT_EQ(previewOwnship->transform.position.y, 0.33f);
     EXPECT_FLOAT_EQ(previewTarget->transform.position.x, 0.65f);
     EXPECT_FLOAT_EQ(previewTarget->transform.position.y, -0.45f);
+}
+
+/**
+ * @brief Ensures one local strobe-selection bypass owns the preview selection and ignores live strobe commands.
+ */
+TEST(RuntimeDebugPreviewTests, ApplyLiveBatchesKeepsBypassedStrobeSelectionLocal)
+{
+    using namespace mfd::window::debug;
+
+    mfd::SceneRegistry liveScene = MakeMultiStrobeScene();
+    RuntimeDebugState state;
+    state.Activate();
+    state.EnableStrobeBypass("Radar", "Strobe1");
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const auto initialPreviewStrobe = preview.Scene().ActiveStrobeSummary();
+    ASSERT_TRUE(initialPreviewStrobe.has_value());
+    EXPECT_EQ(initialPreviewStrobe->strobeName, "Strobe1");
+    EXPECT_EQ(initialPreviewStrobe->reticleId, "AlternativeStrobe");
+
+    mfd::UpdateStrobeCommand liveUpdate;
+    liveUpdate.page = "Radar";
+    liveUpdate.strobe = "Default";
+    liveUpdate.active = false;
+    liveUpdate.position = mfd::Vec2 {0.63f, 0.44f};
+
+    mfd::CommandBatch batch;
+    batch.sequence = 1U;
+    batch.commands.push_back(liveUpdate);
+
+    ASSERT_TRUE(preview.ApplyLiveBatches({batch}, state));
+
+    const auto previewStrobeAfterBatch = preview.Scene().ActiveStrobeSummary();
+    ASSERT_TRUE(previewStrobeAfterBatch.has_value());
+    EXPECT_EQ(previewStrobeAfterBatch->strobeName, "Strobe1");
+    EXPECT_EQ(previewStrobeAfterBatch->reticleId, "AlternativeStrobe");
+    EXPECT_FLOAT_EQ(previewStrobeAfterBatch->position.x, initialPreviewStrobe->position.x);
+    EXPECT_FLOAT_EQ(previewStrobeAfterBatch->position.y, initialPreviewStrobe->position.y);
+    EXPECT_EQ(previewStrobeAfterBatch->visible, initialPreviewStrobe->visible);
+}
+
+/**
+ * @brief Ensures strobe-selection bypass also holds when live batches use generated transport ids only.
+ */
+TEST(RuntimeDebugPreviewTests, ApplyLiveBatchesKeepsBypassedStrobeSelectionLocalWithGeneratedIds)
+{
+    using namespace mfd::window::debug;
+
+    mfd::SceneRegistry liveScene = MakeMultiStrobeSceneWithTransportMap();
+    RuntimeDebugState state;
+    state.Activate();
+    state.EnableStrobeBypass("Radar", "Strobe1");
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const auto initialPreviewStrobe = preview.Scene().ActiveStrobeSummary();
+    ASSERT_TRUE(initialPreviewStrobe.has_value());
+    EXPECT_EQ(initialPreviewStrobe->strobeName, "Strobe1");
+
+    mfd::UpdateStrobeCommand liveUpdate;
+    liveUpdate.pageId = 11U;
+    liveUpdate.strobeId = 101U;
+    liveUpdate.active = false;
+    liveUpdate.position = mfd::Vec2 {0.63f, 0.44f};
+
+    mfd::CommandBatch batch;
+    batch.sequence = 1U;
+    batch.mappingHash = "runtime_debug_map";
+    batch.commands.push_back(liveUpdate);
+
+    ASSERT_TRUE(preview.ApplyLiveBatches({batch}, state));
+
+    const auto previewStrobeAfterBatch = preview.Scene().ActiveStrobeSummary();
+    ASSERT_TRUE(previewStrobeAfterBatch.has_value());
+    EXPECT_EQ(previewStrobeAfterBatch->strobeName, "Strobe1");
+    EXPECT_FLOAT_EQ(previewStrobeAfterBatch->position.x, initialPreviewStrobe->position.x);
+    EXPECT_FLOAT_EQ(previewStrobeAfterBatch->position.y, initialPreviewStrobe->position.y);
+    EXPECT_EQ(previewStrobeAfterBatch->visible, initialPreviewStrobe->visible);
+}
+
+/**
+ * @brief Ensures disabling one strobe-selection bypass restores the last live active strobe cleanly.
+ */
+TEST(RuntimeDebugPreviewTests, DisablingStrobeBypassRestoresLiveActiveStrobe)
+{
+    using namespace mfd::window::debug;
+
+    mfd::SceneRegistry liveScene = MakeMultiStrobeScene();
+    ASSERT_TRUE(liveScene.SelectStrobe("Radar", "Strobe1"));
+    ASSERT_TRUE(liveScene.SetStrobePosition("Radar", {0.26f, -0.14f}));
+
+    RuntimeDebugState state;
+    state.Activate();
+    state.EnableStrobeBypass("Radar", "Default");
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const auto bypassedPreviewStrobe = preview.Scene().ActiveStrobeSummary();
+    ASSERT_TRUE(bypassedPreviewStrobe.has_value());
+    EXPECT_EQ(bypassedPreviewStrobe->strobeName, "Default");
+    EXPECT_EQ(bypassedPreviewStrobe->reticleId, "DefaultStrobe");
+
+    state.DisableStrobeBypass("Radar");
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const auto restoredPreviewStrobe = preview.Scene().ActiveStrobeSummary();
+    ASSERT_TRUE(restoredPreviewStrobe.has_value());
+    EXPECT_EQ(restoredPreviewStrobe->strobeName, "Strobe1");
+    EXPECT_EQ(restoredPreviewStrobe->reticleId, "AlternativeStrobe");
+    EXPECT_FLOAT_EQ(restoredPreviewStrobe->position.x, 0.26f);
+    EXPECT_FLOAT_EQ(restoredPreviewStrobe->position.y, -0.14f);
 }
 
 /**

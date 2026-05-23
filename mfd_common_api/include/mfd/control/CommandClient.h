@@ -237,6 +237,10 @@ public:
      *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
      */
     bool SetStrobeActive(std::string_view page, bool active);
+    /** @brief Selects the active strobe of a page by authored strobe name.
+     *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
+    bool SelectStrobe(std::string_view page, std::string_view strobeName);
     /** @brief Moves the strobe of a page by authored name.
      *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
      */

@@ -69,11 +69,17 @@ class PageSpec:
     dynamic_template_ids: list[str]
     status_member_name: str | None
     status_primitive_accessor_name: str | None
-    strobe: "StrobeSpec"
+    strobes: list["StrobeSpec"]
 
 
 @dataclass(frozen=True)
 class StrobeSpec:
+    strobe_name: str
+    member_name: str
+    canonical_key: str
+    transport_id: int
+    reticle_id: str
+    default_active: bool
     valid: bool
     capture_shape: str
     capture_radius: float
@@ -242,6 +248,23 @@ def primitive_canonical_key(owner_kind: str,
     return f"{owner_kind}/{normalize_lookup_name(owner_name)}/primitive/{normalize_lookup_name(primitive_id)}"
 
 
+def strobe_canonical_key(page_name: str, strobe_name: str) -> str:
+    return f"page/{normalize_lookup_name(page_name)}/strobe/{normalize_lookup_name(strobe_name)}"
+
+
+def strobe_member_name(strobe_name: str) -> str:
+    base_name = camel_case(strobe_name)
+    if base_name == "default":
+        return "defaultStrobe"
+    if base_name == "strobe":
+        return "selectedStrobe"
+    if base_name.startswith("strobe"):
+        return base_name
+    if base_name.endswith("Strobe"):
+        return base_name
+    return f"{base_name}Strobe"
+
+
 def validate_cpp_namespace(namespace_name: str) -> None:
     if not isinstance(namespace_name, str) or not namespace_name:
         raise RuntimeError("The namespace must be a non-empty string")
@@ -311,6 +334,15 @@ def ensure_unique_reticle_spec_names(page_name: str, reticle_specs: list[Reticle
             raise RuntimeError(
                 f"Duplicate generated {field_name}(s) on page '{page_name}': {duplicate_list}"
             )
+
+
+def ensure_unique_strobe_spec_names(page_name: str, strobe_specs: list[StrobeSpec]) -> None:
+    duplicates = duplicate_generated_values([strobe.member_name for strobe in strobe_specs])
+    if duplicates:
+        duplicate_list = ", ".join(duplicates)
+        raise RuntimeError(
+            f"Duplicate generated strobe member name(s) on page '{page_name}': {duplicate_list}"
+        )
 
 
 def ensure_unique_primitive_spec_names(owner_kind: str,
@@ -448,10 +480,12 @@ def build_primitive_specs(owner_kind: str,
     return primitive_specs
 
 
-def resolve_strobe_spec(page_root: dict) -> StrobeSpec:
-    strobe_node = page_root.get("strobe")
-    if not isinstance(strobe_node, dict):
-        return StrobeSpec(False, "circle", 0.0875, 0.175, 0.175, False, 0.075, 1.0)
+def build_strobe_spec(page_name: str,
+                      strobe_node: dict,
+                      fallback_name: str,
+                      default_active: bool) -> StrobeSpec:
+    raw_name = strobe_node.get("name")
+    strobe_name = raw_name if isinstance(raw_name, str) and raw_name else fallback_name
 
     capture_node = strobe_node.get("capture")
     magnet_node = strobe_node.get("magnet")
@@ -481,7 +515,18 @@ def resolve_strobe_spec(page_root: dict) -> StrobeSpec:
         if isinstance(magnet_node.get("strength"), (int, float)):
             magnet_strength = float(magnet_node["strength"])
 
+    reticle_id = strobe_node.get("id")
+    if not isinstance(reticle_id, str) or not reticle_id:
+        reticle_id = normalize_lookup_name(strobe_name) or "strobe"
+
+    canonical_key = strobe_canonical_key(page_name, strobe_name)
     return StrobeSpec(
+        strobe_name=strobe_name,
+        member_name=strobe_member_name(strobe_name),
+        canonical_key=canonical_key,
+        transport_id=stable_transport_id(canonical_key),
+        reticle_id=reticle_id,
+        default_active=default_active,
         valid=True,
         capture_shape=capture_shape,
         capture_radius=capture_radius,
@@ -491,6 +536,40 @@ def resolve_strobe_spec(page_root: dict) -> StrobeSpec:
         magnet_radius=magnet_radius,
         magnet_strength=magnet_strength,
     )
+
+
+def resolve_strobe_specs(page_name: str, page_root: dict) -> list[StrobeSpec]:
+    raw_active_strobe = page_root.get("activeStrobe")
+    if not isinstance(raw_active_strobe, str) or not raw_active_strobe:
+        raw_active_strobe = page_root.get("defaultStrobe")
+    active_strobe_name = raw_active_strobe if isinstance(raw_active_strobe, str) and raw_active_strobe else None
+    normalized_active_strobe_name = normalize_lookup_name(active_strobe_name) if active_strobe_name else ""
+
+    strobe_nodes: list[tuple[dict, str]] = []
+    raw_strobes = page_root.get("strobes")
+    if isinstance(raw_strobes, list):
+        for index, strobe_node in enumerate(raw_strobes):
+            if not isinstance(strobe_node, dict):
+                raise RuntimeError("Each page strobe entry must be a JSON object")
+            fallback_name = "Default" if index == 0 else f"Strobe{index}"
+            strobe_nodes.append((strobe_node, fallback_name))
+    else:
+        legacy_strobe = page_root.get("strobe")
+        if isinstance(legacy_strobe, dict):
+            strobe_nodes.append((legacy_strobe, "Default"))
+
+    strobe_specs: list[StrobeSpec] = []
+    for index, (strobe_node, fallback_name) in enumerate(strobe_nodes):
+        raw_name = strobe_node.get("name")
+        strobe_name = raw_name if isinstance(raw_name, str) and raw_name else fallback_name
+        default_active = (
+            normalize_lookup_name(strobe_name) == normalized_active_strobe_name
+            if normalized_active_strobe_name
+            else index == 0
+        )
+        strobe_specs.append(build_strobe_spec(page_name, strobe_node, fallback_name, default_active))
+
+    return strobe_specs
 
 
 def resolve_page_dynamic_template_ids(page_root: dict,
@@ -708,7 +787,10 @@ def build_page_specs(window_root: dict,
                 status_primitive_accessor_name = reticle.status_primitive_accessor_name
                 break
 
+        strobe_specs = resolve_strobe_specs(page_name, page_root)
+
         ensure_unique_reticle_spec_names(page_name, reticles)
+        ensure_unique_strobe_spec_names(page_name, strobe_specs)
         page_specs.append(PageSpec(
             page_name=page_name,
             page_class_name=f"{page_base_name}{page_class_suffix}",
@@ -721,7 +803,7 @@ def build_page_specs(window_root: dict,
             dynamic_template_ids=dynamic_template_ids,
             status_member_name=status_member_name,
             status_primitive_accessor_name=status_primitive_accessor_name,
-            strobe=resolve_strobe_spec(page_root),
+            strobes=strobe_specs,
         ))
 
     return page_specs, build_template_specs(template_library, used_dynamic_template_ids)
@@ -781,6 +863,18 @@ def emit_strobe_initializer(strobe: StrobeSpec) -> str:
     )
 
 
+def emit_strobe_type_initializer(strobe: StrobeSpec) -> str:
+    default_active = "true" if strobe.default_active else "false"
+    return (
+        "StrobeType {"
+        f"\"{cpp_string(strobe.strobe_name)}\", "
+        f"{emit_strobe_initializer(strobe)}, "
+        f"{strobe.transport_id}U, "
+        f"{default_active}"
+        "}"
+    )
+
+
 def emit_header(namespace_name: str,
                 ui_class_name: str,
                 window_json: str,
@@ -834,6 +928,7 @@ def emit_header(namespace_name: str,
         "using SquareHandle = mfd::client::SquareHandle;",
         "using StrobeHandle = mfd::client::StrobeHandle;",
         "using StrobeInfo = mfd::client::StrobeInfo;",
+        "using StrobeType = mfd::client::StrobeType;",
         "using TextHandle = mfd::client::TextHandle;",
         "using TimeHandle = mfd::client::TimeHandle;",
         "using WindowDisplay = mfd::client::WindowDisplay;",
@@ -963,6 +1058,12 @@ def emit_header(namespace_name: str,
                 f'    BlinkType {blink.member_name} {{"{cpp_string(blink.blink_name)}", {blink.transport_id}U}};')
 
         if page.blink_members:
+            lines.append("")
+
+        for strobe in page.strobes:
+            lines.append(f"    StrobeType {strobe.member_name} = {emit_strobe_type_initializer(strobe)};")
+
+        if page.strobes:
             lines.append("")
 
         lines.append("    StrobeHandle strobe;")
@@ -1154,8 +1255,14 @@ def emit_source(namespace_name: str,
 
         page_ctor_initializers: list[str] = [
             "    feedbackState_(feedbackState)",
-            f"    strobe(Name(), {emit_strobe_initializer(page.strobe)}, {page.transport_id}U)",
         ]
+        if page.strobes:
+            strobe_members = ", ".join(strobe.member_name for strobe in page.strobes)
+            page_ctor_initializers.append(
+                f"    strobe(Name(), {{{strobe_members}}}, {page.transport_id}U)")
+        else:
+            page_ctor_initializers.append(
+                f"    strobe(Name(), StrobeInfo {{}}, {page.transport_id}U)")
         for reticle in page.reticles:
             page_ctor_initializers.append(f"    {reticle.member_name}()")
         for template in page_templates:
@@ -1400,7 +1507,7 @@ def mapping_document(window_root: dict,
             "id": page.transport_id,
             "name": page.page_name,
             "normalizedName": normalize_lookup_name(page.page_name),
-            "hasStrobe": page.strobe.valid,
+            "hasStrobe": bool(page.strobes),
             "defaultPage": False,
         }
         for page in sorted(page_specs, key=lambda entry: entry.canonical_key)
@@ -1463,6 +1570,18 @@ def mapping_document(window_root: dict,
                 "durationMs": blink.duration_ms,
             })
 
+    strobes = []
+    for page in sorted(page_specs, key=lambda entry: entry.canonical_key):
+        for strobe in sorted(page.strobes, key=lambda entry: entry.canonical_key):
+            strobes.append({
+                "id": strobe.transport_id,
+                "pageId": page.transport_id,
+                "strobeName": strobe.strobe_name,
+                "normalizedStrobeName": normalize_lookup_name(strobe.strobe_name),
+                "reticleId": strobe.reticle_id,
+                "defaultActive": strobe.default_active,
+            })
+
     seen_ids: dict[int, str] = {}
     for table_name, rows, id_field in (
         ("pages", pages, "id"),
@@ -1470,6 +1589,7 @@ def mapping_document(window_root: dict,
         ("primitives", primitives, "id"),
         ("templates", templates, "id"),
         ("blinkTypes", blink_types, "id"),
+        ("strobes", strobes, "id"),
     ):
         for row in rows:
             row_id = row[id_field]
@@ -1490,6 +1610,7 @@ def mapping_document(window_root: dict,
         "primitives": primitives,
         "templates": templates,
         "blinkTypes": blink_types,
+        "strobes": strobes,
     }
 
     canonical_payload = json.dumps(mapping_without_hash, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
@@ -1503,6 +1624,7 @@ def mapping_document(window_root: dict,
         "primitives": primitives,
         "templates": templates,
         "blinkTypes": blink_types,
+        "strobes": strobes,
     }
 
 

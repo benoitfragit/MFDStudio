@@ -381,11 +381,11 @@ void ValidatePageDefinitionForRuntime(const PageDefinition& page)
         ValidateReticleGroupForRuntime(reticle);
     }
 
-    if (page.strobe.has_value())
+    for (const PageStrobeDefinition& strobe : page.strobes)
     {
-        ValidateReticleGroupForRuntime(page.strobe->reticle);
-        ValidateStrobeCaptureConfigForRuntime(page.strobe->capture);
-        ValidateStrobeMagnetConfigForRuntime(page.strobe->magnet);
+        ValidateReticleGroupForRuntime(strobe.reticle);
+        ValidateStrobeCaptureConfigForRuntime(strobe.capture);
+        ValidateStrobeMagnetConfigForRuntime(strobe.magnet);
     }
 }
 
@@ -2352,9 +2352,27 @@ StrobeMagnetConfig ParseStrobeMagnetConfig(const json& node)
 
 PageStrobeDefinition ParsePageStrobe(const json& node,
                                      const ReticleLibrary& library,
-                                     const std::filesystem::path& baseFolder)
+                                     const std::filesystem::path& baseFolder,
+                                     std::string defaultName)
 {
     PageStrobeDefinition strobe;
+    if (const json* name = FindField(node, {"name", "strobeName"}); name != nullptr && !name->is_null())
+    {
+        if (!name->is_string())
+        {
+            throw std::runtime_error("strobe.name must be a string");
+        }
+
+        defaultName = name->get<std::string>();
+    }
+
+    strobe.name = std::move(defaultName);
+    strobe.normalizedName = NormalizePageName(strobe.name);
+    if (strobe.normalizedName.empty())
+    {
+        throw std::runtime_error("Strobe name cannot be empty");
+    }
+
     strobe.reticle = ParseReticle(node, library, baseFolder);
     strobe.reticle.layerId.clear();
     strobe.capture = ParseStrobeCaptureConfig(node);
@@ -2665,9 +2683,45 @@ PageDefinition ParsePage(const json& node,
         }
     }
 
-    if (node.contains("strobe"))
+    if (const json* activeStrobe = FindField(node, {"activeStrobe", "defaultStrobe"});
+        activeStrobe != nullptr && !activeStrobe->is_null())
     {
-        page.strobe = ParsePageStrobe(node.at("strobe"), library, baseFolder);
+        if (!activeStrobe->is_string())
+        {
+            throw std::runtime_error("activeStrobe must be a string");
+        }
+
+        page.activeStrobeName = activeStrobe->get<std::string>();
+        page.normalizedActiveStrobeName = NormalizePageName(page.activeStrobeName);
+    }
+
+    if (node.contains("strobes"))
+    {
+        const json& strobes = node.at("strobes");
+        if (!strobes.is_array())
+        {
+            throw std::runtime_error("strobes must be a JSON array");
+        }
+
+        page.strobes.reserve(strobes.size());
+        for (std::size_t index = 0; index < strobes.size(); ++index)
+        {
+            page.strobes.push_back(ParsePageStrobe(
+                strobes.at(index),
+                library,
+                baseFolder,
+                index == 0U ? std::string {"Default"} : ("Strobe" + std::to_string(index))));
+        }
+    }
+    else if (node.contains("strobe"))
+    {
+        page.strobes.push_back(ParsePageStrobe(node.at("strobe"), library, baseFolder, "Default"));
+    }
+
+    if (!page.strobes.empty() && page.normalizedActiveStrobeName.empty())
+    {
+        page.activeStrobeName = page.strobes.front().name;
+        page.normalizedActiveStrobeName = page.strobes.front().normalizedName;
     }
 
     for (auto& reticle : page.staticReticles)
@@ -2681,12 +2735,17 @@ PageDefinition ParsePage(const json& node,
         }
     }
 
-    if (page.strobe.has_value() && !ResolveReticleBlinkState(page, page.strobe->reticle))
+    for (auto& strobe : page.strobes)
     {
+        if (ResolveReticleBlinkState(page, strobe.reticle))
+        {
+            continue;
+        }
+
         const std::string blinkType =
-            page.strobe->reticle.blink.typeName.empty() ? std::string {"<default>"} : page.strobe->reticle.blink.typeName;
+            strobe.reticle.blink.typeName.empty() ? std::string {"<default>"} : strobe.reticle.blink.typeName;
         throw std::runtime_error(
-            "Unknown blink type '" + blinkType + "' for strobe '" + page.strobe->reticle.id + "' on page: " + page.name);
+            "Unknown blink type '" + blinkType + "' for strobe '" + strobe.reticle.id + "' on page: " + page.name);
     }
 
     std::unordered_set<std::string> reticleIds;
@@ -2775,9 +2834,15 @@ PageDefinition ParsePage(const json& node,
         }
     }
 
-    if (page.strobe.has_value())
+    std::unordered_set<std::string> normalizedStrobeNames;
+    for (const auto& strobe : page.strobes)
     {
-        const std::string normalizedReticleId = NormalizePageName(page.strobe->reticle.id);
+        if (!normalizedStrobeNames.insert(strobe.normalizedName).second)
+        {
+            throw std::runtime_error("Duplicate strobe name '" + strobe.name + "' on page: " + page.name);
+        }
+
+        const std::string normalizedReticleId = NormalizePageName(strobe.reticle.id);
         if (normalizedReticleId.empty())
         {
             throw std::runtime_error("Strobe reticle must define a non-empty id on page: " + page.name);
@@ -2785,8 +2850,15 @@ PageDefinition ParsePage(const json& node,
 
         if (!reticleIds.insert(normalizedReticleId).second)
         {
-            throw std::runtime_error("Duplicate reticle id '" + page.strobe->reticle.id + "' on page: " + page.name);
+            throw std::runtime_error("Duplicate reticle id '" + strobe.reticle.id + "' on page: " + page.name);
         }
+    }
+
+    if (!page.normalizedActiveStrobeName.empty() &&
+        FindPageStrobeDefinition(page, page.normalizedActiveStrobeName) == nullptr)
+    {
+        throw std::runtime_error(
+            "Unknown active strobe '" + page.activeStrobeName + "' on page: " + page.name);
     }
 
     ValidatePageDefinitionForRuntime(page);
@@ -2888,7 +2960,7 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
                 "Generated transport map page normalization mismatch for '" + pageEntry.name + "'");
         }
 
-        if (page->strobe.has_value() != pageEntry.hasStrobe)
+        if (!page->strobes.empty() != pageEntry.hasStrobe)
         {
             throw std::runtime_error(
                 "Generated transport map strobe flag mismatch for page '" + pageEntry.name + "'");
@@ -3050,6 +3122,51 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
         {
             throw std::runtime_error(
                 "Generated transport map blink duration mismatch for '" + blinkTypeEntry.blinkType +
+                "' on page '" + pageIt->second->name + "'");
+        }
+    }
+
+    for (const auto& strobeEntry : map.strobes)
+    {
+        const auto pageIt = pagesById.find(strobeEntry.pageId);
+        if (pageIt == pagesById.end())
+        {
+            throw std::runtime_error(
+                "Generated transport map strobe '" + strobeEntry.strobeName +
+                "' references unknown page id " + std::to_string(strobeEntry.pageId));
+        }
+
+        const PageDefinition* page = FindPageDefinition(document, pageIt->second->name);
+        const PageStrobeDefinition* strobe =
+            page == nullptr ? nullptr : FindPageStrobeDefinition(*page, strobeEntry.strobeName);
+        if (strobe == nullptr)
+        {
+            throw std::runtime_error(
+                "Generated transport map references unknown strobe '" + strobeEntry.strobeName +
+                "' on page '" + pageIt->second->name + "'");
+        }
+
+        if (strobe->normalizedName != strobeEntry.normalizedStrobeName)
+        {
+            throw std::runtime_error(
+                "Generated transport map strobe normalization mismatch for '" + strobeEntry.strobeName +
+                "' on page '" + pageIt->second->name + "'");
+        }
+
+        if (strobe->reticle.id != strobeEntry.reticleId)
+        {
+            throw std::runtime_error(
+                "Generated transport map strobe reticle mismatch for '" + strobeEntry.strobeName +
+                "' on page '" + pageIt->second->name + "'");
+        }
+
+        const bool defaultActive =
+            !page->normalizedActiveStrobeName.empty() &&
+            page->normalizedActiveStrobeName == strobeEntry.normalizedStrobeName;
+        if (defaultActive != strobeEntry.defaultActive)
+        {
+            throw std::runtime_error(
+                "Generated transport map active strobe mismatch for '" + strobeEntry.strobeName +
                 "' on page '" + pageIt->second->name + "'");
         }
     }

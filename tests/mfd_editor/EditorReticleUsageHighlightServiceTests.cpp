@@ -80,10 +80,12 @@ void WritePageJson(const std::filesystem::path& pageFile,
 
     if (strobe.has_value())
     {
-        page["strobe"] = json {
-            {"id", strobe->first},
-            {"template", strobe->second},
-            {"capture", {{"shape", "circle"}, {"radius", 0.1f}}}};
+        page["strobes"] = json::array(
+            {json {{"name", "Default"},
+                   {"id", strobe->first},
+                   {"template", strobe->second},
+                   {"capture", {{"shape", "circle"}, {"radius", 0.1f}}}}});
+        page["activeStrobe"] = "Default";
     }
 
     WriteTextFile(pageFile, page.dump(2) + '\n');
@@ -115,9 +117,13 @@ void AddPage(mfd::LoadedWindowConfiguration& loaded,
     if (strobe.has_value())
     {
         mfd::PageStrobeDefinition strobeDefinition;
+        strobeDefinition.name = "Default";
+        strobeDefinition.normalizedName = mfd::NormalizePageName(strobeDefinition.name);
         strobeDefinition.reticle.id = strobe->first;
         strobeDefinition.reticle.sourceTemplateId = strobe->second;
-        page.strobe = std::move(strobeDefinition);
+        page.strobes.push_back(std::move(strobeDefinition));
+        page.activeStrobeName = "Default";
+        page.normalizedActiveStrobeName = mfd::NormalizePageName(page.activeStrobeName);
     }
 
     loaded.document.pages.push_back(std::move(page));

@@ -398,6 +398,26 @@ const mfd::TransportMapBlinkTypeEntry* FindBlinkEntry(const mfd::GeneratedTransp
     return iterator == map->blinkTypes.end() ? nullptr : &(*iterator);
 }
 
+const mfd::TransportMapStrobeEntry* FindStrobeEntry(const mfd::GeneratedTransportMap* map,
+                                                    const mfd::TransportId pageId,
+                                                    const std::string_view strobeName) noexcept
+{
+    if (map == nullptr)
+    {
+        return nullptr;
+    }
+
+    const std::string normalizedStrobeName = mfd::NormalizePageName(strobeName);
+    const auto iterator = std::find_if(
+        map->strobes.begin(),
+        map->strobes.end(),
+        [pageId, &normalizedStrobeName](const mfd::TransportMapStrobeEntry& entry)
+        {
+            return entry.pageId == pageId && entry.normalizedStrobeName == normalizedStrobeName;
+        });
+    return iterator == map->strobes.end() ? nullptr : &(*iterator);
+}
+
 const mfd::TransportMapPrimitiveEntry* FindPrimitiveEntry(const mfd::GeneratedTransportMap* map,
                                                           const mfd::TransportPrimitiveOwnerKind ownerKind,
                                                           const mfd::TransportId ownerId,
@@ -442,6 +462,31 @@ std::string ReticleDisplayId(const mfd::ReticleGroup& reticle, const std::size_t
     }
 
     return "reticle_" + std::to_string(index + 1U);
+}
+
+std::string StrobeDisplayName(const mfd::PageStrobeDefinition& strobe, const std::size_t index)
+{
+    if (!strobe.name.empty())
+    {
+        return strobe.name;
+    }
+
+    if (!strobe.reticle.id.empty())
+    {
+        return strobe.reticle.id;
+    }
+
+    return "strobe_" + std::to_string(index + 1U);
+}
+
+bool IsActiveStrobe(const mfd::PageDefinition& page, const mfd::PageStrobeDefinition& strobe)
+{
+    if (page.normalizedActiveStrobeName.empty())
+    {
+        return !page.strobes.empty() && &strobe == &page.strobes.front();
+    }
+
+    return strobe.normalizedName == page.normalizedActiveStrobeName;
 }
 
 std::string AccessorNameOrNotAvailable()
@@ -1191,7 +1236,7 @@ std::vector<ExplodedLabel> BuildExplodedLabels(const mfd::PageDefinition& page,
                                                const bool includeCanvasCoordinates)
 {
     std::vector<ExplodedLabel> labels;
-    labels.reserve(page.staticReticles.size() + (page.strobe.has_value() ? 1U : 0U));
+    labels.reserve(page.staticReticles.size() + page.strobes.size());
 
     for (std::size_t index = 0; index < page.staticReticles.size(); ++index)
     {
@@ -1219,9 +1264,10 @@ std::vector<ExplodedLabel> BuildExplodedLabels(const mfd::PageDefinition& page,
             reticle.visible});
     }
 
-    if (page.strobe.has_value())
+    for (std::size_t index = 0; index < page.strobes.size(); ++index)
     {
-        const mfd::ReticleGroup& reticle = page.strobe->reticle;
+        const mfd::PageStrobeDefinition& strobe = page.strobes[index];
+        const mfd::ReticleGroup& reticle = strobe.reticle;
         const std::vector<ScreenSegment> segments = BuildReticleScreenSegments(reticle, viewport);
         const ScreenBounds bounds = ComputeScreenBounds(segments);
         const Vector2 center = bounds.valid ? bounds.center : viewport.ToScreen(reticle.transform.position);
@@ -1234,8 +1280,15 @@ std::vector<ExplodedLabel> BuildExplodedLabels(const mfd::PageDefinition& page,
         {
             detail << "template=" << SafeString(reticle.sourceTemplateId);
         }
+        detail << " active=" << (IsActiveStrobe(page, strobe) ? "yes" : "no");
 
-        labels.push_back(ExplodedLabel {"strobe", detail.str(), center, bounds, segments, reticle.visible});
+        labels.push_back(ExplodedLabel {
+            "strobe: " + StrobeDisplayName(strobe, index),
+            detail.str(),
+            center,
+            bounds,
+            segments,
+            reticle.visible});
     }
 
     std::sort(
@@ -1394,7 +1447,7 @@ std::string BuildWindowIcdMarkdown(const DesignExportPlan& plan)
         stream << "| [" << EscapeMarkdownCell(page.name) << "]("
                << RelativeMarkdownPath(plan.windowIcdFile, artifact.markdownFile) << ") | "
                << EscapeMarkdownCell(AccessorNameOrNotAvailable()) << " | " << page.staticReticles.size() << " | "
-               << FormatYesNo(page.strobe.has_value()) << " | " << page.blinkTypes.size() << " |\n";
+               << FormatYesNo(!page.strobes.empty()) << " | " << page.blinkTypes.size() << " |\n";
     }
 
     stream << "\n## Page Activation\n\n";
@@ -1450,7 +1503,11 @@ std::string BuildPageMarkdown(const DesignExportPlan& plan,
     stream << "| Canvas width | 2.000 |\n";
     stream << "| Canvas height | 2.000 |\n";
     stream << "| Reticle count | " << page.staticReticles.size() << " |\n";
-    stream << "| Has strobe | " << FormatYesNo(page.strobe.has_value()) << " |\n";
+    stream << "| Strobe count | " << page.strobes.size() << " |\n";
+    stream << "| Active strobe | "
+           << EscapeMarkdownCell(page.strobes.empty() ? std::string {"not available"}
+                                                     : StrobeDisplayName(*mfd::FindActivePageStrobeDefinition(page), 0U))
+           << " |\n";
     if (page.blinkTypes.empty())
     {
         stream << "| Blink types | none |\n";
@@ -1549,21 +1606,36 @@ std::string BuildPageMarkdown(const DesignExportPlan& plan,
         }
     }
 
-    if (plan.includeStrobe && page.strobe.has_value())
+    if (plan.includeStrobe && !page.strobes.empty())
     {
-        const mfd::ReticleGroup& strobeReticle = page.strobe->reticle;
         stream << "## Strobe ICD\n\n";
-        stream << "| Field | Value |\n";
-        stream << "|---|---|\n";
-        stream << "| Available | yes |\n";
-        stream << "| Reticle | " << EscapeMarkdownCell(ReticleDisplayId(strobeReticle, 0U)) << " |\n";
-        stream << "| Template | " << EscapeMarkdownCell(SafeString(strobeReticle.sourceTemplateId)) << " |\n\n";
+        stream << "| Strobe | Active by default | Reticle | Template | Transport id |\n";
+        stream << "|---|---|---|---|---|\n";
+        for (std::size_t index = 0; index < page.strobes.size(); ++index)
+        {
+            const mfd::PageStrobeDefinition& strobe = page.strobes[index];
+            const mfd::TransportMapStrobeEntry* strobeEntry =
+                pageEntry == nullptr ? nullptr : FindStrobeEntry(map, pageEntry->id, strobe.name);
+            stream << "| " << EscapeMarkdownCell(StrobeDisplayName(strobe, index)) << " | "
+                   << FormatYesNo(IsActiveStrobe(page, strobe)) << " | "
+                   << EscapeMarkdownCell(ReticleDisplayId(strobe.reticle, index)) << " | "
+                   << EscapeMarkdownCell(SafeString(strobe.reticle.sourceTemplateId)) << " | "
+                   << EscapeMarkdownCell(strobeEntry == nullptr ? "not available" : TransportIdOrNotAvailable(strobeEntry->id))
+                   << " |\n";
+        }
+        stream << "\n";
 
         if (plan.includeCppSnippets)
         {
             stream << "C++:\n```cpp\n";
             stream << "client.SetStrobeActive(\"" << page.name << "\", true);\n";
             stream << "client.SetStrobePosition(\"" << page.name << "\", {0.000f, 0.000f});\n";
+            if (page.strobes.size() > 1U)
+            {
+                const mfd::PageStrobeDefinition* activeStrobe = mfd::FindActivePageStrobeDefinition(page);
+                const std::string activeName = activeStrobe == nullptr ? std::string {} : activeStrobe->name;
+                stream << "client.SelectStrobe(\"" << page.name << "\", \"" << activeName << "\");\n";
+            }
             stream << "```\n\n";
         }
     }
@@ -1614,7 +1686,7 @@ json BuildManifestJson(const DesignExportPlan& plan,
                                         : json(MarkdownPath(artifact.imageFile.lexically_relative(plan.outputFolder)))},
             {"imageWritten", imageWritten[index]},
             {"reticleCount", page.staticReticles.size()},
-            {"hasStrobe", page.strobe.has_value()},
+            {"hasStrobe", !page.strobes.empty()},
             {"blinkTypeCount", page.blinkTypes.size()}});
     }
 
@@ -1884,9 +1956,9 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
     {
         IncludeLogicalBounds(pageBounds, ComputeReticleWorldBounds(reticle));
     }
-    if (page.strobe.has_value())
+    for (const auto& strobe : page.strobes)
     {
-        IncludeLogicalBounds(pageBounds, ComputeReticleWorldBounds(page.strobe->reticle));
+        IncludeLogicalBounds(pageBounds, ComputeReticleWorldBounds(strobe.reticle));
     }
 
     if (!pageBounds.valid)
@@ -1962,9 +2034,9 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
         {
             canvas.DrawReticle(reticle);
         }
-        if (page.strobe.has_value())
+        for (const auto& strobe : page.strobes)
         {
-            canvas.DrawReticle(page.strobe->reticle);
+            canvas.DrawReticle(strobe.reticle);
         }
     }
     EndTextureMode();

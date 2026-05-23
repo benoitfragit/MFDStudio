@@ -148,11 +148,16 @@ ReticleUsageHighlightResult ReticleUsageHighlightService::BuildHighlight(const m
             ++result.totalReferenceCount;
         }
 
-        if (page.strobe.has_value() &&
-            NormalizeIdentifier(page.strobe->reticle.sourceTemplateId) == normalizedTemplateId)
+        for (const auto& strobe : page.strobes)
         {
+            if (NormalizeIdentifier(strobe.reticle.sourceTemplateId) != normalizedTemplateId)
+            {
+                continue;
+            }
+
             highlightPage.matchingStrobe = true;
             ++result.totalReferenceCount;
+            break;
         }
 
         if (!highlightPage.matchingReticleIndices.empty() || highlightPage.matchingStrobe)

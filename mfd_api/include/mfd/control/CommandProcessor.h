@@ -139,6 +139,7 @@ private:
     bool DispatchResolved(const UserCommand& command);
     bool ResolveCommandIdentifiers(UserCommand& command, std::string_view mappingHash);
     bool ResolveGeneratedPage(std::string& page, TransportId pageId);
+    bool ResolveGeneratedStrobe(TransportId pageId, std::string& strobeName, TransportId strobeId);
     bool ResolveGeneratedStaticReticle(StaticReticleHandle& target);
     bool ResolveGeneratedDynamicReticle(DynamicReticleHandle& target);
     bool ResolveGeneratedTemplate(std::string& templateId, TransportId templateTransportId);

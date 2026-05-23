@@ -13,6 +13,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -90,6 +91,17 @@ struct ReticleBypassState
     ReticleKey key;
     /** @brief Full desired reticle state rendered by the preview scene. */
     ReticleGroup draft;
+};
+
+/**
+ * @brief Locally bypassed active-strobe selection owned by the debug overlay.
+ */
+struct StrobeBypassState
+{
+    /** @brief Owning page name. */
+    std::string pageName;
+    /** @brief User-facing strobe name forced locally on the preview scene. */
+    std::string strobeName;
 };
 
 /**
@@ -218,6 +230,44 @@ public:
      * @return `true` when one local draft exists for that reticle.
      */
     [[nodiscard]] bool ReticleBypassed(const ReticleKey& key) const noexcept;
+
+    /**
+     * @brief Returns whether one page currently bypasses its active strobe selection.
+     * @param pageName Page to inspect.
+     * @return `true` when the preview scene ignores live strobe-selection updates on that page.
+     */
+    [[nodiscard]] bool StrobeBypassed(std::string_view pageName) const noexcept;
+
+    /**
+     * @brief Returns the locally forced strobe name of one page when it exists.
+     * @param pageName Page to inspect.
+     * @return Pointer to the forced strobe name, or `nullptr` when the page follows live selection.
+     */
+    [[nodiscard]] const std::string* ForcedActiveStrobe(std::string_view pageName) const noexcept;
+
+    /**
+     * @brief Forces the preview scene to use one named strobe on a page.
+     * @param pageName Page owning the selected strobe.
+     * @param strobeName User-facing strobe name to force locally.
+     */
+    void EnableStrobeBypass(std::string pageName, std::string strobeName);
+
+    /**
+     * @brief Clears the forced strobe-selection override of one page.
+     * @param pageName Page to release.
+     */
+    void DisableStrobeBypass(std::string_view pageName);
+
+    /**
+     * @brief Clears every forced strobe-selection override.
+     */
+    void ReleaseAllStrobeBypasses();
+
+    /**
+     * @brief Returns every page-level strobe-selection bypass currently owned by the overlay.
+     * @return Flat list of page/strobe overrides.
+     */
+    [[nodiscard]] std::vector<StrobeBypassState> BypassedStrobes() const;
 
     /**
      * @brief Returns the current bypass draft of one reticle when it exists.
@@ -349,6 +399,7 @@ private:
     std::string forcedActivePage_ {};
     std::string selectedPage_ {};
     std::optional<ReticleKey> selectedReticle_ {};
+    std::unordered_map<std::string, std::string> strobeBypasses_ {};
     std::unordered_map<ReticleKey, ReticleBypassState, ReticleKeyHash> reticleBypasses_ {};
     std::unordered_map<DynamicTemplateKey, bool, DynamicTemplateKeyHash> dynamicTemplateVisibility_ {};
     TransportState transport_ {};

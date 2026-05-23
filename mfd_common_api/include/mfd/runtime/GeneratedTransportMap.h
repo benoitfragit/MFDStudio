@@ -96,6 +96,17 @@ struct TransportMapBlinkTypeEntry
     std::uint32_t durationMs = 0;
 };
 
+/** @brief One strobe-catalog entry loaded from the generated transport map. */
+struct TransportMapStrobeEntry
+{
+    TransportId id = 0;
+    TransportId pageId = 0;
+    std::string strobeName;
+    std::string normalizedStrobeName;
+    std::string reticleId;
+    bool defaultActive = false;
+};
+
 /** @brief Parsed content of one `*.generated.map` companion file. */
 struct GeneratedTransportMap
 {
@@ -108,6 +119,7 @@ struct GeneratedTransportMap
     std::vector<TransportMapPrimitiveEntry> primitives;
     std::vector<TransportMapTemplateEntry> templates;
     std::vector<TransportMapBlinkTypeEntry> blinkTypes;
+    std::vector<TransportMapStrobeEntry> strobes;
 };
 
 /**

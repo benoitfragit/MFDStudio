@@ -125,6 +125,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
 
     auto& radar = ui.Radar();
     EXPECT_EQ(radar.GeneratedId(), generated_ui_fixture::RadarMockupPage::GeneratedId());
+    radar.strobe = radar.strobe1;
     radar.strobe.SetActive(true);
     radar.strobe.SetPosition({0.25f, -0.10f});
     radar.radarStatus.SetValue("LOCK");
@@ -210,6 +211,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     ASSERT_NE(strobe, nullptr);
     EXPECT_EQ(strobe->page, "Radar");
     EXPECT_NE(strobe->pageId, 0U);
+    EXPECT_EQ(strobe->strobeId, radar.strobe1.GeneratedId());
     ASSERT_TRUE(strobe->active.has_value());
     ASSERT_TRUE(strobe->position.has_value());
     EXPECT_TRUE(*strobe->active);
@@ -468,12 +470,17 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureShutdownBuildsStatusAndDynamic
 TEST(GeneratedUiCompiledApiTests, GeneratedFixtureExposesRuntimeFeedbackQueries)
 {
     generated_ui_fixture::GeneratedUiFixture ui;
+    ui.Radar().strobe = ui.Radar().strobe1;
+    ui.Radar().strobe.SetActive(true);
     auto& track = ui.Radar().DynamicGeometryTemplate().Create();
 
     std::vector<mfd::UserCommand> commands;
-    ASSERT_EQ(ui.Radar().AppendCommands(commands), 1U);
-    ASSERT_EQ(commands.size(), 1U);
-    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands.front());
+    ASSERT_EQ(ui.Radar().AppendCommands(commands), 2U);
+    ASSERT_EQ(commands.size(), 2U);
+    const auto* strobeUpdate = std::get_if<mfd::UpdateStrobeCommand>(&commands[0]);
+    ASSERT_NE(strobeUpdate, nullptr);
+    EXPECT_EQ(strobeUpdate->strobeId, ui.Radar().strobe1.GeneratedId());
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands[1]);
     ASSERT_NE(upsert, nullptr);
     ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_FALSE(ui.Radar().IsActive());

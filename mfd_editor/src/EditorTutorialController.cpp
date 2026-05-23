@@ -301,7 +301,7 @@ struct TutorialStageInfo
 
 constexpr std::array<TutorialStageInfo, 4> kTutorialStages {{
     {"Stage 1 - Author In Editor",
-     "Create the tutorial window, page assets, the Page1 title chrome frame, reusable reticle templates, `RadarTrackLayer`, the Page1 dynamic-template binding, editor-only layers, and the exposed primitive that will feed the generated client.",
+     "Create the tutorial window, page assets, the Page1 title chrome frame, reusable reticle templates, `RadarTrackLayer`, two named Page1 strobes, editor-only layers, and the exposed primitive that will feed the generated client.",
      static_cast<int>(editor::tutorial::TutorialStepId::CreateWindow),
      static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
     {"Stage 2 - Explore Editor Tools",
@@ -973,8 +973,12 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
         return "primitive_exposed_checkbox";
     case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
         return "library_add_to_page";
-    case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
-        return "page_strobe_template";
+    case static_cast<int>(TutorialStepId::AddPage1DefaultStrobe):
+        return stepPhase_ == 0 ? "page_strobe_default_name" :
+                                 (stepPhase_ == 1 ? "page_strobe_default" : "page_strobe_default_add");
+    case static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe):
+        return stepPhase_ == 0 ? "page_strobe_alternative_name" :
+                                 (stepPhase_ == 1 ? "page_strobe_alternative" : "page_strobe_alternative_add");
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
         return "library_add_to_page";
     case static_cast<int>(TutorialStepId::ClipCircleOutside):
@@ -1050,8 +1054,14 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
         return "Enable Exposed on the fill_bar primitive.";
     case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
         return "Click Add to active page.";
-    case static_cast<int>(TutorialStepId::AssignPage1StrobeTemplate):
-        return "Choose mfd_tutorial_strobe_cursor in Strobe template.";
+    case static_cast<int>(TutorialStepId::AddPage1DefaultStrobe):
+        return stepPhase_ == 0 ? "Keep the suggested strobe name set to Default." :
+                                 (stepPhase_ == 1 ? "Choose mfd_tutorial_strobe_cursor as the shared template."
+                                                  : "Click Add strobe to create the default authored Page1 strobe.");
+    case static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe):
+        return stepPhase_ == 0 ? "Keep the suggested strobe name set to Strobe1." :
+                                 (stepPhase_ == 1 ? "Choose mfd_tutorial_strobe_cursor again for the alternative strobe."
+                                                  : "Click Add strobe to create the Page1 runtime alternative.");
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
         return "Click Add to active page.";
     case static_cast<int>(TutorialStepId::ClipCircleOutside):

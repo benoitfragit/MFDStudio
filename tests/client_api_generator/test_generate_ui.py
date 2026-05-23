@@ -53,10 +53,25 @@ class GenerateUiTests(unittest.TestCase):
                         "page": {
                             "name": "Radar",
                             "layers": [{"id": "default"}],
+                            "activeStrobe": "Default",
                             "dynamicReticleBindings": [
                                 {"templateId": "status_template", "layerId": "default", "orderInLayer": 0}
                             ],
                             "blinkTypes": [{"name": "attention"}],
+                            "strobes": [
+                                {
+                                    "name": "Default",
+                                    "id": "radar_strobe_default",
+                                    "capture": {"shape": "rectangle", "radius": 0.12, "size": [0.30, 0.20]},
+                                    "magnet": {"enabled": True, "radius": 0.18, "strength": 0.65},
+                                },
+                                {
+                                    "name": "Strobe1",
+                                    "id": "radar_strobe_1",
+                                    "capture": {"shape": "circle", "radius": 0.09, "size": [0.18, 0.18]},
+                                    "magnet": {"enabled": False, "radius": 0.10, "strength": 1.0},
+                                },
+                            ],
                             "staticReticles": [
                                 {
                                     "id": "radar_status",
@@ -171,10 +186,13 @@ class GenerateUiTests(unittest.TestCase):
                 "explicit RadarMockupPage(RuntimeFeedbackState* feedbackState = nullptr);",
                 "bool IsActive() const noexcept;",
                 "BlinkType attention {\"attention\",",
+                "using StrobeType = mfd::client::StrobeType;",
                 "StatusTemplateDynamicReticleSet& DynamicStatusTemplate() noexcept;",
                 "TextHandle& StatusValue() noexcept;",
                 "LineHandle& Shape() noexcept;",
                 "TextHandle& SystemStatusValue() noexcept;",
+                "StrobeType defaultStrobe = StrobeType {\"Default\",",
+                "StrobeType strobe1 = StrobeType {\"Strobe1\",",
                 "StrobeHandle strobe;",
                 "RadarRadarStatusReticle radarStatus;",
                 "RadarTrackBoxReticle trackBox;",
@@ -194,6 +212,7 @@ class GenerateUiTests(unittest.TestCase):
                 "StatusTemplateDynamicReticleSet& RadarMockupPage::DynamicStatusTemplate() noexcept",
                 "RadarMockupPage::RadarMockupPage(RuntimeFeedbackState* feedbackState) :",
                 "feedbackState_(feedbackState)",
+                "strobe(Name(), {defaultStrobe, strobe1}, ",
                 "bool RadarMockupPage::IsActive() const noexcept",
                 "return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());",
                 "CockpitMockupUi::CockpitMockupUi() :",
@@ -227,8 +246,11 @@ class GenerateUiTests(unittest.TestCase):
             self.assertEqual(len(map_content["reticles"]), 3)
             self.assertEqual(len(map_content["templates"]), 1)
             self.assertEqual(len(map_content["blinkTypes"]), 1)
+            self.assertEqual(len(map_content["strobes"]), 2)
             self.assertEqual(len(map_content["primitives"]), 4)
             self.assertTrue(all("strobe" not in row for row in map_content["pages"]))
+            self.assertTrue(any(row["strobeName"] == "Default" and row["defaultActive"] for row in map_content["strobes"]))
+            self.assertTrue(any(row["strobeName"] == "Strobe1" and not row["defaultActive"] for row in map_content["strobes"]))
             primitive_ids = [row["primitiveId"] for row in map_content["primitives"]]
             self.assertEqual(primitive_ids.count("status_value"), 2)
             self.assertIn("shape", primitive_ids)

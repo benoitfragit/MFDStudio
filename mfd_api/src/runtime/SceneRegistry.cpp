@@ -793,6 +793,8 @@ struct SceneRegistry::PageComponent
     std::unordered_map<std::string, std::uint32_t, TransparentStringHash, TransparentStringEqual> blinkDurationsByType {};
     std::string defaultBlinkTypeName;
     std::string normalizedDefaultBlinkTypeName;
+    std::string activeStrobeName;
+    std::string normalizedActiveStrobeName;
     std::uint32_t defaultBlinkDurationMs = 0;
     BlinkClock::time_point blinkEpoch = BlinkClock::now();
     std::vector<entt::entity> orderedReticleEntities;
@@ -828,6 +830,9 @@ struct SceneRegistry::StrobeTag
 
 struct SceneRegistry::StrobeBehaviorComponent
 {
+    std::string name;
+    std::string normalizedName;
+    TransportId transportId = 0;
     StrobeCaptureConfig capture;
     StrobeMagnetConfig magnet;
     std::vector<Primitive> authoredPrimitives;
@@ -1050,8 +1055,10 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
     transportPageNames_.clear();
     transportReticles_.clear();
     transportTemplates_.clear();
+    templateTransportIds_.clear();
     transportPrimitives_.clear();
     transportBlinks_.clear();
+    transportStrobes_.clear();
     nextDynamicCreationSequence_ = 1;
     activePage_.clear();
     windowDisplay_ = {};
@@ -1068,7 +1075,12 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
         pageComponent.view = page.view;
         pageComponent.defaultBlinkTypeName = page.defaultBlinkTypeName;
         pageComponent.normalizedDefaultBlinkTypeName = page.normalizedDefaultBlinkTypeName;
-        pageComponent.hasStrobe = page.strobe.has_value();
+        pageComponent.hasStrobe = !page.strobes.empty();
+        if (const PageStrobeDefinition* activeStrobe = FindActivePageStrobeDefinition(page); activeStrobe != nullptr)
+        {
+            pageComponent.activeStrobeName = activeStrobe->name;
+            pageComponent.normalizedActiveStrobeName = activeStrobe->normalizedName;
+        }
         pageComponent.blinkEpoch = BlinkClock::now();
 
         for (std::size_t layerIndex = 0; layerIndex < page.layers.size(); ++layerIndex)
@@ -1124,23 +1136,28 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
             InsertReticleIntoPageDrawList(page.normalizedName, reticleEntity);
         }
 
-        if (page.strobe.has_value())
+        for (const PageStrobeDefinition& strobeDefinition : page.strobes)
         {
             const entt::entity strobeEntity = registry_.create();
             registry_.emplace<ReticleComponent>(strobeEntity,
-                                               ReticleComponent {page.strobe->reticle, MakeStrobeDrawOrderKey()});
+                                               ReticleComponent {strobeDefinition.reticle, MakeStrobeDrawOrderKey()});
             registry_.emplace<PageMembership>(strobeEntity, PageMembership {page.normalizedName});
             StrobeBehaviorComponent behavior;
-            behavior.capture = page.strobe->capture;
-            behavior.magnet = page.strobe->magnet;
-            behavior.authoredPrimitives = page.strobe->reticle.primitives;
-            behavior.authoredOverrides = page.strobe->reticle.overrides;
-            behavior.authoredClipping = page.strobe->reticle.clipping;
+            behavior.name = strobeDefinition.name;
+            behavior.normalizedName = strobeDefinition.normalizedName;
+            behavior.capture = strobeDefinition.capture;
+            behavior.magnet = strobeDefinition.magnet;
+            behavior.authoredPrimitives = strobeDefinition.reticle.primitives;
+            behavior.authoredOverrides = strobeDefinition.reticle.overrides;
+            behavior.authoredClipping = strobeDefinition.reticle.clipping;
             registry_.emplace<StrobeBehaviorComponent>(strobeEntity, std::move(behavior));
             registry_.emplace<StrobeTag>(strobeEntity);
-            strobeEntities_.emplace(page.normalizedName, strobeEntity);
-            IndexReticle(page.normalizedName, page.strobe->reticle, strobeEntity);
-            InsertReticleIntoPageDrawList(page.normalizedName, strobeEntity);
+            strobeEntities_.emplace(MakeStrobeLookupKey(page.normalizedName, strobeDefinition.normalizedName), strobeEntity);
+            IndexReticle(page.normalizedName, strobeDefinition.reticle, strobeEntity);
+            if (storedPageComponent.normalizedActiveStrobeName == strobeDefinition.normalizedName)
+            {
+                InsertReticleIntoPageDrawList(page.normalizedName, strobeEntity);
+            }
         }
     }
 
@@ -1187,6 +1204,7 @@ void SceneRegistry::RebuildTransportIndexes()
     templateTransportIds_.clear();
     transportPrimitives_.clear();
     transportBlinks_.clear();
+    transportStrobes_.clear();
 
     for (const auto& [normalizedPageName, entity] : pageEntities_)
     {
@@ -1194,6 +1212,12 @@ void SceneRegistry::RebuildTransportIndexes()
         {
             page->transportId = 0;
         }
+    }
+
+    auto strobeView = registry_.view<StrobeBehaviorComponent>();
+    for (const entt::entity entity : strobeView)
+    {
+        strobeView.get<StrobeBehaviorComponent>(entity).transportId = 0;
     }
 
     if (!transportMap_.has_value())
@@ -1246,6 +1270,28 @@ void SceneRegistry::RebuildTransportIndexes()
     {
         transportBlinks_.emplace(blink.id, TransportBlinkLookup {blink.pageId, blink.blinkType});
     }
+
+    for (const auto& strobe : transportMap_->strobes)
+    {
+        transportStrobes_.emplace(strobe.id, TransportStrobeLookup {strobe.pageId, strobe.strobeName});
+
+        const std::string* pageName = ResolvePageName(strobe.pageId);
+        if (pageName == nullptr)
+        {
+            continue;
+        }
+
+        const entt::entity entity = FindStrobeEntity(NormalizePageName(*pageName), strobe.normalizedStrobeName);
+        if (entity == entt::null)
+        {
+            continue;
+        }
+
+        if (StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity); behavior != nullptr)
+        {
+            behavior->transportId = strobe.id;
+        }
+    }
 }
 
 bool SceneRegistry::HasMatchingTransportMap(const std::string_view mappingHash) const noexcept
@@ -1288,6 +1334,17 @@ const std::string* SceneRegistry::ResolveBlinkType(const TransportId pageId, con
     }
 
     return &iterator->second.blinkType;
+}
+
+const std::string* SceneRegistry::ResolveStrobeName(const TransportId pageId, const TransportId strobeId) const noexcept
+{
+    const auto iterator = transportStrobes_.find(strobeId);
+    if (iterator == transportStrobes_.end() || iterator->second.pageId != pageId)
+    {
+        return nullptr;
+    }
+
+    return &iterator->second.strobeName;
 }
 
 const std::string* SceneRegistry::ResolvePrimitiveIdForReticle(const TransportId reticleId,
@@ -1335,7 +1392,7 @@ std::vector<PageSummary> SceneRegistry::Pages() const
             page.title,
             page.titleDisplay,
             page.backgroundColor,
-            page.strobe.has_value(),
+            !page.strobes.empty(),
             page.normalizedName == activePage_});
     }
 
@@ -1364,7 +1421,8 @@ bool SceneRegistry::HasNormalizedPage(const std::string_view pageName) const noe
 
 bool SceneRegistry::HasNormalizedStrobe(const std::string_view pageName) const noexcept
 {
-    return strobeEntities_.find(std::string(pageName)) != strobeEntities_.end();
+    const PageComponent* page = FindPage(pageName);
+    return page != nullptr && page->hasStrobe;
 }
 
 bool SceneRegistry::IsActivePageKey(const std::string_view pageName) const noexcept
@@ -1444,14 +1502,14 @@ std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_v
         return std::nullopt;
     }
 
-    const auto iterator = strobeEntities_.find(std::string(pageName));
-    if (iterator == strobeEntities_.end())
+    const entt::entity strobeEntity = FindActiveStrobeEntity(pageName);
+    if (strobeEntity == entt::null)
     {
         return std::nullopt;
     }
 
-    const auto* reticle = registry_.try_get<ReticleComponent>(iterator->second);
-    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+    const auto* reticle = registry_.try_get<ReticleComponent>(strobeEntity);
+    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(strobeEntity);
     const PageComponent* page = FindPage(pageName);
     if (reticle == nullptr || behavior == nullptr || page == nullptr)
     {
@@ -1470,6 +1528,8 @@ std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_v
     return StrobeSummary {
         page->name,
         page->transportId,
+        behavior->name,
+        behavior->transportId,
         reticle->group.id,
         strobePosition,
         behavior->capture,
@@ -1494,14 +1554,14 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
         return std::nullopt;
     }
 
-    const auto iterator = strobeEntities_.find(std::string(pageName));
-    if (iterator == strobeEntities_.end())
+    const entt::entity strobeEntity = FindActiveStrobeEntity(pageName);
+    if (strobeEntity == entt::null)
     {
         return std::nullopt;
     }
 
-    const auto* reticle = registry_.try_get<ReticleComponent>(iterator->second);
-    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+    const auto* reticle = registry_.try_get<ReticleComponent>(strobeEntity);
+    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(strobeEntity);
     const PageComponent* page = FindPage(pageName);
     if (reticle == nullptr || behavior == nullptr || page == nullptr)
     {
@@ -1606,6 +1666,7 @@ SceneRegistry::RuntimeSnapshot SceneRegistry::CaptureRuntimeSnapshot() const
             {
                 snapshot.strobes.push_back(RuntimeSnapshot::StrobeState {
                     membership.pageName,
+                    behavior->normalizedName,
                     reticle.group,
                     behavior->capture,
                     behavior->magnet,
@@ -1747,18 +1808,18 @@ void SceneRegistry::RestoreRuntimeSnapshot(const RuntimeSnapshot& snapshot)
 
     for (const RuntimeSnapshot::StrobeState& strobeState : snapshot.strobes)
     {
-        const auto iterator = strobeEntities_.find(strobeState.normalizedPageName);
-        if (iterator == strobeEntities_.end())
+        const entt::entity entity = FindStrobeEntity(strobeState.normalizedPageName, strobeState.normalizedStrobeName);
+        if (entity == entt::null)
         {
             continue;
         }
 
-        if (ReticleComponent* component = registry_.try_get<ReticleComponent>(iterator->second))
+        if (ReticleComponent* component = registry_.try_get<ReticleComponent>(entity))
         {
             component->group = strobeState.group;
         }
 
-        if (StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second))
+        if (StrobeBehaviorComponent* behavior = registry_.try_get<StrobeBehaviorComponent>(entity))
         {
             behavior->capture = strobeState.capture;
             behavior->magnet = strobeState.magnet;
@@ -2587,14 +2648,14 @@ void SceneRegistry::RefreshStickyStrobePosition(const std::string_view normalize
         return;
     }
 
-    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
-    if (iterator == strobeEntities_.end())
+    const entt::entity strobeEntity = FindActiveStrobeEntity(normalizedPageName);
+    if (strobeEntity == entt::null)
     {
         return;
     }
 
-    auto* strobe = registry_.try_get<ReticleComponent>(iterator->second);
-    auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+    auto* strobe = registry_.try_get<ReticleComponent>(strobeEntity);
+    auto* behavior = registry_.try_get<StrobeBehaviorComponent>(strobeEntity);
     if (strobe == nullptr || behavior == nullptr || behavior->lockedReticleId.empty())
     {
         return;
@@ -2615,19 +2676,59 @@ void SceneRegistry::RefreshStickyStrobePosition(const std::string_view normalize
 bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool active) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
-    if (iterator == strobeEntities_.end())
+    const entt::entity strobeEntity = FindActiveStrobeEntity(normalizedPageName);
+    if (strobeEntity == entt::null)
     {
         return false;
     }
 
-    if (auto* reticle = registry_.try_get<ReticleComponent>(iterator->second))
+    if (auto* reticle = registry_.try_get<ReticleComponent>(strobeEntity))
     {
         reticle->group.visible = active;
         return true;
     }
 
     return false;
+}
+
+bool SceneRegistry::SelectStrobe(const std::string_view pageName, const std::string_view strobeName) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr || !page->hasStrobe)
+    {
+        return false;
+    }
+
+    const std::string normalizedStrobeName = NormalizePageName(strobeName);
+    const entt::entity nextEntity = FindStrobeEntity(normalizedPageName, normalizedStrobeName);
+    if (nextEntity == entt::null)
+    {
+        return false;
+    }
+
+    if (page->normalizedActiveStrobeName == normalizedStrobeName)
+    {
+        return true;
+    }
+
+    const entt::entity previousEntity = FindActiveStrobeEntity(normalizedPageName);
+    if (previousEntity != entt::null)
+    {
+        RemoveReticleFromPageDrawList(normalizedPageName, previousEntity);
+    }
+
+    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(nextEntity);
+    if (behavior == nullptr)
+    {
+        return false;
+    }
+
+    page->activeStrobeName = behavior->name;
+    page->normalizedActiveStrobeName = behavior->normalizedName;
+    InsertReticleIntoPageDrawList(normalizedPageName, nextEntity);
+    RefreshStickyStrobePosition(normalizedPageName);
+    return true;
 }
 
 bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec2 position) noexcept
@@ -2638,14 +2739,14 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
     }
 
     const std::string normalizedPageName = NormalizePageName(pageName);
-    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
-    if (iterator == strobeEntities_.end())
+    const entt::entity strobeEntity = FindActiveStrobeEntity(normalizedPageName);
+    if (strobeEntity == entt::null)
     {
         return false;
     }
 
-    auto* reticle = registry_.try_get<ReticleComponent>(iterator->second);
-    auto* behavior = registry_.try_get<StrobeBehaviorComponent>(iterator->second);
+    auto* reticle = registry_.try_get<ReticleComponent>(strobeEntity);
+    auto* behavior = registry_.try_get<StrobeBehaviorComponent>(strobeEntity);
     if (reticle != nullptr)
     {
         if (behavior != nullptr)
@@ -2681,13 +2782,13 @@ bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec
 bool SceneRegistry::OffsetStrobe(const std::string_view pageName, const Vec2 delta) noexcept
 {
     const std::string normalizedPageName = NormalizePageName(pageName);
-    const auto iterator = strobeEntities_.find(std::string(normalizedPageName));
-    if (iterator == strobeEntities_.end())
+    const entt::entity strobeEntity = FindActiveStrobeEntity(normalizedPageName);
+    if (strobeEntity == entt::null)
     {
         return false;
     }
 
-    if (const auto* reticle = registry_.try_get<ReticleComponent>(iterator->second))
+    if (const auto* reticle = registry_.try_get<ReticleComponent>(strobeEntity))
     {
         return SetStrobePosition(pageName, reticle->group.transform.position + delta);
     }
@@ -2712,14 +2813,14 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
         return std::nullopt;
     }
 
-    const auto strobeIterator = strobeEntities_.find(std::string(pageName));
-    if (strobeIterator == strobeEntities_.end())
+    const entt::entity strobeEntity = FindActiveStrobeEntity(pageName);
+    if (strobeEntity == entt::null)
     {
         return std::nullopt;
     }
 
-    const auto* strobe = registry_.try_get<ReticleComponent>(strobeIterator->second);
-    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(strobeIterator->second);
+    const auto* strobe = registry_.try_get<ReticleComponent>(strobeEntity);
+    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(strobeEntity);
     const PageComponent* page = FindPage(pageName);
     if (strobe == nullptr || behavior == nullptr || page == nullptr)
     {
@@ -2971,6 +3072,35 @@ const SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_vi
 {
     const auto iterator = pageEntities_.find(std::string(normalizedPageName));
     return iterator == pageEntities_.end() ? nullptr : registry_.try_get<PageComponent>(iterator->second);
+}
+
+std::string SceneRegistry::MakeStrobeLookupKey(const std::string_view normalizedPageName,
+                                               const std::string_view strobeName) const
+{
+    std::string key;
+    key.reserve(normalizedPageName.size() + strobeName.size() + 1U);
+    key.append(normalizedPageName);
+    key.push_back('\x1F');
+    key.append(NormalizePageName(strobeName));
+    return key;
+}
+
+entt::entity SceneRegistry::FindStrobeEntity(const std::string_view normalizedPageName,
+                                             const std::string_view strobeName) const noexcept
+{
+    const auto iterator = strobeEntities_.find(MakeStrobeLookupKey(normalizedPageName, strobeName));
+    return iterator == strobeEntities_.end() ? entt::null : iterator->second;
+}
+
+entt::entity SceneRegistry::FindActiveStrobeEntity(const std::string_view normalizedPageName) const noexcept
+{
+    const PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr || page->normalizedActiveStrobeName.empty())
+    {
+        return entt::null;
+    }
+
+    return FindStrobeEntity(normalizedPageName, page->normalizedActiveStrobeName);
 }
 
 std::string SceneRegistry::MakeReticleLookupKey(const std::string_view normalizedPageName,

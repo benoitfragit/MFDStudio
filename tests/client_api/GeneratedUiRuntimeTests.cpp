@@ -102,7 +102,7 @@ class GeneratedUiRadarPage final
 public:
     explicit GeneratedUiRadarPage(mfd::client::RuntimeFeedbackState* feedbackState = nullptr)
         : feedbackState_(feedbackState),
-          strobe(Name(), MakeStrobeInfo(), 11U),
+          strobe(Name(), {defaultStrobe, designatorStrobe}, 11U),
           statusBanner(),
           geometryPanel(),
           dynamicTracks(feedbackState)
@@ -147,6 +147,8 @@ public:
         return dynamicTracks;
     }
 
+    mfd::client::StrobeType defaultStrobe {"Default", MakeStrobeInfo(), 101U, true};
+    mfd::client::StrobeType designatorStrobe {"Designator", MakeStrobeInfo(), 102U, false};
     mfd::client::StrobeHandle strobe;
     GeneratedUiStatusReticle statusBanner;
     GeneratedUiGeometryReticle geometryPanel;
@@ -242,6 +244,7 @@ TEST(GeneratedUiRuntimeTests, BuildCommandBatchCarriesMappingHashAndGeneratedIde
     GeneratedUiFixture ui;
     ui.Window().SetBrightness(0.65f);
     ui.Radar().SetStatusCaption("LOCK");
+    ui.Radar().strobe = ui.Radar().designatorStrobe;
     ui.Radar().strobe.SetActive(true);
 
     GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().Create();
@@ -265,6 +268,7 @@ TEST(GeneratedUiRuntimeTests, BuildCommandBatchCarriesMappingHashAndGeneratedIde
     ASSERT_NE(strobe, nullptr);
     EXPECT_EQ(strobe->page, "Radar");
     EXPECT_EQ(strobe->pageId, 11U);
+    EXPECT_EQ(strobe->strobeId, 102U);
     ASSERT_TRUE(strobe->active.has_value());
     EXPECT_TRUE(*strobe->active);
 
@@ -358,11 +362,16 @@ TEST(GeneratedUiRuntimeTests, SubmitLatestForwardsGeneratedUiBatchSemantics)
 TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeedbackState)
 {
     GeneratedUiFixture ui;
+    ui.Radar().strobe = ui.Radar().designatorStrobe;
+    ui.Radar().strobe.SetActive(true);
     auto& track = ui.Radar().DynamicRadarTrack().Create();
     std::vector<mfd::UserCommand> commands;
-    ASSERT_EQ(ui.Radar().AppendCommands(commands), 1U);
-    ASSERT_EQ(commands.size(), 1U);
-    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands.front());
+    ASSERT_EQ(ui.Radar().AppendCommands(commands), 2U);
+    ASSERT_EQ(commands.size(), 2U);
+    const auto* strobeUpdate = std::get_if<mfd::UpdateStrobeCommand>(&commands[0]);
+    ASSERT_NE(strobeUpdate, nullptr);
+    EXPECT_EQ(strobeUpdate->strobeId, 102U);
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&commands[1]);
     ASSERT_NE(upsert, nullptr);
     ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_FALSE(ui.Radar().IsActive());

@@ -29,6 +29,7 @@ constexpr std::string_view kWindowFile = "assets/windows/mfd_tutorial.json";
 constexpr std::size_t kMaxTracks = 10;
 constexpr auto kTrackInterval = std::chrono::seconds(2);
 constexpr auto kPageSwitchInterval = std::chrono::seconds(30);
+constexpr auto kStrobeSwitchInterval = std::chrono::seconds(8);
 constexpr float kProgressBarMaxWidth = 0.44f;
 constexpr float kProgressBarHeight = 0.06f;
 constexpr float kProgressBarLeftEdge = -0.22f;
@@ -157,6 +158,8 @@ int mainImpl()
     auto& page2ProgressBar = page2.mfdTutorialProgressBar;
     auto& progressFill = page2ProgressBar.FillBar();
     auto& page1Strobe = page1.strobe;
+    tutorial_ui::StrobeType* page1PreviousStrobe = &page1.defaultStrobe;
+    bool page1AlternativeStrobeSelected = false;
     std::vector<tutorial_ui::MfdTutorialRadarTrackDynamicReticle*> generatedTracks;
     generatedTracks.reserve(kMaxTracks);
     bool generatedDeclutterVisible = true;
@@ -196,6 +199,7 @@ int mainImpl()
 
     auto nextTrackTime = std::chrono::steady_clock::now() + kTrackInterval;
     auto nextPageTime = std::chrono::steady_clock::now() + kPageSwitchInterval;
+    auto nextStrobeSwitchTime = std::chrono::steady_clock::now() + kStrobeSwitchInterval;
     const auto progressStartTime = std::chrono::steady_clock::now();
     auto previousFrameTime = progressStartTime;
     std::uint32_t serial = 1;
@@ -232,6 +236,30 @@ int mainImpl()
                 throw std::runtime_error("Unable to activate generated tutorial page: " + client.LastError());
             }
             nextPageTime += kPageSwitchInterval;
+        }
+
+        if (page1Strobe.IsValid() && now >= nextStrobeSwitchTime)
+        {
+            if (!page1AlternativeStrobeSelected)
+            {
+                if (const tutorial_ui::StrobeType* selectedType = page1Strobe.SelectedType(); selectedType != nullptr)
+                {
+                    page1PreviousStrobe = (selectedType->GeneratedId() == page1.defaultStrobe.GeneratedId())
+                                              ? &page1.defaultStrobe
+                                              : &page1.strobe1;
+                }
+                page1Strobe = page1.strobe1;
+                page1AlternativeStrobeSelected = true;
+                std::cout << "Tutorial: switched Page1 to strobe `" << page1.strobe1.Name() << "`." << '\n';
+            }
+            else
+            {
+                page1Strobe = *page1PreviousStrobe;
+                page1AlternativeStrobeSelected = false;
+                std::cout << "Tutorial: restored Page1 strobe `" << page1PreviousStrobe->Name() << "`." << '\n';
+            }
+
+            nextStrobeSwitchTime += kStrobeSwitchInterval;
         }
 
         if (now >= nextTrackTime)
@@ -302,8 +330,11 @@ int mainImpl()
                     !generatedTracks.empty() &&
                     generatedTracks.back() != nullptr &&
                     generatedTracks.back()->IsStrobeCaptured();
+                const tutorial_ui::StrobeType* selectedPage1Strobe = page1Strobe.SelectedType();
                 std::cout << "Runtime feedback: Page1.active=" << (page1.IsActive() ? "true" : "false")
                           << " Page2.active=" << (page2.IsActive() ? "true" : "false")
+                          << " Page1.strobe="
+                          << (selectedPage1Strobe == nullptr ? "<none>" : selectedPage1Strobe->Name())
                           << " latestTrack.captured=" << (latestTrackCaptured ? "true" : "false") << '\n';
             }
         }

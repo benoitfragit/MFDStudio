@@ -57,6 +57,10 @@ struct StrobeSummary
     std::string pageName;
     /** @brief Generated transport id of the owning page when available. */
     TransportId pageId = 0;
+    /** @brief User-facing strobe catalog name currently active on the page. */
+    std::string strobeName;
+    /** @brief Generated transport id of the active strobe when available. */
+    TransportId strobeTransportId = 0;
     /** @brief Public reticle id of the strobe cursor. */
     std::string reticleId;
     /** @brief Current strobe position in logical coordinates. */
@@ -320,6 +324,8 @@ public:
 
     /** @brief Enables or disables a page strobe. */
     bool SetStrobeActive(std::string_view pageName, bool active) noexcept;
+    /** @brief Selects the active strobe variant on a page. */
+    bool SelectStrobe(std::string_view pageName, std::string_view strobeName) noexcept;
     /** @brief Sets the strobe position. */
     bool SetStrobePosition(std::string_view pageName, Vec2 position) noexcept;
     /** @brief Offsets the strobe position by a delta. */
@@ -383,6 +389,7 @@ private:
         struct StrobeState
         {
             std::string normalizedPageName;
+            std::string normalizedStrobeName;
             ReticleGroup group;
             StrobeCaptureConfig capture;
             StrobeMagnetConfig magnet;
@@ -449,6 +456,12 @@ private:
         TransportId pageId = 0;
         std::string blinkType;
     };
+    /** @brief Transport lookup row for one generated strobe catalog entry. */
+    struct TransportStrobeLookup
+    {
+        TransportId pageId = 0;
+        std::string strobeName;
+    };
 
     /** @brief Returns `true` when a normalized page key exists in the scene indexes. */
     bool HasNormalizedPage(std::string_view pageName) const noexcept;
@@ -483,6 +496,12 @@ private:
     void CollectPageReticleViewsByKey(std::string_view pageName, std::vector<ReticleRenderView>& destination) const;
     /** @brief Collects reticle pointers for one normalized page key without copying. */
     std::vector<const ReticleGroup*> CollectPageReticlePointersByKey(std::string_view pageName) const;
+    /** @brief Builds the composite lookup key used by the strobe entity index. */
+    std::string MakeStrobeLookupKey(std::string_view normalizedPageName, std::string_view strobeName) const;
+    /** @brief Finds the entity of one named strobe variant on a page. */
+    entt::entity FindStrobeEntity(std::string_view normalizedPageName, std::string_view strobeName) const noexcept;
+    /** @brief Finds the entity of the active strobe variant on a page. */
+    entt::entity FindActiveStrobeEntity(std::string_view normalizedPageName) const noexcept;
     /** @brief Builds the composite lookup key used by the reticle entity index. */
     std::string MakeReticleLookupKey(std::string_view normalizedPageName, std::string_view reticleId) const;
     /** @brief Finds the entity of one static or dynamic reticle. */
@@ -531,6 +550,8 @@ private:
     const std::string* ResolveTemplateId(TransportId templateId) const noexcept;
     /** @brief Resolves one generated blink type transport id within a page. */
     const std::string* ResolveBlinkType(TransportId pageId, TransportId blinkTypeId) const noexcept;
+    /** @brief Resolves one generated strobe transport id within a page. */
+    const std::string* ResolveStrobeName(TransportId pageId, TransportId strobeId) const noexcept;
     /** @brief Resolves one generated primitive transport id for a static reticle owner. */
     const std::string* ResolvePrimitiveIdForReticle(TransportId reticleId, TransportId primitiveId) const noexcept;
     /** @brief Resolves one generated primitive transport id for a template owner. */
@@ -544,7 +565,7 @@ private:
     entt::registry registry_ {};
     /** @brief Fast lookup from normalized page name to page entity. */
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> pageEntities_ {};
-    /** @brief Fast lookup from normalized page name to strobe entity. */
+    /** @brief Fast lookup from page-plus-strobe key to strobe entity. */
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> strobeEntities_ {};
     /** @brief Fast lookup from page-plus-reticle key to reticle entity. */
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> reticleEntities_ {};
@@ -562,6 +583,8 @@ private:
     std::unordered_map<TransportId, TransportPrimitiveLookup> transportPrimitives_ {};
     /** @brief Generated blink lookup indexed by generated transport id. */
     std::unordered_map<TransportId, TransportBlinkLookup> transportBlinks_ {};
+    /** @brief Generated strobe lookup indexed by generated transport id. */
+    std::unordered_map<TransportId, TransportStrobeLookup> transportStrobes_ {};
     /** @brief Monotonic creation sequence used to keep dynamic instance ordering stable inside one template binding. */
     std::uint64_t nextDynamicCreationSequence_ = 1;
     /** @brief Normalized name of the currently active page. */

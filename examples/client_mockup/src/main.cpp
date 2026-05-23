@@ -97,6 +97,7 @@ struct PageDraft
     std::array<float, 2> center {0.0f, 0.0f};
     float zoom = 1.0f;
     bool hasStrobe = false;
+    int selectedStrobeIndex = -1;
     bool strobeEnabled = false;
     std::array<float, 2> strobePosition {0.0f, 0.0f};
 };
@@ -580,6 +581,8 @@ private:
     WindowDisplayDraft& EnsureWindowDisplayDraft();
     /** @brief Returns the editable draft associated with one page. */
     PageDraft& EnsurePageDraft(int pageIndex);
+    /** @brief Loads one authored strobe into the editable page draft. */
+    void LoadStrobeDraft(const mfd::PageDefinition& page, int strobeIndex, PageDraft& draft, bool preferLiveFeedback) const;
     /** @brief Returns the editable draft associated with one static reticle. */
     ReticleDraft& EnsureReticleDraft(int pageIndex, int reticleIndex);
     /** @brief Copies live strobe feedback into the related page draft. */
@@ -594,8 +597,8 @@ private:
     void SelectPage(int pageIndex);
     /** @brief Selects one static reticle in the navigation tree. */
     void SelectReticle(int pageIndex, int reticleIndex);
-    /** @brief Selects the strobe entry of one page in the navigation tree. */
-    void SelectStrobe(int pageIndex);
+    /** @brief Selects one authored strobe entry of one page in the navigation tree. */
+    void SelectStrobe(int pageIndex, int strobeIndex);
     /** @brief Sends a page-activation command for the current selection. */
     bool SendActivatePage();
     /** @brief Sends the current page-view draft. */
@@ -799,6 +802,8 @@ const mfd::Primitive* FindFirstTextPrimitive(const mfd::ReticleGroup& reticle)
     return nullptr;
 }
 
+const mfd::PageStrobeDefinition* StrobeByIndex(const mfd::PageDefinition& page, int strobeIndex) noexcept;
+
 std::string SelectionLabel(const NavigationSelection& selection, const mfd::MfdDocument& document)
 {
     if (selection.pageIndex < 0 || selection.pageIndex >= static_cast<int>(document.pages.size()))
@@ -814,6 +819,10 @@ std::string SelectionLabel(const NavigationSelection& selection, const mfd::MfdD
         return page.title.empty() ? page.name : page.title;
 
     case SelectionKind::Strobe:
+        if (const mfd::PageStrobeDefinition* strobe = StrobeByIndex(page, selection.reticleIndex); strobe != nullptr)
+        {
+            return page.name + " / " + strobe->name;
+        }
         return page.name + " / Strobe";
 
     case SelectionKind::Reticle:
@@ -833,6 +842,35 @@ std::string SelectionLabel(const NavigationSelection& selection, const mfd::MfdD
     }
 
     return "Selection";
+}
+
+int ActiveStrobeIndex(const mfd::PageDefinition& page) noexcept
+{
+    if (page.strobes.empty())
+    {
+        return -1;
+    }
+
+    if (const mfd::PageStrobeDefinition* activeStrobe = mfd::FindActivePageStrobeDefinition(page);
+        activeStrobe != nullptr)
+    {
+        for (std::size_t index = 0; index < page.strobes.size(); ++index)
+        {
+            if (&page.strobes[index] == activeStrobe)
+            {
+                return static_cast<int>(index);
+            }
+        }
+    }
+
+    return 0;
+}
+
+const mfd::PageStrobeDefinition* StrobeByIndex(const mfd::PageDefinition& page, const int strobeIndex) noexcept
+{
+    return strobeIndex >= 0 && strobeIndex < static_cast<int>(page.strobes.size())
+               ? &page.strobes[static_cast<std::size_t>(strobeIndex)]
+               : nullptr;
 }
 
 void ApplyMockupTheme()
@@ -1190,6 +1228,50 @@ WindowDisplayDraft& MockupApplication::EnsureWindowDisplayDraft()
     return windowDisplayDraft_;
 }
 
+void MockupApplication::LoadStrobeDraft(const mfd::PageDefinition& page,
+                                        const int strobeIndex,
+                                        PageDraft& draft,
+                                        const bool preferLiveFeedback) const
+{
+    const mfd::PageStrobeDefinition* strobe = StrobeByIndex(page, strobeIndex);
+    if (strobe == nullptr)
+    {
+        draft.selectedStrobeIndex = -1;
+        draft.hasStrobe = false;
+        return;
+    }
+
+    draft.hasStrobe = true;
+    draft.selectedStrobeIndex = strobeIndex;
+    draft.strobeEnabled = strobe->reticle.visible;
+    draft.strobePosition = {
+        strobe->reticle.transform.position.x,
+        strobe->reticle.transform.position.y};
+
+    if (!preferLiveFeedback)
+    {
+        return;
+    }
+
+    const auto feedbackIterator = strobeFeedbackByPage_.find(
+        page.normalizedName.empty() ? mfd::NormalizePageName(page.name) : page.normalizedName);
+    if (feedbackIterator == strobeFeedbackByPage_.end())
+    {
+        return;
+    }
+
+    const int activeStrobeIndex = ActiveStrobeIndex(page);
+    if (activeStrobeIndex != strobeIndex)
+    {
+        return;
+    }
+
+    draft.strobeEnabled = feedbackIterator->second.feedback.active;
+    draft.strobePosition = {
+        feedbackIterator->second.feedback.position.x,
+        feedbackIterator->second.feedback.position.y};
+}
+
 PageDraft& MockupApplication::EnsurePageDraft(const int pageIndex)
 {
     const mfd::PageDefinition* page = PageByIndex(pageIndex);
@@ -1207,24 +1289,13 @@ PageDraft& MockupApplication::EnsurePageDraft(const int pageIndex)
         PageDraft draft;
         draft.center = {page->view.center.x, page->view.center.y};
         draft.zoom = page->view.zoom;
-        draft.hasStrobe = page->strobe.has_value();
+        draft.hasStrobe = !page->strobes.empty();
 
-        if (page->strobe.has_value())
-        {
-            draft.strobeEnabled = page->strobe->reticle.visible;
-            draft.strobePosition = {
-                page->strobe->reticle.transform.position.x,
-                page->strobe->reticle.transform.position.y};
-
-            const auto feedbackIterator = strobeFeedbackByPage_.find(key);
-            if (feedbackIterator != strobeFeedbackByPage_.end())
-            {
-                draft.strobeEnabled = feedbackIterator->second.feedback.active;
-                draft.strobePosition = {
-                    feedbackIterator->second.feedback.position.x,
-                    feedbackIterator->second.feedback.position.y};
-            }
-        }
+        const int preferredStrobeIndex =
+            selection_.kind == SelectionKind::Strobe && selection_.pageIndex == pageIndex
+                ? selection_.reticleIndex
+                : ActiveStrobeIndex(*page);
+        LoadStrobeDraft(*page, preferredStrobeIndex, draft, true);
 
         it->second = draft;
     }
@@ -1371,12 +1442,16 @@ void MockupApplication::SelectReticle(const int pageIndex, const int reticleInde
     EnsureReticleDraft(pageIndex, reticleIndex);
 }
 
-void MockupApplication::SelectStrobe(const int pageIndex)
+void MockupApplication::SelectStrobe(const int pageIndex, const int strobeIndex)
 {
     selection_.kind = SelectionKind::Strobe;
     selection_.pageIndex = pageIndex;
-    selection_.reticleIndex = -1;
-    EnsurePageDraft(pageIndex);
+    selection_.reticleIndex = strobeIndex;
+    PageDraft& draft = EnsurePageDraft(pageIndex);
+    if (const mfd::PageDefinition* page = PageByIndex(pageIndex); page != nullptr)
+    {
+        LoadStrobeDraft(*page, strobeIndex, draft, true);
+    }
 }
 
 bool MockupApplication::SendActivatePage()
@@ -1573,8 +1648,16 @@ bool MockupApplication::SendStrobeUpdate()
     draft.strobePosition[0] = std::clamp(draft.strobePosition[0], -1.0f, 1.0f);
     draft.strobePosition[1] = std::clamp(draft.strobePosition[1], -1.0f, 1.0f);
 
+    const mfd::PageStrobeDefinition* strobe = StrobeByIndex(*page, draft.selectedStrobeIndex);
+    if (strobe == nullptr)
+    {
+        SetStatus("No authored strobe is currently selected on page '" + page->name + "'.", true);
+        return false;
+    }
+
     mfd::UpdateStrobeCommand command;
     command.page = page->name;
+    command.strobe = strobe->name;
     command.active = draft.strobeEnabled;
     command.position = mfd::Vec2 {draft.strobePosition[0], draft.strobePosition[1]};
     if (!client_->Send(command))
@@ -1583,7 +1666,7 @@ bool MockupApplication::SendStrobeUpdate()
         return false;
     }
 
-    SetStatus("Strobe updated on page '" + page->name + "'.", false);
+    SetStatus("Strobe '" + strobe->name + "' updated on page '" + page->name + "'.", false);
     return true;
 }
 
@@ -2285,9 +2368,13 @@ void MockupApplication::DrawNavigationTree()
         {
             ImGui::TextDisabled("name: %s", page.name.c_str());
 
-            if (page.strobe.has_value())
+            for (int strobeIndex = 0; strobeIndex < static_cast<int>(page.strobes.size()); ++strobeIndex)
             {
-                const bool strobeSelected = selection_.kind == SelectionKind::Strobe && selection_.pageIndex == pageIndex;
+                const auto& strobe = page.strobes[static_cast<std::size_t>(strobeIndex)];
+                const bool strobeSelected =
+                    selection_.kind == SelectionKind::Strobe &&
+                    selection_.pageIndex == pageIndex &&
+                    selection_.reticleIndex == strobeIndex;
                 ImGuiTreeNodeFlags strobeFlags =
                     ImGuiTreeNodeFlags_Leaf |
                     ImGuiTreeNodeFlags_NoTreePushOnOpen |
@@ -2297,11 +2384,15 @@ void MockupApplication::DrawNavigationTree()
                     strobeFlags |= ImGuiTreeNodeFlags_Selected;
                 }
 
-                const std::string strobeLabel = "Strobe##strobe_" + std::to_string(pageIndex);
+                const bool active = strobe.normalizedName == page.normalizedActiveStrobeName ||
+                                    (page.normalizedActiveStrobeName.empty() && strobeIndex == 0);
+                const std::string strobeLabel =
+                    std::string(active ? "* " : "") + strobe.name +
+                    "##strobe_" + std::to_string(pageIndex) + "_" + std::to_string(strobeIndex);
                 ImGui::TreeNodeEx(strobeLabel.c_str(), strobeFlags);
                 if (ImGui::IsItemClicked())
                 {
-                    SelectStrobe(pageIndex);
+                    SelectStrobe(pageIndex, strobeIndex);
                 }
             }
 
@@ -2487,6 +2578,26 @@ void MockupApplication::DrawPageInspector()
     {
         ImGui::Spacing();
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Quick strobe");
+        const mfd::PageStrobeDefinition* selectedStrobe = StrobeByIndex(*page, draft.selectedStrobeIndex);
+        const char* selectedStrobeLabel = selectedStrobe == nullptr ? "<none>" : selectedStrobe->name.c_str();
+        ImGui::SetNextItemWidth(260.0f);
+        if (ImGui::BeginCombo("Active strobe##quickStrobe", selectedStrobeLabel))
+        {
+            for (int strobeIndex = 0; strobeIndex < static_cast<int>(page->strobes.size()); ++strobeIndex)
+            {
+                const auto& strobe = page->strobes[static_cast<std::size_t>(strobeIndex)];
+                const bool selected = draft.selectedStrobeIndex == strobeIndex;
+                if (ImGui::Selectable(strobe.name.c_str(), selected))
+                {
+                    LoadStrobeDraft(*page, strobeIndex, draft, true);
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
         ImGui::Checkbox("Enabled##quickStrobe", &draft.strobeEnabled);
         ImGui::SetNextItemWidth(260.0f);
         ImGui::DragFloat2("Position##quickStrobe", draft.strobePosition.data(), 0.01f, -1.0f, 1.0f, "%.3f");
@@ -2691,8 +2802,29 @@ void MockupApplication::DrawStrobeInspector()
     }
 
     ImGui::Text("Page: %s", page->name.c_str());
+    const mfd::PageStrobeDefinition* selectedStrobe = StrobeByIndex(*page, draft.selectedStrobeIndex);
     ImGui::TextDisabled("Strobe commands are optional and page specific.");
     ImGui::Spacing();
+
+    ImGui::SetNextItemWidth(260.0f);
+    if (ImGui::BeginCombo("Authored strobe", selectedStrobe == nullptr ? "<none>" : selectedStrobe->name.c_str()))
+    {
+        for (int strobeIndex = 0; strobeIndex < static_cast<int>(page->strobes.size()); ++strobeIndex)
+        {
+            const auto& strobe = page->strobes[static_cast<std::size_t>(strobeIndex)];
+            const bool selected = draft.selectedStrobeIndex == strobeIndex;
+            if (ImGui::Selectable(strobe.name.c_str(), selected))
+            {
+                LoadStrobeDraft(*page, strobeIndex, draft, true);
+                selection_.reticleIndex = strobeIndex;
+            }
+            if (selected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
 
     ImGui::Checkbox("Strobe active", &draft.strobeEnabled);
     ImGui::SetNextItemWidth(260.0f);
@@ -2729,6 +2861,7 @@ void MockupApplication::DrawStrobeInspector()
 
         const mfd::StrobeStatusFeedback& feedback = feedbackEntry->feedback;
         ImGui::Text("Sequence: %u", feedback.sequence);
+        ImGui::Text("Reported strobe id: %s", feedback.strobeId.empty() ? "<unknown>" : feedback.strobeId.c_str());
         ImGui::Text("Active: %s", feedback.active ? "true" : "false");
         ImGui::Text("Actual position: %.3f / %.3f", feedback.position.x, feedback.position.y);
         ImGui::Text("Capture area: %s",

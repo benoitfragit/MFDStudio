@@ -116,10 +116,12 @@ void WritePageJson(const std::filesystem::path& pageFile,
     if (strobe.has_value())
     {
         json strobeNode = json::object();
+        strobeNode["name"] = "Default";
         strobeNode["id"] = strobe->first;
         strobeNode["template"] = strobe->second;
         strobeNode["capture"] = {{"shape", "circle"}, {"radius", 0.1f}};
-        page["strobe"] = std::move(strobeNode);
+        page["strobes"] = json::array({std::move(strobeNode)});
+        page["activeStrobe"] = "Default";
     }
 
     WriteTextFile(pageFile, page.dump(2) + '\n');
@@ -177,11 +179,15 @@ void SetStrobeTemplateReference(mfd::PageDefinition& page,
                                 const std::string& templateId)
 {
     mfd::PageStrobeDefinition strobe;
+    strobe.name = "Default";
+    strobe.normalizedName = mfd::NormalizePageName(strobe.name);
     strobe.reticle.id = reticleId;
     strobe.reticle.sourceTemplateId = templateId;
     strobe.capture.shape = mfd::StrobeCaptureShape::Circle;
     strobe.capture.radius = 0.1f;
-    page.strobe = std::move(strobe);
+    page.strobes.push_back(std::move(strobe));
+    page.activeStrobeName = "Default";
+    page.normalizedActiveStrobeName = mfd::NormalizePageName(page.activeStrobeName);
 }
 
 mfd::ReticleGroup MakeTemplate(const std::string& templateId)
@@ -358,8 +364,8 @@ TEST(ReticleRenameServiceTests, RenamesReticleUsedBySeveralPagesIncludingStrobe)
     ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
 
     EXPECT_EQ(loaded.document.pages[0].staticReticles.front().sourceTemplateId, "threat_box");
-    ASSERT_TRUE(loaded.document.pages[1].strobe.has_value());
-    EXPECT_EQ(loaded.document.pages[1].strobe->reticle.sourceTemplateId, "threat_box");
+    ASSERT_EQ(loaded.document.pages[1].strobes.size(), 1U);
+    EXPECT_EQ(loaded.document.pages[1].strobes.front().reticle.sourceTemplateId, "threat_box");
     EXPECT_EQ(json::parse(ReadTextFile(tacticalFile)).at("staticReticles").front().at("template").get<std::string>(), "threat_box");
 }
 
@@ -425,10 +431,12 @@ TEST(ReticleRenameServiceTests, RenamesDynamicBindingsWhenEditorStateIsPresent)
         {"dynamicReticleBindings",
          json::array({json {{"templateId", "track_box"}, {"layerId", "default"}, {"orderInLayer", 0}}})},
         {"staticReticles", json::array({json {{"id", "track"}, {"template", "track_box"}}})},
-        {"strobe",
-         json {{"id", "cursor"},
-               {"template", "track_box"},
-               {"capture", json {{"shape", "circle"}, {"radius", 0.1f}}}}},
+        {"strobes",
+         json::array({json {{"name", "Default"},
+                            {"id", "cursor"},
+                            {"template", "track_box"},
+                            {"capture", json {{"shape", "circle"}, {"radius", 0.1f}}}}})},
+        {"activeStrobe", "Default"},
         {"_editor", json {{"layers", json::array({json {{"id", "default"}, {"visible", false}}})}}}};
     WriteTextFile(radarFile, pageDocument.dump(2) + '\n');
     WriteTemplateJson(templateFile, "track_box");
@@ -457,13 +465,13 @@ TEST(ReticleRenameServiceTests, RenamesDynamicBindingsWhenEditorStateIsPresent)
 
     ASSERT_EQ(loaded.document.pages.front().dynamicReticleBindings.size(), 1U);
     EXPECT_EQ(loaded.document.pages.front().staticReticles.front().sourceTemplateId, "threat_box");
-    ASSERT_TRUE(loaded.document.pages.front().strobe.has_value());
-    EXPECT_EQ(loaded.document.pages.front().strobe->reticle.sourceTemplateId, "threat_box");
+    ASSERT_EQ(loaded.document.pages.front().strobes.size(), 1U);
+    EXPECT_EQ(loaded.document.pages.front().strobes.front().reticle.sourceTemplateId, "threat_box");
     EXPECT_EQ(loaded.document.pages.front().dynamicReticleBindings.front().templateId, "threat_box");
 
     const json persistedPage = json::parse(ReadTextFile(radarFile));
     EXPECT_EQ(persistedPage.at("staticReticles").front().at("template").get<std::string>(), "threat_box");
-    EXPECT_EQ(persistedPage.at("strobe").at("template").get<std::string>(), "threat_box");
+    EXPECT_EQ(persistedPage.at("strobes").at(0).at("template").get<std::string>(), "threat_box");
     EXPECT_EQ(persistedPage.at("dynamicReticleBindings").front().at("templateId").get<std::string>(), "threat_box");
     EXPECT_FALSE(persistedPage.at("_editor").at("layers").empty());
 }

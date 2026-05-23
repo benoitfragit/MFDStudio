@@ -212,6 +212,21 @@ const TransportMapBlinkTypeEntry* FindBlinkType(const GeneratedTransportMap& map
     return iterator == map.blinkTypes.end() ? nullptr : &(*iterator);
 }
 
+const TransportMapStrobeEntry* FindStrobe(const GeneratedTransportMap& map,
+                                          const TransportId pageId,
+                                          const std::string_view strobeName) noexcept
+{
+    const std::string normalizedStrobeName = NormalizePageName(strobeName);
+    const auto iterator = std::find_if(
+        map.strobes.begin(),
+        map.strobes.end(),
+        [pageId, &normalizedStrobeName](const TransportMapStrobeEntry& entry)
+        {
+            return entry.pageId == pageId && entry.normalizedStrobeName == normalizedStrobeName;
+        });
+    return iterator == map.strobes.end() ? nullptr : &(*iterator);
+}
+
 const TransportMapPrimitiveEntry* FindPrimitiveByOwner(const GeneratedTransportMap& map,
                                                        const TransportPrimitiveOwnerKind ownerKind,
                                                        const TransportId ownerId,
@@ -461,6 +476,66 @@ bool ResolveGeneratedTemplate(const std::optional<GeneratedTransportMap>& transp
 
     templateTransportId = resolved->id;
     templateId = resolved->templateId;
+    return true;
+}
+
+bool ResolveGeneratedStrobe(const std::optional<GeneratedTransportMap>& transportMap,
+                            std::string& lastError,
+                            const TransportId pageId,
+                            std::string& strobeName,
+                            TransportId& strobeId,
+                            const std::string_view context)
+{
+    if (strobeId != 0)
+    {
+        if (transportMap.has_value())
+        {
+            const auto iterator = std::find_if(
+                transportMap->strobes.begin(),
+                transportMap->strobes.end(),
+                [pageId, &strobeId](const TransportMapStrobeEntry& entry)
+                {
+                    return entry.id == strobeId && entry.pageId == pageId;
+                });
+            if (iterator == transportMap->strobes.end())
+            {
+                lastError = "Unknown generated strobe id " + std::to_string(strobeId);
+                return false;
+            }
+
+            if (!strobeName.empty() && NormalizePageName(strobeName) != iterator->normalizedStrobeName)
+            {
+                lastError = "Generated strobe id " + std::to_string(strobeId) +
+                            " does not match strobe '" + strobeName + "'";
+                return false;
+            }
+
+            strobeName = iterator->strobeName;
+        }
+
+        return true;
+    }
+
+    if (strobeName.empty())
+    {
+        return true;
+    }
+
+    const GeneratedTransportMap* map = RequireTransportMap(transportMap, lastError, context);
+    if (map == nullptr)
+    {
+        return false;
+    }
+
+    const TransportMapStrobeEntry* resolved = FindStrobe(*map, pageId, strobeName);
+    if (resolved == nullptr)
+    {
+        lastError = "Unknown strobe '" + strobeName + "' on page id " + std::to_string(pageId);
+        return false;
+    }
+
+    strobeId = resolved->id;
+    strobeName = resolved->strobeName;
     return true;
 }
 
@@ -772,7 +847,14 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
                 }
                 else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
                 {
-                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, "UpdateStrobeCommand");
+                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, "UpdateStrobeCommand") &&
+                           ResolveGeneratedStrobe(
+                               transportMap_,
+                               lastError_,
+                               value.pageId,
+                               value.strobe,
+                               value.strobeId,
+                               "UpdateStrobeCommand");
                 }
                 else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
                 {
@@ -1127,6 +1209,14 @@ bool CommandClient::SetStrobeActive(const std::string_view page, const bool acti
     UpdateStrobeCommand command;
     command.page = std::string(page);
     command.active = active;
+    return Send(command);
+}
+
+bool CommandClient::SelectStrobe(const std::string_view page, const std::string_view strobeName)
+{
+    UpdateStrobeCommand command;
+    command.page = std::string(page);
+    command.strobe = std::string(strobeName);
     return Send(command);
 }
 
