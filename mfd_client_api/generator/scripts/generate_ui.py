@@ -33,6 +33,44 @@ PRIMITIVE_HANDLE_TYPES = {
     "image": "ImageHandle",
 }
 
+STATIC_RETICLE_EXPOSED_BASE_MEMBERS = (
+    "AppendCommands",
+    "Blink",
+    "Reset",
+    "SetVisible",
+    "SetBlinkEnabled",
+    "SetBlink",
+    "SetBlinkType",
+    "ClearBlinkType",
+    "SetPosition",
+    "SetRotationDegrees",
+    "SetColor",
+    "SetThickness",
+)
+
+DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS = (
+    "Blink",
+    "Id",
+    "IsStrobeCaptured",
+    "Reset",
+    "SetVisible",
+    "SetBlinkEnabled",
+    "SetBlink",
+    "SetBlinkType",
+    "ClearBlinkType",
+    "SetPosition",
+    "SetRotationDegrees",
+    "SetColor",
+    "SetThickness",
+)
+
+DYNAMIC_SET_EXPOSED_BASE_MEMBERS = (
+    "AppendCommands",
+    "AppendRemovalCommands",
+    "Reset",
+    "SetVisible",
+)
+
 
 @dataclass(frozen=True)
 class PrimitiveSpec:
@@ -875,6 +913,10 @@ def emit_strobe_type_initializer(strobe: StrobeSpec) -> str:
     )
 
 
+def emit_using_declarations(base_type: str, member_names: tuple[str, ...], indent: str = "    ") -> list[str]:
+    return [f"{indent}using {base_type}::{member_name};" for member_name in member_names]
+
+
 def emit_header(namespace_name: str,
                 ui_class_name: str,
                 window_json: str,
@@ -906,9 +948,6 @@ def emit_header(namespace_name: str,
         f"namespace {namespace_name}",
         "{",
         "using BlinkType = mfd::client::BlinkType;",
-        "using DynamicReticle = mfd::client::DynamicReticle;",
-        "using DynamicReticleSet = mfd::client::DynamicReticleSet;",
-        "using GeneratedDynamicReticleSet = mfd::client::GeneratedDynamicReticleSet;",
         "using LineStyle = mfd::client::LineStyle;",
         "using CircleHandle = mfd::client::CircleHandle;",
         "using DiamondHandle = mfd::client::DiamondHandle;",
@@ -920,8 +959,6 @@ def emit_header(namespace_name: str,
         "using PolylineHandle = mfd::client::PolylineHandle;",
         "using BezierHandle = mfd::client::BezierHandle;",
         "using ArcHandle = mfd::client::ArcHandle;",
-        "using Reticle = mfd::client::Reticle;",
-        "using ReticleBlink = mfd::client::ReticleBlink;",
         "using RingHandle = mfd::client::RingHandle;",
         "using RectangleHandle = mfd::client::RectangleHandle;",
         "using RuntimeFeedbackState = mfd::client::RuntimeFeedbackState;",
@@ -937,11 +974,14 @@ def emit_header(namespace_name: str,
 
     for template in template_specs:
         lines.extend([
-            f"class {template.dynamic_reticle_class_name} final : public DynamicReticle",
+            f"class {template.dynamic_reticle_class_name} final : private mfd::client::DynamicReticle",
             "{",
             "public:",
             f"    explicit {template.dynamic_reticle_class_name}(std::string_view reticleId);",
         ])
+        lines.extend(emit_using_declarations(
+            "mfd::client::DynamicReticle",
+            DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS))
 
         if template.status_primitive_accessor_name is not None:
             lines.append("    void SetValue(std::string value);")
@@ -952,6 +992,7 @@ def emit_header(namespace_name: str,
         lines.extend([
             "",
             "private:",
+            f"    friend class {template.dynamic_set_class_name};",
         ])
 
         for primitive in template.primitives:
@@ -963,16 +1004,21 @@ def emit_header(namespace_name: str,
         lines.extend([
             "};",
             "",
-            f"class {template.dynamic_set_class_name} final : public GeneratedDynamicReticleSet",
+            f"class {template.dynamic_set_class_name} final : private mfd::client::GeneratedDynamicReticleSet",
             "{",
             "public:",
             (f"    explicit {template.dynamic_set_class_name}(std::string_view pageName, "
              "mfd::TransportId pageTransportId = 0, RuntimeFeedbackState* feedbackState = nullptr);"),
+        ])
+        lines.extend(emit_using_declarations(
+            "mfd::client::GeneratedDynamicReticleSet",
+            DYNAMIC_SET_EXPOSED_BASE_MEMBERS))
+        lines.extend([
             f"    {template.dynamic_reticle_class_name}& Create();",
             f"    void Remove({template.dynamic_reticle_class_name}& reticle);",
             "",
             "protected:",
-            "    std::unique_ptr<DynamicReticle> CreateReticle(std::string_view reticleId) override;",
+            "    std::unique_ptr<mfd::client::DynamicReticle> CreateReticle(std::string_view reticleId) override;",
             "};",
             "",
         ])
@@ -981,11 +1027,14 @@ def emit_header(namespace_name: str,
         page_templates = [template_specs_by_id[template_id] for template_id in page.dynamic_template_ids]
         for reticle in page.reticles:
             lines.extend([
-                f"class {reticle.wrapper_class_name} final : public Reticle",
+                f"class {reticle.wrapper_class_name} final : private mfd::client::Reticle",
                 "{",
                 "public:",
                 f"    {reticle.wrapper_class_name}();",
             ])
+            lines.extend(emit_using_declarations(
+                "mfd::client::Reticle",
+                STATIC_RETICLE_EXPOSED_BASE_MEMBERS))
 
             if reticle.status_primitive_accessor_name is not None:
                 lines.append("    void SetValue(std::string value);")
@@ -1166,7 +1215,7 @@ def emit_source(namespace_name: str,
     ]
 
     for template in template_specs:
-        ctor_initializers = ["    DynamicReticle(reticleId)"]
+        ctor_initializers = ["    mfd::client::DynamicReticle(reticleId)"]
         for primitive in template.primitives:
             ctor_initializers.append(
                 f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
@@ -1198,24 +1247,27 @@ def emit_source(namespace_name: str,
         lines.extend([
             (f"{template.dynamic_set_class_name}::{template.dynamic_set_class_name}("
              "std::string_view pageName, const mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) :"),
-            (f'    GeneratedDynamicReticleSet(pageName, "{cpp_string(template.template_id)}", '
+            (f'    mfd::client::GeneratedDynamicReticleSet(pageName, "{cpp_string(template.template_id)}", '
              f"pageTransportId, {template.transport_id}U, feedbackState)"),
             "{",
             "}",
             "",
             f"{template.dynamic_reticle_class_name}& {template.dynamic_set_class_name}::Create()",
             "{",
-            f"    return static_cast<{template.dynamic_reticle_class_name}&>(GeneratedDynamicReticleSet::Create());",
+            ("    return static_cast<"
+             f"{template.dynamic_reticle_class_name}&>(mfd::client::GeneratedDynamicReticleSet::Create());"),
             "}",
             "",
             f"void {template.dynamic_set_class_name}::Remove({template.dynamic_reticle_class_name}& reticle)",
             "{",
-            "    GeneratedDynamicReticleSet::Remove(reticle);",
+            "    mfd::client::GeneratedDynamicReticleSet::Remove(reticle);",
             "}",
             "",
-            f"std::unique_ptr<DynamicReticle> {template.dynamic_set_class_name}::CreateReticle(std::string_view reticleId)",
+            (f"std::unique_ptr<mfd::client::DynamicReticle> "
+             f"{template.dynamic_set_class_name}::CreateReticle(std::string_view reticleId)"),
             "{",
-            f"    return std::make_unique<{template.dynamic_reticle_class_name}>(reticleId);",
+            f"    auto reticle = std::make_unique<{template.dynamic_reticle_class_name}>(reticleId);",
+            "    return std::unique_ptr<mfd::client::DynamicReticle>(reticle.release());",
             "}",
             "",
         ])
@@ -1224,7 +1276,8 @@ def emit_source(namespace_name: str,
         page_templates = [template_specs_by_id[template_id] for template_id in page.dynamic_template_ids]
         for reticle in page.reticles:
             ctor_initializers = [
-                f'    Reticle("{cpp_string(page.page_name)}", "{cpp_string(reticle.reticle_id)}", {page.transport_id}U, {reticle.transport_id}U)']
+                (f'    mfd::client::Reticle("{cpp_string(page.page_name)}", "{cpp_string(reticle.reticle_id)}", '
+                 f"{page.transport_id}U, {reticle.transport_id}U)")]
             for primitive in reticle.primitives:
                 ctor_initializers.append(
                     f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')

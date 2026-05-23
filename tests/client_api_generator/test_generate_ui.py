@@ -157,12 +157,15 @@ class GenerateUiTests(unittest.TestCase):
                 "class RadarMockupPage",
                 "class SystemMockupPage",
                 "class CockpitMockupUi",
-                "class StatusTemplateDynamicReticle final : public DynamicReticle",
-                "class StatusTemplateDynamicReticleSet final : public GeneratedDynamicReticleSet",
+                "class StatusTemplateDynamicReticle final : private mfd::client::DynamicReticle",
+                "using mfd::client::DynamicReticle::SetPosition;",
+                "class StatusTemplateDynamicReticleSet final : private mfd::client::GeneratedDynamicReticleSet",
+                "using mfd::client::GeneratedDynamicReticleSet::AppendCommands;",
                 "using LineStyle = mfd::client::LineStyle;",
-                "class RadarRadarStatusReticle final : public Reticle",
-                "class RadarTrackBoxReticle final : public Reticle",
-                "class SystemSystemStatusReticle final : public Reticle",
+                "class RadarRadarStatusReticle final : private mfd::client::Reticle",
+                "using mfd::client::Reticle::AppendCommands;",
+                "class RadarTrackBoxReticle final : private mfd::client::Reticle",
+                "class SystemSystemStatusReticle final : private mfd::client::Reticle",
                 "void SetValue(std::string value);",
                 "using MfdGeneratedPageTag = mfd::CommandClient::GeneratedPageTag;",
                 "using RuntimeFeedbackState = mfd::client::RuntimeFeedbackState;",
@@ -204,11 +207,14 @@ class GenerateUiTests(unittest.TestCase):
             self.assertNotIn('#include "mfd/client/Animation.h"', header_content)
             self.assertNotIn('#include "mfd/client/LatestBatchPublisher.h"', header_content)
             self.assertNotIn("DynamicReticleSet& Dynamic(std::string_view templateId);", header_content)
+            self.assertNotIn("using Reticle = mfd::client::Reticle;", header_content)
+            self.assertNotIn("using DynamicReticle = mfd::client::DynamicReticle;", header_content)
+            self.assertNotIn("using GeneratedDynamicReticleSet = mfd::client::GeneratedDynamicReticleSet;", header_content)
 
             for expected in [
                 "StatusTemplateDynamicReticle::StatusTemplateDynamicReticle(std::string_view reticleId)",
                 "StatusTemplateDynamicReticleSet::StatusTemplateDynamicReticleSet(std::string_view pageName, const mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState)",
-                "GeneratedDynamicReticleSet(pageName, \"status_template\", pageTransportId, ",
+                "mfd::client::GeneratedDynamicReticleSet(pageName, \"status_template\", pageTransportId, ",
                 "StatusTemplateDynamicReticleSet& RadarMockupPage::DynamicStatusTemplate() noexcept",
                 "RadarMockupPage::RadarMockupPage(RuntimeFeedbackState* feedbackState) :",
                 "feedbackState_(feedbackState)",
@@ -220,6 +226,8 @@ class GenerateUiTests(unittest.TestCase):
                 "SystemMockupPage::SetStatusCaption(std::string value)",
                 "RadarRadarStatusReticle::SetValue(std::string value)",
                 "systemStatus.SystemStatusValue().SetText(std::move(value));",
+                "mfd::client::GeneratedDynamicReticleSet::Create()",
+                "mfd::client::GeneratedDynamicReticleSet::Remove(reticle);",
                 "if (!client.ActivatePage(system_))",
                 "if (!client.SetPageView(system_, view.center, view.zoom))",
                 "bool CockpitMockupUi::ApplyFeedback(const mfd::StrobeStatusFeedback& feedback)",
@@ -356,7 +364,7 @@ class GenerateUiTests(unittest.TestCase):
             map_content = json.loads(output_map.read_text(encoding="utf-8"))
 
             for expected in [
-                "class GeometryTemplateDynamicReticle final : public DynamicReticle",
+                "class GeometryTemplateDynamicReticle final : private mfd::client::DynamicReticle",
                 "using TriangleHandle = mfd::client::TriangleHandle;",
                 "using PolylineHandle = mfd::client::PolylineHandle;",
                 "using BezierHandle = mfd::client::BezierHandle;",
@@ -370,8 +378,8 @@ class GenerateUiTests(unittest.TestCase):
                 "TriangleHandle& WarningTriangle() noexcept;",
                 "PolylineHandle& RoutePolyline() noexcept;",
                 "ImageHandle& OverlayImage() noexcept;",
-                "class RadarGeometryWidgetReticle final : public Reticle",
-                "class RadarGeometryPanelReticle final : public Reticle",
+                "class RadarGeometryWidgetReticle final : private mfd::client::Reticle",
+                "class RadarGeometryPanelReticle final : private mfd::client::Reticle",
                 "EllipseHandle& EllipseZone() noexcept;",
                 "SquareHandle& SquareMarker() noexcept;",
                 "DiamondHandle& DiamondCue() noexcept;",
@@ -506,8 +514,8 @@ class GenerateUiTests(unittest.TestCase):
             source_content = output_source.read_text(encoding="utf-8")
             map_content = json.loads(output_map.read_text(encoding="utf-8"))
 
-            self.assertIn("class AlphaTemplateDynamicReticle final : public DynamicReticle", header_content)
-            self.assertIn("class BetaTemplateDynamicReticle final : public DynamicReticle", header_content)
+            self.assertIn("class AlphaTemplateDynamicReticle final : private mfd::client::DynamicReticle", header_content)
+            self.assertIn("class BetaTemplateDynamicReticle final : private mfd::client::DynamicReticle", header_content)
             self.assertIn("AlphaTemplateDynamicReticleSet& DynamicAlphaTemplate() noexcept;", header_content)
             self.assertIn("BetaTemplateDynamicReticleSet& DynamicBetaTemplate() noexcept;", header_content)
 

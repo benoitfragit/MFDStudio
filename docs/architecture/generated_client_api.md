@@ -31,10 +31,19 @@ The generated header now includes a single `mfd_client_api` umbrella entry
 point, `mfd/client/GeneratedUiSupport.h`, so window-specific generated code no
 longer spells lower-level MFD module headers directly.
 
+The generated wrappers also keep one strict visibility boundary:
+
+- generated classes re-expose only the typed reticle, primitive, strobe, and
+  dynamic-set operations that belong to the authored window contract
+- the raw label-based support helpers from `mfd_client_api` stay behind private
+  inheritance and are not part of the normal generated user surface
+
 The intended integration boundary is equally strict on the link side:
 
 - generated `.cpp` files include only `mfd/client/GeneratedUiSupport.h`
-- standalone client applications include `mfd/client/ClientSdk.h` when they need loader or transport helpers around the generated UI
+- standalone client applications include `mfd/client/ClientSdk.h` when they
+  need loader, transport, feedback, or publisher helpers around the generated
+  UI
 - generated code and shipped examples link only `mfd_client_api`
 
 They do not add `mfd_common_api`, `mfd_api`, or the repository host-side render
@@ -173,6 +182,11 @@ The generated static reticle handle inherits the usual reticle-level controls:
 - color
 - thickness
 
+It deliberately does not surface raw primitive-label mutation helpers. Text or
+geometry changes must flow through generated primitive accessors such as
+`TrackLabel()` or through explicit generated conveniences such as `SetValue()`
+when the generator emits them.
+
 Example:
 
 ```cpp
@@ -291,6 +305,8 @@ The main architectural rule is:
 
 - generated code hides runtime dynamic IDs
 - application code keeps typed handles returned by `Create()`
+- raw label-based dynamic-reticle helpers stay hidden behind the generated set
+  and generated primitive accessors
 
 Example:
 

@@ -807,6 +807,12 @@ The generated output builds one typed object tree per authored window:
 - one optional page-scoped `strobe` handle plus generated authored strobe entries when the page defines several variants
 - one feedback layer that drives `IsActive()` and `IsStrobeCaptured()`
 
+The generated wrappers intentionally keep the raw label-based support API out
+of the normal user surface. Application code is expected to stay on generated
+members such as `ui.Cockpit().adiHeadingBox.HeadingValue()` or
+`ui.Radar().DynamicRadarTrack().Create()` instead of calling generic
+label-driven helpers.
+
 This is why the generated path should be the default integration path. The business code manipulates typed handles and leaves transport ids, runtime dynamic ids, and patch serialization to the generated layer.
 
 ## 5.9 What the `.generated.map` sidecar contains
@@ -861,6 +867,10 @@ The packaged client SDK is curated accordingly: it ships `mfd_client_api`,
 require, and the generator helpers, but it does not ship `mfd_api.dll`,
 `mfd_api.lib`, `SceneRegistry.h`, `CommandProcessor.h`, or other host-runtime
 headers.
+
+`ClientSdk.h` stays focused on standalone helpers. Generated window headers
+keep including `mfd/client/GeneratedUiSupport.h` directly so the generated
+surface does not rely on broad transitive includes.
 
 ## 5.10.1 Example of packaged consumption from `_Deliveries`
 
@@ -999,9 +1009,10 @@ if (loaded.window.feedbackTransports.udp.has_value())
 ```
 
 `mfd/client/ClientSdk.h` is the supported umbrella include for standalone
-client applications. It keeps generated code and example integrations on the
-`mfd_client_api` SDK surface while still exposing the raw transport helpers
-when they are needed.
+client applications. It keeps example integrations on the `mfd_client_api` SDK
+surface while still exposing the raw transport helpers when they are needed.
+The generated window header remains the dedicated entry point for the typed UI
+surface itself.
 
 If the generated map is missing, the generated path loses one of its main safety rails. You can still compile code that includes the generated header, but you can no longer prove transport compatibility through the map sidecar.
 
@@ -1183,12 +1194,17 @@ This pattern keeps authored structure static while letting the client update ope
 | `SetRotationDegrees(float)` | rotate the whole reticle |
 | `SetColor(ColorRgba)` | override stroke color |
 | `SetThickness(float)` | override line thickness |
-| `SetText(std::string)` | update the first text primitive or generated status primitive |
-| `SetLetterSpacing(float)` | update authored text spacing |
 
 ## 6.9 Primitive handles for exposed geometry and text
 
 Primitive handles are what make the generated API feel like an integration API instead of a string-based patch list. They let the client touch only the authored surface that was explicitly meant to move.
+
+Normal generated code should therefore prefer:
+
+- generated primitive accessors such as `HeadingValue()`, `TrackLabel()`, or
+  `FillBar()`
+- generated convenience methods such as `SetValue(...)` when the wrapper emits
+  them
 
 ```cpp
 // Scenario: steer the heading command bug and bank pointer from flight guidance.
@@ -2069,11 +2085,11 @@ Check in this order:
 | `assets/windows/<window>.generated.map` | transport ids and compatibility hash |
 | `mfd_client_api/generator/scripts/generate_ui.py` | generation logic and `--print-inputs` behavior |
 | `mfd_client_api/generator/ClientApiGenerator.cmake` | official CMake integration path |
-| `mfd_client_api/include/mfd/client/ClientSdk.h` | umbrella client SDK header for standalone applications and examples |
+| `mfd_client_api/include/mfd/client/ClientSdk.h` | umbrella standalone SDK header for loader, transport, feedback, and publisher helpers |
 | `mfd_client_api/include/mfd/client/GeneratedUiSupport.h` | single generated-code include bridging typed UI code to the packaged client SDK |
 | `mfd_common_api/include/mfd/control/CommandClient.h` | low-level typed command sender, republished through `ClientSdk.h` in the packaged client SDK |
 | `mfd_api/include/mfd/io/JsonLoader.h` | low-level authored window and page loader; this is the only header republished from the low-level API into the packaged client SDK through `ClientSdk.h` |
-| `mfd_client_api/include/mfd/client/Animation.h` | generated-handle runtime behavior and feedback helpers |
+| `mfd_client_api/include/mfd/client/Animation.h` | generated-runtime support header used by `GeneratedUiSupport.h`; not the normal user include for window-specific code |
 | `mfd_client_api/include/mfd/client/LatestBatchPublisher.h` | latest-state asynchronous publisher |
 | `mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h` | stable framebuffer-plugin ABI |
 | `Scripts/Start-MfdWindow.bat` | runtime and plugin launch path |

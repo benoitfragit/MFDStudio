@@ -442,6 +442,8 @@ ui.SubmitLatest(publisher, sequence);
 Normative rules:
 
 - generated code MUST hide raw transport IDs from normal user code
+- generated wrapper classes MUST NOT publicly re-expose raw label-based
+  reticle or dynamic-set helpers from the support layer
 - generated page-level helpers MUST carry the matching generated `mappingHash`
 - low-level name-based helpers MAY exist, but they are not the preferred API
 - generated batches MUST preserve the same command semantics as manually built

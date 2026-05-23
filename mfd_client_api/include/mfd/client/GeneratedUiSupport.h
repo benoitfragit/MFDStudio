@@ -11,6 +11,10 @@
  *
  * @details The code generator emits this header as its single direct include so
  * generated sources stay coupled only to the `mfd_client_api` SDK surface.
+ * The generated wrappers selectively re-expose only the typed operations that
+ * belong to the authored window contract; raw label-based helper entry points
+ * stay behind the support layer and are not part of the normal generated user
+ * surface.
  *
  * @note Generated source files should not add direct includes to lower-level
  * repository modules. The consuming client target links only `mfd_client_api`.

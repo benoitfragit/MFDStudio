@@ -119,6 +119,11 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     static_assert(generated_ui_fixture::RadarMockupPage::GeneratedId() != 0U);
     static_assert(generated_ui_fixture::RadarMockupPage::MappingHash() ==
                   generated_ui_fixture::GeneratedUiFixture::MappingHash());
+    static_assert(!std::is_convertible_v<generated_ui_fixture::RadarGeometryPanelReticle*, mfd::client::Reticle*>);
+    static_assert(
+        !std::is_convertible_v<generated_ui_fixture::GeometryTemplateDynamicReticle*, mfd::client::DynamicReticle*>);
+    static_assert(!std::is_convertible_v<generated_ui_fixture::GeometryTemplateDynamicReticleSet*,
+                                         mfd::client::GeneratedDynamicReticleSet*>);
 
     generated_ui_fixture::GeneratedUiFixture ui;
     ui.Window().SetBrightness(0.55f);

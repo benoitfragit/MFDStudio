@@ -52,6 +52,11 @@ For customer-facing client code, two umbrella entry points matter most:
 - `mfd/client/ClientSdk.h` for standalone applications and shipped examples
 - `mfd/client/GeneratedUiSupport.h` for generated source files emitted by the client API generator
 
+`ClientSdk.h` stays focused on standalone loader, transport, feedback, and
+publication helpers. Generated window-specific headers include
+`GeneratedUiSupport.h` directly so the normal generated surface does not depend
+on transitive include accidents.
+
 Generated code and shipped examples should therefore link only
 `mfd_client_api`, even when they reach lower-level helpers such as
 `CommandClient`, `JsonLoader`, or `UserSpaceProjector` through the packaged SDK
