@@ -848,13 +848,16 @@ void CommandProcessor::OnUpdateReticle(const UpdateReticleCommand& command)
 
 void CommandProcessor::OnUpdateStrobe(const UpdateStrobeCommand& command)
 {
-    bool success = true;
-
     if (!command.strobe.empty())
     {
-        success = scene_.SelectStrobe(command.page, command.strobe) && success;
+        if (!scene_.SelectStrobe(command.page, command.strobe))
+        {
+            SetFailure("Unable to update strobe on page '" + command.page + "'");
+            return;
+        }
     }
 
+    bool success = true;
     if (command.active.has_value())
     {
         success = scene_.SetStrobeActive(command.page, *command.active) && success;
