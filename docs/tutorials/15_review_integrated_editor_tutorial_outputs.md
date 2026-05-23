@@ -21,6 +21,7 @@ Open:
 
 Focus on these authored sections:
 
+- `titleDisplay`
 - `layers`
 - `dynamicReticleBindings`
 - `strobe`
@@ -28,6 +29,7 @@ Focus on these authored sections:
 
 The important Page1 rule is:
 
+- the tutorial frames the generated page title through `titleDisplay`
 - `inspired_steering_cue` stays where it already was
 - the tutorial adds `mfd_tutorial_radar_track` on `RadarTrackLayer`
 
@@ -51,6 +53,17 @@ After:
 ```
 
 The tutorial should not ask the user to reconfigure the cue.
+
+You should also see one explicit title chrome block in `Page1`, for example:
+
+```json
+"titleDisplay": {
+  "decoration": "frame"
+}
+```
+
+The exact transform, line style, or color can differ if you adjusted them while
+following the guided title step.
 
 ## Step 2 - Inspect The Window Asset
 

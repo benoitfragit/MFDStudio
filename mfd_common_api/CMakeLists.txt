@@ -81,6 +81,7 @@ set(MFD_MODEL_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Types.h)
 
 set(MFD_MODEL_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/PageDefinition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model/PageName.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Reticle.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model/Types.cpp)

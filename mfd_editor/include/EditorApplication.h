@@ -78,6 +78,7 @@ private:
         Window,
         Page,
         PageReticle,
+        PageTitle,
         PageStrobe,
         LibraryReticle,
         LibraryPrimitive
@@ -375,6 +376,8 @@ private:
     void DrawPageDynamicTemplateInspector(mfd::PageDefinition& page);
     /** @brief Draws the inspector for one page reticle instance. */
     void DrawPageReticleInspector();
+    /** @brief Draws the inspector for the selected page title chrome. */
+    void DrawSelectedPageTitleInspector();
     /** @brief Draws the inspector for the selected page strobe instance. */
     void DrawSelectedPageStrobeInspector();
     /** @brief Draws the page-local blink-type editor. */
@@ -537,6 +540,8 @@ private:
     void SelectPage(int pageIndex, bool resetPreviewView = true);
     /** @brief Selects one page reticle instance. */
     void SelectPageReticle(int pageIndex, int reticleIndex);
+    /** @brief Selects the generated page title chrome on the active page. */
+    void SelectPageTitle(int pageIndex);
     /** @brief Selects the page-level strobe instance when the active page exposes one. */
     void SelectPageStrobe(int pageIndex);
     /** @brief Toggles one page reticle inside the multi-selection. */
@@ -558,6 +563,10 @@ private:
     mfd::ReticleGroup* SelectedPageStrobeReticle() noexcept;
     /** @brief Returns the selected page strobe reticle instance when available. */
     const mfd::ReticleGroup* SelectedPageStrobeReticle() const noexcept;
+    /** @brief Returns the selected page title styling state when available. */
+    mfd::PageTitleDisplayDefinition* SelectedPageTitleDisplay() noexcept;
+    /** @brief Returns the selected page title styling state when available. */
+    const mfd::PageTitleDisplayDefinition* SelectedPageTitleDisplay() const noexcept;
     /** @brief Returns the currently selected editable page reticle, including the page strobe. */
     mfd::ReticleGroup* SelectedEditablePageReticle() noexcept;
     /** @brief Returns the currently selected editable page reticle, including the page strobe. */
@@ -584,6 +593,8 @@ private:
     bool HasSelectedPageReticle(int pageIndex, int reticleIndex) const noexcept;
     /** @brief Returns `true` when the page-level strobe currently owns the selection. */
     bool IsPageStrobeSelected() const noexcept;
+    /** @brief Returns `true` when the generated page title currently owns the selection. */
+    bool IsPageTitleSelected() const noexcept;
     /** @brief Returns the selected page reticle indices on the active page. */
     std::vector<int> SelectedPageReticleIndices() const;
     /** @brief Returns the current number of selected page reticles. */
@@ -621,6 +632,8 @@ private:
                                                      const ViewportState& viewport) const;
     /** @brief Returns the hit distance in pixels between the mouse and one page reticle. */
     float ReticleHitDistancePixels(const mfd::ReticleGroup& reticle, const ViewportState& viewport, ImVec2 mousePosition) const;
+    /** @brief Builds the generated preview reticle representing the page title chrome. */
+    mfd::ReticleGroup BuildPageTitlePreviewReticle(const mfd::PageDefinition& page) const;
     /** @brief Returns the hit distance in pixels between the mouse and one primitive. */
     float PrimitiveHitDistancePixels(const mfd::ReticleGroup& reticle,
                                      const mfd::Primitive& primitive,

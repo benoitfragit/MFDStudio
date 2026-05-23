@@ -30,6 +30,7 @@ A page defines:
 
 - its `name`
 - an optional title
+- an optional title chrome display state controlling how that title is shown
 - a background color
 - a page view center and zoom
 - optional page-local blink types
@@ -37,6 +38,10 @@ A page defines:
 - an optional strobe
 
 Only one page is active and rendered at a time.
+
+The title text itself remains page-owned, but its rendered chrome can now be
+authored independently: visible or hidden, underlined or framed, recolored, and
+moved or scaled inside the page space.
 
 ## Reticle
 

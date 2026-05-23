@@ -66,6 +66,16 @@ TEST(EditorTutorialDataTests, StepsExposeNonEmptyCoreFields)
 
 TEST(EditorTutorialDataTests, TutorialMetadataGuidesRadarTrackLayerFlow)
 {
+    const auto& selectTitleStep = Step(editor::tutorial::TutorialStepId::SelectPage1TitleChrome);
+    EXPECT_STREQ(selectTitleStep.targetId, "page_select_title_chrome");
+    EXPECT_NE(std::string_view(selectTitleStep.instruction).find("title chrome"), std::string_view::npos);
+    EXPECT_NE(std::string_view(selectTitleStep.instruction).find("scale"), std::string_view::npos);
+
+    const auto& frameTitleStep = Step(editor::tutorial::TutorialStepId::FramePage1Title);
+    EXPECT_STREQ(frameTitleStep.targetId, "page_title_decoration");
+    EXPECT_NE(std::string_view(frameTitleStep.instruction).find("Frame"), std::string_view::npos);
+    EXPECT_NE(std::string_view(frameTitleStep.instruction).find("line style"), std::string_view::npos);
+
     const auto& createLayerStep = Step(editor::tutorial::TutorialStepId::CreateRadarTrackLayerOnPage1);
     EXPECT_STREQ(createLayerStep.targetId, "inspector_add_radar_track_layer");
     EXPECT_NE(std::string_view(createLayerStep.instruction).find("RadarTrackLayer"), std::string_view::npos);

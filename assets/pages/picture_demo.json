@@ -2,6 +2,9 @@
     "name":  "PictureDemo",
     "title":  "Picture Demo",
     "backgroundColor":  "#071018FF",
+    "titleDisplay":  {
+                         "visible":  false
+                     },
     "view":  {
                  "center":  [
                                 0.0,

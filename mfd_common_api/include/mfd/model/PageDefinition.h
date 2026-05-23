@@ -152,6 +152,65 @@ struct PageEditorState
 };
 
 /**
+ * @brief Visual decoration applied around the page title chrome.
+ */
+enum class PageTitleDecoration
+{
+    /** @brief Renders only the title text. */
+    None,
+    /** @brief Draws one underline below the title text. */
+    Underline,
+    /** @brief Draws one rectangular frame around the title text. */
+    Frame
+};
+
+/**
+ * @brief Runtime and editor presentation state for the page title chrome.
+ *
+ * @note The title text itself still comes from `PageDefinition::title`. This
+ * structure only controls the visibility and styling of the rendered chrome.
+ */
+struct PageTitleDisplayDefinition
+{
+    /** @brief Enables or disables the page title and its decoration. */
+    bool visible = true;
+    /** @brief Page-space transform applied to the generated title chrome. */
+    Transform2D transform {{-1.2583f, 0.9250f}, 0.0f, {1.0f, 1.0f}};
+    /** @brief Shared stroke color applied to the title text and decoration. */
+    ColorRgba color {220, 236, 220, 255};
+    /** @brief Outline thickness used by underline and frame decorations. */
+    float lineWidth = 0.0042f;
+    /** @brief Outline stroke pattern used by underline and frame decorations. */
+    LineStyle lineStyle = LineStyle::Solid;
+    /** @brief Decoration rendered around the title text. */
+    PageTitleDecoration decoration = PageTitleDecoration::Underline;
+};
+
+/** @brief Default logical font size used by the generated page title chrome. */
+inline constexpr float kPageTitleFontSize = 0.0917f;
+/** @brief Default logical letter spacing used by the generated page title chrome. */
+inline constexpr float kPageTitleLetterSpacing = 0.0042f;
+
+/**
+ * @brief Resolves the final user-facing title text rendered for one page.
+ * @param pageName Stable runtime page id.
+ * @param pageTitle Human-readable page title.
+ * @return Final title text shown by the runtime and the editor preview.
+ */
+MFD_API std::string ResolvePageDisplayTitleText(std::string_view pageName, std::string_view pageTitle);
+
+/**
+ * @brief Builds the generated reticle used to preview and render one page title.
+ * @param pageName Stable runtime page id.
+ * @param pageTitle Human-readable page title.
+ * @param display Title visibility and styling state.
+ * @return Reticle representation of the title chrome.
+ */
+MFD_API ReticleGroup BuildPageTitleDisplayReticle(std::string_view pageName,
+                                                  std::string_view pageTitle,
+                                                  const PageTitleDisplayDefinition& display);
+
+/**
  * @brief Full definition of a renderable MFD page.
  */
 struct PageDefinition
@@ -162,6 +221,8 @@ struct PageDefinition
     std::string normalizedName;
     /** @brief Human-readable title shown by tools and examples. */
     std::string title;
+    /** @brief Visibility and styling state of the generated page title chrome. */
+    PageTitleDisplayDefinition titleDisplay {};
     /** @brief Marks the page selected by default when its parent window first loads. */
     bool defaultPage = false;
     /** @brief Page background color. */

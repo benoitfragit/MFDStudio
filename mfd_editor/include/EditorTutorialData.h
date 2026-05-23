@@ -27,6 +27,8 @@ enum class TutorialStepId : int
     CreateCircleReticle,
     CreateStrobeCursorReticle,
     CreatePage1,
+    SelectPage1TitleChrome,
+    FramePage1Title,
     CreateRadarTrackLayerOnPage1,
     AllowPage1DynamicReticleTemplate,
     AssignPage1StrobeTemplate,

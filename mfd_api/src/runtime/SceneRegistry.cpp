@@ -783,6 +783,7 @@ struct SceneRegistry::PageComponent
     std::string name;
     std::string normalizedName;
     std::string title;
+    PageTitleDisplayDefinition titleDisplay {};
     TransportId transportId = 0;
     ColorRgba backgroundColor {6, 14, 20, 255};
     PageViewState view {};
@@ -1062,6 +1063,7 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
         pageComponent.name = page.name;
         pageComponent.normalizedName = page.normalizedName;
         pageComponent.title = page.title;
+        pageComponent.titleDisplay = page.titleDisplay;
         pageComponent.backgroundColor = page.backgroundColor;
         pageComponent.view = page.view;
         pageComponent.defaultBlinkTypeName = page.defaultBlinkTypeName;
@@ -1331,6 +1333,7 @@ std::vector<PageSummary> SceneRegistry::Pages() const
         pages.push_back(PageSummary {
             page.name,
             page.title,
+            page.titleDisplay,
             page.backgroundColor,
             page.strobe.has_value(),
             page.normalizedName == activePage_});
@@ -1400,6 +1403,7 @@ std::optional<PageSummary> SceneRegistry::ActivePageSummary() const
     return PageSummary {
         page->name,
         page->title,
+        page->titleDisplay,
         page->backgroundColor,
         page->hasStrobe,
         true};

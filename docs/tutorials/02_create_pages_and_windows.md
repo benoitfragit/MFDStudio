@@ -79,6 +79,7 @@ Important page fields are:
 
 - `name`
 - `title`
+- optional `titleDisplay`
 - `backgroundColor`
 - `view.center`
 - `view.zoom`
@@ -91,6 +92,10 @@ Useful page-reticle details:
 
 - `staticReticles[].drawOnTop` keeps one reticle in a later overlay pass
 - image primitive file paths are resolved relative to the page or reticle JSON file that references them
+
+`titleDisplay` is the authored chrome of the page title. It can hide the title,
+move it, scale it, recolor it, and choose whether the title uses no decoration,
+one underline, or one frame.
 
 ## Step 3 - Create a window file
 

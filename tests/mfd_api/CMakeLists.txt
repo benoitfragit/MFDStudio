@@ -24,6 +24,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/RuntimeValidationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SceneRegistryTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/StrobeFeedbackTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/TextAnchorSnapTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/TextLayoutCacheTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/UdpRuntimeBridgeTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/UserSpaceProjectorTests.cpp)

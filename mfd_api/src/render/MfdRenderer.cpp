@@ -170,16 +170,9 @@ void DrawActivePageContent(const SceneRegistry& scene,
         }
     }
 
-    const std::string title =
-        activePage->title == activePage->name
-            ? activePage->title
-            : activePage->title + " [" + activePage->name + "]";
-    DrawTextEx(ResolveTextFont(textFont),
-               title.c_str(),
-               Vector2 {18.0f, 18.0f},
-               22.0f,
-               1.0f,
-               Color {220, 236, 220, 255});
+    const ReticleGroup titleReticle =
+        BuildPageTitleDisplayReticle(activePage->name, activePage->title, activePage->titleDisplay);
+    canvas.DrawReticle(titleReticle);
 }
 } // namespace
 

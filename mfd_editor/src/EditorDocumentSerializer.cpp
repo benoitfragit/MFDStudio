@@ -119,6 +119,80 @@ std::string SerializePathRelativeTo(const std::filesystem::path& path, const std
     return relativePath.generic_string();
 }
 
+void WriteTransformFields(json& node, const mfd::Transform2D& transform);
+
+bool IsDefaultPageTitleTransform(const mfd::Transform2D& transform) noexcept
+{
+    return std::abs(transform.position.x + 1.2583f) < 0.0001f &&
+           std::abs(transform.position.y - 0.9250f) < 0.0001f &&
+           IsZero(transform.rotationDegrees) &&
+           std::abs(transform.scale.x - 1.0f) < 0.0001f &&
+           std::abs(transform.scale.y - 1.0f) < 0.0001f;
+}
+
+bool IsDefaultPageTitleDisplay(const mfd::PageTitleDisplayDefinition& display) noexcept
+{
+    return display.visible &&
+           IsDefaultPageTitleTransform(display.transform) &&
+           display.color.r == 220 && display.color.g == 236 &&
+           display.color.b == 220 && display.color.a == 255 &&
+           std::abs(display.lineWidth - 0.0042f) < 0.0001f &&
+           display.lineStyle == mfd::LineStyle::Solid &&
+           display.decoration == mfd::PageTitleDecoration::Underline;
+}
+
+const char* ToPageTitleDecorationText(const mfd::PageTitleDecoration decoration) noexcept
+{
+    switch (decoration)
+    {
+    case mfd::PageTitleDecoration::None:
+        return "none";
+    case mfd::PageTitleDecoration::Frame:
+        return "frame";
+    case mfd::PageTitleDecoration::Underline:
+    default:
+        return "underline";
+    }
+}
+
+std::optional<json> SerializePageTitleDisplay(const mfd::PageTitleDisplayDefinition& display)
+{
+    if (IsDefaultPageTitleDisplay(display))
+    {
+        return std::nullopt;
+    }
+
+    json node = json::object();
+    if (!display.visible)
+    {
+        node["visible"] = false;
+    }
+
+    WriteTransformFields(node, display.transform);
+
+    if (!(display.color.r == 220 && display.color.g == 236 && display.color.b == 220 && display.color.a == 255))
+    {
+        node["stroke"] = ToHexColor(display.color);
+    }
+
+    if (std::abs(display.lineWidth - 0.0042f) >= 0.0001f)
+    {
+        node["lineWidth"] = display.lineWidth;
+    }
+
+    if (display.lineStyle != mfd::LineStyle::Solid)
+    {
+        node["lineStyle"] = ToLineStyleText(display.lineStyle);
+    }
+
+    if (display.decoration != mfd::PageTitleDecoration::Underline)
+    {
+        node["decoration"] = ToPageTitleDecorationText(display.decoration);
+    }
+
+    return node;
+}
+
 void WriteFeedbackIntervalField(json& feedbackNode,
                                 const char* millisecondsKey,
                                 const char* secondsKey,
@@ -896,6 +970,10 @@ json SerializePage(const mfd::PageDefinition& page,
     json node = json::object();
     node["name"] = page.name;
     node["title"] = page.title;
+    if (const auto titleDisplay = SerializePageTitleDisplay(page.titleDisplay); titleDisplay.has_value())
+    {
+        node["titleDisplay"] = *titleDisplay;
+    }
     node["bg"] = ToHexColor(page.backgroundColor);
 
     if (!IsZero(page.view.center.x) || !IsZero(page.view.center.y) || std::abs(page.view.zoom - 1.0f) >= 0.0001f)

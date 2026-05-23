@@ -2,6 +2,11 @@
     "name":  "Tactical",
     "title":  "Geometry Lab",
     "backgroundColor":  "#1B120BFF",
+    "titleDisplay":  {
+                         "decoration":  "frame",
+                         "lineStyle":  "dashed",
+                         "stroke":  "#F4D5A2FF"
+                     },
     "staticReticles":  [
                            {
                                "id":  "geometry_showcase",

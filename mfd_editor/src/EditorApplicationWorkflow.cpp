@@ -1661,6 +1661,19 @@ void EditorApplication::PrepareTutorialStep()
         CopyTextBuffer(newPageDraft_.fileName, assetPaths_.DefaultAssetPath("assets/pages/mfd_tutorial_page1.json").string());
         newPageDraft_.background = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
+    case static_cast<int>(TutorialStepId::SelectPage1TitleChrome):
+        selectTutorialPageOrFallback("Page1");
+        break;
+    case static_cast<int>(TutorialStepId::FramePage1Title):
+        if (const int pageIndex = FindPageIndexByName(loaded_, "Page1"); pageIndex >= 0)
+        {
+            SelectPageTitle(pageIndex);
+        }
+        else
+        {
+            selectTutorialPageOrFallback("Page1");
+        }
+        break;
     case static_cast<int>(TutorialStepId::CreateRadarTrackLayerOnPage1):
         selectTutorialPageOrFallback("Page1");
         break;

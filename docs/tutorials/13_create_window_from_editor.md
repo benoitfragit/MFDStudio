@@ -20,6 +20,7 @@ You will learn how to:
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
 - understand how the generated C++17 client API mirrors the authored window
+- discover that the page title is a dedicated chrome element that can be framed, moved, scaled, hidden, and recolored
 - create `RadarTrackLayer` on `Page1` and bind `mfd_tutorial_radar_track` without changing the existing steering cue
 - continue with the right generated-API and documentation path once the editor tour is done
 
@@ -32,7 +33,7 @@ The integrated editor tutorial is available from:
 
 That guided flow is intentionally split into four phases:
 
-1. **Author in editor**: create the tutorial window, pages, shared reticles, strobe, `RadarTrackLayer`, and the exposed primitive.
+1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles, strobe, `RadarTrackLayer`, and the exposed primitive.
 2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / export workflows without mutating the tutorial assets.
 3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
 4. **Continue in docs**: follow the mockup, generated-client, and architecture reading path.
@@ -164,6 +165,12 @@ In the integrated tutorial, `Page1` already keeps `inspired_steering_cue` on
 its authored layer. The guided flow first creates `RadarTrackLayer` in
 **Page layers**, then asks you to add only `mfd_tutorial_radar_track` on that
 new layer. The cue stays unchanged during this step.
+
+The same guided flow also stops on the dedicated page-title inspector: on
+`Page1`, it asks you to select the generated title chrome, then switch its
+`Decoration` to `Frame`. That walkthrough exists to make it clear that the page
+title is no longer one hardcoded overlay. It is an authored chrome element with
+its own visibility, color, line style, and transform.
 
 The generated client API keeps the same boundary: it validates that these page
 bindings are coherent, but it does not expose any client-side control to move a

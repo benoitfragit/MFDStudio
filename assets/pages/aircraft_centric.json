@@ -2,6 +2,9 @@
     "name":  "AircraftCentric",
     "title":  "Aircraft-Centric",
     "backgroundColor":  "#08131BFF",
+    "titleDisplay":  {
+                         "visible":  false
+                     },
     "staticReticles":  [
                            {
                                "id":  "range_reference",

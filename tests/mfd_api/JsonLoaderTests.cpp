@@ -1779,3 +1779,82 @@ TEST(JsonLoaderTests, LoadDocumentRejectsNonPositivePageZoom)
     mfd::JsonLoader loader;
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
+
+TEST(JsonLoaderTests, LoadDocumentParsesPageTitleDisplayChrome)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+    std::filesystem::create_directories(reticleFolder);
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "title": "Main page",
+      "titleDisplay": {
+        "visible": false,
+        "at": [-1.1, 0.8],
+        "scale": [1.5, 0.9],
+        "stroke": "#FFAA33FF",
+        "lineWidth": 0.0075,
+        "lineStyle": "dashed",
+        "decoration": "frame"
+      },
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": []
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(document.pages.size(), 1U);
+    const mfd::PageTitleDisplayDefinition& titleDisplay = document.pages.front().titleDisplay;
+    EXPECT_FALSE(titleDisplay.visible);
+    EXPECT_FLOAT_EQ(titleDisplay.transform.position.x, -1.1f);
+    EXPECT_FLOAT_EQ(titleDisplay.transform.position.y, 0.8f);
+    EXPECT_FLOAT_EQ(titleDisplay.transform.scale.x, 1.5f);
+    EXPECT_FLOAT_EQ(titleDisplay.transform.scale.y, 0.9f);
+    EXPECT_EQ(titleDisplay.color.r, 255);
+    EXPECT_EQ(titleDisplay.color.g, 170);
+    EXPECT_EQ(titleDisplay.color.b, 51);
+    EXPECT_EQ(titleDisplay.color.a, 255);
+    EXPECT_FLOAT_EQ(titleDisplay.lineWidth, 0.0075f);
+    EXPECT_EQ(titleDisplay.lineStyle, mfd::LineStyle::Dashed);
+    EXPECT_EQ(titleDisplay.decoration, mfd::PageTitleDecoration::Frame);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsNonBooleanPageTitleDisplayVisibility)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+    std::filesystem::create_directories(reticleFolder);
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "title": "Main page",
+      "titleDisplay": {
+        "visible": "false"
+      },
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": []
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}

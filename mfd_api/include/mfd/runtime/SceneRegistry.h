@@ -38,6 +38,8 @@ struct PageSummary
     std::string name;
     /** @brief Optional page title used by tools. */
     std::string title;
+    /** @brief Visibility and styling state of the page title chrome. */
+    PageTitleDisplayDefinition titleDisplay {};
     /** @brief Background color currently associated with the page. */
     ColorRgba backgroundColor {6, 14, 20, 255};
     /** @brief Indicates whether the page exposes a strobe. */

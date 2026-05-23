@@ -592,3 +592,53 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     EXPECT_EQ(templateJson.at("id").get<std::string>(), "radar_track");
     ASSERT_EQ(templateJson.at("elements").size(), 1U);
 }
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentSerializesPageTitleDisplayChrome)
+{
+    ScopedTempDir tempDir;
+
+    const auto windowFile = tempDir.Path() / "window.json";
+    const auto pageFile = tempDir.Path() / "page.json";
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = windowFile;
+    loaded.window.title = "Demo";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar Page";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    page.titleDisplay.visible = false;
+    page.titleDisplay.transform.position = {-1.15f, 0.84f};
+    page.titleDisplay.transform.scale = {1.20f, 0.95f};
+    page.titleDisplay.color = mfd::ColorRgba {255, 200, 64, 255};
+    page.titleDisplay.lineWidth = 0.0080f;
+    page.titleDisplay.lineStyle = mfd::LineStyle::Dotted;
+    page.titleDisplay.decoration = mfd::PageTitleDecoration::Frame;
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(pageFile);
+
+    std::string error;
+    ASSERT_TRUE(editor::SaveEditorDocument(loaded, layout, &error)) << error;
+
+    std::ifstream pageStream(pageFile);
+    ASSERT_TRUE(pageStream.is_open());
+    const auto pageJson = nlohmann::json::parse(pageStream);
+
+    ASSERT_TRUE(pageJson.contains("titleDisplay"));
+    const auto& titleDisplayJson = pageJson.at("titleDisplay");
+    EXPECT_FALSE(titleDisplayJson.at("visible").get<bool>());
+    EXPECT_EQ(titleDisplayJson.at("decoration").get<std::string>(), "frame");
+    EXPECT_EQ(titleDisplayJson.at("lineStyle").get<std::string>(), "dotted");
+    EXPECT_EQ(titleDisplayJson.at("stroke").get<std::string>(), "#FFC840FF");
+    EXPECT_FLOAT_EQ(titleDisplayJson.at("lineWidth").get<float>(), 0.0080f);
+    ASSERT_TRUE(titleDisplayJson.contains("at"));
+    EXPECT_FLOAT_EQ(titleDisplayJson.at("at").at(0).get<float>(), -1.15f);
+    EXPECT_FLOAT_EQ(titleDisplayJson.at("at").at(1).get<float>(), 0.84f);
+    ASSERT_TRUE(titleDisplayJson.contains("scale"));
+    EXPECT_FLOAT_EQ(titleDisplayJson.at("scale").at(0).get<float>(), 1.20f);
+    EXPECT_FLOAT_EQ(titleDisplayJson.at("scale").at(1).get<float>(), 0.95f);
+}

@@ -23,6 +23,9 @@
       "id": "default"
     }
   ],
+  "titleDisplay": {
+    "visible": false
+  },
   "name": "Cockpit",
   "staticReticles": [
     {

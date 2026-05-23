@@ -72,6 +72,7 @@ constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
 constexpr const char* kPagePreviewDisplayPopupId = "PagePreviewDisplayPopup";
 constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
+constexpr int kPageTitleInteractionIndex = -2;
 
 std::string Lowercase(const std::string_view value)
 {
@@ -450,6 +451,20 @@ void AppendPrimitiveProblems(std::vector<std::string>& messages,
         {
             PushProblem(messages, ownerId, "Primitive ids must stay unique inside one reticle.");
         }
+    }
+}
+
+const char* PageTitleDecorationLabel(const mfd::PageTitleDecoration decoration) noexcept
+{
+    switch (decoration)
+    {
+    case mfd::PageTitleDecoration::None:
+        return "None";
+    case mfd::PageTitleDecoration::Frame:
+        return "Frame";
+    case mfd::PageTitleDecoration::Underline:
+    default:
+        return "Underline";
     }
 }
 
@@ -1779,6 +1794,11 @@ void EditorApplication::HandleShortcuts()
             SelectPage(selection_.pageIndex, false);
             RebuildStatus("Page reticle selection cleared.", false);
         }
+        else if (selection_.kind == SelectionKind::PageTitle)
+        {
+            SelectPage(selection_.pageIndex, false);
+            RebuildStatus("Page title selection cleared.", false);
+        }
         else if (selection_.kind == SelectionKind::PageStrobe)
         {
             SelectPage(selection_.pageIndex, false);
@@ -1834,6 +1854,12 @@ void EditorApplication::DeleteSelection()
                 std::to_string(removedReticleIds.size()) + " reticles removed from page '" + page->name + "'.",
                 false);
         }
+        return;
+    }
+
+    if (selection_.kind == SelectionKind::PageTitle)
+    {
+        RebuildStatus("The page title is part of the page chrome. Hide it instead of deleting it.", true);
         return;
     }
 
@@ -2581,8 +2607,10 @@ void EditorApplication::DrawWorkspace()
                                  "PageContextLayersPanel",
                                  "PageContextProblemsPanel",
                                  selection_.kind == SelectionKind::PageReticle ||
+                                     selection_.kind == SelectionKind::PageTitle ||
                                      selection_.kind == SelectionKind::PageStrobe,
                                  selection_.kind == SelectionKind::PageReticle ||
+                                     selection_.kind == SelectionKind::PageTitle ||
                                      selection_.kind == SelectionKind::PageStrobe);
         ImGui::EndChild();
 
@@ -2806,6 +2834,9 @@ void EditorApplication::DrawInspector()
         break;
     case SelectionKind::PageReticle:
         DrawPageReticleInspector();
+        break;
+    case SelectionKind::PageTitle:
+        DrawSelectedPageTitleInspector();
         break;
     case SelectionKind::PageStrobe:
         DrawSelectedPageStrobeInspector();
@@ -3169,6 +3200,35 @@ void EditorApplication::DrawPageTree()
             ImGui::TextDisabled("file: %s", pageIndex < static_cast<int>(files_.pageFiles.size())
                                               ? files_.pageFiles[static_cast<std::size_t>(pageIndex)].filename().string().c_str()
                                               : "<missing>");
+
+            {
+                ImGuiTreeNodeFlags leafFlags =
+                    ImGuiTreeNodeFlags_Leaf |
+                    ImGuiTreeNodeFlags_NoTreePushOnOpen |
+                    ImGuiTreeNodeFlags_SpanAvailWidth;
+                if (selection_.kind == SelectionKind::PageTitle && selection_.pageIndex == pageIndex)
+                {
+                    leafFlags |= ImGuiTreeNodeFlags_Selected;
+                }
+
+                const std::string titleLabel = "title chrome##title_" + std::to_string(pageIndex);
+                ImGui::TreeNodeEx(titleLabel.c_str(), leafFlags);
+                const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(page);
+                DrawReticleHoverPreviewTooltip(titleReticle, "Page title", ToRayColor(page.backgroundColor));
+                if (ImGui::IsItemClicked())
+                {
+                    SelectPageTitle(pageIndex);
+                    if (page.name == "Page1" && tutorial_->MatchesTarget("page_select_title_chrome"))
+                    {
+                        tutorial_->CompleteStep();
+                    }
+                }
+
+                ImGui::SameLine();
+                ImGui::TextDisabled("[%s%s]",
+                                    PageTitleDecorationLabel(page.titleDisplay.decoration),
+                                    page.titleDisplay.visible ? "" : " hidden");
+            }
 
             for (int reticleIndex = 0; reticleIndex < static_cast<int>(page.staticReticles.size()); ++reticleIndex)
             {
@@ -3897,6 +3957,9 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
                 canvas.DrawReticle(page->strobe->reticle);
             }
         }
+
+        const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(*page);
+        canvas.DrawReticle(titleReticle);
     }
     EndTextureMode();
 
@@ -4630,6 +4693,27 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
                               label.c_str());
         }
     }
+
+    const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(page);
+    if (titleReticle.visible)
+    {
+        const ReticleScreenBounds bounds = ComputeReticleScreenBounds(titleReticle, viewport);
+        if (bounds.valid)
+        {
+            const std::string label = "title";
+            const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
+            const ImVec2 tagMin(bounds.min.x + 6.0f, bounds.min.y + 6.0f);
+            const ImVec2 tagMax(tagMin.x + textSize.x + 12.0f, tagMin.y + textSize.y + 6.0f);
+            const bool selected = IsPageTitleSelected();
+            drawList->AddRectFilled(tagMin,
+                                    tagMax,
+                                    selected ? IM_COL32(84, 219, 201, 220) : IM_COL32(62, 76, 96, 210),
+                                    4.0f);
+            drawList->AddText(ImVec2(tagMin.x + 6.0f, tagMin.y + 3.0f),
+                              selected ? IM_COL32(12, 20, 26, 255) : IM_COL32(225, 233, 244, 255),
+                              label.c_str());
+        }
+    }
 }
 
 void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
@@ -4915,7 +4999,9 @@ void EditorApplication::SanitizeLayerFocusForActivePage()
 
 void EditorApplication::SanitizePageReticleSelectionForCurrentFocus()
 {
-    if (selection_.kind != SelectionKind::PageReticle && selection_.kind != SelectionKind::PageStrobe)
+    if (selection_.kind != SelectionKind::PageReticle &&
+        selection_.kind != SelectionKind::PageTitle &&
+        selection_.kind != SelectionKind::PageStrobe)
     {
         return;
     }
@@ -4925,6 +5011,11 @@ void EditorApplication::SanitizePageReticleSelectionForCurrentFocus()
     {
         selection_.pageReticleIndex = -1;
         selection_.pageReticleIndices.clear();
+        return;
+    }
+
+    if (selection_.kind == SelectionKind::PageTitle)
+    {
         return;
     }
 
@@ -5013,6 +5104,25 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
         drawCorner(bottomRight);
         drawCorner(bottomLeft);
     };
+
+    if (selection_.kind == SelectionKind::PageTitle)
+    {
+        const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(page);
+        if (!titleReticle.visible)
+        {
+            return;
+        }
+
+        const ReticleScreenBounds bounds = ComputeReticleScreenBounds(titleReticle, viewport);
+        if (!bounds.valid)
+        {
+            return;
+        }
+
+        ImGui::GetWindowDrawList()->AddRect(bounds.min, bounds.max, IM_COL32(84, 219, 201, 255), 4.0f, 0, 2.0f);
+        drawSingleSelectionHandles(titleReticle, bounds);
+        return;
+    }
 
     if (selection_.kind == SelectionKind::PageStrobe)
     {
@@ -5311,13 +5421,40 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     const std::optional<int> clickedReticleIndex = FindNearestPageReticle(viewport, mouse);
     const bool singleEditableSelection =
         (selection_.kind == SelectionKind::PageReticle && SelectedPageReticleCount() == 1) ||
+        selection_.kind == SelectionKind::PageTitle ||
         selection_.kind == SelectionKind::PageStrobe;
     if (!additiveSelection && page != nullptr && singleEditableSelection)
     {
-        mfd::ReticleGroup* selectedReticle = SelectedEditablePageReticle();
-        if (selectedReticle != nullptr && IsReticleVisibleInEditor(*page, *selectedReticle))
+        std::optional<mfd::ReticleGroup> selectedPreviewReticle;
+        const mfd::Transform2D* selectedTransform = nullptr;
+        if (selection_.kind == SelectionKind::PageTitle)
         {
-            const ReticleScreenBounds selectedBounds = ComputeReticleScreenBounds(*selectedReticle, viewport);
+            selectedPreviewReticle = BuildPageTitlePreviewReticle(*page);
+            if (const mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay(); titleDisplay != nullptr)
+            {
+                selectedTransform = &titleDisplay->transform;
+            }
+        }
+        else if (selection_.kind == SelectionKind::PageStrobe)
+        {
+            if (const mfd::ReticleGroup* selectedReticle = SelectedPageStrobeReticle(); selectedReticle != nullptr)
+            {
+                selectedPreviewReticle = *selectedReticle;
+                selectedTransform = &selectedReticle->transform;
+            }
+        }
+        else if (mfd::ReticleGroup* selectedReticle = SelectedPageReticle(); selectedReticle != nullptr)
+        {
+            selectedPreviewReticle = *selectedReticle;
+            selectedTransform = &selectedReticle->transform;
+        }
+
+        if (selectedPreviewReticle.has_value() &&
+            selectedTransform != nullptr &&
+            (selection_.kind == SelectionKind::PageTitle || IsReticleVisibleInEditor(*page, *selectedPreviewReticle)) &&
+            selectedPreviewReticle->visible)
+        {
+            const ReticleScreenBounds selectedBounds = ComputeReticleScreenBounds(*selectedPreviewReticle, viewport);
             if (selectedBounds.valid)
             {
                 const std::array<ImVec2, 4> selectedCorners {
@@ -5331,16 +5468,18 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 
                 const auto initializeInteraction = [&](const InteractionMode mode, const ImVec2 cornerScreen)
                 {
-                    interactionReticleIndex_ = selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex : -1;
+                    interactionReticleIndex_ =
+                        selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex :
+                        (selection_.kind == SelectionKind::PageTitle ? kPageTitleInteractionIndex : -1);
                     interactionReticleIndices_.clear();
                     interactionStartReticleTransforms_.clear();
                     if (selection_.kind == SelectionKind::PageReticle)
                     {
                         interactionReticleIndices_ = {selection_.pageReticleIndex};
-                        interactionStartReticleTransforms_ = {selectedReticle->transform};
+                        interactionStartReticleTransforms_ = {*selectedTransform};
                     }
-                    interactionStartTransform_ = selectedReticle->transform;
-                    interactionStartReticleVisualCenterLocal_ = ReticleVisualCenterLocal(*selectedReticle);
+                    interactionStartTransform_ = *selectedTransform;
+                    interactionStartReticleVisualCenterLocal_ = ReticleVisualCenterLocal(*selectedPreviewReticle);
                     interactionStartMouseLogical_ = viewport.ToLogical(mouse);
                     const mfd::Vec2 interactionPivotLogical =
                         mfd::ApplyTransform(interactionStartReticleVisualCenterLocal_, interactionStartTransform_);
@@ -5405,18 +5544,42 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     UpdateReticleSelectionFromClick(viewport, additiveSelection);
     if (additiveSelection ||
         ((selection_.kind != SelectionKind::PageReticle || SelectedPageReticleCount() != 1) &&
+         selection_.kind != SelectionKind::PageTitle &&
          selection_.kind != SelectionKind::PageStrobe))
     {
         return;
     }
 
-    mfd::ReticleGroup* reticle = SelectedEditablePageReticle();
-    if (reticle == nullptr)
+    std::optional<mfd::ReticleGroup> selectedPreviewReticle;
+    const mfd::Transform2D* selectedTransform = nullptr;
+    if (selection_.kind == SelectionKind::PageTitle)
+    {
+        selectedPreviewReticle = BuildPageTitlePreviewReticle(*page);
+        if (const mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay(); titleDisplay != nullptr)
+        {
+            selectedTransform = &titleDisplay->transform;
+        }
+    }
+    else if (selection_.kind == SelectionKind::PageStrobe)
+    {
+        if (const mfd::ReticleGroup* reticle = SelectedPageStrobeReticle(); reticle != nullptr)
+        {
+            selectedPreviewReticle = *reticle;
+            selectedTransform = &reticle->transform;
+        }
+    }
+    else if (mfd::ReticleGroup* reticle = SelectedPageReticle(); reticle != nullptr)
+    {
+        selectedPreviewReticle = *reticle;
+        selectedTransform = &reticle->transform;
+    }
+
+    if (!selectedPreviewReticle.has_value() || selectedTransform == nullptr || !selectedPreviewReticle->visible)
     {
         return;
     }
 
-    const ReticleScreenBounds bounds = ComputeReticleScreenBounds(*reticle, viewport);
+    const ReticleScreenBounds bounds = ComputeReticleScreenBounds(*selectedPreviewReticle, viewport);
     if (!bounds.valid)
     {
         return;
@@ -5430,16 +5593,18 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         ImVec2(bounds.min.x, bounds.max.y)};
     const ImVec2 rotateHandle((bounds.min.x + bounds.max.x) * 0.5f, bounds.min.y - 26.0f);
 
-    interactionReticleIndex_ = selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex : -1;
+    interactionReticleIndex_ =
+        selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex :
+        (selection_.kind == SelectionKind::PageTitle ? kPageTitleInteractionIndex : -1);
     interactionReticleIndices_.clear();
     interactionStartReticleTransforms_.clear();
     if (selection_.kind == SelectionKind::PageReticle)
     {
         interactionReticleIndices_ = {selection_.pageReticleIndex};
-        interactionStartReticleTransforms_ = {reticle->transform};
+        interactionStartReticleTransforms_ = {*selectedTransform};
     }
-    interactionStartTransform_ = reticle->transform;
-    interactionStartReticleVisualCenterLocal_ = ReticleVisualCenterLocal(*reticle);
+    interactionStartTransform_ = *selectedTransform;
+    interactionStartReticleVisualCenterLocal_ = ReticleVisualCenterLocal(*selectedPreviewReticle);
     interactionStartMouseLogical_ = viewport.ToLogical(mouse);
     const mfd::Vec2 interactionPivotLogical =
         mfd::ApplyTransform(interactionStartReticleVisualCenterLocal_, interactionStartTransform_);
@@ -6328,6 +6493,26 @@ void EditorApplication::SelectPageReticle(const int pageIndex, const int reticle
     interactionHandleKind_ = PrimitiveHandleKind::None;
 }
 
+void EditorApplication::SelectPageTitle(const int pageIndex)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    {
+        return;
+    }
+
+    selection_.kind = SelectionKind::PageTitle;
+    selection_.pageIndex = pageIndex;
+    selection_.pageReticleIndex = -1;
+    selection_.pageReticleIndices.clear();
+    interactionMode_ = InteractionMode::None;
+    interactionReticleIndex_ = -1;
+    interactionReticleIndices_.clear();
+    interactionStartReticleTransforms_.clear();
+    interactionPrimitiveIndex_ = -1;
+    interactionHandleIndex_ = -1;
+    interactionHandleKind_ = PrimitiveHandleKind::None;
+}
+
 void EditorApplication::SelectPageStrobe(const int pageIndex)
 {
     if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
@@ -6503,6 +6688,28 @@ const mfd::ReticleGroup* EditorApplication::SelectedPageStrobeReticle() const no
     return &page->strobe->reticle;
 }
 
+mfd::PageTitleDisplayDefinition* EditorApplication::SelectedPageTitleDisplay() noexcept
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (selection_.kind != SelectionKind::PageTitle || page == nullptr)
+    {
+        return nullptr;
+    }
+
+    return &page->titleDisplay;
+}
+
+const mfd::PageTitleDisplayDefinition* EditorApplication::SelectedPageTitleDisplay() const noexcept
+{
+    const mfd::PageDefinition* page = ActivePage();
+    if (selection_.kind != SelectionKind::PageTitle || page == nullptr)
+    {
+        return nullptr;
+    }
+
+    return &page->titleDisplay;
+}
+
 mfd::ReticleGroup* EditorApplication::SelectedEditablePageReticle() noexcept
 {
     return selection_.kind == SelectionKind::PageStrobe ? SelectedPageStrobeReticle() : SelectedPageReticle();
@@ -6532,6 +6739,11 @@ bool EditorApplication::HasSelectedPageReticle(const int pageIndex, const int re
 bool EditorApplication::IsPageStrobeSelected() const noexcept
 {
     return selection_.kind == SelectionKind::PageStrobe && SelectedPageStrobeReticle() != nullptr;
+}
+
+bool EditorApplication::IsPageTitleSelected() const noexcept
+{
+    return selection_.kind == SelectionKind::PageTitle && SelectedPageTitleDisplay() != nullptr;
 }
 
 std::vector<int> EditorApplication::SelectedPageReticleIndices() const
@@ -7324,6 +7536,11 @@ float EditorApplication::ReticleHitDistancePixels(const mfd::ReticleGroup& retic
     return bestDistance;
 }
 
+mfd::ReticleGroup EditorApplication::BuildPageTitlePreviewReticle(const mfd::PageDefinition& page) const
+{
+    return mfd::BuildPageTitleDisplayReticle(page.name, page.title, page.titleDisplay);
+}
+
 void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& viewport, const bool additiveSelection)
 {
     const mfd::PageDefinition* page = ActivePage();
@@ -7337,7 +7554,10 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
                               const mfd::ReticleGroup& reticle,
                               const int drawPriority) -> std::optional<PageReticleHit>
     {
-        if (!IsReticleVisibleInEditor(*page, reticle) || !IsPageReticleSelectableInCurrentFocus(*page, reticle))
+        const bool isPageTitle = reticleIndex == kPageTitleInteractionIndex;
+        if ((!isPageTitle && !IsReticleVisibleInEditor(*page, reticle)) ||
+            (!isPageTitle && !IsPageReticleSelectableInCurrentFocus(*page, reticle)) ||
+            (isPageTitle && !reticle.visible))
         {
             return std::nullopt;
         }
@@ -7407,26 +7627,50 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
         strobeHit = buildHit(-1, page->strobe->reticle, 2);
     }
 
-    const bool selectStrobe = strobeHit.has_value() &&
-                              (!bestStaticHit.has_value() || preferLhs(*strobeHit, *bestStaticHit));
-    if (selectStrobe)
+    std::optional<PageReticleHit> titleHit;
+    const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(*page);
+    if (titleReticle.visible)
+    {
+        titleHit = buildHit(kPageTitleInteractionIndex, titleReticle, 3);
+    }
+
+    std::optional<PageReticleHit> bestHit = bestStaticHit;
+    if (strobeHit.has_value() && (!bestHit.has_value() || preferLhs(*strobeHit, *bestHit)))
+    {
+        bestHit = strobeHit;
+    }
+    if (titleHit.has_value() && (!bestHit.has_value() || preferLhs(*titleHit, *bestHit)))
+    {
+        bestHit = titleHit;
+    }
+
+    if (!bestHit.has_value())
+    {
+        if (!additiveSelection)
+        {
+            SelectPage(selection_.pageIndex, false);
+        }
+        return;
+    }
+
+    if (bestHit->reticleIndex == kPageTitleInteractionIndex)
+    {
+        SelectPageTitle(selection_.pageIndex);
+    }
+    else if (bestHit->reticleIndex == -1)
     {
         SelectPageStrobe(selection_.pageIndex);
     }
-    else if (bestStaticHit.has_value())
+    else
     {
         if (additiveSelection)
         {
-            TogglePageReticleSelection(selection_.pageIndex, bestStaticHit->reticleIndex);
+            TogglePageReticleSelection(selection_.pageIndex, bestHit->reticleIndex);
         }
         else
         {
-            SelectPageReticle(selection_.pageIndex, bestStaticHit->reticleIndex);
+            SelectPageReticle(selection_.pageIndex, bestHit->reticleIndex);
         }
-    }
-    else if (!additiveSelection)
-    {
-        SelectPage(selection_.pageIndex, false);
     }
 }
 
@@ -7680,7 +7924,22 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
     }
 
     mfd::ReticleGroup* reticle = nullptr;
-    if (selection_.kind == SelectionKind::PageStrobe)
+    mfd::Transform2D* reticleTransform = nullptr;
+    if (selection_.kind == SelectionKind::PageTitle)
+    {
+        mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay();
+        if (titleDisplay == nullptr)
+        {
+            interactionMode_ = InteractionMode::None;
+            interactionReticleIndex_ = -1;
+            interactionReticleIndices_.clear();
+            interactionStartReticleTransforms_.clear();
+            return;
+        }
+
+        reticleTransform = &titleDisplay->transform;
+    }
+    else if (selection_.kind == SelectionKind::PageStrobe)
     {
         if (page == nullptr || !page->strobe.has_value())
         {
@@ -7692,6 +7951,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         }
 
         reticle = &page->strobe->reticle;
+        reticleTransform = &reticle->transform;
     }
     else
     {
@@ -7710,6 +7970,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         }
 
         reticle = &page->staticReticles[static_cast<std::size_t>(interactionReticleIndex_)];
+        reticleTransform = &reticle->transform;
     }
 
     const mfd::Vec2 mouseLogical = viewport.ToLogical(ImGui::GetMousePos());
@@ -7741,7 +8002,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         }
         else
         {
-            reticle->transform.position = interactionStartTransform_.position + translationDelta;
+            reticleTransform->position = interactionStartTransform_.position + translationDelta;
         }
         break;
     }
@@ -7756,7 +8017,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
             180.0f / 3.14159265f;
         const float nextRotationDegrees =
             interactionStartTransform_.rotationDegrees + (currentAngle - interactionStartAngleDegrees_);
-        reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
+        *reticleTransform = BuildTransformKeepingLocalPointWorldPosition(
             interactionStartTransform_,
             interactionStartReticleVisualCenterLocal_,
             nextRotationDegrees,
@@ -7773,7 +8034,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         const mfd::Vec2 nextScale {
             std::max(0.05f, interactionStartTransform_.scale.x * factor),
             std::max(0.05f, interactionStartTransform_.scale.y * factor)};
-        reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
+        *reticleTransform = BuildTransformKeepingLocalPointWorldPosition(
             interactionStartTransform_,
             interactionStartReticleVisualCenterLocal_,
             interactionStartTransform_.rotationDegrees,
@@ -8417,6 +8678,21 @@ void EditorApplication::DrawPageInspector()
     {
         page->title = title.data();
     }
+
+    if (ImGui::Button("Select title chrome"))
+    {
+        SelectPageTitle(selection_.pageIndex);
+        if (page->name == "Page1" && tutorial_->MatchesTarget("page_select_title_chrome"))
+        {
+            tutorial_->CompleteStep();
+        }
+        return;
+    }
+    ShowItemTooltip("Edit the page title position, scale, visibility and decoration in its dedicated inspector.");
+    tutorial_->DrawHalo(
+        "page_select_title_chrome",
+        "Select the Page1 title chrome",
+        "Open the dedicated title inspector. It exposes move, scale, visibility, color, line style, and decoration controls for the generated page title.");
 
     const bool bgChanged = ImGui::ColorEdit4("Background", &background.x);
     ShowItemTooltip("Preview and runtime background color for this page.");
@@ -9895,6 +10171,200 @@ void EditorApplication::DrawPageReticleInspector()
         }
     }
 
+}
+
+void EditorApplication::DrawSelectedPageTitleInspector()
+{
+    mfd::PageDefinition* page = ActivePage();
+    mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay();
+    if (page == nullptr || titleDisplay == nullptr)
+    {
+        ImGui::TextDisabled("No page title selected.");
+        return;
+    }
+
+    const std::string displayedTitle = mfd::ResolvePageDisplayTitleText(page->name, page->title);
+    const auto currentVisualCenterLocal = [&]() -> mfd::Vec2
+    {
+        return ReticleVisualCenterLocal(BuildPageTitlePreviewReticle(*page));
+    };
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page title");
+    ImGui::Text("Page: %s", page->name.c_str());
+    ImGui::TextWrapped("Displayed text: %s", displayedTitle.c_str());
+    ImGui::TextDisabled("Move inside the frame, rotate with the blue handle, scale with the corner handles.");
+    ImGui::TextDisabled("Edit the title text from the page inspector.");
+    ImGui::Separator();
+
+    bool visible = titleDisplay->visible;
+    if (ImGui::Checkbox("Visible", &visible))
+    {
+        PushUndoSnapshot();
+        titleDisplay->visible = visible;
+    }
+    ShowItemTooltip("Show or hide both the title text and its decoration.");
+
+    if (ImGui::Button("Edit page properties"))
+    {
+        SelectPage(selection_.pageIndex, false);
+        return;
+    }
+    ShowItemTooltip("Return to the page inspector to edit the page name and title text.");
+
+    const char* currentDecoration = PageTitleDecorationLabel(titleDisplay->decoration);
+    const bool decorationComboOpen = ImGui::BeginCombo("Decoration", currentDecoration);
+    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("page_title_decoration"))
+    {
+        tutorial_->AdvancePhase();
+    }
+    tutorial_->DrawHalo(
+        "page_title_decoration",
+        "Open Decoration",
+        "Open the title decoration chooser. This inspector is the dedicated place to frame, move, scale, hide, or recolor the Page1 title.");
+    if (decorationComboOpen)
+    {
+        const std::array decorations {
+            mfd::PageTitleDecoration::Underline,
+            mfd::PageTitleDecoration::Frame,
+            mfd::PageTitleDecoration::None};
+
+        for (const mfd::PageTitleDecoration decoration : decorations)
+        {
+            const bool selected = titleDisplay->decoration == decoration;
+            if (ImGui::Selectable(PageTitleDecorationLabel(decoration), selected) && !selected)
+            {
+                PushUndoSnapshot();
+                titleDisplay->decoration = decoration;
+                if (page->name == "Page1" &&
+                    decoration == mfd::PageTitleDecoration::Frame &&
+                    tutorial_->MatchesTarget("page_title_decoration_frame"))
+                {
+                    tutorial_->CompleteStep();
+                }
+            }
+            if (selected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+            if (decoration == mfd::PageTitleDecoration::Frame)
+            {
+                tutorial_->DrawHalo(
+                    "page_title_decoration_frame",
+                    "Choose Frame",
+                    "Frame the Page1 title so the generated chrome becomes a boxed heading. You can still tune its color, line style, and transform afterwards.");
+                if (selected &&
+                    page->name == "Page1" &&
+                    tutorial_->MatchesTarget("page_title_decoration_frame"))
+                {
+                    tutorial_->CompleteStep();
+                }
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+    ShowItemTooltip("Choose whether the title is underlined, boxed, or rendered without decoration.");
+
+    ImVec4 color = ToImGuiColor(titleDisplay->color);
+    if (ImGui::ColorEdit4("Color", &color.x))
+    {
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        titleDisplay->color = ToColorRgba(color);
+    }
+    ShowItemTooltip("Shared color applied to the title text and its decoration.");
+
+    ImGui::BeginDisabled(titleDisplay->decoration == mfd::PageTitleDecoration::None);
+    const char* currentLineStyle = LineStyleLabel(titleDisplay->lineStyle);
+    if (ImGui::BeginCombo("Line style", currentLineStyle))
+    {
+        const std::array lineStyles {
+            mfd::LineStyle::Solid,
+            mfd::LineStyle::Dotted,
+            mfd::LineStyle::Dashed};
+
+        for (const mfd::LineStyle lineStyle : lineStyles)
+        {
+            const bool selected = titleDisplay->lineStyle == lineStyle;
+            if (ImGui::Selectable(LineStyleLabel(lineStyle), selected) && !selected)
+            {
+                PushUndoSnapshot();
+                titleDisplay->lineStyle = lineStyle;
+            }
+            if (selected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+    ShowItemTooltip("Outline pattern used by the underline or frame.");
+
+    float lineWidth = titleDisplay->lineWidth;
+    if (ImGui::DragFloat("Line width", &lineWidth, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+    {
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        titleDisplay->lineWidth = std::max(0.0005f, lineWidth);
+    }
+    ShowItemTooltip("Stroke thickness used by the underline or the frame.");
+    ImGui::EndDisabled();
+
+    const bool positionChanged =
+        ImGui::DragFloat2("Position", &titleDisplay->transform.position.x, 0.01f, -4.0f, 4.0f, "%.3f");
+    ShowItemTooltip("Logical page-space anchor of the title chrome.");
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+    if (positionChanged)
+    {
+        if (!std::isfinite(titleDisplay->transform.position.x))
+        {
+            titleDisplay->transform.position.x = 0.0f;
+        }
+        if (!std::isfinite(titleDisplay->transform.position.y))
+        {
+            titleDisplay->transform.position.y = 0.0f;
+        }
+    }
+
+    const mfd::Transform2D rotationStartTransform = titleDisplay->transform;
+    if (ImGui::DragFloat("Rotation", &titleDisplay->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
+    {
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        titleDisplay->transform = BuildTransformKeepingLocalPointWorldPosition(
+            rotationStartTransform,
+            currentVisualCenterLocal(),
+            titleDisplay->transform.rotationDegrees,
+            rotationStartTransform.scale);
+    }
+    ShowItemTooltip("Rotation in degrees around the title chrome visual center.");
+
+    const mfd::Transform2D scaleStartTransform = titleDisplay->transform;
+    if (ImGui::DragFloat2("Scale", &titleDisplay->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
+    {
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        titleDisplay->transform.scale.x = std::max(0.05f, std::abs(titleDisplay->transform.scale.x));
+        titleDisplay->transform.scale.y = std::max(0.05f, std::abs(titleDisplay->transform.scale.y));
+        titleDisplay->transform = BuildTransformKeepingLocalPointWorldPosition(
+            scaleStartTransform,
+            currentVisualCenterLocal(),
+            scaleStartTransform.rotationDegrees,
+            titleDisplay->transform.scale);
+    }
+    ShowItemTooltip("Per-axis scale applied to the generated title chrome.");
 }
 
 void EditorApplication::DrawSelectedPageStrobeInspector()

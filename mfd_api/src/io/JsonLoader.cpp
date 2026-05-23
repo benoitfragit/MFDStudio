@@ -945,6 +945,72 @@ std::optional<LineStyle> ParseLineStyleField(const json& node)
     return std::nullopt;
 }
 
+Transform2D ParseTransform(const json& node);
+
+PageTitleDecoration ParsePageTitleDecoration(const json& value)
+{
+    if (!value.is_string())
+    {
+        throw std::runtime_error("titleDisplay decoration must be a string");
+    }
+
+    const std::string token = CanonicalToken(value.get<std::string>());
+    if (token == "none")
+    {
+        return PageTitleDecoration::None;
+    }
+
+    if (token == "underline" || token == "line")
+    {
+        return PageTitleDecoration::Underline;
+    }
+
+    if (token == "frame" || token == "box" || token == "border" || token == "encadre")
+    {
+        return PageTitleDecoration::Frame;
+    }
+
+    throw std::runtime_error("Unsupported titleDisplay decoration: " + value.get<std::string>());
+}
+
+PageTitleDisplayDefinition ParsePageTitleDisplay(const json& node)
+{
+    PageTitleDisplayDefinition display;
+
+    if (const json* visible = FindField(node, {"visible", "enabled"}); visible != nullptr)
+    {
+        if (!visible->is_boolean())
+        {
+            throw std::runtime_error("titleDisplay visible must be a boolean");
+        }
+        display.visible = visible->get<bool>();
+    }
+
+    display.transform = ParseTransform(node);
+
+    if (const auto stroke = ParseStrokeColorField(node); stroke.has_value())
+    {
+        display.color = *stroke;
+    }
+
+    if (const auto lineWidth = ParseThicknessField(node); lineWidth.has_value())
+    {
+        display.lineWidth = *lineWidth;
+    }
+
+    if (const auto lineStyle = ParseLineStyleField(node); lineStyle.has_value())
+    {
+        display.lineStyle = *lineStyle;
+    }
+
+    if (const json* decoration = FindField(node, {"decoration", "mode", "shape"}); decoration != nullptr)
+    {
+        display.decoration = ParsePageTitleDecoration(*decoration);
+    }
+
+    return display;
+}
+
 std::optional<float> ParseLetterSpacingField(const json& node)
 {
     if (const json* spacing = FindField(node, {"letterSpacing", "spacing", "tracking"}))
@@ -2555,6 +2621,11 @@ PageDefinition ParsePage(const json& node,
     page.name = std::move(pageName);
     page.normalizedName = normalizedPageName;
     page.title = node.value("title", page.name);
+    if (const json* titleDisplayNode = FindField(node, {"titleDisplay", "titleChrome"});
+        titleDisplayNode != nullptr && titleDisplayNode->is_object())
+    {
+        page.titleDisplay = ParsePageTitleDisplay(*titleDisplayNode);
+    }
     page.backgroundColor = ParseBackgroundColor(node);
     page.view = ParsePageViewState(node);
     page.blinkTypes = ParsePageBlinkDefinitions(node);

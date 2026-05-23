@@ -301,7 +301,7 @@ struct TutorialStageInfo
 
 constexpr std::array<TutorialStageInfo, 4> kTutorialStages {{
     {"Stage 1 - Author In Editor",
-     "Create the tutorial window, page assets, reusable reticle templates, `RadarTrackLayer`, the Page1 dynamic-template binding, editor-only layers, and the exposed primitive that will feed the generated client.",
+     "Create the tutorial window, page assets, the Page1 title chrome frame, reusable reticle templates, `RadarTrackLayer`, the Page1 dynamic-template binding, editor-only layers, and the exposed primitive that will feed the generated client.",
      static_cast<int>(editor::tutorial::TutorialStepId::CreateWindow),
      static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
     {"Stage 2 - Explore Editor Tools",
@@ -957,6 +957,10 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     case static_cast<int>(TutorialStepId::CreatePage1):
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "menu_page" : (stepPhase_ == 1 ? "menu_page_new" : "popup_page_create");
+    case static_cast<int>(TutorialStepId::SelectPage1TitleChrome):
+        return "page_select_title_chrome";
+    case static_cast<int>(TutorialStepId::FramePage1Title):
+        return stepPhase_ == 0 ? "page_title_decoration" : "page_title_decoration_frame";
     case static_cast<int>(TutorialStepId::CreateRadarTrackLayerOnPage1):
         return "inspector_add_radar_track_layer";
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
@@ -1030,6 +1034,10 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "Click Page." :
                                  (stepPhase_ == 1 ? "Click New page." : "Click Create page.");
+    case static_cast<int>(TutorialStepId::SelectPage1TitleChrome):
+        return "Click Select title chrome.";
+    case static_cast<int>(TutorialStepId::FramePage1Title):
+        return stepPhase_ == 0 ? "Open Decoration." : "Choose Frame.";
     case static_cast<int>(TutorialStepId::CreateRadarTrackLayerOnPage1):
         return "Click Add layer to create RadarTrackLayer.";
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):

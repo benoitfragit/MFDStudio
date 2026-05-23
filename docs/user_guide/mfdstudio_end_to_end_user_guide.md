@@ -342,7 +342,26 @@ To choose the default page:
 - select the page in the tree
 - enable `Default page for this window` in the page inspector
 
-## 4.8 Design of a page: layers, static reticles, dynamic bindings, strobe
+## 4.8 Design of a page: title chrome, layers, static reticles, dynamic bindings, strobe
+
+### Page title chrome
+
+Each page owns one generated title chrome driven by the page `title` text plus
+an optional `titleDisplay` block.
+
+That authored chrome can:
+
+- stay visible or become invisible
+- move inside the page space
+- scale and rotate
+- change color
+- switch decoration between `none`, `underline`, and `frame`
+- change the decoration line style and line width
+
+In `mfd_editor`, this chrome is selected from the page inspector through
+`Select title chrome`, then edited from its dedicated inspector. It is not a
+separate static reticle asset, but it behaves like one editor-side chrome
+element for selection and transform gestures.
 
 ### Page layers
 
@@ -379,6 +398,7 @@ The JSON page supports in particular:
 | --- | --- |
 | `name` | public page name |
 | `title` | human title |
+| `titleDisplay` | authored visibility and styling of the generated title chrome |
 | `backgroundColor` | bottom |
 | `layers` | ordered runtime layers |
 | `dynamicReticleBindings` | dynamic templates allowed on the page |
