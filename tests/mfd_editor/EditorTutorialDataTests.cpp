@@ -66,6 +66,12 @@ TEST(EditorTutorialDataTests, StepsExposeNonEmptyCoreFields)
 
 TEST(EditorTutorialDataTests, TutorialMetadataGuidesRadarTrackLayerFlow)
 {
+    const auto& createAircraftStep = Step(editor::tutorial::TutorialStepId::CreateAircraftReticle);
+    EXPECT_STREQ(createAircraftStep.targetId, "menu_reticle");
+    EXPECT_NE(std::string_view(createAircraftStep.instruction).find("triangle"), std::string_view::npos);
+    EXPECT_NE(std::string_view(createAircraftStep.instruction).find("mfd_tutorial_aircraft"),
+              std::string_view::npos);
+
     const auto& selectTitleStep = Step(editor::tutorial::TutorialStepId::SelectPage1TitleChrome);
     EXPECT_STREQ(selectTitleStep.targetId, "page_select_title_chrome");
     EXPECT_NE(std::string_view(selectTitleStep.instruction).find("title chrome"), std::string_view::npos);
@@ -98,7 +104,14 @@ TEST(EditorTutorialDataTests, TutorialMetadataGuidesRadarTrackLayerFlow)
     const auto& alternativeStrobeStep = Step(editor::tutorial::TutorialStepId::AddPage1AlternativeStrobe);
     EXPECT_STREQ(alternativeStrobeStep.targetId, "page_strobe_alternative");
     EXPECT_NE(std::string_view(alternativeStrobeStep.instruction).find("Strobe1"), std::string_view::npos);
+    EXPECT_NE(std::string_view(alternativeStrobeStep.instruction).find("mfd_tutorial_aircraft"),
+              std::string_view::npos);
     EXPECT_NE(std::string_view(alternativeStrobeStep.instruction).find("runtime"), std::string_view::npos);
+
+    const auto& aircraftToPageStep = Step(editor::tutorial::TutorialStepId::AddAircraftReticleToPage1);
+    EXPECT_STREQ(aircraftToPageStep.targetId, "library_add_to_page");
+    EXPECT_NE(std::string_view(aircraftToPageStep.instruction).find("x = 0.0"), std::string_view::npos);
+    EXPECT_NE(std::string_view(aircraftToPageStep.instruction).find("y = -0.7"), std::string_view::npos);
 }
 
 TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)

@@ -650,3 +650,49 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentSerializesPageTitleDisplay
     EXPECT_FLOAT_EQ(titleDisplayJson.at("scale").at(0).get<float>(), 1.20f);
     EXPECT_FLOAT_EQ(titleDisplayJson.at("scale").at(1).get<float>(), 0.95f);
 }
+
+TEST(EditorDocumentSerializerTests, PageTitleDisplayDefaultsStartInsideVisiblePage)
+{
+    const mfd::PageTitleDisplayDefinition defaults {};
+
+    EXPECT_FLOAT_EQ(defaults.transform.position.x, -0.95f);
+    EXPECT_FLOAT_EQ(defaults.transform.position.y, 0.925f);
+    EXPECT_FLOAT_EQ(defaults.transform.rotationDegrees, 0.0f);
+    EXPECT_FLOAT_EQ(defaults.transform.scale.x, 1.0f);
+    EXPECT_FLOAT_EQ(defaults.transform.scale.y, 1.0f);
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentOmitsDefaultPageTitleTransformWhenOnlyDecorationChanges)
+{
+    ScopedTempDir tempDir;
+
+    const auto windowFile = tempDir.Path() / "window.json";
+    const auto pageFile = tempDir.Path() / "page.json";
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = windowFile;
+    loaded.window.title = "Demo";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar Page";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    page.titleDisplay.decoration = mfd::PageTitleDecoration::Frame;
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(pageFile);
+
+    std::string error;
+    ASSERT_TRUE(editor::SaveEditorDocument(loaded, layout, &error)) << error;
+
+    std::ifstream pageStream(pageFile);
+    ASSERT_TRUE(pageStream.is_open());
+    const auto pageJson = nlohmann::json::parse(pageStream);
+
+    ASSERT_TRUE(pageJson.contains("titleDisplay"));
+    const auto& titleDisplayJson = pageJson.at("titleDisplay");
+    EXPECT_EQ(titleDisplayJson.at("decoration").get<std::string>(), "frame");
+    EXPECT_FALSE(titleDisplayJson.contains("at"));
+}

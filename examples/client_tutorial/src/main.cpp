@@ -15,18 +15,22 @@
 #include <cstdint>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <random>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
 #include "mfd/client/ClientSdk.h"
+#include "mfd/control/UserSpaceProjector.h"
 #include "TutorialUi.h"
 
 namespace
 {
 constexpr std::string_view kWindowFile = "assets/windows/mfd_tutorial.json";
-constexpr std::size_t kMaxTracks = 10;
+constexpr std::size_t kMaxTransientTracks = 10U;
 constexpr auto kTrackInterval = std::chrono::seconds(2);
 constexpr auto kPageSwitchInterval = std::chrono::seconds(30);
 constexpr auto kStrobeSwitchInterval = std::chrono::seconds(8);
@@ -34,91 +38,495 @@ constexpr float kProgressBarMaxWidth = 0.44f;
 constexpr float kProgressBarHeight = 0.06f;
 constexpr float kProgressBarLeftEdge = -0.22f;
 constexpr float kProgressLoopDurationSeconds = 6.0f;
-constexpr float kTrackBoundsMin = -0.88f;
-constexpr float kTrackBoundsMax = 0.88f;
-constexpr float kPersistentTrackSize = 0.205f;
-constexpr float kPersistentTrackThickness = 0.0044f;
-constexpr float kPersistentLinkThickness = 0.0034f;
+constexpr float kOwnshipAnchorX = 0.0f;
+constexpr float kOwnshipAnchorY = -0.7f;
+constexpr float kMinTrackRangeNm = 4.0f;
+constexpr float kMaxTrackRangeNm = 40.0f;
+// Page-space upper bound used for the farthest straight-ahead contact.
+// With the ownship anchored at y = -0.7, keeping the forward limit at y = +0.9
+// leaves a small margin to the page border.
+constexpr float kForwardVisibleLimitY = 0.9f;
+// Vertical page span available for the forward sector:
+//   0.9 - (-0.7) = 1.6 page units.
+constexpr float kForwardVisibleSpanPageUnits = kForwardVisibleLimitY - kOwnshipAnchorY;
+// NM -> page conversion ratio chosen so that 40 NM occupies the full forward
+// span above:
+//   kPageUnitsPerNm = 1.6 / 40 = 0.04.
+constexpr float kPageUnitsPerNm = kForwardVisibleSpanPageUnits / kMaxTrackRangeNm;
+constexpr float kMaxTrackAzimuthRadians = 1.0f;
+constexpr float kNominalTrackThickness = 0.0038f;
+constexpr float kCapturedTrackThickness = 0.0056f;
+constexpr float kTrackLinkThickness = 0.0034f;
 constexpr float kMaxFrameDeltaSeconds = 0.1f;
+constexpr float kPi = 3.14159265358979323846f;
 
 /**
- * @brief Runtime state for one persistent tutorial track bouncing inside the page bounds.
+ * @brief Simple ownship state expressed in domain units.
+ *
+ * Distances stay in nautical miles and the heading stays in radians. The
+ * rendered page never sees these raw values directly. The client uses
+ * `UserSpaceProjector` to convert them to regular page coordinates only when it
+ * is about to send commands.
  */
-struct PersistentTrackState
+struct OwnshipState
 {
-    tutorial_ui::MfdTutorialRadarTrackDynamicReticle* reticle = nullptr;
-    mfd::Vec2 position {};
-    mfd::Vec2 velocity {};
+    mfd::Vec2 worldPositionNm {};
+    float headingRadians = 0.0f;
 };
 
 /**
- * @brief Mirrors one axis on the tutorial bounds to keep the track inside the visible page.
- * @param position Current axis position updated in place.
- * @param velocity Current axis velocity updated in place when a rebound occurs.
+ * @brief Runtime state for one track kept in business coordinates.
+ *
+ * The track is authored and animated in aircraft-relative polar data:
+ * - `distanceNm` is the range ahead of the aircraft in nautical miles
+ * - `azimuthRadians` is the offset angle around the aircraft nose
+ * - `relativeHeadingRadians` is the track heading relative to the aircraft
+ *
+ * Page-space coordinates are derived later through `UserSpaceProjector`.
  */
-void ReflectOnBounds(float& position, float& velocity)
+struct TutorialTrackState
 {
-    if (position < kTrackBoundsMin)
+    tutorial_ui::MfdTutorialRadarTrackDynamicReticle* reticle = nullptr;
+    float distanceNm = 0.0f;
+    float azimuthRadians = 0.0f;
+    float relativeHeadingRadians = 0.0f;
+    float distanceRateNmPerSecond = 0.0f;
+    float azimuthRateRadiansPerSecond = 0.0f;
+    float relativeHeadingRateRadiansPerSecond = 0.0f;
+    std::uint32_t serial = 0U;
+    bool visible = true;
+    bool persistent = false;
+};
+
+/**
+ * @brief Throws when one command-client action fails.
+ * @param success Result returned by the client helper.
+ * @param client Command client used for the operation.
+ * @param action Human-readable action name.
+ */
+void Require(const bool success, const mfd::CommandClient& client, const std::string_view action)
+{
+    if (!success)
     {
-        position = kTrackBoundsMin + (kTrackBoundsMin - position);
-        velocity = std::abs(velocity);
-    }
-    else if (position > kTrackBoundsMax)
-    {
-        position = kTrackBoundsMax - (position - kTrackBoundsMax);
-        velocity = -std::abs(velocity);
+        throw std::runtime_error(std::string(action) + ": " + client.LastError());
     }
 }
 
 /**
- * @brief Advances one persistent track with a constant velocity and rebound.
- * @param track Persistent track state to update.
- * @param deltaSeconds Elapsed frame time in seconds.
+ * @brief Rotates one 2D vector by a radian angle.
+ * @param value Vector to rotate.
+ * @param radians Rotation angle in radians.
+ * @return Rotated vector.
  */
-void AdvancePersistentTrack(PersistentTrackState& track, const float deltaSeconds)
+mfd::Vec2 RotateRadians(const mfd::Vec2 value, const float radians) noexcept
 {
-    track.position.x += track.velocity.x * deltaSeconds;
-    track.position.y += track.velocity.y * deltaSeconds;
-    ReflectOnBounds(track.position.x, track.velocity.x);
-    ReflectOnBounds(track.position.y, track.velocity.y);
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+    return {
+        value.x * cosine - value.y * sine,
+        value.x * sine + value.y * cosine};
 }
 
 /**
- * @brief Applies one visibility state to the transient radar-track list only.
- * @param transientTracks Current FIFO list of transient generated tracks.
+ * @brief Mirrors one scalar value on a bounded interval.
+ * @param value Value updated in place.
+ * @param rate Signed speed updated in place when a rebound occurs.
+ * @param minimum Inclusive minimum bound.
+ * @param maximum Inclusive maximum bound.
+ */
+void ReflectOnInterval(float& value, float& rate, const float minimum, const float maximum) noexcept
+{
+    if (value < minimum)
+    {
+        value = minimum + (minimum - value);
+        rate = std::abs(rate);
+    }
+    else if (value > maximum)
+    {
+        value = maximum - (value - maximum);
+        rate = -std::abs(rate);
+    }
+}
+
+/**
+ * @brief Wraps one angle back to the canonical `[-pi, pi]` interval.
+ * @param radians Angle updated in place.
+ */
+void WrapRadians(float& radians) noexcept
+{
+    const float fullTurn = 2.0f * kPi;
+    while (radians > kPi)
+    {
+        radians -= fullTurn;
+    }
+
+    while (radians < -kPi)
+    {
+        radians += fullTurn;
+    }
+}
+
+/**
+ * @brief Builds one aircraft-relative offset from polar business coordinates.
+ *
+ * Convention used by this file:
+ * - local `+X` means "ahead of the aircraft"
+ * - local `+Y` means "to the aircraft right"
+ *
+ * @param azimuthRadians Relative azimuth around the aircraft nose, in radians.
+ * @param distanceNm Range from the aircraft, in nautical miles.
+ * @return Local offset expressed in nautical miles.
+ */
+mfd::Vec2 BuildOwnshipRelativeOffsetNm(const float azimuthRadians, const float distanceNm) noexcept
+{
+    return {
+        distanceNm * std::cos(azimuthRadians),
+        distanceNm * std::sin(azimuthRadians)};
+}
+
+/**
+ * @brief Rebuilds the absolute world position of one track from its business data.
+ *
+ * The track itself is stored in aircraft-relative distance/azimuth. This helper
+ * converts that local polar state into one world-space point, still expressed
+ * in nautical miles.
+ *
+ * Example:
+ * - `distanceNm = 20` and `azimuthRadians = 0` means "20 NM straight ahead"
+ * - `distanceNm = 20` and positive azimuth means "20 NM ahead and to the right"
+ * - page-space coordinates are not involved at this stage
+ *
+ * @param track Track expressed in aircraft-relative business coordinates.
+ * @param ownship Current ownship origin and heading.
+ * @return Absolute world position in nautical miles.
+ */
+mfd::Vec2 BuildTrackWorldPositionNm(const TutorialTrackState& track, const OwnshipState& ownship) noexcept
+{
+    const mfd::Vec2 localOffsetNm = BuildOwnshipRelativeOffsetNm(track.azimuthRadians, track.distanceNm);
+    return ownship.worldPositionNm + RotateRadians(localOffsetNm, ownship.headingRadians);
+}
+
+/**
+ * @brief Rebuilds the absolute world heading of one track.
+ * @param track Track heading stored relative to the aircraft.
+ * @param ownship Current ownship heading.
+ * @return Absolute world heading in radians.
+ */
+float BuildTrackWorldHeadingRadians(const TutorialTrackState& track, const OwnshipState& ownship) noexcept
+{
+    float headingRadians = ownship.headingRadians + track.relativeHeadingRadians;
+    WrapRadians(headingRadians);
+    return headingRadians;
+}
+
+/**
+ * @brief Builds the client-side user-space projector for Page1.
+ *
+ * The page keeps using normal logical coordinates in `[-1, 1]`. The projector
+ * below makes the ownship anchor stay fixed at `{0.0, -0.7}` and converts the
+ * domain-space frame:
+ * - nautical miles -> page units through `kPageUnitsPerNm`
+ * - radians -> page-space degrees
+ * - aircraft-forward axes -> page axes
+ *
+ * @param ownship Current ownship domain state.
+ * @return Projector ready to convert domain-space positions and headings.
+ */
+mfd::UserSpaceProjector BuildTutorialProjector(const OwnshipState& ownship)
+{
+    mfd::UserSpaceFrame frame;
+
+    // Track coordinates are defined relative to the aircraft origin in NM.
+    frame.userOrigin = ownship.worldPositionNm;
+
+    // The authored aircraft symbol in Page1 is placed at this page anchor.
+    frame.pageAnchor = {kOwnshipAnchorX, kOwnshipAnchorY};
+
+    // The local frame rotates with the aircraft heading.
+    frame.originRotationRadians = ownship.headingRadians;
+
+    // This ratio is derived from the available forward page span:
+    //   kForwardVisibleSpanPageUnits = kForwardVisibleLimitY - kOwnshipAnchorY
+    //                                = 0.9 - (-0.7)
+    //                                = 1.6
+    // and from the maximum forward range:
+    //   kPageUnitsPerNm = 1.6 / 40 = 0.04.
+    frame.pageUnitsPerUserUnit = kPageUnitsPerNm;
+
+    // Local +X (aircraft forward) is rendered upward on the page.
+    frame.userXAxisInPage = {0.0f, 1.0f};
+
+    // Local +Y (aircraft right) is rendered toward page +X.
+    frame.userYAxisInPage = {1.0f, 0.0f};
+    return mfd::UserSpaceProjector(frame);
+}
+
+/**
+ * @brief Computes the diamond size used to display one track.
+ * @param track Track whose range drives the symbol size.
+ * @return Logical page-space size.
+ */
+float ComputeTrackSymbolSize(const TutorialTrackState& track) noexcept
+{
+    const float baseSize = 0.22f - track.distanceNm * 0.0020f;
+    const float serialBias = 0.01f * static_cast<float>(track.serial % 3U);
+    return std::clamp(baseSize + serialBias, 0.12f, 0.22f);
+}
+
+/**
+ * @brief Applies the projected page pose to one generated dynamic track.
+ *
+ * The reticle API still consumes page-space
+ * coordinates and degrees, while the source state remains in nautical miles and
+ * radians until the very last moment.
+ *
+ * @param track Track state to project.
+ * @param ownship Current ownship business frame.
+ * @param projector Client-side user-space projector.
+ */
+void ApplyProjectedTrackPose(TutorialTrackState& track,
+                             const OwnshipState& ownship,
+                             const mfd::UserSpaceProjector& projector)
+{
+    if (track.reticle == nullptr)
+    {
+        return;
+    }
+
+    track.reticle->SetVisible(track.visible);
+    track.reticle->SetPosition(projector.ToPagePosition(BuildTrackWorldPositionNm(track, ownship)));
+    track.reticle->SetRotationDegrees(
+        projector.ToPageRotationDegrees(BuildTrackWorldHeadingRadians(track, ownship)));
+    track.reticle->Primitive01().SetSize({ComputeTrackSymbolSize(track), ComputeTrackSymbolSize(track)});
+    track.reticle->Primitive01().SetLineStyle(
+        track.persistent ? mfd::LineStyle::Solid
+                         : ((track.serial % 2U) == 0U ? mfd::LineStyle::Dashed : mfd::LineStyle::Dotted));
+}
+
+/**
+ * @brief Applies one visibility state to transient tracks only.
+ * @param transientTracks Current transient tutorial tracks.
  * @param visible Desired visibility for the transient list.
  */
-void SetTransientTrackVisibility(
-    const std::vector<tutorial_ui::MfdTutorialRadarTrackDynamicReticle*>& transientTracks,
-    const bool visible)
+void SetTransientTrackVisibility(std::vector<TutorialTrackState>& transientTracks, const bool visible)
 {
-    for (tutorial_ui::MfdTutorialRadarTrackDynamicReticle* track : transientTracks)
+    for (TutorialTrackState& track : transientTracks)
     {
-        if (track != nullptr)
+        track.visible = visible;
+        if (track.reticle != nullptr)
         {
-            track->SetVisible(visible);
+            track.reticle->SetVisible(visible);
         }
     }
 }
 
 /**
- * @brief Updates the dynamic polyline used to link the two persistent tracks.
- * @param link Dynamic polyline reticle connecting the persistent tracks.
- * @param first First persistent track.
- * @param second Second persistent track.
+ * @brief Updates the appearance of one track from the authoritative strobe feedback.
+ * @param track Track to restyle.
+ */
+void UpdateTrackVisualFromStrobeFeedback(TutorialTrackState& track)
+{
+    if (track.reticle == nullptr)
+    {
+        return;
+    }
+
+    const bool captured = track.reticle->IsStrobeCaptured();
+    track.reticle->SetColor(
+        captured ? mfd::ColorRgba {255, 112, 96, 255} : mfd::ColorRgba {80, 255, 185, 255});
+    track.reticle->SetThickness(captured ? kCapturedTrackThickness : kNominalTrackThickness);
+}
+
+/**
+ * @brief Updates all track visuals from the latest runtime feedback.
+ * @param persistentTracks Persistent linked pair.
+ * @param transientTracks Transient tutorial tracks.
+ */
+void UpdateCapturedTrackVisuals(std::array<TutorialTrackState, 2>& persistentTracks,
+                                std::vector<TutorialTrackState>& transientTracks)
+{
+    for (TutorialTrackState& track : persistentTracks)
+    {
+        UpdateTrackVisualFromStrobeFeedback(track);
+    }
+
+    for (TutorialTrackState& track : transientTracks)
+    {
+        UpdateTrackVisualFromStrobeFeedback(track);
+    }
+}
+
+/**
+ * @brief Updates the static circle driven by transient-track visibility.
+ *
+ * @param circle Generated static circle handle.
+ * @param transientTrackCount Current number of transient tracks.
+ * @param declutterVisible Visibility flag applied to transient tracks.
+ */
+void UpdateTransientCircleReticle(tutorial_ui::Page1MfdTutorialCircleReticle& circle,
+                                  const std::size_t transientTrackCount,
+                                  const bool declutterVisible)
+{
+    circle.SetVisible(true);
+    circle.SetColor(
+        declutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});
+    circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(transientTrackCount));
+    circle.Primitive01().SetThickness(0.0045f);
+    circle.Primitive01().SetLineStyle(declutterVisible ? mfd::LineStyle::Solid : mfd::LineStyle::Dotted);
+}
+
+/**
+ * @brief Advances one persistent linked track in business space.
+ *
+ * The pair connected by the cue stays in aircraft-relative domain
+ * coordinates instead of raw page coordinates. The animation therefore updates
+ * azimuth/range rates directly, then the projector turns the result into page
+ * coordinates afterwards.
+ *
+ * @param track Persistent track to update.
+ * @param deltaSeconds Elapsed frame time in seconds.
+ */
+void AdvancePersistentTrackInUserSpace(TutorialTrackState& track, const float deltaSeconds) noexcept
+{
+    track.distanceNm += track.distanceRateNmPerSecond * deltaSeconds;
+    track.azimuthRadians += track.azimuthRateRadiansPerSecond * deltaSeconds;
+    track.relativeHeadingRadians += track.relativeHeadingRateRadiansPerSecond * deltaSeconds;
+
+    ReflectOnInterval(track.distanceNm, track.distanceRateNmPerSecond, kMinTrackRangeNm, kMaxTrackRangeNm);
+    ReflectOnInterval(track.azimuthRadians,
+                      track.azimuthRateRadiansPerSecond,
+                      -kMaxTrackAzimuthRadians,
+                      kMaxTrackAzimuthRadians);
+    WrapRadians(track.relativeHeadingRadians);
+}
+
+/**
+ * @brief Updates the dynamic cue linking the two persistent business-space tracks.
+ *
+ * The cue itself still needs page-space points because the generated polyline
+ * API is already the final render-space layer. The important point is that the
+ * two linked tracks keep their source data in business coordinates until this
+ * conversion.
+ *
+ * @param link Dynamic polyline reticle connecting the persistent pair.
+ * @param persistentTracks Persistent pair expressed in business coordinates.
+ * @param ownship Current ownship frame.
+ * @param projector Projector used to convert to page positions.
  */
 void UpdatePersistentTrackLink(tutorial_ui::InspiredSteeringCueDynamicReticle& link,
-                               const PersistentTrackState& first,
-                               const PersistentTrackState& second)
+                               const std::array<TutorialTrackState, 2>& persistentTracks,
+                               const OwnshipState& ownship,
+                               const mfd::UserSpaceProjector& projector)
 {
     std::vector<mfd::Vec2> points;
-    points.reserve(2);
-    points.push_back(first.position);
-    points.push_back(second.position);
+    points.reserve(2U);
+    points.push_back(projector.ToPagePosition(BuildTrackWorldPositionNm(persistentTracks[0], ownship)));
+    points.push_back(projector.ToPagePosition(BuildTrackWorldPositionNm(persistentTracks[1], ownship)));
 
+    link.SetVisible(true);
     link.SetPosition({0.0f, 0.0f});
     link.Cue().SetClosed(false);
     link.Cue().SetPoints(std::move(points));
+}
+
+/**
+ * @brief Creates one persistent linked track with deterministic business data.
+ * @param handle Generated dynamic reticle handle.
+ * @param serial Stable serial used for styling.
+ * @param distanceNm Initial range in nautical miles.
+ * @param azimuthRadians Initial azimuth in radians.
+ * @param relativeHeadingRadians Initial heading relative to the aircraft.
+ * @param distanceRateNmPerSecond Range animation speed.
+ * @param azimuthRateRadiansPerSecond Azimuth animation speed.
+ * @param relativeHeadingRateRadiansPerSecond Heading animation speed.
+ * @return Fully initialized persistent track state.
+ */
+TutorialTrackState CreatePersistentTrack(tutorial_ui::MfdTutorialRadarTrackDynamicReticle& handle,
+                                         const std::uint32_t serial,
+                                         const float distanceNm,
+                                         const float azimuthRadians,
+                                         const float relativeHeadingRadians,
+                                         const float distanceRateNmPerSecond,
+                                         const float azimuthRateRadiansPerSecond,
+                                         const float relativeHeadingRateRadiansPerSecond)
+{
+    TutorialTrackState track;
+    track.reticle = &handle;
+    track.distanceNm = distanceNm;
+    track.azimuthRadians = azimuthRadians;
+    track.relativeHeadingRadians = relativeHeadingRadians;
+    track.distanceRateNmPerSecond = distanceRateNmPerSecond;
+    track.azimuthRateRadiansPerSecond = azimuthRateRadiansPerSecond;
+    track.relativeHeadingRateRadiansPerSecond = relativeHeadingRateRadiansPerSecond;
+    track.serial = serial;
+    track.visible = true;
+    track.persistent = true;
+    return track;
+}
+
+/**
+ * @brief Generates one transient track ahead of the aircraft in business coordinates.
+ *
+ * Range and azimuth are generated directly in domain
+ * units:
+ * - range in nautical miles
+ * - azimuth around the aircraft nose in radians
+ *
+ * The 40 NM upper bound matches the scale used by `kPageUnitsPerNm`.
+ *
+ * @param rng Random generator used by the tutorial.
+ * @param serial Monotonic serial used to vary the visuals slightly.
+ * @return Newly generated transient track state.
+ */
+TutorialTrackState GenerateTransientTrackState(std::mt19937& rng, const std::uint32_t serial)
+{
+    std::uniform_real_distribution<float> azimuthDistribution(-kMaxTrackAzimuthRadians, kMaxTrackAzimuthRadians);
+    std::uniform_real_distribution<float> rangeDistribution(kMinTrackRangeNm, kMaxTrackRangeNm);
+    std::uniform_real_distribution<float> headingDistribution(-kPi, kPi);
+
+    TutorialTrackState track;
+    track.distanceNm = rangeDistribution(rng);
+    track.azimuthRadians = azimuthDistribution(rng);
+    track.relativeHeadingRadians = headingDistribution(rng);
+    track.serial = serial;
+    track.visible = true;
+    track.persistent = false;
+    return track;
+}
+
+/**
+ * @brief Logs one transient track with both business-space and page-space values.
+ * @param track Newly spawned transient track.
+ * @param ownship Ownship state used as the projection frame.
+ * @param pagePosition Projected page-space position.
+ */
+void LogSpawnedTrack(const TutorialTrackState& track, const OwnshipState& ownship, const mfd::Vec2 pagePosition)
+{
+    std::cout << "Tutorial: spawned transient track #" << track.serial
+              << " ownshipHeading=" << ownship.headingRadians << " rad"
+              << " azimuth=" << track.azimuthRadians << " rad"
+              << " distance=" << track.distanceNm << " NM"
+              << " page=(" << pagePosition.x << ", " << pagePosition.y << ")"
+              << '\n';
+}
+
+/**
+ * @brief Counts all tracks currently reported captured by the active page strobe.
+ * @param persistentTracks Persistent linked pair.
+ * @param transientTracks Transient tutorial tracks.
+ * @return Number of captured tracks.
+ */
+std::size_t CountCapturedTracks(const std::array<TutorialTrackState, 2>& persistentTracks,
+                                const std::vector<TutorialTrackState>& transientTracks)
+{
+    const auto capturedPredicate =
+        [](const TutorialTrackState& track)
+        {
+            return track.reticle != nullptr && track.reticle->IsStrobeCaptured();
+        };
+
+    return static_cast<std::size_t>(std::count_if(persistentTracks.begin(), persistentTracks.end(), capturedPredicate)) +
+           static_cast<std::size_t>(std::count_if(transientTracks.begin(), transientTracks.end(), capturedPredicate));
 }
 
 int mainImpl()
@@ -146,63 +554,67 @@ int mainImpl()
         feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);
     }
 
-    std::mt19937 rng(42);
-    std::uniform_real_distribution<float> axis(-0.85f, 0.85f);
+    std::mt19937 rng(42U);
+    std::uniform_real_distribution<float> ownshipHeadingDistribution(-kPi, kPi);
 
     tutorial_ui::TutorialUi generatedUi;
     auto& page1 = generatedUi.Page1();
     auto& page2 = generatedUi.Page2();
     auto& page1TrackSet = page1.DynamicMfdTutorialRadarTrack();
-    auto& persistentTrackLinkSet = page1.DynamicInspiredSteeringCue();
+    auto& page1TrackLinkSet = page1.DynamicInspiredSteeringCue();
     auto& page1Circle = page1.mfdTutorialCircle;
     auto& page2ProgressBar = page2.mfdTutorialProgressBar;
     auto& progressFill = page2ProgressBar.FillBar();
     auto& page1Strobe = page1.strobe;
-    tutorial_ui::StrobeType* page1PreviousStrobe = &page1.defaultStrobe;
-    bool page1AlternativeStrobeSelected = false;
-    std::vector<tutorial_ui::MfdTutorialRadarTrackDynamicReticle*> generatedTracks;
-    generatedTracks.reserve(kMaxTracks);
-    bool generatedDeclutterVisible = true;
+
+    // The aircraft symbol is authored statically in Page1 JSON at the same
+    // anchor used by `BuildTutorialProjector`. The runtime loop updates only
+    // track business coordinates; page-space poses are derived later.
+    OwnshipState ownship;
+    ownship.worldPositionNm = {0.0f, 0.0f};
+    ownship.headingRadians = ownshipHeadingDistribution(rng);
+
+    std::vector<TutorialTrackState> transientTracks;
+    transientTracks.reserve(kMaxTransientTracks);
+
     page2ProgressBar.SetVisible(true);
     progressFill.SetVisible(true);
 
+    Require(client.ActivatePage(page1), client, "Unable to activate tutorial Page1");
     bool page1Active = true;
-    if (!client.ActivatePage(page1))
-    {
-        throw std::runtime_error("Unable to activate tutorial Page1: " + client.LastError());
-    }
+    bool useAlternativeStrobe = false;
+    bool transientDeclutterVisible = true;
 
-    std::array<PersistentTrackState, 2> persistentTracks {};
-    persistentTracks[0].reticle = &page1TrackSet.Create();
-    persistentTracks[0].position = {-0.58f, -0.26f};
-    persistentTracks[0].velocity = {0.31f, 0.22f};
-    persistentTracks[1].reticle = &page1TrackSet.Create();
-    persistentTracks[1].position = {0.52f, 0.41f};
-    persistentTracks[1].velocity = {-0.27f, -0.24f};
+    std::uint32_t serial = 1U;
+    std::array<TutorialTrackState, 2> persistentTracks {
+        CreatePersistentTrack(page1TrackSet.Create(), serial++, 12.0f, -0.42f, 0.20f, 1.20f, 0.18f, 0.30f),
+        CreatePersistentTrack(page1TrackSet.Create(), serial++, 21.0f, 0.34f, -0.35f, -1.05f, -0.15f, -0.24f)};
 
-    for (PersistentTrackState& persistentTrack : persistentTracks)
-    {
-        persistentTrack.reticle->SetVisible(true);
-        persistentTrack.reticle->SetPosition(persistentTrack.position);
-        persistentTrack.reticle->SetColor({255, 224, 96, 255});
-        persistentTrack.reticle->SetThickness(kPersistentTrackThickness);
-        persistentTrack.reticle->Primitive01().SetSize({kPersistentTrackSize, kPersistentTrackSize});
-        persistentTrack.reticle->Primitive01().SetLineStyle(mfd::LineStyle::Solid);
-    }
-
-    auto& persistentTrackLink = persistentTrackLinkSet.Create();
+    auto& persistentTrackLink = page1TrackLinkSet.Create();
     persistentTrackLink.SetVisible(true);
     persistentTrackLink.SetColor({255, 192, 96, 255});
-    persistentTrackLink.SetThickness(kPersistentLinkThickness);
+    persistentTrackLink.SetThickness(kTrackLinkThickness);
     persistentTrackLink.Cue().SetLineStyle(mfd::LineStyle::Solid);
-    UpdatePersistentTrackLink(persistentTrackLink, persistentTracks[0], persistentTracks[1]);
+
+    const mfd::UserSpaceProjector startupProjector = BuildTutorialProjector(ownship);
+    for (TutorialTrackState& track : persistentTracks)
+    {
+        ApplyProjectedTrackPose(track, ownship, startupProjector);
+    }
+    UpdatePersistentTrackLink(persistentTrackLink, persistentTracks, ownship, startupProjector);
+    UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
+    UpdateTransientCircleReticle(page1Circle, 0U, transientDeclutterVisible);
+    if (page1Strobe.IsValid())
+    {
+        page1Strobe.SetActive(true);
+        page1Strobe.SetPosition(startupProjector.ToPagePosition(BuildTrackWorldPositionNm(persistentTracks[0], ownship)));
+    }
 
     auto nextTrackTime = std::chrono::steady_clock::now() + kTrackInterval;
     auto nextPageTime = std::chrono::steady_clock::now() + kPageSwitchInterval;
     auto nextStrobeSwitchTime = std::chrono::steady_clock::now() + kStrobeSwitchInterval;
     const auto progressStartTime = std::chrono::steady_clock::now();
     auto previousFrameTime = progressStartTime;
-    std::uint32_t serial = 1;
 
     while (true)
     {
@@ -210,112 +622,87 @@ int mainImpl()
         const float deltaSeconds =
             std::min(std::chrono::duration<float>(now - previousFrameTime).count(), kMaxFrameDeltaSeconds);
         previousFrameTime = now;
-        const float elapsedProgressSeconds =
-            std::chrono::duration<float>(now - progressStartTime).count();
+
+        const float elapsedProgressSeconds = std::chrono::duration<float>(now - progressStartTime).count();
         const float progressPhase =
             std::fmod(elapsedProgressSeconds, kProgressLoopDurationSeconds) / kProgressLoopDurationSeconds;
         const float progressWidth = std::max(0.001f, kProgressBarMaxWidth * progressPhase);
         const float progressCenterX = kProgressBarLeftEdge + progressWidth * 0.5f;
-
-        for (PersistentTrackState& persistentTrack : persistentTracks)
-        {
-            AdvancePersistentTrack(persistentTrack, deltaSeconds);
-            persistentTrack.reticle->SetPosition(persistentTrack.position);
-        }
-        UpdatePersistentTrackLink(persistentTrackLink, persistentTracks[0], persistentTracks[1]);
-
         progressFill.SetSize({progressWidth, kProgressBarHeight});
         progressFill.SetPosition({progressCenterX, 0.0f});
+
+        for (TutorialTrackState& track : persistentTracks)
+        {
+            AdvancePersistentTrackInUserSpace(track, deltaSeconds);
+        }
 
         if (now >= nextPageTime)
         {
             page1Active = !page1Active;
-            const bool activated = page1Active ? client.ActivatePage(page1) : client.ActivatePage(page2);
-            if (!activated)
-            {
-                throw std::runtime_error("Unable to activate generated tutorial page: " + client.LastError());
-            }
+            Require(page1Active ? client.ActivatePage(page1) : client.ActivatePage(page2),
+                    client,
+                    "Unable to activate tutorial page");
             nextPageTime += kPageSwitchInterval;
         }
 
         if (page1Strobe.IsValid() && now >= nextStrobeSwitchTime)
         {
-            if (!page1AlternativeStrobeSelected)
-            {
-                if (const tutorial_ui::StrobeType* selectedType = page1Strobe.SelectedType(); selectedType != nullptr)
-                {
-                    page1PreviousStrobe = (selectedType->GeneratedId() == page1.defaultStrobe.GeneratedId())
-                                              ? &page1.defaultStrobe
-                                              : &page1.strobe1;
-                }
-                page1Strobe = page1.strobe1;
-                page1AlternativeStrobeSelected = true;
-                std::cout << "Tutorial: switched Page1 to strobe `" << page1.strobe1.Name() << "`." << '\n';
-            }
-            else
-            {
-                page1Strobe = *page1PreviousStrobe;
-                page1AlternativeStrobeSelected = false;
-                std::cout << "Tutorial: restored Page1 strobe `" << page1PreviousStrobe->Name() << "`." << '\n';
-            }
-
+            useAlternativeStrobe = !useAlternativeStrobe;
+            page1Strobe = useAlternativeStrobe ? page1.strobe1 : page1.defaultStrobe;
+            std::cout << "Tutorial: switched Page1 to strobe `"
+                      << (useAlternativeStrobe ? page1.strobe1.Name() : page1.defaultStrobe.Name()) << "`."
+                      << '\n';
             nextStrobeSwitchTime += kStrobeSwitchInterval;
         }
 
         if (now >= nextTrackTime)
         {
-            if (generatedTracks.size() >= kMaxTracks)
+            if (transientTracks.size() >= kMaxTransientTracks)
             {
-                page1TrackSet.Remove(*generatedTracks.front());
-                generatedTracks.erase(generatedTracks.begin());
+                page1TrackSet.Remove(*transientTracks.front().reticle);
+                transientTracks.erase(transientTracks.begin());
+                UpdateTransientCircleReticle(page1Circle, transientTracks.size(), transientDeclutterVisible);
             }
+
+            // The heading change affects every projected contact because the
+            // aircraft-local frame is rebuilt from `ownship.headingRadians`.
+            ownship.headingRadians = ownshipHeadingDistribution(rng);
 
             const std::uint32_t trackSerial = serial++;
-            const mfd::Vec2 trackPosition {axis(rng), axis(rng)};
-            const float trackSize = 0.18f + 0.01f * static_cast<float>(trackSerial % 3U);
-
-            auto& generatedTrack = page1TrackSet.Create();
-            generatedTrack.SetPosition(trackPosition);
-            generatedTrack.SetColor({80, 255, 185, 255});
-            generatedTrack.SetThickness(0.0038f);
-            generatedTrack.Primitive01().SetSize({trackSize, trackSize});
-            generatedTrack.Primitive01().SetRotationDegrees(static_cast<float>((trackSerial % 8U) * 12U));
-            generatedTrack.Primitive01().SetLineStyle(
-                (trackSerial % 2U) == 0U ? mfd::LineStyle::Dashed : mfd::LineStyle::Dotted);
-
             if ((trackSerial % 5U) == 0U)
             {
-                generatedDeclutterVisible = !generatedDeclutterVisible;
-                SetTransientTrackVisibility(generatedTracks, generatedDeclutterVisible);
+                transientDeclutterVisible = !transientDeclutterVisible;
+                SetTransientTrackVisibility(transientTracks, transientDeclutterVisible);
             }
 
-            generatedTrack.SetVisible(generatedDeclutterVisible);
+            auto& generatedTrack = page1TrackSet.Create();
+            TutorialTrackState track = GenerateTransientTrackState(rng, trackSerial);
+            track.reticle = &generatedTrack;
+            track.visible = transientDeclutterVisible;
+            transientTracks.push_back(track);
 
-            page1Circle.SetVisible(true);
-            page1Circle.SetColor(
-                generatedDeclutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});
-            page1Circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(generatedTracks.size() + 1U));
-            page1Circle.Primitive01().SetThickness(0.0045f);
-            page1Circle.Primitive01().SetLineStyle(
-                generatedDeclutterVisible ? mfd::LineStyle::Solid : mfd::LineStyle::Dotted);
+            UpdateTransientCircleReticle(page1Circle, transientTracks.size(), transientDeclutterVisible);
+
+            const mfd::UserSpaceProjector projector = BuildTutorialProjector(ownship);
+            ApplyProjectedTrackPose(transientTracks.back(), ownship, projector);
+            UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
 
             if (page1Strobe.IsValid())
             {
                 page1Strobe.SetActive(true);
-                page1Strobe.SetPosition(trackPosition);
+                page1Strobe.SetPosition(
+                    projector.ToPagePosition(BuildTrackWorldPositionNm(transientTracks.back(), ownship)));
             }
-            generatedTracks.push_back(&generatedTrack);
+
+            LogSpawnedTrack(
+                transientTracks.back(),
+                ownship,
+                projector.ToPagePosition(BuildTrackWorldPositionNm(transientTracks.back(), ownship)));
 
             nextTrackTime += kTrackInterval;
         }
 
-        const auto commands = generatedUi.BuildBatch();
-        if (!commands.empty())
-        {
-            client.SendBatch(commands);
-        }
-
-        if (feedbackChannel)
+        if (feedbackChannel != nullptr)
         {
             std::string feedbackError;
             const std::size_t appliedFeedbackCount = generatedUi.PollFeedback(*feedbackChannel, 8U, &feedbackError);
@@ -326,17 +713,41 @@ int mainImpl()
 
             if (appliedFeedbackCount > 0U)
             {
-                const bool latestTrackCaptured =
-                    !generatedTracks.empty() &&
-                    generatedTracks.back() != nullptr &&
-                    generatedTracks.back()->IsStrobeCaptured();
                 const tutorial_ui::StrobeType* selectedPage1Strobe = page1Strobe.SelectedType();
+                const std::size_t capturedCount = CountCapturedTracks(persistentTracks, transientTracks);
+
                 std::cout << "Runtime feedback: Page1.active=" << (page1.IsActive() ? "true" : "false")
                           << " Page2.active=" << (page2.IsActive() ? "true" : "false")
                           << " Page1.strobe="
                           << (selectedPage1Strobe == nullptr ? "<none>" : selectedPage1Strobe->Name())
-                          << " latestTrack.captured=" << (latestTrackCaptured ? "true" : "false") << '\n';
+                          << " capturedTracks=" << capturedCount << '\n';
             }
+        }
+
+        const mfd::UserSpaceProjector projector = BuildTutorialProjector(ownship);
+        for (TutorialTrackState& track : persistentTracks)
+        {
+            ApplyProjectedTrackPose(track, ownship, projector);
+        }
+        for (TutorialTrackState& track : transientTracks)
+        {
+            ApplyProjectedTrackPose(track, ownship, projector);
+        }
+
+        UpdatePersistentTrackLink(persistentTrackLink, persistentTracks, ownship, projector);
+        UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
+
+        if (page1Strobe.IsValid())
+        {
+            const TutorialTrackState& strobeTarget = transientTracks.empty() ? persistentTracks[0] : transientTracks.back();
+            page1Strobe.SetActive(true);
+            page1Strobe.SetPosition(projector.ToPagePosition(BuildTrackWorldPositionNm(strobeTarget, ownship)));
+        }
+
+        const std::vector<mfd::UserCommand> commands = generatedUi.BuildBatch();
+        if (!commands.empty())
+        {
+            Require(client.SendBatch(commands), client, "Unable to send tutorial batch");
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(20));

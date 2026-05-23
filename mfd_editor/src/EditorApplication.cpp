@@ -54,6 +54,7 @@ using editor::detail::ClampFeedbackHeartbeatIntervalSeconds;
 using editor::detail::CopyTextBuffer;
 using editor::detail::DefaultPageIndex;
 using editor::detail::kPrimitiveTypes;
+using editor::detail::kTutorialAircraftTemplateId;
 using editor::detail::kTutorialStrobeCursorTemplateId;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
@@ -9403,6 +9404,10 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
         isDefaultStrobeTutorialStep
             ? kTutorialDefaultStrobeTemplateTargetId
             : (isAlternativeStrobeTutorialStep ? kTutorialAlternativeStrobeTemplateTargetId : std::string_view {});
+    const std::string_view tutorialExpectedTemplateId =
+        isDefaultStrobeTutorialStep
+            ? kTutorialStrobeCursorTemplateId
+            : (isAlternativeStrobeTutorialStep ? kTutorialAircraftTemplateId : std::string_view {});
     const std::string_view tutorialAddTargetId =
         isDefaultStrobeTutorialStep
             ? kTutorialDefaultStrobeAddTargetId
@@ -9413,11 +9418,11 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
             : (isAlternativeStrobeTutorialStep ? kTutorialAlternativeStrobeNameTargetId : std::string_view {});
     const char* const tutorialTemplateReason =
         isAlternativeStrobeTutorialStep
-            ? "Reuse the tutorial cursor template so Page1 exposes one second strobe that the client can activate later."
+            ? "Choose the triangle-based aircraft template so Page1 exposes one second strobe that is visibly distinct from Default."
             : "Choose the tutorial cursor template so Page1 gets one first authored strobe with capture and feedback.";
     const char* const tutorialAddReason =
         isAlternativeStrobeTutorialStep
-            ? "Commit the second authored strobe so Page1 keeps Default plus one runtime-selectable alternative."
+            ? "Commit the second authored strobe so Page1 keeps Default plus one runtime-selectable aircraft-shaped alternative."
             : "Commit the first authored strobe so Page1 has one default strobe before the runtime alternative is added.";
 
     ImGui::Spacing();
@@ -9495,9 +9500,9 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     ShowItemTooltip("Choose which shared reticle template will be instantiated for the next strobe you add.");
     tutorial_->DrawHalo(
         tutorialTemplateTargetId.data(),
-        "Choose mfd_tutorial_strobe_cursor",
+        isAlternativeStrobeTutorialStep ? "Choose mfd_tutorial_aircraft" : "Choose mfd_tutorial_strobe_cursor",
         tutorialTemplateReason);
-    if (tutorial_->MatchesTarget(tutorialTemplateTargetId) && draft.templateId == kTutorialStrobeCursorTemplateId)
+    if (tutorial_->MatchesTarget(tutorialTemplateTargetId) && draft.templateId == tutorialExpectedTemplateId)
     {
         tutorial_->AdvancePhase();
     }
@@ -9511,9 +9516,9 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
         {
             RebuildStatus("Tutorial: keep the suggested Page1 strobe name before adding it.", true);
         }
-        else if (tutorial_->MatchesTarget(tutorialAddTargetId) && draft.templateId != kTutorialStrobeCursorTemplateId)
+        else if (tutorial_->MatchesTarget(tutorialAddTargetId) && draft.templateId != tutorialExpectedTemplateId)
         {
-            RebuildStatus("Tutorial: choose 'mfd_tutorial_strobe_cursor' before adding the Page1 strobe.", true);
+            RebuildStatus("Tutorial: choose the guided Page1 strobe template before adding it.", true);
         }
         else if (const auto iterator = loaded_.document.reticleLibrary.find(draft.templateId);
                  iterator != loaded_.document.reticleLibrary.end())
@@ -9678,9 +9683,9 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
             {
                 if ((tutorial_->MatchesTarget(kTutorialDefaultStrobeTemplateTargetId) ||
                      tutorial_->MatchesTarget(kTutorialAlternativeStrobeTemplateTargetId)) &&
-                    templateId != kTutorialStrobeCursorTemplateId)
+                    templateId != tutorialExpectedTemplateId)
                 {
-                    RebuildStatus("Tutorial: choose 'mfd_tutorial_strobe_cursor' as the Page1 strobe template.", true);
+                    RebuildStatus("Tutorial: choose the guided Page1 strobe template.", true);
                     continue;
                 }
 

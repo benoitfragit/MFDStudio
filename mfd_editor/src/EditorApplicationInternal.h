@@ -139,6 +139,11 @@ inline constexpr std::array<mfd::PrimitiveType, 14> kPrimitiveTypes {
     mfd::PrimitiveType::Image};
 
 /**
+ * @brief Tutorial template id reserved for the integrated aircraft-reference walkthrough.
+ */
+inline constexpr std::string_view kTutorialAircraftTemplateId = "mfd_tutorial_aircraft";
+
+/**
  * @brief Tutorial template id reserved for the integrated strobe-cursor walkthrough.
  */
 inline constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";

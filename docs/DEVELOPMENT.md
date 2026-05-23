@@ -163,7 +163,7 @@ process.
 | `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client used to exercise the public API without linking raylib |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
 | `client_test_package` | Minimal package-consumer client that uses `find_package(MFDStudioClientApi)` from `_Deliveries`, enables itself only when at least one matching SDK/runtime config pair exists, and stays excluded from default builds for missing configs |
-| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar driven through one exposed primitive plus Page1 active-page-scoped strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is registered directly in `examples/CMakeLists.txt` and self-skips until the tutorial asset set exists |
+| `client_tutorial` | Tutorial-oriented client using the generated API on `mfd_tutorial.json`, including the authored Page2 progress bar, one static `mfd_tutorial_aircraft` ownship anchor on `Page1`, a persistent cue-linked pair plus transient radar contacts projected from nautical miles/radians through `UserSpaceProjector`, and Page1 active-page-scoped strobe feedback wired into `IsActive()` and `IsStrobeCaptured()`; this target is registered directly in `examples/CMakeLists.txt` and self-skips until the tutorial asset set exists |
 | `mfd_editor` | Visual authoring tool |
 | `mfd_api_tests` | Runtime and JSON loading test executable |
 | `client_api_tests` | Client-side helper test executable |

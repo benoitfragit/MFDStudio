@@ -33,7 +33,7 @@ The integrated editor tutorial is available from:
 
 That guided flow is intentionally split into four phases:
 
-1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles, strobe, `RadarTrackLayer`, and the exposed primitive.
+1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles including the triangle-based `mfd_tutorial_aircraft`, two distinct Page1 strobes, `RadarTrackLayer`, and the exposed primitive.
 2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / export workflows without mutating the tutorial assets.
 3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
 4. **Continue in docs**: follow the mockup, generated-client, and architecture reading path.
@@ -443,6 +443,7 @@ By the end of the integrated flow, the user should understand the full chain:
 
 - editor action
 - saved authored JSON
+- static ownship anchor through `mfd_tutorial_aircraft` on `Page1`
 - `RadarTrackLayer` plus the `mfd_tutorial_radar_track` binding on `Page1`
 - generated transport map
 - generated C++17 page and reticle wrappers

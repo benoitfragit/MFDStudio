@@ -37,6 +37,7 @@ constexpr std::array<std::string_view, 4> kBuildConfigurations {
     "Release",
     "RelWithDebInfo",
     "MinSizeRel"};
+constexpr std::string_view kTutorialAircraftTemplateId = "mfd_tutorial_aircraft";
 constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
 constexpr std::string_view kTutorialProgressBarTemplateId = "mfd_tutorial_progress_bar";
 constexpr std::string_view kTutorialProgressBarFillPrimitiveId = "fill_bar";
@@ -105,6 +106,31 @@ bool ConfigureTutorialProgressBarFramePrimitive(mfd::Primitive& primitive) noexc
     primitive.style.thickness = 0.0038f;
     primitive.transform = {};
     *rectangle = mfd::RectangleGeometry {0.48f, 0.10f};
+    return true;
+}
+
+bool ConfigureTutorialAircraftTrianglePrimitive(mfd::Primitive& primitive) noexcept
+{
+    if (primitive.type != mfd::PrimitiveType::Triangle)
+    {
+        return false;
+    }
+
+    auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry);
+    if (triangle == nullptr)
+    {
+        return false;
+    }
+
+    primitive.id = "aircraft_triangle";
+    primitive.style.color = mfd::ColorRgba {255, 244, 210, 255};
+    primitive.style.fillColor = mfd::ColorRgba {255, 244, 210, 96};
+    primitive.style.filled = true;
+    primitive.style.thickness = 0.0038f;
+    triangle->points = std::array<mfd::Vec2, 3> {
+        mfd::Vec2 {-0.045f, -0.040f},
+        mfd::Vec2 {0.0f, 0.060f},
+        mfd::Vec2 {0.045f, -0.040f}};
     return true;
 }
 
@@ -199,13 +225,14 @@ void RemoveEmptyDirectoryChain(const std::filesystem::path& start, const std::fi
 
 void RemoveTutorialGeneratedSourceFiles(const std::filesystem::path& projectRoot)
 {
-    const std::array<std::filesystem::path, 10> generatedFiles {{
+    const std::array<std::filesystem::path, 11> generatedFiles {{
         projectRoot / "assets/windows/mfd_tutorial.json",
         projectRoot / "assets/windows/mfd_tutorial.generated.map",
         projectRoot / "assets/pages/mfd_tutorial_page1.json",
         projectRoot / "assets/pages/mfd_tutorial_page2.json",
         projectRoot / "assets/pages/mfd_tutor.json",
         projectRoot / "assets/reticles/mfd_tutorial_radar_track.json",
+        projectRoot / "assets/reticles/mfd_tutorial_aircraft.json",
         projectRoot / "assets/reticles/mfd_tutorial_circle.json",
         projectRoot / "assets/reticles/mfd_tutorial_progress_bar.json",
         projectRoot / "assets/reticles/mfd_tutorial_text.json",
@@ -257,6 +284,7 @@ void RemoveTutorialStageArtifacts(const std::filesystem::path& projectRoot)
         "mfd_tutorial_page2.json",
         "mfd_tutor.json",
         "mfd_tutorial_radar_track.json",
+        "mfd_tutorial_aircraft.json",
         "mfd_tutorial_circle.json",
         "mfd_tutorial_progress_bar.json",
         "mfd_tutorial_text.json",
@@ -301,7 +329,7 @@ struct TutorialStageInfo
 
 constexpr std::array<TutorialStageInfo, 4> kTutorialStages {{
     {"Stage 1 - Author In Editor",
-     "Create the tutorial window, page assets, the Page1 title chrome frame, reusable reticle templates, `RadarTrackLayer`, two named Page1 strobes, editor-only layers, and the exposed primitive that will feed the generated client.",
+     "Create the tutorial window, page assets, the Page1 title chrome frame, reusable reticle templates including the triangle-based `mfd_tutorial_aircraft`, `RadarTrackLayer`, two named Page1 strobes, editor-only layers, and the exposed primitive that will feed the generated client.",
      static_cast<int>(editor::tutorial::TutorialStepId::CreateWindow),
      static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
     {"Stage 2 - Explore Editor Tools",
@@ -702,6 +730,7 @@ bool EditorTutorialController::ShouldResetReticleMenuPhaseOnClose() const noexce
     return IsStepPhase(static_cast<int>(TutorialStepId::CreateRadarTrackReticle), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::CreateCircleReticle), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::CreateAircraftReticle), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::CreateProgressBarReticle), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow), 1);
 }
@@ -724,6 +753,7 @@ bool EditorTutorialController::ShouldResetReticleCreatePopupOnCancel() const noe
     return IsStep(static_cast<int>(TutorialStepId::CreateRadarTrackReticle)) ||
            IsStep(static_cast<int>(TutorialStepId::CreateCircleReticle)) ||
            IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)) ||
+           IsStep(static_cast<int>(TutorialStepId::CreateAircraftReticle)) ||
            IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle));
 }
 
@@ -770,6 +800,20 @@ bool EditorTutorialController::ValidateNewLibraryReticleDraft(const std::string_
             return false;
         }
     }
+    else if (IsStep(static_cast<int>(TutorialStepId::CreateAircraftReticle)))
+    {
+        if (reticleId != kTutorialAircraftTemplateId)
+        {
+            error = "Tutorial: keep the reticle id set to 'mfd_tutorial_aircraft'.";
+            return false;
+        }
+
+        if (primitiveType != mfd::PrimitiveType::Triangle)
+        {
+            error = "Tutorial: create the aircraft reticle from a Triangle primitive.";
+            return false;
+        }
+    }
 
     return true;
 }
@@ -790,13 +834,20 @@ void EditorTutorialController::ConfigureCreatedLibraryReticle(mfd::ReticleGroup&
     {
         ConfigureTutorialProgressBarFillPrimitive(reticle.primitives.front());
     }
+    else if (IsStep(static_cast<int>(TutorialStepId::CreateAircraftReticle)) &&
+             reticle.id == kTutorialAircraftTemplateId &&
+             !reticle.primitives.empty())
+    {
+        ConfigureTutorialAircraftTrianglePrimitive(reticle.primitives.front());
+    }
 }
 
 bool EditorTutorialController::ShouldUseHighlightedAddToPageButton() const noexcept
 {
     using editor::tutorial::TutorialStepId;
 
-    return IsStep(static_cast<int>(TutorialStepId::AddCircleReticleToPage1)) ||
+    return IsStep(static_cast<int>(TutorialStepId::AddAircraftReticleToPage1)) ||
+           IsStep(static_cast<int>(TutorialStepId::AddCircleReticleToPage1)) ||
            IsStep(static_cast<int>(TutorialStepId::AddProgressBarToPage2));
 }
 
@@ -810,6 +861,13 @@ bool EditorTutorialController::ValidateAddToPage(const mfd::PageDefinition* page
     if (page == nullptr)
     {
         return true;
+    }
+
+    if (IsStep(static_cast<int>(TutorialStepId::AddAircraftReticleToPage1)) &&
+        (page->name != "Page1" || reticle.id != kTutorialAircraftTemplateId))
+    {
+        error = "Tutorial: add 'mfd_tutorial_aircraft' to Page1 for this step.";
+        return false;
     }
 
     if (IsStep(static_cast<int>(TutorialStepId::AddCircleReticleToPage1)) &&
@@ -836,6 +894,11 @@ std::string_view EditorTutorialController::LibraryAddToPageHaloReason() const no
     if (IsStep(static_cast<int>(TutorialStepId::AddProgressBarToPage2)))
     {
         return "Instantiate the authored progress-bar template on Page2 so the generated client can drive it next.";
+    }
+
+    if (IsStep(static_cast<int>(TutorialStepId::AddAircraftReticleToPage1)))
+    {
+        return "Instantiate the triangle-based aircraft reticle on Page1 so the static ownship reference stays anchored at x = 0.0 and y = -0.7.";
     }
 
     return "Instantiate the prepared tutorial circle on Page1 so clipping can be demonstrated next.";
@@ -948,6 +1011,7 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
         return stepPhase_ == 0 ? "menu_file" : (stepPhase_ == 1 ? "menu_file_new_window" : "popup_window_create");
     case static_cast<int>(TutorialStepId::CreateRadarTrackReticle):
     case static_cast<int>(TutorialStepId::CreateCircleReticle):
+    case static_cast<int>(TutorialStepId::CreateAircraftReticle):
         return stepPhase_ == 0 ? "menu_reticle" :
                                  (stepPhase_ == 1 ? "menu_reticle_new" : "popup_reticle_create");
     case static_cast<int>(TutorialStepId::CreateStrobeCursorReticle):
@@ -979,6 +1043,8 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     case static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe):
         return stepPhase_ == 0 ? "page_strobe_alternative_name" :
                                  (stepPhase_ == 1 ? "page_strobe_alternative" : "page_strobe_alternative_add");
+    case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):
+        return "library_add_to_page";
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
         return "library_add_to_page";
     case static_cast<int>(TutorialStepId::ClipCircleOutside):
@@ -1028,6 +1094,7 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
                                  (stepPhase_ == 1 ? "Click New window from scratch." : "Click Create window.");
     case static_cast<int>(TutorialStepId::CreateRadarTrackReticle):
     case static_cast<int>(TutorialStepId::CreateCircleReticle):
+    case static_cast<int>(TutorialStepId::CreateAircraftReticle):
         return stepPhase_ == 0 ? "Click Reticle." :
                                  (stepPhase_ == 1 ? "Click New library reticle from primitive." : "Click Create reticle.");
     case static_cast<int>(TutorialStepId::CreateStrobeCursorReticle):
@@ -1060,8 +1127,10 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
                                                   : "Click Add strobe to create the default authored Page1 strobe.");
     case static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe):
         return stepPhase_ == 0 ? "Keep the suggested strobe name set to Strobe1." :
-                                 (stepPhase_ == 1 ? "Choose mfd_tutorial_strobe_cursor again for the alternative strobe."
+                                 (stepPhase_ == 1 ? "Choose mfd_tutorial_aircraft for the alternative triangle strobe."
                                                   : "Click Add strobe to create the Page1 runtime alternative.");
+    case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):
+        return "Click Add to active page.";
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
         return "Click Add to active page.";
     case static_cast<int>(TutorialStepId::ClipCircleOutside):

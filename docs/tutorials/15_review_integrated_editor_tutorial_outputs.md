@@ -24,14 +24,16 @@ Focus on these authored sections:
 - `titleDisplay`
 - `layers`
 - `dynamicReticleBindings`
-- `strobe`
+- `strobes`
 - `staticReticles`
 
 The important Page1 rule is:
 
 - the tutorial frames the generated page title through `titleDisplay`
+- `mfd_tutorial_aircraft` is instantiated once as the static ownship reference at `x = 0.0`, `y = -0.7`
 - `inspired_steering_cue` stays where it already was
 - the tutorial adds `mfd_tutorial_radar_track` on `RadarTrackLayer`
+- `Default` and `Strobe1` now use two distinct templates
 
 Minimal before / after for `dynamicReticleBindings`:
 
@@ -84,6 +86,7 @@ Confirm that the window points to:
 Open these files as needed:
 
 - `assets/reticles/mfd_tutorial_radar_track.json`
+- `assets/reticles/mfd_tutorial_aircraft.json`
 - `assets/reticles/mfd_tutorial_circle.json`
 - `assets/reticles/mfd_tutorial_progress_bar.json`
 - `assets/reticles/mfd_tutorial_strobe_cursor.json`
@@ -112,9 +115,11 @@ Open:
 This file shows how the saved assets are consumed:
 
 - `Page1()` and `Page2()` typed handles
-- `DynamicMfdTutorialRadarTrack()` for runtime track instances
-- the existing `DynamicInspiredSteeringCue()` link left unchanged by the tutorial step
-- `strobe` feedback and the Page2 progress bar animation
+- `DynamicMfdTutorialRadarTrack()` for both the persistent linked pair and the spawned transient contacts
+- `DynamicInspiredSteeringCue()` linking the persistent pair while their source state stays in business coordinates
+- `mfd::UserSpaceProjector` converting nautical miles and radians into page-space commands
+- `strobe` feedback changing captured dynamic tracks to a different color and thickness
+- the Page2 progress bar animation
 
 ## Step 6 - Inspect The Build Gate
 

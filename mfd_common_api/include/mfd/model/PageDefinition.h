@@ -179,7 +179,7 @@ struct PageTitleDisplayDefinition
     /** @brief Enables or disables the page title and its decoration. */
     bool visible = true;
     /** @brief Page-space transform applied to the generated title chrome. */
-    Transform2D transform {{-1.2583f, 0.9250f}, 0.0f, {1.0f, 1.0f}};
+    Transform2D transform {{-0.9500f, 0.9250f}, 0.0f, {1.0f, 1.0f}};
     /** @brief Shared stroke color applied to the title text and decoration. */
     ColorRgba color {220, 236, 220, 255};
     /** @brief Outline thickness used by underline and frame decorations. */

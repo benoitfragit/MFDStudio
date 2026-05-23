@@ -123,22 +123,28 @@ void WriteTransformFields(json& node, const mfd::Transform2D& transform);
 
 bool IsDefaultPageTitleTransform(const mfd::Transform2D& transform) noexcept
 {
-    return std::abs(transform.position.x + 1.2583f) < 0.0001f &&
-           std::abs(transform.position.y - 0.9250f) < 0.0001f &&
-           IsZero(transform.rotationDegrees) &&
-           std::abs(transform.scale.x - 1.0f) < 0.0001f &&
-           std::abs(transform.scale.y - 1.0f) < 0.0001f;
+    const mfd::Transform2D defaultTransform = mfd::PageTitleDisplayDefinition {}.transform;
+
+    return std::abs(transform.position.x - defaultTransform.position.x) < 0.0001f &&
+           std::abs(transform.position.y - defaultTransform.position.y) < 0.0001f &&
+           std::abs(transform.rotationDegrees - defaultTransform.rotationDegrees) < 0.0001f &&
+           std::abs(transform.scale.x - defaultTransform.scale.x) < 0.0001f &&
+           std::abs(transform.scale.y - defaultTransform.scale.y) < 0.0001f;
 }
 
 bool IsDefaultPageTitleDisplay(const mfd::PageTitleDisplayDefinition& display) noexcept
 {
-    return display.visible &&
+    const mfd::PageTitleDisplayDefinition defaults {};
+
+    return display.visible == defaults.visible &&
            IsDefaultPageTitleTransform(display.transform) &&
-           display.color.r == 220 && display.color.g == 236 &&
-           display.color.b == 220 && display.color.a == 255 &&
-           std::abs(display.lineWidth - 0.0042f) < 0.0001f &&
-           display.lineStyle == mfd::LineStyle::Solid &&
-           display.decoration == mfd::PageTitleDecoration::Underline;
+           display.color.r == defaults.color.r &&
+           display.color.g == defaults.color.g &&
+           display.color.b == defaults.color.b &&
+           display.color.a == defaults.color.a &&
+           std::abs(display.lineWidth - defaults.lineWidth) < 0.0001f &&
+           display.lineStyle == defaults.lineStyle &&
+           display.decoration == defaults.decoration;
 }
 
 const char* ToPageTitleDecorationText(const mfd::PageTitleDecoration decoration) noexcept
@@ -170,22 +176,27 @@ std::optional<json> SerializePageTitleDisplay(const mfd::PageTitleDisplayDefinit
 
     WriteTransformFields(node, display.transform);
 
-    if (!(display.color.r == 220 && display.color.g == 236 && display.color.b == 220 && display.color.a == 255))
+    const mfd::PageTitleDisplayDefinition defaults {};
+
+    if (!(display.color.r == defaults.color.r &&
+          display.color.g == defaults.color.g &&
+          display.color.b == defaults.color.b &&
+          display.color.a == defaults.color.a))
     {
         node["stroke"] = ToHexColor(display.color);
     }
 
-    if (std::abs(display.lineWidth - 0.0042f) >= 0.0001f)
+    if (std::abs(display.lineWidth - defaults.lineWidth) >= 0.0001f)
     {
         node["lineWidth"] = display.lineWidth;
     }
 
-    if (display.lineStyle != mfd::LineStyle::Solid)
+    if (display.lineStyle != defaults.lineStyle)
     {
         node["lineStyle"] = ToLineStyleText(display.lineStyle);
     }
 
-    if (display.decoration != mfd::PageTitleDecoration::Underline)
+    if (display.decoration != defaults.decoration)
     {
         node["decoration"] = ToPageTitleDecorationText(display.decoration);
     }

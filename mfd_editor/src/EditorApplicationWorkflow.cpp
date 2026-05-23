@@ -31,6 +31,7 @@ using editor::detail::DefaultPageIndex;
 using editor::detail::FindPageIndexByName;
 using editor::detail::FindPageReticleIndexById;
 using editor::detail::kPrimitiveTypes;
+using editor::detail::kTutorialAircraftTemplateId;
 using editor::detail::kTutorialStrobeCursorTemplateId;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
@@ -1655,6 +1656,10 @@ void EditorApplication::PrepareTutorialStep()
         CopyTextBuffer(newLibraryReticleDraft_.id, kTutorialStrobeCursorTemplateId);
         setPrimitiveDraft(mfd::PrimitiveType::Line);
         break;
+    case static_cast<int>(TutorialStepId::CreateAircraftReticle):
+        CopyTextBuffer(newLibraryReticleDraft_.id, kTutorialAircraftTemplateId);
+        setPrimitiveDraft(mfd::PrimitiveType::Triangle);
+        break;
     case static_cast<int>(TutorialStepId::CreatePage1):
         CopyTextBuffer(newPageDraft_.name, "Page1");
         CopyTextBuffer(newPageDraft_.title, "Page 1");
@@ -1684,6 +1689,16 @@ void EditorApplication::PrepareTutorialStep()
     case static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe):
         selectTutorialPageOrFallback("Page1");
         break;
+    case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):
+    {
+        selectTutorialPageOrFallback("Page1");
+        if (loaded_.document.reticleLibrary.find(std::string(kTutorialAircraftTemplateId)) !=
+            loaded_.document.reticleLibrary.end())
+        {
+            SelectLibraryReticle(std::string(kTutorialAircraftTemplateId));
+        }
+        break;
+    }
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
     {
         selectTutorialPageOrFallback("Page1");

@@ -10,6 +10,7 @@ set(MFD_CLIENT_TUTORIAL_REQUIRED_FILES
     "${MFD_ROOT_DIR}/assets/pages/mfd_tutorial_page2.json"
     "${MFD_ROOT_DIR}/assets/reticles/inspired_steering_cue.json"
     "${MFD_ROOT_DIR}/assets/reticles/mfd_tutorial_radar_track.json"
+    "${MFD_ROOT_DIR}/assets/reticles/mfd_tutorial_aircraft.json"
     "${MFD_ROOT_DIR}/assets/reticles/mfd_tutorial_circle.json"
     "${MFD_ROOT_DIR}/assets/reticles/mfd_tutorial_progress_bar.json"
     "${MFD_ROOT_DIR}/assets/reticles/mfd_tutorial_strobe_cursor.json")
