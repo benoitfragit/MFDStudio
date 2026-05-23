@@ -141,8 +141,8 @@ In the recommended mode:
 This feedback is used in particular to:
 
 - the active page rendered
-- the resolved state of the strobe
-- capturing a dynamic reticle by the strobe
+- the selected strobe variant and its resolved state
+- capturing a dynamic reticle by the active page strobe
 
 ## 2.5 Author model
 
@@ -153,7 +153,7 @@ The minimal author model is:
 - of the `staticReticles` instances on each page
 - a folder of reusable reticle templates
 - of the `dynamicReticleBindings` on the pages
-- A `strobe` optional per page
+- one optional `strobes` catalog per page plus one optional `activeStrobe`
 - of the `blinkTypes` defined at page level
 
 The logical author and client coordinates are normalized in `[-1, 1]`.
@@ -342,7 +342,7 @@ To choose the default page:
 - select the page in the tree
 - enable `Default page for this window` in the page inspector
 
-## 4.8 Design of a page: title chrome, layers, static reticles, dynamic bindings, strobe
+## 4.8 Design of a page: title chrome, layers, static reticles, dynamic bindings, strobes
 
 ### Page title chrome
 
@@ -386,9 +386,20 @@ Section `Dynamic reticles` in the page inspector:
 
 Each entry creates a runtime binding, not a static instance drawn by default. The live client will then create the real runtime instances.
 
-### Page strobe
+### Page strobes
 
-A page can expose a `strobe` optional. The editor allows you to assign a strobe template, its initial position and its capture/magnetization configuration.
+A page can expose one or more named `strobes` plus one authored `activeStrobe`
+selection.
+
+The editor allows you to:
+
+- add or remove page strobe entries
+- choose the authored active strobe for page startup
+- assign one template per strobe entry
+- edit each entry position and capture/magnetization configuration
+
+The active entry behaves as the live page strobe until the client selects
+another authored strobe variant at runtime.
 
 ## 4.9 Important page fields
 
@@ -407,7 +418,8 @@ The JSON page supports in particular:
 | `view.center` | center of view |
 | `view.zoom` | zoom |
 | `staticReticles` | static reticles |
-| `strobe` | optional strobe |
+| `activeStrobe` | authored startup strobe selection |
+| `strobes` | optional named strobe catalog |
 
 ## 4.10 Supported primitives for constructing reticles
 
@@ -569,7 +581,7 @@ The workflow:
 
 - rewrite the `id` of the template
 - rewritten `staticReticles[*].template`
-- rewritten `strobe.template`
+- rewritten `strobes[*].template`
 - rewritten `dynamicReticleBindings[*].templateId`
 - can also rename the template file
 - updates relative image paths if file moves
@@ -617,7 +629,7 @@ Options available in the popup:
 3. declare runtime layers
 4. compose static reticles and only expose useful primitives to the client
 5. declare the `dynamicReticleBindings` necessary
-6. set strobe if page needs it
+6. define the `strobes` catalog and `activeStrobe` if the page needs cursor behavior
 7. check `Problems`, `Layer Inspector`, `Minimap`
 8. save as ` assets/`
 9. regenerate the API if the exposed runtime surface has changed
@@ -792,7 +804,7 @@ The generated output builds one typed object tree per authored window:
 - one static reticle wrapper per static reticle
 - one specialized handle per exposed primitive
 - one generated dynamic-reticle set per page/template binding
-- one optional `strobe` handle per authored page strobe
+- one optional page-scoped `strobe` handle plus generated authored strobe entries when the page defines several variants
 - one feedback layer that drives `IsActive()` and `IsStrobeCaptured()`
 
 This is why the generated path should be the default integration path. The business code manipulates typed handles and leaves transport ids, runtime dynamic ids, and patch serialization to the generated layer.
@@ -808,6 +820,7 @@ The `.generated.map` file is not redundant output. It is the canonical transport
 | `primitives` | exposed primitive ids keyed by reticle or template |
 | `templates` | generated ids for dynamic templates |
 | `blinkTypes` | generated ids for per-page blink types |
+| `strobes` | generated ids for page-local strobe entries |
 | `mappingHash` | canonical compatibility fingerprint for the whole transport surface |
 
 Keep the sidecar next to the authored window. When the client also needs raw-name helpers, the same map lets `CommandClient` normalize names and detect stale compiled code.

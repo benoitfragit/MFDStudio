@@ -62,7 +62,7 @@ discover:
 - optional feedback transport
 - page names
 - static reticle ids
-- strobe presence
+- strobe presence and named strobe entries
 - page blink types
 - reticle library template ids
 
@@ -114,12 +114,12 @@ command is sent by transport id and generated mapping hash.
 Example:
 
 ```cpp
-client.Send(mfd::UpdateStrobeCommand {
-    "Radar",
-    0U,
-    true,
-    mfd::Vec2 {0.15f, -0.10f}
-});
+mfd::UpdateStrobeCommand command;
+command.page = "Radar";
+command.strobe = "Designator";
+command.active = true;
+command.position = mfd::Vec2 {0.15f, -0.10f};
+client.Send(command);
 ```
 
 Use this when the public helper you want does not exist or when the typed
@@ -128,6 +128,7 @@ command is already the most readable shape.
 The mockup does this for the strobe because the command naturally carries:
 
 - target page
+- optional selected strobe entry
 - optional active flag
 - optional position
 
@@ -254,6 +255,7 @@ contact.ContactLabel().SetText("B21");
 
 if (cockpit.strobe.IsValid())
 {
+    cockpit.strobe = cockpit.designatorStrobe;
     cockpit.strobe.SetActive(true);
     cockpit.strobe.SetPosition({0.15f, -0.10f});
 }
@@ -381,12 +383,12 @@ The mockup sends strobe commands, then listens to feedback.
 Equivalent command:
 
 ```cpp
-client.Send(mfd::UpdateStrobeCommand {
-    "Radar",
-    0U,
-    true,
-    mfd::Vec2 {0.05f, 0.22f}
-});
+mfd::UpdateStrobeCommand command;
+command.page = "Radar";
+command.strobe = "Designator";
+command.active = true;
+command.position = mfd::Vec2 {0.05f, 0.22f};
+client.Send(command);
 ```
 
 Important operational rule:
@@ -402,6 +404,7 @@ This matters when:
 So if your own client exposes a strobe UI, copy the mockup behavior:
 
 - keep a draft locally
+- keep the selected strobe variant locally when the page exposes several of them
 - send the request
 - accept feedback from the window as authoritative
 

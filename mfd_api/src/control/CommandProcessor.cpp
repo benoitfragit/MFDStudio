@@ -474,11 +474,13 @@ bool CommandProcessor::ResolveGeneratedPage(std::string& page, TransportId& page
             return false;
         }
 
-        if (const SceneRegistry::PageComponent* resolvedPage = scene_.FindPage(NormalizePageName(page));
-            resolvedPage != nullptr)
+        pageId = scene_.ResolvePageTransportId(page);
+        if (pageId != 0)
         {
-            page = resolvedPage->name;
-            pageId = resolvedPage->transportId;
+            if (const std::string* resolvedPage = scene_.ResolvePageName(pageId); resolvedPage != nullptr)
+            {
+                page = *resolvedPage;
+            }
         }
 
         return true;

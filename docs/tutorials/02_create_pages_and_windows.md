@@ -84,7 +84,8 @@ Important page fields are:
 - `view.center`
 - `view.zoom`
 - `staticReticles`
-- optional `strobe`
+- optional `activeStrobe`
+- optional `strobes`
 
 `name` is the page identifier used by the runtime and the client API.
 
@@ -208,26 +209,44 @@ mfd::SceneRegistry scene(loaded.document);
 scene.SetActivePage("Tutorial");
 ```
 
-## Step 7 - Optional: add a strobe
+## Step 7 - Optional: add one or more strobes
 
-If a page needs a strobe, add:
+If a page needs cursor or designation behavior, prefer the explicit catalog
+form:
 
 ```json
-"strobe": {
-  "id": "tutorial_strobe",
-  "template": "strobe_cursor",
-  "position": { "x": 0.0, "y": 0.0 },
-  "capture": {
-    "shape": "circle",
-    "radius": 0.10
+"activeStrobe": "Default",
+"strobes": [
+  {
+    "name": "Default",
+    "id": "tutorial_strobe_default",
+    "template": "strobe_cursor",
+    "position": { "x": 0.0, "y": 0.0 },
+    "capture": {
+      "shape": "circle",
+      "radius": 0.10
+    },
+    "magnet": {
+      "enabled": true,
+      "radius": 0.075,
+      "strength": 1.0
+    }
   },
-  "magnet": {
-    "enabled": true,
-    "radius": 0.075,
-    "strength": 1.0
+  {
+    "name": "Designator",
+    "id": "tutorial_strobe_designator",
+    "template": "designator_cursor",
+    "position": { "x": 0.0, "y": 0.0 },
+    "capture": {
+      "shape": "rectangle",
+      "size": [0.24, 0.16]
+    }
   }
-}
+]
 ```
+
+If you only need one strobe, the legacy singular `strobe` object is still
+accepted and is loaded as one catalog containing a single `Default` entry.
 
 ## What You Should See
 

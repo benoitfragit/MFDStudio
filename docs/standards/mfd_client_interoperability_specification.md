@@ -237,6 +237,8 @@ If an implementation exposes a generated UI layer, the following rules apply:
 - a `SubmitLatest(publisher, sequence)`-style helper, if exposed, MUST be
   semantically equivalent to `publisher.SubmitLatest(BuildCommandBatch(sequence))`
 - generated page strobe access MUST remain page-scoped
+- when a page exposes several strobes, the generated layer SHOULD expose one
+  generated authored-strobe entry per variant
 - generated dynamic reticle access MUST remain handle-based rather than
   user-supplied-runtime-id-based
 - a generated `Reset()` helper MUST be treated as a local staging reset, not as
@@ -430,7 +432,7 @@ This section defines the expected meaning of each public command family.
 | `SetPageViewCommand` | update page center and zoom |
 | `UpdateWindowDisplayCommand` | update whole-window visual state |
 | `UpdateReticleCommand` | apply a partial patch to one static reticle |
-| `UpdateStrobeCommand` | update strobe activation and/or requested position |
+| `UpdateStrobeCommand` | update selected strobe entry, activation, and/or requested position |
 | `UpsertDynamicReticleCommand` | create or update one dynamic reticle |
 | `UpsertDynamicReticlesCommand` | create or update many dynamic reticles from one template |
 | `SetDynamicReticleSetVisibilityCommand` | set visibility for all dynamic reticles of one page/template set |
@@ -490,6 +492,7 @@ names before serialization.
 
 This command is page-scoped and updates:
 
+- optional selected strobe entry
 - optional active state
 - optional requested position
 
@@ -695,7 +698,8 @@ SHOULD also verify:
 | generated UI root exposes page accessors | typed page navigation is available |
 | generated reticle and primitive accessors exist | authored exposed objects are reachable without string lookup |
 | generated primitive handles stay type-specific | text, line, ring, triangle, polyline, bezier, arc, rectangle, and other supported primitive kinds expose dedicated handle types |
-| generated strobe handle remains page-scoped | no strobe transport object is required from application code |
+| generated strobe handle remains page-scoped | no standalone strobe transport object is required from application code |
+| generated strobe variants remain discoverable | authored multi-strobe pages expose generated entries that can be selected without raw IDs |
 | generated dynamic set hides runtime IDs | `Create()` and `Remove(handle)` work without user-managed runtime IDs |
 | generated runtime-feedback queries stay authoritative | `IsActive()` and `IsStrobeCaptured()` reflect the consumed runtime feedback stream |
 | generated batch helper carries `mappingHash` | `BuildCommandBatch(sequence)` emits the generated hash |

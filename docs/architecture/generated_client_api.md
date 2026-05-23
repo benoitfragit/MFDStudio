@@ -147,6 +147,7 @@ Each generated page wrapper carries:
 - one member per static reticle on the page
 - one member per page-local blink type
 - one page-scoped `strobe` handle
+- one generated member per authored strobe entry when the page exposes a strobe catalog
 - one typed generated dynamic-set accessor per authored reticle template
 
 This lets `CommandClient` overloads consume a generated page directly:
@@ -345,12 +346,14 @@ flag:
 The strobe is modeled as a page capability, not as an addressable generated
 transport object.
 
-That is why generated pages expose a single page-scoped `strobe` member:
+That is why generated pages expose a single page-scoped `strobe` member, while
+still publishing authored strobe variants as generated `StrobeType` members:
 
 ```cpp
 auto& radar = ui.Radar();
 if (radar.strobe.IsValid())
 {
+    radar.strobe = radar.designatorStrobe;
     radar.strobe.SetActive(true);
     radar.strobe.SetPosition({0.15f, -0.08f});
     client.SendBatch(ui.BuildBatch());
@@ -360,8 +363,14 @@ if (radar.strobe.IsValid())
 The strobe handle intentionally stays page-scoped because:
 
 - authored pages own the strobe definition
+- authored pages own the currently selected strobe variant
 - strobe feedback is also page-scoped
-- no independent strobe transport table is generated
+- application code should not manipulate one standalone strobe transport object
+
+Internally, the generated transport map now carries one stable transport ID per
+authored strobe entry so low-level commands can resolve selection efficiently.
+That detail stays hidden behind `page.strobe`, `StrobeType`, and
+`CommandClient`.
 
 ## Runtime Feedback Queries
 

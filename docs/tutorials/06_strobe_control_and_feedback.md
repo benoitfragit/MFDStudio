@@ -2,7 +2,7 @@
 
 This tutorial shows how to:
 
-- define a strobe in a page
+- define one or more strobes in a page
 - control it from a client
 - receive authoritative runtime state back over UDP
 
@@ -21,29 +21,47 @@ W -> U : Queue runtime feedback snapshot
 U -> C : Strobe status + active-page feedback
 \enduml
 
-## Step 1 - Define the strobe in the page JSON
+## Step 1 - Define the strobes in the page JSON
 
 Example:
 
 ```json
 {
   "name": "Radar",
-  "strobe": {
-    "id": "radar_strobe",
-    "template": "strobe_cursor",
-    "position": { "x": 0.0, "y": 0.0 },
-    "capture": {
-      "shape": "circle",
-      "radius": 0.10
+  "activeStrobe": "Default",
+  "strobes": [
+    {
+      "name": "Default",
+      "id": "radar_strobe_default",
+      "template": "strobe_cursor",
+      "position": { "x": 0.0, "y": 0.0 },
+      "capture": {
+        "shape": "circle",
+        "radius": 0.10
+      },
+      "magnet": {
+        "enabled": true,
+        "radius": 0.075,
+        "strength": 1.0
+      }
     },
-    "magnet": {
-      "enabled": true,
-      "radius": 0.075,
-      "strength": 1.0
+    {
+      "name": "Designator",
+      "id": "radar_strobe_designator",
+      "template": "designator_cursor",
+      "position": { "x": 0.0, "y": 0.0 },
+      "capture": {
+        "shape": "rectangle",
+        "size": [0.28, 0.18]
+      }
     }
-  }
+  ]
 }
 ```
+
+The legacy singular `strobe` object is still accepted for compatibility. The
+loader normalizes it as one `strobes` catalog containing a single `Default`
+entry.
 
 ## Step 2 - Expose the feedback UDP transport in the window JSON
 
@@ -114,6 +132,7 @@ handle:
 auto& radar = ui.Radar();
 if (radar.strobe.IsValid())
 {
+    radar.strobe = radar.designatorStrobe;
     radar.strobe.SetActive(true);
     radar.strobe.SetPosition({0.15f, -0.08f});
     client.SendBatch(ui.BuildBatch());
@@ -123,13 +142,17 @@ if (radar.strobe.IsValid())
 If you intentionally stay on raw `CommandClient`, the low-level equivalent is:
 
 ```cpp
+client.SelectStrobe("Radar", "Designator");
 client.SetStrobeActive("Radar", true);
 client.SetStrobePosition("Radar", {0.15f, -0.08f});
 ```
 
 That raw helper path now assumes `CommandClient` was constructed with the
-companion generated transport map so `Radar` can be resolved locally to its
-transport ID before serialization.
+companion generated transport map so `Radar` and `Designator` can be resolved
+locally to generated transport IDs before serialization.
+
+If you do not switch the selected strobe first, the command updates whichever
+strobe entry is currently active on the page.
 
 ## Step 4 - Understand magnetization
 
@@ -292,11 +315,12 @@ Important fields are:
 - distance
 - metadata
 
-`strobeId` is informational feedback from the runtime. When you use generated
-client bindings, control remains page-scoped through `page.strobe` and the
-authoritative runtime queries stay available directly on the generated page and
-dynamic reticle handles. Always pair `StrobeStatusFeedback` with the latest
-`ActivePageFeedback`, because only the active page strobe is live.
+`strobeId` is the public reticle id of the currently active strobe cursor.
+When you use generated client bindings, control still remains page-scoped
+through `page.strobe`, while authored strobe variants stay available through
+generated `StrobeType` members such as `defaultStrobe` or `designatorStrobe`.
+Always pair `StrobeStatusFeedback` with the latest `ActivePageFeedback`,
+because only the active page strobe is live.
 
 ## Step 9 - Test quickly with the mockup
 
@@ -341,8 +365,8 @@ This distinction is important:
 You now have:
 
 - a command path from client to window
-- one generated page-scoped `strobe` accessor that does not require a user
-  managed id
+- one generated page-scoped `strobe` accessor that can also switch between
+  authored strobe variants without exposing raw transport ids
 - one runtime feedback path from window to client
 - generated `Page::IsActive()` and `DynamicReticle::IsStrobeCaptured()`
   queries backed by authoritative feedback

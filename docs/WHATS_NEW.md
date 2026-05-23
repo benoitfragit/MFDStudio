@@ -15,6 +15,7 @@ The current tree is stronger in four areas:
 - deeper editor authoring workflows
 - better runtime inspection and capture hooks
 - better documentation structure and visual onboarding
+- richer page-level authoring and strobe-selection flows
 
 ## For People Using The Product
 
@@ -43,6 +44,17 @@ The repository ships clearer launch paths through:
 The demo set is now a much better onboarding surface for operators and
 integrators.
 
+### Pages Can Now Carry A Real Title Chrome And Selectable Strobes
+
+Page authoring is less rigid than before:
+
+- the page title is now a real authored chrome controlled by `titleDisplay`
+- one page can expose several named strobes through `strobes`
+- the authored startup selection is explicit through `activeStrobe`
+
+This makes the page shell itself part of the authored contract instead of
+staying half hardcoded in the host UI.
+
 ### Framebuffer Capture Is Part Of The Story
 
 The runtime supports framebuffer plugin flows, and the repository includes a
@@ -69,7 +81,7 @@ It is useful not just as a test tool, but as a concrete example for:
 - page activation
 - reticle patches
 - dynamic reticles
-- strobe commands and feedback
+- strobe commands, strobe selection, and feedback
 - cockpit and radar simulations
 
 ### The Client API Is More Stable Under Cyclic Workloads
@@ -79,6 +91,15 @@ state change happened since the last published batch.
 
 This specifically helps tight client loops where reticles, dynamic tracks, or
 window display state are evaluated every frame but do not always change.
+
+### The Generated Client Surface Now Models Strobe Variants Explicitly
+
+Generated page wrappers still expose one page-scoped `strobe` handle, but they
+can now also expose authored `StrobeType` entries such as
+`defaultStrobe`, `designatorStrobe`, or `strobe1`.
+
+That lets a client switch from one authored strobe behavior to another without
+dropping back to raw transport logic.
 
 ### The Transport Story Is Clearer
 
@@ -98,6 +119,7 @@ The current doc set is much more explicit about:
 The documented workflow includes:
 
 - guided creation of a new window
+- editable page title chrome
 - page import with dependency staging
 - safe page rename across source assets
 - safe reticle rename across pages
@@ -105,6 +127,7 @@ The documented workflow includes:
 - layer inspector
 - full-width problems panel
 - multi-selection and drag workflows
+- direct page-preview selection of page strobes
 
 ### The Editor Is Safer About Source Versus Staged Assets
 

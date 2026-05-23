@@ -1301,6 +1301,12 @@ bool SceneRegistry::HasMatchingTransportMap(const std::string_view mappingHash) 
            transportMap_->mappingHash == mappingHash;
 }
 
+TransportId SceneRegistry::ResolvePageTransportId(const std::string_view pageName) const noexcept
+{
+    const PageComponent* page = FindPage(NormalizePageName(pageName));
+    return page == nullptr ? 0 : page->transportId;
+}
+
 const std::string* SceneRegistry::ResolvePageName(const TransportId pageId) const noexcept
 {
     const auto iterator = transportPageNames_.find(pageId);

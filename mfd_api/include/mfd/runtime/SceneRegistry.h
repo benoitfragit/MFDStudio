@@ -543,6 +543,8 @@ private:
     TransportId ResolveTemplateTransportId(std::string_view templateId) const noexcept;
     /** @brief Returns whether the current scene can validate a mapping hash. */
     bool HasMatchingTransportMap(std::string_view mappingHash) const noexcept;
+    /** @brief Resolves an authored page name to its generated transport id when available. */
+    TransportId ResolvePageTransportId(std::string_view pageName) const noexcept;
     /** @brief Resolves a generated page transport id to an authored page name. */
     const std::string* ResolvePageName(TransportId pageId) const noexcept;
     /** @brief Resolves a generated static reticle transport id. */

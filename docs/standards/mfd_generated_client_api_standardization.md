@@ -126,6 +126,7 @@ Each generated page MUST expose:
 - one generated member per authored static reticle on that page
 - one generated member per authored page-local blink type
 - one generated `strobe` handle
+- one generated member per authored strobe entry when the page exposes a strobe catalog
 - one generated dynamic-set accessor per authored page dynamic binding
 
 Dynamic-set accessors are authored from `dynamicReticleBindings`, not from one
@@ -246,7 +247,7 @@ The generated API is expected to cover the following client-visible features.
 | Exposed primitives | Client-driven authored primitives are exposed as typed handles under their owning reticles, including `SetLineStyle` for outline-capable primitives |
 | Images | Bitmap primitives are first-class generated handles through `ImageHandle` |
 | Dynamic reticles | Generated sets own hidden runtime IDs and return typed handles from `Create()` |
-| Strobe | Strobe control stays page-scoped through one generated `strobe` handle |
+| Strobe | Strobe control stays page-scoped through one generated `strobe` handle, with optional generated `StrobeType` entries for authored variants |
 | Runtime feedback | Generated roots absorb runtime feedback, pages expose `IsActive()`, and dynamic reticles expose `IsStrobeCaptured()` |
 | Batches | The generated root stages partial patches locally, then emits one coherent command batch on demand |
 
@@ -318,17 +319,30 @@ client.SendBatch(ui.BuildBatch());
 
 ### 6.5 Page-Scoped Strobe
 
-The strobe remains a page capability, not a generated transport object:
+The strobe remains a page capability, not a generated standalone transport
+object:
 
 ```cpp
 auto& radar = ui.Radar();
 if (radar.strobe.IsValid())
 {
+    radar.strobe = radar.designatorStrobe;
     radar.strobe.SetActive(true);
     radar.strobe.SetPosition({0.15f, -0.08f});
     client.SendBatch(ui.BuildBatch());
 }
 ```
+
+Normative expectations:
+
+- generated pages MUST keep one page-scoped `strobe` handle as the primary
+  mutation surface
+- when the authored page exposes several strobes, generated pages SHOULD expose
+  one generated `StrobeType` member per entry
+- generated application code SHOULD switch authored strobes through
+  `page.strobe = page.someStrobeType`
+- low-level generated transport IDs for strobes MUST stay hidden from normal
+  application code
 
 ### 6.6 Runtime Feedback Convenience Queries
 
@@ -462,13 +476,13 @@ surface.
 | --- | --- |
 | Root API | `Window()`, page accessors, `BuildBatch()`, `BuildCommandBatch()`, `SubmitLatest()` |
 | Root feedback API | `ApplyFeedback(...)`, `ApplyFeedbackPayload(...)`, `PollFeedback(...)` |
-| Page API | stable `Name()`, `GeneratedId()`, `MappingHash()`, `IsActive()`, reticles, blink types, `strobe`, dynamic sets |
+| Page API | stable `Name()`, `GeneratedId()`, `MappingHash()`, `IsActive()`, reticles, blink types, `strobe`, generated strobe entries, dynamic sets |
 | Static reticles | common reticle setters stay available |
 | Primitive handles | exposed primitives use the most specific handle type available |
 | Image primitives | exposed bitmap primitives use `ImageHandle` |
 | Dynamic sets | `Create()` and `Remove(handle)` hide runtime IDs |
 | Dynamic runtime queries | `IsStrobeCaptured()` exposes active-page capture state without manual feedback correlation |
-| Strobe | page-scoped handle only, no generated strobe transport object |
+| Strobe | page-scoped handle plus generated authored entries when needed, no standalone user-facing strobe transport object |
 | Transport bridge | generated batches preserve `mappingHash` and command semantics |
 | Package boundary | `find_package(MFDStudioClientApi)` exposes only `MFDStudio::ClientApi`, only delivered build configs, and no `mfd_api.dll` client dependency |
 | Authoring link | `exposed` and `drawOnTop` remain preserved by the model and serializer |

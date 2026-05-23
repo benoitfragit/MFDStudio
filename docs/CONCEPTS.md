@@ -35,7 +35,7 @@ A page defines:
 - a page view center and zoom
 - optional page-local blink types
 - static reticles
-- an optional strobe
+- an optional strobe catalog with one authored active selection
 
 Only one page is active and rendered at a time.
 
@@ -81,17 +81,25 @@ A reticle is built from one or more primitives.
 
 ## Strobe
 
-A strobe is an optional page-level cursor-like reticle.
+A strobe is an optional page-level cursor-like reticle capability.
 
-It can:
+One page can expose:
+
+- one legacy single strobe
+- or several named strobe variants in `strobes`
+- plus one authored active selection in `activeStrobe`
+
+The active strobe can:
 
 - be enabled or disabled
 - move on the page
 - capture nearby targets
 - magnetize to the nearest target
+- be switched dynamically by the client without reloading the page
 - send live feedback to the client
 
-Use it when one page needs cursor, designation, or probing behavior.
+Use it when one page needs cursor, designation, probe, or alternate search and
+designation behaviors on the same page.
 
 ## Blink
 

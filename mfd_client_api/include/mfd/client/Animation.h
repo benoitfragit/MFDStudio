@@ -568,9 +568,20 @@ public:
                  std::initializer_list<StrobeType> strobes,
                  mfd::TransportId pageTransportId = 0);
 
+    /**
+     * @brief Clears the locally staged strobe state and restores the authored default selection.
+     */
     void Reset() noexcept;
 
+    /**
+     * @brief Reports whether this handle can address at least one authored strobe.
+     * @return `true` when the page exposes one valid strobe entry.
+     */
     bool IsValid() const noexcept;
+    /**
+     * @brief Returns the owning authored page name.
+     * @return Page name used by generated and raw helper paths.
+     */
     std::string_view PageName() const noexcept;
     /**
      * @brief Returns the currently selected authored strobe entry.
@@ -599,9 +610,26 @@ public:
      */
     bool IsSelected(const StrobeType& strobeType) const noexcept;
 
+    /**
+     * @brief Stages the active flag of the currently selected strobe entry.
+     * @param active Desired active state.
+     */
     void SetActive(bool active);
+    /**
+     * @brief Stages the requested logical position of the currently selected strobe entry.
+     * @param position Desired page-space strobe position.
+     */
     void SetPosition(mfd::Vec2 position);
 
+    /**
+     * @brief Appends one `UpdateStrobeCommand` when the staged state changed.
+     * @param commands Destination command list.
+     * @return `true` when one command was appended.
+     *
+     * @note The emitted command keeps the page-scoped mutation model but may
+     * carry the generated id of the selected authored strobe entry when
+     * available.
+     */
     bool AppendCommands(std::vector<mfd::UserCommand>& commands);
 
 private:

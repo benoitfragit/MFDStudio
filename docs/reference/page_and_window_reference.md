@@ -6,7 +6,7 @@ This page describes the exact JSON fields supported by:
 - page files
 - static reticle instances inside pages
 - inline reticles
-- strobe definitions
+- strobe catalog definitions
 
 ## 1. Window JSON
 
@@ -221,6 +221,9 @@ Canonical example:
 {
   "name": "Radar",
   "title": "Radar",
+  "titleDisplay": {
+    "decoration": "frame"
+  },
   "backgroundColor": "#08131BFF",
   "layers": [
     { "id": "base" },
@@ -239,6 +242,29 @@ Canonical example:
     "center": [0.0, 0.0],
     "zoom": 1.0
   },
+  "activeStrobe": "Default",
+  "strobes": [
+    {
+      "name": "Default",
+      "id": "radar_strobe_default",
+      "template": "strobe_cursor",
+      "position": [0.0, 0.0],
+      "capture": {
+        "shape": "circle",
+        "radius": 0.10
+      }
+    },
+    {
+      "name": "Designator",
+      "id": "radar_strobe_designator",
+      "template": "designator_cursor",
+      "position": [0.0, 0.0],
+      "capture": {
+        "shape": "rectangle",
+        "size": [0.28, 0.18]
+      }
+    }
+  ],
   "staticReticles": [
     {
       "id": "grid",
@@ -246,16 +272,7 @@ Canonical example:
       "layerId": "base",
       "blink": "fast"
     }
-  ],
-  "strobe": {
-    "id": "radar_strobe",
-    "template": "strobe_cursor",
-    "position": [0.0, 0.0],
-    "capture": {
-      "shape": "circle",
-      "radius": 0.10
-    }
-  }
+  ]
 }
 ```
 
@@ -266,6 +283,7 @@ Canonical example:
 | `name` | string | yes unless `id` is used | Public page name used by the API. | none |
 | `id` | string | yes unless `name` is used | Alternative page identifier. | none |
 | `title` | string | no | Human-readable page title. | none |
+| `titleDisplay` | object | no | Authored display state of the generated page title chrome. | none |
 | `backgroundColor` | color | no | Page background color. | `background`, `bgColor`, `bg` |
 | `layers` | array | yes | Ordered runtime page layers. Every static reticle and dynamic binding must target one of these ids. | none |
 | `dynamicReticleBindings` | array | no | Dynamic-template bindings to one runtime layer plus one authored order within that layer. | none |
@@ -275,8 +293,10 @@ Canonical example:
 | `center` | vec2 | no | Page view center at top level. | `viewCenter`, `zoomCenter` |
 | `x`, `y` | number | no | Alternative top-level page view center coordinates. | none |
 | `zoom` | number | no | Top-level page zoom. | `zoomLevel` |
+| `activeStrobe` | string | no | User-facing name of the authored strobe selected when the page loads. | `defaultStrobe` |
+| `strobes` | array | no | Optional named strobe catalog available on the page. | none |
 | `staticReticles` | array | no | Static reticles instantiated on the page. | none |
-| `strobe` | object | no | Optional strobe definition. | none |
+| `strobe` | object | no | Legacy single-strobe shorthand loaded as one `Default` entry in `strobes`. | none |
 
 Notes:
 
@@ -285,7 +305,8 @@ Notes:
 - `dynamicReticleBindings` is the runtime source of truth for generated dynamic reticles on the page
 - blink synchronization is done per page and by effective duration
 - static reticle ids must be unique within the page
-- the strobe id must also be unique within the page
+- each strobe name must be unique within the page
+- each strobe reticle id must also be unique within the page
 
 ## 4.1 Page Layers
 
@@ -519,48 +540,89 @@ Notes:
 - inline page reticles can also use `drawOnTop`
 - each primitive inside `elements` follows the primitive reference
 
-## 8. Strobe Definition
+## 8. Strobe Catalog Definition
 
-A page can expose one optional strobe.
+A page can expose zero, one, or several authored strobes.
 
-The strobe object combines:
+The recommended syntax is:
+
+- `activeStrobe` to choose the authored startup selection
+- `strobes` to list the named strobe entries available on the page
+
+Canonical example:
+
+```json
+"activeStrobe": "Default",
+"strobes": [
+  {
+    "name": "Default",
+    "id": "radar_strobe_default",
+    "template": "strobe_cursor",
+    "position": [0.0, 0.0],
+    "capture": {
+      "shape": "circle",
+      "radius": 0.10
+    },
+    "magnet": {
+      "enabled": true,
+      "radius": 0.075,
+      "strength": 1.0
+    }
+  },
+  {
+    "name": "Designator",
+    "id": "radar_strobe_designator",
+    "template": "designator_cursor",
+    "position": [0.0, 0.0],
+    "capture": {
+      "shape": "rectangle",
+      "size": [0.28, 0.18]
+    }
+  }
+]
+```
+
+Legacy compatibility shorthand:
+
+```json
+"strobe": {
+  "id": "radar_strobe",
+  "template": "strobe_cursor"
+}
+```
+
+The singular form is still accepted, but the loader normalizes it as one
+`strobes` catalog containing a single `Default` entry.
+
+### 8.1 Strobe entry fields
+
+Each `strobes[]` entry combines:
 
 - a reticle definition
 - capture parameters
 - optional magnetization parameters
 
-Canonical example:
+Fields:
 
-```json
-"strobe": {
-  "id": "radar_strobe",
-  "template": "strobe_cursor",
-  "position": [0.0, 0.0],
-  "capture": {
-    "shape": "circle",
-    "radius": 0.10
-  },
-  "magnet": {
-    "enabled": true,
-    "radius": 0.075,
-    "strength": 1.0
-  }
-}
-```
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | recommended | User-facing strobe name used by the editor and generated client API. |
+| `id` | string | recommended | Public reticle id of the strobe cursor. Must be unique within the page. |
+| `template` | string | yes for template entry | Reticle template used by this strobe entry. |
+| `elements` | array | yes for inline entry | Primitive list composing an inline strobe entry. |
+| transform fields | various | no | Position, rotation, scale. |
+| style fields | various | no | Stroke, thickness, fill, filled, visibility. |
+| `style` | object | no | Nested style block. |
+| `overrides` | object | no | Additional reticle-level style override block. |
+| `blink` | bool, string, or object | no | Page-managed blink binding for this strobe entry. |
+| `drawOnTop` | bool | no | Defers this strobe draw pass until after normal page reticles. |
+| `text` | string | no | Override the first text primitive. |
+| `texts` | object | no | Override named text primitives by primitive id. |
+| `letterSpacing` | number | no | Override the first text-like primitive spacing. |
+| `letterSpacings` | object | no | Override named text-like primitive spacing. |
 
-### Strobe reticle part
-
-The strobe object supports the same reticle fields as a normal page reticle:
-
-- `id`
-- `template`
-- `elements`
-- transform fields
-- style fields
-- `blink`
-- `drawOnTop`
-- text overrides
-- metadata fields
+Each strobe entry supports the same reticle-level fields as a normal page
+reticle, plus the `capture` and `magnet` blocks described below.
 
 ### `capture` object
 
@@ -667,11 +729,13 @@ style is:
 - use a nested `view` object
 - declare blink types at page level with `blinkTypes`
 - use `defaultBlink` when one type should be the normal page default
-- use `blink` only on page instances or on the page strobe, not in reticle templates
+- use `blink` only on page instances or on page strobe entries, not in reticle templates
 - use `drawOnTop` only for the few reticles that must stay visually above the normal page pass
 - use `staticReticles` for page instances
 - use `template` for normal reuse
-- use `capture` and `magnet` as nested objects inside `strobe`
+- use `activeStrobe` plus `strobes` for new content
+- keep singular `strobe` only for legacy one-entry pages
+- use `capture` and `magnet` as nested objects inside each strobe entry
 - add `magnet.visual` only when magnetization should temporarily change the strobe shape
 - use canonical transform fields:
   `position`, `rotationDegrees`, `scale`

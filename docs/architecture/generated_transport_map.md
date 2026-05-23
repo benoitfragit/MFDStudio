@@ -29,10 +29,10 @@ The mapping file covers fixed authored identifiers only:
 - exposed primitive
 - dynamic reticle template
 - blink type
+- page-local strobe catalog entry
 
 The mapping file does not assign IDs to:
 
-- strobe
 - dynamic runtime reticle instance IDs
 - dynamic text payloads
 - positions
@@ -41,14 +41,16 @@ The mapping file does not assign IDs to:
 - thickness
 - arbitrary metadata
 
-### Strobe Exception
+### Strobe Selection Model
 
-The strobe is a page capability, not an addressable transport object.
+The strobe remains a page capability in the generated user-facing API, but the
+transport map now carries one row per authored strobe entry so low-level
+commands can select the active strobe without relying on raw strings.
 
-- no strobe ID is generated
-- no strobe table is emitted
 - strobe commands remain page-scoped
-- generated page APIs expose a generic `strobe` handle with validity metadata
+- generated page APIs still expose a generic `strobe` handle with validity metadata
+- generated pages may also expose named `StrobeType` entries such as
+  `defaultStrobe`, `designatorStrobe`, or `strobe1`
 
 ## File Format
 
@@ -70,7 +72,8 @@ Top-level schema:
   "reticles": [],
   "primitives": [],
   "templates": [],
-  "blinkTypes": []
+  "blinkTypes": [],
+  "strobes": []
 }
 ```
 
@@ -107,6 +110,7 @@ Canonical key examples:
 - template: `template/radar_track`
 - template primitive: `template/radar_track/primitive/contact_label`
 - blink type: `page/radar/blink/attention`
+- strobe entry: `page/radar/strobe/designator`
 
 Rules:
 
@@ -259,6 +263,40 @@ wire. Each row contains:
 `durationMs` is redundant with the page definition but kept in the map for fast
 runtime validation and debugging.
 
+## Strobe Table
+
+Each authored page-local strobe entry contains:
+
+```json
+{
+  "id": 14809254125336950102,
+  "pageId": 9637022363458486384,
+  "strobeName": "Designator",
+  "normalizedStrobeName": "designator",
+  "reticleId": "radar_strobe_designator",
+  "defaultActive": false
+}
+```
+
+Field meaning:
+
+- `id`
+  - stable strobe transport ID
+- `pageId`
+  - owning page transport ID
+- `strobeName`
+  - authored strobe catalog name exposed publicly
+- `normalizedStrobeName`
+  - runtime lookup key
+- `reticleId`
+  - public reticle id of the cursor reticle used by that strobe entry
+- `defaultActive`
+  - identifies the authored startup selection on that page
+
+This table does not turn the strobe into one standalone transport object. It
+only gives low-level command and runtime code one stable ID per authored
+page-local strobe variant.
+
 ## Canonical Ordering
 
 Every emitted array must be sorted lexicographically by canonical key before
@@ -269,6 +307,7 @@ serialization:
 - primitives by primitive canonical key
 - templates by template canonical key
 - blink types by blink canonical key
+- strobes by strobe canonical key
 
 Object fields must always be emitted in the same property order.
 
@@ -327,6 +366,7 @@ generated client path must send only generated IDs on the wire for:
 - static reticle targeting
 - dynamic template targeting
 - blink type targeting
+- strobe selection targeting
 - exposed primitive targeting
 
 The normal generated transport path no longer duplicates authored names in
@@ -338,6 +378,7 @@ Raw low-level `CommandClient` helpers may still accept authored names for:
 - static reticle targeting
 - dynamic template targeting
 - blink type targeting
+- strobe selection targeting
 - exposed primitive targeting
 
 That compatibility path is local only:
@@ -356,4 +397,4 @@ integer ids allocated by the client layer and hidden from generated user code.
 - no manual editing of `.generated.map`
 - no standalone runtime mapping authoring workflow
 - no user-visible raw transport ID API
-- no strobe ID table
+- no user-facing standalone strobe transport object outside the page scope
