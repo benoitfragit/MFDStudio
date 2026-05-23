@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <cstring>
 #include <utility>
 
 #include <raylib.h>
@@ -53,6 +54,33 @@ mfd::ReticleGroup MakeTextAndTimeReticle()
     return reticle;
 }
 
+mfd::ReticleGroup MakeSmallTextReticle(const mfd::Vec2 position)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "tiny_text";
+
+    mfd::Primitive text;
+    text.id = "label";
+    text.type = mfd::PrimitiveType::Text;
+    text.transform.position = position;
+    text.geometry = mfd::TextGeometry {"PIX", 0.06f, 0.0f};
+    text.style.color = Green();
+    reticle.primitives.push_back(std::move(text));
+
+    return reticle;
+}
+
+mfd::Rgba32Framebuffer RenderReticle(const mfd::ReticleGroup& reticle, mfd::TextLayoutCache& cache)
+{
+    BeginDrawing();
+    ClearBackground(BLACK);
+    mfd::Canvas2D canvas(kRenderSize, kRenderSize, {}, nullptr, BLACK, false, nullptr, nullptr, &cache);
+    canvas.DrawReticle(reticle);
+    const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
+    EndDrawing();
+    return framebuffer;
+}
+
 std::size_t CountForegroundPixels(const mfd::Rgba32Framebuffer& framebuffer,
                                   const int minX,
                                   const int minY,
@@ -76,6 +104,25 @@ std::size_t CountForegroundPixels(const mfd::Rgba32Framebuffer& framebuffer,
     }
 
     return count;
+}
+
+std::size_t CountDifferentPixels(const mfd::Rgba32Framebuffer& lhs, const mfd::Rgba32Framebuffer& rhs)
+{
+    if (lhs.width != rhs.width || lhs.height != rhs.height || lhs.pixels.size() != rhs.pixels.size())
+    {
+        return static_cast<std::size_t>(-1);
+    }
+
+    std::size_t differenceCount = 0U;
+    for (std::size_t index = 0; index < lhs.pixels.size(); ++index)
+    {
+        if (std::memcmp(&lhs.pixels[index], &rhs.pixels[index], sizeof(mfd::Rgba8Pixel)) != 0)
+        {
+            ++differenceCount;
+        }
+    }
+
+    return differenceCount;
 }
 } // namespace
 
@@ -111,4 +158,24 @@ TEST(CanvasTextRenderTests, TextAndTimePrimitivesStillRenderVisiblePixels)
     const mfd::TextLayoutCache::Stats stats = cache.CacheStats();
     EXPECT_EQ(stats.staticMisses, 1U);
     EXPECT_GE(stats.staticHits, 1U);
+}
+
+TEST(CanvasTextRenderTests, SmallTextSubPixelTranslationKeepsRasterStable)
+{
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(kRenderSize, kRenderSize, "mfd_canvas_text_subpixel_tests");
+    ASSERT_TRUE(IsWindowReady());
+
+    mfd::TextLayoutCache cache;
+    const mfd::ReticleGroup aligned = MakeSmallTextReticle({0.0f, 0.0f});
+    const mfd::ReticleGroup shifted = MakeSmallTextReticle({0.004f, 0.0f});
+
+    const mfd::Rgba32Framebuffer alignedFramebuffer = RenderReticle(aligned, cache);
+    const mfd::Rgba32Framebuffer shiftedFramebuffer = RenderReticle(shifted, cache);
+
+    CloseWindow();
+
+    EXPECT_GT(CountForegroundPixels(alignedFramebuffer, 40, 48, 88, 80), 8U);
+    EXPECT_GT(CountForegroundPixels(shiftedFramebuffer, 40, 48, 88, 80), 8U);
+    EXPECT_EQ(CountDifferentPixels(alignedFramebuffer, shiftedFramebuffer), 0U);
 }

@@ -409,6 +409,26 @@ std::string FormatTimeText(const TimeGeometry& geometry)
     return std::string(buffer);
 }
 
+Vector2 SnapTextScreenPosition(const Vector2 screenPosition, const Vector2 origin) noexcept
+{
+    if (!IsFiniteVector(screenPosition) || !IsFiniteVector(origin))
+    {
+        return screenPosition;
+    }
+
+    const Vector2 topLeft {
+        screenPosition.x - origin.x,
+        screenPosition.y - origin.y};
+    if (!IsFiniteVector(topLeft))
+    {
+        return screenPosition;
+    }
+
+    return Vector2 {
+        std::round(topLeft.x) + origin.x,
+        std::round(topLeft.y) + origin.y};
+}
+
 void DrawCenteredText(const std::string& text,
                       const Font font,
                       const float fontSize,
@@ -418,9 +438,10 @@ void DrawCenteredText(const std::string& text,
                       const float rotationDegrees,
                       const Color color)
 {
+    const Vector2 snappedScreenPosition = SnapTextScreenPosition(screenPosition, origin);
     DrawTextPro(font,
                 text.c_str(),
-                screenPosition,
+                snappedScreenPosition,
                 origin,
                 rotationDegrees,
                 fontSize,
