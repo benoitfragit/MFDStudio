@@ -153,6 +153,7 @@ mfd::SceneRegistry MakeRuntimeRegistry()
     mfd::GeneratedTransportMap map;
     map.mappingHash = "map_hash";
     map.pages.push_back({11U, "Radar", "radar", true, true});
+    map.strobes.push_back({101U, 11U, "Default", "default", "strobe", true});
     map.templates.push_back({55U, "radar_track", "radar_track"});
 
     return mfd::SceneRegistry(std::move(document), std::move(map));
@@ -201,7 +202,16 @@ mfd::SceneRegistry MakeMultiStrobeRuntimeRegistry()
     mfd::MfdDocument document;
     document.pages.push_back(std::move(page));
 
-    return mfd::SceneRegistry(std::move(document), std::nullopt);
+    mfd::GeneratedTransportMap map;
+    map.mappingHash = "map_hash";
+    map.pages.push_back({11U, "Radar", "radar", true, true});
+    map.reticles.push_back({22U, 11U, "heading_box", "heading_box", "static"});
+    map.primitives.push_back(
+        {33U, mfd::TransportPrimitiveOwnerKind::Reticle, 22U, "heading_value", "heading_value", "text", true});
+    map.strobes.push_back({101U, 11U, "Default", "default", "strobe_default", true});
+    map.strobes.push_back({102U, 11U, "Strobe1", "strobe1", "strobe_alt", false});
+
+    return mfd::SceneRegistry(std::move(document), std::move(map));
 }
 } // namespace
 
@@ -416,6 +426,30 @@ TEST(CommandProcessorTests, UpdateStrobeRejectsUnknownNamedStrobeWithoutMutating
     EXPECT_EQ(after->visible, before->visible);
     EXPECT_FLOAT_EQ(after->position.x, before->position.x);
     EXPECT_FLOAT_EQ(after->position.y, before->position.y);
+}
+
+TEST(CommandProcessorTests, UpdateStrobeResolvesGeneratedStrobeIdWhenPageNameIsProvided)
+{
+    mfd::SceneRegistry registry = MakeMultiStrobeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::UpdateStrobeCommand command;
+    command.page = "Radar";
+    command.strobeId = 102U;
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(command);
+
+    EXPECT_TRUE(processor.Submit(batch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto summary = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(summary.has_value());
+    EXPECT_EQ(summary->pageId, 11U);
+    EXPECT_EQ(summary->strobeTransportId, 102U);
+    EXPECT_EQ(summary->strobeName, "Strobe1");
+    EXPECT_EQ(summary->reticleId, "strobe_alt");
 }
 
 TEST(CommandProcessorTests, BulkDynamicRadarBatchSupportsOneHundredTracks)

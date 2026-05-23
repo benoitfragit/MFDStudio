@@ -83,6 +83,8 @@ mfd::GeneratedTransportMap MakeTransportMap()
     map.primitives.push_back(
         {66U, mfd::TransportPrimitiveOwnerKind::Template, 55U, "track_label", "track_label", "text", true});
     map.blinkTypes.push_back({44U, 11U, "slow", "slow", 750U});
+    map.strobes.push_back({101U, 11U, "Default", "default", "strobe_default", true});
+    map.strobes.push_back({102U, 11U, "Strobe1", "strobe1", "strobe_alt", false});
     return map;
 }
 
@@ -409,6 +411,34 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     EXPECT_TRUE(setVisibility->page.empty());
     EXPECT_TRUE(setVisibility->templateId.empty());
     EXPECT_FALSE(setVisibility->visible);
+}
+
+TEST(CommandClientTests, UpdateStrobeCommandNormalizesPageNameAndGeneratedStrobeIdTogether)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::UpdateStrobeCommand command;
+    command.page = "Radar";
+    command.strobeId = 102U;
+
+    ASSERT_TRUE(client.Send(command)) << client.LastError();
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 1U);
+
+    const auto batch = DecodeBatchPayload(rawChannel->SentPayloads().front());
+    ASSERT_TRUE(batch.has_value());
+    EXPECT_EQ(batch->mappingHash, "map_hash");
+    ASSERT_EQ(batch->commands.size(), 1U);
+
+    const auto* strobe = std::get_if<mfd::UpdateStrobeCommand>(&batch->commands.front());
+    ASSERT_NE(strobe, nullptr);
+    EXPECT_EQ(strobe->pageId, 11U);
+    EXPECT_EQ(strobe->strobeId, 102U);
+    EXPECT_TRUE(strobe->page.empty());
+    EXPECT_TRUE(strobe->strobe.empty());
 }
 
 TEST(CommandClientTests, WindowDisplayHelpersSendWithoutTransportMap)

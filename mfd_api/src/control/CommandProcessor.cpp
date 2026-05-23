@@ -465,11 +465,23 @@ const entt::dispatcher& CommandProcessor::Dispatcher() const noexcept
     return dispatcher_;
 }
 
-bool CommandProcessor::ResolveGeneratedPage(std::string& page, const TransportId pageId)
+bool CommandProcessor::ResolveGeneratedPage(std::string& page, TransportId& pageId)
 {
     if (pageId == 0)
     {
-        return !page.empty();
+        if (page.empty())
+        {
+            return false;
+        }
+
+        if (const SceneRegistry::PageComponent* resolvedPage = scene_.FindPage(NormalizePageName(page));
+            resolvedPage != nullptr)
+        {
+            page = resolvedPage->name;
+            pageId = resolvedPage->transportId;
+        }
+
+        return true;
     }
 
     const std::string* resolvedPage = scene_.ResolvePageName(pageId);
