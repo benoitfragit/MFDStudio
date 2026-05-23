@@ -129,6 +129,24 @@ void ShowHoveredRegionTooltip(const bool hovered, const char* text)
     ImGui::EndTooltip();
 }
 
+bool HasSamePageTitleDisplay(const mfd::PageTitleDisplayDefinition& lhs,
+                             const mfd::PageTitleDisplayDefinition& rhs) noexcept
+{
+    return lhs.visible == rhs.visible &&
+           lhs.transform.position.x == rhs.transform.position.x &&
+           lhs.transform.position.y == rhs.transform.position.y &&
+           lhs.transform.rotationDegrees == rhs.transform.rotationDegrees &&
+           lhs.transform.scale.x == rhs.transform.scale.x &&
+           lhs.transform.scale.y == rhs.transform.scale.y &&
+           lhs.color.r == rhs.color.r &&
+           lhs.color.g == rhs.color.g &&
+           lhs.color.b == rhs.color.b &&
+           lhs.color.a == rhs.color.a &&
+           lhs.lineWidth == rhs.lineWidth &&
+           lhs.lineStyle == rhs.lineStyle &&
+           lhs.decoration == rhs.decoration;
+}
+
 std::string PrimitiveTypeLabel(const mfd::PrimitiveType type)
 {
     switch (type)
@@ -3305,7 +3323,7 @@ void EditorApplication::DrawPageTree()
 
                 const std::string titleLabel = "title chrome##title_" + std::to_string(pageIndex);
                 ImGui::TreeNodeEx(titleLabel.c_str(), leafFlags);
-                const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(page);
+                const mfd::ReticleGroup& titleReticle = BuildPageTitlePreviewReticle(page);
                 DrawReticleHoverPreviewTooltip(titleReticle, "Page title", ToRayColor(page.backgroundColor));
                 if (ImGui::IsItemClicked())
                 {
@@ -4053,7 +4071,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             canvas.DrawReticle(strobe.reticle);
         }
 
-        const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(*page);
+        const mfd::ReticleGroup& titleReticle = BuildPageTitlePreviewReticle(*page);
         canvas.DrawReticle(titleReticle);
     }
     EndTextureMode();
@@ -4803,7 +4821,7 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
         }
     }
 
-    const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(page);
+    const mfd::ReticleGroup& titleReticle = BuildPageTitlePreviewReticle(page);
     if (titleReticle.visible)
     {
         const ReticleScreenBounds bounds = ComputeReticleScreenBounds(titleReticle, viewport);
@@ -5227,7 +5245,7 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
 
     if (selection_.kind == SelectionKind::PageTitle)
     {
-        const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(page);
+        const mfd::ReticleGroup& titleReticle = BuildPageTitlePreviewReticle(page);
         if (!titleReticle.visible)
         {
             return;
@@ -5545,11 +5563,11 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         selection_.kind == SelectionKind::PageStrobe;
     if (!additiveSelection && page != nullptr && singleEditableSelection)
     {
-        std::optional<mfd::ReticleGroup> selectedPreviewReticle;
+        const mfd::ReticleGroup* selectedPreviewReticle = nullptr;
         const mfd::Transform2D* selectedTransform = nullptr;
         if (selection_.kind == SelectionKind::PageTitle)
         {
-            selectedPreviewReticle = BuildPageTitlePreviewReticle(*page);
+            selectedPreviewReticle = &BuildPageTitlePreviewReticle(*page);
             if (const mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay(); titleDisplay != nullptr)
             {
                 selectedTransform = &titleDisplay->transform;
@@ -5561,18 +5579,18 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
             {
                 if (const mfd::ReticleGroup* selectedReticle = SelectedPageStrobeReticle(); selectedReticle != nullptr)
                 {
-                    selectedPreviewReticle = *selectedReticle;
+                    selectedPreviewReticle = selectedReticle;
                     selectedTransform = &selectedReticle->transform;
                 }
             }
         }
         else if (mfd::ReticleGroup* selectedReticle = SelectedPageReticle(); selectedReticle != nullptr)
         {
-            selectedPreviewReticle = *selectedReticle;
+            selectedPreviewReticle = selectedReticle;
             selectedTransform = &selectedReticle->transform;
         }
 
-        if (selectedPreviewReticle.has_value() &&
+        if (selectedPreviewReticle != nullptr &&
             selectedTransform != nullptr &&
             (selection_.kind == SelectionKind::PageTitle || IsReticleVisibleInEditor(*page, *selectedPreviewReticle)) &&
             selectedPreviewReticle->visible)
@@ -5672,11 +5690,11 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         return;
     }
 
-    std::optional<mfd::ReticleGroup> selectedPreviewReticle;
+    const mfd::ReticleGroup* selectedPreviewReticle = nullptr;
     const mfd::Transform2D* selectedTransform = nullptr;
     if (selection_.kind == SelectionKind::PageTitle)
     {
-        selectedPreviewReticle = BuildPageTitlePreviewReticle(*page);
+        selectedPreviewReticle = &BuildPageTitlePreviewReticle(*page);
         if (const mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay(); titleDisplay != nullptr)
         {
             selectedTransform = &titleDisplay->transform;
@@ -5688,18 +5706,18 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         {
             if (const mfd::ReticleGroup* reticle = SelectedPageStrobeReticle(); reticle != nullptr)
             {
-                selectedPreviewReticle = *reticle;
+                selectedPreviewReticle = reticle;
                 selectedTransform = &reticle->transform;
             }
         }
     }
     else if (mfd::ReticleGroup* reticle = SelectedPageReticle(); reticle != nullptr)
     {
-        selectedPreviewReticle = *reticle;
+        selectedPreviewReticle = reticle;
         selectedTransform = &reticle->transform;
     }
 
-    if (!selectedPreviewReticle.has_value() || selectedTransform == nullptr || !selectedPreviewReticle->visible)
+    if (selectedPreviewReticle == nullptr || selectedTransform == nullptr || !selectedPreviewReticle->visible)
     {
         return;
     }
@@ -7796,9 +7814,22 @@ bool EditorApplication::PreferPageReticleHit(const PageReticleHit& lhs, const Pa
     return lhs.target.index > rhs.target.index;
 }
 
-mfd::ReticleGroup EditorApplication::BuildPageTitlePreviewReticle(const mfd::PageDefinition& page) const
+const mfd::ReticleGroup& EditorApplication::BuildPageTitlePreviewReticle(const mfd::PageDefinition& page) const
 {
-    return mfd::BuildPageTitleDisplayReticle(page.name, page.title, page.titleDisplay);
+    if (!pageTitlePreviewReticleCache_.valid ||
+        pageTitlePreviewReticleCache_.pageName != page.name ||
+        pageTitlePreviewReticleCache_.pageTitle != page.title ||
+        !HasSamePageTitleDisplay(pageTitlePreviewReticleCache_.display, page.titleDisplay))
+    {
+        pageTitlePreviewReticleCache_.pageName = page.name;
+        pageTitlePreviewReticleCache_.pageTitle = page.title;
+        pageTitlePreviewReticleCache_.display = page.titleDisplay;
+        pageTitlePreviewReticleCache_.reticle =
+            mfd::BuildPageTitleDisplayReticle(page.name, page.title, page.titleDisplay);
+        pageTitlePreviewReticleCache_.valid = true;
+    }
+
+    return pageTitlePreviewReticleCache_.reticle;
 }
 
 void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& viewport, const bool additiveSelection)
@@ -7847,7 +7878,7 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
         }
     }
 
-    const mfd::ReticleGroup titleReticle = BuildPageTitlePreviewReticle(*page);
+    const mfd::ReticleGroup& titleReticle = BuildPageTitlePreviewReticle(*page);
     if (titleReticle.visible)
     {
         std::optional<PageReticleHit> titleHit = BuildPageReticleHit(

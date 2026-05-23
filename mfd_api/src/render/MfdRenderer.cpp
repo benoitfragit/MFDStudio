@@ -74,6 +74,23 @@ bool NeedsWindowPostProcess(const WindowDisplayState& display) noexcept
     return display.invertColors || display.brightness < 0.9995f;
 }
 
+bool HasSamePageTitleDisplay(const PageTitleDisplayDefinition& lhs, const PageTitleDisplayDefinition& rhs) noexcept
+{
+    return lhs.visible == rhs.visible &&
+           lhs.transform.position.x == rhs.transform.position.x &&
+           lhs.transform.position.y == rhs.transform.position.y &&
+           lhs.transform.rotationDegrees == rhs.transform.rotationDegrees &&
+           lhs.transform.scale.x == rhs.transform.scale.x &&
+           lhs.transform.scale.y == rhs.transform.scale.y &&
+           lhs.color.r == rhs.color.r &&
+           lhs.color.g == rhs.color.g &&
+           lhs.color.b == rhs.color.b &&
+           lhs.color.a == rhs.color.a &&
+           lhs.lineWidth == rhs.lineWidth &&
+           lhs.lineStyle == rhs.lineStyle &&
+           lhs.decoration == rhs.decoration;
+}
+
 class TextureModeScope
 {
 public:
@@ -137,6 +154,7 @@ bool ActiveReticleViewsUseClipping(const std::vector<ReticleRenderView>& activeR
 
 void DrawActivePageContent(const SceneRegistry& scene,
                            const std::vector<ReticleRenderView>& activeReticles,
+                           const ReticleGroup& titleReticle,
                            const int width,
                            const int height,
                            const Font* textFont,
@@ -145,12 +163,6 @@ void DrawActivePageContent(const SceneRegistry& scene,
                            ImageTextureCache* imageCache,
                            TextLayoutCache* textLayoutCache)
 {
-    const auto activePage = scene.ActivePageSummary();
-    if (!activePage.has_value())
-    {
-        return;
-    }
-
     Canvas2D canvas(
         width,
         height,
@@ -170,14 +182,21 @@ void DrawActivePageContent(const SceneRegistry& scene,
         }
     }
 
-    const ReticleGroup titleReticle =
-        BuildPageTitleDisplayReticle(activePage->name, activePage->title, activePage->titleDisplay);
     canvas.DrawReticle(titleReticle);
 }
 } // namespace
 
 struct MfdRenderer::Impl
 {
+    struct TitleReticleCache
+    {
+        std::string pageName {};
+        std::string pageTitle {};
+        PageTitleDisplayDefinition display {};
+        ReticleGroup reticle {};
+        bool valid = false;
+    };
+
     RenderTexture2D renderTarget {};
     Shader shader {};
     bool renderTargetReady = false;
@@ -193,6 +212,7 @@ struct MfdRenderer::Impl
     BezierPolylineCache bezierCache {};
     ImageTextureCache imageCache {};
     TextLayoutCache textLayoutCache {};
+    TitleReticleCache titleReticleCache {};
 
     ~Impl()
     {
@@ -354,6 +374,24 @@ struct MfdRenderer::Impl
     {
         return textFontReady ? &textFont : nullptr;
     }
+
+    const ReticleGroup& ResolveTitleReticle(const PageSummary& activePage)
+    {
+        if (!titleReticleCache.valid ||
+            titleReticleCache.pageName != activePage.name ||
+            titleReticleCache.pageTitle != activePage.title ||
+            !HasSamePageTitleDisplay(titleReticleCache.display, activePage.titleDisplay))
+        {
+            titleReticleCache.pageName = activePage.name;
+            titleReticleCache.pageTitle = activePage.title;
+            titleReticleCache.display = activePage.titleDisplay;
+            titleReticleCache.reticle =
+                BuildPageTitleDisplayReticle(activePage.name, activePage.title, activePage.titleDisplay);
+            titleReticleCache.valid = true;
+        }
+
+        return titleReticleCache.reticle;
+    }
 };
 
 MfdRenderer::MfdRenderer()
@@ -414,6 +452,18 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         impl_->EnsureTextFont();
     }
 
+    ReticleGroup fallbackTitleReticle {};
+    const ReticleGroup* titleReticle = nullptr;
+    if (impl_ != nullptr)
+    {
+        titleReticle = &impl_->ResolveTitleReticle(*activePage);
+    }
+    else
+    {
+        fallbackTitleReticle = BuildPageTitleDisplayReticle(activePage->name, activePage->title, activePage->titleDisplay);
+        titleReticle = &fallbackTitleReticle;
+    }
+
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();
     ApplyPointFilterToFont(ResolveTextFont(textFont));
     std::vector<ReticleRenderView> fallbackActiveReticles;
@@ -439,6 +489,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         DrawActivePageContent(
             scene,
             *activeReticles,
+            *titleReticle,
             viewportWidth,
             viewportHeight,
             textFont,
@@ -458,6 +509,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         DrawActivePageContent(
             scene,
             *activeReticles,
+            *titleReticle,
             viewportWidth,
             viewportHeight,
             textFont,
@@ -482,6 +534,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         DrawActivePageContent(
             scene,
             *activeReticles,
+            *titleReticle,
             viewportWidth,
             viewportHeight,
             textFont,

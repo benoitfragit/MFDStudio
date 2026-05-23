@@ -658,8 +658,8 @@ private:
                                                      const ViewportState& viewport) const;
     /** @brief Returns the hit distance in pixels between the mouse and one page reticle. */
     float ReticleHitDistancePixels(const mfd::ReticleGroup& reticle, const ViewportState& viewport, ImVec2 mousePosition) const;
-    /** @brief Builds the generated preview reticle representing the page title chrome. */
-    mfd::ReticleGroup BuildPageTitlePreviewReticle(const mfd::PageDefinition& page) const;
+    /** @brief Returns one cached preview reticle representing the page title chrome. */
+    const mfd::ReticleGroup& BuildPageTitlePreviewReticle(const mfd::PageDefinition& page) const;
     /** @brief Returns the hit distance in pixels between the mouse and one primitive. */
     float PrimitiveHitDistancePixels(const mfd::ReticleGroup& reticle,
                                      const mfd::Primitive& primitive,
@@ -811,6 +811,16 @@ private:
         std::filesystem::path assetsRoot {};
         editor::ReticleUsageHighlightResult result {};
     } reticleUsageHighlightCache_ {};
+    /** @brief Cached generated page-title reticle reused while the current authored title state stays unchanged. */
+    struct PageTitlePreviewReticleCacheState
+    {
+        bool valid = false;
+        std::string pageName {};
+        std::string pageTitle {};
+        mfd::PageTitleDisplayDefinition display {};
+        mfd::ReticleGroup reticle {};
+    };
+    mutable PageTitlePreviewReticleCacheState pageTitlePreviewReticleCache_ {};
     /** @brief Current direct-manipulation mode active in the preview. */
     InteractionMode interactionMode_ = InteractionMode::None;
     /** @brief Reticle currently manipulated by the user, when relevant. */
