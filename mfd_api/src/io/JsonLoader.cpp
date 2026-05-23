@@ -2640,8 +2640,13 @@ PageDefinition ParsePage(const json& node,
     page.normalizedName = normalizedPageName;
     page.title = node.value("title", page.name);
     if (const json* titleDisplayNode = FindField(node, {"titleDisplay", "titleChrome"});
-        titleDisplayNode != nullptr && titleDisplayNode->is_object())
+        titleDisplayNode != nullptr && !titleDisplayNode->is_null())
     {
+        if (!titleDisplayNode->is_object())
+        {
+            throw std::runtime_error("titleDisplay must be an object");
+        }
+
         page.titleDisplay = ParsePageTitleDisplay(*titleDisplayNode);
     }
     page.backgroundColor = ParseBackgroundColor(node);
@@ -2693,6 +2698,10 @@ PageDefinition ParsePage(const json& node,
 
         page.activeStrobeName = activeStrobe->get<std::string>();
         page.normalizedActiveStrobeName = NormalizePageName(page.activeStrobeName);
+        if (page.normalizedActiveStrobeName.empty())
+        {
+            throw std::runtime_error("activeStrobe cannot be empty");
+        }
     }
 
     if (node.contains("strobes"))

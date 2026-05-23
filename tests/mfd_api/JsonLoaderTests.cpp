@@ -1860,3 +1860,62 @@ TEST(JsonLoaderTests, LoadDocumentRejectsNonBooleanPageTitleDisplayVisibility)
     mfd::JsonLoader loader;
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
+
+TEST(JsonLoaderTests, LoadDocumentRejectsNonObjectPageTitleDisplayBlock)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "pages": [
+    {
+      "name": "Main",
+      "titleDisplay": 123,
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": []
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsEmptyActiveStrobeName)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "marker.json",
+                  R"json({
+  "id": "marker",
+  "elements": [
+    { "id": "shape", "type": "circle", "radius": 0.05 }
+  ]
+})json");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "activeStrobe": "   ",
+      "layers": [
+        { "id": "default" }
+      ],
+      "strobe": {
+        "id": "marker_strobe",
+        "template": "marker"
+      }
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
