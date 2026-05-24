@@ -1,0 +1,28 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam ArrowColor #355070
+skinparam ArrowThickness 1.1
+skinparam rectangle {
+  RoundCorner 12
+  BorderColor #355070
+  FontColor #1F2933
+}
+left to right direction
+
+rectangle "Ownship state\nfrom the client domain\n\nworldPositionNm\nheadingRadians" as Ownship #EAF4F4
+rectangle "Authoring choices on Page1\n\nownship symbol fixed at {0.0, -0.7}\n40 NM visible ahead\nforward must appear upward\nright must appear toward page +X" as PageContract #FFF3D6
+rectangle "UserSpaceFrame\n\nuserOrigin = ownship.worldPositionNm\npageAnchor = {0.0, -0.7}\noriginRotationRadians = ownship.headingRadians\npageUnitsPerUserUnit = 0.04\nuserXAxisInPage = {0.0, 1.0}\nuserYAxisInPage = {1.0, 0.0}" as Frame #D9EDFF
+rectangle "mfd::UserSpaceProjector(frame)" as Projector #E9F5DB
+
+Ownship --> Frame : moving origin\nand local heading
+PageContract --> Frame : page anchor,\nscale, and axis convention
+Frame --> Projector : one complete\nprojection rule
+
+note bottom of Frame
+Build the frame from two sources only:
+1. what moves in the business domain
+2. how the authored page must display that local frame
+end note
+@enduml

@@ -44,6 +44,7 @@
 /_Deliveries/*
 /build/*
 /AGENTS.md
+/Review.md
 /assets/windows/*.generated.map
 /examples/client_mockup/generated/*
 /examples/client_mockup_minimal/generated/*

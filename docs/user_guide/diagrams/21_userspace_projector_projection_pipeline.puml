@@ -1,0 +1,30 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam ArrowColor #355070
+skinparam ArrowThickness 1.1
+skinparam rectangle {
+  RoundCorner 12
+  BorderColor #355070
+  FontColor #1F2933
+}
+left to right direction
+
+rectangle "Track business state\n\nrange in NM\nazimuth in radians\nrelative heading in radians" as TrackState #EAF4F4
+rectangle "BuildOwnshipRelativeOffsetNm()\n\nx = distance * cos(azimuth)\ny = distance * sin(azimuth)" as PolarToCartesian #FFF3D6
+rectangle "BuildTrackWorldPositionNm()\n\nrotate by ownship heading\nadd ownship worldPositionNm" as WorldPosition #FFF3D6
+rectangle "UserSpaceProjector\n\nsubtract userOrigin\nremove originRotation\napply axis mapping\napply NM -> page scale\nadd pageAnchor" as Projector #D9EDFF
+rectangle "Generated reticle handle\n\nSetPosition(pagePos)\nSetRotationDegrees(pageHeading)" as ReticleHandle #E9F5DB
+
+TrackState --> PolarToCartesian
+PolarToCartesian --> WorldPosition
+WorldPosition --> Projector : absolute world position in NM
+TrackState --> Projector : absolute world heading in radians
+Projector --> ReticleHandle : page position in [-1, 1]\nrotation in degrees
+
+note bottom of Projector
+Keep the source state in NM and radians until the last moment.
+Project only when you are about to fill generated reticle handles.
+end note
+@enduml

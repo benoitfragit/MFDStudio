@@ -1461,7 +1461,227 @@ if (!client.UpsertDynamicReticle("Cockpit", "lead_track", "cockpit_radar_contact
 
 Use the raw path for genericity, not as a substitute for the generated path in a window-specific product client.
 
-## 6.17 Minimal end-to-end example
+## 6.17 When and how to use `UserSpaceProjector`
+
+`UserSpaceProjector` is the right tool when your client does not naturally
+work in authored page coordinates.
+
+Typical cases:
+
+- one moving local frame centered on an aircraft, vehicle, ship, or sensor
+- domain positions expressed in nautical miles, meters, or another physical unit
+- headings expressed in radians
+- one page that must stay visually aircraft-centric while the ownship moves and turns
+
+Do not use it just because the helper exists. If your client already computes
+positions directly in page space `[-1, 1]` and rotations directly in page-space
+degrees, sending those values without a projector is simpler and clearer.
+
+| Situation | Use `UserSpaceProjector`? | Why |
+| --- | --- | --- |
+| tracks are already computed in page coordinates | no | no extra frame conversion is needed |
+| one authored page must stay centered on one moving aircraft | yes | the helper isolates origin, axis, scale, and rotation conversion |
+| the client owns positions in NM and azimuth/range around the aircraft | yes | keep domain units client-side until the final page-space write |
+| one static decoration always stays at one fixed authored position | no | author it directly in JSON and leave it static |
+
+> API:
+> `UserSpaceProjector` is client-side only. The runtime still receives ordinary page-space coordinates in `[-1, 1]` and ordinary rotations in degrees.
+
+### 6.17.1 Build the projector from the page contract and the business frame
+
+![How the `client_tutorial` builds `UserSpaceFrame` for `Page1`](../../docs/user_guide/rendered/19_userspace_projector_frame_construction.png)
+
+You should build `UserSpaceProjector` from two independent decisions:
+
+1. the business frame owned by the client
+2. the authored page contract that tells you where and how that frame must appear on the page
+
+For the `client_tutorial`, the business frame is:
+
+- ownship world position in nautical miles
+- ownship heading in radians
+- track states stored as `distanceNm`, `azimuthRadians`, and `relativeHeadingRadians`
+
+The authored page contract for `Page1` is:
+
+- the ownship symbol is drawn once and stays fixed at `{0.0f, -0.7f}`
+- the farthest straight-ahead contact must remain inside the page
+- aircraft forward must appear upward on the page
+- aircraft right must appear toward page `+X`
+
+That directly gives the six `UserSpaceFrame` fields:
+
+| `UserSpaceFrame` field | `client_tutorial` value | Why |
+| --- | --- | --- |
+| `userOrigin` | `ownship.worldPositionNm` | the moving frame is centered on the aircraft |
+| `pageAnchor` | `{0.0f, -0.7f}` | the authored aircraft symbol stays fixed there |
+| `originRotationRadians` | `ownship.headingRadians` | the local frame rotates with the aircraft |
+| `pageUnitsPerUserUnit` | `0.04f` | `40 NM` must fit in the forward page span |
+| `userXAxisInPage` | `{0.0f, 1.0f}` | aircraft `+X` means "forward", rendered upward |
+| `userYAxisInPage` | `{1.0f, 0.0f}` | aircraft `+Y` means "right", rendered toward page `+X` |
+
+### 6.17.2 The exact `Page1` frame used by `client_tutorial`
+
+![Axis mapping from aircraft-local coordinates to the authored `Page1`](../../docs/user_guide/rendered/20_userspace_projector_axis_mapping.png)
+
+The implementation in `examples/client_tutorial/src/main.cpp` is deliberately
+small because all the meaning lives in the six frame fields:
+
+```cpp
+mfd::UserSpaceProjector BuildTutorialProjector(const OwnshipState& ownship)
+{
+    mfd::UserSpaceFrame frame;
+    frame.userOrigin = ownship.worldPositionNm;
+    frame.pageAnchor = {0.0f, -0.7f};
+    frame.originRotationRadians = ownship.headingRadians;
+    frame.pageUnitsPerUserUnit = (0.9f - (-0.7f)) / 40.0f;
+    frame.userXAxisInPage = {0.0f, 1.0f};
+    frame.userYAxisInPage = {1.0f, 0.0f};
+    return mfd::UserSpaceProjector(frame);
+}
+```
+
+Read it in this order:
+
+1. `userOrigin`: "what point in my domain frame is the moving origin?"
+2. `pageAnchor`: "where must that origin appear on the authored page?"
+3. `originRotationRadians`: "what local heading must be considered page forward?"
+4. `pageUnitsPerUserUnit`: "how much page space does one NM represent?"
+5. `userXAxisInPage` and `userYAxisInPage`: "how do aircraft-local axes map to page axes?"
+
+The scale deserves one explicit derivation:
+
+```text
+forward visible page span = 0.9 - (-0.7) = 1.6 page units
+maximum forward range      = 40 NM
+pageUnitsPerUserUnit       = 1.6 / 40 = 0.04
+```
+
+That means:
+
+- `1 NM` becomes `0.04` page units
+- `10 NM` becomes `0.40` page units
+- `20 NM` becomes `0.80` page units before anchor offset is added
+
+### 6.17.3 Detailed worked example with range and azimuth around the aircraft
+
+![From aircraft-relative polar data to generated page-space commands](../../docs/user_guide/rendered/21_userspace_projector_projection_pipeline.png)
+
+The important part of `client_tutorial` is not the final `SetPosition(...)`
+call. The important part is that the source state stays aircraft-centric until
+the last moment.
+
+One track is stored like this:
+
+```cpp
+struct TutorialTrackState
+{
+    float distanceNm = 20.0f;
+    float azimuthRadians = 0.40f;
+    float relativeHeadingRadians = -0.20f;
+};
+```
+
+Interpretation:
+
+- `distanceNm = 20.0f`: the target is `20 NM` from the aircraft
+- `azimuthRadians = 0.40f`: the target is offset by `0.40 rad` around the aircraft nose
+- `relativeHeadingRadians = -0.20f`: the target heading is `0.20 rad` left of aircraft forward
+
+The client first converts range/azimuth to one aircraft-local cartesian offset:
+
+```text
+localOffsetNm.x = distanceNm * cos(azimuthRadians) = 20 * cos(0.40) = 18.42
+localOffsetNm.y = distanceNm * sin(azimuthRadians) = 20 * sin(0.40) =  7.79
+```
+
+With the `Page1` axis mapping:
+
+- aircraft-local `+X` becomes page up
+- aircraft-local `+Y` becomes page right
+
+So before anchor offset:
+
+```text
+pageOffset = { localOffsetNm.y, localOffsetNm.x } * 0.04
+           = { 7.79, 18.42 } * 0.04
+           = { 0.31, 0.74 }
+```
+
+Then the aircraft anchor is applied:
+
+```text
+pagePosition = pageAnchor + pageOffset
+             = { 0.0, -0.7 } + { 0.31, 0.74 }
+             = { 0.31, 0.04 }
+```
+
+This is why the same target appears:
+
+- slightly to the right of the page center
+- above the aircraft anchor
+- without ever storing raw page coordinates in the business state
+
+The code path used by `client_tutorial` follows that same logic:
+
+```cpp
+const mfd::Vec2 localOffsetNm =
+    BuildOwnshipRelativeOffsetNm(track.azimuthRadians, track.distanceNm);
+const mfd::Vec2 worldPositionNm =
+    ownship.worldPositionNm + RotateRadians(localOffsetNm, ownship.headingRadians);
+
+track.reticle->SetPosition(projector.ToPagePosition(worldPositionNm));
+track.reticle->SetRotationDegrees(
+    projector.ToPageRotationDegrees(
+        ownship.headingRadians + track.relativeHeadingRadians));
+```
+
+Why is the projector still useful if the track was rebuilt as one world
+position first? Because the same projector:
+
+- subtracts the moving aircraft origin
+- removes the ownship heading from the projected result
+- reapplies the authored page axis convention
+- keeps the page aircraft-centric even while the aircraft moves and turns
+
+### 6.17.4 Update rule for a live loop
+
+In an aircraft-centric page, rebuild or refresh the frame every cycle before
+you project the tracks:
+
+```cpp
+mfd::UserSpaceFrame frame = projector.Frame();
+frame.userOrigin = ownship.worldPositionNm;
+frame.originRotationRadians = ownship.headingRadians;
+projector.SetFrame(frame);
+```
+
+Then:
+
+1. keep track state in NM and radians
+2. project positions only when filling generated handles
+3. send the final batch in normal page space
+
+This rule matters because the projector is not a scene graph. It is only one
+pure client-side conversion step. If the aircraft moved or turned, the frame
+must reflect that before the next projection.
+
+> WARNING:
+> Do not author the page in nautical miles. Author the page normally in `[-1, 1]`, keep the aircraft symbol fixed where you want it, and convert only in the client.
+
+### 6.17.5 When not to use `UserSpaceProjector`
+
+Skip the projector when:
+
+- the client already owns stable page-space coordinates
+- one page is not centered on a moving local frame
+- you are updating only static text or simple authored widgets
+- adding the helper would only duplicate one trivial direct `SetPosition(...)`
+
+The helper is valuable only when it removes coordinate-system coupling from the
+rest of the client code.
+
+## 6.18 Minimal end-to-end example
 
 ```cpp
 // Scenario: minimum typed client that activates the cockpit page and publishes one radar-ready frame.
