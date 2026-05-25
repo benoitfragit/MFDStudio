@@ -246,6 +246,7 @@ public:
     void SetVisible(bool visible);
     void SetPosition(mfd::Vec2 position);
     void SetRotationDegrees(float rotationDegrees);
+    /** @brief Stages one primitive-local non-uniform scale override. */
     void SetScale(mfd::Vec2 scale);
     void SetColor(mfd::ColorRgba color);
     void SetFillColor(mfd::ColorRgba color);
@@ -510,6 +511,8 @@ public:
     void ClearBlinkType();
     void SetPosition(mfd::Vec2 position);
     void SetRotationDegrees(float rotationDegrees);
+    /** @brief Stages one reticle-level non-uniform scale override. */
+    void SetScale(mfd::Vec2 scale);
     void SetColor(mfd::ColorRgba color);
     void SetThickness(float thickness);
     void SetText(std::string value);
@@ -688,6 +691,8 @@ public:
     void ClearBlinkType();
     void SetPosition(mfd::Vec2 position);
     void SetRotationDegrees(float rotationDegrees);
+    /** @brief Stages one dynamic-reticle non-uniform scale override. */
+    void SetScale(mfd::Vec2 scale);
     void SetColor(mfd::ColorRgba color);
     void SetThickness(float thickness);
     void SetText(std::string value);

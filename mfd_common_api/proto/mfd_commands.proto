@@ -73,6 +73,7 @@ message ReticlePatch
   optional bool blink_enabled = 10;
   optional uint64 blink_type_id = 11;
   map<uint64, PrimitivePatch> primitive_patches_by_id = 12;
+  optional Vec2 scale = 13;
 }
 
 message ActivatePageCommand

@@ -23,6 +23,13 @@
     {
       "name": "Default",
       "id": "radar_strobe_default",
+      "elements": [
+        {
+          "id": "cursor_line",
+          "type": "line",
+          "exposed": true
+        }
+      ],
       "capture": {
         "shape": "rectangle",
         "radius": 0.12,
@@ -40,6 +47,14 @@
     {
       "name": "Strobe1",
       "id": "radar_strobe_1",
+      "elements": [
+        {
+          "id": "strobe_label",
+          "type": "text",
+          "exposed": true,
+          "text": "ALT"
+        }
+      ],
       "capture": {
         "shape": "circle",
         "radius": 0.09,

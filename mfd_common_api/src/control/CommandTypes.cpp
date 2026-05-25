@@ -242,6 +242,11 @@ void ValidateReticlePatch(const ReticlePatch& patch)
         ValidateFiniteAbs(*patch.rotationDegrees, "ReticlePatch.rotationDegrees", kMaxAbsAngleDegrees);
     }
 
+    if (patch.scale.has_value())
+    {
+        ValidateScale(*patch.scale, "ReticlePatch.scale");
+    }
+
     if (patch.thickness.has_value())
     {
         ValidatePositiveFinite(*patch.thickness, "ReticlePatch.thickness", kMaxThickness);
@@ -849,6 +854,11 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         target->set_rotation_degrees(*patch.rotationDegrees);
     }
 
+    if (patch.scale.has_value())
+    {
+        FillProtoVec2(*patch.scale, target->mutable_scale());
+    }
+
     if (patch.color.has_value())
     {
         target->set_packed_rgba(PackColor(*patch.color));
@@ -929,6 +939,11 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
     if (value.has_rotation_degrees())
     {
         patch.rotationDegrees = value.rotation_degrees();
+    }
+
+    if (value.has_scale())
+    {
+        patch.scale = FromProtoVec2(value.scale());
     }
 
     if (value.has_packed_rgba())

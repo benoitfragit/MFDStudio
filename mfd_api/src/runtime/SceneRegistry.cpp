@@ -209,6 +209,11 @@ bool IsValidReticlePatch(const ReticlePatch& patch) noexcept
         return false;
     }
 
+    if (patch.scale.has_value() && !IsValidScale(*patch.scale))
+    {
+        return false;
+    }
+
     if (patch.thickness.has_value() &&
         !IsPositiveFiniteWithin(*patch.thickness, kMaxThickness))
     {
@@ -365,6 +370,7 @@ bool IsEmptyPatch(const ReticlePatch& patch) noexcept
            !patch.blinkTypeId.has_value() &&
            !patch.position.has_value() &&
            !patch.rotationDegrees.has_value() &&
+           !patch.scale.has_value() &&
            !patch.color.has_value() &&
            !patch.thickness.has_value() &&
            !patch.text.has_value() &&
@@ -701,6 +707,12 @@ bool ApplyPatchToReticleGroup(ReticleGroup& reticle, const ReticlePatch& patch)
     if (patch.rotationDegrees.has_value())
     {
         reticle.transform.rotationDegrees = *patch.rotationDegrees;
+        applied = true;
+    }
+
+    if (patch.scale.has_value())
+    {
+        reticle.transform.scale = *patch.scale;
         applied = true;
     }
 

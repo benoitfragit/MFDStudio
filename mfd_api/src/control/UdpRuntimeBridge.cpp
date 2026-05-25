@@ -254,6 +254,10 @@ void MergeReticlePatch(ReticlePatch& target, const ReticlePatch& source)
     {
         target.rotationDegrees = source.rotationDegrees;
     }
+    if (source.scale.has_value())
+    {
+        target.scale = source.scale;
+    }
     if (source.color.has_value())
     {
         target.color = source.color;

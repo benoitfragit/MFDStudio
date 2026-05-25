@@ -26,6 +26,7 @@ The mapping file covers fixed authored identifiers only:
 
 - page
 - static reticle
+- authored strobe reticle
 - exposed primitive
 - dynamic reticle template
 - blink type
@@ -51,6 +52,9 @@ commands can select the active strobe without relying on raw strings.
 - generated page APIs still expose a generic `strobe` handle with validity metadata
 - generated pages may also expose named `StrobeType` entries such as
   `defaultStrobe`, `designatorStrobe`, or `strobe1`
+- generated pages may also expose one authored strobe-reticle wrapper such as
+  `defaultReticle` or `strobe1Reticle` so exposed primitives of the currently
+  selected strobe can be patched without raw ids
 
 ## File Format
 
@@ -189,15 +193,24 @@ Field meaning:
 - `normalizedReticleId`
   - runtime lookup key
 - `source`
-  - currently always `static`
+  - `static` for page static reticles
+  - `strobe` for authored strobe reticles
 
 Dynamic runtime reticles are not part of this table because their instances are
 not fixed authored objects.
+
+Template-based strobe rows use the authored strobe `id` when it is present;
+otherwise they reuse the referenced template id. Inline strobe rows require an
+explicit authored `id`.
 
 ## Primitive Table
 
 The primitive table contains only explicitly exposed primitives. Decorative or
 internal primitives are omitted.
+
+Exposed primitives authored inside strobe reticles are emitted the same way as
+page-static reticle primitives: `ownerKind` stays `reticle`, and `ownerId`
+points to the strobe-reticle row from the reticle table.
 
 Each primitive entry contains:
 
@@ -220,7 +233,7 @@ Field meaning:
 - `ownerKind`
   - `reticle` or `template`
 - `ownerId`
-  - owning reticle or template transport ID
+  - owning static reticle, strobe reticle, or template transport ID
 - `primitiveId`
   - authored primitive identifier
 - `normalizedPrimitiveId`

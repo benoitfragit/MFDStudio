@@ -44,6 +44,7 @@ STATIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "ClearBlinkType",
     "SetPosition",
     "SetRotationDegrees",
+    "SetScale",
     "SetColor",
     "SetThickness",
 )
@@ -116,7 +117,13 @@ class StrobeSpec:
     member_name: str
     canonical_key: str
     transport_id: int
+    reticle_wrapper_class_name: str
+    reticle_member_name: str
+    reticle_canonical_key: str
+    reticle_transport_id: int
     reticle_id: str
+    primitives: list[PrimitiveSpec]
+    status_primitive_accessor_name: str | None
     default_active: bool
     valid: bool
     capture_shape: str
@@ -375,12 +382,37 @@ def ensure_unique_reticle_spec_names(page_name: str, reticle_specs: list[Reticle
 
 
 def ensure_unique_strobe_spec_names(page_name: str, strobe_specs: list[StrobeSpec]) -> None:
-    duplicates = duplicate_generated_values([strobe.member_name for strobe in strobe_specs])
-    if duplicates:
-        duplicate_list = ", ".join(duplicates)
-        raise RuntimeError(
-            f"Duplicate generated strobe member name(s) on page '{page_name}': {duplicate_list}"
-        )
+    for field_name, values in (
+        ("strobe member name", [strobe.member_name for strobe in strobe_specs]),
+        ("strobe reticle class name", [strobe.reticle_wrapper_class_name for strobe in strobe_specs]),
+        ("strobe reticle member name", [strobe.reticle_member_name for strobe in strobe_specs]),
+    ):
+        duplicates = duplicate_generated_values(values)
+        if duplicates:
+            duplicate_list = ", ".join(duplicates)
+            raise RuntimeError(
+                f"Duplicate generated {field_name}(s) on page '{page_name}': {duplicate_list}"
+            )
+
+
+def ensure_unique_page_reticle_wrapper_names(page_name: str,
+                                             reticle_specs: list[ReticleSpec],
+                                             strobe_specs: list[StrobeSpec]) -> None:
+    class_names = [reticle.wrapper_class_name for reticle in reticle_specs]
+    class_names.extend(strobe.reticle_wrapper_class_name for strobe in strobe_specs)
+    member_names = [reticle.member_name for reticle in reticle_specs]
+    member_names.extend(strobe.reticle_member_name for strobe in strobe_specs)
+
+    for field_name, values in (
+        ("reticle class name", class_names),
+        ("reticle member name", member_names),
+    ):
+        duplicates = duplicate_generated_values(values)
+        if duplicates:
+            duplicate_list = ", ".join(duplicates)
+            raise RuntimeError(
+                f"Duplicate generated {field_name}(s) on page '{page_name}': {duplicate_list}"
+            )
 
 
 def ensure_unique_primitive_spec_names(owner_kind: str,
@@ -478,6 +510,25 @@ def resolved_elements(reticle_node: dict, template_library: dict[str, dict]) -> 
     return [element for element in elements if isinstance(element, dict)]
 
 
+def resolve_reticle_runtime_id(reticle_node: dict, owner_description: str) -> str:
+    explicit_id = reticle_node.get("id")
+    if isinstance(explicit_id, str) and explicit_id:
+        return explicit_id
+
+    template_id = reticle_node.get("template") or reticle_node.get("sourceTemplateId")
+    if isinstance(template_id, str) and template_id:
+        return template_id
+
+    elements = reticle_node.get("elements")
+    if isinstance(elements, list):
+        raise RuntimeError(
+            f"{owner_description} defines inline elements and must declare a non-empty id "
+            "to generate one stable reticle binding")
+
+    raise RuntimeError(
+        f"{owner_description} must declare either one non-empty id or one template/sourceTemplateId")
+
+
 def choose_status_primitive(primitives: list[PrimitiveSpec]) -> PrimitiveSpec | None:
     text_primitives = [primitive for primitive in primitives if primitive.primitive_type == "text"]
     for suffix in ("_value", "_caption", "_text"):
@@ -519,7 +570,9 @@ def build_primitive_specs(owner_kind: str,
 
 
 def build_strobe_spec(page_name: str,
+                      page_base_name: str,
                       strobe_node: dict,
+                      template_library: dict[str, dict],
                       fallback_name: str,
                       default_active: bool) -> StrobeSpec:
     raw_name = strobe_node.get("name")
@@ -553,9 +606,23 @@ def build_strobe_spec(page_name: str,
         if isinstance(magnet_node.get("strength"), (int, float)):
             magnet_strength = float(magnet_node["strength"])
 
-    reticle_id = strobe_node.get("id")
-    if not isinstance(reticle_id, str) or not reticle_id:
-        reticle_id = normalize_lookup_name(strobe_name) or "strobe"
+    reticle_id = resolve_reticle_runtime_id(
+        strobe_node,
+        f"Strobe '{strobe_name}' on page '{page_name}'")
+
+    reticle_canonical_key = (
+        f"page/{normalize_lookup_name(page_name)}/strobe/{normalize_lookup_name(strobe_name)}/reticle/"
+        f"{normalize_lookup_name(reticle_id)}"
+    )
+    reticle_transport_id = stable_transport_id(reticle_canonical_key)
+    reticle_member_name = f"{camel_case(strobe_name)}Reticle"
+    wrapper_class_name = f"{page_base_name}{pascal_case(strobe_name)}StrobeReticle"
+    primitives = build_primitive_specs(
+        "strobe-reticle",
+        f"{page_name}/{strobe_name}/{reticle_id}",
+        resolved_elements(strobe_node, template_library))
+    ensure_unique_primitive_spec_names("strobe-reticle", f"{page_name}/{strobe_name}", primitives)
+    status_primitive = choose_status_primitive(primitives)
 
     canonical_key = strobe_canonical_key(page_name, strobe_name)
     return StrobeSpec(
@@ -563,7 +630,13 @@ def build_strobe_spec(page_name: str,
         member_name=strobe_member_name(strobe_name),
         canonical_key=canonical_key,
         transport_id=stable_transport_id(canonical_key),
+        reticle_wrapper_class_name=wrapper_class_name,
+        reticle_member_name=reticle_member_name,
+        reticle_canonical_key=reticle_canonical_key,
+        reticle_transport_id=reticle_transport_id,
         reticle_id=reticle_id,
+        primitives=primitives,
+        status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
         default_active=default_active,
         valid=True,
         capture_shape=capture_shape,
@@ -576,7 +649,10 @@ def build_strobe_spec(page_name: str,
     )
 
 
-def resolve_strobe_specs(page_name: str, page_root: dict) -> list[StrobeSpec]:
+def resolve_strobe_specs(page_name: str,
+                         page_base_name: str,
+                         page_root: dict,
+                         template_library: dict[str, dict]) -> list[StrobeSpec]:
     raw_active_strobe = page_root.get("activeStrobe")
     if not isinstance(raw_active_strobe, str) or not raw_active_strobe:
         raw_active_strobe = page_root.get("defaultStrobe")
@@ -605,7 +681,8 @@ def resolve_strobe_specs(page_name: str, page_root: dict) -> list[StrobeSpec]:
             if normalized_active_strobe_name
             else index == 0
         )
-        strobe_specs.append(build_strobe_spec(page_name, strobe_node, fallback_name, default_active))
+        strobe_specs.append(
+            build_strobe_spec(page_name, page_base_name, strobe_node, template_library, fallback_name, default_active))
 
     return strobe_specs
 
@@ -825,10 +902,11 @@ def build_page_specs(window_root: dict,
                 status_primitive_accessor_name = reticle.status_primitive_accessor_name
                 break
 
-        strobe_specs = resolve_strobe_specs(page_name, page_root)
+        strobe_specs = resolve_strobe_specs(page_name, page_base_name, page_root, template_library)
 
         ensure_unique_reticle_spec_names(page_name, reticles)
         ensure_unique_strobe_spec_names(page_name, strobe_specs)
+        ensure_unique_page_reticle_wrapper_names(page_name, reticles, strobe_specs)
         page_specs.append(PageSpec(
             page_name=page_name,
             page_class_name=f"{page_base_name}{page_class_suffix}",
@@ -1058,6 +1136,39 @@ def emit_header(namespace_name: str,
                 "",
             ])
 
+        for strobe in page.strobes:
+            lines.extend([
+                f"class {strobe.reticle_wrapper_class_name} final : private mfd::client::Reticle",
+                "{",
+                "public:",
+                f"    {strobe.reticle_wrapper_class_name}();",
+            ])
+            lines.extend(emit_using_declarations(
+                "mfd::client::Reticle",
+                STATIC_RETICLE_EXPOSED_BASE_MEMBERS))
+
+            if strobe.status_primitive_accessor_name is not None:
+                lines.append("    void SetValue(std::string value);")
+
+            for primitive in strobe.primitives:
+                lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
+
+            lines.extend([
+                "",
+                "private:",
+            ])
+
+            for primitive in strobe.primitives:
+                lines.append(f"    {primitive.cpp_type} {primitive.member_name};")
+
+            if not strobe.primitives:
+                lines.append("    // No exposed primitive for this authored strobe reticle.")
+
+            lines.extend([
+                "};",
+                "",
+            ])
+
         lines.extend([
             f"class {page.page_class_name}",
             "{",
@@ -1116,6 +1227,9 @@ def emit_header(namespace_name: str,
             lines.append("")
 
         lines.append("    StrobeHandle strobe;")
+
+        for strobe in page.strobes:
+            lines.append(f"    {strobe.reticle_wrapper_class_name} {strobe.reticle_member_name};")
 
         for reticle in page.reticles:
             lines.append(f"    {reticle.wrapper_class_name} {reticle.member_name};")
@@ -1306,6 +1420,38 @@ def emit_source(namespace_name: str,
                     "",
                 ])
 
+        for strobe in page.strobes:
+            ctor_initializers = [
+                (f'    mfd::client::Reticle("{cpp_string(page.page_name)}", "{cpp_string(strobe.reticle_id)}", '
+                 f"{page.transport_id}U, {strobe.reticle_transport_id}U)")]
+            for primitive in strobe.primitives:
+                ctor_initializers.append(
+                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
+
+            lines.append(f"{strobe.reticle_wrapper_class_name}::{strobe.reticle_wrapper_class_name}() :")
+            lines.append(",\n".join(ctor_initializers))
+            lines.append("{")
+            lines.append("}")
+            lines.append("")
+
+            if strobe.status_primitive_accessor_name is not None:
+                lines.extend([
+                    f"void {strobe.reticle_wrapper_class_name}::SetValue(std::string value)",
+                    "{",
+                    f"    {strobe.status_primitive_accessor_name}().SetText(std::move(value));",
+                    "}",
+                    "",
+                ])
+
+            for primitive in strobe.primitives:
+                lines.extend([
+                    f"{primitive.cpp_type}& {strobe.reticle_wrapper_class_name}::{primitive.accessor_name}() noexcept",
+                    "{",
+                    f"    return {primitive.member_name};",
+                    "}",
+                    "",
+                ])
+
         page_ctor_initializers: list[str] = [
             "    feedbackState_(feedbackState)",
         ]
@@ -1316,6 +1462,8 @@ def emit_source(namespace_name: str,
         else:
             page_ctor_initializers.append(
                 f"    strobe(Name(), StrobeInfo {{}}, {page.transport_id}U)")
+        for strobe in page.strobes:
+            page_ctor_initializers.append(f"    {strobe.reticle_member_name}()")
         for reticle in page.reticles:
             page_ctor_initializers.append(f"    {reticle.member_name}()")
         for template in page_templates:
@@ -1339,6 +1487,8 @@ def emit_source(namespace_name: str,
             "{",
             "    strobe.Reset();",
         ])
+        for strobe in page.strobes:
+            lines.append(f"    {strobe.reticle_member_name}.Reset();")
         for reticle in page.reticles:
             lines.append(f"    {reticle.member_name}.Reset();")
         for template in page_templates:
@@ -1352,6 +1502,13 @@ def emit_source(namespace_name: str,
             "",
             "    count += strobe.AppendCommands(commands) ? 1U : 0U;",
         ])
+        for strobe in page.strobes:
+            lines.extend([
+                f"    if (strobe.IsSelected({strobe.member_name}))",
+                "    {",
+                f"        count += {strobe.reticle_member_name}.AppendCommands(commands) ? 1U : 0U;",
+                "    }",
+            ])
         for reticle in page.reticles:
             lines.append(f"    count += {reticle.member_name}.AppendCommands(commands) ? 1U : 0U;")
         for template in page_templates:
@@ -1588,6 +1745,26 @@ def mapping_document(window_root: dict,
                     "id": primitive.transport_id,
                     "ownerKind": "reticle",
                     "ownerId": reticle.transport_id,
+                    "primitiveId": primitive.primitive_id,
+                    "normalizedPrimitiveId": normalize_lookup_name(primitive.primitive_id),
+                    "primitiveType": primitive.primitive_type,
+                    "exposed": True,
+                })
+
+        for strobe in sorted(page.strobes, key=lambda entry: entry.canonical_key):
+            reticles.append({
+                "id": strobe.reticle_transport_id,
+                "pageId": page.transport_id,
+                "reticleId": strobe.reticle_id,
+                "normalizedReticleId": normalize_lookup_name(strobe.reticle_id),
+                "source": "strobe",
+            })
+
+            for primitive in sorted(strobe.primitives, key=lambda entry: entry.canonical_key):
+                primitives.append({
+                    "id": primitive.transport_id,
+                    "ownerKind": "reticle",
+                    "ownerId": strobe.reticle_transport_id,
                     "primitiveId": primitive.primitive_id,
                     "normalizedPrimitiveId": normalize_lookup_name(primitive.primitive_id),
                     "primitiveType": primitive.primitive_type,

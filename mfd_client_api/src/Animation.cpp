@@ -161,6 +161,7 @@ bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
            EqualOptional(lhs.blinkTypeId, rhs.blinkTypeId) &&
            EqualOptional(lhs.position, rhs.position) &&
            EqualOptional(lhs.rotationDegrees, rhs.rotationDegrees) &&
+           EqualOptional(lhs.scale, rhs.scale) &&
            EqualOptional(lhs.color, rhs.color) &&
            EqualOptional(lhs.thickness, rhs.thickness) &&
            EqualOptional(lhs.text, rhs.text) &&
@@ -313,6 +314,7 @@ mfd::ReticlePatch BuildDeltaPatch(const mfd::ReticlePatch& desired, const mfd::R
     CopyChangedOptionalField(desired.blinkTypeId, previous.blinkTypeId, delta.blinkTypeId);
     CopyChangedOptionalField(desired.position, previous.position, delta.position);
     CopyChangedOptionalField(desired.rotationDegrees, previous.rotationDegrees, delta.rotationDegrees);
+    CopyChangedOptionalField(desired.scale, previous.scale, delta.scale);
     CopyChangedOptionalField(desired.color, previous.color, delta.color);
     CopyChangedOptionalField(desired.thickness, previous.thickness, delta.thickness);
     CopyChangedOptionalField(desired.text, previous.text, delta.text);
@@ -368,6 +370,11 @@ void PatchSetPosition(mfd::ReticlePatch& patch, const mfd::Vec2 position)
 void PatchSetRotationDegrees(mfd::ReticlePatch& patch, const float rotationDegrees)
 {
     patch.rotationDegrees = rotationDegrees;
+}
+
+void PatchSetScale(mfd::ReticlePatch& patch, const mfd::Vec2 scale)
+{
+    patch.scale = scale;
 }
 
 void PatchSetColor(mfd::ReticlePatch& patch, const mfd::ColorRgba color)
@@ -1168,6 +1175,12 @@ void Reticle::SetRotationDegrees(const float rotationDegrees)
     dirty_ = true;
 }
 
+void Reticle::SetScale(const mfd::Vec2 scale)
+{
+    PatchSetScale(desiredPatch_, scale);
+    dirty_ = true;
+}
+
 void Reticle::SetColor(const mfd::ColorRgba color)
 {
     PatchSetColor(desiredPatch_, color);
@@ -1577,6 +1590,12 @@ void DynamicReticle::SetPosition(const mfd::Vec2 position)
 void DynamicReticle::SetRotationDegrees(const float rotationDegrees)
 {
     PatchSetRotationDegrees(desiredPatch_, rotationDegrees);
+    dirty_ = true;
+}
+
+void DynamicReticle::SetScale(const mfd::Vec2 scale)
+{
+    PatchSetScale(desiredPatch_, scale);
     dirty_ = true;
 }
 

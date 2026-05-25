@@ -120,6 +120,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     static_assert(generated_ui_fixture::RadarMockupPage::MappingHash() ==
                   generated_ui_fixture::GeneratedUiFixture::MappingHash());
     static_assert(!std::is_convertible_v<generated_ui_fixture::RadarGeometryPanelReticle*, mfd::client::Reticle*>);
+    static_assert(!std::is_convertible_v<generated_ui_fixture::RadarStrobe1StrobeReticle*, mfd::client::Reticle*>);
     static_assert(
         !std::is_convertible_v<generated_ui_fixture::GeometryTemplateDynamicReticle*, mfd::client::DynamicReticle*>);
     static_assert(!std::is_convertible_v<generated_ui_fixture::GeometryTemplateDynamicReticleSet*,
@@ -133,6 +134,10 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     radar.strobe = radar.strobe1;
     radar.strobe.SetActive(true);
     radar.strobe.SetPosition({0.25f, -0.10f});
+    radar.defaultReticle.CursorLine().SetLineStyle(generated_ui_fixture::LineStyle::Dotted);
+    radar.strobe1Reticle.SetRotationDegrees(18.0f);
+    radar.strobe1Reticle.SetScale({1.15f, 0.90f});
+    radar.strobe1Reticle.StrobeLabel().SetText("ALT-1");
     radar.radarStatus.SetValue("LOCK");
     radar.geometryPanel.HeadingLine().SetLineStyle(generated_ui_fixture::LineStyle::Dashed);
     radar.geometryPanel.HeadingLine().SetStart({-0.5f, 0.0f});
@@ -205,7 +210,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     const mfd::CommandBatch batch = ui.BuildCommandBatch(9U);
     EXPECT_EQ(batch.sequence, 9U);
     EXPECT_EQ(batch.mappingHash, generated_ui_fixture::GeneratedUiFixture::MappingHash());
-    ASSERT_EQ(batch.commands.size(), 5U);
+    ASSERT_EQ(batch.commands.size(), 6U);
 
     const auto* window = FindCommand<mfd::UpdateWindowDisplayCommand>(batch.commands);
     ASSERT_NE(window, nullptr);
@@ -223,24 +228,24 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     EXPECT_FLOAT_EQ(strobe->position->x, 0.25f);
     EXPECT_FLOAT_EQ(strobe->position->y, -0.10f);
 
-    std::vector<const mfd::UpdateReticleCommand*> staticReticleUpdates;
+    std::vector<const mfd::UpdateReticleCommand*> pageReticleUpdates;
     for (const mfd::UserCommand& command : batch.commands)
     {
         if (const auto* update = std::get_if<mfd::UpdateReticleCommand>(&command); update != nullptr)
         {
-            staticReticleUpdates.push_back(update);
+            pageReticleUpdates.push_back(update);
         }
     }
 
-    ASSERT_EQ(staticReticleUpdates.size(), 2U);
+    ASSERT_EQ(pageReticleUpdates.size(), 3U);
     const auto statusUpdateIt = std::find_if(
-        staticReticleUpdates.begin(),
-        staticReticleUpdates.end(),
+        pageReticleUpdates.begin(),
+        pageReticleUpdates.end(),
         [](const mfd::UpdateReticleCommand* update)
         {
             return update->target.reticle == "radar_status";
         });
-    ASSERT_NE(statusUpdateIt, staticReticleUpdates.end());
+    ASSERT_NE(statusUpdateIt, pageReticleUpdates.end());
     const mfd::UpdateReticleCommand& statusUpdate = **statusUpdateIt;
     EXPECT_EQ(statusUpdate.target.page, "Radar");
     EXPECT_NE(statusUpdate.target.pageId, 0U);
@@ -250,13 +255,13 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     EXPECT_EQ(statusUpdate.patch.primitivePatchesById.begin()->second.text, std::optional<std::string> {"LOCK"});
 
     const auto geometryUpdateIt = std::find_if(
-        staticReticleUpdates.begin(),
-        staticReticleUpdates.end(),
+        pageReticleUpdates.begin(),
+        pageReticleUpdates.end(),
         [](const mfd::UpdateReticleCommand* update)
         {
             return update->target.reticle == "geometry_panel";
         });
-    ASSERT_NE(geometryUpdateIt, staticReticleUpdates.end());
+    ASSERT_NE(geometryUpdateIt, pageReticleUpdates.end());
     const mfd::UpdateReticleCommand& geometryUpdate = **geometryUpdateIt;
     EXPECT_TRUE(geometryUpdate.patch.primitivePatches.empty());
     ASSERT_EQ(geometryUpdate.patch.primitivePatchesById.size(), 13U);
@@ -358,6 +363,29 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
         [](const auto& entry)
         {
             return HasTimePatch(entry.second);
+        }));
+
+    const auto activeStrobeReticleUpdateIt = std::find_if(
+        pageReticleUpdates.begin(),
+        pageReticleUpdates.end(),
+        [](const mfd::UpdateReticleCommand* update)
+        {
+            return update->target.reticle == "radar_strobe_1";
+        });
+    ASSERT_NE(activeStrobeReticleUpdateIt, pageReticleUpdates.end());
+    const mfd::UpdateReticleCommand& activeStrobeReticleUpdate = **activeStrobeReticleUpdateIt;
+    EXPECT_EQ(activeStrobeReticleUpdate.target.page, "Radar");
+    EXPECT_TRUE(activeStrobeReticleUpdate.patch.rotationDegrees.has_value());
+    EXPECT_TRUE(activeStrobeReticleUpdate.patch.scale.has_value());
+    ASSERT_EQ(activeStrobeReticleUpdate.patch.primitivePatchesById.size(), 1U);
+    EXPECT_EQ(activeStrobeReticleUpdate.patch.primitivePatchesById.begin()->second.text,
+              std::optional<std::string> {"ALT-1"});
+    EXPECT_TRUE(std::none_of(
+        pageReticleUpdates.begin(),
+        pageReticleUpdates.end(),
+        [](const mfd::UpdateReticleCommand* update)
+        {
+            return update->target.reticle == "radar_strobe_default";
         }));
 
     const auto* upsert = FindCommand<mfd::UpsertDynamicReticlesCommand>(batch.commands);

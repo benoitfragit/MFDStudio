@@ -53,6 +53,7 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
 
     mfd::ReticlePatch patch;
     patch.blinkTypeId = 44U;
+    patch.scale = mfd::Vec2 {1.25f, 0.80f};
     patch.textsById.emplace(55U, "HDG");
     patch.letterSpacingsById.emplace(55U, 0.02f);
     patch.primitivePatchesById.emplace(55U, primitivePatch);
@@ -80,6 +81,9 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     EXPECT_EQ(update->target.reticleId, 22U);
     ASSERT_TRUE(update->patch.blinkTypeId.has_value());
     EXPECT_EQ(*update->patch.blinkTypeId, 44U);
+    ASSERT_TRUE(update->patch.scale.has_value());
+    EXPECT_FLOAT_EQ(update->patch.scale->x, 1.25f);
+    EXPECT_FLOAT_EQ(update->patch.scale->y, 0.80f);
     EXPECT_EQ(update->patch.textsById.at(55U), "HDG");
     EXPECT_FLOAT_EQ(update->patch.letterSpacingsById.at(55U), 0.02f);
     ASSERT_EQ(update->patch.primitivePatchesById.size(), 1U);

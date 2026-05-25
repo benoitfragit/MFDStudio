@@ -46,6 +46,17 @@ class GenerateUiTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (template_dir / "cursor_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "cursor_template",
+                        "elements": [
+                            {"id": "cursor_line", "type": "line", "exposed": True},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             page_one.write_text(
                 json.dumps(
@@ -62,12 +73,16 @@ class GenerateUiTests(unittest.TestCase):
                                 {
                                     "name": "Default",
                                     "id": "radar_strobe_default",
+                                    "template": "cursor_template",
                                     "capture": {"shape": "rectangle", "radius": 0.12, "size": [0.30, 0.20]},
                                     "magnet": {"enabled": True, "radius": 0.18, "strength": 0.65},
                                 },
                                 {
                                     "name": "Strobe1",
                                     "id": "radar_strobe_1",
+                                    "elements": [
+                                        {"id": "marker_label", "type": "text", "text": "ALT", "exposed": True},
+                                    ],
                                     "capture": {"shape": "circle", "radius": 0.09, "size": [0.18, 0.18]},
                                     "magnet": {"enabled": False, "radius": 0.10, "strength": 1.0},
                                 },
@@ -164,7 +179,10 @@ class GenerateUiTests(unittest.TestCase):
                 "using LineStyle = mfd::client::LineStyle;",
                 "class RadarRadarStatusReticle final : private mfd::client::Reticle",
                 "using mfd::client::Reticle::AppendCommands;",
+                "using mfd::client::Reticle::SetScale;",
                 "class RadarTrackBoxReticle final : private mfd::client::Reticle",
+                "class RadarDefaultStrobeReticle final : private mfd::client::Reticle",
+                "class RadarStrobe1StrobeReticle final : private mfd::client::Reticle",
                 "class SystemSystemStatusReticle final : private mfd::client::Reticle",
                 "void SetValue(std::string value);",
                 "using MfdGeneratedPageTag = mfd::CommandClient::GeneratedPageTag;",
@@ -193,10 +211,14 @@ class GenerateUiTests(unittest.TestCase):
                 "StatusTemplateDynamicReticleSet& DynamicStatusTemplate() noexcept;",
                 "TextHandle& StatusValue() noexcept;",
                 "LineHandle& Shape() noexcept;",
+                "LineHandle& CursorLine() noexcept;",
+                "TextHandle& MarkerLabel() noexcept;",
                 "TextHandle& SystemStatusValue() noexcept;",
                 "StrobeType defaultStrobe = StrobeType {\"Default\",",
                 "StrobeType strobe1 = StrobeType {\"Strobe1\",",
                 "StrobeHandle strobe;",
+                "RadarDefaultStrobeReticle defaultReticle;",
+                "RadarStrobe1StrobeReticle strobe1Reticle;",
                 "RadarRadarStatusReticle radarStatus;",
                 "RadarTrackBoxReticle trackBox;",
                 "SystemSystemStatusReticle systemStatus;",
@@ -240,6 +262,12 @@ class GenerateUiTests(unittest.TestCase):
                 "radar_.AppendShutdownCommands(commands, std::string {});",
                 "system_.AppendShutdownCommands(commands, std::move(statusText));",
                 "count += strobe.AppendCommands(commands) ? 1U : 0U;",
+                "RadarDefaultStrobeReticle::RadarDefaultStrobeReticle() :",
+                "RadarStrobe1StrobeReticle::RadarStrobe1StrobeReticle() :",
+                "if (strobe.IsSelected(defaultStrobe))",
+                "count += defaultReticle.AppendCommands(commands) ? 1U : 0U;",
+                "if (strobe.IsSelected(strobe1))",
+                "count += strobe1Reticle.AppendCommands(commands) ? 1U : 0U;",
             ]:
                 self.assertIn(expected, source_content)
 
@@ -251,18 +279,104 @@ class GenerateUiTests(unittest.TestCase):
             self.assertTrue(map_content["mappingHash"])
             self.assertEqual(map_content["window"]["source"], "window.json")
             self.assertEqual(len(map_content["pages"]), 2)
-            self.assertEqual(len(map_content["reticles"]), 3)
+            self.assertEqual(len(map_content["reticles"]), 5)
             self.assertEqual(len(map_content["templates"]), 1)
             self.assertEqual(len(map_content["blinkTypes"]), 1)
             self.assertEqual(len(map_content["strobes"]), 2)
-            self.assertEqual(len(map_content["primitives"]), 4)
+            self.assertEqual(len(map_content["primitives"]), 6)
             self.assertTrue(all("strobe" not in row for row in map_content["pages"]))
             self.assertTrue(any(row["strobeName"] == "Default" and row["defaultActive"] for row in map_content["strobes"]))
             self.assertTrue(any(row["strobeName"] == "Strobe1" and not row["defaultActive"] for row in map_content["strobes"]))
+            self.assertTrue(any(row["reticleId"] == "radar_strobe_default" and row["source"] == "strobe"
+                                for row in map_content["reticles"]))
+            self.assertTrue(any(row["reticleId"] == "radar_strobe_1" and row["source"] == "strobe"
+                                for row in map_content["reticles"]))
             primitive_ids = [row["primitiveId"] for row in map_content["primitives"]]
             self.assertEqual(primitive_ids.count("status_value"), 2)
             self.assertIn("shape", primitive_ids)
             self.assertIn("systemStatus_value", primitive_ids)
+            self.assertIn("cursor_line", primitive_ids)
+            self.assertIn("marker_label", primitive_ids)
+
+    def test_template_based_strobe_without_explicit_id_uses_template_id_for_runtime_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "cursor_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "cursor_template",
+                        "elements": [
+                            {"id": "cursor_line", "type": "line", "exposed": True},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            page = root / "radar_page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "activeStrobe": "Default",
+                        "strobes": [
+                            {
+                                "name": "Default",
+                                "template": "cursor_template",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps(
+                    {
+                        "title": "Cockpit",
+                        "reticleLibraryFolder": "reticles",
+                        "pages": [page.name],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                    "--namespace",
+                    "generated_ui",
+                    "--header-include",
+                    "GeneratedUi.h",
+                ],
+                check=True,
+            )
+
+            source_content = output_source.read_text(encoding="utf-8")
+            map_content = json.loads(output_map.read_text(encoding="utf-8"))
+
+            self.assertIn('mfd::client::Reticle("Radar", "cursor_template", ', source_content)
+            self.assertEqual(map_content["reticles"][0]["reticleId"], "cursor_template")
+            self.assertEqual(map_content["reticles"][0]["source"], "strobe")
+            self.assertEqual(map_content["strobes"][0]["reticleId"], "cursor_template")
 
     def test_generates_primitive_specialized_accessors_for_static_and_dynamic_handles(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -432,6 +546,17 @@ class GenerateUiTests(unittest.TestCase):
                     {
                         "id": "alpha_template",
                         "elements": [{"id": "alpha_text", "type": "text"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (template_dir / "cursor_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "cursor_template",
+                        "elements": [
+                            {"id": "cursor_line", "type": "line", "exposed": True},
+                        ],
                     }
                 ),
                 encoding="utf-8",

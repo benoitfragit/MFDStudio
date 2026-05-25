@@ -163,6 +163,8 @@ struct ReticlePatch
     std::optional<Vec2> position;
     /** @brief Optional reticle rotation override in degrees. */
     std::optional<float> rotationDegrees;
+    /** @brief Optional reticle non-uniform scale override. */
+    std::optional<Vec2> scale;
     /** @brief Optional stroke color override. */
     std::optional<ColorRgba> color;
     /** @brief Optional line thickness override. */

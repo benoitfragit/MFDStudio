@@ -599,6 +599,7 @@ TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
     patch.visible = true;
     patch.position = mfd::Vec2 {0.5f, -0.25f};
     patch.rotationDegrees = -12.0f;
+    patch.scale = mfd::Vec2 {1.20f, 0.85f};
     patch.color = mfd::ColorRgba {31, 32, 33, 255};
     patch.thickness = 0.02f;
     patch.texts.emplace("title", "PATCHED");
@@ -614,6 +615,8 @@ TEST(SceneRegistryTests, PageViewAndReticleMutationsCoverCommonRuntimeSetters)
     EXPECT_FLOAT_EQ(textual->transform.position.x, 0.5f);
     EXPECT_FLOAT_EQ(textual->transform.position.y, -0.25f);
     EXPECT_FLOAT_EQ(textual->transform.rotationDegrees, -12.0f);
+    EXPECT_FLOAT_EQ(textual->transform.scale.x, 1.20f);
+    EXPECT_FLOAT_EQ(textual->transform.scale.y, 0.85f);
     ASSERT_TRUE(textual->overrides.color.has_value());
     EXPECT_EQ(textual->overrides.color->r, 31U);
     EXPECT_EQ(textual->overrides.color->g, 32U);
@@ -1399,6 +1402,7 @@ TEST(SceneRegistryTests, ApplyReticlePatchRejectsInvalidPayloadsWithoutMutatingS
 
     mfd::ReticlePatch invalidPatch;
     invalidPatch.position = mfd::Vec2 {std::numeric_limits<float>::infinity(), 0.0f};
+    invalidPatch.scale = mfd::Vec2 {0.0f, 1.0f};
     invalidPatch.text = std::string(5000U, 'X');
 
     EXPECT_FALSE(registry.ApplyReticlePatch("Radar", "textual", invalidPatch));
@@ -1409,6 +1413,8 @@ TEST(SceneRegistryTests, ApplyReticlePatchRejectsInvalidPayloadsWithoutMutatingS
     ASSERT_NE(patchedText, nullptr);
     EXPECT_EQ(textual->transform.position.x, 0.0f);
     EXPECT_EQ(textual->transform.position.y, 0.0f);
+    EXPECT_FLOAT_EQ(textual->transform.scale.x, 1.0f);
+    EXPECT_FLOAT_EQ(textual->transform.scale.y, 1.0f);
     EXPECT_EQ(patchedText->text, "INIT");
 }
 
@@ -1424,6 +1430,7 @@ TEST(SceneRegistryTests, ApplyDynamicReticlePatchRejectsInvalidPayloadsWithoutMu
 
     mfd::ReticlePatch invalidPatch;
     invalidPatch.position = mfd::Vec2 {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+    invalidPatch.scale = mfd::Vec2 {1.0f, 0.0f};
 
     EXPECT_FALSE(registry.ApplyDynamicReticlePatch("Radar", "track_alpha", invalidPatch));
 
@@ -1431,6 +1438,8 @@ TEST(SceneRegistryTests, ApplyDynamicReticlePatchRejectsInvalidPayloadsWithoutMu
     ASSERT_NE(dynamic, nullptr);
     EXPECT_FLOAT_EQ(dynamic->transform.position.x, 0.10f);
     EXPECT_FLOAT_EQ(dynamic->transform.position.y, 0.00f);
+    EXPECT_FLOAT_EQ(dynamic->transform.scale.x, 1.0f);
+    EXPECT_FLOAT_EQ(dynamic->transform.scale.y, 1.0f);
 }
 
 TEST(SceneRegistryTests, MissingTransportPageReferenceLeavesGeneratedReticleLookupUnusable)

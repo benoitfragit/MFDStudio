@@ -67,6 +67,7 @@ The generated static navigation is:
 ```text
 ui -> page -> reticle -> primitive
 ui -> page -> strobe
+ui -> page -> strobe reticle -> primitive
 ui -> page -> dynamic set -> dynamic reticle -> primitive
 ui -> window
 ```
@@ -79,6 +80,7 @@ rectangle "Page handle" as Page
 rectangle "Static reticle handle" as Reticle
 rectangle "Primitive handle" as Primitive
 rectangle "Strobe handle" as Strobe
+rectangle "Strobe reticle handle" as StrobeReticle
 rectangle "Dynamic set handle" as DynamicSet
 rectangle "Dynamic reticle handle" as DynamicReticle
 
@@ -87,6 +89,8 @@ Ui --> Page
 Page --> Reticle
 Reticle --> Primitive
 Page --> Strobe
+Page --> StrobeReticle
+StrobeReticle --> Primitive
 Page --> DynamicSet
 DynamicSet --> DynamicReticle
 DynamicReticle --> Primitive
@@ -156,7 +160,8 @@ Each generated page wrapper carries:
 - one member per static reticle on the page
 - one member per page-local blink type
 - one page-scoped `strobe` handle
-- one generated member per authored strobe entry when the page exposes a strobe catalog
+- one generated `StrobeType` member per authored strobe entry when the page exposes a strobe catalog
+- one generated strobe-reticle wrapper per authored strobe entry so exposed primitives on the currently selected strobe can be patched without raw ids
 - one typed generated dynamic-set accessor per authored reticle template
 
 This lets `CommandClient` overloads consume a generated page directly:
@@ -179,6 +184,7 @@ The generated static reticle handle inherits the usual reticle-level controls:
 - blink enable and blink type
 - position
 - rotation
+- scale
 - color
 - thickness
 
@@ -387,6 +393,26 @@ Internally, the generated transport map now carries one stable transport ID per
 authored strobe entry so low-level commands can resolve selection efficiently.
 That detail stays hidden behind `page.strobe`, `StrobeType`, and
 `CommandClient`.
+
+The same generated page also exposes one reticle wrapper per authored strobe
+entry. Those wrappers let the client patch exposed primitives of the currently
+selected active strobe while keeping the page-scoped strobe selection model:
+
+```cpp
+auto& page1 = ui.Page1();
+
+page1.strobe = page1.defaultStrobe;
+page1.defaultReticle.CursorLine().SetColor({255, 210, 102, 255});
+
+page1.strobe = page1.strobe1;
+page1.strobe1Reticle.SetRotationDegrees(18.0f);
+page1.strobe1Reticle.SetScale({1.15f, 1.15f});
+page1.strobe1Reticle.StrobeLabel().SetText("ALT");
+```
+
+Only the wrapper that matches the page's selected authored strobe contributes
+commands to the next batch. Switching the selected strobe therefore redirects
+the same generated page API toward the new active strobe reticle automatically.
 
 ## Runtime Feedback Queries
 

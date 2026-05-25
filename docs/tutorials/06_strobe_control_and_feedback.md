@@ -154,6 +154,27 @@ locally to generated transport IDs before serialization.
 If you do not switch the selected strobe first, the command updates whichever
 strobe entry is currently active on the page.
 
+When the authored page exposes primitives inside its strobe reticles, the
+generated page also exposes one reticle wrapper per strobe entry. Those
+wrappers patch only the currently selected authored strobe:
+
+```cpp
+auto& page1 = ui.Page1();
+
+page1.strobe = page1.defaultStrobe;
+page1.defaultReticle.CursorLine().SetThickness(0.010f);
+
+page1.strobe = page1.strobe1;
+page1.strobe1Reticle.SetRotationDegrees(18.0f);
+page1.strobe1Reticle.SetScale({1.10f, 1.10f});
+page1.strobe1Reticle.StrobeLabel().SetText("ALT");
+```
+
+This is the supported way to mutate one exposed primitive on the active strobe
+without addressing raw reticle ids. When the selected strobe changes, the
+generated page API automatically redirects runtime reticle commands to the new
+active strobe wrapper.
+
 ## Step 4 - Understand magnetization
 
 If magnetization is enabled:

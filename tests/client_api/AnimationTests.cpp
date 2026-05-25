@@ -155,6 +155,7 @@ TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
     reticle.SetVisible(true);
     reticle.SetPosition({0.25f, -0.50f});
     reticle.SetRotationDegrees(33.0f);
+    reticle.SetScale({1.10f, 0.90f});
     reticle.SetColor({1, 2, 3, 255});
     reticle.SetThickness(0.01f);
     reticle.SetValue("LOCK");
@@ -172,6 +173,7 @@ TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
     ASSERT_TRUE(update->patch.visible.has_value());
     ASSERT_TRUE(update->patch.position.has_value());
     ASSERT_TRUE(update->patch.rotationDegrees.has_value());
+    ASSERT_TRUE(update->patch.scale.has_value());
     ASSERT_TRUE(update->patch.color.has_value());
     ASSERT_TRUE(update->patch.thickness.has_value());
     ASSERT_TRUE(update->patch.blinkEnabled.has_value());
@@ -180,6 +182,8 @@ TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
     EXPECT_FLOAT_EQ(update->patch.position->x, 0.25f);
     EXPECT_FLOAT_EQ(update->patch.position->y, -0.50f);
     EXPECT_FLOAT_EQ(*update->patch.rotationDegrees, 33.0f);
+    EXPECT_FLOAT_EQ(update->patch.scale->x, 1.10f);
+    EXPECT_FLOAT_EQ(update->patch.scale->y, 0.90f);
     EXPECT_EQ(update->patch.color->r, 1U);
     EXPECT_FLOAT_EQ(*update->patch.thickness, 0.01f);
     EXPECT_TRUE(*update->patch.blinkEnabled);
@@ -203,6 +207,7 @@ TEST(AnimationTests, ReticleEmitsSingleUpdateAndTracksPrimitiveSpecificFields)
     EXPECT_FALSE(blinkDisable->patch.visible.has_value());
     EXPECT_FALSE(blinkDisable->patch.position.has_value());
     EXPECT_FALSE(blinkDisable->patch.rotationDegrees.has_value());
+    EXPECT_FALSE(blinkDisable->patch.scale.has_value());
     EXPECT_FALSE(blinkDisable->patch.color.has_value());
     EXPECT_FALSE(blinkDisable->patch.thickness.has_value());
     EXPECT_TRUE(blinkDisable->patch.texts.empty());
@@ -1264,6 +1269,7 @@ TEST(AnimationTests, DynamicReticleSetEmitsOnlyChangedFieldsOnSecondPublish)
     set.Reset();
     mfd::client::DynamicReticle& sameTrack = set.Upsert("trk_01");
     sameTrack.SetPosition({0.6f, -0.4f});
+    sameTrack.SetScale({1.25f, 0.80f});
 
     commands.clear();
     EXPECT_EQ(set.AppendCommands(commands), 1U);
@@ -1274,8 +1280,11 @@ TEST(AnimationTests, DynamicReticleSetEmitsOnlyChangedFieldsOnSecondPublish)
     ASSERT_EQ(upsert->reticles.size(), 1U);
     const auto& patch = upsert->reticles.front().patch;
     ASSERT_TRUE(patch.position.has_value());
+    ASSERT_TRUE(patch.scale.has_value());
     EXPECT_FLOAT_EQ(patch.position->x, 0.6f);
     EXPECT_FLOAT_EQ(patch.position->y, -0.4f);
+    EXPECT_FLOAT_EQ(patch.scale->x, 1.25f);
+    EXPECT_FLOAT_EQ(patch.scale->y, 0.80f);
     EXPECT_FALSE(patch.color.has_value());
 }
 
