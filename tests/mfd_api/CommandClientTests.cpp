@@ -441,6 +441,20 @@ TEST(CommandClientTests, UpdateStrobeCommandNormalizesPageNameAndGeneratedStrobe
     EXPECT_TRUE(strobe->strobe.empty());
 }
 
+TEST(CommandClientTests, UpdateStrobeCommandWithGeneratedStrobeIdRequiresConfiguredTransportMap)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::UpdateStrobeCommand command;
+    command.page = "Radar";
+    command.strobeId = 102U;
+
+    EXPECT_FALSE(client.Send(command));
+    EXPECT_NE(client.LastError().find("generated transport map"), std::string::npos);
+}
+
 TEST(CommandClientTests, WindowDisplayHelpersSendWithoutTransportMap)
 {
     auto channel = std::make_unique<CapturingExchangeChannel>();

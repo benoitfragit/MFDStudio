@@ -452,6 +452,32 @@ TEST(CommandProcessorTests, UpdateStrobeResolvesGeneratedStrobeIdWhenPageNameIsP
     EXPECT_EQ(summary->reticleId, "strobe_alt");
 }
 
+TEST(CommandProcessorTests, UpdateStrobeRejectsGeneratedStrobeIdWithoutMappingHash)
+{
+    mfd::SceneRegistry registry = MakeMultiStrobeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    const auto before = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(before.has_value());
+
+    mfd::UpdateStrobeCommand command;
+    command.page = "Radar";
+    command.strobeId = 102U;
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(command);
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_EQ(processor.LastError(), "Generated transport ids require a non-empty batch mapping hash");
+
+    const auto after = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(after.has_value());
+    EXPECT_EQ(after->strobeName, before->strobeName);
+    EXPECT_EQ(after->reticleId, before->reticleId);
+    EXPECT_FLOAT_EQ(after->position.x, before->position.x);
+    EXPECT_FLOAT_EQ(after->position.y, before->position.y);
+}
+
 TEST(CommandProcessorTests, BulkDynamicRadarBatchSupportsOneHundredTracks)
 {
     mfd::SceneRegistry registry = MakeRuntimeRegistry();

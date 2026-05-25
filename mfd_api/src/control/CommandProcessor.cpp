@@ -59,10 +59,13 @@ bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
             using Command = std::decay_t<decltype(value)>;
 
             if constexpr (std::is_same_v<Command, ActivatePageCommand> ||
-                          std::is_same_v<Command, SetPageViewCommand> ||
-                          std::is_same_v<Command, UpdateStrobeCommand>)
+                          std::is_same_v<Command, SetPageViewCommand>)
             {
                 return value.pageId != 0;
+            }
+            else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
+            {
+                return value.pageId != 0 || value.strobeId != 0;
             }
             else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
             {
