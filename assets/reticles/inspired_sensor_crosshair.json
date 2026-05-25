@@ -50,10 +50,12 @@
     },
     {
       "id": "inner_box",
+      "exposed": true,
       "size": 0.07999999821186066,
       "type": "rectangle"
     },
     {
+      "exposed": true,
       "id": "center_dot",
       "radius": 0.009999999776482582,
       "type": "circle"

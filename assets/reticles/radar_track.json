@@ -35,6 +35,8 @@
         0.016699999570846558
       ],
       "id": "track_label",
+      "reticleRotationSensitive": false,
+      "reticleScaleSensitive": false,
       "size": 0.03750000149011612,
       "text": "TRK",
       "type": "text"

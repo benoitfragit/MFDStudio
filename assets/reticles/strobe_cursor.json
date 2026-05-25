@@ -2,6 +2,7 @@
   "elements": [
     {
       "id": "ring",
+      "exposed": true,
       "radius": 0.08749999850988388,
       "type": "circle"
     },
@@ -10,6 +11,7 @@
         -0.05829999968409538,
         0.0
       ],
+      "exposed": true,
       "id": "left_tick",
       "start": [
         -0.12080000340938568,
@@ -22,6 +24,7 @@
         0.12080000340938568,
         0.0
       ],
+      "exposed": true,
       "id": "right_tick",
       "start": [
         0.05829999968409538,
@@ -34,6 +37,7 @@
         0.0,
         0.05829999968409538
       ],
+      "exposed": true,
       "id": "top_tick",
       "start": [
         0.0,
@@ -46,6 +50,7 @@
         0.0,
         -0.12080000340938568
       ],
+      "exposed": true,
       "id": "bottom_tick",
       "start": [
         0.0,
