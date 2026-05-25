@@ -640,7 +640,9 @@ private:
     mfd::TransportId pageTransportId_ = 0;
     std::vector<StrobeType> strobes_ {};
     mfd::TransportId desiredStrobeId_ = 0;
+    std::string desiredStrobeNameNormalized_ {};
     mfd::TransportId lastSentStrobeId_ = 0;
+    std::string lastSentStrobeNameNormalized_ {};
     std::optional<bool> desiredActive_ {};
     std::optional<bool> lastSentActive_ {};
     std::optional<mfd::Vec2> desiredPosition_ {};

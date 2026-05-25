@@ -28,6 +28,24 @@ std::string NormalizeFeedbackKey(const std::string_view value)
     return mfd::NormalizePageName(value);
 }
 
+std::string NormalizeStrobeName(const std::string_view value)
+{
+    return mfd::NormalizePageName(value);
+}
+
+bool SameStrobeSelection(const mfd::TransportId lhsId,
+                         const std::string_view lhsNameNormalized,
+                         const mfd::TransportId rhsId,
+                         const std::string_view rhsNameNormalized) noexcept
+{
+    if (lhsId != 0 || rhsId != 0)
+    {
+        return lhsId == rhsId;
+    }
+
+    return lhsNameNormalized == rhsNameNormalized;
+}
+
 bool SequenceIsNewer(const std::uint32_t sequence, const std::uint32_t previous) noexcept
 {
     return sequence >= previous;
@@ -1343,6 +1361,7 @@ void StrobeHandle::Use(const StrobeType& strobeType)
     }
 
     desiredStrobeId_ = iterator->GeneratedId();
+    desiredStrobeNameNormalized_ = NormalizeStrobeName(iterator->Name());
     dirty_ = true;
 }
 
@@ -1387,12 +1406,29 @@ bool StrobeHandle::AppendCommands(std::vector<mfd::UserCommand>& commands)
     mfd::UpdateStrobeCommand command;
     command.page = pageName_;
     command.pageId = pageTransportId_;
-    const bool selectionChanged = desiredStrobeId_ != lastSentStrobeId_;
+    const StrobeType* const selectedType = ResolveSelectedType();
+    const bool selectionChanged = !SameStrobeSelection(
+        desiredStrobeId_,
+        desiredStrobeNameNormalized_,
+        lastSentStrobeId_,
+        lastSentStrobeNameNormalized_);
 
     if (selectionChanged)
     {
-        command.strobeId = desiredStrobeId_;
+        if (selectedType != nullptr)
+        {
+            if (desiredStrobeId_ != 0)
+            {
+                command.strobeId = desiredStrobeId_;
+            }
+            else
+            {
+                command.strobe = selectedType->Name();
+            }
+        }
+
         lastSentStrobeId_ = desiredStrobeId_;
+        lastSentStrobeNameNormalized_ = desiredStrobeNameNormalized_;
         emitted = true;
     }
 
@@ -1443,6 +1479,21 @@ const StrobeType* StrobeHandle::ResolveSelectedType() const noexcept
         }
     }
 
+    if (!desiredStrobeNameNormalized_.empty())
+    {
+        const auto iterator = std::find_if(
+            strobes_.begin(),
+            strobes_.end(),
+            [this](const StrobeType& strobe)
+            {
+                return NormalizeStrobeName(strobe.Name()) == desiredStrobeNameNormalized_;
+            });
+        if (iterator != strobes_.end())
+        {
+            return &(*iterator);
+        }
+    }
+
     return &strobes_.front();
 }
 
@@ -1451,6 +1502,7 @@ void StrobeHandle::SelectDefaultStrobe() noexcept
     if (strobes_.empty())
     {
         desiredStrobeId_ = 0;
+        desiredStrobeNameNormalized_.clear();
         return;
     }
 
@@ -1461,7 +1513,9 @@ void StrobeHandle::SelectDefaultStrobe() noexcept
         {
             return strobe.IsDefaultActive();
         });
-    desiredStrobeId_ = iterator != strobes_.end() ? iterator->GeneratedId() : strobes_.front().GeneratedId();
+    const StrobeType& selected = iterator != strobes_.end() ? *iterator : strobes_.front();
+    desiredStrobeId_ = selected.GeneratedId();
+    desiredStrobeNameNormalized_ = NormalizeStrobeName(selected.Name());
 }
 
 DynamicReticle::DynamicReticle(const std::string_view reticleId) :

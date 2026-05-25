@@ -1055,6 +1055,62 @@ TEST(AnimationTests, StrobeHandleUsesOnlyThePageScopeEvenWhenGeneratedPageIdsExi
     EXPECT_EQ(update->strobeId, 22U);
 }
 
+TEST(AnimationTests, StrobeHandleSelectsNamedStrobeTypesWithoutGeneratedIds)
+{
+    mfd::client::StrobeInfo info;
+    info.valid = true;
+
+    const mfd::client::StrobeType defaultStrobe("Default", info, 0U, true);
+    const mfd::client::StrobeType searchStrobe("Search", info, 0U, false);
+
+    mfd::client::StrobeHandle strobe("Radar", {defaultStrobe, searchStrobe}, 11U);
+    strobe.Use(searchStrobe);
+
+    ASSERT_NE(strobe.SelectedType(), nullptr);
+    EXPECT_EQ(strobe.SelectedType()->Name(), "Search");
+    EXPECT_TRUE(strobe.IsSelected(searchStrobe));
+    EXPECT_FALSE(strobe.IsSelected(defaultStrobe));
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(strobe.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateStrobeCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->page, "Radar");
+    EXPECT_EQ(update->pageId, 11U);
+    EXPECT_EQ(update->strobeId, 0U);
+    EXPECT_EQ(update->strobe, "Search");
+}
+
+TEST(AnimationTests, StrobeHandlePrefersGeneratedIdsWhenSelectingStrobeTypes)
+{
+    mfd::client::StrobeInfo info;
+    info.valid = true;
+
+    const mfd::client::StrobeType defaultStrobe("Default", info, 41U, true);
+    const mfd::client::StrobeType searchStrobe("Search", info, 42U, false);
+
+    mfd::client::StrobeHandle strobe("Radar", {defaultStrobe, searchStrobe}, 11U);
+    strobe.Use(searchStrobe);
+
+    ASSERT_NE(strobe.SelectedType(), nullptr);
+    EXPECT_EQ(strobe.SelectedType()->GeneratedId(), 42U);
+    EXPECT_TRUE(strobe.IsSelected(searchStrobe));
+    EXPECT_FALSE(strobe.IsSelected(defaultStrobe));
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(strobe.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateStrobeCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->page, "Radar");
+    EXPECT_EQ(update->pageId, 11U);
+    EXPECT_EQ(update->strobeId, 42U);
+    EXPECT_TRUE(update->strobe.empty());
+}
+
 TEST(AnimationTests, StrobeHandleReplaysCurrentStateWhenSwitchingSelectedStrobe)
 {
     mfd::client::StrobeInfo info;
