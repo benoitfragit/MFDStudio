@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <deque>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -415,6 +416,42 @@ TEST(CommandProcessorTests, UpdateStrobeRejectsUnknownNamedStrobeWithoutMutating
     command.strobe = "Ghost";
     command.active = false;
     command.position = mfd::Vec2 {0.25f, -0.40f};
+
+    EXPECT_FALSE(processor.Submit(command));
+    EXPECT_EQ(processor.LastError(), "Unable to update strobe on page 'Radar'");
+
+    const auto after = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(after.has_value());
+    EXPECT_EQ(after->strobeName, before->strobeName);
+    EXPECT_EQ(after->reticleId, before->reticleId);
+    EXPECT_EQ(after->visible, before->visible);
+    EXPECT_FLOAT_EQ(after->position.x, before->position.x);
+    EXPECT_FLOAT_EQ(after->position.y, before->position.y);
+}
+
+TEST(CommandProcessorTests, UpdateStrobeRollsBackSelectionWhenPositionIsInvalid)
+{
+    mfd::SceneRegistry registry = MakeMultiStrobeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::UpdateStrobeCommand seed;
+    seed.page = "Radar";
+    seed.active = false;
+    seed.position = mfd::Vec2 {0.18f, -0.06f};
+    ASSERT_TRUE(processor.Submit(seed));
+
+    const auto before = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(before.has_value());
+    EXPECT_EQ(before->strobeName, "Default");
+    EXPECT_FALSE(before->visible);
+    EXPECT_FLOAT_EQ(before->position.x, 0.18f);
+    EXPECT_FLOAT_EQ(before->position.y, -0.06f);
+
+    mfd::UpdateStrobeCommand command;
+    command.page = "Radar";
+    command.strobe = "Strobe1";
+    command.active = true;
+    command.position = mfd::Vec2 {0.0f, std::numeric_limits<float>::quiet_NaN()};
 
     EXPECT_FALSE(processor.Submit(command));
     EXPECT_EQ(processor.LastError(), "Unable to update strobe on page 'Radar'");

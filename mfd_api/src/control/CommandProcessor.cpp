@@ -865,30 +865,46 @@ void CommandProcessor::OnUpdateReticle(const UpdateReticleCommand& command)
 
 void CommandProcessor::OnUpdateStrobe(const UpdateStrobeCommand& command)
 {
+    const SceneRegistry::RuntimeSnapshot snapshot = scene_.CaptureRuntimeSnapshot();
+    bool success = true;
+
     if (!command.strobe.empty())
     {
-        if (!scene_.SelectStrobe(command.page, command.strobe))
-        {
-            SetFailure("Unable to update strobe on page '" + command.page + "'");
-            return;
-        }
+        success = scene_.SelectStrobe(command.page, command.strobe);
     }
 
-    bool success = true;
-    if (command.active.has_value())
+    if (success && command.active.has_value())
     {
-        success = scene_.SetStrobeActive(command.page, *command.active) && success;
+        success = scene_.SetStrobeActive(command.page, *command.active);
     }
 
-    if (command.position.has_value())
+    if (success && command.position.has_value())
     {
-        success = scene_.SetStrobePosition(command.page, *command.position) && success;
+        success = scene_.SetStrobePosition(command.page, *command.position);
     }
 
-    if (!success)
+    if (success)
     {
-        SetFailure("Unable to update strobe on page '" + command.page + "'");
+        return;
     }
+
+    const std::string failure = "Unable to update strobe on page '" + command.page + "'";
+    try
+    {
+        scene_.RestoreRuntimeSnapshot(snapshot);
+    }
+    catch (const std::exception& exception)
+    {
+        SetFailure(failure + " (runtime rollback failed: " + std::string(exception.what()) + ")");
+        return;
+    }
+    catch (...)
+    {
+        SetFailure(failure + " (runtime rollback failed: unknown exception)");
+        return;
+    }
+
+    SetFailure(failure);
 }
 
 void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command)
