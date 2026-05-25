@@ -17,6 +17,9 @@ Every primitive supports the following common fields.
 | `scale` | number or vec2 | no | Primitive local scale. |
 | `style` | object | no | Nested primitive style object. |
 | `visible` | bool | no | Primitive visibility. |
+| `exposed` | bool | no | Exposes the primitive to the generated client API and to active-strobe reticle wrappers. |
+| `reticleRotationSensitive` | bool | no | Applies parent page-reticle or page-strobe rotation to this primitive when `true`. |
+| `reticleScaleSensitive` | bool | no | Applies parent page-reticle or page-strobe scale to this primitive when `true`. |
 | `stroke` | color | no | Primitive stroke color. |
 | `thickness` | number | no | Primitive stroke thickness. |
 | `lineStyle` | string | no | Stroke pattern for outline-capable primitives: `solid`, `dotted`, or `dashed`. |
@@ -28,6 +31,14 @@ For transform and color syntax, see [Common JSON Syntax](./common_json_syntax.md
 `lineStyle` applies to outline-capable primitives such as lines, circles,
 rings, rectangles, ellipses, squares, diamonds, triangles, polylines, beziers,
 and arcs. Text, time, and image primitives keep their default solid stroke.
+
+`reticleRotationSensitive` and `reticleScaleSensitive` default to `true`, which
+preserves the historical behavior. Set either field to `false` when the
+primitive must stay upright or keep a fixed authored size while its owning
+reticle or active strobe rotates or scales at runtime. Direct primitive runtime
+patches still apply: an exposed primitive can always be rotated or scaled
+explicitly through the generated client API even when it ignores parent
+reticle-level rotation or scale.
 
 ## Supported Type Names
 

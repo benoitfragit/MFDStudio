@@ -59,6 +59,10 @@ constexpr float kCapturedTrackThickness = 0.0056f;
 constexpr float kTrackLinkThickness = 0.0034f;
 constexpr float kMaxFrameDeltaSeconds = 0.1f;
 constexpr float kPi = 3.14159265358979323846f;
+constexpr float kStrobeRotationAmplitudeDegrees = 34.0f;
+constexpr float kStrobeScaleAmplitude = 0.28f;
+constexpr float kStrobeLabelManualScale = 1.18f;
+constexpr float kStrobeManualLabelPhaseSeconds = 4.0f;
 
 /**
  * @brief Simple ownship state expressed in domain units.
@@ -376,6 +380,62 @@ void UpdateTransientCircleReticle(tutorial_ui::Page1MfdTutorialCircleReticle& ci
 }
 
 /**
+ * @brief Animates the default Page1 strobe reticle through its exposed line primitives.
+ *
+ * This is the generated-API demonstration for the "active strobe primitive"
+ * feature: when `Default` is the selected strobe, the two exposed line
+ * primitives can be restyled directly through `page1.defaultReticle`.
+ *
+ * @tparam TStrobeReticle Generated default-strobe reticle wrapper type.
+ * @param reticle Generated strobe reticle wrapper to mutate.
+ * @param elapsedSeconds Elapsed tutorial time in seconds.
+ */
+template <typename TStrobeReticle>
+void UpdateDefaultStrobeReticle(TStrobeReticle& reticle, const float elapsedSeconds)
+{
+    const float styleBlend = 0.5f + 0.5f * std::sin(elapsedSeconds * 1.4f);
+
+    reticle.SetRotationDegrees(0.0f);
+    reticle.SetScale({1.0f, 1.0f});
+    reticle.HorizontalLine().SetLineStyle(styleBlend >= 0.5f ? mfd::LineStyle::Solid : mfd::LineStyle::Dotted);
+    reticle.HorizontalLine().SetThickness(0.0038f + 0.0014f * styleBlend);
+    reticle.HorizontalLine().SetColor({255, 224, 120, 255});
+    reticle.VerticalLine().SetLineStyle(styleBlend >= 0.5f ? mfd::LineStyle::Dashed : mfd::LineStyle::Solid);
+    reticle.VerticalLine().SetThickness(0.0038f + 0.0010f * (1.0f - styleBlend));
+    reticle.VerticalLine().SetColor({255, 244, 210, 255});
+}
+
+/**
+ * @brief Animates the alternative Page1 strobe reticle and its exposed label.
+ *
+ * The reticle itself rotates and scales. Because the authored `aircraft_label`
+ * primitive opts out of parent reticle rotation and scale, the label stays
+ * upright and size-stable until this helper explicitly rotates or scales the
+ * primitive again during the manual-override phase.
+ *
+ * @tparam TStrobeReticle Generated alternative-strobe reticle wrapper type.
+ * @param reticle Generated strobe reticle wrapper to mutate.
+ * @param elapsedSeconds Elapsed tutorial time in seconds.
+ */
+template <typename TStrobeReticle>
+void UpdateAlternativeStrobeReticle(TStrobeReticle& reticle, const float elapsedSeconds)
+{
+    const float parentPulse = std::sin(elapsedSeconds * 0.9f);
+    const float parentScale = 1.0f + kStrobeScaleAmplitude * (0.5f + 0.5f * std::sin(elapsedSeconds * 0.7f));
+    const float manualPhaseSeconds = std::fmod(elapsedSeconds, 2.0f * kStrobeManualLabelPhaseSeconds);
+    const bool manualPrimitiveOverride = manualPhaseSeconds >= kStrobeManualLabelPhaseSeconds;
+
+    reticle.SetRotationDegrees(kStrobeRotationAmplitudeDegrees * parentPulse);
+    reticle.SetScale({parentScale, parentScale});
+    reticle.AircraftLabel().SetText(manualPrimitiveOverride ? "MAN" : "UPRT");
+    reticle.AircraftLabel().SetRotationDegrees(manualPrimitiveOverride ? -18.0f : 0.0f);
+    reticle.AircraftLabel().SetScale(
+        manualPrimitiveOverride
+            ? mfd::Vec2 {kStrobeLabelManualScale, kStrobeLabelManualScale}
+            : mfd::Vec2 {1.0f, 1.0f});
+}
+
+/**
  * @brief Advances one persistent linked track in business space.
  *
  * The pair connected by the cue stays in aircraft-relative domain
@@ -566,6 +626,8 @@ int mainImpl()
     auto& page2ProgressBar = page2.mfdTutorialProgressBar;
     auto& progressFill = page2ProgressBar.FillBar();
     auto& page1Strobe = page1.strobe;
+    auto& page1DefaultStrobeReticle = page1.defaultReticle;
+    auto& page1AlternativeStrobeReticle = page1.strobe1Reticle;
 
     // The aircraft symbol is authored statically in Page1 JSON at the same
     // anchor used by `BuildTutorialProjector`. The runtime loop updates only
@@ -604,6 +666,8 @@ int mainImpl()
     UpdatePersistentTrackLink(persistentTrackLink, persistentTracks, ownship, startupProjector);
     UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
     UpdateTransientCircleReticle(page1Circle, 0U, transientDeclutterVisible);
+    UpdateDefaultStrobeReticle(page1DefaultStrobeReticle, 0.0f);
+    UpdateAlternativeStrobeReticle(page1AlternativeStrobeReticle, 0.0f);
     if (page1Strobe.IsValid())
     {
         page1Strobe.SetActive(true);
@@ -630,6 +694,8 @@ int mainImpl()
         const float progressCenterX = kProgressBarLeftEdge + progressWidth * 0.5f;
         progressFill.SetSize({progressWidth, kProgressBarHeight});
         progressFill.SetPosition({progressCenterX, 0.0f});
+        UpdateDefaultStrobeReticle(page1DefaultStrobeReticle, elapsedProgressSeconds);
+        UpdateAlternativeStrobeReticle(page1AlternativeStrobeReticle, elapsedProgressSeconds);
 
         for (TutorialTrackState& track : persistentTracks)
         {

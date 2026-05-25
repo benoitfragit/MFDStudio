@@ -31,7 +31,9 @@ using editor::detail::DefaultPageIndex;
 using editor::detail::FindPageIndexByName;
 using editor::detail::FindPageReticleIndexById;
 using editor::detail::kPrimitiveTypes;
+using editor::detail::kTutorialAircraftLabelPrimitiveId;
 using editor::detail::kTutorialAircraftTemplateId;
+using editor::detail::kTutorialPage1OwnshipAnchor;
 using editor::detail::kTutorialStrobeCursorTemplateId;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
@@ -1607,6 +1609,30 @@ void EditorApplication::PrepareTutorialStep()
         selection_.libraryBrowserReticleId = iterator->first;
         selection_.primitiveIndex = -1;
     };
+    const auto selectLibraryPrimitiveById = [this](const std::string_view templateId, const std::string_view primitiveId)
+    {
+        const auto reticleIt = loaded_.document.reticleLibrary.find(std::string {templateId});
+        if (reticleIt == loaded_.document.reticleLibrary.end())
+        {
+            return;
+        }
+
+        const auto primitiveIt = std::find_if(
+            reticleIt->second.primitives.begin(),
+            reticleIt->second.primitives.end(),
+            [primitiveId](const mfd::Primitive& primitive)
+            {
+                return primitive.id == primitiveId;
+            });
+        if (primitiveIt == reticleIt->second.primitives.end())
+        {
+            return;
+        }
+
+        SelectLibraryPrimitive(
+            reticleIt->first,
+            static_cast<int>(primitiveIt - reticleIt->second.primitives.begin()));
+    };
 
     const auto tutorialSteps = editor::tutorial::Steps();
     const editor::tutorial::TutorialStepDefinition& step =
@@ -1660,6 +1686,14 @@ void EditorApplication::PrepareTutorialStep()
         CopyTextBuffer(newLibraryReticleDraft_.id, kTutorialAircraftTemplateId);
         setPrimitiveDraft(mfd::PrimitiveType::Triangle);
         break;
+    case static_cast<int>(TutorialStepId::AppendAircraftLabelPrimitive):
+        if (loaded_.document.reticleLibrary.find(std::string(kTutorialAircraftTemplateId)) !=
+            loaded_.document.reticleLibrary.end())
+        {
+            SelectLibraryReticle(std::string(kTutorialAircraftTemplateId));
+        }
+        setPrimitiveDraft(mfd::PrimitiveType::Text);
+        break;
     case static_cast<int>(TutorialStepId::CreatePage1):
         CopyTextBuffer(newPageDraft_.name, "Page1");
         CopyTextBuffer(newPageDraft_.title, "Page 1");
@@ -1689,9 +1723,14 @@ void EditorApplication::PrepareTutorialStep()
     case static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe):
         selectTutorialPageOrFallback("Page1");
         break;
+    case static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive):
+    case static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance):
+        selectLibraryPrimitiveById(kTutorialAircraftTemplateId, kTutorialAircraftLabelPrimitiveId);
+        break;
     case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):
     {
         selectTutorialPageOrFallback("Page1");
+        pagePreviewView_.center = kTutorialPage1OwnshipAnchor;
         if (loaded_.document.reticleLibrary.find(std::string(kTutorialAircraftTemplateId)) !=
             loaded_.document.reticleLibrary.end())
         {

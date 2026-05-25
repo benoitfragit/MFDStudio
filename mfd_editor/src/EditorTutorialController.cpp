@@ -38,6 +38,7 @@ constexpr std::array<std::string_view, 4> kBuildConfigurations {
     "RelWithDebInfo",
     "MinSizeRel"};
 constexpr std::string_view kTutorialAircraftTemplateId = "mfd_tutorial_aircraft";
+constexpr std::string_view kTutorialAircraftLabelPrimitiveId = "aircraft_label";
 constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
 constexpr std::string_view kTutorialProgressBarTemplateId = "mfd_tutorial_progress_bar";
 constexpr std::string_view kTutorialProgressBarFillPrimitiveId = "fill_bar";
@@ -423,6 +424,7 @@ void EditorTutorialController::OpenFlow()
 
     active_ = true;
     ClampStepIndex();
+    RefreshStepHintPopupRequest();
     app_.PrepareTutorialStep();
     SaveProgress();
 }
@@ -432,6 +434,7 @@ void EditorTutorialController::ResumeFromSavedProgress()
     showResumePopup_ = false;
     active_ = true;
     showCoach_ = true;
+    RefreshStepHintPopupRequest();
     app_.PrepareTutorialStep();
 }
 
@@ -453,6 +456,7 @@ void EditorTutorialController::RestartFromScratch()
     stepIndex_ = 0;
     active_ = true;
     showCoach_ = true;
+    RefreshStepHintPopupRequest();
     app_.PrepareTutorialStep();
     SaveProgress();
     if (!reloadedDefaultWindow)
@@ -483,6 +487,7 @@ void EditorTutorialController::Finish()
     active_ = false;
     stepPhase_ = 0;
     focusLayerId_.clear();
+    showStepHintPopup_ = false;
     showCoach_ = false;
     ClearProgress();
     app_.RebuildStatus(
@@ -703,6 +708,47 @@ bool EditorTutorialController::ConsumeResumePopupRequest() noexcept
     return requested;
 }
 
+bool EditorTutorialController::ConsumeStepHintPopupRequest() noexcept
+{
+    const bool requested = showStepHintPopup_;
+    showStepHintPopup_ = false;
+    return requested;
+}
+
+std::string_view EditorTutorialController::CurrentStepHintPopupTitle() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    switch (stepIndex_)
+    {
+    case static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive):
+        return "Expose one active strobe primitive";
+    case static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance):
+        return "Detach the label from parent strobe transforms";
+    default:
+        return {};
+    }
+}
+
+std::string_view EditorTutorialController::CurrentStepHintPopupMessage() const noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    switch (stepIndex_)
+    {
+    case static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive):
+        return "This step demonstrates the generated API path for the active strobe. "
+               "After exposing `aircraft_label`, the client can mutate it through `page.strobe1Reticle` "
+               "while `Strobe1` stays selected.";
+    case static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance):
+        return "Disable both inheritance checkboxes on `aircraft_label`. "
+               "The parent strobe will still rotate and scale, but the label will stay upright and keep its own size "
+               "until runtime code explicitly rotates or scales the primitive itself.";
+    default:
+        return {};
+    }
+}
+
 bool EditorTutorialController::ShouldResetFileMenuPhaseOnClose() const noexcept
 {
     using editor::tutorial::TutorialStepId;
@@ -762,6 +808,7 @@ bool EditorTutorialController::ShouldAdvanceReticleCreatePhase() const noexcept
     using editor::tutorial::TutorialStepId;
 
     return IsStep(static_cast<int>(TutorialStepId::CreateStrobeCursorReticle)) ||
+           IsStep(static_cast<int>(TutorialStepId::AppendAircraftLabelPrimitive)) ||
            IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle));
 }
 
@@ -939,6 +986,20 @@ bool EditorTutorialController::ValidateAppendPrimitive(const mfd::ReticleGroup& 
             return false;
         }
     }
+    else if (IsStep(static_cast<int>(TutorialStepId::AppendAircraftLabelPrimitive)))
+    {
+        if (reticle.id != kTutorialAircraftTemplateId)
+        {
+            error = "Tutorial: append the aircraft label inside 'mfd_tutorial_aircraft'.";
+            return false;
+        }
+
+        if (primitiveType != mfd::PrimitiveType::Text)
+        {
+            error = "Tutorial: keep the Add primitive selector on 'Text' for the aircraft label.";
+            return false;
+        }
+    }
 
     return true;
 }
@@ -951,6 +1012,19 @@ void EditorTutorialController::ConfigureAppendedPrimitive(mfd::Primitive& primit
     {
         ConfigureTutorialStrobeLinePrimitive(primitive, true);
     }
+    else if (IsStep(static_cast<int>(TutorialStepId::AppendAircraftLabelPrimitive)))
+    {
+        primitive.id = std::string(kTutorialAircraftLabelPrimitiveId);
+        primitive.style.color = mfd::ColorRgba {255, 244, 210, 255};
+        primitive.style.thickness = 0.0038f;
+        primitive.transform.position = {0.0f, -0.105f};
+        if (auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry); text != nullptr)
+        {
+            text->text = "ALT";
+            text->fontSize = 0.040f;
+            text->letterSpacing = 0.002f;
+        }
+    }
     else if (IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle)))
     {
         ConfigureTutorialProgressBarFramePrimitive(primitive);
@@ -960,6 +1034,11 @@ void EditorTutorialController::ConfigureAppendedPrimitive(mfd::Primitive& primit
 std::string_view EditorTutorialController::LibraryAppendPrimitiveHaloReason() const noexcept
 {
     using editor::tutorial::TutorialStepId;
+
+    if (IsStep(static_cast<int>(TutorialStepId::AppendAircraftLabelPrimitive)))
+    {
+        return "Append the aircraft label so the alternative strobe can later expose and animate one text primitive.";
+    }
 
     if (IsStep(static_cast<int>(TutorialStepId::CreateProgressBarReticle)))
     {
@@ -974,16 +1053,36 @@ bool EditorTutorialController::IsExposedPrimitiveTutorialSelection(const std::st
 {
     using editor::tutorial::TutorialStepId;
 
-    return IsStep(static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive)) &&
-           reticleId == kTutorialProgressBarTemplateId &&
-           primitiveId == kTutorialProgressBarFillPrimitiveId;
+    return (IsStep(static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive)) &&
+            reticleId == kTutorialProgressBarTemplateId &&
+            primitiveId == kTutorialProgressBarFillPrimitiveId) ||
+           (IsStep(static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive)) &&
+            reticleId == kTutorialAircraftTemplateId &&
+            primitiveId == kTutorialAircraftLabelPrimitiveId);
+}
+
+bool EditorTutorialController::IsAlternativeStrobeLabelSelection(const std::string_view reticleId,
+                                                                 const std::string_view primitiveId) const noexcept
+{
+    return reticleId == kTutorialAircraftTemplateId &&
+           primitiveId == kTutorialAircraftLabelPrimitiveId;
 }
 
 void EditorTutorialController::AdvanceStep()
 {
     stepIndex_ = std::min(stepIndex_ + 1, editor::tutorial::StepCount() - 1);
+    RefreshStepHintPopupRequest();
     app_.PrepareTutorialStep();
     SaveProgress();
+}
+
+void EditorTutorialController::RefreshStepHintPopupRequest() noexcept
+{
+    using editor::tutorial::TutorialStepId;
+
+    showStepHintPopup_ =
+        stepIndex_ == static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive) ||
+        stepIndex_ == static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance);
 }
 
 std::string_view EditorTutorialController::CurrentTargetId() const noexcept
@@ -1018,6 +1117,8 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
         return stepPhase_ == 0 ? "menu_reticle" :
                                  (stepPhase_ == 1 ? "menu_reticle_new" :
                                                     (stepPhase_ == 2 ? "popup_reticle_create" : "library_append_primitive"));
+    case static_cast<int>(TutorialStepId::AppendAircraftLabelPrimitive):
+        return "library_append_primitive";
     case static_cast<int>(TutorialStepId::CreatePage1):
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "menu_page" : (stepPhase_ == 1 ? "menu_page_new" : "popup_page_create");
@@ -1043,6 +1144,10 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     case static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe):
         return stepPhase_ == 0 ? "page_strobe_alternative_name" :
                                  (stepPhase_ == 1 ? "page_strobe_alternative" : "page_strobe_alternative_add");
+    case static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive):
+        return "primitive_exposed_checkbox";
+    case static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance):
+        return stepPhase_ == 0 ? "primitive_reticle_rotation_checkbox" : "primitive_reticle_scale_checkbox";
     case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):
         return "library_add_to_page";
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
@@ -1101,6 +1206,8 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
         return stepPhase_ == 0 ? "Click Reticle." :
                                  (stepPhase_ == 1 ? "Click New library reticle from primitive." :
                                                     (stepPhase_ == 2 ? "Click Create reticle." : "Click Append primitive."));
+    case static_cast<int>(TutorialStepId::AppendAircraftLabelPrimitive):
+        return "Click Append primitive.";
     case static_cast<int>(TutorialStepId::CreatePage1):
     case static_cast<int>(TutorialStepId::CreatePage2):
         return stepPhase_ == 0 ? "Click Page." :
@@ -1129,6 +1236,11 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
         return stepPhase_ == 0 ? "Keep the suggested strobe name set to Strobe1." :
                                  (stepPhase_ == 1 ? "Choose mfd_tutorial_aircraft for the alternative triangle strobe."
                                                   : "Click Add strobe to create the Page1 runtime alternative.");
+    case static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive):
+        return "Enable Exposed on aircraft_label.";
+    case static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance):
+        return stepPhase_ == 0 ? "Disable Affected by reticle rotation."
+                               : "Disable Affected by reticle scale.";
     case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):
         return "Click Add to active page.";
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):

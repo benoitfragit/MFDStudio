@@ -234,6 +234,62 @@ TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefau
     EXPECT_EQ(page.staticReticles[1].blink.durationMs, 1200U);
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesPrimitiveReticleSensitivityFlags)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "label.json",
+                  R"json({
+  "id": "label",
+  "elements": [
+    {
+      "id": "caption",
+      "type": "text",
+      "reticleRotationSensitive": false,
+      "reticleScaleSensitive": false
+    }
+  ]
+})json");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": [
+        { "id": "label_instance", "template": "label", "layerId": "default" }
+      ],
+      "strobes": [
+        {
+          "name": "Default",
+          "template": "label",
+          "id": "label_strobe"
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+    ASSERT_EQ(document.pages.size(), 1U);
+    const mfd::PageDefinition& page = document.pages.front();
+    ASSERT_EQ(page.staticReticles.size(), 1U);
+    ASSERT_EQ(page.staticReticles.front().primitives.size(), 1U);
+    EXPECT_FALSE(page.staticReticles.front().primitives.front().reticleRotationSensitive);
+    EXPECT_FALSE(page.staticReticles.front().primitives.front().reticleScaleSensitive);
+    ASSERT_EQ(page.strobes.size(), 1U);
+    ASSERT_EQ(page.strobes.front().reticle.primitives.size(), 1U);
+    EXPECT_FALSE(page.strobes.front().reticle.primitives.front().reticleRotationSensitive);
+    EXPECT_FALSE(page.strobes.front().reticle.primitives.front().reticleScaleSensitive);
+}
+
 TEST(JsonLoaderTests, LoadDocumentRejectsUnknownDefaultBlinkType)
 {
     TemporaryFolder workspace;

@@ -13,6 +13,7 @@ and APIs.
 - author windows, pages, and reticle libraries in JSON
 - edit those assets visually in `mfd_editor`
 - author the generated page title chrome and page-local strobe variants directly in the page model
+- choose in the editor which reticle primitives inherit parent rotation and scale at runtime
 - run them in `mfd_window`
 - drive the live runtime from `client_mockup` or your own UDP client
 - capture the rendered window through a stable `RGBA32` framebuffer plugin ABI
@@ -50,7 +51,7 @@ Then:
 
 1. launch `.\Scripts\Start-MfdDemo.bat`
 2. launch `client_mockup`
-3. activate one page and edit one reticle or the page strobe directly in the preview
+3. activate one page and edit one reticle, one page strobe, or one exposed strobe primitive directly in the preview
 4. press `F1` in `mfd_window`
 
 For the guided version, use [Quick Start](./docs/QUICKSTART.md).
@@ -70,7 +71,7 @@ For the guided version, use [Quick Start](./docs/QUICKSTART.md).
 | --- | --- |
 | `mfd_window` | Generic runtime launcher that loads one window JSON file |
 | `client_mockup` | Live UDP client for pages, reticles, strobe, feedback, and stress tests |
-| `mfd_editor` | Visual authoring tool for windows, pages, and reticles. Use `--asset-directory <path>` to override the default authored asset root. Static page reticles, the generated page title chrome, and page-local strobes can all be selected and manipulated directly in the preview. The reticle studio exposes direct copy/paste shortcuts for shared templates and, when one primitive is focused, duplicates that primitive inside the current reticle template. |
+| `mfd_editor` | Visual authoring tool for windows, pages, and reticles. Use `--asset-directory <path>` to override the default authored asset root. Static page reticles, the generated page title chrome, and page-local strobes can all be selected and manipulated directly in the preview. Primitive inspectors also let authors expose runtime-driven subparts and opt selected primitives out of parent reticle rotation and scale. The reticle studio exposes direct copy/paste shortcuts for shared templates and, when one primitive is focused, duplicates that primitive inside the current reticle template. |
 | `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin implementing the stable capture ABI |
 
 ## Documentation Shelves

@@ -1066,6 +1066,42 @@ bool ParsePrimitiveExposed(const json& node)
     return false;
 }
 
+bool ParsePrimitiveReticleRotationSensitive(const json& node)
+{
+    if (const json* sensitive = FindField(
+            node,
+            {"reticleRotationSensitive", "followReticleRotation", "inheritReticleRotation"});
+        sensitive != nullptr)
+    {
+        if (!sensitive->is_boolean())
+        {
+            throw std::runtime_error("reticleRotationSensitive must be a boolean");
+        }
+
+        return sensitive->get<bool>();
+    }
+
+    return true;
+}
+
+bool ParsePrimitiveReticleScaleSensitive(const json& node)
+{
+    if (const json* sensitive = FindField(
+            node,
+            {"reticleScaleSensitive", "followReticleScale", "inheritReticleScale"});
+        sensitive != nullptr)
+    {
+        if (!sensitive->is_boolean())
+        {
+            throw std::runtime_error("reticleScaleSensitive must be a boolean");
+        }
+
+        return sensitive->get<bool>();
+    }
+
+    return true;
+}
+
 void ApplyTransformFields(const json& node, Transform2D& transform)
 {
     if (const json* position = FindField(node, {"position", "at", "pos"}))
@@ -1361,6 +1397,8 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
     primitive.transform = ParseTransform(node);
     primitive.style = ParsePrimitiveStyle(node);
     primitive.exposed = ParsePrimitiveExposed(node);
+    primitive.reticleRotationSensitive = ParsePrimitiveReticleRotationSensitive(node);
+    primitive.reticleScaleSensitive = ParsePrimitiveReticleScaleSensitive(node);
 
     switch (primitive.type)
     {
@@ -2889,6 +2927,38 @@ const ReticleGroup* FindStaticReticle(const PageDefinition& page, const std::str
     return nullptr;
 }
 
+const ReticleGroup* FindStrobeReticle(const PageDefinition& page, const std::string_view reticleId) noexcept
+{
+    const std::string normalizedReticleId = NormalizePageName(reticleId);
+
+    for (const PageStrobeDefinition& strobe : page.strobes)
+    {
+        if (NormalizePageName(strobe.reticle.id) == normalizedReticleId)
+        {
+            return &strobe.reticle;
+        }
+    }
+
+    return nullptr;
+}
+
+const ReticleGroup* FindPageOwnedReticle(const PageDefinition& page,
+                                         const TransportMapReticleEntry& reticleEntry) noexcept
+{
+    const std::string normalizedSource = CanonicalToken(reticleEntry.source);
+    if (normalizedSource == "strobe")
+    {
+        return FindStrobeReticle(page, reticleEntry.reticleId);
+    }
+
+    if (normalizedSource == "static")
+    {
+        return FindStaticReticle(page, reticleEntry.reticleId);
+    }
+
+    return nullptr;
+}
+
 std::string PrimitiveTypeToGeneratedName(const PrimitiveType type)
 {
     switch (type)
@@ -2996,11 +3066,11 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
         }
 
         const PageDefinition* page = FindPageDefinition(document, pageIt->second->name);
-        const ReticleGroup* reticle = page == nullptr ? nullptr : FindStaticReticle(*page, reticleEntry.reticleId);
+        const ReticleGroup* reticle = page == nullptr ? nullptr : FindPageOwnedReticle(*page, reticleEntry);
         if (reticle == nullptr)
         {
             throw std::runtime_error(
-                "Generated transport map references unknown static reticle '" + reticleEntry.reticleId +
+                "Generated transport map references unknown page reticle '" + reticleEntry.reticleId +
                 "' on page '" + pageIt->second->name + "'");
         }
 
@@ -3051,7 +3121,7 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
 
             const auto pageIt = pagesById.find(reticleIt->second->pageId);
             const PageDefinition* page = pageIt == pagesById.end() ? nullptr : FindPageDefinition(document, pageIt->second->name);
-            owner = page == nullptr ? nullptr : FindStaticReticle(*page, reticleIt->second->reticleId);
+            owner = page == nullptr ? nullptr : FindPageOwnedReticle(*page, *reticleIt->second);
             break;
         }
 

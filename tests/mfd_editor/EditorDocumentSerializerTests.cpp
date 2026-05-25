@@ -263,6 +263,31 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateIncludesTemplateId)
     EXPECT_EQ(jsonNode.at("id").get<std::string>(), "demo_track");
 }
 
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplatePersistsPrimitiveReticleSensitivityFlags)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "demo_track";
+
+    mfd::Primitive primitive;
+    primitive.id = "caption";
+    primitive.type = mfd::PrimitiveType::Text;
+    primitive.geometry = mfd::TextGeometry {};
+    primitive.reticleRotationSensitive = false;
+    primitive.reticleScaleSensitive = false;
+    reticle.primitives.push_back(std::move(primitive));
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_TRUE(jsonNode.contains("elements"));
+    ASSERT_EQ(jsonNode.at("elements").size(), 1U);
+    const auto& element = jsonNode.at("elements").front();
+    ASSERT_TRUE(element.contains("reticleRotationSensitive"));
+    ASSERT_TRUE(element.contains("reticleScaleSensitive"));
+    EXPECT_FALSE(element.at("reticleRotationSensitive").get<bool>());
+    EXPECT_FALSE(element.at("reticleScaleSensitive").get<bool>());
+}
+
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeometry)
 {
     mfd::ReticleGroup reticle;

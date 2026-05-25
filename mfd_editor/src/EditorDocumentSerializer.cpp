@@ -174,9 +174,32 @@ std::optional<json> SerializePageTitleDisplay(const mfd::PageTitleDisplayDefinit
         node["visible"] = false;
     }
 
-    WriteTransformFields(node, display.transform);
-
     const mfd::PageTitleDisplayDefinition defaults {};
+    const mfd::Transform2D& defaultTransform = defaults.transform;
+
+    if (std::abs(display.transform.position.x - defaultTransform.position.x) >= 0.0001f ||
+        std::abs(display.transform.position.y - defaultTransform.position.y) >= 0.0001f)
+    {
+        node["at"] = ToVec2(display.transform.position);
+    }
+
+    if (std::abs(display.transform.rotationDegrees - defaultTransform.rotationDegrees) >= 0.0001f)
+    {
+        node["angle"] = display.transform.rotationDegrees;
+    }
+
+    if (std::abs(display.transform.scale.x - defaultTransform.scale.x) >= 0.0001f ||
+        std::abs(display.transform.scale.y - defaultTransform.scale.y) >= 0.0001f)
+    {
+        if (std::abs(display.transform.scale.x - display.transform.scale.y) < 0.0001f)
+        {
+            node["scale"] = display.transform.scale.x;
+        }
+        else
+        {
+            node["scale"] = json::array({display.transform.scale.x, display.transform.scale.y});
+        }
+    }
 
     if (!(display.color.r == defaults.color.r &&
           display.color.g == defaults.color.g &&
@@ -528,6 +551,14 @@ json SerializePrimitive(const mfd::Primitive& primitive, const std::filesystem::
     if (primitive.exposed)
     {
         node["exposed"] = true;
+    }
+    if (!primitive.reticleRotationSensitive)
+    {
+        node["reticleRotationSensitive"] = false;
+    }
+    if (!primitive.reticleScaleSensitive)
+    {
+        node["reticleScaleSensitive"] = false;
     }
     WriteTransformFields(node, primitive.transform);
     WritePrimitiveStyleFields(node, primitive.style);

@@ -72,6 +72,11 @@ TEST(EditorTutorialDataTests, TutorialMetadataGuidesRadarTrackLayerFlow)
     EXPECT_NE(std::string_view(createAircraftStep.instruction).find("mfd_tutorial_aircraft"),
               std::string_view::npos);
 
+    const auto& appendAircraftLabelStep = Step(editor::tutorial::TutorialStepId::AppendAircraftLabelPrimitive);
+    EXPECT_STREQ(appendAircraftLabelStep.targetId, "library_append_primitive");
+    EXPECT_NE(std::string_view(appendAircraftLabelStep.instruction).find("text"), std::string_view::npos);
+    EXPECT_NE(std::string_view(appendAircraftLabelStep.instruction).find("strobe"), std::string_view::npos);
+
     const auto& selectTitleStep = Step(editor::tutorial::TutorialStepId::SelectPage1TitleChrome);
     EXPECT_STREQ(selectTitleStep.targetId, "page_select_title_chrome");
     EXPECT_NE(std::string_view(selectTitleStep.instruction).find("title chrome"), std::string_view::npos);
@@ -107,6 +112,19 @@ TEST(EditorTutorialDataTests, TutorialMetadataGuidesRadarTrackLayerFlow)
     EXPECT_NE(std::string_view(alternativeStrobeStep.instruction).find("mfd_tutorial_aircraft"),
               std::string_view::npos);
     EXPECT_NE(std::string_view(alternativeStrobeStep.instruction).find("runtime"), std::string_view::npos);
+
+    const auto& exposeAircraftLabelStep = Step(editor::tutorial::TutorialStepId::ExposeAircraftLabelPrimitive);
+    EXPECT_STREQ(exposeAircraftLabelStep.targetId, "primitive_exposed_checkbox");
+    EXPECT_NE(std::string_view(exposeAircraftLabelStep.instruction).find("aircraft_label"), std::string_view::npos);
+    EXPECT_NE(std::string_view(exposeAircraftLabelStep.instruction).find("active"), std::string_view::npos);
+
+    const auto& disableAircraftLabelInheritanceStep =
+        Step(editor::tutorial::TutorialStepId::DisableAircraftLabelTransformInheritance);
+    EXPECT_STREQ(disableAircraftLabelInheritanceStep.targetId, "primitive_reticle_rotation_checkbox");
+    EXPECT_NE(std::string_view(disableAircraftLabelInheritanceStep.instruction).find("rotation"),
+              std::string_view::npos);
+    EXPECT_NE(std::string_view(disableAircraftLabelInheritanceStep.instruction).find("scale"),
+              std::string_view::npos);
 
     const auto& aircraftToPageStep = Step(editor::tutorial::TutorialStepId::AddAircraftReticleToPage1);
     EXPECT_STREQ(aircraftToPageStep.targetId, "library_add_to_page");

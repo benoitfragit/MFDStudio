@@ -303,6 +303,18 @@ struct Primitive
     PrimitiveGeometry geometry {};
     /** @brief Exposes this primitive to the generated client API when enabled. */
     bool exposed = false;
+    /**
+     * @brief Applies page-reticle or page-strobe parent rotation to this primitive when enabled.
+     *
+     * @note Explicit primitive rotation still applies even when this flag is `false`.
+     */
+    bool reticleRotationSensitive = true;
+    /**
+     * @brief Applies page-reticle or page-strobe parent scale to this primitive when enabled.
+     *
+     * @note Explicit primitive scale still applies even when this flag is `false`.
+     */
+    bool reticleScaleSensitive = true;
 };
 
 /**
@@ -379,6 +391,37 @@ MFD_API Primitive* FindPrimitive(ReticleGroup& reticle, std::string_view primiti
  * @return Pointer to the primitive, or `nullptr` if it does not exist.
  */
 MFD_API const Primitive* FindPrimitive(const ReticleGroup& reticle, std::string_view primitiveId) noexcept;
+
+/**
+ * @brief Resolves the effective world transform applied to one primitive inside a reticle.
+ * @param primitive Primitive to evaluate.
+ * @param reticle Owning reticle or strobe instance.
+ * @return World transform applied to the primitive geometry.
+ *
+ * @note The primitive anchor position always follows the full parent reticle
+ * transform. Parent rotation and scale are propagated to the primitive
+ * geometry only when the corresponding sensitivity flags stay enabled.
+ */
+MFD_API Transform2D ResolvePrimitiveWorldTransform(const Primitive& primitive, const ReticleGroup& reticle) noexcept;
+
+/**
+ * @brief Applies the effective reticle-aware world transform to one primitive-local point.
+ * @param point Point expressed in primitive-local geometry coordinates.
+ * @param primitive Primitive to evaluate.
+ * @param reticle Owning reticle or strobe instance.
+ * @return Point expressed in page logical coordinates.
+ */
+MFD_API Vec2 ApplyPrimitiveWorldTransform(const Vec2& point,
+                                          const Primitive& primitive,
+                                          const ReticleGroup& reticle) noexcept;
+
+/**
+ * @brief Returns the effective average geometry scale applied to one primitive inside a reticle.
+ * @param primitive Primitive to evaluate.
+ * @param reticle Owning reticle or strobe instance.
+ * @return Average absolute scale propagated to the primitive geometry.
+ */
+MFD_API float PrimitiveAverageScale(const Primitive& primitive, const ReticleGroup& reticle) noexcept;
 
 /**
  * @brief Returns whether a primitive can be used as a convex reticle clip mask.

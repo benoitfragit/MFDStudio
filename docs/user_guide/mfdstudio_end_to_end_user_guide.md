@@ -121,9 +121,11 @@ The `.generated.map` contains stable transport IDs for:
 
 - the pages
 - static reticles
+- authored strobe reticles
 - the primitives exposed
 - dynamic templates
 - the blink types
+- the page-local strobe entries
 
 It also contains a `mappingHash` used to prove that the client and the window are talking about the same author model.
 
@@ -397,6 +399,8 @@ The editor allows you to:
 - choose the authored active strobe for page startup
 - assign one template per strobe entry
 - edit each entry position and capture/magnetization configuration
+- expose individual primitives inside the strobe template from the primitive inspector
+- disable parent reticle rotation and scale inheritance per primitive when one label or marker must stay upright
 
 The active entry behaves as the live page strobe until the client selects
 another authored strobe variant at runtime.
@@ -448,11 +452,19 @@ Common primitive fields cover:
 - `rotationDegrees`
 - `scale`
 - `visible`
+- `exposed`
+- `reticleRotationSensitive`
+- `reticleScaleSensitive`
 - `stroke`
 - `thickness`
 - `lineStyle`
 - `filled`
 - `fill`
+
+`reticleRotationSensitive` and `reticleScaleSensitive` default to `true`.
+Disable them when one primitive must ignore parent page-reticle or page-strobe
+rotation and scale while still remaining patchable directly through the
+generated client API.
 
 ## 4.11 Selection and direct editing on the canvas
 
@@ -803,6 +815,7 @@ The generated output builds one typed object tree per authored window:
 - one page wrapper per page
 - one static reticle wrapper per static reticle
 - one specialized handle per exposed primitive
+- one strobe-reticle wrapper per authored strobe entry
 - one generated dynamic-reticle set per page/template binding
 - one optional page-scoped `strobe` handle plus generated authored strobe entries when the page defines several variants
 - one feedback layer that drives `IsActive()` and `IsStrobeCaptured()`
@@ -823,7 +836,7 @@ The `.generated.map` file is not redundant output. It is the canonical transport
 | --- | --- |
 | `pages` | page transport ids and default page marker |
 | `reticles` | static reticle ids keyed by page |
-| `primitives` | exposed primitive ids keyed by reticle or template |
+| `primitives` | exposed primitive ids keyed by static reticle, strobe reticle, or template |
 | `templates` | generated ids for dynamic templates |
 | `blinkTypes` | generated ids for per-page blink types |
 | `strobes` | generated ids for page-local strobe entries |
@@ -1217,6 +1230,11 @@ cockpit.adiHeadingBox.HeadingValue().SetText("045");
 ```
 
 Use primitive handles when the client needs one sub-element to move independently from the reticle that owns it. That is typical for command bugs, cue lines, text fields, and dynamic geometry markers.
+
+The same rule applies to authored strobe reticles. If a strobe cursor contains
+an exposed text or line primitive, the generated page exposes that primitive
+through the authored strobe-reticle wrapper, and only the wrapper matching the
+currently selected strobe contributes commands.
 
 ### Common primitive surface
 

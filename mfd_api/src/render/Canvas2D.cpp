@@ -577,8 +577,7 @@ bool Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGr
         }
 
         const float radius = std::max(0.0f,
-                                      std::abs(ToViewPixels(circle->radius * AverageScale(group.transform,
-                                                                                          primitive.transform))));
+                                      std::abs(ToViewPixels(circle->radius * PrimitiveAverageScale(primitive, group))));
         const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
         if (!std::isfinite(radius) || !IsFiniteVector(center))
         {
@@ -666,7 +665,7 @@ Vec2 Canvas2D::TransformPoint(const Vec2& point,
                               const Primitive& primitive,
                               const ReticleGroup& group) const noexcept
 {
-    return ApplyTransform(ApplyTransform(point, primitive.transform), group.transform);
+    return ApplyPrimitiveWorldTransform(point, primitive, group);
 }
 
 void Canvas2D::BuildScreenPointsInto(const Vec2* points,
@@ -699,7 +698,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
     const Color strokeColor = ToRayColor(style.color);
     const Color fillColor = ToRayColor(style.fillColor);
     const float strokeThickness = std::max(1.0f, std::abs(ToViewPixels(style.thickness)));
-    const Transform2D combinedTransform = CombineTransforms(group.transform, primitive.transform);
+    const Transform2D combinedTransform = ResolvePrimitiveWorldTransform(primitive, group);
     if (!std::isfinite(strokeThickness) ||
         !IsFiniteVec2(combinedTransform.position) ||
         !std::isfinite(combinedTransform.rotationDegrees) ||
@@ -719,7 +718,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         }
 
         const Font font = TextFont();
-        const float textScale = AverageScale(group.transform, primitive.transform);
+        const float textScale = PrimitiveAverageScale(primitive, group);
         const float fontSize = std::max(1.0f,
                                         std::abs(ToViewPixels(text->fontSize * textScale)));
         const float letterSpacing = std::isfinite(text->letterSpacing)
@@ -769,7 +768,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         }
 
         const Font font = TextFont();
-        const float textScale = AverageScale(group.transform, primitive.transform);
+        const float textScale = PrimitiveAverageScale(primitive, group);
         const float fontSize = std::max(1.0f,
                                         std::abs(ToViewPixels(time->fontSize * textScale)));
         const float letterSpacing = std::isfinite(time->letterSpacing)
@@ -833,8 +832,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         }
 
         const float radius = std::max(0.0f,
-                                      std::abs(ToViewPixels(circle->radius * AverageScale(group.transform,
-                                                                                          primitive.transform))));
+                                      std::abs(ToViewPixels(circle->radius * PrimitiveAverageScale(primitive, group))));
         const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
         if (!std::isfinite(radius) || !IsFiniteVector(center))
         {
@@ -865,7 +863,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         const float outerRadiusPixels =
             std::max(0.0f,
-                     std::abs(ToViewPixels(ring->outerRadius * AverageScale(group.transform, primitive.transform))));
+                     std::abs(ToViewPixels(ring->outerRadius * PrimitiveAverageScale(primitive, group))));
         const int segmentCount =
             std::max(SanitizeSegmentCount(ring->segments, 12), EstimateCircleSegmentCount(outerRadiusPixels, 64));
         SampleEllipseInto(

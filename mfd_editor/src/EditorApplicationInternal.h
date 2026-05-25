@@ -144,9 +144,19 @@ inline constexpr std::array<mfd::PrimitiveType, 14> kPrimitiveTypes {
 inline constexpr std::string_view kTutorialAircraftTemplateId = "mfd_tutorial_aircraft";
 
 /**
+ * @brief Tutorial primitive id reserved for the aircraft reticle label shown on the alternative strobe.
+ */
+inline constexpr std::string_view kTutorialAircraftLabelPrimitiveId = "aircraft_label";
+
+/**
  * @brief Tutorial template id reserved for the integrated strobe-cursor walkthrough.
  */
 inline constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
+
+/**
+ * @brief Fixed Page1 anchor used by the tutorial for the static ownship aircraft symbol.
+ */
+inline constexpr mfd::Vec2 kTutorialPage1OwnshipAnchor {0.0f, -0.7f};
 
 /**
  * @brief Keeps editor-only layer visibility state synchronized with runtime page layers.

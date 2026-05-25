@@ -33,12 +33,12 @@ The integrated editor tutorial is available from:
 
 That guided flow is intentionally split into four phases:
 
-1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles including the triangle-based `mfd_tutorial_aircraft`, two distinct Page1 strobes, `RadarTrackLayer`, and the exposed primitive.
+1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles including the triangle-based `mfd_tutorial_aircraft`, two distinct Page1 strobes, `RadarTrackLayer`, and the exposed primitives used by the generated client.
 2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / export workflows without mutating the tutorial assets.
 3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
 4. **Continue in docs**: follow the mockup, generated-client, and architecture reading path.
 
-The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step.
+The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step. When one step needs tighter focus, the tutorial can also raise one small popup hint describing the exact control to use next.
 
 ## Step 1 - Open the window wizard
 
@@ -171,6 +171,12 @@ The same guided flow also stops on the dedicated page-title inspector: on
 `Decoration` to `Frame`. That walkthrough exists to make it clear that the page
 title is no longer one hardcoded overlay. It is an authored chrome element with
 its own visibility, color, line style, and transform.
+
+Later steps return to the primitive inspector on `mfd_tutorial_aircraft`: the
+tutorial asks you to expose `aircraft_label`, then disable its parent reticle
+rotation and scale inheritance. That is the authored way to keep one text
+primitive upright while the alternative Page1 strobe reticle itself can still
+rotate or scale at runtime.
 
 The generated client API keeps the same boundary: it validates that these page
 bindings are coherent, but it does not expose any client-side control to move a
@@ -436,6 +442,7 @@ This integrated flow does more than explain clicks:
 
 - it seeds the editor popups with the tutorial window, page, and reticle values
 - it highlights the exact control expected by the current step
+- it can raise focused popup hints for the blocked step when the relevant inspector is not obvious
 - it explains why each authored asset matters for the runtime contract
 - it now stays focused on authoring plus editor workflows, then hands off the saved-file review to one dedicated follow-up doc
 
@@ -444,6 +451,7 @@ By the end of the integrated flow, the user should understand the full chain:
 - editor action
 - saved authored JSON
 - static ownship anchor through `mfd_tutorial_aircraft` on `Page1`
+- exposed `aircraft_label` plus its disabled parent rotation/scale inheritance
 - `RadarTrackLayer` plus the `mfd_tutorial_radar_track` binding on `Page1`
 - generated transport map
 - generated C++17 page and reticle wrappers

@@ -277,3 +277,44 @@ TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapThatDriftsFromWind
     mfd::JsonLoader loader;
     EXPECT_THROW(loader.LoadWindowConfiguration(workspace.Path() / "window.json"), std::runtime_error);
 }
+
+TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapWithUnknownReticleSource)
+{
+    TemporaryFolder workspace;
+    WriteBasicWindowAssets(workspace);
+    WriteTextFile(workspace.Path() / "window.generated.map",
+                  R"json({
+  "schemaVersion": 1,
+  "mappingHash": "abc123",
+  "window": {
+    "name": "window",
+    "title": "Main Window",
+    "source": "window.json"
+  },
+  "pages": [
+    {
+      "id": 1,
+      "name": "Main",
+      "normalizedName": "main",
+      "hasStrobe": false,
+      "defaultPage": true
+    }
+  ],
+  "reticles": [
+    {
+      "id": 2,
+      "pageId": 1,
+      "reticleId": "status",
+      "normalizedReticleId": "status",
+      "source": "invalid"
+    }
+  ],
+  "primitives": [],
+  "templates": [],
+  "blinkTypes": [],
+  "strobes": []
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadWindowConfiguration(workspace.Path() / "window.json"), std::runtime_error);
+}

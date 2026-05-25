@@ -127,6 +127,7 @@ Each generated page MUST expose:
 - one generated member per authored page-local blink type
 - one generated `strobe` handle
 - one generated member per authored strobe entry when the page exposes a strobe catalog
+- one generated strobe-reticle wrapper per authored strobe entry
 - one generated dynamic-set accessor per authored page dynamic binding
 
 Dynamic-set accessors are authored from `dynamicReticleBindings`, not from one
@@ -148,6 +149,7 @@ common reticle controls already exposed by `mfd::client::Reticle` and
 - `ClearBlinkType`
 - `SetPosition`
 - `SetRotationDegrees`
+- `SetScale`
 - `SetColor`
 - `SetThickness`
 
@@ -247,7 +249,7 @@ The generated API is expected to cover the following client-visible features.
 | Exposed primitives | Client-driven authored primitives are exposed as typed handles under their owning reticles, including `SetLineStyle` for outline-capable primitives |
 | Images | Bitmap primitives are first-class generated handles through `ImageHandle` |
 | Dynamic reticles | Generated sets own hidden runtime IDs and return typed handles from `Create()` |
-| Strobe | Strobe control stays page-scoped through one generated `strobe` handle, with optional generated `StrobeType` entries for authored variants |
+| Strobe | Strobe control stays page-scoped through one generated `strobe` handle, with generated `StrobeType` entries plus one strobe-reticle wrapper per authored variant |
 | Runtime feedback | Generated roots absorb runtime feedback, pages expose `IsActive()`, and dynamic reticles expose `IsStrobeCaptured()` |
 | Batches | The generated root stages partial patches locally, then emits one coherent command batch on demand |
 
@@ -333,14 +335,30 @@ if (radar.strobe.IsValid())
 }
 ```
 
+When the authored strobe reticles expose primitives, the generated page must
+also surface one reticle wrapper per strobe entry:
+
+```cpp
+auto& radar = ui.Radar();
+
+radar.strobe = radar.defaultStrobe;
+radar.defaultReticle.CursorLine().SetThickness(0.010f);
+
+radar.strobe = radar.designatorStrobe;
+radar.designatorReticle.SetRotationDegrees(15.0f);
+radar.designatorReticle.StrobeLabel().SetText("ALT");
+```
+
 Normative expectations:
 
 - generated pages MUST keep one page-scoped `strobe` handle as the primary
   mutation surface
 - when the authored page exposes several strobes, generated pages SHOULD expose
   one generated `StrobeType` member per entry
+- when one authored strobe reticle exposes primitives, generated pages MUST expose one typed reticle wrapper for that strobe entry
 - generated application code SHOULD switch authored strobes through
   `page.strobe = page.someStrobeType`
+- only the generated strobe-reticle wrapper matching the selected authored strobe SHOULD emit commands in the next batch
 - low-level generated transport IDs for strobes MUST stay hidden from normal
   application code
 
@@ -478,7 +496,7 @@ surface.
 | --- | --- |
 | Root API | `Window()`, page accessors, `BuildBatch()`, `BuildCommandBatch()`, `SubmitLatest()` |
 | Root feedback API | `ApplyFeedback(...)`, `ApplyFeedbackPayload(...)`, `PollFeedback(...)` |
-| Page API | stable `Name()`, `GeneratedId()`, `MappingHash()`, `IsActive()`, reticles, blink types, `strobe`, generated strobe entries, dynamic sets |
+| Page API | stable `Name()`, `GeneratedId()`, `MappingHash()`, `IsActive()`, reticles, blink types, `strobe`, generated strobe entries, generated strobe-reticle wrappers, dynamic sets |
 | Static reticles | common reticle setters stay available |
 | Primitive handles | exposed primitives use the most specific handle type available |
 | Image primitives | exposed bitmap primitives use `ImageHandle` |

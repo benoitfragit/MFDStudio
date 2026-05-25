@@ -624,6 +624,13 @@ Fields:
 Each strobe entry supports the same reticle-level fields as a normal page
 reticle, plus the `capture` and `magnet` blocks described below.
 
+Additional rules:
+
+- for template-based strobe entries, omitting `id` makes the runtime and the generated client API reuse the referenced `template` id as the public strobe-reticle id
+- for inline strobe entries, declare an explicit `id`
+- exposed primitives authored inside the strobe template or inline `elements` are reachable through the generated page-scoped strobe-reticle wrappers such as `page.defaultReticle` or `page.strobe1Reticle`
+- primitives inside strobe reticles can also use `reticleRotationSensitive` and `reticleScaleSensitive` exactly like regular reticle primitives
+
 ### `capture` object
 
 Canonical example:

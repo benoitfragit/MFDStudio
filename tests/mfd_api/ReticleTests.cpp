@@ -91,3 +91,60 @@ TEST(ReticleTests, ResolveClipPrimitiveReturnsSupportedReferencedPrimitiveOnly)
     reticle.clipping.primitiveId = "outline";
     EXPECT_EQ(mfd::ResolveClipPrimitive(reticle), nullptr);
 }
+
+TEST(ReticleTests, ResolvePrimitiveWorldTransformKeepsParentAnchorButCanMaskGeometrySensitivity)
+{
+    mfd::ReticleGroup reticle;
+    reticle.transform.position = {10.0f, 20.0f};
+    reticle.transform.rotationDegrees = 90.0f;
+    reticle.transform.scale = {2.0f, 3.0f};
+
+    mfd::Primitive primitive = MakePrimitive("label", mfd::PrimitiveType::Text);
+    primitive.transform.position = {1.0f, 0.0f};
+    primitive.transform.rotationDegrees = 15.0f;
+    primitive.transform.scale = {4.0f, 5.0f};
+
+    const mfd::Transform2D inherited = mfd::ResolvePrimitiveWorldTransform(primitive, reticle);
+    EXPECT_FLOAT_EQ(inherited.position.x, 10.0f);
+    EXPECT_FLOAT_EQ(inherited.position.y, 22.0f);
+    EXPECT_FLOAT_EQ(inherited.rotationDegrees, 105.0f);
+    EXPECT_FLOAT_EQ(inherited.scale.x, 8.0f);
+    EXPECT_FLOAT_EQ(inherited.scale.y, 15.0f);
+
+    primitive.reticleRotationSensitive = false;
+    primitive.reticleScaleSensitive = false;
+    const mfd::Transform2D masked = mfd::ResolvePrimitiveWorldTransform(primitive, reticle);
+    EXPECT_FLOAT_EQ(masked.position.x, 10.0f);
+    EXPECT_FLOAT_EQ(masked.position.y, 22.0f);
+    EXPECT_FLOAT_EQ(masked.rotationDegrees, 15.0f);
+    EXPECT_FLOAT_EQ(masked.scale.x, 4.0f);
+    EXPECT_FLOAT_EQ(masked.scale.y, 5.0f);
+}
+
+TEST(ReticleTests, ApplyPrimitiveWorldTransformCanKeepGeometryUprightWhileAnchorFollowsReticle)
+{
+    mfd::ReticleGroup reticle;
+    reticle.transform.rotationDegrees = 90.0f;
+    reticle.transform.scale = {2.0f, 2.0f};
+
+    mfd::Primitive primitive = MakePrimitive("label", mfd::PrimitiveType::Text);
+    primitive.transform.position = {1.0f, 0.0f};
+    primitive.reticleRotationSensitive = false;
+    primitive.reticleScaleSensitive = false;
+
+    const mfd::Vec2 anchor = mfd::ApplyPrimitiveWorldTransform({}, primitive, reticle);
+    const mfd::Vec2 point = mfd::ApplyPrimitiveWorldTransform({1.0f, 0.0f}, primitive, reticle);
+
+    EXPECT_NEAR(anchor.x, 0.0f, 1.0e-5f);
+    EXPECT_NEAR(anchor.y, 2.0f, 1.0e-5f);
+    EXPECT_NEAR(point.x, 1.0f, 1.0e-5f);
+    EXPECT_NEAR(point.y, 2.0f, 1.0e-5f);
+    EXPECT_FLOAT_EQ(mfd::PrimitiveAverageScale(primitive, reticle), 1.0f);
+
+    primitive.reticleRotationSensitive = true;
+    primitive.reticleScaleSensitive = true;
+    const mfd::Vec2 inheritedPoint = mfd::ApplyPrimitiveWorldTransform({1.0f, 0.0f}, primitive, reticle);
+    EXPECT_NEAR(inheritedPoint.x, 0.0f, 1.0e-5f);
+    EXPECT_NEAR(inheritedPoint.y, 4.0f, 1.0e-5f);
+    EXPECT_FLOAT_EQ(mfd::PrimitiveAverageScale(primitive, reticle), 2.0f);
+}

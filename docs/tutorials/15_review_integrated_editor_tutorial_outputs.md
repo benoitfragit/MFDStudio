@@ -34,6 +34,8 @@ The important Page1 rule is:
 - `inspired_steering_cue` stays where it already was
 - the tutorial adds `mfd_tutorial_radar_track` on `RadarTrackLayer`
 - `Default` and `Strobe1` now use two distinct templates
+- the default strobe cursor exposes its line primitives for generated-client mutation
+- `aircraft_label` is exposed and opts out of parent reticle rotation and scale so it stays upright on the alternative strobe
 
 Minimal before / after for `dynamicReticleBindings`:
 
@@ -94,6 +96,11 @@ Open these files as needed:
 These are the only authored reticle templates created by the integrated
 tutorial flow.
 
+Focus especially on:
+
+- `mfd_tutorial_strobe_cursor.json`: the crosshair lines are marked `exposed`
+- `mfd_tutorial_aircraft.json`: `aircraft_label` is marked `exposed`, `reticleRotationSensitive: false`, and `reticleScaleSensitive: false`
+
 ## Step 4 - Inspect The Generated Runtime Map
 
 Open:
@@ -104,7 +111,9 @@ Use it to confirm that:
 
 - `Page1` and `Page2` are exported
 - authored static reticles are mapped
+- authored strobe reticles are mapped with `source: "strobe"`
 - dynamic templates are registered for generated client usage
+- exposed primitives from both page reticles and strobe reticles receive generated ids
 
 ## Step 5 - Inspect The Runtime Entry Point
 
@@ -115,10 +124,12 @@ Open:
 This file shows how the saved assets are consumed:
 
 - `Page1()` and `Page2()` typed handles
+- `defaultReticle` and `strobe1Reticle` patching the currently selected Page1 strobe reticle
 - `DynamicMfdTutorialRadarTrack()` for both the persistent linked pair and the spawned transient contacts
 - `DynamicInspiredSteeringCue()` linking the persistent pair while their source state stays in business coordinates
 - `mfd::UserSpaceProjector` converting nautical miles and radians into page-space commands
 - `strobe` feedback changing captured dynamic tracks to a different color and thickness
+- the alternative strobe label staying upright unless the client explicitly rotates or scales that primitive
 - the Page2 progress bar animation
 
 ## Step 6 - Inspect The Build Gate

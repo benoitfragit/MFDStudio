@@ -11,6 +11,7 @@
 #include "mfd/model/Reticle.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace mfd
 {
@@ -122,6 +123,39 @@ const Primitive* FindPrimitive(const ReticleGroup& reticle, const std::string_vi
                                        });
 
     return iterator == reticle.primitives.end() ? nullptr : &(*iterator);
+}
+
+Transform2D ResolvePrimitiveWorldTransform(const Primitive& primitive, const ReticleGroup& reticle) noexcept
+{
+    Transform2D transform;
+    transform.position = ApplyTransform(primitive.transform.position, reticle.transform);
+    transform.rotationDegrees = primitive.transform.rotationDegrees;
+    if (primitive.reticleRotationSensitive)
+    {
+        transform.rotationDegrees += reticle.transform.rotationDegrees;
+    }
+
+    transform.scale = primitive.transform.scale;
+    if (primitive.reticleScaleSensitive)
+    {
+        transform.scale.x *= reticle.transform.scale.x;
+        transform.scale.y *= reticle.transform.scale.y;
+    }
+
+    return transform;
+}
+
+Vec2 ApplyPrimitiveWorldTransform(const Vec2& point,
+                                  const Primitive& primitive,
+                                  const ReticleGroup& reticle) noexcept
+{
+    return ApplyTransform(point, ResolvePrimitiveWorldTransform(primitive, reticle));
+}
+
+float PrimitiveAverageScale(const Primitive& primitive, const ReticleGroup& reticle) noexcept
+{
+    const Transform2D transform = ResolvePrimitiveWorldTransform(primitive, reticle);
+    return (std::abs(transform.scale.x) + std::abs(transform.scale.y)) * 0.5f;
 }
 
 bool SupportsReticleClipPrimitive(const Primitive& primitive) noexcept

@@ -92,6 +92,12 @@ public:
     std::string_view FocusLayerId() const noexcept;
     /** @brief Consumes the one-shot request that opens the resume/restart popup. */
     bool ConsumeResumePopupRequest() noexcept;
+    /** @brief Consumes the one-shot request that opens one contextual tutorial hint popup. */
+    bool ConsumeStepHintPopupRequest() noexcept;
+    /** @brief Returns the current step-hint popup title, when one is defined for the active step. */
+    std::string_view CurrentStepHintPopupTitle() const noexcept;
+    /** @brief Returns the current step-hint popup explanation, when one is defined for the active step. */
+    std::string_view CurrentStepHintPopupMessage() const noexcept;
     /** @brief Returns `true` when closing the File menu must reset the guided phase. */
     bool ShouldResetFileMenuPhaseOnClose() const noexcept;
     /** @brief Returns `true` when closing the Page menu must reset the guided phase. */
@@ -128,10 +134,14 @@ public:
     std::string_view LibraryAppendPrimitiveHaloReason() const noexcept;
     /** @brief Returns `true` when the selected primitive matches the guided exposure step. */
     bool IsExposedPrimitiveTutorialSelection(std::string_view reticleId, std::string_view primitiveId) const noexcept;
+    /** @brief Returns `true` when the selected primitive is the aircraft label used by the strobe tutorial steps. */
+    bool IsAlternativeStrobeLabelSelection(std::string_view reticleId, std::string_view primitiveId) const noexcept;
 
 private:
     /** @brief Advances to the next tutorial step and persists progress. */
     void AdvanceStep();
+    /** @brief Updates the one-shot step-hint popup request for the current step. */
+    void RefreshStepHintPopupRequest() noexcept;
     /** @brief Returns the currently expected tutorial target id for UI-driven steps. */
     std::string_view CurrentTargetId() const noexcept;
     /** @brief Returns a short summary of the current tutorial action. */
@@ -149,6 +159,8 @@ private:
     EditorApplication& app_;
     /** @brief Popup visibility flag for tutorial resume/restart choice. */
     bool showResumePopup_ = false;
+    /** @brief Popup visibility flag for contextual one-shot step hints. */
+    bool showStepHintPopup_ = false;
     /** @brief Indicates whether the tutorial coach panel is visible. */
     bool showCoach_ = false;
     /** @brief Indicates whether guided tutorial mode is active. */

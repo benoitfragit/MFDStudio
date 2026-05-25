@@ -397,6 +397,26 @@ std::vector<mfd::Vec2> ApproximateArcPoints(const float radius,
     return points;
 }
 
+template <typename TCallback>
+void ForEachApproximateArcPoint(const float radius,
+                                const float startAngleDegrees,
+                                const float endAngleDegrees,
+                                const int segments,
+                                TCallback&& callback)
+{
+    const int segmentCount = std::max(2, segments);
+    const float safeRadius = std::max(0.0f, std::abs(radius));
+    const float startRadians = startAngleDegrees * PI / 180.0f;
+    const float sweepRadians = (endAngleDegrees - startAngleDegrees) * PI / 180.0f;
+
+    for (int index = 0; index <= segmentCount; ++index)
+    {
+        const float factor = static_cast<float>(index) / static_cast<float>(segmentCount);
+        const float angle = startRadians + sweepRadians * factor;
+        callback(mfd::Vec2 {std::cos(angle) * safeRadius, std::sin(angle) * safeRadius});
+    }
+}
+
 mfd::Vec2 InverseTransformPoint(const mfd::Vec2& point, const mfd::Transform2D& transform)
 {
     const mfd::Vec2 translated = point - transform.position;
@@ -405,6 +425,20 @@ mfd::Vec2 InverseTransformPoint(const mfd::Vec2& point, const mfd::Transform2D& 
     return {
         std::abs(transform.scale.x) <= 0.0001f ? 0.0f : rotated.x / transform.scale.x,
         std::abs(transform.scale.y) <= 0.0001f ? 0.0f : rotated.y / transform.scale.y};
+}
+
+mfd::Vec2 TransformPrimitiveWorldPoint(const mfd::ReticleGroup& reticle,
+                                       const mfd::Primitive& primitive,
+                                       const mfd::Vec2 localPoint)
+{
+    return mfd::ApplyPrimitiveWorldTransform(localPoint, primitive, reticle);
+}
+
+mfd::Vec2 InversePrimitiveWorldPoint(const mfd::ReticleGroup& reticle,
+                                     const mfd::Primitive& primitive,
+                                     const mfd::Vec2 worldPoint)
+{
+    return InverseTransformPoint(worldPoint, mfd::ResolvePrimitiveWorldTransform(primitive, reticle));
 }
 
 float Distance(const ImVec2 lhs, const ImVec2 rhs)
@@ -783,11 +817,12 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
     }
     else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
     {
-        for (const auto& point :
-             ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments))
-        {
-            includeTransformedPoint(point);
-        }
+        ForEachApproximateArcPoint(
+            arc->radius,
+            arc->startAngleDegrees,
+            arc->endAngleDegrees,
+            arc->segments,
+            includeTransformedPoint);
 
         if (primitive.style.filled)
         {
@@ -834,22 +869,128 @@ mfd::Vec2 ReticleVisualCenterLocal(const mfd::ReticleGroup& reticle)
 
 LogicalBounds ComputeReticleWorldBounds(const mfd::ReticleGroup& reticle)
 {
-    const LogicalBounds localBounds = ComputeReticleLocalBounds(reticle);
-    if (!localBounds.valid)
-    {
-        return {};
-    }
-
     LogicalBounds worldBounds;
-    const std::array<mfd::Vec2, 4> corners {{
-        {localBounds.min.x, localBounds.min.y},
-        {localBounds.max.x, localBounds.min.y},
-        {localBounds.max.x, localBounds.max.y},
-        {localBounds.min.x, localBounds.max.y},
-    }};
-    for (const mfd::Vec2& corner : corners)
+    auto includeWorldPoint = [&](const mfd::Primitive& primitive, const mfd::Vec2 localPoint)
     {
-        IncludeLogicalPoint(worldBounds, mfd::ApplyTransform(corner, reticle.transform));
+        IncludeLogicalPoint(worldBounds, TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
+    };
+
+    for (const auto& primitive : reticle.primitives)
+    {
+        if (!primitive.style.visible)
+        {
+            continue;
+        }
+
+        if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
+        {
+            const float halfWidth = EstimatedTextHalfWidth(*text);
+            const float halfHeight = EstimatedTextHalfHeight(*text);
+            includeWorldPoint(primitive, {-halfWidth, -halfHeight});
+            includeWorldPoint(primitive, {halfWidth, -halfHeight});
+            includeWorldPoint(primitive, {halfWidth, halfHeight});
+            includeWorldPoint(primitive, {-halfWidth, halfHeight});
+        }
+        else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
+        {
+            const float halfWidth = EstimatedTextHalfWidth(*time);
+            const float halfHeight = EstimatedTextHalfHeight(*time);
+            includeWorldPoint(primitive, {-halfWidth, -halfHeight});
+            includeWorldPoint(primitive, {halfWidth, -halfHeight});
+            includeWorldPoint(primitive, {halfWidth, halfHeight});
+            includeWorldPoint(primitive, {-halfWidth, halfHeight});
+        }
+        else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, line->start);
+            includeWorldPoint(primitive, line->end);
+        }
+        else if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, {-circle->radius, -circle->radius});
+            includeWorldPoint(primitive, {circle->radius, -circle->radius});
+            includeWorldPoint(primitive, {circle->radius, circle->radius});
+            includeWorldPoint(primitive, {-circle->radius, circle->radius});
+        }
+        else if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, {-ring->outerRadius, -ring->outerRadius});
+            includeWorldPoint(primitive, {ring->outerRadius, -ring->outerRadius});
+            includeWorldPoint(primitive, {ring->outerRadius, ring->outerRadius});
+            includeWorldPoint(primitive, {-ring->outerRadius, ring->outerRadius});
+        }
+        else if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, {-rectangle->width * 0.5f, -rectangle->height * 0.5f});
+            includeWorldPoint(primitive, {rectangle->width * 0.5f, -rectangle->height * 0.5f});
+            includeWorldPoint(primitive, {rectangle->width * 0.5f, rectangle->height * 0.5f});
+            includeWorldPoint(primitive, {-rectangle->width * 0.5f, rectangle->height * 0.5f});
+        }
+        else if (const auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, {-ellipse->width * 0.5f, -ellipse->height * 0.5f});
+            includeWorldPoint(primitive, {ellipse->width * 0.5f, -ellipse->height * 0.5f});
+            includeWorldPoint(primitive, {ellipse->width * 0.5f, ellipse->height * 0.5f});
+            includeWorldPoint(primitive, {-ellipse->width * 0.5f, ellipse->height * 0.5f});
+        }
+        else if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, {-square->width * 0.5f, -square->height * 0.5f});
+            includeWorldPoint(primitive, {square->width * 0.5f, -square->height * 0.5f});
+            includeWorldPoint(primitive, {square->width * 0.5f, square->height * 0.5f});
+            includeWorldPoint(primitive, {-square->width * 0.5f, square->height * 0.5f});
+        }
+        else if (const auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, {0.0f, diamond->height * 0.5f});
+            includeWorldPoint(primitive, {diamond->width * 0.5f, 0.0f});
+            includeWorldPoint(primitive, {0.0f, -diamond->height * 0.5f});
+            includeWorldPoint(primitive, {-diamond->width * 0.5f, 0.0f});
+        }
+        else if (const auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, triangle->points[0]);
+            includeWorldPoint(primitive, triangle->points[1]);
+            includeWorldPoint(primitive, triangle->points[2]);
+        }
+        else if (const auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive.geometry))
+        {
+            for (const auto& point : polyline->points)
+            {
+                includeWorldPoint(primitive, point);
+            }
+        }
+        else if (const auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive.geometry))
+        {
+            for (const auto& point : bezier->controlPoints)
+            {
+                includeWorldPoint(primitive, point);
+            }
+        }
+        else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+        {
+            ForEachApproximateArcPoint(
+                arc->radius,
+                arc->startAngleDegrees,
+                arc->endAngleDegrees,
+                arc->segments,
+                [&](const mfd::Vec2 point)
+                {
+                    includeWorldPoint(primitive, point);
+                });
+
+            if (primitive.style.filled)
+            {
+                includeWorldPoint(primitive, {});
+            }
+        }
+        else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
+        {
+            includeWorldPoint(primitive, {-image->width * 0.5f, -image->height * 0.5f});
+            includeWorldPoint(primitive, {image->width * 0.5f, -image->height * 0.5f});
+            includeWorldPoint(primitive, {image->width * 0.5f, image->height * 0.5f});
+            includeWorldPoint(primitive, {-image->width * 0.5f, image->height * 0.5f});
+        }
     }
 
     FinalizeLogicalBounds(worldBounds);
@@ -4407,7 +4548,7 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
 
     auto toScreenPoint = [&](const mfd::Primitive& primitive, const mfd::Vec2 localPoint)
     {
-        return viewport.ToScreen(mfd::ApplyTransform(mfd::ApplyTransform(localPoint, primitive.transform), reticle->transform));
+        return viewport.ToScreen(TransformPrimitiveWorldPoint(*reticle, primitive, localPoint));
     };
 
     auto drawHandle = [&](const ImVec2 point, const ImU32 color, const float radius = 6.0f)
@@ -6150,7 +6291,8 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }
         else if (interactionMode_ == InteractionMode::EditPrimitiveHandle)
         {
-            const mfd::Vec2 mousePrimitiveLocal = InverseTransformPoint(mouseReticleLocal, interactionStartPrimitive_.transform);
+            const mfd::Vec2 mousePrimitiveLocal =
+                InversePrimitiveWorldPoint(*reticle, interactionStartPrimitive_, mouseLogical);
 
             if (auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
             {
@@ -6332,14 +6474,15 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
 
     auto toScreenPoint = [&](const mfd::Vec2 localPoint)
     {
-        return viewport.ToScreen(mfd::ApplyTransform(mfd::ApplyTransform(localPoint, primitive.transform), reticle->transform));
+        return viewport.ToScreen(TransformPrimitiveWorldPoint(*reticle, primitive, localPoint));
     };
 
     interactionPrimitiveIndex_ = *bestPrimitiveIndex;
     interactionStartPrimitive_ = primitive;
     interactionStartMouseLogical_ = viewport.ToLogical(mouse);
     interactionStartMouseReticleLocal_ = InverseTransformPoint(interactionStartMouseLogical_, reticle->transform);
-    interactionStartMousePrimitiveLocal_ = InverseTransformPoint(interactionStartMouseReticleLocal_, primitive.transform);
+    interactionStartMousePrimitiveLocal_ =
+        InversePrimitiveWorldPoint(*reticle, primitive, interactionStartMouseLogical_);
     interactionHandleKind_ = PrimitiveHandleKind::None;
     interactionHandleIndex_ = -1;
 
@@ -7288,7 +7431,7 @@ EditorApplication::ReticleScreenBounds EditorApplication::ComputePrimitiveScreen
 
     auto includeTransformedPoint = [&](const mfd::Vec2 localPoint)
     {
-        includeLogicalPoint(mfd::ApplyTransform(mfd::ApplyTransform(localPoint, primitive.transform), reticle.transform));
+        includeLogicalPoint(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
     };
 
     if (!primitive.style.visible)
@@ -7476,7 +7619,7 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
     auto toScreenPoint = [&](const mfd::Vec2 localPoint)
     {
-        return viewport.ToScreen(mfd::ApplyTransform(mfd::ApplyTransform(localPoint, primitive.transform), reticle.transform));
+        return viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
     };
 
     if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
@@ -8356,6 +8499,11 @@ void EditorApplication::DrawPopups()
         ImGui::OpenPopup("Tutorial progress");
     }
 
+    if (tutorial_->ConsumeStepHintPopupRequest())
+    {
+        ImGui::OpenPopup("Tutorial step hint");
+    }
+
     if (ImGui::BeginPopupModal("Tutorial progress", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::TextWrapped("A tutorial progress snapshot already exists. Continue where you stopped or restart from scratch?");
@@ -8372,6 +8520,25 @@ void EditorApplication::DrawPopups()
         }
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (ImGui::BeginPopupModal("Tutorial step hint", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        const std::string_view title = tutorial_->CurrentStepHintPopupTitle();
+        const std::string_view message = tutorial_->CurrentStepHintPopupMessage();
+        if (!title.empty())
+        {
+            ImGui::TextDisabled("%.*s", static_cast<int>(title.size()), title.data());
+        }
+        if (!message.empty())
+        {
+            ImGui::TextWrapped("%.*s", static_cast<int>(message.size()), message.data());
+        }
+        if (AccentButton("Continue"))
         {
             ImGui::CloseCurrentPopup();
         }
@@ -11620,25 +11787,81 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     {
         bool exposed = primitive->exposed;
-        const bool tutorialProgressFillSelected =
+        const bool tutorialExposedSelected =
             tutorial_->IsExposedPrimitiveTutorialSelection(selection_.libraryReticleId, primitive->id);
+        const bool tutorialAlternativeStrobeLabelSelected =
+            tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id);
         if (ImGui::Checkbox("Exposed", &exposed))
         {
             PushUndoSnapshot();
             primitive->exposed = exposed;
 
-            if (exposed && tutorial_->MatchesTarget("primitive_exposed_checkbox") && tutorialProgressFillSelected)
+            if (exposed && tutorial_->MatchesTarget("primitive_exposed_checkbox") && tutorialExposedSelected)
             {
                 tutorial_->CompleteStep();
             }
         }
         ShowItemTooltip("Expose this primitive through the generated client API so runtime code can drive it directly.");
-        if (tutorialProgressFillSelected)
+        if (tutorialExposedSelected)
         {
             tutorial_->DrawHalo(
                 "primitive_exposed_checkbox",
                 "Enable Exposed",
-                "Expose the fill rectangle so the generated API can animate the progress bar without raw ids.");
+                tutorialAlternativeStrobeLabelSelected
+                    ? "Expose the aircraft label so the generated API can mutate one primitive on the active Page1 strobe."
+                    : "Expose the fill rectangle so the generated API can animate the progress bar without raw ids.");
+        }
+    }
+
+    {
+        bool rotationSensitive = primitive->reticleRotationSensitive;
+        if (ImGui::Checkbox("Affected by reticle rotation", &rotationSensitive))
+        {
+            PushUndoSnapshot();
+            primitive->reticleRotationSensitive = rotationSensitive;
+
+            if (!rotationSensitive &&
+                tutorial_->MatchesTarget("primitive_reticle_rotation_checkbox") &&
+                tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id))
+            {
+                tutorial_->AdvancePhase();
+            }
+        }
+        ShowItemTooltip(
+            "When disabled, parent page-reticle or strobe rotation no longer rotates this primitive. "
+            "Explicit primitive rotation still applies.");
+        if (tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id))
+        {
+            tutorial_->DrawHalo(
+                "primitive_reticle_rotation_checkbox",
+                "Disable reticle rotation inheritance",
+                "Keep the aircraft label upright even when the alternative Page1 strobe rotates.");
+        }
+    }
+
+    {
+        bool scaleSensitive = primitive->reticleScaleSensitive;
+        if (ImGui::Checkbox("Affected by reticle scale", &scaleSensitive))
+        {
+            PushUndoSnapshot();
+            primitive->reticleScaleSensitive = scaleSensitive;
+
+            if (!scaleSensitive &&
+                tutorial_->MatchesTarget("primitive_reticle_scale_checkbox") &&
+                tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id))
+            {
+                tutorial_->CompleteStep();
+            }
+        }
+        ShowItemTooltip(
+            "When disabled, parent page-reticle or strobe scaling no longer scales this primitive. "
+            "Explicit primitive scale still applies.");
+        if (tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id))
+        {
+            tutorial_->DrawHalo(
+                "primitive_reticle_scale_checkbox",
+                "Disable reticle scale inheritance",
+                "Keep the aircraft label size stable even when the alternative Page1 strobe scales.");
         }
     }
 
