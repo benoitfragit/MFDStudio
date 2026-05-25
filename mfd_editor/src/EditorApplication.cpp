@@ -8499,11 +8499,6 @@ void EditorApplication::DrawPopups()
         ImGui::OpenPopup("Tutorial progress");
     }
 
-    if (tutorial_->ConsumeStepHintPopupRequest())
-    {
-        ImGui::OpenPopup("Tutorial step hint");
-    }
-
     if (ImGui::BeginPopupModal("Tutorial progress", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::TextWrapped("A tutorial progress snapshot already exists. Continue where you stopped or restart from scratch?");
@@ -8520,25 +8515,6 @@ void EditorApplication::DrawPopups()
         }
         ImGui::SameLine();
         if (ImGui::Button("Cancel"))
-        {
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
-
-    if (ImGui::BeginPopupModal("Tutorial step hint", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-    {
-        const std::string_view title = tutorial_->CurrentStepHintPopupTitle();
-        const std::string_view message = tutorial_->CurrentStepHintPopupMessage();
-        if (!title.empty())
-        {
-            ImGui::TextDisabled("%.*s", static_cast<int>(title.size()), title.data());
-        }
-        if (!message.empty())
-        {
-            ImGui::TextWrapped("%.*s", static_cast<int>(message.size()), message.data());
-        }
-        if (AccentButton("Continue"))
         {
             ImGui::CloseCurrentPopup();
         }
@@ -8861,6 +8837,11 @@ bool EditorApplication::CreatePageReticleInstanceFromTemplate(const std::string_
         mfd::Transform2D {position, 0.0f, {1.0f, 1.0f}},
         {});
     instance.visible = true;
+    if (page->name == "Page1" && templateId == kTutorialAircraftTemplateId)
+    {
+        // Keep the tutorial ownship reference above the circle mask and tracks.
+        instance.drawOnTop = true;
+    }
     instance.layerId = ActiveInsertionLayerId(*page);
 
     const LogicalBounds localBounds = ComputeReticleLocalBounds(instance);

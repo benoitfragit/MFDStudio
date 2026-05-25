@@ -424,7 +424,6 @@ void EditorTutorialController::OpenFlow()
 
     active_ = true;
     ClampStepIndex();
-    RefreshStepHintPopupRequest();
     app_.PrepareTutorialStep();
     SaveProgress();
 }
@@ -434,7 +433,6 @@ void EditorTutorialController::ResumeFromSavedProgress()
     showResumePopup_ = false;
     active_ = true;
     showCoach_ = true;
-    RefreshStepHintPopupRequest();
     app_.PrepareTutorialStep();
 }
 
@@ -456,7 +454,6 @@ void EditorTutorialController::RestartFromScratch()
     stepIndex_ = 0;
     active_ = true;
     showCoach_ = true;
-    RefreshStepHintPopupRequest();
     app_.PrepareTutorialStep();
     SaveProgress();
     if (!reloadedDefaultWindow)
@@ -487,7 +484,6 @@ void EditorTutorialController::Finish()
     active_ = false;
     stepPhase_ = 0;
     focusLayerId_.clear();
-    showStepHintPopup_ = false;
     showCoach_ = false;
     ClearProgress();
     app_.RebuildStatus(
@@ -706,47 +702,6 @@ bool EditorTutorialController::ConsumeResumePopupRequest() noexcept
     const bool requested = showResumePopup_;
     showResumePopup_ = false;
     return requested;
-}
-
-bool EditorTutorialController::ConsumeStepHintPopupRequest() noexcept
-{
-    const bool requested = showStepHintPopup_;
-    showStepHintPopup_ = false;
-    return requested;
-}
-
-std::string_view EditorTutorialController::CurrentStepHintPopupTitle() const noexcept
-{
-    using editor::tutorial::TutorialStepId;
-
-    switch (stepIndex_)
-    {
-    case static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive):
-        return "Expose one active strobe primitive";
-    case static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance):
-        return "Detach the label from parent strobe transforms";
-    default:
-        return {};
-    }
-}
-
-std::string_view EditorTutorialController::CurrentStepHintPopupMessage() const noexcept
-{
-    using editor::tutorial::TutorialStepId;
-
-    switch (stepIndex_)
-    {
-    case static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive):
-        return "This step demonstrates the generated API path for the active strobe. "
-               "After exposing `aircraft_label`, the client can mutate it through `page.strobe1Reticle` "
-               "while `Strobe1` stays selected.";
-    case static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance):
-        return "Disable both inheritance checkboxes on `aircraft_label`. "
-               "The parent strobe will still rotate and scale, but the label will stay upright and keep its own size "
-               "until runtime code explicitly rotates or scales the primitive itself.";
-    default:
-        return {};
-    }
 }
 
 bool EditorTutorialController::ShouldResetFileMenuPhaseOnClose() const noexcept
@@ -1071,18 +1026,8 @@ bool EditorTutorialController::IsAlternativeStrobeLabelSelection(const std::stri
 void EditorTutorialController::AdvanceStep()
 {
     stepIndex_ = std::min(stepIndex_ + 1, editor::tutorial::StepCount() - 1);
-    RefreshStepHintPopupRequest();
     app_.PrepareTutorialStep();
     SaveProgress();
-}
-
-void EditorTutorialController::RefreshStepHintPopupRequest() noexcept
-{
-    using editor::tutorial::TutorialStepId;
-
-    showStepHintPopup_ =
-        stepIndex_ == static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive) ||
-        stepIndex_ == static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance);
 }
 
 std::string_view EditorTutorialController::CurrentTargetId() const noexcept

@@ -38,7 +38,7 @@ That guided flow is intentionally split into four phases:
 3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
 4. **Continue in docs**: follow the mockup, generated-client, and architecture reading path.
 
-The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step. When one step needs tighter focus, the tutorial can also raise one small popup hint describing the exact control to use next.
+The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step.
 
 ## Step 1 - Open the window wizard
 
@@ -442,7 +442,6 @@ This integrated flow does more than explain clicks:
 
 - it seeds the editor popups with the tutorial window, page, and reticle values
 - it highlights the exact control expected by the current step
-- it can raise focused popup hints for the blocked step when the relevant inspector is not obvious
 - it explains why each authored asset matters for the runtime contract
 - it now stays focused on authoring plus editor workflows, then hands off the saved-file review to one dedicated follow-up doc
 
