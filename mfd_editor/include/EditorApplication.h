@@ -879,6 +879,10 @@ private:
     mfd::PageViewState libraryPreviewView_ {};
     /** @brief Logical offset preserved while dragging the viewport rectangle inside the minimap. */
     mfd::Vec2 minimapDragOffsetLogical_ {};
+    /** @brief Suppresses one page-preview context popup right after a viewport pan release. */
+    bool suppressNextPagePreviewContextMenu_ = false;
+    /** @brief Suppresses one reticle-studio context popup right after a viewport pan release. */
+    bool suppressNextLibraryPreviewContextMenu_ = false;
     /** @brief Reticles currently listed by the page-preview context menu. */
     std::vector<int> pagePreviewContextReticleIndices_ {};
     /** @brief Clip-capable reticle primitives currently listed by the page-preview context menu. */

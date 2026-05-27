@@ -4313,7 +4313,18 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     ImGui::SetCursorScreenPos(viewport.origin);
     ImGui::SetNextItemAllowOverlap();
     ImGui::InvisibleButton("LibraryPreviewInput", viewport.size);
-    if (ImGui::BeginPopupContextItem("LibraryPreviewContextMenu"))
+    if (ImGui::IsItemHovered() && IsMouseButtonReleased(MOUSE_BUTTON_RIGHT))
+    {
+        if (suppressNextLibraryPreviewContextMenu_)
+        {
+            suppressNextLibraryPreviewContextMenu_ = false;
+        }
+        else if (!ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+        {
+            ImGui::OpenPopup("LibraryPreviewContextMenu");
+        }
+    }
+    if (ImGui::BeginPopup("LibraryPreviewContextMenu"))
     {
         const bool hasSelectedPrimitive = selection_.kind == SelectionKind::LibraryPrimitive &&
                                           selection_.libraryReticleId == reticle->id &&
@@ -5541,6 +5552,10 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                 interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
             if (anyPopupOpen || interactionButtonReleased)
             {
+                if (interactionMode_ == InteractionMode::PanPage)
+                {
+                    suppressNextPagePreviewContextMenu_ = false;
+                }
                 cancelPreviewInteraction();
             }
         }
@@ -5631,9 +5646,19 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 
     if (interactionMode_ == InteractionMode::None &&
         !mouseInsideMinimap &&
-        IsMouseButtonReleased(MOUSE_BUTTON_RIGHT) &&
-        !ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+        IsMouseButtonReleased(MOUSE_BUTTON_RIGHT))
     {
+        if (suppressNextPagePreviewContextMenu_)
+        {
+            suppressNextPagePreviewContextMenu_ = false;
+            return;
+        }
+
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+        {
+            return;
+        }
+
         // Keep every hovered reticle reachable so overlapping masks can still be clipped intentionally.
         const std::vector<int> hoveredReticleIndices = CollectPageReticlesAt(interactiveViewport, mouse);
         const std::vector<PageClipTarget> hoveredClipTargets = CollectPageClipTargetsAt(interactiveViewport, mouse);
@@ -5675,6 +5700,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     if (interactionMode_ == InteractionMode::None && rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
     {
         interactionMode_ = InteractionMode::PanPage;
+        suppressNextPagePreviewContextMenu_ = true;
         interactionReticleIndex_ = -1;
         interactionReticleIndices_.clear();
         interactionStartReticleTransforms_.clear();
@@ -6250,16 +6276,30 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
 
     if (ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId))
     {
+        suppressNextLibraryPreviewContextMenu_ = false;
         cancelLibraryPreviewInteraction();
         return;
     }
 
     const bool leftMouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     const bool rightMouseDown = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    const std::optional<mfd::Vec2> mouseLogical =
+        IsPointInsideRect(mouse, viewport.origin, viewportMax) ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
+                                                               : std::nullopt;
+    const ViewportToolbarLayout toolbarLayout =
+        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(libraryPreviewView_.zoom), mouseLogical);
+    const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
+    const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
     if (interactionMode_ == InteractionMode::PanPage)
     {
         if (!rightMouseDown)
         {
+            if (!mouseInsideViewport || mouseInsideToolbar)
+            {
+                suppressNextLibraryPreviewContextMenu_ = false;
+            }
             cancelLibraryPreviewInteraction();
         }
         else
@@ -6409,15 +6449,6 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         return;
     }
 
-    const ImVec2 mouse = ImGui::GetMousePos();
-    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
-    const std::optional<mfd::Vec2> mouseLogical =
-        IsPointInsideRect(mouse, viewport.origin, viewportMax) ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
-                                                               : std::nullopt;
-    const ViewportToolbarLayout toolbarLayout =
-        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(libraryPreviewView_.zoom), mouseLogical);
-    const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
-    const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
     if (!mouseInsideViewport || mouseInsideToolbar)
     {
         return;
@@ -6450,6 +6481,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     if (interactionMode_ == InteractionMode::None && rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
     {
         interactionMode_ = InteractionMode::PanPage;
+        suppressNextLibraryPreviewContextMenu_ = true;
         interactionPrimitiveIndex_ = -1;
         interactionHandleKind_ = PrimitiveHandleKind::None;
         interactionHandleIndex_ = -1;
