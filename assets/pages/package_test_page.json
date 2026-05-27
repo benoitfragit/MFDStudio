@@ -1,18 +1,17 @@
 {
-  "name": "PackageTest",
-  "title": "Package Test",
   "bg": "#071114FF",
   "layers": [
     {
       "id": "default"
     }
   ],
+  "name": "PackageTest",
   "staticReticles": [
     {
       "id": "bouncing_circle",
-      "template": "package_test_circle",
       "layerId": "default",
-      "at": [0.0, 0.0]
+      "template": "package_test_circle"
     }
-  ]
+  ],
+  "title": "Package Test"
 }
