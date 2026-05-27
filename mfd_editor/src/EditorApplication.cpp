@@ -6321,8 +6321,8 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }
 
         mfd::Primitive& primitive = reticle->primitives[static_cast<std::size_t>(interactionPrimitiveIndex_)];
-        const mfd::Vec2 mouseLogical = viewport.ToLogical(ImGui::GetMousePos());
-        const mfd::Vec2 mouseReticleLocal = InverseTransformPoint(mouseLogical, reticle->transform);
+        const mfd::Vec2 previewMouseLogical = viewport.ToLogical(ImGui::GetMousePos());
+        const mfd::Vec2 mouseReticleLocal = InverseTransformPoint(previewMouseLogical, reticle->transform);
 
         if (interactionMode_ == InteractionMode::MovePrimitive)
         {
@@ -6332,7 +6332,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         else if (interactionMode_ == InteractionMode::EditPrimitiveHandle)
         {
             const mfd::Vec2 mousePrimitiveLocal =
-                InversePrimitiveWorldPoint(*reticle, interactionStartPrimitive_, mouseLogical);
+                InversePrimitiveWorldPoint(*reticle, interactionStartPrimitive_, previewMouseLogical);
 
             if (auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
             {
@@ -10186,6 +10186,7 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             SanitizePageReticleSelectionForCurrentFocus();
             RebuildStatus("Runtime layer '" + removedLayerId + "' removed from page '" + page.name + "'.", false);
 
+            ImGui::EndDisabled();
             ImGui::PopID();
             break;
         }
