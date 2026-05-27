@@ -23,14 +23,19 @@ Every primitive supports the following common fields.
 | `stroke` | color | no | Primitive stroke color. |
 | `thickness` | number | no | Primitive stroke thickness. |
 | `lineStyle` | string | no | Stroke pattern for outline-capable primitives: `solid`, `dotted`, or `dashed`. |
-| `filled` | bool | no | Whether the primitive is filled. |
-| `fill` | color or bool | no | Fill color or fill enable flag. |
+| `filled` | bool | no | Whether the primitive is filled when its geometry supports filling. |
+| `fill` | color or bool | no | Fill color, or fill enable flag when written as a boolean, for fill-capable primitives only. |
 
 For transform and color syntax, see [Common JSON Syntax](./common_json_syntax.md).
 
 `lineStyle` applies to outline-capable primitives such as lines, circles,
 rings, rectangles, ellipses, squares, diamonds, triangles, polylines, beziers,
 and arcs. Text, time, and image primitives keep their default solid stroke.
+
+`filled` and `fill` are meaningful only for fill-capable primitives: circles,
+rings, rectangles, ellipses, squares, diamonds, triangles, arcs, and polylines
+when `closed` is `true`. The editor persists `filled` explicitly as `true` or
+`false` for those cases and omits it for non-fillable primitives.
 
 `reticleRotationSensitive` and `reticleScaleSensitive` default to `true`, which
 preserves the historical behavior. Set either field to `false` when the

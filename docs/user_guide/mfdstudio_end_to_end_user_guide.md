@@ -458,8 +458,13 @@ Common primitive fields cover:
 - `stroke`
 - `thickness`
 - `lineStyle`
-- `filled`
-- `fill`
+- `filled` for fill-capable primitives
+- `fill` for fill-capable primitives
+
+Fill-capable means circles, rings, rectangles, ellipses, squares, diamonds,
+triangles, arcs, and polylines when `closed` is `true`. The editor persists
+`filled` explicitly as `true` or `false` for those cases and omits it for
+non-fillable primitives.
 
 `reticleRotationSensitive` and `reticleScaleSensitive` default to `true`.
 Disable them when one primitive must ignore parent page-reticle or page-strobe
@@ -1245,10 +1250,23 @@ currently selected strobe contributes commands.
 | `SetRotationDegrees(float)` | local rotation |
 | `SetScale(Vec2)` | local scale |
 | `SetColor(ColorRgba)` | stroke color |
-| `SetFillColor(ColorRgba)` | fill color |
-| `SetFilled(bool)` | fill toggle |
 | `SetThickness(float)` | line thickness |
 | `SetLineStyle(LineStyle)` | line style override |
+
+### Fill-capable primitive surface
+
+Only fill-capable generated handles additionally expose:
+
+| Method | Use |
+| --- | --- |
+| `SetFillColor(ColorRgba)` | fill color |
+| `SetFilled(bool)` | fill toggle |
+
+These mutators exist on `CircleHandle`, `RingHandle`, `RectangleHandle`,
+`EllipseHandle`, `SquareHandle`, `DiamondHandle`, `TriangleHandle`,
+`PolylineHandle`, and `ArcHandle`. They do not exist on `TextHandle`,
+`TimeHandle`, `LineHandle`, `BezierHandle`, or `ImageHandle`. For polylines,
+fill is meaningful only when `SetClosed(true)` is also active.
 
 ### Specialized surfaces
 

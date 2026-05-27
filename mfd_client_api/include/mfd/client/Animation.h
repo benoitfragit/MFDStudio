@@ -230,6 +230,9 @@ private:
 
 /**
  * @brief Shared client-side handle mutating one named primitive inside a reticle patch.
+ *
+ * @note Fill controls are intentionally exposed only by fill-capable specialized
+ * handles such as `RectangleHandle` or `ArcHandle`.
  */
 class MFD_CLIENT_API PrimitiveHandle
 {
@@ -249,14 +252,16 @@ public:
     /** @brief Stages one primitive-local non-uniform scale override. */
     void SetScale(mfd::Vec2 scale);
     void SetColor(mfd::ColorRgba color);
-    void SetFillColor(mfd::ColorRgba color);
-    void SetFilled(bool filled);
     void SetThickness(float thickness);
     void SetLineStyle(LineStyle lineStyle);
 
 protected:
     mfd::PrimitivePatch& Patch() noexcept;
     void MarkDirty() noexcept;
+    /** @brief Stages one fill color override for fill-capable primitive handles. */
+    void SetFillColorInternal(mfd::ColorRgba color);
+    /** @brief Stages one fill toggle override for fill-capable primitive handles. */
+    void SetFilledInternal(bool filled);
 
 private:
     mfd::ReticlePatch* patch_ = nullptr;
@@ -324,6 +329,10 @@ public:
                  mfd::TransportId transportId = 0,
                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this circle. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this circle is rendered filled. */
+    void SetFilled(bool filled);
     void SetRadius(float radius);
 };
 
@@ -339,6 +348,10 @@ public:
                mfd::TransportId transportId = 0,
                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this ring. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this ring is rendered filled. */
+    void SetFilled(bool filled);
     void SetInnerRadius(float radius);
     void SetOuterRadius(float radius);
     void SetSegments(int segments);
@@ -356,6 +369,10 @@ public:
                     mfd::TransportId transportId = 0,
                     std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this rectangle. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this rectangle is rendered filled. */
+    void SetFilled(bool filled);
     void SetWidth(float width);
     void SetHeight(float height);
     void SetSize(mfd::Vec2 size);
@@ -373,6 +390,10 @@ public:
                   mfd::TransportId transportId = 0,
                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this ellipse. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this ellipse is rendered filled. */
+    void SetFilled(bool filled);
     void SetWidth(float width);
     void SetHeight(float height);
     void SetSize(mfd::Vec2 size);
@@ -390,6 +411,10 @@ public:
                  mfd::TransportId transportId = 0,
                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this square. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this square is rendered filled. */
+    void SetFilled(bool filled);
     void SetWidth(float width);
     void SetHeight(float height);
     void SetSize(mfd::Vec2 size);
@@ -407,6 +432,10 @@ public:
                   mfd::TransportId transportId = 0,
                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this diamond. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this diamond is rendered filled. */
+    void SetFilled(bool filled);
     void SetWidth(float width);
     void SetHeight(float height);
     void SetSize(mfd::Vec2 size);
@@ -424,6 +453,10 @@ public:
                    mfd::TransportId transportId = 0,
                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this triangle. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this triangle is rendered filled. */
+    void SetFilled(bool filled);
     void SetPoints(const std::array<mfd::Vec2, 3>& points);
 };
 
@@ -439,6 +472,10 @@ public:
                    mfd::TransportId transportId = 0,
                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this polyline when it is closed. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this polyline is rendered filled when it is closed. */
+    void SetFilled(bool filled);
     void SetPoints(std::vector<mfd::Vec2> points);
     void SetClosed(bool closed);
 };
@@ -471,6 +508,10 @@ public:
               mfd::TransportId transportId = 0,
               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
+    /** @brief Stages one fill color override for this arc sector. */
+    void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages whether this arc is rendered as a filled sector. */
+    void SetFilled(bool filled);
     void SetRadius(float radius);
     void SetStartAngleDegrees(float startAngleDegrees);
     void SetEndAngleDegrees(float endAngleDegrees);

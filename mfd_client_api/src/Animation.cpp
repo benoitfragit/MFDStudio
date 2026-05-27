@@ -777,13 +777,13 @@ void PrimitiveHandle::SetColor(const mfd::ColorRgba color)
     MarkDirty();
 }
 
-void PrimitiveHandle::SetFillColor(const mfd::ColorRgba color)
+void PrimitiveHandle::SetFillColorInternal(const mfd::ColorRgba color)
 {
     Patch().fillColor = color;
     MarkDirty();
 }
 
-void PrimitiveHandle::SetFilled(const bool filled)
+void PrimitiveHandle::SetFilledInternal(const bool filled)
 {
     Patch().filled = filled;
     MarkDirty();
@@ -880,6 +880,16 @@ CircleHandle::CircleHandle(mfd::ReticlePatch& patch,
 {
 }
 
+void CircleHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void CircleHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
+}
+
 void CircleHandle::SetRadius(const float radius)
 {
     Patch().radius = radius;
@@ -893,6 +903,16 @@ RingHandle::RingHandle(mfd::ReticlePatch& patch,
                        std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
     PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
+}
+
+void RingHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void RingHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
 }
 
 void RingHandle::SetInnerRadius(const float radius)
@@ -922,6 +942,16 @@ RectangleHandle::RectangleHandle(mfd::ReticlePatch& patch,
 {
 }
 
+void RectangleHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void RectangleHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
+}
+
 void RectangleHandle::SetWidth(const float width)
 {
     Patch().width = width;
@@ -947,6 +977,16 @@ EllipseHandle::EllipseHandle(mfd::ReticlePatch& patch,
                              std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
     PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
+}
+
+void EllipseHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void EllipseHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
 }
 
 void EllipseHandle::SetWidth(const float width)
@@ -976,6 +1016,16 @@ SquareHandle::SquareHandle(mfd::ReticlePatch& patch,
 {
 }
 
+void SquareHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void SquareHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
+}
+
 void SquareHandle::SetWidth(const float width)
 {
     Patch().width = width;
@@ -1001,6 +1051,16 @@ DiamondHandle::DiamondHandle(mfd::ReticlePatch& patch,
                              std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
     PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
+}
+
+void DiamondHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void DiamondHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
 }
 
 void DiamondHandle::SetWidth(const float width)
@@ -1030,6 +1090,16 @@ TriangleHandle::TriangleHandle(mfd::ReticlePatch& patch,
 {
 }
 
+void TriangleHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void TriangleHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
+}
+
 void TriangleHandle::SetPoints(const std::array<mfd::Vec2, 3>& points)
 {
     Patch().points = std::vector<mfd::Vec2>(points.begin(), points.end());
@@ -1043,6 +1113,16 @@ PolylineHandle::PolylineHandle(mfd::ReticlePatch& patch,
                                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
     PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
+}
+
+void PolylineHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void PolylineHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
 }
 
 void PolylineHandle::SetPoints(std::vector<mfd::Vec2> points)
@@ -1085,6 +1165,16 @@ ArcHandle::ArcHandle(mfd::ReticlePatch& patch,
                      std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
     PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
 {
+}
+
+void ArcHandle::SetFillColor(const mfd::ColorRgba color)
+{
+    SetFillColorInternal(color);
+}
+
+void ArcHandle::SetFilled(const bool filled)
+{
+    SetFilledInternal(filled);
 }
 
 void ArcHandle::SetRadius(const float radius)

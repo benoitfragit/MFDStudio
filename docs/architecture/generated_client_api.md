@@ -223,10 +223,29 @@ Shared primitive surface:
 - `SetRotationDegrees`
 - `SetScale`
 - `SetColor`
-- `SetFillColor`
-- `SetFilled`
 - `SetThickness`
 - `SetLineStyle`
+
+Fill-capable primitive handles additionally expose:
+
+- `SetFillColor`
+- `SetFilled`
+
+The fill-capable handle families are:
+
+- `CircleHandle`
+- `RingHandle`
+- `RectangleHandle`
+- `EllipseHandle`
+- `SquareHandle`
+- `DiamondHandle`
+- `TriangleHandle`
+- `PolylineHandle`
+- `ArcHandle`
+
+`TextHandle`, `TimeHandle`, `LineHandle`, `BezierHandle`, and `ImageHandle` do
+not expose fill mutators in the generated client API. For polylines, fill is
+meaningful only when the client also stages `SetClosed(true)`.
 
 Specialized handle families currently exposed by the public client layer:
 

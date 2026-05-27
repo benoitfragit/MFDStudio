@@ -251,6 +251,12 @@ Canonical example:
 }
 ```
 
+`filled` and `fill` apply only to fill-capable primitives. In authored JSON,
+that means circles, rings, rectangles, ellipses, squares, diamonds, triangles,
+arcs, and polylines when `closed` is `true`. The editor now writes `filled`
+explicitly as `true` or `false` for those cases and omits it for non-fillable
+primitives.
+
 `style` blocks are also supported:
 
 ```json

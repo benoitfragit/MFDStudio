@@ -190,10 +190,30 @@ Shared generated primitive controls MUST include:
 - `SetRotationDegrees`
 - `SetScale`
 - `SetColor`
-- `SetFillColor`
-- `SetFilled`
 - `SetThickness`
 - `SetLineStyle`
+
+Fill-capable generated primitive handles MUST additionally expose:
+
+- `SetFillColor`
+- `SetFilled`
+
+The fill-capable generated handle families are:
+
+- `CircleHandle`
+- `RingHandle`
+- `RectangleHandle`
+- `EllipseHandle`
+- `SquareHandle`
+- `DiamondHandle`
+- `TriangleHandle`
+- `PolylineHandle`
+- `ArcHandle`
+
+`TextHandle`, `TimeHandle`, `LineHandle`, `BezierHandle`, and `ImageHandle`
+MUST NOT expose fill mutators. For `PolylineHandle`, the generated client may
+stage fill fields, but rendered filling is meaningful only when `SetClosed(true)`
+is also active.
 
 ### 5.5 Packaged SDK Surface
 

@@ -263,6 +263,14 @@ if (cockpit.strobe.IsValid())
 client.SendBatch(ui.BuildBatch());
 ```
 
+Generated primitive accessors stay typed all the way down to the authored
+primitive kind. Fill mutators are therefore available only on fill-capable
+handles such as `CircleHandle`, `RingHandle`, `RectangleHandle`,
+`EllipseHandle`, `SquareHandle`, `DiamondHandle`, `TriangleHandle`,
+`PolylineHandle`, and `ArcHandle`. `TextHandle`, `TimeHandle`, `LineHandle`,
+`BezierHandle`, and `ImageHandle` do not expose `SetFillColor(...)` or
+`SetFilled(...)`.
+
 ### Step C - Know when to use generated UI vs low-level API
 
 - Use generated accessors for discoverability and safer page/reticle/primitive

@@ -110,6 +110,27 @@ bool HasTimePatch(const mfd::PrimitivePatch& patch) noexcept
 {
     return patch.letterSpacing.has_value();
 }
+
+template <typename Handle, typename = void>
+struct HasSetFillColor : std::false_type
+{
+};
+
+template <typename Handle>
+struct HasSetFillColor<Handle, std::void_t<decltype(std::declval<Handle&>().SetFillColor(mfd::ColorRgba {}))>> :
+    std::true_type
+{
+};
+
+template <typename Handle, typename = void>
+struct HasSetFilled : std::false_type
+{
+};
+
+template <typename Handle>
+struct HasSetFilled<Handle, std::void_t<decltype(std::declval<Handle&>().SetFilled(true))>> : std::true_type
+{
+};
 } // namespace
 
 TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealGeneratedClasses)
@@ -498,6 +519,69 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureShutdownBuildsStatusAndDynamic
     EXPECT_EQ(delivered.mappingHash, generated_ui_fixture::GeneratedUiFixture::MappingHash());
     ASSERT_EQ(delivered.commands.size(), 1U);
     ASSERT_NE(std::get_if<mfd::UpdateReticleCommand>(&delivered.commands.front()), nullptr);
+}
+
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureExposesFillMutatorsOnlyForFillablePrimitiveHandles)
+{
+    using CircleHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().CursorCircle())>;
+    using RingHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().ScopeRing())>;
+    using RectangleHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().LockBox())>;
+    using EllipseHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().UncertaintyEllipse())>;
+    using SquareHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().TargetSquare())>;
+    using DiamondHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().SteerDiamond())>;
+    using TriangleHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().WarningTriangle())>;
+    using PolylineHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().RoutePolyline())>;
+    using ArcHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().ScanArc())>;
+    using TimeHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().MissionTime())>;
+    using LineHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().HeadingLine())>;
+    using BezierHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().GuideBezier())>;
+    using ImageHandle = std::remove_reference_t<
+        decltype(std::declval<generated_ui_fixture::RadarGeometryPanelReticle&>().PanelImage())>;
+
+    static_assert(!HasSetFillColor<mfd::client::PrimitiveHandle>::value);
+    static_assert(!HasSetFilled<mfd::client::PrimitiveHandle>::value);
+
+    static_assert(HasSetFillColor<CircleHandle>::value);
+    static_assert(HasSetFilled<CircleHandle>::value);
+    static_assert(HasSetFillColor<RingHandle>::value);
+    static_assert(HasSetFilled<RingHandle>::value);
+    static_assert(HasSetFillColor<RectangleHandle>::value);
+    static_assert(HasSetFilled<RectangleHandle>::value);
+    static_assert(HasSetFillColor<EllipseHandle>::value);
+    static_assert(HasSetFilled<EllipseHandle>::value);
+    static_assert(HasSetFillColor<SquareHandle>::value);
+    static_assert(HasSetFilled<SquareHandle>::value);
+    static_assert(HasSetFillColor<DiamondHandle>::value);
+    static_assert(HasSetFilled<DiamondHandle>::value);
+    static_assert(HasSetFillColor<TriangleHandle>::value);
+    static_assert(HasSetFilled<TriangleHandle>::value);
+    static_assert(HasSetFillColor<PolylineHandle>::value);
+    static_assert(HasSetFilled<PolylineHandle>::value);
+    static_assert(HasSetFillColor<ArcHandle>::value);
+    static_assert(HasSetFilled<ArcHandle>::value);
+
+    static_assert(!HasSetFillColor<TimeHandle>::value);
+    static_assert(!HasSetFilled<TimeHandle>::value);
+    static_assert(!HasSetFillColor<LineHandle>::value);
+    static_assert(!HasSetFilled<LineHandle>::value);
+    static_assert(!HasSetFillColor<BezierHandle>::value);
+    static_assert(!HasSetFilled<BezierHandle>::value);
+    static_assert(!HasSetFillColor<ImageHandle>::value);
+    static_assert(!HasSetFilled<ImageHandle>::value);
+
+    SUCCEED();
 }
 
 TEST(GeneratedUiCompiledApiTests, GeneratedFixtureExposesRuntimeFeedbackQueries)
