@@ -25,6 +25,24 @@ struct FramebufferStdoutPluginContext
 };
 
 /**
+ * @brief Returns a human-readable label for one framebuffer pixel format.
+ * @param pixelFormat Stable pixel format identifier.
+ * @return Null-terminated diagnostic label.
+ */
+const char* DescribePixelFormat(const uint32_t pixelFormat) noexcept
+{
+    switch (static_cast<MfdWindowFramebufferPixelFormat>(pixelFormat))
+    {
+    case MfdWindowFramebufferPixelFormat_Rgba32:
+        return "RGBA32";
+    case MfdWindowFramebufferPixelFormat_Bgra32:
+        return "BGRA32";
+    default:
+        return "Unknown";
+    }
+}
+
+/**
  * @brief Writes one human-readable message into an ABI output buffer.
  * @param buffer Destination UTF-8 buffer.
  * @param message Null-terminated message to copy.
@@ -73,7 +91,9 @@ MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL InitPlugin(
     const MfdWindowFramebufferPluginHostApi* host,
     MfdWindowUtf8Buffer* error) noexcept
 {
-    if (pluginContext == nullptr || host == nullptr || host->abi_version != MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION)
+    if (pluginContext == nullptr || host == nullptr ||
+        host->abi_version != MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION ||
+        host->output_pixel_format != MfdWindowFramebufferPixelFormat_Bgra32)
     {
         WriteMessage(error, "The sample framebuffer plugin received an invalid host initialization request.");
         return MfdWindowFramebufferPluginResultCode_InvalidArgument;
@@ -85,7 +105,7 @@ MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL InitPlugin(
 }
 
 /**
- * @brief Receives one raw `RGBA32` framebuffer from `mfd_window`.
+ * @brief Receives one raw framebuffer from `mfd_window`.
  * @param pluginContext Opaque plugin context created by the factory.
  * @param frame Raw framebuffer descriptor owned by the host for the duration of the call.
  * @param error Optional UTF-8 error buffer written on failure.
@@ -111,7 +131,8 @@ MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL SubmitFramePlugin(
 
     if (!context->printed)
     {
-        std::cout << "RGBA32 framebuffer plugin active: " << frame->width << "x" << frame->height
+        std::cout << DescribePixelFormat(frame->pixel_format) << " framebuffer plugin active: " << frame->width
+                  << "x" << frame->height
                   << " pixels=" << frame->pixel_bytes << '\n';
         context->printed = true;
     }
@@ -169,6 +190,7 @@ MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindo
     outApi->info.abi_version = MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION;
     outApi->info.plugin_id = MakeStringView("mfd.framebuffer.stdout");
     outApi->info.display_name = MakeStringView("Framebuffer Stdout Sample");
+    outApi->info.requested_pixel_format = MfdWindowFramebufferPixelFormat_Bgra32;
     outApi->plugin_context = context;
     outApi->init = &InitPlugin;
     outApi->submit_frame = &SubmitFramePlugin;

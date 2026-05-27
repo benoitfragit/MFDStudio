@@ -14,12 +14,12 @@ skinparam activity {
 start
 :Step 1\nScaffold the DLL and export\nMfdGetWindowFramebufferPluginApi;
 
-:Step 2\nValidate outApi, host,\nabi_version, and callback table;
+:Step 2\nChoose requested_pixel_format,\nthen validate outApi, host,\nabi_version, and callback table;
 
 :Step 3\nValidate every\nMfdWindowFramebufferFrame;
 
 if (Frame layout valid?) then (yes)
-  :Step 4\nCopy RGBA32 bytes into\nplugin-owned storage;
+  :Step 4\nCopy requested-format bytes into\nplugin-owned storage;
   :Step 5\nHand the owned frame to\nencoder / IPC / shared memory;
 else (no)
   :Return one explicit ABI error\nand fill the UTF-8 error buffer;

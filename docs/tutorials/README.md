@@ -45,7 +45,7 @@ Use this path when the editor is your main entry point:
 
 Use these pages when you are validating or instrumenting the runtime:
 
-1. [Capture The Window As RGBA32](./07_framebuffer_rgba32_capture.md)
+1. [Capture The Window As Raw Pixels](./07_framebuffer_rgba32_capture.md)
 2. [Drive The Cockpit Demo](./10_cockpit_demo.md)
 3. [Run The Automated Runtime Tests](./12_run_the_automated_runtime_tests.md)
 4. [Use The Integrated Runtime Debug Overlay](./14_use_the_runtime_debug_overlay.md)
@@ -58,7 +58,7 @@ Use these pages when you are validating or instrumenting the runtime:
 4. [Drive A Window From A Live Client Over UDP](./04_drive_a_window_from_a_live_client.md)
 5. [Add And Remove Dynamic Reticles](./05_dynamic_reticles.md)
 6. [Control The Strobe And Receive Feedback](./06_strobe_control_and_feedback.md)
-7. [Capture The Window As RGBA32](./07_framebuffer_rgba32_capture.md)
+7. [Capture The Window As Raw Pixels](./07_framebuffer_rgba32_capture.md)
 8. [Project User Space To Page Space](./08_project_user_space_to_page_space.md)
 9. [Manage Page-Local Blink](./09_page_managed_blink.md)
 10. [Drive The Cockpit Demo](./10_cockpit_demo.md)

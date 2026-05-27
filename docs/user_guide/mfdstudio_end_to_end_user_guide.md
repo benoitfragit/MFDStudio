@@ -53,7 +53,7 @@ The normal flow of an MFDStudio project is as follows:
 4. we launch `mfd_window` on the JSON window
 5. the client sends UDP commands to the runtime
 6. the runtime can send UDP feedback to the client
-7. optional, a DLL plugin receives the RGBA32 framebuffer at each frame
+7. optional, a DLL plugin receives one plugin-selected `RGBA32` or `BGRA32` framebuffer at each frame
 
 ## 1.3 Who does MFDStudio serve?
 
@@ -1754,7 +1754,7 @@ This chapter is intentionally written as a standalone integration guide. You sho
 Recommended order:
 
 1. scaffold the plugin and export the stable entry point
-2. validate the ABI contract in the factory and `init`
+2. request the output pixel format and validate the ABI contract in the factory and `init`
 3. validate every frame descriptor
 4. copy or hand off the pixels before `submit_frame` returns
 5. connect the async encoder or IPC path behind that handoff
@@ -1817,12 +1817,14 @@ Your first deliverable is a DLL that exports that factory symbol and fills one `
 | `abi_version` | expected ABI revision |
 | `plugin_id` | stable machine-readable plugin identifier |
 | `display_name` | human-readable plugin name |
+| `requested_pixel_format` | output layout requested for `submit_frame` |
 
 At minimum, validate these conditions in the factory and `init`:
 
 - `outApi != nullptr`
 - `host != nullptr`
 - `host->abi_version == MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION`
+- `host->output_pixel_format == outApi->info.requested_pixel_format`
 - every mandatory callback is populated
 
 ## 7.4 Step 3: understand the frame descriptor you receive
@@ -1832,14 +1834,19 @@ At minimum, validate these conditions in the factory and `init`:
 | Field | Meaning |
 | --- | --- |
 | `struct_size` | versioned frame structure size |
-| `pixel_format` | currently `MfdWindowFramebufferPixelFormat_Rgba32` |
+| `pixel_format` | actual output layout selected by the host |
 | `width` | frame width in pixels |
 | `height` | frame height in pixels |
 | `row_stride_bytes` | number of bytes between two rows |
 | `pixels` | borrowed pointer to the first pixel byte |
 | `pixel_bytes` | total byte count available through `pixels` |
 
-Assume only what the ABI states. Do not infer that GPU resources are shared, that another pixel format will appear with the same layout, or that the pixel memory survives beyond the callback.
+The stable ABI currently supports:
+
+- `MfdWindowFramebufferPixelFormat_Rgba32`
+- `MfdWindowFramebufferPixelFormat_Bgra32`, compatible with `GL_BGRA_EXT`
+
+Assume only what the ABI states. Do not infer that GPU resources are shared, that the pixel memory survives beyond the callback, or that another format has the same channel order.
 
 ## 7.5 Step 4: validate every frame descriptor defensively
 
@@ -1847,6 +1854,8 @@ The ABI already exposes helpers for the most important validation steps:
 
 | Helper | Use |
 | --- | --- |
+| `MfdWindowComputeFramebufferByteCount` | expected byte count for one format / width / height tuple |
+| `MfdWindowValidateFramebufferLayout` | validate raw tightly packed `RGBA32` or `BGRA32` bytes |
 | `MfdWindowComputeFramebufferRgba32ByteCount` | expected byte count for one width/height pair |
 | `MfdWindowValidateFramebufferRgba32Layout` | validate raw `RGBA32` layout and byte count |
 | `MfdWindowValidateFramebufferFrame` | validate the full frame descriptor |
@@ -1909,7 +1918,8 @@ MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL InitPlugin(
     MfdWindowUtf8Buffer* error) noexcept
 {
     if (pluginContext == nullptr || host == nullptr ||
-        host->abi_version != MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION)
+        host->abi_version != MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION ||
+        host->output_pixel_format != MfdWindowFramebufferPixelFormat_Bgra32)
     {
         return MfdWindowFramebufferPluginResultCode_InvalidArgument;
     }
@@ -1946,6 +1956,7 @@ MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindo
     outApi->struct_size = sizeof(*outApi);
     outApi->info.struct_size = sizeof(outApi->info);
     outApi->info.abi_version = MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION;
+    outApi->info.requested_pixel_format = MfdWindowFramebufferPixelFormat_Bgra32;
     outApi->plugin_context = context;
     outApi->init = &InitPlugin;
     outApi->submit_frame = &SubmitFramePlugin;
@@ -1962,13 +1973,14 @@ This is the correct starting point: a tiny stable C boundary, and all implementa
 The runtime owns `frame->pixels`. Your plugin only borrows that memory during the callback.
 
 ```cpp
-// Scenario: copy one RGBA32 frame into plugin-owned storage before returning.
+// Scenario: copy one plugin-selected raw frame into plugin-owned storage before returning.
 struct PluginContext
 {
     std::vector<std::uint8_t> staging;
     int width = 0;
     int height = 0;
     std::size_t stride = 0;
+    std::uint32_t pixelFormat = 0;
 };
 
 MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL SubmitFramePlugin(
@@ -1988,6 +2000,7 @@ MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL SubmitFramePlugin(
     context.width = frame->width;
     context.height = frame->height;
     context.stride = frame->row_stride_bytes;
+    context.pixelFormat = frame->pixel_format;
     return MfdWindowFramebufferPluginResultCode_Success;
 }
 ```
@@ -2078,12 +2091,12 @@ If your plugin must choose between dropping one frame and blocking the render lo
 You can unit-test most of the plugin contract without launching `mfd_window`. Build a fake frame on the stack and call your callbacks directly.
 
 ```cpp
-// Scenario: unit-test the plugin against one synthetic 2x2 RGBA32 frame.
+// Scenario: unit-test the plugin against one synthetic 2x2 BGRA32 frame.
 std::array<std::uint8_t, 16> pixels {};
 
 MfdWindowFramebufferFrame frame {};
 frame.struct_size = sizeof(frame);
-frame.pixel_format = MfdWindowFramebufferPixelFormat_Rgba32;
+frame.pixel_format = MfdWindowFramebufferPixelFormat_Bgra32;
 frame.width = 2;
 frame.height = 2;
 frame.row_stride_bytes = 8;
@@ -2118,6 +2131,7 @@ examples/mfd_framebuffer_stdout_plugin/src/FramebufferStdoutPlugin.cpp
 That sample proves:
 
 - callback-table export
+- explicit output-format request
 - ABI validation
 - safe frame validation
 - context allocation and destruction
@@ -2142,11 +2156,12 @@ Before wiring the plugin into a full runtime launch, verify all of the following
 
 1. the DLL exports `MfdGetWindowFramebufferPluginApi`
 2. `info.abi_version` matches `MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION`
-3. `init`, `submit_frame`, `close`, and `destroy` are all populated
-4. `submit_frame` validates the descriptor before touching pixels
-5. pixels are copied or handed off before the callback returns
-6. the async path does not block the render thread
-7. the plugin can be exercised with a synthetic stack-allocated frame
+3. `info.requested_pixel_format` is set to the layout your consumer expects
+4. `init`, `submit_frame`, `close`, and `destroy` are all populated
+5. `submit_frame` validates the descriptor before touching pixels
+6. pixels are copied or handed off before the callback returns
+7. the async path does not block the render thread
+8. the plugin can be exercised with a synthetic stack-allocated frame
 
 <!-- PAGEBREAK -->
 

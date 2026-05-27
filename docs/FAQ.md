@@ -132,7 +132,7 @@ The integrated runtime debug overlay lets you inspect:
 
 Two common paths exist:
 
-- use the sample framebuffer plugin flow described in [Capture The Window As RGBA32](./tutorials/07_framebuffer_rgba32_capture.md)
+- use the sample framebuffer plugin flow described in [Capture The Window As Raw Pixels](./tutorials/07_framebuffer_rgba32_capture.md)
 - use the runtime/plugin integration points from `mfd_window_plugin_api`
 
 ## Where are the screenshots and diagrams stored?

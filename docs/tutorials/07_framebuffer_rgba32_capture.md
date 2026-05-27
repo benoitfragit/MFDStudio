@@ -1,4 +1,4 @@
-# Capture The Window As RGBA32
+# Capture The Window As Raw Pixels
 
 This tutorial shows how to capture the rendered window as a CPU buffer using
 the OpenGL readback API.
@@ -6,6 +6,10 @@ the OpenGL readback API.
 These helpers belong to the repository host-side render layer used by
 `mfd_window` and `mfd_editor`. They are not part of the standalone
 `mfd_client_api` integration surface.
+
+The direct host-side readback API returns `RGBA32`. The framebuffer plugin ABI
+can now request either `RGBA32` or `BGRA32` output depending on what the
+consumer expects.
 
 ## At A Glance
 
@@ -123,6 +127,7 @@ stable entry point returning a versioned callback table:
 extern "C" __declspec(dllexport) MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL
 MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindowUtf8Buffer*) noexcept
 {
+    outApi->info.requested_pixel_format = MfdWindowFramebufferPixelFormat_Bgra32;
     outApi->init = &InitPlugin;
     outApi->submit_frame = &SubmitFramePlugin;
     outApi->close = &ClosePlugin;
@@ -139,7 +144,15 @@ rendered runtime page viewport only:
 - `frame->pixels`
 - `frame->pixel_bytes`
 - `frame->row_stride_bytes`
-- `frame->pixel_format == MfdWindowFramebufferPixelFormat_Rgba32`
+- `frame->pixel_format`, matching the plugin request made through `outApi->info.requested_pixel_format`
+
+The stable plugin ABI currently supports:
+
+- `MfdWindowFramebufferPixelFormat_Rgba32`
+- `MfdWindowFramebufferPixelFormat_Bgra32`, compatible with `GL_BGRA_EXT`
+
+The repository sample plugin now requests `BGRA32` to exercise the selectable
+plugin output path end to end.
 
 When the integrated `F1` runtime debug overlay is visible, `mfd_window` keeps
 that side panel out of the plugin buffer. The forwarded `width`, `height`, and
@@ -209,10 +222,12 @@ After a capture:
 - `Bytes()` gives a raw `std::byte` view over the same buffer
 
 This is the right API when another system wants raw `RGBA32` pixel buffers.
+When you need `BGRA32` or a `GL_BGRA_EXT`-compatible byte layout, use the
+plugin ABI and request `MfdWindowFramebufferPixelFormat_Bgra32`.
 
 ## Result
 
-You now know how to pull an `RGBA32` framebuffer buffer from the window using
-the public API, either directly through `OpenGlFramebufferReader`, through
-`mfd_window --framebuffer-plugin`, or through the optional `RunLauncher`
-callback.
+You now know how to pull raw framebuffer bytes from the window using the
+public API, either directly as `RGBA32` through `OpenGlFramebufferReader`,
+through `mfd_window --framebuffer-plugin` with plugin-selected `RGBA32` or
+`BGRA32`, or through the optional `RunLauncher` callback.

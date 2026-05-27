@@ -7,7 +7,7 @@ framebuffer-processing plugins loaded by `mfd_window` through
 It provides:
 
 - the public stable ABI header `mfd/window/WindowLauncherPlugin.h`
-- the exported support helpers validating raw `RGBA32` frame layouts
+- the exported support helpers validating raw `RGBA32` and `BGRA32` frame layouts
 - the stable entry point `MfdGetWindowFramebufferPluginApi`
 
 Typical external use:
@@ -40,7 +40,8 @@ MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL InitPlugin(
     const MfdWindowFramebufferPluginHostApi* host,
     MfdWindowUtf8Buffer*) noexcept
 {
-    if (pluginContext == nullptr || host == nullptr)
+    if (pluginContext == nullptr || host == nullptr ||
+        host->output_pixel_format != MfdWindowFramebufferPixelFormat_Bgra32)
     {
         return MfdWindowFramebufferPluginResultCode_InvalidArgument;
     }
@@ -62,7 +63,8 @@ MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL SubmitFramePlugin(
     if (!context->printed)
     {
         std::cout << "Received " << frame->width << "x" << frame->height
-                  << " RGBA32 pixels=" << frame->pixel_bytes << '\n';
+                  << " pixels in format " << frame->pixel_format
+                  << " bytes=" << frame->pixel_bytes << '\n';
         context->printed = true;
     }
 
@@ -92,6 +94,7 @@ MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindo
     outApi->struct_size = sizeof(*outApi);
     outApi->info.struct_size = sizeof(outApi->info);
     outApi->info.abi_version = MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION;
+    outApi->info.requested_pixel_format = MfdWindowFramebufferPixelFormat_Bgra32;
     outApi->plugin_context = context;
     outApi->init = &InitPlugin;
     outApi->submit_frame = &SubmitFramePlugin;
@@ -108,7 +111,12 @@ During `submit_frame`, the plugin receives:
 - `frame->pixels`
 - `frame->pixel_bytes`
 - `frame->row_stride_bytes`
-- `frame->pixel_format == MfdWindowFramebufferPixelFormat_Rgba32`
+- `frame->pixel_format`, matching `outApi->info.requested_pixel_format`
+
+The stable ABI currently supports:
+
+- `MfdWindowFramebufferPixelFormat_Rgba32`
+- `MfdWindowFramebufferPixelFormat_Bgra32`, compatible with `GL_BGRA_EXT`
 
 The pixel buffer is borrowed and valid only for the duration of the
 `submit_frame` call. Copy it if another system needs to keep it afterwards.

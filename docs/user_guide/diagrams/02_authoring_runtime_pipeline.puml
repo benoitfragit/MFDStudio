@@ -28,7 +28,7 @@ Step2 --> Step6 : JSON loading
 Step5 --> Step7 : business logic
 Step7 --> Step6 : UDP commands
 Step6 --> Step7 : feedback runtime
-Step6 --> Step8 : framebuffer RGBA32
+Step6 --> Step8 : framebuffer\nRGBA32 or BGRA32
 
 note right of Step4
 Transport IDs and Hash mapping

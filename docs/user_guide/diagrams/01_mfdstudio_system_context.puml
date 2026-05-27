@@ -44,7 +44,7 @@ Integrator --> ClientApp : implement business logic
 Operator --> ClientApp : provide live data
 ClientApp --> Runtime : UDP protobuf commands
 Runtime --> ClientApp : optional UDP feedback
-Runtime --> Plugin : submit RGBA32 frames
+Runtime --> Plugin : submit plugin-selected\nRGBA32 or BGRA32 frames
 Operator --> Runtime : observe rendered window
 
 note bottom of Runtime

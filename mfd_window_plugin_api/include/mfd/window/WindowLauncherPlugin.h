@@ -11,8 +11,8 @@
  *
  * @details This boundary intentionally avoids C++ classes, STL containers,
  * exceptions, and host-owned graphics objects across the DLL edge. Plugins
- * receive one raw `RGBA32` frame descriptor and implement an explicit
- * `init / submit_frame / close / destroy` lifecycle.
+ * receive one raw frame descriptor in the pixel layout they requested and
+ * implement an explicit `init / submit_frame / close / destroy` lifecycle.
  */
 
 #include <stddef.h>
@@ -50,7 +50,7 @@ extern "C"
 /** @brief ABI revision implemented by the framebuffer plugin contract. */
 enum
 {
-    MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION = 1u
+    MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION = 2u
 };
 
 /** @brief Exported symbol name returning the framebuffer plugin callback table. */
@@ -76,7 +76,9 @@ typedef enum MfdWindowFramebufferPluginResultCode
 typedef enum MfdWindowFramebufferPixelFormat
 {
     /** @brief Tightly packed `RGBA32`, one byte per component. */
-    MfdWindowFramebufferPixelFormat_Rgba32 = 1
+    MfdWindowFramebufferPixelFormat_Rgba32 = 1,
+    /** @brief Tightly packed `BGRA32`, one byte per component, compatible with `GL_BGRA_EXT`. */
+    MfdWindowFramebufferPixelFormat_Bgra32 = 2
 } MfdWindowFramebufferPixelFormat;
 
 /**
@@ -128,6 +130,8 @@ typedef struct MfdWindowFramebufferPluginHostApi
 {
     size_t struct_size;
     uint32_t abi_version;
+    /** @brief Pixel format selected by the host for `submit_frame`. */
+    uint32_t output_pixel_format;
 } MfdWindowFramebufferPluginHostApi;
 
 /**
@@ -139,6 +143,8 @@ typedef struct MfdWindowFramebufferPluginInfo
     uint32_t abi_version;
     MfdWindowStringView plugin_id;
     MfdWindowStringView display_name;
+    /** @brief Pixel format requested by the plugin for `submit_frame`. */
+    uint32_t requested_pixel_format;
 } MfdWindowFramebufferPluginInfo;
 
 /**
@@ -167,6 +173,34 @@ typedef struct MfdWindowFramebufferPluginApi
 typedef MfdWindowFramebufferPluginResultCode(MFD_WINDOW_PLUGIN_CALL* MfdGetWindowFramebufferPluginApiFn)(
     MfdWindowFramebufferPluginApi* out_api,
     MfdWindowUtf8Buffer* error);
+
+/**
+ * @brief Computes the expected byte count for one tightly packed framebuffer layout.
+ * @param pixel_format Raw pixel layout requested by the plugin ABI.
+ * @param width Framebuffer width in pixels.
+ * @param height Framebuffer height in pixels.
+ * @return Expected byte count, or `0` when the format or dimensions are invalid or overflow.
+ */
+MFD_WINDOW_PLUGIN_API size_t MFD_WINDOW_PLUGIN_CALL MfdWindowComputeFramebufferByteCount(
+    uint32_t pixel_format,
+    int32_t width,
+    int32_t height) MFD_WINDOW_PLUGIN_NOEXCEPT;
+
+/**
+ * @brief Validates that one raw byte buffer matches one tightly packed framebuffer layout.
+ * @param pixel_format Raw pixel layout requested by the plugin ABI.
+ * @param width Framebuffer width in pixels.
+ * @param height Framebuffer height in pixels.
+ * @param pixels Pointer to the first raw pixel byte.
+ * @param pixel_bytes Raw byte count available behind `pixels`.
+ * @return Non-zero when the buffer matches one complete tightly packed frame in the requested format.
+ */
+MFD_WINDOW_PLUGIN_API int MFD_WINDOW_PLUGIN_CALL MfdWindowValidateFramebufferLayout(
+    uint32_t pixel_format,
+    int32_t width,
+    int32_t height,
+    const void* pixels,
+    size_t pixel_bytes) MFD_WINDOW_PLUGIN_NOEXCEPT;
 
 /**
  * @brief Computes the expected `RGBA32` byte count for one framebuffer.
@@ -209,6 +243,43 @@ namespace mfd::window
 constexpr const char* kLauncherFramebufferPluginEntryPointName = MFD_WINDOW_FRAMEBUFFER_PLUGIN_ENTRY_POINT;
 
 /**
+ * @brief Computes the expected byte count for one tightly packed framebuffer layout.
+ * @param pixelFormat Raw pixel layout requested by the plugin ABI.
+ * @param width Framebuffer width in pixels.
+ * @param height Framebuffer height in pixels.
+ * @return Expected byte count, or `0` when the format or dimensions are invalid or overflow.
+ */
+inline size_t ComputeFramebufferByteCount(const MfdWindowFramebufferPixelFormat pixelFormat,
+                                          const int width,
+                                          const int height) noexcept
+{
+    return MfdWindowComputeFramebufferByteCount(static_cast<uint32_t>(pixelFormat), width, height);
+}
+
+/**
+ * @brief Validates that one raw byte buffer matches one tightly packed framebuffer layout.
+ * @param pixelFormat Raw pixel layout requested by the plugin ABI.
+ * @param width Framebuffer width in pixels.
+ * @param height Framebuffer height in pixels.
+ * @param pixels Pointer to the first raw pixel byte.
+ * @param pixelBytes Raw byte count available behind `pixels`.
+ * @return `true` when the buffer matches one complete tightly packed frame in the requested format.
+ */
+inline bool ValidateFramebufferLayout(const MfdWindowFramebufferPixelFormat pixelFormat,
+                                      const int width,
+                                      const int height,
+                                      const void* pixels,
+                                      const size_t pixelBytes) noexcept
+{
+    return MfdWindowValidateFramebufferLayout(
+               static_cast<uint32_t>(pixelFormat),
+               width,
+               height,
+               pixels,
+               pixelBytes) != 0;
+}
+
+/**
  * @brief Computes the expected `RGBA32` byte count for one framebuffer.
  * @param width Framebuffer width in pixels.
  * @param height Framebuffer height in pixels.
@@ -216,7 +287,7 @@ constexpr const char* kLauncherFramebufferPluginEntryPointName = MFD_WINDOW_FRAM
  */
 inline size_t ComputeFramebufferRgba32ByteCount(const int width, const int height) noexcept
 {
-    return MfdWindowComputeFramebufferRgba32ByteCount(width, height);
+    return ComputeFramebufferByteCount(MfdWindowFramebufferPixelFormat_Rgba32, width, height);
 }
 
 /**
@@ -232,7 +303,12 @@ inline bool ValidateFramebufferRgba32Layout(const int width,
                                             const void* pixels,
                                             const size_t pixelBytes) noexcept
 {
-    return MfdWindowValidateFramebufferRgba32Layout(width, height, pixels, pixelBytes) != 0;
+    return ValidateFramebufferLayout(
+               MfdWindowFramebufferPixelFormat_Rgba32,
+               width,
+               height,
+               pixels,
+               pixelBytes);
 }
 
 /**

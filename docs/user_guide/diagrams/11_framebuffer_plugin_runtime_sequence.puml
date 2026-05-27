@@ -22,25 +22,29 @@ Launcher -> Loader : Load(plugin.dll)
 Loader -> Plugin : LoadLibrary + GetProcAddress(entry point)
 Plugin --> Loader : callback table + plugin_context
 Loader -> Plugin : init(plugin_context, hostApi, errorBuffer)
+note right of Loader
+hostApi.output_pixel_format
+= requested plugin format
+end note
 
 loop each rendered frame
   Launcher -> Capture : Capture()
   alt OpenGL PBO path available
-    Capture -> Pbo : submit glReadPixels readback
+    Capture -> Pbo : submit glReadPixels readback\nin requested format
     Capture -> Pbo : poll previous fence
-    Pbo --> Capture : ready RGBA32 frame \n or latest cached frame
+    Pbo --> Capture : ready requested-format frame \n or latest cached frame
   else synchronous fallback
     Capture -> Pbo : direct framebuffer readback
-    Pbo --> Capture : RGBA32 frame
+    Pbo --> Capture : requested-format frame
   end
 
-  Launcher -> Loader : submit rgba32 bytes
+  Launcher -> Loader : submit requested-format bytes
   Loader -> Plugin : submit_frame(plugin_context, frame, errorBuffer)
   Plugin -> Context : copy or publish frame handoff
   Context -> Consumer : newest ready frame
   note right of Loader
   frame.struct_size
-  frame.pixel_format = Rgba32
+  frame.pixel_format = requested format
   frame.width / frame.height
   frame.row_stride_bytes
   frame.pixels

@@ -159,7 +159,7 @@ process.
 | Target | Role |
 | --- | --- |
 | `mfd_window` | Generic runtime host that loads a window JSON and exposes the integrated `F1` debug overlay |
-| `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting the stable framebuffer plugin ABI expected by `mfd_window` |
+| `mfd_framebuffer_stdout_plugin` | Repository sample DLL exporting the stable framebuffer plugin ABI expected by `mfd_window`, updated to request `BGRA32` output |
 | `client_mockup` | Interactive Win32 + Dear ImGui + DX11 client used to exercise the public API without linking raylib |
 | `client_mockup_minimal` | Minimal plain-loop client for the cockpit showcase |
 | `client_test_package` | Minimal package-consumer client that uses `find_package(MFDStudioClientApi)` from `_Deliveries`, enables itself only when at least one matching SDK/runtime config pair exists, and stays excluded from default builds for missing configs |

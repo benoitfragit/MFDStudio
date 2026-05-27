@@ -15,10 +15,10 @@ skinparam activity {
 start
 :mfd_window loads plugin.dll;
 :Search exported symbol\nMfdGetWindowFramebufferPluginApi;
-:Fill MfdWindowFramebufferPluginApi\nstruct_size / info / callbacks;
+:Fill MfdWindowFramebufferPluginApi\nstruct_size / info /\nrequested_pixel_format / callbacks;
 :Allocate plugin_context;
 :init(...);
-:submit_frame(frame)\nwidth / height / pixels\npixel_bytes / row_stride\nRGBA32;
+:submit_frame(frame)\nwidth / height / pixels\npixel_bytes / row_stride\nRGBA32 or BGRA32;
 :Copy or hand off pixels into\nplugin-owned memory;
 :close();
 :destroy();

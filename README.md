@@ -16,7 +16,7 @@ and APIs.
 - choose in the editor which reticle primitives inherit parent rotation and scale at runtime
 - run them in `mfd_window`
 - drive the live runtime from `client_mockup` or your own UDP client
-- capture the rendered page viewport through a stable `RGBA32` framebuffer plugin ABI
+- capture the rendered page viewport through a stable framebuffer plugin ABI with plugin-selected `RGBA32` or `BGRA32` output
 - generate typed C++ client helpers for one authored window
 - inspect the live runtime with the integrated `F1` debug overlay, including UDP pressure diagnostics
 
@@ -72,7 +72,7 @@ For the guided version, use [Quick Start](./docs/QUICKSTART.md).
 | `mfd_window` | Generic runtime launcher that loads one window JSON file |
 | `client_mockup` | Live UDP client for pages, reticles, strobe, feedback, and stress tests |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles. Use `--asset-directory <path>` to override the default authored asset root. Static page reticles, the generated page title chrome, and page-local strobes can all be selected and manipulated directly in the preview. Primitive inspectors also let authors expose runtime-driven subparts and opt selected primitives out of parent reticle rotation and scale. The reticle studio exposes direct copy/paste shortcuts for shared templates and, when one primitive is focused, duplicates that primitive inside the current reticle template. |
-| `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin implementing the stable capture ABI |
+| `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin implementing the stable capture ABI and requesting `BGRA32` output |
 
 ## Documentation Shelves
 

@@ -336,6 +336,49 @@ TEST(WindowLauncherTests, StableFramebufferFrameValidationAcceptsCompleteRgba32F
         frame.height,
         frame.pixels,
         frame.pixel_bytes));
+    EXPECT_EQ(mfd::window::ComputeFramebufferByteCount(MfdWindowFramebufferPixelFormat_Rgba32, 2, 2), pixels.size());
+}
+
+/**
+ * @brief Validates the stable raw-frame helpers also accept one complete tightly packed `BGRA32` frame.
+ */
+TEST(WindowLauncherTests, StableFramebufferFrameValidationAcceptsCompleteBgra32Frame)
+{
+    const std::array<std::uint8_t, 16> pixels {};
+
+    MfdWindowFramebufferFrame frame {};
+    frame.struct_size = sizeof(frame);
+    frame.pixel_format = MfdWindowFramebufferPixelFormat_Bgra32;
+    frame.width = 2;
+    frame.height = 2;
+    frame.row_stride_bytes = 8;
+    frame.pixels = pixels.data();
+    frame.pixel_bytes = pixels.size();
+
+    EXPECT_TRUE(mfd::window::ValidateFramebufferFrame(frame));
+    EXPECT_TRUE(mfd::window::ValidateFramebufferLayout(
+        MfdWindowFramebufferPixelFormat_Bgra32,
+        frame.width,
+        frame.height,
+        frame.pixels,
+        frame.pixel_bytes));
+    EXPECT_EQ(mfd::window::ComputeFramebufferByteCount(MfdWindowFramebufferPixelFormat_Bgra32, 2, 2), pixels.size());
+}
+
+/**
+ * @brief Rejects unsupported framebuffer pixel formats in the stable helpers.
+ */
+TEST(WindowLauncherTests, StableFramebufferHelpersRejectUnsupportedPixelFormat)
+{
+    const std::array<std::uint8_t, 16> pixels {};
+
+    EXPECT_EQ(mfd::window::ComputeFramebufferByteCount(static_cast<MfdWindowFramebufferPixelFormat>(0), 2, 2), 0U);
+    EXPECT_FALSE(mfd::window::ValidateFramebufferLayout(
+        static_cast<MfdWindowFramebufferPixelFormat>(0),
+        2,
+        2,
+        pixels.data(),
+        pixels.size()));
 }
 
 /**

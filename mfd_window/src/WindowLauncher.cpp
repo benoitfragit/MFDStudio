@@ -125,6 +125,48 @@ std::string PluginResultCodeDescription(const MfdWindowFramebufferPluginResultCo
     return "unknown failure";
 }
 
+const char* FramebufferPixelFormatDescription(const MfdWindowFramebufferPixelFormat pixelFormat) noexcept
+{
+    switch (pixelFormat)
+    {
+    case MfdWindowFramebufferPixelFormat_Rgba32:
+        return "RGBA32";
+    case MfdWindowFramebufferPixelFormat_Bgra32:
+        return "BGRA32";
+    default:
+        return "Unknown";
+    }
+}
+
+bool IsSupportedFramebufferPixelFormat(const MfdWindowFramebufferPixelFormat pixelFormat) noexcept
+{
+    return pixelFormat == MfdWindowFramebufferPixelFormat_Rgba32 ||
+           pixelFormat == MfdWindowFramebufferPixelFormat_Bgra32;
+}
+
+struct CapturedFramebuffer
+{
+    int width = 0;
+    int height = 0;
+    MfdWindowFramebufferPixelFormat pixelFormat = MfdWindowFramebufferPixelFormat_Rgba32;
+    std::vector<std::byte> pixels;
+
+    [[nodiscard]] bool Empty() const noexcept
+    {
+        return pixels.empty();
+    }
+
+    [[nodiscard]] std::size_t ByteSize() const noexcept
+    {
+        return pixels.size();
+    }
+
+    [[nodiscard]] mfd::ByteView Bytes() const noexcept
+    {
+        return {pixels.data(), pixels.size()};
+    }
+};
+
 #if defined(_WIN32)
 using GLenum = unsigned int;
 using GLuint = unsigned int;
@@ -137,6 +179,9 @@ using GLboolean = unsigned char;
 #endif
 #ifndef GL_RGBA
 #define GL_RGBA 0x1908
+#endif
+#ifndef GL_BGRA_EXT
+#define GL_BGRA_EXT 0x80E1
 #endif
 #ifndef GL_UNSIGNED_BYTE
 #define GL_UNSIGNED_BYTE 0x1401
@@ -161,6 +206,10 @@ using GLboolean = unsigned char;
 #endif
 #endif
 
+#if defined(_WIN32)
+GLenum ToOpenGlPixelFormat(MfdWindowFramebufferPixelFormat pixelFormat) noexcept;
+#endif
+
 class PboReadbackApi
 {
 public:
@@ -177,7 +226,7 @@ public:
     void DeleteBuffers(int count, const unsigned int* buffers) const noexcept;
     void BindPixelPackBuffer(unsigned int bufferId) const noexcept;
     void AllocatePixelPackBuffer(std::size_t sizeInBytes) const noexcept;
-    void ReadPixelsRgba32(int width, int height) const noexcept;
+    void ReadPixels(int width, int height, MfdWindowFramebufferPixelFormat pixelFormat) const noexcept;
     [[nodiscard]] void* MapPixelPackBufferReadOnly() const noexcept;
     [[nodiscard]] bool UnmapPixelPackBuffer() const noexcept;
     [[nodiscard]] GlSyncHandle CreateFence() const noexcept;
@@ -318,13 +367,14 @@ void PboReadbackApi::AllocatePixelPackBuffer([[maybe_unused]] const std::size_t 
 #endif
 }
 
-void PboReadbackApi::ReadPixelsRgba32([[maybe_unused]] const int width,
-                                      [[maybe_unused]] const int height) const noexcept
+void PboReadbackApi::ReadPixels([[maybe_unused]] const int width,
+                                [[maybe_unused]] const int height,
+                                [[maybe_unused]] const MfdWindowFramebufferPixelFormat pixelFormat) const noexcept
 {
 #if defined(_WIN32)
     if (readPixels_ != nullptr)
     {
-        readPixels_(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        readPixels_(0, 0, width, height, ToOpenGlPixelFormat(pixelFormat), GL_UNSIGNED_BYTE, nullptr);
     }
 #endif
 }
@@ -381,9 +431,98 @@ void PboReadbackApi::DeleteFence([[maybe_unused]] const GlSyncHandle fence) cons
 #endif
 }
 
+#if defined(_WIN32)
+GLenum ToOpenGlPixelFormat(const MfdWindowFramebufferPixelFormat pixelFormat) noexcept
+{
+    switch (pixelFormat)
+    {
+    case MfdWindowFramebufferPixelFormat_Rgba32:
+        return GL_RGBA;
+    case MfdWindowFramebufferPixelFormat_Bgra32:
+        return GL_BGRA_EXT;
+    default:
+        return GL_RGBA;
+    }
+}
+#endif
+
+std::size_t ExpectedFramebufferByteCount(const MfdWindowFramebufferPixelFormat pixelFormat,
+                                         const int width,
+                                         const int height) noexcept
+{
+    return mfd::window::ComputeFramebufferByteCount(pixelFormat, width, height);
+}
+
+std::size_t ExpectedFramebufferRowStride(const MfdWindowFramebufferPixelFormat pixelFormat,
+                                         const int width) noexcept
+{
+    return ExpectedFramebufferByteCount(pixelFormat, width, 1);
+}
+
+void SwapRedAndBlueChannels(std::byte* const pixels, const std::size_t pixelCount) noexcept
+{
+    if (pixels == nullptr)
+    {
+        return;
+    }
+
+    auto* bytes = reinterpret_cast<std::uint8_t*>(pixels);
+    for (std::size_t pixelIndex = 0; pixelIndex < pixelCount; ++pixelIndex)
+    {
+        const std::size_t offset = pixelIndex * 4U;
+        std::swap(bytes[offset], bytes[offset + 2U]);
+    }
+}
+
+void FlipRows(std::vector<std::byte>& pixels, const std::size_t rowStrideBytes, const int height)
+{
+    if (rowStrideBytes == 0U || height <= 1)
+    {
+        return;
+    }
+
+    std::vector<std::byte> scratchRow(rowStrideBytes);
+    for (int top = 0, bottom = height - 1; top < bottom; ++top, --bottom)
+    {
+        std::byte* topRow = pixels.data() + static_cast<std::size_t>(top) * rowStrideBytes;
+        std::byte* bottomRow = pixels.data() + static_cast<std::size_t>(bottom) * rowStrideBytes;
+        std::memcpy(scratchRow.data(), topRow, rowStrideBytes);
+        std::memcpy(topRow, bottomRow, rowStrideBytes);
+        std::memcpy(bottomRow, scratchRow.data(), rowStrideBytes);
+    }
+}
+
+CapturedFramebuffer ConvertRgba32Framebuffer(const mfd::Rgba32Framebuffer& source,
+                                             const MfdWindowFramebufferPixelFormat pixelFormat)
+{
+    CapturedFramebuffer converted;
+    converted.width = source.width;
+    converted.height = source.height;
+    converted.pixelFormat = pixelFormat;
+
+    const mfd::ByteView sourceBytes = source.Bytes();
+    converted.pixels.resize(sourceBytes.size());
+    if (!sourceBytes.empty())
+    {
+        std::memcpy(converted.pixels.data(), sourceBytes.data(), sourceBytes.size());
+    }
+
+    if (pixelFormat == MfdWindowFramebufferPixelFormat_Bgra32)
+    {
+        SwapRedAndBlueChannels(converted.pixels.data(), source.PixelCount());
+    }
+
+    return converted;
+}
+
 class AsyncFramebufferCapture
 {
 public:
+    explicit AsyncFramebufferCapture(const MfdWindowFramebufferPixelFormat pixelFormat) noexcept :
+        pixelFormat_(pixelFormat)
+    {
+    }
+
     ~AsyncFramebufferCapture()
     {
         if (IsWindowReady())
@@ -392,9 +531,9 @@ public:
         }
     }
 
-    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> Capture(const int captureWidth, const int captureHeight)
+    [[nodiscard]] std::optional<CapturedFramebuffer> Capture(const int captureWidth, const int captureHeight)
     {
-        if (captureWidth <= 0 || captureHeight <= 0)
+        if (captureWidth <= 0 || captureHeight <= 0 || !IsSupportedFramebufferPixelFormat(pixelFormat_))
         {
             return std::nullopt;
         }
@@ -425,7 +564,7 @@ public:
             return CaptureSynchronously(captureWidth, captureHeight);
         }
 
-        std::optional<mfd::Rgba32Framebuffer> readyFrame;
+        std::optional<CapturedFramebuffer> readyFrame;
         if (frameIndex_ + 1 >= kCaptureRingSize)
         {
             const unsigned int readIndex = (frameIndex_ + 1) % kCaptureRingSize;
@@ -477,33 +616,14 @@ private:
         }
     };
 
-    static void FlipRows(std::vector<mfd::Rgba8Pixel>& pixels, const int width, const int height)
-    {
-        if (width <= 0 || height <= 1)
-        {
-            return;
-        }
-
-        const std::size_t stride = static_cast<std::size_t>(width) * sizeof(mfd::Rgba8Pixel);
-        std::vector<mfd::Rgba8Pixel> scratchRow(static_cast<std::size_t>(width));
-
-        for (int top = 0, bottom = height - 1; top < bottom; ++top, --bottom)
-        {
-            mfd::Rgba8Pixel* topRow = pixels.data() + static_cast<std::size_t>(top) * static_cast<std::size_t>(width);
-            mfd::Rgba8Pixel* bottomRow = pixels.data() + static_cast<std::size_t>(bottom) * static_cast<std::size_t>(width);
-            std::memcpy(scratchRow.data(), topRow, stride);
-            std::memcpy(topRow, bottomRow, stride);
-            std::memcpy(bottomRow, scratchRow.data(), stride);
-        }
-    }
-
-    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> CaptureSynchronously(const int captureWidth,
-                                                                             const int captureHeight)
+    [[nodiscard]] std::optional<CapturedFramebuffer> CaptureSynchronously(const int captureWidth,
+                                                                         const int captureHeight)
     {
         mfd::FramebufferCaptureRequest request;
         request.width = captureWidth;
         request.height = captureHeight;
-        latestFramebuffer_ = mfd::OpenGlFramebufferReader::ReadRgba32(request);
+        latestFramebuffer_ =
+            ConvertRgba32Framebuffer(mfd::OpenGlFramebufferReader::ReadRgba32(request), pixelFormat_);
         hasLatestFramebuffer_ = !latestFramebuffer_.Empty();
         return latestFramebuffer_;
     }
@@ -522,8 +642,7 @@ private:
         }
 
         const PboReadbackApi& api = PboReadbackApi::Instance();
-        const std::size_t requiredBytes =
-            static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * sizeof(mfd::Rgba8Pixel);
+        const std::size_t requiredBytes = ExpectedFramebufferByteCount(pixelFormat_, width, height);
         if (requiredBytes == 0)
         {
             return false;
@@ -574,14 +693,14 @@ private:
 
         slot.ReleaseFence(api);
         api.BindPixelPackBuffer(slot.pboId);
-        api.ReadPixelsRgba32(width, height);
+        api.ReadPixels(width, height, pixelFormat_);
         api.BindPixelPackBuffer(0);
 
         slot.fence = api.CreateFence();
         return slot.fence != nullptr;
     }
 
-    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> TryConsume(const unsigned int slotIndex)
+    [[nodiscard]] std::optional<CapturedFramebuffer> TryConsume(const unsigned int slotIndex)
     {
         const PboReadbackApi& api = PboReadbackApi::Instance();
         CaptureSlot& slot = slots_[slotIndex];
@@ -607,7 +726,8 @@ private:
 
         latestFramebuffer_.width = slot.width;
         latestFramebuffer_.height = slot.height;
-        latestFramebuffer_.pixels.resize(static_cast<std::size_t>(slot.width) * static_cast<std::size_t>(slot.height));
+        latestFramebuffer_.pixelFormat = pixelFormat_;
+        latestFramebuffer_.pixels.resize(slot.capacityBytes);
         std::memcpy(latestFramebuffer_.pixels.data(), mappedBuffer, slot.capacityBytes);
 
         const bool unmapSucceeded = api.UnmapPixelPackBuffer();
@@ -619,7 +739,9 @@ private:
             return std::nullopt;
         }
 
-        FlipRows(latestFramebuffer_.pixels, latestFramebuffer_.width, latestFramebuffer_.height);
+        FlipRows(latestFramebuffer_.pixels,
+                 ExpectedFramebufferRowStride(pixelFormat_, latestFramebuffer_.width),
+                 latestFramebuffer_.height);
         return latestFramebuffer_;
     }
 
@@ -643,7 +765,8 @@ private:
     }
 
     std::array<CaptureSlot, kCaptureRingSize> slots_ {};
-    mfd::Rgba32Framebuffer latestFramebuffer_ {};
+    CapturedFramebuffer latestFramebuffer_ {};
+    MfdWindowFramebufferPixelFormat pixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
     std::size_t frameIndex_ = 0;
     bool initialized_ = false;
     bool pboSupportChecked_ = false;
@@ -897,8 +1020,8 @@ public:
         }
 
         if (pluginApi_.struct_size < offsetof(MfdWindowFramebufferPluginApi, destroy) + sizeof(pluginApi_.destroy) ||
-            pluginApi_.info.struct_size < offsetof(MfdWindowFramebufferPluginInfo, display_name) +
-                                               sizeof(pluginApi_.info.display_name))
+            pluginApi_.info.struct_size < offsetof(MfdWindowFramebufferPluginInfo, requested_pixel_format) +
+                                               sizeof(pluginApi_.info.requested_pixel_format))
         {
             error = "The framebuffer plugin '" + pluginFile.string() + "' returned an incomplete ABI descriptor.";
             Unload();
@@ -923,6 +1046,18 @@ public:
             Unload();
             return false;
         }
+
+        outputPixelFormat_ =
+            static_cast<MfdWindowFramebufferPixelFormat>(pluginApi_.info.requested_pixel_format);
+        if (!IsSupportedFramebufferPixelFormat(outputPixelFormat_))
+        {
+            error = "The framebuffer plugin '" + pluginFile.string() + "' requested unsupported pixel format " +
+                    std::to_string(pluginApi_.info.requested_pixel_format) + ".";
+            Unload();
+            return false;
+        }
+
+        hostApi_.output_pixel_format = static_cast<uint32_t>(outputPixelFormat_);
 
         ResetPluginErrorBuffer(errorBuffer, errorStorage.data(), errorStorage.size());
         try
@@ -962,6 +1097,11 @@ public:
 #endif
     }
 
+    [[nodiscard]] MfdWindowFramebufferPixelFormat OutputPixelFormat() const noexcept
+    {
+        return outputPixelFormat_;
+    }
+
     [[nodiscard]] mfd::window::LauncherFramebufferCallback CreateCallback()
     {
         if (!pluginInitialized_ || pluginApi_.submit_frame == nullptr)
@@ -969,31 +1109,37 @@ public:
             return {};
         }
 
-        return [this](const int width, const int height, const mfd::ByteView rgba32Bytes)
+        return [this](const int width, const int height, const mfd::ByteView pixelBytes)
         {
-            SubmitFrame(width, height, rgba32Bytes);
+            SubmitFrame(width, height, pixelBytes);
         };
     }
 
 private:
-    void SubmitFrame(const int width, const int height, const mfd::ByteView rgba32Bytes) noexcept
+    void SubmitFrame(const int width, const int height, const mfd::ByteView pixelBytes) noexcept
     {
         if (!pluginInitialized_ || pluginApi_.submit_frame == nullptr)
         {
             return;
         }
 
-        const std::size_t byteCount = mfd::window::ComputeFramebufferRgba32ByteCount(width, height);
+        const std::size_t byteCount = ExpectedFramebufferByteCount(outputPixelFormat_, width, height);
+        if (byteCount == 0U || pixelBytes.size() != byteCount)
+        {
+            ReportRuntimeError(
+                "The runtime produced an invalid " + std::string(FramebufferPixelFormatDescription(outputPixelFormat_)) +
+                " framebuffer payload.");
+            return;
+        }
 
         MfdWindowFramebufferFrame frame {};
         frame.struct_size = sizeof(frame);
-        frame.pixel_format = MfdWindowFramebufferPixelFormat_Rgba32;
+        frame.pixel_format = outputPixelFormat_;
         frame.width = width;
         frame.height = height;
-        frame.row_stride_bytes =
-            (byteCount != 0U && height > 0) ? byteCount / static_cast<std::size_t>(height) : 0U;
-        frame.pixels = reinterpret_cast<const std::uint8_t*>(rgba32Bytes.data());
-        frame.pixel_bytes = rgba32Bytes.size();
+        frame.row_stride_bytes = ExpectedFramebufferRowStride(outputPixelFormat_, width);
+        frame.pixels = reinterpret_cast<const std::uint8_t*>(pixelBytes.data());
+        frame.pixel_bytes = pixelBytes.size();
 
         std::array<char, kPluginErrorBufferCapacity> errorStorage {};
         MfdWindowUtf8Buffer errorBuffer {};
@@ -1071,6 +1217,7 @@ private:
         pluginInitialized_ = false;
         pluginApi_ = {};
         hostApi_ = {};
+        outputPixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
         lastRuntimeError_.clear();
         lastReportedRuntimeError_.clear();
 
@@ -1088,6 +1235,7 @@ private:
 #endif
     MfdWindowFramebufferPluginHostApi hostApi_ {};
     MfdWindowFramebufferPluginApi pluginApi_ {};
+    MfdWindowFramebufferPixelFormat outputPixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
     bool pluginInitialized_ = false;
     std::string lastRuntimeError_ {};
     std::string lastReportedRuntimeError_ {};
@@ -1172,15 +1320,17 @@ class GenericWindowApplication
 public:
     GenericWindowApplication(std::string applicationName,
                              std::filesystem::path windowFile,
-                             mfd::window::LauncherFramebufferCallback framebufferCallback) :
+                             mfd::window::LauncherFramebufferCallback framebufferCallback,
+                             const MfdWindowFramebufferPixelFormat framebufferPixelFormat) :
         applicationName_(std::move(applicationName)),
         windowFile_(std::move(windowFile)),
         framebufferCallback_(std::move(framebufferCallback)),
+        framebufferPixelFormat_(framebufferPixelFormat),
         commandProcessor_(scene_)
     {
         if (framebufferCallback_)
         {
-            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>();
+            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_);
         }
     }
 
@@ -1738,7 +1888,7 @@ private:
 
         if (framebufferCapture_ == nullptr)
         {
-            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>();
+            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_);
         }
 
         return framebufferCapture_ != nullptr;
@@ -1752,7 +1902,7 @@ private:
             return;
         }
 
-        const std::optional<mfd::Rgba32Framebuffer> framebuffer =
+        const std::optional<CapturedFramebuffer> framebuffer =
             framebufferCapture_->Capture(captureSize.width, captureSize.height);
         if (!framebuffer.has_value())
         {
@@ -1776,6 +1926,7 @@ private:
     std::string applicationName_;
     std::filesystem::path windowFile_;
     mfd::window::LauncherFramebufferCallback framebufferCallback_ {};
+    MfdWindowFramebufferPixelFormat framebufferPixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
     mfd::JsonLoader loader_ {};
     mfd::SceneRegistry scene_ {};
     mfd::CommandProcessor commandProcessor_;
@@ -1875,6 +2026,7 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
 
     std::unique_ptr<LoadedFramebufferPlugin> framebufferPlugin;
     LauncherFramebufferCallback effectiveFramebufferCallback = std::move(framebufferCallback);
+    MfdWindowFramebufferPixelFormat effectiveFramebufferPixelFormat = MfdWindowFramebufferPixelFormat_Rgba32;
     if (!options.framebufferPluginFile.empty())
     {
         if (effectiveFramebufferCallback)
@@ -1893,19 +2045,28 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
         }
 
         effectiveFramebufferCallback = framebufferPlugin->CreateCallback();
+        effectiveFramebufferPixelFormat = framebufferPlugin->OutputPixelFormat();
     }
 
 #if defined(_WIN32)
     if (::IsDebuggerPresent() != 0)
     {
-        GenericWindowApplication application(applicationName, options.windowFile, std::move(effectiveFramebufferCallback));
+        GenericWindowApplication application(
+            applicationName,
+            options.windowFile,
+            std::move(effectiveFramebufferCallback),
+            effectiveFramebufferPixelFormat);
         return application.Run();
     }
 #endif
 
     try
     {
-        GenericWindowApplication application(applicationName, options.windowFile, std::move(effectiveFramebufferCallback));
+        GenericWindowApplication application(
+            applicationName,
+            options.windowFile,
+            std::move(effectiveFramebufferCallback),
+            effectiveFramebufferPixelFormat);
         return application.Run();
     }
     catch (const std::exception& exception)
