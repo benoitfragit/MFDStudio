@@ -291,9 +291,11 @@ void WriteReticleOverrideFields(json& node, const mfd::ReticleStyleOverride& sty
     }
 }
 
-void WritePrimitiveStyleFields(json& node, const mfd::PrimitiveStyle& style)
+void WritePrimitiveStyleFields(json& node, const mfd::Primitive& primitive)
 {
+    const mfd::PrimitiveStyle& style = primitive.style;
     const mfd::PrimitiveStyle defaults {};
+    const bool supportsFilledRendering = mfd::SupportsFilledPrimitive(primitive);
 
     if (style.visible != defaults.visible)
     {
@@ -318,15 +320,16 @@ void WritePrimitiveStyleFields(json& node, const mfd::PrimitiveStyle& style)
         node["lineStyle"] = ToLineStyleText(style.lineStyle);
     }
 
-    if (style.fillColor.r != defaults.fillColor.r ||
-        style.fillColor.g != defaults.fillColor.g ||
-        style.fillColor.b != defaults.fillColor.b ||
-        style.fillColor.a != defaults.fillColor.a)
+    if (supportsFilledRendering &&
+        (style.fillColor.r != defaults.fillColor.r ||
+         style.fillColor.g != defaults.fillColor.g ||
+         style.fillColor.b != defaults.fillColor.b ||
+         style.fillColor.a != defaults.fillColor.a))
     {
         node["fill"] = ToHexColor(style.fillColor);
     }
 
-    if (style.filled != defaults.filled)
+    if (supportsFilledRendering)
     {
         node["filled"] = style.filled;
     }
@@ -561,7 +564,7 @@ json SerializePrimitive(const mfd::Primitive& primitive, const std::filesystem::
         node["reticleScaleSensitive"] = false;
     }
     WriteTransformFields(node, primitive.transform);
-    WritePrimitiveStyleFields(node, primitive.style);
+    WritePrimitiveStyleFields(node, primitive);
     WritePrimitiveGeometry(node, primitive, baseFolder);
     return node;
 }

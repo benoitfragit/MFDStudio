@@ -334,6 +334,51 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeom
     EXPECT_EQ(arcNode.at("lineStyle").get<std::string>(), "dashed");
 }
 
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesExplicitFalseFilledFlagForFillCapablePrimitive)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "rectangle_demo";
+
+    mfd::Primitive rectangle;
+    rectangle.id = "box";
+    rectangle.type = mfd::PrimitiveType::Rectangle;
+    rectangle.style.fillColor = mfd::ColorRgba {0, 0, 0, 255};
+    rectangle.style.filled = false;
+    rectangle.geometry = mfd::RectangleGeometry {0.24f, 0.14f};
+    reticle.primitives.push_back(std::move(rectangle));
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_EQ(jsonNode.at("elements").size(), 1U);
+    const auto& rectangleNode = jsonNode.at("elements").front();
+    ASSERT_TRUE(rectangleNode.contains("filled"));
+    EXPECT_FALSE(rectangleNode.at("filled").get<bool>());
+    EXPECT_EQ(rectangleNode.at("fill").get<std::string>(), "#000000FF");
+}
+
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateOmitsFilledFlagForNonFillCapablePrimitive)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "line_demo";
+
+    mfd::Primitive line;
+    line.id = "guide";
+    line.type = mfd::PrimitiveType::Line;
+    line.style.fillColor = mfd::ColorRgba {255, 0, 0, 255};
+    line.style.filled = true;
+    line.geometry = mfd::LineGeometry {};
+    reticle.primitives.push_back(std::move(line));
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_EQ(jsonNode.at("elements").size(), 1U);
+    const auto& lineNode = jsonNode.at("elements").front();
+    EXPECT_FALSE(lineNode.contains("fill"));
+    EXPECT_FALSE(lineNode.contains("filled"));
+}
+
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesImageGeometryAndDrawOnTop)
 {
     mfd::ReticleGroup reticle;
