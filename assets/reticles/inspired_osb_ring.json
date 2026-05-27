@@ -1,11 +1,13 @@
 {
   "elements": [
     {
+      "filled": false,
       "id": "frame",
       "size": 1.7200000286102295,
       "type": "rectangle"
     },
     {
+      "filled": false,
       "id": "inner",
       "size": 1.4500000476837158,
       "type": "rectangle"

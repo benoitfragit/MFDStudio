@@ -61,6 +61,7 @@
       "type": "line"
     },
     {
+      "filled": false,
       "height": 0.03999999910593033,
       "id": "center_box",
       "type": "rectangle",

@@ -1,11 +1,13 @@
 {
   "elements": [
     {
+      "filled": false,
       "id": "ball_outer_circle",
       "radius": 0.4099999964237213,
       "type": "circle"
     },
     {
+      "filled": false,
       "id": "ball_inner_circle",
       "lineWidth": 0.002199999988079071,
       "radius": 0.3400000035762787,

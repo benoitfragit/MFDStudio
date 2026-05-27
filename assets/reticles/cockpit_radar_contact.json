@@ -13,6 +13,7 @@
       "type": "line"
     },
     {
+      "filled": false,
       "id": "contact_body",
       "size": 0.04800000041723251,
       "type": "diamond"

@@ -1,22 +1,32 @@
 {
-    "name":  "Tactical",
-    "title":  "Geometry Lab",
-    "backgroundColor":  "#1B120BFF",
-    "titleDisplay":  {
-                         "decoration":  "frame",
-                         "lineStyle":  "dashed",
-                         "stroke":  "#F4D5A2FF"
-                     },
-    "staticReticles":  [
-                           {
-                               "id":  "geometry_showcase",
-                               "template":  "geometry_showcase",
-                               "layerId":  "default"
-                           }
-                       ],
-    "layers":  [
-                   {
-                       "id":  "default"
-                   }
-               ]
+  "bg": "#1B120BFF",
+  "layers": [
+    {
+      "id": "default"
+    }
+  ],
+  "name": "Tactical",
+  "staticReticles": [
+    {
+      "id": "geometry_showcase",
+      "layerId": "default",
+      "letterSpacings": {
+        "showcase_title": 0.002085000043734908
+      },
+      "template": "geometry_showcase",
+      "texts": {
+        "showcase_title": "All primitive types"
+      }
+    }
+  ],
+  "title": "Geometry Lab",
+  "titleDisplay": {
+    "at": [
+      0.0,
+      0.0
+    ],
+    "decoration": "frame",
+    "lineStyle": "dashed",
+    "stroke": "#F4D5A2FF"
+  }
 }

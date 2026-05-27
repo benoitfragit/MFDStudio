@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "filled": false,
       "id": "pointer",
       "points": [
         [

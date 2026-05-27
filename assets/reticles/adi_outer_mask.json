@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "filled": false,
       "id": "ball_mask_ring",
       "innerRadius": 0.4059999883174896,
       "outerRadius": 0.9200000166893005,

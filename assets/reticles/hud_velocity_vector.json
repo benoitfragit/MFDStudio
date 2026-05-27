@@ -1,6 +1,7 @@
 {
   "elements": [
     {
+      "filled": false,
       "id": "vv_circle",
       "radius": 0.03400000184774399,
       "type": "circle"

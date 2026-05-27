@@ -1,15 +1,15 @@
 {
-  "id": "package_test_circle",
   "elements": [
     {
-      "id": "orb",
-      "type": "circle",
-      "radius": 0.12,
-      "lineWidth": 0.008,
-      "stroke": "#A6F2FFFF",
-      "filled": true,
+      "exposed": true,
       "fill": "#133E48CC",
-      "exposed": true
+      "filled": true,
+      "id": "orb",
+      "lineWidth": 0.00800000037997961,
+      "radius": 0.11999999731779099,
+      "stroke": "#A6F2FFFF",
+      "type": "circle"
     }
-  ]
+  ],
+  "id": "package_test_circle"
 }

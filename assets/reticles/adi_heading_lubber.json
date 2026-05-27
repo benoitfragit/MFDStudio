@@ -13,6 +13,7 @@
       "type": "line"
     },
     {
+      "filled": false,
       "id": "lubber_tip",
       "points": [
         [

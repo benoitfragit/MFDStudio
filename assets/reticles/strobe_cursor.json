@@ -1,8 +1,9 @@
 {
   "elements": [
     {
-      "id": "ring",
       "exposed": true,
+      "filled": false,
+      "id": "ring",
       "radius": 0.08749999850988388,
       "type": "circle"
     },

@@ -82,6 +82,81 @@ inline mfd::ColorRgba ToColorRgba(const ImVec4& color)
 }
 
 /**
+ * @brief Returns whether one authored color can produce one visible fill.
+ * @param color Authored runtime color to inspect.
+ * @return `true` when the alpha channel is non-zero.
+ */
+inline bool HasVisibleFillAlpha(const mfd::ColorRgba& color) noexcept
+{
+    return color.a != 0U;
+}
+
+/**
+ * @brief Returns one visible fill color derived from one stroke color.
+ * @param stroke Stroke color used as the first fallback.
+ * @return Stroke color when it is already visible, or the default primitive stroke otherwise.
+ */
+inline mfd::ColorRgba VisibleFillColorFromStroke(const mfd::ColorRgba& stroke) noexcept
+{
+    if (HasVisibleFillAlpha(stroke))
+    {
+        return stroke;
+    }
+
+    return mfd::PrimitiveStyle {}.color;
+}
+
+/**
+ * @brief Seeds one primitive fill color the first time filled rendering becomes visible.
+ * @param style Primitive style updated in place.
+ */
+inline void SeedPrimitiveFillColorIfNeeded(mfd::PrimitiveStyle& style) noexcept
+{
+    if (!style.filled || HasVisibleFillAlpha(style.fillColor))
+    {
+        return;
+    }
+
+    style.fillColor = VisibleFillColorFromStroke(style.color);
+}
+
+/**
+ * @brief Seeds one reticle-level fill override when filled rendering is enabled without one visible color.
+ * @param overrides Reticle style overrides updated in place.
+ * @param fallbackStroke Stroke color used to derive one visible fill.
+ */
+inline void SeedReticleFillOverrideIfNeeded(mfd::ReticleStyleOverride& overrides,
+                                            const mfd::ColorRgba& fallbackStroke) noexcept
+{
+    if (!overrides.filled.value_or(false))
+    {
+        return;
+    }
+
+    if (overrides.fillColor.has_value() && HasVisibleFillAlpha(*overrides.fillColor))
+    {
+        return;
+    }
+
+    overrides.fillColor = VisibleFillColorFromStroke(fallbackStroke);
+}
+
+/**
+ * @brief Returns whether one reticle contains at least one fill-capable primitive.
+ * @param reticle Reticle template or instance to inspect.
+ * @return `true` when at least one primitive supports filled rendering.
+ */
+inline bool ReticleHasFillCapablePrimitive(const mfd::ReticleGroup& reticle) noexcept
+{
+    return std::any_of(reticle.primitives.begin(),
+                       reticle.primitives.end(),
+                       [](const mfd::Primitive& primitive)
+                       {
+                           return mfd::SupportsFilledPrimitive(primitive);
+                       });
+}
+
+/**
  * @brief Suggests the next page to select after one page removal request.
  * @param pages Current authored pages.
  * @param removedPageIndex Page index scheduled for removal.

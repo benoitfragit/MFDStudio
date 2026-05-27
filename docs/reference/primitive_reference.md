@@ -37,6 +37,14 @@ rings, rectangles, ellipses, squares, diamonds, triangles, arcs, and polylines
 when `closed` is `true`. The editor persists `filled` explicitly as `true` or
 `false` for those cases and omits it for non-fillable primitives.
 
+When one template-level reticle override defines `fill` or `filled`, that
+override becomes the effective preview state for every fill-capable primitive
+in the reticle. The editor exposes those defaults in the reticle inspector and
+keeps primitive-local fill controls read-only while the template override is
+active. When a primitive-local `filled` flag is enabled without any authored
+visible fill color, the editor seeds the fill from the current stroke color so
+the change remains immediately visible.
+
 `reticleRotationSensitive` and `reticleScaleSensitive` default to `true`, which
 preserves the historical behavior. Set either field to `false` when the
 primitive must stay upright or keep a fixed authored size while its owning

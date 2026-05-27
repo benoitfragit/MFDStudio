@@ -1,111 +1,136 @@
 {
-  "name": "Radar",
-  "title": "Radar",
+  "activeStrobe": "Default",
   "bg": "#061306FF",
+  "blinkTypes": [
+    {
+      "durationMs": 1000,
+      "name": "slow"
+    },
+    {
+      "durationMs": 320,
+      "name": "fast"
+    },
+    {
+      "durationMs": 1000,
+      "name": "caution"
+    }
+  ],
+  "defaultBlink": "slow",
+  "dynamicReticleBindings": [
+    {
+      "layerId": "default",
+      "orderInLayer": 0,
+      "templateId": "radar_track"
+    }
+  ],
   "layers": [
     {
       "id": "default"
     }
   ],
-  "dynamicReticleBindings": [
-    {
-      "templateId": "radar_track",
-      "layerId": "default",
-      "orderInLayer": 0
-    }
-  ],
-  "blinkTypes": [
-    {
-      "name": "slow",
-      "durationMs": 1000
-    },
-    {
-      "name": "fast",
-      "durationMs": 320
-    },
-    {
-      "name": "caution",
-      "durationMs": 1000
-    }
-  ],
-  "defaultBlink": "slow",
-  "activeStrobe": "Default",
-  "strobes": [
-    {
-      "name": "Default",
-      "id": "radar_strobe_default",
-      "template": "strobe_cursor",
-      "at": [0.0, 0.0],
-      "stroke": "white",
-      "capture": {
-        "shape": "circle",
-        "radius": 0.1
-      },
-      "magnet": {
-        "enabled": true,
-        "radius": 0.075,
-        "strength": 1.0
-      }
-    },
-    {
-      "name": "Designator",
-      "id": "radar_strobe_designator",
-      "template": "inspired_sensor_crosshair",
-      "at": [0.0, 0.0],
-      "stroke": "warning",
-      "capture": {
-        "shape": "rectangle",
-        "radius": 0.12,
-        "size": [0.28, 0.18]
-      },
-      "magnet": {
-        "enabled": false,
-        "radius": 0.09,
-        "strength": 1.0
-      }
-    }
-  ],
+  "name": "Radar",
   "staticReticles": [
     {
       "id": "radar_grid_view",
+      "layerId": "default",
+      "letterSpacings": {
+        "north": 0.002085000043734908
+      },
+      "lineWidth": 0.003100000089034438,
+      "stroke": "#33FF88FF",
       "template": "radar_grid",
-      "layerId": "default",
-      "stroke": "hud"
+      "texts": {
+        "north": "N"
+      }
     },
     {
-      "id": "fixed_track_alpha",
-      "template": "radar_track",
-      "layerId": "default",
+      "angle": 18.0,
+      "at": [
+        -0.33329999446868896,
+        0.27079999446868896
+      ],
       "blink": "slow",
-      "at": [-0.3333, 0.2708],
-      "angle": 18,
-      "stroke": "radar",
-      "lineWidth": 0.0042
-    },
-    {
-      "id": "fixed_track_bravo",
+      "id": "fixed_track_alpha",
+      "layerId": "default",
+      "letterSpacings": {
+        "track_label": 0.002085000043734908
+      },
+      "lineWidth": 0.00419999985024333,
+      "stroke": "#4DE0FFFF",
       "template": "radar_track",
-      "layerId": "default",
-      "blink": "caution",
-      "at": [0.3854, -0.2188],
-      "angle": -32,
-      "stroke": "warning",
-      "lineWidth": 0.0042
+      "texts": {
+        "track_label": "TRK"
+      }
     },
     {
-      "id": "radar_caption",
+      "angle": -32.0,
+      "at": [
+        0.3853999972343445,
+        -0.21879999339580536
+      ],
+      "blink": "caution",
+      "id": "fixed_track_bravo",
       "layerId": "default",
+      "letterSpacings": {
+        "track_label": 0.002085000043734908
+      },
+      "lineWidth": 0.00419999985024333,
+      "stroke": "#FFD666FF",
+      "template": "radar_track",
+      "texts": {
+        "track_label": "TRK"
+      }
+    },
+    {
       "blink": "fast",
-      "stroke": "ghost",
       "elements": [
         {
+          "at": [
+            0.0,
+            0.8125
+          ],
           "id": "caption_text",
-          "type": "text",
+          "size": 0.04170000180602074,
           "text": "Library track templates + dynamic EnTT tracks",
-          "at": [0.0, 0.8125],
-          "size": 0.0417
+          "type": "text"
         }
-      ]
+      ],
+      "id": "radar_caption",
+      "layerId": "default",
+      "stroke": "#CBFFE1FF"
     }
-  ]
+  ],
+  "strobes": [
+    {
+      "capture": {
+        "radius": 0.10000000149011612,
+        "shape": "circle"
+      },
+      "id": "radar_strobe_default",
+      "lineWidth": 0.00419999985024333,
+      "magnet": {
+        "enabled": true,
+        "radius": 0.07500000298023224,
+        "strength": 1.0
+      },
+      "name": "Default",
+      "stroke": "#FFFFFFFF",
+      "template": "strobe_cursor"
+    },
+    {
+      "capture": {
+        "shape": "rectangle",
+        "size": [
+          0.2800000011920929,
+          0.18000000715255737
+        ]
+      },
+      "id": "radar_strobe_designator",
+      "lineWidth": 0.0034000000450760126,
+      "name": "Designator",
+      "stroke": "#FFD666FF",
+      "template": "inspired_sensor_crosshair"
+    }
+  ],
+  "title": "Radar"
 }

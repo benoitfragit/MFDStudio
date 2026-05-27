@@ -49,13 +49,17 @@
       "type": "line"
     },
     {
-      "id": "inner_box",
       "exposed": true,
-      "size": 0.07999999821186066,
-      "type": "rectangle"
+      "fill": "#00FF66FF",
+      "filled": false,
+      "height": 0.07515189051628113,
+      "id": "inner_box",
+      "type": "rectangle",
+      "width": 0.06292471289634705
     },
     {
       "exposed": true,
+      "filled": false,
       "id": "center_dot",
       "radius": 0.009999999776482582,
       "type": "circle"

@@ -1,259 +1,260 @@
 {
-    "name":  "Pfd",
-    "title":  "Primary Flight Display",
-    "backgroundColor":  "#08131BFF",
-    "staticReticles":  [
-                           {
-                               "id":  "aircraft_reference",
-                               "template":  "aircraft_symbol",
-                               "color":  "#33FF88FF",
-                               "thickness":  0.0042,
-                               "layerId":  "default"
-                           },
-                           {
-                               "id":  "pitch_ladder",
-                               "color":  "#2DD878FF",
-                               "thickness":  0.0031,
-                               "elements":  [
-                                                {
-                                                    "id":  "p10_left",
-                                                    "type":  "line",
-                                                    "start":  {
-                                                                  "x":  -0.4583,
-                                                                  "y":  0.25
-                                                              },
-                                                    "end":  {
-                                                                "x":  -0.1458,
-                                                                "y":  0.25
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "p10_right",
-                                                    "type":  "line",
-                                                    "start":  {
-                                                                  "x":  0.1458,
-                                                                  "y":  0.25
-                                                              },
-                                                    "end":  {
-                                                                "x":  0.4583,
-                                                                "y":  0.25
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "p10_text_left",
-                                                    "type":  "text",
-                                                    "text":  "10",
-                                                    "position":  {
-                                                                     "x":  -0.5313,
-                                                                     "y":  0.25
-                                                                 },
-                                                    "fontSize":  0.0375
-                                                },
-                                                {
-                                                    "id":  "p10_text_right",
-                                                    "type":  "text",
-                                                    "text":  "10",
-                                                    "position":  {
-                                                                     "x":  0.5313,
-                                                                     "y":  0.25
-                                                                 },
-                                                    "fontSize":  0.0375
-                                                },
-                                                {
-                                                    "id":  "p5_left",
-                                                    "type":  "line",
-                                                    "start":  {
-                                                                  "x":  -0.3542,
-                                                                  "y":  0.125
-                                                              },
-                                                    "end":  {
-                                                                "x":  -0.1042,
-                                                                "y":  0.125
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "p5_right",
-                                                    "type":  "line",
-                                                    "start":  {
-                                                                  "x":  0.1042,
-                                                                  "y":  0.125
-                                                              },
-                                                    "end":  {
-                                                                "x":  0.3542,
-                                                                "y":  0.125
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "m5_left",
-                                                    "type":  "line",
-                                                    "start":  {
-                                                                  "x":  -0.3542,
-                                                                  "y":  -0.125
-                                                              },
-                                                    "end":  {
-                                                                "x":  -0.1042,
-                                                                "y":  -0.125
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "m5_right",
-                                                    "type":  "line",
-                                                    "start":  {
-                                                                  "x":  0.1042,
-                                                                  "y":  -0.125
-                                                              },
-                                                    "end":  {
-                                                                "x":  0.3542,
-                                                                "y":  -0.125
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "m10_left",
-                                                    "type":  "line",
-                                                    "start":  {
-                                                                  "x":  -0.4583,
-                                                                  "y":  -0.25
-                                                              },
-                                                    "end":  {
-                                                                "x":  -0.1458,
-                                                                "y":  -0.25
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "m10_right",
-                                                    "type":  "line",
-                                                    "start":  {
-                                                                  "x":  0.1458,
-                                                                  "y":  -0.25
-                                                              },
-                                                    "end":  {
-                                                                "x":  0.4583,
-                                                                "y":  -0.25
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "m10_text_left",
-                                                    "type":  "text",
-                                                    "text":  "-10",
-                                                    "position":  {
-                                                                     "x":  -0.5417,
-                                                                     "y":  -0.25
-                                                                 },
-                                                    "fontSize":  0.0375
-                                                },
-                                                {
-                                                    "id":  "m10_text_right",
-                                                    "type":  "text",
-                                                    "text":  "-10",
-                                                    "position":  {
-                                                                     "x":  0.5417,
-                                                                     "y":  -0.25
-                                                                 },
-                                                    "fontSize":  0.0375
-                                                }
-                                            ],
-                               "layerId":  "default"
-                           },
-                           {
-                               "id":  "flight_path_marker",
-                               "color":  "#33FF88FF",
-                               "thickness":  0.0042,
-                               "elements":  [
-                                                {
-                                                    "id":  "fpm_circle",
-                                                    "type":  "circle",
-                                                    "position":  {
-                                                                     "x":  0.0,
-                                                                     "y":  -0.3021
-                                                                 },
-                                                    "radius":  0.0375
-                                                },
-                                                {
-                                                    "id":  "fpm_left",
-                                                    "type":  "line",
-                                                    "position":  {
-                                                                     "x":  0.0,
-                                                                     "y":  -0.3021
-                                                                 },
-                                                    "start":  {
-                                                                  "x":  -0.075,
-                                                                  "y":  0.0
-                                                              },
-                                                    "end":  {
-                                                                "x":  -0.0375,
-                                                                "y":  0.0
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "fpm_right",
-                                                    "type":  "line",
-                                                    "position":  {
-                                                                     "x":  0.0,
-                                                                     "y":  -0.3021
-                                                                 },
-                                                    "start":  {
-                                                                  "x":  0.0375,
-                                                                  "y":  0.0
-                                                              },
-                                                    "end":  {
-                                                                "x":  0.075,
-                                                                "y":  0.0
-                                                            }
-                                                },
-                                                {
-                                                    "id":  "fpm_down",
-                                                    "type":  "line",
-                                                    "position":  {
-                                                                     "x":  0.0,
-                                                                     "y":  -0.3021
-                                                                 },
-                                                    "start":  {
-                                                                  "x":  0.0,
-                                                                  "y":  -0.0375
-                                                              },
-                                                    "end":  {
-                                                                "x":  0.0,
-                                                                "y":  -0.0833
-                                                            }
-                                                }
-                                            ],
-                               "layerId":  "default"
-                           },
-                           {
-                               "id":  "guidance_curve",
-                               "color":  "#F9D66FFF",
-                               "thickness":  0.0052,
-                               "elements":  [
-                                                {
-                                                    "id":  "guidance_path",
-                                                    "type":  "bezier",
-                                                    "points":  [
-                                                                   {
-                                                                       "x":  -0.4583,
-                                                                       "y":  -0.4375
-                                                                   },
-                                                                   {
-                                                                       "x":  -0.25,
-                                                                       "y":  -0.2292
-                                                                   },
-                                                                   {
-                                                                       "x":  -0.0729,
-                                                                       "y":  -0.2917
-                                                                   },
-                                                                   {
-                                                                       "x":  0.1667,
-                                                                       "y":  -0.1146
-                                                                   }
-                                                               ],
-                                                    "segments":  48
-                                                }
-                                            ],
-                               "layerId":  "default"
-                           }
-                       ],
-    "layers":  [
-                   {
-                       "id":  "default"
-                   }
-               ]
+  "bg": "#08131BFF",
+  "layers": [
+    {
+      "id": "default"
+    }
+  ],
+  "name": "Pfd",
+  "staticReticles": [
+    {
+      "id": "aircraft_reference",
+      "layerId": "default",
+      "lineWidth": 0.00419999985024333,
+      "stroke": "#33FF88FF",
+      "template": "aircraft_symbol"
+    },
+    {
+      "elements": [
+        {
+          "end": [
+            -0.14579999446868896,
+            0.25
+          ],
+          "id": "p10_left",
+          "start": [
+            -0.45829999446868896,
+            0.25
+          ],
+          "type": "line"
+        },
+        {
+          "end": [
+            0.45829999446868896,
+            0.25
+          ],
+          "id": "p10_right",
+          "start": [
+            0.14579999446868896,
+            0.25
+          ],
+          "type": "line"
+        },
+        {
+          "at": [
+            -0.5313000082969666,
+            0.25
+          ],
+          "id": "p10_text_left",
+          "size": 0.03750000149011612,
+          "text": "10",
+          "type": "text"
+        },
+        {
+          "at": [
+            0.5313000082969666,
+            0.25
+          ],
+          "id": "p10_text_right",
+          "size": 0.03750000149011612,
+          "text": "10",
+          "type": "text"
+        },
+        {
+          "end": [
+            -0.10419999808073044,
+            0.125
+          ],
+          "id": "p5_left",
+          "start": [
+            -0.35420000553131104,
+            0.125
+          ],
+          "type": "line"
+        },
+        {
+          "end": [
+            0.35420000553131104,
+            0.125
+          ],
+          "id": "p5_right",
+          "start": [
+            0.10419999808073044,
+            0.125
+          ],
+          "type": "line"
+        },
+        {
+          "end": [
+            -0.10419999808073044,
+            -0.125
+          ],
+          "id": "m5_left",
+          "start": [
+            -0.35420000553131104,
+            -0.125
+          ],
+          "type": "line"
+        },
+        {
+          "end": [
+            0.35420000553131104,
+            -0.125
+          ],
+          "id": "m5_right",
+          "start": [
+            0.10419999808073044,
+            -0.125
+          ],
+          "type": "line"
+        },
+        {
+          "end": [
+            -0.14579999446868896,
+            -0.25
+          ],
+          "id": "m10_left",
+          "start": [
+            -0.45829999446868896,
+            -0.25
+          ],
+          "type": "line"
+        },
+        {
+          "end": [
+            0.45829999446868896,
+            -0.25
+          ],
+          "id": "m10_right",
+          "start": [
+            0.14579999446868896,
+            -0.25
+          ],
+          "type": "line"
+        },
+        {
+          "at": [
+            -0.541700005531311,
+            -0.25
+          ],
+          "id": "m10_text_left",
+          "size": 0.03750000149011612,
+          "text": "-10",
+          "type": "text"
+        },
+        {
+          "at": [
+            0.541700005531311,
+            -0.25
+          ],
+          "id": "m10_text_right",
+          "size": 0.03750000149011612,
+          "text": "-10",
+          "type": "text"
+        }
+      ],
+      "id": "pitch_ladder",
+      "layerId": "default",
+      "lineWidth": 0.003100000089034438,
+      "stroke": "#2DD878FF"
+    },
+    {
+      "elements": [
+        {
+          "at": [
+            0.0,
+            -0.3021000027656555
+          ],
+          "filled": false,
+          "id": "fpm_circle",
+          "radius": 0.03750000149011612,
+          "type": "circle"
+        },
+        {
+          "at": [
+            0.0,
+            -0.3021000027656555
+          ],
+          "end": [
+            -0.03750000149011612,
+            0.0
+          ],
+          "id": "fpm_left",
+          "start": [
+            -0.07500000298023224,
+            0.0
+          ],
+          "type": "line"
+        },
+        {
+          "at": [
+            0.0,
+            -0.3021000027656555
+          ],
+          "end": [
+            0.07500000298023224,
+            0.0
+          ],
+          "id": "fpm_right",
+          "start": [
+            0.03750000149011612,
+            0.0
+          ],
+          "type": "line"
+        },
+        {
+          "at": [
+            0.0,
+            -0.3021000027656555
+          ],
+          "end": [
+            0.0,
+            -0.08330000191926956
+          ],
+          "id": "fpm_down",
+          "start": [
+            0.0,
+            -0.03750000149011612
+          ],
+          "type": "line"
+        }
+      ],
+      "id": "flight_path_marker",
+      "layerId": "default",
+      "lineWidth": 0.00419999985024333,
+      "stroke": "#33FF88FF"
+    },
+    {
+      "elements": [
+        {
+          "id": "guidance_path",
+          "points": [
+            [
+              -0.45829999446868896,
+              -0.4375
+            ],
+            [
+              -0.25,
+              -0.22920000553131104
+            ],
+            [
+              -0.07289999723434448,
+              -0.29170000553131104
+            ],
+            [
+              0.16670000553131104,
+              -0.11460000276565552
+            ]
+          ],
+          "segments": 48,
+          "type": "bezier"
+        }
+      ],
+      "id": "guidance_curve",
+      "layerId": "default",
+      "lineWidth": 0.005200000014156103,
+      "stroke": "#F9D66FFF"
+    }
+  ],
+  "title": "Primary Flight Display"
 }

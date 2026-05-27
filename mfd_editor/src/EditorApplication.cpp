@@ -56,8 +56,12 @@ using editor::detail::DefaultPageIndex;
 using editor::detail::kPrimitiveTypes;
 using editor::detail::kTutorialAircraftTemplateId;
 using editor::detail::kTutorialStrobeCursorTemplateId;
+using editor::detail::ReticleHasFillCapablePrimitive;
+using editor::detail::SeedPrimitiveFillColorIfNeeded;
+using editor::detail::SeedReticleFillOverrideIfNeeded;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
+using editor::detail::VisibleFillColorFromStroke;
 
 constexpr float kSidebarWidth = 320.0f;
 constexpr float kInspectorWidth = 360.0f;
@@ -11628,6 +11632,33 @@ void EditorApplication::DrawLibraryReticleInspector()
     }
     ShowItemTooltip("Default stroke thickness inherited by page instances unless they override it.");
 
+    if (ReticleHasFillCapablePrimitive(*reticle))
+    {
+        const mfd::ColorRgba fallbackFillColor =
+            VisibleFillColorFromStroke(reticle->overrides.color.value_or(mfd::PrimitiveStyle {}.color));
+        ImVec4 fill = ToImGuiColor(reticle->overrides.fillColor.value_or(fallbackFillColor));
+        if (ImGui::ColorEdit4("Default fill", &fill.x))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            reticle->overrides.fillColor = ToColorRgba(fill);
+        }
+        ShowItemTooltip("Default fill color inherited by fill-capable primitives unless they override it locally.");
+
+        bool filled = reticle->overrides.filled.value_or(false);
+        if (ImGui::Checkbox("Default filled", &filled))
+        {
+            PushUndoSnapshot();
+            reticle->overrides.filled = filled;
+            SeedReticleFillOverrideIfNeeded(
+                reticle->overrides,
+                reticle->overrides.color.value_or(mfd::PrimitiveStyle {}.color));
+        }
+        ShowItemTooltip("Default filled state inherited by fill-capable primitives unless they override it locally.");
+    }
+
     ImGui::Separator();
     ImGui::TextDisabled("Primitives");
     ImGui::TextDisabled("Click a primitive below or directly in the studio preview to focus and edit it.");
@@ -11746,8 +11777,9 @@ void EditorApplication::DrawLibraryReticleInspector()
 
 void EditorApplication::DrawLibraryPrimitiveInspector()
 {
+    mfd::ReticleGroup* reticle = SelectedLibraryReticle();
     mfd::Primitive* primitive = SelectedLibraryPrimitive();
-    if (primitive == nullptr)
+    if (reticle == nullptr || primitive == nullptr)
     {
         ImGui::TextDisabled("Select a primitive inside a library reticle.");
         return;
@@ -11957,8 +11989,32 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (mfd::SupportsFilledPrimitive(*primitive))
     {
+        const bool fillColorOverridden = reticle->overrides.fillColor.has_value();
+        const bool filledStateOverridden = reticle->overrides.filled.has_value();
+        if (fillColorOverridden || filledStateOverridden)
+        {
+            const mfd::PrimitiveStyle effectiveStyle = mfd::MergeStyle(primitive->style, reticle->overrides);
+            ImGui::Spacing();
+            ImGui::TextDisabled("Effective fill preview");
+            if (fillColorOverridden)
+            {
+                ImGui::TextDisabled("Fill color comes from the reticle default: #%02X%02X%02X%02X",
+                                    effectiveStyle.fillColor.r,
+                                    effectiveStyle.fillColor.g,
+                                    effectiveStyle.fillColor.b,
+                                    effectiveStyle.fillColor.a);
+            }
+            if (filledStateOverridden)
+            {
+                ImGui::TextDisabled("Filled state comes from the reticle default: %s",
+                                    effectiveStyle.filled ? "enabled" : "disabled");
+            }
+            ImGui::TextDisabled("Edit the reticle Default fill / Default filled controls to change this preview.");
+        }
+
+        ImGui::BeginDisabled(fillColorOverridden);
         ImVec4 fill = ToImGuiColor(primitive->style.fillColor);
-        if (ImGui::ColorEdit4("Fill", &fill.x))
+        if (ImGui::ColorEdit4(fillColorOverridden ? "Local fill" : "Fill", &fill.x))
         {
             if (ImGui::IsItemActivated())
             {
@@ -11966,15 +12022,23 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             }
             primitive->style.fillColor = ToColorRgba(fill);
         }
-        ShowItemTooltip("Fill color used when this primitive supports filled rendering.");
+        ImGui::EndDisabled();
+        ShowItemTooltip(fillColorOverridden
+                            ? "This primitive fill color is masked by the reticle default fill color."
+                            : "Fill color used when this primitive supports filled rendering.");
 
+        ImGui::BeginDisabled(filledStateOverridden);
         bool filled = primitive->style.filled;
-        if (ImGui::Checkbox("Filled", &filled))
+        if (ImGui::Checkbox(filledStateOverridden ? "Local filled" : "Filled", &filled))
         {
             PushUndoSnapshot();
             primitive->style.filled = filled;
+            SeedPrimitiveFillColorIfNeeded(primitive->style);
         }
-        ShowItemTooltip("Toggle filled rendering for primitives that support it.");
+        ImGui::EndDisabled();
+        ShowItemTooltip(filledStateOverridden
+                            ? "This primitive filled state is masked by the reticle default filled state."
+                            : "Toggle filled rendering for primitives that support it.");
     }
 
     auto editPointArray = [&](const char* label, mfd::Vec2* value)

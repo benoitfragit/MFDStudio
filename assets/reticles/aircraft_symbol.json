@@ -55,6 +55,7 @@
       "type": "polyline"
     },
     {
+      "filled": false,
       "id": "center_box",
       "size": 0.03750000149011612,
       "type": "square"

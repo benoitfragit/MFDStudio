@@ -97,6 +97,7 @@
       "type": "line"
     },
     {
+      "filled": false,
       "id": "center",
       "radius": 0.00800000037997961,
       "type": "circle"

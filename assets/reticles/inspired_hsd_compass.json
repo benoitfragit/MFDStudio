@@ -1,11 +1,13 @@
 {
   "elements": [
     {
+      "filled": false,
       "id": "outer_ring",
       "radius": 0.6100000143051147,
       "type": "circle"
     },
     {
+      "filled": false,
       "id": "inner_ring",
       "radius": 0.49000000953674316,
       "type": "circle"
@@ -147,6 +149,7 @@
       "type": "line"
     },
     {
+      "filled": false,
       "id": "center_dot",
       "radius": 0.012000000104308128,
       "type": "circle"

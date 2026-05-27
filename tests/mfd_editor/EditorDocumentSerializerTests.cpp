@@ -379,6 +379,31 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateOmitsFilledFlagForNo
     EXPECT_FALSE(lineNode.contains("filled"));
 }
 
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesReticleFillOverrides)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "adi_background";
+    reticle.overrides.color = mfd::ColorRgba {40, 50, 60, 255};
+    reticle.overrides.fillColor = mfd::ColorRgba {70, 80, 90, 200};
+    reticle.overrides.filled = true;
+
+    mfd::Primitive rectangle;
+    rectangle.id = "background";
+    rectangle.type = mfd::PrimitiveType::Rectangle;
+    rectangle.geometry = mfd::RectangleGeometry {0.80f, 0.40f};
+    reticle.primitives.push_back(std::move(rectangle));
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_TRUE(jsonNode.contains("stroke"));
+    ASSERT_TRUE(jsonNode.contains("fill"));
+    ASSERT_TRUE(jsonNode.contains("filled"));
+    EXPECT_EQ(jsonNode.at("stroke").get<std::string>(), "#28323CFF");
+    EXPECT_EQ(jsonNode.at("fill").get<std::string>(), "#46505AC8");
+    EXPECT_TRUE(jsonNode.at("filled").get<bool>());
+}
+
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesImageGeometryAndDrawOnTop)
 {
     mfd::ReticleGroup reticle;

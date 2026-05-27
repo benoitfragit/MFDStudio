@@ -1,11 +1,13 @@
 {
   "elements": [
     {
+      "filled": false,
       "id": "heading_outer_circle",
       "radius": 0.5,
       "type": "circle"
     },
     {
+      "filled": false,
       "id": "heading_inner_circle",
       "lineWidth": 0.0017999999690800905,
       "radius": 0.4449999928474426,

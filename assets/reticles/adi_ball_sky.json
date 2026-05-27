@@ -5,6 +5,7 @@
         0.0,
         0.3700000047683716
       ],
+      "filled": false,
       "height": 0.7400000095367432,
       "id": "sky_background",
       "type": "rectangle",
@@ -15,6 +16,7 @@
         0.0,
         0.33000001311302185
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p33",
       "type": "rectangle",
@@ -25,6 +27,7 @@
         0.0,
         0.3100000023841858
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p31",
       "type": "rectangle",
@@ -35,6 +38,7 @@
         0.0,
         0.28999999165534973
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p29",
       "type": "rectangle",
@@ -45,6 +49,7 @@
         0.0,
         0.27000001072883606
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p27",
       "type": "rectangle",
@@ -55,6 +60,7 @@
         0.0,
         0.25
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p25",
       "type": "rectangle",
@@ -65,6 +71,7 @@
         0.0,
         0.23000000417232513
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p23",
       "type": "rectangle",
@@ -75,6 +82,7 @@
         0.0,
         0.20999999344348907
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p21",
       "type": "rectangle",
@@ -85,6 +93,7 @@
         0.0,
         0.1899999976158142
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p19",
       "type": "rectangle",
@@ -95,6 +104,7 @@
         0.0,
         0.17000000178813934
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p17",
       "type": "rectangle",
@@ -105,6 +115,7 @@
         0.0,
         0.15000000596046448
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p15",
       "type": "rectangle",
@@ -115,6 +126,7 @@
         0.0,
         0.12999999523162842
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p13",
       "type": "rectangle",
@@ -125,6 +137,7 @@
         0.0,
         0.10999999940395355
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p11",
       "type": "rectangle",
@@ -135,6 +148,7 @@
         0.0,
         0.09000000357627869
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p9",
       "type": "rectangle",
@@ -145,6 +159,7 @@
         0.0,
         0.07000000029802322
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p7",
       "type": "rectangle",
@@ -155,6 +170,7 @@
         0.0,
         0.05000000074505806
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p5",
       "type": "rectangle",
@@ -165,6 +181,7 @@
         0.0,
         0.029999999329447746
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p3",
       "type": "rectangle",
@@ -175,6 +192,7 @@
         0.0,
         0.009999999776482582
       ],
+      "filled": false,
       "height": 0.019999999552965164,
       "id": "sky_p1",
       "type": "rectangle",

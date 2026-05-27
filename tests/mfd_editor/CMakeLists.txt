@@ -4,6 +4,7 @@
 include(GoogleTest)
 
 set(MFD_EDITOR_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorApplicationInternalTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetReferenceIndexServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetPathServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
@@ -42,6 +43,7 @@ target_include_directories(mfd_editor_tests
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${MFD_ROOT_DIR}/mfd_editor/include
+        ${MFD_ROOT_DIR}/mfd_editor/src
         ${MFD_ROOT_DIR}/mfd_common_api/include
         ${MFD_ROOT_DIR}/mfd_api/include
         ${MFD_ROOT_DIR}/mfd_api/src/render)
