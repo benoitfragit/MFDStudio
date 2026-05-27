@@ -432,6 +432,17 @@ MFD_API float PrimitiveAverageScale(const Primitive& primitive, const ReticleGro
 MFD_API bool SupportsReticleClipPrimitive(const Primitive& primitive) noexcept;
 
 /**
+ * @brief Returns whether a primitive can currently render one filled area.
+ * @param primitive Primitive to inspect.
+ * @return `true` for fill-capable shapes such as circle, ring, rectangle,
+ * ellipse, square, diamond, triangle, arc and closed polylines.
+ *
+ * @note Open polylines, text-like primitives, lines, bezier curves and images
+ * never expose filled rendering.
+ */
+MFD_API bool SupportsFilledPrimitive(const Primitive& primitive) noexcept;
+
+/**
  * @brief Resolves the effective clip primitive referenced by a reticle.
  * @param reticle Reticle to inspect.
  * @return Mutable pointer to the supported clip primitive, or `nullptr` when

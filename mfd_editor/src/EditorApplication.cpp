@@ -11922,18 +11922,19 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         ShowItemTooltip("Choose whether this primitive outline is solid, dotted, or dashed.");
     }
 
-    ImVec4 fill = ToImGuiColor(primitive->style.fillColor);
-    if (ImGui::ColorEdit4("Fill", &fill.x))
+    if (mfd::SupportsFilledPrimitive(*primitive))
     {
-        if (ImGui::IsItemActivated())
+        ImVec4 fill = ToImGuiColor(primitive->style.fillColor);
+        if (ImGui::ColorEdit4("Fill", &fill.x))
         {
-            PushUndoSnapshot();
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            primitive->style.fillColor = ToColorRgba(fill);
         }
-        primitive->style.fillColor = ToColorRgba(fill);
-    }
-    ShowItemTooltip("Fill color used when this primitive supports filled rendering.");
+        ShowItemTooltip("Fill color used when this primitive supports filled rendering.");
 
-    {
         bool filled = primitive->style.filled;
         if (ImGui::Checkbox("Filled", &filled))
         {
@@ -12159,6 +12160,10 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         {
             PushUndoSnapshot();
             polyline->closed = closed;
+            if (!polyline->closed)
+            {
+                primitive->style.filled = false;
+            }
         }
         ShowItemTooltip("Close the polyline by linking the last point back to the first.");
 

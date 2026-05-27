@@ -68,6 +68,32 @@ TEST(ReticleTests, SupportsReticleClipPrimitiveOnlyForSupportedConvexShapes)
     EXPECT_FALSE(mfd::SupportsReticleClipPrimitive(MakePrimitive("poly", mfd::PrimitiveType::Polyline)));
 }
 
+TEST(ReticleTests, SupportsFilledPrimitiveOnlyForFillCapableShapes)
+{
+    mfd::Primitive openPolyline = MakePrimitive("poly_open", mfd::PrimitiveType::Polyline);
+    openPolyline.geometry = mfd::PolylineGeometry {{{{-0.1f, -0.1f}, {0.0f, 0.1f}, {0.1f, -0.1f}}}, false};
+
+    mfd::Primitive closedPolyline = MakePrimitive("poly_closed", mfd::PrimitiveType::Polyline);
+    closedPolyline.geometry = mfd::PolylineGeometry {{{{-0.1f, -0.1f}, {0.0f, 0.1f}, {0.1f, -0.1f}}}, true};
+
+    EXPECT_FALSE(mfd::SupportsFilledPrimitive(MakePrimitive("text", mfd::PrimitiveType::Text)));
+    EXPECT_FALSE(mfd::SupportsFilledPrimitive(MakePrimitive("time", mfd::PrimitiveType::Time)));
+    EXPECT_FALSE(mfd::SupportsFilledPrimitive(MakePrimitive("line", mfd::PrimitiveType::Line)));
+    EXPECT_FALSE(mfd::SupportsFilledPrimitive(openPolyline));
+    EXPECT_FALSE(mfd::SupportsFilledPrimitive(MakePrimitive("bezier", mfd::PrimitiveType::Bezier)));
+    EXPECT_FALSE(mfd::SupportsFilledPrimitive(MakePrimitive("image", mfd::PrimitiveType::Image)));
+
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(MakePrimitive("circle", mfd::PrimitiveType::Circle)));
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(MakePrimitive("ring", mfd::PrimitiveType::Ring)));
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(MakePrimitive("rectangle", mfd::PrimitiveType::Rectangle)));
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(MakePrimitive("ellipse", mfd::PrimitiveType::Ellipse)));
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(MakePrimitive("square", mfd::PrimitiveType::Square)));
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(MakePrimitive("diamond", mfd::PrimitiveType::Diamond)));
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(MakePrimitive("triangle", mfd::PrimitiveType::Triangle)));
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(closedPolyline));
+    EXPECT_TRUE(mfd::SupportsFilledPrimitive(MakePrimitive("arc", mfd::PrimitiveType::Arc)));
+}
+
 TEST(ReticleTests, ResolveClipPrimitiveReturnsSupportedReferencedPrimitiveOnly)
 {
     mfd::ReticleGroup reticle;

@@ -173,6 +173,31 @@ bool SupportsReticleClipPrimitive(const Primitive& primitive) noexcept
     }
 }
 
+bool SupportsFilledPrimitive(const Primitive& primitive) noexcept
+{
+    switch (primitive.type)
+    {
+    case PrimitiveType::Circle:
+    case PrimitiveType::Ring:
+    case PrimitiveType::Rectangle:
+    case PrimitiveType::Ellipse:
+    case PrimitiveType::Square:
+    case PrimitiveType::Diamond:
+    case PrimitiveType::Triangle:
+    case PrimitiveType::Arc:
+        return true;
+    case PrimitiveType::Polyline:
+        if (const auto* polyline = std::get_if<PolylineGeometry>(&primitive.geometry))
+        {
+            return polyline->closed;
+        }
+
+        return false;
+    default:
+        return false;
+    }
+}
+
 Primitive* ResolveClipPrimitive(ReticleGroup& reticle) noexcept
 {
     if (reticle.clipping.mode == ReticleClipMode::None || reticle.clipping.primitiveId.empty())
