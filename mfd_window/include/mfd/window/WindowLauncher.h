@@ -21,10 +21,14 @@ struct LauncherConfig
 };
 
 /**
- * @brief Optional callback receiving the final RGBA32 window buffer once per frame.
+ * @brief Optional callback receiving the rendered page viewport as one `RGBA32` buffer once per frame.
  *
  * The byte span is only valid during the callback invocation. Copy it if the
  * data must outlive the call.
+ *
+ * @note The launcher excludes the integrated runtime debug side panel from this
+ * buffer so plugins and embedded callbacks always observe only the runtime page
+ * image currently displayed by the host.
  */
 using LauncherFramebufferCallback = std::function<void(int width,
                                                        int height,
@@ -66,8 +70,8 @@ bool ParseLauncherCommandLine(int argc,
  * @param argc Command-line argument count.
  * @param argv Command-line argument values.
  * @param config Launcher defaults such as application name and default window.
- * @param framebufferCallback Optional per-frame callback receiving the final
- * `RGBA32` window buffer as raw bytes. Leave it empty to disable all
+ * @param framebufferCallback Optional per-frame callback receiving the rendered
+ * page viewport as raw `RGBA32` bytes. Leave it empty to disable all
  * framebuffer capture logic in the launcher.
  */
 int RunLauncher(int argc,

@@ -17,6 +17,7 @@
 
 #include "mfd/window/WindowLauncher.h"
 #include "mfd/window/WindowLauncherPlugin.h"
+#include "WindowLauncherInternal.h"
 
 /**
  * @brief Verifies custom config values are reflected in usage text.
@@ -279,6 +280,38 @@ TEST(WindowLauncherTests, FramebufferCallbackReceivesDimensionsAndByteSpan)
     EXPECT_EQ(receivedWidth, 2);
     EXPECT_EQ(receivedHeight, 2);
     EXPECT_EQ(receivedByteCount, pixels.size());
+}
+
+/**
+ * @brief Ensures framebuffer plugins only observe the page viewport width even when the host window is wider.
+ */
+TEST(WindowLauncherTests, PluginFramebufferCaptureSizeTracksOnlyPageViewport)
+{
+    const mfd::window::detail::FramebufferCaptureSize captureSize =
+        mfd::window::detail::ResolvePluginFramebufferCaptureSize(1260, 900, 640);
+
+    EXPECT_EQ(captureSize.width, 640);
+    EXPECT_EQ(captureSize.height, 900);
+}
+
+/**
+ * @brief Clamps invalid viewport widths to one valid host-backed capture extent.
+ */
+TEST(WindowLauncherTests, PluginFramebufferCaptureSizeClampsToHostFramebuffer)
+{
+    const mfd::window::detail::FramebufferCaptureSize oversizedCaptureSize =
+        mfd::window::detail::ResolvePluginFramebufferCaptureSize(800, 600, 1600);
+    const mfd::window::detail::FramebufferCaptureSize nonPositiveViewportCaptureSize =
+        mfd::window::detail::ResolvePluginFramebufferCaptureSize(800, 600, 0);
+    const mfd::window::detail::FramebufferCaptureSize invalidHostCaptureSize =
+        mfd::window::detail::ResolvePluginFramebufferCaptureSize(0, 600, 320);
+
+    EXPECT_EQ(oversizedCaptureSize.width, 800);
+    EXPECT_EQ(oversizedCaptureSize.height, 600);
+    EXPECT_EQ(nonPositiveViewportCaptureSize.width, 0);
+    EXPECT_EQ(nonPositiveViewportCaptureSize.height, 0);
+    EXPECT_EQ(invalidHostCaptureSize.width, 0);
+    EXPECT_EQ(invalidHostCaptureSize.height, 0);
 }
 
 /**

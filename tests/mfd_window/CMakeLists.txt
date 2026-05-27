@@ -16,6 +16,10 @@ target_link_libraries(mfd_window_tests
     PRIVATE
         mfd::window_launcher)
 
+target_include_directories(mfd_window_tests
+    PRIVATE
+        ${MFD_ROOT_DIR}/mfd_window/src)
+
 mfd_private_library(mfd_window_tests GTest::gtest_main)
 
 target_compile_features(mfd_window_tests PRIVATE cxx_std_17)

@@ -64,6 +64,7 @@ extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* na
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "mfd/window/RuntimeFeedbackThrottle.hpp"
+#include "WindowLauncherInternal.h"
 #include "mfd/window/debug/RuntimeDebugOverlay.hpp"
 
 #if defined(_WIN32)
@@ -391,11 +392,9 @@ public:
         }
     }
 
-    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> Capture()
+    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> Capture(const int captureWidth, const int captureHeight)
     {
-        const int renderWidth = GetRenderWidth();
-        const int renderHeight = GetRenderHeight();
-        if (renderWidth <= 0 || renderHeight <= 0)
+        if (captureWidth <= 0 || captureHeight <= 0)
         {
             return std::nullopt;
         }
@@ -408,22 +407,22 @@ public:
 
         if (!pboAvailable_)
         {
-            return CaptureSynchronously();
+            return CaptureSynchronously(captureWidth, captureHeight);
         }
 
-        if (!EnsureResources(renderWidth, renderHeight))
+        if (!EnsureResources(captureWidth, captureHeight))
         {
             DisablePbo();
-            return CaptureSynchronously();
+            return CaptureSynchronously(captureWidth, captureHeight);
         }
 
         rlDrawRenderBatchActive();
 
         const unsigned int writeIndex = frameIndex_ % kCaptureRingSize;
-        if (!SubmitReadback(writeIndex, renderWidth, renderHeight))
+        if (!SubmitReadback(writeIndex, captureWidth, captureHeight))
         {
             DisablePbo();
-            return CaptureSynchronously();
+            return CaptureSynchronously(captureWidth, captureHeight);
         }
 
         std::optional<mfd::Rgba32Framebuffer> readyFrame;
@@ -433,7 +432,7 @@ public:
             readyFrame = TryConsume(readIndex);
             if (!pboAvailable_)
             {
-                return CaptureSynchronously();
+                return CaptureSynchronously(captureWidth, captureHeight);
             }
         }
 
@@ -498,9 +497,13 @@ private:
         }
     }
 
-    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> CaptureSynchronously()
+    [[nodiscard]] std::optional<mfd::Rgba32Framebuffer> CaptureSynchronously(const int captureWidth,
+                                                                             const int captureHeight)
     {
-        latestFramebuffer_ = mfd::OpenGlFramebufferReader::ReadRgba32();
+        mfd::FramebufferCaptureRequest request;
+        request.width = captureWidth;
+        request.height = captureHeight;
+        latestFramebuffer_ = mfd::OpenGlFramebufferReader::ReadRgba32(request);
         hasLatestFramebuffer_ = !latestFramebuffer_.Empty();
         return latestFramebuffer_;
     }
@@ -1688,34 +1691,40 @@ private:
         std::cout << "Shortcuts: F1 toggles runtime debug, R reloads, 1..9 switch pages\n";
     }
 
-    [[nodiscard]] bool PrepareFramebufferCapture()
+    [[nodiscard]] mfd::window::detail::FramebufferCaptureSize ResolveFramebufferCaptureSize() const noexcept
+    {
+        return mfd::window::detail::ResolvePluginFramebufferCaptureSize(
+            GetRenderWidth(),
+            GetRenderHeight(),
+            RenderViewportWidth());
+    }
+
+    [[nodiscard]] bool PrepareFramebufferCapture(const mfd::window::detail::FramebufferCaptureSize captureSize)
     {
         if (!framebufferCallback_)
         {
             return false;
         }
 
-        const int renderWidth = GetRenderWidth();
-        const int renderHeight = GetRenderHeight();
-        if (renderWidth <= 0 || renderHeight <= 0)
+        if (captureSize.width <= 0 || captureSize.height <= 0)
         {
             framebufferCapture_.reset();
-            lastObservedRenderWidth_ = 0;
-            lastObservedRenderHeight_ = 0;
+            lastObservedCaptureWidth_ = 0;
+            lastObservedCaptureHeight_ = 0;
             framebufferResizeCooldownFrames_ = 0;
             return false;
         }
 
-        if (lastObservedRenderWidth_ <= 0 || lastObservedRenderHeight_ <= 0)
+        if (lastObservedCaptureWidth_ <= 0 || lastObservedCaptureHeight_ <= 0)
         {
-            lastObservedRenderWidth_ = renderWidth;
-            lastObservedRenderHeight_ = renderHeight;
+            lastObservedCaptureWidth_ = captureSize.width;
+            lastObservedCaptureHeight_ = captureSize.height;
         }
-        else if (renderWidth != lastObservedRenderWidth_ || renderHeight != lastObservedRenderHeight_)
+        else if (captureSize.width != lastObservedCaptureWidth_ || captureSize.height != lastObservedCaptureHeight_)
         {
-            // Tear down the readback path while the host recreates its swapchain-sized resources.
-            lastObservedRenderWidth_ = renderWidth;
-            lastObservedRenderHeight_ = renderHeight;
+            // Tear down the readback path while the capture output size changes.
+            lastObservedCaptureWidth_ = captureSize.width;
+            lastObservedCaptureHeight_ = captureSize.height;
             framebufferCapture_.reset();
             framebufferResizeCooldownFrames_ = kFramebufferResizeCooldownFrames;
             return false;
@@ -1737,12 +1746,14 @@ private:
 
     void PublishFramebuffer()
     {
-        if (!PrepareFramebufferCapture())
+        const mfd::window::detail::FramebufferCaptureSize captureSize = ResolveFramebufferCaptureSize();
+        if (!PrepareFramebufferCapture(captureSize))
         {
             return;
         }
 
-        const std::optional<mfd::Rgba32Framebuffer> framebuffer = framebufferCapture_->Capture();
+        const std::optional<mfd::Rgba32Framebuffer> framebuffer =
+            framebufferCapture_->Capture(captureSize.width, captureSize.height);
         if (!framebuffer.has_value())
         {
             return;
@@ -1780,8 +1791,8 @@ private:
     std::optional<std::string> lastPublishedActivePage_ {};
     std::uint32_t nextStrobeFeedbackSequence_ = 1;
     bool receivedFirstClientCommand_ = false;
-    int lastObservedRenderWidth_ = 0;
-    int lastObservedRenderHeight_ = 0;
+    int lastObservedCaptureWidth_ = 0;
+    int lastObservedCaptureHeight_ = 0;
     int framebufferResizeCooldownFrames_ = 0;
     std::filesystem::path resolvedIconFile_ {};
     std::string brandingStatus_ {};

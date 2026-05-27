@@ -131,7 +131,8 @@ MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindo
 }
 ```
 
-During `submit_frame`, the plugin receives one raw descriptor containing:
+During `submit_frame`, the plugin receives one raw descriptor containing the
+rendered runtime page viewport only:
 
 - `frame->width`
 - `frame->height`
@@ -139,6 +140,10 @@ During `submit_frame`, the plugin receives one raw descriptor containing:
 - `frame->pixel_bytes`
 - `frame->row_stride_bytes`
 - `frame->pixel_format == MfdWindowFramebufferPixelFormat_Rgba32`
+
+When the integrated `F1` runtime debug overlay is visible, `mfd_window` keeps
+that side panel out of the plugin buffer. The forwarded `width`, `height`, and
+pixel payload still describe only the page image rendered by the runtime host.
 
 If no callback is provided to `RunLauncher()` and no `--framebuffer-plugin`
 argument is passed to `mfd_window`, the launcher keeps the framebuffer capture
