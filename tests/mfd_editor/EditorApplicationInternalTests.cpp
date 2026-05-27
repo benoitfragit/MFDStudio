@@ -82,3 +82,31 @@ TEST(EditorApplicationInternalTests, ReticleHasFillCapablePrimitiveRejectsLineOn
 
     EXPECT_FALSE(editor::detail::ReticleHasFillCapablePrimitive(reticle));
 }
+
+TEST(EditorApplicationInternalTests, ReticleLibraryIdExistsNormalizedDetectsCaseAndWhitespaceCollisions)
+{
+    mfd::ReticleLibrary library;
+
+    mfd::ReticleGroup reticle;
+    reticle.id = "Radar Track";
+    library.emplace(reticle.id, reticle);
+
+    EXPECT_TRUE(editor::detail::ReticleLibraryIdExistsNormalized(library, "radar track"));
+    EXPECT_TRUE(editor::detail::ReticleLibraryIdExistsNormalized(library, " Radar Track "));
+    EXPECT_FALSE(editor::detail::ReticleLibraryIdExistsNormalized(library, "nav_track"));
+}
+
+TEST(EditorApplicationInternalTests, MakeUniqueLibraryReticleIdSkipsNormalizedCollisions)
+{
+    mfd::ReticleLibrary library;
+
+    mfd::ReticleGroup original;
+    original.id = "Radar Track";
+    library.emplace(original.id, original);
+
+    mfd::ReticleGroup sibling;
+    sibling.id = "radar track_1";
+    library.emplace(sibling.id, sibling);
+
+    EXPECT_EQ(editor::detail::MakeUniqueLibraryReticleId(library, "radar track"), "radar track_2");
+}

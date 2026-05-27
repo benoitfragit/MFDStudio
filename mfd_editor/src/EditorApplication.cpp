@@ -9048,16 +9048,7 @@ std::string EditorApplication::MakeUniqueStrobeName(const mfd::PageDefinition& p
 
 std::string EditorApplication::MakeUniqueLibraryReticleId(const std::string_view baseId) const
 {
-    const std::string stableBase = baseId.empty() ? std::string {"reticle"} : std::string(baseId);
-    std::string candidate = stableBase;
-    int suffix = 1;
-
-    while (loaded_.document.reticleLibrary.find(candidate) != loaded_.document.reticleLibrary.end())
-    {
-        candidate = stableBase + "_" + std::to_string(suffix++);
-    }
-
-    return candidate;
+    return editor::detail::MakeUniqueLibraryReticleId(loaded_.document.reticleLibrary, baseId);
 }
 
 std::string EditorApplication::MakeUniqueLayerId(const mfd::PageDefinition& page, const std::string_view baseId)

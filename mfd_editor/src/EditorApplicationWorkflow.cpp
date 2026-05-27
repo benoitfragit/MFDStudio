@@ -35,6 +35,7 @@ using editor::detail::kTutorialAircraftLabelPrimitiveId;
 using editor::detail::kTutorialAircraftTemplateId;
 using editor::detail::kTutorialPage1OwnshipAnchor;
 using editor::detail::kTutorialStrobeCursorTemplateId;
+using editor::detail::ReticleLibraryIdExistsNormalized;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
 using editor::ui::AccentButton;
@@ -2072,15 +2073,31 @@ bool EditorApplication::CreateNewLibraryReticleFromPrimitive()
         return false;
     }
 
+    if (ReticleLibraryIdExistsNormalized(loaded_.document.reticleLibrary, reticleId))
+    {
+        RebuildStatus("Library reticle id '" + reticleId + "' already exists after normalization.", true);
+        return false;
+    }
+
     PushUndoSnapshot();
     mfd::ReticleGroup reticle = MakePrimitiveReticle(
         reticleId,
         primitiveType);
     tutorial_->ConfigureCreatedLibraryReticle(reticle);
-    loaded_.document.reticleLibrary[reticle.id] = reticle;
-    files_.templateFiles[reticle.id] = editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, reticle.id);
-    SelectLibraryReticle(reticle.id);
-    RebuildStatus("Library reticle '" + reticle.id + "' created.", false);
+    const std::string createdReticleId = reticle.id;
+    const auto [createdIterator, inserted] =
+        loaded_.document.reticleLibrary.emplace(createdReticleId, std::move(reticle));
+    if (!inserted)
+    {
+        RebuildStatus("Library reticle id '" + createdReticleId + "' already exists.", true);
+        return false;
+    }
+
+    files_.templateFiles[createdReticleId] =
+        editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, createdReticleId);
+    SelectLibraryReticle(createdIterator->first);
+    CopyTextBuffer(newLibraryReticleDraft_.id, MakeUniqueLibraryReticleId(createdReticleId));
+    RebuildStatus("Library reticle '" + createdReticleId + "' created.", false);
     return true;
 }
 
@@ -2100,9 +2117,9 @@ void EditorApplication::DuplicateSelectedLibraryReticle()
         return;
     }
 
-    if (loaded_.document.reticleLibrary.find(newId) != loaded_.document.reticleLibrary.end())
+    if (ReticleLibraryIdExistsNormalized(loaded_.document.reticleLibrary, newId))
     {
-        RebuildStatus("Library reticle id '" + newId + "' already exists.", true);
+        RebuildStatus("Library reticle id '" + newId + "' already exists after normalization.", true);
         return;
     }
 
@@ -2110,9 +2127,15 @@ void EditorApplication::DuplicateSelectedLibraryReticle()
     mfd::ReticleGroup copy = *source;
     copy.id = newId;
     copy.sourceTemplateId.clear();
-    loaded_.document.reticleLibrary[newId] = copy;
+    const auto [createdIterator, inserted] = loaded_.document.reticleLibrary.emplace(newId, std::move(copy));
+    if (!inserted)
+    {
+        RebuildStatus("Library reticle id '" + newId + "' already exists.", true);
+        return;
+    }
+
     files_.templateFiles[newId] = editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, newId);
-    SelectLibraryReticle(newId);
+    SelectLibraryReticle(createdIterator->first);
     RebuildStatus("Library reticle duplicated as '" + newId + "'.", false);
 }
 
@@ -2143,10 +2166,19 @@ void EditorApplication::PasteCopiedLibraryReticle()
     const std::string baseId = copy.id.empty() ? std::string {"reticle_copy"} : copy.id + "_copy";
     copy.id = MakeUniqueLibraryReticleId(baseId);
     copy.sourceTemplateId.clear();
-    loaded_.document.reticleLibrary[copy.id] = copy;
-    files_.templateFiles[copy.id] = editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, copy.id);
-    SelectLibraryReticle(copy.id);
-    RebuildStatus("Library reticle pasted as '" + copy.id + "'.", false);
+    const std::string pastedReticleId = copy.id;
+    const auto [createdIterator, inserted] =
+        loaded_.document.reticleLibrary.emplace(pastedReticleId, std::move(copy));
+    if (!inserted)
+    {
+        RebuildStatus("Library reticle id '" + pastedReticleId + "' already exists.", true);
+        return;
+    }
+
+    files_.templateFiles[pastedReticleId] =
+        editor::DefaultTemplateFilePath(loaded_.window.reticleLibraryFolder, pastedReticleId);
+    SelectLibraryReticle(createdIterator->first);
+    RebuildStatus("Library reticle pasted as '" + pastedReticleId + "'.", false);
 }
 
 void EditorApplication::CopySelectedLibraryPrimitive()

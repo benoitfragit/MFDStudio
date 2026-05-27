@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -154,6 +155,53 @@ inline bool ReticleHasFillCapablePrimitive(const mfd::ReticleGroup& reticle) noe
                        {
                            return mfd::SupportsFilledPrimitive(primitive);
                        });
+}
+
+/**
+ * @brief Returns whether one reticle-library id already exists after normalization.
+ * @param library Reticle library to inspect.
+ * @param id Candidate authored template id.
+ * @return `true` when the candidate collides with an existing key or reticle id after normalization.
+ */
+inline bool ReticleLibraryIdExistsNormalized(const mfd::ReticleLibrary& library, const std::string_view id) noexcept
+{
+    const std::string normalizedId = mfd::NormalizePageName(id);
+    if (normalizedId.empty())
+    {
+        return false;
+    }
+
+    for (const auto& entry : library)
+    {
+        if (mfd::NormalizePageName(entry.first) == normalizedId ||
+            mfd::NormalizePageName(entry.second.id) == normalizedId)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief Generates one library reticle id that stays unique after normalization.
+ * @param library Reticle library that must stay collision free.
+ * @param baseId Preferred authored template id.
+ * @return One unique authored template id, falling back to `reticle` when the preferred id normalizes to empty.
+ */
+inline std::string MakeUniqueLibraryReticleId(const mfd::ReticleLibrary& library, const std::string_view baseId)
+{
+    const std::string stableBase =
+        mfd::NormalizePageName(baseId).empty() ? std::string {"reticle"} : std::string(baseId);
+    std::string candidate = stableBase;
+    int suffix = 1;
+
+    while (ReticleLibraryIdExistsNormalized(library, candidate))
+    {
+        candidate = stableBase + "_" + std::to_string(suffix++);
+    }
+
+    return candidate;
 }
 
 /**

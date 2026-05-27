@@ -503,6 +503,11 @@ Diagnostics include:
 - `MFD017` when a reticle defines duplicate primitive ids
 - `MFD018` when reticle ids collide after normalization
 
+Library template ids follow the same normalization rule in authoring tools.
+The editor now blocks creating or duplicating one template when another library
+entry already normalizes to the same id, for example `Radar Track` and
+` radar track `.
+
 ### 7.2 Inline reticle
 
 Canonical example:
