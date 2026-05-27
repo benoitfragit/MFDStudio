@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Unit tests covering private editor fill-style helpers.
+ * @brief Unit tests covering private editor helpers shared by the application implementation.
  */
 
 #include "EditorApplicationInternal.h"
@@ -109,4 +109,55 @@ TEST(EditorApplicationInternalTests, MakeUniqueLibraryReticleIdSkipsNormalizedCo
     library.emplace(sibling.id, sibling);
 
     EXPECT_EQ(editor::detail::MakeUniqueLibraryReticleId(library, "radar track"), "radar track_2");
+}
+
+TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointEnumeratesImageCorners)
+{
+    mfd::Primitive primitive;
+    mfd::ImageGeometry image;
+    image.width = 0.40f;
+    image.height = 0.20f;
+    primitive.id = "image";
+    primitive.type = mfd::PrimitiveType::Image;
+    primitive.geometry = image;
+
+    std::vector<mfd::Vec2> points;
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(
+        primitive,
+        [&](const mfd::Vec2 point)
+        {
+            points.push_back(point);
+        });
+
+    ASSERT_EQ(points.size(), 4U);
+    EXPECT_FLOAT_EQ(points[0].x, -0.20f);
+    EXPECT_FLOAT_EQ(points[0].y, -0.10f);
+    EXPECT_FLOAT_EQ(points[1].x, 0.20f);
+    EXPECT_FLOAT_EQ(points[1].y, -0.10f);
+    EXPECT_FLOAT_EQ(points[2].x, 0.20f);
+    EXPECT_FLOAT_EQ(points[2].y, 0.10f);
+    EXPECT_FLOAT_EQ(points[3].x, -0.20f);
+    EXPECT_FLOAT_EQ(points[3].y, 0.10f);
+}
+
+TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointSkipsInvisibleImage)
+{
+    mfd::Primitive primitive;
+    mfd::ImageGeometry image;
+    image.width = 0.40f;
+    image.height = 0.20f;
+    primitive.id = "image";
+    primitive.type = mfd::PrimitiveType::Image;
+    primitive.style.visible = false;
+    primitive.geometry = image;
+
+    std::vector<mfd::Vec2> points;
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(
+        primitive,
+        [&](const mfd::Vec2 point)
+        {
+            points.push_back(point);
+        });
+
+    EXPECT_TRUE(points.empty());
 }

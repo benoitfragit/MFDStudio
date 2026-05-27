@@ -13,6 +13,7 @@
 #include <array>
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -202,6 +203,231 @@ inline std::string MakeUniqueLibraryReticleId(const mfd::ReticleLibrary& library
     }
 
     return candidate;
+}
+
+/**
+ * @brief Returns the half width used by editor preview bounds for one authored text string.
+ * @param text Authored text content, or the fallback formatting string when empty.
+ * @param fontSize Authored logical font size.
+ * @param letterSpacing Authored logical glyph spacing.
+ * @return Conservative text half width used by editor hit-testing bounds.
+ */
+inline float EstimatePrimitiveTextHalfWidth(const std::string_view text,
+                                            const float fontSize,
+                                            const float letterSpacing) noexcept
+{
+    const std::size_t characterCount = std::max<std::size_t>(1, text.size());
+    const float glyphWidth = fontSize * static_cast<float>(characterCount) * 0.30f;
+    const float spacingWidth = std::max(0.0f, letterSpacing) *
+                               static_cast<float>(characterCount > 0 ? characterCount - 1U : 0U) * 0.5f;
+    return std::max(0.03f, glyphWidth + spacingWidth);
+}
+
+/**
+ * @brief Returns the half width used by editor preview bounds for one text primitive.
+ * @param text Authored text geometry.
+ * @return Conservative text half width used by editor hit-testing bounds.
+ */
+inline float EstimatePrimitiveTextHalfWidth(const mfd::TextGeometry& text) noexcept
+{
+    return EstimatePrimitiveTextHalfWidth(text.text, text.fontSize, text.letterSpacing);
+}
+
+/**
+ * @brief Returns the half width used by editor preview bounds for one time primitive.
+ * @param time Authored time geometry.
+ * @return Conservative time half width used by editor hit-testing bounds.
+ */
+inline float EstimatePrimitiveTextHalfWidth(const mfd::TimeGeometry& time) noexcept
+{
+    return EstimatePrimitiveTextHalfWidth(time.format.empty() ? std::string_view {"%H:%M:%S"} : std::string_view {time.format},
+                                          time.fontSize,
+                                          time.letterSpacing);
+}
+
+/**
+ * @brief Returns the half height used by editor preview bounds for one font size.
+ * @param fontSize Authored logical font size.
+ * @return Conservative text half height used by editor hit-testing bounds.
+ */
+inline float EstimatePrimitiveTextHalfHeight(const float fontSize) noexcept
+{
+    return std::max(0.02f, fontSize * 0.50f);
+}
+
+/**
+ * @brief Returns the half height used by editor preview bounds for one text primitive.
+ * @param text Authored text geometry.
+ * @return Conservative text half height used by editor hit-testing bounds.
+ */
+inline float EstimatePrimitiveTextHalfHeight(const mfd::TextGeometry& text) noexcept
+{
+    return EstimatePrimitiveTextHalfHeight(text.fontSize);
+}
+
+/**
+ * @brief Returns the half height used by editor preview bounds for one time primitive.
+ * @param time Authored time geometry.
+ * @return Conservative time half height used by editor hit-testing bounds.
+ */
+inline float EstimatePrimitiveTextHalfHeight(const mfd::TimeGeometry& time) noexcept
+{
+    return EstimatePrimitiveTextHalfHeight(time.fontSize);
+}
+
+/**
+ * @brief Visits the logical arc samples used to bound one preview arc.
+ * @tparam TCallback Callable receiving one logical point per sample.
+ * @param radius Authored arc radius.
+ * @param startAngleDegrees Authored arc start angle in degrees.
+ * @param endAngleDegrees Authored arc end angle in degrees.
+ * @param segments Requested authored segment count.
+ * @param callback Visitor receiving each generated point.
+ */
+template <typename TCallback>
+inline void ForEachPrimitiveArcPoint(const float radius,
+                                     const float startAngleDegrees,
+                                     const float endAngleDegrees,
+                                     const int segments,
+                                     TCallback&& callback)
+{
+    constexpr float kPi = 3.14159265358979323846f;
+
+    const int segmentCount = std::max(2, segments);
+    const float safeRadius = std::max(0.0f, std::abs(radius));
+    const float startRadians = startAngleDegrees * kPi / 180.0f;
+    const float sweepRadians = (endAngleDegrees - startAngleDegrees) * kPi / 180.0f;
+
+    for (int index = 0; index <= segmentCount; ++index)
+    {
+        const float factor = static_cast<float>(index) / static_cast<float>(segmentCount);
+        const float angle = startRadians + sweepRadians * factor;
+        callback(mfd::Vec2 {std::cos(angle) * safeRadius, std::sin(angle) * safeRadius});
+    }
+}
+
+/**
+ * @brief Visits the geometry-local points that define one primitive bounding hull.
+ * @tparam TCallback Callable receiving one geometry-local point at a time.
+ * @param primitive Primitive whose visible authored hull must be enumerated.
+ * @param callback Visitor receiving each geometry-local point.
+ * @note The primitive transform is intentionally not applied here so callers can compose
+ *       primitive, reticle, world, or screen-space bounds without duplicating the geometry switch.
+ */
+template <typename TCallback>
+inline void ForEachPrimitiveBoundsLocalPoint(const mfd::Primitive& primitive, TCallback&& callback)
+{
+    if (!primitive.style.visible)
+    {
+        return;
+    }
+
+    if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
+    {
+        const float halfWidth = EstimatePrimitiveTextHalfWidth(*text);
+        const float halfHeight = EstimatePrimitiveTextHalfHeight(*text);
+        callback(mfd::Vec2 {-halfWidth, -halfHeight});
+        callback(mfd::Vec2 {halfWidth, -halfHeight});
+        callback(mfd::Vec2 {halfWidth, halfHeight});
+        callback(mfd::Vec2 {-halfWidth, halfHeight});
+    }
+    else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
+    {
+        const float halfWidth = EstimatePrimitiveTextHalfWidth(*time);
+        const float halfHeight = EstimatePrimitiveTextHalfHeight(*time);
+        callback(mfd::Vec2 {-halfWidth, -halfHeight});
+        callback(mfd::Vec2 {halfWidth, -halfHeight});
+        callback(mfd::Vec2 {halfWidth, halfHeight});
+        callback(mfd::Vec2 {-halfWidth, halfHeight});
+    }
+    else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
+    {
+        callback(line->start);
+        callback(line->end);
+    }
+    else if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
+    {
+        callback(mfd::Vec2 {-circle->radius, -circle->radius});
+        callback(mfd::Vec2 {circle->radius, -circle->radius});
+        callback(mfd::Vec2 {circle->radius, circle->radius});
+        callback(mfd::Vec2 {-circle->radius, circle->radius});
+    }
+    else if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
+    {
+        callback(mfd::Vec2 {-ring->outerRadius, -ring->outerRadius});
+        callback(mfd::Vec2 {ring->outerRadius, -ring->outerRadius});
+        callback(mfd::Vec2 {ring->outerRadius, ring->outerRadius});
+        callback(mfd::Vec2 {-ring->outerRadius, ring->outerRadius});
+    }
+    else if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
+    {
+        callback(mfd::Vec2 {-rectangle->width * 0.5f, -rectangle->height * 0.5f});
+        callback(mfd::Vec2 {rectangle->width * 0.5f, -rectangle->height * 0.5f});
+        callback(mfd::Vec2 {rectangle->width * 0.5f, rectangle->height * 0.5f});
+        callback(mfd::Vec2 {-rectangle->width * 0.5f, rectangle->height * 0.5f});
+    }
+    else if (const auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
+    {
+        callback(mfd::Vec2 {-ellipse->width * 0.5f, -ellipse->height * 0.5f});
+        callback(mfd::Vec2 {ellipse->width * 0.5f, -ellipse->height * 0.5f});
+        callback(mfd::Vec2 {ellipse->width * 0.5f, ellipse->height * 0.5f});
+        callback(mfd::Vec2 {-ellipse->width * 0.5f, ellipse->height * 0.5f});
+    }
+    else if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
+    {
+        callback(mfd::Vec2 {-square->width * 0.5f, -square->height * 0.5f});
+        callback(mfd::Vec2 {square->width * 0.5f, -square->height * 0.5f});
+        callback(mfd::Vec2 {square->width * 0.5f, square->height * 0.5f});
+        callback(mfd::Vec2 {-square->width * 0.5f, square->height * 0.5f});
+    }
+    else if (const auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
+    {
+        callback(mfd::Vec2 {0.0f, diamond->height * 0.5f});
+        callback(mfd::Vec2 {diamond->width * 0.5f, 0.0f});
+        callback(mfd::Vec2 {0.0f, -diamond->height * 0.5f});
+        callback(mfd::Vec2 {-diamond->width * 0.5f, 0.0f});
+    }
+    else if (const auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
+    {
+        callback(triangle->points[0]);
+        callback(triangle->points[1]);
+        callback(triangle->points[2]);
+    }
+    else if (const auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive.geometry))
+    {
+        for (const auto& point : polyline->points)
+        {
+            callback(point);
+        }
+    }
+    else if (const auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive.geometry))
+    {
+        for (const auto& point : bezier->controlPoints)
+        {
+            callback(point);
+        }
+    }
+    else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
+    {
+        ForEachPrimitiveArcPoint(
+            arc->radius,
+            arc->startAngleDegrees,
+            arc->endAngleDegrees,
+            arc->segments,
+            callback);
+
+        if (primitive.style.filled)
+        {
+            callback(mfd::Vec2 {});
+        }
+    }
+    else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
+    {
+        callback(mfd::Vec2 {-image->width * 0.5f, -image->height * 0.5f});
+        callback(mfd::Vec2 {image->width * 0.5f, -image->height * 0.5f});
+        callback(mfd::Vec2 {image->width * 0.5f, image->height * 0.5f});
+        callback(mfd::Vec2 {-image->width * 0.5f, image->height * 0.5f});
+    }
 }
 
 /**

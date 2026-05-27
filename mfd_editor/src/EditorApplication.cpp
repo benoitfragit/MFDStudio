@@ -328,38 +328,32 @@ bool IsPointInsidePolygon(const std::vector<ImVec2>& polygon, const ImVec2 point
 
 float EstimatedTextHalfWidth(const std::string_view text, const float fontSize, const float letterSpacing)
 {
-    const std::size_t characterCount = std::max<std::size_t>(1, text.size());
-    const float glyphWidth = fontSize * static_cast<float>(characterCount) * 0.30f;
-    const float spacingWidth = std::max(0.0f, letterSpacing) *
-                               static_cast<float>(characterCount > 0 ? characterCount - 1U : 0U) * 0.5f;
-    return std::max(0.03f, glyphWidth + spacingWidth);
+    return editor::detail::EstimatePrimitiveTextHalfWidth(text, fontSize, letterSpacing);
 }
 
 float EstimatedTextHalfWidth(const mfd::TextGeometry& text)
 {
-    return EstimatedTextHalfWidth(text.text, text.fontSize, text.letterSpacing);
+    return editor::detail::EstimatePrimitiveTextHalfWidth(text);
 }
 
 float EstimatedTextHalfWidth(const mfd::TimeGeometry& time)
 {
-    return EstimatedTextHalfWidth(time.format.empty() ? std::string_view {"%H:%M:%S"} : std::string_view {time.format},
-                                  time.fontSize,
-                                  time.letterSpacing);
+    return editor::detail::EstimatePrimitiveTextHalfWidth(time);
 }
 
 float EstimatedTextHalfHeight(const float fontSize)
 {
-    return std::max(0.02f, fontSize * 0.50f);
+    return editor::detail::EstimatePrimitiveTextHalfHeight(fontSize);
 }
 
 float EstimatedTextHalfHeight(const mfd::TextGeometry& text)
 {
-    return EstimatedTextHalfHeight(text.fontSize);
+    return editor::detail::EstimatePrimitiveTextHalfHeight(text);
 }
 
 float EstimatedTextHalfHeight(const mfd::TimeGeometry& time)
 {
-    return EstimatedTextHalfHeight(time.fontSize);
+    return editor::detail::EstimatePrimitiveTextHalfHeight(time);
 }
 
 std::vector<mfd::Vec2> ApproximateEllipsePoints(const float width, const float height, const int segments = 48)
@@ -408,17 +402,7 @@ void ForEachApproximateArcPoint(const float radius,
                                 const int segments,
                                 TCallback&& callback)
 {
-    const int segmentCount = std::max(2, segments);
-    const float safeRadius = std::max(0.0f, std::abs(radius));
-    const float startRadians = startAngleDegrees * PI / 180.0f;
-    const float sweepRadians = (endAngleDegrees - startAngleDegrees) * PI / 180.0f;
-
-    for (int index = 0; index <= segmentCount; ++index)
-    {
-        const float factor = static_cast<float>(index) / static_cast<float>(segmentCount);
-        const float angle = startRadians + sweepRadians * factor;
-        callback(mfd::Vec2 {std::cos(angle) * safeRadius, std::sin(angle) * safeRadius});
-    }
+    editor::detail::ForEachPrimitiveArcPoint(radius, startAngleDegrees, endAngleDegrees, segments, callback);
 }
 
 mfd::Vec2 InverseTransformPoint(const mfd::Vec2& point, const mfd::Transform2D& transform)
@@ -724,122 +708,12 @@ void IncludeLogicalBounds(LogicalBounds& bounds, const LogicalBounds& other)
 LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
 {
     LogicalBounds bounds;
-    if (!primitive.style.visible)
-    {
-        return bounds;
-    }
-
-    auto includeTransformedPoint = [&](const mfd::Vec2 localPoint)
-    {
-        IncludeLogicalPoint(bounds, mfd::ApplyTransform(localPoint, primitive.transform));
-    };
-
-    if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
-    {
-        const float halfWidth = EstimatedTextHalfWidth(*text);
-        const float halfHeight = EstimatedTextHalfHeight(*text);
-        includeTransformedPoint({-halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, halfHeight});
-        includeTransformedPoint({-halfWidth, halfHeight});
-    }
-    else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
-    {
-        const float halfWidth = EstimatedTextHalfWidth(*time);
-        const float halfHeight = EstimatedTextHalfHeight(*time);
-        includeTransformedPoint({-halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, halfHeight});
-        includeTransformedPoint({-halfWidth, halfHeight});
-    }
-    else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint(line->start);
-        includeTransformedPoint(line->end);
-    }
-    else if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-circle->radius, -circle->radius});
-        includeTransformedPoint({circle->radius, -circle->radius});
-        includeTransformedPoint({circle->radius, circle->radius});
-        includeTransformedPoint({-circle->radius, circle->radius});
-    }
-    else if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-ring->outerRadius, -ring->outerRadius});
-        includeTransformedPoint({ring->outerRadius, -ring->outerRadius});
-        includeTransformedPoint({ring->outerRadius, ring->outerRadius});
-        includeTransformedPoint({-ring->outerRadius, ring->outerRadius});
-    }
-    else if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-rectangle->width * 0.5f, -rectangle->height * 0.5f});
-        includeTransformedPoint({rectangle->width * 0.5f, -rectangle->height * 0.5f});
-        includeTransformedPoint({rectangle->width * 0.5f, rectangle->height * 0.5f});
-        includeTransformedPoint({-rectangle->width * 0.5f, rectangle->height * 0.5f});
-    }
-    else if (const auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-ellipse->width * 0.5f, -ellipse->height * 0.5f});
-        includeTransformedPoint({ellipse->width * 0.5f, -ellipse->height * 0.5f});
-        includeTransformedPoint({ellipse->width * 0.5f, ellipse->height * 0.5f});
-        includeTransformedPoint({-ellipse->width * 0.5f, ellipse->height * 0.5f});
-    }
-    else if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-square->width * 0.5f, -square->height * 0.5f});
-        includeTransformedPoint({square->width * 0.5f, -square->height * 0.5f});
-        includeTransformedPoint({square->width * 0.5f, square->height * 0.5f});
-        includeTransformedPoint({-square->width * 0.5f, square->height * 0.5f});
-    }
-    else if (const auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({0.0f, diamond->height * 0.5f});
-        includeTransformedPoint({diamond->width * 0.5f, 0.0f});
-        includeTransformedPoint({0.0f, -diamond->height * 0.5f});
-        includeTransformedPoint({-diamond->width * 0.5f, 0.0f});
-    }
-    else if (const auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint(triangle->points[0]);
-        includeTransformedPoint(triangle->points[1]);
-        includeTransformedPoint(triangle->points[2]);
-    }
-    else if (const auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive.geometry))
-    {
-        for (const auto& point : polyline->points)
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(
+        primitive,
+        [&](const mfd::Vec2 localPoint)
         {
-            includeTransformedPoint(point);
-        }
-    }
-    else if (const auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive.geometry))
-    {
-        for (const auto& point : bezier->controlPoints)
-        {
-            includeTransformedPoint(point);
-        }
-    }
-    else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
-    {
-        ForEachApproximateArcPoint(
-            arc->radius,
-            arc->startAngleDegrees,
-            arc->endAngleDegrees,
-            arc->segments,
-            includeTransformedPoint);
-
-        if (primitive.style.filled)
-        {
-            includeTransformedPoint({});
-        }
-    }
-    else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-image->width * 0.5f, -image->height * 0.5f});
-        includeTransformedPoint({image->width * 0.5f, -image->height * 0.5f});
-        includeTransformedPoint({image->width * 0.5f, image->height * 0.5f});
-        includeTransformedPoint({-image->width * 0.5f, image->height * 0.5f});
-    }
+            IncludeLogicalPoint(bounds, mfd::ApplyTransform(localPoint, primitive.transform));
+        });
 
     FinalizeLogicalBounds(bounds);
     return bounds;
@@ -881,120 +755,12 @@ LogicalBounds ComputeReticleWorldBounds(const mfd::ReticleGroup& reticle)
 
     for (const auto& primitive : reticle.primitives)
     {
-        if (!primitive.style.visible)
-        {
-            continue;
-        }
-
-        if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
-        {
-            const float halfWidth = EstimatedTextHalfWidth(*text);
-            const float halfHeight = EstimatedTextHalfHeight(*text);
-            includeWorldPoint(primitive, {-halfWidth, -halfHeight});
-            includeWorldPoint(primitive, {halfWidth, -halfHeight});
-            includeWorldPoint(primitive, {halfWidth, halfHeight});
-            includeWorldPoint(primitive, {-halfWidth, halfHeight});
-        }
-        else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
-        {
-            const float halfWidth = EstimatedTextHalfWidth(*time);
-            const float halfHeight = EstimatedTextHalfHeight(*time);
-            includeWorldPoint(primitive, {-halfWidth, -halfHeight});
-            includeWorldPoint(primitive, {halfWidth, -halfHeight});
-            includeWorldPoint(primitive, {halfWidth, halfHeight});
-            includeWorldPoint(primitive, {-halfWidth, halfHeight});
-        }
-        else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, line->start);
-            includeWorldPoint(primitive, line->end);
-        }
-        else if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, {-circle->radius, -circle->radius});
-            includeWorldPoint(primitive, {circle->radius, -circle->radius});
-            includeWorldPoint(primitive, {circle->radius, circle->radius});
-            includeWorldPoint(primitive, {-circle->radius, circle->radius});
-        }
-        else if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, {-ring->outerRadius, -ring->outerRadius});
-            includeWorldPoint(primitive, {ring->outerRadius, -ring->outerRadius});
-            includeWorldPoint(primitive, {ring->outerRadius, ring->outerRadius});
-            includeWorldPoint(primitive, {-ring->outerRadius, ring->outerRadius});
-        }
-        else if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, {-rectangle->width * 0.5f, -rectangle->height * 0.5f});
-            includeWorldPoint(primitive, {rectangle->width * 0.5f, -rectangle->height * 0.5f});
-            includeWorldPoint(primitive, {rectangle->width * 0.5f, rectangle->height * 0.5f});
-            includeWorldPoint(primitive, {-rectangle->width * 0.5f, rectangle->height * 0.5f});
-        }
-        else if (const auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, {-ellipse->width * 0.5f, -ellipse->height * 0.5f});
-            includeWorldPoint(primitive, {ellipse->width * 0.5f, -ellipse->height * 0.5f});
-            includeWorldPoint(primitive, {ellipse->width * 0.5f, ellipse->height * 0.5f});
-            includeWorldPoint(primitive, {-ellipse->width * 0.5f, ellipse->height * 0.5f});
-        }
-        else if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, {-square->width * 0.5f, -square->height * 0.5f});
-            includeWorldPoint(primitive, {square->width * 0.5f, -square->height * 0.5f});
-            includeWorldPoint(primitive, {square->width * 0.5f, square->height * 0.5f});
-            includeWorldPoint(primitive, {-square->width * 0.5f, square->height * 0.5f});
-        }
-        else if (const auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, {0.0f, diamond->height * 0.5f});
-            includeWorldPoint(primitive, {diamond->width * 0.5f, 0.0f});
-            includeWorldPoint(primitive, {0.0f, -diamond->height * 0.5f});
-            includeWorldPoint(primitive, {-diamond->width * 0.5f, 0.0f});
-        }
-        else if (const auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, triangle->points[0]);
-            includeWorldPoint(primitive, triangle->points[1]);
-            includeWorldPoint(primitive, triangle->points[2]);
-        }
-        else if (const auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive.geometry))
-        {
-            for (const auto& point : polyline->points)
+        editor::detail::ForEachPrimitiveBoundsLocalPoint(
+            primitive,
+            [&](const mfd::Vec2 localPoint)
             {
-                includeWorldPoint(primitive, point);
-            }
-        }
-        else if (const auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive.geometry))
-        {
-            for (const auto& point : bezier->controlPoints)
-            {
-                includeWorldPoint(primitive, point);
-            }
-        }
-        else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
-        {
-            ForEachApproximateArcPoint(
-                arc->radius,
-                arc->startAngleDegrees,
-                arc->endAngleDegrees,
-                arc->segments,
-                [&](const mfd::Vec2 point)
-                {
-                    includeWorldPoint(primitive, point);
-                });
-
-            if (primitive.style.filled)
-            {
-                includeWorldPoint(primitive, {});
-            }
-        }
-        else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
-        {
-            includeWorldPoint(primitive, {-image->width * 0.5f, -image->height * 0.5f});
-            includeWorldPoint(primitive, {image->width * 0.5f, -image->height * 0.5f});
-            includeWorldPoint(primitive, {image->width * 0.5f, image->height * 0.5f});
-            includeWorldPoint(primitive, {-image->width * 0.5f, image->height * 0.5f});
-        }
+                includeWorldPoint(primitive, localPoint);
+            });
     }
 
     FinalizeLogicalBounds(worldBounds);
@@ -7447,132 +7213,24 @@ EditorApplication::ReticleScreenBounds EditorApplication::ComputePrimitiveScreen
     const ViewportState& viewport) const
 {
     ReticleScreenBounds bounds;
-
-    auto includeLogicalPoint = [&](const mfd::Vec2 logicalPoint)
-    {
-        const ImVec2 screenPoint = viewport.ToScreen(logicalPoint);
-        if (!bounds.valid)
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(
+        primitive,
+        [&](const mfd::Vec2 localPoint)
         {
-            bounds.min = screenPoint;
-            bounds.max = screenPoint;
-            bounds.valid = true;
-            return;
-        }
+            const ImVec2 screenPoint = viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
+            if (!bounds.valid)
+            {
+                bounds.min = screenPoint;
+                bounds.max = screenPoint;
+                bounds.valid = true;
+                return;
+            }
 
-        bounds.min.x = std::min(bounds.min.x, screenPoint.x);
-        bounds.min.y = std::min(bounds.min.y, screenPoint.y);
-        bounds.max.x = std::max(bounds.max.x, screenPoint.x);
-        bounds.max.y = std::max(bounds.max.y, screenPoint.y);
-    };
-
-    auto includeTransformedPoint = [&](const mfd::Vec2 localPoint)
-    {
-        includeLogicalPoint(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
-    };
-
-    if (!primitive.style.visible)
-    {
-        return bounds;
-    }
-
-    if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
-    {
-        const float halfWidth = EstimatedTextHalfWidth(*text);
-        const float halfHeight = EstimatedTextHalfHeight(*text);
-        includeTransformedPoint({-halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, halfHeight});
-        includeTransformedPoint({-halfWidth, halfHeight});
-    }
-    else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
-    {
-        const float halfWidth = EstimatedTextHalfWidth(*time);
-        const float halfHeight = EstimatedTextHalfHeight(*time);
-        includeTransformedPoint({-halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, -halfHeight});
-        includeTransformedPoint({halfWidth, halfHeight});
-        includeTransformedPoint({-halfWidth, halfHeight});
-    }
-    else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint(line->start);
-        includeTransformedPoint(line->end);
-    }
-    else if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-circle->radius, -circle->radius});
-        includeTransformedPoint({circle->radius, -circle->radius});
-        includeTransformedPoint({circle->radius, circle->radius});
-        includeTransformedPoint({-circle->radius, circle->radius});
-    }
-    else if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-ring->outerRadius, -ring->outerRadius});
-        includeTransformedPoint({ring->outerRadius, -ring->outerRadius});
-        includeTransformedPoint({ring->outerRadius, ring->outerRadius});
-        includeTransformedPoint({-ring->outerRadius, ring->outerRadius});
-    }
-    else if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-rectangle->width * 0.5f, -rectangle->height * 0.5f});
-        includeTransformedPoint({rectangle->width * 0.5f, -rectangle->height * 0.5f});
-        includeTransformedPoint({rectangle->width * 0.5f, rectangle->height * 0.5f});
-        includeTransformedPoint({-rectangle->width * 0.5f, rectangle->height * 0.5f});
-    }
-    else if (const auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-ellipse->width * 0.5f, -ellipse->height * 0.5f});
-        includeTransformedPoint({ellipse->width * 0.5f, -ellipse->height * 0.5f});
-        includeTransformedPoint({ellipse->width * 0.5f, ellipse->height * 0.5f});
-        includeTransformedPoint({-ellipse->width * 0.5f, ellipse->height * 0.5f});
-    }
-    else if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({-square->width * 0.5f, -square->height * 0.5f});
-        includeTransformedPoint({square->width * 0.5f, -square->height * 0.5f});
-        includeTransformedPoint({square->width * 0.5f, square->height * 0.5f});
-        includeTransformedPoint({-square->width * 0.5f, square->height * 0.5f});
-    }
-    else if (const auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint({0.0f, diamond->height * 0.5f});
-        includeTransformedPoint({diamond->width * 0.5f, 0.0f});
-        includeTransformedPoint({0.0f, -diamond->height * 0.5f});
-        includeTransformedPoint({-diamond->width * 0.5f, 0.0f});
-    }
-    else if (const auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
-    {
-        includeTransformedPoint(triangle->points[0]);
-        includeTransformedPoint(triangle->points[1]);
-        includeTransformedPoint(triangle->points[2]);
-    }
-    else if (const auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive.geometry))
-    {
-        for (const auto& point : polyline->points)
-        {
-            includeTransformedPoint(point);
-        }
-    }
-    else if (const auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive.geometry))
-    {
-        for (const auto& point : bezier->controlPoints)
-        {
-            includeTransformedPoint(point);
-        }
-    }
-    else if (const auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
-    {
-        for (const auto& point :
-             ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments))
-        {
-            includeTransformedPoint(point);
-        }
-
-        if (primitive.style.filled)
-        {
-            includeTransformedPoint({});
-        }
-    }
+            bounds.min.x = std::min(bounds.min.x, screenPoint.x);
+            bounds.min.y = std::min(bounds.min.y, screenPoint.y);
+            bounds.max.x = std::max(bounds.max.x, screenPoint.x);
+            bounds.max.y = std::max(bounds.max.y, screenPoint.y);
+        });
 
     if (bounds.valid)
     {

@@ -139,6 +139,11 @@ folder pickers instead of the previous custom folder browser. `mfd_editor` also
 accepts `--asset-directory <path>` to seed editor defaults from a chosen
 authored asset root.
 
+### Image-Only Preview Hits Stay Selectable
+
+Editor preview hit-testing now keeps image primitives and image-only reticles
+selectable in both the reticle studio and the page preview.
+
 ## For Contributors
 
 ### The Internal Layering Is Cleaner
