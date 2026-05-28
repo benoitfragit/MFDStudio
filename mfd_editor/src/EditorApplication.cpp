@@ -191,6 +191,65 @@ DroppedJsonDocumentKind ClassifyDroppedJsonDocument(const std::filesystem::path&
     return DroppedJsonDocumentKind::Unknown;
 }
 
+std::size_t RemapStrobePrimitiveOverridesById(const mfd::ReticleGroup& previousReticle, mfd::ReticleGroup* nextReticle)
+{
+    if (nextReticle == nullptr)
+    {
+        return 0;
+    }
+
+    std::size_t unmappedEditablePrimitiveCount = 0;
+    for (const mfd::Primitive& previousPrimitive : previousReticle.primitives)
+    {
+        if (previousPrimitive.id.empty())
+        {
+            continue;
+        }
+
+        mfd::Primitive* nextPrimitive = mfd::FindPrimitive(*nextReticle, previousPrimitive.id);
+        if (nextPrimitive == nullptr || nextPrimitive->type != previousPrimitive.type)
+        {
+            if (std::holds_alternative<mfd::TextGeometry>(previousPrimitive.geometry) ||
+                std::holds_alternative<mfd::TimeGeometry>(previousPrimitive.geometry))
+            {
+                ++unmappedEditablePrimitiveCount;
+            }
+            continue;
+        }
+
+        nextPrimitive->style = previousPrimitive.style;
+        if (const auto* previousText = std::get_if<mfd::TextGeometry>(&previousPrimitive.geometry))
+        {
+            auto* nextText = std::get_if<mfd::TextGeometry>(&nextPrimitive->geometry);
+            if (nextText == nullptr)
+            {
+                ++unmappedEditablePrimitiveCount;
+                continue;
+            }
+
+            nextText->text = previousText->text;
+            nextText->letterSpacing = previousText->letterSpacing;
+            continue;
+        }
+
+        if (const auto* previousTime = std::get_if<mfd::TimeGeometry>(&previousPrimitive.geometry))
+        {
+            auto* nextTime = std::get_if<mfd::TimeGeometry>(&nextPrimitive->geometry);
+            if (nextTime == nullptr)
+            {
+                ++unmappedEditablePrimitiveCount;
+                continue;
+            }
+
+            nextTime->format = previousTime->format;
+            nextTime->utc = previousTime->utc;
+            nextTime->letterSpacing = previousTime->letterSpacing;
+        }
+    }
+
+    return unmappedEditablePrimitiveCount;
+}
+
 std::string Lowercase(const std::string_view value)
 {
     std::string lowered;
@@ -8700,8 +8759,14 @@ bool EditorApplication::CreatePageReticleInstanceFromTemplate(const std::string_
 mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
     const mfd::PageDefinition& page,
     const mfd::ReticleGroup& templ,
-    const std::optional<mfd::PageStrobeDefinition>& previousStrobe)
+    const std::optional<mfd::PageStrobeDefinition>& previousStrobe,
+    std::size_t* unmappedPrimitiveOverrideCount)
 {
+    if (unmappedPrimitiveOverrideCount != nullptr)
+    {
+        *unmappedPrimitiveOverrideCount = 0;
+    }
+
     const std::string baseId =
         previousStrobe.has_value() && !previousStrobe->reticle.id.empty()
             ? previousStrobe->reticle.id
@@ -8737,6 +8802,11 @@ mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
         strobe.reticle.clipping = previousStrobe->reticle.clipping;
         strobe.capture = previousStrobe->capture;
         strobe.magnet = previousStrobe->magnet;
+        const std::size_t unmappedCount = RemapStrobePrimitiveOverridesById(previousStrobe->reticle, &strobe.reticle);
+        if (unmappedPrimitiveOverrideCount != nullptr)
+        {
+            *unmappedPrimitiveOverrideCount = unmappedCount;
+        }
     }
 
     strobe.reticle.drawOnTop = true;
@@ -9650,8 +9720,20 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
                 {
                     PushUndoSnapshot();
                     const std::optional<mfd::PageStrobeDefinition> previousStrobe = editedStrobe;
-                    editedStrobe = MakePageStrobeFromTemplate(page, iterator->second, previousStrobe);
+                    std::size_t unmappedPrimitiveOverrideCount = 0;
+                    editedStrobe = MakePageStrobeFromTemplate(
+                        page,
+                        iterator->second,
+                        previousStrobe,
+                        &unmappedPrimitiveOverrideCount);
                     RefreshBlinkBindingForEditor(page, editedStrobe.reticle.blink);
+                    if (unmappedPrimitiveOverrideCount > 0)
+                    {
+                        RebuildStatus("Changed the strobe template, but " +
+                                          std::to_string(unmappedPrimitiveOverrideCount) +
+                                          " named text/time primitive override(s) could not be remapped.",
+                                      true);
+                    }
                 }
             }
             if (selected)

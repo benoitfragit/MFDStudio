@@ -673,7 +673,8 @@ private:
     /** @brief Instantiates or replaces one page strobe from the selected library template. */
     static mfd::PageStrobeDefinition MakePageStrobeFromTemplate(const mfd::PageDefinition& page,
                                                                 const mfd::ReticleGroup& templ,
-                                                                const std::optional<mfd::PageStrobeDefinition>& previousStrobe);
+                                                                const std::optional<mfd::PageStrobeDefinition>& previousStrobe,
+                                                                std::size_t* unmappedPrimitiveOverrideCount = nullptr);
     /** @brief Generates a reticle id that does not collide inside the provided container. */
     static std::string MakeUniqueReticleId(const std::vector<mfd::ReticleGroup>& groups, std::string_view baseId);
     /** @brief Generates a page reticle id that stays unique against static reticles and the optional page strobe after normalization. */
