@@ -211,6 +211,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenDynamicBindingLay
     page.name = "Radar";
     page.title = "Radar";
     page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    loaded.document.reticleLibrary.emplace("track_template", mfd::ReticleGroup {"track_template"});
     page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_template", "", 0});
     loaded.document.pages.push_back(std::move(page));
 
@@ -237,6 +238,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenDynamicBindingRef
     page.name = "Radar";
     page.title = "Radar";
     page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    loaded.document.reticleLibrary.emplace("track_template", mfd::ReticleGroup {"track_template"});
     page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_template", "overlay", 0});
     loaded.document.pages.push_back(std::move(page));
 
@@ -248,6 +250,170 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenDynamicBindingRef
 
     ASSERT_FALSE(ok);
     EXPECT_NE(error.find("unknown runtime layer 'overlay'"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenPagesShareSameNormalizedName)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition pageA;
+    pageA.name = "Page1";
+    pageA.title = "Page 1";
+    pageA.layers.push_back(mfd::PageLayerDefinition {"default"});
+    loaded.document.pages.push_back(pageA);
+
+    mfd::PageDefinition pageB;
+    pageB.name = "page1";
+    pageB.title = "Page 1 copy";
+    pageB.layers.push_back(mfd::PageLayerDefinition {"default"});
+    loaded.document.pages.push_back(pageB);
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "page1.json");
+    layout.pageFiles.push_back(tempDir.Path() / "page1_copy.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("Duplicate page name"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenDynamicBindingTemplateIsNotLoaded)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_template", "default", 0});
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("references one unloaded template"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenPageStrobeTemplateIsNotLoaded)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+
+    mfd::PageStrobeDefinition strobe;
+    strobe.name = "Primary";
+    strobe.normalizedName = mfd::NormalizePageName(strobe.name);
+    strobe.reticle.id = "primary_strobe";
+    strobe.reticle.sourceTemplateId = "missing_template";
+    page.strobes.push_back(std::move(strobe));
+
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("references unknown template"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenPageStrobeClippingIsInvalid)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::ReticleGroup strobeTemplate;
+    strobeTemplate.id = "strobe_template";
+    loaded.document.reticleLibrary.emplace(strobeTemplate.id, strobeTemplate);
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+
+    mfd::PageStrobeDefinition strobe;
+    strobe.name = "Primary";
+    strobe.normalizedName = mfd::NormalizePageName(strobe.name);
+    strobe.reticle.id = "primary_strobe";
+    strobe.reticle.sourceTemplateId = "strobe_template";
+    strobe.reticle.clipping.mode = mfd::ReticleClipMode::Inner;
+    strobe.reticle.clipping.primitiveId = "missing_mask";
+    page.strobes.push_back(std::move(strobe));
+
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("invalid clipping primitive"), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenPageReticleBlinkTypeIsUnknown)
+{
+    ScopedTempDir tempDir;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = tempDir.Path() / "window.json";
+    loaded.window.reticleLibraryFolder = tempDir.Path() / "reticles";
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+
+    mfd::ReticleGroup reticle;
+    reticle.id = "track_alpha";
+    reticle.layerId = "default";
+    reticle.blink.enabled = true;
+    reticle.blink.typeName = "missing_blink";
+    reticle.blink.normalizedTypeName = mfd::NormalizePageName(reticle.blink.typeName);
+    page.staticReticles.push_back(std::move(reticle));
+
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(tempDir.Path() / "radar.json");
+
+    std::string error;
+    const bool ok = editor::SaveEditorDocument(loaded, layout, &error);
+
+    ASSERT_FALSE(ok);
+    EXPECT_NE(error.find("unknown blink type"), std::string::npos);
     EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
 }
 
@@ -636,10 +802,12 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     primitive.geometry = mfd::TextGeometry {"INIT", 0.04f, 0.002f};
     templateReticle.primitives.push_back(std::move(primitive));
     loaded.document.reticleLibrary.emplace("radar_track", std::move(templateReticle));
+    loaded.document.reticleLibrary.emplace("strobe_cursor", mfd::ReticleGroup {"strobe_cursor"});
 
     editor::EditorFileLayout layout;
     layout.pageFiles.push_back(pageFile);
     layout.templateFiles.emplace("radar_track", templateFile);
+    layout.templateFiles.emplace("strobe_cursor", tempDir.Path() / "reticles" / "strobe_cursor.json");
     layout.removedPageFiles.push_back(stalePageFile);
     layout.removedTemplateFiles.push_back(staleTemplateFile);
 

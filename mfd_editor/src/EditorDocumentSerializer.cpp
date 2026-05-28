@@ -638,6 +638,51 @@ struct SerializedPageLayerState
     std::unordered_set<std::string> normalizedLayerIds;
 };
 
+void ValidatePageNameCatalog(const mfd::MfdDocument& document)
+{
+    std::unordered_set<std::string> normalizedPageNames;
+    normalizedPageNames.reserve(document.pages.size());
+    for (const auto& page : document.pages)
+    {
+        const std::string normalizedPageName = mfd::NormalizePageName(page.name);
+        if (normalizedPageName.empty())
+        {
+            throw std::runtime_error("Page names cannot be empty before saving.");
+        }
+
+        if (!normalizedPageNames.insert(normalizedPageName).second)
+        {
+            throw std::runtime_error("Duplicate page name '" + page.name + "' detected after normalization.");
+        }
+    }
+}
+
+void ValidatePageBlinkCatalog(const mfd::PageDefinition& page)
+{
+    std::unordered_set<std::string> normalizedBlinkNames;
+    normalizedBlinkNames.reserve(page.blinkTypes.size());
+    for (const auto& blinkType : page.blinkTypes)
+    {
+        const std::string normalizedBlinkName = mfd::NormalizePageName(blinkType.name);
+        if (normalizedBlinkName.empty())
+        {
+            throw std::runtime_error("Page '" + page.name + "' contains a blink type with an empty name.");
+        }
+
+        if (!normalizedBlinkNames.insert(normalizedBlinkName).second)
+        {
+            throw std::runtime_error("Page '" + page.name + "' contains duplicate blink type '" + blinkType.name + "'.");
+        }
+    }
+
+    if (!page.defaultBlinkTypeName.empty() &&
+        mfd::FindPageBlinkDefinition(page, page.defaultBlinkTypeName) == nullptr)
+    {
+        throw std::runtime_error("Page '" + page.name + "' references unknown default blink type '" +
+                                 page.defaultBlinkTypeName + "'.");
+    }
+}
+
 void WriteReticleLayerField(json& node, const mfd::ReticleGroup& reticle, const bool required)
 {
     if (mfd::NormalizePageName(reticle.layerId).empty())
@@ -682,10 +727,24 @@ SerializedPageLayerState SerializePageLayers(const mfd::PageDefinition& page)
 }
 
 void ValidateStaticReticleLayers(const mfd::PageDefinition& page,
+                                 const mfd::ReticleLibrary& library,
                                  const std::unordered_set<std::string>& normalizedLayerIds)
 {
+    std::unordered_set<std::string> normalizedReticleIds;
+    normalizedReticleIds.reserve(page.staticReticles.size());
     for (const auto& reticle : page.staticReticles)
     {
+        const std::string normalizedReticleId = mfd::NormalizePageName(reticle.id);
+        if (normalizedReticleId.empty())
+        {
+            throw std::runtime_error("Static reticle ids cannot be empty on page '" + page.name + "'.");
+        }
+
+        if (!normalizedReticleIds.insert(normalizedReticleId).second)
+        {
+            throw std::runtime_error("Page '" + page.name + "' contains duplicate static reticle id '" + reticle.id + "'.");
+        }
+
         const std::string normalizedLayerId = mfd::NormalizePageName(reticle.layerId);
         if (normalizedLayerId.empty())
         {
@@ -699,10 +758,31 @@ void ValidateStaticReticleLayers(const mfd::PageDefinition& page,
                 "Static reticle '" + reticle.id + "' references unknown runtime layer '" + reticle.layerId +
                 "' on page '" + page.name + "'.");
         }
+
+        if (!reticle.sourceTemplateId.empty() && library.find(reticle.sourceTemplateId) == library.end())
+        {
+            throw std::runtime_error("Static reticle '" + reticle.id + "' references unknown template '" +
+                                     reticle.sourceTemplateId + "' on page '" + page.name + "'.");
+        }
+
+        if (reticle.clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(reticle) == nullptr)
+        {
+            throw std::runtime_error("Static reticle '" + reticle.id +
+                                     "' references one invalid clipping primitive on page '" + page.name + "'.");
+        }
+
+        if (reticle.blink.enabled &&
+            !reticle.blink.typeName.empty() &&
+            mfd::FindPageBlinkDefinition(page, reticle.blink.typeName) == nullptr)
+        {
+            throw std::runtime_error("Static reticle '" + reticle.id + "' references unknown blink type '" +
+                                     reticle.blink.typeName + "' on page '" + page.name + "'.");
+        }
     }
 }
 
 std::optional<json> SerializeDynamicReticleBindings(const mfd::PageDefinition& page,
+                                                    const mfd::ReticleLibrary& library,
                                                     const std::unordered_set<std::string>& normalizedLayerIds)
 {
     if (page.dynamicReticleBindings.empty())
@@ -727,6 +807,12 @@ std::optional<json> SerializeDynamicReticleBindings(const mfd::PageDefinition& p
             throw std::runtime_error(
                 "Page '" + page.name + "' contains duplicate dynamic reticle binding template '" + binding.templateId +
                 "'.");
+        }
+
+        if (library.find(binding.templateId) == library.end())
+        {
+            throw std::runtime_error("Dynamic reticle binding '" + binding.templateId +
+                                     "' references one unloaded template on page '" + page.name + "'.");
         }
 
         const std::string normalizedLayerId = mfd::NormalizePageName(binding.layerId);
@@ -763,6 +849,37 @@ std::optional<json> SerializeDynamicReticleBindings(const mfd::PageDefinition& p
     }
 
     return bindings;
+}
+
+void ValidatePageStrobes(const mfd::PageDefinition& page, const mfd::ReticleLibrary& library)
+{
+    for (const auto& strobe : page.strobes)
+    {
+        if (strobe.reticle.sourceTemplateId.empty())
+        {
+            throw std::runtime_error("Page strobe '" + strobe.name + "' must reference one template before saving.");
+        }
+
+        if (library.find(strobe.reticle.sourceTemplateId) == library.end())
+        {
+            throw std::runtime_error("Page strobe '" + strobe.name + "' references unknown template '" +
+                                     strobe.reticle.sourceTemplateId + "'.");
+        }
+
+        if (strobe.reticle.clipping.mode != mfd::ReticleClipMode::None &&
+            mfd::ResolveClipPrimitive(strobe.reticle) == nullptr)
+        {
+            throw std::runtime_error("Page strobe '" + strobe.name + "' references one invalid clipping primitive.");
+        }
+
+        if (strobe.reticle.blink.enabled &&
+            !strobe.reticle.blink.typeName.empty() &&
+            mfd::FindPageBlinkDefinition(page, strobe.reticle.blink.typeName) == nullptr)
+        {
+            throw std::runtime_error("Page strobe '" + strobe.name + "' references unknown blink type '" +
+                                     strobe.reticle.blink.typeName + "'.");
+        }
+    }
 }
 
 std::optional<json> SerializePageEditorState(const mfd::PageDefinition& page)
@@ -1010,8 +1127,10 @@ json SerializePage(const mfd::PageDefinition& page,
                    const mfd::ReticleLibrary& library,
                    const std::filesystem::path& baseFolder)
 {
+    ValidatePageBlinkCatalog(page);
     const SerializedPageLayerState pageLayers = SerializePageLayers(page);
-    ValidateStaticReticleLayers(page, pageLayers.normalizedLayerIds);
+    ValidateStaticReticleLayers(page, library, pageLayers.normalizedLayerIds);
+    ValidatePageStrobes(page, library);
 
     json node = json::object();
     node["name"] = page.name;
@@ -1053,7 +1172,7 @@ json SerializePage(const mfd::PageDefinition& page,
 
     node["layers"] = pageLayers.layers;
 
-    if (const auto bindings = SerializeDynamicReticleBindings(page, pageLayers.normalizedLayerIds); bindings.has_value())
+    if (const auto bindings = SerializeDynamicReticleBindings(page, library, pageLayers.normalizedLayerIds); bindings.has_value())
     {
         node["dynamicReticleBindings"] = *bindings;
     }
@@ -1333,6 +1452,8 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
         {
             throw std::runtime_error("Page file layout does not match the number of pages");
         }
+
+        ValidatePageNameCatalog(loaded.document);
 
         const json windowDocument = SerializeWindow(loaded.window, loaded.document, layout);
 
