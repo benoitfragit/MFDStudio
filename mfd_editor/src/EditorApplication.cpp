@@ -10188,20 +10188,9 @@ void EditorApplication::DrawPageReticleInspector()
     ImGui::TextDisabled("Esc clears the current page-reticle selection.");
     ImGui::TextDisabled("Draw order: %d / %d", reticleIndex + 1, std::max(1, static_cast<int>(page->staticReticles.size())));
 
-    const std::string currentLayerLabel = reticle->layerId.empty() ? std::string {"<none>"} : reticle->layerId;
+    const std::string currentLayerLabel = reticle->layerId.empty() ? std::string {"<missing>"} : reticle->layerId;
     if (ImGui::BeginCombo("Editor layer", currentLayerLabel.c_str()))
     {
-        const bool noLayerSelected = reticle->layerId.empty();
-        if (ImGui::Selectable("<none>", noLayerSelected))
-        {
-            PushUndoSnapshot();
-            reticle->layerId.clear();
-        }
-        if (noLayerSelected)
-        {
-            ImGui::SetItemDefaultFocus();
-        }
-
         for (const auto& layer : page->editor.layers)
         {
             const bool selected = reticle->layerId == layer.id;
