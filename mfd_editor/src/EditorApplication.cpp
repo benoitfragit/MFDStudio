@@ -2924,7 +2924,20 @@ void EditorApplication::DrawPagePreviewWorkspace(const std::vector<std::string>&
         }
         else
         {
-            ImGui::TextDisabled("No active page to preview.");
+            if (HasOpenWindow() && loaded_.document.pages.empty())
+            {
+                ImGui::TextDisabled("No page yet.");
+                ImGui::TextWrapped("Create the first page to start previewing and authoring this window.");
+                if (AccentButton("Create first page##preview"))
+                {
+                    OpenNewPagePopup();
+                }
+                ShowItemTooltip("Open the page-creation workflow for this window.");
+            }
+            else
+            {
+                ImGui::TextDisabled("No active page to preview.");
+            }
         }
 
         ImGui::EndChild();
@@ -8932,7 +8945,20 @@ void EditorApplication::DrawPageInspector()
     mfd::PageDefinition* page = ActivePage();
     if (page == nullptr)
     {
-        ImGui::TextDisabled("No page selected.");
+        if (HasOpenWindow() && loaded_.document.pages.empty())
+        {
+            ImGui::TextDisabled("No page yet.");
+            ImGui::TextWrapped("This window is open, but it does not contain any page yet.");
+            if (AccentButton("Create first page##inspector"))
+            {
+                OpenNewPagePopup();
+            }
+            ShowItemTooltip("Open the page-creation workflow for this window.");
+        }
+        else
+        {
+            ImGui::TextDisabled("No page selected.");
+        }
         return;
     }
 
