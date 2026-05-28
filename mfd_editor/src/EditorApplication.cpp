@@ -8783,17 +8783,9 @@ void EditorApplication::DrawPageInspector()
     CopyTextBuffer(title, page->title);
     ImVec4 background = ToImGuiColor(page->backgroundColor);
 
-    const bool nameChanged = ImGui::InputText("Name", name.data(), name.size());
+    ImGui::InputText("Name", name.data(), name.size(), ImGuiInputTextFlags_ReadOnly);
     ShowItemTooltip("Internal page id used in JSON and API references.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (nameChanged)
-    {
-        page->name = name.data();
-        page->normalizedName = mfd::NormalizePageName(page->name);
-    }
+    ImGui::TextDisabled("Use 'Rename page globally...' to change this id safely.");
 
     const bool titleChanged = ImGui::InputText("Title", title.data(), title.size());
     ShowItemTooltip("Human-readable title shown in the editor and optionally in the runtime page chrome.");
