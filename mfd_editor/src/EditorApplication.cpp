@@ -11064,20 +11064,27 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
     }
     ShowItemTooltip("Override the template stroke thickness for this page strobe instance.");
 
-    for (auto& primitive : reticle->primitives)
+    int unnamedTextPrimitiveIndex = 0;
+    int unnamedTimePrimitiveIndex = 0;
+    for (int primitiveIndex = 0; primitiveIndex < static_cast<int>(reticle->primitives.size()); ++primitiveIndex)
     {
+        auto& primitive = reticle->primitives[static_cast<std::size_t>(primitiveIndex)];
         auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry);
         auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry);
-        if ((text == nullptr && time == nullptr) || primitive.id.empty())
+        if (text == nullptr && time == nullptr)
         {
             continue;
         }
 
         if (text != nullptr)
         {
+            const bool hasPrimitiveId = !primitive.id.empty();
+            const int fallbackIndex = unnamedTextPrimitiveIndex++;
             std::array<char, 128> buffer {};
             CopyTextBuffer(buffer, text->text);
-            const std::string label = "Text##strobe_" + primitive.id;
+            const std::string label = hasPrimitiveId ? "Text##strobe_" + primitive.id
+                                                     : "Text #" + std::to_string(fallbackIndex) + "##strobe_text_" +
+                                                           std::to_string(primitiveIndex);
             const bool changed = ImGui::InputText(label.c_str(), buffer.data(), buffer.size());
             ShowItemTooltip("Override the literal text for this text primitive on the page strobe instance.");
             if (ImGui::IsItemActivated())
@@ -11090,7 +11097,9 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
             }
 
             float letterSpacing = text->letterSpacing;
-            const std::string spacingLabel = "Letter spacing##strobe_" + primitive.id;
+            const std::string spacingLabel = hasPrimitiveId ? "Letter spacing##strobe_" + primitive.id
+                                                            : "Letter spacing #" + std::to_string(fallbackIndex) +
+                                                                  "##strobe_text_spacing_" + std::to_string(primitiveIndex);
             const bool spacingChanged =
                 ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
             ShowItemTooltip("Override the letter spacing for this text primitive on the page strobe instance.");
@@ -11107,9 +11116,13 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
 
         if (time != nullptr)
         {
+            const bool hasPrimitiveId = !primitive.id.empty();
+            const int fallbackIndex = unnamedTimePrimitiveIndex++;
             std::array<char, 128> format {};
             CopyTextBuffer(format, time->format);
-            const std::string formatLabel = "Time format##strobe_" + primitive.id;
+            const std::string formatLabel = hasPrimitiveId ? "Time format##strobe_" + primitive.id
+                                                           : "Time format #" + std::to_string(fallbackIndex) +
+                                                                 "##strobe_time_" + std::to_string(primitiveIndex);
             const bool formatChanged = ImGui::InputText(formatLabel.c_str(), format.data(), format.size());
             ShowItemTooltip("Override the strftime-style format used by this time primitive on the page strobe.");
             if (ImGui::IsItemActivated())
@@ -11122,7 +11135,9 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
             }
 
             bool utc = time->utc;
-            const std::string utcLabel = "UTC##strobe_" + primitive.id;
+            const std::string utcLabel = hasPrimitiveId ? "UTC##strobe_" + primitive.id
+                                                        : "UTC #" + std::to_string(fallbackIndex) + "##strobe_time_utc_" +
+                                                              std::to_string(primitiveIndex);
             if (ImGui::Checkbox(utcLabel.c_str(), &utc))
             {
                 PushUndoSnapshot();
@@ -11131,7 +11146,10 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
             ShowItemTooltip("Render this time primitive in UTC instead of local time.");
 
             float letterSpacing = time->letterSpacing;
-            const std::string spacingLabel = "Letter spacing##strobe_" + primitive.id;
+            const std::string spacingLabel = hasPrimitiveId ? "Letter spacing##strobe_" + primitive.id
+                                                            : "Letter spacing #" + std::to_string(fallbackIndex) +
+                                                                  "##strobe_time_spacing_" +
+                                                                  std::to_string(primitiveIndex);
             const bool spacingChanged =
                 ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
             ShowItemTooltip("Override the character spacing for this time primitive on the page strobe instance.");
