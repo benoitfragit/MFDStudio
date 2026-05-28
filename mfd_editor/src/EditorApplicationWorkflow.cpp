@@ -2001,9 +2001,23 @@ bool EditorApplication::CreateNewPage()
     using editor::tutorial::TutorialStepId;
 
     const std::string pageName = newPageDraft_.name.data();
-    if (pageName.empty())
+    const std::string normalizedPageName = mfd::NormalizePageName(pageName);
+    if (normalizedPageName.empty())
     {
         RebuildStatus("Page name cannot be empty.", true);
+        return false;
+    }
+
+    const bool duplicatePageName = std::any_of(
+        loaded_.document.pages.begin(),
+        loaded_.document.pages.end(),
+        [&normalizedPageName](const mfd::PageDefinition& page)
+        {
+            return mfd::NormalizePageName(page.name) == normalizedPageName;
+        });
+    if (duplicatePageName)
+    {
+        RebuildStatus("Page name '" + pageName + "' already exists after normalization.", true);
         return false;
     }
 
@@ -2030,7 +2044,7 @@ bool EditorApplication::CreateNewPage()
 
     mfd::PageDefinition page;
     page.name = pageName;
-    page.normalizedName = mfd::NormalizePageName(pageName);
+    page.normalizedName = normalizedPageName;
     page.title = newPageDraft_.title.data();
     page.backgroundColor = ToColorRgba(newPageDraft_.background);
     page.layers.push_back(mfd::PageLayerDefinition {std::string(mfd::kDefaultPageLayerId)});
