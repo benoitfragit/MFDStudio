@@ -8911,12 +8911,8 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     ImGui::TextDisabled("These entries are runtime-only bindings. They do not create authored static reticles on the page canvas.");
 
     std::vector<std::string> templateIds;
-    templateIds.reserve(loaded_.document.reticleLibrary.size() + files_.templateFiles.size());
+    templateIds.reserve(loaded_.document.reticleLibrary.size());
     for (const auto& entry : loaded_.document.reticleLibrary)
-    {
-        templateIds.push_back(entry.first);
-    }
-    for (const auto& entry : files_.templateFiles)
     {
         templateIds.push_back(entry.first);
     }
