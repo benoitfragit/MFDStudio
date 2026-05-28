@@ -1659,10 +1659,12 @@ void EditorApplication::PrepareTutorialStep()
         newWindowDraft_.positionY = 80;
         CopyTextBuffer(newWindowDraft_.fontFile, "");
         CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, assetPaths_.DefaultAssetPath("assets/reticles").string());
+        newWindowDraft_.commandUdpExposed = true;
         newWindowDraft_.commandUdpEnabled = true;
         CopyTextBuffer(newWindowDraft_.commandAddress, "127.0.0.1");
         newWindowDraft_.commandPort = 49000;
         newWindowDraft_.commandMaxPacketSize = 65507;
+        newWindowDraft_.feedbackUdpExposed = true;
         newWindowDraft_.feedbackUdpEnabled = true;
         CopyTextBuffer(newWindowDraft_.feedbackAddress, "127.0.0.1");
         newWindowDraft_.feedbackPort = 49001;
@@ -1927,21 +1929,27 @@ bool EditorApplication::CreateNewWindow()
                                            ? (windowBaseFolder / effectiveReticleFolder).lexically_normal()
                                            : effectiveReticleFolder;
 
-    mfd::WindowUdpCommandTransport commandUdp {};
-    commandUdp.enabled = newWindowDraft_.commandUdpEnabled;
-    commandUdp.address = newWindowDraft_.commandAddress.data();
-    commandUdp.port = static_cast<std::uint16_t>(
-        std::clamp(newWindowDraft_.commandPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
-    commandUdp.maxPacketSize = std::max(512, newWindowDraft_.commandMaxPacketSize);
-    next.window.commandTransports.udp = commandUdp;
+    if (newWindowDraft_.commandUdpExposed)
+    {
+        mfd::WindowUdpCommandTransport commandUdp {};
+        commandUdp.enabled = newWindowDraft_.commandUdpEnabled;
+        commandUdp.address = newWindowDraft_.commandAddress.data();
+        commandUdp.port = static_cast<std::uint16_t>(
+            std::clamp(newWindowDraft_.commandPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
+        commandUdp.maxPacketSize = std::max(512, newWindowDraft_.commandMaxPacketSize);
+        next.window.commandTransports.udp = commandUdp;
+    }
 
-    mfd::WindowUdpFeedbackTransport feedbackUdp {};
-    feedbackUdp.enabled = newWindowDraft_.feedbackUdpEnabled;
-    feedbackUdp.address = newWindowDraft_.feedbackAddress.data();
-    feedbackUdp.port = static_cast<std::uint16_t>(
-        std::clamp(newWindowDraft_.feedbackPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
-    feedbackUdp.maxPacketSize = std::max(512, newWindowDraft_.feedbackMaxPacketSize);
-    next.window.feedbackTransports.udp = feedbackUdp;
+    if (newWindowDraft_.feedbackUdpExposed)
+    {
+        mfd::WindowUdpFeedbackTransport feedbackUdp {};
+        feedbackUdp.enabled = newWindowDraft_.feedbackUdpEnabled;
+        feedbackUdp.address = newWindowDraft_.feedbackAddress.data();
+        feedbackUdp.port = static_cast<std::uint16_t>(
+            std::clamp(newWindowDraft_.feedbackPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
+        feedbackUdp.maxPacketSize = std::max(512, newWindowDraft_.feedbackMaxPacketSize);
+        next.window.feedbackTransports.udp = feedbackUdp;
+    }
 
     editor::EditorFileLayout nextFiles {};
     if (std::filesystem::exists(next.window.reticleLibraryFolder))

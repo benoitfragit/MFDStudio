@@ -196,10 +196,12 @@ private:
         int positionY = 80;
         std::array<char, kPathTextCapacity> fontFile {};
         std::array<char, kPathTextCapacity> reticleLibraryFolder {};
+        bool commandUdpExposed = true;
         bool commandUdpEnabled = true;
         std::array<char, 64> commandAddress {};
         int commandPort = 49000;
         int commandMaxPacketSize = 65507;
+        bool feedbackUdpExposed = false;
         bool feedbackUdpEnabled = false;
         std::array<char, 64> feedbackAddress {};
         int feedbackPort = 49001;

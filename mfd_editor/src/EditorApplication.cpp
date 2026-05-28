@@ -8461,41 +8461,54 @@ void EditorApplication::DrawPopups()
         ShowItemTooltip("Choose where new reticle template JSON files should be saved with the native Windows folder picker.");
 
         ImGui::SeparatorText("Commands UDP (incoming)");
-        ImGui::Checkbox("Enable command UDP", &newWindowDraft_.commandUdpEnabled);
-        ImGui::InputText("Command address", newWindowDraft_.commandAddress.data(), newWindowDraft_.commandAddress.size());
-        ImGui::InputInt("Command port", &newWindowDraft_.commandPort);
-        ImGui::InputInt("Command max packet", &newWindowDraft_.commandMaxPacketSize);
+        ImGui::Checkbox("Expose command UDP", &newWindowDraft_.commandUdpExposed);
+        if (newWindowDraft_.commandUdpExposed)
+        {
+            ImGui::Checkbox("Enable command UDP", &newWindowDraft_.commandUdpEnabled);
+            ImGui::InputText("Command address", newWindowDraft_.commandAddress.data(), newWindowDraft_.commandAddress.size());
+            ImGui::InputInt("Command port", &newWindowDraft_.commandPort);
+            ImGui::InputInt("Command max packet", &newWindowDraft_.commandMaxPacketSize);
+        }
 
         ImGui::SeparatorText("Feedback UDP (outgoing)");
-        ImGui::Checkbox("Enable feedback UDP", &newWindowDraft_.feedbackUdpEnabled);
-        ImGui::InputText("Feedback address", newWindowDraft_.feedbackAddress.data(), newWindowDraft_.feedbackAddress.size());
-        ImGui::InputInt("Feedback port", &newWindowDraft_.feedbackPort);
-        ImGui::InputInt("Feedback max packet", &newWindowDraft_.feedbackMaxPacketSize);
-        if (ImGui::DragFloat("Fast interval", &newWindowDraft_.feedbackFastIntervalSeconds, 0.001f, 0.001f, 10.0f, "%.3f s"))
+        ImGui::Checkbox("Expose feedback UDP", &newWindowDraft_.feedbackUdpExposed);
+        if (newWindowDraft_.feedbackUdpExposed)
         {
-            newWindowDraft_.feedbackFastIntervalSeconds =
-                ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
-            newWindowDraft_.feedbackHeartbeatIntervalSeconds =
-                ClampFeedbackHeartbeatIntervalSeconds(
-                    newWindowDraft_.feedbackHeartbeatIntervalSeconds,
-                    newWindowDraft_.feedbackFastIntervalSeconds);
+            ImGui::Checkbox("Enable feedback UDP", &newWindowDraft_.feedbackUdpEnabled);
+            ImGui::InputText("Feedback address", newWindowDraft_.feedbackAddress.data(), newWindowDraft_.feedbackAddress.size());
+            ImGui::InputInt("Feedback port", &newWindowDraft_.feedbackPort);
+            ImGui::InputInt("Feedback max packet", &newWindowDraft_.feedbackMaxPacketSize);
+            if (ImGui::DragFloat("Fast interval",
+                                 &newWindowDraft_.feedbackFastIntervalSeconds,
+                                 0.001f,
+                                 0.001f,
+                                 10.0f,
+                                 "%.3f s"))
+            {
+                newWindowDraft_.feedbackFastIntervalSeconds =
+                    ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
+                newWindowDraft_.feedbackHeartbeatIntervalSeconds =
+                    ClampFeedbackHeartbeatIntervalSeconds(
+                        newWindowDraft_.feedbackHeartbeatIntervalSeconds,
+                        newWindowDraft_.feedbackFastIntervalSeconds);
+            }
+            ShowItemTooltip("Minimum cadence used when the active-page feedback state changes.");
+            if (ImGui::DragFloat("Heartbeat interval",
+                                 &newWindowDraft_.feedbackHeartbeatIntervalSeconds,
+                                 0.001f,
+                                 newWindowDraft_.feedbackFastIntervalSeconds,
+                                 10.0f,
+                                 "%.3f s"))
+            {
+                newWindowDraft_.feedbackFastIntervalSeconds =
+                    ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
+                newWindowDraft_.feedbackHeartbeatIntervalSeconds =
+                    ClampFeedbackHeartbeatIntervalSeconds(
+                        newWindowDraft_.feedbackHeartbeatIntervalSeconds,
+                        newWindowDraft_.feedbackFastIntervalSeconds);
+            }
+            ShowItemTooltip("Minimum cadence used for unchanged active-page heartbeat snapshots.");
         }
-        ShowItemTooltip("Minimum cadence used when the active-page feedback state changes.");
-        if (ImGui::DragFloat("Heartbeat interval",
-                             &newWindowDraft_.feedbackHeartbeatIntervalSeconds,
-                             0.001f,
-                             newWindowDraft_.feedbackFastIntervalSeconds,
-                             10.0f,
-                             "%.3f s"))
-        {
-            newWindowDraft_.feedbackFastIntervalSeconds =
-                ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
-            newWindowDraft_.feedbackHeartbeatIntervalSeconds =
-                ClampFeedbackHeartbeatIntervalSeconds(
-                    newWindowDraft_.feedbackHeartbeatIntervalSeconds,
-                    newWindowDraft_.feedbackFastIntervalSeconds);
-        }
-        ShowItemTooltip("Minimum cadence used for unchanged active-page heartbeat snapshots.");
 
         ImGui::SeparatorText("Initial content");
         ImGui::Checkbox("Create one initial page", &newWindowDraft_.createInitialPage);
