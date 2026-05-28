@@ -4235,7 +4235,15 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             }
             else
             {
-                CreatePageReticleInstanceFromTemplate(templateId, viewport.ToLogical(ImGui::GetMousePos()));
+                const ImVec2 dropMousePosition = ImGui::GetMousePos();
+                const bool dropInsideViewport = IsPointInsideRect(dropMousePosition, viewport.origin, viewportMax);
+                const mfd::Vec2 dropPosition = dropInsideViewport ? viewport.ToLogical(dropMousePosition) : viewport.view.center;
+                if (CreatePageReticleInstanceFromTemplate(templateId, dropPosition) && !dropInsideViewport)
+                {
+                    RebuildStatus("Reticle '" + std::string(templateId) +
+                                      "' was dropped outside the viewport and placed at the current page-view center.",
+                                  false);
+                }
             }
         }
         ImGui::EndDragDropTarget();
