@@ -361,13 +361,14 @@ bool EditorApplication::ExecutePageRemovePlan(const editor::PageRemovePlan& plan
         return false;
     }
 
-    PushUndoSnapshot();
+    UndoSnapshot undoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_};
     std::string error;
     if (!pageManagementService_.Execute(plan, loaded_, files_, &error))
     {
         RebuildStatus("Remove page failed: " + error, true);
         return false;
     }
+    PushUndoSnapshot(std::move(undoSnapshot));
 
     if (loaded_.document.pages.empty())
     {
@@ -404,8 +405,7 @@ bool EditorApplication::ExecutePageImportPlan(const editor::PageImportPlan& plan
         return false;
     }
 
-    PushUndoSnapshot();
-
+    UndoSnapshot undoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_};
     editor::PageImportResult result;
     std::string error;
     if (!pageImportService_.Execute(plan, loaded_, files_, &result, &error))
@@ -413,6 +413,7 @@ bool EditorApplication::ExecutePageImportPlan(const editor::PageImportPlan& plan
         RebuildStatus(error.empty() ? "Importing the selected page failed." : error, true);
         return false;
     }
+    PushUndoSnapshot(std::move(undoSnapshot));
 
     SelectPage(result.importedPageIndex);
     std::string status = "Page '" + result.pageName + "' imported";
@@ -529,8 +530,7 @@ bool EditorApplication::ExecuteReticleExtractionPlan(const editor::ReticleExtrac
         return false;
     }
 
-    PushUndoSnapshot();
-
+    UndoSnapshot undoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_};
     editor::ReticleExtractionResult result;
     std::string error;
     if (!reticleExtractionService_.Execute(plan, loaded_, files_, &result, &error))
@@ -538,6 +538,7 @@ bool EditorApplication::ExecuteReticleExtractionPlan(const editor::ReticleExtrac
         RebuildStatus(error.empty() ? "Extracting the selected page reticles failed." : error, true);
         return false;
     }
+    PushUndoSnapshot(std::move(undoSnapshot));
 
     SelectPageReticle(plan.pageIndex, result.insertedReticleIndex);
     InvalidateReticleUsageHighlightCache();
@@ -560,13 +561,14 @@ bool EditorApplication::ExecutePageDeletePlan(const editor::PageDeletePlan& plan
         return false;
     }
 
-    PushUndoSnapshot();
+    UndoSnapshot undoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_};
     std::string error;
     if (!pageManagementService_.Execute(plan, loaded_, files_, &error))
     {
         RebuildStatus("Delete page failed: " + error, true);
         return false;
     }
+    PushUndoSnapshot(std::move(undoSnapshot));
 
     if (loaded_.document.pages.empty())
     {

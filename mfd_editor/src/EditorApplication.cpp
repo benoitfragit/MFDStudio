@@ -1862,12 +1862,17 @@ void EditorApplication::Undo()
 
 void EditorApplication::PushUndoSnapshot()
 {
+    PushUndoSnapshot(UndoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_});
+}
+
+void EditorApplication::PushUndoSnapshot(UndoSnapshot snapshot)
+{
     if (undoStack_.size() >= 64)
     {
         undoStack_.erase(undoStack_.begin());
     }
 
-    undoStack_.push_back(UndoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_});
+    undoStack_.push_back(std::move(snapshot));
     InvalidateReticleUsageHighlightCache();
 }
 

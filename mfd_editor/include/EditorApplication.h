@@ -305,6 +305,8 @@ private:
     void Undo();
     /** @brief Captures the current document state into the undo stack. */
     void PushUndoSnapshot();
+    /** @brief Pushes one pre-captured undo snapshot into the undo stack. */
+    void PushUndoSnapshot(UndoSnapshot snapshot);
     /** @brief Handles global keyboard shortcuts such as save, undo and delete. */
     void HandleShortcuts();
     /** @brief Deletes the current selection when that selection supports deletion. */
