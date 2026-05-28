@@ -17,7 +17,9 @@
 #include <cmath>
 #include <cstdio>
 #include <exception>
+#include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <numeric>
 #include <random>
@@ -26,6 +28,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include <nlohmann/json.hpp>
 #include <rlImGui.h>
 
 #include "EditorTutorialController.h"
@@ -62,6 +65,7 @@ using editor::detail::SeedReticleFillOverrideIfNeeded;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
 using editor::detail::VisibleFillColorFromStroke;
+using json = nlohmann::json;
 
 constexpr float kSidebarWidth = 320.0f;
 constexpr float kInspectorWidth = 360.0f;
@@ -77,6 +81,115 @@ constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
 constexpr const char* kPagePreviewDisplayPopupId = "PagePreviewDisplayPopup";
 constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
+
+enum class DroppedJsonDocumentKind
+{
+    Unknown,
+    Window,
+    Page
+};
+
+const json* FindDroppedJsonField(const json& node, const std::initializer_list<const char*> fieldNames)
+{
+    if (!node.is_object())
+    {
+        return nullptr;
+    }
+
+    for (const char* fieldName : fieldNames)
+    {
+        const auto iterator = node.find(fieldName);
+        if (iterator != node.end())
+        {
+            return &(*iterator);
+        }
+    }
+
+    return nullptr;
+}
+
+bool IsDroppedPageFileList(const json& value)
+{
+    if (!value.is_array())
+    {
+        return false;
+    }
+
+    for (const auto& entry : value)
+    {
+        if (entry.is_string())
+        {
+            continue;
+        }
+
+        if (entry.is_object() && FindDroppedJsonField(entry, {"file", "path", "json"}) != nullptr)
+        {
+            continue;
+        }
+
+        return false;
+    }
+
+    return true;
+}
+
+DroppedJsonDocumentKind ClassifyDroppedJsonDocument(const std::filesystem::path& path, std::string* error)
+{
+    std::ifstream stream(path);
+    if (!stream.is_open())
+    {
+        if (error != nullptr)
+        {
+            *error = "Unable to open dropped JSON file '" + path.string() + "'.";
+        }
+        return DroppedJsonDocumentKind::Unknown;
+    }
+
+    try
+    {
+        json document;
+        stream >> document;
+
+        if (const json* pages = FindDroppedJsonField(document, {"pageFiles", "pages", "pageJsons"});
+            pages != nullptr && IsDroppedPageFileList(*pages))
+        {
+            return DroppedJsonDocumentKind::Window;
+        }
+
+        const json* pageNode = &document;
+        if (const json* nestedPage = FindDroppedJsonField(document, {"page"});
+            nestedPage != nullptr && nestedPage->is_object())
+        {
+            pageNode = nestedPage;
+        }
+
+        if (FindDroppedJsonField(*pageNode,
+                                 {"name", "id", "staticReticles", "strobe", "blinkTypes", "defaultBlinkType", "backgroundColor", "bg"}) !=
+            nullptr)
+        {
+            return DroppedJsonDocumentKind::Page;
+        }
+    }
+    catch (const json::parse_error& exception)
+    {
+        if (error != nullptr)
+        {
+            *error = "Unable to parse dropped JSON file '" + path.string() + "' at byte " +
+                     std::to_string(exception.byte) + ".";
+        }
+        return DroppedJsonDocumentKind::Unknown;
+    }
+    catch (const json::exception& exception)
+    {
+        if (error != nullptr)
+        {
+            *error = "Unable to inspect dropped JSON file '" + path.string() + "': " + exception.what();
+        }
+        return DroppedJsonDocumentKind::Unknown;
+    }
+
+    return DroppedJsonDocumentKind::Unknown;
+}
 
 std::string Lowercase(const std::string_view value)
 {
@@ -1934,7 +2047,29 @@ void EditorApplication::HandleDroppedFiles()
 
     if (!HasOpenWindow())
     {
-        RebuildStatus("Open or create one window before importing a page asset.", true);
+        std::string inspectError;
+        switch (ClassifyDroppedJsonDocument(*importedPageFile, &inspectError))
+        {
+        case DroppedJsonDocumentKind::Window:
+            LoadWindowConfiguration(*importedPageFile);
+            UnloadDroppedFiles(droppedFiles);
+            return;
+        case DroppedJsonDocumentKind::Page:
+            RebuildStatus("Open or create one window before importing a page asset.", true);
+            break;
+        case DroppedJsonDocumentKind::Unknown:
+        default:
+            if (!inspectError.empty())
+            {
+                RebuildStatus(inspectError, true);
+            }
+            else
+            {
+                RebuildStatus("Drop one window JSON file or open a window before importing page assets.", true);
+            }
+            break;
+        }
+
         UnloadDroppedFiles(droppedFiles);
         return;
     }
