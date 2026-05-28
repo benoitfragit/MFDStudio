@@ -1343,6 +1343,7 @@ public:
 
         SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
         InitWindow(windowDefinition_.width, windowDefinition_.height, windowDefinition_.title.c_str());
+        SetExitKey(KEY_NULL);
         debugOverlay_.Initialize();
         RefreshBranding();
         ApplyWindowHostLayout(false);
