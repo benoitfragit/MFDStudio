@@ -642,13 +642,14 @@ bool ReticleIdExistsNormalized(const std::vector<mfd::ReticleGroup>& groups, con
                        });
 }
 
-bool PageLayerIdExistsExact(const mfd::PageDefinition& page, const std::string_view id)
+bool PageLayerIdExistsNormalized(const mfd::PageDefinition& page, const std::string_view id)
 {
+    const std::string normalizedId = NormalizeEditorIdentifier(id);
     return std::any_of(page.layers.begin(),
                        page.layers.end(),
-                       [id](const mfd::PageLayerDefinition& layer)
+                       [&normalizedId](const mfd::PageLayerDefinition& layer)
                        {
-                           return layer.id == id;
+                           return NormalizeEditorIdentifier(layer.id) == normalizedId;
                        });
 }
 
@@ -8950,7 +8951,7 @@ std::string EditorApplication::MakeUniqueLayerId(const mfd::PageDefinition& page
     std::string candidate = baseId.empty() ? std::string {"layer"} : std::string(baseId);
     int suffix = 2;
 
-    while (PageLayerIdExistsExact(page, candidate))
+    while (PageLayerIdExistsNormalized(page, candidate))
     {
         candidate = std::string(baseId.empty() ? "layer" : baseId) + "_" + std::to_string(suffix++);
     }
@@ -10047,12 +10048,13 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
         if (nameChanged)
         {
             const std::string nextId = layerName.data();
+            const std::string normalizedNextId = NormalizeEditorIdentifier(nextId);
             const bool duplicateId = std::any_of(
                 page.layers.begin(),
                 page.layers.end(),
-                [&layer, &nextId](const mfd::PageLayerDefinition& candidate)
+                [&layer, &normalizedNextId](const mfd::PageLayerDefinition& candidate)
                 {
-                    return &candidate != &layer && candidate.id == nextId;
+                    return &candidate != &layer && NormalizeEditorIdentifier(candidate.id) == normalizedNextId;
                 });
 
             if (nextId.empty())
