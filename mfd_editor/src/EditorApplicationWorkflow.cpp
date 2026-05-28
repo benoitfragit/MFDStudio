@@ -963,6 +963,8 @@ void EditorApplication::DrawPageRenamePopup()
 
     ImGui::Spacing();
     ImGui::TextDisabled("This workflow updates the scanned JSON assets directly across the current asset tree.");
+    ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f),
+                       "These disk changes are not covered by Ctrl+Z once the rename starts.");
 
     if (!plan.error.empty())
     {
@@ -1129,6 +1131,8 @@ void EditorApplication::DrawReticleRenamePopup()
 
     ImGui::Spacing();
     ImGui::TextDisabled("This workflow updates the scanned JSON assets directly across the current asset tree.");
+    ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f),
+                       "These disk changes are not covered by Ctrl+Z once the rename starts.");
     ImGui::TextDisabled("After a successful rename, regenerate the generated client API if this template is exposed there.");
 
     if (!plan.error.empty())
