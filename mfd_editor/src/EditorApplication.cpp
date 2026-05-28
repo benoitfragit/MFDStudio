@@ -644,12 +644,12 @@ bool ReticleIdExistsNormalized(const std::vector<mfd::ReticleGroup>& groups, con
 
 bool PageLayerIdExistsNormalized(const mfd::PageDefinition& page, const std::string_view id)
 {
-    const std::string normalizedId = NormalizeEditorIdentifier(id);
+    const std::string normalizedId = mfd::NormalizePageName(id);
     return std::any_of(page.layers.begin(),
                        page.layers.end(),
                        [&normalizedId](const mfd::PageLayerDefinition& layer)
                        {
-                           return NormalizeEditorIdentifier(layer.id) == normalizedId;
+                           return mfd::NormalizePageName(layer.id) == normalizedId;
                        });
 }
 
