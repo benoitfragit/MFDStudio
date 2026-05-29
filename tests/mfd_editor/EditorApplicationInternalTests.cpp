@@ -111,6 +111,21 @@ TEST(EditorApplicationInternalTests, MakeUniqueLibraryReticleIdSkipsNormalizedCo
     EXPECT_EQ(editor::detail::MakeUniqueLibraryReticleId(library, "radar track"), "radar track_2");
 }
 
+TEST(EditorApplicationInternalTests, ShouldAdvanceTutorialOnSuccessfulSaveAcceptsShortcutOnTutorialSaveStep)
+{
+    EXPECT_TRUE(editor::detail::ShouldAdvanceTutorialOnSuccessfulSave(true, true, false));
+}
+
+TEST(EditorApplicationInternalTests, ShouldAdvanceTutorialOnSuccessfulSaveRequiresSuccessfulSave)
+{
+    EXPECT_FALSE(editor::detail::ShouldAdvanceTutorialOnSuccessfulSave(false, true, true));
+}
+
+TEST(EditorApplicationInternalTests, ShouldAdvanceTutorialOnSuccessfulSaveRejectsUnrelatedSave)
+{
+    EXPECT_FALSE(editor::detail::ShouldAdvanceTutorialOnSuccessfulSave(true, false, false));
+}
+
 TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointEnumeratesImageCorners)
 {
     mfd::Primitive primitive;

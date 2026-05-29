@@ -503,9 +503,59 @@ inline constexpr std::string_view kTutorialAircraftLabelPrimitiveId = "aircraft_
 inline constexpr std::string_view kTutorialStrobeCursorTemplateId = "mfd_tutorial_strobe_cursor";
 
 /**
+ * @brief Tutorial dynamic template id reserved for the seeded steering-cue walkthrough.
+ */
+inline constexpr std::string_view kTutorialSteeringCueTemplateId = "inspired_steering_cue";
+
+/**
  * @brief Fixed Page1 anchor used by the tutorial for the static ownship aircraft symbol.
  */
 inline constexpr mfd::Vec2 kTutorialPage1OwnshipAnchor {0.0f, -0.7f};
+
+/**
+ * @brief Builds the steering-cue reticle seeded automatically by the integrated tutorial.
+ * @return Reticle template matching the guided dynamic-line walkthrough.
+ */
+inline mfd::ReticleGroup MakeTutorialSteeringCueReticle()
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = std::string(kTutorialSteeringCueTemplateId);
+    reticle.overrides.thickness = 0.0035f;
+
+    mfd::Primitive primitive;
+    primitive.id = "cue";
+    primitive.type = mfd::PrimitiveType::Polyline;
+    primitive.geometry = mfd::PolylineGeometry {
+        {{0.0f, 0.08f},
+         {0.05f, -0.02f},
+         {0.015f, -0.02f},
+         {0.015f, -0.08f},
+         {-0.015f, -0.08f},
+         {-0.015f, -0.02f},
+         {-0.05f, -0.02f},
+         {0.0f, 0.08f}},
+        false};
+    reticle.primitives.push_back(std::move(primitive));
+    return reticle;
+}
+
+/**
+ * @brief Returns whether one successful save should complete the active tutorial save step.
+ * @param saveSucceeded `true` when the document was written successfully.
+ * @param isTutorialSaveStep `true` when the guided tutorial is actively blocked on its save step.
+ * @param tutorialSaveTargetMatched `true` when the exact coached `File > Save` menu target was matched.
+ * @return `true` when the tutorial must advance after the save action.
+ *
+ * @note The integrated tutorial still coaches the menu path, but one successful
+ * save must also unblock the walkthrough when the `File` menu phase was not
+ * captured or when the user used `Ctrl+S`.
+ */
+inline bool ShouldAdvanceTutorialOnSuccessfulSave(const bool saveSucceeded,
+                                                  const bool isTutorialSaveStep,
+                                                  const bool tutorialSaveTargetMatched) noexcept
+{
+    return saveSucceeded && (tutorialSaveTargetMatched || isTutorialSaveStep);
+}
 
 /**
  * @brief Keeps editor-only layer visibility state synchronized with runtime page layers.

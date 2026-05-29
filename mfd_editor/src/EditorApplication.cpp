@@ -1896,7 +1896,14 @@ void EditorApplication::HandleShortcuts()
     if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
         IsRaylibControlChordPressed({KEY_S}))
     {
-        SaveAll();
+        const bool saveSucceeded = SaveAll();
+        if (editor::detail::ShouldAdvanceTutorialOnSuccessfulSave(
+                saveSucceeded,
+                tutorial_->IsStep(static_cast<int>(editor::tutorial::TutorialStepId::SaveTutorialAssets)),
+                false))
+        {
+            tutorial_->CompleteStep();
+        }
     }
 
     const bool undoShortcutTriggered =
@@ -2339,8 +2346,12 @@ void EditorApplication::DrawMenuBar()
             "Persist the authored tutorial assets before moving to the code review steps.");
         if (saveRequested)
         {
+            const bool saveSucceeded = SaveAll();
             const bool tutorialSaveMatched = tutorial_->MatchesTarget("menu_file_save");
-            if (SaveAll() && tutorialSaveMatched)
+            if (editor::detail::ShouldAdvanceTutorialOnSuccessfulSave(
+                    saveSucceeded,
+                    tutorial_->IsStep(static_cast<int>(TutorialStepId::SaveTutorialAssets)),
+                    tutorialSaveMatched))
             {
                 tutorial_->CompleteStep();
             }

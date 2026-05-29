@@ -34,7 +34,9 @@ using editor::detail::kPrimitiveTypes;
 using editor::detail::kTutorialAircraftLabelPrimitiveId;
 using editor::detail::kTutorialAircraftTemplateId;
 using editor::detail::kTutorialPage1OwnshipAnchor;
+using editor::detail::kTutorialSteeringCueTemplateId;
 using editor::detail::kTutorialStrobeCursorTemplateId;
+using editor::detail::MakeTutorialSteeringCueReticle;
 using editor::detail::ReticleLibraryIdExistsNormalized;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
@@ -1858,6 +1860,8 @@ void EditorApplication::PrepareTutorialStep()
 
 bool EditorApplication::CreateNewWindow()
 {
+    using editor::tutorial::TutorialStepId;
+
     const std::filesystem::path windowFile = std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
     if (windowFile.empty())
     {
@@ -1930,6 +1934,7 @@ bool EditorApplication::CreateNewWindow()
     next.window.reticleLibraryFolder = effectiveReticleFolder.is_relative()
                                            ? (windowBaseFolder / effectiveReticleFolder).lexically_normal()
                                            : effectiveReticleFolder;
+    next.document.reticleLibraryFolder = next.window.reticleLibraryFolder;
 
     if (newWindowDraft_.commandUdpExposed)
     {
@@ -1963,6 +1968,16 @@ bool EditorApplication::CreateNewWindow()
             return false;
         }
     }
+
+    if (tutorial_ != nullptr && tutorial_->IsStep(static_cast<int>(TutorialStepId::CreateWindow)))
+    {
+        const std::string templateId {kTutorialSteeringCueTemplateId};
+        next.document.reticleLibrary.insert_or_assign(templateId, MakeTutorialSteeringCueReticle());
+        nextFiles.templateFiles.insert_or_assign(
+            templateId,
+            editor::DefaultTemplateFilePath(next.window.reticleLibraryFolder, templateId));
+    }
+
     if (newWindowDraft_.createInitialPage)
     {
         const std::string pageName = newWindowDraft_.firstPageName.data();
@@ -2068,7 +2083,7 @@ bool EditorApplication::CreateNewPage()
     {
         page.layers.push_back(mfd::PageLayerDefinition {"overlay"});
         page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {
-            "inspired_steering_cue",
+            std::string(kTutorialSteeringCueTemplateId),
             "overlay",
             0});
     }
