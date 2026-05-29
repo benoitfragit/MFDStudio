@@ -112,9 +112,10 @@ The architecture is based on three layers which must not be mixed:
 
 ## 2.3 The role of the file `.generated.map `
 
-The generator emits two coherent artifacts:
+The generator emits three coherent artifacts:
 
-- a C++ header/source generated for the client
+- a generated C++ header
+- a generated C++ source
 - a `<window>.generated.map` file
 
 The `.generated.map` contains stable transport IDs for:
@@ -128,6 +129,11 @@ The `.generated.map` contains stable transport IDs for:
 - the page-local strobe entries
 
 It also contains a `mappingHash` used to prove that the client and the window are talking about the same author model.
+
+Treat these three outputs as one integration contract. The generated C++ bakes
+transport ids and `mappingHash` into typed wrappers, while the `.generated.map`
+must be loaded by both tooling and `mfd_window` when generated id-based batches
+are used.
 
 ## 2.4 Runtime loop and feedback
 
@@ -699,7 +705,7 @@ Do not replace this macro with an ad hoc custom command unless you also reproduc
 | `WINDOW_JSON` | yes | authored root window to parse |
 | `OUTPUT_HEADER` | yes | generated typed API header |
 | `OUTPUT_SOURCE` | yes | generated typed API source |
-| `OUTPUT_MAP` | recommended | generated transport sidecar used by runtime and raw helpers |
+| `OUTPUT_MAP` | yes | generated transport sidecar required by the generated client/runtime contract |
 | `NAMESPACE` | no | namespace exposed to the client target |
 | `UI_CLASS_NAME` | no | explicit UI root class name |
 | `PAGE_CLASS_SUFFIX` | no | suffix appended to generated page wrapper names |
@@ -1032,7 +1038,11 @@ surface while still exposing the raw transport helpers when they are needed.
 The generated window header remains the dedicated entry point for the typed UI
 surface itself.
 
-If the generated map is missing, the generated path loses one of its main safety rails. You can still compile code that includes the generated header, but you can no longer prove transport compatibility through the map sidecar.
+`OUTPUT_MAP` is part of the required generated contract. At runtime,
+`mfd_window` must also load the matching sidecar next to the window JSON. If
+that matching map is absent, generated id-based batches are rejected because
+the runtime cannot validate the embedded `mappingHash` and generated transport
+ids.
 
 ## 6.3 Create `CommandClient` from the generated transport map
 
@@ -1105,7 +1115,6 @@ while (running)
     const auto frameStart = clock::now();                           // t = 0.0 ms
     const MissionSample sample = ReadMissionComputer();             // t = 0.2 ms
 
-    ui.Reset();                                                     // t = 0.3 ms
     PopulateHud(ui.Cockpit(), sample.hud);                          // t = 0.9 ms
     PopulateRadar(ui.Cockpit(), sample.radarTracks);                // t = 1.8 ms
     ui.Cockpit().SetStatusCaption("WP-03 PUSH | THREAT SA-10");     // t = 2.0 ms
@@ -1135,6 +1144,42 @@ This is the reference pattern because the runtime processes a coherent per-frame
 > Common mistake:
 > Wrong: one `SendBatch()` for HUD text, another for page view, another for radar tracks.
 > Right: one batch per client frame, one `sequence`, one coherent state transition.
+
+### Generated reset back to the authored state
+
+Generated-root `Reset()` is a deliberate user facility for "go back to the
+authored initial state". It is not the old local-only dirty-flag helper.
+
+```cpp
+// Scenario: return the runtime window to its authored baseline, then rebuild
+// one fresh dynamic scene.
+auto& staleTrack = ui.Cockpit().DynamicCockpitRadarContact().Create();
+staleTrack.ContactLabel().SetText("OLD");
+client.SendBatch(ui.BuildCommandBatch(10U));
+
+ui.Reset();
+const bool staleHandleStillAlive = staleTrack.IsAlive(); // false
+
+ui.Window().SetDisabled(true);
+ui.Cockpit().SetStatusCaption("AUTHORED RESET");
+auto& replacementTrack = ui.Cockpit().DynamicCockpitRadarContact().Create();
+replacementTrack.ContactLabel().SetText("NEW");
+
+if (!client.SendBatch(ui.BuildResetCommandBatch(11U)))
+{
+    throw std::runtime_error(client.LastError());
+}
+```
+
+Behavior to rely on:
+
+- `Reset()` realigns the generated window, pages, static reticles, and strobes
+  to the authored baseline
+- the next batch prepends one runtime `ResetWindowCommand`
+- generated dynamic handles created before the reset become invalid and must be
+  recreated
+- `IsAlive()` lets client code detect those stale dynamic handles explicitly
+- `ClearDirty()` is the local-only helper when no runtime reset is desired
 
 ## 6.6 Page wrappers and authoritative active-page feedback
 
@@ -1341,7 +1386,9 @@ The generated set hides three pieces of bookkeeping that user code should not ow
 The two generated batch builders exist for different levels of transport control:
 
 - `BuildBatch()` returns raw `std::vector<mfd::UserCommand>`
+- `BuildResetBatch()` returns a runtime reset batch on the same generated surface
 - `BuildCommandBatch(sequence)` returns one `mfd::CommandBatch` with both `sequence` and `mappingHash`
+- `BuildResetCommandBatch(sequence)` does the same for a reset-oriented transaction
 
 For production code, prefer the second form:
 
@@ -1392,6 +1439,8 @@ Implementation-backed behavior to know:
 - one dedicated worker thread serializes sends
 - `SubmitLatest()` replaces any older pending unsent batch with the newest one
 - dynamic reticle lifecycle commands are preserved across pending-batch replacement when the `mappingHash` stays the same
+- a pending `ResetWindowCommand` is preserved when a newer same-hash batch replaces an older unsent batch
+- a newer reset drops older pending dynamic lifecycle commands because the runtime reset already supersedes that state
 - `Flush()` blocks until the current send completes and no pending batch remains
 - `Stop()` drops any unsent pending batch and terminates the worker thread
 
@@ -2392,10 +2441,16 @@ This appendix is the one-page cheat sheet for the API calls that appear most oft
 | activate page | `bool ActivatePage(const GeneratedPage& page)` | select active page |
 | set page view | `bool SetPageView(const GeneratedPage& page, Vec2 center, float zoom)` | pan and zoom |
 | access whole window | `WindowDisplay& Window() noexcept` | window display state |
+| local dirty clear | `void ClearDirty() noexcept` | drop staged dirt |
+| authored reset | `void Reset() noexcept` | authored runtime reset |
 | collect dirty commands | `std::vector<mfd::UserCommand> BuildBatch()` | gather dirty commands |
+| build reset commands | `std::vector<mfd::UserCommand> BuildResetBatch()` | standalone reset batch |
 | build tracked batch | `mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0)` | attach hash sequence |
+| build tracked reset | `mfd::CommandBatch BuildResetCommandBatch(std::uint32_t sequence = 0)` | tracked reset batch |
 | send one frame | `bool SendBatch(const mfd::CommandBatch& batch)` | publish current frame |
 | queue freshest frame | `bool SubmitLatest(LatestBatchPublisher&, std::uint32_t sequence = 0)` | stream latest state |
+| queue reset batch | `bool SubmitReset(LatestBatchPublisher&, std::uint32_t sequence = 0)` | stream authored reset |
 | poll runtime feedback | `std::size_t PollFeedback(IExchangeChannel&, std::size_t maxMessages = 64, std::string* error = nullptr)` | drain feedback packets |
 | check page activity | `bool IsActive() const noexcept` | runtime page active |
+| check dynamic validity | `bool IsAlive() const noexcept` | stale handle guard |
 | check capture state | `bool IsStrobeCaptured() const noexcept` | runtime target captured on the active page strobe |

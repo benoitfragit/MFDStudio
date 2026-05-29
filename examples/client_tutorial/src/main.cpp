@@ -34,6 +34,7 @@ constexpr std::size_t kMaxTransientTracks = 10U;
 constexpr auto kTrackInterval = std::chrono::seconds(2);
 constexpr auto kPageSwitchInterval = std::chrono::seconds(30);
 constexpr auto kStrobeSwitchInterval = std::chrono::seconds(8);
+constexpr auto kResetInterval = std::chrono::seconds(45);
 constexpr float kProgressBarMaxWidth = 0.44f;
 constexpr float kProgressBarHeight = 0.06f;
 constexpr float kProgressBarLeftEdge = -0.22f;
@@ -525,6 +526,32 @@ TutorialTrackState CreatePersistentTrack(tutorial_ui::MfdTutorialRadarTrackDynam
 }
 
 /**
+ * @brief Recreates the persistent tutorial dynamic handles after one authored reset.
+ * @param trackSet Generated track set used to spawn the persistent pair.
+ * @param linkSet Generated cue set used to spawn the linking cue.
+ * @param serial Serial counter updated for each recreated track.
+ * @param persistentTracks Destination persistent pair.
+ * @param persistentTrackLink Destination link handle pointer.
+ */
+void RebuildPersistentTutorialScene(
+    tutorial_ui::MfdTutorialRadarTrackDynamicReticleSet& trackSet,
+    tutorial_ui::InspiredSteeringCueDynamicReticleSet& linkSet,
+    std::uint32_t& serial,
+    std::array<TutorialTrackState, 2>& persistentTracks,
+    tutorial_ui::InspiredSteeringCueDynamicReticle*& persistentTrackLink)
+{
+    persistentTracks = {
+        CreatePersistentTrack(trackSet.Create(), serial++, 12.0f, -0.42f, 0.20f, 1.20f, 0.18f, 0.30f),
+        CreatePersistentTrack(trackSet.Create(), serial++, 21.0f, 0.34f, -0.35f, -1.05f, -0.15f, -0.24f)};
+
+    persistentTrackLink = &linkSet.Create();
+    persistentTrackLink->SetVisible(true);
+    persistentTrackLink->SetColor({255, 192, 96, 255});
+    persistentTrackLink->SetThickness(kTrackLinkThickness);
+    persistentTrackLink->Cue().SetLineStyle(mfd::LineStyle::Solid);
+}
+
+/**
  * @brief Generates one transient track ahead of the aircraft in business coordinates.
  *
  * Range and azimuth are generated directly in domain
@@ -648,22 +675,16 @@ int mainImpl()
     bool transientDeclutterVisible = true;
 
     std::uint32_t serial = 1U;
-    std::array<TutorialTrackState, 2> persistentTracks {
-        CreatePersistentTrack(page1TrackSet.Create(), serial++, 12.0f, -0.42f, 0.20f, 1.20f, 0.18f, 0.30f),
-        CreatePersistentTrack(page1TrackSet.Create(), serial++, 21.0f, 0.34f, -0.35f, -1.05f, -0.15f, -0.24f)};
-
-    auto& persistentTrackLink = page1TrackLinkSet.Create();
-    persistentTrackLink.SetVisible(true);
-    persistentTrackLink.SetColor({255, 192, 96, 255});
-    persistentTrackLink.SetThickness(kTrackLinkThickness);
-    persistentTrackLink.Cue().SetLineStyle(mfd::LineStyle::Solid);
+    std::array<TutorialTrackState, 2> persistentTracks {};
+    tutorial_ui::InspiredSteeringCueDynamicReticle* persistentTrackLink = nullptr;
+    RebuildPersistentTutorialScene(page1TrackSet, page1TrackLinkSet, serial, persistentTracks, persistentTrackLink);
 
     const mfd::UserSpaceProjector startupProjector = BuildTutorialProjector(ownship);
     for (TutorialTrackState& track : persistentTracks)
     {
         ApplyProjectedTrackPose(track, ownship, startupProjector);
     }
-    UpdatePersistentTrackLink(persistentTrackLink, persistentTracks, ownship, startupProjector);
+    UpdatePersistentTrackLink(*persistentTrackLink, persistentTracks, ownship, startupProjector);
     UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
     UpdateTransientCircleReticle(page1Circle, 0U, transientDeclutterVisible);
     UpdateDefaultStrobeReticle(page1DefaultStrobeReticle, 0.0f);
@@ -677,6 +698,7 @@ int mainImpl()
     auto nextTrackTime = std::chrono::steady_clock::now() + kTrackInterval;
     auto nextPageTime = std::chrono::steady_clock::now() + kPageSwitchInterval;
     auto nextStrobeSwitchTime = std::chrono::steady_clock::now() + kStrobeSwitchInterval;
+    auto nextResetTime = std::chrono::steady_clock::now() + kResetInterval;
     const auto progressStartTime = std::chrono::steady_clock::now();
     auto previousFrameTime = progressStartTime;
 
@@ -688,6 +710,66 @@ int mainImpl()
         previousFrameTime = now;
 
         const float elapsedProgressSeconds = std::chrono::duration<float>(now - progressStartTime).count();
+
+        if (now >= nextResetTime)
+        {
+            const bool trackAliveBeforeReset =
+                persistentTracks[0].reticle != nullptr && persistentTracks[0].reticle->IsAlive();
+            const bool linkAliveBeforeReset = persistentTrackLink != nullptr && persistentTrackLink->IsAlive();
+
+            generatedUi.Reset();
+
+            const bool trackAliveAfterReset =
+                persistentTracks[0].reticle != nullptr && persistentTracks[0].reticle->IsAlive();
+            const bool linkAliveAfterReset = persistentTrackLink != nullptr && persistentTrackLink->IsAlive();
+
+            const std::vector<mfd::UserCommand> resetCommands = generatedUi.BuildResetBatch();
+            if (!resetCommands.empty())
+            {
+                Require(client.SendBatch(resetCommands), client, "Unable to send tutorial reset batch");
+            }
+
+            std::cout << "Tutorial: generated UI reset to authored state"
+                      << " oldTrackAliveBefore=" << (trackAliveBeforeReset ? "true" : "false")
+                      << " oldTrackAliveAfter=" << (trackAliveAfterReset ? "true" : "false")
+                      << " oldLinkAliveBefore=" << (linkAliveBeforeReset ? "true" : "false")
+                      << " oldLinkAliveAfter=" << (linkAliveAfterReset ? "true" : "false") << '\n';
+
+            transientTracks.clear();
+            transientDeclutterVisible = true;
+            page1Active = true;
+            useAlternativeStrobe = false;
+            page2ProgressBar.SetVisible(true);
+            progressFill.SetVisible(true);
+            RebuildPersistentTutorialScene(page1TrackSet, page1TrackLinkSet, serial, persistentTracks, persistentTrackLink);
+
+            const mfd::UserSpaceProjector resetProjector = BuildTutorialProjector(ownship);
+            for (TutorialTrackState& track : persistentTracks)
+            {
+                ApplyProjectedTrackPose(track, ownship, resetProjector);
+            }
+
+            UpdatePersistentTrackLink(*persistentTrackLink, persistentTracks, ownship, resetProjector);
+            UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
+            UpdateTransientCircleReticle(page1Circle, 0U, transientDeclutterVisible);
+            UpdateDefaultStrobeReticle(page1DefaultStrobeReticle, elapsedProgressSeconds);
+            UpdateAlternativeStrobeReticle(page1AlternativeStrobeReticle, elapsedProgressSeconds);
+
+            if (page1Strobe.IsValid())
+            {
+                page1Strobe = page1.defaultStrobe;
+                page1Strobe.SetActive(true);
+                page1Strobe.SetPosition(
+                    resetProjector.ToPagePosition(BuildTrackWorldPositionNm(persistentTracks[0], ownship)));
+            }
+
+            nextTrackTime = now + kTrackInterval;
+            nextPageTime = now + kPageSwitchInterval;
+            nextStrobeSwitchTime = now + kStrobeSwitchInterval;
+            nextResetTime += kResetInterval;
+            continue;
+        }
+
         const float progressPhase =
             std::fmod(elapsedProgressSeconds, kProgressLoopDurationSeconds) / kProgressLoopDurationSeconds;
         const float progressWidth = std::max(0.001f, kProgressBarMaxWidth * progressPhase);
@@ -800,7 +882,7 @@ int mainImpl()
             ApplyProjectedTrackPose(track, ownship, projector);
         }
 
-        UpdatePersistentTrackLink(persistentTrackLink, persistentTracks, ownship, projector);
+        UpdatePersistentTrackLink(*persistentTrackLink, persistentTracks, ownship, projector);
         UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
 
         if (page1Strobe.IsValid())

@@ -19,7 +19,6 @@ participant "mfd_window" as Runtime
 loop every 16.67 ms
   Scheduler -> Sensors : sample avionics state\n(t = 0.0 ms)
   Sensors --> Scheduler : heading / speed /\ntracks / threat state
-  Scheduler -> Ui : Reset()
   Scheduler -> Ui : mutate HUD values,\nradar tracks, threat cues\n(t = 0.3 .. 2.0 ms)
   Scheduler -> Ui : BuildCommandBatch(sequence)\n(t = 2.2 ms)
   Ui --> Scheduler : CommandBatch
@@ -32,5 +31,7 @@ end
 note over Scheduler
 One frame = one local state update + one published batch.
 Do not scatter several SendBatch() calls inside the same client tick.
+Use generated-root Reset() only for an explicit authored-state reset,
+not as a per-frame housekeeping call.
 end note
 @enduml

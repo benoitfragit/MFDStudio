@@ -521,6 +521,97 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureShutdownBuildsStatusAndDynamic
     ASSERT_NE(std::get_if<mfd::UpdateReticleCommand>(&delivered.commands.front()), nullptr);
 }
 
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetBuildsRuntimeResetAndInvalidatesDynamicHandles)
+{
+    generated_ui_fixture::GeneratedUiFixture ui;
+    auto& track = ui.Radar().DynamicGeometryTemplate().Create();
+    track.TrackLabel().SetText("A1");
+
+    const mfd::CommandBatch initialBatch = ui.BuildCommandBatch(1U);
+    ASSERT_EQ(initialBatch.commands.size(), 1U);
+    ASSERT_NE(std::get_if<mfd::UpsertDynamicReticlesCommand>(&initialBatch.commands.front()), nullptr);
+    ASSERT_TRUE(track.IsAlive());
+
+    ui.Reset();
+    EXPECT_FALSE(track.IsAlive());
+
+    const mfd::CommandBatch resetBatch = ui.BuildResetCommandBatch(2U);
+    EXPECT_EQ(resetBatch.sequence, 2U);
+    EXPECT_EQ(resetBatch.mappingHash, generated_ui_fixture::GeneratedUiFixture::MappingHash());
+    ASSERT_EQ(resetBatch.commands.size(), 1U);
+    ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&resetBatch.commands.front()), nullptr);
+}
+
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetCanBeCombinedWithFreshMutations)
+{
+    generated_ui_fixture::GeneratedUiFixture ui;
+    auto& staleTrack = ui.Radar().DynamicGeometryTemplate().Create();
+    staleTrack.TrackLabel().SetText("OLD");
+    ASSERT_TRUE(staleTrack.IsAlive());
+
+    ui.Reset();
+    EXPECT_FALSE(staleTrack.IsAlive());
+
+    ui.Window().SetDisabled(true);
+    ui.Radar().SetStatusCaption("RST");
+    auto& replacementTrack = ui.Radar().DynamicGeometryTemplate().Create();
+    replacementTrack.TrackLabel().SetText("NEW");
+
+    const mfd::CommandBatch batch = ui.BuildCommandBatch(5U);
+    EXPECT_EQ(batch.sequence, 5U);
+    EXPECT_EQ(batch.mappingHash, generated_ui_fixture::GeneratedUiFixture::MappingHash());
+    ASSERT_EQ(batch.commands.size(), 4U);
+    ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&batch.commands[0]), nullptr);
+
+    const auto* display = std::get_if<mfd::UpdateWindowDisplayCommand>(&batch.commands[1]);
+    ASSERT_NE(display, nullptr);
+    ASSERT_TRUE(display->patch.disabled.has_value());
+    EXPECT_TRUE(*display->patch.disabled);
+
+    const auto* status = std::get_if<mfd::UpdateReticleCommand>(&batch.commands[2]);
+    ASSERT_NE(status, nullptr);
+    EXPECT_EQ(status->target.reticle, "radar_status");
+    ASSERT_EQ(status->patch.primitivePatchesById.size(), 1U);
+    EXPECT_EQ(status->patch.primitivePatchesById.begin()->second.text, std::optional<std::string> {"RST"});
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&batch.commands[3]);
+    ASSERT_NE(upsert, nullptr);
+    ASSERT_EQ(upsert->reticles.size(), 1U);
+    EXPECT_TRUE(std::any_of(
+        upsert->reticles.front().patch.primitivePatchesById.begin(),
+        upsert->reticles.front().patch.primitivePatchesById.end(),
+        [](const auto& entry)
+        {
+            return entry.second.text == std::optional<std::string> {"NEW"};
+        }));
+}
+
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetThenShutdownDoesNotEmitStaleDynamicRemovalCommands)
+{
+    generated_ui_fixture::GeneratedUiFixture ui;
+    auto& staleTrack = ui.Radar().DynamicGeometryTemplate().Create();
+    staleTrack.TrackLabel().SetText("OLD");
+
+    const mfd::CommandBatch initialBatch = ui.BuildCommandBatch(1U);
+    ASSERT_EQ(initialBatch.commands.size(), 1U);
+    ASSERT_NE(std::get_if<mfd::UpsertDynamicReticlesCommand>(&initialBatch.commands.front()), nullptr);
+
+    ui.Reset();
+    EXPECT_FALSE(staleTrack.IsAlive());
+
+    const mfd::CommandBatch shutdown = ui.BuildShutdownCommandBatch(6U, "OFF");
+    EXPECT_EQ(shutdown.sequence, 6U);
+    EXPECT_EQ(shutdown.mappingHash, generated_ui_fixture::GeneratedUiFixture::MappingHash());
+    ASSERT_EQ(shutdown.commands.size(), 2U);
+    ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&shutdown.commands[0]), nullptr);
+    ASSERT_NE(std::get_if<mfd::UpdateReticleCommand>(&shutdown.commands[1]), nullptr);
+
+    for (const mfd::UserCommand& command : shutdown.commands)
+    {
+        EXPECT_EQ(std::get_if<mfd::RemoveDynamicReticleCommand>(&command), nullptr);
+    }
+}
+
 TEST(GeneratedUiCompiledApiTests, GeneratedFixtureExposesFillMutatorsOnlyForFillablePrimitiveHandles)
 {
     using CircleHandle = std::remove_reference_t<

@@ -618,6 +618,7 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     EXPECT_TRUE(commands.empty());
 
     set.Remove(track);
+    EXPECT_FALSE(track.IsAlive());
     EXPECT_EQ(set.AppendCommands(commands), 1U);
     ASSERT_EQ(commands.size(), 1U);
 
@@ -627,6 +628,28 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     EXPECT_EQ(remove->target.pageId, 11U);
     EXPECT_FALSE(remove->target.reticleId.empty());
     EXPECT_NE(remove->target.runtimeReticleId, 0U);
+}
+
+TEST(AnimationTests, GeneratedDynamicReticleSetResetInvalidatesPublishedHandlesWithoutEmittingPerReticleRemoval)
+{
+    GeneratedDynamicFixtureSet set;
+    GeneratedDynamicFixtureReticle& track = set.Create();
+    track.label.SetText("A1");
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_TRUE(track.IsAlive());
+
+    set.Reset();
+    EXPECT_FALSE(track.IsAlive());
+
+    commands.clear();
+    EXPECT_EQ(set.AppendCommands(commands), 0U);
+    EXPECT_TRUE(commands.empty());
+
+    commands.clear();
+    EXPECT_EQ(set.AppendRemovalCommands(commands), 0U);
+    EXPECT_TRUE(commands.empty());
 }
 
 TEST(AnimationTests, GeneratedDynamicReticleInitialPatchCarriesExplicitVisibility)
@@ -1213,6 +1236,27 @@ TEST(AnimationTests, ReticleResetSuppressesEmissionUntilANewMutation)
     EXPECT_FALSE(*update->patch.visible);
 }
 
+TEST(AnimationTests, ReticleResetToAuthoredRebasesFutureDeltasOnTheAuthoredBaseline)
+{
+    mfd::client::Reticle reticle("HUD", "waterline");
+    reticle.SetVisible(true);
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    commands.clear();
+
+    reticle.ResetToAuthored();
+    reticle.SetColor({1, 2, 3, 255});
+
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    ASSERT_TRUE(update->patch.color.has_value());
+    EXPECT_EQ(update->patch.color->r, 1U);
+    EXPECT_FALSE(update->patch.visible.has_value());
+}
+
 TEST(AnimationTests, ReticleReapplyingSameStateDoesNotEmitRedundantCommand)
 {
     mfd::client::Reticle reticle("HUD", "waterline");
@@ -1348,4 +1392,25 @@ TEST(AnimationTests, WindowDisplayResetSuppressesEmissionUntilNextMutation)
     ASSERT_NE(update, nullptr);
     ASSERT_TRUE(update->patch.disabled.has_value());
     EXPECT_FALSE(*update->patch.disabled);
+}
+
+TEST(AnimationTests, WindowDisplayResetToAuthoredRebasesFutureDeltasOnAuthoredDefaults)
+{
+    mfd::client::WindowDisplay display;
+    display.SetDisabled(true);
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(display.AppendCommands(commands));
+    commands.clear();
+
+    display.ResetToAuthored();
+    display.SetBrightness(0.40f);
+
+    ASSERT_TRUE(display.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+    const auto* update = std::get_if<mfd::UpdateWindowDisplayCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    ASSERT_TRUE(update->patch.brightness.has_value());
+    EXPECT_FLOAT_EQ(*update->patch.brightness, 0.40f);
+    EXPECT_FALSE(update->patch.disabled.has_value());
 }

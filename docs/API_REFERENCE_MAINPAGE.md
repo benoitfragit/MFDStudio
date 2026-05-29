@@ -114,9 +114,11 @@ The generated client-facing documentation now covers:
 - primitive-level text, geometry, time, and image updates
 - exposed-primitive patterns such as progress bars
 - dynamic reticle creation, bulk update, and removal
+- generated reset back to the authored runtime state
 - page-scoped strobe control and feedback
-- generated `BuildBatch()`, `BuildCommandBatch(sequence)`, and
-  `SubmitLatest(...)` publication flows
+- generated `BuildBatch()`, `BuildResetBatch()`, `BuildCommandBatch(sequence)`,
+  `BuildResetCommandBatch(sequence)`, `SubmitLatest(...)`, and `SubmitReset(...)`
+  publication flows
 - package-consumer integration through `find_package(MFDStudioClientApi)` with
   mono-config deliveries that expose only the shipped import configurations
 - authored `drawOnTop` and `exposed` rules as they affect generation and

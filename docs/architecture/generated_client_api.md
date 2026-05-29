@@ -140,9 +140,14 @@ Expected generated root helpers:
 
 - `Window()`
 - one accessor per page such as `Radar()` or `PictureDemo()`
+- `ClearDirty()`
+- `Reset()`
 - `BuildBatch()`
+- `BuildResetBatch()`
 - `BuildCommandBatch(sequence)`
+- `BuildResetCommandBatch(sequence)`
 - `SubmitLatest(publisher, sequence)`
+- `SubmitReset(publisher, sequence)`
 - `ApplyFeedback(...)`
 - `ApplyFeedbackPayload(...)`
 - `PollFeedback(...)`
@@ -150,6 +155,29 @@ Expected generated root helpers:
 Some generated roots may also expose convenience helpers such as shutdown
 batches when the authored model carries that concept. Those helpers are useful,
 but they are not the main architectural contract.
+
+## Reset Model
+
+Generated-root reset is intentionally different from the legacy local reset
+helpers that still exist on low-level animation types.
+
+- `ClearDirty()` is local only: it drops dirty flags without asking the runtime
+  to change state
+- generated-root `Reset()` is a user-facing authored-state reset
+- `BuildResetBatch()`, `BuildResetCommandBatch(sequence)`, and `SubmitReset(...)`
+  are one-shot publication helpers for that reset flow
+
+When you call generated-root `Reset()`:
+
+- the window display baseline returns to the authored defaults
+- static reticles and strobes realign to their authored baseline
+- generated dynamic sets invalidate their existing typed instances
+- cached runtime feedback state is cleared
+- the next built batch prepends one runtime `ResetWindowCommand`
+
+This means generated dynamic handles created before the reset must not be
+reused. Query `IsAlive()` when you need to detect stale handles explicitly, then
+recreate the instances from the generated dynamic set.
 
 ## Page Model
 
@@ -384,6 +412,10 @@ flag:
 - it becomes `false` again when capture is lost or when the strobe captures a
   different dynamic reticle
 
+The same dynamic handles also expose `IsAlive()` so generated-root reset flows
+can invalidate stale instances safely without leaving user code with a handle
+that still looks addressable.
+
 ## Strobe Model
 
 The strobe is modeled as a page capability, not as an addressable generated
@@ -508,6 +540,10 @@ client.SetPageView(ui.Radar(), {0.0f, 0.0f}, 1.0f);
 
 Raw name-based helpers still exist, but they are a fallback path that requires
 the companion `.generated.map` for local authored-name resolution.
+
+Generated id-based batches also rely on that transport contract: the runtime
+must load the matching `.generated.map` sidecar or it rejects the generated
+batch even when the C++ wrapper itself was generated successfully.
 
 ## Draw Order And Other Authored Rules
 

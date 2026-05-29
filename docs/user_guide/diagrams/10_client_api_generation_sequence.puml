@@ -24,14 +24,12 @@ Python -> Generator : launch input scan
 Generator -> Assets : load window JSON \n and all referenced assets
 Generator --> Macro : newline-separated input paths
 Macro -> DirState : append generator script \n and input paths to CMAKE_CONFIGURE_DEPENDS
-Macro -> Python : generate_ui.py --force-overwrite \n --namespace ... --output-header ... \n --output-source ... [--output-map]
+Macro -> Python : generate_ui.py --force-overwrite \n --namespace ... --output-header ... \n --output-source ... --output-map ...
 Python -> Generator : launch real generation
 Generator -> Assets : rebuild canonical authoring model
 Generator -> Outputs : write generated header
 Generator -> Outputs : write generated source
-opt OUTPUT_MAP provided
-  Generator -> Outputs : write <window>.generated.map
-end
+Generator -> Outputs : write <window>.generated.map
 Generator --> Macro : success / fatal error
 Macro -> CMake : mark outputs GENERATED
 

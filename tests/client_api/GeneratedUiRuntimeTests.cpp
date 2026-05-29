@@ -119,12 +119,20 @@ public:
         return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());
     }
 
+    void ClearDirty() noexcept
+    {
+        strobe.ClearDirty();
+        statusBanner.ClearDirty();
+        geometryPanel.ClearDirty();
+        dynamicTracks.ClearDirty();
+    }
+
     void Reset() noexcept
     {
-        strobe.Reset();
-        statusBanner.Reset();
-        geometryPanel.Reset();
-        dynamicTracks.Reset();
+        strobe.ResetToAuthored();
+        statusBanner.ResetToAuthored();
+        geometryPanel.ResetToAuthored();
+        dynamicTracks.ResetToAuthored();
     }
 
     std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands)
@@ -177,6 +185,7 @@ public:
         : window_(),
           radar_(&feedbackState_)
     {
+        window_.ResetToAuthored();
     }
 
     bool ApplyFeedback(const mfd::StrobeStatusFeedback& feedback)
@@ -196,16 +205,41 @@ public:
 
     void Reset() noexcept
     {
-        window_.Reset();
+        resetPending_ = true;
+        window_.ResetToAuthored();
         radar_.Reset();
+        feedbackState_.Reset();
+    }
+
+    void ClearDirty() noexcept
+    {
+        resetPending_ = false;
+        window_.ClearDirty();
+        radar_.ClearDirty();
     }
 
     std::vector<mfd::UserCommand> BuildBatch()
     {
         std::vector<mfd::UserCommand> commands;
+        if (resetPending_)
+        {
+            commands.emplace_back(mfd::ResetWindowCommand {});
+            resetPending_ = false;
+        }
+
         window_.AppendCommands(commands);
         radar_.AppendCommands(commands);
         return commands;
+    }
+
+    std::vector<mfd::UserCommand> BuildResetBatch()
+    {
+        if (!resetPending_)
+        {
+            Reset();
+        }
+
+        return BuildBatch();
     }
 
     mfd::CommandBatch BuildCommandBatch(const std::uint32_t sequence = 0U)
@@ -217,9 +251,23 @@ public:
         return batch;
     }
 
+    mfd::CommandBatch BuildResetCommandBatch(const std::uint32_t sequence = 0U)
+    {
+        mfd::CommandBatch batch;
+        batch.sequence = sequence;
+        batch.mappingHash = std::string {MappingHash()};
+        batch.commands = BuildResetBatch();
+        return batch;
+    }
+
     bool SubmitLatest(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence = 0U)
     {
         return publisher.SubmitLatest(BuildCommandBatch(sequence));
+    }
+
+    bool SubmitReset(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence = 0U)
+    {
+        return publisher.SubmitLatest(BuildResetCommandBatch(sequence));
     }
 
     mfd::client::WindowDisplay& Window() noexcept
@@ -234,6 +282,7 @@ public:
 
 private:
     mfd::client::RuntimeFeedbackState feedbackState_ {};
+    bool resetPending_ = false;
     mfd::client::WindowDisplay window_ {};
     GeneratedUiRadarPage radar_;
 };
@@ -357,6 +406,63 @@ TEST(GeneratedUiRuntimeTests, SubmitLatestForwardsGeneratedUiBatchSemantics)
     EXPECT_EQ(upsert->templateTransportId, 77U);
     ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(44U).text, "B02");
+}
+
+TEST(GeneratedUiRuntimeTests, ResetBuildsStandaloneRuntimeResetAndInvalidatesExistingGeneratedDynamicReticles)
+{
+    GeneratedUiFixture ui;
+    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().Create();
+    track.label.SetText("A01");
+
+    const mfd::CommandBatch initialBatch = ui.BuildCommandBatch(1U);
+    ASSERT_EQ(initialBatch.commands.size(), 1U);
+    ASSERT_NE(std::get_if<mfd::UpsertDynamicReticlesCommand>(&initialBatch.commands.front()), nullptr);
+    ASSERT_TRUE(track.IsAlive());
+
+    ui.Reset();
+    EXPECT_FALSE(track.IsAlive());
+
+    const mfd::CommandBatch resetBatch = ui.BuildResetCommandBatch(2U);
+    EXPECT_EQ(resetBatch.sequence, 2U);
+    EXPECT_EQ(resetBatch.mappingHash, GeneratedUiFixture::MappingHash());
+    ASSERT_EQ(resetBatch.commands.size(), 1U);
+    ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&resetBatch.commands.front()), nullptr);
+}
+
+TEST(GeneratedUiRuntimeTests, ResetCanBeCombinedWithFreshMutationsAfterLocalAuthoredRealignment)
+{
+    GeneratedUiFixture ui;
+    GeneratedUiTrackReticle& staleTrack = ui.Radar().DynamicRadarTrack().Create();
+    staleTrack.label.SetText("STALE");
+    ASSERT_TRUE(staleTrack.IsAlive());
+
+    ui.Reset();
+    EXPECT_FALSE(staleTrack.IsAlive());
+
+    ui.Window().SetDisabled(true);
+    ui.Radar().SetStatusCaption("RST");
+    GeneratedUiTrackReticle& replacementTrack = ui.Radar().DynamicRadarTrack().Create();
+    replacementTrack.label.SetText("NEW");
+
+    const mfd::CommandBatch batch = ui.BuildCommandBatch(9U);
+    EXPECT_EQ(batch.sequence, 9U);
+    EXPECT_EQ(batch.mappingHash, GeneratedUiFixture::MappingHash());
+    ASSERT_EQ(batch.commands.size(), 4U);
+    ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&batch.commands[0]), nullptr);
+
+    const auto* display = std::get_if<mfd::UpdateWindowDisplayCommand>(&batch.commands[1]);
+    ASSERT_NE(display, nullptr);
+    ASSERT_TRUE(display->patch.disabled.has_value());
+    EXPECT_TRUE(*display->patch.disabled);
+
+    const auto* status = std::get_if<mfd::UpdateReticleCommand>(&batch.commands[2]);
+    ASSERT_NE(status, nullptr);
+    EXPECT_EQ(*status->patch.primitivePatchesById.at(33U).text, "RST");
+
+    const auto* upsert = std::get_if<mfd::UpsertDynamicReticlesCommand>(&batch.commands[3]);
+    ASSERT_NE(upsert, nullptr);
+    ASSERT_EQ(upsert->reticles.size(), 1U);
+    EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(44U).text, "NEW");
 }
 
 TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeedbackState)

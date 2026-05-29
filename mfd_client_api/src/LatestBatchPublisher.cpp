@@ -10,6 +10,7 @@
 
 #include "mfd/client/LatestBatchPublisher.h"
 
+#include <algorithm>
 #include <condition_variable>
 #include <exception>
 #include <cstddef>
@@ -51,6 +52,26 @@ struct DynamicLifecycleOperation
 };
 
 using DynamicOperationMap = std::unordered_map<std::string, std::size_t>;
+
+bool IsResetWindowCommand(const mfd::UserCommand& command) noexcept
+{
+    return std::holds_alternative<mfd::ResetWindowCommand>(command);
+}
+
+bool ContainsResetWindowCommand(const std::vector<mfd::UserCommand>& commands) noexcept
+{
+    return std::any_of(commands.begin(), commands.end(), IsResetWindowCommand);
+}
+
+void PrependResetWindowCommand(std::vector<mfd::UserCommand>& commands)
+{
+    if (ContainsResetWindowCommand(commands))
+    {
+        return;
+    }
+
+    commands.insert(commands.begin(), mfd::UserCommand {mfd::ResetWindowCommand {}});
+}
 
 std::string MakeDynamicReticleKey(const std::string& page,
                                   const std::string& reticleId,
@@ -181,9 +202,21 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
         return;
     }
 
+    const bool pendingHasReset = ContainsResetWindowCommand(pendingBatch->commands);
+    const bool newestHasReset = ContainsResetWindowCommand(newestBatch.commands);
+
+    if (newestHasReset)
+    {
+        pendingBatch = std::move(newestBatch);
+        return;
+    }
+
     std::vector<DynamicLifecycleOperation> pendingDynamicOperations;
     DynamicOperationMap pendingIndexes;
-    CollectDynamicLifecycleCommands(pendingBatch->commands, pendingDynamicOperations, pendingIndexes);
+    if (!pendingHasReset)
+    {
+        CollectDynamicLifecycleCommands(pendingBatch->commands, pendingDynamicOperations, pendingIndexes);
+    }
 
     std::vector<DynamicLifecycleOperation> newestDynamicOperations;
     DynamicOperationMap newestIndexes;
@@ -202,12 +235,20 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
 
     if (carriedOperations.empty())
     {
+        if (pendingHasReset)
+        {
+            PrependResetWindowCommand(newestBatch.commands);
+        }
         pendingBatch = std::move(newestBatch);
         return;
     }
 
     mfd::CommandBatch mergedBatch = std::move(newestBatch);
     mergedBatch.commands.insert(mergedBatch.commands.begin(), carriedOperations.begin(), carriedOperations.end());
+    if (pendingHasReset)
+    {
+        PrependResetWindowCommand(mergedBatch.commands);
+    }
     pendingBatch = std::move(mergedBatch);
 }
 

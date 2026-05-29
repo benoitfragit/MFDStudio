@@ -220,6 +220,8 @@ This is exactly how `examples/client_mockup` and
 `examples/client_mockup_minimal` are wired.
 
 The consuming executable should then link only `mfd_client_api`.
+Treat the generated header, generated source, and generated map as one
+indivisible contract.
 
 ### Step B - Use the generated types in your runtime client
 

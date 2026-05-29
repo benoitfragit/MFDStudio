@@ -1222,8 +1222,20 @@ Reticle::Reticle(const std::string_view pageName,
 {
 }
 
+void Reticle::ClearDirty() noexcept
+{
+    dirty_ = false;
+}
+
 void Reticle::Reset() noexcept
 {
+    ClearDirty();
+}
+
+void Reticle::ResetToAuthored() noexcept
+{
+    desiredPatch_ = {};
+    lastSentPatch_ = {};
     dirty_ = false;
 }
 
@@ -1409,8 +1421,25 @@ StrobeHandle::StrobeHandle(const std::string_view pageName,
     SelectDefaultStrobe();
 }
 
+void StrobeHandle::ClearDirty() noexcept
+{
+    dirty_ = false;
+}
+
 void StrobeHandle::Reset() noexcept
 {
+    ClearDirty();
+}
+
+void StrobeHandle::ResetToAuthored() noexcept
+{
+    SelectDefaultStrobe();
+    lastSentStrobeId_ = desiredStrobeId_;
+    lastSentStrobeNameNormalized_ = desiredStrobeNameNormalized_;
+    desiredActive_.reset();
+    lastSentActive_.reset();
+    desiredPosition_.reset();
+    lastSentPosition_.reset();
     dirty_ = false;
 }
 
@@ -1627,6 +1656,11 @@ DynamicReticle::DynamicReticle(const std::string_view reticleId) :
 {
 }
 
+void DynamicReticle::ClearDirty() noexcept
+{
+    dirty_ = false;
+}
+
 void DynamicReticle::Reset() noexcept
 {
     seenThisCycle_ = false;
@@ -1637,9 +1671,15 @@ const std::string& DynamicReticle::Id() const noexcept
     return reticleId_;
 }
 
+bool DynamicReticle::IsAlive() const noexcept
+{
+    return alive_;
+}
+
 bool DynamicReticle::IsStrobeCaptured() const noexcept
 {
-    return feedbackState_ != nullptr &&
+    return alive_ &&
+           feedbackState_ != nullptr &&
            feedbackPageTransportId_ != 0 &&
            runtimeReticleId_ != 0 &&
            feedbackState_->IsDynamicReticleCaptured(feedbackPageTransportId_, runtimeReticleId_);
@@ -1753,6 +1793,22 @@ void DynamicReticle::BindRuntimeFeedback(const mfd::TransportId pageTransportId,
     feedbackState_ = feedbackState;
 }
 
+void DynamicReticle::ResetToAuthored() noexcept
+{
+    desiredPatch_ = {};
+    lastSentPatch_ = {};
+    dirty_ = false;
+    seenThisCycle_ = false;
+    published_ = false;
+}
+
+void DynamicReticle::MarkDead() noexcept
+{
+    alive_ = false;
+    dirty_ = false;
+    seenThisCycle_ = false;
+}
+
 void DynamicReticle::PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, const bool useGeneratedBlinkTypeId) const
 {
     if (patch.blinkTypeId.has_value() && useGeneratedBlinkTypeId)
@@ -1778,12 +1834,36 @@ GeneratedDynamicReticleSet::GeneratedDynamicReticleSet(const std::string_view pa
 {
 }
 
-void GeneratedDynamicReticleSet::Reset() noexcept
+void GeneratedDynamicReticleSet::ClearDirty() noexcept
 {
     for (DynamicEntry& entry : reticles_)
     {
-        entry.reticle->Reset();
+        if (entry.reticle->IsAlive())
+        {
+            entry.reticle->ClearDirty();
+        }
     }
+
+    visibilityDirty_ = false;
+}
+
+void GeneratedDynamicReticleSet::ResetToAuthored() noexcept
+{
+    desiredVisible_ = true;
+    lastSentVisible_ = true;
+    visibilityDirty_ = false;
+
+    for (DynamicEntry& entry : reticles_)
+    {
+        entry.reticle->ResetToAuthored();
+        entry.reticle->MarkDead();
+        entry.removeRequested = false;
+    }
+}
+
+void GeneratedDynamicReticleSet::Reset() noexcept
+{
+    ResetToAuthored();
 }
 
 void GeneratedDynamicReticleSet::SetVisible(const bool visible)
@@ -1806,7 +1886,8 @@ void GeneratedDynamicReticleSet::Remove(DynamicReticle& reticle)
 {
     if (DynamicEntry* entry = FindEntry(reticle); entry != nullptr)
     {
-        entry->removeRequested = true;
+        entry->reticle->MarkDead();
+        entry->removeRequested = entry->reticle->published_;
     }
 }
 
@@ -1833,9 +1914,9 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
     {
         DynamicReticle& reticle = *entry.reticle;
 
-        if (entry.removeRequested)
+        if (!reticle.IsAlive())
         {
-            if (reticle.published_)
+            if (entry.removeRequested && reticle.published_)
             {
                 commands.emplace_back(mfd::RemoveDynamicReticleCommand {
                     mfd::DynamicReticleHandle {
@@ -1844,6 +1925,7 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
                         pageTransportId_,
                         reticle.runtimeReticleId_}});
                 reticle.published_ = false;
+                entry.removeRequested = false;
                 ++count;
             }
             continue;
@@ -1888,16 +1970,6 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
 
     visibilityDirty_ = false;
 
-    reticles_.erase(
-        std::remove_if(
-            reticles_.begin(),
-            reticles_.end(),
-            [](const DynamicEntry& entry)
-            {
-                return entry.removeRequested;
-            }),
-        reticles_.end());
-
     return count;
 }
 
@@ -1908,8 +1980,28 @@ std::size_t GeneratedDynamicReticleSet::AppendRemovalCommands(std::vector<mfd::U
     for (DynamicEntry& entry : reticles_)
     {
         DynamicReticle& reticle = *entry.reticle;
+        if (!reticle.IsAlive())
+        {
+            if (entry.removeRequested && reticle.published_)
+            {
+                commands.emplace_back(mfd::RemoveDynamicReticleCommand {
+                    mfd::DynamicReticleHandle {
+                        pageName_,
+                        reticle.reticleId_,
+                        pageTransportId_,
+                        reticle.runtimeReticleId_}});
+                ++count;
+            }
+
+            reticle.published_ = false;
+            entry.removeRequested = false;
+            reticle.MarkDead();
+            continue;
+        }
+
         if (!reticle.published_)
         {
+            reticle.MarkDead();
             continue;
         }
 
@@ -1920,10 +2012,10 @@ std::size_t GeneratedDynamicReticleSet::AppendRemovalCommands(std::vector<mfd::U
                 pageTransportId_,
                 reticle.runtimeReticleId_}});
         reticle.published_ = false;
+        reticle.MarkDead();
+        entry.removeRequested = false;
         ++count;
     }
-
-    reticles_.clear();
     return count;
 }
 
@@ -2129,8 +2221,23 @@ void DynamicReticleSet::BindReticleRuntimeFeedback(DynamicReticle& reticle) noex
     reticle.BindRuntimeFeedback(pageTransportId_, feedbackState_);
 }
 
+void WindowDisplay::ClearDirty() noexcept
+{
+    dirty_ = false;
+}
+
 void WindowDisplay::Reset() noexcept
 {
+    ClearDirty();
+}
+
+void WindowDisplay::ResetToAuthored() noexcept
+{
+    desiredPatch_ = {};
+    desiredPatch_.invertColors = false;
+    desiredPatch_.brightness = 1.0f;
+    desiredPatch_.disabled = false;
+    lastSentPatch_ = desiredPatch_;
     dirty_ = false;
 }
 

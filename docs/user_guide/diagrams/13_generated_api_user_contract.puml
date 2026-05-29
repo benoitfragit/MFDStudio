@@ -12,12 +12,12 @@ skinparam rectangle {
 }
 top to bottom direction
 
-rectangle "Generated UI root \n Window() \n BuildBatch() \n BuildCommandBatch(sequence) \n SubmitLatest() \n ApplyFeedback() \n PollFeedback()" as UiRoot #D9EDFF
+rectangle "Generated UI root \n Window() \n ClearDirty() / Reset() \n BuildBatch() / BuildResetBatch() \n BuildCommandBatch(sequence) \n SubmitLatest() / SubmitReset() \n ApplyFeedback() \n PollFeedback()" as UiRoot #D9EDFF
 rectangle "Page wrappers \n Name() \n GeneratedId() \n MappingHash() \n IsActive()" as Pages #EAF4F4
 rectangle "Static reticle wrappers \n SetVisible() \n SetPosition() \n SetRotationDegrees() \n SetColor() \n SetBlinkType()" as Reticles #E9F5DB
 rectangle "Primitive handles \n TextHandle / LineHandle / CircleHandle / ... \n SetText() / SetScale() / SetPoints() / ..." as Primitives #E9F5DB
 rectangle "Dynamic reticle sets \n Create() \n Remove() \n SetVisible()" as DynamicSets #FFF3D6
-rectangle "Dynamic reticle instances \n runtimeReticleId hidden from user code \n IsStrobeCaptured()" as DynamicInstances #FFF3D6
+rectangle "Dynamic reticle instances \n runtimeReticleId hidden from user code \n IsAlive() / IsStrobeCaptured()" as DynamicInstances #FFF3D6
 rectangle "Page strobe handle \n SetActive() \n SetPosition()" as Strobe #FDE2E4
 rectangle "CommandBatch / UserCommand staging" as Batches #FFE5EC
 rectangle "CommandClient / LatestBatchPublisher" as Transport #FFE5EC

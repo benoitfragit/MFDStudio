@@ -257,6 +257,154 @@ TEST(LatestBatchPublisherTests, PreservesPendingDynamicReticleLifecycleCommands)
     EXPECT_FALSE(ContainsCommandType<mfd::SetPageViewCommand>(deliveredBatches[1]));
 }
 
+TEST(LatestBatchPublisherTests, PreservesPendingResetWindowCommandWhenMergingNewerSameHashBatch)
+{
+    using namespace std::chrono_literals;
+
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            1s,
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    secondBatch.mappingHash = "hash-alpha";
+    secondBatch.commands.push_back(mfd::ResetWindowCommand {});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.mappingHash = "hash-alpha";
+    thirdBatch.commands.push_back(mfd::ActivatePageCommand {"nav"});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(deliveredBatches[1].sequence, 3U);
+    ASSERT_EQ(deliveredBatches[1].commands.size(), 2U);
+    ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&deliveredBatches[1].commands[0]), nullptr);
+    ASSERT_NE(std::get_if<mfd::ActivatePageCommand>(&deliveredBatches[1].commands[1]), nullptr);
+}
+
+TEST(LatestBatchPublisherTests, NewestResetWindowCommandDropsOlderPendingDynamicLifecycleState)
+{
+    using namespace std::chrono_literals;
+
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            1s,
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    secondBatch.mappingHash = "hash-alpha";
+    secondBatch.commands.push_back(
+        mfd::RemoveDynamicReticleCommand {mfd::DynamicReticleHandle {"radar", "trk_91", 11U, 9001U}});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.mappingHash = "hash-alpha";
+    thirdBatch.commands.push_back(mfd::ResetWindowCommand {});
+    thirdBatch.commands.push_back(mfd::ActivatePageCommand {"radar"});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(deliveredBatches[1].sequence, 3U);
+    EXPECT_TRUE(ContainsCommandType<mfd::ResetWindowCommand>(deliveredBatches[1]));
+    EXPECT_TRUE(ContainsCommandType<mfd::ActivatePageCommand>(deliveredBatches[1]));
+    EXPECT_FALSE(ContainsCommandType<mfd::RemoveDynamicReticleCommand>(deliveredBatches[1]));
+}
+
 TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingState)
 {
     using namespace std::chrono_literals;

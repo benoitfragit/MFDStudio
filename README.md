@@ -73,6 +73,12 @@ preferred surface. It gives typed access to pages, reticles, exposed
 primitives, strobes, and dynamic sets, while `CommandClient` remains the final
 transport sender.
 
+Treat the generated header, generated source, and companion
+`<window>.generated.map` as one contract. The generated runtime path is only
+valid when `mfd_window` loads the matching `.generated.map`, and generated
+`ui.Reset()` now means "return to the authored runtime state", not "clear one
+local dirty flag".
+
 Start here:
 
 - [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md)

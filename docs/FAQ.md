@@ -67,6 +67,33 @@ Use raw name-based `CommandClient` helpers only when you need:
 - migration code
 - low-level debugging
 
+## Do I need the `.generated.map` when I use generated C++ bindings?
+
+Yes.
+
+Treat `Ui.h`, `Ui.cpp`, and `<window>.generated.map` as one generated contract:
+
+- generation now expects an explicit `OUTPUT_MAP`
+- the client uses the map for raw-name fallback helpers
+- `mfd_window` must load the matching map to accept generated id-based batches
+
+If the generated C++ and the generated map drift apart, or if the runtime did
+not load the matching sidecar, generated batches are rejected.
+
+## What does generated `ui.Reset()` actually do?
+
+Generated-root `Reset()` is a user-facing authored-state reset.
+
+It:
+
+- restores the local generated UI baseline to the authored window/page/strobe state
+- invalidates previously created generated dynamic-reticle handles
+- clears cached runtime feedback state
+- makes the next built batch prepend one runtime `ResetWindowCommand`
+
+Use `ClearDirty()` only when you want to drop local dirty flags without asking
+the runtime to go back to the authored state.
+
 ## Does `client_mockup` share memory with `mfd_window`?
 
 No.

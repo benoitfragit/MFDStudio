@@ -101,6 +101,10 @@ if (!client.IsReady())
 }
 ```
 
+With generated bindings, treat `Ui.h`, `Ui.cpp`, and `<window>.generated.map`
+as one contract. The runtime must load the matching generated map, otherwise it
+rejects generated id-based batches even if the client binary still compiles.
+
 If your application already knows transport IDs and `mappingHash`, it can skip
 JSON loading entirely and send typed id-based commands directly.
 
@@ -280,7 +284,40 @@ integers. Raw helper methods still let you call them by name because
 `CommandClient` resolves the local names before serialization when it owns the
 generated transport map.
 
-## Step 8 - Know what the client API controls
+## Step 8 - Reset back to the authored state when needed
+
+Use generated-root `Reset()` when the user intent is "put the runtime window
+back in its authored initial state".
+
+```cpp
+auto& staleTrack = ui.Radar().DynamicRadarTrack().Create();
+staleTrack.TrackLabel().SetText("OLD");
+client.SendBatch(ui.BuildCommandBatch(42U));
+
+ui.Reset();
+const bool staleHandleStillAlive = staleTrack.IsAlive(); // false
+
+ui.Window().SetDisabled(true);
+ui.Radar().SetStatusCaption("AUTHORED RESET");
+auto& replacementTrack = ui.Radar().DynamicRadarTrack().Create();
+replacementTrack.TrackLabel().SetText("NEW");
+
+client.SendBatch(ui.BuildResetCommandBatch(43U));
+```
+
+Important behavior:
+
+- `Reset()` realigns the generated UI to the authored window/page/strobe state
+- the next built batch prepends one runtime `ResetWindowCommand`
+- generated dynamic handles created before the reset become invalid, so recreate
+  them and use `IsAlive()` if you need to detect stale handles explicitly
+- `ClearDirty()` is the local-only helper when you do not want a runtime reset
+
+Use `BuildResetBatch()`, `BuildResetCommandBatch(sequence)`, or
+`SubmitReset(...)` when the reset itself is the transaction you want to
+publish.
+
+## Step 9 - Know what the client API controls
 
 The client API can update:
 
@@ -301,7 +338,7 @@ The client API can update:
 - strobe position
 - dynamic reticles
 
-## Step 9 - Apply the same practical rules as the mockup
+## Step 10 - Apply the same practical rules as the mockup
 
 The mockup is a good model here. Copy these habits:
 
@@ -313,7 +350,7 @@ The mockup is a good model here. Copy these habits:
 - send page activation on context changes, not every cycle
 - group same-cycle updates in one batch when coherence matters
 
-## Step 10 - Know what happens inside the window
+## Step 11 - Know what happens inside the window
 
 The example windows use a background `UdpRuntimeBridge`.
 

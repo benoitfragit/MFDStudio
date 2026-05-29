@@ -173,12 +173,17 @@ class GenerateUiTests(unittest.TestCase):
                 "class SystemMockupPage",
                 "class CockpitMockupUi",
                 "class StatusTemplateDynamicReticle final : private mfd::client::DynamicReticle",
+                "using mfd::client::DynamicReticle::ClearDirty;",
+                "using mfd::client::DynamicReticle::IsAlive;",
                 "using mfd::client::DynamicReticle::SetPosition;",
                 "class StatusTemplateDynamicReticleSet final : private mfd::client::GeneratedDynamicReticleSet",
                 "using mfd::client::GeneratedDynamicReticleSet::AppendCommands;",
+                "using mfd::client::GeneratedDynamicReticleSet::ResetToAuthored;",
                 "using LineStyle = mfd::client::LineStyle;",
                 "class RadarRadarStatusReticle final : private mfd::client::Reticle",
                 "using mfd::client::Reticle::AppendCommands;",
+                "using mfd::client::Reticle::ClearDirty;",
+                "using mfd::client::Reticle::ResetToAuthored;",
                 "using mfd::client::Reticle::SetScale;",
                 "class RadarTrackBoxReticle final : private mfd::client::Reticle",
                 "class RadarDefaultStrobeReticle final : private mfd::client::Reticle",
@@ -194,10 +199,14 @@ class GenerateUiTests(unittest.TestCase):
                 "bool ApplyFeedback(const mfd::ActivePageFeedback& feedback);",
                 "bool ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr);",
                 "std::size_t PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr);",
+                "void ClearDirty() noexcept;",
                 "void Reset() noexcept;",
                 "std::vector<mfd::UserCommand> BuildBatch();",
+                "std::vector<mfd::UserCommand> BuildResetBatch();",
                 "mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);",
+                "mfd::CommandBatch BuildResetCommandBatch(std::uint32_t sequence = 0);",
                 "bool SubmitLatest(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence = 0);",
+                "bool SubmitReset(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence = 0);",
                 "std::vector<mfd::UserCommand> BuildShutdownBatch(std::string statusText);",
                 "mfd::CommandBatch BuildShutdownCommandBatch(std::uint32_t sequence, std::string statusText);",
                 "bool SubmitShutdown(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence, std::string statusText);",
@@ -243,8 +252,11 @@ class GenerateUiTests(unittest.TestCase):
                 "strobe(Name(), {defaultStrobe, strobe1}, ",
                 "bool RadarMockupPage::IsActive() const noexcept",
                 "return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());",
+                "void RadarMockupPage::ClearDirty() noexcept",
+                "strobe.ResetToAuthored();",
                 "CockpitMockupUi::CockpitMockupUi() :",
                 "radar_(&feedbackState_)",
+                "window_.ResetToAuthored();",
                 "SystemMockupPage::SetStatusCaption(std::string value)",
                 "RadarRadarStatusReticle::SetValue(std::string value)",
                 "systemStatus.SystemStatusValue().SetText(std::move(value));",
@@ -256,8 +268,13 @@ class GenerateUiTests(unittest.TestCase):
                 "bool CockpitMockupUi::ApplyFeedback(const mfd::ActivePageFeedback& feedback)",
                 "bool CockpitMockupUi::ApplyFeedbackPayload(std::string_view payload, std::string* error)",
                 "std::size_t CockpitMockupUi::PollFeedback(mfd::IExchangeChannel& channel, const std::size_t maxMessages, std::string* error)",
+                "resetPending_ = true;",
+                "commands.emplace_back(mfd::ResetWindowCommand {});",
+                "std::vector<mfd::UserCommand> CockpitMockupUi::BuildResetBatch()",
+                "mfd::CommandBatch CockpitMockupUi::BuildResetCommandBatch(const std::uint32_t sequence)",
                 "batch.mappingHash = ",
                 "return publisher.SubmitLatest(BuildCommandBatch(sequence));",
+                "return publisher.SubmitLatest(BuildResetCommandBatch(sequence));",
                 "return publisher.SubmitLatest(BuildShutdownCommandBatch(sequence, std::move(statusText)));",
                 "radar_.AppendShutdownCommands(commands, std::string {});",
                 "system_.AppendShutdownCommands(commands, std::move(statusText));",
@@ -783,8 +800,6 @@ class GenerateUiTests(unittest.TestCase):
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
             output_map = root / "GeneratedUi.generated.map"
-            output_map = root / "GeneratedUi.generated.map"
-            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -835,9 +850,6 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
                 encoding="utf-8",
             )
-            output_map = root / "GeneratedUi.generated.map"
-            output_map = root / "GeneratedUi.generated.map"
-            output_map = root / "GeneratedUi.generated.map"
             output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(

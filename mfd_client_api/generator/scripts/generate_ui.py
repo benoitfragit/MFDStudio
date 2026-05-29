@@ -36,7 +36,8 @@ PRIMITIVE_HANDLE_TYPES = {
 STATIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "AppendCommands",
     "Blink",
-    "Reset",
+    "ClearDirty",
+    "ResetToAuthored",
     "SetVisible",
     "SetBlinkEnabled",
     "SetBlink",
@@ -51,9 +52,10 @@ STATIC_RETICLE_EXPOSED_BASE_MEMBERS = (
 
 DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "Blink",
+    "ClearDirty",
     "Id",
+    "IsAlive",
     "IsStrobeCaptured",
-    "Reset",
     "SetVisible",
     "SetBlinkEnabled",
     "SetBlink",
@@ -68,7 +70,8 @@ DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS = (
 DYNAMIC_SET_EXPOSED_BASE_MEMBERS = (
     "AppendCommands",
     "AppendRemovalCommands",
-    "Reset",
+    "ClearDirty",
+    "ResetToAuthored",
     "SetVisible",
 )
 
@@ -1193,6 +1196,7 @@ def emit_header(namespace_name: str,
             f"    explicit {page.page_class_name}(RuntimeFeedbackState* feedbackState = nullptr);",
             "",
             "    bool IsActive() const noexcept;",
+            "    void ClearDirty() noexcept;",
             "    void Reset() noexcept;",
             "    std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);",
             ("    std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText);"
@@ -1265,10 +1269,14 @@ def emit_header(namespace_name: str,
         "    bool ApplyFeedback(const mfd::ActivePageFeedback& feedback);",
         "    bool ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr);",
         "    std::size_t PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr);",
+        "    void ClearDirty() noexcept;",
         "    void Reset() noexcept;",
         "    std::vector<mfd::UserCommand> BuildBatch();",
+        "    std::vector<mfd::UserCommand> BuildResetBatch();",
         "    mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);",
+        "    mfd::CommandBatch BuildResetCommandBatch(std::uint32_t sequence = 0);",
         "    bool SubmitLatest(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence = 0);",
+        "    bool SubmitReset(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence = 0);",
         "    std::vector<mfd::UserCommand> BuildShutdownBatch(std::string statusText);",
         "    mfd::CommandBatch BuildShutdownCommandBatch(std::uint32_t sequence, std::string statusText);",
         "    bool SubmitShutdown(mfd::client::LatestBatchPublisher& publisher, std::uint32_t sequence, std::string statusText);",
@@ -1283,6 +1291,7 @@ def emit_header(namespace_name: str,
         "",
         "private:",
         "    RuntimeFeedbackState feedbackState_ {};",
+        "    bool resetPending_ = false;",
         "    WindowDisplay window_ {};",
     ])
 
@@ -1480,16 +1489,29 @@ def emit_source(namespace_name: str,
             "    return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());",
             "}",
             "",
-            f"void {page.page_class_name}::Reset() noexcept",
+            f"void {page.page_class_name}::ClearDirty() noexcept",
             "{",
-            "    strobe.Reset();",
+            "    strobe.ClearDirty();",
         ])
         for strobe in page.strobes:
-            lines.append(f"    {strobe.reticle_member_name}.Reset();")
+            lines.append(f"    {strobe.reticle_member_name}.ClearDirty();")
         for reticle in page.reticles:
-            lines.append(f"    {reticle.member_name}.Reset();")
+            lines.append(f"    {reticle.member_name}.ClearDirty();")
         for template in page_templates:
-            lines.append(f"    {template.dynamic_member_name}.Reset();")
+            lines.append(f"    {template.dynamic_member_name}.ClearDirty();")
+        lines.extend([
+            "}",
+            "",
+            f"void {page.page_class_name}::Reset() noexcept",
+            "{",
+            "    strobe.ResetToAuthored();",
+        ])
+        for strobe in page.strobes:
+            lines.append(f"    {strobe.reticle_member_name}.ResetToAuthored();")
+        for reticle in page.reticles:
+            lines.append(f"    {reticle.member_name}.ResetToAuthored();")
+        for template in page_templates:
+            lines.append(f"    {template.dynamic_member_name}.ResetToAuthored();")
         lines.extend([
             "}",
             "",
@@ -1564,9 +1586,7 @@ def emit_source(namespace_name: str,
         f"{ui_class_name}::{ui_class_name}() :",
         ",\n".join(ui_ctor_initializers),
         "{",
-        "    window_.SetColorInverted(false);",
-        "    window_.SetBrightness(1.0f);",
-        "    window_.SetDisabled(false);",
+        "    window_.ResetToAuthored();",
         "}",
         "",
         f"bool {ui_class_name}::SendStartup(mfd::CommandClient& client,",
@@ -1620,24 +1640,51 @@ def emit_source(namespace_name: str,
         "    return feedbackState_.Poll(channel, maxMessages, error);",
         "}",
         "",
+        f"void {ui_class_name}::ClearDirty() noexcept",
+        "{",
+        "    resetPending_ = false;",
+        "    window_.ClearDirty();",
+    ])
+    for page in page_specs:
+        lines.append(f"    {page.ui_member_name}.ClearDirty();")
+    lines.extend([
+        "}",
+        "",
         f"void {ui_class_name}::Reset() noexcept",
         "{",
-        "    window_.Reset();",
+        "    resetPending_ = true;",
+        "    window_.ResetToAuthored();",
     ])
     for page in page_specs:
         lines.append(f"    {page.ui_member_name}.Reset();")
     lines.extend([
+        "    feedbackState_.Reset();",
         "}",
         "",
         f"std::vector<mfd::UserCommand> {ui_class_name}::BuildBatch()",
         "{",
         "    std::vector<mfd::UserCommand> commands;",
+        "    if (resetPending_)",
+        "    {",
+        "        commands.emplace_back(mfd::ResetWindowCommand {});",
+        "        resetPending_ = false;",
+        "    }",
         "    window_.AppendCommands(commands);",
     ])
     for page in page_specs:
         lines.append(f"    {page.ui_member_name}.AppendCommands(commands);")
     lines.extend([
         "    return commands;",
+        "}",
+        "",
+        f"std::vector<mfd::UserCommand> {ui_class_name}::BuildResetBatch()",
+        "{",
+        "    if (!resetPending_)",
+        "    {",
+        "        Reset();",
+        "    }",
+        "",
+        "    return BuildBatch();",
         "}",
         "",
         f"mfd::CommandBatch {ui_class_name}::BuildCommandBatch(const std::uint32_t sequence)",
@@ -1649,14 +1696,33 @@ def emit_source(namespace_name: str,
         "    return batch;",
         "}",
         "",
+        f"mfd::CommandBatch {ui_class_name}::BuildResetCommandBatch(const std::uint32_t sequence)",
+        "{",
+        "    mfd::CommandBatch batch;",
+        "    batch.sequence = sequence;",
+        f'    batch.mappingHash = "{mapping_hash}";',
+        "    batch.commands = BuildResetBatch();",
+        "    return batch;",
+        "}",
+        "",
         f"bool {ui_class_name}::SubmitLatest(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence)",
         "{",
         "    return publisher.SubmitLatest(BuildCommandBatch(sequence));",
         "}",
         "",
+        f"bool {ui_class_name}::SubmitReset(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence)",
+        "{",
+        "    return publisher.SubmitLatest(BuildResetCommandBatch(sequence));",
+        "}",
+        "",
         f"std::vector<mfd::UserCommand> {ui_class_name}::BuildShutdownBatch(std::string statusText)",
         "{",
         "    std::vector<mfd::UserCommand> commands;",
+        "    if (resetPending_)",
+        "    {",
+        "        commands.emplace_back(mfd::ResetWindowCommand {});",
+        "        resetPending_ = false;",
+        "    }",
     ])
     for page in page_specs:
         if page.page_name == startup_page.page_name:

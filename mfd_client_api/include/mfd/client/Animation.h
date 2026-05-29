@@ -543,7 +543,22 @@ public:
     Reticle(Reticle&&) = delete;
     Reticle& operator=(Reticle&&) = delete;
 
+    /** @brief Clears the local dirty flag without discarding the staged patch. */
+    void ClearDirty() noexcept;
+    /**
+     * @brief Legacy alias preserving the historical local-only reset behavior.
+     *
+     * @note Prefer `ClearDirty()` for new code, or generated-UI `Reset()`
+     * when the intent is to restore the runtime window to its authored state.
+     */
     void Reset() noexcept;
+    /**
+     * @brief Realigns the local reticle baseline with the authored document state.
+     *
+     * @note This helper updates only the client-side baseline. Generated UI
+     * roots pair it with `ResetWindowCommand` to reset the runtime window.
+     */
+    void ResetToAuthored() noexcept;
 
     void SetVisible(bool visible);
     void SetBlinkEnabled(bool enabled);
@@ -612,10 +627,21 @@ public:
                  std::initializer_list<StrobeType> strobes,
                  mfd::TransportId pageTransportId = 0);
 
+    /** @brief Clears the local dirty flag without discarding staged strobe values. */
+    void ClearDirty() noexcept;
     /**
-     * @brief Clears the locally staged strobe state and restores the authored default selection.
+     * @brief Legacy alias preserving the historical local-only reset behavior.
+     *
+     * @note Prefer `ClearDirty()` for new code, or generated-UI `Reset()`
+     * when the intent is to restore the runtime window to its authored state.
      */
     void Reset() noexcept;
+    /**
+     * @brief Restores the authored default strobe selection and clears local overrides.
+     *
+     * @note This helper updates only the client-side baseline.
+     */
+    void ResetToAuthored() noexcept;
 
     /**
      * @brief Reports whether this handle can address at least one authored strobe.
@@ -720,9 +746,18 @@ public:
     DynamicReticle(DynamicReticle&&) = delete;
     DynamicReticle& operator=(DynamicReticle&&) = delete;
 
+    /** @brief Clears the local dirty flag without discarding the staged patch. */
+    void ClearDirty() noexcept;
+    /**
+     * @brief Marks this reticle unseen for the next raw `DynamicReticleSet` cycle.
+     *
+     * @note Generated APIs do not expose this helper because their reset model
+     * is authored-state based rather than presence-cycle based.
+     */
     void Reset() noexcept;
 
     const std::string& Id() const noexcept;
+    bool IsAlive() const noexcept;
     bool IsStrobeCaptured() const noexcept;
 
     void SetVisible(bool visible);
@@ -753,6 +788,8 @@ private:
     const mfd::ReticlePatch& DesiredPatch() const noexcept;
     void PopulateGeneratedIdentifiers(mfd::ReticlePatch& patch, bool useGeneratedBlinkTypeId) const;
     void BindRuntimeFeedback(mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) noexcept;
+    void ResetToAuthored() noexcept;
+    void MarkDead() noexcept;
 
     std::string reticleId_;
     mfd::TransportId feedbackPageTransportId_ = 0;
@@ -764,6 +801,7 @@ private:
     bool dirty_ = false;
     bool seenThisCycle_ = false;
     bool published_ = false;
+    bool alive_ = true;
 
 public:
     ReticleBlink Blink;
@@ -786,6 +824,20 @@ public:
     GeneratedDynamicReticleSet(GeneratedDynamicReticleSet&&) = delete;
     GeneratedDynamicReticleSet& operator=(GeneratedDynamicReticleSet&&) = delete;
 
+    /** @brief Clears local dirty flags without changing current generated-reticle lifetime intent. */
+    void ClearDirty() noexcept;
+    /**
+     * @brief Resets the generated set to the authored baseline and invalidates created handles.
+     *
+     * @note Published runtime instances are expected to be removed by an
+     * enclosing `ResetWindowCommand`.
+     */
+    void ResetToAuthored() noexcept;
+    /**
+     * @brief Legacy alias kept for generated callers that previously used `Reset()`.
+     *
+     * @note This now maps to `ResetToAuthored()`.
+     */
     void Reset() noexcept;
     /** @brief Enables or disables all generated dynamic reticles of this page/template set at runtime. */
     void SetVisible(bool visible);
@@ -860,7 +912,21 @@ private:
 class MFD_CLIENT_API WindowDisplay
 {
 public:
+    /** @brief Clears the local dirty flag without discarding the staged display patch. */
+    void ClearDirty() noexcept;
+    /**
+     * @brief Legacy alias preserving the historical local-only reset behavior.
+     *
+     * @note Prefer `ClearDirty()` for new code, or generated-UI `Reset()`
+     * when the intent is to restore the runtime window to its authored state.
+     */
     void Reset() noexcept;
+    /**
+     * @brief Restores the local display baseline to the authored window defaults.
+     *
+     * @note This helper updates only the client-side baseline.
+     */
+    void ResetToAuthored() noexcept;
 
     void SetColorInverted(bool invertColors);
     void SetBrightness(float brightness);
