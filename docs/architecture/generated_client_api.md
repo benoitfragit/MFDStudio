@@ -12,8 +12,10 @@ Read this page when you want:
 - the boundary between generated code and `CommandClient`
 - concrete examples aligned with the current generated outputs in the repository
 
-For the normative client-facing contract, also read
-[Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md).
+For the usage-first client path, start with
+[Use The Mockup As A Client API Reference](../tutorials/11_use_the_mockup_as_a_client_api_reference.md)
+and come back here when you need the design rationale behind the generated
+surface.
 
 ## Core Goal
 
@@ -535,7 +537,6 @@ re-authoring the scene graph from the client.
 
 ## Related Documents
 
-- [Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
 - [Generated Transport Map Specification](./generated_transport_map.md)
 - [Use The Mockup As A Client API Reference](../tutorials/11_use_the_mockup_as_a_client_api_reference.md)
 - [Drive A Window From A Live Client](../tutorials/04_drive_a_window_from_a_live_client.md)

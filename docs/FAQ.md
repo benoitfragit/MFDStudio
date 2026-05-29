@@ -150,6 +150,6 @@ The repo now versions:
 Use:
 
 - [Architecture Notes](./architecture/README.md)
-- [Interoperability Standards](./standards/README.md)
+- [Generated Transport Map Specification](./architecture/generated_transport_map.md)
 
 Do not start there unless you already know the normal workflow.

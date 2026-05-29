@@ -15,16 +15,12 @@ The repository currently targets:
 The first configure downloads third-party dependencies automatically, so the
 first build is expected to be noticeably slower than incremental builds.
 
-## Contributor Standard
+## Contributor Baseline
 
-Before making structural or public-surface changes, read
-[MFDStudio C++ Repository Maintenance Standard](./standards/mfd_cpp_repository_maintenance_standard.md).
-That document is the versioned source of truth for repository expectations
-around C++17, architecture, API discipline, performance, tests, and Doxygen.
-
-A root `AGENTS.md` may exist locally for user- or tool-specific instructions,
-but it is intentionally ignored by Git. Do not treat that local file as the
-repository source of truth.
+Before making structural or public-surface changes, align with this guide and
+the repository instructions in [AGENTS.md](../AGENTS.md). Together they define
+the expected bar around C++17, architecture, API discipline, performance,
+tests, and Doxygen.
 
 ## Recommended First Build
 
@@ -373,10 +369,9 @@ Use the documentation layers intentionally:
 - [`docs/README.md`](../docs/README.md): documentation map and reading paths
 - [`docs/QUICKSTART.md`](./QUICKSTART.md): first visible result
 - [`docs/CONCEPTS.md`](./CONCEPTS.md): vocabulary and mental model
-- [`docs/standards/mfd_cpp_repository_maintenance_standard.md`](./standards/mfd_cpp_repository_maintenance_standard.md): repository-wide engineering bar for C++17 maintenance
 - [`docs/reference`](./reference/README.md): exact JSON and authoring rules
 - [`docs/tutorials`](./tutorials/README.md): step-by-step workflows
-- [`docs/standards`](./standards/README.md): generated client API standardization, replacement-client contract, and conformance evidence
+- [`docs/architecture`](./architecture/README.md): deeper design notes behind the generated API, transport map, and editor workflows
 
 If you change public behavior, examples, or onboarding flow, update the
 relevant Markdown page in the same change. That includes the repository launch

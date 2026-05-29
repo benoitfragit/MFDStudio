@@ -2,7 +2,7 @@
 
 @tableofcontents
 
-<div class="mfd-hero"><span class="mfd-eyebrow">Release-Synchronized Docs</span><span class="mfd-hero-title">MFDStudio documentation, generated client API guidance, and C++ reference</span><span class="mfd-hero-copy">Use one published portal to onboard quickly, author JSON assets, integrate live clients through the generated API, and inspect the public C++ headers shipped in the current release.</span><div class="mfd-pill-row"><span class="mfd-pill">Generated API first</span><span class="mfd-pill">C++17 runtime API</span><span class="mfd-pill">Tutorial-driven onboarding</span><span class="mfd-pill">JSON + standards + architecture</span></div><div class="mfd-stage-grid"><div class="mfd-stage"><strong>Start</strong><span>README, quick start, and curated reading paths</span></div><div class="mfd-stage"><strong>Integrate</strong><span>Generated client API, transport map, dynamic reticles, and strobe flows</span></div><div class="mfd-stage"><strong>Author</strong><span>Editor workflow plus exact page, reticle, and primitive JSON reference</span></div><div class="mfd-stage"><strong>Inspect</strong><span>Versioned header reference with Graphviz and PlantUML diagrams</span></div></div></div>
+<div class="mfd-hero"><span class="mfd-eyebrow">Release-Synchronized Docs</span><span class="mfd-hero-title">MFDStudio documentation, generated client API guidance, and C++ reference</span><span class="mfd-hero-copy">Use one published portal to onboard quickly, author JSON assets, integrate live clients through the generated API, and inspect the public C++ headers shipped in the current release.</span><div class="mfd-pill-row"><span class="mfd-pill">Generated API first</span><span class="mfd-pill">C++17 runtime API</span><span class="mfd-pill">Tutorial-driven onboarding</span><span class="mfd-pill">JSON + architecture</span></div><div class="mfd-stage-grid"><div class="mfd-stage"><strong>Start</strong><span>README, quick start, and curated reading paths</span></div><div class="mfd-stage"><strong>Integrate</strong><span>Generated client API, transport map, dynamic reticles, and strobe flows</span></div><div class="mfd-stage"><strong>Author</strong><span>Editor workflow plus exact page, reticle, and primitive JSON reference</span></div><div class="mfd-stage"><strong>Inspect</strong><span>Versioned header reference with Graphviz and PlantUML diagrams</span></div></div></div>
 
 ## Overview
 
@@ -14,23 +14,23 @@ left to right direction
 rectangle "Project README" as Readme
 rectangle "Documentation Guide" as Guide
 rectangle "Quick Start + Tutorials" as Tutorials
-rectangle "Generated API + Standards" as Standards
+rectangle "Generated API + Architecture" as Guides
 rectangle "Reference + Architecture Notes" as Reference
 rectangle "Public C++ Headers" as Api
 
 Readme --> Guide
 Guide --> Tutorials
-Guide --> Standards
+Guide --> Guides
 Guide --> Reference
 Tutorials --> Api
-Standards --> Api
+Guides --> Api
 Reference --> Api
 \enduml
 
 It brings together:
 
 - newcomer and operator guides from the repository markdown pages
-- generated-client onboarding and standardization pages
+- generated-client onboarding and usage pages
 - tutorial flows and exact JSON authoring reference pages
 - architecture notes for generated APIs and transport maps
 - the internal `mfd_common_api` build-graph note describing the shared static
@@ -81,19 +81,19 @@ The repository reference consumer for that path is
 | build, test, CI, and release details | [Development Guide](./DEVELOPMENT.md) |
 | the full tutorial ladder | [Tutorial Index](./tutorials/README.md) |
 | exact authoring syntax and JSON fields | [JSON Reference](./reference/README.md) |
-| the generated client API as a standard client surface | [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md) |
+| the generated client API usage path | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) |
 | deeper API and transport rationale | [Architecture Notes](./architecture/README.md) |
-| the broader replacement-client contract | [Interoperability Standards](./standards/README.md) |
+| the transport mapping details | [Generated Transport Map Specification](./architecture/generated_transport_map.md) |
 
 ## Documentation Lanes
 
 | Lane | Best first page | What you get next |
 | --- | --- | --- |
 | Asset author | [Core Concepts](./CONCEPTS.md) | JSON tutorials, editor workflow pages, and exact authoring reference |
-| Generated API integrator | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) | live-client loop, dynamic reticles, strobe, generated API architecture, and standardization |
-| Third-party replacement client implementer | [Interoperability Standards](./standards/README.md) | generated transport rules, command semantics, conformance checks, and fallback helper boundaries |
+| Generated API integrator | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) | live-client loop, dynamic reticles, strobe, generated API architecture, and transport mapping |
+| Advanced integrator | [Generated Transport Map Specification](./architecture/generated_transport_map.md) | authored-to-transport mapping rules, command routing, and lower-level compatibility details |
 | Contributor | [Development Guide](./DEVELOPMENT.md) | presets, tests, repository layout, release automation, and the published API surface |
-| API reviewer | [Generated Client API Standardization](./standards/mfd_generated_client_api_standardization.md) | generated surface rules, architecture notes, transport mapping, and header reference |
+| API reviewer | [Generated Client API Architecture](./architecture/generated_client_api.md) | generated surface rationale, transport mapping, and header reference |
 
 ## What Is Published Here
 
@@ -101,7 +101,7 @@ The repository reference consumer for that path is
 | --- | --- |
 | Onboarding | README, quick start, concepts, and tutorials for new users or integrators |
 | Generated Client API | How to use the generated page, reticle, primitive, strobe, and dynamic-set handles as the normal client-facing workflow |
-| Reference | Exact JSON fields, architecture notes, and formal standards pages linked from the same portal |
+| Reference | Exact JSON fields and architecture notes linked from the same portal |
 | C++ Headers | Namespace, class, function, and type reference for the public C++ surface, with source browsing and include graphs |
 
 ## Feature Coverage At A Glance

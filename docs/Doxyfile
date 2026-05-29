@@ -107,7 +107,6 @@ DOT_CLEANUP            = YES
 IMAGE_PATH             = docs \
                          docs/images \
                          docs/architecture \
-                         docs/standards \
                          docs/reference \
                          docs/tutorials
 PLANTUML_JAR_PATH      =

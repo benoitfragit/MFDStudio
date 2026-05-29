@@ -1,6 +1,6 @@
 # MFDStudio
 
-`MFDStudio` is a C++17 / CMake toolkit for authoring and operating 2D
+`MFDStudio` is a C++17 / CMake toolkit for authoring and running 2D
 multi-function display windows from JSON.
 
 The historical technical prefix remains `mfd` in namespaces, targets, folders,
@@ -8,37 +8,22 @@ and APIs.
 
 ![Cockpit runtime screenshot](./docs/images/mfd_window_cockpit_capture.png)
 
-## What You Can Do
+## Start Here
 
-- author windows, pages, and reticle libraries in JSON
-- edit those assets visually in `mfd_editor`
-- author the generated page title chrome and page-local strobe variants directly in the page model
-- choose in the editor which reticle primitives inherit parent rotation and scale at runtime
-- run them in `mfd_window`
-- drive the live runtime from `client_mockup` or your own UDP client
-- capture the rendered page viewport through a stable framebuffer plugin ABI with plugin-selected `RGBA32` or `BGRA32` output
-- generate typed C++ client helpers for one authored window
-- inspect the live runtime with the integrated `F1` debug overlay, including UDP pressure diagnostics
+Do not read the documentation tree linearly. Most users only need one of these
+paths first:
 
-## Start With The Right Page
-
-| Goal | Read first | Then |
+| Goal | Open first | Then |
 | --- | --- | --- |
-| See a working demo quickly | [Quick Start](./docs/QUICKSTART.md) | [Test A Window With The Mockup](./docs/tutorials/03_test_with_mfd_mockup.md) |
-| Learn the product vocabulary | [Core Concepts](./docs/CONCEPTS.md) | [Tutorial Index](./docs/tutorials/README.md) |
-| Author assets in JSON | [Core Concepts](./docs/CONCEPTS.md) | [JSON Reference](./docs/reference/README.md) |
-| Work mainly in the editor | [Quick Start](./docs/QUICKSTART.md) | [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md) |
-| Integrate a live client | [Quick Start](./docs/QUICKSTART.md) | [Drive A Window From A Live Client](./docs/tutorials/04_drive_a_window_from_a_live_client.md) |
-| Contribute to the repository | [Development Guide](./docs/DEVELOPMENT.md) | [MFDStudio C++ Repository Maintenance Standard](./docs/standards/mfd_cpp_repository_maintenance_standard.md) |
+| Launch a window and see something live | [Quick Start](./docs/QUICKSTART.md) | [Test A Window With The Mockup](./docs/tutorials/03_test_with_mfd_mockup.md) |
+| Drive a window from a generated C++ client API | [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md) | [Drive A Window From A Live Client](./docs/tutorials/04_drive_a_window_from_a_live_client.md) |
+| Capture the runtime framebuffer | [Capture The Window As Raw Pixels](./docs/tutorials/07_framebuffer_rgba32_capture.md) | [Quick Start](./docs/QUICKSTART.md) |
+| Build or edit assets visually | [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md) | [Review The Integrated Editor Tutorial Outputs](./docs/tutorials/15_review_integrated_editor_tutorial_outputs.md) |
+| Need a compact map of the docs | [Documentation Guide](./docs/README.md) | [Tutorial Index](./docs/tutorials/README.md) |
 
-If you are not sure where to go, start with the
-[Documentation Guide](./docs/README.md).
+You do not need the architecture notes or contributor docs to get a window running.
 
-If you need one long-form user manual covering the editor, the generated API,
-the framebuffer plugin, and launch scripts in one place, use the
-[Detailed User Guide (.docx)](./docs/user_guide/MFDStudio_End_To_End_User_Guide.docx).
-
-## Five-Minute First Run
+## Fast First Run
 
 Build the minimum useful set on Windows:
 
@@ -51,110 +36,85 @@ Then:
 
 1. launch `.\Scripts\Start-MfdDemo.bat`
 2. launch `client_mockup`
-3. activate one page and edit one reticle, one page strobe, or one exposed strobe primitive directly in the preview
-4. press `F1` in `mfd_window`
+3. activate one page
+4. edit one reticle or page control
+5. press `F1` in `mfd_window`
 
-For the guided version, use [Quick Start](./docs/QUICKSTART.md).
+If you want the sample framebuffer path immediately, launch
+`.\Scripts\Start-MfdMinimal.bat` instead. It starts `mfd_window` with the
+sample framebuffer plugin enabled.
 
-## Runtime Mental Model
+## Practical Workflows
 
-![Runtime roundtrip](./docs/images/mfd_runtime_roundtrip.svg)
+### Launch `mfd_window`
 
-- JSON assets define what exists
-- `mfd_window` renders the active page
-- a client sends live commands over UDP
-- the runtime can send feedback back to the client
+The simplest path is still one of the shipped launchers:
+
+- `.\Scripts\Start-MfdDemo.bat`
+- `.\Scripts\Start-MfdCockpit.bat`
+- `.\Scripts\Start-MfdMinimal.bat`
+
+If you want one explicit entry point for your own window JSON, use:
+
+```powershell
+.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages.json
+```
+
+The same launcher can pass a framebuffer plugin:
+
+```powershell
+.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages_minimal.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
+```
+
+### Use The Generated Client API
+
+For a client dedicated to one authored window, the generated API is the
+preferred surface. It gives typed access to pages, reticles, exposed
+primitives, strobes, and dynamic sets, while `CommandClient` remains the final
+transport sender.
+
+Start here:
+
+- [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md)
+- [Drive A Window From A Live Client](./docs/tutorials/04_drive_a_window_from_a_live_client.md)
+
+### Capture The Framebuffer
+
+There are two practical capture paths:
+
+- host-side `RGBA32` capture from the runtime layer
+- plugin-based capture from `mfd_window`, with plugin-selected `RGBA32` or `BGRA32`
+
+Start here:
+
+- [Capture The Window As Raw Pixels](./docs/tutorials/07_framebuffer_rgba32_capture.md)
+
+### Work In The Editor
+
+If your main entry point is the visual tool, start here:
+
+- [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md)
 
 ## Main Applications
 
 | Entry point | Purpose |
 | --- | --- |
-| `mfd_window` | Generic runtime launcher that loads one window JSON file |
-| `client_mockup` | Live UDP client for pages, reticles, strobe, feedback, and stress tests |
-| `mfd_editor` | Visual authoring tool for windows, pages, and reticles. Use `--asset-directory <path>` to override the default authored asset root. Static page reticles, the generated page title chrome, and page-local strobes can all be selected and manipulated directly in the preview. Primitive inspectors also let authors expose runtime-driven subparts and opt selected primitives out of parent reticle rotation and scale. The reticle studio exposes direct copy/paste shortcuts for shared templates and, when one primitive is focused, duplicates that primitive inside the current reticle template. |
-| `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin implementing the stable capture ABI and requesting `BGRA32` output |
+| `mfd_window` | Runtime host that loads one window JSON file |
+| `client_mockup` | Live UDP client used to validate pages, reticles, blink, strobe, and feedback |
+| `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
+| `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin for the `mfd_window` capture ABI |
 
-## Documentation Shelves
+## Advanced Docs
 
-Use the documentation tree by intent instead of reading it linearly:
+Keep these for later, when you actually need them:
 
-- [docs/QUICKSTART.md](./docs/QUICKSTART.md): fastest path to a visible result
-- [docs/CONCEPTS.md](./docs/CONCEPTS.md): minimum vocabulary
-- [docs/tutorials](./docs/tutorials/README.md): guided workflows
-- [docs/reference](./docs/reference/README.md): exact JSON and authoring rules
-- [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md): build, test, packaging, and contributor workflow
-- [docs/standards](./docs/standards/README.md): repository and interoperability standards
-
-For a first product session, start with `Quick Start` and `Core Concepts`.
-The standards pages are normative references and are not required to get a
-window running.
-
-Useful companion pages:
-
-- [FAQ](./docs/FAQ.md)
-- [What's New](./docs/WHATS_NEW.md)
-
-## Build And Test
-
-For day-to-day work on Windows, prefer the Win32 debug flow:
-
-```powershell
-cmake --preset vs2022-win32
-cmake --build --preset debug-win32
-ctest --preset test-debug-win32
-```
-
-Generate delivery packages with:
-
-```powershell
-.\Scripts\BuildDeliveries.bat --version 1.8.5
-```
-
-Restrict the delivery run to one preset when needed:
-
-```powershell
-.\Scripts\BuildDeliveries.bat --version 1.8.5 --preset vs2022-win32-no-tests
-```
-
-Or target only one build configuration:
-
-```powershell
-.\Scripts\BuildDeliveries.bat --version 1.8.5 --preset debug-win32-no-tests
-```
-
-Show the available options and default presets with:
-
-```powershell
-.\Scripts\BuildDeliveries.bat --help
-```
-
-The standalone client delivery is intentionally curated: `MFDStudioClientApi`
-ships only the `mfd_client_api` SDK surface plus the republished loader and
-projection headers needed by client integrations, and
-`MFDStudioClientApi.Install` ships `mfd_client_api.dll` without `mfd_api.dll`.
-Generated window-specific headers include
-`mfd/client/GeneratedUiSupport.h` directly, while `ClientSdk.h` stays focused
-on standalone loader, transport, feedback, and publisher helpers.
-When you generate only one build preset, the package config exposes only that
-delivered configuration, so package consumers such as `client_test_package`
-can build in `Debug` without requiring a `Release` delivery and inversement.
-
-Contributor-oriented details live in
-[Development Guide](./docs/DEVELOPMENT.md).
-
-## Repository Layout
-
-| Path | Role |
-| --- | --- |
-| `assets` | Window, page, reticle, and image assets |
-| `docs` | Onboarding, tutorials, reference, standards, and architecture notes |
-| `examples` | Example clients and runtime plugin samples |
-| `mfd_common_api` | Shared low-level authored-model and transport layer |
-| `mfd_api` | JSON loading, runtime, scene registry, and the public low-level API; repository hosts add the static raylib render backend separately |
-| `mfd_client_api` | Higher-level client helpers, generated client integration, and the standalone client SDK used by generated code and shipped examples |
-| `mfd_editor` | Editor application |
-| `mfd_window` | Runtime host |
-| `tests` | Automated test suites |
+- [Core Concepts](./docs/CONCEPTS.md)
+- [Tutorials](./docs/tutorials/README.md)
+- [Reference](./docs/reference/README.md)
+- [Development Guide](./docs/DEVELOPMENT.md)
+- [Detailed User Guide (.docx)](./docs/user_guide/MFDStudio_End_To_End_User_Guide.docx)
+- [Detailed User Guide (.pdf)](./docs/user_guide/MFDStudio_End_To_End_User_Guide.pdf)
+- [Architecture Notes](./docs/architecture/README.md)
 
 ## Licenses
 

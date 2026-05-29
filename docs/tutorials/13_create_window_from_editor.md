@@ -474,8 +474,8 @@ After the integrated tour, the recommended follow-up order is:
 1. [Review The Integrated Editor Tutorial Outputs](./15_review_integrated_editor_tutorial_outputs.md)
 2. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
 3. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
-4. [Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
-5. [Generated Client API Architecture](../architecture/generated_client_api.md)
+4. [Generated Client API Architecture](../architecture/generated_client_api.md)
+5. [Capture The Window As Raw Pixels](./07_framebuffer_rgba32_capture.md)
 
 ## Undo behavior
 

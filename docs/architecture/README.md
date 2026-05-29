@@ -7,9 +7,9 @@ Use these pages when you already understand the normal runtime workflow and
 need the lower-level design constraints that shaped the generated client API or
 the transport mapping model.
 
-If you need the client-facing rules rather than the internal rationale, read
-[Generated Client API Standardization](../standards/mfd_generated_client_api_standardization.md)
-first, then come back here for the design detail behind those rules.
+If you need a usage-first entry point rather than the internal rationale, start
+with [Use The Mockup As A Client API Reference](../tutorials/11_use_the_mockup_as_a_client_api_reference.md)
+and come back here for the design detail behind that workflow.
 
 ## Read This Section When
 
