@@ -79,7 +79,7 @@ std::vector<std::byte> ToBytes(const std::string& payload)
     return std::vector<std::byte>(first, first + payload.size());
 }
 
-mfd::SceneRegistry MakeRegistry()
+mfd::MfdDocument MakeStaticRegistryDocument()
 {
     mfd::PageDefinition page;
     page.name = "Radar";
@@ -103,6 +103,11 @@ mfd::SceneRegistry MakeRegistry()
     mfd::MfdDocument document;
     document.pages.push_back(std::move(page));
 
+    return document;
+}
+
+mfd::GeneratedTransportMap MakeStaticTransportMap()
+{
     mfd::GeneratedTransportMap map;
     map.mappingHash = "map_hash";
     map.pages.push_back({11U, "Radar", "radar", false, false});
@@ -111,7 +116,20 @@ mfd::SceneRegistry MakeRegistry()
         {33U, mfd::TransportPrimitiveOwnerKind::Reticle, 22U, "heading_value", "heading_value", "text", true});
     map.blinkTypes.push_back({44U, 11U, "slow", "slow", 750U});
 
+    return map;
+}
+
+mfd::SceneRegistry MakeRegistry()
+{
+    mfd::MfdDocument document = MakeStaticRegistryDocument();
+    mfd::GeneratedTransportMap map = MakeStaticTransportMap();
+
     return mfd::SceneRegistry(std::move(document), std::move(map));
+}
+
+mfd::SceneRegistry MakeRegistryWithoutTransportMap()
+{
+    return mfd::SceneRegistry(MakeStaticRegistryDocument());
 }
 
 mfd::SceneRegistry MakeRuntimeRegistry()
@@ -284,6 +302,21 @@ TEST(CommandProcessorTests, RejectsIdBasedBatchWhenMappingHashDoesNotMatchLoaded
 
     EXPECT_FALSE(processor.Submit(batch));
     EXPECT_EQ(processor.LastError(), "Generated transport map hash mismatch between the client batch and the runtime window");
+}
+
+TEST(CommandProcessorTests, RejectsIdBasedBatchWhenRuntimeDidNotLoadTheMatchingGeneratedMap)
+{
+    mfd::SceneRegistry registry = MakeRegistryWithoutTransportMap();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(mfd::ActivatePageCommand {"", 11U});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_EQ(
+        processor.LastError(),
+        "Client generated API requires the matching generated transport map loaded by the runtime window");
 }
 
 TEST(CommandProcessorTests, RejectsSerializedGeneratedTransportIdsWithoutMappingHash)

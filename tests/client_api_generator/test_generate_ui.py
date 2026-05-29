@@ -738,6 +738,7 @@ class GenerateUiTests(unittest.TestCase):
             page.write_text(json.dumps({"name": "Alpha"}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -749,6 +750,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "GeneratedUi.h"),
                     "--output-source",
                     str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=False,
                 capture_output=True,
@@ -779,6 +782,9 @@ class GenerateUiTests(unittest.TestCase):
             )
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+            output_map = root / "GeneratedUi.generated.map"
+            output_map = root / "GeneratedUi.generated.map"
+            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -790,6 +796,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "GeneratedUi.h"),
                     "--output-source",
                     str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=False,
                 capture_output=True,
@@ -827,6 +835,10 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
                 encoding="utf-8",
             )
+            output_map = root / "GeneratedUi.generated.map"
+            output_map = root / "GeneratedUi.generated.map"
+            output_map = root / "GeneratedUi.generated.map"
+            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -838,6 +850,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "GeneratedUi.h"),
                     "--output-source",
                     str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=False,
                 capture_output=True,
@@ -880,6 +894,7 @@ class GenerateUiTests(unittest.TestCase):
                 json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
                 encoding="utf-8",
             )
+            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -891,6 +906,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "GeneratedUi.h"),
                     "--output-source",
                     str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=False,
                 capture_output=True,
@@ -931,6 +948,7 @@ class GenerateUiTests(unittest.TestCase):
 
             output_header = root / "GeneratedUi.h"
             output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
 
             subprocess.run(
                 [
@@ -942,6 +960,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(output_header),
                     "--output-source",
                     str(output_source),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=True,
             )
@@ -989,6 +1009,7 @@ class GenerateUiTests(unittest.TestCase):
             page.write_text(json.dumps({"name": "Main", "layers": [{"id": "default"}]}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+            output_map = root / "unused.generated.map"
 
             completed = subprocess.run(
                 [
@@ -1000,6 +1021,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "unused.h"),
                     "--output-source",
                     str(root / "unused.cpp"),
+                    "--output-map",
+                    str(output_map),
                     "--print-inputs",
                 ],
                 check=True,
@@ -1012,13 +1035,14 @@ class GenerateUiTests(unittest.TestCase):
             self.assertIn(str(window.resolve()).replace("\\", "/"), normalized_lines)
             self.assertIn(str(page.resolve()).replace("\\", "/"), normalized_lines)
 
-    def test_rejects_invalid_namespace(self) -> None:
+    def test_requires_output_map_argument(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             page = root / "page.json"
             page.write_text(json.dumps({"name": "Main", "layers": [{"id": "default"}]}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -1030,6 +1054,36 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "GeneratedUi.h"),
                     "--output-source",
                     str(root / "GeneratedUi.cpp"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("--output-map", completed.stderr)
+
+    def test_rejects_invalid_namespace(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(json.dumps({"name": "Main", "layers": [{"id": "default"}]}), encoding="utf-8")
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+            output_map = root / "GeneratedUi.generated.map"
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(root / "GeneratedUi.h"),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(output_map),
                     "--namespace",
                     "invalid-namespace",
                 ],
@@ -1050,6 +1104,7 @@ class GenerateUiTests(unittest.TestCase):
             page_two.write_text(json.dumps({"name": "Radar_Main", "layers": [{"id": "default"}]}), encoding="utf-8")
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page_one.name, page_two.name]}), encoding="utf-8")
+            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -1061,6 +1116,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "GeneratedUi.h"),
                     "--output-source",
                     str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=False,
                 capture_output=True,
@@ -1097,6 +1154,7 @@ class GenerateUiTests(unittest.TestCase):
             )
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -1108,6 +1166,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "GeneratedUi.h"),
                     "--output-source",
                     str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=False,
                 capture_output=True,
@@ -1142,6 +1202,7 @@ class GenerateUiTests(unittest.TestCase):
             )
             window = root / "window.json"
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+            output_map = root / "GeneratedUi.generated.map"
 
             completed = subprocess.run(
                 [
@@ -1153,6 +1214,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(root / "GeneratedUi.h"),
                     "--output-source",
                     str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=False,
                 capture_output=True,
@@ -1171,8 +1234,10 @@ class GenerateUiTests(unittest.TestCase):
             window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
             output_header = root / "GeneratedUi.h"
             output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
             output_header.write_text("// existing", encoding="utf-8")
             output_source.write_text("// existing", encoding="utf-8")
+            output_map.write_text("// existing", encoding="utf-8")
 
             completed = subprocess.run(
                 [
@@ -1184,6 +1249,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(output_header),
                     "--output-source",
                     str(output_source),
+                    "--output-map",
+                    str(output_map),
                 ],
                 check=False,
                 capture_output=True,
@@ -1203,6 +1270,8 @@ class GenerateUiTests(unittest.TestCase):
                     str(output_header),
                     "--output-source",
                     str(output_source),
+                    "--output-map",
+                    str(output_map),
                     "--force-overwrite",
                 ],
                 check=True,

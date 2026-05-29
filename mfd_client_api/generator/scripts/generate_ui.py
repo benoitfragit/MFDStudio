@@ -168,7 +168,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--window-json", required=True)
     parser.add_argument("--output-header", required=True)
     parser.add_argument("--output-source", required=True)
-    parser.add_argument("--output-map")
+    parser.add_argument("--output-map", required=True)
     parser.add_argument("--namespace", default="mockup_ui")
     parser.add_argument("--ui-class-name")
     parser.add_argument("--page-class-suffix", default="MockupPage")
@@ -432,22 +432,19 @@ def ensure_unique_primitive_spec_names(owner_kind: str,
 
 def ensure_output_paths(output_header: Path,
                         output_source: Path,
-                        output_map: Path | None,
+                        output_map: Path,
                         force_overwrite: bool) -> None:
     if output_header.resolve() == output_source.resolve():
         raise RuntimeError("Output header and output source must be different files")
 
-    if output_map is not None:
-        output_map_resolved = output_map.resolve()
-        if output_map_resolved == output_header.resolve() or output_map_resolved == output_source.resolve():
-            raise RuntimeError("Output map must be different from generated C++ outputs")
+    output_map_resolved = output_map.resolve()
+    if output_map_resolved == output_header.resolve() or output_map_resolved == output_source.resolve():
+        raise RuntimeError("Output map must be different from generated C++ outputs")
 
     if force_overwrite:
         return
 
-    candidate_paths = [output_header, output_source]
-    if output_map is not None:
-        candidate_paths.append(output_map)
+    candidate_paths = [output_header, output_source, output_map]
 
     existing_paths = [path.as_posix() for path in candidate_paths if path.exists()]
     if existing_paths:
@@ -1923,19 +1920,18 @@ def main() -> int:
         startup_page,
         page_specs,
         template_specs)
-    map_text = None if args.output_map is None else emit_map(map_document)
+    map_text = emit_map(map_document)
 
     output_header = Path(args.output_header)
     output_source = Path(args.output_source)
-    output_map = None if args.output_map is None else Path(args.output_map)
+    output_map = Path(args.output_map)
     ensure_output_paths(output_header, output_source, output_map, args.force_overwrite)
     output_header.parent.mkdir(parents=True, exist_ok=True)
     output_source.parent.mkdir(parents=True, exist_ok=True)
+    output_map.parent.mkdir(parents=True, exist_ok=True)
     output_header.write_text(header_text, encoding="utf-8")
     output_source.write_text(source_text, encoding="utf-8")
-    if output_map is not None and map_text is not None:
-        output_map.parent.mkdir(parents=True, exist_ok=True)
-        output_map.write_text(map_text, encoding="utf-8")
+    output_map.write_text(map_text, encoding="utf-8")
     return 0
 
 

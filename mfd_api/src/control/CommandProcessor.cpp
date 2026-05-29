@@ -164,7 +164,7 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
     {
         if (!scene_.HasTransportMap())
         {
-            SetFailure("ID-based command batch requires a generated transport map loaded by the runtime");
+            SetFailure("Client generated API requires the matching generated transport map loaded by the runtime window");
         }
         else
         {

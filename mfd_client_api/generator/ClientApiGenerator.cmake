@@ -82,6 +82,10 @@ function(client_api_generate_ui)
         message(FATAL_ERROR "client_api_generate_ui requires OUTPUT_SOURCE")
     endif()
 
+    if(NOT CAG_OUTPUT_MAP)
+        message(FATAL_ERROR "client_api_generate_ui requires OUTPUT_MAP")
+    endif()
+
     if(NOT CAG_NAMESPACE)
         set(CAG_NAMESPACE "mockup_ui")
     endif()
@@ -104,12 +108,15 @@ function(client_api_generate_ui)
     _client_api_generator_resolve_input_path(window_json_path "${CAG_WINDOW_JSON}")
     _client_api_generator_resolve_output_path(output_header_path "${CAG_OUTPUT_HEADER}")
     _client_api_generator_resolve_output_path(output_source_path "${CAG_OUTPUT_SOURCE}")
+    _client_api_generator_resolve_output_path(output_map_path "${CAG_OUTPUT_MAP}")
 
     set(generator_script "${generator_root}/scripts/generate_ui.py")
     get_filename_component(output_header_dir "${output_header_path}" DIRECTORY)
     get_filename_component(output_source_dir "${output_source_path}" DIRECTORY)
+    get_filename_component(output_map_dir "${output_map_path}" DIRECTORY)
     file(MAKE_DIRECTORY "${output_header_dir}")
     file(MAKE_DIRECTORY "${output_source_dir}")
+    file(MAKE_DIRECTORY "${output_map_dir}")
 
     execute_process(
         COMMAND
@@ -118,6 +125,7 @@ function(client_api_generate_ui)
             --window-json "${window_json_path}"
             --output-header "${output_header_path}"
             --output-source "${output_source_path}"
+            --output-map "${output_map_path}"
             --print-inputs
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         RESULT_VARIABLE input_scan_result
@@ -151,6 +159,7 @@ function(client_api_generate_ui)
         --window-json "${window_json_path}"
         --output-header "${output_header_path}"
         --output-source "${output_source_path}"
+        --output-map "${output_map_path}"
         # CMake regenerates tracked mockup helpers in place during configure.
         --force-overwrite
         --namespace "${CAG_NAMESPACE}"
@@ -162,13 +171,7 @@ function(client_api_generate_ui)
         list(APPEND generator_command --ui-class-name "${CAG_UI_CLASS_NAME}")
     endif()
 
-    if(CAG_OUTPUT_MAP)
-        _client_api_generator_resolve_output_path(output_map_path "${CAG_OUTPUT_MAP}")
-        get_filename_component(output_map_dir "${output_map_path}" DIRECTORY)
-        file(MAKE_DIRECTORY "${output_map_dir}")
-        list(APPEND generator_command --output-map "${output_map_path}")
-        set_source_files_properties("${output_map_path}" PROPERTIES GENERATED TRUE)
-    endif()
+    set_source_files_properties("${output_map_path}" PROPERTIES GENERATED TRUE)
 
     execute_process(
         COMMAND ${generator_command}
@@ -187,5 +190,6 @@ function(client_api_generate_ui)
     set_source_files_properties(
         "${output_header_path}"
         "${output_source_path}"
+        "${output_map_path}"
         PROPERTIES GENERATED TRUE)
 endfunction()
