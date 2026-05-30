@@ -391,7 +391,7 @@ std::optional<CommandBatch> FilterBatchForPreview(const CommandBatch& batch,
         UserCommand filteredCommand = command;
 
         std::visit(
-            [&](auto& value)
+            [&keep, &scene, &state](auto& value)
             {
                 using Command = std::decay_t<decltype(value)>;
 
@@ -419,7 +419,7 @@ std::optional<CommandBatch> FilterBatchForPreview(const CommandBatch& batch,
                         std::remove_if(
                             value.reticles.begin(),
                             value.reticles.end(),
-                            [&](const DynamicReticleState& reticle)
+                            [&state, &value](const DynamicReticleState& reticle)
                             {
                                 return state.ReticleBypassed(
                                     ReticleKey {value.page, reticle.reticleId, ReticleKind::Dynamic});

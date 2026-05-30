@@ -263,45 +263,39 @@ void ValidateReticlePatch(const ReticlePatch& patch)
     }
 
     ValidateContainerSize(patch.texts.size(), kMaxPatchEntryCount, "ReticlePatch.texts");
-    for (const auto& [primitiveId, text] : patch.texts)
+    for (const auto& textEntry : patch.texts)
     {
-        static_cast<void>(primitiveId);
-        ValidateTextPayload(text, "ReticlePatch.texts[]");
+        ValidateTextPayload(textEntry.second, "ReticlePatch.texts[]");
     }
 
     ValidateContainerSize(patch.textsById.size(), kMaxPatchEntryCount, "ReticlePatch.textsById");
-    for (const auto& [primitiveId, text] : patch.textsById)
+    for (const auto& textEntry : patch.textsById)
     {
-        static_cast<void>(primitiveId);
-        ValidateTextPayload(text, "ReticlePatch.textsById[]");
+        ValidateTextPayload(textEntry.second, "ReticlePatch.textsById[]");
     }
 
     ValidateContainerSize(patch.letterSpacings.size(), kMaxPatchEntryCount, "ReticlePatch.letterSpacings");
-    for (const auto& [primitiveId, spacing] : patch.letterSpacings)
+    for (const auto& spacingEntry : patch.letterSpacings)
     {
-        static_cast<void>(primitiveId);
-        ValidateFiniteAbs(spacing, "ReticlePatch.letterSpacings[]", kMaxLogicalSize);
+        ValidateFiniteAbs(spacingEntry.second, "ReticlePatch.letterSpacings[]", kMaxLogicalSize);
     }
 
     ValidateContainerSize(patch.letterSpacingsById.size(), kMaxPatchEntryCount, "ReticlePatch.letterSpacingsById");
-    for (const auto& [primitiveId, spacing] : patch.letterSpacingsById)
+    for (const auto& spacingEntry : patch.letterSpacingsById)
     {
-        static_cast<void>(primitiveId);
-        ValidateFiniteAbs(spacing, "ReticlePatch.letterSpacingsById[]", kMaxLogicalSize);
+        ValidateFiniteAbs(spacingEntry.second, "ReticlePatch.letterSpacingsById[]", kMaxLogicalSize);
     }
 
     ValidateContainerSize(patch.primitivePatches.size(), kMaxPatchEntryCount, "ReticlePatch.primitivePatches");
-    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
+    for (const auto& primitivePatchEntry : patch.primitivePatches)
     {
-        static_cast<void>(primitiveId);
-        ValidatePrimitivePatch(primitivePatch);
+        ValidatePrimitivePatch(primitivePatchEntry.second);
     }
 
     ValidateContainerSize(patch.primitivePatchesById.size(), kMaxPatchEntryCount, "ReticlePatch.primitivePatchesById");
-    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatchesById)
+    for (const auto& primitivePatchEntry : patch.primitivePatchesById)
     {
-        static_cast<void>(primitiveId);
-        ValidatePrimitivePatch(primitivePatch);
+        ValidatePrimitivePatch(primitivePatchEntry.second);
     }
 }
 

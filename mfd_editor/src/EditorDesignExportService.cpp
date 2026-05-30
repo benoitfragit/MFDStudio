@@ -816,7 +816,7 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
             arc->startAngleDegrees,
             arc->endAngleDegrees,
             arc->segments,
-            [&](const mfd::Vec2 point)
+            [&bounds, &primitive](const mfd::Vec2 point)
             {
                 IncludePrimitiveTransformedPoint(bounds, primitive, point);
             });
@@ -952,7 +952,7 @@ LogicalBounds ComputeReticleWorldBounds(const mfd::ReticleGroup& reticle)
                 arc->startAngleDegrees,
                 arc->endAngleDegrees,
                 arc->segments,
-                [&](const mfd::Vec2 point)
+                [&worldBounds, &reticle, &primitive](const mfd::Vec2 point)
                 {
                     IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, point);
                 });

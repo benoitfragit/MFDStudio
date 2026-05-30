@@ -10,6 +10,7 @@
  * @brief Integrated runtime debug overlay used by `mfd_window`.
  */
 
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -44,7 +45,7 @@ public:
      * @param liveScene Current live runtime scene.
      * @return `true` when the shortcut was consumed.
      */
-    bool HandleShortcut(const SceneRegistry& liveScene);
+    bool HandleShortcut([[maybe_unused]] const SceneRegistry& liveScene);
 
     /**
      * @brief Resets the overlay state after the window JSON has been reloaded.
@@ -110,10 +111,18 @@ public:
               std::string_view runtimeError);
 
 private:
-    bool Activate(const SceneRegistry& liveScene);
+    bool Activate();
     void Deactivate();
     bool RefreshPreviewFromLive(const SceneRegistry& liveScene);
     void RecordObservedRuntimeState(const SceneRegistry& liveScene, const std::vector<CommandBatch>& drainedBatches);
+    [[nodiscard]] bool SelectFirstReticleOnActivePage(const SceneRegistry& displayScene, std::string* statusOut);
+    [[nodiscard]] const ReticleGroup* FindSelectedReticle(const SceneRegistry& displayScene) const;
+    template <typename Mutation>
+    bool MutateSelectedReticleWithRollback(const SceneRegistry& liveScene,
+                                           const SceneRegistry& displayScene,
+                                           Mutation&& mutation,
+                                           const char* successMessage);
+    void DrawManualTestPanel(const SceneRegistry& liveScene, const SceneRegistry& displayScene);
     [[nodiscard]] bool UsesPreviewScene() const noexcept;
     [[nodiscard]] UdpRuntimeBridgeMetrics CollectTransportMetrics(const UdpRuntimeBridge* bridge,
                                                                   std::size_t observedCommandCount);

@@ -393,6 +393,8 @@ private:
     void DrawPageDynamicTemplateInspector(mfd::PageDefinition& page);
     /** @brief Draws the inspector for one page reticle instance. */
     void DrawPageReticleInspector();
+    /** @brief Returns the current visual center of the page-title preview reticle. */
+    [[nodiscard]] mfd::Vec2 PageTitleVisualCenterLocal(const mfd::PageDefinition& page) const;
     /** @brief Draws the inspector for the selected page title chrome. */
     void DrawSelectedPageTitleInspector();
     /** @brief Draws the inspector for the selected page strobe instance. */
@@ -401,10 +403,21 @@ private:
     void DrawPageBlinkInspector(mfd::PageDefinition& page);
     /** @brief Draws the page-reticle blink assignment editor. */
     void DrawPageReticleBlinkInspector(mfd::PageDefinition& page, mfd::ReticleGroup& reticle);
+    /** @brief Moves the selected page reticle to one validated index inside its owning page. */
+    void MoveSelectedPageReticleToIndex(mfd::PageDefinition& page,
+                                        mfd::ReticleGroup& reticle,
+                                        int targetIndex,
+                                        const char* action);
     /** @brief Draws the inspector for one reticle template from the library. */
     void DrawLibraryReticleInspector();
     /** @brief Draws the inspector for one primitive inside a library reticle. */
     void DrawLibraryPrimitiveInspector();
+    /** @brief Applies one clipping-mode change to the selected page strobe. */
+    void ApplySelectedPageStrobeClipping(mfd::ReticleGroup& reticle,
+                                         mfd::ReticleClipMode mode,
+                                         std::string primitiveId);
+    /** @brief Draws one editable 2D point field and records undo activation when needed. */
+    void EditPointArrayField(const char* label, mfd::Vec2& value);
 
     /** @brief Draws the current page into the main preview viewport. */
     void DrawPagePreview(const ViewportState& viewport);

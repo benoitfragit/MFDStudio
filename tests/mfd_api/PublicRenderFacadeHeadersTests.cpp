@@ -18,8 +18,7 @@
 
 TEST(PublicRenderFacadeHeadersTests, HostRenderTypesRemainAvailableWithoutLowLevelRaylibHeaders)
 {
-    mfd::MfdRenderer renderer;
-    (void)renderer;
+    EXPECT_NO_THROW(mfd::MfdRenderer {});
 
     mfd::FramebufferCaptureRequest request;
     EXPECT_EQ(request.width, 0);

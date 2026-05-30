@@ -1920,8 +1920,7 @@ private:
         // Destroy the renderer while the OpenGL context is still valid so its
         // cached textures, fonts, shaders and render targets can be released
         // deterministically before CloseWindow() tears the context down.
-        mfd::MfdRenderer releasedRenderer = std::move(renderer_);
-        (void)releasedRenderer;
+        mfd::MfdRenderer {std::move(renderer_)};
     }
 
     std::string applicationName_;

@@ -290,6 +290,12 @@ std::optional<std::string> ParseDefaultPageName(const json& document)
     return defaultPage.get<std::string>();
 }
 
+bool WindowDocumentUpdatesDefaultPage(const json& document, const std::string_view pageName)
+{
+    const std::optional<std::string> defaultPageName = ParseDefaultPageName(document);
+    return defaultPageName.has_value() && mfd::PageNamesEqual(*defaultPageName, pageName);
+}
+
 std::vector<std::filesystem::path> ParseWindowPageFiles(const json& document, const std::filesystem::path& windowFile)
 {
     if (!document.is_object())
@@ -565,11 +571,7 @@ RenamePagePlan PageRenameService::BuildPlan(const mfd::LoadedWindowConfiguration
             const bool currentWindowReference = currentWindowInsideAssetsRoot && windowFile == currentWindowFile;
 
             const json windowDocument = LoadJsonFile(windowFile);
-            const bool updatesDefaultPage = [&]()
-            {
-                const std::optional<std::string> defaultPageName = ParseDefaultPageName(windowDocument);
-                return defaultPageName.has_value() && mfd::PageNamesEqual(*defaultPageName, plan.oldPageName);
-            }();
+            const bool updatesDefaultPage = WindowDocumentUpdatesDefaultPage(windowDocument, plan.oldPageName);
             if (updatesDefaultPage)
             {
                 AppendUniquePath(plan.filesToModify, windowFile);

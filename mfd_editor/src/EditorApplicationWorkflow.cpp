@@ -1582,7 +1582,7 @@ void EditorApplication::PrepareTutorialStep()
     tutorial_->ResetPhase();
     tutorial_->ClearFocusLayer();
 
-    const auto setPrimitiveDraft = [&](const mfd::PrimitiveType primitiveType)
+    const auto setPrimitiveDraft = [this](const mfd::PrimitiveType primitiveType)
     {
         for (int index = 0; index < static_cast<int>(kPrimitiveTypes.size()); ++index)
         {

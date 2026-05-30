@@ -35,6 +35,7 @@ namespace
 constexpr int kDebugPanelWidth = 620;
 constexpr float kLeftPaneWidth = 330.0f;
 constexpr float kBottomPanelHeight = 168.0f;
+constexpr float kReticleNudgeStep = 0.05f;
 constexpr std::size_t kTextBufferBaseSize = 256U;
 constexpr auto kTransportMetricsRefreshInterval = std::chrono::milliseconds(250);
 
@@ -439,7 +440,7 @@ void RuntimeDebugOverlay::Shutdown() noexcept
     initialized_ = false;
 }
 
-bool RuntimeDebugOverlay::HandleShortcut(const SceneRegistry& liveScene)
+bool RuntimeDebugOverlay::HandleShortcut(const SceneRegistry&)
 {
     if (!IsKeyPressed(KEY_F1))
     {
@@ -452,7 +453,7 @@ bool RuntimeDebugOverlay::HandleShortcut(const SceneRegistry& liveScene)
     }
     else
     {
-        Activate(liveScene);
+        Activate();
     }
 
     return true;
@@ -541,6 +542,232 @@ bool RuntimeDebugOverlay::ConsumeRuntimeShortcuts() const noexcept
     return state_.Active();
 }
 
+bool RuntimeDebugOverlay::SelectFirstReticleOnActivePage(const SceneRegistry& displayScene, std::string* statusOut)
+{
+    const std::string activePage = displayScene.ActivePageName();
+    const PageDefinition* page = FindPage(displayScene.Document(), activePage);
+    if (page == nullptr)
+    {
+        if (statusOut != nullptr)
+        {
+            *statusOut = "No active page is available for the manual test panel.";
+        }
+        return false;
+    }
+
+    const auto reticleViews = displayScene.CollectPageReticleViews(page->name);
+    const auto reticlePointers = displayScene.CollectPageReticlePointers(page->name);
+    if (reticleViews.empty() || reticlePointers.empty())
+    {
+        if (statusOut != nullptr)
+        {
+            *statusOut = "The active page does not expose any reticle.";
+        }
+        return false;
+    }
+
+    const ReticleGroup* firstReticle = reticlePointers.front();
+    if (firstReticle == nullptr)
+    {
+        if (statusOut != nullptr)
+        {
+            *statusOut = "The first reticle entry is invalid.";
+        }
+        return false;
+    }
+
+    state_.SelectReticle(ReticleKey {page->name, firstReticle->id, ClassifyReticle(*page, firstReticle->id)});
+    if (statusOut != nullptr)
+    {
+        *statusOut = "Selected reticle '" + firstReticle->id + "' on page '" + page->name + "'.";
+    }
+    return true;
+}
+
+const ReticleGroup* RuntimeDebugOverlay::FindSelectedReticle(const SceneRegistry& displayScene) const
+{
+    if (!state_.SelectedReticle().has_value())
+    {
+        return nullptr;
+    }
+
+    if (const ReticleBypassState* bypass = state_.FindReticleBypass(*state_.SelectedReticle()); bypass != nullptr)
+    {
+        return &bypass->draft;
+    }
+
+    return FindReticle(displayScene, *state_.SelectedReticle());
+}
+
+template <typename Mutation>
+bool RuntimeDebugOverlay::MutateSelectedReticleWithRollback(const SceneRegistry& liveScene,
+                                                            const SceneRegistry& displayScene,
+                                                            Mutation&& mutation,
+                                                            const char* const successMessage)
+{
+    if (!state_.SelectedReticle().has_value())
+    {
+        state_.SetTestPanelStatus("Select one reticle before using this action.");
+        return false;
+    }
+
+    const ReticleKey key = *state_.SelectedReticle();
+    const ReticleGroup* currentReticle = FindSelectedReticle(displayScene);
+    if (currentReticle == nullptr)
+    {
+        state_.SetTestPanelStatus("The selected reticle is no longer available in the preview.");
+        return false;
+    }
+
+    const ReticleBypassState* previousBypass = state_.FindReticleBypass(key);
+    std::optional<ReticleBypassState> rollbackSnapshot;
+    if (previousBypass != nullptr)
+    {
+        rollbackSnapshot = *previousBypass;
+    }
+
+    ReticleBypassState& bypass = state_.EnsureReticleBypass(key, *currentReticle);
+    std::forward<Mutation>(mutation)(bypass.draft);
+    if (!RefreshPreviewFromLive(liveScene))
+    {
+        const std::string mutationError =
+            preview_.LastError().empty() ? std::string {"Unknown preview rebuild failure."} : preview_.LastError();
+
+        if (rollbackSnapshot.has_value())
+        {
+            if (ReticleBypassState* restore = state_.FindReticleBypass(key); restore != nullptr)
+            {
+                *restore = *rollbackSnapshot;
+            }
+        }
+        else
+        {
+            state_.ReleaseReticleBypass(key);
+        }
+
+        if (!RefreshPreviewFromLive(liveScene))
+        {
+            const std::string rollbackError =
+                preview_.LastError().empty() ? std::string {"Unknown rollback failure."} : preview_.LastError();
+            state_.SetTestPanelStatus(
+                "Rejected the local reticle mutation and failed to restore the preview: " + rollbackError);
+        }
+        else
+        {
+            state_.SetTestPanelStatus("Rejected the local reticle mutation: " + mutationError);
+        }
+        return false;
+    }
+
+    state_.SetTestPanelStatus(successMessage);
+    return true;
+}
+
+void RuntimeDebugOverlay::DrawManualTestPanel(const SceneRegistry& liveScene, const SceneRegistry& displayScene)
+{
+    ImGui::BeginChild("DebugTestPanel", ImVec2(0.0f, 0.0f), true);
+    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Manual test panel");
+    ImGui::TextDisabled("Use these actions to validate the runtime debug feature without an external client.");
+
+    if (ImGui::Button("Resync preview from live UDP state"))
+    {
+        if (RefreshPreviewFromLive(liveScene))
+        {
+            state_.SetTestPanelStatus("Preview scene synchronized from the live UDP state.");
+        }
+        else
+        {
+            state_.SetTestPanelStatus(preview_.LastError());
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Release all bypasses"))
+    {
+        state_.ReleaseAllStrobeBypasses();
+        state_.ReleaseAllReticleBypasses();
+        state_.DisablePageBypass();
+        if (RefreshPreviewFromLive(liveScene))
+        {
+            state_.SetTestPanelStatus("Released every local bypass and restored the live UDP scene.");
+        }
+        else
+        {
+            state_.SetTestPanelStatus(preview_.LastError());
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Select first reticle on active page"))
+    {
+        std::string status;
+        const bool selected = SelectFirstReticleOnActivePage(displayScene, &status);
+        if (!selected && status.empty())
+        {
+            status = "No selectable reticle is available on the active page.";
+        }
+        state_.SetTestPanelStatus(status);
+    }
+
+    if (ImGui::Button("Toggle selected reticle visibility"))
+    {
+        const ReticleGroup* reticle = FindSelectedReticle(displayScene);
+        if (reticle == nullptr)
+        {
+            state_.SetTestPanelStatus("Select one reticle before toggling its visibility.");
+        }
+        else
+        {
+            MutateSelectedReticleWithRollback(
+                liveScene,
+                displayScene,
+                [](ReticleGroup& draft)
+                {
+                    draft.visible = !draft.visible;
+                },
+                "Toggled the selected reticle visibility.");
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Nudge selected reticle +X"))
+    {
+        const ReticleGroup* reticle = FindSelectedReticle(displayScene);
+        if (reticle == nullptr)
+        {
+            state_.SetTestPanelStatus("Select one reticle before nudging it.");
+        }
+        else
+        {
+            MutateSelectedReticleWithRollback(
+                liveScene,
+                displayScene,
+                [](ReticleGroup& draft)
+                {
+                    draft.transform.position.x += kReticleNudgeStep;
+                },
+                "Moved the selected reticle by +0.05 on the X axis.");
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Force preview to active live page"))
+    {
+        state_.EnablePageBypass(liveScene.ActivePageName());
+        if (RefreshPreviewFromLive(liveScene))
+        {
+            state_.SetTestPanelStatus("Forced the preview to the current live active page.");
+        }
+        else
+        {
+            state_.SetTestPanelStatus(preview_.LastError());
+        }
+    }
+
+    if (!state_.TestPanelStatus().empty())
+    {
+        ImGui::Spacing();
+        ImGui::TextWrapped("%s", state_.TestPanelStatus().c_str());
+    }
+    ImGui::EndChild();
+}
+
 int RuntimeDebugOverlay::PreferredPanelWidth() const noexcept
 {
     return kDebugPanelWidth;
@@ -564,125 +791,6 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     const SceneRegistry& displayScene = UsesPreviewScene() ? preview_.Scene() : liveScene;
     const auto pages = displayScene.Pages();
     RuntimeDebugInspectorFrameState sceneFrameState;
-
-    auto selectFirstReticle =
-        [&](std::string* statusOut) -> bool
-    {
-        const std::string activePage = displayScene.ActivePageName();
-        const PageDefinition* page = FindPage(displayScene.Document(), activePage);
-        if (page == nullptr)
-        {
-            if (statusOut != nullptr)
-            {
-                *statusOut = "No active page is available for the manual test panel.";
-            }
-            return false;
-        }
-
-        const auto reticleViews = displayScene.CollectPageReticleViews(page->name);
-        const auto reticlePointers = displayScene.CollectPageReticlePointers(page->name);
-        if (reticleViews.empty() || reticlePointers.empty())
-        {
-            if (statusOut != nullptr)
-            {
-                *statusOut = "The active page does not expose any reticle.";
-            }
-            return false;
-        }
-
-        const ReticleGroup* firstReticle = reticlePointers.front();
-        if (firstReticle == nullptr)
-        {
-            if (statusOut != nullptr)
-            {
-                *statusOut = "The first reticle entry is invalid.";
-            }
-            return false;
-        }
-
-        state_.SelectReticle(ReticleKey {page->name, firstReticle->id, ClassifyReticle(*page, firstReticle->id)});
-        if (statusOut != nullptr)
-        {
-            *statusOut = "Selected reticle '" + firstReticle->id + "' on page '" + page->name + "'.";
-        }
-        return true;
-    };
-
-    auto findSelectedReticle =
-        [&]() -> const ReticleGroup*
-    {
-        if (!state_.SelectedReticle().has_value())
-        {
-            return nullptr;
-        }
-
-        if (const ReticleBypassState* bypass = state_.FindReticleBypass(*state_.SelectedReticle()); bypass != nullptr)
-        {
-            return &bypass->draft;
-        }
-
-        return FindReticle(displayScene, *state_.SelectedReticle());
-    };
-
-    auto mutateSelectedReticle =
-        [&](auto&& mutation, const char* const successMessage) -> bool
-    {
-        if (!state_.SelectedReticle().has_value())
-        {
-            state_.SetTestPanelStatus("Select one reticle before using this action.");
-            return false;
-        }
-
-        const ReticleKey key = *state_.SelectedReticle();
-        const ReticleGroup* currentReticle = findSelectedReticle();
-        if (currentReticle == nullptr)
-        {
-            state_.SetTestPanelStatus("The selected reticle is no longer available in the preview.");
-            return false;
-        }
-
-        const ReticleBypassState* previousBypass = state_.FindReticleBypass(key);
-        std::optional<ReticleBypassState> rollbackSnapshot;
-        if (previousBypass != nullptr)
-        {
-            rollbackSnapshot = *previousBypass;
-        }
-
-        ReticleBypassState& bypass = state_.EnsureReticleBypass(key, *currentReticle);
-        mutation(bypass.draft);
-        if (!RefreshPreviewFromLive(liveScene))
-        {
-            const std::string mutationError =
-                preview_.LastError().empty() ? std::string {"Unknown preview rebuild failure."} : preview_.LastError();
-
-            if (rollbackSnapshot.has_value())
-            {
-                if (ReticleBypassState* restore = state_.FindReticleBypass(key); restore != nullptr)
-                {
-                    *restore = *rollbackSnapshot;
-                }
-            }
-            else
-            {
-                state_.ReleaseReticleBypass(key);
-            }
-
-            if (!RefreshPreviewFromLive(liveScene))
-            {
-                const std::string rollbackError =
-                    preview_.LastError().empty() ? std::string {"Unknown rollback failure."} : preview_.LastError();
-                state_.SetTestPanelStatus(
-                    "Rejected the local reticle mutation and failed to restore the preview: " + rollbackError);
-                return false;
-            }
-
-            state_.SetTestPanelStatus("Rejected the local reticle mutation: " + mutationError);
-            return false;
-        }
-
-        state_.SetTestPanelStatus(successMessage);
-        return true;
-    };
 
     rlImGuiBegin();
 
@@ -1101,7 +1209,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         {
             const ReticleKey selectedKey = *state_.SelectedReticle();
             const PageDefinition* page = FindPage(displayScene.Document(), selectedKey.pageName);
-            const ReticleGroup* inspectedReticle = findSelectedReticle();
+            const ReticleGroup* inspectedReticle = FindSelectedReticle(displayScene);
             if (page == nullptr || inspectedReticle == nullptr)
             {
                 ImGui::TextColored(ImVec4(1.00f, 0.45f, 0.45f, 1.00f), "The selected reticle is no longer available.");
@@ -1150,8 +1258,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     bool visible = inspectedReticle->visible;
                     if (ImGui::Checkbox("Visible", &visible))
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
+                        MutateSelectedReticleWithRollback(
+                            liveScene,
+                            displayScene,
+                            [visible](ReticleGroup& draft)
                             {
                                 draft.visible = visible;
                             },
@@ -1168,8 +1278,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     ImGui::BeginDisabled(!canEnableBlink);
                     if (ImGui::Checkbox("Blink enabled", &blinkEnabled))
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
+                        MutateSelectedReticleWithRollback(
+                            liveScene,
+                            displayScene,
+                            [blinkEnabled](ReticleGroup& draft)
                             {
                                 draft.blink.enabled = blinkEnabled;
                             },
@@ -1192,8 +1304,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         const bool noTypeSelected = blinkTypeName.empty();
                         if (defaultBlink != nullptr && ImGui::Selectable("<page default>", noTypeSelected))
                         {
-                            mutateSelectedReticle(
-                                [&](ReticleGroup& draft)
+                            MutateSelectedReticleWithRollback(
+                                liveScene,
+                                displayScene,
+                                [](ReticleGroup& draft)
                                 {
                                     draft.blink.typeName.clear();
                                     draft.blink.normalizedTypeName.clear();
@@ -1217,8 +1331,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                             const bool selected = blinkTypeName == blinkType.name;
                             if (ImGui::Selectable(blinkType.name.c_str(), selected))
                             {
-                                mutateSelectedReticle(
-                                    [&](ReticleGroup& draft)
+                                MutateSelectedReticleWithRollback(
+                                    liveScene,
+                                    displayScene,
+                                    [&blinkType](ReticleGroup& draft)
                                     {
                                         draft.blink.enabled = true;
                                         draft.blink.typeName = blinkType.name;
@@ -1255,8 +1371,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         inspectedReticle->transform.position.y};
                     if (ImGui::DragFloat2("Position", position.data(), 0.005f, -1.5f, 1.5f, "%.4f"))
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
+                        MutateSelectedReticleWithRollback(
+                            liveScene,
+                            displayScene,
+                            [position](ReticleGroup& draft)
                             {
                                 draft.transform.position = Vec2 {position[0], position[1]};
                             },
@@ -1270,8 +1388,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     float rotation = inspectedReticle->transform.rotationDegrees;
                     if (ImGui::DragFloat("Rotation", &rotation, 0.25f, -360.0f, 360.0f, "%.3f"))
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
+                        MutateSelectedReticleWithRollback(
+                            liveScene,
+                            displayScene,
+                            [rotation](ReticleGroup& draft)
                             {
                                 draft.transform.rotationDegrees = rotation;
                             },
@@ -1286,8 +1406,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     ImVec4 color = ToImGuiColor(ResolveReticleColor(*inspectedReticle));
                     if (ImGui::Checkbox("Color override", &colorOverride))
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
+                        MutateSelectedReticleWithRollback(
+                            liveScene,
+                            displayScene,
+                            [colorOverride, color](ReticleGroup& draft)
                             {
                                 if (colorOverride)
                                 {
@@ -1303,8 +1425,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     }
                     if (inspectorFrameState.SnapshotValid() && colorOverride && ImGui::ColorEdit4("Color", &color.x))
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
+                        MutateSelectedReticleWithRollback(
+                            liveScene,
+                            displayScene,
+                            [color](ReticleGroup& draft)
                             {
                                 draft.overrides.color = FromImGuiColor(color);
                             },
@@ -1319,8 +1443,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     float thickness = ResolveReticleThickness(*inspectedReticle);
                     if (ImGui::Checkbox("Thickness override", &thicknessOverride))
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
+                        MutateSelectedReticleWithRollback(
+                            liveScene,
+                            displayScene,
+                            [thicknessOverride, thickness](ReticleGroup& draft)
                             {
                                 if (thicknessOverride)
                                 {
@@ -1339,8 +1465,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         thicknessOverride &&
                         ImGui::DragFloat("Thickness", &thickness, 0.0005f, 0.0001f, 0.05f, "%.4f"))
                     {
-                        mutateSelectedReticle(
-                            [&](ReticleGroup& draft)
+                        MutateSelectedReticleWithRollback(
+                            liveScene,
+                            displayScene,
+                            [thickness](ReticleGroup& draft)
                             {
                                 draft.overrides.thickness = thickness;
                             },
@@ -1365,10 +1493,12 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                                 "Text##" + primitive.id + "_" + std::to_string(primitiveIndex);
                             if (EditStringField(textLabel.c_str(), text))
                             {
-                                mutateSelectedReticle(
-                                    [&](ReticleGroup& draft)
+                                MutateSelectedReticleWithRollback(
+                                    liveScene,
+                                    displayScene,
+                                    [primitiveId = primitive.id, text](ReticleGroup& draft)
                                     {
-                                        if (Primitive* editable = FindPrimitive(draft, primitive.id); editable != nullptr)
+                                        if (Primitive* editable = FindPrimitive(draft, primitiveId); editable != nullptr)
                                         {
                                             if (TextGeometry* editableText = std::get_if<TextGeometry>(&editable->geometry);
                                                 editableText != nullptr)
@@ -1387,10 +1517,12 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                                 "Letter spacing##" + primitive.id + "_" + std::to_string(primitiveIndex);
                             if (ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, 0.0f, 0.2f, "%.4f"))
                             {
-                                mutateSelectedReticle(
-                                    [&](ReticleGroup& draft)
+                                MutateSelectedReticleWithRollback(
+                                    liveScene,
+                                    displayScene,
+                                    [primitiveId = primitive.id, letterSpacing](ReticleGroup& draft)
                                     {
-                                        if (Primitive* editable = FindPrimitive(draft, primitive.id); editable != nullptr)
+                                        if (Primitive* editable = FindPrimitive(draft, primitiveId); editable != nullptr)
                                         {
                                             if (TextGeometry* editableText = std::get_if<TextGeometry>(&editable->geometry);
                                                 editableText != nullptr)
@@ -1431,105 +1563,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     }
     ImGui::EndChild();
 
-    ImGui::BeginChild("DebugTestPanel", ImVec2(0.0f, 0.0f), true);
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Manual test panel");
-    ImGui::TextDisabled("Use these actions to validate the runtime debug feature without an external client.");
-
-    if (ImGui::Button("Resync preview from live UDP state"))
-    {
-        if (RefreshPreviewFromLive(liveScene))
-        {
-            state_.SetTestPanelStatus("Preview scene synchronized from the live UDP state.");
-        }
-        else
-        {
-            state_.SetTestPanelStatus(preview_.LastError());
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Release all bypasses"))
-    {
-        state_.ReleaseAllStrobeBypasses();
-        state_.ReleaseAllReticleBypasses();
-        state_.DisablePageBypass();
-        if (RefreshPreviewFromLive(liveScene))
-        {
-            state_.SetTestPanelStatus("Released every local bypass and restored the live UDP scene.");
-        }
-        else
-        {
-            state_.SetTestPanelStatus(preview_.LastError());
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Select first reticle on active page"))
-    {
-        std::string status;
-        if (!selectFirstReticle(&status))
-        {
-            state_.SetTestPanelStatus(status);
-        }
-        else
-        {
-            state_.SetTestPanelStatus(status);
-        }
-    }
-
-    if (ImGui::Button("Toggle selected reticle visibility"))
-    {
-        const ReticleGroup* reticle = findSelectedReticle();
-        if (reticle == nullptr)
-        {
-            state_.SetTestPanelStatus("Select one reticle before toggling its visibility.");
-        }
-        else
-        {
-            mutateSelectedReticle(
-                [&](ReticleGroup& draft)
-                {
-                    draft.visible = !draft.visible;
-                },
-                "Toggled the selected reticle visibility.");
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Nudge selected reticle +X"))
-    {
-        const ReticleGroup* reticle = findSelectedReticle();
-        if (reticle == nullptr)
-        {
-            state_.SetTestPanelStatus("Select one reticle before nudging it.");
-        }
-        else
-        {
-            mutateSelectedReticle(
-                [&](ReticleGroup& draft)
-                {
-                    draft.transform.position.x += 0.05f;
-                },
-                "Moved the selected reticle by +0.05 on the X axis.");
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Force preview to active live page"))
-    {
-        state_.EnablePageBypass(liveScene.ActivePageName());
-        if (RefreshPreviewFromLive(liveScene))
-        {
-            state_.SetTestPanelStatus("Forced the preview to the current live active page.");
-        }
-        else
-        {
-            state_.SetTestPanelStatus(preview_.LastError());
-        }
-    }
-
-    if (!state_.TestPanelStatus().empty())
-    {
-        ImGui::Spacing();
-        ImGui::TextWrapped("%s", state_.TestPanelStatus().c_str());
-    }
-    ImGui::EndChild();
+    DrawManualTestPanel(liveScene, displayScene);
 
     ImGui::End();
     rlImGuiEnd();
@@ -1540,9 +1574,8 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     }
 }
 
-bool RuntimeDebugOverlay::Activate(const SceneRegistry& liveScene)
+bool RuntimeDebugOverlay::Activate()
 {
-    (void)liveScene;
     state_.Activate();
     state_.ResetInteractiveState();
     preview_.Invalidate();

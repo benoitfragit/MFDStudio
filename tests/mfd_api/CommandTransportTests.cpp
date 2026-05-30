@@ -373,8 +373,9 @@ TEST(CommandTransportTests, UdpChannelDropsDatagramsThatExceedReceiveBuffer)
         std::chrono::milliseconds(300),
         [&receiver]()
         {
-            static_cast<void>(receiver->TryReceive());
-            return receiver->LastError() == "UDP datagram exceeded receive buffer and was dropped";
+            const auto received = receiver->TryReceive();
+            return !received.has_value() &&
+                   receiver->LastError() == "UDP datagram exceeded receive buffer and was dropped";
         }));
 
     EXPECT_FALSE(receiver->TryReceive().has_value());

@@ -267,7 +267,9 @@ TEST(WindowLauncherTests, FramebufferCallbackReceivesDimensionsAndByteSpan)
     std::size_t receivedByteCount = 0;
 
     mfd::window::LauncherFramebufferCallback callback =
-        [&](const int width, const int height, const mfd::ByteView rgba32Bytes)
+        [&receivedWidth, &receivedHeight, &receivedByteCount](const int width,
+                                                              const int height,
+                                                              const mfd::ByteView rgba32Bytes)
     {
         receivedWidth = width;
         receivedHeight = height;

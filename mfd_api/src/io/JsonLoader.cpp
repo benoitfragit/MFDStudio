@@ -240,7 +240,7 @@ void ValidatePrimitiveForRuntime(const Primitive& primitive)
     ValidatePrimitiveStyle(primitive.style);
 
     std::visit(
-        [&](const auto& geometry)
+        [](const auto& geometry)
         {
             using Geometry = std::decay_t<decltype(geometry)>;
 

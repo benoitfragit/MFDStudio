@@ -839,6 +839,12 @@ struct DynamicBindingDraftState
     std::string layerId;
 };
 
+struct StrobeDraftState
+{
+    std::string name;
+    std::string templateId;
+};
+
 void IncludeLogicalPoint(LogicalBounds& bounds, const mfd::Vec2 point)
 {
     if (!bounds.valid)
@@ -883,7 +889,7 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
     LogicalBounds bounds;
     editor::detail::ForEachPrimitiveBoundsLocalPoint(
         primitive,
-        [&](const mfd::Vec2 localPoint)
+        [&bounds, &primitive](const mfd::Vec2 localPoint)
         {
             IncludeLogicalPoint(bounds, mfd::ApplyTransform(localPoint, primitive.transform));
         });
@@ -921,18 +927,14 @@ mfd::Vec2 ReticleVisualCenterLocal(const mfd::ReticleGroup& reticle)
 LogicalBounds ComputeReticleWorldBounds(const mfd::ReticleGroup& reticle)
 {
     LogicalBounds worldBounds;
-    auto includeWorldPoint = [&](const mfd::Primitive& primitive, const mfd::Vec2 localPoint)
-    {
-        IncludeLogicalPoint(worldBounds, TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
-    };
 
     for (const auto& primitive : reticle.primitives)
     {
         editor::detail::ForEachPrimitiveBoundsLocalPoint(
             primitive,
-            [&](const mfd::Vec2 localPoint)
+            [&worldBounds, &reticle, &primitive](const mfd::Vec2 localPoint)
             {
-                includeWorldPoint(primitive, localPoint);
+                IncludeLogicalPoint(worldBounds, TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
             });
     }
 
@@ -3213,13 +3215,12 @@ void EditorApplication::DrawWindowInspector()
     if (loaded_.window.commandTransports.udp.has_value())
     {
         auto& commandUdp = *loaded_.window.commandTransports.udp;
-        const bool enabledChanged = ImGui::Checkbox("Enable command UDP", &commandUdp.enabled);
+        ImGui::Checkbox("Enable command UDP", &commandUdp.enabled);
         ShowItemTooltip("Enable or disable the runtime UDP command listener.");
         if (ImGui::IsItemActivated())
         {
             PushUndoSnapshot();
         }
-        static_cast<void>(enabledChanged);
 
         std::array<char, 64> commandAddress {};
         CopyTextBuffer(commandAddress, commandUdp.address);
@@ -3283,13 +3284,12 @@ void EditorApplication::DrawWindowInspector()
     if (loaded_.window.feedbackTransports.udp.has_value())
     {
         auto& feedbackUdp = *loaded_.window.feedbackTransports.udp;
-        const bool enabledChanged = ImGui::Checkbox("Enable feedback UDP", &feedbackUdp.enabled);
+        ImGui::Checkbox("Enable feedback UDP", &feedbackUdp.enabled);
         ShowItemTooltip("Enable or disable the runtime UDP feedback stream.");
         if (ImGui::IsItemActivated())
         {
             PushUndoSnapshot();
         }
-        static_cast<void>(enabledChanged);
 
         std::array<char, 64> feedbackAddress {};
         CopyTextBuffer(feedbackAddress, feedbackUdp.address);
@@ -3795,26 +3795,13 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
     }
 
     LogicalBounds bounds;
-    auto includeReticleBounds = [&](const mfd::ReticleGroup& reticle)
-    {
-        IncludeLogicalBounds(bounds, ComputeReticleWorldBounds(reticle));
-    };
-
-    auto isEntryMatch = [&](const mfd::ReticleGroup& reticle) -> bool
-    {
-        if (entry.fullView)
-        {
-            return IsReticleVisibleInEditor(page, reticle);
-        }
-
-        return reticle.layerId == entry.layerId;
-    };
 
     for (const mfd::ReticleGroup& reticle : page.staticReticles)
     {
-        if (isEntryMatch(reticle))
+        const bool matchesEntry = entry.fullView ? IsReticleVisibleInEditor(page, reticle) : reticle.layerId == entry.layerId;
+        if (matchesEntry)
         {
-            includeReticleBounds(reticle);
+            IncludeLogicalBounds(bounds, ComputeReticleWorldBounds(reticle));
         }
     }
 
@@ -3840,7 +3827,8 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
 
         for (const mfd::ReticleGroup& reticle : page.staticReticles)
         {
-            if (!isEntryMatch(reticle))
+            const bool matchesEntry = entry.fullView ? IsReticleVisibleInEditor(page, reticle) : reticle.layerId == entry.layerId;
+            if (!matchesEntry)
             {
                 continue;
             }
@@ -4175,7 +4163,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             &previewBezierCache_,
             &previewImageCache_,
             &previewTextLayoutCache_);
-        const auto drawReticlePass = [&](const bool drawOnTop)
+        for (const bool drawOnTop : {false, true})
         {
             for (const auto& reticle : page->staticReticles)
             {
@@ -4193,9 +4181,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
                     canvas.DrawReticle(reticle);
                 }
             }
-        };
-        drawReticlePass(false);
-        drawReticlePass(true);
+        }
 
         for (const auto& strobe : page->strobes)
         {
@@ -4559,12 +4545,12 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
                                       selection_.primitiveIndex >= 0 &&
                                       selection_.primitiveIndex < static_cast<int>(reticle->primitives.size());
 
-    auto toScreenPoint = [&](const mfd::Primitive& primitive, const mfd::Vec2 localPoint)
+    auto toScreenPoint = [&viewport, reticle](const mfd::Primitive& primitive, const mfd::Vec2 localPoint)
     {
         return viewport.ToScreen(TransformPrimitiveWorldPoint(*reticle, primitive, localPoint));
     };
 
-    auto drawHandle = [&](const ImVec2 point, const ImU32 color, const float radius = 6.0f)
+    auto drawHandle = [drawList](const ImVec2 point, const ImU32 color, const float radius = 6.0f)
     {
         drawList->AddCircleFilled(point, radius, color, 16);
         drawList->AddCircle(point, radius, IM_COL32(10, 18, 24, 255), 16, 1.5f);
@@ -5360,7 +5346,7 @@ std::string EditorApplication::ActiveInsertionLayerId(const mfd::PageDefinition&
 
 void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page)
 {
-    const auto drawSingleSelectionHandles = [&](const mfd::ReticleGroup& reticle, const ReticleScreenBounds& bounds)
+    const auto drawSingleSelectionHandles = [&viewport](const mfd::ReticleGroup& reticle, const ReticleScreenBounds& bounds)
     {
         const mfd::Vec2 visualCenterLogical = mfd::ApplyTransform(ReticleVisualCenterLocal(reticle), reticle.transform);
         const ImVec2 center = viewport.ToScreen(visualCenterLogical);
@@ -5384,7 +5370,7 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
                           IM_COL32(110, 180, 250, 255),
                           2.0f);
 
-        const auto drawCorner = [&](const ImVec2 corner)
+        const auto drawCorner = [drawList](const ImVec2 corner)
         {
             drawList->AddRectFilled(ImVec2(corner.x - 5.5f, corner.y - 5.5f),
                                     ImVec2(corner.x + 5.5f, corner.y + 5.5f),
@@ -5777,7 +5763,9 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                     (selectedBounds.min.x + selectedBounds.max.x) * 0.5f,
                     selectedBounds.min.y - 26.0f);
 
-                const auto initializeInteraction = [&](const InteractionMode mode, const ImVec2 cornerScreen)
+                const auto initializeInteraction =
+                    [this, &viewport, mouse, selectedTransform, selectedPreviewReticle](const InteractionMode mode,
+                                                                                        const ImVec2 cornerScreen)
                 {
                     interactionReticleIndex_ =
                         selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex : -1;
@@ -6506,7 +6494,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     SelectLibraryPrimitive(reticle->id, *bestPrimitiveIndex);
     mfd::Primitive& primitive = reticle->primitives[static_cast<std::size_t>(*bestPrimitiveIndex)];
 
-    auto toScreenPoint = [&](const mfd::Vec2 localPoint)
+    auto toScreenPoint = [&viewport, reticle, &primitive](const mfd::Vec2 localPoint)
     {
         return viewport.ToScreen(TransformPrimitiveWorldPoint(*reticle, primitive, localPoint));
     };
@@ -6520,7 +6508,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     interactionHandleKind_ = PrimitiveHandleKind::None;
     interactionHandleIndex_ = -1;
 
-    auto matchesHandle = [&](const ImVec2 handlePoint, const float radius = 12.0f)
+    auto matchesHandle = [mouse](const ImVec2 handlePoint, const float radius = 12.0f)
     {
         return Distance(handlePoint, mouse) <= radius;
     };
@@ -7447,7 +7435,7 @@ EditorApplication::ReticleScreenBounds EditorApplication::ComputePrimitiveScreen
     ReticleScreenBounds bounds;
     editor::detail::ForEachPrimitiveBoundsLocalPoint(
         primitive,
-        [&](const mfd::Vec2 localPoint)
+        [&bounds, &viewport, &reticle, &primitive](const mfd::Vec2 localPoint)
         {
             const ImVec2 screenPoint = viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
             if (!bounds.valid)
@@ -7517,14 +7505,14 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
         return std::numeric_limits<float>::max();
     }
 
-    const auto distanceToPoint = [&](const ImVec2 point)
+    const auto distanceToPoint = [mousePosition](const ImVec2 point)
     {
         const float dx = point.x - mousePosition.x;
         const float dy = point.y - mousePosition.y;
         return std::sqrt(dx * dx + dy * dy);
     };
 
-    auto distanceToSegment = [&](const ImVec2 a, const ImVec2 b)
+    auto distanceToSegment = [mousePosition](const ImVec2 a, const ImVec2 b)
     {
         const float abx = b.x - a.x;
         const float aby = b.y - a.y;
@@ -7533,17 +7521,21 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
         const float lengthSquared = abx * abx + aby * aby;
         if (lengthSquared <= 0.0001f)
         {
-            return distanceToPoint(a);
+            const float dx = a.x - mousePosition.x;
+            const float dy = a.y - mousePosition.y;
+            return std::sqrt(dx * dx + dy * dy);
         }
 
         const float factor = std::clamp((apx * abx + apy * aby) / lengthSquared, 0.0f, 1.0f);
         const ImVec2 projection(a.x + abx * factor, a.y + aby * factor);
-        return distanceToPoint(projection);
+        const float dx = projection.x - mousePosition.x;
+        const float dy = projection.y - mousePosition.y;
+        return std::sqrt(dx * dx + dy * dy);
     };
 
     float bestDistance = distanceToPoint(bounds.center);
 
-    auto toScreenPoint = [&](const mfd::Vec2 localPoint)
+    auto toScreenPoint = [&viewport, &reticle, &primitive](const mfd::Vec2 localPoint)
     {
         return viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
     };
@@ -9465,12 +9457,6 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     constexpr std::string_view kTutorialAlternativeStrobeNameTargetId = "page_strobe_alternative_name";
     constexpr std::string_view kTutorialAlternativeStrobeTemplateTargetId = "page_strobe_alternative";
     constexpr std::string_view kTutorialAlternativeStrobeAddTargetId = "page_strobe_alternative_add";
-    struct StrobeDraftState
-    {
-        std::string name;
-        std::string templateId;
-    };
-
     static std::unordered_map<std::string, StrobeDraftState> s_strobeDrafts;
 
     const bool isDefaultStrobeTutorialStep = tutorial_->IsStep(static_cast<int>(TutorialStepId::AddPage1DefaultStrobe));
@@ -10276,6 +10262,36 @@ void EditorApplication::DrawPageBlinkInspector(mfd::PageDefinition& page)
     }
 }
 
+void EditorApplication::MoveSelectedPageReticleToIndex(mfd::PageDefinition& page,
+                                                       mfd::ReticleGroup& reticle,
+                                                       const int targetIndex,
+                                                       const char* const action)
+{
+    const int reticleIndex = selection_.pageReticleIndex;
+    if (reticleIndex < 0 ||
+        reticleIndex >= static_cast<int>(page.staticReticles.size()) ||
+        targetIndex < 0 ||
+        targetIndex >= static_cast<int>(page.staticReticles.size()) ||
+        targetIndex == reticleIndex)
+    {
+        return;
+    }
+
+    PushUndoSnapshot();
+    const std::string movedReticleId = reticle.id;
+
+    auto movedReticle =
+        std::move(page.staticReticles[static_cast<std::size_t>(reticleIndex)]);
+    page.staticReticles.erase(page.staticReticles.begin() + reticleIndex);
+
+    const int insertionIndex =
+        std::clamp(targetIndex, 0, static_cast<int>(page.staticReticles.size()));
+
+    page.staticReticles.insert(page.staticReticles.begin() + insertionIndex, std::move(movedReticle));
+    SelectPageReticle(selection_.pageIndex, insertionIndex);
+    RebuildStatus("Reticle '" + movedReticleId + "' moved " + action + " on page '" + page.name + "'.", false);
+}
+
 void EditorApplication::DrawPageReticleInspector()
 {
     mfd::PageDefinition* page = ActivePage();
@@ -10368,31 +10384,6 @@ void EditorApplication::DrawPageReticleInspector()
 
     const int reticleIndex = selection_.pageReticleIndex;
     const int lastReticleIndex = static_cast<int>(page->staticReticles.size()) - 1;
-    auto moveSelectedReticleTo = [&](int targetIndex, const char* action)
-    {
-        if (reticleIndex < 0 ||
-            reticleIndex >= static_cast<int>(page->staticReticles.size()) ||
-            targetIndex < 0 ||
-            targetIndex >= static_cast<int>(page->staticReticles.size()) ||
-            targetIndex == reticleIndex)
-        {
-            return;
-        }
-
-        PushUndoSnapshot();
-        const std::string movedReticleId = reticle->id;
-
-        auto movedReticle =
-            std::move(page->staticReticles[static_cast<std::size_t>(reticleIndex)]);
-        page->staticReticles.erase(page->staticReticles.begin() + reticleIndex);
-
-        const int insertionIndex =
-            std::clamp(targetIndex, 0, static_cast<int>(page->staticReticles.size()));
-
-        page->staticReticles.insert(page->staticReticles.begin() + insertionIndex, std::move(movedReticle));
-        SelectPageReticle(selection_.pageIndex, insertionIndex);
-        RebuildStatus("Reticle '" + movedReticleId + "' moved " + action + " on page '" + page->name + "'.", false);
-    };
 
     if (ImGui::Button("Delete from page"))
     {
@@ -10503,7 +10494,7 @@ void EditorApplication::DrawPageReticleInspector()
     ImGui::BeginDisabled(!canMoveBackward);
     if (ImGui::Button("Send to back", ImVec2(130.0f, 0.0f)))
     {
-        moveSelectedReticleTo(0, "to the back");
+        MoveSelectedPageReticleToIndex(*page, *reticle, 0, "to the back");
         ImGui::EndDisabled();
         return;
     }
@@ -10514,7 +10505,7 @@ void EditorApplication::DrawPageReticleInspector()
     ImGui::BeginDisabled(!canMoveBackward);
     if (ImGui::Button("Step back", ImVec2(110.0f, 0.0f)))
     {
-        moveSelectedReticleTo(reticleIndex - 1, "backward");
+        MoveSelectedPageReticleToIndex(*page, *reticle, reticleIndex - 1, "backward");
         ImGui::EndDisabled();
         return;
     }
@@ -10525,7 +10516,7 @@ void EditorApplication::DrawPageReticleInspector()
     ImGui::BeginDisabled(!canMoveForward);
     if (ImGui::Button("Step forward", ImVec2(130.0f, 0.0f)))
     {
-        moveSelectedReticleTo(reticleIndex + 1, "forward");
+        MoveSelectedPageReticleToIndex(*page, *reticle, reticleIndex + 1, "forward");
         ImGui::EndDisabled();
         return;
     }
@@ -10536,7 +10527,7 @@ void EditorApplication::DrawPageReticleInspector()
     ImGui::BeginDisabled(!canMoveForward);
     if (ImGui::Button("Bring to front", ImVec2(130.0f, 0.0f)))
     {
-        moveSelectedReticleTo(lastReticleIndex, "to the front");
+        MoveSelectedPageReticleToIndex(*page, *reticle, lastReticleIndex, "to the front");
         ImGui::EndDisabled();
         return;
     }
@@ -10794,6 +10785,11 @@ void EditorApplication::DrawPageReticleInspector()
 
 }
 
+mfd::Vec2 EditorApplication::PageTitleVisualCenterLocal(const mfd::PageDefinition& page) const
+{
+    return ReticleVisualCenterLocal(BuildPageTitlePreviewReticle(page));
+}
+
 void EditorApplication::DrawSelectedPageTitleInspector()
 {
     mfd::PageDefinition* page = ActivePage();
@@ -10805,11 +10801,6 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     }
 
     const std::string displayedTitle = mfd::ResolvePageDisplayTitleText(page->name, page->title);
-    const auto currentVisualCenterLocal = [&]() -> mfd::Vec2
-    {
-        return ReticleVisualCenterLocal(BuildPageTitlePreviewReticle(*page));
-    };
-
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page title");
     ImGui::Text("Page: %s", page->name.c_str());
     ImGui::TextWrapped("Displayed text: %s", displayedTitle.c_str());
@@ -10964,7 +10955,7 @@ void EditorApplication::DrawSelectedPageTitleInspector()
         }
         titleDisplay->transform = BuildTransformKeepingLocalPointWorldPosition(
             rotationStartTransform,
-            currentVisualCenterLocal(),
+            PageTitleVisualCenterLocal(*page),
             titleDisplay->transform.rotationDegrees,
             rotationStartTransform.scale);
     }
@@ -10981,11 +10972,40 @@ void EditorApplication::DrawSelectedPageTitleInspector()
         titleDisplay->transform.scale.y = std::max(0.05f, std::abs(titleDisplay->transform.scale.y));
         titleDisplay->transform = BuildTransformKeepingLocalPointWorldPosition(
             scaleStartTransform,
-            currentVisualCenterLocal(),
+            PageTitleVisualCenterLocal(*page),
             scaleStartTransform.rotationDegrees,
             titleDisplay->transform.scale);
     }
     ShowItemTooltip("Per-axis scale applied to the generated title chrome.");
+}
+
+void EditorApplication::ApplySelectedPageStrobeClipping(mfd::ReticleGroup& reticle,
+                                                        const mfd::ReticleClipMode mode,
+                                                        std::string primitiveId)
+{
+    if (primitiveId.empty())
+    {
+        primitiveId = reticle.clipping.primitiveId;
+    }
+
+    if (reticle.clipping.mode == mode && reticle.clipping.primitiveId == primitiveId)
+    {
+        return;
+    }
+
+    PushUndoSnapshot();
+    reticle.clipping.mode = mode;
+    reticle.clipping.primitiveId = std::move(primitiveId);
+    if (mode == mfd::ReticleClipMode::None)
+    {
+        RebuildStatus("Clipping disabled for page strobe '" + reticle.id + "'.", false);
+    }
+    else
+    {
+        RebuildStatus(std::string(ReticleClipModeLabel(mode)) + " enabled on primitive '" +
+                          reticle.clipping.primitiveId + "' for page strobe '" + reticle.id + "'.",
+                      false);
+    }
 }
 
 void EditorApplication::DrawSelectedPageStrobeInspector()
@@ -11044,32 +11064,6 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Clipping");
     const std::vector<ClipPrimitiveOption> clipOptions = CollectClipPrimitiveOptions(*reticle);
-    auto applyStrobeClipping = [&](const mfd::ReticleClipMode mode, std::string primitiveId)
-    {
-        if (primitiveId.empty())
-        {
-            primitiveId = reticle->clipping.primitiveId;
-        }
-
-        if (reticle->clipping.mode == mode && reticle->clipping.primitiveId == primitiveId)
-        {
-            return;
-        }
-
-        PushUndoSnapshot();
-        reticle->clipping.mode = mode;
-        reticle->clipping.primitiveId = std::move(primitiveId);
-        if (mode == mfd::ReticleClipMode::None)
-        {
-            RebuildStatus("Clipping disabled for page strobe '" + reticle->id + "'.", false);
-        }
-        else
-        {
-            RebuildStatus(std::string(ReticleClipModeLabel(mode)) + " enabled on primitive '" +
-                              reticle->clipping.primitiveId + "' for page strobe '" + reticle->id + "'.",
-                          false);
-        }
-    };
 
     if (clipOptions.empty())
     {
@@ -11097,7 +11091,7 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
                 const bool selected = option.primitiveId == reticle->clipping.primitiveId;
                 if (ImGui::Selectable(option.label.c_str(), selected))
                 {
-                    applyStrobeClipping(reticle->clipping.mode, option.primitiveId);
+                    ApplySelectedPageStrobeClipping(*reticle, reticle->clipping.mode, option.primitiveId);
                 }
                 if (selected)
                 {
@@ -11124,7 +11118,7 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
                 {
                     const std::string primitiveId =
                         reticle->clipping.primitiveId.empty() ? clipOptions.front().primitiveId : reticle->clipping.primitiveId;
-                    applyStrobeClipping(mode, primitiveId);
+                    ApplySelectedPageStrobeClipping(*reticle, mode, primitiveId);
                 }
                 if (selected)
                 {
@@ -11701,6 +11695,17 @@ void EditorApplication::DrawLibraryReticleInspector()
 
 }
 
+void EditorApplication::EditPointArrayField(const char* const label, mfd::Vec2& value)
+{
+    if (ImGui::DragFloat2(label, &value.x, 0.01f, -1.0f, 1.0f, "%.3f"))
+    {
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+    }
+}
+
 void EditorApplication::DrawLibraryPrimitiveInspector()
 {
     mfd::ReticleGroup* reticle = SelectedLibraryReticle();
@@ -11967,17 +11972,6 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
                             : "Toggle filled rendering for primitives that support it.");
     }
 
-    auto editPointArray = [&](const char* label, mfd::Vec2* value)
-    {
-        if (ImGui::DragFloat2(label, &value->x, 0.01f, -1.0f, 1.0f, "%.3f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
-    };
-
     if (auto* text = std::get_if<mfd::TextGeometry>(&primitive->geometry))
     {
         std::array<char, 128> buffer {};
@@ -12055,8 +12049,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* line = std::get_if<mfd::LineGeometry>(&primitive->geometry))
     {
-        editPointArray("Start", &line->start);
-        editPointArray("End", &line->end);
+        EditPointArrayField("Start", line->start);
+        EditPointArrayField("End", line->end);
         return;
     }
 
@@ -12170,9 +12164,9 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive->geometry))
     {
-        editPointArray("Point A", &triangle->points[0]);
-        editPointArray("Point B", &triangle->points[1]);
-        editPointArray("Point C", &triangle->points[2]);
+        EditPointArrayField("Point A", triangle->points[0]);
+        EditPointArrayField("Point B", triangle->points[1]);
+        EditPointArrayField("Point C", triangle->points[2]);
         return;
     }
 
@@ -12193,7 +12187,7 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         for (int index = 0; index < static_cast<int>(polyline->points.size()); ++index)
         {
             const std::string label = "Point " + std::to_string(index + 1);
-            editPointArray(label.c_str(), &polyline->points[static_cast<std::size_t>(index)]);
+            EditPointArrayField(label.c_str(), polyline->points[static_cast<std::size_t>(index)]);
         }
 
         if (ImGui::Button("Add point"))
@@ -12217,7 +12211,7 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         for (int index = 0; index < static_cast<int>(bezier->controlPoints.size()); ++index)
         {
             const std::string label = "Control " + std::to_string(index + 1);
-            editPointArray(label.c_str(), &bezier->controlPoints[static_cast<std::size_t>(index)]);
+            EditPointArrayField(label.c_str(), bezier->controlPoints[static_cast<std::size_t>(index)]);
         }
 
         if (ImGui::Button("Add control point"))

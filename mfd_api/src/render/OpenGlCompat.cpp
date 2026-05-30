@@ -93,30 +93,32 @@ void* LoadFirstGlProcAddress(const std::initializer_list<const char*> names) noe
     return nullptr;
 }
 
+GlApi LoadGlApi() noexcept
+{
+    GlApi loaded;
+    loaded.genRenderbuffers =
+        reinterpret_cast<GlGenRenderbuffersProc>(LoadFirstGlProcAddress({"glGenRenderbuffers",
+                                                                         "glGenRenderbuffersEXT"}));
+    loaded.bindRenderbuffer =
+        reinterpret_cast<GlBindRenderbufferProc>(LoadFirstGlProcAddress({"glBindRenderbuffer",
+                                                                         "glBindRenderbufferEXT"}));
+    loaded.renderbufferStorage =
+        reinterpret_cast<GlRenderbufferStorageProc>(LoadFirstGlProcAddress({"glRenderbufferStorage",
+                                                                            "glRenderbufferStorageEXT"}));
+    loaded.deleteRenderbuffers =
+        reinterpret_cast<GlDeleteRenderbuffersProc>(LoadFirstGlProcAddress({"glDeleteRenderbuffers",
+                                                                            "glDeleteRenderbuffersEXT"}));
+    loaded.stencilMask = reinterpret_cast<GlStencilMaskProc>(LoadGlProcAddress("glStencilMask"));
+    loaded.clearStencil = reinterpret_cast<GlClearStencilProc>(LoadGlProcAddress("glClearStencil"));
+    loaded.colorMask = reinterpret_cast<GlColorMaskProc>(LoadGlProcAddress("glColorMask"));
+    loaded.stencilFunc = reinterpret_cast<GlStencilFuncProc>(LoadGlProcAddress("glStencilFunc"));
+    loaded.stencilOp = reinterpret_cast<GlStencilOpProc>(LoadGlProcAddress("glStencilOp"));
+    return loaded;
+}
+
 const GlApi& GetGlApi() noexcept
 {
-    static const GlApi api = []()
-    {
-        GlApi loaded;
-        loaded.genRenderbuffers =
-            reinterpret_cast<GlGenRenderbuffersProc>(LoadFirstGlProcAddress({"glGenRenderbuffers",
-                                                                             "glGenRenderbuffersEXT"}));
-        loaded.bindRenderbuffer =
-            reinterpret_cast<GlBindRenderbufferProc>(LoadFirstGlProcAddress({"glBindRenderbuffer",
-                                                                             "glBindRenderbufferEXT"}));
-        loaded.renderbufferStorage =
-            reinterpret_cast<GlRenderbufferStorageProc>(LoadFirstGlProcAddress({"glRenderbufferStorage",
-                                                                                "glRenderbufferStorageEXT"}));
-        loaded.deleteRenderbuffers =
-            reinterpret_cast<GlDeleteRenderbuffersProc>(LoadFirstGlProcAddress({"glDeleteRenderbuffers",
-                                                                                "glDeleteRenderbuffersEXT"}));
-        loaded.stencilMask = reinterpret_cast<GlStencilMaskProc>(LoadGlProcAddress("glStencilMask"));
-        loaded.clearStencil = reinterpret_cast<GlClearStencilProc>(LoadGlProcAddress("glClearStencil"));
-        loaded.colorMask = reinterpret_cast<GlColorMaskProc>(LoadGlProcAddress("glColorMask"));
-        loaded.stencilFunc = reinterpret_cast<GlStencilFuncProc>(LoadGlProcAddress("glStencilFunc"));
-        loaded.stencilOp = reinterpret_cast<GlStencilOpProc>(LoadGlProcAddress("glStencilOp"));
-        return loaded;
-    }();
+    static const GlApi api = LoadGlApi();
 
     return api;
 }

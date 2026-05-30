@@ -33,6 +33,33 @@ std::string NormalizeStrobeName(const std::string_view value)
     return mfd::NormalizePageName(value);
 }
 
+bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs);
+
+bool PrimitivePatchMapsEqual(const std::unordered_map<std::string, mfd::PrimitivePatch>& lhs,
+                             const std::unordered_map<std::string, mfd::PrimitivePatch>& rhs)
+{
+    if (lhs.size() != rhs.size())
+    {
+        return false;
+    }
+
+    for (const auto& primitivePatchEntry : lhs)
+    {
+        const auto rightIt = rhs.find(primitivePatchEntry.first);
+        if (rightIt == rhs.end())
+        {
+            return false;
+        }
+
+        if (!Equal(primitivePatchEntry.second, rightIt->second))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool SameStrobeSelection(const mfd::TransportId lhsId,
                          const std::string_view lhsNameNormalized,
                          const mfd::TransportId rhsId,
@@ -168,29 +195,7 @@ bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
            lhs.texts == rhs.texts &&
            EqualOptional(lhs.letterSpacing, rhs.letterSpacing) &&
            lhs.letterSpacings == rhs.letterSpacings &&
-           [&lhs, &rhs]() -> bool
-           {
-               if (lhs.primitivePatches.size() != rhs.primitivePatches.size())
-               {
-                   return false;
-               }
-
-               for (const auto& [primitiveId, primitivePatch] : lhs.primitivePatches)
-               {
-                   const auto rightIt = rhs.primitivePatches.find(primitiveId);
-                   if (rightIt == rhs.primitivePatches.end())
-                   {
-                       return false;
-                   }
-
-                   if (!Equal(primitivePatch, rightIt->second))
-                   {
-                       return false;
-                   }
-               }
-
-               return true;
-           }();
+           PrimitivePatchMapsEqual(lhs.primitivePatches, rhs.primitivePatches);
 }
 
 bool Equal(const mfd::WindowDisplayPatch& lhs, const mfd::WindowDisplayPatch& rhs)
@@ -516,9 +521,9 @@ bool RuntimeFeedbackState::Apply(const mfd::ActivePageFeedback& feedback)
 
     if (changed)
     {
-        for (auto& [pageId, state] : pageCaptureById_)
+        for (auto& pageCaptureEntry : pageCaptureById_)
         {
-            static_cast<void>(pageId);
+            auto& state = pageCaptureEntry.second;
             if (state.lastStrobeSequence < feedback.sequence)
             {
                 state.captured = false;

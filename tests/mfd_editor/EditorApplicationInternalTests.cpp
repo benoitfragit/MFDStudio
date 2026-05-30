@@ -139,7 +139,7 @@ TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointEnumeratesI
     std::vector<mfd::Vec2> points;
     editor::detail::ForEachPrimitiveBoundsLocalPoint(
         primitive,
-        [&](const mfd::Vec2 point)
+        [&points](const mfd::Vec2 point)
         {
             points.push_back(point);
         });
@@ -169,7 +169,7 @@ TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointSkipsInvisi
     std::vector<mfd::Vec2> points;
     editor::detail::ForEachPrimitiveBoundsLocalPoint(
         primitive,
-        [&](const mfd::Vec2 point)
+        [&points](const mfd::Vec2 point)
         {
             points.push_back(point);
         });

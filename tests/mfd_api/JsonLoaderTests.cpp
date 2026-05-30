@@ -640,7 +640,7 @@ TEST(JsonLoaderTests, LoadDocumentReportsSemanticClippingDiagnostics)
         {
             try
             {
-                static_cast<void>(loader.LoadDocument(pagesFile));
+                loader.LoadDocument(pagesFile);
             }
             catch (const std::runtime_error& exception)
             {

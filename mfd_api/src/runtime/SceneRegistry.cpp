@@ -241,55 +241,49 @@ bool IsValidReticlePatch(const ReticlePatch& patch) noexcept
         return false;
     }
 
-    for (const auto& [primitiveId, text] : patch.texts)
+    for (const auto& textEntry : patch.texts)
     {
-        static_cast<void>(primitiveId);
-        if (!IsValidTextPayload(text))
+        if (!IsValidTextPayload(textEntry.second))
         {
             return false;
         }
     }
 
-    for (const auto& [primitiveId, text] : patch.textsById)
+    for (const auto& textEntry : patch.textsById)
     {
-        static_cast<void>(primitiveId);
-        if (!IsValidTextPayload(text))
+        if (!IsValidTextPayload(textEntry.second))
         {
             return false;
         }
     }
 
-    for (const auto& [primitiveId, spacing] : patch.letterSpacings)
+    for (const auto& spacingEntry : patch.letterSpacings)
     {
-        static_cast<void>(primitiveId);
-        if (!IsFiniteAbsWithin(spacing, kMaxLogicalSize))
+        if (!IsFiniteAbsWithin(spacingEntry.second, kMaxLogicalSize))
         {
             return false;
         }
     }
 
-    for (const auto& [primitiveId, spacing] : patch.letterSpacingsById)
+    for (const auto& spacingEntry : patch.letterSpacingsById)
     {
-        static_cast<void>(primitiveId);
-        if (!IsFiniteAbsWithin(spacing, kMaxLogicalSize))
+        if (!IsFiniteAbsWithin(spacingEntry.second, kMaxLogicalSize))
         {
             return false;
         }
     }
 
-    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatches)
+    for (const auto& primitivePatchEntry : patch.primitivePatches)
     {
-        static_cast<void>(primitiveId);
-        if (!IsValidPrimitivePatch(primitivePatch))
+        if (!IsValidPrimitivePatch(primitivePatchEntry.second))
         {
             return false;
         }
     }
 
-    for (const auto& [primitiveId, primitivePatch] : patch.primitivePatchesById)
+    for (const auto& primitivePatchEntry : patch.primitivePatchesById)
     {
-        static_cast<void>(primitiveId);
-        if (!IsValidPrimitivePatch(primitivePatch))
+        if (!IsValidPrimitivePatch(primitivePatchEntry.second))
         {
             return false;
         }
@@ -1645,10 +1639,9 @@ SceneRegistry::RuntimeSnapshot SceneRegistry::CaptureRuntimeSnapshot() const
     snapshot.nextDynamicCreationSequence = nextDynamicCreationSequence_;
 
     snapshot.pages.reserve(pageEntities_.size());
-    for (const auto& [normalizedPageName, entity] : pageEntities_)
+    for (const auto& pageEntry : pageEntities_)
     {
-        static_cast<void>(normalizedPageName);
-
+        const auto entity = pageEntry.second;
         if (const PageComponent* page = registry_.try_get<PageComponent>(entity))
         {
             snapshot.pages.push_back(RuntimeSnapshot::PageState {
@@ -1657,9 +1650,9 @@ SceneRegistry::RuntimeSnapshot SceneRegistry::CaptureRuntimeSnapshot() const
                 page->view,
                 page->blinkEpoch});
 
-            for (const auto& [normalizedTemplateId, binding] : page->dynamicBindingsByTemplate)
+            for (const auto& bindingEntry : page->dynamicBindingsByTemplate)
             {
-                static_cast<void>(binding);
+                const std::string& normalizedTemplateId = bindingEntry.first;
 
                 if (!IsDynamicTemplateVisible(page->normalizedName, normalizedTemplateId))
                 {
