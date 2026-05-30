@@ -199,8 +199,8 @@ class GenerateUiTests(unittest.TestCase):
                 "bool ApplyFeedback(const mfd::ActivePageFeedback& feedback);",
                 "bool ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr);",
                 "std::size_t PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr);",
-                "void ClearDirty() noexcept;",
-                "void Reset() noexcept;",
+                "void Run() noexcept;",
+                "void Initialize() noexcept;",
                 "std::vector<mfd::UserCommand> BuildBatch();",
                 "std::vector<mfd::UserCommand> BuildResetBatch();",
                 "mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);",
@@ -252,10 +252,12 @@ class GenerateUiTests(unittest.TestCase):
                 "strobe(Name(), {defaultStrobe, strobe1}, ",
                 "bool RadarMockupPage::IsActive() const noexcept",
                 "return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());",
-                "void RadarMockupPage::ClearDirty() noexcept",
+                "void RadarMockupPage::Run() noexcept",
+                "strobe.ClearDirty();",
                 "strobe.ResetToAuthored();",
                 "CockpitMockupUi::CockpitMockupUi() :",
                 "radar_(&feedbackState_)",
+                "window_.ClearDirty();",
                 "window_.ResetToAuthored();",
                 "SystemMockupPage::SetStatusCaption(std::string value)",
                 "RadarRadarStatusReticle::SetValue(std::string value)",
@@ -268,6 +270,8 @@ class GenerateUiTests(unittest.TestCase):
                 "bool CockpitMockupUi::ApplyFeedback(const mfd::ActivePageFeedback& feedback)",
                 "bool CockpitMockupUi::ApplyFeedbackPayload(std::string_view payload, std::string* error)",
                 "std::size_t CockpitMockupUi::PollFeedback(mfd::IExchangeChannel& channel, const std::size_t maxMessages, std::string* error)",
+                "void CockpitMockupUi::Run() noexcept",
+                "void CockpitMockupUi::Initialize() noexcept",
                 "resetPending_ = true;",
                 "commands.emplace_back(mfd::ResetWindowCommand {});",
                 "std::vector<mfd::UserCommand> CockpitMockupUi::BuildResetBatch()",
@@ -521,6 +525,9 @@ class GenerateUiTests(unittest.TestCase):
             ]:
                 self.assertIn(expected, header_content)
 
+            self.assertNotIn("void ClearDirty() noexcept;", header_content)
+            self.assertNotIn("void Reset() noexcept;", header_content)
+
             for expected in [
                 'headingLine_(MutableDesiredPatch(), DirtyFlag(), "heading_line", ',
                 'cursorCircle_(MutableDesiredPatch(), DirtyFlag(), "cursor_circle", ',
@@ -538,6 +545,12 @@ class GenerateUiTests(unittest.TestCase):
                 'missionTime_(MutableDesiredPatch(), DirtyFlag(), "mission_time", ',
             ]:
                 self.assertIn(expected, source_content)
+
+            self.assertNotIn("void RadarMockupPage::ClearDirty() noexcept", source_content)
+            self.assertNotIn("void CockpitMockupUi::ClearDirty() noexcept", source_content)
+            self.assertNotIn("void CockpitMockupUi::Reset() noexcept", source_content)
+            self.assertNotIn("strobe.Reset();", source_content)
+            self.assertNotIn("window_.Reset();", source_content)
 
             self.assertEqual(len(map_content["templates"]), 1)
             self.assertEqual(len(map_content["reticles"]), 2)

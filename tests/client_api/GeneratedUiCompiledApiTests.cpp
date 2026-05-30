@@ -521,7 +521,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureShutdownBuildsStatusAndDynamic
     ASSERT_NE(std::get_if<mfd::UpdateReticleCommand>(&delivered.commands.front()), nullptr);
 }
 
-TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetBuildsRuntimeResetAndInvalidatesDynamicHandles)
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureRunClearsLocalDirtyStateWithoutInvalidatingDynamicHandles)
 {
     generated_ui_fixture::GeneratedUiFixture ui;
     auto& track = ui.Radar().DynamicGeometryTemplate().Create();
@@ -532,7 +532,27 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetBuildsRuntimeResetAndInva
     ASSERT_NE(std::get_if<mfd::UpsertDynamicReticlesCommand>(&initialBatch.commands.front()), nullptr);
     ASSERT_TRUE(track.IsAlive());
 
-    ui.Reset();
+    ui.Run();
+    EXPECT_TRUE(track.IsAlive());
+
+    const mfd::CommandBatch batch = ui.BuildCommandBatch(2U);
+    EXPECT_EQ(batch.sequence, 2U);
+    EXPECT_EQ(batch.mappingHash, generated_ui_fixture::GeneratedUiFixture::MappingHash());
+    EXPECT_TRUE(batch.commands.empty());
+}
+
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureInitializeBuildsRuntimeResetAndInvalidatesDynamicHandles)
+{
+    generated_ui_fixture::GeneratedUiFixture ui;
+    auto& track = ui.Radar().DynamicGeometryTemplate().Create();
+    track.TrackLabel().SetText("A1");
+
+    const mfd::CommandBatch initialBatch = ui.BuildCommandBatch(1U);
+    ASSERT_EQ(initialBatch.commands.size(), 1U);
+    ASSERT_NE(std::get_if<mfd::UpsertDynamicReticlesCommand>(&initialBatch.commands.front()), nullptr);
+    ASSERT_TRUE(track.IsAlive());
+
+    ui.Initialize();
     EXPECT_FALSE(track.IsAlive());
 
     const mfd::CommandBatch resetBatch = ui.BuildResetCommandBatch(2U);
@@ -542,14 +562,14 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetBuildsRuntimeResetAndInva
     ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&resetBatch.commands.front()), nullptr);
 }
 
-TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetCanBeCombinedWithFreshMutations)
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureInitializeCanBeCombinedWithFreshMutations)
 {
     generated_ui_fixture::GeneratedUiFixture ui;
     auto& staleTrack = ui.Radar().DynamicGeometryTemplate().Create();
     staleTrack.TrackLabel().SetText("OLD");
     ASSERT_TRUE(staleTrack.IsAlive());
 
-    ui.Reset();
+    ui.Initialize();
     EXPECT_FALSE(staleTrack.IsAlive());
 
     ui.Window().SetDisabled(true);
@@ -586,7 +606,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetCanBeCombinedWithFreshMut
         }));
 }
 
-TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetThenShutdownDoesNotEmitStaleDynamicRemovalCommands)
+TEST(GeneratedUiCompiledApiTests, GeneratedFixtureInitializeThenShutdownDoesNotEmitStaleDynamicRemovalCommands)
 {
     generated_ui_fixture::GeneratedUiFixture ui;
     auto& staleTrack = ui.Radar().DynamicGeometryTemplate().Create();
@@ -596,7 +616,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureResetThenShutdownDoesNotEmitSt
     ASSERT_EQ(initialBatch.commands.size(), 1U);
     ASSERT_NE(std::get_if<mfd::UpsertDynamicReticlesCommand>(&initialBatch.commands.front()), nullptr);
 
-    ui.Reset();
+    ui.Initialize();
     EXPECT_FALSE(staleTrack.IsAlive());
 
     const mfd::CommandBatch shutdown = ui.BuildShutdownCommandBatch(6U, "OFF");

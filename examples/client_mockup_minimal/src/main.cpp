@@ -278,7 +278,7 @@ void StepCockpitSimulation(CockpitSimulationState& simulation, const float delta
  * The function demonstrates the intended usage pattern of the minimal mockup
  * facade:
  *
- * 1. reset the typed helper tree for the new cycle
+ * 1. run the typed helper tree for the new cycle
  * 2. mutate page, reticle and dynamic-reticle instances directly
  * 3. emit only the commands whose final state changed
  *
@@ -314,7 +314,7 @@ void PopulateCockpitBatch(mockup_ui::CockpitMockupUi& ui, CockpitSimulationState
     const float headingBugRelativeDegrees =
         std::remainder(simulation.selectedHeadingDegrees - simulation.headingDegrees, 360.0f);
 
-    ui.Reset();
+    ui.Run();
     mockup_ui::CockpitMockupPage& cockpit = ui.Cockpit();
     auto& radarContacts = cockpit.DynamicCockpitRadarContact();
 
@@ -459,6 +459,7 @@ int main()
                                std::string {"CLI API booting | waiting for first dummy batch"}),
                 client,
                 "Unable to prime the cockpit mockup UI");
+        ui.Initialize();
 
         CockpitSimulationState simulation;
 

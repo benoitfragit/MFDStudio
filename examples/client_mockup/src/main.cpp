@@ -347,6 +347,14 @@ void RemoveGeneratedDynamicReticles(DynamicSet& set, std::vector<DynamicReticle*
     reticles.clear();
 }
 
+template <typename GeneratedUi>
+std::unique_ptr<GeneratedUi> MakeInitializedGeneratedUi()
+{
+    std::unique_ptr<GeneratedUi> ui = std::make_unique<GeneratedUi>();
+    ui->Initialize();
+    return ui;
+}
+
 template <typename WindowUi, typename DynamicTrack>
 void PopulateRadarSimulationUi(WindowUi& ui,
                                std::vector<DynamicTrack*>& generatedTracks,
@@ -362,7 +370,7 @@ void PopulateRadarSimulationUi(WindowUi& ui,
     constexpr float kPi = 3.14159265359f;
     constexpr float kTwoPi = kPi * 2.0f;
 
-    ui.Reset();
+    ui.Run();
     auto& radar = ui.Radar();
     auto& tracks = radar.DynamicRadarTrack();
     tracks.SetVisible(true);
@@ -432,7 +440,7 @@ void PopulateCockpitSimulationUi(WindowUi& ui,
     const float headingBugRelativeDegrees =
         std::remainder(simulation.selectedHeadingDegrees - simulation.headingDegrees, 360.0f);
 
-    ui.Reset();
+    ui.Run();
     auto& cockpit = ui.Cockpit();
     auto& contacts = cockpit.DynamicCockpitRadarContact();
     EnsureGeneratedDynamicReticles(contacts, generatedContacts, kCockpitTargets.size());
@@ -624,9 +632,9 @@ private:
     /** @brief Returns `true` when the selected target is the composite cockpit demo window. */
     bool IsCockpitDemoWindow() const;
     /** @brief Sends one radar-simulation batch or clears its generated tracks. */
-    bool SendRadarSimulationBatch(bool clearOnly, bool quiet = false);
+    bool SendRadarSimulationBatch(bool clearOnly, bool quiet = false, bool initializeBeforeSend = false);
     /** @brief Sends one full cockpit frame batch built from the current simulation state. */
-    bool SendCockpitSimulationBatch(bool quiet = false);
+    bool SendCockpitSimulationBatch(bool quiet = false, bool initializeBeforeSend = false);
     /** @brief Activates the generated radar page used by the current radar simulator preset. */
     bool ActivateRadarSimulationPage();
     /** @brief Activates the generated cockpit page used by the cockpit simulator preset. */
@@ -1024,9 +1032,9 @@ bool MockupApplication::ReloadConfiguration()
         ResetDynamicDraft();
         radarSimulation_ = {};
         cockpitSimulation_ = {};
-        fullDemoGeneratedUi_ = std::make_unique<full_demo_ui::FullDemoMockupUi>();
-        minimalRadarGeneratedUi_ = std::make_unique<minimal_radar_ui::MinimalRadarMockupUi>();
-        cockpitGeneratedUi_ = std::make_unique<cockpit_demo_ui::CockpitDemoMockupUi>();
+        fullDemoGeneratedUi_ = MakeInitializedGeneratedUi<full_demo_ui::FullDemoMockupUi>();
+        minimalRadarGeneratedUi_ = MakeInitializedGeneratedUi<minimal_radar_ui::MinimalRadarMockupUi>();
+        cockpitGeneratedUi_ = MakeInitializedGeneratedUi<cockpit_demo_ui::CockpitDemoMockupUi>();
         fullDemoRadarTracks_.clear();
         minimalRadarRadarTracks_.clear();
         cockpitRadarContacts_.clear();
@@ -1891,7 +1899,9 @@ void MockupApplication::UpdateCockpitSimulation(const float deltaSeconds)
     }
 }
 
-bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const bool quiet)
+bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly,
+                                                 const bool quiet,
+                                                 const bool initializeBeforeSend)
 {
     if (realtimePublisher_ == nullptr || !realtimePublisher_->IsReady())
     {
@@ -1926,7 +1936,11 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
     case WindowPresetKind::FullDemo:
         if (fullDemoGeneratedUi_ == nullptr)
         {
-            fullDemoGeneratedUi_ = std::make_unique<full_demo_ui::FullDemoMockupUi>();
+            fullDemoGeneratedUi_ = MakeInitializedGeneratedUi<full_demo_ui::FullDemoMockupUi>();
+        }
+        if (initializeBeforeSend)
+        {
+            fullDemoGeneratedUi_->Initialize();
         }
         if (clearOnly)
         {
@@ -1946,7 +1960,11 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
     case WindowPresetKind::MinimalRadar:
         if (minimalRadarGeneratedUi_ == nullptr)
         {
-            minimalRadarGeneratedUi_ = std::make_unique<minimal_radar_ui::MinimalRadarMockupUi>();
+            minimalRadarGeneratedUi_ = MakeInitializedGeneratedUi<minimal_radar_ui::MinimalRadarMockupUi>();
+        }
+        if (initializeBeforeSend)
+        {
+            minimalRadarGeneratedUi_->Initialize();
         }
         if (clearOnly)
         {
@@ -2002,6 +2020,10 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
         {
             SetStatus("Simulated radar tracks cleared from page 'Radar'.", false);
         }
+        else if (initializeBeforeSend)
+        {
+            SetStatus("Generated radar UI initialized and batch sent to page 'Radar'.", false);
+        }
         else
         {
             SetStatus(
@@ -2014,7 +2036,7 @@ bool MockupApplication::SendRadarSimulationBatch(const bool clearOnly, const boo
     return true;
 }
 
-bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
+bool MockupApplication::SendCockpitSimulationBatch(const bool quiet, const bool initializeBeforeSend)
 {
     if (realtimePublisher_ == nullptr || !realtimePublisher_->IsReady())
     {
@@ -2037,7 +2059,11 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
     CockpitSimulationState& simulation = cockpitSimulation_;
     if (cockpitGeneratedUi_ == nullptr)
     {
-        cockpitGeneratedUi_ = std::make_unique<cockpit_demo_ui::CockpitDemoMockupUi>();
+        cockpitGeneratedUi_ = MakeInitializedGeneratedUi<cockpit_demo_ui::CockpitDemoMockupUi>();
+    }
+    if (initializeBeforeSend)
+    {
+        cockpitGeneratedUi_->Initialize();
     }
     PopulateCockpitSimulationUi(*cockpitGeneratedUi_, cockpitRadarContacts_, simulation);
     mfd::CommandBatch batch = cockpitGeneratedUi_->BuildCommandBatch(simulation.nextSequence);
@@ -2068,10 +2094,20 @@ bool MockupApplication::SendCockpitSimulationBatch(const bool quiet)
 
     if (!quiet)
     {
-        SetStatus(
-            "Cockpit composite batch sent: " + std::to_string(simulation.lastCommandCount) +
-                " commands.",
-            false);
+        if (initializeBeforeSend)
+        {
+            SetStatus(
+                "Generated cockpit UI initialized and batch sent: " +
+                    std::to_string(simulation.lastCommandCount) + " commands.",
+                false);
+        }
+        else
+        {
+            SetStatus(
+                "Cockpit composite batch sent: " + std::to_string(simulation.lastCommandCount) +
+                    " commands.",
+                false);
+        }
     }
 
     return true;
@@ -2090,7 +2126,7 @@ bool MockupApplication::ActivateRadarSimulationPage()
     case WindowPresetKind::FullDemo:
         if (fullDemoGeneratedUi_ == nullptr)
         {
-            fullDemoGeneratedUi_ = std::make_unique<full_demo_ui::FullDemoMockupUi>();
+            fullDemoGeneratedUi_ = MakeInitializedGeneratedUi<full_demo_ui::FullDemoMockupUi>();
         }
         if (!client_->ActivatePage(fullDemoGeneratedUi_->Radar()))
         {
@@ -2101,7 +2137,7 @@ bool MockupApplication::ActivateRadarSimulationPage()
     case WindowPresetKind::MinimalRadar:
         if (minimalRadarGeneratedUi_ == nullptr)
         {
-            minimalRadarGeneratedUi_ = std::make_unique<minimal_radar_ui::MinimalRadarMockupUi>();
+            minimalRadarGeneratedUi_ = MakeInitializedGeneratedUi<minimal_radar_ui::MinimalRadarMockupUi>();
         }
         if (!client_->ActivatePage(minimalRadarGeneratedUi_->Radar()))
         {
@@ -2125,7 +2161,7 @@ bool MockupApplication::ActivateCockpitSimulationPage()
 
     if (cockpitGeneratedUi_ == nullptr)
     {
-        cockpitGeneratedUi_ = std::make_unique<cockpit_demo_ui::CockpitDemoMockupUi>();
+        cockpitGeneratedUi_ = MakeInitializedGeneratedUi<cockpit_demo_ui::CockpitDemoMockupUi>();
     }
 
     if (!client_->ActivatePage(cockpitGeneratedUi_->Cockpit()))
@@ -3120,6 +3156,12 @@ void MockupApplication::DrawRadarSimulationPanel()
     }
 
     ImGui::SameLine();
+    if (ImGui::Button("Initialize generated radar UI"))
+    {
+        SendRadarSimulationBatch(false, false, true);
+    }
+
+    ImGui::SameLine();
     if (ImGui::Button("Clear simulated tracks"))
     {
         radarSimulation_.clearRequested = false;
@@ -3221,6 +3263,12 @@ void MockupApplication::DrawCockpitSimulationPanel()
     if (AccentButton("Send one cockpit frame"))
     {
         SendCockpitSimulationBatch(false);
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Initialize generated cockpit UI"))
+    {
+        SendCockpitSimulationBatch(false, true);
     }
 
     ImGui::SameLine();

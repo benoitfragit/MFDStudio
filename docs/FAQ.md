@@ -80,9 +80,12 @@ Treat `Ui.h`, `Ui.cpp`, and `<window>.generated.map` as one generated contract:
 If the generated C++ and the generated map drift apart, or if the runtime did
 not load the matching sidecar, generated batches are rejected.
 
-## What does generated `ui.Reset()` actually do?
+## What do generated `ui.Run()` and `ui.Initialize()` actually do?
 
-Generated-root `Reset()` is a user-facing authored-state reset.
+Generated-root `Run()` starts one new local client cycle. It drops staged dirty
+state without asking the runtime to go back to the authored baseline.
+
+Generated-root `Initialize()` is the user-facing authored-state reset.
 
 It:
 
@@ -91,8 +94,8 @@ It:
 - clears cached runtime feedback state
 - makes the next built batch prepend one runtime `ResetWindowCommand`
 
-Use `ClearDirty()` only when you want to drop local dirty flags without asking
-the runtime to go back to the authored state.
+Call `Initialize()` when you explicitly want that full runtime reinitialization.
+Call `Run()` for the normal per-cycle housekeeping path.
 
 ## Does `client_mockup` share memory with `mfd_window`?
 

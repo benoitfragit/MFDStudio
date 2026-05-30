@@ -1147,8 +1147,8 @@ This is the reference pattern because the runtime processes a coherent per-frame
 
 ### Generated reset back to the authored state
 
-Generated-root `Reset()` is a deliberate user facility for "go back to the
-authored initial state". It is not the old local-only dirty-flag helper.
+Generated-root `Initialize()` is a deliberate user facility for "go back to the
+authored initial state". It is not the old per-cycle helper.
 
 ```cpp
 // Scenario: return the runtime window to its authored baseline, then rebuild
@@ -1157,7 +1157,7 @@ auto& staleTrack = ui.Cockpit().DynamicCockpitRadarContact().Create();
 staleTrack.ContactLabel().SetText("OLD");
 client.SendBatch(ui.BuildCommandBatch(10U));
 
-ui.Reset();
+ui.Initialize();
 const bool staleHandleStillAlive = staleTrack.IsAlive(); // false
 
 ui.Window().SetDisabled(true);
@@ -1173,13 +1173,13 @@ if (!client.SendBatch(ui.BuildResetCommandBatch(11U)))
 
 Behavior to rely on:
 
-- `Reset()` realigns the generated window, pages, static reticles, and strobes
+- `Initialize()` realigns the generated window, pages, static reticles, and strobes
   to the authored baseline
 - the next batch prepends one runtime `ResetWindowCommand`
 - generated dynamic handles created before the reset become invalid and must be
   recreated
 - `IsAlive()` lets client code detect those stale dynamic handles explicitly
-- `ClearDirty()` is the local-only helper when no runtime reset is desired
+- `Run()` is the local per-cycle helper when no runtime reset is desired
 
 ## 6.6 Page wrappers and authoritative active-page feedback
 
@@ -2441,8 +2441,8 @@ This appendix is the one-page cheat sheet for the API calls that appear most oft
 | activate page | `bool ActivatePage(const GeneratedPage& page)` | select active page |
 | set page view | `bool SetPageView(const GeneratedPage& page, Vec2 center, float zoom)` | pan and zoom |
 | access whole window | `WindowDisplay& Window() noexcept` | window display state |
-| local dirty clear | `void ClearDirty() noexcept` | drop staged dirt |
-| authored reset | `void Reset() noexcept` | authored runtime reset |
+| start local cycle | `void Run() noexcept` | drop staged dirt without consuming a pending initialize |
+| authored reset | `void Initialize() noexcept` | authored runtime reset |
 | collect dirty commands | `std::vector<mfd::UserCommand> BuildBatch()` | gather dirty commands |
 | build reset commands | `std::vector<mfd::UserCommand> BuildResetBatch()` | standalone reset batch |
 | build tracked batch | `mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0)` | attach hash sequence |

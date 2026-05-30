@@ -75,9 +75,9 @@ transport sender.
 
 Treat the generated header, generated source, and companion
 `<window>.generated.map` as one contract. The generated runtime path is only
-valid when `mfd_window` loads the matching `.generated.map`, and generated
-`ui.Reset()` now means "return to the authored runtime state", not "clear one
-local dirty flag".
+valid when `mfd_window` loads the matching `.generated.map`. Use generated
+`ui.Run()` to start one new local client cycle, and generated `ui.Initialize()`
+only when you want one full authored-state reinitialization on the next batch.
 
 Start here:
 

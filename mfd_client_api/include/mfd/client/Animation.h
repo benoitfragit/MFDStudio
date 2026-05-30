@@ -548,7 +548,7 @@ public:
     /**
      * @brief Legacy alias preserving the historical local-only reset behavior.
      *
-     * @note Prefer `ClearDirty()` for new code, or generated-UI `Reset()`
+     * @note Prefer `ClearDirty()` for new code, or generated-UI `Initialize()`
      * when the intent is to restore the runtime window to its authored state.
      */
     void Reset() noexcept;
@@ -632,7 +632,7 @@ public:
     /**
      * @brief Legacy alias preserving the historical local-only reset behavior.
      *
-     * @note Prefer `ClearDirty()` for new code, or generated-UI `Reset()`
+     * @note Prefer `ClearDirty()` for new code, or generated-UI `Initialize()`
      * when the intent is to restore the runtime window to its authored state.
      */
     void Reset() noexcept;
@@ -917,7 +917,7 @@ public:
     /**
      * @brief Legacy alias preserving the historical local-only reset behavior.
      *
-     * @note Prefer `ClearDirty()` for new code, or generated-UI `Reset()`
+     * @note Prefer `ClearDirty()` for new code, or generated-UI `Initialize()`
      * when the intent is to restore the runtime window to its authored state.
      */
     void Reset() noexcept;

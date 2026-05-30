@@ -12,7 +12,7 @@ skinparam rectangle {
 }
 top to bottom direction
 
-rectangle "Generated UI root \n Window() \n ClearDirty() / Reset() \n BuildBatch() / BuildResetBatch() \n BuildCommandBatch(sequence) \n SubmitLatest() / SubmitReset() \n ApplyFeedback() \n PollFeedback()" as UiRoot #D9EDFF
+rectangle "Generated UI root \n Window() \n Run() / Initialize() \n BuildBatch() / BuildResetBatch() \n BuildCommandBatch(sequence) \n SubmitLatest() / SubmitReset() \n ApplyFeedback() \n PollFeedback()" as UiRoot #D9EDFF
 rectangle "Page wrappers \n Name() \n GeneratedId() \n MappingHash() \n IsActive()" as Pages #EAF4F4
 rectangle "Static reticle wrappers \n SetVisible() \n SetPosition() \n SetRotationDegrees() \n SetColor() \n SetBlinkType()" as Reticles #E9F5DB
 rectangle "Primitive handles \n TextHandle / LineHandle / CircleHandle / ... \n SetText() / SetScale() / SetPoints() / ..." as Primitives #E9F5DB

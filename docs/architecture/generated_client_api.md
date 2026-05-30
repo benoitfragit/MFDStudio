@@ -140,8 +140,8 @@ Expected generated root helpers:
 
 - `Window()`
 - one accessor per page such as `Radar()` or `PictureDemo()`
-- `ClearDirty()`
-- `Reset()`
+- `Run()`
+- `Initialize()`
 - `BuildBatch()`
 - `BuildResetBatch()`
 - `BuildCommandBatch(sequence)`
@@ -156,18 +156,19 @@ Some generated roots may also expose convenience helpers such as shutdown
 batches when the authored model carries that concept. Those helpers are useful,
 but they are not the main architectural contract.
 
-## Reset Model
+## Cycle And Initialization Model
 
-Generated-root reset is intentionally different from the legacy local reset
+Generated-root cycle helpers are intentionally different from the legacy local reset
 helpers that still exist on low-level animation types.
 
-- `ClearDirty()` is local only: it drops dirty flags without asking the runtime
-  to change state
-- generated-root `Reset()` is a user-facing authored-state reset
+- `Run()` starts one new local client cycle. It drops staged dirty state
+  without asking the runtime to change state, and it does not consume a pending
+  initialization request
+- generated-root `Initialize()` is a user-facing authored-state reset
 - `BuildResetBatch()`, `BuildResetCommandBatch(sequence)`, and `SubmitReset(...)`
-  are one-shot publication helpers for that reset flow
+  are one-shot publication helpers for that initialization flow
 
-When you call generated-root `Reset()`:
+When you call generated-root `Initialize()`:
 
 - the window display baseline returns to the authored defaults
 - static reticles and strobes realign to their authored baseline

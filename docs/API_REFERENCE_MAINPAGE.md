@@ -114,7 +114,8 @@ The generated client-facing documentation now covers:
 - primitive-level text, geometry, time, and image updates
 - exposed-primitive patterns such as progress bars
 - dynamic reticle creation, bulk update, and removal
-- generated reset back to the authored runtime state
+- generated authored-state reinitialization back to the runtime baseline
+- generated per-cycle `Run()` and full `Initialize()` flows
 - page-scoped strobe control and feedback
 - generated `BuildBatch()`, `BuildResetBatch()`, `BuildCommandBatch(sequence)`,
   `BuildResetCommandBatch(sequence)`, `SubmitLatest(...)`, and `SubmitReset(...)`

@@ -286,7 +286,7 @@ generated transport map.
 
 ## Step 8 - Reset back to the authored state when needed
 
-Use generated-root `Reset()` when the user intent is "put the runtime window
+Use generated-root `Initialize()` when the user intent is "put the runtime window
 back in its authored initial state".
 
 ```cpp
@@ -294,7 +294,7 @@ auto& staleTrack = ui.Radar().DynamicRadarTrack().Create();
 staleTrack.TrackLabel().SetText("OLD");
 client.SendBatch(ui.BuildCommandBatch(42U));
 
-ui.Reset();
+ui.Initialize();
 const bool staleHandleStillAlive = staleTrack.IsAlive(); // false
 
 ui.Window().SetDisabled(true);
@@ -307,11 +307,11 @@ client.SendBatch(ui.BuildResetCommandBatch(43U));
 
 Important behavior:
 
-- `Reset()` realigns the generated UI to the authored window/page/strobe state
+- `Initialize()` realigns the generated UI to the authored window/page/strobe state
 - the next built batch prepends one runtime `ResetWindowCommand`
 - generated dynamic handles created before the reset become invalid, so recreate
   them and use `IsAlive()` if you need to detect stale handles explicitly
-- `ClearDirty()` is the local-only helper when you do not want a runtime reset
+- `Run()` is the per-cycle helper when you do not want a runtime reset
 
 Use `BuildResetBatch()`, `BuildResetCommandBatch(sequence)`, or
 `SubmitReset(...)` when the reset itself is the transaction you want to

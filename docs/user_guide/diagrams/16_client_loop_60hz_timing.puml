@@ -31,7 +31,7 @@ end
 note over Scheduler
 One frame = one local state update + one published batch.
 Do not scatter several SendBatch() calls inside the same client tick.
-Use generated-root Reset() only for an explicit authored-state reset,
-not as a per-frame housekeeping call.
+Use generated-root Run() for per-frame housekeeping.
+Use generated-root Initialize() only for an explicit authored-state reset.
 end note
 @enduml

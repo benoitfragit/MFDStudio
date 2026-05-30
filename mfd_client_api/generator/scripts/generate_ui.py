@@ -1196,8 +1196,8 @@ def emit_header(namespace_name: str,
             f"    explicit {page.page_class_name}(RuntimeFeedbackState* feedbackState = nullptr);",
             "",
             "    bool IsActive() const noexcept;",
-            "    void ClearDirty() noexcept;",
-            "    void Reset() noexcept;",
+            "    void Run() noexcept;",
+            "    void Initialize() noexcept;",
             "    std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);",
             ("    std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText);"
              if page.status_member_name is not None
@@ -1269,8 +1269,8 @@ def emit_header(namespace_name: str,
         "    bool ApplyFeedback(const mfd::ActivePageFeedback& feedback);",
         "    bool ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr);",
         "    std::size_t PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr);",
-        "    void ClearDirty() noexcept;",
-        "    void Reset() noexcept;",
+        "    void Run() noexcept;",
+        "    void Initialize() noexcept;",
         "    std::vector<mfd::UserCommand> BuildBatch();",
         "    std::vector<mfd::UserCommand> BuildResetBatch();",
         "    mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);",
@@ -1489,7 +1489,7 @@ def emit_source(namespace_name: str,
             "    return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());",
             "}",
             "",
-            f"void {page.page_class_name}::ClearDirty() noexcept",
+            f"void {page.page_class_name}::Run() noexcept",
             "{",
             "    strobe.ClearDirty();",
         ])
@@ -1502,7 +1502,7 @@ def emit_source(namespace_name: str,
         lines.extend([
             "}",
             "",
-            f"void {page.page_class_name}::Reset() noexcept",
+            f"void {page.page_class_name}::Initialize() noexcept",
             "{",
             "    strobe.ResetToAuthored();",
         ])
@@ -1640,23 +1640,22 @@ def emit_source(namespace_name: str,
         "    return feedbackState_.Poll(channel, maxMessages, error);",
         "}",
         "",
-        f"void {ui_class_name}::ClearDirty() noexcept",
+        f"void {ui_class_name}::Run() noexcept",
         "{",
-        "    resetPending_ = false;",
         "    window_.ClearDirty();",
     ])
     for page in page_specs:
-        lines.append(f"    {page.ui_member_name}.ClearDirty();")
+        lines.append(f"    {page.ui_member_name}.Run();")
     lines.extend([
         "}",
         "",
-        f"void {ui_class_name}::Reset() noexcept",
+        f"void {ui_class_name}::Initialize() noexcept",
         "{",
         "    resetPending_ = true;",
         "    window_.ResetToAuthored();",
     ])
     for page in page_specs:
-        lines.append(f"    {page.ui_member_name}.Reset();")
+        lines.append(f"    {page.ui_member_name}.Initialize();")
     lines.extend([
         "    feedbackState_.Reset();",
         "}",
@@ -1681,7 +1680,7 @@ def emit_source(namespace_name: str,
         "{",
         "    if (!resetPending_)",
         "    {",
-        "        Reset();",
+        "        Initialize();",
         "    }",
         "",
         "    return BuildBatch();",

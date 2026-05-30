@@ -34,7 +34,6 @@ constexpr std::size_t kMaxTransientTracks = 10U;
 constexpr auto kTrackInterval = std::chrono::seconds(2);
 constexpr auto kPageSwitchInterval = std::chrono::seconds(30);
 constexpr auto kStrobeSwitchInterval = std::chrono::seconds(8);
-constexpr auto kResetInterval = std::chrono::seconds(45);
 constexpr float kProgressBarMaxWidth = 0.44f;
 constexpr float kProgressBarHeight = 0.06f;
 constexpr float kProgressBarLeftEdge = -0.22f;
@@ -695,10 +694,11 @@ int mainImpl()
         page1Strobe.SetPosition(startupProjector.ToPagePosition(BuildTrackWorldPositionNm(persistentTracks[0], ownship)));
     }
 
+    generatedUi.Initialize();
+
     auto nextTrackTime = std::chrono::steady_clock::now() + kTrackInterval;
     auto nextPageTime = std::chrono::steady_clock::now() + kPageSwitchInterval;
     auto nextStrobeSwitchTime = std::chrono::steady_clock::now() + kStrobeSwitchInterval;
-    auto nextResetTime = std::chrono::steady_clock::now() + kResetInterval;
     const auto progressStartTime = std::chrono::steady_clock::now();
     auto previousFrameTime = progressStartTime;
 
@@ -710,66 +710,6 @@ int mainImpl()
         previousFrameTime = now;
 
         const float elapsedProgressSeconds = std::chrono::duration<float>(now - progressStartTime).count();
-
-        if (now >= nextResetTime)
-        {
-            const bool trackAliveBeforeReset =
-                persistentTracks[0].reticle != nullptr && persistentTracks[0].reticle->IsAlive();
-            const bool linkAliveBeforeReset = persistentTrackLink != nullptr && persistentTrackLink->IsAlive();
-
-            generatedUi.Reset();
-
-            const bool trackAliveAfterReset =
-                persistentTracks[0].reticle != nullptr && persistentTracks[0].reticle->IsAlive();
-            const bool linkAliveAfterReset = persistentTrackLink != nullptr && persistentTrackLink->IsAlive();
-
-            const std::vector<mfd::UserCommand> resetCommands = generatedUi.BuildResetBatch();
-            if (!resetCommands.empty())
-            {
-                Require(client.SendBatch(resetCommands), client, "Unable to send tutorial reset batch");
-            }
-
-            std::cout << "Tutorial: generated UI reset to authored state"
-                      << " oldTrackAliveBefore=" << (trackAliveBeforeReset ? "true" : "false")
-                      << " oldTrackAliveAfter=" << (trackAliveAfterReset ? "true" : "false")
-                      << " oldLinkAliveBefore=" << (linkAliveBeforeReset ? "true" : "false")
-                      << " oldLinkAliveAfter=" << (linkAliveAfterReset ? "true" : "false") << '\n';
-
-            transientTracks.clear();
-            transientDeclutterVisible = true;
-            page1Active = true;
-            useAlternativeStrobe = false;
-            page2ProgressBar.SetVisible(true);
-            progressFill.SetVisible(true);
-            RebuildPersistentTutorialScene(page1TrackSet, page1TrackLinkSet, serial, persistentTracks, persistentTrackLink);
-
-            const mfd::UserSpaceProjector resetProjector = BuildTutorialProjector(ownship);
-            for (TutorialTrackState& track : persistentTracks)
-            {
-                ApplyProjectedTrackPose(track, ownship, resetProjector);
-            }
-
-            UpdatePersistentTrackLink(*persistentTrackLink, persistentTracks, ownship, resetProjector);
-            UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
-            UpdateTransientCircleReticle(page1Circle, 0U, transientDeclutterVisible);
-            UpdateDefaultStrobeReticle(page1DefaultStrobeReticle, elapsedProgressSeconds);
-            UpdateAlternativeStrobeReticle(page1AlternativeStrobeReticle, elapsedProgressSeconds);
-
-            if (page1Strobe.IsValid())
-            {
-                page1Strobe = page1.defaultStrobe;
-                page1Strobe.SetActive(true);
-                page1Strobe.SetPosition(
-                    resetProjector.ToPagePosition(BuildTrackWorldPositionNm(persistentTracks[0], ownship)));
-            }
-
-            nextTrackTime = now + kTrackInterval;
-            nextPageTime = now + kPageSwitchInterval;
-            nextStrobeSwitchTime = now + kStrobeSwitchInterval;
-            nextResetTime += kResetInterval;
-            continue;
-        }
-
         const float progressPhase =
             std::fmod(elapsedProgressSeconds, kProgressLoopDurationSeconds) / kProgressLoopDurationSeconds;
         const float progressWidth = std::max(0.001f, kProgressBarMaxWidth * progressPhase);

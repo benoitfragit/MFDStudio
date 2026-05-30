@@ -119,7 +119,7 @@ public:
         return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());
     }
 
-    void ClearDirty() noexcept
+    void Run() noexcept
     {
         strobe.ClearDirty();
         statusBanner.ClearDirty();
@@ -127,7 +127,7 @@ public:
         dynamicTracks.ClearDirty();
     }
 
-    void Reset() noexcept
+    void Initialize() noexcept
     {
         strobe.ResetToAuthored();
         statusBanner.ResetToAuthored();
@@ -203,19 +203,18 @@ public:
         return feedbackState_.ApplyPayload(payload, error);
     }
 
-    void Reset() noexcept
+    void Run() noexcept
+    {
+        window_.ClearDirty();
+        radar_.Run();
+    }
+
+    void Initialize() noexcept
     {
         resetPending_ = true;
         window_.ResetToAuthored();
-        radar_.Reset();
+        radar_.Initialize();
         feedbackState_.Reset();
-    }
-
-    void ClearDirty() noexcept
-    {
-        resetPending_ = false;
-        window_.ClearDirty();
-        radar_.ClearDirty();
     }
 
     std::vector<mfd::UserCommand> BuildBatch()
@@ -236,7 +235,7 @@ public:
     {
         if (!resetPending_)
         {
-            Reset();
+            Initialize();
         }
 
         return BuildBatch();
@@ -408,7 +407,7 @@ TEST(GeneratedUiRuntimeTests, SubmitLatestForwardsGeneratedUiBatchSemantics)
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(44U).text, "B02");
 }
 
-TEST(GeneratedUiRuntimeTests, ResetBuildsStandaloneRuntimeResetAndInvalidatesExistingGeneratedDynamicReticles)
+TEST(GeneratedUiRuntimeTests, RunClearsLocalDirtyStateWithoutInvalidatingGeneratedDynamicReticles)
 {
     GeneratedUiFixture ui;
     GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().Create();
@@ -419,7 +418,27 @@ TEST(GeneratedUiRuntimeTests, ResetBuildsStandaloneRuntimeResetAndInvalidatesExi
     ASSERT_NE(std::get_if<mfd::UpsertDynamicReticlesCommand>(&initialBatch.commands.front()), nullptr);
     ASSERT_TRUE(track.IsAlive());
 
-    ui.Reset();
+    ui.Run();
+    EXPECT_TRUE(track.IsAlive());
+
+    const mfd::CommandBatch batch = ui.BuildCommandBatch(2U);
+    EXPECT_EQ(batch.sequence, 2U);
+    EXPECT_EQ(batch.mappingHash, GeneratedUiFixture::MappingHash());
+    EXPECT_TRUE(batch.commands.empty());
+}
+
+TEST(GeneratedUiRuntimeTests, InitializeBuildsStandaloneRuntimeResetAndInvalidatesExistingGeneratedDynamicReticles)
+{
+    GeneratedUiFixture ui;
+    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().Create();
+    track.label.SetText("A01");
+
+    const mfd::CommandBatch initialBatch = ui.BuildCommandBatch(1U);
+    ASSERT_EQ(initialBatch.commands.size(), 1U);
+    ASSERT_NE(std::get_if<mfd::UpsertDynamicReticlesCommand>(&initialBatch.commands.front()), nullptr);
+    ASSERT_TRUE(track.IsAlive());
+
+    ui.Initialize();
     EXPECT_FALSE(track.IsAlive());
 
     const mfd::CommandBatch resetBatch = ui.BuildResetCommandBatch(2U);
@@ -429,14 +448,34 @@ TEST(GeneratedUiRuntimeTests, ResetBuildsStandaloneRuntimeResetAndInvalidatesExi
     ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&resetBatch.commands.front()), nullptr);
 }
 
-TEST(GeneratedUiRuntimeTests, ResetCanBeCombinedWithFreshMutationsAfterLocalAuthoredRealignment)
+TEST(GeneratedUiRuntimeTests, RunDoesNotConsumePendingInitializeBeforeTheNextFrameBatch)
+{
+    GeneratedUiFixture ui;
+
+    ui.Initialize();
+    ui.Run();
+    ui.Window().SetDisabled(true);
+
+    const mfd::CommandBatch batch = ui.BuildCommandBatch(5U);
+    EXPECT_EQ(batch.sequence, 5U);
+    EXPECT_EQ(batch.mappingHash, GeneratedUiFixture::MappingHash());
+    ASSERT_EQ(batch.commands.size(), 2U);
+    ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&batch.commands[0]), nullptr);
+
+    const auto* display = std::get_if<mfd::UpdateWindowDisplayCommand>(&batch.commands[1]);
+    ASSERT_NE(display, nullptr);
+    ASSERT_TRUE(display->patch.disabled.has_value());
+    EXPECT_TRUE(*display->patch.disabled);
+}
+
+TEST(GeneratedUiRuntimeTests, InitializeCanBeCombinedWithFreshMutationsAfterLocalAuthoredRealignment)
 {
     GeneratedUiFixture ui;
     GeneratedUiTrackReticle& staleTrack = ui.Radar().DynamicRadarTrack().Create();
     staleTrack.label.SetText("STALE");
     ASSERT_TRUE(staleTrack.IsAlive());
 
-    ui.Reset();
+    ui.Initialize();
     EXPECT_FALSE(staleTrack.IsAlive());
 
     ui.Window().SetDisabled(true);
