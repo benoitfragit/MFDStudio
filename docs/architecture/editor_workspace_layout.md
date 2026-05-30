@@ -69,14 +69,27 @@ and the layer-inspector dock have moved out of that overlay path.
 The editor shell is still one class, but its implementation is now split by
 responsibility:
 
-- `mfd_editor/src/EditorApplication.cpp` keeps the main shell, page-preview
-  layout, geometry helpers, direct manipulation, and the frame-by-frame draw
-  path
+- `mfd_editor/src/EditorApplication.cpp` keeps the application loop,
+  document-level editing primitives, shared preview interactions, and the
+  cross-cutting geometry helpers still shared by the shell and inspectors
+- `mfd_editor/src/application/EditorApplicationShell.cpp` owns the root ImGui
+  shell, menu bar, sidebar, workspace split, empty state, and inspector-host
+  routing
+- `mfd_editor/src/application/EditorApplicationInspectors.cpp` owns the
+  window, page, strobe, title, reticle, and primitive inspectors together with
+  their editor-only drafting state
 - `mfd_editor/src/EditorApplicationWorkflow.cpp` owns modal workflows, native
   file-dialog orchestration, safe asset-management popups, and tutorial-driven
   authoring actions
-- `mfd_editor/src/EditorApplicationInternal.h` centralizes small private
-  helpers reused by both implementation units without widening the public API
+- `mfd_editor/include/internal/application/EditorApplicationState.h` groups
+  private state by responsibility instead of keeping one flat tail of members
+- `mfd_editor/include/internal/application/EditorApplicationAuthoringSupport.h`
+  centralizes editor-only rules shared by preview code and inspectors
+- `mfd_editor/include/internal/application/EditorApplicationInternal.h`
+  centralizes small private helpers reused by multiple implementation units
+  without widening the public API
 
 This keeps workspace-layout behavior close to the preview code while moving the
-long authoring and popup workflows out of the main shell compilation unit.
+long authoring and popup workflows out of the main shell compilation unit. The
+internal headers now live under `include/internal/application/` so the split is
+visible in the tree instead of being hidden inside `src/`.

@@ -441,7 +441,7 @@ void EditorTutorialController::RestartFromScratch()
 {
     CleanupGeneratedFiles();
     bool reloadedDefaultWindow = true;
-    const std::filesystem::path normalizedCurrentWindow = NormalizeAgainstWorkingDirectory(app_.windowFile_);
+    const std::filesystem::path normalizedCurrentWindow = NormalizeAgainstWorkingDirectory(app_.documentState_.windowFile);
     const std::filesystem::path normalizedTutorialWindow =
         NormalizeAgainstWorkingDirectory(std::filesystem::path {kTutorialWindowFile});
     if (normalizedCurrentWindow == normalizedTutorialWindow ||
@@ -1277,3 +1277,4 @@ void EditorTutorialController::DrawReferenceDocument()
         CompleteStep();
     }
 }
+

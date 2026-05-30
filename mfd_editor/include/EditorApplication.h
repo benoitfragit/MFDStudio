@@ -36,6 +36,7 @@
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorReticleRenameService.h"
+#include "internal/application/EditorApplicationState.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 #include "BezierPolylineCache.h"
@@ -72,230 +73,28 @@ public:
 
 private:
     /** @brief Input buffer capacity used for editable filesystem paths in the editor UI. */
-    static constexpr std::size_t kPathTextCapacity = 512;
-
-    /** @brief Current high-level selection type shown in the inspector. */
-    enum class SelectionKind
-    {
-        Window,
-        Page,
-        PageReticle,
-        PageTitle,
-        PageStrobe,
-        LibraryReticle,
-        LibraryPrimitive
-    };
-
-    /** @brief Current direct-manipulation mode active in the preview viewport. */
-    enum class InteractionMode
-    {
-        None,
-        PanPage,
-        NavigateMinimap,
-        MoveReticle,
-        RotateReticle,
-        ScaleReticle,
-        MovePrimitive,
-        EditPrimitiveHandle
-    };
-
-    /** @brief Type of primitive handle currently manipulated inside the studio preview. */
-    enum class PrimitiveHandleKind
-    {
-        None,
-        Point,
-        Radius,
-        RectangleCorner,
-        DiamondAxis
-    };
-
-    /** @brief Current tree selection routed to the inspector and the preview overlays. */
-    struct Selection
-    {
-        SelectionKind kind = SelectionKind::Page;
-        int pageIndex = 0;
-        int pageReticleIndex = -1;
-        std::vector<int> pageReticleIndices {};
-        std::string libraryReticleId {};
-        std::string libraryBrowserReticleId {};
-        int primitiveIndex = -1;
-    };
-
-    /**
-     * @brief Screen-to-logical conversion state of one preview viewport.
-     *
-     * @note The editor uses the same normalized `[-1, 1]` space as the
-     * runtime, so these helpers are central when dragging or measuring content.
-     */
-    struct ViewportState
-    {
-        ImVec2 origin {};
-        ImVec2 size {};
-        mfd::PageViewState view {};
-        bool valid = false;
-
-        float LogicalScale() const noexcept;
-        ImVec2 ToScreen(mfd::Vec2 logical) const noexcept;
-        mfd::Vec2 ToLogical(ImVec2 screen) const noexcept;
-    };
-
-    /** @brief Screen-space bounds cache used for hit-testing and overlay drawing. */
-    struct ReticleScreenBounds
-    {
-        ImVec2 min {};
-        ImVec2 max {};
-        ImVec2 center {};
-        bool valid = false;
-    };
-
-    /** @brief Primitive-level target used by the page clipping context menu. */
-    struct PageClipTarget
-    {
-        int reticleIndex = -1;
-        int primitiveIndex = -1;
-    };
-
-    /** @brief Ranked hit candidate used by page-preview selection. */
-    struct PageReticleHit
-    {
-        editor::PagePreviewHitTarget target {};
-        float distance = std::numeric_limits<float>::max();
-        float area = std::numeric_limits<float>::max();
-        bool directHit = false;
-        bool boundsHit = false;
-        int drawPriority = 0;
-    };
-
-    /** @brief Full undo snapshot storing the loaded document, file layout and current selection. */
-    struct UndoSnapshot
-    {
-        mfd::LoadedWindowConfiguration loaded;
-        editor::EditorFileLayout files;
-        Selection selection;
-        mfd::PageViewState pagePreviewView;
-        mfd::PageViewState libraryPreviewView;
-    };
-
-    /** @brief Draft values used by the "new page" popup before the page is created. */
-    struct NewPageDraft
-    {
-        std::array<char, 64> name {};
-        std::array<char, 64> title {};
-        std::array<char, kPathTextCapacity> fileName {};
-        ImVec4 background {0.03f, 0.10f, 0.03f, 1.0f};
-    };
-
-    /** @brief Draft values used by the "new window" popup before a window is created from scratch. */
-    struct NewWindowDraft
-    {
-        std::array<char, kPathTextCapacity> windowFile {};
-        std::array<char, 64> title {};
-        int width = 640;
-        int height = 480;
-        int positionX = 120;
-        int positionY = 80;
-        std::array<char, kPathTextCapacity> fontFile {};
-        std::array<char, kPathTextCapacity> reticleLibraryFolder {};
-        bool commandUdpExposed = true;
-        bool commandUdpEnabled = true;
-        std::array<char, 64> commandAddress {};
-        int commandPort = 49000;
-        int commandMaxPacketSize = 65507;
-        bool feedbackUdpExposed = false;
-        bool feedbackUdpEnabled = false;
-        std::array<char, 64> feedbackAddress {};
-        int feedbackPort = 49001;
-        int feedbackMaxPacketSize = 65507;
-        float feedbackFastIntervalSeconds = 0.020f;
-        float feedbackHeartbeatIntervalSeconds = 0.350f;
-        bool createInitialPage = true;
-        std::array<char, 64> firstPageName {};
-        std::array<char, 64> firstPageTitle {};
-        std::array<char, kPathTextCapacity> firstPageFile {};
-        ImVec4 firstPageBackground {0.03f, 0.10f, 0.03f, 1.0f};
-    };
-
-    /** @brief Draft values used by the "new library reticle" popup. */
-    struct NewLibraryReticleDraft
-    {
-        std::array<char, 64> id {};
-        int primitiveTypeIndex = 0;
-    };
-
-    /** @brief Draft values used when duplicating one library reticle under a new id. */
-    struct DuplicateLibraryReticleDraft
-    {
-        std::array<char, 64> id {};
-    };
-
-    /** @brief Page-management operation currently staged through the confirmation popup. */
-    enum class PageManagementAction
-    {
-        None,
-        RemoveFromWindow,
-        DeleteAsset
-    };
-
-    /** @brief UI state driving the remove/delete page confirmation popup. */
-    struct PageManagementPopupState
-    {
-        PageManagementAction action = PageManagementAction::None;
-        bool openRequested = false;
-        int pageIndex = -1;
-        int replacementPageIndex = -1;
-        bool allowOutsideAssetsRoot = false;
-        bool confirmDelete = false;
-    };
-
-    /** @brief UI state driving the page-import review popup. */
-    struct PageImportPopupState
-    {
-        bool openRequested = false;
-        std::filesystem::path sourcePageFile {};
-    };
-
-    /** @brief UI state driving the global page-rename review popup. */
-    struct PageRenamePopupState
-    {
-        bool openRequested = false;
-        int pageIndex = -1;
-        std::array<char, 128> newName {};
-    };
-
-    /** @brief UI state driving the global reticle-template rename review popup. */
-    struct ReticleRenamePopupState
-    {
-        bool openRequested = false;
-        std::string currentTemplateId {};
-        std::array<char, 128> newName {};
-        bool renameTemplateFile = true;
-    };
-
-    /** @brief UI state driving the reticle-extraction review popup. */
-    struct ReticleExtractionPopupState
-    {
-        bool openRequested = false;
-        std::array<char, 128> templateId {};
-        std::array<char, kPathTextCapacity> templateFile {};
-    };
-
-    /** @brief UI state driving the design-export popup and its execution feedback. */
-    struct DesignExportPopupState
-    {
-        bool openRequested = false;
-        std::array<char, kPathTextCapacity> outputFolder {};
-        bool exportMarkdownIcd = true;
-        bool exportExplodedViews = true;
-        bool includeCanvasCoordinates = true;
-        bool includeCppSnippets = true;
-        bool includeStrobe = true;
-        bool includeBlink = true;
-        bool includePrimitiveIds = true;
-        bool includeMappingHash = true;
-        bool exportCompleted = false;
-        std::filesystem::path exportedFolder {};
-        std::vector<std::string> warnings {};
-    };
+    static constexpr std::size_t kPathTextCapacity = editor::app::kPathTextCapacity;
+    using SelectionKind = editor::app::SelectionKind;
+    using InteractionMode = editor::app::InteractionMode;
+    using PrimitiveHandleKind = editor::app::PrimitiveHandleKind;
+    using Selection = editor::app::Selection;
+    using ViewportState = editor::app::ViewportState;
+    using ReticleScreenBounds = editor::app::ReticleScreenBounds;
+    using PageClipTarget = editor::app::PageClipTarget;
+    using PageReticleHit = editor::app::PageReticleHit;
+    using UndoSnapshot = editor::app::UndoSnapshot;
+    using NewPageDraft = editor::app::NewPageDraft;
+    using NewWindowDraft = editor::app::NewWindowDraft;
+    using NewLibraryReticleDraft = editor::app::NewLibraryReticleDraft;
+    using DuplicateLibraryReticleDraft = editor::app::DuplicateLibraryReticleDraft;
+    using PageManagementAction = editor::app::PageManagementAction;
+    using PageManagementPopupState = editor::app::PageManagementPopupState;
+    using PageImportPopupState = editor::app::PageImportPopupState;
+    using PageRenamePopupState = editor::app::PageRenamePopupState;
+    using ReticleRenamePopupState = editor::app::ReticleRenamePopupState;
+    using ReticleExtractionPopupState = editor::app::ReticleExtractionPopupState;
+    using DesignExportPopupState = editor::app::DesignExportPopupState;
+    using LayerPreviewTextureSlot = editor::app::LayerPreviewTextureSlot;
 
     /** @brief Loads a root window file plus its referenced authored assets into the editor. */
     bool LoadWindowConfiguration(const std::filesystem::path& path);
@@ -704,205 +503,21 @@ private:
                                             std::string_view ignoredStrobeName = {});
     /** @brief Generates a unique editor layer id inside one page. */
     static std::string MakeUniqueLayerId(const mfd::PageDefinition& page, std::string_view baseId);
-    /** @brief Root window file currently open in the editor, or empty when no asset is loaded yet. */
-    std::filesystem::path windowFile_ {};
-    /** @brief Loader used to resolve the root window file and its referenced assets. */
-    mfd::JsonLoader loader_ {};
-    /** @brief Centralized source for editor asset path defaults and guards. */
-    editor::EditorAssetPathService assetPaths_ {};
-    /** @brief In-memory authored document currently being edited. */
-    mfd::LoadedWindowConfiguration loaded_ {};
-    /** @brief Layout metadata tracking which authored object belongs to which file. */
-    editor::EditorFileLayout files_ {};
-    /** @brief Current tree and inspector selection. */
-    Selection selection_ {};
-    /** @brief Undo history of full document snapshots. */
-    std::vector<UndoSnapshot> undoStack_ {};
-    /** @brief Off-screen preview texture used by the viewports. */
-    RenderTexture2D previewTexture_ {};
-    /** @brief Indicates whether the preview texture currently owns GPU resources. */
-    bool previewTextureReady_ = false;
-    /** @brief Indicates whether the preview texture was successfully created with stencil support. */
-    bool previewTextureStencilReady_ = false;
-    /** @brief Shared BÃ©zier polyline cache reused by preview canvases across frames. */
-    mfd::BezierPolylineCache previewBezierCache_ {};
-    /** @brief Shared texture cache used by image primitives in preview canvases. */
-    mfd::ImageTextureCache previewImageCache_ {};
-    /** @brief Shared text-layout cache reused by preview canvases across frames. */
-    mfd::TextLayoutCache previewTextLayoutCache_ {};
-    /** @brief Off-screen texture dedicated to tree-item hover previews. */
-    RenderTexture2D tooltipPreviewTexture_ {};
-    /** @brief Indicates whether the hover-preview texture currently owns GPU resources. */
-    bool tooltipPreviewTextureReady_ = false;
-    /** @brief Indicates whether the hover-preview texture was successfully created with stencil support. */
-    bool tooltipPreviewTextureStencilReady_ = false;
-    /** @brief One cached render target reused by one layer-preview thumbnail slot. */
-    struct LayerPreviewTextureSlot
-    {
-        RenderTexture2D texture {};
-        bool ready = false;
-        bool stencilReady = false;
-        int width = 0;
-        int height = 0;
-    };
-    /** @brief Cached layer-preview thumbnail textures shown inside the docked layer inspector. */
-    std::vector<LayerPreviewTextureSlot> layerPreviewTextures_ {};
-    /** @brief Font file declared by the current window configuration. */
-    std::filesystem::path previewFontFile_ {};
-    /** @brief GPU font override used by the preview canvases when available. */
-    Font previewFont_ {};
-    /** @brief Indicates whether the preview font currently owns GPU resources. */
-    bool previewFontReady_ = false;
-    /** @brief Indicates whether the current preview font file has already been attempted. */
-    bool previewFontLoadAttempted_ = false;
-    /** @brief Current status message shown in the footer. */
-    std::string statusMessage_ {};
-    /** @brief Indicates whether the footer status is an error. */
-    bool statusIsError_ = false;
-    /** @brief Last runtime exception surfaced by the editor shell. */
-    std::string lastRuntimeError_ {};
-    /** @brief Popup visibility flag for page creation. */
-    bool showNewPagePopup_ = false;
-    /** @brief Popup visibility flag for window creation. */
-    bool showNewWindowPopup_ = false;
-    /** @brief Popup visibility flag for library reticle creation. */
-    bool showNewLibraryReticlePopup_ = false;
-    /** @brief Popup visibility flag for library reticle duplication. */
-    bool showDuplicateLibraryReticlePopup_ = false;
-    /** @brief Page-creation draft values. */
-    NewPageDraft newPageDraft_ {};
-    /** @brief Window-creation draft values. */
-    NewWindowDraft newWindowDraft_ {};
-    /** @brief Reticle-creation draft values. */
-    NewLibraryReticleDraft newLibraryReticleDraft_ {};
-    /** @brief Reticle-duplication draft values. */
-    DuplicateLibraryReticleDraft duplicateLibraryReticleDraft_ {};
-    /** @brief Confirmation-popup state used by remove/delete page actions. */
-    PageManagementPopupState pageManagementPopup_ {};
-    /** @brief Confirmation-popup state used by page imports. */
-    PageImportPopupState pageImportPopup_ {};
-    /** @brief Confirmation-popup state used by global page renames. */
-    PageRenamePopupState pageRenamePopup_ {};
-    /** @brief Confirmation-popup state used by global reticle-template renames. */
-    ReticleRenamePopupState reticleRenamePopup_ {};
-    /** @brief Confirmation-popup state used by reusable-reticle extractions. */
-    ReticleExtractionPopupState reticleExtractionPopup_ {};
-    /** @brief Confirmation-popup state used by design export. */
-    DesignExportPopupState designExportPopup_ {};
-    /** @brief Internal clipboard used by copy/paste on page reticles. */
-    std::vector<mfd::ReticleGroup> pageReticleClipboard_ {};
-    /** @brief Internal clipboard used by copy/paste on library reticle templates. */
-    std::optional<mfd::ReticleGroup> libraryReticleClipboard_ {};
-    /** @brief Internal clipboard used by copy/paste on library primitives in the reticle studio. */
-    std::optional<mfd::Primitive> libraryPrimitiveClipboard_ {};
-    /** @brief Paste counter used to offset successive pasted copies. */
-    int pageReticlePasteSerial_ = 0;
-    /** @brief Paste counter used to offset successive pasted primitive copies inside one reticle. */
-    int libraryPrimitivePasteSerial_ = 0;
+    /** @brief Grouped document state: asset roots, loaded JSON, file layout, selection and undo history. */
+    editor::app::DocumentState documentState_ {};
+    /** @brief Grouped preview resources: GPU render targets, caches and derived preview state. */
+    editor::app::PreviewState previewState_ {};
+    /** @brief Grouped workflow UI state: status bar, drafts and modal popup state. */
+    editor::app::WorkflowState workflowState_ {};
+    /** @brief Grouped clipboard state shared by page-reticle and reticle-studio copy/paste flows. */
+    editor::app::ClipboardState clipboardState_ {};
     /** @brief Private controller that owns the guided tutorial state and workflow. */
     std::unique_ptr<EditorTutorialController> tutorial_ {};
-    /** @brief Stateless service owning the page remove/delete planning logic. */
-    editor::PageManagementService pageManagementService_ {};
-    /** @brief Stateless service owning the page import planning logic. */
-    editor::PageImportService pageImportService_ {};
-    /** @brief Stateless service owning the global page-rename planning logic. */
-    editor::PageRenameService pageRenameService_ {};
-    /** @brief Stateless service preparing primitive copy/paste operations in the reticle studio. */
-    editor::PrimitiveClipboardService primitiveClipboardService_ {};
-    /** @brief Stateless service owning the global reticle-template rename planning logic. */
-    editor::ReticleRenameService reticleRenameService_ {};
-    /** @brief Stateless service generating design Markdown and exploded views for the current window. */
-    editor::EditorDesignExportService designExportService_ {};
-    /** @brief Stateless controller owning fullscreen preview layout capture and restoration. */
-    editor::FullscreenPreviewController fullscreenPreviewController_ {};
-    /** @brief Stateless controller owning page-preview layer-focus decisions. */
-    editor::LayerFocusController layerFocusController_ {};
-    /** @brief Stateless service computing page highlights for the selected reticle template. */
-    editor::ReticleUsageHighlightService reticleUsageHighlightService_ {};
-    /** @brief Stateless service extracting one selected page-reticle block into a reusable template. */
-    editor::ReticleExtractionService reticleExtractionService_ {};
-    /** @brief Cached highlight result reused while the document and selected template stay unchanged. */
-    struct ReticleUsageHighlightCacheState
-    {
-        bool dirty = true;
-        std::string templateId {};
-        std::filesystem::path assetsRoot {};
-        editor::ReticleUsageHighlightResult result {};
-    } reticleUsageHighlightCache_ {};
-    /** @brief Cached generated page-title reticle reused while the current authored title state stays unchanged. */
-    struct PageTitlePreviewReticleCacheState
-    {
-        bool valid = false;
-        std::string pageName {};
-        std::string pageTitle {};
-        mfd::PageTitleDisplayDefinition display {};
-        mfd::ReticleGroup reticle {};
-    };
-    mutable PageTitlePreviewReticleCacheState pageTitlePreviewReticleCache_ {};
-    /** @brief Current direct-manipulation mode active in the preview. */
-    InteractionMode interactionMode_ = InteractionMode::None;
-    /** @brief Reticle currently manipulated by the user, when relevant. */
-    int interactionReticleIndex_ = -1;
-    /** @brief Ordered list of reticles manipulated together during one group move gesture. */
-    std::vector<int> interactionReticleIndices_ {};
-    /** @brief Primitive currently manipulated by the user, when relevant. */
-    int interactionPrimitiveIndex_ = -1;
-    /** @brief Handle index currently manipulated on the selected primitive. */
-    int interactionHandleIndex_ = -1;
-    /** @brief Kind of handle currently manipulated. */
-    PrimitiveHandleKind interactionHandleKind_ = PrimitiveHandleKind::None;
-    /** @brief Reticle transform snapshot captured at interaction start. */
-    mfd::Transform2D interactionStartTransform_ {};
-    /** @brief Reticle transform snapshots captured for every moved reticle at gesture start. */
-    std::vector<mfd::Transform2D> interactionStartReticleTransforms_ {};
-    /** @brief Primitive snapshot captured at interaction start. */
-    mfd::Primitive interactionStartPrimitive_ {};
-    /** @brief Mouse position in logical coordinates at interaction start. */
-    mfd::Vec2 interactionStartMouseLogical_ {};
-    /** @brief Mouse position in reticle-local coordinates at interaction start. */
-    mfd::Vec2 interactionStartMouseReticleLocal_ {};
-    /** @brief Mouse position in primitive-local coordinates at interaction start. */
-    mfd::Vec2 interactionStartMousePrimitiveLocal_ {};
-    /** @brief Starting angle used by rotate gestures. */
-    float interactionStartAngleDegrees_ = 0.0f;
-    /** @brief Starting distance used by scale gestures. */
-    float interactionStartDistance_ = 0.0f;
-    /** @brief Local visual center of the reticle when a direct manipulation starts. */
-    mfd::Vec2 interactionStartReticleVisualCenterLocal_ {};
-    /** @brief Screen-space center snapshot used by interactive overlays. */
-    ImVec2 interactionStartCenterScreen_ {};
-    /** @brief Screen-space corner snapshot used by interactive overlays. */
-    ImVec2 interactionStartCornerScreen_ {};
-    /** @brief Width of the left navigation pane. */
-    float sidebarWidth_ = 320.0f;
-    /** @brief Indicates whether the left navigation pane is currently visible. */
-    bool sidebarVisible_ = true;
-    /** @brief Width of the right inspector pane. */
-    float inspectorWidth_ = 360.0f;
-    /** @brief Indicates whether the right inspector pane is currently visible. */
-    bool inspectorVisible_ = true;
-    /** @brief Split ratio used by the library-studio sub-layout. */
-    float libraryStudioPageWidth_ = 0.0f;
-    /** @brief Indicates whether primitive labels stay visible in the reticle-studio overlay. */
-    bool libraryStudioShowPrimitiveLabels_ = true;
-    /** @brief Indicates whether reticle-studio gizmos such as bounds and handles stay visible. */
-    bool libraryStudioShowGizmos_ = true;
-    /** @brief Session-scoped display preferences for the page preview panel. */
-    editor::PagePreviewViewOptions pagePreviewViewOptions_ {};
-    /** @brief Editor-only layer-focus state used by the page-preview inspector strip. */
-    editor::LayerFocusState layerFocusState_ {};
-    /** @brief Editor-only page preview camera independent from the authored page view. */
-    mfd::PageViewState pagePreviewView_ {};
-    /** @brief Editor-only reticle-studio preview camera. */
-    mfd::PageViewState libraryPreviewView_ {};
-    /** @brief Logical offset preserved while dragging the viewport rectangle inside the minimap. */
-    mfd::Vec2 minimapDragOffsetLogical_ {};
-    /** @brief Suppresses one page-preview context popup right after a viewport pan release. */
-    bool suppressNextPagePreviewContextMenu_ = false;
-    /** @brief Suppresses one reticle-studio context popup right after a viewport pan release. */
-    bool suppressNextLibraryPreviewContextMenu_ = false;
-    /** @brief Reticles currently listed by the page-preview context menu. */
-    std::vector<int> pagePreviewContextReticleIndices_ {};
-    /** @brief Clip-capable reticle primitives currently listed by the page-preview context menu. */
-    std::vector<PageClipTarget> pagePreviewContextTargets_ {};
+    /** @brief Grouped stateless services and controllers shared across editor responsibilities. */
+    editor::app::ServicesState services_ {};
+    /** @brief Grouped direct-manipulation state used by page-preview and reticle-studio gestures. */
+    editor::app::InteractionState interactionState_ {};
+    /** @brief Grouped layout and view state for the main editor workspace. */
+    editor::app::LayoutState layoutState_ {};
 };
+

@@ -9,7 +9,7 @@
  * @brief Unit tests covering private editor helpers shared by the application implementation.
  */
 
-#include "EditorApplicationInternal.h"
+#include "internal/application/EditorApplicationInternal.h"
 
 #include <gtest/gtest.h>
 

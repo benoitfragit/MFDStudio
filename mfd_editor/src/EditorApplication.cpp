@@ -33,12 +33,13 @@
 
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
-#include "EditorApplicationInternal.h"
+#include "internal/application/EditorApplicationInternal.h"
 #include "EditorFileDialogs.h"
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorUiTheme.h"
 #include "EditorWorkspaceLayout.h"
+#include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "mfd/model/Types.h"
 #include "Canvas2D.h"
 #include "RenderTextureUtils.h"
@@ -65,6 +66,36 @@ using editor::detail::SeedReticleFillOverrideIfNeeded;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
 using editor::detail::VisibleFillColorFromStroke;
+using editor::app::ClearBlinkReferencesForRemovedType;
+using editor::app::ClearEditorLayerReferences;
+using editor::app::CollectClipPrimitiveOptions;
+using editor::app::CountBlinkReferences;
+using editor::app::CountDynamicLayerBindings;
+using editor::app::CountEditorLayerAssignments;
+using editor::app::DefaultEditorLayerId;
+using editor::app::EffectiveDefaultBlinkTypeIndex;
+using editor::app::FindActivePageStrobeIndex;
+using editor::app::FindBlinkTypeIndex;
+using editor::app::FindEditorLayer;
+using editor::app::IsPageStrobeIndexVisibleInEditor;
+using editor::app::IsPageStrobeSelectableInEditor;
+using editor::app::IsPageStrobeVisibleInEditor;
+using editor::app::IsReticleVisibleInEditor;
+using editor::app::LineStyleLabel;
+using editor::app::MakeUniqueBlinkTypeName;
+using editor::app::PageStrobeDisplayLabel;
+using editor::app::PageStrobeNameExistsExact;
+using editor::app::PageTitleDecorationLabel;
+using editor::app::PrimitiveTypeLabel;
+using editor::app::RefreshBlinkBindingForEditor;
+using editor::app::RefreshPageBlinkStateForEditor;
+using editor::app::RenameBlinkReferences;
+using editor::app::RenameEditorLayerReferences;
+using editor::app::ReticleClipModeLabel;
+using editor::app::SetActivePageStrobe;
+using editor::app::SuggestPageStrobeDraftName;
+using editor::app::SummarizeDynamicLayerBindings;
+using editor::app::SupportsPrimitiveLineStyle;
 using json = nlohmann::json;
 
 constexpr float kSidebarWidth = 320.0f;
@@ -324,152 +355,6 @@ bool HasSamePageTitleDisplay(const mfd::PageTitleDisplayDefinition& lhs,
            lhs.decoration == rhs.decoration;
 }
 
-std::string PrimitiveTypeLabel(const mfd::PrimitiveType type)
-{
-    switch (type)
-    {
-    case mfd::PrimitiveType::Text:
-        return "Text";
-    case mfd::PrimitiveType::Time:
-        return "Time";
-    case mfd::PrimitiveType::Line:
-        return "Line";
-    case mfd::PrimitiveType::Circle:
-        return "Circle";
-    case mfd::PrimitiveType::Ring:
-        return "Ring";
-    case mfd::PrimitiveType::Rectangle:
-        return "Rectangle";
-    case mfd::PrimitiveType::Ellipse:
-        return "Ellipse";
-    case mfd::PrimitiveType::Square:
-        return "Square";
-    case mfd::PrimitiveType::Diamond:
-        return "Diamond";
-    case mfd::PrimitiveType::Triangle:
-        return "Triangle";
-    case mfd::PrimitiveType::Polyline:
-        return "Polyline";
-    case mfd::PrimitiveType::Bezier:
-        return "Bezier";
-    case mfd::PrimitiveType::Arc:
-        return "Arc";
-    case mfd::PrimitiveType::Image:
-        return "Image";
-    }
-
-    return "Primitive";
-}
-
-const char* LineStyleLabel(const mfd::LineStyle lineStyle) noexcept
-{
-    switch (lineStyle)
-    {
-    case mfd::LineStyle::Dotted:
-        return "Dotted";
-    case mfd::LineStyle::Dashed:
-        return "Dashed";
-    case mfd::LineStyle::Solid:
-    default:
-        return "Solid";
-    }
-}
-
-bool SupportsPrimitiveLineStyle(const mfd::PrimitiveType type) noexcept
-{
-    switch (type)
-    {
-    case mfd::PrimitiveType::Text:
-    case mfd::PrimitiveType::Time:
-    case mfd::PrimitiveType::Image:
-        return false;
-    default:
-        return true;
-    }
-}
-
-const char* ReticleClipModeLabel(const mfd::ReticleClipMode mode) noexcept
-{
-    switch (mode)
-    {
-    case mfd::ReticleClipMode::Inner:
-        return "Inner clipping";
-    case mfd::ReticleClipMode::Outer:
-        return "Outer clipping";
-    case mfd::ReticleClipMode::None:
-    default:
-        return "Disabled";
-    }
-}
-
-int FindActivePageStrobeIndex(const mfd::PageDefinition& page) noexcept
-{
-    if (const mfd::PageStrobeDefinition* active = mfd::FindActivePageStrobeDefinition(page); active != nullptr)
-    {
-        return static_cast<int>(active - page.strobes.data());
-    }
-
-    return -1;
-}
-
-void SetActivePageStrobe(mfd::PageDefinition& page, const mfd::PageStrobeDefinition& strobe)
-{
-    page.activeStrobeName = strobe.name;
-    page.normalizedActiveStrobeName = strobe.normalizedName;
-}
-
-std::string SuggestPageStrobeDraftName(const mfd::PageDefinition& page)
-{
-    if (page.strobes.empty() && mfd::FindPageStrobeDefinition(page, "Default") == nullptr)
-    {
-        return "Default";
-    }
-
-    int suffix = 1;
-    while (true)
-    {
-        const std::string candidate = "Strobe" + std::to_string(suffix);
-        if (mfd::FindPageStrobeDefinition(page, candidate) == nullptr)
-        {
-            return candidate;
-        }
-
-        ++suffix;
-    }
-}
-
-struct ClipPrimitiveOption
-{
-    std::string primitiveId;
-    std::string label;
-};
-
-std::vector<ClipPrimitiveOption> CollectClipPrimitiveOptions(const mfd::ReticleGroup& reticle)
-{
-    std::vector<ClipPrimitiveOption> options;
-    std::unordered_set<std::string> seenPrimitiveIds;
-
-    for (int index = 0; index < static_cast<int>(reticle.primitives.size()); ++index)
-    {
-        const auto& primitive = reticle.primitives[static_cast<std::size_t>(index)];
-        if (primitive.id.empty() || !mfd::SupportsReticleClipPrimitive(primitive))
-        {
-            continue;
-        }
-
-        if (!seenPrimitiveIds.insert(primitive.id).second)
-        {
-            continue;
-        }
-
-        options.push_back(ClipPrimitiveOption {
-            primitive.id,
-            primitive.id + " (" + PrimitiveTypeLabel(primitive.type) + ")"});
-    }
-
-    return options;
-}
-
 bool IsPointInsidePolygon(const std::vector<ImVec2>& polygon, const ImVec2 point) noexcept
 {
     if (polygon.size() < 3)
@@ -608,14 +493,6 @@ float Distance(const ImVec2 lhs, const ImVec2 rhs)
     return std::sqrt(dx * dx + dy * dy);
 }
 
-bool BlinkStateMatchesNormalizedName(const mfd::ReticleBlinkState& blink,
-                                     const std::string_view normalizedBlinkTypeName)
-{
-    const std::string currentNormalizedName =
-        blink.normalizedTypeName.empty() ? mfd::NormalizePageName(blink.typeName) : blink.normalizedTypeName;
-    return currentNormalizedName == normalizedBlinkTypeName;
-}
-
 bool ReticleIdExistsExact(const std::vector<mfd::ReticleGroup>& groups, const std::string_view id)
 {
     return std::any_of(groups.begin(),
@@ -651,30 +528,6 @@ bool PageLayerIdExistsNormalized(const mfd::PageDefinition& page, const std::str
                        {
                            return mfd::NormalizePageName(layer.id) == normalizedId;
                        });
-}
-
-bool PageStrobeNameExistsExact(const mfd::PageDefinition& page, const std::string_view name)
-{
-    return std::any_of(page.strobes.begin(),
-                       page.strobes.end(),
-                       [name](const mfd::PageStrobeDefinition& strobe)
-                       {
-                           return strobe.name == name;
-                       });
-}
-
-std::string PageStrobeDisplayLabel(const mfd::PageDefinition& page,
-                                   const mfd::PageStrobeDefinition& strobe,
-                                   const std::size_t strobeIndex)
-{
-    const std::string baseName = strobe.name.empty() ? "strobe_" + std::to_string(strobeIndex + 1U) : strobe.name;
-    if (page.normalizedActiveStrobeName == strobe.normalizedName ||
-        (page.normalizedActiveStrobeName.empty() && strobeIndex == 0U))
-    {
-        return baseName + " (active)";
-    }
-
-    return baseName;
 }
 
 std::string NormalizeEditorIdentifier(const std::string_view value)
@@ -727,73 +580,6 @@ void AppendPrimitiveProblems(std::vector<std::string>& messages,
     }
 }
 
-const char* PageTitleDecorationLabel(const mfd::PageTitleDecoration decoration) noexcept
-{
-    switch (decoration)
-    {
-    case mfd::PageTitleDecoration::None:
-        return "None";
-    case mfd::PageTitleDecoration::Frame:
-        return "Frame";
-    case mfd::PageTitleDecoration::Underline:
-    default:
-        return "Underline";
-    }
-}
-
-std::size_t PageLayerOrder(const mfd::PageDefinition& page, const std::string_view layerId)
-{
-    for (std::size_t index = 0; index < page.layers.size(); ++index)
-    {
-        if (mfd::PageNamesEqual(page.layers[index].id, layerId))
-        {
-            return index;
-        }
-    }
-
-    return page.layers.size();
-}
-
-bool PageHasDynamicTemplateBinding(const mfd::PageDefinition& page, const std::string_view templateId)
-{
-    return mfd::FindDynamicReticleLayerBinding(page, templateId) != nullptr;
-}
-
-bool PageHasDynamicOrderConflict(const mfd::PageDefinition& page,
-                                 const std::string_view layerId,
-                                 const int orderInLayer,
-                                 const int ignoredIndex = -1)
-{
-    for (int index = 0; index < static_cast<int>(page.dynamicReticleBindings.size()); ++index)
-    {
-        if (index == ignoredIndex)
-        {
-            continue;
-        }
-
-        const mfd::DynamicReticleLayerBinding& binding = page.dynamicReticleBindings[static_cast<std::size_t>(index)];
-        if (mfd::PageNamesEqual(binding.layerId, layerId) && binding.orderInLayer == orderInLayer)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-int NextPageDynamicOrderInLayer(const mfd::PageDefinition& page,
-                                const std::string_view layerId,
-                                const int ignoredIndex = -1)
-{
-    int nextOrder = 0;
-    while (PageHasDynamicOrderConflict(page, layerId, nextOrder, ignoredIndex))
-    {
-        ++nextOrder;
-    }
-
-    return nextOrder;
-}
-
 struct LogicalBounds
 {
     mfd::Vec2 min {};
@@ -822,27 +608,6 @@ struct PageClipPrimitiveHit
     int primitiveIndex = -1;
     float primitiveDistance = std::numeric_limits<float>::max();
     float reticleDistance = std::numeric_limits<float>::max();
-};
-
-struct TutorialDynamicTemplateInfo
-{
-    std::string_view templateId;
-    std::string_view preferredLayerId;
-    std::string_view targetId;
-    const char* label;
-    const char* reason;
-};
-
-struct DynamicBindingDraftState
-{
-    std::string templateId;
-    std::string layerId;
-};
-
-struct StrobeDraftState
-{
-    std::string name;
-    std::string templateId;
 };
 
 void IncludeLogicalPoint(LogicalBounds& bounds, const mfd::Vec2 point)
@@ -983,266 +748,6 @@ mfd::Transform2D BuildTransformKeepingLocalPointWorldPosition(const mfd::Transfo
         worldPoint - offset,
         rotationDegrees,
         scale};
-}
-
-constexpr std::size_t kInvalidBlinkTypeIndex = std::numeric_limits<std::size_t>::max();
-
-std::size_t FindBlinkTypeIndex(const mfd::PageDefinition& page, const std::string_view blinkTypeName)
-{
-    const std::string normalizedBlinkTypeName = mfd::NormalizePageName(blinkTypeName);
-    if (normalizedBlinkTypeName.empty())
-    {
-        return kInvalidBlinkTypeIndex;
-    }
-
-    for (std::size_t index = 0; index < page.blinkTypes.size(); ++index)
-    {
-        if (page.blinkTypes[index].normalizedName == normalizedBlinkTypeName)
-        {
-            return index;
-        }
-    }
-
-    return kInvalidBlinkTypeIndex;
-}
-
-std::size_t EffectiveDefaultBlinkTypeIndex(const mfd::PageDefinition& page)
-{
-    if (page.blinkTypes.empty())
-    {
-        return kInvalidBlinkTypeIndex;
-    }
-
-    if (!page.normalizedDefaultBlinkTypeName.empty())
-    {
-        for (std::size_t index = 0; index < page.blinkTypes.size(); ++index)
-        {
-            if (page.blinkTypes[index].normalizedName == page.normalizedDefaultBlinkTypeName)
-            {
-                return index;
-            }
-        }
-    }
-
-    return 0;
-}
-
-std::string MakeUniqueBlinkTypeName(const mfd::PageDefinition& page, std::string_view baseName)
-{
-    std::string candidate = baseName.empty() ? std::string {"blink"} : std::string(baseName);
-    int suffix = 2;
-
-    while (FindBlinkTypeIndex(page, candidate) != kInvalidBlinkTypeIndex)
-    {
-        candidate = std::string(baseName.empty() ? "blink" : baseName) + "_" + std::to_string(suffix++);
-    }
-
-    return candidate;
-}
-
-void RenameBlinkReference(mfd::ReticleBlinkState& blink,
-                          const std::string_view previousNormalizedName,
-                          const std::string& nextName,
-                          const std::string& nextNormalizedName)
-{
-    if (previousNormalizedName.empty())
-    {
-        return;
-    }
-
-    const std::string currentNormalizedName =
-        blink.normalizedTypeName.empty() ? mfd::NormalizePageName(blink.typeName) : blink.normalizedTypeName;
-    if (currentNormalizedName != previousNormalizedName)
-    {
-        return;
-    }
-
-    blink.typeName = nextName;
-    blink.normalizedTypeName = nextNormalizedName;
-}
-
-void ClearBlinkReference(mfd::ReticleBlinkState& blink, const std::string_view removedNormalizedName)
-{
-    if (removedNormalizedName.empty())
-    {
-        return;
-    }
-
-    const std::string currentNormalizedName =
-        blink.normalizedTypeName.empty() ? mfd::NormalizePageName(blink.typeName) : blink.normalizedTypeName;
-    if (currentNormalizedName == removedNormalizedName)
-    {
-        blink = {};
-    }
-}
-
-std::size_t CountBlinkReferences(const mfd::PageDefinition& page, const std::string_view normalizedBlinkTypeName)
-{
-    if (normalizedBlinkTypeName.empty())
-    {
-        return 0;
-    }
-
-    std::size_t count = 0;
-    for (const auto& reticle : page.staticReticles)
-    {
-        if (BlinkStateMatchesNormalizedName(reticle.blink, normalizedBlinkTypeName))
-        {
-            ++count;
-        }
-    }
-
-    for (const auto& strobe : page.strobes)
-    {
-        if (BlinkStateMatchesNormalizedName(strobe.reticle.blink, normalizedBlinkTypeName))
-        {
-            ++count;
-        }
-    }
-
-    return count;
-}
-
-void RenameBlinkReferences(mfd::PageDefinition& page,
-                           const std::string_view previousNormalizedName,
-                           const std::string& nextName)
-{
-    if (previousNormalizedName.empty())
-    {
-        return;
-    }
-
-    const std::string nextNormalizedName = mfd::NormalizePageName(nextName);
-    if (page.normalizedDefaultBlinkTypeName == previousNormalizedName)
-    {
-        page.defaultBlinkTypeName = nextName;
-        page.normalizedDefaultBlinkTypeName = nextNormalizedName;
-    }
-
-    for (auto& reticle : page.staticReticles)
-    {
-        RenameBlinkReference(reticle.blink, previousNormalizedName, nextName, nextNormalizedName);
-    }
-
-    for (auto& strobe : page.strobes)
-    {
-        RenameBlinkReference(strobe.reticle.blink, previousNormalizedName, nextName, nextNormalizedName);
-    }
-}
-
-void ClearBlinkReferencesForRemovedType(mfd::PageDefinition& page, const std::string_view removedNormalizedName)
-{
-    if (removedNormalizedName.empty())
-    {
-        return;
-    }
-
-    if (page.normalizedDefaultBlinkTypeName == removedNormalizedName)
-    {
-        page.defaultBlinkTypeName.clear();
-        page.normalizedDefaultBlinkTypeName.clear();
-    }
-
-    for (auto& reticle : page.staticReticles)
-    {
-        ClearBlinkReference(reticle.blink, removedNormalizedName);
-    }
-
-    for (auto& strobe : page.strobes)
-    {
-        ClearBlinkReference(strobe.reticle.blink, removedNormalizedName);
-    }
-}
-
-void RefreshBlinkBindingForEditor(const mfd::PageDefinition& page, mfd::ReticleBlinkState& blink)
-{
-    blink.normalizedTypeName = blink.typeName.empty() ? std::string {} : mfd::NormalizePageName(blink.typeName);
-
-    if (!blink.typeName.empty())
-    {
-        const std::size_t blinkTypeIndex = FindBlinkTypeIndex(page, blink.normalizedTypeName);
-        blink.durationMs = blinkTypeIndex == kInvalidBlinkTypeIndex ? 0U : page.blinkTypes[blinkTypeIndex].durationMs;
-        return;
-    }
-
-    if (!blink.enabled)
-    {
-        blink.durationMs = 0;
-        return;
-    }
-
-    const std::size_t defaultBlinkTypeIndex = EffectiveDefaultBlinkTypeIndex(page);
-    blink.durationMs =
-        defaultBlinkTypeIndex == kInvalidBlinkTypeIndex ? 0U : page.blinkTypes[defaultBlinkTypeIndex].durationMs;
-}
-
-void RefreshPageBlinkStateForEditor(mfd::PageDefinition& page)
-{
-    for (auto& blinkType : page.blinkTypes)
-    {
-        blinkType.normalizedName = mfd::NormalizePageName(blinkType.name);
-        blinkType.durationMs = std::max<std::uint32_t>(1U, blinkType.durationMs);
-    }
-
-    page.normalizedDefaultBlinkTypeName =
-        page.defaultBlinkTypeName.empty() ? std::string {} : mfd::NormalizePageName(page.defaultBlinkTypeName);
-
-    for (auto& reticle : page.staticReticles)
-    {
-        RefreshBlinkBindingForEditor(page, reticle.blink);
-    }
-
-    for (auto& strobe : page.strobes)
-    {
-        RefreshBlinkBindingForEditor(page, strobe.reticle.blink);
-    }
-}
-
-const mfd::EditorLayerDefinition* FindEditorLayer(const mfd::PageDefinition& page, const std::string_view layerId)
-{
-    if (layerId.empty())
-    {
-        return nullptr;
-    }
-
-    const auto iterator = std::find_if(page.editor.layers.begin(),
-                                       page.editor.layers.end(),
-                                       [layerId](const mfd::EditorLayerDefinition& layer)
-                                       {
-                                           return layer.id == layerId;
-                                       });
-    return iterator == page.editor.layers.end() ? nullptr : &(*iterator);
-}
-
-bool IsReticleVisibleInEditor(const mfd::PageDefinition& page, const mfd::ReticleGroup& reticle)
-{
-    if (const mfd::EditorLayerDefinition* layer = FindEditorLayer(page, reticle.layerId); layer != nullptr)
-    {
-        return layer->visible;
-    }
-
-    return true;
-}
-
-bool IsPageStrobeVisibleInEditor(const mfd::PageDefinition& page, const mfd::PageStrobeDefinition& strobe)
-{
-    const mfd::PageStrobeDefinition* activeStrobe = mfd::FindActivePageStrobeDefinition(page);
-    return activeStrobe != nullptr && activeStrobe == &strobe && IsReticleVisibleInEditor(page, strobe.reticle);
-}
-
-bool IsPageStrobeIndexVisibleInEditor(const mfd::PageDefinition& page, const int strobeIndex)
-{
-    if (strobeIndex < 0 || strobeIndex >= static_cast<int>(page.strobes.size()))
-    {
-        return false;
-    }
-
-    return IsPageStrobeVisibleInEditor(page, page.strobes[static_cast<std::size_t>(strobeIndex)]);
-}
-
-bool IsPageStrobeSelectableInEditor(const mfd::PageDefinition& page, const int strobeIndex)
-{
-    return strobeIndex >= 0 && strobeIndex < static_cast<int>(page.strobes.size());
 }
 
 template <typename ViewportStateT>
@@ -1506,140 +1011,6 @@ mfd::Vec2 ToMinimapLogical(const PageMinimapState& minimap, const ImVec2 screen)
         minimap.logicalCenter.y - (clampedY - minimap.contentCenter.y) / minimap.pixelsPerLogicalUnit};
 }
 
-std::size_t CountEditorLayerAssignments(const mfd::PageDefinition& page, const std::string_view layerId)
-{
-    if (layerId.empty())
-    {
-        return 0;
-    }
-
-    return static_cast<std::size_t>(std::count_if(
-        page.staticReticles.begin(),
-        page.staticReticles.end(),
-        [layerId](const mfd::ReticleGroup& reticle)
-        {
-            return reticle.layerId == layerId;
-         }));
-}
-
-std::size_t CountDynamicLayerBindings(const mfd::PageDefinition& page, const std::string_view layerId)
-{
-    if (layerId.empty())
-    {
-        return 0;
-    }
-
-    return static_cast<std::size_t>(std::count_if(
-        page.dynamicReticleBindings.begin(),
-        page.dynamicReticleBindings.end(),
-        [layerId](const mfd::DynamicReticleLayerBinding& binding)
-        {
-            return mfd::PageNamesEqual(binding.layerId, layerId);
-        }));
-}
-
-std::string SummarizeDynamicLayerBindings(const mfd::PageDefinition& page, const std::string_view layerId)
-{
-    if (layerId.empty())
-    {
-        return {};
-    }
-
-    std::string summary;
-    for (const mfd::DynamicReticleLayerBinding& binding : page.dynamicReticleBindings)
-    {
-        if (!mfd::PageNamesEqual(binding.layerId, layerId))
-        {
-            continue;
-        }
-
-        if (!summary.empty())
-        {
-            summary += ", ";
-        }
-        summary += binding.templateId;
-    }
-
-    return summary;
-}
-
-void RenameEditorLayerReferences(mfd::PageDefinition& page,
-                                 const std::string_view previousLayerId,
-                                 const std::string& nextLayerId)
-{
-    if (previousLayerId.empty() || previousLayerId == nextLayerId)
-    {
-        return;
-    }
-
-    for (auto& reticle : page.staticReticles)
-    {
-        if (reticle.layerId == previousLayerId)
-        {
-            reticle.layerId = nextLayerId;
-        }
-    }
-
-    for (auto& binding : page.dynamicReticleBindings)
-    {
-        if (binding.layerId == previousLayerId)
-        {
-            binding.layerId = nextLayerId;
-        }
-    }
-}
-
-std::size_t ClearEditorLayerReferences(mfd::PageDefinition& page, const std::string_view removedLayerId)
-{
-    if (removedLayerId.empty())
-    {
-        return 0;
-    }
-
-    std::size_t clearedCount = 0;
-    for (auto& reticle : page.staticReticles)
-    {
-        if (reticle.layerId == removedLayerId)
-        {
-            reticle.layerId.clear();
-            ++clearedCount;
-        }
-    }
-
-    for (auto& binding : page.dynamicReticleBindings)
-    {
-        if (binding.layerId == removedLayerId)
-        {
-            binding.layerId.clear();
-            ++clearedCount;
-        }
-    }
-
-    return clearedCount;
-}
-
-std::string DefaultEditorLayerId(const mfd::PageDefinition& page)
-{
-    const auto visibleLayer = std::find_if(page.editor.layers.begin(),
-                                           page.editor.layers.end(),
-                                           [](const mfd::EditorLayerDefinition& layer)
-                                           {
-                                               return layer.visible && !layer.id.empty();
-                                           });
-    if (visibleLayer != page.editor.layers.end())
-    {
-        return visibleLayer->id;
-    }
-
-    const auto firstLayer = std::find_if(page.editor.layers.begin(),
-                                         page.editor.layers.end(),
-                                         [](const mfd::EditorLayerDefinition& layer)
-                                         {
-                                             return !layer.id.empty();
-                                         });
-    return firstLayer == page.editor.layers.end() ? std::string {} : firstLayer->id;
-}
-
 bool IsRaylibControlChordPressed(const std::initializer_list<int> keys)
 {
     const bool controlDown = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
@@ -1667,24 +1038,24 @@ bool IsRaylibControlChordPressed(const std::initializer_list<int> keys)
 } // namespace
 
 EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
-    : assetPaths_(std::move(assetDirectory))
 {
-    sidebarWidth_ = kSidebarWidth;
-    inspectorWidth_ = kInspectorWidth;
+    documentState_.assetPaths = editor::EditorAssetPathService(std::move(assetDirectory));
+    layoutState_.sidebarWidth = kSidebarWidth;
+    layoutState_.inspectorWidth = kInspectorWidth;
     tutorial_ = std::make_unique<EditorTutorialController>(*this);
-    CopyTextBuffer(newPageDraft_.name, "NewPage");
-    CopyTextBuffer(newPageDraft_.title, "New Page");
-    CopyTextBuffer(newPageDraft_.fileName, assetPaths_.DefaultAssetPath("assets/pages/new_page.json").string());
-    CopyTextBuffer(newWindowDraft_.windowFile, assetPaths_.DefaultAssetPath("assets/windows/new_window.json").string());
-    CopyTextBuffer(newWindowDraft_.title, "New MFD Window");
-    CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, assetPaths_.DefaultAssetPath("assets/reticles").string());
-    CopyTextBuffer(newWindowDraft_.commandAddress, "127.0.0.1");
-    CopyTextBuffer(newWindowDraft_.feedbackAddress, "127.0.0.1");
-    CopyTextBuffer(newWindowDraft_.firstPageName, "Page1");
-    CopyTextBuffer(newWindowDraft_.firstPageTitle, "Page 1");
-    CopyTextBuffer(newWindowDraft_.firstPageFile, assetPaths_.DefaultAssetPath("assets/pages/page1.json").string());
-    CopyTextBuffer(newLibraryReticleDraft_.id, "new_reticle");
-    CopyTextBuffer(duplicateLibraryReticleDraft_.id, "reticle_copy");
+    CopyTextBuffer(workflowState_.newPageDraft.name, "NewPage");
+    CopyTextBuffer(workflowState_.newPageDraft.title, "New Page");
+    CopyTextBuffer(workflowState_.newPageDraft.fileName, documentState_.assetPaths.DefaultAssetPath("assets/pages/new_page.json").string());
+    CopyTextBuffer(workflowState_.newWindowDraft.windowFile, documentState_.assetPaths.DefaultAssetPath("assets/windows/new_window.json").string());
+    CopyTextBuffer(workflowState_.newWindowDraft.title, "New MFD Window");
+    CopyTextBuffer(workflowState_.newWindowDraft.reticleLibraryFolder, documentState_.assetPaths.DefaultAssetPath("assets/reticles").string());
+    CopyTextBuffer(workflowState_.newWindowDraft.commandAddress, "127.0.0.1");
+    CopyTextBuffer(workflowState_.newWindowDraft.feedbackAddress, "127.0.0.1");
+    CopyTextBuffer(workflowState_.newWindowDraft.firstPageName, "Page1");
+    CopyTextBuffer(workflowState_.newWindowDraft.firstPageTitle, "Page 1");
+    CopyTextBuffer(workflowState_.newWindowDraft.firstPageFile, documentState_.assetPaths.DefaultAssetPath("assets/pages/page1.json").string());
+    CopyTextBuffer(workflowState_.newLibraryReticleDraft.id, "new_reticle");
+    CopyTextBuffer(workflowState_.duplicateLibraryReticleDraft.id, "reticle_copy");
     ResetPagePreviewView();
     ResetLibraryPreviewView();
     RebuildStatus("Open one window asset or create assets to begin authoring.", false);
@@ -1696,12 +1067,12 @@ EditorApplication::~EditorApplication()
     ReleasePreviewGpuResources();
 }
 
-float EditorApplication::ViewportState::LogicalScale() const noexcept
+float editor::app::ViewportState::LogicalScale() const noexcept
 {
     return 0.5f * std::min(size.x, size.y);
 }
 
-ImVec2 EditorApplication::ViewportState::ToScreen(const mfd::Vec2 logical) const noexcept
+ImVec2 editor::app::ViewportState::ToScreen(const mfd::Vec2 logical) const noexcept
 {
     const mfd::Vec2 viewed = mfd::ApplyPageView(logical, view);
     return ImVec2(
@@ -1709,7 +1080,7 @@ ImVec2 EditorApplication::ViewportState::ToScreen(const mfd::Vec2 logical) const
         origin.y + size.y * 0.5f - viewed.y * LogicalScale());
 }
 
-mfd::Vec2 EditorApplication::ViewportState::ToLogical(const ImVec2 screen) const noexcept
+mfd::Vec2 editor::app::ViewportState::ToLogical(const ImVec2 screen) const noexcept
 {
     const float scale = LogicalScale();
     if (!valid || scale <= 0.0f)
@@ -1755,13 +1126,13 @@ int EditorApplication::Run()
         }
         catch (const std::exception& exception)
         {
-            lastRuntimeError_ = exception.what();
-            RebuildStatus(lastRuntimeError_, true);
+            workflowState_.lastRuntimeError = exception.what();
+            RebuildStatus(workflowState_.lastRuntimeError, true);
         }
         catch (...)
         {
-            lastRuntimeError_ = "Unknown exception inside mfd_editor";
-            RebuildStatus(lastRuntimeError_, true);
+            workflowState_.lastRuntimeError = "Unknown exception inside mfd_editor";
+            RebuildStatus(workflowState_.lastRuntimeError, true);
         }
 
         if (imguiBegun)
@@ -1782,30 +1153,30 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
 {
     try
     {
-        loaded_ = loader_.LoadWindowConfiguration(path);
-        for (auto& page : loaded_.document.pages)
+        documentState_.loaded = documentState_.loader.LoadWindowConfiguration(path);
+        for (auto& page : documentState_.loaded.document.pages)
         {
             BootstrapEditorLayersForPage(page);
         }
-        files_.pageFiles = loaded_.window.pageFiles;
-        files_.removedPageFiles.clear();
-        files_.removedTemplateFiles.clear();
+        documentState_.files.pageFiles = documentState_.loaded.window.pageFiles;
+        documentState_.files.removedPageFiles.clear();
+        documentState_.files.removedTemplateFiles.clear();
         std::string error;
-        if (!editor::DiscoverReticleTemplateFiles(loaded_.window.reticleLibraryFolder, files_, &error))
+        if (!editor::DiscoverReticleTemplateFiles(documentState_.loaded.window.reticleLibraryFolder, documentState_.files, &error))
         {
             throw std::runtime_error(error);
         }
 
-        ApplyPreviewFontFile(loaded_.window.fontFile);
-        selection_ = {};
-        layerFocusState_ = {};
-        SelectPage(DefaultPageIndex(loaded_.document.pages));
+        ApplyPreviewFontFile(documentState_.loaded.window.fontFile);
+        documentState_.selection = {};
+        layoutState_.layerFocusState = {};
+        SelectPage(DefaultPageIndex(documentState_.loaded.document.pages));
         ResetLibraryPreviewView();
-        undoStack_.clear();
+        documentState_.undoStack.clear();
         InvalidateReticleUsageHighlightCache();
-        windowFile_ = path;
-        lastRuntimeError_.clear();
-        RebuildStatus("Editor loaded '" + loaded_.window.title + "'.", false);
+        documentState_.windowFile = path;
+        workflowState_.lastRuntimeError.clear();
+        RebuildStatus("Editor loaded '" + documentState_.loaded.window.title + "'.", false);
         return true;
     }
     catch (const std::exception& exception)
@@ -1824,7 +1195,7 @@ bool EditorApplication::SaveAll()
     }
 
     std::string error;
-    if (!editor::SaveEditorDocument(loaded_, files_, &error))
+    if (!editor::SaveEditorDocument(documentState_.loaded, documentState_.files, &error))
     {
         RebuildStatus("Save failed: " + error, true);
         return false;
@@ -1836,25 +1207,25 @@ bool EditorApplication::SaveAll()
 
 void EditorApplication::Undo()
 {
-    if (undoStack_.empty())
+    if (documentState_.undoStack.empty())
     {
         RebuildStatus("Nothing to undo.", true);
         return;
     }
 
-    UndoSnapshot snapshot = std::move(undoStack_.back());
-    undoStack_.pop_back();
-    loaded_ = std::move(snapshot.loaded);
-    files_ = std::move(snapshot.files);
-    selection_ = std::move(snapshot.selection);
-    pagePreviewView_ = snapshot.pagePreviewView;
-    pagePreviewView_.zoom = mfd::SanitizeZoom(pagePreviewView_.zoom);
-    libraryPreviewView_ = snapshot.libraryPreviewView;
-    libraryPreviewView_.zoom = mfd::SanitizeZoom(libraryPreviewView_.zoom);
+    UndoSnapshot snapshot = std::move(documentState_.undoStack.back());
+    documentState_.undoStack.pop_back();
+    documentState_.loaded = std::move(snapshot.loaded);
+    documentState_.files = std::move(snapshot.files);
+    documentState_.selection = std::move(snapshot.selection);
+    layoutState_.pagePreviewView = snapshot.pagePreviewView;
+    layoutState_.pagePreviewView.zoom = mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom);
+    layoutState_.libraryPreviewView = snapshot.libraryPreviewView;
+    layoutState_.libraryPreviewView.zoom = mfd::SanitizeZoom(layoutState_.libraryPreviewView.zoom);
 
-    if (selection_.pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    if (documentState_.selection.pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
     {
-        SelectPage(loaded_.document.pages.empty() ? 0 : static_cast<int>(loaded_.document.pages.size()) - 1);
+        SelectPage(documentState_.loaded.document.pages.empty() ? 0 : static_cast<int>(documentState_.loaded.document.pages.size()) - 1);
     }
 
     SanitizeLayerFocusForActivePage();
@@ -1865,17 +1236,17 @@ void EditorApplication::Undo()
 
 void EditorApplication::PushUndoSnapshot()
 {
-    PushUndoSnapshot(UndoSnapshot {loaded_, files_, selection_, pagePreviewView_, libraryPreviewView_});
+    PushUndoSnapshot(UndoSnapshot {documentState_.loaded, documentState_.files, documentState_.selection, layoutState_.pagePreviewView, layoutState_.libraryPreviewView});
 }
 
 void EditorApplication::PushUndoSnapshot(UndoSnapshot snapshot)
 {
-    if (undoStack_.size() >= 64)
+    if (documentState_.undoStack.size() >= 64)
     {
-        undoStack_.erase(undoStack_.begin());
+        documentState_.undoStack.erase(documentState_.undoStack.begin());
     }
 
-    undoStack_.push_back(std::move(snapshot));
+    documentState_.undoStack.push_back(std::move(snapshot));
     InvalidateReticleUsageHighlightCache();
 }
 
@@ -1885,9 +1256,9 @@ void EditorApplication::HandleShortcuts()
 
     const ImGuiIO& io = ImGui::GetIO();
     const bool hasSelectedLibraryPrimitive =
-        selection_.kind == SelectionKind::LibraryPrimitive && SelectedLibraryPrimitive() != nullptr;
+        documentState_.selection.kind == SelectionKind::LibraryPrimitive && SelectedLibraryPrimitive() != nullptr;
     const bool hasFocusedLibraryReticle =
-        (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive) &&
+        (documentState_.selection.kind == SelectionKind::LibraryReticle || documentState_.selection.kind == SelectionKind::LibraryPrimitive) &&
         SelectedLibraryReticle() != nullptr;
 
     if (!io.WantTextInput && CanToggleFullscreenPagePreview() && ImGui::IsKeyPressed(ImGuiKey_F11))
@@ -1968,32 +1339,32 @@ void EditorApplication::HandleShortcuts()
         !ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId) &&
         ImGui::IsKeyPressed(ImGuiKey_Escape))
     {
-        if (fullscreenPreviewController_.IsActive())
+        if (services_.fullscreenPreview.IsActive())
         {
             ToggleFullscreenPagePreview();
             return;
         }
 
         if (const mfd::PageDefinition* page = ActivePage();
-            page != nullptr && layerFocusController_.IsFocusActive(*page, layerFocusState_))
+            page != nullptr && services_.layerFocus.IsFocusActive(*page, layoutState_.layerFocusState))
         {
             ClearLayerFocus(true);
             return;
         }
 
-        if (selection_.kind == SelectionKind::PageReticle && !SelectedPageReticleIndices().empty())
+        if (documentState_.selection.kind == SelectionKind::PageReticle && !SelectedPageReticleIndices().empty())
         {
-            SelectPage(selection_.pageIndex, false);
+            SelectPage(documentState_.selection.pageIndex, false);
             RebuildStatus("Page reticle selection cleared.", false);
         }
-        else if (selection_.kind == SelectionKind::PageTitle)
+        else if (documentState_.selection.kind == SelectionKind::PageTitle)
         {
-            SelectPage(selection_.pageIndex, false);
+            SelectPage(documentState_.selection.pageIndex, false);
             RebuildStatus("Page title selection cleared.", false);
         }
-        else if (selection_.kind == SelectionKind::PageStrobe)
+        else if (documentState_.selection.kind == SelectionKind::PageStrobe)
         {
-            SelectPage(selection_.pageIndex, false);
+            SelectPage(documentState_.selection.pageIndex, false);
             RebuildStatus("Page strobe selection cleared.", false);
         }
     }
@@ -2001,13 +1372,13 @@ void EditorApplication::HandleShortcuts()
 
 void EditorApplication::DeleteSelection()
 {
-    if (selection_.kind == SelectionKind::Page)
+    if (documentState_.selection.kind == SelectionKind::Page)
     {
-        OpenPageManagementPopup(PageManagementAction::DeleteAsset, selection_.pageIndex);
+        OpenPageManagementPopup(PageManagementAction::DeleteAsset, documentState_.selection.pageIndex);
         return;
     }
 
-    if (selection_.kind == SelectionKind::PageReticle)
+    if (documentState_.selection.kind == SelectionKind::PageReticle)
     {
         mfd::PageDefinition* page = ActivePage();
         const std::vector<int> selectedIndices = SelectedPageReticleIndices();
@@ -2034,7 +1405,7 @@ void EditorApplication::DeleteSelection()
             page->staticReticles.erase(page->staticReticles.begin() + reticleIndex);
         }
 
-        SelectPage(selection_.pageIndex);
+        SelectPage(documentState_.selection.pageIndex);
 
         if (removedReticleIds.size() == 1U)
         {
@@ -2049,13 +1420,13 @@ void EditorApplication::DeleteSelection()
         return;
     }
 
-    if (selection_.kind == SelectionKind::PageTitle)
+    if (documentState_.selection.kind == SelectionKind::PageTitle)
     {
         RebuildStatus("The page title is part of the page chrome. Hide it instead of deleting it.", true);
         return;
     }
 
-    if (selection_.kind == SelectionKind::PageStrobe)
+    if (documentState_.selection.kind == SelectionKind::PageStrobe)
     {
         mfd::PageDefinition* page = ActivePage();
         mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
@@ -2068,7 +1439,7 @@ void EditorApplication::DeleteSelection()
         PushUndoSnapshot();
         const std::string removedStrobeId = strobe->reticle.id;
         const std::string removedNormalizedName = strobe->normalizedName;
-        page->strobes.erase(page->strobes.begin() + selection_.pageReticleIndex);
+        page->strobes.erase(page->strobes.begin() + documentState_.selection.pageReticleIndex);
         if (page->strobes.empty())
         {
             page->activeStrobeName.clear();
@@ -2079,12 +1450,12 @@ void EditorApplication::DeleteSelection()
             page->activeStrobeName = page->strobes.front().name;
             page->normalizedActiveStrobeName = page->strobes.front().normalizedName;
         }
-        SelectPage(selection_.pageIndex);
+        SelectPage(documentState_.selection.pageIndex);
         RebuildStatus("Strobe '" + removedStrobeId + "' removed from page '" + page->name + "'.", false);
         return;
     }
 
-    if (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive)
+    if (documentState_.selection.kind == SelectionKind::LibraryReticle || documentState_.selection.kind == SelectionKind::LibraryPrimitive)
     {
         DeleteSelectedLibraryReticle();
         return;
@@ -2199,7 +1570,7 @@ void EditorApplication::DeleteSelectedLibraryReticle()
     }
 
     const std::string reticleId = reticle->id;
-    for (const auto& page : loaded_.document.pages)
+    for (const auto& page : documentState_.loaded.document.pages)
     {
         for (const auto& pageReticle : page.staticReticles)
         {
@@ -2242,26 +1613,26 @@ void EditorApplication::DeleteSelectedLibraryReticle()
 
     PushUndoSnapshot();
 
-    if (const auto fileIt = files_.templateFiles.find(reticleId); fileIt != files_.templateFiles.end())
+    if (const auto fileIt = documentState_.files.templateFiles.find(reticleId); fileIt != documentState_.files.templateFiles.end())
     {
-        files_.removedTemplateFiles.push_back(fileIt->second.lexically_normal());
-        files_.templateFiles.erase(fileIt);
+        documentState_.files.removedTemplateFiles.push_back(fileIt->second.lexically_normal());
+        documentState_.files.templateFiles.erase(fileIt);
     }
 
-    loaded_.document.reticleLibrary.erase(reticleId);
+    documentState_.loaded.document.reticleLibrary.erase(reticleId);
 
-    if (loaded_.document.reticleLibrary.empty())
+    if (documentState_.loaded.document.reticleLibrary.empty())
     {
-        SelectPage(std::clamp(selection_.pageIndex,
+        SelectPage(std::clamp(documentState_.selection.pageIndex,
                               0,
-                              std::max(0, static_cast<int>(loaded_.document.pages.size()) - 1)));
+                              std::max(0, static_cast<int>(documentState_.loaded.document.pages.size()) - 1)));
         RebuildStatus("Library reticle '" + reticleId + "' deleted.", false);
         return;
     }
 
     std::vector<std::string> remainingTemplateIds;
-    remainingTemplateIds.reserve(loaded_.document.reticleLibrary.size());
-    for (const auto& entry : loaded_.document.reticleLibrary)
+    remainingTemplateIds.reserve(documentState_.loaded.document.reticleLibrary.size());
+    for (const auto& entry : documentState_.loaded.document.reticleLibrary)
     {
         remainingTemplateIds.push_back(entry.first);
     }
@@ -2270,1126 +1641,22 @@ void EditorApplication::DeleteSelectedLibraryReticle()
     RebuildStatus("Library reticle '" + reticleId + "' deleted.", false);
 }
 
-void EditorApplication::DrawMenuBar()
-{
-    using editor::tutorial::TutorialStepId;
-    const bool hasOpenWindow = HasOpenWindow();
-
-    if (!ImGui::BeginMainMenuBar())
-    {
-        return;
-    }
-
-    const bool fileMenuOpen = ImGui::BeginMenu("File");
-    tutorial_->DrawHalo("menu_file", "Click File", "Open the top-level document actions used by this tutorial step.");
-    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_file"))
-    {
-        tutorial_->AdvancePhase();
-    }
-    if (fileMenuOpen)
-    {
-        const bool newWindowRequested = ImGui::MenuItem("New window from scratch");
-        ShowItemTooltip("Create a brand-new window JSON and optional first page directly from the editor.");
-        tutorial_->DrawHalo(
-            "menu_file_new_window",
-            "Click New window from scratch",
-            "Open the creation dialog prefilled with the tutorial window settings.");
-        if (newWindowRequested)
-        {
-            if (tutorial_->MatchesTarget("menu_file_new_window"))
-            {
-                tutorial_->AdvancePhase();
-            }
-            OpenNewWindowPopup();
-        }
-
-        const bool openWindowRequested = ImGui::MenuItem("Open window asset...");
-        ShowItemTooltip("Browse to one authored window JSON through the native file explorer.");
-        if (openWindowRequested)
-        {
-            OpenWindowAssetFromFileExplorer();
-        }
-
-        const bool exportMenuOpen = ImGui::BeginMenu("Export", hasOpenWindow);
-        ShowItemTooltip("Open export workflows for designer-facing deliverables.");
-        tutorial_->DrawHalo(
-            "menu_file_export",
-            "Open Export",
-            "Open the export workflows exposed by the editor before reviewing the design-export popup.");
-        if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_file_export"))
-        {
-            tutorial_->AdvancePhase();
-        }
-        if (exportMenuOpen)
-        {
-            const bool exportDesignRequested = ImGui::MenuItem("Export design...");
-            ShowItemTooltip("Generate Markdown ICD files and exploded designer views for the current window.");
-            tutorial_->DrawHalo(
-                "menu_file_export_design",
-                "Click Export design...",
-                "Open the design export popup and review its options without writing anything yet.");
-            if (exportDesignRequested)
-            {
-                if (tutorial_->MatchesTarget("menu_file_export_design"))
-                {
-                    tutorial_->AdvancePhase();
-                }
-                OpenDesignExportPopup();
-            }
-            ImGui::EndMenu();
-        }
-
-        ImGui::Separator();
-        const bool saveRequested = ImGui::MenuItem("Save", "Ctrl+S", false, hasOpenWindow);
-        ShowItemTooltip("Write the window file, page files and reticle template files back to disk.");
-        tutorial_->DrawHalo(
-            "menu_file_save",
-            "Click Save",
-            "Persist the authored tutorial assets before moving to the code review steps.");
-        if (saveRequested)
-        {
-            const bool saveSucceeded = SaveAll();
-            const bool tutorialSaveMatched = tutorial_->MatchesTarget("menu_file_save");
-            if (editor::detail::ShouldAdvanceTutorialOnSuccessfulSave(
-                    saveSucceeded,
-                    tutorial_->IsStep(static_cast<int>(TutorialStepId::SaveTutorialAssets)),
-                    tutorialSaveMatched))
-            {
-                tutorial_->CompleteStep();
-            }
-        }
-
-        const bool canReloadCurrent = hasOpenWindow && std::filesystem::exists(windowFile_);
-        const bool reloadRequested = ImGui::MenuItem("Reload current", nullptr, false, canReloadCurrent);
-        ShowItemTooltip("Reload the current window asset from disk and discard unsaved editor changes.");
-        if (reloadRequested)
-        {
-            LoadWindowConfiguration(windowFile_);
-        }
-        ImGui::EndMenu();
-    }
-    else if (tutorial_->ShouldResetFileMenuPhaseOnClose())
-    {
-        tutorial_->ResetPhase();
-    }
-
-    if (ImGui::BeginMenu("Edit"))
-    {
-        const bool undoRequested = ImGui::MenuItem("Undo", "Ctrl+Z", false, !undoStack_.empty());
-        ShowItemTooltip("Restore the previous editor snapshot.");
-        if (undoRequested)
-        {
-            Undo();
-        }
-
-        const bool hasPageReticleSelection =
-            !SelectedPageReticleIndices().empty() || selection_.kind == SelectionKind::PageStrobe;
-        const bool copyReticlesRequested =
-            ImGui::MenuItem("Copy selected page reticles", "Ctrl+C", false, hasPageReticleSelection);
-        ShowItemTooltip("Copy the selected page reticle instances or the selected page strobe so they can be pasted on the active page.");
-        if (copyReticlesRequested)
-        {
-            CopySelectedPageReticles();
-        }
-
-        const bool cutReticlesRequested =
-            ImGui::MenuItem("Cut selected page reticles", "Ctrl+X", false, hasPageReticleSelection);
-        ShowItemTooltip("Copy the selected page reticle instances or the selected page strobe into the clipboard, then remove them from the page.");
-        if (cutReticlesRequested)
-        {
-            CutSelectedPageReticles();
-        }
-
-        const bool canPastePageReticles = ActivePage() != nullptr && !pageReticleClipboard_.empty();
-        const bool pasteReticlesRequested =
-            ImGui::MenuItem("Paste page reticles", "Ctrl+V", false, canPastePageReticles);
-        ShowItemTooltip("Paste copied page reticles onto the active page.");
-        if (pasteReticlesRequested)
-        {
-            PasteCopiedPageReticles();
-        }
-
-        const bool deleteReticlesRequested =
-            ImGui::MenuItem("Delete selected page reticles", "Del", false, hasPageReticleSelection);
-        ShowItemTooltip("Remove the selected page reticle instances or the selected page strobe from the active page.");
-        if (deleteReticlesRequested)
-        {
-            DeleteSelection();
-        }
-        ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Window", hasOpenWindow))
-    {
-        const bool editWindowRequested = ImGui::MenuItem("Window settings");
-        ShowItemTooltip("Reopen the window-level inspector to tune transports, cadence and display metadata.");
-        if (editWindowRequested)
-        {
-            SelectWindow();
-        }
-        ImGui::EndMenu();
-    }
-
-    const bool pageMenuOpen = ImGui::BeginMenu("Page", hasOpenWindow);
-    tutorial_->DrawHalo("menu_page", "Click Page", "Open the page-authoring actions used by the current tutorial step.");
-    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_page"))
-    {
-        tutorial_->AdvancePhase();
-    }
-    if (pageMenuOpen)
-    {
-        const bool newPageRequested = ImGui::MenuItem("New page");
-        ShowItemTooltip("Create a new page and its backing JSON file.");
-        tutorial_->DrawHalo(
-            "menu_page_new",
-            "Click New page",
-            "Open the page dialog with the tutorial page values already prepared for you.");
-        if (newPageRequested)
-        {
-            if (tutorial_->MatchesTarget("menu_page_new"))
-            {
-                tutorial_->AdvancePhase();
-            }
-            OpenNewPagePopup();
-        }
-
-        const bool importPageRequested = ImGui::MenuItem("Import page...");
-        ShowItemTooltip("Import one external page JSON and stage its reticle dependencies into the current window.");
-        tutorial_->DrawHalo(
-            "menu_page_import",
-            "Click Import page...",
-            "Open the import workflow so you know where shared page ingestion starts. You can cancel the native file picker.");
-        if (importPageRequested)
-        {
-            if (tutorial_->MatchesTarget("menu_page_import"))
-            {
-                tutorial_->CompleteStep();
-            }
-            OpenPageAssetImportFromFileExplorer();
-        }
-
-        const bool renamePageRequested = ImGui::MenuItem("Rename current page globally...", nullptr, false, ActivePage() != nullptr);
-        ShowItemTooltip("Rename the current page asset safely across the current asset tree and update shared window references.");
-        tutorial_->DrawHalo(
-            "menu_page_rename",
-            "Click Rename current page globally...",
-            "Open the safe page-rename popup, review the scanned references, then close it without executing the rename.");
-        if (renamePageRequested)
-        {
-            if (tutorial_->MatchesTarget("menu_page_rename"))
-            {
-                tutorial_->AdvancePhase();
-            }
-            OpenPageRenamePopup(selection_.pageIndex);
-        }
-
-        const bool removePageRequested = ImGui::MenuItem("Remove current page from window", nullptr, false, ActivePage() != nullptr);
-        ShowItemTooltip("Detach the current page from the window while keeping its JSON file.");
-        if (removePageRequested)
-        {
-            OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, selection_.pageIndex);
-        }
-
-        const bool deletePageRequested = ImGui::MenuItem("Delete current page asset...", "Del", false, ActivePage() != nullptr);
-        ShowItemTooltip("Open the confirmation flow that removes the page and marks its JSON file for deletion on the next save.");
-        if (deletePageRequested)
-        {
-            OpenPageManagementPopup(PageManagementAction::DeleteAsset, selection_.pageIndex);
-        }
-        ImGui::EndMenu();
-    }
-    else if (tutorial_->ShouldResetPageMenuPhaseOnClose())
-    {
-        tutorial_->ResetPhase();
-    }
-
-    const bool reticleMenuOpen = ImGui::BeginMenu("Reticle", hasOpenWindow);
-    tutorial_->DrawHalo("menu_reticle", "Click Reticle", "Open the reticle-template actions used by the tutorial.");
-    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("menu_reticle"))
-    {
-        tutorial_->AdvancePhase();
-    }
-    if (reticleMenuOpen)
-    {
-        const bool newLibraryReticleRequested = ImGui::MenuItem("New library reticle from primitive");
-        ShowItemTooltip("Create a new shared reticle template.");
-        tutorial_->DrawHalo(
-            "menu_reticle_new",
-            "Click New library reticle from primitive",
-            "Open the reticle dialog and create the tutorial template shown in this step.");
-        if (newLibraryReticleRequested)
-        {
-            if (tutorial_->MatchesTarget("menu_reticle_new"))
-            {
-                tutorial_->AdvancePhase();
-            }
-            OpenNewLibraryReticlePopup();
-        }
-
-        const bool hasFocusedLibraryReticle =
-            (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive) &&
-            SelectedLibraryReticle() != nullptr;
-        const bool hasSelectedLibraryPrimitive =
-            selection_.kind == SelectionKind::LibraryPrimitive && SelectedLibraryPrimitive() != nullptr;
-        const bool copyLibrarySelectionRequested = ImGui::MenuItem(
-            hasSelectedLibraryPrimitive ? "Copy selected primitive" : "Copy selected library reticle",
-            "Ctrl+C",
-            false,
-            hasSelectedLibraryPrimitive || hasFocusedLibraryReticle);
-        ShowItemTooltip(
-            hasSelectedLibraryPrimitive
-                ? "Copy the focused primitive into the reticle-studio clipboard."
-                : "Copy the focused shared reticle template into the editor clipboard.");
-        if (copyLibrarySelectionRequested)
-        {
-            if (hasSelectedLibraryPrimitive)
-            {
-                CopySelectedLibraryPrimitive();
-            }
-            else
-            {
-                CopySelectedLibraryReticle();
-            }
-        }
-
-        const bool pasteLibrarySelectionRequested = ImGui::MenuItem(
-            hasSelectedLibraryPrimitive ? "Paste copied primitive" : "Paste copied library reticle",
-            "Ctrl+V",
-            false,
-            hasSelectedLibraryPrimitive ? libraryPrimitiveClipboard_.has_value() : libraryReticleClipboard_.has_value());
-        ShowItemTooltip(
-            hasSelectedLibraryPrimitive
-                ? "Paste the copied primitive into the focused reticle template."
-                : "Paste the copied shared reticle template as one new library entry.");
-        if (pasteLibrarySelectionRequested)
-        {
-            if (hasSelectedLibraryPrimitive)
-            {
-                PasteCopiedLibraryPrimitive();
-            }
-            else
-            {
-                PasteCopiedLibraryReticle();
-            }
-        }
-
-        const bool duplicateReticleRequested =
-            ImGui::MenuItem("Duplicate selected library reticle", nullptr, false, hasFocusedLibraryReticle);
-        ShowItemTooltip("Duplicate the focused library reticle under a new template id.");
-        if (duplicateReticleRequested)
-        {
-            OpenDuplicateLibraryReticlePopup();
-        }
-
-        const bool renameReticleRequested =
-            ImGui::MenuItem("Rename selected library reticle globally...", nullptr, false, hasFocusedLibraryReticle);
-        ShowItemTooltip("Rename the focused library reticle template safely across the current asset tree and every page that references it.");
-        tutorial_->DrawHalo(
-            "menu_reticle_rename",
-            "Click Rename selected library reticle globally...",
-            "Open the safe reticle-rename popup, review the shared references, then close it without executing the rename.");
-        if (renameReticleRequested)
-        {
-            if (tutorial_->MatchesTarget("menu_reticle_rename"))
-            {
-                tutorial_->AdvancePhase();
-            }
-            OpenReticleRenamePopup(selection_.libraryReticleId);
-        }
-
-        const bool deleteReticleRequested =
-            ImGui::MenuItem("Delete selected library reticle", "Del", false, hasFocusedLibraryReticle);
-        ShowItemTooltip("Delete the focused library reticle template from the shared library.");
-        if (deleteReticleRequested)
-        {
-            DeleteSelectedLibraryReticle();
-        }
-        ImGui::EndMenu();
-    }
-    else if (tutorial_->ShouldResetReticleMenuPhaseOnClose())
-    {
-        tutorial_->ResetPhase();
-    }
-
-    if (ImGui::BeginMenu("Help"))
-    {
-        const bool tutorialRequested = ImGui::MenuItem("Tutorial", nullptr, tutorial_->IsCoachVisible());
-        ShowItemTooltip("Open the guided discovery mode for the editor and tutorial assets.");
-        if (tutorialRequested)
-        {
-            tutorial_->OpenFlow();
-        }
-        ImGui::EndMenu();
-    }
-
-    ImGui::TextDisabled("|");
-    const char* titleLabel = hasOpenWindow && !loaded_.window.title.empty() ? loaded_.window.title.c_str() : "No asset open";
-    ImGui::Text("%s", titleLabel);
-    if (hasOpenWindow)
-    {
-        ImGui::SameLine();
-        ImGui::TextDisabled("[%s]", windowFile_.filename().string().c_str());
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", statusMessage_.c_str());
-
-    ImGui::EndMainMenuBar();
-}
-
-void EditorApplication::DrawRootLayout()
-{
-    const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(viewport->WorkPos);
-    ImGui::SetNextWindowSize(viewport->WorkSize);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::Begin(
-        "MFD Editor Root",
-        nullptr,
-        ImGuiWindowFlags_NoDecoration |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoSavedSettings |
-            ImGuiWindowFlags_NoBringToFrontOnFocus);
-    ImGui::PopStyleVar(2);
-
-    const float totalWidth = ImGui::GetContentRegionAvail().x;
-    const float totalHeight = ImGui::GetContentRegionAvail().y;
-    const float splitterCount = static_cast<float>((sidebarVisible_ ? 1 : 0) + (inspectorVisible_ ? 1 : 0));
-    const float reservedInspectorWidth = inspectorVisible_ ? inspectorWidth_ : 0.0f;
-
-    if (sidebarVisible_)
-    {
-        const float maxSidebarWidth = std::max(
-            kMinSidebarWidth, totalWidth - reservedInspectorWidth - kMinWorkspaceWidth - splitterCount * editor::ui::kPaneSplitterWidth);
-        sidebarWidth_ = std::floor(std::clamp(sidebarWidth_, kMinSidebarWidth, maxSidebarWidth));
-    }
-
-    if (inspectorVisible_)
-    {
-        const float maxInspectorWidth = std::max(
-            kMinInspectorWidth, totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) - kMinWorkspaceWidth -
-                                   splitterCount * editor::ui::kPaneSplitterWidth);
-        inspectorWidth_ = std::floor(std::clamp(inspectorWidth_, kMinInspectorWidth, maxInspectorWidth));
-    }
-
-    if (sidebarVisible_)
-    {
-        ImGui::BeginChild("Sidebar", ImVec2(sidebarWidth_, 0.0f), true);
-        DrawSidebar();
-        ImGui::EndChild();
-
-        ImGui::SameLine();
-        if (DrawVerticalSplitter("##SidebarSplitter", totalHeight))
-        {
-            const float nextSidebarWidth = sidebarWidth_ + ImGui::GetIO().MouseDelta.x;
-            const float nextMaxSidebarWidth =
-                std::max(kMinSidebarWidth,
-                         totalWidth - (inspectorVisible_ ? inspectorWidth_ : 0.0f) - kMinWorkspaceWidth -
-                             splitterCount * editor::ui::kPaneSplitterWidth);
-            sidebarWidth_ = std::floor(std::clamp(nextSidebarWidth, kMinSidebarWidth, nextMaxSidebarWidth));
-        }
-
-        ImGui::SameLine();
-    }
-
-    const float workspaceWidth = std::floor(std::max(kMinWorkspaceWidth,
-                                                     totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) -
-                                                         (inspectorVisible_ ? inspectorWidth_ : 0.0f) -
-                                                         splitterCount * editor::ui::kPaneSplitterWidth));
-    ImGui::BeginChild("Workspace", ImVec2(workspaceWidth, 0.0f), true);
-    DrawWorkspace();
-    ImGui::EndChild();
-
-    if (inspectorVisible_)
-    {
-        ImGui::SameLine();
-        if (DrawVerticalSplitter("##InspectorSplitter", totalHeight))
-        {
-            const float nextInspectorWidth = inspectorWidth_ - ImGui::GetIO().MouseDelta.x;
-            const float nextMaxInspectorWidth =
-                std::max(kMinInspectorWidth,
-                         totalWidth - (sidebarVisible_ ? sidebarWidth_ : 0.0f) - kMinWorkspaceWidth -
-                             splitterCount * editor::ui::kPaneSplitterWidth);
-            inspectorWidth_ = std::floor(std::clamp(nextInspectorWidth, kMinInspectorWidth, nextMaxInspectorWidth));
-        }
-
-        ImGui::SameLine();
-        const float inspectorPanelWidth = std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
-        ImGui::BeginChild("Inspector", ImVec2(inspectorPanelWidth, 0.0f), true);
-        DrawInspector();
-        ImGui::EndChild();
-    }
-
-    ImGui::End();
-}
-
-bool EditorApplication::IsLibraryStudioWorkspaceVisible() const
-{
-    using editor::tutorial::TutorialStepId;
-
-    const bool forcePagePreviewTutorialWorkspace =
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowLayerInspector)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowMinimap)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowProblemsPanel)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::ToggleFullscreenPreview)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow)) ||
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectDesignExportWorkflow));
-    return !forcePagePreviewTutorialWorkspace &&
-           (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive);
-}
-
-bool EditorApplication::CanToggleFullscreenPagePreview() const
-{
-    return fullscreenPreviewController_.IsActive() || (HasOpenWindow() && !IsLibraryStudioWorkspaceVisible());
-}
-
-void EditorApplication::DrawSidebar()
-{
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "MFD Editor");
-    ImGui::TextDisabled("Work directly in the page visualization.");
-    ImGui::Separator();
-
-    if (!HasOpenWindow())
-    {
-        ImGui::TextWrapped("No authored window is open yet.");
-        ImGui::Spacing();
-        ImGui::TextDisabled("Use File > Open window asset... or File > New window from scratch.");
-
-        if (!lastRuntimeError_.empty())
-        {
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "Runtime: %s", lastRuntimeError_.c_str());
-        }
-        return;
-    }
-
-    DrawPageTree();
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-    DrawLibraryTree();
-
-    if (!lastRuntimeError_.empty())
-    {
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "Runtime: %s", lastRuntimeError_.c_str());
-    }
-}
-
-void EditorApplication::DrawWorkspace()
-{
-    if (!HasOpenWindow())
-    {
-        tutorial_->DrawCoach();
-        DrawEmptyWorkspacePlaceholder();
-        return;
-    }
-
-    const std::vector<std::string> pagePreviewProblems = BuildPagePreviewProblemMessages();
-    const bool hasPagePreviewProblems = !pagePreviewProblems.empty();
-    const bool libraryStudioVisible = IsLibraryStudioWorkspaceVisible();
-    const bool fullscreenPreviewActive = fullscreenPreviewController_.IsActive();
-
-    if (fullscreenPreviewActive)
-    {
-        ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-        DrawPagePreviewHeaderControls("##FullscreenPagePreviewViewMenu", hasPagePreviewProblems);
-        ImGui::TextDisabled("Fullscreen preview keeps the page canvas interactive. Press F11 or Esc to restore the editor layout.");
-        tutorial_->DrawCoach();
-        ImGui::Separator();
-
-        DrawPagePreviewWorkspace(
-            pagePreviewProblems,
-            "FullscreenPagePreviewPanel", "FullscreenPageLayersPanel", "FullscreenPageProblemsPanel", true, true);
-        return;
-    }
-
-    if (libraryStudioVisible)
-    {
-        const float totalWidth = ImGui::GetContentRegionAvail().x;
-        const float totalHeight = ImGui::GetContentRegionAvail().y;
-
-        if (!pagePreviewViewOptions_.showPageContext)
-        {
-            DrawReticleStudioPanel();
-            return;
-        }
-
-        if (libraryStudioPageWidth_ <= 0.0f)
-        {
-            libraryStudioPageWidth_ = std::max(kMinPageContextWidth, totalWidth * 0.56f);
-        }
-
-        const float maxPageWidth = std::max(kMinPageContextWidth,
-                                            totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
-        libraryStudioPageWidth_ = std::floor(std::clamp(libraryStudioPageWidth_, kMinPageContextWidth, maxPageWidth));
-        const float pageWidth = libraryStudioPageWidth_;
-        const float studioWidth = std::max(kMinReticleStudioWidth,
-                                           std::floor(totalWidth - pageWidth - editor::ui::kPaneSplitterWidth));
-
-        ImGui::BeginChild("PageContextPanel", ImVec2(pageWidth, 0.0f), true);
-        ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page context");
-        DrawPagePreviewHeaderControls("##PageContextViewMenu", hasPagePreviewProblems, false);
-        ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
-        tutorial_->DrawCoach();
-        ImGui::Separator();
-
-        DrawPagePreviewWorkspace(pagePreviewProblems,
-                                 "PageContextPreviewPanel",
-                                 "PageContextLayersPanel",
-                                 "PageContextProblemsPanel",
-                                 selection_.kind == SelectionKind::PageReticle ||
-                                     selection_.kind == SelectionKind::PageTitle ||
-                                     selection_.kind == SelectionKind::PageStrobe,
-                                 selection_.kind == SelectionKind::PageReticle ||
-                                     selection_.kind == SelectionKind::PageTitle ||
-                                     selection_.kind == SelectionKind::PageStrobe);
-        ImGui::EndChild();
-
-        ImGui::SameLine();
-        if (DrawVerticalSplitter("##WorkspaceSplitter", totalHeight))
-        {
-            const float nextPageWidth = libraryStudioPageWidth_ + ImGui::GetIO().MouseDelta.x;
-            const float nextMaxPageWidth = std::max(kMinPageContextWidth,
-                                                    totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
-            libraryStudioPageWidth_ = std::floor(std::clamp(nextPageWidth, kMinPageContextWidth, nextMaxPageWidth));
-        }
-
-        ImGui::SameLine();
-        DrawReticleStudioPanel(studioWidth);
-        return;
-    }
-
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-    DrawPagePreviewHeaderControls("##MainPagePreviewViewMenu", hasPagePreviewProblems);
-    ImGui::TextDisabled("Use View to toggle preview-only overlays without touching authored JSON assets.");
-    tutorial_->DrawCoach();
-    ImGui::Separator();
-
-    DrawPagePreviewWorkspace(
-        pagePreviewProblems,
-        "MainPagePreviewPanel", "MainPageLayersPanel", "MainPageProblemsPanel", true, true);
-}
-
-void EditorApplication::DrawPagePreviewWorkspace(const std::vector<std::string>& pagePreviewProblems,
-                                                 const char* previewChildId,
-                                                 const char* layersChildId,
-                                                 const char* problemsChildId,
-                                                 const bool drawPreviewOverlays,
-                                                 const bool handlePreviewInteraction)
-{
-    const ImVec2 available = ImGui::GetContentRegionAvail();
-    editor::WorkspaceLayoutRequest layoutRequest;
-    layoutRequest.width = std::max(0.0f, std::floor(available.x));
-    layoutRequest.height = std::max(0.0f, std::floor(available.y));
-    layoutRequest.spacing = ImGui::GetStyle().ItemSpacing.y;
-    layoutRequest.showLeadingPanel = pagePreviewViewOptions_.showLayerInspector;
-    layoutRequest.leadingPanelWidth = kLayerInspectorDockWidth;
-    layoutRequest.minLeadingPanelWidth = 196.0f;
-    layoutRequest.showBottomPanel = pagePreviewViewOptions_.showProblemsPanel;
-    layoutRequest.bottomPanelHeight = kPreviewProblemsDockHeight;
-    layoutRequest.minBottomPanelHeight = 88.0f;
-    layoutRequest.minCenterWidth = 220.0f;
-    layoutRequest.minCenterHeight = 168.0f;
-    const editor::WorkspaceLayoutResult layout = editor::ComputeWorkspaceLayout(layoutRequest);
-    const mfd::PageDefinition* activePage = ActivePage();
-
-    if (layout.leadingPanel.IsVisible())
-    {
-        ImGui::BeginChild(layersChildId, ImVec2(layout.leadingPanel.width, layout.leadingPanel.height), true);
-        if (activePage != nullptr)
-        {
-            DrawLayerInspectorPanel(*activePage);
-        }
-        else
-        {
-            ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
-            ImGui::TextDisabled("Open one page to inspect editor layers.");
-        }
-        ImGui::EndChild();
-        ImGui::SameLine();
-    }
-
-    ImGui::BeginGroup();
-    if (layout.previewPanel.IsVisible())
-    {
-        ImGui::BeginChild(previewChildId, ImVec2(layout.previewPanel.width, layout.previewPanel.height), true);
-
-        ViewportState pageViewport;
-        pageViewport.origin = ImGui::GetCursorScreenPos();
-        pageViewport.size = ImGui::GetContentRegionAvail();
-        pageViewport.valid = pageViewport.size.x > 8.0f && pageViewport.size.y > 8.0f;
-
-        if (activePage != nullptr)
-        {
-            pageViewport.view = pagePreviewView_;
-        }
-
-        if (pageViewport.valid && activePage != nullptr)
-        {
-            DrawPagePreview(pageViewport);
-            if (drawPreviewOverlays)
-            {
-                DrawPreviewOverlays(pageViewport);
-            }
-            if (handlePreviewInteraction)
-            {
-                HandlePreviewInteraction(pageViewport);
-            }
-            DrawPageReticleContextMenu();
-        }
-        else
-        {
-            if (HasOpenWindow() && loaded_.document.pages.empty())
-            {
-                ImGui::TextDisabled("No page yet.");
-                ImGui::TextWrapped("Create the first page to start previewing and authoring this window.");
-                if (AccentButton("Create first page##preview"))
-                {
-                    OpenNewPagePopup();
-                }
-                ShowItemTooltip("Open the page-creation workflow for this window.");
-            }
-            else
-            {
-                ImGui::TextDisabled("No active page to preview.");
-            }
-        }
-
-        ImGui::EndChild();
-    }
-
-    if (layout.bottomPanel.IsVisible())
-    {
-        ImGui::BeginChild(problemsChildId, ImVec2(layout.bottomPanel.width, layout.bottomPanel.height), true);
-        DrawProblemsPanel(pagePreviewProblems);
-        ImGui::EndChild();
-    }
-    ImGui::EndGroup();
-}
-
-void EditorApplication::DrawReticleStudioPanel(const float width)
-{
-    const float panelWidth = width > 0.0f ? width : std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
-    ImGui::BeginChild("ReticleStudioPanel", ImVec2(panelWidth, 0.0f), true);
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
-
-    const ImGuiStyle& style = ImGui::GetStyle();
-    const float buttonWidth = ImGui::CalcTextSize("View").x + style.FramePadding.x * 2.0f;
-    ImGui::SameLine();
-    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - buttonWidth));
-    if (ImGui::Button("View##ReticleStudioDisplay"))
-    {
-        ImGui::OpenPopup(kReticleStudioDisplayPopupId);
-    }
-
-    if (ImGui::BeginPopup(kReticleStudioDisplayPopupId))
-    {
-        ImGui::Checkbox("Show page context", &pagePreviewViewOptions_.showPageContext);
-        ImGui::Checkbox("Show primitive names", &libraryStudioShowPrimitiveLabels_);
-        ImGui::Checkbox("Show gizmos", &libraryStudioShowGizmos_);
-        ImGui::EndPopup();
-    }
-
-    ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry, then use Ctrl+C / Ctrl+V to duplicate it.");
-    ImGui::Separator();
-
-    ViewportState studioViewport;
-    studioViewport.origin = ImGui::GetCursorScreenPos();
-    studioViewport.size = ImGui::GetContentRegionAvail();
-    studioViewport.valid = studioViewport.size.x > 8.0f && studioViewport.size.y > 8.0f;
-    studioViewport.view = libraryPreviewView_;
-
-    if (studioViewport.valid)
-    {
-        DrawLibraryPreview(studioViewport);
-        DrawLibraryPreviewOverlays(studioViewport);
-        HandleLibraryPreviewInteraction(studioViewport);
-    }
-    ImGui::EndChild();
-}
-
-void EditorApplication::DrawEmptyWorkspacePlaceholder()
-{
-    const ImVec2 available = ImGui::GetContentRegionAvail();
-    if (available.x <= 8.0f || available.y <= 8.0f)
-    {
-        return;
-    }
-
-    const char* headline = "Open or create assets";
-    const char* description =
-        "Start with a new authored window or browse to an existing window JSON.\n"
-        "Nothing is loaded automatically when the editor starts, but you can launch the guided tutorial.";
-
-    const ImVec2 headlineSize = ImGui::CalcTextSize(headline);
-    const ImVec2 descriptionSize = ImGui::CalcTextSize(description);
-    const float buttonRowWidth = 420.0f;
-    const float totalHeight = headlineSize.y + descriptionSize.y + 126.0f;
-    const ImVec2 start(
-        std::max(0.0f, (available.x - std::max(std::max(headlineSize.x, descriptionSize.x), buttonRowWidth)) * 0.5f),
-        std::max(0.0f, (available.y - totalHeight) * 0.5f));
-
-    ImGui::SetCursorPos(start);
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "%s", headline);
-    ImGui::SetCursorPosX(start.x);
-    ImGui::TextDisabled("%s", description);
-    ImGui::Spacing();
-    ImGui::Spacing();
-
-    ImGui::SetCursorPosX(start.x);
-    if (AccentButton("Open window asset..."))
-    {
-        OpenWindowAssetFromFileExplorer();
-    }
-
-    ImGui::SetCursorPosX(start.x);
-    if (ImGui::Button("New window from scratch", ImVec2(220.0f, 0.0f)))
-    {
-        OpenNewWindowPopup();
-    }
-
-    ImGui::SetCursorPosX(start.x);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.54f, 0.61f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.66f, 0.73f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.12f, 0.44f, 0.52f, 1.00f));
-    if (ImGui::Button("Launch the tutorial", ImVec2(220.0f, 0.0f)))
-    {
-        tutorial_->OpenFlow();
-    }
-    ImGui::PopStyleColor(3);
-}
-
-void EditorApplication::DrawInspector()
-{
-    if (!HasOpenWindow())
-    {
-        ImGui::TextDisabled("No asset is open.");
-        ImGui::TextWrapped("Open one existing window asset or create a new window to edit pages, reticles and strobe settings.");
-        return;
-    }
-
-    switch (selection_.kind)
-    {
-    case SelectionKind::Window:
-        DrawWindowInspector();
-        break;
-    case SelectionKind::Page:
-        DrawPageInspector();
-        break;
-    case SelectionKind::PageReticle:
-        DrawPageReticleInspector();
-        break;
-    case SelectionKind::PageTitle:
-        DrawSelectedPageTitleInspector();
-        break;
-    case SelectionKind::PageStrobe:
-        DrawSelectedPageStrobeInspector();
-        break;
-    case SelectionKind::LibraryReticle:
-        DrawLibraryReticleInspector();
-        break;
-    case SelectionKind::LibraryPrimitive:
-        DrawLibraryReticleInspector();
-        ImGui::Separator();
-        DrawLibraryPrimitiveInspector();
-        break;
-    }
-}
-
-void EditorApplication::DrawWindowInspector()
-{
-    if (!HasOpenWindow())
-    {
-        ImGui::TextDisabled("No window selected.");
-        return;
-    }
-
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Window");
-    ImGui::TextDisabled("Tune the root window asset, transports and runtime feedback cadence.");
-    ImGui::TextDisabled("Source file: %s", loaded_.window.sourceFile.string().c_str());
-    ImGui::TextDisabled("Loaded pages: %d", static_cast<int>(loaded_.document.pages.size()));
-
-    std::array<char, 128> title {};
-    std::array<char, kPathTextCapacity> fontFile {};
-    std::array<char, kPathTextCapacity> reticleLibraryFolder {};
-    CopyTextBuffer(title, loaded_.window.title);
-    CopyTextBuffer(fontFile, loaded_.window.fontFile.string());
-    CopyTextBuffer(reticleLibraryFolder, loaded_.window.reticleLibraryFolder.string());
-
-    const bool titleChanged = ImGui::InputText("Window title", title.data(), title.size());
-    ShowItemTooltip("Human-readable title stored in the root window JSON.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (titleChanged)
-    {
-        loaded_.window.title = title.data();
-    }
-
-    int windowSize[2] {loaded_.window.width, loaded_.window.height};
-    const bool sizeChanged = ImGui::InputInt2("Size (px)", windowSize);
-    ShowItemTooltip("Initial native window size in pixels.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (sizeChanged)
-    {
-        loaded_.window.width = std::max(1, windowSize[0]);
-        loaded_.window.height = std::max(1, windowSize[1]);
-    }
-
-    int windowPosition[2] {loaded_.window.positionX, loaded_.window.positionY};
-    const bool positionChanged = ImGui::InputInt2("Position (px)", windowPosition);
-    ShowItemTooltip("Initial native window position in pixels.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (positionChanged)
-    {
-        loaded_.window.positionX = windowPosition[0];
-        loaded_.window.positionY = windowPosition[1];
-    }
-
-    int targetFps = loaded_.window.targetFps;
-    const bool targetFpsChanged = ImGui::InputInt("Target FPS", &targetFps);
-    ShowItemTooltip("Requested runtime cadence for the host window loop.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (targetFpsChanged)
-    {
-        loaded_.window.targetFps = std::max(1, targetFps);
-    }
-
-    const bool fontChanged = ImGui::InputText("Font file", fontFile.data(), fontFile.size());
-    ShowItemTooltip("Optional font file resolved from the window JSON.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (fontChanged)
-    {
-        loaded_.window.fontFile = std::filesystem::path(fontFile.data()).lexically_normal();
-        ApplyPreviewFontFile(loaded_.window.fontFile);
-    }
-
-    const bool reticleFolderChanged =
-        ImGui::InputText("Reticle library folder", reticleLibraryFolder.data(), reticleLibraryFolder.size());
-    ShowItemTooltip("Folder containing the reusable reticle JSON templates referenced by this window.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (reticleFolderChanged)
-    {
-        loaded_.window.reticleLibraryFolder = std::filesystem::path(reticleLibraryFolder.data()).lexically_normal();
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Commands UDP");
-
-    bool hasCommandUdp = loaded_.window.commandTransports.udp.has_value();
-    if (ImGui::Checkbox("Expose command UDP", &hasCommandUdp))
-    {
-        PushUndoSnapshot();
-        if (hasCommandUdp)
-        {
-            loaded_.window.commandTransports.udp = loaded_.window.commandTransports.udp.value_or(mfd::WindowUdpCommandTransport {});
-        }
-        else
-        {
-            loaded_.window.commandTransports.udp.reset();
-        }
-    }
-    ShowItemTooltip("Persist one optional UDP command endpoint in the root window JSON.");
-
-    if (loaded_.window.commandTransports.udp.has_value())
-    {
-        auto& commandUdp = *loaded_.window.commandTransports.udp;
-        ImGui::Checkbox("Enable command UDP", &commandUdp.enabled);
-        ShowItemTooltip("Enable or disable the runtime UDP command listener.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-
-        std::array<char, 64> commandAddress {};
-        CopyTextBuffer(commandAddress, commandUdp.address);
-        const bool commandAddressChanged =
-            ImGui::InputText("Command address", commandAddress.data(), commandAddress.size());
-        ShowItemTooltip("Numeric IPv4 bind address for incoming command packets.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (commandAddressChanged)
-        {
-            commandUdp.address = commandAddress.data();
-        }
-
-        int commandPort = static_cast<int>(commandUdp.port);
-        const bool commandPortChanged = ImGui::InputInt("Command port", &commandPort);
-        ShowItemTooltip("UDP port used by the command listener.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (commandPortChanged)
-        {
-            commandUdp.port = static_cast<std::uint16_t>(
-                std::clamp(commandPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
-        }
-
-        int commandMaxPacketSize = commandUdp.maxPacketSize;
-        const bool commandMaxPacketChanged = ImGui::InputInt("Command max packet", &commandMaxPacketSize);
-        ShowItemTooltip("Maximum protobuf UDP payload accepted by the command endpoint.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (commandMaxPacketChanged)
-        {
-            commandUdp.maxPacketSize = std::max(512, commandMaxPacketSize);
-        }
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Feedback UDP");
-
-    bool hasFeedbackUdp = loaded_.window.feedbackTransports.udp.has_value();
-    if (ImGui::Checkbox("Expose feedback UDP", &hasFeedbackUdp))
-    {
-        PushUndoSnapshot();
-        if (hasFeedbackUdp)
-        {
-            loaded_.window.feedbackTransports.udp = loaded_.window.feedbackTransports.udp.value_or(mfd::WindowUdpFeedbackTransport {});
-        }
-        else
-        {
-            loaded_.window.feedbackTransports.udp.reset();
-        }
-    }
-    ShowItemTooltip("Persist one optional UDP runtime-feedback endpoint in the root window JSON.");
-
-    if (loaded_.window.feedbackTransports.udp.has_value())
-    {
-        auto& feedbackUdp = *loaded_.window.feedbackTransports.udp;
-        ImGui::Checkbox("Enable feedback UDP", &feedbackUdp.enabled);
-        ShowItemTooltip("Enable or disable the runtime UDP feedback stream.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-
-        std::array<char, 64> feedbackAddress {};
-        CopyTextBuffer(feedbackAddress, feedbackUdp.address);
-        const bool feedbackAddressChanged =
-            ImGui::InputText("Feedback address", feedbackAddress.data(), feedbackAddress.size());
-        ShowItemTooltip("Numeric IPv4 destination used by the runtime feedback stream.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (feedbackAddressChanged)
-        {
-            feedbackUdp.address = feedbackAddress.data();
-        }
-
-        int feedbackPort = static_cast<int>(feedbackUdp.port);
-        const bool feedbackPortChanged = ImGui::InputInt("Feedback port", &feedbackPort);
-        ShowItemTooltip("UDP port used by the runtime feedback stream.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (feedbackPortChanged)
-        {
-            feedbackUdp.port = static_cast<std::uint16_t>(
-                std::clamp(feedbackPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
-        }
-
-        int feedbackMaxPacketSize = feedbackUdp.maxPacketSize;
-        const bool feedbackMaxPacketChanged = ImGui::InputInt("Feedback max packet", &feedbackMaxPacketSize);
-        ShowItemTooltip("Maximum protobuf UDP payload emitted by the feedback endpoint.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (feedbackMaxPacketChanged)
-        {
-            feedbackUdp.maxPacketSize = std::max(512, feedbackMaxPacketSize);
-        }
-
-        const bool fastIntervalChanged =
-            ImGui::DragFloat("Fast interval", &loaded_.window.feedbackFastIntervalSeconds, 0.001f, 0.001f, 10.0f, "%.3f s");
-        ShowItemTooltip("Minimum cadence used when the active-page feedback state changes.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (fastIntervalChanged)
-        {
-            loaded_.window.feedbackFastIntervalSeconds =
-                ClampFeedbackFastIntervalSeconds(loaded_.window.feedbackFastIntervalSeconds);
-            loaded_.window.feedbackHeartbeatIntervalSeconds =
-                ClampFeedbackHeartbeatIntervalSeconds(
-                    loaded_.window.feedbackHeartbeatIntervalSeconds,
-                    loaded_.window.feedbackFastIntervalSeconds);
-        }
-
-        const bool heartbeatIntervalChanged =
-            ImGui::DragFloat("Heartbeat interval",
-                             &loaded_.window.feedbackHeartbeatIntervalSeconds,
-                             0.001f,
-                             loaded_.window.feedbackFastIntervalSeconds,
-                             10.0f,
-                             "%.3f s");
-        ShowItemTooltip("Minimum cadence used for unchanged active-page heartbeat snapshots.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (heartbeatIntervalChanged)
-        {
-            loaded_.window.feedbackFastIntervalSeconds =
-                ClampFeedbackFastIntervalSeconds(loaded_.window.feedbackFastIntervalSeconds);
-            loaded_.window.feedbackHeartbeatIntervalSeconds =
-                ClampFeedbackHeartbeatIntervalSeconds(
-                    loaded_.window.feedbackHeartbeatIntervalSeconds,
-                    loaded_.window.feedbackFastIntervalSeconds);
-        }
-
-        ImGui::TextDisabled("Fast: %.0f ms", loaded_.window.feedbackFastIntervalSeconds * 1000.0f);
-        ImGui::TextDisabled("Heartbeat: %.0f ms", loaded_.window.feedbackHeartbeatIntervalSeconds * 1000.0f);
-    }
-}
-
 void EditorApplication::DrawPageTree()
 {
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Pages");
     ShowItemTooltip("Browse authored pages and select a page, one of its page reticles, or its optional strobe.");
     const editor::ReticleUsageHighlightResult* usageHighlight =
-        pagePreviewViewOptions_.highlightReticleUsages ? ResolveReticleUsageHighlight() : nullptr;
+        layoutState_.pagePreviewViewOptions.highlightReticleUsages ? ResolveReticleUsageHighlight() : nullptr;
 
-    for (int pageIndex = 0; pageIndex < static_cast<int>(loaded_.document.pages.size()); ++pageIndex)
+    for (int pageIndex = 0; pageIndex < static_cast<int>(documentState_.loaded.document.pages.size()); ++pageIndex)
     {
-        const auto& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
+        const auto& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_OpenOnArrow |
             ImGuiTreeNodeFlags_OpenOnDoubleClick |
             ImGuiTreeNodeFlags_SpanAvailWidth;
 
-        if (selection_.kind == SelectionKind::Page && selection_.pageIndex == pageIndex)
+        if (documentState_.selection.kind == SelectionKind::Page && documentState_.selection.pageIndex == pageIndex)
         {
             flags |= ImGuiTreeNodeFlags_Selected;
         }
@@ -3443,8 +1710,8 @@ void EditorApplication::DrawPageTree()
 
         if (open)
         {
-            ImGui::TextDisabled("file: %s", pageIndex < static_cast<int>(files_.pageFiles.size())
-                                              ? files_.pageFiles[static_cast<std::size_t>(pageIndex)].filename().string().c_str()
+            ImGui::TextDisabled("file: %s", pageIndex < static_cast<int>(documentState_.files.pageFiles.size())
+                                              ? documentState_.files.pageFiles[static_cast<std::size_t>(pageIndex)].filename().string().c_str()
                                               : "<missing>");
 
             {
@@ -3452,7 +1719,7 @@ void EditorApplication::DrawPageTree()
                     ImGuiTreeNodeFlags_Leaf |
                     ImGuiTreeNodeFlags_NoTreePushOnOpen |
                     ImGuiTreeNodeFlags_SpanAvailWidth;
-                if (selection_.kind == SelectionKind::PageTitle && selection_.pageIndex == pageIndex)
+                if (documentState_.selection.kind == SelectionKind::PageTitle && documentState_.selection.pageIndex == pageIndex)
                 {
                     leafFlags |= ImGuiTreeNodeFlags_Selected;
                 }
@@ -3530,9 +1797,9 @@ void EditorApplication::DrawPageTree()
                     ImGuiTreeNodeFlags_Leaf |
                     ImGuiTreeNodeFlags_NoTreePushOnOpen |
                     ImGuiTreeNodeFlags_SpanAvailWidth;
-                if (selection_.kind == SelectionKind::PageStrobe &&
-                    selection_.pageIndex == pageIndex &&
-                    selection_.pageReticleIndex == static_cast<int>(strobeIndex))
+                if (documentState_.selection.kind == SelectionKind::PageStrobe &&
+                    documentState_.selection.pageIndex == pageIndex &&
+                    documentState_.selection.pageReticleIndex == static_cast<int>(strobeIndex))
                 {
                     leafFlags |= ImGuiTreeNodeFlags_Selected;
                 }
@@ -3564,8 +1831,8 @@ void EditorApplication::DrawLibraryTree()
     ShowItemTooltip("Shared reticle templates that can be edited in the studio or dropped onto pages.");
 
     std::vector<std::string> templateIds;
-    templateIds.reserve(loaded_.document.reticleLibrary.size());
-    for (const auto& entry : loaded_.document.reticleLibrary)
+    templateIds.reserve(documentState_.loaded.document.reticleLibrary.size());
+    for (const auto& entry : documentState_.loaded.document.reticleLibrary)
     {
         templateIds.push_back(entry.first);
     }
@@ -3574,10 +1841,10 @@ void EditorApplication::DrawLibraryTree()
     for (const auto& templateId : templateIds)
     {
         const bool selected =
-            selection_.libraryBrowserReticleId == templateId ||
-            (((selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive) &&
-              selection_.libraryReticleId == templateId) &&
-             selection_.libraryBrowserReticleId.empty());
+            documentState_.selection.libraryBrowserReticleId == templateId ||
+            (((documentState_.selection.kind == SelectionKind::LibraryReticle || documentState_.selection.kind == SelectionKind::LibraryPrimitive) &&
+              documentState_.selection.libraryReticleId == templateId) &&
+             documentState_.selection.libraryBrowserReticleId.empty());
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_Leaf |
             ImGuiTreeNodeFlags_NoTreePushOnOpen |
@@ -3588,8 +1855,8 @@ void EditorApplication::DrawLibraryTree()
         }
 
         ImGui::TreeNodeEx((templateId + "##library").c_str(), flags);
-        const auto libraryIt = loaded_.document.reticleLibrary.find(templateId);
-        if (libraryIt != loaded_.document.reticleLibrary.end())
+        const auto libraryIt = documentState_.loaded.document.reticleLibrary.find(templateId);
+        if (libraryIt != documentState_.loaded.document.reticleLibrary.end())
         {
             DrawReticleHoverPreviewTooltip(
                 libraryIt->second,
@@ -3598,10 +1865,10 @@ void EditorApplication::DrawLibraryTree()
         }
         if (ImGui::IsItemClicked())
         {
-            selection_.libraryBrowserReticleId = templateId;
-            if (selection_.kind != SelectionKind::LibraryReticle && selection_.kind != SelectionKind::LibraryPrimitive)
+            documentState_.selection.libraryBrowserReticleId = templateId;
+            if (documentState_.selection.kind != SelectionKind::LibraryReticle && documentState_.selection.kind != SelectionKind::LibraryPrimitive)
             {
-                selection_.libraryReticleId = templateId;
+                documentState_.selection.libraryReticleId = templateId;
             }
             if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             {
@@ -3624,7 +1891,7 @@ void EditorApplication::DrawLibraryTree()
                 CopySelectedLibraryReticle();
             }
 
-            if (ImGui::MenuItem("Paste copied reticle", "Ctrl+V", false, libraryReticleClipboard_.has_value()))
+            if (ImGui::MenuItem("Paste copied reticle", "Ctrl+V", false, clipboardState_.libraryReticleClipboard.has_value()))
             {
                 SelectLibraryReticle(templateId, false);
                 PasteCopiedLibraryReticle();
@@ -3657,77 +1924,77 @@ void EditorApplication::DrawLibraryTree()
 
 void EditorApplication::RebuildStatus(std::string message, const bool isError)
 {
-    statusMessage_ = std::move(message);
-    statusIsError_ = isError;
+    workflowState_.statusMessage = std::move(message);
+    workflowState_.statusIsError = isError;
 }
 
 void EditorApplication::EnsurePreviewTexture(const int width, const int height)
 {
-    if (previewTextureReady_ &&
-        previewTexture_.texture.width == width &&
-        previewTexture_.texture.height == height)
+    if (previewState_.previewTextureReady &&
+        previewState_.previewTexture.texture.width == width &&
+        previewState_.previewTexture.texture.height == height)
     {
         return;
     }
 
     ReleasePreviewTexture();
-    previewTextureStencilReady_ = false;
-    previewTexture_ = mfd::LoadRenderTextureWithStencil(width, height, &previewTextureStencilReady_);
-    previewTextureReady_ = previewTexture_.texture.id != 0;
+    previewState_.previewTextureStencilReady = false;
+    previewState_.previewTexture = mfd::LoadRenderTextureWithStencil(width, height, &previewState_.previewTextureStencilReady);
+    previewState_.previewTextureReady = previewState_.previewTexture.texture.id != 0;
 }
 
 void EditorApplication::ReleasePreviewTexture()
 {
     const bool windowReady = IsWindowReady();
-    if (previewTextureReady_)
+    if (previewState_.previewTextureReady)
     {
         if (windowReady)
         {
-            UnloadRenderTexture(previewTexture_);
+            UnloadRenderTexture(previewState_.previewTexture);
         }
-        previewTexture_ = {};
+        previewState_.previewTexture = {};
     }
 
-    previewTextureReady_ = false;
-    previewTextureStencilReady_ = false;
+    previewState_.previewTextureReady = false;
+    previewState_.previewTextureStencilReady = false;
 }
 
 void EditorApplication::EnsureTooltipPreviewTexture(const int width, const int height)
 {
-    if (tooltipPreviewTextureReady_ &&
-        tooltipPreviewTexture_.texture.width == width &&
-        tooltipPreviewTexture_.texture.height == height)
+    if (previewState_.tooltipPreviewTextureReady &&
+        previewState_.tooltipPreviewTexture.texture.width == width &&
+        previewState_.tooltipPreviewTexture.texture.height == height)
     {
         return;
     }
 
     ReleaseTooltipPreviewTexture();
-    tooltipPreviewTextureStencilReady_ = false;
-    tooltipPreviewTexture_ =
-        mfd::LoadRenderTextureWithStencil(width, height, &tooltipPreviewTextureStencilReady_);
-    tooltipPreviewTextureReady_ = tooltipPreviewTexture_.texture.id != 0;
+    previewState_.tooltipPreviewTextureStencilReady = false;
+    previewState_.tooltipPreviewTexture =
+        mfd::LoadRenderTextureWithStencil(width, height, &previewState_.tooltipPreviewTextureStencilReady);
+    previewState_.tooltipPreviewTextureReady = previewState_.tooltipPreviewTexture.texture.id != 0;
 }
 
 void EditorApplication::ReleaseTooltipPreviewTexture()
 {
     const bool windowReady = IsWindowReady();
-    if (tooltipPreviewTextureReady_)
+    if (previewState_.tooltipPreviewTextureReady)
     {
         if (windowReady)
         {
-            UnloadRenderTexture(tooltipPreviewTexture_);
+            UnloadRenderTexture(previewState_.tooltipPreviewTexture);
         }
-        tooltipPreviewTexture_ = {};
+        previewState_.tooltipPreviewTexture = {};
     }
 
-    tooltipPreviewTextureReady_ = false;
-    tooltipPreviewTextureStencilReady_ = false;
+    previewState_.tooltipPreviewTextureReady = false;
+    previewState_.tooltipPreviewTextureStencilReady = false;
 }
 
 void EditorApplication::ReleaseLayerPreviewTextures() noexcept
 {
     const bool windowReady = IsWindowReady();
-    for (LayerPreviewTextureSlot& slot : layerPreviewTextures_)
+    for (LayerPreviewTextureSlot& slot : previewState_.layerPreviewTextures)
     {
         if (slot.ready)
         {
@@ -3744,14 +2011,14 @@ void EditorApplication::ReleaseLayerPreviewTextures() noexcept
         slot.height = 0;
     }
 
-    layerPreviewTextures_.clear();
+    previewState_.layerPreviewTextures.clear();
 }
 
 void EditorApplication::ReleasePreviewGpuResources() noexcept
 {
-    previewBezierCache_.Clear();
-    previewImageCache_.Clear();
-    previewTextLayoutCache_.Clear();
+    previewState_.previewBezierCache.Clear();
+    previewState_.previewImageCache.Clear();
+    previewState_.previewTextLayoutCache.Clear();
     ReleaseLayerPreviewTextures();
     ReleaseTooltipPreviewTexture();
     ReleasePreviewTexture();
@@ -3767,12 +2034,12 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
     width = std::max(width, 1);
     height = std::max(height, 1);
 
-    if (thumbnailIndex >= layerPreviewTextures_.size())
+    if (thumbnailIndex >= previewState_.layerPreviewTextures.size())
     {
-        layerPreviewTextures_.resize(thumbnailIndex + 1U);
+        previewState_.layerPreviewTextures.resize(thumbnailIndex + 1U);
     }
 
-    LayerPreviewTextureSlot& slot = layerPreviewTextures_[thumbnailIndex];
+    LayerPreviewTextureSlot& slot = previewState_.layerPreviewTextures[thumbnailIndex];
     if (!slot.ready || slot.width != width || slot.height != height)
     {
         if (slot.ready)
@@ -3821,9 +2088,9 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
                              PreviewTextFont(),
                              background,
                              slot.stencilReady,
-                             &previewBezierCache_,
-                             &previewImageCache_,
-                             &previewTextLayoutCache_);
+                             &previewState_.previewBezierCache,
+                             &previewState_.previewImageCache,
+                             &previewState_.previewTextLayoutCache);
 
         for (const mfd::ReticleGroup& reticle : page.staticReticles)
         {
@@ -3855,25 +2122,25 @@ void EditorApplication::ApplyPreviewFontFile(std::filesystem::path fontFile)
         fontFile = fontFile.lexically_normal();
     }
 
-    if (previewFontFile_ == fontFile)
+    if (previewState_.previewFontFile == fontFile)
     {
         return;
     }
 
     ReleasePreviewFont();
-    previewFontFile_ = std::move(fontFile);
-    previewFontLoadAttempted_ = false;
+    previewState_.previewFontFile = std::move(fontFile);
+    previewState_.previewFontLoadAttempted = false;
 }
 
 void EditorApplication::EnsurePreviewFont()
 {
-    if (previewFontReady_ || previewFontLoadAttempted_ || previewFontFile_.empty() || !IsWindowReady())
+    if (previewState_.previewFontReady || previewState_.previewFontLoadAttempted || previewState_.previewFontFile.empty() || !IsWindowReady())
     {
         return;
     }
 
-    previewFontLoadAttempted_ = true;
-    const std::string path = previewFontFile_.string();
+    previewState_.previewFontLoadAttempted = true;
+    const std::string path = previewState_.previewFontFile.string();
     Font loadedFont = LoadFont(path.c_str());
     if (loadedFont.texture.id == 0)
     {
@@ -3881,43 +2148,43 @@ void EditorApplication::EnsurePreviewFont()
     }
 
     ApplyPointFilterToFont(loadedFont);
-    previewFont_ = loadedFont;
-    previewFontReady_ = true;
+    previewState_.previewFont = loadedFont;
+    previewState_.previewFontReady = true;
 }
 
 void EditorApplication::ReleasePreviewFont() noexcept
 {
     const bool windowReady = IsWindowReady();
-    if (previewFontReady_)
+    if (previewState_.previewFontReady)
     {
         if (windowReady)
         {
-            UnloadFont(previewFont_);
+            UnloadFont(previewState_.previewFont);
         }
-        previewFont_ = {};
-        previewFontReady_ = false;
+        previewState_.previewFont = {};
+        previewState_.previewFontReady = false;
     }
 }
 
 const Font* EditorApplication::PreviewTextFont() const noexcept
 {
-    return previewFontReady_ ? &previewFont_ : nullptr;
+    return previewState_.previewFontReady ? &previewState_.previewFont : nullptr;
 }
 
 void EditorApplication::ResetPagePreviewView() noexcept
 {
-    pagePreviewView_ = {};
+    layoutState_.pagePreviewView = {};
     if (const mfd::PageDefinition* page = ActivePage(); page != nullptr)
     {
-        pagePreviewView_ = page->view;
-        pagePreviewView_.zoom = mfd::SanitizeZoom(pagePreviewView_.zoom);
+        layoutState_.pagePreviewView = page->view;
+        layoutState_.pagePreviewView.zoom = mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom);
     }
 }
 
 void EditorApplication::ResetLibraryPreviewView() noexcept
 {
-    libraryPreviewView_ = {};
-    libraryPreviewView_.zoom = 1.0f;
+    layoutState_.libraryPreviewView = {};
+    layoutState_.libraryPreviewView.zoom = 1.0f;
 }
 
 std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() const
@@ -3928,13 +2195,13 @@ std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() co
         return messages;
     }
 
-    if (!loaded_.document.pages.empty() && files_.pageFiles.size() != loaded_.document.pages.size())
+    if (!documentState_.loaded.document.pages.empty() && documentState_.files.pageFiles.size() != documentState_.loaded.document.pages.size())
     {
         PushProblem(messages, "window", "Page file layout count must match the number of authored pages.");
     }
 
     std::unordered_set<std::string> pageNames;
-    for (const mfd::PageDefinition& page : loaded_.document.pages)
+    for (const mfd::PageDefinition& page : documentState_.loaded.document.pages)
     {
         const std::string pageId = PageProblemId(page);
         const std::string normalizedPageId =
@@ -4025,7 +2292,7 @@ std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() co
                 PushProblem(messages, pageId, "Page dynamic reticle binding template ids must stay unique inside one page.");
             }
 
-            if (loaded_.document.reticleLibrary.find(binding.templateId) == loaded_.document.reticleLibrary.end())
+            if (documentState_.loaded.document.reticleLibrary.find(binding.templateId) == documentState_.loaded.document.reticleLibrary.end())
             {
                 PushProblem(messages, pageId, "Page dynamic reticle binding template ids must resolve inside the loaded reticle library.");
             }
@@ -4061,7 +2328,7 @@ std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() co
             }
 
             if (!reticle.sourceTemplateId.empty() &&
-                loaded_.document.reticleLibrary.find(reticle.sourceTemplateId) == loaded_.document.reticleLibrary.end())
+                documentState_.loaded.document.reticleLibrary.find(reticle.sourceTemplateId) == documentState_.loaded.document.reticleLibrary.end())
             {
                 PushProblem(messages, reticleId, "Page reticle source template must resolve inside the loaded reticle library.");
             }
@@ -4109,7 +2376,7 @@ std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() co
         }
     }
 
-    for (const auto& [templateId, reticle] : loaded_.document.reticleLibrary)
+    for (const auto& [templateId, reticle] : documentState_.loaded.document.reticleLibrary)
     {
         const std::string reticleId = ReticleAssetProblemId(templateId);
         if (NormalizeEditorIdentifier(templateId) != NormalizeEditorIdentifier(reticle.id))
@@ -4117,7 +2384,7 @@ std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() co
             PushProblem(messages, reticleId, "Reticle-library map key and reticle id must stay aligned.");
         }
 
-        if (files_.templateFiles.find(templateId) == files_.templateFiles.end())
+        if (documentState_.files.templateFiles.find(templateId) == documentState_.files.templateFiles.end())
         {
             PushProblem(messages, reticleId, "Missing template file path for reticle asset.");
         }
@@ -4143,26 +2410,26 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     }
 
     EnsurePreviewTexture(static_cast<int>(viewport.size.x), static_cast<int>(viewport.size.y));
-    if (!previewTextureReady_)
+    if (!previewState_.previewTextureReady)
     {
         return;
     }
 
-    BeginTextureMode(previewTexture_);
+    BeginTextureMode(previewState_.previewTexture);
     ClearBackground(ToRayColor(page->backgroundColor));
     {
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
-            previewTexture_.texture.width,
-            previewTexture_.texture.height,
+            previewState_.previewTexture.texture.width,
+            previewState_.previewTexture.texture.height,
             viewport.view,
             PreviewTextFont(),
             ToRayColor(page->backgroundColor),
-            previewTextureStencilReady_,
-            &previewBezierCache_,
-            &previewImageCache_,
-            &previewTextLayoutCache_);
+            previewState_.previewTextureStencilReady,
+            &previewState_.previewBezierCache,
+            &previewState_.previewImageCache,
+            &previewState_.previewTextLayoutCache);
         for (const bool drawOnTop : {false, true})
         {
             for (const auto& reticle : page->staticReticles)
@@ -4199,7 +2466,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     EndTextureMode();
 
     ImGui::Image(
-        (ImTextureID)(uintptr_t)previewTexture_.texture.id,
+        (ImTextureID)(uintptr_t)previewState_.previewTexture.texture.id,
         viewport.size,
         ImVec2(0.0f, 1.0f),
         ImVec2(1.0f, 0.0f));
@@ -4248,7 +2515,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
 
     if (DrawViewportToolbar(
         viewport.origin,
-        mfd::SanitizeZoom(pagePreviewView_.zoom),
+        mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom),
         mouseLogical,
         "?##PagePreviewHelp",
         "R##PagePreviewRecenter",
@@ -4268,32 +2535,32 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     }
 
     EnsurePreviewTexture(static_cast<int>(viewport.size.x), static_cast<int>(viewport.size.y));
-    if (!previewTextureReady_)
+    if (!previewState_.previewTextureReady)
     {
         return;
     }
 
-    BeginTextureMode(previewTexture_);
+    BeginTextureMode(previewState_.previewTexture);
     ClearBackground(Color {10, 18, 24, 255});
     {
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
-            previewTexture_.texture.width,
-            previewTexture_.texture.height,
+            previewState_.previewTexture.texture.width,
+            previewState_.previewTexture.texture.height,
             viewport.view,
             PreviewTextFont(),
             Color {10, 18, 24, 255},
-            previewTextureStencilReady_,
-            &previewBezierCache_,
-            &previewImageCache_,
-            &previewTextLayoutCache_);
+            previewState_.previewTextureStencilReady,
+            &previewState_.previewBezierCache,
+            &previewState_.previewImageCache,
+            &previewState_.previewTextLayoutCache);
         canvas.DrawReticle(*reticle);
     }
     EndTextureMode();
 
     ImGui::Image(
-        (ImTextureID)(uintptr_t)previewTexture_.texture.id,
+        (ImTextureID)(uintptr_t)previewState_.previewTexture.texture.id,
         viewport.size,
         ImVec2(0.0f, 1.0f),
         ImVec2(1.0f, 0.0f));
@@ -4303,9 +2570,9 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     ImGui::InvisibleButton("LibraryPreviewInput", viewport.size);
     if (ImGui::IsItemHovered() && IsMouseButtonReleased(MOUSE_BUTTON_RIGHT))
     {
-        if (suppressNextLibraryPreviewContextMenu_)
+        if (layoutState_.suppressNextLibraryPreviewContextMenu)
         {
-            suppressNextLibraryPreviewContextMenu_ = false;
+            layoutState_.suppressNextLibraryPreviewContextMenu = false;
         }
         else if (!ImGui::IsMouseDragging(ImGuiMouseButton_Right))
         {
@@ -4314,8 +2581,8 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     }
     if (ImGui::BeginPopup("LibraryPreviewContextMenu"))
     {
-        const bool hasSelectedPrimitive = selection_.kind == SelectionKind::LibraryPrimitive &&
-                                          selection_.libraryReticleId == reticle->id &&
+        const bool hasSelectedPrimitive = documentState_.selection.kind == SelectionKind::LibraryPrimitive &&
+                                          documentState_.selection.libraryReticleId == reticle->id &&
                                           SelectedLibraryPrimitive() != nullptr;
         if (ImGui::MenuItem(hasSelectedPrimitive ? "Copy primitive" : "Copy reticle", "Ctrl+C"))
         {
@@ -4334,7 +2601,7 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
                 : "Copy the current shared reticle template.");
 
         const bool canPasteCurrentSelection =
-            hasSelectedPrimitive ? libraryPrimitiveClipboard_.has_value() : libraryReticleClipboard_.has_value();
+            hasSelectedPrimitive ? clipboardState_.libraryPrimitiveClipboard.has_value() : clipboardState_.libraryReticleClipboard.has_value();
         if (ImGui::MenuItem(hasSelectedPrimitive ? "Paste copied primitive" : "Paste copied reticle",
                             "Ctrl+V",
                             false,
@@ -4385,7 +2652,7 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
 
     if (DrawViewportToolbar(
         viewport.origin,
-        mfd::SanitizeZoom(libraryPreviewView_.zoom),
+        mfd::SanitizeZoom(layoutState_.libraryPreviewView.zoom),
         mouseLogical,
         "?##LibraryPreviewHelp",
         "R##LibraryPreviewRecenter",
@@ -4404,7 +2671,7 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
 
     const ImGuiStyle& style = ImGui::GetStyle();
     const std::string label =
-        showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel ? "View !" : "View";
+        showProblemsIndicator && !layoutState_.pagePreviewViewOptions.showProblemsPanel ? "View !" : "View";
     const std::string buttonLabel = label + (buttonId == nullptr ? "##PagePreviewViewMenu" : buttonId);
     const float buttonWidth = ImGui::CalcTextSize(label.c_str()).x + style.FramePadding.x * 2.0f;
     const float fullscreenButtonWidth =
@@ -4446,7 +2713,7 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
                 }
             }
         }
-        ShowItemTooltip(fullscreenPreviewController_.IsActive() ? "Exit fullscreen preview" : "Fullscreen page preview");
+        ShowItemTooltip(services_.fullscreenPreview.IsActive() ? "Exit fullscreen preview" : "Fullscreen page preview");
         tutorial_->DrawHalo(
             "page_preview_fullscreen",
             "Toggle fullscreen preview",
@@ -4457,13 +2724,13 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
 
     if (ImGui::BeginPopup(kPagePreviewDisplayPopupId))
     {
-        const bool layerInspectorChanged = ImGui::Checkbox("Layer Inspector", &pagePreviewViewOptions_.showLayerInspector);
-        if (layerInspectorChanged && !pagePreviewViewOptions_.showLayerInspector)
+        const bool layerInspectorChanged = ImGui::Checkbox("Layer Inspector", &layoutState_.pagePreviewViewOptions.showLayerInspector);
+        if (layerInspectorChanged && !layoutState_.pagePreviewViewOptions.showLayerInspector)
         {
             ClearLayerFocus(false);
             ReleaseLayerPreviewTextures();
         }
-        if (layerInspectorChanged && pagePreviewViewOptions_.showLayerInspector &&
+        if (layerInspectorChanged && layoutState_.pagePreviewViewOptions.showLayerInspector &&
             tutorial_->MatchesTarget("page_preview_view_layer_inspector"))
         {
             tutorial_->CompleteStep();
@@ -4473,8 +2740,8 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
             "Enable Layer Inspector",
             "Turn on the layer strip to inspect editor-only layers and their thumbnails.");
 
-        const bool minimapChanged = ImGui::Checkbox("Minimap", &pagePreviewViewOptions_.showMinimap);
-        if (minimapChanged && pagePreviewViewOptions_.showMinimap &&
+        const bool minimapChanged = ImGui::Checkbox("Minimap", &layoutState_.pagePreviewViewOptions.showMinimap);
+        if (minimapChanged && layoutState_.pagePreviewViewOptions.showMinimap &&
             tutorial_->MatchesTarget("page_preview_view_minimap"))
         {
             tutorial_->CompleteStep();
@@ -4484,8 +2751,8 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
             "Enable Minimap",
             "Turn on the minimap so page navigation stays readable while zooming and panning.");
 
-        const bool problemsChanged = ImGui::Checkbox("Problems", &pagePreviewViewOptions_.showProblemsPanel);
-        if (problemsChanged && pagePreviewViewOptions_.showProblemsPanel &&
+        const bool problemsChanged = ImGui::Checkbox("Problems", &layoutState_.pagePreviewViewOptions.showProblemsPanel);
+        if (problemsChanged && layoutState_.pagePreviewViewOptions.showProblemsPanel &&
             tutorial_->MatchesTarget("page_preview_view_problems"))
         {
             tutorial_->CompleteStep();
@@ -4495,8 +2762,8 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
             "Enable Problems",
             "Dock the validation panel under the preview so diagnostics stay visible while editing.");
 
-        const bool highlightChanged = ImGui::Checkbox("Highlight reticle usages", &pagePreviewViewOptions_.highlightReticleUsages);
-        if (highlightChanged && pagePreviewViewOptions_.highlightReticleUsages &&
+        const bool highlightChanged = ImGui::Checkbox("Highlight reticle usages", &layoutState_.pagePreviewViewOptions.highlightReticleUsages);
+        if (highlightChanged && layoutState_.pagePreviewViewOptions.highlightReticleUsages &&
             tutorial_->MatchesTarget("page_preview_view_highlight_usages"))
         {
             tutorial_->CompleteStep();
@@ -4506,10 +2773,10 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
             "Enable Highlight reticle usages",
             "Turn on template usage highlighting for the currently selected shared reticle.");
         ImGui::Separator();
-        ImGui::Checkbox("Reticle names", &pagePreviewViewOptions_.showReticleNames);
-        ImGui::Checkbox("Gizmos", &pagePreviewViewOptions_.showGizmos);
-        const bool pageContextChanged = ImGui::Checkbox("Page context", &pagePreviewViewOptions_.showPageContext);
-        if (pageContextChanged && pagePreviewViewOptions_.showPageContext &&
+        ImGui::Checkbox("Reticle names", &layoutState_.pagePreviewViewOptions.showReticleNames);
+        ImGui::Checkbox("Gizmos", &layoutState_.pagePreviewViewOptions.showGizmos);
+        const bool pageContextChanged = ImGui::Checkbox("Page context", &layoutState_.pagePreviewViewOptions.showPageContext);
+        if (pageContextChanged && layoutState_.pagePreviewViewOptions.showPageContext &&
             tutorial_->MatchesTarget("page_preview_view_page_context"))
         {
             tutorial_->CompleteStep();
@@ -4518,7 +2785,7 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
             "page_preview_view_page_context",
             "Enable Page context",
             "Turn on the page-context split so the active page stays visible while you inspect the rest of the workspace.");
-        if (showProblemsIndicator && !pagePreviewViewOptions_.showProblemsPanel)
+        if (showProblemsIndicator && !layoutState_.pagePreviewViewOptions.showProblemsPanel)
         {
             ImGui::Separator();
             ImGui::TextDisabled("Validation issues are available. Enable Problems to inspect them below the preview.");
@@ -4540,10 +2807,10 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
     }
 
     ImDrawList* drawList = ImGui::GetWindowDrawList();
-    const bool hasSelectedPrimitive = selection_.kind == SelectionKind::LibraryPrimitive &&
-                                      selection_.libraryReticleId == reticle->id &&
-                                      selection_.primitiveIndex >= 0 &&
-                                      selection_.primitiveIndex < static_cast<int>(reticle->primitives.size());
+    const bool hasSelectedPrimitive = documentState_.selection.kind == SelectionKind::LibraryPrimitive &&
+                                      documentState_.selection.libraryReticleId == reticle->id &&
+                                      documentState_.selection.primitiveIndex >= 0 &&
+                                      documentState_.selection.primitiveIndex < static_cast<int>(reticle->primitives.size());
 
     auto toScreenPoint = [&viewport, reticle](const mfd::Primitive& primitive, const mfd::Vec2 localPoint)
     {
@@ -4565,8 +2832,8 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
             continue;
         }
 
-        const bool selected = hasSelectedPrimitive && selection_.primitiveIndex == primitiveIndex;
-        if (libraryStudioShowGizmos_)
+        const bool selected = hasSelectedPrimitive && documentState_.selection.primitiveIndex == primitiveIndex;
+        if (layoutState_.libraryStudioShowGizmos)
         {
             const ImU32 borderColor = selected ? IM_COL32(255, 212, 110, 255) : IM_COL32(104, 185, 205, 160);
             const ImU32 fillColor = selected ? IM_COL32(255, 212, 110, 32) : IM_COL32(104, 185, 205, 18);
@@ -4574,7 +2841,7 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
             drawList->AddRect(bounds.min, bounds.max, borderColor, 6.0f, 0, selected ? 2.2f : 1.3f);
         }
 
-        if (libraryStudioShowPrimitiveLabels_)
+        if (layoutState_.libraryStudioShowPrimitiveLabels)
         {
             const std::string label =
                 std::to_string(primitiveIndex + 1) + ". " +
@@ -4588,7 +2855,7 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
                               label.c_str());
         }
 
-        if (!selected || !libraryStudioShowGizmos_)
+        if (!selected || !layoutState_.libraryStudioShowGizmos)
         {
             continue;
         }
@@ -4732,22 +2999,22 @@ void EditorApplication::DrawPreviewOverlays(const ViewportState& viewport)
         return;
     }
 
-    if (pagePreviewViewOptions_.showMinimap)
+    if (layoutState_.pagePreviewViewOptions.showMinimap)
     {
         DrawPagePreviewMinimap(viewport, *page);
     }
 
-    if (pagePreviewViewOptions_.showReticleNames)
+    if (layoutState_.pagePreviewViewOptions.showReticleNames)
     {
         DrawPagePreviewReticleNames(viewport, *page);
     }
 
-    if (pagePreviewViewOptions_.highlightReticleUsages)
+    if (layoutState_.pagePreviewViewOptions.highlightReticleUsages)
     {
         DrawReticleUsageHighlightPlaceholder(viewport);
     }
 
-    if (pagePreviewViewOptions_.showGizmos)
+    if (layoutState_.pagePreviewViewOptions.showGizmos)
     {
         DrawPagePreviewGizmos(viewport, *page);
     }
@@ -4842,7 +3109,7 @@ void EditorApplication::DrawPagePreviewMinimap(const ViewportState& viewport, co
             const ImVec2 rectMin(std::min(rectPointA.x, rectPointB.x), std::min(rectPointA.y, rectPointB.y));
             const ImVec2 rectMax(std::max(rectPointA.x, rectPointB.x), std::max(rectPointA.y, rectPointB.y));
             const bool selected =
-                selection_.kind == SelectionKind::PageStrobe &&
+                documentState_.selection.kind == SelectionKind::PageStrobe &&
                 SelectedPageStrobeReticle() == &strobe.reticle;
 
             if (rectMax.x - rectMin.x < 4.0f || rectMax.y - rectMin.y < 4.0f)
@@ -4918,7 +3185,7 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
         const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
         const ImVec2 tagMin(bounds.min.x + 6.0f, bounds.min.y + 6.0f);
         const ImVec2 tagMax(tagMin.x + textSize.x + 12.0f, tagMin.y + textSize.y + 6.0f);
-        const bool selected = HasSelectedPageReticle(selection_.pageIndex, reticleIndex);
+        const bool selected = HasSelectedPageReticle(documentState_.selection.pageIndex, reticleIndex);
         const bool dimmed = ShouldDimPageReticleInCurrentFocus(page, reticle);
         drawList->AddRectFilled(tagMin,
                                 tagMax,
@@ -4948,7 +3215,7 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
             const ImVec2 tagMin(bounds.min.x + 6.0f, bounds.min.y + 6.0f);
             const ImVec2 tagMax(tagMin.x + textSize.x + 12.0f, tagMin.y + textSize.y + 6.0f);
             const bool selected =
-                selection_.kind == SelectionKind::PageStrobe &&
+                documentState_.selection.kind == SelectionKind::PageStrobe &&
                 SelectedPageStrobeReticle() == &strobe.reticle;
             drawList->AddRectFilled(tagMin,
                                     tagMax,
@@ -4986,7 +3253,7 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
 
 void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
 {
-    const editor::LayerFocusStripModel model = layerFocusController_.BuildStripModel(page, layerFocusState_);
+    const editor::LayerFocusStripModel model = services_.layerFocus.BuildStripModel(page, layoutState_.layerFocusState);
     ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
     ImGui::TextDisabled("Focus one layer without changing JSON.");
     ImGui::Separator();
@@ -5007,7 +3274,7 @@ void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
             }
             else
             {
-                layerFocusState_ = layerFocusController_.MakeFocusedState(page, entry.layerId);
+                layoutState_.layerFocusState = services_.layerFocus.MakeFocusedState(page, entry.layerId);
                 SanitizePageReticleSelectionForCurrentFocus();
                 RebuildStatus("Layer focus set to '" + entry.layerId + "' on page '" + page.name + "'.", false);
             }
@@ -5050,16 +3317,16 @@ void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
         }
     }
 
-    if (layerPreviewTextures_.size() > model.entries.size())
+    if (previewState_.layerPreviewTextures.size() > model.entries.size())
     {
-        for (std::size_t slotIndex = model.entries.size(); slotIndex < layerPreviewTextures_.size(); ++slotIndex)
+        for (std::size_t slotIndex = model.entries.size(); slotIndex < previewState_.layerPreviewTextures.size(); ++slotIndex)
         {
-            if (layerPreviewTextures_[slotIndex].ready)
+            if (previewState_.layerPreviewTextures[slotIndex].ready)
             {
-                UnloadRenderTexture(layerPreviewTextures_[slotIndex].texture);
+                UnloadRenderTexture(previewState_.layerPreviewTextures[slotIndex].texture);
             }
         }
-        layerPreviewTextures_.resize(model.entries.size());
+        previewState_.layerPreviewTextures.resize(model.entries.size());
     }
 }
 
@@ -5119,7 +3386,7 @@ void EditorApplication::DrawReticleUsageHighlightPlaceholder(const ViewportState
                                            usageHighlight->pages.end(),
                                            [this](const editor::ReticleUsageHighlightPage& usagePage)
                                            {
-                                               return usagePage.currentPageIndex == selection_.pageIndex;
+                                               return usagePage.currentPageIndex == documentState_.selection.pageIndex;
                                            });
         if (iterator != usageHighlight->pages.end())
         {
@@ -5205,50 +3472,50 @@ void EditorApplication::DrawReticleUsageHighlightPlaceholder(const ViewportState
 const editor::ReticleUsageHighlightResult* EditorApplication::ResolveReticleUsageHighlight()
 {
     const mfd::ReticleGroup* selectedReticle = SelectedLibraryReticle();
-    if (!pagePreviewViewOptions_.highlightReticleUsages || selectedReticle == nullptr)
+    if (!layoutState_.pagePreviewViewOptions.highlightReticleUsages || selectedReticle == nullptr)
     {
         return nullptr;
     }
 
-    std::filesystem::path templateFile = loaded_.window.reticleLibraryFolder;
-    if (const auto iterator = files_.templateFiles.find(selection_.libraryReticleId); iterator != files_.templateFiles.end())
+    std::filesystem::path templateFile = documentState_.loaded.window.reticleLibraryFolder;
+    if (const auto iterator = documentState_.files.templateFiles.find(documentState_.selection.libraryReticleId); iterator != documentState_.files.templateFiles.end())
     {
         templateFile = iterator->second;
     }
 
-    const std::filesystem::path assetsRoot = assetPaths_.ResolveAssetRootForPath(templateFile);
-    if (!reticleUsageHighlightCache_.dirty &&
-        mfd::PageNamesEqual(reticleUsageHighlightCache_.templateId, selectedReticle->id) &&
-        reticleUsageHighlightCache_.assetsRoot == assetsRoot)
+    const std::filesystem::path assetsRoot = documentState_.assetPaths.ResolveAssetRootForPath(templateFile);
+    if (!previewState_.reticleUsageHighlightCache.dirty &&
+        mfd::PageNamesEqual(previewState_.reticleUsageHighlightCache.templateId, selectedReticle->id) &&
+        previewState_.reticleUsageHighlightCache.assetsRoot == assetsRoot)
     {
-        return &reticleUsageHighlightCache_.result;
+        return &previewState_.reticleUsageHighlightCache.result;
     }
 
-    reticleUsageHighlightCache_.result = reticleUsageHighlightService_.BuildHighlight(
-        loaded_,
-        files_,
+    previewState_.reticleUsageHighlightCache.result = services_.reticleUsageHighlight.BuildHighlight(
+        documentState_.loaded,
+        documentState_.files,
         editor::ReticleUsageHighlightRequest {
             selectedReticle->id,
             assetsRoot});
-    reticleUsageHighlightCache_.templateId = selectedReticle->id;
-    reticleUsageHighlightCache_.assetsRoot = assetsRoot;
-    reticleUsageHighlightCache_.dirty = false;
-    return &reticleUsageHighlightCache_.result;
+    previewState_.reticleUsageHighlightCache.templateId = selectedReticle->id;
+    previewState_.reticleUsageHighlightCache.assetsRoot = assetsRoot;
+    previewState_.reticleUsageHighlightCache.dirty = false;
+    return &previewState_.reticleUsageHighlightCache.result;
 }
 
 void EditorApplication::InvalidateReticleUsageHighlightCache() noexcept
 {
-    reticleUsageHighlightCache_.dirty = true;
+    previewState_.reticleUsageHighlightCache.dirty = true;
 }
 
 void EditorApplication::ClearLayerFocus(const bool announceStatus)
 {
-    if (layerFocusState_.focusedLayerId.empty())
+    if (layoutState_.layerFocusState.focusedLayerId.empty())
     {
         return;
     }
 
-    layerFocusState_.focusedLayerId.clear();
+    layoutState_.layerFocusState.focusedLayerId.clear();
     SanitizePageReticleSelectionForCurrentFocus();
     if (announceStatus)
     {
@@ -5267,78 +3534,78 @@ void EditorApplication::SanitizeLayerFocusForActivePage()
 {
     if (const mfd::PageDefinition* page = ActivePage(); page != nullptr)
     {
-        layerFocusController_.SanitizeFocusState(*page, layerFocusState_);
+        services_.layerFocus.SanitizeFocusState(*page, layoutState_.layerFocusState);
     }
     else
     {
-        layerFocusState_ = {};
+        layoutState_.layerFocusState = {};
     }
 }
 
 void EditorApplication::SanitizePageReticleSelectionForCurrentFocus()
 {
-    if (selection_.kind != SelectionKind::PageReticle &&
-        selection_.kind != SelectionKind::PageTitle &&
-        selection_.kind != SelectionKind::PageStrobe)
+    if (documentState_.selection.kind != SelectionKind::PageReticle &&
+        documentState_.selection.kind != SelectionKind::PageTitle &&
+        documentState_.selection.kind != SelectionKind::PageStrobe)
     {
         return;
     }
 
     mfd::PageDefinition* page = ActivePage();
-    if (page == nullptr || selection_.pageIndex < 0 || selection_.pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    if (page == nullptr || documentState_.selection.pageIndex < 0 || documentState_.selection.pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
     {
-        selection_.pageReticleIndex = -1;
-        selection_.pageReticleIndices.clear();
+        documentState_.selection.pageReticleIndex = -1;
+        documentState_.selection.pageReticleIndices.clear();
         return;
     }
 
-    if (selection_.kind == SelectionKind::PageTitle)
+    if (documentState_.selection.kind == SelectionKind::PageTitle)
     {
         return;
     }
 
-    if (selection_.kind == SelectionKind::PageStrobe)
+    if (documentState_.selection.kind == SelectionKind::PageStrobe)
     {
         mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
         if (strobe == nullptr)
         {
-            SelectPage(selection_.pageIndex);
+            SelectPage(documentState_.selection.pageIndex);
         }
         return;
     }
 
     const std::vector<int> filtered =
-        layerFocusController_.FilterSelectableReticleIndices(*page, selection_.pageReticleIndices, layerFocusState_);
+        services_.layerFocus.FilterSelectableReticleIndices(*page, documentState_.selection.pageReticleIndices, layoutState_.layerFocusState);
     if (filtered.empty())
     {
-        SelectPage(selection_.pageIndex);
+        SelectPage(documentState_.selection.pageIndex);
         return;
     }
 
-    selection_.pageReticleIndices = filtered;
-    if (std::find(filtered.begin(), filtered.end(), selection_.pageReticleIndex) == filtered.end())
+    documentState_.selection.pageReticleIndices = filtered;
+    if (std::find(filtered.begin(), filtered.end(), documentState_.selection.pageReticleIndex) == filtered.end())
     {
-        selection_.pageReticleIndex = filtered.back();
+        documentState_.selection.pageReticleIndex = filtered.back();
     }
 }
 
 bool EditorApplication::IsPageReticleSelectableInCurrentFocus(const mfd::PageDefinition& page,
                                                               const mfd::ReticleGroup& reticle) const
 {
-    return layerFocusController_.IsReticleSelectable(page, reticle, layerFocusState_);
+    return services_.layerFocus.IsReticleSelectable(page, reticle, layoutState_.layerFocusState);
 }
 
 bool EditorApplication::ShouldDimPageReticleInCurrentFocus(const mfd::PageDefinition& page,
                                                            const mfd::ReticleGroup& reticle) const
 {
-    return layerFocusController_.ShouldReticleBeDimmed(page, reticle, layerFocusState_);
+    return services_.layerFocus.ShouldReticleBeDimmed(page, reticle, layoutState_.layerFocusState);
 }
 
 std::string EditorApplication::ActiveInsertionLayerId(const mfd::PageDefinition& page) const
 {
-    if (layerFocusController_.IsFocusActive(page, layerFocusState_))
+    if (services_.layerFocus.IsFocusActive(page, layoutState_.layerFocusState))
     {
-        return layerFocusState_.focusedLayerId;
+        return layoutState_.layerFocusState.focusedLayerId;
     }
 
     return DefaultEditorLayerId(page);
@@ -5384,7 +3651,7 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
         drawCorner(bottomLeft);
     };
 
-    if (selection_.kind == SelectionKind::PageTitle)
+    if (documentState_.selection.kind == SelectionKind::PageTitle)
     {
         const mfd::ReticleGroup& titleReticle = BuildPageTitlePreviewReticle(page);
         if (!titleReticle.visible)
@@ -5403,10 +3670,10 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
         return;
     }
 
-    if (selection_.kind == SelectionKind::PageStrobe)
+    if (documentState_.selection.kind == SelectionKind::PageStrobe)
     {
         const mfd::ReticleGroup* strobeReticle = SelectedPageStrobeReticle();
-        if (strobeReticle == nullptr || !IsPageStrobeIndexVisibleInEditor(page, selection_.pageReticleIndex))
+        if (strobeReticle == nullptr || !IsPageStrobeIndexVisibleInEditor(page, documentState_.selection.pageReticleIndex))
         {
             return;
         }
@@ -5423,7 +3690,7 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
     }
 
     const std::vector<int> selectedIndices = SelectedPageReticleIndices();
-    if (selectedIndices.empty() || selection_.kind != SelectionKind::PageReticle)
+    if (selectedIndices.empty() || documentState_.selection.kind != SelectionKind::PageReticle)
     {
         return;
     }
@@ -5444,7 +3711,7 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
             continue;
         }
 
-        const bool primarySelection = reticleIndex == selection_.pageReticleIndex;
+        const bool primarySelection = reticleIndex == documentState_.selection.pageReticleIndex;
         drawList->AddRect(bounds.min,
                           bounds.max,
                           primarySelection ? IM_COL32(84, 219, 201, 255) : IM_COL32(84, 219, 201, 150),
@@ -5511,14 +3778,14 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 
     auto cancelPreviewInteraction = [this]()
     {
-        interactionMode_ = InteractionMode::None;
-        interactionReticleIndex_ = -1;
-        interactionReticleIndices_.clear();
-        interactionStartReticleTransforms_.clear();
+        interactionState_.mode = InteractionMode::None;
+        interactionState_.reticleIndex = -1;
+        interactionState_.reticleIndices.clear();
+        interactionState_.startReticleTransforms.clear();
     };
 
     ViewportState interactiveViewport = viewport;
-    interactiveViewport.view = pagePreviewView_;
+    interactiveViewport.view = layoutState_.pagePreviewView;
 
     const bool leftMouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
     const bool rightMouseDown = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
@@ -5528,21 +3795,21 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         IsPointInsideRect(mouse, viewport.origin, viewportMax) ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
                                                                : std::nullopt;
     const ViewportToolbarLayout toolbarLayout =
-        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(pagePreviewView_.zoom), mouseLogical);
+        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom), mouseLogical);
     const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
     const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
     const bool anyPopupOpen = ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId);
     if (!mouseInsideViewport || mouseInsideToolbar || anyPopupOpen)
     {
-        if (interactionMode_ != InteractionMode::None)
+        if (interactionState_.mode != InteractionMode::None)
         {
             const bool interactionButtonReleased =
-                interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
+                interactionState_.mode == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
             if (anyPopupOpen || interactionButtonReleased)
             {
-                if (interactionMode_ == InteractionMode::PanPage)
+                if (interactionState_.mode == InteractionMode::PanPage)
                 {
-                    suppressNextPagePreviewContextMenu_ = false;
+                    layoutState_.suppressNextPagePreviewContextMenu = false;
                 }
                 cancelPreviewInteraction();
             }
@@ -5551,37 +3818,37 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     }
 
     const float wheelDelta = ImGui::GetIO().MouseWheel;
-    if (interactionMode_ == InteractionMode::None && std::abs(wheelDelta) > 0.0001f)
+    if (interactionState_.mode == InteractionMode::None && std::abs(wheelDelta) > 0.0001f)
     {
         constexpr float kMinPageZoom = 0.1f;
         constexpr float kMaxPageZoom = 20.0f;
         constexpr float kWheelZoomStep = 1.12f;
 
-        const float currentZoom = std::clamp(mfd::SanitizeZoom(pagePreviewView_.zoom), kMinPageZoom, kMaxPageZoom);
+        const float currentZoom = std::clamp(mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom), kMinPageZoom, kMaxPageZoom);
         const float nextZoom =
             std::clamp(currentZoom * std::pow(kWheelZoomStep, wheelDelta), kMinPageZoom, kMaxPageZoom);
         if (std::abs(nextZoom - currentZoom) > 0.0001f)
         {
             const mfd::Vec2 mouseLogicalBeforeZoom = interactiveViewport.ToLogical(mouse);
-            const mfd::Vec2 viewedOffset = mouseLogicalBeforeZoom - pagePreviewView_.center;
+            const mfd::Vec2 viewedOffset = mouseLogicalBeforeZoom - layoutState_.pagePreviewView.center;
             const float zoomRatio = currentZoom / nextZoom;
 
-            pagePreviewView_.zoom = nextZoom;
-            pagePreviewView_.center = {
+            layoutState_.pagePreviewView.zoom = nextZoom;
+            layoutState_.pagePreviewView.center = {
                 mouseLogicalBeforeZoom.x - viewedOffset.x * zoomRatio,
                 mouseLogicalBeforeZoom.y - viewedOffset.y * zoomRatio};
-            interactiveViewport.view = pagePreviewView_;
+            interactiveViewport.view = layoutState_.pagePreviewView;
         }
     }
 
     const PageMinimapState minimap =
-        pagePreviewViewOptions_.showMinimap ? ComputePageMinimapState(*page, interactiveViewport) : PageMinimapState {};
+        layoutState_.pagePreviewViewOptions.showMinimap ? ComputePageMinimapState(*page, interactiveViewport) : PageMinimapState {};
     const bool mouseInsideMinimap =
-        pagePreviewViewOptions_.showMinimap && minimap.valid && IsPointInsideRect(mouse, minimap.contentMin, minimap.contentMax);
-    if (interactionMode_ == InteractionMode::None && mouseInsideMinimap && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        layoutState_.pagePreviewViewOptions.showMinimap && minimap.valid && IsPointInsideRect(mouse, minimap.contentMin, minimap.contentMax);
+    if (interactionState_.mode == InteractionMode::None && mouseInsideMinimap && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
-        interactionMode_ = InteractionMode::NavigateMinimap;
-        interactionReticleIndex_ = -1;
+        interactionState_.mode = InteractionMode::NavigateMinimap;
+        interactionState_.reticleIndex = -1;
 
         const LogicalBounds viewBounds = ComputeViewportLogicalBounds(interactiveViewport);
         bool clickedInsideViewRect = false;
@@ -5597,48 +3864,48 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         const mfd::Vec2 clickedLogical = ToMinimapLogical(minimap, mouse);
         if (clickedInsideViewRect)
         {
-            minimapDragOffsetLogical_ = {
-                clickedLogical.x - pagePreviewView_.center.x,
-                clickedLogical.y - pagePreviewView_.center.y};
+            layoutState_.minimapDragOffsetLogical = {
+                clickedLogical.x - layoutState_.pagePreviewView.center.x,
+                clickedLogical.y - layoutState_.pagePreviewView.center.y};
         }
         else
         {
-            pagePreviewView_.center = clickedLogical;
-            minimapDragOffsetLogical_ = {};
-            interactiveViewport.view = pagePreviewView_;
+            layoutState_.pagePreviewView.center = clickedLogical;
+            layoutState_.minimapDragOffsetLogical = {};
+            interactiveViewport.view = layoutState_.pagePreviewView;
         }
     }
 
-    if (interactionMode_ == InteractionMode::NavigateMinimap)
+    if (interactionState_.mode == InteractionMode::NavigateMinimap)
     {
         if (!minimap.valid)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            interactionState_.mode = InteractionMode::None;
+            interactionState_.reticleIndices.clear();
+            interactionState_.startReticleTransforms.clear();
             return;
         }
 
         const mfd::Vec2 draggedLogical = ToMinimapLogical(minimap, mouse);
-        pagePreviewView_.center = {
-            draggedLogical.x - minimapDragOffsetLogical_.x,
-            draggedLogical.y - minimapDragOffsetLogical_.y};
+        layoutState_.pagePreviewView.center = {
+            draggedLogical.x - layoutState_.minimapDragOffsetLogical.x,
+            draggedLogical.y - layoutState_.minimapDragOffsetLogical.y};
         if (!leftMouseDown)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            interactionState_.mode = InteractionMode::None;
+            interactionState_.reticleIndices.clear();
+            interactionState_.startReticleTransforms.clear();
         }
         return;
     }
 
-    if (interactionMode_ == InteractionMode::None &&
+    if (interactionState_.mode == InteractionMode::None &&
         !mouseInsideMinimap &&
         IsMouseButtonReleased(MOUSE_BUTTON_RIGHT))
     {
-        if (suppressNextPagePreviewContextMenu_)
+        if (layoutState_.suppressNextPagePreviewContextMenu)
         {
-            suppressNextPagePreviewContextMenu_ = false;
+            layoutState_.suppressNextPagePreviewContextMenu = false;
             return;
         }
 
@@ -5673,32 +3940,32 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
             }
 
             if (hoveredReticleIndices.size() == 1U &&
-                !HasSelectedPageReticle(selection_.pageIndex, hoveredReticleIndices.front()))
+                !HasSelectedPageReticle(documentState_.selection.pageIndex, hoveredReticleIndices.front()))
             {
-                SelectPageReticle(selection_.pageIndex, hoveredReticleIndices.front());
+                SelectPageReticle(documentState_.selection.pageIndex, hoveredReticleIndices.front());
             }
 
-            pagePreviewContextReticleIndices_ = hoveredReticleIndices;
-            pagePreviewContextTargets_ = hoveredClipTargets;
+            layoutState_.pagePreviewContextReticleIndices = hoveredReticleIndices;
+            layoutState_.pagePreviewContextTargets = hoveredClipTargets;
             ImGui::OpenPopup("PageReticleContextMenu");
             return;
         }
     }
 
-    if (interactionMode_ == InteractionMode::None && rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+    if (interactionState_.mode == InteractionMode::None && rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
     {
-        interactionMode_ = InteractionMode::PanPage;
-        suppressNextPagePreviewContextMenu_ = true;
-        interactionReticleIndex_ = -1;
-        interactionReticleIndices_.clear();
-        interactionStartReticleTransforms_.clear();
+        interactionState_.mode = InteractionMode::PanPage;
+        layoutState_.suppressNextPagePreviewContextMenu = true;
+        interactionState_.reticleIndex = -1;
+        interactionState_.reticleIndices.clear();
+        interactionState_.startReticleTransforms.clear();
     }
 
-    if (interactionMode_ != InteractionMode::None)
+    if (interactionState_.mode != InteractionMode::None)
     {
         ApplyMouseTransform(interactiveViewport);
         const bool interactionButtonReleased =
-            interactionMode_ == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
+            interactionState_.mode == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
         if (interactionButtonReleased)
         {
             cancelPreviewInteraction();
@@ -5714,14 +3981,14 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     const bool additiveSelection = ImGui::GetIO().KeyCtrl;
     const std::optional<int> clickedReticleIndex = FindNearestPageReticle(viewport, mouse);
     const bool singleEditableSelection =
-        (selection_.kind == SelectionKind::PageReticle && SelectedPageReticleCount() == 1) ||
-        selection_.kind == SelectionKind::PageTitle ||
-        selection_.kind == SelectionKind::PageStrobe;
+        (documentState_.selection.kind == SelectionKind::PageReticle && SelectedPageReticleCount() == 1) ||
+        documentState_.selection.kind == SelectionKind::PageTitle ||
+        documentState_.selection.kind == SelectionKind::PageStrobe;
     if (!additiveSelection && page != nullptr && singleEditableSelection)
     {
         const mfd::ReticleGroup* selectedPreviewReticle = nullptr;
         const mfd::Transform2D* selectedTransform = nullptr;
-        if (selection_.kind == SelectionKind::PageTitle)
+        if (documentState_.selection.kind == SelectionKind::PageTitle)
         {
             selectedPreviewReticle = &BuildPageTitlePreviewReticle(*page);
             if (const mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay(); titleDisplay != nullptr)
@@ -5729,9 +3996,9 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                 selectedTransform = &titleDisplay->transform;
             }
         }
-        else if (selection_.kind == SelectionKind::PageStrobe)
+        else if (documentState_.selection.kind == SelectionKind::PageStrobe)
         {
-            if (IsPageStrobeIndexVisibleInEditor(*page, selection_.pageReticleIndex))
+            if (IsPageStrobeIndexVisibleInEditor(*page, documentState_.selection.pageReticleIndex))
             {
                 if (const mfd::ReticleGroup* selectedReticle = SelectedPageStrobeReticle(); selectedReticle != nullptr)
                 {
@@ -5748,7 +4015,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 
         if (selectedPreviewReticle != nullptr &&
             selectedTransform != nullptr &&
-            (selection_.kind == SelectionKind::PageTitle || IsReticleVisibleInEditor(*page, *selectedPreviewReticle)) &&
+            (documentState_.selection.kind == SelectionKind::PageTitle || IsReticleVisibleInEditor(*page, *selectedPreviewReticle)) &&
             selectedPreviewReticle->visible)
         {
             const ReticleScreenBounds selectedBounds = ComputeReticleScreenBounds(*selectedPreviewReticle, viewport);
@@ -5767,36 +4034,36 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                     [this, &viewport, mouse, selectedTransform, selectedPreviewReticle](const InteractionMode mode,
                                                                                         const ImVec2 cornerScreen)
                 {
-                    interactionReticleIndex_ =
-                        selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex : -1;
-                    interactionReticleIndices_.clear();
-                    interactionStartReticleTransforms_.clear();
-                    if (selection_.kind == SelectionKind::PageReticle)
+                    interactionState_.reticleIndex =
+                        documentState_.selection.kind == SelectionKind::PageReticle ? documentState_.selection.pageReticleIndex : -1;
+                    interactionState_.reticleIndices.clear();
+                    interactionState_.startReticleTransforms.clear();
+                    if (documentState_.selection.kind == SelectionKind::PageReticle)
                     {
-                        interactionReticleIndices_ = {selection_.pageReticleIndex};
-                        interactionStartReticleTransforms_ = {*selectedTransform};
+                        interactionState_.reticleIndices = {documentState_.selection.pageReticleIndex};
+                        interactionState_.startReticleTransforms = {*selectedTransform};
                     }
-                    interactionStartTransform_ = *selectedTransform;
-                    interactionStartReticleVisualCenterLocal_ = ReticleVisualCenterLocal(*selectedPreviewReticle);
-                    interactionStartMouseLogical_ = viewport.ToLogical(mouse);
+                    interactionState_.startTransform = *selectedTransform;
+                    interactionState_.startReticleVisualCenterLocal = ReticleVisualCenterLocal(*selectedPreviewReticle);
+                    interactionState_.startMouseLogical = viewport.ToLogical(mouse);
                     const mfd::Vec2 interactionPivotLogical =
-                        mfd::ApplyTransform(interactionStartReticleVisualCenterLocal_, interactionStartTransform_);
-                    interactionStartAngleDegrees_ =
-                        std::atan2(interactionStartMouseLogical_.y - interactionPivotLogical.y,
-                                   interactionStartMouseLogical_.x - interactionPivotLogical.x) *
+                        mfd::ApplyTransform(interactionState_.startReticleVisualCenterLocal, interactionState_.startTransform);
+                    interactionState_.startAngleDegrees =
+                        std::atan2(interactionState_.startMouseLogical.y - interactionPivotLogical.y,
+                                   interactionState_.startMouseLogical.x - interactionPivotLogical.x) *
                         180.0f / 3.14159265f;
-                    interactionStartDistance_ = std::max(
+                    interactionState_.startDistance = std::max(
                         0.001f,
                         std::sqrt(
-                            std::pow(interactionStartMouseLogical_.x - interactionPivotLogical.x, 2.0f) +
-                            std::pow(interactionStartMouseLogical_.y - interactionPivotLogical.y, 2.0f)));
-                    interactionStartCenterScreen_ = viewport.ToScreen(interactionPivotLogical);
-                    interactionStartCornerScreen_ = cornerScreen;
+                            std::pow(interactionState_.startMouseLogical.x - interactionPivotLogical.x, 2.0f) +
+                            std::pow(interactionState_.startMouseLogical.y - interactionPivotLogical.y, 2.0f)));
+                    interactionState_.startCenterScreen = viewport.ToScreen(interactionPivotLogical);
+                    interactionState_.startCornerScreen = cornerScreen;
                     PushUndoSnapshot();
-                    interactionMode_ = mode;
+                    interactionState_.mode = mode;
                 };
 
-                if (pagePreviewViewOptions_.showGizmos)
+                if (layoutState_.pagePreviewViewOptions.showGizmos)
                 {
                     if (Distance(mouse, selectedRotateHandle) <= 16.0f)
                     {
@@ -5820,37 +4087,37 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     if (!additiveSelection &&
         SelectedPageReticleCount() > 1 &&
         clickedReticleIndex.has_value() &&
-        HasSelectedPageReticle(selection_.pageIndex, *clickedReticleIndex))
+        HasSelectedPageReticle(documentState_.selection.pageIndex, *clickedReticleIndex))
     {
         // Preserve the current multi-selection when dragging one of its members.
         const std::vector<int> selectedIndices = SelectedPageReticleIndices();
-        interactionReticleIndex_ = selection_.pageReticleIndex;
-        interactionReticleIndices_ = selectedIndices;
-        interactionStartReticleTransforms_.clear();
-        interactionStartReticleTransforms_.reserve(selectedIndices.size());
+        interactionState_.reticleIndex = documentState_.selection.pageReticleIndex;
+        interactionState_.reticleIndices = selectedIndices;
+        interactionState_.startReticleTransforms.clear();
+        interactionState_.startReticleTransforms.reserve(selectedIndices.size());
         for (const int reticleIndex : selectedIndices)
         {
-            interactionStartReticleTransforms_.push_back(
+            interactionState_.startReticleTransforms.push_back(
                 page->staticReticles[static_cast<std::size_t>(reticleIndex)].transform);
         }
-        interactionStartMouseLogical_ = viewport.ToLogical(mouse);
+        interactionState_.startMouseLogical = viewport.ToLogical(mouse);
         PushUndoSnapshot();
-        interactionMode_ = InteractionMode::MoveReticle;
+        interactionState_.mode = InteractionMode::MoveReticle;
         return;
     }
 
     UpdateReticleSelectionFromClick(viewport, additiveSelection);
     if (additiveSelection ||
-        ((selection_.kind != SelectionKind::PageReticle || SelectedPageReticleCount() != 1) &&
-         selection_.kind != SelectionKind::PageTitle &&
-         selection_.kind != SelectionKind::PageStrobe))
+        ((documentState_.selection.kind != SelectionKind::PageReticle || SelectedPageReticleCount() != 1) &&
+         documentState_.selection.kind != SelectionKind::PageTitle &&
+         documentState_.selection.kind != SelectionKind::PageStrobe))
     {
         return;
     }
 
     const mfd::ReticleGroup* selectedPreviewReticle = nullptr;
     const mfd::Transform2D* selectedTransform = nullptr;
-    if (selection_.kind == SelectionKind::PageTitle)
+    if (documentState_.selection.kind == SelectionKind::PageTitle)
     {
         selectedPreviewReticle = &BuildPageTitlePreviewReticle(*page);
         if (const mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay(); titleDisplay != nullptr)
@@ -5858,9 +4125,9 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
             selectedTransform = &titleDisplay->transform;
         }
     }
-    else if (selection_.kind == SelectionKind::PageStrobe)
+    else if (documentState_.selection.kind == SelectionKind::PageStrobe)
     {
-        if (IsPageStrobeIndexVisibleInEditor(*page, selection_.pageReticleIndex))
+        if (IsPageStrobeIndexVisibleInEditor(*page, documentState_.selection.pageReticleIndex))
         {
             if (const mfd::ReticleGroup* reticle = SelectedPageStrobeReticle(); reticle != nullptr)
             {
@@ -5894,63 +4161,63 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         ImVec2(bounds.min.x, bounds.max.y)};
     const ImVec2 rotateHandle((bounds.min.x + bounds.max.x) * 0.5f, bounds.min.y - 26.0f);
 
-    interactionReticleIndex_ =
-        selection_.kind == SelectionKind::PageReticle ? selection_.pageReticleIndex : -1;
-    interactionReticleIndices_.clear();
-    interactionStartReticleTransforms_.clear();
-    if (selection_.kind == SelectionKind::PageReticle)
+    interactionState_.reticleIndex =
+        documentState_.selection.kind == SelectionKind::PageReticle ? documentState_.selection.pageReticleIndex : -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    if (documentState_.selection.kind == SelectionKind::PageReticle)
     {
-        interactionReticleIndices_ = {selection_.pageReticleIndex};
-        interactionStartReticleTransforms_ = {*selectedTransform};
+        interactionState_.reticleIndices = {documentState_.selection.pageReticleIndex};
+        interactionState_.startReticleTransforms = {*selectedTransform};
     }
-    interactionStartTransform_ = *selectedTransform;
-    interactionStartReticleVisualCenterLocal_ = ReticleVisualCenterLocal(*selectedPreviewReticle);
-    interactionStartMouseLogical_ = viewport.ToLogical(mouse);
+    interactionState_.startTransform = *selectedTransform;
+    interactionState_.startReticleVisualCenterLocal = ReticleVisualCenterLocal(*selectedPreviewReticle);
+    interactionState_.startMouseLogical = viewport.ToLogical(mouse);
     const mfd::Vec2 interactionPivotLogical =
-        mfd::ApplyTransform(interactionStartReticleVisualCenterLocal_, interactionStartTransform_);
-    interactionStartAngleDegrees_ =
-        std::atan2(interactionStartMouseLogical_.y - interactionPivotLogical.y,
-                   interactionStartMouseLogical_.x - interactionPivotLogical.x) *
+        mfd::ApplyTransform(interactionState_.startReticleVisualCenterLocal, interactionState_.startTransform);
+    interactionState_.startAngleDegrees =
+        std::atan2(interactionState_.startMouseLogical.y - interactionPivotLogical.y,
+                   interactionState_.startMouseLogical.x - interactionPivotLogical.x) *
         180.0f / 3.14159265f;
-    interactionStartDistance_ = std::max(
+    interactionState_.startDistance = std::max(
         0.001f,
         std::sqrt(
-            std::pow(interactionStartMouseLogical_.x - interactionPivotLogical.x, 2.0f) +
-            std::pow(interactionStartMouseLogical_.y - interactionPivotLogical.y, 2.0f)));
-    interactionStartCenterScreen_ = viewport.ToScreen(interactionPivotLogical);
-    interactionStartCornerScreen_ = center;
+            std::pow(interactionState_.startMouseLogical.x - interactionPivotLogical.x, 2.0f) +
+            std::pow(interactionState_.startMouseLogical.y - interactionPivotLogical.y, 2.0f)));
+    interactionState_.startCenterScreen = viewport.ToScreen(interactionPivotLogical);
+    interactionState_.startCornerScreen = center;
 
-    if (pagePreviewViewOptions_.showGizmos && Distance(mouse, rotateHandle) <= 16.0f)
+    if (layoutState_.pagePreviewViewOptions.showGizmos && Distance(mouse, rotateHandle) <= 16.0f)
     {
         PushUndoSnapshot();
-        interactionMode_ = InteractionMode::RotateReticle;
+        interactionState_.mode = InteractionMode::RotateReticle;
     }
     else if (mouse.x >= bounds.min.x - 8.0f && mouse.x <= bounds.max.x + 8.0f &&
              mouse.y >= bounds.min.y - 8.0f && mouse.y <= bounds.max.y + 8.0f)
     {
-        if (pagePreviewViewOptions_.showGizmos)
+        if (layoutState_.pagePreviewViewOptions.showGizmos)
         {
             for (const ImVec2 corner : corners)
             {
                 if (Distance(mouse, corner) <= 16.0f)
                 {
                     PushUndoSnapshot();
-                    interactionMode_ = InteractionMode::ScaleReticle;
-                    interactionStartCornerScreen_ = corner;
+                    interactionState_.mode = InteractionMode::ScaleReticle;
+                    interactionState_.startCornerScreen = corner;
                     return;
                 }
             }
         }
 
         PushUndoSnapshot();
-        interactionMode_ = InteractionMode::MoveReticle;
+        interactionState_.mode = InteractionMode::MoveReticle;
     }
     else
     {
-        interactionMode_ = InteractionMode::None;
-        interactionReticleIndex_ = -1;
-        interactionReticleIndices_.clear();
-        interactionStartReticleTransforms_.clear();
+        interactionState_.mode = InteractionMode::None;
+        interactionState_.reticleIndex = -1;
+        interactionState_.reticleIndices.clear();
+        interactionState_.startReticleTransforms.clear();
     }
 }
 
@@ -5980,17 +4247,17 @@ bool EditorApplication::ApplyPageReticleClipping(const int reticleIndex,
     PushUndoSnapshot();
     reticle.clipping.mode = mode;
     reticle.clipping.primitiveId = std::move(primitiveId);
-    pagePreviewContextReticleIndices_ = {reticleIndex};
-    pagePreviewContextTargets_.clear();
+    layoutState_.pagePreviewContextReticleIndices = {reticleIndex};
+    layoutState_.pagePreviewContextTargets.clear();
     for (int primitiveIndex = 0; primitiveIndex < static_cast<int>(reticle.primitives.size()); ++primitiveIndex)
     {
         if (reticle.primitives[static_cast<std::size_t>(primitiveIndex)].id == reticle.clipping.primitiveId)
         {
-            pagePreviewContextTargets_.push_back(PageClipTarget {reticleIndex, primitiveIndex});
+            layoutState_.pagePreviewContextTargets.push_back(PageClipTarget {reticleIndex, primitiveIndex});
             break;
         }
     }
-    SelectPageReticle(selection_.pageIndex, reticleIndex);
+    SelectPageReticle(documentState_.selection.pageIndex, reticleIndex);
 
     if (mode == mfd::ReticleClipMode::None)
     {
@@ -6014,7 +4281,7 @@ void EditorApplication::DrawPageReticleContextMenu()
     }
 
     mfd::PageDefinition* page = ActivePage();
-    if (page == nullptr || pagePreviewContextReticleIndices_.empty())
+    if (page == nullptr || layoutState_.pagePreviewContextReticleIndices.empty())
     {
         ImGui::TextDisabled("No page reticle is under the mouse.");
         ImGui::EndPopup();
@@ -6086,7 +4353,7 @@ void EditorApplication::DrawPageReticleContextMenu()
 
     const std::vector<int> selectedIndices = SelectedPageReticleIndices();
     const bool hasSelectedGroup = !selectedIndices.empty();
-    const bool canPasteSelection = !pageReticleClipboard_.empty();
+    const bool canPasteSelection = !clipboardState_.pageReticleClipboard.empty();
     if (hasSelectedGroup || canPasteSelection)
     {
         if (hasSelectedGroup)
@@ -6144,7 +4411,7 @@ void EditorApplication::DrawPageReticleContextMenu()
     auto collectClipTargetsForReticle = [this](const int reticleIndex)
     {
         std::vector<PageClipTarget> targets;
-        for (const PageClipTarget& target : pagePreviewContextTargets_)
+        for (const PageClipTarget& target : layoutState_.pagePreviewContextTargets)
         {
             if (target.reticleIndex == reticleIndex)
             {
@@ -6163,17 +4430,17 @@ void EditorApplication::DrawPageReticleContextMenu()
         }
 
         mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
-        const bool selected = HasSelectedPageReticle(selection_.pageIndex, reticleIndex);
+        const bool selected = HasSelectedPageReticle(documentState_.selection.pageIndex, reticleIndex);
         if (ImGui::MenuItem("Select only", nullptr, selected))
         {
-            SelectPageReticle(selection_.pageIndex, reticleIndex);
+            SelectPageReticle(documentState_.selection.pageIndex, reticleIndex);
         }
         ShowItemTooltip("Focus only this reticle in the inspector and preview.");
 
         const char* toggleLabel = selected ? "Remove from selection" : "Add to selection";
         if (ImGui::MenuItem(toggleLabel, "Ctrl+click"))
         {
-            TogglePageReticleSelection(selection_.pageIndex, reticleIndex);
+            TogglePageReticleSelection(documentState_.selection.pageIndex, reticleIndex);
         }
         ShowItemTooltip("Add or remove this reticle from the current multi-selection.");
 
@@ -6209,9 +4476,9 @@ void EditorApplication::DrawPageReticleContextMenu()
         }
     };
 
-    if (pagePreviewContextReticleIndices_.size() == 1U)
+    if (layoutState_.pagePreviewContextReticleIndices.size() == 1U)
     {
-        const int reticleIndex = pagePreviewContextReticleIndices_.front();
+        const int reticleIndex = layoutState_.pagePreviewContextReticleIndices.front();
         if (reticleIndex >= 0 && reticleIndex < static_cast<int>(page->staticReticles.size()))
         {
             const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
@@ -6223,7 +4490,7 @@ void EditorApplication::DrawPageReticleContextMenu()
     else
     {
         ImGui::TextDisabled("Reticles under the mouse");
-        for (const int reticleIndex : pagePreviewContextReticleIndices_)
+        for (const int reticleIndex : layoutState_.pagePreviewContextReticleIndices)
         {
             if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page->staticReticles.size()))
             {
@@ -6258,15 +4525,15 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
 
     auto cancelLibraryPreviewInteraction = [this]()
     {
-        interactionMode_ = InteractionMode::None;
-        interactionPrimitiveIndex_ = -1;
-        interactionHandleKind_ = PrimitiveHandleKind::None;
-        interactionHandleIndex_ = -1;
+        interactionState_.mode = InteractionMode::None;
+        interactionState_.primitiveIndex = -1;
+        interactionState_.handleKind = PrimitiveHandleKind::None;
+        interactionState_.handleIndex = -1;
     };
 
     if (ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId))
     {
-        suppressNextLibraryPreviewContextMenu_ = false;
+        layoutState_.suppressNextLibraryPreviewContextMenu = false;
         cancelLibraryPreviewInteraction();
         return;
     }
@@ -6279,16 +4546,16 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         IsPointInsideRect(mouse, viewport.origin, viewportMax) ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
                                                                : std::nullopt;
     const ViewportToolbarLayout toolbarLayout =
-        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(libraryPreviewView_.zoom), mouseLogical);
+        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(layoutState_.libraryPreviewView.zoom), mouseLogical);
     const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
     const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
-    if (interactionMode_ == InteractionMode::PanPage)
+    if (interactionState_.mode == InteractionMode::PanPage)
     {
         if (!rightMouseDown)
         {
             if (!mouseInsideViewport || mouseInsideToolbar)
             {
-                suppressNextLibraryPreviewContextMenu_ = false;
+                layoutState_.suppressNextLibraryPreviewContextMenu = false;
             }
             cancelLibraryPreviewInteraction();
         }
@@ -6300,37 +4567,37 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     }
 
     const bool hasActivePrimitiveInteraction =
-        interactionMode_ == InteractionMode::MovePrimitive || interactionMode_ == InteractionMode::EditPrimitiveHandle;
+        interactionState_.mode == InteractionMode::MovePrimitive || interactionState_.mode == InteractionMode::EditPrimitiveHandle;
 
     if (hasActivePrimitiveInteraction)
     {
-        if (interactionPrimitiveIndex_ < 0 || interactionPrimitiveIndex_ >= static_cast<int>(reticle->primitives.size()))
+        if (interactionState_.primitiveIndex < 0 || interactionState_.primitiveIndex >= static_cast<int>(reticle->primitives.size()))
         {
             cancelLibraryPreviewInteraction();
             return;
         }
 
-        mfd::Primitive& primitive = reticle->primitives[static_cast<std::size_t>(interactionPrimitiveIndex_)];
+        mfd::Primitive& primitive = reticle->primitives[static_cast<std::size_t>(interactionState_.primitiveIndex)];
         const mfd::Vec2 previewMouseLogical = viewport.ToLogical(ImGui::GetMousePos());
         const mfd::Vec2 mouseReticleLocal = InverseTransformPoint(previewMouseLogical, reticle->transform);
 
-        if (interactionMode_ == InteractionMode::MovePrimitive)
+        if (interactionState_.mode == InteractionMode::MovePrimitive)
         {
             primitive.transform.position =
-                interactionStartPrimitive_.transform.position + (mouseReticleLocal - interactionStartMouseReticleLocal_);
+                interactionState_.startPrimitive.transform.position + (mouseReticleLocal - interactionState_.startMouseReticleLocal);
         }
-        else if (interactionMode_ == InteractionMode::EditPrimitiveHandle)
+        else if (interactionState_.mode == InteractionMode::EditPrimitiveHandle)
         {
             const mfd::Vec2 mousePrimitiveLocal =
-                InversePrimitiveWorldPoint(*reticle, interactionStartPrimitive_, previewMouseLogical);
+                InversePrimitiveWorldPoint(*reticle, interactionState_.startPrimitive, previewMouseLogical);
 
             if (auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
             {
-                if (interactionHandleIndex_ == 0)
+                if (interactionState_.handleIndex == 0)
                 {
                     line->start = mousePrimitiveLocal;
                 }
-                else if (interactionHandleIndex_ == 1)
+                else if (interactionState_.handleIndex == 1)
                 {
                     line->end = mousePrimitiveLocal;
                 }
@@ -6345,11 +4612,11 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
                 const float radius = std::max(
                     0.001f,
                     std::sqrt(mousePrimitiveLocal.x * mousePrimitiveLocal.x + mousePrimitiveLocal.y * mousePrimitiveLocal.y));
-                if (interactionHandleIndex_ == 0)
+                if (interactionState_.handleIndex == 0)
                 {
                     ring->innerRadius = std::min(radius, std::max(0.001f, ring->outerRadius - 0.001f));
                 }
-                else if (interactionHandleIndex_ == 1)
+                else if (interactionState_.handleIndex == 1)
                 {
                     ring->outerRadius = std::max(radius, ring->innerRadius + 0.001f);
                 }
@@ -6361,7 +4628,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             }
             else if (auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
             {
-                if (interactionHandleIndex_ == 0)
+                if (interactionState_.handleIndex == 0)
                 {
                     ellipse->width = std::max(0.001f, std::abs(mousePrimitiveLocal.x) * 2.0f);
                 }
@@ -6377,7 +4644,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             }
             else if (auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
             {
-                if ((interactionHandleIndex_ % 2) == 0)
+                if ((interactionState_.handleIndex % 2) == 0)
                 {
                     diamond->height = std::max(0.001f, std::abs(mousePrimitiveLocal.y) * 2.0f);
                 }
@@ -6388,30 +4655,30 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             }
             else if (auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
             {
-                if (interactionHandleIndex_ >= 0 && interactionHandleIndex_ < 3)
+                if (interactionState_.handleIndex >= 0 && interactionState_.handleIndex < 3)
                 {
-                    triangle->points[static_cast<std::size_t>(interactionHandleIndex_)] = mousePrimitiveLocal;
+                    triangle->points[static_cast<std::size_t>(interactionState_.handleIndex)] = mousePrimitiveLocal;
                 }
             }
             else if (auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive.geometry))
             {
-                if (interactionHandleIndex_ >= 0 &&
-                    interactionHandleIndex_ < static_cast<int>(polyline->points.size()))
+                if (interactionState_.handleIndex >= 0 &&
+                    interactionState_.handleIndex < static_cast<int>(polyline->points.size()))
                 {
-                    polyline->points[static_cast<std::size_t>(interactionHandleIndex_)] = mousePrimitiveLocal;
+                    polyline->points[static_cast<std::size_t>(interactionState_.handleIndex)] = mousePrimitiveLocal;
                 }
             }
             else if (auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive.geometry))
             {
-                if (interactionHandleIndex_ >= 0 &&
-                    interactionHandleIndex_ < static_cast<int>(bezier->controlPoints.size()))
+                if (interactionState_.handleIndex >= 0 &&
+                    interactionState_.handleIndex < static_cast<int>(bezier->controlPoints.size()))
                 {
-                    bezier->controlPoints[static_cast<std::size_t>(interactionHandleIndex_)] = mousePrimitiveLocal;
+                    bezier->controlPoints[static_cast<std::size_t>(interactionState_.handleIndex)] = mousePrimitiveLocal;
                 }
             }
             else if (auto* arc = std::get_if<mfd::ArcGeometry>(&primitive.geometry))
             {
-                if (interactionHandleIndex_ == 2)
+                if (interactionState_.handleIndex == 2)
                 {
                     arc->radius = std::max(
                         0.001f,
@@ -6420,11 +4687,11 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
                 else
                 {
                     const float angleDegrees = std::atan2(mousePrimitiveLocal.y, mousePrimitiveLocal.x) * 180.0f / PI;
-                    if (interactionHandleIndex_ == 0)
+                    if (interactionState_.handleIndex == 0)
                     {
                         arc->startAngleDegrees = angleDegrees;
                     }
-                    else if (interactionHandleIndex_ == 1)
+                    else if (interactionState_.handleIndex == 1)
                     {
                         arc->endAngleDegrees = angleDegrees;
                     }
@@ -6445,36 +4712,36 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     }
 
     const float wheelDelta = ImGui::GetIO().MouseWheel;
-    if (interactionMode_ == InteractionMode::None && std::abs(wheelDelta) > 0.0001f)
+    if (interactionState_.mode == InteractionMode::None && std::abs(wheelDelta) > 0.0001f)
     {
         constexpr float kMinStudioZoom = 0.1f;
         constexpr float kMaxStudioZoom = 20.0f;
         constexpr float kWheelZoomStep = 1.12f;
 
         const float currentZoom =
-            std::clamp(mfd::SanitizeZoom(libraryPreviewView_.zoom), kMinStudioZoom, kMaxStudioZoom);
+            std::clamp(mfd::SanitizeZoom(layoutState_.libraryPreviewView.zoom), kMinStudioZoom, kMaxStudioZoom);
         const float nextZoom =
             std::clamp(currentZoom * std::pow(kWheelZoomStep, wheelDelta), kMinStudioZoom, kMaxStudioZoom);
         if (std::abs(nextZoom - currentZoom) > 0.0001f)
         {
             const mfd::Vec2 mouseLogicalBeforeZoom = viewport.ToLogical(mouse);
-            const mfd::Vec2 viewedOffset = mouseLogicalBeforeZoom - libraryPreviewView_.center;
+            const mfd::Vec2 viewedOffset = mouseLogicalBeforeZoom - layoutState_.libraryPreviewView.center;
             const float zoomRatio = currentZoom / nextZoom;
 
-            libraryPreviewView_.zoom = nextZoom;
-            libraryPreviewView_.center = {
+            layoutState_.libraryPreviewView.zoom = nextZoom;
+            layoutState_.libraryPreviewView.center = {
                 mouseLogicalBeforeZoom.x - viewedOffset.x * zoomRatio,
                 mouseLogicalBeforeZoom.y - viewedOffset.y * zoomRatio};
         }
     }
 
-    if (interactionMode_ == InteractionMode::None && rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+    if (interactionState_.mode == InteractionMode::None && rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
     {
-        interactionMode_ = InteractionMode::PanPage;
-        suppressNextLibraryPreviewContextMenu_ = true;
-        interactionPrimitiveIndex_ = -1;
-        interactionHandleKind_ = PrimitiveHandleKind::None;
-        interactionHandleIndex_ = -1;
+        interactionState_.mode = InteractionMode::PanPage;
+        layoutState_.suppressNextLibraryPreviewContextMenu = true;
+        interactionState_.primitiveIndex = -1;
+        interactionState_.handleKind = PrimitiveHandleKind::None;
+        interactionState_.handleIndex = -1;
         ApplyMouseTransform(viewport);
         return;
     }
@@ -6499,14 +4766,14 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         return viewport.ToScreen(TransformPrimitiveWorldPoint(*reticle, primitive, localPoint));
     };
 
-    interactionPrimitiveIndex_ = *bestPrimitiveIndex;
-    interactionStartPrimitive_ = primitive;
-    interactionStartMouseLogical_ = viewport.ToLogical(mouse);
-    interactionStartMouseReticleLocal_ = InverseTransformPoint(interactionStartMouseLogical_, reticle->transform);
-    interactionStartMousePrimitiveLocal_ =
-        InversePrimitiveWorldPoint(*reticle, primitive, interactionStartMouseLogical_);
-    interactionHandleKind_ = PrimitiveHandleKind::None;
-    interactionHandleIndex_ = -1;
+    interactionState_.primitiveIndex = *bestPrimitiveIndex;
+    interactionState_.startPrimitive = primitive;
+    interactionState_.startMouseLogical = viewport.ToLogical(mouse);
+    interactionState_.startMouseReticleLocal = InverseTransformPoint(interactionState_.startMouseLogical, reticle->transform);
+    interactionState_.startMousePrimitiveLocal =
+        InversePrimitiveWorldPoint(*reticle, primitive, interactionState_.startMouseLogical);
+    interactionState_.handleKind = PrimitiveHandleKind::None;
+    interactionState_.handleIndex = -1;
 
     auto matchesHandle = [mouse](const ImVec2 handlePoint, const float radius = 12.0f)
     {
@@ -6521,9 +4788,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(points[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::Point;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::Point;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6533,9 +4800,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         if (matchesHandle(toScreenPoint({circle->radius, 0.0f})))
         {
             PushUndoSnapshot();
-            interactionMode_ = InteractionMode::EditPrimitiveHandle;
-            interactionHandleKind_ = PrimitiveHandleKind::Radius;
-            interactionHandleIndex_ = 0;
+            interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+            interactionState_.handleKind = PrimitiveHandleKind::Radius;
+            interactionState_.handleIndex = 0;
             return;
         }
     }
@@ -6550,9 +4817,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(handles[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::Radius;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::Radius;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6570,9 +4837,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(corners[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::RectangleCorner;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::RectangleCorner;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6588,9 +4855,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(handles[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::Radius;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::Radius;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6608,9 +4875,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(corners[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::RectangleCorner;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::RectangleCorner;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6628,9 +4895,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(handles[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::DiamondAxis;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::DiamondAxis;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6642,9 +4909,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(triangle->points[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::Point;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::Point;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6656,9 +4923,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(polyline->points[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::Point;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::Point;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6670,9 +4937,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             if (matchesHandle(toScreenPoint(bezier->controlPoints[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
-                interactionMode_ = InteractionMode::EditPrimitiveHandle;
-                interactionHandleKind_ = PrimitiveHandleKind::Point;
-                interactionHandleIndex_ = index;
+                interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+                interactionState_.handleKind = PrimitiveHandleKind::Point;
+                interactionState_.handleIndex = index;
                 return;
             }
         }
@@ -6690,27 +4957,27 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         if (!arcPoints.empty() && matchesHandle(toScreenPoint(arcPoints.front())))
         {
             PushUndoSnapshot();
-            interactionMode_ = InteractionMode::EditPrimitiveHandle;
-            interactionHandleKind_ = PrimitiveHandleKind::Point;
-            interactionHandleIndex_ = 0;
+            interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+            interactionState_.handleKind = PrimitiveHandleKind::Point;
+            interactionState_.handleIndex = 0;
             return;
         }
 
         if (!arcPoints.empty() && matchesHandle(toScreenPoint(arcPoints.back())))
         {
             PushUndoSnapshot();
-            interactionMode_ = InteractionMode::EditPrimitiveHandle;
-            interactionHandleKind_ = PrimitiveHandleKind::Point;
-            interactionHandleIndex_ = 1;
+            interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+            interactionState_.handleKind = PrimitiveHandleKind::Point;
+            interactionState_.handleIndex = 1;
             return;
         }
 
         if (matchesHandle(toScreenPoint(radiusHandle)))
         {
             PushUndoSnapshot();
-            interactionMode_ = InteractionMode::EditPrimitiveHandle;
-            interactionHandleKind_ = PrimitiveHandleKind::Radius;
-            interactionHandleIndex_ = 2;
+            interactionState_.mode = InteractionMode::EditPrimitiveHandle;
+            interactionState_.handleKind = PrimitiveHandleKind::Radius;
+            interactionState_.handleIndex = 2;
             return;
         }
     }
@@ -6721,36 +4988,36 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         mouse.y >= bounds.min.y - 8.0f && mouse.y <= bounds.max.y + 8.0f)
     {
         PushUndoSnapshot();
-        interactionMode_ = InteractionMode::MovePrimitive;
+        interactionState_.mode = InteractionMode::MovePrimitive;
         return;
     }
 
-    interactionPrimitiveIndex_ = -1;
+    interactionState_.primitiveIndex = -1;
 }
 
 void EditorApplication::SelectPage(const int pageIndex, const bool resetPreviewView)
 {
-    const int previousPageIndex = selection_.pageIndex;
-    selection_.kind = SelectionKind::Page;
-    selection_.pageIndex = std::clamp(pageIndex, 0, std::max(0, static_cast<int>(loaded_.document.pages.size()) - 1));
-    if (selection_.pageIndex != previousPageIndex)
+    const int previousPageIndex = documentState_.selection.pageIndex;
+    documentState_.selection.kind = SelectionKind::Page;
+    documentState_.selection.pageIndex = std::clamp(pageIndex, 0, std::max(0, static_cast<int>(documentState_.loaded.document.pages.size()) - 1));
+    if (documentState_.selection.pageIndex != previousPageIndex)
     {
-        layerFocusState_ = {};
+        layoutState_.layerFocusState = {};
     }
     if (mfd::PageDefinition* page = ActivePage(); page != nullptr)
     {
         BootstrapEditorLayersForPage(*page);
     }
     SanitizeLayerFocusForActivePage();
-    selection_.pageReticleIndex = -1;
-    selection_.pageReticleIndices.clear();
-    interactionMode_ = InteractionMode::None;
-    interactionPrimitiveIndex_ = -1;
-    interactionReticleIndex_ = -1;
-    interactionReticleIndices_.clear();
-    interactionStartReticleTransforms_.clear();
-    interactionHandleIndex_ = -1;
-    interactionHandleKind_ = PrimitiveHandleKind::None;
+    documentState_.selection.pageReticleIndex = -1;
+    documentState_.selection.pageReticleIndices.clear();
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.primitiveIndex = -1;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    interactionState_.handleIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
     if (resetPreviewView)
     {
         ResetPagePreviewView();
@@ -6759,76 +5026,76 @@ void EditorApplication::SelectPage(const int pageIndex, const bool resetPreviewV
 
 void EditorApplication::SelectWindow()
 {
-    selection_.kind = SelectionKind::Window;
-    selection_.pageReticleIndex = -1;
-    selection_.pageReticleIndices.clear();
-    selection_.libraryReticleId.clear();
-    selection_.libraryBrowserReticleId.clear();
-    selection_.primitiveIndex = -1;
-    interactionMode_ = InteractionMode::None;
-    interactionPrimitiveIndex_ = -1;
-    interactionReticleIndex_ = -1;
-    interactionReticleIndices_.clear();
-    interactionStartReticleTransforms_.clear();
-    interactionHandleIndex_ = -1;
-    interactionHandleKind_ = PrimitiveHandleKind::None;
+    documentState_.selection.kind = SelectionKind::Window;
+    documentState_.selection.pageReticleIndex = -1;
+    documentState_.selection.pageReticleIndices.clear();
+    documentState_.selection.libraryReticleId.clear();
+    documentState_.selection.libraryBrowserReticleId.clear();
+    documentState_.selection.primitiveIndex = -1;
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.primitiveIndex = -1;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    interactionState_.handleIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
 }
 
 void EditorApplication::SelectPageReticle(const int pageIndex, const int reticleIndex)
 {
-    if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
     {
         return;
     }
 
-    mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
+    mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
     if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page.staticReticles.size()) ||
         !IsPageReticleSelectableInCurrentFocus(page, page.staticReticles[static_cast<std::size_t>(reticleIndex)]))
     {
         return;
     }
 
-    selection_.kind = SelectionKind::PageReticle;
-    selection_.pageIndex = pageIndex;
-    selection_.pageReticleIndex = reticleIndex;
-    selection_.pageReticleIndices = {reticleIndex};
-    interactionMode_ = InteractionMode::None;
-    interactionReticleIndex_ = -1;
-    interactionReticleIndices_.clear();
-    interactionStartReticleTransforms_.clear();
-    interactionPrimitiveIndex_ = -1;
-    interactionHandleIndex_ = -1;
-    interactionHandleKind_ = PrimitiveHandleKind::None;
+    documentState_.selection.kind = SelectionKind::PageReticle;
+    documentState_.selection.pageIndex = pageIndex;
+    documentState_.selection.pageReticleIndex = reticleIndex;
+    documentState_.selection.pageReticleIndices = {reticleIndex};
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    interactionState_.primitiveIndex = -1;
+    interactionState_.handleIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
 }
 
 void EditorApplication::SelectPageTitle(const int pageIndex)
 {
-    if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
     {
         return;
     }
 
-    selection_.kind = SelectionKind::PageTitle;
-    selection_.pageIndex = pageIndex;
-    selection_.pageReticleIndex = -1;
-    selection_.pageReticleIndices.clear();
-    interactionMode_ = InteractionMode::None;
-    interactionReticleIndex_ = -1;
-    interactionReticleIndices_.clear();
-    interactionStartReticleTransforms_.clear();
-    interactionPrimitiveIndex_ = -1;
-    interactionHandleIndex_ = -1;
-    interactionHandleKind_ = PrimitiveHandleKind::None;
+    documentState_.selection.kind = SelectionKind::PageTitle;
+    documentState_.selection.pageIndex = pageIndex;
+    documentState_.selection.pageReticleIndex = -1;
+    documentState_.selection.pageReticleIndices.clear();
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    interactionState_.primitiveIndex = -1;
+    interactionState_.handleIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
 }
 
 void EditorApplication::SelectPageStrobe(const int pageIndex, const int strobeIndex)
 {
-    if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
     {
         return;
     }
 
-    mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
+    mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
     if (page.strobes.empty())
     {
         return;
@@ -6856,46 +5123,46 @@ void EditorApplication::SelectPageStrobe(const int pageIndex, const int strobeIn
         return;
     }
 
-    selection_.kind = SelectionKind::PageStrobe;
-    selection_.pageIndex = pageIndex;
-    selection_.pageReticleIndex = resolvedStrobeIndex;
-    selection_.pageReticleIndices.clear();
-    interactionMode_ = InteractionMode::None;
-    interactionReticleIndex_ = -1;
-    interactionReticleIndices_.clear();
-    interactionStartReticleTransforms_.clear();
-    interactionPrimitiveIndex_ = -1;
-    interactionHandleIndex_ = -1;
-    interactionHandleKind_ = PrimitiveHandleKind::None;
+    documentState_.selection.kind = SelectionKind::PageStrobe;
+    documentState_.selection.pageIndex = pageIndex;
+    documentState_.selection.pageReticleIndex = resolvedStrobeIndex;
+    documentState_.selection.pageReticleIndices.clear();
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    interactionState_.primitiveIndex = -1;
+    interactionState_.handleIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
 }
 
 void EditorApplication::TogglePageReticleSelection(const int pageIndex, const int reticleIndex)
 {
-    if (pageIndex < 0 || pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
     {
         return;
     }
 
-    mfd::PageDefinition& page = loaded_.document.pages[static_cast<std::size_t>(pageIndex)];
+    mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
     if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page.staticReticles.size()) ||
         !IsPageReticleSelectableInCurrentFocus(page, page.staticReticles[static_cast<std::size_t>(reticleIndex)]))
     {
         return;
     }
 
-    if (selection_.kind != SelectionKind::PageReticle || selection_.pageIndex != pageIndex)
+    if (documentState_.selection.kind != SelectionKind::PageReticle || documentState_.selection.pageIndex != pageIndex)
     {
         SelectPageReticle(pageIndex, reticleIndex);
         return;
     }
 
-    auto& indices = selection_.pageReticleIndices;
+    auto& indices = documentState_.selection.pageReticleIndices;
     auto iterator = std::find(indices.begin(), indices.end(), reticleIndex);
     if (iterator == indices.end())
     {
         indices.push_back(reticleIndex);
         std::sort(indices.begin(), indices.end());
-        selection_.pageReticleIndex = reticleIndex;
+        documentState_.selection.pageReticleIndex = reticleIndex;
         return;
     }
 
@@ -6906,27 +5173,27 @@ void EditorApplication::TogglePageReticleSelection(const int pageIndex, const in
     }
 
     indices.erase(iterator);
-    if (selection_.pageReticleIndex == reticleIndex)
+    if (documentState_.selection.pageReticleIndex == reticleIndex)
     {
-        selection_.pageReticleIndex = indices.back();
+        documentState_.selection.pageReticleIndex = indices.back();
     }
 }
 
 void EditorApplication::SelectLibraryReticle(std::string templateId, const bool resetPreviewView)
 {
-    selection_.kind = SelectionKind::LibraryReticle;
-    selection_.libraryReticleId = std::move(templateId);
-    selection_.libraryBrowserReticleId = selection_.libraryReticleId;
-    selection_.pageReticleIndex = -1;
-    selection_.pageReticleIndices.clear();
-    selection_.primitiveIndex = -1;
-    interactionMode_ = InteractionMode::None;
-    interactionReticleIndex_ = -1;
-    interactionReticleIndices_.clear();
-    interactionStartReticleTransforms_.clear();
-    interactionPrimitiveIndex_ = -1;
-    interactionHandleIndex_ = -1;
-    interactionHandleKind_ = PrimitiveHandleKind::None;
+    documentState_.selection.kind = SelectionKind::LibraryReticle;
+    documentState_.selection.libraryReticleId = std::move(templateId);
+    documentState_.selection.libraryBrowserReticleId = documentState_.selection.libraryReticleId;
+    documentState_.selection.pageReticleIndex = -1;
+    documentState_.selection.pageReticleIndices.clear();
+    documentState_.selection.primitiveIndex = -1;
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    interactionState_.primitiveIndex = -1;
+    interactionState_.handleIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
     if (resetPreviewView)
     {
         ResetLibraryPreviewView();
@@ -6935,65 +5202,65 @@ void EditorApplication::SelectLibraryReticle(std::string templateId, const bool 
 
 void EditorApplication::SelectLibraryPrimitive(std::string templateId, const int primitiveIndex)
 {
-    selection_.kind = SelectionKind::LibraryPrimitive;
-    selection_.libraryReticleId = std::move(templateId);
-    selection_.libraryBrowserReticleId = selection_.libraryReticleId;
-    selection_.pageReticleIndex = -1;
-    selection_.pageReticleIndices.clear();
-    selection_.primitiveIndex = primitiveIndex;
-    interactionMode_ = InteractionMode::None;
-    interactionReticleIndex_ = -1;
-    interactionReticleIndices_.clear();
-    interactionStartReticleTransforms_.clear();
-    interactionPrimitiveIndex_ = -1;
-    interactionHandleIndex_ = -1;
-    interactionHandleKind_ = PrimitiveHandleKind::None;
+    documentState_.selection.kind = SelectionKind::LibraryPrimitive;
+    documentState_.selection.libraryReticleId = std::move(templateId);
+    documentState_.selection.libraryBrowserReticleId = documentState_.selection.libraryReticleId;
+    documentState_.selection.pageReticleIndex = -1;
+    documentState_.selection.pageReticleIndices.clear();
+    documentState_.selection.primitiveIndex = primitiveIndex;
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    interactionState_.primitiveIndex = -1;
+    interactionState_.handleIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
 }
 
 mfd::PageDefinition* EditorApplication::ActivePage() noexcept
 {
-    if (selection_.pageIndex < 0 || selection_.pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    if (documentState_.selection.pageIndex < 0 || documentState_.selection.pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
     {
         return nullptr;
     }
 
-    return &loaded_.document.pages[static_cast<std::size_t>(selection_.pageIndex)];
+    return &documentState_.loaded.document.pages[static_cast<std::size_t>(documentState_.selection.pageIndex)];
 }
 
 const mfd::PageDefinition* EditorApplication::ActivePage() const noexcept
 {
-    if (selection_.pageIndex < 0 || selection_.pageIndex >= static_cast<int>(loaded_.document.pages.size()))
+    if (documentState_.selection.pageIndex < 0 || documentState_.selection.pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
     {
         return nullptr;
     }
 
-    return &loaded_.document.pages[static_cast<std::size_t>(selection_.pageIndex)];
+    return &documentState_.loaded.document.pages[static_cast<std::size_t>(documentState_.selection.pageIndex)];
 }
 
 mfd::ReticleGroup* EditorApplication::SelectedPageReticle() noexcept
 {
     mfd::PageDefinition* page = ActivePage();
     if (page == nullptr ||
-        selection_.pageReticleIndex < 0 ||
-        selection_.pageReticleIndex >= static_cast<int>(page->staticReticles.size()))
+        documentState_.selection.pageReticleIndex < 0 ||
+        documentState_.selection.pageReticleIndex >= static_cast<int>(page->staticReticles.size()))
     {
         return nullptr;
     }
 
-    return &page->staticReticles[static_cast<std::size_t>(selection_.pageReticleIndex)];
+    return &page->staticReticles[static_cast<std::size_t>(documentState_.selection.pageReticleIndex)];
 }
 
 const mfd::ReticleGroup* EditorApplication::SelectedPageReticle() const noexcept
 {
     const mfd::PageDefinition* page = ActivePage();
     if (page == nullptr ||
-        selection_.pageReticleIndex < 0 ||
-        selection_.pageReticleIndex >= static_cast<int>(page->staticReticles.size()))
+        documentState_.selection.pageReticleIndex < 0 ||
+        documentState_.selection.pageReticleIndex >= static_cast<int>(page->staticReticles.size()))
     {
         return nullptr;
     }
 
-    return &page->staticReticles[static_cast<std::size_t>(selection_.pageReticleIndex)];
+    return &page->staticReticles[static_cast<std::size_t>(documentState_.selection.pageReticleIndex)];
 }
 
 mfd::ReticleGroup* EditorApplication::SelectedPageStrobeReticle() noexcept
@@ -7021,35 +5288,35 @@ const mfd::ReticleGroup* EditorApplication::SelectedPageStrobeReticle() const no
 mfd::PageStrobeDefinition* EditorApplication::SelectedPageStrobe() noexcept
 {
     mfd::PageDefinition* page = ActivePage();
-    if (selection_.kind != SelectionKind::PageStrobe ||
+    if (documentState_.selection.kind != SelectionKind::PageStrobe ||
         page == nullptr ||
-        selection_.pageReticleIndex < 0 ||
-        selection_.pageReticleIndex >= static_cast<int>(page->strobes.size()))
+        documentState_.selection.pageReticleIndex < 0 ||
+        documentState_.selection.pageReticleIndex >= static_cast<int>(page->strobes.size()))
     {
         return nullptr;
     }
 
-    return &page->strobes[static_cast<std::size_t>(selection_.pageReticleIndex)];
+    return &page->strobes[static_cast<std::size_t>(documentState_.selection.pageReticleIndex)];
 }
 
 const mfd::PageStrobeDefinition* EditorApplication::SelectedPageStrobe() const noexcept
 {
     const mfd::PageDefinition* page = ActivePage();
-    if (selection_.kind != SelectionKind::PageStrobe ||
+    if (documentState_.selection.kind != SelectionKind::PageStrobe ||
         page == nullptr ||
-        selection_.pageReticleIndex < 0 ||
-        selection_.pageReticleIndex >= static_cast<int>(page->strobes.size()))
+        documentState_.selection.pageReticleIndex < 0 ||
+        documentState_.selection.pageReticleIndex >= static_cast<int>(page->strobes.size()))
     {
         return nullptr;
     }
 
-    return &page->strobes[static_cast<std::size_t>(selection_.pageReticleIndex)];
+    return &page->strobes[static_cast<std::size_t>(documentState_.selection.pageReticleIndex)];
 }
 
 mfd::PageTitleDisplayDefinition* EditorApplication::SelectedPageTitleDisplay() noexcept
 {
     mfd::PageDefinition* page = ActivePage();
-    if (selection_.kind != SelectionKind::PageTitle || page == nullptr)
+    if (documentState_.selection.kind != SelectionKind::PageTitle || page == nullptr)
     {
         return nullptr;
     }
@@ -7060,7 +5327,7 @@ mfd::PageTitleDisplayDefinition* EditorApplication::SelectedPageTitleDisplay() n
 const mfd::PageTitleDisplayDefinition* EditorApplication::SelectedPageTitleDisplay() const noexcept
 {
     const mfd::PageDefinition* page = ActivePage();
-    if (selection_.kind != SelectionKind::PageTitle || page == nullptr)
+    if (documentState_.selection.kind != SelectionKind::PageTitle || page == nullptr)
     {
         return nullptr;
     }
@@ -7070,25 +5337,25 @@ const mfd::PageTitleDisplayDefinition* EditorApplication::SelectedPageTitleDispl
 
 mfd::ReticleGroup* EditorApplication::SelectedEditablePageReticle() noexcept
 {
-    return selection_.kind == SelectionKind::PageStrobe ? SelectedPageStrobeReticle() : SelectedPageReticle();
+    return documentState_.selection.kind == SelectionKind::PageStrobe ? SelectedPageStrobeReticle() : SelectedPageReticle();
 }
 
 const mfd::ReticleGroup* EditorApplication::SelectedEditablePageReticle() const noexcept
 {
-    return selection_.kind == SelectionKind::PageStrobe ? SelectedPageStrobeReticle() : SelectedPageReticle();
+    return documentState_.selection.kind == SelectionKind::PageStrobe ? SelectedPageStrobeReticle() : SelectedPageReticle();
 }
 
 bool EditorApplication::HasSelectedPageReticle(const int pageIndex, const int reticleIndex) const noexcept
 {
-    if (selection_.kind != SelectionKind::PageReticle || selection_.pageIndex != pageIndex)
+    if (documentState_.selection.kind != SelectionKind::PageReticle || documentState_.selection.pageIndex != pageIndex)
     {
         return false;
     }
 
-    const auto& indices = selection_.pageReticleIndices;
+    const auto& indices = documentState_.selection.pageReticleIndices;
     if (indices.empty())
     {
-        return selection_.pageReticleIndex == reticleIndex;
+        return documentState_.selection.pageReticleIndex == reticleIndex;
     }
 
     return std::find(indices.begin(), indices.end(), reticleIndex) != indices.end();
@@ -7096,18 +5363,18 @@ bool EditorApplication::HasSelectedPageReticle(const int pageIndex, const int re
 
 bool EditorApplication::IsPageStrobeSelected() const noexcept
 {
-    return selection_.kind == SelectionKind::PageStrobe && SelectedPageStrobeReticle() != nullptr;
+    return documentState_.selection.kind == SelectionKind::PageStrobe && SelectedPageStrobeReticle() != nullptr;
 }
 
 bool EditorApplication::IsPageTitleSelected() const noexcept
 {
-    return selection_.kind == SelectionKind::PageTitle && SelectedPageTitleDisplay() != nullptr;
+    return documentState_.selection.kind == SelectionKind::PageTitle && SelectedPageTitleDisplay() != nullptr;
 }
 
 std::vector<int> EditorApplication::SelectedPageReticleIndices() const
 {
     std::vector<int> indices;
-    if (selection_.kind != SelectionKind::PageReticle)
+    if (documentState_.selection.kind != SelectionKind::PageReticle)
     {
         return indices;
     }
@@ -7118,13 +5385,13 @@ std::vector<int> EditorApplication::SelectedPageReticleIndices() const
         return indices;
     }
 
-    if (!selection_.pageReticleIndices.empty())
+    if (!documentState_.selection.pageReticleIndices.empty())
     {
-        indices = selection_.pageReticleIndices;
+        indices = documentState_.selection.pageReticleIndices;
     }
-    else if (selection_.pageReticleIndex >= 0)
+    else if (documentState_.selection.pageReticleIndex >= 0)
     {
-        indices.push_back(selection_.pageReticleIndex);
+        indices.push_back(documentState_.selection.pageReticleIndex);
     }
 
     indices.erase(
@@ -7147,13 +5414,13 @@ int EditorApplication::SelectedPageReticleCount() const
 
 bool EditorApplication::HasOpenWindow() const noexcept
 {
-    return !loaded_.window.sourceFile.empty();
+    return !documentState_.loaded.window.sourceFile.empty();
 }
 
 void EditorApplication::CopySelectedPageReticles()
 {
     mfd::PageDefinition* page = ActivePage();
-    if (selection_.kind == SelectionKind::PageStrobe)
+    if (documentState_.selection.kind == SelectionKind::PageStrobe)
     {
         const mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
         if (page == nullptr || strobe == nullptr)
@@ -7162,9 +5429,9 @@ void EditorApplication::CopySelectedPageReticles()
             return;
         }
 
-        pageReticleClipboard_.clear();
-        pageReticleClipboard_.push_back(strobe->reticle);
-        pageReticlePasteSerial_ = 0;
+        clipboardState_.pageReticleClipboard.clear();
+        clipboardState_.pageReticleClipboard.push_back(strobe->reticle);
+        clipboardState_.pageReticlePasteSerial = 0;
         RebuildStatus("Strobe '" + strobe->reticle.id + "' copied from page '" + page->name + "'.", false);
         return;
     }
@@ -7176,22 +5443,22 @@ void EditorApplication::CopySelectedPageReticles()
         return;
     }
 
-    pageReticleClipboard_.clear();
-    pageReticleClipboard_.reserve(selectedIndices.size());
+    clipboardState_.pageReticleClipboard.clear();
+    clipboardState_.pageReticleClipboard.reserve(selectedIndices.size());
     for (const int reticleIndex : selectedIndices)
     {
-        pageReticleClipboard_.push_back(page->staticReticles[static_cast<std::size_t>(reticleIndex)]);
+        clipboardState_.pageReticleClipboard.push_back(page->staticReticles[static_cast<std::size_t>(reticleIndex)]);
     }
 
-    pageReticlePasteSerial_ = 0;
-    if (pageReticleClipboard_.size() == 1U)
+    clipboardState_.pageReticlePasteSerial = 0;
+    if (clipboardState_.pageReticleClipboard.size() == 1U)
     {
-        RebuildStatus("Reticle '" + pageReticleClipboard_.front().id + "' copied from page '" + page->name + "'.", false);
+        RebuildStatus("Reticle '" + clipboardState_.pageReticleClipboard.front().id + "' copied from page '" + page->name + "'.", false);
     }
     else
     {
         RebuildStatus(
-            std::to_string(pageReticleClipboard_.size()) + " reticles copied from page '" + page->name + "'.",
+            std::to_string(clipboardState_.pageReticleClipboard.size()) + " reticles copied from page '" + page->name + "'.",
             false);
     }
 }
@@ -7199,7 +5466,7 @@ void EditorApplication::CopySelectedPageReticles()
 void EditorApplication::CutSelectedPageReticles()
 {
     mfd::PageDefinition* page = ActivePage();
-    if (selection_.kind == SelectionKind::PageStrobe)
+    if (documentState_.selection.kind == SelectionKind::PageStrobe)
     {
         mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
         if (page == nullptr || strobe == nullptr)
@@ -7208,14 +5475,14 @@ void EditorApplication::CutSelectedPageReticles()
             return;
         }
 
-        pageReticleClipboard_.clear();
-        pageReticleClipboard_.push_back(strobe->reticle);
-        pageReticlePasteSerial_ = 0;
+        clipboardState_.pageReticleClipboard.clear();
+        clipboardState_.pageReticleClipboard.push_back(strobe->reticle);
+        clipboardState_.pageReticlePasteSerial = 0;
 
         PushUndoSnapshot();
         const std::string strobeId = strobe->reticle.id;
         const std::string removedNormalizedName = strobe->normalizedName;
-        page->strobes.erase(page->strobes.begin() + selection_.pageReticleIndex);
+        page->strobes.erase(page->strobes.begin() + documentState_.selection.pageReticleIndex);
         if (page->strobes.empty())
         {
             page->activeStrobeName.clear();
@@ -7226,7 +5493,7 @@ void EditorApplication::CutSelectedPageReticles()
             page->activeStrobeName = page->strobes.front().name;
             page->normalizedActiveStrobeName = page->strobes.front().normalizedName;
         }
-        SelectPage(selection_.pageIndex);
+        SelectPage(documentState_.selection.pageIndex);
         RebuildStatus("Strobe '" + strobeId + "' cut from page '" + page->name + "'.", false);
         return;
     }
@@ -7238,13 +5505,13 @@ void EditorApplication::CutSelectedPageReticles()
         return;
     }
 
-    pageReticleClipboard_.clear();
-    pageReticleClipboard_.reserve(selectedIndices.size());
+    clipboardState_.pageReticleClipboard.clear();
+    clipboardState_.pageReticleClipboard.reserve(selectedIndices.size());
     for (const int reticleIndex : selectedIndices)
     {
-        pageReticleClipboard_.push_back(page->staticReticles[static_cast<std::size_t>(reticleIndex)]);
+        clipboardState_.pageReticleClipboard.push_back(page->staticReticles[static_cast<std::size_t>(reticleIndex)]);
     }
-    pageReticlePasteSerial_ = 0;
+    clipboardState_.pageReticlePasteSerial = 0;
 
     PushUndoSnapshot();
     std::vector<int> descendingIndices = selectedIndices;
@@ -7259,15 +5526,15 @@ void EditorApplication::CutSelectedPageReticles()
         page->staticReticles.erase(page->staticReticles.begin() + reticleIndex);
     }
 
-    SelectPage(selection_.pageIndex);
-    if (pageReticleClipboard_.size() == 1U)
+    SelectPage(documentState_.selection.pageIndex);
+    if (clipboardState_.pageReticleClipboard.size() == 1U)
     {
-        RebuildStatus("Reticle '" + pageReticleClipboard_.front().id + "' cut from page '" + page->name + "'.", false);
+        RebuildStatus("Reticle '" + clipboardState_.pageReticleClipboard.front().id + "' cut from page '" + page->name + "'.", false);
     }
     else
     {
         RebuildStatus(
-            std::to_string(pageReticleClipboard_.size()) + " reticles cut from page '" + page->name + "'.",
+            std::to_string(clipboardState_.pageReticleClipboard.size()) + " reticles cut from page '" + page->name + "'.",
             false);
     }
 }
@@ -7281,7 +5548,7 @@ void EditorApplication::PasteCopiedPageReticles()
         return;
     }
 
-    if (pageReticleClipboard_.empty())
+    if (clipboardState_.pageReticleClipboard.empty())
     {
         RebuildStatus("No copied page reticle is available yet.", true);
         return;
@@ -7289,12 +5556,12 @@ void EditorApplication::PasteCopiedPageReticles()
 
     PushUndoSnapshot();
 
-    ++pageReticlePasteSerial_;
-    const float offset = 0.035f * static_cast<float>(pageReticlePasteSerial_);
+    ++clipboardState_.pageReticlePasteSerial;
+    const float offset = 0.035f * static_cast<float>(clipboardState_.pageReticlePasteSerial);
     std::vector<int> pastedIndices;
-    pastedIndices.reserve(pageReticleClipboard_.size());
+    pastedIndices.reserve(clipboardState_.pageReticleClipboard.size());
 
-    for (const auto& sourceReticle : pageReticleClipboard_)
+    for (const auto& sourceReticle : clipboardState_.pageReticleClipboard)
     {
         mfd::ReticleGroup pastedReticle = sourceReticle;
         const std::string baseId = pastedReticle.id.empty() ? std::string {"reticle"} : pastedReticle.id;
@@ -7315,9 +5582,9 @@ void EditorApplication::PasteCopiedPageReticles()
     }
 
     RefreshPageBlinkStateForEditor(*page);
-    selection_.kind = SelectionKind::PageReticle;
-    selection_.pageReticleIndices = pastedIndices;
-    selection_.pageReticleIndex = pastedIndices.empty() ? -1 : pastedIndices.back();
+    documentState_.selection.kind = SelectionKind::PageReticle;
+    documentState_.selection.pageReticleIndices = pastedIndices;
+    documentState_.selection.pageReticleIndex = pastedIndices.empty() ? -1 : pastedIndices.back();
     SanitizePageReticleSelectionForCurrentFocus();
 
     if (pastedIndices.size() == 1U)
@@ -7335,40 +5602,40 @@ void EditorApplication::PasteCopiedPageReticles()
 
 mfd::ReticleGroup* EditorApplication::SelectedLibraryReticle() noexcept
 {
-    const auto iterator = loaded_.document.reticleLibrary.find(selection_.libraryReticleId);
-    return iterator == loaded_.document.reticleLibrary.end() ? nullptr : &iterator->second;
+    const auto iterator = documentState_.loaded.document.reticleLibrary.find(documentState_.selection.libraryReticleId);
+    return iterator == documentState_.loaded.document.reticleLibrary.end() ? nullptr : &iterator->second;
 }
 
 const mfd::ReticleGroup* EditorApplication::SelectedLibraryReticle() const noexcept
 {
-    const auto iterator = loaded_.document.reticleLibrary.find(selection_.libraryReticleId);
-    return iterator == loaded_.document.reticleLibrary.end() ? nullptr : &iterator->second;
+    const auto iterator = documentState_.loaded.document.reticleLibrary.find(documentState_.selection.libraryReticleId);
+    return iterator == documentState_.loaded.document.reticleLibrary.end() ? nullptr : &iterator->second;
 }
 
 mfd::Primitive* EditorApplication::SelectedLibraryPrimitive() noexcept
 {
     mfd::ReticleGroup* reticle = SelectedLibraryReticle();
     if (reticle == nullptr ||
-        selection_.primitiveIndex < 0 ||
-        selection_.primitiveIndex >= static_cast<int>(reticle->primitives.size()))
+        documentState_.selection.primitiveIndex < 0 ||
+        documentState_.selection.primitiveIndex >= static_cast<int>(reticle->primitives.size()))
     {
         return nullptr;
     }
 
-    return &reticle->primitives[static_cast<std::size_t>(selection_.primitiveIndex)];
+    return &reticle->primitives[static_cast<std::size_t>(documentState_.selection.primitiveIndex)];
 }
 
 const mfd::Primitive* EditorApplication::SelectedLibraryPrimitive() const noexcept
 {
     const mfd::ReticleGroup* reticle = SelectedLibraryReticle();
     if (reticle == nullptr ||
-        selection_.primitiveIndex < 0 ||
-        selection_.primitiveIndex >= static_cast<int>(reticle->primitives.size()))
+        documentState_.selection.primitiveIndex < 0 ||
+        documentState_.selection.primitiveIndex >= static_cast<int>(reticle->primitives.size()))
     {
         return nullptr;
     }
 
-    return &reticle->primitives[static_cast<std::size_t>(selection_.primitiveIndex)];
+    return &reticle->primitives[static_cast<std::size_t>(documentState_.selection.primitiveIndex)];
 }
 
 void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& reticle,
@@ -7384,7 +5651,7 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
     constexpr int kTooltipPreviewHeight = 180;
 
     EnsureTooltipPreviewTexture(kTooltipPreviewWidth, kTooltipPreviewHeight);
-    if (!tooltipPreviewTextureReady_)
+    if (!previewState_.tooltipPreviewTextureReady)
     {
         return;
     }
@@ -7394,7 +5661,7 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
     const mfd::PageViewState previewView =
         MakeViewFittingBounds(ComputeReticleWorldBounds(previewReticle), kTooltipPreviewWidth, kTooltipPreviewHeight);
 
-    BeginTextureMode(tooltipPreviewTexture_);
+    BeginTextureMode(previewState_.tooltipPreviewTexture);
     ClearBackground(backgroundColor);
     {
         EnsurePreviewFont();
@@ -7404,10 +5671,10 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
                              previewView,
                              PreviewTextFont(),
                              backgroundColor,
-                             tooltipPreviewTextureStencilReady_,
-                             &previewBezierCache_,
-                             &previewImageCache_,
-                             &previewTextLayoutCache_);
+                             previewState_.tooltipPreviewTextureStencilReady,
+                             &previewState_.previewBezierCache,
+                             &previewState_.previewImageCache,
+                             &previewState_.previewTextLayoutCache);
         canvas.DrawReticle(previewReticle);
     }
     EndTextureMode();
@@ -7419,7 +5686,7 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
         ImGui::Separator();
     }
     ImGui::Image(
-        (ImTextureID)(uintptr_t)tooltipPreviewTexture_.texture.id,
+        (ImTextureID)(uintptr_t)previewState_.tooltipPreviewTexture.texture.id,
         ImVec2(static_cast<float>(kTooltipPreviewWidth), static_cast<float>(kTooltipPreviewHeight)),
         ImVec2(0.0f, 1.0f),
         ImVec2(1.0f, 0.0f));
@@ -7878,20 +6145,20 @@ bool EditorApplication::PreferPageReticleHit(const PageReticleHit& lhs, const Pa
 
 const mfd::ReticleGroup& EditorApplication::BuildPageTitlePreviewReticle(const mfd::PageDefinition& page) const
 {
-    if (!pageTitlePreviewReticleCache_.valid ||
-        pageTitlePreviewReticleCache_.pageName != page.name ||
-        pageTitlePreviewReticleCache_.pageTitle != page.title ||
-        !HasSamePageTitleDisplay(pageTitlePreviewReticleCache_.display, page.titleDisplay))
+    if (!previewState_.pageTitlePreviewReticleCache.valid ||
+        previewState_.pageTitlePreviewReticleCache.pageName != page.name ||
+        previewState_.pageTitlePreviewReticleCache.pageTitle != page.title ||
+        !HasSamePageTitleDisplay(previewState_.pageTitlePreviewReticleCache.display, page.titleDisplay))
     {
-        pageTitlePreviewReticleCache_.pageName = page.name;
-        pageTitlePreviewReticleCache_.pageTitle = page.title;
-        pageTitlePreviewReticleCache_.display = page.titleDisplay;
-        pageTitlePreviewReticleCache_.reticle =
+        previewState_.pageTitlePreviewReticleCache.pageName = page.name;
+        previewState_.pageTitlePreviewReticleCache.pageTitle = page.title;
+        previewState_.pageTitlePreviewReticleCache.display = page.titleDisplay;
+        previewState_.pageTitlePreviewReticleCache.reticle =
             mfd::BuildPageTitleDisplayReticle(page.name, page.title, page.titleDisplay);
-        pageTitlePreviewReticleCache_.valid = true;
+        previewState_.pageTitlePreviewReticleCache.valid = true;
     }
 
-    return pageTitlePreviewReticleCache_.reticle;
+    return previewState_.pageTitlePreviewReticleCache.reticle;
 }
 
 void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& viewport, const bool additiveSelection)
@@ -7960,28 +6227,28 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
     {
         if (!additiveSelection)
         {
-            SelectPage(selection_.pageIndex, false);
+            SelectPage(documentState_.selection.pageIndex, false);
         }
         return;
     }
 
     if (bestHit->target.kind == editor::PagePreviewHitKind::PageTitle)
     {
-        SelectPageTitle(selection_.pageIndex);
+        SelectPageTitle(documentState_.selection.pageIndex);
     }
     else if (bestHit->target.kind == editor::PagePreviewHitKind::PageStrobe)
     {
-        SelectPageStrobe(selection_.pageIndex, bestHit->target.index);
+        SelectPageStrobe(documentState_.selection.pageIndex, bestHit->target.index);
     }
     else
     {
         if (additiveSelection)
         {
-            TogglePageReticleSelection(selection_.pageIndex, bestHit->target.index);
+            TogglePageReticleSelection(documentState_.selection.pageIndex, bestHit->target.index);
         }
         else
         {
-            SelectPageReticle(selection_.pageIndex, bestHit->target.index);
+            SelectPageReticle(documentState_.selection.pageIndex, bestHit->target.index);
         }
     }
 }
@@ -8190,25 +6457,25 @@ std::optional<int> EditorApplication::FindNearestLibraryPrimitive(const Viewport
 void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 {
     mfd::PageDefinition* page = ActivePage();
-    if (interactionMode_ == InteractionMode::PanPage)
+    if (interactionState_.mode == InteractionMode::PanPage)
     {
         const float scale = viewport.LogicalScale();
         if (!viewport.valid || scale <= 0.0f)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            interactionState_.mode = InteractionMode::None;
+            interactionState_.reticleIndices.clear();
+            interactionState_.startReticleTransforms.clear();
             return;
         }
 
         mfd::PageViewState* targetView = nullptr;
-        if (selection_.kind == SelectionKind::LibraryReticle || selection_.kind == SelectionKind::LibraryPrimitive)
+        if (documentState_.selection.kind == SelectionKind::LibraryReticle || documentState_.selection.kind == SelectionKind::LibraryPrimitive)
         {
-            targetView = &libraryPreviewView_;
+            targetView = &layoutState_.libraryPreviewView;
         }
         else
         {
-            targetView = &pagePreviewView_;
+            targetView = &layoutState_.pagePreviewView;
         }
 
         const float zoom = mfd::SanitizeZoom(targetView->zoom);
@@ -8220,92 +6487,92 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 
     mfd::ReticleGroup* reticle = nullptr;
     mfd::Transform2D* reticleTransform = nullptr;
-    if (selection_.kind == SelectionKind::PageTitle)
+    if (documentState_.selection.kind == SelectionKind::PageTitle)
     {
         mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay();
         if (titleDisplay == nullptr)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndex_ = -1;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            interactionState_.mode = InteractionMode::None;
+            interactionState_.reticleIndex = -1;
+            interactionState_.reticleIndices.clear();
+            interactionState_.startReticleTransforms.clear();
             return;
         }
 
         reticleTransform = &titleDisplay->transform;
     }
-    else if (selection_.kind == SelectionKind::PageStrobe)
+    else if (documentState_.selection.kind == SelectionKind::PageStrobe)
     {
         if (page == nullptr)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndex_ = -1;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            interactionState_.mode = InteractionMode::None;
+            interactionState_.reticleIndex = -1;
+            interactionState_.reticleIndices.clear();
+            interactionState_.startReticleTransforms.clear();
             return;
         }
 
         reticle = SelectedPageStrobeReticle();
         if (reticle == nullptr)
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndex_ = -1;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            interactionState_.mode = InteractionMode::None;
+            interactionState_.reticleIndex = -1;
+            interactionState_.reticleIndices.clear();
+            interactionState_.startReticleTransforms.clear();
             return;
         }
         reticleTransform = &reticle->transform;
     }
     else
     {
-        if (interactionReticleIndex_ < 0)
+        if (interactionState_.reticleIndex < 0)
         {
             return;
         }
 
-        if (page == nullptr || interactionReticleIndex_ >= static_cast<int>(page->staticReticles.size()))
+        if (page == nullptr || interactionState_.reticleIndex >= static_cast<int>(page->staticReticles.size()))
         {
-            interactionMode_ = InteractionMode::None;
-            interactionReticleIndex_ = -1;
-            interactionReticleIndices_.clear();
-            interactionStartReticleTransforms_.clear();
+            interactionState_.mode = InteractionMode::None;
+            interactionState_.reticleIndex = -1;
+            interactionState_.reticleIndices.clear();
+            interactionState_.startReticleTransforms.clear();
             return;
         }
 
-        reticle = &page->staticReticles[static_cast<std::size_t>(interactionReticleIndex_)];
+        reticle = &page->staticReticles[static_cast<std::size_t>(interactionState_.reticleIndex)];
         reticleTransform = &reticle->transform;
     }
 
     const mfd::Vec2 mouseLogical = viewport.ToLogical(ImGui::GetMousePos());
 
-    switch (interactionMode_)
+    switch (interactionState_.mode)
     {
     case InteractionMode::PanPage:
         break;
 
     case InteractionMode::MoveReticle:
     {
-        const mfd::Vec2 translationDelta = mouseLogical - interactionStartMouseLogical_;
-        if (!interactionReticleIndices_.empty() &&
-            interactionReticleIndices_.size() == interactionStartReticleTransforms_.size())
+        const mfd::Vec2 translationDelta = mouseLogical - interactionState_.startMouseLogical;
+        if (!interactionState_.reticleIndices.empty() &&
+            interactionState_.reticleIndices.size() == interactionState_.startReticleTransforms.size())
         {
             // Apply one shared translation delta to the exact transform snapshot captured at drag start.
-            for (std::size_t index = 0; index < interactionReticleIndices_.size(); ++index)
+            for (std::size_t index = 0; index < interactionState_.reticleIndices.size(); ++index)
             {
-                const int movedReticleIndex = interactionReticleIndices_[index];
+                const int movedReticleIndex = interactionState_.reticleIndices[index];
                 if (movedReticleIndex < 0 || movedReticleIndex >= static_cast<int>(page->staticReticles.size()))
                 {
                     continue;
                 }
 
-                mfd::Transform2D nextTransform = interactionStartReticleTransforms_[index];
+                mfd::Transform2D nextTransform = interactionState_.startReticleTransforms[index];
                 nextTransform.position = nextTransform.position + translationDelta;
                 page->staticReticles[static_cast<std::size_t>(movedReticleIndex)].transform = nextTransform;
             }
         }
         else
         {
-            reticleTransform->position = interactionStartTransform_.position + translationDelta;
+            reticleTransform->position = interactionState_.startTransform.position + translationDelta;
         }
         break;
     }
@@ -8313,34 +6580,34 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
     case InteractionMode::RotateReticle:
     {
         const mfd::Vec2 interactionPivotLogical =
-            mfd::ApplyTransform(interactionStartReticleVisualCenterLocal_, interactionStartTransform_);
+            mfd::ApplyTransform(interactionState_.startReticleVisualCenterLocal, interactionState_.startTransform);
         const float currentAngle =
             std::atan2(mouseLogical.y - interactionPivotLogical.y,
                        mouseLogical.x - interactionPivotLogical.x) *
             180.0f / 3.14159265f;
         const float nextRotationDegrees =
-            interactionStartTransform_.rotationDegrees + (currentAngle - interactionStartAngleDegrees_);
+            interactionState_.startTransform.rotationDegrees + (currentAngle - interactionState_.startAngleDegrees);
         *reticleTransform = BuildTransformKeepingLocalPointWorldPosition(
-            interactionStartTransform_,
-            interactionStartReticleVisualCenterLocal_,
+            interactionState_.startTransform,
+            interactionState_.startReticleVisualCenterLocal,
             nextRotationDegrees,
-            interactionStartTransform_.scale);
+            interactionState_.startTransform.scale);
         break;
     }
 
     case InteractionMode::ScaleReticle:
     {
         const ImVec2 mouseScreen = ImGui::GetMousePos();
-        const float startDistance = std::max(8.0f, Distance(interactionStartCornerScreen_, interactionStartCenterScreen_));
-        const float currentDistance = std::max(4.0f, Distance(mouseScreen, interactionStartCenterScreen_));
+        const float startDistance = std::max(8.0f, Distance(interactionState_.startCornerScreen, interactionState_.startCenterScreen));
+        const float currentDistance = std::max(4.0f, Distance(mouseScreen, interactionState_.startCenterScreen));
         const float factor = std::clamp(currentDistance / startDistance, 0.1f, 10.0f);
         const mfd::Vec2 nextScale {
-            std::max(0.05f, interactionStartTransform_.scale.x * factor),
-            std::max(0.05f, interactionStartTransform_.scale.y * factor)};
+            std::max(0.05f, interactionState_.startTransform.scale.x * factor),
+            std::max(0.05f, interactionState_.startTransform.scale.y * factor)};
         *reticleTransform = BuildTransformKeepingLocalPointWorldPosition(
-            interactionStartTransform_,
-            interactionStartReticleVisualCenterLocal_,
-            interactionStartTransform_.rotationDegrees,
+            interactionState_.startTransform,
+            interactionState_.startReticleVisualCenterLocal,
+            interactionState_.startTransform.rotationDegrees,
             nextScale);
         break;
     }
@@ -8354,62 +6621,62 @@ void EditorApplication::DrawPopups()
 {
     using editor::tutorial::TutorialStepId;
 
-    if (showNewPagePopup_)
+    if (workflowState_.showNewPagePopup)
     {
         ImGui::OpenPopup("Create new page");
-        showNewPagePopup_ = false;
+        workflowState_.showNewPagePopup = false;
     }
-    if (showNewWindowPopup_)
+    if (workflowState_.showNewWindowPopup)
     {
         ImGui::OpenPopup("Create new window");
-        showNewWindowPopup_ = false;
+        workflowState_.showNewWindowPopup = false;
     }
-    if (showNewLibraryReticlePopup_)
+    if (workflowState_.showNewLibraryReticlePopup)
     {
         ImGui::OpenPopup("Create new library reticle");
-        showNewLibraryReticlePopup_ = false;
+        workflowState_.showNewLibraryReticlePopup = false;
     }
 
-    if (showDuplicateLibraryReticlePopup_)
+    if (workflowState_.showDuplicateLibraryReticlePopup)
     {
         ImGui::OpenPopup("Duplicate library reticle");
-        showDuplicateLibraryReticlePopup_ = false;
+        workflowState_.showDuplicateLibraryReticlePopup = false;
     }
 
-    if (pageImportPopup_.openRequested)
+    if (workflowState_.pageImportPopup.openRequested)
     {
         ImGui::OpenPopup("Import page");
-        pageImportPopup_.openRequested = false;
+        workflowState_.pageImportPopup.openRequested = false;
     }
 
-    if (pageRenamePopup_.openRequested)
+    if (workflowState_.pageRenamePopup.openRequested)
     {
         ImGui::OpenPopup("Rename page globally");
-        pageRenamePopup_.openRequested = false;
+        workflowState_.pageRenamePopup.openRequested = false;
     }
 
-    if (reticleRenamePopup_.openRequested)
+    if (workflowState_.reticleRenamePopup.openRequested)
     {
         ImGui::OpenPopup("Rename reticle globally");
-        reticleRenamePopup_.openRequested = false;
+        workflowState_.reticleRenamePopup.openRequested = false;
     }
 
-    if (reticleExtractionPopup_.openRequested)
+    if (workflowState_.reticleExtractionPopup.openRequested)
     {
         ImGui::OpenPopup("Extract as reticle");
-        reticleExtractionPopup_.openRequested = false;
+        workflowState_.reticleExtractionPopup.openRequested = false;
     }
 
-    if (designExportPopup_.openRequested)
+    if (workflowState_.designExportPopup.openRequested)
     {
         ImGui::OpenPopup("Export design");
-        designExportPopup_.openRequested = false;
+        workflowState_.designExportPopup.openRequested = false;
     }
 
-    if (pageManagementPopup_.openRequested)
+    if (workflowState_.pageManagementPopup.openRequested)
     {
         ImGui::OpenPopup("Manage page");
-        pageManagementPopup_.openRequested = false;
+        workflowState_.pageManagementPopup.openRequested = false;
     }
 
     if (tutorial_->ConsumeResumePopupRequest())
@@ -8442,34 +6709,34 @@ void EditorApplication::DrawPopups()
     if (ImGui::BeginPopupModal("Create new window", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::TextDisabled("Window file and runtime parameters");
-        ImGui::InputText("Window file", newWindowDraft_.windowFile.data(), newWindowDraft_.windowFile.size());
+        ImGui::InputText("Window file", workflowState_.newWindowDraft.windowFile.data(), workflowState_.newWindowDraft.windowFile.size());
         ImGui::SameLine();
         if (ImGui::Button("Browse window file..."))
         {
             BrowseNewWindowFile();
         }
         ShowItemTooltip("Choose the new window JSON path with the native Windows file picker.");
-        ImGui::InputText("Window title", newWindowDraft_.title.data(), newWindowDraft_.title.size());
-        int windowSize[2] {newWindowDraft_.width, newWindowDraft_.height};
+        ImGui::InputText("Window title", workflowState_.newWindowDraft.title.data(), workflowState_.newWindowDraft.title.size());
+        int windowSize[2] {workflowState_.newWindowDraft.width, workflowState_.newWindowDraft.height};
         if (ImGui::InputInt2("Size (px)", windowSize))
         {
-            newWindowDraft_.width = windowSize[0];
-            newWindowDraft_.height = windowSize[1];
+            workflowState_.newWindowDraft.width = windowSize[0];
+            workflowState_.newWindowDraft.height = windowSize[1];
         }
-        int windowPosition[2] {newWindowDraft_.positionX, newWindowDraft_.positionY};
+        int windowPosition[2] {workflowState_.newWindowDraft.positionX, workflowState_.newWindowDraft.positionY};
         if (ImGui::InputInt2("Position (px)", windowPosition))
         {
-            newWindowDraft_.positionX = windowPosition[0];
-            newWindowDraft_.positionY = windowPosition[1];
+            workflowState_.newWindowDraft.positionX = windowPosition[0];
+            workflowState_.newWindowDraft.positionY = windowPosition[1];
         }
-        ImGui::InputText("Font file (optional)", newWindowDraft_.fontFile.data(), newWindowDraft_.fontFile.size());
+        ImGui::InputText("Font file (optional)", workflowState_.newWindowDraft.fontFile.data(), workflowState_.newWindowDraft.fontFile.size());
         ImGui::SameLine();
         if (ImGui::Button("Browse font file..."))
         {
             BrowseNewWindowFontFile();
         }
         ShowItemTooltip("Choose an existing .ttf or .otf font file with the native Windows file picker.");
-        ImGui::InputText("Reticle library folder", newWindowDraft_.reticleLibraryFolder.data(), newWindowDraft_.reticleLibraryFolder.size());
+        ImGui::InputText("Reticle library folder", workflowState_.newWindowDraft.reticleLibraryFolder.data(), workflowState_.newWindowDraft.reticleLibraryFolder.size());
         ImGui::SameLine();
         if (ImGui::Button("Browse reticle folder..."))
         {
@@ -8478,69 +6745,69 @@ void EditorApplication::DrawPopups()
         ShowItemTooltip("Choose where new reticle template JSON files should be saved with the native Windows folder picker.");
 
         ImGui::SeparatorText("Commands UDP (incoming)");
-        ImGui::Checkbox("Expose command UDP", &newWindowDraft_.commandUdpExposed);
-        if (newWindowDraft_.commandUdpExposed)
+        ImGui::Checkbox("Expose command UDP", &workflowState_.newWindowDraft.commandUdpExposed);
+        if (workflowState_.newWindowDraft.commandUdpExposed)
         {
-            ImGui::Checkbox("Enable command UDP", &newWindowDraft_.commandUdpEnabled);
-            ImGui::InputText("Command address", newWindowDraft_.commandAddress.data(), newWindowDraft_.commandAddress.size());
-            ImGui::InputInt("Command port", &newWindowDraft_.commandPort);
-            ImGui::InputInt("Command max packet", &newWindowDraft_.commandMaxPacketSize);
+            ImGui::Checkbox("Enable command UDP", &workflowState_.newWindowDraft.commandUdpEnabled);
+            ImGui::InputText("Command address", workflowState_.newWindowDraft.commandAddress.data(), workflowState_.newWindowDraft.commandAddress.size());
+            ImGui::InputInt("Command port", &workflowState_.newWindowDraft.commandPort);
+            ImGui::InputInt("Command max packet", &workflowState_.newWindowDraft.commandMaxPacketSize);
         }
 
         ImGui::SeparatorText("Feedback UDP (outgoing)");
-        ImGui::Checkbox("Expose feedback UDP", &newWindowDraft_.feedbackUdpExposed);
-        if (newWindowDraft_.feedbackUdpExposed)
+        ImGui::Checkbox("Expose feedback UDP", &workflowState_.newWindowDraft.feedbackUdpExposed);
+        if (workflowState_.newWindowDraft.feedbackUdpExposed)
         {
-            ImGui::Checkbox("Enable feedback UDP", &newWindowDraft_.feedbackUdpEnabled);
-            ImGui::InputText("Feedback address", newWindowDraft_.feedbackAddress.data(), newWindowDraft_.feedbackAddress.size());
-            ImGui::InputInt("Feedback port", &newWindowDraft_.feedbackPort);
-            ImGui::InputInt("Feedback max packet", &newWindowDraft_.feedbackMaxPacketSize);
+            ImGui::Checkbox("Enable feedback UDP", &workflowState_.newWindowDraft.feedbackUdpEnabled);
+            ImGui::InputText("Feedback address", workflowState_.newWindowDraft.feedbackAddress.data(), workflowState_.newWindowDraft.feedbackAddress.size());
+            ImGui::InputInt("Feedback port", &workflowState_.newWindowDraft.feedbackPort);
+            ImGui::InputInt("Feedback max packet", &workflowState_.newWindowDraft.feedbackMaxPacketSize);
             if (ImGui::DragFloat("Fast interval",
-                                 &newWindowDraft_.feedbackFastIntervalSeconds,
+                                 &workflowState_.newWindowDraft.feedbackFastIntervalSeconds,
                                  0.001f,
                                  0.001f,
                                  10.0f,
                                  "%.3f s"))
             {
-                newWindowDraft_.feedbackFastIntervalSeconds =
-                    ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
-                newWindowDraft_.feedbackHeartbeatIntervalSeconds =
+                workflowState_.newWindowDraft.feedbackFastIntervalSeconds =
+                    ClampFeedbackFastIntervalSeconds(workflowState_.newWindowDraft.feedbackFastIntervalSeconds);
+                workflowState_.newWindowDraft.feedbackHeartbeatIntervalSeconds =
                     ClampFeedbackHeartbeatIntervalSeconds(
-                        newWindowDraft_.feedbackHeartbeatIntervalSeconds,
-                        newWindowDraft_.feedbackFastIntervalSeconds);
+                        workflowState_.newWindowDraft.feedbackHeartbeatIntervalSeconds,
+                        workflowState_.newWindowDraft.feedbackFastIntervalSeconds);
             }
             ShowItemTooltip("Minimum cadence used when the active-page feedback state changes.");
             if (ImGui::DragFloat("Heartbeat interval",
-                                 &newWindowDraft_.feedbackHeartbeatIntervalSeconds,
+                                 &workflowState_.newWindowDraft.feedbackHeartbeatIntervalSeconds,
                                  0.001f,
-                                 newWindowDraft_.feedbackFastIntervalSeconds,
+                                 workflowState_.newWindowDraft.feedbackFastIntervalSeconds,
                                  10.0f,
                                  "%.3f s"))
             {
-                newWindowDraft_.feedbackFastIntervalSeconds =
-                    ClampFeedbackFastIntervalSeconds(newWindowDraft_.feedbackFastIntervalSeconds);
-                newWindowDraft_.feedbackHeartbeatIntervalSeconds =
+                workflowState_.newWindowDraft.feedbackFastIntervalSeconds =
+                    ClampFeedbackFastIntervalSeconds(workflowState_.newWindowDraft.feedbackFastIntervalSeconds);
+                workflowState_.newWindowDraft.feedbackHeartbeatIntervalSeconds =
                     ClampFeedbackHeartbeatIntervalSeconds(
-                        newWindowDraft_.feedbackHeartbeatIntervalSeconds,
-                        newWindowDraft_.feedbackFastIntervalSeconds);
+                        workflowState_.newWindowDraft.feedbackHeartbeatIntervalSeconds,
+                        workflowState_.newWindowDraft.feedbackFastIntervalSeconds);
             }
             ShowItemTooltip("Minimum cadence used for unchanged active-page heartbeat snapshots.");
         }
 
         ImGui::SeparatorText("Initial content");
-        ImGui::Checkbox("Create one initial page", &newWindowDraft_.createInitialPage);
-        if (newWindowDraft_.createInitialPage)
+        ImGui::Checkbox("Create one initial page", &workflowState_.newWindowDraft.createInitialPage);
+        if (workflowState_.newWindowDraft.createInitialPage)
         {
-            ImGui::InputText("First page name", newWindowDraft_.firstPageName.data(), newWindowDraft_.firstPageName.size());
-            ImGui::InputText("First page title", newWindowDraft_.firstPageTitle.data(), newWindowDraft_.firstPageTitle.size());
-            ImGui::InputText("First page file", newWindowDraft_.firstPageFile.data(), newWindowDraft_.firstPageFile.size());
+            ImGui::InputText("First page name", workflowState_.newWindowDraft.firstPageName.data(), workflowState_.newWindowDraft.firstPageName.size());
+            ImGui::InputText("First page title", workflowState_.newWindowDraft.firstPageTitle.data(), workflowState_.newWindowDraft.firstPageTitle.size());
+            ImGui::InputText("First page file", workflowState_.newWindowDraft.firstPageFile.data(), workflowState_.newWindowDraft.firstPageFile.size());
             ImGui::SameLine();
             if (ImGui::Button("Browse page file..."))
             {
                 BrowseNewWindowFirstPageFile();
             }
             ShowItemTooltip("Choose the first page JSON path with the native Windows file picker.");
-            ImGui::ColorEdit4("First page background", &newWindowDraft_.firstPageBackground.x);
+            ImGui::ColorEdit4("First page background", &workflowState_.newWindowDraft.firstPageBackground.x);
         }
 
         ImGui::TextDisabled("Use the repo source assets folders, not the staged runtime copy under _Exec.");
@@ -8576,11 +6843,11 @@ void EditorApplication::DrawPopups()
 
     if (ImGui::BeginPopupModal("Create new page", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::InputText("Page name", newPageDraft_.name.data(), newPageDraft_.name.size());
+        ImGui::InputText("Page name", workflowState_.newPageDraft.name.data(), workflowState_.newPageDraft.name.size());
         ShowItemTooltip("Internal page id used in JSON, generated file names and API references.");
-        ImGui::InputText("Title", newPageDraft_.title.data(), newPageDraft_.title.size());
+        ImGui::InputText("Title", workflowState_.newPageDraft.title.data(), workflowState_.newPageDraft.title.size());
         ShowItemTooltip("Optional human-readable title shown in the editor and runtime UI.");
-        ImGui::InputText("File", newPageDraft_.fileName.data(), newPageDraft_.fileName.size());
+        ImGui::InputText("File", workflowState_.newPageDraft.fileName.data(), workflowState_.newPageDraft.fileName.size());
         ShowItemTooltip("JSON file path written for this page. The .json extension is added automatically when missing.");
         ImGui::SameLine();
         if (ImGui::Button("Browse page file..."))
@@ -8588,7 +6855,7 @@ void EditorApplication::DrawPopups()
             BrowseNewPageFile();
         }
         ShowItemTooltip("Choose the page JSON path with the native Windows file picker.");
-        ImGui::ColorEdit4("Background", &newPageDraft_.background.x);
+        ImGui::ColorEdit4("Background", &workflowState_.newPageDraft.background.x);
         ShowItemTooltip("Initial page background color.");
         ImGui::TextDisabled("Use the repo source assets folders, not the staged runtime copy under _Exec.");
 
@@ -8632,16 +6899,16 @@ void EditorApplication::DrawPopups()
 
     if (ImGui::BeginPopupModal("Create new library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::InputText("Reticle id", newLibraryReticleDraft_.id.data(), newLibraryReticleDraft_.id.size());
+        ImGui::InputText("Reticle id", workflowState_.newLibraryReticleDraft.id.data(), workflowState_.newLibraryReticleDraft.id.size());
         ShowItemTooltip("Template id used by the shared reticle library.");
-        if (ImGui::BeginCombo("Primitive", PrimitiveTypeLabel(kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)]).c_str()))
+        if (ImGui::BeginCombo("Primitive", PrimitiveTypeLabel(kPrimitiveTypes[static_cast<std::size_t>(workflowState_.newLibraryReticleDraft.primitiveTypeIndex)]).c_str()))
         {
             for (int index = 0; index < static_cast<int>(kPrimitiveTypes.size()); ++index)
             {
-                const bool selected = newLibraryReticleDraft_.primitiveTypeIndex == index;
+                const bool selected = workflowState_.newLibraryReticleDraft.primitiveTypeIndex == index;
                 if (ImGui::Selectable(PrimitiveTypeLabel(kPrimitiveTypes[static_cast<std::size_t>(index)]).c_str(), selected))
                 {
-                    newLibraryReticleDraft_.primitiveTypeIndex = index;
+                    workflowState_.newLibraryReticleDraft.primitiveTypeIndex = index;
                 }
             }
             ImGui::EndCombo();
@@ -8687,7 +6954,7 @@ void EditorApplication::DrawPopups()
 
     if (ImGui::BeginPopupModal("Duplicate library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::InputText("New reticle id", duplicateLibraryReticleDraft_.id.data(), duplicateLibraryReticleDraft_.id.size());
+        ImGui::InputText("New reticle id", workflowState_.duplicateLibraryReticleDraft.id.data(), workflowState_.duplicateLibraryReticleDraft.id.size());
         ShowItemTooltip("New template id for the duplicated library reticle.");
         if (AccentButton("Duplicate"))
         {
@@ -8707,40 +6974,40 @@ void EditorApplication::DrawPopups()
 
 void EditorApplication::SeedNewWindowAssetDraftPaths()
 {
-    const std::filesystem::path windowFile = std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
+    const std::filesystem::path windowFile = std::filesystem::path(workflowState_.newWindowDraft.windowFile.data()).lexically_normal();
     if (windowFile.empty() || !windowFile.is_absolute() || editor::EditorAssetPathService::IsExecStagingPath(windowFile))
     {
-        CopyTextBuffer(newWindowDraft_.windowFile, assetPaths_.DefaultAssetPath("assets/windows/new_window.json").string());
+        CopyTextBuffer(workflowState_.newWindowDraft.windowFile, documentState_.assetPaths.DefaultAssetPath("assets/windows/new_window.json").string());
     }
 
-    const std::filesystem::path resolvedWindowFile = std::filesystem::path(newWindowDraft_.windowFile.data()).lexically_normal();
-    const std::filesystem::path reticleFolder = std::filesystem::path(newWindowDraft_.reticleLibraryFolder.data()).lexically_normal();
+    const std::filesystem::path resolvedWindowFile = std::filesystem::path(workflowState_.newWindowDraft.windowFile.data()).lexically_normal();
+    const std::filesystem::path reticleFolder = std::filesystem::path(workflowState_.newWindowDraft.reticleLibraryFolder.data()).lexically_normal();
     if (reticleFolder.empty() || !reticleFolder.is_absolute() || editor::EditorAssetPathService::IsExecStagingPath(reticleFolder))
     {
-        CopyTextBuffer(newWindowDraft_.reticleLibraryFolder, assetPaths_.DefaultSiblingAssetFile(resolvedWindowFile, "reticles", "").string());
+        CopyTextBuffer(workflowState_.newWindowDraft.reticleLibraryFolder, documentState_.assetPaths.DefaultSiblingAssetFile(resolvedWindowFile, "reticles", "").string());
     }
 
-    const std::filesystem::path firstPageFile = std::filesystem::path(newWindowDraft_.firstPageFile.data()).lexically_normal();
+    const std::filesystem::path firstPageFile = std::filesystem::path(workflowState_.newWindowDraft.firstPageFile.data()).lexically_normal();
     if (firstPageFile.empty() || !firstPageFile.is_absolute() || editor::EditorAssetPathService::IsExecStagingPath(firstPageFile))
     {
-        CopyTextBuffer(newWindowDraft_.firstPageFile, assetPaths_.DefaultSiblingAssetFile(resolvedWindowFile, "pages", "page1.json").string());
+        CopyTextBuffer(workflowState_.newWindowDraft.firstPageFile, documentState_.assetPaths.DefaultSiblingAssetFile(resolvedWindowFile, "pages", "page1.json").string());
     }
 }
 
 void EditorApplication::SeedNewPageAssetDraftPath()
 {
-    const std::filesystem::path pageFile = std::filesystem::path(newPageDraft_.fileName.data()).lexically_normal();
+    const std::filesystem::path pageFile = std::filesystem::path(workflowState_.newPageDraft.fileName.data()).lexically_normal();
     if (!pageFile.empty() && pageFile.is_absolute() && !editor::EditorAssetPathService::IsExecStagingPath(pageFile))
     {
         return;
     }
 
-    const std::filesystem::path windowFile = loaded_.window.sourceFile.empty()
-                                                 ? assetPaths_.DefaultAssetPath("assets/windows/new_window.json")
-                                                 : loaded_.window.sourceFile;
+    const std::filesystem::path windowFile = documentState_.loaded.window.sourceFile.empty()
+                                                 ? documentState_.assetPaths.DefaultAssetPath("assets/windows/new_window.json")
+                                                 : documentState_.loaded.window.sourceFile;
     const std::filesystem::path defaultFileName =
         editor::EditorAssetPathService::JsonFileNameOrFallback(pageFile, "new_page.json");
-    CopyTextBuffer(newPageDraft_.fileName, assetPaths_.DefaultSiblingAssetFile(windowFile, "pages", defaultFileName.string()).string());
+    CopyTextBuffer(workflowState_.newPageDraft.fileName, documentState_.assetPaths.DefaultSiblingAssetFile(windowFile, "pages", defaultFileName.string()).string());
 }
 
 bool EditorApplication::CreatePageReticleInstanceFromTemplate(const std::string_view templateId, const mfd::Vec2 position)
@@ -8752,8 +7019,8 @@ bool EditorApplication::CreatePageReticleInstanceFromTemplate(const std::string_
         return false;
     }
 
-    const auto iterator = loaded_.document.reticleLibrary.find(std::string(templateId));
-    if (iterator == loaded_.document.reticleLibrary.end())
+    const auto iterator = documentState_.loaded.document.reticleLibrary.find(std::string(templateId));
+    if (iterator == documentState_.loaded.document.reticleLibrary.end())
     {
         RebuildStatus("Unknown library reticle: " + std::string(templateId), true);
         return false;
@@ -8794,7 +7061,7 @@ bool EditorApplication::CreatePageReticleInstanceFromTemplate(const std::string_
     }
 
     page->staticReticles.push_back(std::move(instance));
-    SelectPageReticle(selection_.pageIndex, static_cast<int>(page->staticReticles.size()) - 1);
+    SelectPageReticle(documentState_.selection.pageIndex, static_cast<int>(page->staticReticles.size()) - 1);
     RebuildStatus("Reticle '" + std::string(templateId) + "' dropped on page '" + page->name + "'.", false);
     return true;
 }
@@ -8954,7 +7221,7 @@ std::string EditorApplication::MakeUniqueStrobeName(const mfd::PageDefinition& p
 
 std::string EditorApplication::MakeUniqueLibraryReticleId(const std::string_view baseId) const
 {
-    return editor::detail::MakeUniqueLibraryReticleId(loaded_.document.reticleLibrary, baseId);
+    return editor::detail::MakeUniqueLibraryReticleId(documentState_.loaded.document.reticleLibrary, baseId);
 }
 
 std::string EditorApplication::MakeUniqueLayerId(const mfd::PageDefinition& page, const std::string_view baseId)
@@ -8970,3343 +7237,3 @@ std::string EditorApplication::MakeUniqueLayerId(const mfd::PageDefinition& page
     return candidate;
 }
 
-void EditorApplication::DrawPageInspector()
-{
-    mfd::PageDefinition* page = ActivePage();
-    if (page == nullptr)
-    {
-        if (HasOpenWindow() && loaded_.document.pages.empty())
-        {
-            ImGui::TextDisabled("No page yet.");
-            ImGui::TextWrapped("This window is open, but it does not contain any page yet.");
-            if (AccentButton("Create first page##inspector"))
-            {
-                OpenNewPagePopup();
-            }
-            ShowItemTooltip("Open the page-creation workflow for this window.");
-        }
-        else
-        {
-            ImGui::TextDisabled("No page selected.");
-        }
-        return;
-    }
-
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page");
-    ImGui::TextDisabled("Edit the page and work directly in the preview.");
-
-    if (ImGui::Button("Remove page from window"))
-    {
-        OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, selection_.pageIndex);
-        return;
-    }
-    ShowItemTooltip("Remove the currently selected page from this window while keeping its authored JSON file.");
-
-    ImGui::SameLine();
-    if (ImGui::Button("Delete page asset..."))
-    {
-        OpenPageManagementPopup(PageManagementAction::DeleteAsset, selection_.pageIndex);
-        return;
-    }
-    ShowItemTooltip("Remove the page from this window and mark its JSON file for deletion on the next save.");
-
-    ImGui::SameLine();
-    if (ImGui::Button("Rename page globally..."))
-    {
-        OpenPageRenamePopup(selection_.pageIndex);
-        return;
-    }
-    ShowItemTooltip("Rename this page asset safely across the current asset tree and update every referenced window defaultPage.");
-
-    ImGui::SameLine();
-    ImGui::TextDisabled("Shortcut: Suppr opens the delete confirmation");
-
-    const bool canPasteReticles = !pageReticleClipboard_.empty();
-    ImGui::BeginDisabled(!canPasteReticles);
-    if (ImGui::Button("Paste copied reticles"))
-    {
-        PasteCopiedPageReticles();
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Paste copied page reticles onto this page.");
-    ImGui::EndDisabled();
-
-    if (canPasteReticles)
-    {
-        ImGui::SameLine();
-        ImGui::TextDisabled("Shortcut: Ctrl+V");
-    }
-
-    std::array<char, 128> name {};
-    std::array<char, 128> title {};
-    CopyTextBuffer(name, page->name);
-    CopyTextBuffer(title, page->title);
-    ImVec4 background = ToImGuiColor(page->backgroundColor);
-
-    ImGui::InputText("Name", name.data(), name.size(), ImGuiInputTextFlags_ReadOnly);
-    ShowItemTooltip("Internal page id used in JSON and API references.");
-    ImGui::TextDisabled("Use 'Rename page globally...' to change this id safely.");
-
-    const bool titleChanged = ImGui::InputText("Title", title.data(), title.size());
-    ShowItemTooltip("Human-readable title shown in the editor and optionally in the runtime page chrome.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (titleChanged)
-    {
-        page->title = title.data();
-    }
-
-    if (ImGui::Button("Select title chrome"))
-    {
-        SelectPageTitle(selection_.pageIndex);
-        if (page->name == "Page1" && tutorial_->MatchesTarget("page_select_title_chrome"))
-        {
-            tutorial_->CompleteStep();
-        }
-        return;
-    }
-    ShowItemTooltip("Edit the page title position, scale, visibility and decoration in its dedicated inspector.");
-    tutorial_->DrawHalo(
-        "page_select_title_chrome",
-        "Select the Page1 title chrome",
-        "Open the dedicated title inspector. It exposes move, scale, visibility, color, line style, and decoration controls for the generated page title.");
-
-    const bool bgChanged = ImGui::ColorEdit4("Background", &background.x);
-    ShowItemTooltip("Preview and runtime background color for this page.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (bgChanged)
-    {
-        page->backgroundColor = ToColorRgba(background);
-    }
-
-    const bool centerChanged = ImGui::DragFloat2("View center", &page->view.center.x, 0.01f, -1.0f, 1.0f, "%.3f");
-    ShowItemTooltip(
-        "Authored page camera center stored in the JSON.\n"
-        "This is different from the temporary mouse-wheel zoom and pan used only by the editor preview.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (centerChanged)
-    {
-        page->view.center.x = std::clamp(page->view.center.x, -1.0f, 1.0f);
-        page->view.center.y = std::clamp(page->view.center.y, -1.0f, 1.0f);
-        pagePreviewView_ = page->view;
-        pagePreviewView_.zoom = mfd::SanitizeZoom(pagePreviewView_.zoom);
-    }
-
-    const bool zoomChanged = ImGui::DragFloat("Zoom", &page->view.zoom, 0.02f, 0.1f, 20.0f, "%.3f");
-    ShowItemTooltip(
-        "Authored default page zoom stored in the JSON.\n"
-        "Mouse-wheel zoom in the preview does not change this value.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (zoomChanged)
-    {
-        page->view.zoom = mfd::SanitizeZoom(page->view.zoom);
-        pagePreviewView_ = page->view;
-    }
-
-    bool defaultPage = page->defaultPage;
-    if (ImGui::Checkbox("Default page for this window", &defaultPage))
-    {
-        PushUndoSnapshot();
-        if (defaultPage)
-        {
-            for (auto& candidate : loaded_.document.pages)
-            {
-                candidate.defaultPage = false;
-            }
-        }
-
-        page->defaultPage = defaultPage;
-    }
-    ShowItemTooltip("Mark this page as the default page opened by the runtime for this window.");
-
-    ImGui::TextDisabled("If no page is marked default, the runtime opens the first page in the window JSON.");
-
-    DrawPageBlinkInspector(*page);
-    DrawPageLayerInspector(*page);
-    DrawPageDynamicTemplateInspector(*page);
-    DrawPageStrobeInspector(*page);
-
-    ImGui::Spacing();
-    ImGui::TextDisabled("Static reticles: %d", static_cast<int>(page->staticReticles.size()));
-    const int editorVisibleReticleCount = static_cast<int>(std::count_if(
-        page->staticReticles.begin(),
-        page->staticReticles.end(),
-        [page](const mfd::ReticleGroup& reticle)
-        {
-            return IsReticleVisibleInEditor(*page, reticle);
-        }));
-    ImGui::TextDisabled("Visible in editor: %d", editorVisibleReticleCount);
-}
-
-void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& page)
-{
-    constexpr std::array<TutorialDynamicTemplateInfo, 1> kTutorialDynamicTemplates {{
-        {"mfd_tutorial_radar_track",
-         "RadarTrackLayer",
-         "page_dynamic_template_mfd_tutorial_radar_track",
-         "Add mfd_tutorial_radar_track",
-         "Bind the tutorial radar-track template to RadarTrackLayer on Page1 without touching the existing steering cue."},
-    }};
-
-    static std::unordered_map<std::string, DynamicBindingDraftState, mfd::TransparentStringHash, mfd::TransparentStringEqual>
-        s_bindingDrafts;
-
-    BootstrapEditorLayersForPage(page);
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Dynamic reticles");
-    ImGui::TextDisabled("Choose one reticle template, choose one page layer, then click Add.");
-    ImGui::TextDisabled("These entries are runtime-only bindings. They do not create authored static reticles on the page canvas.");
-
-    std::vector<std::string> templateIds;
-    templateIds.reserve(loaded_.document.reticleLibrary.size());
-    for (const auto& entry : loaded_.document.reticleLibrary)
-    {
-        templateIds.push_back(entry.first);
-    }
-    std::sort(templateIds.begin(), templateIds.end());
-    templateIds.erase(std::unique(templateIds.begin(), templateIds.end()), templateIds.end());
-
-    DynamicBindingDraftState& draft = s_bindingDrafts[page.normalizedName];
-    if ((draft.layerId.empty() || mfd::FindPageLayerDefinition(page, draft.layerId) == nullptr) && !page.layers.empty())
-    {
-        draft.layerId = page.layers.front().id;
-    }
-
-    const TutorialDynamicTemplateInfo* activeTutorialTemplate = nullptr;
-    for (const TutorialDynamicTemplateInfo& tutorialTemplate : kTutorialDynamicTemplates)
-    {
-        if (tutorial_->MatchesTarget(tutorialTemplate.targetId))
-        {
-            activeTutorialTemplate = &tutorialTemplate;
-            break;
-        }
-    }
-
-    std::vector<std::string> availableTemplateIds;
-    availableTemplateIds.reserve(templateIds.size());
-    for (const std::string& templateId : templateIds)
-    {
-        if (!PageHasDynamicTemplateBinding(page, templateId))
-        {
-            availableTemplateIds.push_back(templateId);
-        }
-    }
-
-    if (activeTutorialTemplate != nullptr &&
-        std::any_of(availableTemplateIds.begin(),
-                    availableTemplateIds.end(),
-                    [activeTutorialTemplate](const std::string& candidate)
-                    {
-                        return mfd::PageNamesEqual(candidate, activeTutorialTemplate->templateId);
-                    }))
-    {
-        draft.templateId = std::string(activeTutorialTemplate->templateId);
-    }
-    else if (!availableTemplateIds.empty() &&
-             !std::any_of(availableTemplateIds.begin(),
-                          availableTemplateIds.end(),
-                          [&draft](const std::string& candidate)
-                          {
-                              return candidate == draft.templateId;
-                          }))
-    {
-        draft.templateId = availableTemplateIds.front();
-    }
-    else if (availableTemplateIds.empty())
-    {
-        draft.templateId.clear();
-    }
-
-    if (activeTutorialTemplate != nullptr &&
-        mfd::FindPageLayerDefinition(page, activeTutorialTemplate->preferredLayerId) != nullptr)
-    {
-        draft.layerId = std::string(activeTutorialTemplate->preferredLayerId);
-    }
-
-    ImGui::TextDisabled("Configured on this page: %d", static_cast<int>(page.dynamicReticleBindings.size()));
-    ImGui::TextDisabled("Each reticle template can appear at most once in this dynamic list.");
-
-    if (templateIds.empty())
-    {
-        ImGui::TextDisabled("No library reticle is available yet. Create one first.");
-        return;
-    }
-
-    if (page.layers.empty())
-    {
-        ImGui::TextDisabled("No page layer is available yet. Add one in Page layers first.");
-        return;
-    }
-
-    const bool canAddBinding = !draft.templateId.empty() && !draft.layerId.empty() &&
-                               mfd::FindPageLayerDefinition(page, draft.layerId) != nullptr;
-
-    if (ImGui::BeginCombo("Reticle template", draft.templateId.empty() ? "<none>" : draft.templateId.c_str()))
-    {
-        if (availableTemplateIds.empty())
-        {
-            ImGui::TextDisabled("All library templates are already bound on this page.");
-        }
-        else
-        {
-            for (const std::string& templateId : availableTemplateIds)
-            {
-                const bool selected = draft.templateId == templateId;
-                if (ImGui::Selectable(templateId.c_str(), selected))
-                {
-                    draft.templateId = templateId;
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-        }
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Choose one unbound library reticle template to expose as one page-scoped dynamic reticle type.");
-
-    if (ImGui::BeginCombo("Layer", draft.layerId.empty() ? "<none>" : draft.layerId.c_str()))
-    {
-        for (const mfd::PageLayerDefinition& layer : page.layers)
-        {
-            const bool selected = draft.layerId == layer.id;
-            if (ImGui::Selectable(layer.id.c_str(), selected))
-            {
-                draft.layerId = layer.id;
-            }
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Choose which page layer will own runtime instances created from this dynamic reticle type.");
-
-    ImGui::BeginDisabled(!canAddBinding);
-    if (AccentButton("Add"))
-    {
-        if (activeTutorialTemplate != nullptr &&
-            !mfd::PageNamesEqual(draft.templateId, activeTutorialTemplate->templateId))
-        {
-            RebuildStatus("Tutorial: choose '" + std::string(activeTutorialTemplate->templateId) + "' before clicking Add.", true);
-        }
-        else
-        {
-            PushUndoSnapshot();
-            page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {
-                draft.templateId,
-                draft.layerId,
-                NextPageDynamicOrderInLayer(page, draft.layerId)});
-
-            if (activeTutorialTemplate != nullptr)
-            {
-                tutorial_->CompleteStep();
-            }
-
-            RebuildStatus("Dynamic reticle '" + draft.templateId + "' added on layer '" + draft.layerId +
-                              "' for page '" + page.name + "'.",
-                          false);
-        }
-    }
-    ImGui::EndDisabled();
-    ShowItemTooltip("Add the selected reticle template to the page dynamic-reticle list with the chosen layer.");
-
-    if (activeTutorialTemplate != nullptr &&
-        mfd::PageNamesEqual(draft.templateId, activeTutorialTemplate->templateId))
-    {
-        tutorial_->DrawHalo(
-            activeTutorialTemplate->targetId.data(),
-            activeTutorialTemplate->label,
-            activeTutorialTemplate->reason);
-    }
-
-    if (page.dynamicReticleBindings.empty())
-    {
-        ImGui::TextDisabled("No dynamic reticle is configured on this page yet.");
-        return;
-    }
-
-    ImGui::Spacing();
-    ImGui::TextDisabled("Dynamic reticles on this page:");
-
-    std::vector<std::size_t> sortedBindingIndexes(page.dynamicReticleBindings.size());
-    std::iota(sortedBindingIndexes.begin(), sortedBindingIndexes.end(), 0U);
-    std::sort(sortedBindingIndexes.begin(),
-              sortedBindingIndexes.end(),
-              [&page](const std::size_t lhsIndex, const std::size_t rhsIndex)
-              {
-                  const auto& lhs = page.dynamicReticleBindings[lhsIndex];
-                  const auto& rhs = page.dynamicReticleBindings[rhsIndex];
-                  if (PageLayerOrder(page, lhs.layerId) != PageLayerOrder(page, rhs.layerId))
-                  {
-                      return PageLayerOrder(page, lhs.layerId) < PageLayerOrder(page, rhs.layerId);
-                  }
-                  if (lhs.orderInLayer != rhs.orderInLayer)
-                  {
-                      return lhs.orderInLayer < rhs.orderInLayer;
-                  }
-                  return lhs.templateId < rhs.templateId;
-              });
-
-    for (std::size_t displayIndex = 0; displayIndex < sortedBindingIndexes.size(); ++displayIndex)
-    {
-        const std::size_t bindingIndex = sortedBindingIndexes[displayIndex];
-        mfd::DynamicReticleLayerBinding& binding = page.dynamicReticleBindings[bindingIndex];
-
-        ImGui::PushID(static_cast<int>(bindingIndex));
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Text("%s", binding.templateId.c_str());
-        ImGui::TextDisabled("orderInLayer %d", binding.orderInLayer);
-
-        if (ImGui::BeginCombo("Layer", binding.layerId.c_str()))
-        {
-            for (const mfd::PageLayerDefinition& layer : page.layers)
-            {
-                const bool selected = binding.layerId == layer.id;
-                if (ImGui::Selectable(layer.id.c_str(), selected))
-                {
-                    PushUndoSnapshot();
-                    binding.layerId = layer.id;
-                    binding.orderInLayer =
-                        NextPageDynamicOrderInLayer(page, binding.layerId, static_cast<int>(bindingIndex));
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
-        }
-        ShowItemTooltip("Choose which page layer owns runtime instances of this dynamic reticle type.");
-
-        ImGui::SameLine();
-        if (ImGui::Button("Remove"))
-        {
-            PushUndoSnapshot();
-            const std::string removedTemplateId = binding.templateId;
-            page.dynamicReticleBindings.erase(page.dynamicReticleBindings.begin() + static_cast<std::ptrdiff_t>(bindingIndex));
-            RebuildStatus("Dynamic reticle '" + removedTemplateId + "' removed from page '" + page.name + "'.", false);
-            ImGui::PopID();
-            break;
-        }
-        ShowItemTooltip("Remove this dynamic reticle type from the page.");
-
-        std::vector<std::size_t> siblingIndexes;
-        for (std::size_t siblingIndex : sortedBindingIndexes)
-        {
-            if (mfd::PageNamesEqual(page.dynamicReticleBindings[siblingIndex].layerId, binding.layerId))
-            {
-                siblingIndexes.push_back(siblingIndex);
-            }
-        }
-
-        const auto siblingIterator = std::find(siblingIndexes.begin(), siblingIndexes.end(), bindingIndex);
-        const bool hasPreviousSibling = siblingIterator != siblingIndexes.begin() && siblingIterator != siblingIndexes.end();
-        const bool hasNextSibling = siblingIterator != siblingIndexes.end() && std::next(siblingIterator) != siblingIndexes.end();
-
-        ImGui::BeginDisabled(!hasPreviousSibling);
-        if (ImGui::Button("Move earlier"))
-        {
-            PushUndoSnapshot();
-            mfd::DynamicReticleLayerBinding& previous = page.dynamicReticleBindings[*std::prev(siblingIterator)];
-            std::swap(binding.orderInLayer, previous.orderInLayer);
-        }
-        ImGui::EndDisabled();
-        ShowItemTooltip("Swap orderInLayer with the previous dynamic binding on the same runtime layer.");
-
-        ImGui::SameLine();
-        ImGui::BeginDisabled(!hasNextSibling);
-        if (ImGui::Button("Move later"))
-        {
-            PushUndoSnapshot();
-            mfd::DynamicReticleLayerBinding& next = page.dynamicReticleBindings[*std::next(siblingIterator)];
-            std::swap(binding.orderInLayer, next.orderInLayer);
-        }
-        ImGui::EndDisabled();
-        ShowItemTooltip("Swap orderInLayer with the next dynamic binding on the same runtime layer.");
-
-        ImGui::PopID();
-    }
-
-}
-
-void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
-{
-    using editor::tutorial::TutorialStepId;
-
-    constexpr std::string_view kTutorialDefaultStrobeNameTargetId = "page_strobe_default_name";
-    constexpr std::string_view kTutorialDefaultStrobeTemplateTargetId = "page_strobe_default";
-    constexpr std::string_view kTutorialDefaultStrobeAddTargetId = "page_strobe_default_add";
-    constexpr std::string_view kTutorialAlternativeStrobeNameTargetId = "page_strobe_alternative_name";
-    constexpr std::string_view kTutorialAlternativeStrobeTemplateTargetId = "page_strobe_alternative";
-    constexpr std::string_view kTutorialAlternativeStrobeAddTargetId = "page_strobe_alternative_add";
-    static std::unordered_map<std::string, StrobeDraftState> s_strobeDrafts;
-
-    const bool isDefaultStrobeTutorialStep = tutorial_->IsStep(static_cast<int>(TutorialStepId::AddPage1DefaultStrobe));
-    const bool isAlternativeStrobeTutorialStep =
-        tutorial_->IsStep(static_cast<int>(TutorialStepId::AddPage1AlternativeStrobe));
-
-    std::string_view tutorialExpectedStrobeName {};
-    if (page.name == "Page1")
-    {
-        if (isDefaultStrobeTutorialStep)
-        {
-            tutorialExpectedStrobeName = "Default";
-        }
-        else if (isAlternativeStrobeTutorialStep)
-        {
-            tutorialExpectedStrobeName = "Strobe1";
-        }
-    }
-
-    const std::string_view tutorialTemplateTargetId =
-        isDefaultStrobeTutorialStep
-            ? kTutorialDefaultStrobeTemplateTargetId
-            : (isAlternativeStrobeTutorialStep ? kTutorialAlternativeStrobeTemplateTargetId : std::string_view {});
-    const std::string_view tutorialExpectedTemplateId =
-        isDefaultStrobeTutorialStep
-            ? kTutorialStrobeCursorTemplateId
-            : (isAlternativeStrobeTutorialStep ? kTutorialAircraftTemplateId : std::string_view {});
-    const std::string_view tutorialAddTargetId =
-        isDefaultStrobeTutorialStep
-            ? kTutorialDefaultStrobeAddTargetId
-            : (isAlternativeStrobeTutorialStep ? kTutorialAlternativeStrobeAddTargetId : std::string_view {});
-    const std::string_view tutorialNameTargetId =
-        isDefaultStrobeTutorialStep
-            ? kTutorialDefaultStrobeNameTargetId
-            : (isAlternativeStrobeTutorialStep ? kTutorialAlternativeStrobeNameTargetId : std::string_view {});
-    const char* const tutorialTemplateReason =
-        isAlternativeStrobeTutorialStep
-            ? "Choose the triangle-based aircraft template so Page1 exposes one second strobe that is visibly distinct from Default."
-            : "Choose the tutorial cursor template so Page1 gets one first authored strobe with capture and feedback.";
-    const char* const tutorialAddReason =
-        isAlternativeStrobeTutorialStep
-            ? "Commit the second authored strobe so Page1 keeps Default plus one runtime-selectable aircraft-shaped alternative."
-            : "Commit the first authored strobe so Page1 has one default strobe before the runtime alternative is added.";
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Strobe");
-    ImGui::TextDisabled("Each page exposes a list of named strobes, but only one is active at runtime.");
-    ImGui::TextDisabled("Add alternative strobes here, choose the default one, then edit the selected strobe below.");
-
-    std::vector<std::string> templateIds;
-    templateIds.reserve(loaded_.document.reticleLibrary.size());
-    for (const auto& entry : loaded_.document.reticleLibrary)
-    {
-        templateIds.push_back(entry.first);
-    }
-    std::sort(templateIds.begin(), templateIds.end());
-
-    StrobeDraftState& draft = s_strobeDrafts[page.normalizedName.empty() ? page.name : page.normalizedName];
-    if (draft.name.empty())
-    {
-        draft.name = SuggestPageStrobeDraftName(page);
-    }
-    if (!tutorialExpectedStrobeName.empty())
-    {
-        draft.name = std::string(tutorialExpectedStrobeName);
-    }
-    if (!templateIds.empty() &&
-        std::find(templateIds.begin(), templateIds.end(), draft.templateId) == templateIds.end())
-    {
-        draft.templateId = templateIds.front();
-    }
-
-    std::array<char, 128> draftNameBuffer {};
-    CopyTextBuffer(draftNameBuffer, draft.name);
-    if (ImGui::InputText("New strobe name##strobe_draft_name", draftNameBuffer.data(), draftNameBuffer.size()))
-    {
-        draft.name = draftNameBuffer.data();
-    }
-    ShowItemTooltip("Name used by the editor, runtime selection, and generated client API.");
-    tutorial_->DrawHalo(
-        tutorialNameTargetId.data(),
-        "Keep the guided strobe name",
-        isAlternativeStrobeTutorialStep
-            ? "Keep `Strobe1` so the generated client exposes one clear runtime alternative next to Default."
-            : "Keep `Default` so the generated client exposes one stable default Page1 strobe.");
-    if (tutorial_->MatchesTarget(tutorialNameTargetId) && draft.name == tutorialExpectedStrobeName)
-    {
-        tutorial_->AdvancePhase();
-    }
-
-    if (ImGui::BeginCombo("Reticle template##strobe_draft_template",
-                          draft.templateId.empty() ? "<none>" : draft.templateId.c_str()))
-    {
-        if (templateIds.empty())
-        {
-            ImGui::TextDisabled("No library reticle is available yet.");
-        }
-        else
-        {
-            for (const std::string& templateId : templateIds)
-            {
-                const bool selected = draft.templateId == templateId;
-                if (ImGui::Selectable(templateId.c_str(), selected))
-                {
-                    draft.templateId = templateId;
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Choose which shared reticle template will be instantiated for the next strobe you add.");
-    tutorial_->DrawHalo(
-        tutorialTemplateTargetId.data(),
-        isAlternativeStrobeTutorialStep ? "Choose mfd_tutorial_aircraft" : "Choose mfd_tutorial_strobe_cursor",
-        tutorialTemplateReason);
-    if (tutorial_->MatchesTarget(tutorialTemplateTargetId) && draft.templateId == tutorialExpectedTemplateId)
-    {
-        tutorial_->AdvancePhase();
-    }
-
-    const bool canAddStrobe = !draft.name.empty() && !draft.templateId.empty();
-    ImGui::BeginDisabled(!canAddStrobe);
-    if (AccentButton("Add strobe##page_strobe_add"))
-    {
-        if (tutorial_->MatchesTarget(tutorialAddTargetId) &&
-            draft.name != tutorialExpectedStrobeName)
-        {
-            RebuildStatus("Tutorial: keep the suggested Page1 strobe name before adding it.", true);
-        }
-        else if (tutorial_->MatchesTarget(tutorialAddTargetId) && draft.templateId != tutorialExpectedTemplateId)
-        {
-            RebuildStatus("Tutorial: choose the guided Page1 strobe template before adding it.", true);
-        }
-        else if (const auto iterator = loaded_.document.reticleLibrary.find(draft.templateId);
-                 iterator != loaded_.document.reticleLibrary.end())
-        {
-            PushUndoSnapshot();
-            mfd::PageStrobeDefinition strobe = MakePageStrobeFromTemplate(page, iterator->second, std::nullopt);
-            strobe.name = MakeUniqueStrobeName(page, draft.name.empty() ? SuggestPageStrobeDraftName(page) : draft.name);
-            strobe.normalizedName = mfd::NormalizePageName(strobe.name);
-            RefreshBlinkBindingForEditor(page, strobe.reticle.blink);
-            page.strobes.push_back(std::move(strobe));
-            if (page.strobes.size() == 1U || page.normalizedActiveStrobeName.empty())
-            {
-                SetActivePageStrobe(page, page.strobes.back());
-            }
-
-            const int newIndex = static_cast<int>(page.strobes.size()) - 1;
-            SelectPageStrobe(selection_.pageIndex, newIndex);
-            RebuildStatus("Strobe '" + page.strobes.back().name + "' added to page '" + page.name + "'.", false);
-            draft.name = SuggestPageStrobeDraftName(page);
-            if (tutorial_->MatchesTarget(tutorialAddTargetId))
-            {
-                tutorial_->CompleteStep();
-            }
-        }
-    }
-    ImGui::EndDisabled();
-    ShowItemTooltip("Instantiate one new strobe from the chosen library template and add it to this page.");
-    tutorial_->DrawHalo(
-        tutorialAddTargetId.data(),
-        "Add the guided strobe",
-        tutorialAddReason);
-
-    if (templateIds.empty())
-    {
-        ImGui::TextDisabled("No library reticle is available yet. Create one first.");
-        return;
-    }
-
-    ImGui::Spacing();
-    ImGui::TextDisabled("Configured strobes: %d", static_cast<int>(page.strobes.size()));
-    ImGui::TextDisabled("Exactly one strobe is active at runtime. The default choice is stored on the page.");
-
-    bool removedStrobe = false;
-    for (std::size_t strobeIndex = 0; strobeIndex < page.strobes.size(); ++strobeIndex)
-    {
-        mfd::PageStrobeDefinition& strobe = page.strobes[strobeIndex];
-        const std::string strobeDisplayLabel = PageStrobeDisplayLabel(page, strobe, strobeIndex);
-        const std::string strobeSelectableLabel = strobeDisplayLabel + "##strobe_select";
-        const bool selected =
-            selection_.kind == SelectionKind::PageStrobe &&
-            selection_.pageReticleIndex == static_cast<int>(strobeIndex);
-        const bool active = page.normalizedActiveStrobeName == strobe.normalizedName ||
-                            (page.normalizedActiveStrobeName.empty() && strobeIndex == 0U);
-
-        ImGui::PushID(static_cast<int>(strobeIndex));
-        if (ImGui::Selectable(strobeSelectableLabel.c_str(), selected))
-        {
-            SelectPageStrobe(selection_.pageIndex, static_cast<int>(strobeIndex));
-        }
-
-        if (ImGui::RadioButton("Active by default##strobe_default", active) && !active)
-        {
-            PushUndoSnapshot();
-            SetActivePageStrobe(page, strobe);
-            SelectPageStrobe(selection_.pageIndex, static_cast<int>(strobeIndex));
-        }
-        ShowItemTooltip("Choose which authored strobe becomes active by default when the page loads.");
-
-        std::array<char, 128> strobeNameBuffer {};
-        CopyTextBuffer(strobeNameBuffer, strobe.name);
-        if (ImGui::InputText("Name##strobe_name", strobeNameBuffer.data(), strobeNameBuffer.size()))
-        {
-            const std::string previousNormalizedName = strobe.normalizedName;
-            std::string requestedName = strobeNameBuffer.data();
-            if (NormalizeEditorIdentifier(requestedName).empty())
-            {
-                requestedName = "Strobe";
-            }
-
-            strobe.name = MakeUniqueStrobeName(page, requestedName, strobe.name);
-            strobe.normalizedName = mfd::NormalizePageName(strobe.name);
-            if (page.normalizedActiveStrobeName == previousNormalizedName)
-            {
-                SetActivePageStrobe(page, strobe);
-            }
-        }
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        ShowItemTooltip("Rename this strobe. Names stay unique within the page.");
-
-        ImGui::TextDisabled("Template: %s",
-                            strobe.reticle.sourceTemplateId.empty() ? "<custom strobe>" : strobe.reticle.sourceTemplateId.c_str());
-
-        if (ImGui::Button("Remove strobe##page_strobe_remove"))
-        {
-            PushUndoSnapshot();
-            const std::string removedName = strobe.name;
-            const std::string removedNormalizedName = strobe.normalizedName;
-            page.strobes.erase(page.strobes.begin() + static_cast<std::ptrdiff_t>(strobeIndex));
-            if (page.strobes.empty())
-            {
-                page.activeStrobeName.clear();
-                page.normalizedActiveStrobeName.clear();
-                SelectPage(selection_.pageIndex, false);
-            }
-            else
-            {
-                if (page.normalizedActiveStrobeName == removedNormalizedName)
-                {
-                    SetActivePageStrobe(page, page.strobes.front());
-                }
-                SelectPageStrobe(selection_.pageIndex,
-                                 std::min<int>(static_cast<int>(strobeIndex), static_cast<int>(page.strobes.size()) - 1));
-            }
-            RebuildStatus("Strobe '" + removedName + "' removed from page '" + page.name + "'.", false);
-            removedStrobe = true;
-            ImGui::PopID();
-            break;
-        }
-        ShowItemTooltip("Remove this authored strobe from the page list.");
-
-        ImGui::Separator();
-        ImGui::PopID();
-    }
-
-    if (removedStrobe)
-    {
-        return;
-    }
-
-    if (page.strobes.empty())
-    {
-        ImGui::TextDisabled("No strobe assigned to this page.");
-        return;
-    }
-
-    int editedStrobeIndex = FindActivePageStrobeIndex(page);
-    if (selection_.kind == SelectionKind::PageStrobe &&
-        selection_.pageReticleIndex >= 0 &&
-        selection_.pageReticleIndex < static_cast<int>(page.strobes.size()))
-    {
-        editedStrobeIndex = selection_.pageReticleIndex;
-    }
-    if (editedStrobeIndex < 0 || editedStrobeIndex >= static_cast<int>(page.strobes.size()))
-    {
-        editedStrobeIndex = 0;
-    }
-
-    mfd::PageStrobeDefinition& editedStrobe = page.strobes[static_cast<std::size_t>(editedStrobeIndex)];
-    const std::string currentTemplateId = editedStrobe.reticle.sourceTemplateId;
-
-    ImGui::TextDisabled("Editing strobe: %s", editedStrobe.name.c_str());
-    if (ImGui::BeginCombo("Strobe template##page_strobe_template",
-                          currentTemplateId.empty() ? "<custom strobe>" : currentTemplateId.c_str()))
-    {
-        for (const std::string& templateId : templateIds)
-        {
-            const bool selected = currentTemplateId == templateId;
-            if (ImGui::Selectable(templateId.c_str(), selected) && !selected)
-            {
-                if ((tutorial_->MatchesTarget(kTutorialDefaultStrobeTemplateTargetId) ||
-                     tutorial_->MatchesTarget(kTutorialAlternativeStrobeTemplateTargetId)) &&
-                    templateId != tutorialExpectedTemplateId)
-                {
-                    RebuildStatus("Tutorial: choose the guided Page1 strobe template.", true);
-                    continue;
-                }
-
-                const auto iterator = loaded_.document.reticleLibrary.find(templateId);
-                if (iterator != loaded_.document.reticleLibrary.end())
-                {
-                    PushUndoSnapshot();
-                    const std::optional<mfd::PageStrobeDefinition> previousStrobe = editedStrobe;
-                    std::size_t unmappedPrimitiveOverrideCount = 0;
-                    editedStrobe = MakePageStrobeFromTemplate(
-                        page,
-                        iterator->second,
-                        previousStrobe,
-                        &unmappedPrimitiveOverrideCount);
-                    RefreshBlinkBindingForEditor(page, editedStrobe.reticle.blink);
-                    if (unmappedPrimitiveOverrideCount > 0)
-                    {
-                        RebuildStatus("Changed the strobe template, but " +
-                                          std::to_string(unmappedPrimitiveOverrideCount) +
-                                          " named text/time primitive override(s) could not be remapped.",
-                                      true);
-                    }
-                }
-            }
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Replace the selected strobe instance with another shared reticle template while keeping its authored runtime settings.");
-
-    ImGui::TextDisabled("Strobe id: %s", editedStrobe.reticle.id.c_str());
-    if (!currentTemplateId.empty())
-    {
-        ImGui::TextDisabled("Source template: %s", currentTemplateId.c_str());
-    }
-
-    const char* captureShapeLabel =
-        editedStrobe.capture.shape == mfd::StrobeCaptureShape::Circle ? "Circle" : "Rectangle";
-    if (ImGui::BeginCombo("Capture shape", captureShapeLabel))
-    {
-        const bool circleSelected = editedStrobe.capture.shape == mfd::StrobeCaptureShape::Circle;
-        if (ImGui::Selectable("Circle", circleSelected) && !circleSelected)
-        {
-            PushUndoSnapshot();
-            editedStrobe.capture.shape = mfd::StrobeCaptureShape::Circle;
-        }
-        if (circleSelected)
-        {
-            ImGui::SetItemDefaultFocus();
-        }
-
-        const bool rectangleSelected = editedStrobe.capture.shape == mfd::StrobeCaptureShape::Rectangle;
-        if (ImGui::Selectable("Rectangle", rectangleSelected) && !rectangleSelected)
-        {
-            PushUndoSnapshot();
-            editedStrobe.capture.shape = mfd::StrobeCaptureShape::Rectangle;
-        }
-        if (rectangleSelected)
-        {
-            ImGui::SetItemDefaultFocus();
-        }
-
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Choose the capture area shape used by the page strobe.");
-
-    if (editedStrobe.capture.shape == mfd::StrobeCaptureShape::Circle)
-    {
-        if (ImGui::DragFloat("Capture radius", &editedStrobe.capture.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            editedStrobe.capture.radius = std::max(0.001f, editedStrobe.capture.radius);
-        }
-        ShowItemTooltip("Radius of the circular capture area around the strobe.");
-    }
-    else
-    {
-        if (ImGui::DragFloat2("Capture size", &editedStrobe.capture.size.x, 0.002f, 0.001f, 2.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            editedStrobe.capture.size.x = std::max(0.001f, editedStrobe.capture.size.x);
-            editedStrobe.capture.size.y = std::max(0.001f, editedStrobe.capture.size.y);
-        }
-        ShowItemTooltip("Width and height of the rectangular capture area around the strobe.");
-    }
-
-    bool magnetEnabled = editedStrobe.magnet.enabled;
-    if (ImGui::Checkbox("Magnet enabled", &magnetEnabled))
-    {
-        PushUndoSnapshot();
-        editedStrobe.magnet.enabled = magnetEnabled;
-    }
-    ShowItemTooltip("Enable attraction toward nearby dynamic reticles when the strobe moves.");
-
-    if (editedStrobe.magnet.enabled)
-    {
-        if (ImGui::DragFloat("Magnet radius", &editedStrobe.magnet.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            editedStrobe.magnet.radius = std::max(0.001f, editedStrobe.magnet.radius);
-        }
-        ShowItemTooltip("Maximum distance used to snap the strobe toward nearby targets.");
-
-        if (ImGui::DragFloat("Magnet strength", &editedStrobe.magnet.strength, 0.01f, 0.0f, 1.0f, "%.2f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            editedStrobe.magnet.strength = std::clamp(editedStrobe.magnet.strength, 0.0f, 1.0f);
-        }
-        ShowItemTooltip("Blend factor applied when the strobe is attracted toward one target.");
-
-        bool visualShapeEnabled = editedStrobe.magnet.visualShapeEnabled;
-        if (ImGui::Checkbox("Change visual shape while magnetized", &visualShapeEnabled))
-        {
-            PushUndoSnapshot();
-            editedStrobe.magnet.visualShapeEnabled = visualShapeEnabled;
-        }
-        ShowItemTooltip("Optional visual cue only: the authored strobe reticle is kept unless this is enabled.");
-
-        ImGui::BeginDisabled(!editedStrobe.magnet.visualShapeEnabled);
-        const char* visualShapeLabel =
-            editedStrobe.magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle ? "Circle" : "Square";
-        if (ImGui::BeginCombo("Magnetized visual shape", visualShapeLabel))
-        {
-            const bool circleSelected = editedStrobe.magnet.visualShape == mfd::StrobeMagnetVisualShape::Circle;
-            if (ImGui::Selectable("Circle", circleSelected) && !circleSelected)
-            {
-                PushUndoSnapshot();
-                editedStrobe.magnet.visualShape = mfd::StrobeMagnetVisualShape::Circle;
-            }
-            if (circleSelected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-
-            const bool squareSelected = editedStrobe.magnet.visualShape == mfd::StrobeMagnetVisualShape::Square;
-            if (ImGui::Selectable("Square", squareSelected) && !squareSelected)
-            {
-                PushUndoSnapshot();
-                editedStrobe.magnet.visualShape = mfd::StrobeMagnetVisualShape::Square;
-            }
-            if (squareSelected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-
-            ImGui::EndCombo();
-        }
-        ShowItemTooltip("Shape used only while the runtime reports this strobe as magnetized.");
-
-        if (ImGui::DragFloat("Magnetized visual size",
-                             &editedStrobe.magnet.visualShapeSize,
-                             0.002f,
-                             0.001f,
-                             1.0f,
-                             "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            editedStrobe.magnet.visualShapeSize = std::max(0.001f, editedStrobe.magnet.visualShapeSize);
-        }
-        ShowItemTooltip("Logical diameter/side length of the optional magnetized visual cue.");
-        ImGui::EndDisabled();
-    }
-}
-
-void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
-{
-    BootstrapEditorLayersForPage(page);
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.82f, 0.73f, 0.94f, 1.0f), "Page layers");
-    ImGui::TextDisabled("Page layers drive runtime draw order. Visibility below only affects the editor preview.");
-
-    if (AccentButton("Add layer"))
-    {
-        const bool tutorialRadarTrackLayerMatched = tutorial_->MatchesTarget("inspector_add_radar_track_layer");
-        const bool tutorialAddLayerMatched = tutorial_->MatchesTarget("inspector_add_layer");
-        if (tutorialRadarTrackLayerMatched && mfd::FindPageLayerDefinition(page, "RadarTrackLayer") != nullptr)
-        {
-            tutorial_->CompleteStep();
-            RebuildStatus("RadarTrackLayer is already present on page '" + page.name + "'.", false);
-            return;
-        }
-
-        PushUndoSnapshot();
-        const std::string newLayerId = tutorialRadarTrackLayerMatched ? std::string {"RadarTrackLayer"}
-                                                                      : MakeUniqueLayerId(page, "layer");
-        page.layers.push_back(mfd::PageLayerDefinition {newLayerId});
-        page.editor.layers.push_back(mfd::EditorLayerDefinition {newLayerId, true});
-        if (tutorialRadarTrackLayerMatched)
-        {
-            tutorial_->CompleteStep();
-        }
-        else if (tutorialAddLayerMatched)
-        {
-            tutorial_->SetFocusLayerId(page.layers.back().id);
-            tutorial_->AdvancePhase();
-        }
-        RebuildStatus("Runtime layer added to page '" + page.name + "'.", false);
-    }
-    ShowItemTooltip("Create one new runtime page layer. The editor also tracks its temporary visibility state.");
-    tutorial_->DrawHalo(
-        "inspector_add_radar_track_layer",
-        "Create RadarTrackLayer",
-        "Create one dedicated runtime layer for Page1 radar tracks. The existing steering cue already stays on its own layer.");
-    tutorial_->DrawHalo(
-        "inspector_add_layer",
-        "Click Add layer",
-        "Create one extra page layer so the tutorial can show how layer-based authoring visibility works.");
-
-    if (page.layers.empty())
-    {
-        ImGui::TextDisabled("No runtime layer exists on this page yet.");
-        return;
-    }
-
-    for (std::size_t index = 0; index < page.layers.size(); ++index)
-    {
-        mfd::PageLayerDefinition& layer = page.layers[index];
-        mfd::EditorLayerDefinition& editorLayer = page.editor.layers[index];
-        const std::size_t assignedReticles = CountEditorLayerAssignments(page, layer.id);
-        const std::size_t assignedBindings = CountDynamicLayerBindings(page, layer.id);
-        const std::string dynamicBindingSummary = SummarizeDynamicLayerBindings(page, layer.id);
-
-        ImGui::PushID(static_cast<int>(index));
-        ImGui::Spacing();
-        ImGui::Separator();
-
-        bool visible = editorLayer.visible;
-        if (ImGui::Checkbox("Visible", &visible))
-        {
-            PushUndoSnapshot();
-            editorLayer.visible = visible;
-            SanitizePageReticleSelectionForCurrentFocus();
-            if (tutorial_->MatchesTarget("inspector_layer_visibility") &&
-                layer.id == tutorial_->FocusLayerId() &&
-                !editorLayer.visible)
-            {
-                tutorial_->CompleteStep();
-            }
-        }
-        ShowItemTooltip("Show or hide this layer in the editor preview only.");
-        if (layer.id == tutorial_->FocusLayerId())
-        {
-            tutorial_->DrawHalo(
-                "inspector_layer_visibility",
-                "Click Visible",
-                "Hide the layer you just created to confirm that editor visibility stays separate from runtime layer order.");
-        }
-
-        ImGui::SameLine();
-        ImGui::TextDisabled("%zu reticle%s | %zu dynamic binding%s",
-                            assignedReticles,
-                            assignedReticles == 1U ? "" : "s",
-                            assignedBindings,
-                            assignedBindings == 1U ? "" : "s");
-
-        if (!dynamicBindingSummary.empty())
-        {
-            ImGui::TextDisabled("Dynamic reticles: %s", dynamicBindingSummary.c_str());
-        }
-
-        std::array<char, 128> layerName {};
-        CopyTextBuffer(layerName, layer.id);
-        const bool nameChanged = ImGui::InputText("Layer id", layerName.data(), layerName.size());
-        ShowItemTooltip("Unique layer identifier used by page reticles on this page.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (nameChanged)
-        {
-            const std::string nextId = layerName.data();
-            const std::string normalizedNextId = NormalizeEditorIdentifier(nextId);
-            const bool duplicateId = std::any_of(
-                page.layers.begin(),
-                page.layers.end(),
-                [&layer, &normalizedNextId](const mfd::PageLayerDefinition& candidate)
-                {
-                    return &candidate != &layer && NormalizeEditorIdentifier(candidate.id) == normalizedNextId;
-                });
-
-            if (nextId.empty())
-            {
-                RebuildStatus("Layer id cannot be empty.", true);
-            }
-            else if (duplicateId)
-            {
-                RebuildStatus("Layer ids must stay unique inside one page.", true);
-            }
-            else if (nextId != layer.id)
-            {
-                const std::string previousId = layer.id;
-                layer.id = nextId;
-                editorLayer.id = nextId;
-                RenameEditorLayerReferences(page, previousId, layer.id);
-                if (layerFocusState_.focusedLayerId == previousId)
-                {
-                    layerFocusState_.focusedLayerId = layer.id;
-                }
-                SanitizePageReticleSelectionForCurrentFocus();
-            }
-        }
-
-        ImGui::BeginDisabled(page.layers.size() <= 1U || assignedReticles > 0U || assignedBindings > 0U);
-        if (ImGui::Button("Remove layer"))
-        {
-            const std::string removedLayerId = layer.id;
-            PushUndoSnapshot();
-            page.layers.erase(page.layers.begin() + static_cast<std::ptrdiff_t>(index));
-            page.editor.layers.erase(page.editor.layers.begin() + static_cast<std::ptrdiff_t>(index));
-            SanitizeLayerFocusForActivePage();
-            SanitizePageReticleSelectionForCurrentFocus();
-            RebuildStatus("Runtime layer '" + removedLayerId + "' removed from page '" + page.name + "'.", false);
-
-            ImGui::EndDisabled();
-            ImGui::PopID();
-            break;
-        }
-        ImGui::EndDisabled();
-        ShowItemTooltip("Delete one unused runtime layer. A layer cannot be removed while reticles or dynamic bindings still reference it.");
-
-        ImGui::PopID();
-    }
-}
-
-void EditorApplication::DrawPageBlinkInspector(mfd::PageDefinition& page)
-{
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.96f, 0.81f, 0.52f, 1.0f), "Blink types");
-    ImGui::TextDisabled("Blink names are page-local. Same effective duration means same phase.");
-
-    if (AccentButton("Add blink type"))
-    {
-        PushUndoSnapshot();
-
-        mfd::PageBlinkDefinition blinkType;
-        blinkType.name = MakeUniqueBlinkTypeName(page, "blink");
-        blinkType.normalizedName = mfd::NormalizePageName(blinkType.name);
-        blinkType.durationMs = 1000;
-        page.blinkTypes.push_back(std::move(blinkType));
-
-        if (page.blinkTypes.size() == 1)
-        {
-            page.defaultBlinkTypeName = page.blinkTypes.front().name;
-            page.normalizedDefaultBlinkTypeName = page.blinkTypes.front().normalizedName;
-        }
-
-        RefreshPageBlinkStateForEditor(page);
-        RebuildStatus("Blink type added to page '" + page.name + "'.", false);
-    }
-    ShowItemTooltip("Create a named blink rhythm that page reticles can reference.");
-
-    if (page.blinkTypes.empty())
-    {
-        ImGui::TextDisabled("No blink type defined on this page yet.");
-        return;
-    }
-
-    const std::size_t effectiveDefaultIndex = EffectiveDefaultBlinkTypeIndex(page);
-    const std::string defaultBlinkPreview =
-        effectiveDefaultIndex == kInvalidBlinkTypeIndex ? std::string {"<none>"} : page.blinkTypes[effectiveDefaultIndex].name;
-
-    if (ImGui::BeginCombo("Default blink", defaultBlinkPreview.c_str()))
-    {
-        for (std::size_t index = 0; index < page.blinkTypes.size(); ++index)
-        {
-            const bool selected = index == effectiveDefaultIndex;
-            if (ImGui::Selectable(page.blinkTypes[index].name.c_str(), selected))
-            {
-                PushUndoSnapshot();
-                page.defaultBlinkTypeName = page.blinkTypes[index].name;
-                page.normalizedDefaultBlinkTypeName = page.blinkTypes[index].normalizedName;
-                RefreshPageBlinkStateForEditor(page);
-            }
-
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Fallback blink used when a reticle enables blink without choosing a named type.");
-
-    ImGui::TextDisabled("Used when a reticle enables blink without choosing an explicit type.");
-
-    for (std::size_t index = 0; index < page.blinkTypes.size(); ++index)
-    {
-        auto& blinkType = page.blinkTypes[index];
-
-        ImGui::PushID(static_cast<int>(index));
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Text("Blink %d", static_cast<int>(index) + 1);
-        if (index == effectiveDefaultIndex)
-        {
-            ImGui::SameLine();
-            ImGui::TextDisabled("(default)");
-        }
-
-        std::array<char, 128> blinkName {};
-        CopyTextBuffer(blinkName, blinkType.name);
-        const bool nameChanged = ImGui::InputText("Name", blinkName.data(), blinkName.size());
-        ShowItemTooltip("Display name stored in the page JSON for this blink definition.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (nameChanged)
-        {
-            const std::string nextName = blinkName.data();
-            const std::string nextNormalizedName = mfd::NormalizePageName(nextName);
-            if (nextNormalizedName.empty())
-            {
-                RebuildStatus("Blink type name cannot be empty.", true);
-            }
-            else if (const std::size_t existingIndex = FindBlinkTypeIndex(page, nextNormalizedName);
-                     existingIndex != kInvalidBlinkTypeIndex && existingIndex != index)
-            {
-                RebuildStatus("Blink type names must be unique inside one page.", true);
-            }
-            else if (nextName != blinkType.name)
-            {
-                const std::string previousNormalizedName = blinkType.normalizedName;
-                blinkType.name = nextName;
-                blinkType.normalizedName = nextNormalizedName;
-                RenameBlinkReferences(page, previousNormalizedName, blinkType.name);
-                RefreshPageBlinkStateForEditor(page);
-            }
-        }
-
-        int durationMs = static_cast<int>(blinkType.durationMs);
-        const bool durationChanged = ImGui::DragInt("Duration (ms)", &durationMs, 10.0f, 1, 60000);
-        ShowItemTooltip("Blink cycle duration in milliseconds.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (durationChanged)
-        {
-            blinkType.durationMs = static_cast<std::uint32_t>(std::max(1, durationMs));
-            RefreshPageBlinkStateForEditor(page);
-        }
-
-        if (ImGui::Button("Remove blink type"))
-        {
-            const std::string removedName = blinkType.name;
-            const std::string removedNormalizedName = blinkType.normalizedName;
-            const std::size_t clearedBindingCount = CountBlinkReferences(page, removedNormalizedName);
-            const bool removedWasDefault = page.normalizedDefaultBlinkTypeName == removedNormalizedName;
-
-            PushUndoSnapshot();
-            page.blinkTypes.erase(page.blinkTypes.begin() + static_cast<std::ptrdiff_t>(index));
-            ClearBlinkReferencesForRemovedType(page, removedNormalizedName);
-
-            if (removedWasDefault && !page.blinkTypes.empty())
-            {
-                page.defaultBlinkTypeName = page.blinkTypes.front().name;
-                page.normalizedDefaultBlinkTypeName = page.blinkTypes.front().normalizedName;
-            }
-
-            RefreshPageBlinkStateForEditor(page);
-
-            std::string status = "Blink type '" + removedName + "' removed from page '" + page.name + "'.";
-            if (clearedBindingCount > 0)
-            {
-                status += " Cleared " + std::to_string(clearedBindingCount) + " explicit binding(s).";
-            }
-            RebuildStatus(status, false);
-
-            ImGui::PopID();
-            break;
-        }
-        ShowItemTooltip("Delete this blink definition and clear page reticles that referenced it.");
-
-        ImGui::PopID();
-    }
-}
-
-void EditorApplication::MoveSelectedPageReticleToIndex(mfd::PageDefinition& page,
-                                                       mfd::ReticleGroup& reticle,
-                                                       const int targetIndex,
-                                                       const char* const action)
-{
-    const int reticleIndex = selection_.pageReticleIndex;
-    if (reticleIndex < 0 ||
-        reticleIndex >= static_cast<int>(page.staticReticles.size()) ||
-        targetIndex < 0 ||
-        targetIndex >= static_cast<int>(page.staticReticles.size()) ||
-        targetIndex == reticleIndex)
-    {
-        return;
-    }
-
-    PushUndoSnapshot();
-    const std::string movedReticleId = reticle.id;
-
-    auto movedReticle =
-        std::move(page.staticReticles[static_cast<std::size_t>(reticleIndex)]);
-    page.staticReticles.erase(page.staticReticles.begin() + reticleIndex);
-
-    const int insertionIndex =
-        std::clamp(targetIndex, 0, static_cast<int>(page.staticReticles.size()));
-
-    page.staticReticles.insert(page.staticReticles.begin() + insertionIndex, std::move(movedReticle));
-    SelectPageReticle(selection_.pageIndex, insertionIndex);
-    RebuildStatus("Reticle '" + movedReticleId + "' moved " + action + " on page '" + page.name + "'.", false);
-}
-
-void EditorApplication::DrawPageReticleInspector()
-{
-    mfd::PageDefinition* page = ActivePage();
-    const std::vector<int> selectedIndices = SelectedPageReticleIndices();
-    if (page == nullptr || selectedIndices.empty())
-    {
-        ImGui::TextDisabled("No page reticle selected.");
-        return;
-    }
-
-    if (selectedIndices.size() > 1U)
-    {
-        ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page reticles");
-        ImGui::Text("Page: %s", page->name.c_str());
-        ImGui::Text("%d reticles selected", static_cast<int>(selectedIndices.size()));
-        ImGui::TextDisabled("Ctrl+click in the page or in the tree to add or remove reticles from the selection.");
-        ImGui::Separator();
-
-        if (AccentButton("Copy selection"))
-        {
-            CopySelectedPageReticles();
-        }
-        ShowItemTooltip("Copy all selected page reticle instances.");
-
-        ImGui::SameLine();
-        if (ImGui::Button("Cut selection"))
-        {
-            CutSelectedPageReticles();
-            return;
-        }
-        ShowItemTooltip("Copy all selected page reticle instances, then remove them from the page.");
-
-        ImGui::SameLine();
-        if (ImGui::Button("Delete from page"))
-        {
-            DeleteSelection();
-            return;
-        }
-        ShowItemTooltip("Delete all selected reticles from the active page.");
-
-        ImGui::SameLine();
-        ImGui::BeginDisabled(pageReticleClipboard_.empty());
-        if (ImGui::Button("Paste copies"))
-        {
-            PasteCopiedPageReticles();
-            ImGui::EndDisabled();
-            return;
-        }
-        ShowItemTooltip("Paste copied page reticles onto the active page.");
-        ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    if (ImGui::Button("Extract as reticle..."))
-    {
-        if (tutorial_->MatchesTarget("page_reticle_extract"))
-        {
-            tutorial_->AdvancePhase();
-        }
-        OpenReticleExtractionPopup();
-        return;
-    }
-    ShowItemTooltip("Replace the current selection with one reusable reticle template staged in the shared library.");
-    tutorial_->DrawHalo(
-        "page_reticle_extract",
-        "Click Extract as reticle...",
-        "Open the extraction workflow to review how page content can become one reusable library template.");
-
-        ImGui::TextDisabled("Shortcuts: Ctrl+C, Ctrl+X, Ctrl+V, Suppr, Esc");
-        ImGui::TextDisabled("Drag one selected reticle in the preview to move the whole group.");
-        ImGui::TextDisabled("Direct property editing stays available when a single reticle is selected.");
-        return;
-    }
-
-    mfd::ReticleGroup* reticle = SelectedPageReticle();
-    if (reticle == nullptr)
-    {
-        ImGui::TextDisabled("No page reticle selected.");
-        return;
-    }
-
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page reticle");
-    ImGui::Text("Page: %s", page->name.c_str());
-    ImGui::Text("Reticle id: %s", reticle->id.c_str());
-    if (!reticle->sourceTemplateId.empty())
-    {
-        ImGui::TextDisabled("Template: %s", reticle->sourceTemplateId.c_str());
-    }
-    ImGui::TextDisabled("Move inside the frame, rotate with the blue handle, scale with the corner handles.");
-    ImGui::Separator();
-
-    const int reticleIndex = selection_.pageReticleIndex;
-    const int lastReticleIndex = static_cast<int>(page->staticReticles.size()) - 1;
-
-    if (ImGui::Button("Delete from page"))
-    {
-        DeleteSelection();
-        return;
-    }
-    ShowItemTooltip("Delete this reticle instance from the active page.");
-
-    ImGui::SameLine();
-    if (AccentButton("Copy"))
-    {
-        CopySelectedPageReticles();
-    }
-    ShowItemTooltip("Copy this page reticle instance.");
-
-    ImGui::SameLine();
-    if (ImGui::Button("Cut"))
-    {
-        CutSelectedPageReticles();
-        return;
-    }
-    ShowItemTooltip("Copy this page reticle instance, then remove it from the page.");
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(pageReticleClipboard_.empty());
-    if (ImGui::Button("Paste copies"))
-    {
-        PasteCopiedPageReticles();
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Paste copied page reticles onto the active page.");
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    if (ImGui::Button("Extract as reticle..."))
-    {
-        if (tutorial_->MatchesTarget("page_reticle_extract"))
-        {
-            tutorial_->AdvancePhase();
-        }
-        OpenReticleExtractionPopup();
-        return;
-    }
-    ShowItemTooltip("Extract this page reticle as a reusable library template, then replace it with one template instance.");
-    tutorial_->DrawHalo(
-        "page_reticle_extract",
-        "Click Extract as reticle...",
-        "Open the extraction workflow to review how one page reticle can be promoted into the shared library.");
-
-    if (!reticle->sourceTemplateId.empty() &&
-        loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end() &&
-        ImGui::Button("Edit source template"))
-    {
-        SelectLibraryReticle(reticle->sourceTemplateId);
-        RebuildStatus("Editing template '" + reticle->sourceTemplateId + "' in the reticle studio.", false);
-        return;
-    }
-    if (!reticle->sourceTemplateId.empty() && loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end())
-    {
-        ShowItemTooltip("Open the shared template that this page reticle instance was created from.");
-    }
-
-    if (!reticle->sourceTemplateId.empty() && loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end())
-    {
-        ImGui::SameLine();
-    }
-
-    ImGui::TextDisabled("Shortcut: Suppr");
-    ImGui::TextDisabled("Cut / copy / paste: Ctrl+X / Ctrl+C / Ctrl+V");
-    ImGui::TextDisabled("Esc clears the current page-reticle selection.");
-    ImGui::TextDisabled("Draw order: %d / %d", reticleIndex + 1, std::max(1, static_cast<int>(page->staticReticles.size())));
-
-    const std::string currentLayerLabel = reticle->layerId.empty() ? std::string {"<missing>"} : reticle->layerId;
-    if (ImGui::BeginCombo("Editor layer", currentLayerLabel.c_str()))
-    {
-        for (const auto& layer : page->editor.layers)
-        {
-            const bool selected = reticle->layerId == layer.id;
-            const std::string label = layer.id + (layer.visible ? "" : " (hidden)");
-            if (ImGui::Selectable(label.c_str(), selected))
-            {
-                PushUndoSnapshot();
-                reticle->layerId = layer.id;
-            }
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Assign this page reticle to an editor-only layer.");
-    ImGui::SameLine();
-    if (ImGui::Button("Page layers..."))
-    {
-        SelectPage(selection_.pageIndex);
-        RebuildStatus("Layer editor opened for page '" + page->name + "'.", false);
-        return;
-    }
-    ShowItemTooltip("Open the page inspector to edit the available editor-only layers.");
-    ImGui::TextDisabled("Hidden layers stay editable in the inspector but are not rendered in the editor preview.");
-
-    const bool canMoveBackward = reticleIndex > 0;
-    const bool canMoveForward = reticleIndex >= 0 && reticleIndex < lastReticleIndex;
-
-    ImGui::BeginDisabled(!canMoveBackward);
-    if (ImGui::Button("Send to back", ImVec2(130.0f, 0.0f)))
-    {
-        MoveSelectedPageReticleToIndex(*page, *reticle, 0, "to the back");
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Move this reticle to the first draw-order slot on the page.");
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!canMoveBackward);
-    if (ImGui::Button("Step back", ImVec2(110.0f, 0.0f)))
-    {
-        MoveSelectedPageReticleToIndex(*page, *reticle, reticleIndex - 1, "backward");
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Move this reticle one step earlier in the page draw order.");
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!canMoveForward);
-    if (ImGui::Button("Step forward", ImVec2(130.0f, 0.0f)))
-    {
-        MoveSelectedPageReticleToIndex(*page, *reticle, reticleIndex + 1, "forward");
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Move this reticle one step later in the page draw order.");
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!canMoveForward);
-    if (ImGui::Button("Bring to front", ImVec2(130.0f, 0.0f)))
-    {
-        MoveSelectedPageReticleToIndex(*page, *reticle, lastReticleIndex, "to the front");
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Move this reticle to the last draw-order slot on the page.");
-    ImGui::EndDisabled();
-
-    ImGui::Separator();
-
-    {
-        bool visible = reticle->visible;
-        if (ImGui::Checkbox("Visible", &visible))
-        {
-            PushUndoSnapshot();
-            reticle->visible = visible;
-        }
-        ShowItemTooltip("Toggle whether this page reticle instance is rendered.");
-    }
-
-    {
-        bool drawOnTop = reticle->drawOnTop;
-        if (ImGui::Checkbox("Draw on top", &drawOnTop))
-        {
-            PushUndoSnapshot();
-            reticle->drawOnTop = drawOnTop;
-        }
-        ShowItemTooltip("Render this page reticle after regular page reticles while keeping the strobe on top.");
-    }
-
-    DrawPageReticleBlinkInspector(*page, *reticle);
-
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Clipping");
-    const std::vector<ClipPrimitiveOption> clipOptions = CollectClipPrimitiveOptions(*reticle);
-    if (clipOptions.empty())
-    {
-        ImGui::TextDisabled("No supported convex primitive with an id is available for clipping.");
-        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
-    }
-    else
-    {
-        std::string currentClipPrimitiveLabel = reticle->clipping.primitiveId.empty()
-                                                    ? std::string {"<select primitive>"}
-                                                    : std::string {"<missing primitive>"};
-        for (const auto& option : clipOptions)
-        {
-            if (option.primitiveId == reticle->clipping.primitiveId)
-            {
-                currentClipPrimitiveLabel = option.label;
-                break;
-            }
-        }
-
-        if (ImGui::BeginCombo("Clip primitive", currentClipPrimitiveLabel.c_str()))
-        {
-            for (const auto& option : clipOptions)
-            {
-                const bool selected = option.primitiveId == reticle->clipping.primitiveId;
-                if (ImGui::Selectable(option.label.c_str(), selected))
-                {
-                    ApplyPageReticleClipping(selection_.pageReticleIndex, reticle->clipping.mode, option.primitiveId);
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-        ShowItemTooltip("Choose which convex primitive erases the inside or the outside toward the page background.");
-
-        const char* currentModeLabel = ReticleClipModeLabel(reticle->clipping.mode);
-        if (ImGui::BeginCombo("Clip mode", currentModeLabel))
-        {
-            const std::array modes {
-                mfd::ReticleClipMode::None,
-                mfd::ReticleClipMode::Inner,
-                mfd::ReticleClipMode::Outer};
-
-            for (const mfd::ReticleClipMode mode : modes)
-            {
-                const bool selected = reticle->clipping.mode == mode;
-                if (ImGui::Selectable(ReticleClipModeLabel(mode), selected))
-                {
-                    const std::string primitiveId =
-                        reticle->clipping.primitiveId.empty() ? clipOptions.front().primitiveId : reticle->clipping.primitiveId;
-                    ApplyPageReticleClipping(selection_.pageReticleIndex, mode, primitiveId);
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-        ShowItemTooltip(
-            "Inner clipping erases the inside of the selected shape. Outer clipping erases everything outside it.");
-
-        if (reticle->clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(*reticle) == nullptr)
-        {
-            ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.42f, 1.0f), "The current clip primitive is missing or unsupported.");
-        }
-
-        ImGui::TextDisabled("The selected primitive erases toward the page background when this reticle is drawn.");
-    }
-
-    const bool positionChanged = ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f");
-    ShowItemTooltip("Logical position of this page reticle on the active page.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (positionChanged)
-    {
-        reticle->transform.position.x = std::clamp(reticle->transform.position.x, -1.0f, 1.0f);
-        reticle->transform.position.y = std::clamp(reticle->transform.position.y, -1.0f, 1.0f);
-    }
-
-    const mfd::Transform2D rotationStartTransform = reticle->transform;
-    if (ImGui::DragFloat("Rotation", &reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
-            rotationStartTransform,
-            ReticleVisualCenterLocal(*reticle),
-            reticle->transform.rotationDegrees,
-            rotationStartTransform.scale);
-    }
-    ShowItemTooltip("Rotation in degrees around the reticle visual center.");
-
-    const mfd::Transform2D scaleStartTransform = reticle->transform;
-    if (ImGui::DragFloat2("Scale", &reticle->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->transform.scale.x = std::max(0.05f, reticle->transform.scale.x);
-        reticle->transform.scale.y = std::max(0.05f, reticle->transform.scale.y);
-        reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
-            scaleStartTransform,
-            ReticleVisualCenterLocal(*reticle),
-            scaleStartTransform.rotationDegrees,
-            reticle->transform.scale);
-    }
-    ShowItemTooltip("Per-axis scale applied to this page reticle instance.");
-
-    ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (ImGui::ColorEdit4("Stroke", &stroke.x))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.color = ToColorRgba(stroke);
-    }
-    ShowItemTooltip("Override the template stroke color for this page reticle instance.");
-
-    float thickness = reticle->overrides.thickness.value_or(0.0042f);
-    if (ImGui::DragFloat("Thickness", &thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.thickness = std::max(0.0005f, thickness);
-    }
-    ShowItemTooltip("Override the template stroke thickness for this page reticle instance.");
-
-    for (auto& primitive : reticle->primitives)
-    {
-        auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry);
-        auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry);
-        if ((text == nullptr && time == nullptr) || primitive.id.empty())
-        {
-            continue;
-        }
-
-        if (text != nullptr)
-        {
-            std::array<char, 128> buffer {};
-            CopyTextBuffer(buffer, text->text);
-            const std::string label = "Text##" + primitive.id;
-            const bool changed = ImGui::InputText(label.c_str(), buffer.data(), buffer.size());
-            ShowItemTooltip("Override the literal text for this text primitive on the page instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (changed)
-            {
-                text->text = buffer.data();
-            }
-
-            float letterSpacing = text->letterSpacing;
-            const std::string spacingLabel = "Letter spacing##" + primitive.id;
-            const bool spacingChanged =
-                ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
-            ShowItemTooltip("Override the letter spacing for this text primitive on the page instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (spacingChanged)
-            {
-                text->letterSpacing = letterSpacing;
-            }
-            continue;
-        }
-
-        if (time != nullptr)
-        {
-            std::array<char, 128> format {};
-            CopyTextBuffer(format, time->format);
-            const std::string formatLabel = "Time format##" + primitive.id;
-            const bool formatChanged = ImGui::InputText(formatLabel.c_str(), format.data(), format.size());
-            ShowItemTooltip("Override the strftime-style format used by this time primitive.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (formatChanged)
-            {
-                time->format = format.data();
-            }
-
-            bool utc = time->utc;
-            const std::string utcLabel = "UTC##" + primitive.id;
-            if (ImGui::Checkbox(utcLabel.c_str(), &utc))
-            {
-                PushUndoSnapshot();
-                time->utc = utc;
-            }
-            ShowItemTooltip("Render this time primitive in UTC instead of local time.");
-
-            float letterSpacing = time->letterSpacing;
-            const std::string spacingLabel = "Letter spacing##" + primitive.id;
-            const bool spacingChanged =
-                ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
-            ShowItemTooltip("Override the character spacing for this time primitive on the page instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (spacingChanged)
-            {
-                time->letterSpacing = letterSpacing;
-            }
-        }
-    }
-
-}
-
-mfd::Vec2 EditorApplication::PageTitleVisualCenterLocal(const mfd::PageDefinition& page) const
-{
-    return ReticleVisualCenterLocal(BuildPageTitlePreviewReticle(page));
-}
-
-void EditorApplication::DrawSelectedPageTitleInspector()
-{
-    mfd::PageDefinition* page = ActivePage();
-    mfd::PageTitleDisplayDefinition* titleDisplay = SelectedPageTitleDisplay();
-    if (page == nullptr || titleDisplay == nullptr)
-    {
-        ImGui::TextDisabled("No page title selected.");
-        return;
-    }
-
-    const std::string displayedTitle = mfd::ResolvePageDisplayTitleText(page->name, page->title);
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page title");
-    ImGui::Text("Page: %s", page->name.c_str());
-    ImGui::TextWrapped("Displayed text: %s", displayedTitle.c_str());
-    ImGui::TextDisabled("Move inside the frame, rotate with the blue handle, scale with the corner handles.");
-    ImGui::TextDisabled("Edit the title text from the page inspector.");
-    ImGui::Separator();
-
-    bool visible = titleDisplay->visible;
-    if (ImGui::Checkbox("Visible", &visible))
-    {
-        PushUndoSnapshot();
-        titleDisplay->visible = visible;
-    }
-    ShowItemTooltip("Show or hide both the title text and its decoration.");
-
-    if (ImGui::Button("Edit page properties"))
-    {
-        SelectPage(selection_.pageIndex, false);
-        return;
-    }
-    ShowItemTooltip("Return to the page inspector to edit the page name and title text.");
-
-    const char* currentDecoration = PageTitleDecorationLabel(titleDisplay->decoration);
-    const bool decorationComboOpen = ImGui::BeginCombo("Decoration", currentDecoration);
-    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("page_title_decoration"))
-    {
-        tutorial_->AdvancePhase();
-    }
-    tutorial_->DrawHalo(
-        "page_title_decoration",
-        "Open Decoration",
-        "Open the title decoration chooser. This inspector is the dedicated place to frame, move, scale, hide, or recolor the Page1 title.");
-    if (decorationComboOpen)
-    {
-        const std::array decorations {
-            mfd::PageTitleDecoration::Underline,
-            mfd::PageTitleDecoration::Frame,
-            mfd::PageTitleDecoration::None};
-
-        for (const mfd::PageTitleDecoration decoration : decorations)
-        {
-            const bool selected = titleDisplay->decoration == decoration;
-            if (ImGui::Selectable(PageTitleDecorationLabel(decoration), selected) && !selected)
-            {
-                PushUndoSnapshot();
-                titleDisplay->decoration = decoration;
-                if (page->name == "Page1" &&
-                    decoration == mfd::PageTitleDecoration::Frame &&
-                    tutorial_->MatchesTarget("page_title_decoration_frame"))
-                {
-                    tutorial_->CompleteStep();
-                }
-            }
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-            if (decoration == mfd::PageTitleDecoration::Frame)
-            {
-                tutorial_->DrawHalo(
-                    "page_title_decoration_frame",
-                    "Choose Frame",
-                    "Frame the Page1 title so the generated chrome becomes a boxed heading. You can still tune its color, line style, and transform afterwards.");
-                if (selected &&
-                    page->name == "Page1" &&
-                    tutorial_->MatchesTarget("page_title_decoration_frame"))
-                {
-                    tutorial_->CompleteStep();
-                }
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Choose whether the title is underlined, boxed, or rendered without decoration.");
-
-    ImVec4 color = ToImGuiColor(titleDisplay->color);
-    if (ImGui::ColorEdit4("Color", &color.x))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        titleDisplay->color = ToColorRgba(color);
-    }
-    ShowItemTooltip("Shared color applied to the title text and its decoration.");
-
-    ImGui::BeginDisabled(titleDisplay->decoration == mfd::PageTitleDecoration::None);
-    const char* currentLineStyle = LineStyleLabel(titleDisplay->lineStyle);
-    if (ImGui::BeginCombo("Line style", currentLineStyle))
-    {
-        const std::array lineStyles {
-            mfd::LineStyle::Solid,
-            mfd::LineStyle::Dotted,
-            mfd::LineStyle::Dashed};
-
-        for (const mfd::LineStyle lineStyle : lineStyles)
-        {
-            const bool selected = titleDisplay->lineStyle == lineStyle;
-            if (ImGui::Selectable(LineStyleLabel(lineStyle), selected) && !selected)
-            {
-                PushUndoSnapshot();
-                titleDisplay->lineStyle = lineStyle;
-            }
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Outline pattern used by the underline or frame.");
-
-    float lineWidth = titleDisplay->lineWidth;
-    if (ImGui::DragFloat("Line width", &lineWidth, 0.0002f, 0.0005f, 0.05f, "%.4f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        titleDisplay->lineWidth = std::max(0.0005f, lineWidth);
-    }
-    ShowItemTooltip("Stroke thickness used by the underline or the frame.");
-    ImGui::EndDisabled();
-
-    const bool positionChanged =
-        ImGui::DragFloat2("Position", &titleDisplay->transform.position.x, 0.01f, -4.0f, 4.0f, "%.3f");
-    ShowItemTooltip("Logical page-space anchor of the title chrome.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (positionChanged)
-    {
-        if (!std::isfinite(titleDisplay->transform.position.x))
-        {
-            titleDisplay->transform.position.x = 0.0f;
-        }
-        if (!std::isfinite(titleDisplay->transform.position.y))
-        {
-            titleDisplay->transform.position.y = 0.0f;
-        }
-    }
-
-    const mfd::Transform2D rotationStartTransform = titleDisplay->transform;
-    if (ImGui::DragFloat("Rotation", &titleDisplay->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        titleDisplay->transform = BuildTransformKeepingLocalPointWorldPosition(
-            rotationStartTransform,
-            PageTitleVisualCenterLocal(*page),
-            titleDisplay->transform.rotationDegrees,
-            rotationStartTransform.scale);
-    }
-    ShowItemTooltip("Rotation in degrees around the title chrome visual center.");
-
-    const mfd::Transform2D scaleStartTransform = titleDisplay->transform;
-    if (ImGui::DragFloat2("Scale", &titleDisplay->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        titleDisplay->transform.scale.x = std::max(0.05f, std::abs(titleDisplay->transform.scale.x));
-        titleDisplay->transform.scale.y = std::max(0.05f, std::abs(titleDisplay->transform.scale.y));
-        titleDisplay->transform = BuildTransformKeepingLocalPointWorldPosition(
-            scaleStartTransform,
-            PageTitleVisualCenterLocal(*page),
-            scaleStartTransform.rotationDegrees,
-            titleDisplay->transform.scale);
-    }
-    ShowItemTooltip("Per-axis scale applied to the generated title chrome.");
-}
-
-void EditorApplication::ApplySelectedPageStrobeClipping(mfd::ReticleGroup& reticle,
-                                                        const mfd::ReticleClipMode mode,
-                                                        std::string primitiveId)
-{
-    if (primitiveId.empty())
-    {
-        primitiveId = reticle.clipping.primitiveId;
-    }
-
-    if (reticle.clipping.mode == mode && reticle.clipping.primitiveId == primitiveId)
-    {
-        return;
-    }
-
-    PushUndoSnapshot();
-    reticle.clipping.mode = mode;
-    reticle.clipping.primitiveId = std::move(primitiveId);
-    if (mode == mfd::ReticleClipMode::None)
-    {
-        RebuildStatus("Clipping disabled for page strobe '" + reticle.id + "'.", false);
-    }
-    else
-    {
-        RebuildStatus(std::string(ReticleClipModeLabel(mode)) + " enabled on primitive '" +
-                          reticle.clipping.primitiveId + "' for page strobe '" + reticle.id + "'.",
-                      false);
-    }
-}
-
-void EditorApplication::DrawSelectedPageStrobeInspector()
-{
-    mfd::PageDefinition* page = ActivePage();
-    mfd::ReticleGroup* reticle = SelectedPageStrobeReticle();
-    const mfd::PageStrobeDefinition* strobe = SelectedPageStrobe();
-    if (page == nullptr || reticle == nullptr || strobe == nullptr)
-    {
-        ImGui::TextDisabled("No page strobe selected.");
-        return;
-    }
-
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page strobe");
-    ImGui::Text("Page: %s", page->name.c_str());
-    ImGui::Text("Name: %s", strobe->name.c_str());
-    ImGui::Text("Strobe id: %s", reticle->id.c_str());
-    if (!reticle->sourceTemplateId.empty())
-    {
-        ImGui::TextDisabled("Template: %s", reticle->sourceTemplateId.c_str());
-    }
-    ImGui::TextDisabled("Move inside the frame, rotate with the blue handle, scale with the corner handles.");
-    ImGui::Separator();
-
-    if (!reticle->sourceTemplateId.empty() &&
-        loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end() &&
-        ImGui::Button("Edit source template"))
-    {
-        SelectLibraryReticle(reticle->sourceTemplateId);
-        RebuildStatus("Editing template '" + reticle->sourceTemplateId + "' in the reticle studio.", false);
-        return;
-    }
-    if (!reticle->sourceTemplateId.empty() &&
-        loaded_.document.reticleLibrary.find(reticle->sourceTemplateId) != loaded_.document.reticleLibrary.end())
-    {
-        ShowItemTooltip("Open the shared template that this page strobe instance was created from.");
-        ImGui::SameLine();
-    }
-
-    ImGui::TextDisabled("Shortcut: Suppr removes the page strobe.");
-    ImGui::TextDisabled("Esc clears the current page-strobe selection.");
-    ImGui::TextDisabled("The page strobe renders after regular page reticles.");
-
-    {
-        bool visible = reticle->visible;
-        if (ImGui::Checkbox("Visible", &visible))
-        {
-            PushUndoSnapshot();
-            reticle->visible = visible;
-        }
-        ShowItemTooltip("Toggle whether this page strobe instance is rendered.");
-    }
-
-    DrawPageReticleBlinkInspector(*page, *reticle);
-
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Clipping");
-    const std::vector<ClipPrimitiveOption> clipOptions = CollectClipPrimitiveOptions(*reticle);
-
-    if (clipOptions.empty())
-    {
-        ImGui::TextDisabled("No supported convex primitive with an id is available for clipping.");
-        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
-    }
-    else
-    {
-        std::string currentClipPrimitiveLabel = reticle->clipping.primitiveId.empty()
-                                                    ? std::string {"<select primitive>"}
-                                                    : std::string {"<missing primitive>"};
-        for (const auto& option : clipOptions)
-        {
-            if (option.primitiveId == reticle->clipping.primitiveId)
-            {
-                currentClipPrimitiveLabel = option.label;
-                break;
-            }
-        }
-
-        if (ImGui::BeginCombo("Clip primitive", currentClipPrimitiveLabel.c_str()))
-        {
-            for (const auto& option : clipOptions)
-            {
-                const bool selected = option.primitiveId == reticle->clipping.primitiveId;
-                if (ImGui::Selectable(option.label.c_str(), selected))
-                {
-                    ApplySelectedPageStrobeClipping(*reticle, reticle->clipping.mode, option.primitiveId);
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-        ShowItemTooltip("Choose which convex primitive erases the inside or the outside toward the page background.");
-
-        const char* currentModeLabel = ReticleClipModeLabel(reticle->clipping.mode);
-        if (ImGui::BeginCombo("Clip mode", currentModeLabel))
-        {
-            const std::array modes {
-                mfd::ReticleClipMode::None,
-                mfd::ReticleClipMode::Inner,
-                mfd::ReticleClipMode::Outer};
-
-            for (const mfd::ReticleClipMode mode : modes)
-            {
-                const bool selected = reticle->clipping.mode == mode;
-                if (ImGui::Selectable(ReticleClipModeLabel(mode), selected))
-                {
-                    const std::string primitiveId =
-                        reticle->clipping.primitiveId.empty() ? clipOptions.front().primitiveId : reticle->clipping.primitiveId;
-                    ApplySelectedPageStrobeClipping(*reticle, mode, primitiveId);
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-        ShowItemTooltip(
-            "Inner clipping erases the inside of the selected shape. Outer clipping erases everything outside it.");
-
-        if (reticle->clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(*reticle) == nullptr)
-        {
-            ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.42f, 1.0f), "The current clip primitive is missing or unsupported.");
-        }
-
-        ImGui::TextDisabled("The selected primitive erases toward the page background when this strobe is drawn.");
-    }
-
-    const bool positionChanged = ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f");
-    ShowItemTooltip("Logical position of this page strobe on the active page.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (positionChanged)
-    {
-        reticle->transform.position.x = std::clamp(reticle->transform.position.x, -1.0f, 1.0f);
-        reticle->transform.position.y = std::clamp(reticle->transform.position.y, -1.0f, 1.0f);
-    }
-
-    const mfd::Transform2D rotationStartTransform = reticle->transform;
-    if (ImGui::DragFloat("Rotation", &reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
-            rotationStartTransform,
-            ReticleVisualCenterLocal(*reticle),
-            reticle->transform.rotationDegrees,
-            rotationStartTransform.scale);
-    }
-    ShowItemTooltip("Rotation in degrees around the strobe visual center.");
-
-    const mfd::Transform2D scaleStartTransform = reticle->transform;
-    if (ImGui::DragFloat2("Scale", &reticle->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->transform.scale.x = std::max(0.05f, reticle->transform.scale.x);
-        reticle->transform.scale.y = std::max(0.05f, reticle->transform.scale.y);
-        reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
-            scaleStartTransform,
-            ReticleVisualCenterLocal(*reticle),
-            scaleStartTransform.rotationDegrees,
-            reticle->transform.scale);
-    }
-    ShowItemTooltip("Per-axis scale applied to this page strobe instance.");
-
-    ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (ImGui::ColorEdit4("Stroke", &stroke.x))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.color = ToColorRgba(stroke);
-    }
-    ShowItemTooltip("Override the template stroke color for this page strobe instance.");
-
-    float thickness = reticle->overrides.thickness.value_or(0.0042f);
-    if (ImGui::DragFloat("Thickness", &thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.thickness = std::max(0.0005f, thickness);
-    }
-    ShowItemTooltip("Override the template stroke thickness for this page strobe instance.");
-
-    int unnamedTextPrimitiveIndex = 0;
-    int unnamedTimePrimitiveIndex = 0;
-    for (int primitiveIndex = 0; primitiveIndex < static_cast<int>(reticle->primitives.size()); ++primitiveIndex)
-    {
-        auto& primitive = reticle->primitives[static_cast<std::size_t>(primitiveIndex)];
-        auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry);
-        auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry);
-        if (text == nullptr && time == nullptr)
-        {
-            continue;
-        }
-
-        if (text != nullptr)
-        {
-            const bool hasPrimitiveId = !primitive.id.empty();
-            const int fallbackIndex = unnamedTextPrimitiveIndex++;
-            std::array<char, 128> buffer {};
-            CopyTextBuffer(buffer, text->text);
-            const std::string label = hasPrimitiveId ? "Text##strobe_" + primitive.id
-                                                     : "Text #" + std::to_string(fallbackIndex) + "##strobe_text_" +
-                                                           std::to_string(primitiveIndex);
-            const bool changed = ImGui::InputText(label.c_str(), buffer.data(), buffer.size());
-            ShowItemTooltip("Override the literal text for this text primitive on the page strobe instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (changed)
-            {
-                text->text = buffer.data();
-            }
-
-            float letterSpacing = text->letterSpacing;
-            const std::string spacingLabel = hasPrimitiveId ? "Letter spacing##strobe_" + primitive.id
-                                                            : "Letter spacing #" + std::to_string(fallbackIndex) +
-                                                                  "##strobe_text_spacing_" + std::to_string(primitiveIndex);
-            const bool spacingChanged =
-                ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
-            ShowItemTooltip("Override the letter spacing for this text primitive on the page strobe instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (spacingChanged)
-            {
-                text->letterSpacing = letterSpacing;
-            }
-            continue;
-        }
-
-        if (time != nullptr)
-        {
-            const bool hasPrimitiveId = !primitive.id.empty();
-            const int fallbackIndex = unnamedTimePrimitiveIndex++;
-            std::array<char, 128> format {};
-            CopyTextBuffer(format, time->format);
-            const std::string formatLabel = hasPrimitiveId ? "Time format##strobe_" + primitive.id
-                                                           : "Time format #" + std::to_string(fallbackIndex) +
-                                                                 "##strobe_time_" + std::to_string(primitiveIndex);
-            const bool formatChanged = ImGui::InputText(formatLabel.c_str(), format.data(), format.size());
-            ShowItemTooltip("Override the strftime-style format used by this time primitive on the page strobe.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (formatChanged)
-            {
-                time->format = format.data();
-            }
-
-            bool utc = time->utc;
-            const std::string utcLabel = hasPrimitiveId ? "UTC##strobe_" + primitive.id
-                                                        : "UTC #" + std::to_string(fallbackIndex) + "##strobe_time_utc_" +
-                                                              std::to_string(primitiveIndex);
-            if (ImGui::Checkbox(utcLabel.c_str(), &utc))
-            {
-                PushUndoSnapshot();
-                time->utc = utc;
-            }
-            ShowItemTooltip("Render this time primitive in UTC instead of local time.");
-
-            float letterSpacing = time->letterSpacing;
-            const std::string spacingLabel = hasPrimitiveId ? "Letter spacing##strobe_" + primitive.id
-                                                            : "Letter spacing #" + std::to_string(fallbackIndex) +
-                                                                  "##strobe_time_spacing_" +
-                                                                  std::to_string(primitiveIndex);
-            const bool spacingChanged =
-                ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
-            ShowItemTooltip("Override the character spacing for this time primitive on the page strobe instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (spacingChanged)
-            {
-                time->letterSpacing = letterSpacing;
-            }
-        }
-    }
-
-    DrawPageStrobeInspector(*page);
-}
-
-void EditorApplication::DrawPageReticleBlinkInspector(mfd::PageDefinition& page, mfd::ReticleGroup& reticle)
-{
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.96f, 0.81f, 0.52f, 1.0f), "Blink");
-    ImGui::TextDisabled("Blink is managed by the page, not by the reticle template.");
-
-    if (page.blinkTypes.empty())
-    {
-        ImGui::TextDisabled("This page has no blink type yet. Add one in the page inspector.");
-        return;
-    }
-
-    bool blinkEnabled = reticle.blink.enabled;
-    if (ImGui::Checkbox("Blink enabled", &blinkEnabled))
-    {
-        PushUndoSnapshot();
-        if (!blinkEnabled)
-        {
-            reticle.blink = {};
-        }
-        else
-        {
-            reticle.blink.enabled = true;
-        }
-
-        RefreshPageBlinkStateForEditor(page);
-    }
-    ShowItemTooltip("Enable or disable blinking for this page reticle instance.");
-
-    if (!reticle.blink.enabled)
-    {
-        ImGui::TextDisabled("Enable blink to use the page default or pick a named page type.");
-        return;
-    }
-
-    const std::size_t effectiveDefaultIndex = EffectiveDefaultBlinkTypeIndex(page);
-    const std::string defaultBlinkName =
-        effectiveDefaultIndex == kInvalidBlinkTypeIndex ? std::string {"<none>"} : page.blinkTypes[effectiveDefaultIndex].name;
-    const std::string currentSelection =
-        reticle.blink.typeName.empty() ? "<page default: " + defaultBlinkName + ">" : reticle.blink.typeName;
-
-    if (ImGui::BeginCombo("Blink type", currentSelection.c_str()))
-    {
-        const std::string defaultItem = "<page default> - " + defaultBlinkName;
-        const bool defaultSelected = reticle.blink.typeName.empty();
-        if (ImGui::Selectable(defaultItem.c_str(), defaultSelected))
-        {
-            PushUndoSnapshot();
-            reticle.blink.enabled = true;
-            reticle.blink.typeName.clear();
-            reticle.blink.normalizedTypeName.clear();
-            RefreshPageBlinkStateForEditor(page);
-        }
-        if (defaultSelected)
-        {
-            ImGui::SetItemDefaultFocus();
-        }
-
-        for (const auto& blinkType : page.blinkTypes)
-        {
-            const bool selected = reticle.blink.normalizedTypeName == blinkType.normalizedName;
-            const std::string label =
-                blinkType.name + " - " + std::to_string(blinkType.durationMs) + " ms";
-            if (ImGui::Selectable(label.c_str(), selected))
-            {
-                PushUndoSnapshot();
-                reticle.blink.enabled = true;
-                reticle.blink.typeName = blinkType.name;
-                reticle.blink.normalizedTypeName = blinkType.normalizedName;
-                RefreshPageBlinkStateForEditor(page);
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Choose a page-local blink type, or keep using the page default blink.");
-
-    ImGui::TextDisabled("Current effective duration: %u ms", reticle.blink.durationMs);
-}
-
-void EditorApplication::DrawLibraryReticleInspector()
-{
-    mfd::ReticleGroup* reticle = SelectedLibraryReticle();
-    if (reticle == nullptr)
-    {
-        ImGui::TextDisabled("Select a library reticle.");
-        return;
-    }
-
-    const ScopedImGuiId scopedId("LibraryReticleInspector");
-
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Library reticle");
-    ImGui::Text("Template id: %s", reticle->id.c_str());
-    if (const auto fileIt = files_.templateFiles.find(reticle->id); fileIt != files_.templateFiles.end())
-    {
-        ImGui::TextDisabled("File: %s", fileIt->second.filename().string().c_str());
-    }
-    ImGui::TextDisabled("Drag this reticle from the library tree to the page preview, or edit it directly in the reticle studio.");
-
-    const bool canAddToPage = ActivePage() != nullptr;
-    if (!canAddToPage)
-    {
-        ImGui::BeginDisabled();
-    }
-    if (AccentButton("Add to active page"))
-    {
-        const bool tutorialAddMatched = tutorial_->MatchesTarget("library_add_to_page");
-        const mfd::PageDefinition* page = ActivePage();
-        const mfd::Vec2 dropPosition = page == nullptr ? mfd::Vec2 {} : pagePreviewView_.center;
-        std::string tutorialError;
-        if (tutorialAddMatched && !tutorial_->ValidateAddToPage(page, *reticle, tutorialError))
-        {
-            RebuildStatus(tutorialError, true);
-            return;
-        }
-        if (CreatePageReticleInstanceFromTemplate(reticle->id, dropPosition) && tutorialAddMatched)
-        {
-            if (const mfd::ReticleGroup* createdReticle = SelectedPageReticle(); createdReticle != nullptr)
-            {
-                tutorial_->SetTrackedReticleId(createdReticle->id);
-            }
-            tutorial_->CompleteStep();
-        }
-    }
-    ShowItemTooltip("Instantiate this template on the active page at the current editor camera center.");
-    tutorial_->DrawHalo(
-        "library_add_to_page",
-        "Click Add to active page",
-        tutorial_->LibraryAddToPageHaloReason().data());
-    if (!canAddToPage)
-    {
-        ImGui::EndDisabled();
-    }
-
-    ImGui::SameLine();
-    if (AccentButton("Copy"))
-    {
-        CopySelectedLibraryReticle();
-    }
-    ShowItemTooltip("Copy this shared reticle template.");
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!libraryReticleClipboard_.has_value());
-    if (ImGui::Button("Paste copy"))
-    {
-        PasteCopiedLibraryReticle();
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Paste the copied shared reticle template as one new library entry.");
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    if (ImGui::Button("Rename reticle globally..."))
-    {
-        OpenReticleRenamePopup(reticle->id);
-        return;
-    }
-    ShowItemTooltip("Rename this shared reticle template safely across the current asset tree and every page that references it.");
-
-    ImGui::SameLine();
-    if (ImGui::Button("Delete library reticle"))
-    {
-        DeleteSelectedLibraryReticle();
-        return;
-    }
-    ShowItemTooltip("Delete this shared reticle template from the library.");
-
-    ImGui::TextDisabled("Template shortcuts: Ctrl+C / Ctrl+V while the reticle stays focused.");
-
-    ImGui::Separator();
-
-    {
-        bool visible = reticle->visible;
-        if (ImGui::Checkbox("Visible", &visible))
-        {
-            PushUndoSnapshot();
-            reticle->visible = visible;
-        }
-        ShowItemTooltip("Toggle whether this template is visible by default.");
-    }
-
-    {
-        bool drawOnTop = reticle->drawOnTop;
-        if (ImGui::Checkbox("Draw on top", &drawOnTop))
-        {
-            PushUndoSnapshot();
-            reticle->drawOnTop = drawOnTop;
-        }
-        ShowItemTooltip("Default draw tier used when this template is instantiated on a page.");
-    }
-
-    if (ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
-    ShowItemTooltip("Default logical position inside the reticle template.");
-
-    if (ImGui::DragFloat("Rotation", &reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
-    ShowItemTooltip("Default template rotation in degrees.");
-
-    if (ImGui::DragFloat2("Scale", &reticle->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->transform.scale.x = std::max(0.05f, reticle->transform.scale.x);
-        reticle->transform.scale.y = std::max(0.05f, reticle->transform.scale.y);
-    }
-    ShowItemTooltip("Default per-axis scale applied to this template.");
-
-    ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (ImGui::ColorEdit4("Default stroke", &stroke.x))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.color = ToColorRgba(stroke);
-    }
-    ShowItemTooltip("Default stroke color inherited by page instances unless they override it.");
-
-    float thickness = reticle->overrides.thickness.value_or(0.0042f);
-    if (ImGui::DragFloat("Default thickness", &thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.thickness = std::max(0.0005f, thickness);
-    }
-    ShowItemTooltip("Default stroke thickness inherited by page instances unless they override it.");
-
-    if (ReticleHasFillCapablePrimitive(*reticle))
-    {
-        const mfd::ColorRgba fallbackFillColor =
-            VisibleFillColorFromStroke(reticle->overrides.color.value_or(mfd::PrimitiveStyle {}.color));
-        ImVec4 fill = ToImGuiColor(reticle->overrides.fillColor.value_or(fallbackFillColor));
-        if (ImGui::ColorEdit4("Default fill", &fill.x))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            reticle->overrides.fillColor = ToColorRgba(fill);
-        }
-        ShowItemTooltip("Default fill color inherited by fill-capable primitives unless they override it locally.");
-
-        bool filled = reticle->overrides.filled.value_or(false);
-        if (ImGui::Checkbox("Default filled", &filled))
-        {
-            PushUndoSnapshot();
-            reticle->overrides.filled = filled;
-            SeedReticleFillOverrideIfNeeded(
-                reticle->overrides,
-                reticle->overrides.color.value_or(mfd::PrimitiveStyle {}.color));
-        }
-        ShowItemTooltip("Default filled state inherited by fill-capable primitives unless they override it locally.");
-    }
-
-    ImGui::Separator();
-    ImGui::TextDisabled("Primitives");
-    ImGui::TextDisabled("Click a primitive below or directly in the studio preview to focus and edit it.");
-
-    ImGui::BeginChild("PrimitiveCatalog", ImVec2(0.0f, 210.0f), true);
-    for (int index = 0; index < static_cast<int>(reticle->primitives.size()); ++index)
-    {
-        const auto& primitive = reticle->primitives[static_cast<std::size_t>(index)];
-        const bool selected = selection_.kind == SelectionKind::LibraryPrimitive &&
-                              selection_.libraryReticleId == reticle->id &&
-                              selection_.primitiveIndex == index;
-        const std::string header =
-            std::to_string(index + 1) + ". " +
-            (primitive.id.empty() ? PrimitiveTypeLabel(primitive.type) : primitive.id);
-        if (ImGui::Selectable((header + "##primitive_" + std::to_string(index)).c_str(), selected))
-        {
-            SelectLibraryPrimitive(reticle->id, index);
-        }
-        ShowItemTooltip("Click to focus this primitive in the inspector and the reticle studio.");
-
-        ImGui::SameLine();
-        ImGui::TextDisabled("[%s]", PrimitiveTypeLabel(primitive.type).c_str());
-    }
-    ImGui::EndChild();
-
-    const bool hasSelectedPrimitive = selection_.kind == SelectionKind::LibraryPrimitive &&
-                                      selection_.libraryReticleId == reticle->id &&
-                                      SelectedLibraryPrimitive() != nullptr;
-    ImGui::BeginDisabled(!hasSelectedPrimitive);
-    if (AccentButton("Copy selected primitive"))
-    {
-        CopySelectedLibraryPrimitive();
-    }
-    ShowItemTooltip("Copy the focused primitive into the reticle-studio clipboard.");
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!libraryPrimitiveClipboard_.has_value());
-    if (ImGui::Button("Paste copied primitive"))
-    {
-        PasteCopiedLibraryPrimitive();
-    }
-    ShowItemTooltip("Paste the copied primitive into this reticle template.");
-    ImGui::EndDisabled();
-
-    if (hasSelectedPrimitive || libraryPrimitiveClipboard_.has_value())
-    {
-        ImGui::TextDisabled("Primitive shortcuts: Ctrl+C / Ctrl+V");
-    }
-
-    if (ImGui::BeginCombo("Add primitive", PrimitiveTypeLabel(kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)]).c_str()))
-    {
-        for (int index = 0; index < static_cast<int>(kPrimitiveTypes.size()); ++index)
-        {
-            if (ImGui::Selectable(PrimitiveTypeLabel(kPrimitiveTypes[static_cast<std::size_t>(index)]).c_str(),
-                                  newLibraryReticleDraft_.primitiveTypeIndex == index))
-            {
-                newLibraryReticleDraft_.primitiveTypeIndex = index;
-            }
-        }
-        ImGui::EndCombo();
-    }
-    ShowItemTooltip("Choose the primitive type that will be appended to this reticle.");
-
-    if (AccentButton("Append primitive"))
-    {
-        const bool tutorialAppendMatched = tutorial_->MatchesTarget("library_append_primitive");
-        const mfd::PrimitiveType primitiveType =
-            kPrimitiveTypes[static_cast<std::size_t>(newLibraryReticleDraft_.primitiveTypeIndex)];
-        if (tutorialAppendMatched)
-        {
-            std::string tutorialError;
-            if (!tutorial_->ValidateAppendPrimitive(*reticle, primitiveType, tutorialError))
-            {
-                RebuildStatus(tutorialError, true);
-                return;
-            }
-        }
-
-        PushUndoSnapshot();
-        mfd::ReticleGroup seed = MakePrimitiveReticle("seed", primitiveType);
-        mfd::Primitive primitive = seed.primitives.front();
-        primitive.id = "primitive_" + std::to_string(reticle->primitives.size() + 1);
-        if (tutorialAppendMatched)
-        {
-            tutorial_->ConfigureAppendedPrimitive(primitive);
-        }
-        reticle->primitives.push_back(std::move(primitive));
-        SelectLibraryPrimitive(reticle->id, static_cast<int>(reticle->primitives.size()) - 1);
-        if (tutorialAppendMatched)
-        {
-            tutorial_->CompleteStep();
-        }
-    }
-    ShowItemTooltip("Append a new primitive of the selected type to this reticle.");
-    tutorial_->DrawHalo(
-        "library_append_primitive",
-        "Click Append primitive",
-        tutorial_->LibraryAppendPrimitiveHaloReason().data());
-
-    ImGui::SameLine();
-    if (ImGui::Button("Remove selected primitive"))
-    {
-        mfd::Primitive* primitive = SelectedLibraryPrimitive();
-        if (primitive != nullptr)
-        {
-            PushUndoSnapshot();
-            reticle->primitives.erase(reticle->primitives.begin() + selection_.primitiveIndex);
-            selection_.kind = SelectionKind::LibraryReticle;
-            selection_.primitiveIndex = -1;
-        }
-    }
-    ShowItemTooltip("Delete the currently selected primitive from this reticle.");
-
-}
-
-void EditorApplication::EditPointArrayField(const char* const label, mfd::Vec2& value)
-{
-    if (ImGui::DragFloat2(label, &value.x, 0.01f, -1.0f, 1.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
-}
-
-void EditorApplication::DrawLibraryPrimitiveInspector()
-{
-    mfd::ReticleGroup* reticle = SelectedLibraryReticle();
-    mfd::Primitive* primitive = SelectedLibraryPrimitive();
-    if (reticle == nullptr || primitive == nullptr)
-    {
-        ImGui::TextDisabled("Select a primitive inside a library reticle.");
-        return;
-    }
-
-    const ScopedImGuiId scopedId("LibraryPrimitiveInspector");
-
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Primitive");
-    ImGui::TextDisabled("Green handle moves the primitive. Orange handles edit geometry directly in the studio.");
-    if (AccentButton("Copy primitive"))
-    {
-        CopySelectedLibraryPrimitive();
-    }
-    ShowItemTooltip("Copy this primitive into the reticle-studio clipboard.");
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!libraryPrimitiveClipboard_.has_value());
-    if (ImGui::Button("Paste copied primitive"))
-    {
-        PasteCopiedLibraryPrimitive();
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Paste the copied primitive into the current reticle template.");
-    ImGui::EndDisabled();
-    ImGui::TextDisabled("Shortcut: Ctrl+C / Ctrl+V");
-
-    std::array<char, 128> primitiveId {};
-    CopyTextBuffer(primitiveId, primitive->id);
-    const bool idChanged = ImGui::InputText("Primitive id", primitiveId.data(), primitiveId.size());
-    ShowItemTooltip("Primitive identifier stored in the template JSON.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (idChanged)
-    {
-        primitive->id = primitiveId.data();
-    }
-
-    ImGui::TextDisabled("Type: %s", PrimitiveTypeLabel(primitive->type).c_str());
-    {
-        bool visible = primitive->style.visible;
-        if (ImGui::Checkbox("Visible", &visible))
-        {
-            PushUndoSnapshot();
-            primitive->style.visible = visible;
-        }
-        ShowItemTooltip("Toggle whether this primitive is rendered inside the template.");
-    }
-
-    {
-        bool exposed = primitive->exposed;
-        const bool tutorialExposedSelected =
-            tutorial_->IsExposedPrimitiveTutorialSelection(selection_.libraryReticleId, primitive->id);
-        const bool tutorialAlternativeStrobeLabelSelected =
-            tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id);
-        if (ImGui::Checkbox("Exposed", &exposed))
-        {
-            PushUndoSnapshot();
-            primitive->exposed = exposed;
-
-            if (exposed && tutorial_->MatchesTarget("primitive_exposed_checkbox") && tutorialExposedSelected)
-            {
-                tutorial_->CompleteStep();
-            }
-        }
-        ShowItemTooltip("Expose this primitive through the generated client API so runtime code can drive it directly.");
-        if (tutorialExposedSelected)
-        {
-            tutorial_->DrawHalo(
-                "primitive_exposed_checkbox",
-                "Enable Exposed",
-                tutorialAlternativeStrobeLabelSelected
-                    ? "Expose the aircraft label so the generated API can mutate one primitive on the active Page1 strobe."
-                    : "Expose the fill rectangle so the generated API can animate the progress bar without raw ids.");
-        }
-    }
-
-    {
-        bool rotationSensitive = primitive->reticleRotationSensitive;
-        if (ImGui::Checkbox("Affected by reticle rotation", &rotationSensitive))
-        {
-            PushUndoSnapshot();
-            primitive->reticleRotationSensitive = rotationSensitive;
-
-            if (!rotationSensitive &&
-                tutorial_->MatchesTarget("primitive_reticle_rotation_checkbox") &&
-                tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id))
-            {
-                tutorial_->AdvancePhase();
-            }
-        }
-        ShowItemTooltip(
-            "When disabled, parent page-reticle or strobe rotation no longer rotates this primitive. "
-            "Explicit primitive rotation still applies.");
-        if (tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id))
-        {
-            tutorial_->DrawHalo(
-                "primitive_reticle_rotation_checkbox",
-                "Disable reticle rotation inheritance",
-                "Keep the aircraft label upright even when the alternative Page1 strobe rotates.");
-        }
-    }
-
-    {
-        bool scaleSensitive = primitive->reticleScaleSensitive;
-        if (ImGui::Checkbox("Affected by reticle scale", &scaleSensitive))
-        {
-            PushUndoSnapshot();
-            primitive->reticleScaleSensitive = scaleSensitive;
-
-            if (!scaleSensitive &&
-                tutorial_->MatchesTarget("primitive_reticle_scale_checkbox") &&
-                tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id))
-            {
-                tutorial_->CompleteStep();
-            }
-        }
-        ShowItemTooltip(
-            "When disabled, parent page-reticle or strobe scaling no longer scales this primitive. "
-            "Explicit primitive scale still applies.");
-        if (tutorial_->IsAlternativeStrobeLabelSelection(selection_.libraryReticleId, primitive->id))
-        {
-            tutorial_->DrawHalo(
-                "primitive_reticle_scale_checkbox",
-                "Disable reticle scale inheritance",
-                "Keep the aircraft label size stable even when the alternative Page1 strobe scales.");
-        }
-    }
-
-    if (ImGui::DragFloat2("Position", &primitive->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
-    ShowItemTooltip("Logical position of this primitive inside the reticle template.");
-
-    if (ImGui::DragFloat("Rotation", &primitive->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
-    ShowItemTooltip("Primitive rotation in degrees.");
-
-    if (ImGui::DragFloat2("Scale", &primitive->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        primitive->transform.scale.x = std::max(0.05f, primitive->transform.scale.x);
-        primitive->transform.scale.y = std::max(0.05f, primitive->transform.scale.y);
-    }
-    ShowItemTooltip("Per-axis scale applied to this primitive.");
-
-    ImVec4 stroke = ToImGuiColor(primitive->style.color);
-    if (ImGui::ColorEdit4("Stroke", &stroke.x))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        primitive->style.color = ToColorRgba(stroke);
-    }
-    ShowItemTooltip("Stroke color used to render this primitive.");
-
-    if (ImGui::DragFloat("Thickness", &primitive->style.thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        primitive->style.thickness = std::max(0.0005f, primitive->style.thickness);
-    }
-    ShowItemTooltip("Stroke thickness used by this primitive.");
-
-    if (SupportsPrimitiveLineStyle(primitive->type))
-    {
-        if (ImGui::BeginCombo("Line style", LineStyleLabel(primitive->style.lineStyle)))
-        {
-            constexpr std::array<mfd::LineStyle, 3> kLineStyles {{
-                mfd::LineStyle::Solid,
-                mfd::LineStyle::Dotted,
-                mfd::LineStyle::Dashed}};
-            for (const mfd::LineStyle candidate : kLineStyles)
-            {
-                const bool selected = primitive->style.lineStyle == candidate;
-                if (ImGui::Selectable(LineStyleLabel(candidate), selected))
-                {
-                    PushUndoSnapshot();
-                    primitive->style.lineStyle = candidate;
-                }
-                if (selected)
-                {
-                    ImGui::SetItemDefaultFocus();
-                }
-            }
-            ImGui::EndCombo();
-        }
-        ShowItemTooltip("Choose whether this primitive outline is solid, dotted, or dashed.");
-    }
-
-    if (mfd::SupportsFilledPrimitive(*primitive))
-    {
-        const bool fillColorOverridden = reticle->overrides.fillColor.has_value();
-        const bool filledStateOverridden = reticle->overrides.filled.has_value();
-        if (fillColorOverridden || filledStateOverridden)
-        {
-            const mfd::PrimitiveStyle effectiveStyle = mfd::MergeStyle(primitive->style, reticle->overrides);
-            ImGui::Spacing();
-            ImGui::TextDisabled("Effective fill preview");
-            if (fillColorOverridden)
-            {
-                ImGui::TextDisabled("Fill color comes from the reticle default: #%02X%02X%02X%02X",
-                                    effectiveStyle.fillColor.r,
-                                    effectiveStyle.fillColor.g,
-                                    effectiveStyle.fillColor.b,
-                                    effectiveStyle.fillColor.a);
-            }
-            if (filledStateOverridden)
-            {
-                ImGui::TextDisabled("Filled state comes from the reticle default: %s",
-                                    effectiveStyle.filled ? "enabled" : "disabled");
-            }
-            ImGui::TextDisabled("Edit the reticle Default fill / Default filled controls to change this preview.");
-        }
-
-        ImGui::BeginDisabled(fillColorOverridden);
-        ImVec4 fill = ToImGuiColor(primitive->style.fillColor);
-        if (ImGui::ColorEdit4(fillColorOverridden ? "Local fill" : "Fill", &fill.x))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            primitive->style.fillColor = ToColorRgba(fill);
-        }
-        ImGui::EndDisabled();
-        ShowItemTooltip(fillColorOverridden
-                            ? "This primitive fill color is masked by the reticle default fill color."
-                            : "Fill color used when this primitive supports filled rendering.");
-
-        ImGui::BeginDisabled(filledStateOverridden);
-        bool filled = primitive->style.filled;
-        if (ImGui::Checkbox(filledStateOverridden ? "Local filled" : "Filled", &filled))
-        {
-            PushUndoSnapshot();
-            primitive->style.filled = filled;
-            SeedPrimitiveFillColorIfNeeded(primitive->style);
-        }
-        ImGui::EndDisabled();
-        ShowItemTooltip(filledStateOverridden
-                            ? "This primitive filled state is masked by the reticle default filled state."
-                            : "Toggle filled rendering for primitives that support it.");
-    }
-
-    if (auto* text = std::get_if<mfd::TextGeometry>(&primitive->geometry))
-    {
-        std::array<char, 128> buffer {};
-        CopyTextBuffer(buffer, text->text);
-        const bool changed = ImGui::InputText("Text", buffer.data(), buffer.size());
-        ShowItemTooltip("Literal text displayed by this text primitive.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (changed)
-        {
-            text->text = buffer.data();
-        }
-        if (ImGui::DragFloat("Font size", &text->fontSize, 0.002f, 0.01f, 0.25f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
-        ShowItemTooltip("Logical font size used for this text primitive.");
-        if (ImGui::DragFloat("Letter spacing", &text->letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
-        ShowItemTooltip("Additional spacing inserted between letters.");
-        return;
-    }
-
-    if (auto* time = std::get_if<mfd::TimeGeometry>(&primitive->geometry))
-    {
-        std::array<char, 128> buffer {};
-        CopyTextBuffer(buffer, time->format);
-        const bool changed = ImGui::InputText("Format", buffer.data(), buffer.size());
-        ShowItemTooltip("strftime-style format string used by this time primitive.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (changed)
-        {
-            time->format = buffer.data();
-        }
-
-        bool utc = time->utc;
-        if (ImGui::Checkbox("UTC", &utc))
-        {
-            PushUndoSnapshot();
-            time->utc = utc;
-        }
-        ShowItemTooltip("Render the time in UTC instead of local time.");
-
-        if (ImGui::DragFloat("Font size", &time->fontSize, 0.002f, 0.01f, 0.25f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
-        ShowItemTooltip("Logical font size used for this time primitive.");
-        if (ImGui::DragFloat("Letter spacing", &time->letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
-        ShowItemTooltip("Additional spacing inserted between characters.");
-        return;
-    }
-
-    if (auto* line = std::get_if<mfd::LineGeometry>(&primitive->geometry))
-    {
-        EditPointArrayField("Start", line->start);
-        EditPointArrayField("End", line->end);
-        return;
-    }
-
-    if (auto* circle = std::get_if<mfd::CircleGeometry>(&primitive->geometry))
-    {
-        if (ImGui::DragFloat("Radius", &circle->radius, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            circle->radius = std::max(0.001f, circle->radius);
-        }
-        ShowItemTooltip("Circle radius in logical units.");
-        return;
-    }
-
-    if (auto* ring = std::get_if<mfd::RingGeometry>(&primitive->geometry))
-    {
-        if (ImGui::DragFloat("Inner radius", &ring->innerRadius, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            ring->innerRadius = std::clamp(ring->innerRadius, 0.001f, std::max(0.001f, ring->outerRadius - 0.001f));
-        }
-        ShowItemTooltip("Inner radius of the ring in logical units.");
-
-        if (ImGui::DragFloat("Outer radius", &ring->outerRadius, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            ring->outerRadius = std::max(ring->innerRadius + 0.001f, ring->outerRadius);
-        }
-        ShowItemTooltip("Outer radius of the ring in logical units.");
-
-        if (ImGui::DragInt("Segments", &ring->segments, 1.0f, 8, 256))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            ring->segments = std::clamp(ring->segments, 8, 256);
-        }
-        ShowItemTooltip("Number of segments used to approximate the ring circles.");
-        return;
-    }
-
-    if (auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive->geometry))
-    {
-        if (ImGui::DragFloat2("Size", &rectangle->width, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            rectangle->width = std::max(0.001f, rectangle->width);
-            rectangle->height = std::max(0.001f, rectangle->height);
-        }
-        ShowItemTooltip("Rectangle width and height in logical units.");
-        return;
-    }
-
-    if (auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive->geometry))
-    {
-        if (ImGui::DragFloat2("Size", &ellipse->width, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            ellipse->width = std::max(0.001f, ellipse->width);
-            ellipse->height = std::max(0.001f, ellipse->height);
-        }
-        ShowItemTooltip("Ellipse width and height in logical units.");
-        return;
-    }
-
-    if (auto* square = std::get_if<mfd::SquareGeometry>(&primitive->geometry))
-    {
-        if (ImGui::DragFloat2("Size", &square->width, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            square->width = std::max(0.001f, square->width);
-            square->height = std::max(0.001f, square->height);
-        }
-        ShowItemTooltip("Square width and height in logical units.");
-        return;
-    }
-
-    if (auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive->geometry))
-    {
-        if (ImGui::DragFloat2("Size", &diamond->width, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            diamond->width = std::max(0.001f, diamond->width);
-            diamond->height = std::max(0.001f, diamond->height);
-        }
-        ShowItemTooltip("Diamond width and height in logical units.");
-        return;
-    }
-
-    if (auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive->geometry))
-    {
-        EditPointArrayField("Point A", triangle->points[0]);
-        EditPointArrayField("Point B", triangle->points[1]);
-        EditPointArrayField("Point C", triangle->points[2]);
-        return;
-    }
-
-    if (auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive->geometry))
-    {
-        bool closed = polyline->closed;
-        if (ImGui::Checkbox("Closed", &closed))
-        {
-            PushUndoSnapshot();
-            polyline->closed = closed;
-            if (!polyline->closed)
-            {
-                primitive->style.filled = false;
-            }
-        }
-        ShowItemTooltip("Close the polyline by linking the last point back to the first.");
-
-        for (int index = 0; index < static_cast<int>(polyline->points.size()); ++index)
-        {
-            const std::string label = "Point " + std::to_string(index + 1);
-            EditPointArrayField(label.c_str(), polyline->points[static_cast<std::size_t>(index)]);
-        }
-
-        if (ImGui::Button("Add point"))
-        {
-            PushUndoSnapshot();
-            polyline->points.push_back({});
-        }
-        ShowItemTooltip("Append one new point to the end of the polyline.");
-        ImGui::SameLine();
-        if (ImGui::Button("Remove last point") && !polyline->points.empty())
-        {
-            PushUndoSnapshot();
-            polyline->points.pop_back();
-        }
-        ShowItemTooltip("Remove the last point from the polyline.");
-        return;
-    }
-
-    if (auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive->geometry))
-    {
-        for (int index = 0; index < static_cast<int>(bezier->controlPoints.size()); ++index)
-        {
-            const std::string label = "Control " + std::to_string(index + 1);
-            EditPointArrayField(label.c_str(), bezier->controlPoints[static_cast<std::size_t>(index)]);
-        }
-
-        if (ImGui::Button("Add control point"))
-        {
-            PushUndoSnapshot();
-            bezier->controlPoints.push_back({});
-        }
-        ShowItemTooltip("Append one new control point to this bezier curve.");
-        ImGui::SameLine();
-        if (ImGui::Button("Remove last control point") && !bezier->controlPoints.empty())
-        {
-            PushUndoSnapshot();
-            bezier->controlPoints.pop_back();
-        }
-        ShowItemTooltip("Remove the last control point from this bezier curve.");
-
-        if (ImGui::DragInt("Segments", &bezier->segments, 1.0f, 2, 128))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            bezier->segments = std::clamp(bezier->segments, 2, 128);
-        }
-        ShowItemTooltip("Number of line segments used to approximate the bezier curve.");
-        return;
-    }
-
-    if (auto* arc = std::get_if<mfd::ArcGeometry>(&primitive->geometry))
-    {
-        if (ImGui::DragFloat("Radius", &arc->radius, 0.002f, 0.001f, 1.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            arc->radius = std::max(0.001f, arc->radius);
-        }
-        ShowItemTooltip("Arc radius in logical units.");
-
-        if (ImGui::DragFloat("Start angle", &arc->startAngleDegrees, 0.5f, -720.0f, 720.0f, "%.1f deg"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
-        ShowItemTooltip("Arc start angle in degrees.");
-
-        if (ImGui::DragFloat("End angle", &arc->endAngleDegrees, 0.5f, -720.0f, 720.0f, "%.1f deg"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
-        ShowItemTooltip("Arc end angle in degrees.");
-
-        if (ImGui::DragInt("Segments", &arc->segments, 1.0f, 2, 256))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            arc->segments = std::clamp(arc->segments, 2, 256);
-        }
-        ShowItemTooltip("Number of line segments used to approximate the arc.");
-        return;
-    }
-
-    if (auto* image = std::get_if<mfd::ImageGeometry>(&primitive->geometry))
-    {
-        std::array<char, kPathTextCapacity> imagePath {};
-        CopyTextBuffer(imagePath, image->file.string());
-        const bool pathChanged = ImGui::InputText("Image file", imagePath.data(), imagePath.size());
-        ShowItemTooltip("Path to the raster image displayed by this primitive.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (pathChanged)
-        {
-            image->file = std::filesystem::path(imagePath.data()).lexically_normal();
-        }
-
-        if (ImGui::DragFloat2("Size", &image->width, 0.002f, 0.001f, 2.0f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            image->width = std::max(0.001f, image->width);
-            image->height = std::max(0.001f, image->height);
-        }
-        ShowItemTooltip("Logical size of the image before the primitive scale is applied.");
-    }
-
-}

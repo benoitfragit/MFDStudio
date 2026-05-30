@@ -6,6 +6,8 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetReferenceIndexService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetPathService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationShell.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationInspectors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplicationWorkflow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDesignExportService.cpp
@@ -47,7 +49,10 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleRenameService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationAuthoringSupport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationInternal.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationState.h)
 
 set(MFD_EDITOR_WINDOWS_RESOURCES)
 if(WIN32)
