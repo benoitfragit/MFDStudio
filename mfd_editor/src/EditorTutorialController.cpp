@@ -58,6 +58,7 @@ bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool 
     }
 
     primitive.id = vertical ? "vertical_line" : "horizontal_line";
+    primitive.exposed = true;
     primitive.style.thickness = 0.0038f;
     line->start = vertical ? mfd::Vec2 {0.0f, -0.055f} : mfd::Vec2 {-0.055f, 0.0f};
     line->end = vertical ? mfd::Vec2 {0.0f, 0.055f} : mfd::Vec2 {0.055f, 0.0f};
