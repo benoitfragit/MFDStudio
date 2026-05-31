@@ -111,6 +111,43 @@ TEST(EditorApplicationInternalTests, MakeUniqueLibraryReticleIdSkipsNormalizedCo
     EXPECT_EQ(editor::detail::MakeUniqueLibraryReticleId(library, "radar track"), "radar track_2");
 }
 
+TEST(EditorApplicationInternalTests, MakeUniquePageReticleInstanceIdSkipsStaticReticleAndStrobeCollisions)
+{
+    mfd::PageDefinition page;
+
+    mfd::ReticleGroup reticle;
+    reticle.id = "Ownship";
+    page.staticReticles.push_back(reticle);
+
+    mfd::PageStrobeDefinition strobe;
+    strobe.reticle.id = "ownship_1";
+    page.strobes.push_back(strobe);
+
+    EXPECT_EQ(editor::detail::MakeUniquePageReticleInstanceId(page, "ownship"), "ownship_2");
+}
+
+TEST(EditorApplicationInternalTests, MakeUniquePageReticleInstanceIdAllowsEditingCurrentReticleWithoutSuffix)
+{
+    mfd::PageDefinition page;
+
+    mfd::ReticleGroup reticle;
+    reticle.id = "Page1Ownship";
+    page.staticReticles.push_back(reticle);
+
+    mfd::ReticleGroup sibling;
+    sibling.id = "CircleMask";
+    page.staticReticles.push_back(sibling);
+
+    EXPECT_EQ(editor::detail::MakeUniquePageReticleInstanceId(page, "Page1Ownship", "Page1Ownship"), "Page1Ownship");
+}
+
+TEST(EditorApplicationInternalTests, MakeUniquePageReticleInstanceIdFallsBackToReticleWhenRequestedIdIsBlank)
+{
+    mfd::PageDefinition page;
+
+    EXPECT_EQ(editor::detail::MakeUniquePageReticleInstanceId(page, "   "), "reticle");
+}
+
 TEST(EditorApplicationInternalTests, ShouldAdvanceTutorialOnSuccessfulSaveAcceptsShortcutOnTutorialSaveStep)
 {
     EXPECT_TRUE(editor::detail::ShouldAdvanceTutorialOnSuccessfulSave(true, true, false));

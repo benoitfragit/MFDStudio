@@ -661,7 +661,7 @@ std::filesystem::path PreferredRenamedTemplateFile(const mfd::LoadedWindowConfig
 
 std::optional<std::filesystem::path> FindTemplateIdCollision(const std::filesystem::path& assetsRoot,
                                                              const std::string_view newTemplateId,
-                                                             const std::filesystem::path& ignoredFile)
+                                                             const std::filesystem::path& excludedFile)
 {
     const std::string normalizedNewTemplateId = NormalizeIdentifier(newTemplateId);
 
@@ -698,7 +698,7 @@ std::optional<std::filesystem::path> FindTemplateIdCollision(const std::filesyst
         }
 
         if (!entry.is_regular_file(statusError) || statusError || !HasJsonExtension(entryPath) ||
-            PathsEqual(entryPath, ignoredFile))
+            PathsEqual(entryPath, excludedFile))
         {
             iterator.increment(iterationError);
             if (iterationError)

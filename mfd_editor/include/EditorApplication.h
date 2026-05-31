@@ -207,6 +207,8 @@ private:
                                         mfd::ReticleGroup& reticle,
                                         int targetIndex,
                                         const char* action);
+    /** @brief Applies one validated page-reticle id edit and keeps tutorial tracking coherent. */
+    void ApplyPageReticleIdEdit(mfd::PageDefinition& page, mfd::ReticleGroup& reticle, std::string_view requestedId);
     /** @brief Draws the inspector for one reticle template from the library. */
     void DrawLibraryReticleInspector();
     /** @brief Draws the inspector for one primitive inside a library reticle. */
@@ -493,14 +495,15 @@ private:
                                                                 std::size_t* unmappedPrimitiveOverrideCount = nullptr);
     /** @brief Generates a reticle id that does not collide inside the provided container. */
     static std::string MakeUniqueReticleId(const std::vector<mfd::ReticleGroup>& groups, std::string_view baseId);
-    /** @brief Generates a page reticle id that stays unique against static reticles and the optional page strobe after normalization. */
+    /** @brief Generates a page reticle id that stays unique against static reticles and authored strobes after normalization. */
     static std::string MakeUniquePageReticleId(const mfd::PageDefinition& page,
                                                std::string_view baseId,
-                                               std::string_view ignoredStrobeId = {});
+                                               std::string_view excludedReticleId = {},
+                                               std::string_view excludedStrobeId = {});
     /** @brief Generates a unique strobe name inside one page. */
     static std::string MakeUniqueStrobeName(const mfd::PageDefinition& page,
                                             std::string_view baseName,
-                                            std::string_view ignoredStrobeName = {});
+                                            std::string_view excludedStrobeName = {});
     /** @brief Generates a unique editor layer id inside one page. */
     static std::string MakeUniqueLayerId(const mfd::PageDefinition& page, std::string_view baseId);
     /** @brief Grouped document state: asset roots, loaded JSON, file layout, selection and undo history. */

@@ -345,7 +345,7 @@ Win32Dx11ImGuiHost::Win32Dx11ImGuiHost(Win32Dx11ImGuiHost&&) noexcept = default;
 
 Win32Dx11ImGuiHost& Win32Dx11ImGuiHost::operator=(Win32Dx11ImGuiHost&&) noexcept = default;
 
-bool Win32Dx11ImGuiHost::Initialize(const Config& config, std::string& error)
+bool Win32Dx11ImGuiHost::Initialize([[maybe_unused]] const Config& config, std::string& error)
 {
 #if defined(_WIN32)
     if (impl_ == nullptr)
@@ -415,13 +415,12 @@ bool Win32Dx11ImGuiHost::Initialize(const Config& config, std::string& error)
     impl_->initialized = true;
     return true;
 #else
-    (void)config;
     error = "Win32 + DX11 host is only available on Windows";
     return false;
 #endif
 }
 
-bool Win32Dx11ImGuiHost::BeginFrame(float& deltaSeconds)
+bool Win32Dx11ImGuiHost::BeginFrame([[maybe_unused]] float& deltaSeconds)
 {
 #if defined(_WIN32)
     deltaSeconds = 0.0f;
@@ -457,15 +456,14 @@ bool Win32Dx11ImGuiHost::BeginFrame(float& deltaSeconds)
     ImGui::NewFrame();
     return true;
 #else
-    (void)deltaSeconds;
     return false;
 #endif
 }
 
-void Win32Dx11ImGuiHost::SetClearColor(const std::uint8_t red,
-                                       const std::uint8_t green,
-                                       const std::uint8_t blue,
-                                       const std::uint8_t alpha) noexcept
+void Win32Dx11ImGuiHost::SetClearColor([[maybe_unused]] const std::uint8_t red,
+                                       [[maybe_unused]] const std::uint8_t green,
+                                       [[maybe_unused]] const std::uint8_t blue,
+                                       [[maybe_unused]] const std::uint8_t alpha) noexcept
 {
 #if defined(_WIN32)
     if (impl_ == nullptr)
@@ -477,11 +475,6 @@ void Win32Dx11ImGuiHost::SetClearColor(const std::uint8_t red,
     impl_->clearColor[1] = static_cast<float>(green) / 255.0f;
     impl_->clearColor[2] = static_cast<float>(blue) / 255.0f;
     impl_->clearColor[3] = static_cast<float>(alpha) / 255.0f;
-#else
-    (void)red;
-    (void)green;
-    (void)blue;
-    (void)alpha;
 #endif
 }
 

@@ -503,22 +503,6 @@ bool ReticleIdExistsExact(const std::vector<mfd::ReticleGroup>& groups, const st
                        });
 }
 
-bool ReticleIdExistsNormalized(const std::vector<mfd::ReticleGroup>& groups, const std::string_view id)
-{
-    const std::string normalizedId = mfd::NormalizePageName(id);
-    if (normalizedId.empty())
-    {
-        return false;
-    }
-
-    return std::any_of(groups.begin(),
-                       groups.end(),
-                       [&normalizedId](const mfd::ReticleGroup& reticle)
-                       {
-                           return mfd::NormalizePageName(reticle.id) == normalizedId;
-                       });
-}
-
 bool PageLayerIdExistsNormalized(const mfd::PageDefinition& page, const std::string_view id)
 {
     const std::string normalizedId = mfd::NormalizePageName(id);
@@ -7097,6 +7081,7 @@ mfd::PageStrobeDefinition EditorApplication::MakePageStrobeFromTemplate(
         MakeUniquePageReticleId(
             page,
             baseId,
+            {},
             previousStrobe.has_value() ? std::string_view {previousStrobe->reticle.id} : std::string_view {}));
     strobe.reticle.visible = true;
     strobe.reticle.drawOnTop = true;
@@ -7139,65 +7124,25 @@ std::string EditorApplication::MakeUniqueReticleId(const std::vector<mfd::Reticl
 
 std::string EditorApplication::MakeUniquePageReticleId(const mfd::PageDefinition& page,
                                                        const std::string_view baseId,
-                                                       const std::string_view ignoredStrobeId)
+                                                       const std::string_view excludedReticleId,
+                                                       const std::string_view excludedStrobeId)
 {
-    const std::string stableBase =
-        NormalizeEditorIdentifier(baseId).empty() ? std::string {"reticle"} : std::string(baseId);
-    std::string candidate = stableBase;
-    int suffix = 1;
-    const std::string ignoredNormalizedStrobeId = NormalizeEditorIdentifier(ignoredStrobeId);
-
-    const auto collidesWithPage = [&page, &ignoredNormalizedStrobeId](const std::string_view id)
-    {
-        if (ReticleIdExistsNormalized(page.staticReticles, id))
-        {
-            return true;
-        }
-
-        const std::string normalizedCandidateId = NormalizeEditorIdentifier(id);
-        for (const auto& strobe : page.strobes)
-        {
-            const std::string normalizedStrobeId = NormalizeEditorIdentifier(strobe.reticle.id);
-            if (normalizedStrobeId.empty())
-            {
-                continue;
-            }
-
-            if (!ignoredNormalizedStrobeId.empty() && normalizedStrobeId == ignoredNormalizedStrobeId)
-            {
-                continue;
-            }
-
-            if (normalizedStrobeId == normalizedCandidateId)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    };
-
-    while (collidesWithPage(candidate))
-    {
-        candidate = stableBase + "_" + std::to_string(suffix++);
-    }
-
-    return candidate;
+    return editor::detail::MakeUniquePageReticleInstanceId(page, baseId, excludedReticleId, excludedStrobeId);
 }
 
 std::string EditorApplication::MakeUniqueStrobeName(const mfd::PageDefinition& page,
                                                     const std::string_view baseName,
-                                                    const std::string_view ignoredStrobeName)
+                                                    const std::string_view excludedStrobeName)
 {
     const std::string stableBase =
         NormalizeEditorIdentifier(baseName).empty() ? std::string {"Strobe"} : std::string(baseName);
     std::string candidate = stableBase;
     int suffix = 2;
-    const std::string ignoredNormalizedName = NormalizeEditorIdentifier(ignoredStrobeName);
+    const std::string excludedNormalizedName = NormalizeEditorIdentifier(excludedStrobeName);
 
     while (std::any_of(page.strobes.begin(),
                        page.strobes.end(),
-                       [&candidate, &ignoredNormalizedName](const mfd::PageStrobeDefinition& strobe)
+                       [&candidate, &excludedNormalizedName](const mfd::PageStrobeDefinition& strobe)
                        {
                            const std::string normalizedStrobeName = NormalizeEditorIdentifier(strobe.name);
                            if (normalizedStrobeName.empty())
@@ -7205,7 +7150,7 @@ std::string EditorApplication::MakeUniqueStrobeName(const mfd::PageDefinition& p
                                return false;
                            }
 
-                           if (!ignoredNormalizedName.empty() && normalizedStrobeName == ignoredNormalizedName)
+                           if (!excludedNormalizedName.empty() && normalizedStrobeName == excludedNormalizedName)
                            {
                                return false;
                            }

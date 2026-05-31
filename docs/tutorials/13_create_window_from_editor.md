@@ -33,7 +33,7 @@ The integrated editor tutorial is available from:
 
 That guided flow is intentionally split into four phases:
 
-1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles including the triangle-based `mfd_tutorial_aircraft`, two distinct Page1 strobes, `RadarTrackLayer`, and the exposed primitives used by the generated client.
+1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles including the triangle-based `mfd_tutorial_aircraft`, rename the local Page1 ownship instance, add two distinct Page1 strobes, `RadarTrackLayer`, and the exposed primitives used by the generated client.
 2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / export workflows without mutating the tutorial assets.
 3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
 4. **Continue in docs**: follow the mockup, generated-client, and architecture reading path.
@@ -177,6 +177,13 @@ tutorial asks you to expose `aircraft_label`, then disable its parent reticle
 rotation and scale inheritance. That is the authored way to keep one text
 primitive upright while the alternative Page1 strobe reticle itself can still
 rotate or scale at runtime.
+
+One nearby guided step now makes the authored ownership boundary explicit:
+after instantiating `mfd_tutorial_aircraft` on `Page1`, the page-reticle
+inspector asks you to rename only the local **Reticle id** to
+`page1_ownship`. The shared **Template** stays `mfd_tutorial_aircraft`, so the
+same library reticle can still be reused elsewhere without renaming the page
+instance globally.
 
 The generated client API keeps the same boundary: it validates that these page
 bindings are coherent, but it does not expose any client-side control to move a
@@ -443,6 +450,7 @@ This integrated flow does more than explain clicks:
 - it seeds the editor popups with the tutorial window, page, and reticle values
 - it highlights the exact control expected by the current step
 - it explains why each authored asset matters for the runtime contract
+- it now includes one explicit page-reticle rename step so `Reticle id` and shared `Template` are not conflated
 - it now stays focused on authoring plus editor workflows, then hands off the saved-file review to one dedicated follow-up doc
 
 By the end of the integrated flow, the user should understand the full chain:
@@ -485,13 +493,14 @@ The editor keeps one undo snapshot per page-modifying action:
 - one cut action
 - one delete action
 - one completed drag gesture, including grouped reticle moves
+- one page-reticle rename editing session
 - one clipping change
 
 `Copy` alone does not create an undo step because it only updates the internal clipboard and does not modify the authored page.
 
 ## Result
 
-You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.
+You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, local page-reticle rename handling, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.
 
 With the integrated guided tour on top of that workflow, the editor now also
 serves as a clean project overview: authored assets, editor workflows,

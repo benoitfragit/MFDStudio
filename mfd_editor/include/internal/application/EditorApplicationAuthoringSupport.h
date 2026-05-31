@@ -649,17 +649,17 @@ inline bool PageHasDynamicTemplateBinding(const mfd::PageDefinition& page, const
  * @param page Page that owns the dynamic bindings.
  * @param layerId Runtime layer identifier to inspect.
  * @param orderInLayer Target order on that layer.
- * @param ignoredIndex Optional binding index to ignore while checking collisions.
+ * @param excludedIndex Optional binding index to exclude while checking collisions.
  * @return `true` when the authored page already uses the same order on the same layer.
  */
 inline bool PageHasDynamicOrderConflict(const mfd::PageDefinition& page,
                                         const std::string_view layerId,
                                         const int orderInLayer,
-                                        const int ignoredIndex = -1)
+                                        const int excludedIndex = -1)
 {
     for (int index = 0; index < static_cast<int>(page.dynamicReticleBindings.size()); ++index)
     {
-        if (index == ignoredIndex)
+        if (index == excludedIndex)
         {
             continue;
         }
@@ -678,15 +678,15 @@ inline bool PageHasDynamicOrderConflict(const mfd::PageDefinition& page,
  * @brief Returns the next free dynamic-reticle order for one runtime layer.
  * @param page Page that owns the dynamic bindings.
  * @param layerId Runtime layer identifier to inspect.
- * @param ignoredIndex Optional binding index to ignore while checking collisions.
+ * @param excludedIndex Optional binding index to exclude while checking collisions.
  * @return First non-conflicting order value on the target layer.
  */
 inline int NextPageDynamicOrderInLayer(const mfd::PageDefinition& page,
                                        const std::string_view layerId,
-                                       const int ignoredIndex = -1)
+                                       const int excludedIndex = -1)
 {
     int nextOrder = 0;
-    while (PageHasDynamicOrderConflict(page, layerId, nextOrder, ignoredIndex))
+    while (PageHasDynamicOrderConflict(page, layerId, nextOrder, excludedIndex))
     {
         ++nextOrder;
     }

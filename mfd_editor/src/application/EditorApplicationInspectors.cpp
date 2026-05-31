@@ -32,6 +32,7 @@ using editor::detail::CopyTextBuffer;
 using editor::detail::kPrimitiveTypes;
 using editor::detail::kTutorialAircraftTemplateId;
 using editor::detail::kTutorialStrobeCursorTemplateId;
+using editor::detail::kTutorialPage1OwnshipReticleId;
 using editor::detail::ReticleHasFillCapablePrimitive;
 using editor::detail::SeedPrimitiveFillColorIfNeeded;
 using editor::detail::SeedReticleFillOverrideIfNeeded;
@@ -1776,6 +1777,19 @@ void EditorApplication::MoveSelectedPageReticleToIndex(mfd::PageDefinition& page
     RebuildStatus("Reticle '" + movedReticleId + "' moved " + action + " on page '" + page.name + "'.", false);
 }
 
+void EditorApplication::ApplyPageReticleIdEdit(mfd::PageDefinition& page,
+                                               mfd::ReticleGroup& reticle,
+                                               const std::string_view requestedId)
+{
+    const std::string previousId = reticle.id;
+    reticle.id = MakeUniquePageReticleId(page, requestedId, previousId);
+
+    if (tutorial_->TrackedReticleId() == previousId)
+    {
+        tutorial_->SetTrackedReticleId(reticle.id);
+    }
+}
+
 void EditorApplication::DrawPageReticleInspector()
 {
     mfd::PageDefinition* page = ActivePage();
@@ -1858,7 +1872,29 @@ void EditorApplication::DrawPageReticleInspector()
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page reticle");
     ImGui::Text("Page: %s", page->name.c_str());
-    ImGui::Text("Reticle id: %s", reticle->id.c_str());
+    std::array<char, 128> reticleId {};
+    CopyTextBuffer(reticleId, reticle->id);
+    const bool reticleIdChanged = ImGui::InputText("Reticle id", reticleId.data(), reticleId.size());
+    ShowItemTooltip("Unique page-local reticle instance id stored in the page JSON. The shared template id stays unchanged.");
+    tutorial_->DrawHalo(
+        "page_reticle_id",
+        "Rename this page reticle",
+        "Rename the Page1 ownship instance to `page1_ownship` without changing the shared template id `mfd_tutorial_aircraft`.");
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+    if (reticleIdChanged)
+    {
+        ApplyPageReticleIdEdit(*page, *reticle, reticleId.data());
+    }
+    if (tutorial_->MatchesTarget("page_reticle_id") &&
+        page->name == "Page1" &&
+        reticle->id == kTutorialPage1OwnshipReticleId)
+    {
+        tutorial_->CompleteStep();
+        return;
+    }
     if (!reticle->sourceTemplateId.empty())
     {
         ImGui::TextDisabled("Template: %s", reticle->sourceTemplateId.c_str());

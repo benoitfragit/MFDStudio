@@ -206,6 +206,107 @@ inline std::string MakeUniqueLibraryReticleId(const mfd::ReticleLibrary& library
 }
 
 /**
+ * @brief Returns whether one page already owns a static reticle id after normalization.
+ * @param page Page whose authored static reticles must stay collision free.
+ * @param id Candidate page-reticle id.
+ * @param excludedReticleId Optional current reticle id excluded while editing one existing instance.
+ * @return `true` when another static reticle already uses the same normalized id.
+ */
+inline bool PageReticleIdExistsNormalized(const mfd::PageDefinition& page,
+                                          const std::string_view id,
+                                          const std::string_view excludedReticleId = {}) noexcept
+{
+    const std::string normalizedId = mfd::NormalizePageName(id);
+    if (normalizedId.empty())
+    {
+        return false;
+    }
+
+    const std::string excludedNormalizedId = mfd::NormalizePageName(excludedReticleId);
+    return std::any_of(page.staticReticles.begin(),
+                       page.staticReticles.end(),
+                       [&normalizedId, &excludedNormalizedId](const mfd::ReticleGroup& reticle)
+                       {
+                           const std::string normalizedReticleId = mfd::NormalizePageName(reticle.id);
+                           if (normalizedReticleId.empty())
+                           {
+                               return false;
+                           }
+
+                           if (!excludedNormalizedId.empty() && normalizedReticleId == excludedNormalizedId)
+                           {
+                               return false;
+                           }
+
+                           return normalizedReticleId == normalizedId;
+                       });
+}
+
+/**
+ * @brief Returns whether one page strobe already reserves the provided reticle id after normalization.
+ * @param page Page whose authored strobes must stay collision free.
+ * @param id Candidate page-reticle id.
+ * @param excludedStrobeReticleId Optional strobe reticle id excluded while replacing one existing strobe.
+ * @return `true` when another strobe reticle already uses the same normalized id.
+ */
+inline bool PageStrobeReticleIdExistsNormalized(const mfd::PageDefinition& page,
+                                                const std::string_view id,
+                                                const std::string_view excludedStrobeReticleId = {}) noexcept
+{
+    const std::string normalizedId = mfd::NormalizePageName(id);
+    if (normalizedId.empty())
+    {
+        return false;
+    }
+
+    const std::string excludedNormalizedId = mfd::NormalizePageName(excludedStrobeReticleId);
+    return std::any_of(page.strobes.begin(),
+                       page.strobes.end(),
+                       [&normalizedId, &excludedNormalizedId](const mfd::PageStrobeDefinition& strobe)
+                       {
+                           const std::string normalizedStrobeId = mfd::NormalizePageName(strobe.reticle.id);
+                           if (normalizedStrobeId.empty())
+                           {
+                               return false;
+                           }
+
+                           if (!excludedNormalizedId.empty() && normalizedStrobeId == excludedNormalizedId)
+                           {
+                               return false;
+                           }
+
+                           return normalizedStrobeId == normalizedId;
+                       });
+}
+
+/**
+ * @brief Generates one page-reticle id that stays unique against static reticles and strobe reticles.
+ * @param page Page that will own the authored reticle instance.
+ * @param baseId Preferred page-reticle id.
+ * @param excludedReticleId Optional current reticle id excluded while renaming one existing instance.
+ * @param excludedStrobeReticleId Optional strobe reticle id excluded while replacing one existing strobe.
+ * @return Unique authored page-reticle id, falling back to `reticle` when the preferred id normalizes to empty.
+ */
+inline std::string MakeUniquePageReticleInstanceId(const mfd::PageDefinition& page,
+                                                   const std::string_view baseId,
+                                                   const std::string_view excludedReticleId = {},
+                                                   const std::string_view excludedStrobeReticleId = {})
+{
+    const std::string stableBase =
+        mfd::NormalizePageName(baseId).empty() ? std::string {"reticle"} : std::string(baseId);
+    std::string candidate = stableBase;
+    int suffix = 1;
+
+    while (PageReticleIdExistsNormalized(page, candidate, excludedReticleId) ||
+           PageStrobeReticleIdExistsNormalized(page, candidate, excludedStrobeReticleId))
+    {
+        candidate = stableBase + "_" + std::to_string(suffix++);
+    }
+
+    return candidate;
+}
+
+/**
  * @brief Returns the half width used by editor preview bounds for one authored text string.
  * @param text Authored text content, or the fallback formatting string when empty.
  * @param fontSize Authored logical font size.
@@ -496,6 +597,11 @@ inline constexpr std::string_view kTutorialAircraftTemplateId = "mfd_tutorial_ai
  * @brief Tutorial primitive id reserved for the aircraft reticle label shown on the alternative strobe.
  */
 inline constexpr std::string_view kTutorialAircraftLabelPrimitiveId = "aircraft_label";
+
+/**
+ * @brief Tutorial page-reticle id reserved for the renamed Page1 ownship instance.
+ */
+inline constexpr std::string_view kTutorialPage1OwnshipReticleId = "page1_ownship";
 
 /**
  * @brief Tutorial template id reserved for the integrated strobe-cursor walkthrough.

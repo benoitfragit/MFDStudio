@@ -31,6 +31,7 @@ The important Page1 rule is:
 
 - the tutorial frames the generated page title through `titleDisplay`
 - `mfd_tutorial_aircraft` is instantiated once as the static ownship reference at `x = 0.0`, `y = -0.7`
+- that static ownship instance is then renamed locally to `page1_ownship`, while its `template` still points to `mfd_tutorial_aircraft`
 - `inspired_steering_cue` stays where it already was
 - the tutorial adds `mfd_tutorial_radar_track` on `RadarTrackLayer`
 - `Default` and `Strobe1` now use two distinct templates

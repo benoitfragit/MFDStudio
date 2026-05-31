@@ -130,6 +130,11 @@ TEST(EditorTutorialDataTests, TutorialMetadataGuidesRadarTrackLayerFlow)
     EXPECT_STREQ(aircraftToPageStep.targetId, "library_add_to_page");
     EXPECT_NE(std::string_view(aircraftToPageStep.instruction).find("x = 0.0"), std::string_view::npos);
     EXPECT_NE(std::string_view(aircraftToPageStep.instruction).find("y = -0.7"), std::string_view::npos);
+
+    const auto& renameAircraftStep = Step(editor::tutorial::TutorialStepId::RenameAircraftReticleOnPage1);
+    EXPECT_STREQ(renameAircraftStep.targetId, "page_reticle_id");
+    EXPECT_NE(std::string_view(renameAircraftStep.instruction).find("page1_ownship"), std::string_view::npos);
+    EXPECT_NE(std::string_view(renameAircraftStep.instruction).find("mfd_tutorial_aircraft"), std::string_view::npos);
 }
 
 TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)

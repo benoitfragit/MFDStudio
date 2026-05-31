@@ -331,7 +331,7 @@ struct TutorialStageInfo
 
 constexpr std::array<TutorialStageInfo, 4> kTutorialStages {{
     {"Stage 1 - Author In Editor",
-     "Create the tutorial window, page assets, the Page1 title chrome frame, reusable reticle templates including the triangle-based `mfd_tutorial_aircraft`, `RadarTrackLayer`, two named Page1 strobes, editor-only layers, and the exposed primitive that will feed the generated client.",
+     "Create the tutorial window, page assets, the Page1 title chrome frame, reusable reticle templates including the triangle-based `mfd_tutorial_aircraft`, rename the local Page1 ownship instance, author `RadarTrackLayer`, add two named Page1 strobes, editor-only layers, and the exposed primitive that will feed the generated client.",
      static_cast<int>(editor::tutorial::TutorialStepId::CreateWindow),
      static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
     {"Stage 2 - Explore Editor Tools",
@@ -1096,6 +1096,8 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
         return stepPhase_ == 0 ? "primitive_reticle_rotation_checkbox" : "primitive_reticle_scale_checkbox";
     case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):
         return "library_add_to_page";
+    case static_cast<int>(TutorialStepId::RenameAircraftReticleOnPage1):
+        return "page_reticle_id";
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
         return "library_add_to_page";
     case static_cast<int>(TutorialStepId::ClipCircleOutside):
@@ -1189,6 +1191,8 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
                                : "Disable Affected by reticle scale.";
     case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):
         return "Click Add to active page.";
+    case static_cast<int>(TutorialStepId::RenameAircraftReticleOnPage1):
+        return "Rename the Page1 ownship reticle to page1_ownship.";
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
         return "Click Add to active page.";
     case static_cast<int>(TutorialStepId::ClipCircleOutside):

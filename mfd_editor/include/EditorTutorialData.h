@@ -38,6 +38,7 @@ enum class TutorialStepId : int
     ExposeAircraftLabelPrimitive,
     DisableAircraftLabelTransformInheritance,
     AddAircraftReticleToPage1,
+    RenameAircraftReticleOnPage1,
     AddCircleReticleToPage1,
     ClipCircleOutside,
     AddAndHideEditorLayer,

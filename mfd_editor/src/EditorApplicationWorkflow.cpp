@@ -1749,6 +1749,26 @@ void EditorApplication::PrepareTutorialStep()
         }
         break;
     }
+    case static_cast<int>(TutorialStepId::RenameAircraftReticleOnPage1):
+    {
+        if (const int pageIndex = FindPageIndexByName(documentState_.loaded, "Page1"); pageIndex >= 0)
+        {
+            SelectPage(pageIndex);
+            if (!tutorial_->TrackedReticleId().empty())
+            {
+                const mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
+                if (const int reticleIndex = FindPageReticleIndexById(page, tutorial_->TrackedReticleId()); reticleIndex >= 0)
+                {
+                    SelectPageReticle(pageIndex, reticleIndex);
+                }
+            }
+        }
+        else
+        {
+            selectTutorialPageOrFallback("Page1");
+        }
+        break;
+    }
     case static_cast<int>(TutorialStepId::AddCircleReticleToPage1):
     {
         selectTutorialPageOrFallback("Page1");

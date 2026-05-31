@@ -786,7 +786,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     page.normalizedActiveStrobeName = strobe.normalizedName;
 
     mfd::ReticleGroup pageReticle;
-    pageReticle.id = "track_alpha";
+    pageReticle.id = "page1_ownship";
     pageReticle.sourceTemplateId = "radar_track";
     pageReticle.transform.position = {0.1f, 0.2f};
     pageReticle.layerId = "default";
@@ -854,6 +854,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     EXPECT_EQ(pageJson.at("dynamicReticleBindings").at(0).at("layerId").get<std::string>(), "default");
     EXPECT_EQ(pageJson.at("dynamicReticleBindings").at(0).at("orderInLayer").get<int>(), 0);
     ASSERT_EQ(pageJson.at("staticReticles").size(), 1U);
+    EXPECT_EQ(pageJson.at("staticReticles").at(0).at("id").get<std::string>(), "page1_ownship");
     EXPECT_EQ(pageJson.at("staticReticles").at(0).at("template").get<std::string>(), "radar_track");
     EXPECT_EQ(pageJson.at("staticReticles").at(0).at("layerId").get<std::string>(), "default");
 
