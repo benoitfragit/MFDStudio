@@ -1,0 +1,30 @@
+Checks: >-
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-exception-escape,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  cppcoreguidelines-slicing,
+  performance-*,
+  -performance-no-int-to-ptr,
+  misc-*,
+  -misc-include-cleaner,
+  modernize-loop-convert,
+  modernize-make-unique,
+  modernize-use-nullptr,
+  modernize-use-override,
+  readability-else-after-return,
+  readability-implicit-bool-conversion,
+  readability-redundant-control-flow,
+  readability-simplify-boolean-expr,
+  cppcoreguidelines-special-member-functions,
+  misc-definitions-in-headers
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(?!.*(build|third_party)).*(mfd_api|mfd_client_api|mfd_common_api|mfd_window|mfd_editor|mfd_window_plugin_api|tests|examples)[/\\].*'
+FormatStyle: none
+CheckOptions:
+  - key: bugprone-suspicious-stringview-data-usage.WarnOnAllAutoCopies
+    value: 'true'

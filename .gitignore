@@ -54,3 +54,4 @@
 /examples/client_test_package/generated/PackageTestUi.h
 /mfd_client_api/generator/scripts/__pycache__/generate_ui.cpython-37.pyc
 *.cpython-37.pyc
+/outputs/*

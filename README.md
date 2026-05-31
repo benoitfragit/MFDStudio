@@ -101,6 +101,71 @@ If your main entry point is the visual tool, start here:
 
 - [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md)
 
+## Developer Checks
+
+Use the repository clang-tidy entry point when you want one industrial C++ review pass without rebuilding the Visual Studio tree:
+
+```powershell
+.\Scripts\Run-ClangTidy.ps1
+```
+
+Useful variants:
+
+```powershell
+.\Scripts\Run-ClangTidy.ps1 -Paths mfd_api,mfd_common_api,mfd_window,mfd_editor
+.\Scripts\Run-ClangTidy.ps1 -Paths tests
+.\Scripts\Run-ClangTidy.ps1 -AuditOnly
+```
+
+The script:
+
+- audits the `AGENTS.md` forbidden patterns before running clang-tidy
+- targets production modules by default; `tests` and `examples` are opt-in through `-Paths`
+- generates or reuses `build/clang-tidy-win32/compile_commands.json`
+- reuses dependency source trees from `build/vs2022-win32/_deps/*-src` when they already exist
+- locates `clang-tidy.exe` from the Visual Studio LLVM tools when it is not on `PATH`
+- writes a consumable report under `outputs/quality/clang-tidy/latest`
+
+Use the repository `cppcheck` entry point when you want one deeper external static-analysis pass:
+
+```powershell
+.\Scripts\Run-Cppcheck.ps1
+```
+
+The script:
+
+- generates or reuses a dedicated compilation database
+- targets production modules by default; `tests` and `examples` are opt-in through `-Paths`
+- runs `cppcheck` in exhaustive mode on the repository paths you requested
+- filters out diagnostics emitted only from `build/` and vendored dependency trees from the actionable summary
+- writes XML, logs, and a summary under `outputs/quality/cppcheck/latest`
+
+Use the dedicated fuzzing entry point when you want real `libFuzzer` coverage outside the nominal build:
+
+```powershell
+.\Scripts\Run-Fuzzing.ps1 -DurationSeconds 120
+```
+
+The script:
+
+- configures one external Clang/Ninja build under `build/clang-fuzz-x64`
+- enables dedicated `libFuzzer` + AddressSanitizer targets only in that build
+- keeps the nominal Visual Studio Win32 build unchanged
+- writes crash artifacts, logs, and a summary under `outputs/quality/fuzz/latest`
+
+Use the full quality gate when you want one consolidated report including GoogleTest, clang-tidy, cppcheck, and fuzzing:
+
+```powershell
+.\Scripts\Run-QualitySuite.ps1
+```
+
+The suite:
+
+- builds and runs the Win32 GoogleTest matrix with JUnit output
+- runs external clang-tidy and cppcheck reports
+- runs the dedicated fuzzing build and archives artifacts
+- writes a consolidated report under `outputs/quality/runs/<timestamp>`
+
 ## Main Applications
 
 | Entry point | Purpose |

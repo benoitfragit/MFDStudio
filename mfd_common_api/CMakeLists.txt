@@ -94,6 +94,9 @@ mfd_configure_component(
     mfd_model_objects
     PUBLIC_INCLUDE_DIRS
         "${MFD_COMMON_API_PUBLIC_INCLUDE_DIR}")
+if(MFD_ENABLE_FUZZING)
+    mfd_enable_fuzzing_instrumentation(mfd_model_objects)
+endif()
 if(MFD_API_BUILD_SHARED)
     target_compile_definitions(mfd_model_objects PRIVATE MFD_API_EXPORTS)
 endif()
@@ -138,6 +141,9 @@ mfd_configure_component(
     mfd_transport_objects
     PUBLIC_INCLUDE_DIRS
         "${MFD_COMMON_API_PUBLIC_INCLUDE_DIR}")
+if(MFD_ENABLE_FUZZING)
+    mfd_enable_fuzzing_instrumentation(mfd_transport_objects)
+endif()
 if(MFD_API_BUILD_SHARED)
     target_compile_definitions(mfd_transport_objects PRIVATE MFD_API_EXPORTS)
 endif()

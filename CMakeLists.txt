@@ -18,6 +18,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(MFD_BUILD_DEMO "Build optional example and demo applications" ON)
 option(MFD_BUILD_TESTS "Build GoogleTest-based runtime and loading tests" ON)
 option(MFD_ENABLE_WARNINGS "Enable strict compiler warnings" ON)
+option(MFD_ENABLE_WARNINGS_AS_ERRORS "Treat repository compiler warnings as errors" OFF)
+option(MFD_ENABLE_FUZZING "Build dedicated libFuzzer targets in one external Clang build" OFF)
 option(MFD_API_BUILD_SHARED "Build mfd_api as one self-contained shared library" ON)
 
 set(MFD_PACKAGE_VERSION
@@ -120,6 +122,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(ExternalLibraries)
 include(CompilerWarnings)
+include(Fuzzing)
 include(Dependencies)
 
 mfd_fetch_dependencies()
@@ -167,6 +170,10 @@ add_subdirectory(mfd_editor)
 
 if(MFD_BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+
+if(MFD_ENABLE_FUZZING)
+    add_subdirectory(tests/fuzz)
 endif()
 
 if(MFD_BUILD_DEMO)

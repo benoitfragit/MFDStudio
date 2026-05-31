@@ -150,6 +150,32 @@ The real build graph is split into:
 `mfd_window` keep one single static `raylib` / `rlgl` instance inside the host
 process.
 
+## External Quality Gates
+
+The repository now keeps heavyweight analysis outside the nominal Visual Studio
+build:
+
+- `.\Scripts\Run-ClangTidy.ps1` runs the repository `clang-tidy` policy and
+  writes a report under `outputs/quality/clang-tidy/latest`; by default the
+  scope is limited to production modules, with `tests` and `examples` opt-in
+  through `-Paths`
+- `.\Scripts\Run-Cppcheck.ps1` runs one exhaustive `cppcheck` pass from the
+  compilation database and writes XML plus summaries under
+  `outputs/quality/cppcheck/latest`; by default the scope is limited to
+  production modules, with `tests` and `examples` opt-in through `-Paths`;
+  the actionable summary filters out diagnostics emitted only from `build/`
+  artifacts or vendored dependency trees
+- `.\Scripts\Run-Fuzzing.ps1` configures one dedicated Clang/Ninja
+  `libFuzzer` + AddressSanitizer build under `build/clang-fuzz-x64`; this is
+  intentionally separate from the nominal Win32 build
+- `.\Scripts\Run-QualitySuite.ps1` orchestrates GoogleTest, clang-tidy,
+  cppcheck, and fuzzing into one timestamped consolidated report under
+  `outputs/quality/runs/`
+
+The dedicated fuzzing build requires LLVM (`clang`, `clang++`,
+`llvm-symbolizer`) and uses `MFD_ENABLE_FUZZING=ON`. That option must stay
+`OFF` in the normal repository build.
+
 ## Common Targets
 
 | Target | Role |

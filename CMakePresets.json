@@ -55,6 +55,29 @@
         "value": "Win32",
         "strategy": "set"
       }
+    },
+    {
+      "name": "clang-fuzz-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "MFD_BUILD_DEMO": "OFF",
+        "MFD_BUILD_TESTS": "OFF",
+        "MFD_ENABLE_FUZZING": "ON",
+        "MFD_MSVC_RUNTIME": "dll"
+      }
+    },
+    {
+      "name": "clang-fuzz-x64",
+      "inherits": "clang-fuzz-base",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      }
     }
   ],
   "buildPresets": [
@@ -97,6 +120,10 @@
       "name": "release-win32-no-tests",
       "configurePreset": "vs2022-win32-no-tests",
       "configuration": "Release"
+    },
+    {
+      "name": "fuzz-x64",
+      "configurePreset": "clang-fuzz-x64"
     }
   ],
   "testPresets": [

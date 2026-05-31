@@ -1,0 +1,23 @@
+{
+  "name": "Main",
+  "title": "Main",
+  "layers": [
+    {
+      "id": "default"
+    }
+  ],
+  "staticReticles": [
+    {
+      "id": "inline_marker",
+      "layerId": "default",
+      "elements": [
+        {
+          "id": "marker_text",
+          "type": "text",
+          "text": "TEST",
+          "size": 0.05
+        }
+      ]
+    }
+  ]
+}
