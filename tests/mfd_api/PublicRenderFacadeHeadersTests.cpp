@@ -26,5 +26,5 @@ TEST(PublicRenderFacadeHeadersTests, HostRenderTypesRemainAvailableWithoutLowLev
     EXPECT_EQ(request.origin, mfd::FramebufferOrigin::TopLeft);
 
     const std::filesystem::path iconPath = mfd::ResolveWindowBrandingIconFile();
-    EXPECT_TRUE(iconPath.empty() || !iconPath.empty());
+    EXPECT_FALSE(iconPath.empty());
 }

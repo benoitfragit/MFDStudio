@@ -2135,7 +2135,6 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
                 updates.push_back(
                     mfd::DynamicReticleState {reticle->reticleId_, reticle->runtimeReticleId_, std::move(patch)});
                 reticle->lastSentPatch_ = reticle->desiredPatch_;
-                reticle->dirty_ = false;
                 ++count;
             }
             else if (reticle->dirty_ && !Equal(reticle->desiredPatch_, reticle->lastSentPatch_))

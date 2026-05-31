@@ -698,12 +698,8 @@ void RuntimeDebugOverlay::DrawManualTestPanel(const SceneRegistry& liveScene, co
     ImGui::SameLine();
     if (ImGui::Button("Select first reticle on active page"))
     {
-        std::string status;
-        const bool selected = SelectFirstReticleOnActivePage(displayScene, &status);
-        if (!selected && status.empty())
-        {
-            status = "No selectable reticle is available on the active page.";
-        }
+        std::string status = "No selectable reticle is available on the active page.";
+        SelectFirstReticleOnActivePage(displayScene, &status);
         state_.SetTestPanelStatus(status);
     }
 

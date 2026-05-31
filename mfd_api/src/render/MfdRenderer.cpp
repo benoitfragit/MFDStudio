@@ -286,7 +286,6 @@ struct MfdRenderer::Impl
             UnloadRenderTexture(renderTarget);
             renderTarget = {};
             renderTargetReady = false;
-            renderTargetStencilReady = false;
         }
 
         renderTargetStencilReady = false;

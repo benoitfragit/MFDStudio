@@ -558,6 +558,7 @@ public:
         rlDrawRenderBatchActive();
 
         const unsigned int writeIndex = frameIndex_ % kCaptureRingSize;
+        // cppcheck-suppress knownConditionTrueFalse
         if (!SubmitReadback(writeIndex, captureWidth, captureHeight))
         {
             DisablePbo();
@@ -697,6 +698,7 @@ private:
         api.BindPixelPackBuffer(0);
 
         slot.fence = api.CreateFence();
+        // cppcheck-suppress knownConditionTrueFalse
         return slot.fence != nullptr;
     }
 
@@ -716,6 +718,7 @@ private:
 
         api.BindPixelPackBuffer(slot.pboId);
         void* mappedBuffer = api.MapPixelPackBufferReadOnly();
+        // cppcheck-suppress knownConditionTrueFalse
         if (mappedBuffer == nullptr)
         {
             api.BindPixelPackBuffer(0);
@@ -733,6 +736,7 @@ private:
         const bool unmapSucceeded = api.UnmapPixelPackBuffer();
         api.BindPixelPackBuffer(0);
         slot.ReleaseFence(api);
+        // cppcheck-suppress knownConditionTrueFalse
         if (!unmapSucceeded)
         {
             DisablePbo();
@@ -2038,6 +2042,7 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
         }
 
         framebufferPlugin = std::make_unique<LoadedFramebufferPlugin>();
+        // cppcheck-suppress knownConditionTrueFalse
         if (!framebufferPlugin->Load(options.framebufferPluginFile, error))
         {
             ReportFatalError(applicationName, error);

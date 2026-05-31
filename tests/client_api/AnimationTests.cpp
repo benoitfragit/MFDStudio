@@ -115,7 +115,7 @@ public:
     {
     }
 
-    GeneratedDynamicFixtureReticle& Create()
+    GeneratedDynamicFixtureReticle& CreateTrack()
     {
         return static_cast<GeneratedDynamicFixtureReticle&>(mfd::client::GeneratedDynamicReticleSet::Create());
     }
@@ -578,7 +578,7 @@ TEST(AnimationTests, DynamicReticleSetCarriesGeneratedPageAndTemplateIdsWhenKnow
 TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUserIds)
 {
     GeneratedDynamicFixtureSet set;
-    GeneratedDynamicFixtureReticle& track = set.Create();
+    GeneratedDynamicFixtureReticle& track = set.CreateTrack();
 
     track.label.SetText("A1");
     track.vectorLine.SetLineStyle(mfd::client::LineStyle::Dotted);
@@ -633,7 +633,7 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
 TEST(AnimationTests, GeneratedDynamicReticleSetResetInvalidatesPublishedHandlesWithoutEmittingPerReticleRemoval)
 {
     GeneratedDynamicFixtureSet set;
-    GeneratedDynamicFixtureReticle& track = set.Create();
+    GeneratedDynamicFixtureReticle& track = set.CreateTrack();
     track.label.SetText("A1");
 
     std::vector<mfd::UserCommand> commands;
@@ -655,7 +655,7 @@ TEST(AnimationTests, GeneratedDynamicReticleSetResetInvalidatesPublishedHandlesW
 TEST(AnimationTests, GeneratedDynamicReticleInitialPatchCarriesExplicitVisibility)
 {
     GeneratedDynamicFixtureSet set;
-    GeneratedDynamicFixtureReticle& track = set.Create();
+    GeneratedDynamicFixtureReticle& track = set.CreateTrack();
     track.SetVisible(true);
     track.SetPosition({0.12f, -0.08f});
 
@@ -673,8 +673,8 @@ TEST(AnimationTests, GeneratedDynamicReticleInitialPatchCarriesExplicitVisibilit
 TEST(AnimationTests, GeneratedDynamicReticleSetAppendRemovalCommandsClearsPublishedEntries)
 {
     GeneratedDynamicFixtureSet set;
-    GeneratedDynamicFixtureReticle& alpha = set.Create();
-    GeneratedDynamicFixtureReticle& bravo = set.Create();
+    GeneratedDynamicFixtureReticle& alpha = set.CreateTrack();
+    GeneratedDynamicFixtureReticle& bravo = set.CreateTrack();
 
     alpha.label.SetText("A1");
     bravo.label.SetText("B2");
@@ -706,7 +706,7 @@ TEST(AnimationTests, GeneratedDynamicReticleSetAppendRemovalCommandsClearsPublis
     EXPECT_EQ(set.AppendRemovalCommands(commands), 0U);
     EXPECT_TRUE(commands.empty());
 
-    GeneratedDynamicFixtureReticle& replacement = set.Create();
+    GeneratedDynamicFixtureReticle& replacement = set.CreateTrack();
     replacement.label.SetText("C3");
 
     EXPECT_EQ(set.AppendCommands(commands), 1U);
@@ -853,7 +853,7 @@ TEST(AnimationTests, GeneratedDynamicReticleReportsCaptureFromRuntimeFeedbackSta
 {
     mfd::client::RuntimeFeedbackState feedbackState;
     GeneratedDynamicFixtureSet set(&feedbackState);
-    GeneratedDynamicFixtureReticle& track = set.Create();
+    GeneratedDynamicFixtureReticle& track = set.CreateTrack();
 
     EXPECT_FALSE(track.IsStrobeCaptured());
 
@@ -892,8 +892,8 @@ TEST(AnimationTests, GeneratedDynamicReticlePrefersIdBasedCaptureWhenAvailable)
 {
     mfd::client::RuntimeFeedbackState feedbackState;
     GeneratedDynamicFixtureSet set(&feedbackState);
-    GeneratedDynamicFixtureReticle& alpha = set.Create();
-    GeneratedDynamicFixtureReticle& bravo = set.Create();
+    GeneratedDynamicFixtureReticle& alpha = set.CreateTrack();
+    GeneratedDynamicFixtureReticle& bravo = set.CreateTrack();
 
     std::vector<mfd::UserCommand> commands;
     ASSERT_EQ(set.AppendCommands(commands), 2U);
@@ -1335,7 +1335,7 @@ TEST(AnimationTests, DynamicReticleSetEmitsOnlyChangedFieldsOnSecondPublish)
 TEST(AnimationTests, GeneratedDynamicReticleSetReapplyingSameStateDoesNotEmitRedundantUpdate)
 {
     GeneratedDynamicFixtureSet set;
-    GeneratedDynamicFixtureReticle& track = set.Create();
+    GeneratedDynamicFixtureReticle& track = set.CreateTrack();
     track.label.SetText("A1");
 
     std::vector<mfd::UserCommand> commands;

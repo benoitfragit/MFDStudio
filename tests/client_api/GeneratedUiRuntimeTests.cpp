@@ -85,7 +85,7 @@ public:
     {
     }
 
-    GeneratedUiTrackReticle& Create()
+    GeneratedUiTrackReticle& CreateTrack()
     {
         return static_cast<GeneratedUiTrackReticle&>(mfd::client::GeneratedDynamicReticleSet::Create());
     }
@@ -295,7 +295,7 @@ TEST(GeneratedUiRuntimeTests, BuildCommandBatchCarriesMappingHashAndGeneratedIde
     ui.Radar().strobe = ui.Radar().designatorStrobe;
     ui.Radar().strobe.SetActive(true);
 
-    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().Create();
+    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().CreateTrack();
     track.SetPosition({0.15f, -0.20f});
     track.label.SetText("T01");
     track.vectorLine.SetStart({-0.10f, 0.0f});
@@ -376,7 +376,7 @@ TEST(GeneratedUiRuntimeTests, SubmitLatestForwardsGeneratedUiBatchSemantics)
     ui.Window().SetDisabled(true);
     ui.Radar().SetStatusCaption("STBY");
 
-    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().Create();
+    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().CreateTrack();
     track.label.SetText("B02");
 
     ASSERT_TRUE(ui.SubmitLatest(publisher, 7U));
@@ -410,7 +410,7 @@ TEST(GeneratedUiRuntimeTests, SubmitLatestForwardsGeneratedUiBatchSemantics)
 TEST(GeneratedUiRuntimeTests, RunClearsLocalDirtyStateWithoutInvalidatingGeneratedDynamicReticles)
 {
     GeneratedUiFixture ui;
-    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().Create();
+    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().CreateTrack();
     track.label.SetText("A01");
 
     const mfd::CommandBatch initialBatch = ui.BuildCommandBatch(1U);
@@ -430,7 +430,7 @@ TEST(GeneratedUiRuntimeTests, RunClearsLocalDirtyStateWithoutInvalidatingGenerat
 TEST(GeneratedUiRuntimeTests, InitializeBuildsStandaloneRuntimeResetAndInvalidatesExistingGeneratedDynamicReticles)
 {
     GeneratedUiFixture ui;
-    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().Create();
+    GeneratedUiTrackReticle& track = ui.Radar().DynamicRadarTrack().CreateTrack();
     track.label.SetText("A01");
 
     const mfd::CommandBatch initialBatch = ui.BuildCommandBatch(1U);
@@ -471,7 +471,7 @@ TEST(GeneratedUiRuntimeTests, RunDoesNotConsumePendingInitializeBeforeTheNextFra
 TEST(GeneratedUiRuntimeTests, InitializeCanBeCombinedWithFreshMutationsAfterLocalAuthoredRealignment)
 {
     GeneratedUiFixture ui;
-    GeneratedUiTrackReticle& staleTrack = ui.Radar().DynamicRadarTrack().Create();
+    GeneratedUiTrackReticle& staleTrack = ui.Radar().DynamicRadarTrack().CreateTrack();
     staleTrack.label.SetText("STALE");
     ASSERT_TRUE(staleTrack.IsAlive());
 
@@ -480,7 +480,7 @@ TEST(GeneratedUiRuntimeTests, InitializeCanBeCombinedWithFreshMutationsAfterLoca
 
     ui.Window().SetDisabled(true);
     ui.Radar().SetStatusCaption("RST");
-    GeneratedUiTrackReticle& replacementTrack = ui.Radar().DynamicRadarTrack().Create();
+    GeneratedUiTrackReticle& replacementTrack = ui.Radar().DynamicRadarTrack().CreateTrack();
     replacementTrack.label.SetText("NEW");
 
     const mfd::CommandBatch batch = ui.BuildCommandBatch(9U);
@@ -509,7 +509,7 @@ TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeed
     GeneratedUiFixture ui;
     ui.Radar().strobe = ui.Radar().designatorStrobe;
     ui.Radar().strobe.SetActive(true);
-    auto& track = ui.Radar().DynamicRadarTrack().Create();
+    auto& track = ui.Radar().DynamicRadarTrack().CreateTrack();
     std::vector<mfd::UserCommand> commands;
     ASSERT_EQ(ui.Radar().AppendCommands(commands), 2U);
     ASSERT_EQ(commands.size(), 2U);

@@ -35,6 +35,7 @@ TEST(ArrayViewTests, SupportsVectorConstruction)
     ASSERT_EQ(mutableView.size(), values.size());
     EXPECT_FALSE(mutableView.empty());
     mutableView[1] = 99;
+    EXPECT_EQ(mutableView[1], 99);
     EXPECT_EQ(values[1], 99);
 
     ASSERT_EQ(constView.size(), values.size());
