@@ -2414,23 +2414,22 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             &previewState_.previewBezierCache,
             &previewState_.previewImageCache,
             &previewState_.previewTextLayoutCache);
-        for (const bool drawOnTop : {false, true})
+        services_.pagePreviewDrawOrder.CollectStaticReticleDrawOrder(*page, previewState_.orderedStaticReticleIndices);
+        for (const int reticleIndex : previewState_.orderedStaticReticleIndices)
         {
-            for (const auto& reticle : page->staticReticles)
+            const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+            if (!IsReticleVisibleInEditor(*page, reticle))
             {
-                if (!IsReticleVisibleInEditor(*page, reticle) || reticle.drawOnTop != drawOnTop)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                if (ShouldDimPageReticleInCurrentFocus(*page, reticle))
-                {
-                    canvas.DrawReticle(MakeDimmedReticlePreviewCopy(reticle, 0.30f));
-                }
-                else
-                {
-                    canvas.DrawReticle(reticle);
-                }
+            if (ShouldDimPageReticleInCurrentFocus(*page, reticle))
+            {
+                canvas.DrawReticle(MakeDimmedReticlePreviewCopy(reticle, 0.30f));
+            }
+            else
+            {
+                canvas.DrawReticle(reticle);
             }
         }
 
@@ -6060,7 +6059,7 @@ std::optional<EditorApplication::PageReticleHit> EditorApplication::BuildPageRet
     const ImVec2 mousePosition,
     const editor::PagePreviewHitTarget target,
     const mfd::ReticleGroup& reticle,
-    const int drawPriority) const
+    const editor::PagePreviewDrawOrderKey drawOrder) const
 {
     const bool isPageTitle = target.kind == editor::PagePreviewHitKind::PageTitle;
     const bool isPageStrobe = target.kind == editor::PagePreviewHitKind::PageStrobe;
@@ -6093,14 +6092,19 @@ std::optional<EditorApplication::PageReticleHit> EditorApplication::BuildPageRet
     }
 
     const float area = std::max(1.0f, (bounds.max.x - bounds.min.x) * (bounds.max.y - bounds.min.y));
-    return PageReticleHit {target, distance, area, directHit, mouseInsideBounds, drawPriority};
+    return PageReticleHit {target, distance, area, directHit, mouseInsideBounds, drawOrder};
 }
 
 bool EditorApplication::PreferPageReticleHit(const PageReticleHit& lhs, const PageReticleHit& rhs) noexcept
 {
-    if (lhs.drawPriority != rhs.drawPriority)
+    if (lhs.drawOrder < rhs.drawOrder)
     {
-        return lhs.drawPriority > rhs.drawPriority;
+        return false;
+    }
+
+    if (rhs.drawOrder < lhs.drawOrder)
+    {
+        return true;
     }
     if (lhs.directHit != rhs.directHit)
     {
@@ -6164,7 +6168,7 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
             mousePosition,
             editor::PagePreviewHitTarget::StaticReticle(reticleIndex),
             reticle,
-            reticle.drawOnTop ? 1 : 0);
+            services_.pagePreviewDrawOrder.BuildStaticReticleDrawOrderKey(*page, reticleIndex));
         if (candidate.has_value() && (!bestHit.has_value() || PreferPageReticleHit(*candidate, *bestHit)))
         {
             bestHit = std::move(candidate);
@@ -6184,7 +6188,7 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
             mousePosition,
             editor::PagePreviewHitTarget::PageStrobe(strobeIndex),
             page->strobes[static_cast<std::size_t>(strobeIndex)].reticle,
-            2);
+            services_.pagePreviewDrawOrder.BuildStrobeDrawOrderKey(static_cast<std::size_t>(strobeIndex)));
         if (candidate.has_value() && (!bestHit.has_value() || PreferPageReticleHit(*candidate, *bestHit)))
         {
             bestHit = std::move(candidate);
@@ -6200,7 +6204,7 @@ void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& vie
             mousePosition,
             editor::PagePreviewHitTarget::PageTitle(),
             titleReticle,
-            3);
+            services_.pagePreviewDrawOrder.BuildTitleDrawOrderKey());
         if (titleHit.has_value() && (!bestHit.has_value() || PreferPageReticleHit(*titleHit, *bestHit)))
         {
             bestHit = std::move(titleHit);
@@ -6282,7 +6286,7 @@ std::vector<int> EditorApplication::CollectPageReticlesAt(const ViewportState& v
             area,
             directHit,
             mouseInsideBounds,
-            reticle.drawOnTop ? 1 : 0});
+            services_.pagePreviewDrawOrder.BuildStaticReticleDrawOrderKey(*page, reticleIndex)});
     }
 
     std::sort(hits.begin(),

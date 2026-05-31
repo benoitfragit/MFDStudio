@@ -13,6 +13,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorLaunchOptionsTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorWorkspaceLayoutTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorLayerFocusControllerTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorPagePreviewDrawOrderControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPagePreviewHitTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageManagementServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageImportServiceTests.cpp
@@ -66,6 +67,8 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorWorkspaceLayout.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorLayerFocusController.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorLayerFocusController.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorPagePreviewDrawOrderController.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorPagePreviewDrawOrderController.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorPageManagementService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorPageManagementService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorPageImportService.h

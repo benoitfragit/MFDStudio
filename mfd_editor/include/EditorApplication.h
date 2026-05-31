@@ -457,7 +457,7 @@ private:
                                                       ImVec2 mousePosition,
                                                       editor::PagePreviewHitTarget target,
                                                       const mfd::ReticleGroup& reticle,
-                                                      int drawPriority) const;
+                                                      editor::PagePreviewDrawOrderKey drawOrder) const;
     /** @brief Returns `true` when the left candidate should outrank the right one for page-preview selection. */
     static bool PreferPageReticleHit(const PageReticleHit& lhs, const PageReticleHit& rhs) noexcept;
     /** @brief Returns all clip-capable page primitives hit by the mouse, ordered by hit quality. */

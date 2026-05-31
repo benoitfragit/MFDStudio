@@ -29,6 +29,8 @@ Selecting `Full View` restores the normal page-preview behavior.
 
 Selecting one layer activates focus mode:
 
+- static reticles stay rendered and hit-tested in authored runtime order:
+  page-layer order first, then `drawOnTop`, then authored reticle order
 - only reticles assigned to that layer remain selectable
 - other visible layers stay rendered but are dimmed
 - `Esc` exits focus mode before it falls back to the normal reticle-selection

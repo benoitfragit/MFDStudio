@@ -25,6 +25,7 @@
 #include "EditorDocumentSerializer.h"
 #include "EditorFullscreenPreviewController.h"
 #include "EditorLayerFocusController.h"
+#include "internal/application/EditorPagePreviewDrawOrderController.h"
 #include "EditorPageImportService.h"
 #include "EditorPageManagementService.h"
 #include "EditorPagePreviewHit.h"
@@ -133,7 +134,7 @@ struct PageReticleHit
     float area = std::numeric_limits<float>::max();
     bool directHit = false;
     bool boundsHit = false;
-    int drawPriority = 0;
+    editor::PagePreviewDrawOrderKey drawOrder {};
 };
 
 /** @brief Full undo snapshot storing the loaded document, file layout and current selection. */
@@ -314,6 +315,7 @@ struct PreviewState
     RenderTexture2D previewTexture {};
     bool previewTextureReady = false;
     bool previewTextureStencilReady = false;
+    std::vector<int> orderedStaticReticleIndices {};
     mfd::BezierPolylineCache previewBezierCache {};
     mfd::ImageTextureCache previewImageCache {};
     mfd::TextLayoutCache previewTextLayoutCache {};
@@ -372,6 +374,7 @@ struct ServicesState
     editor::EditorDesignExportService designExport {};
     editor::FullscreenPreviewController fullscreenPreview {};
     editor::LayerFocusController layerFocus {};
+    editor::PagePreviewDrawOrderController pagePreviewDrawOrder {};
     editor::ReticleUsageHighlightService reticleUsageHighlight {};
     editor::ReticleExtractionService reticleExtraction {};
 };
