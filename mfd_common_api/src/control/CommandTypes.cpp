@@ -27,7 +27,7 @@ namespace mfd
 namespace
 {
 namespace pb = ::mfd::transport;
-constexpr std::size_t kMaxCommandPayloadBytes = 1024U * 1024U;
+constexpr std::size_t kMaxCommandPayloadBytes = 1024ULL * 1024ULL;
 constexpr std::size_t kMaxCommandsPerEnvelope = 1024U;
 constexpr float kMaxAbsCoordinate = 1'000'000.0f;
 constexpr float kMaxAbsScale = 1'000.0f;
@@ -477,16 +477,17 @@ Vec2 FromProtoVec2(const pb::Vec2& value)
 
 pb::PrimitiveLineStyle ToProtoLineStyle(const LineStyle value) noexcept
 {
-    switch (value)
+    if (value == LineStyle::Dotted)
     {
-    case LineStyle::Dotted:
         return pb::PRIMITIVE_LINE_STYLE_DOTTED;
-    case LineStyle::Dashed:
-        return pb::PRIMITIVE_LINE_STYLE_DASHED;
-    case LineStyle::Solid:
-    default:
-        return pb::PRIMITIVE_LINE_STYLE_SOLID;
     }
+
+    if (value == LineStyle::Dashed)
+    {
+        return pb::PRIMITIVE_LINE_STYLE_DASHED;
+    }
+
+    return pb::PRIMITIVE_LINE_STYLE_SOLID;
 }
 
 LineStyle FromProtoLineStyle(const pb::PrimitiveLineStyle value)

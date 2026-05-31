@@ -89,8 +89,8 @@ ReticleStyleOverride MergeOverrides(const ReticleStyleOverride& base, const Reti
 
 ReticleGroup InstantiateReticle(const ReticleGroup& templ,
                                 std::string instanceId,
-                                const Transform2D transform,
-                                const ReticleStyleOverride overrides)
+                                const Transform2D& transform,
+                                const ReticleStyleOverride& overrides)
 {
     ReticleGroup result = templ;
     result.id = std::move(instanceId);

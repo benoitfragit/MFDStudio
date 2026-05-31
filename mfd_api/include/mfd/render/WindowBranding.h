@@ -23,8 +23,8 @@ namespace mfd
  *
  * @note This helper belongs to the repository host-side raylib render layer.
  */
-std::filesystem::path ResolveWindowBrandingIconFile(std::filesystem::path preferredIconFile = {},
-                                                    std::filesystem::path sourceAnchor = {});
+std::filesystem::path ResolveWindowBrandingIconFile(const std::filesystem::path& preferredIconFile = {},
+                                                    const std::filesystem::path& sourceAnchor = {});
 
 /**
  * @brief Applies one image file as the desktop icon of the currently open host window.

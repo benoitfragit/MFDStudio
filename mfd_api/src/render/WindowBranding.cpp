@@ -48,8 +48,8 @@ bool PathExists(const std::filesystem::path& path)
 }
 } // namespace
 
-std::filesystem::path ResolveWindowBrandingIconFile(std::filesystem::path preferredIconFile,
-                                                    std::filesystem::path sourceAnchor)
+std::filesystem::path ResolveWindowBrandingIconFile(const std::filesystem::path& preferredIconFile,
+                                                    const std::filesystem::path& sourceAnchor)
 {
     if (!preferredIconFile.empty())
     {
@@ -105,7 +105,7 @@ bool ApplyWindowIconFile(const std::filesystem::path& iconFile, std::string* err
         return false;
     }
 
-    Image iconImage = LoadImage(iconFile.string().c_str());
+    const Image iconImage = LoadImage(iconFile.string().c_str());
     if (iconImage.data == nullptr || iconImage.width <= 0 || iconImage.height <= 0)
     {
         if (error != nullptr)

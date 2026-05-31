@@ -57,7 +57,7 @@ public:
      * @param sendFunction Callback sending one batch.
      * @param errorFunction Optional callback exposing the last send error.
      */
-    LatestBatchPublisher(SendFunction sendFunction, ErrorFunction errorFunction = {});
+    explicit LatestBatchPublisher(SendFunction sendFunction, ErrorFunction errorFunction = {});
 
     ~LatestBatchPublisher();
 

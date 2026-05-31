@@ -2564,14 +2564,14 @@ void ParseFeedbackCadence(const json& root, WindowAssetDefinition& window)
     }
 }
 
-const json& ExtractPageNode(const json& root)
+const json* FindPageNode(const json& root) noexcept
 {
     if (const json* page = FindField(root, {"page"}))
     {
-        return *page;
+        return page;
     }
 
-    return root;
+    return &root;
 }
 
 WindowAssetDefinition ParseWindowAssetDefinition(const json& root,
@@ -3272,7 +3272,7 @@ LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesys
         try
         {
             const json pageRoot = LoadJsonFile(pageFile);
-            page = ParsePage(ExtractPageNode(pageRoot), loaded.document.reticleLibrary, pageFile.parent_path());
+            page = ParsePage(*FindPageNode(pageRoot), loaded.document.reticleLibrary, pageFile.parent_path());
         }
         catch (const std::exception& exception)
         {

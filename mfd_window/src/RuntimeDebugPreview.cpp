@@ -408,7 +408,8 @@ std::optional<CommandBatch> FilterBatchForPreview(const CommandBatch& batch,
                     keep = !state.StrobeBypassed(
                         ResolveTransportPageName(scene.TransportMap(), value.page, value.pageId));
                 }
-                else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
+                else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand> ||
+                                   std::is_same_v<Command, RemoveDynamicReticleCommand>)
                 {
                     keep = !state.ReticleBypassed(
                         ReticleKey {value.target.page, value.target.reticleId, ReticleKind::Dynamic});
@@ -426,11 +427,6 @@ std::optional<CommandBatch> FilterBatchForPreview(const CommandBatch& batch,
                             }),
                         value.reticles.end());
                     keep = !value.reticles.empty();
-                }
-                else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
-                {
-                    keep = !state.ReticleBypassed(
-                        ReticleKey {value.target.page, value.target.reticleId, ReticleKind::Dynamic});
                 }
             },
             filteredCommand);

@@ -343,8 +343,17 @@ inline const PageStrobeDefinition* FindPageStrobeDefinition(const PageDefinition
  */
 inline PageStrobeDefinition* FindPageStrobeDefinition(PageDefinition& page, const std::string_view strobeName)
 {
-    return const_cast<PageStrobeDefinition*>(
-        FindPageStrobeDefinition(static_cast<const PageDefinition&>(page), strobeName));
+    const std::string normalizedStrobeName = NormalizePageName(strobeName);
+
+    for (PageStrobeDefinition& strobe : page.strobes)
+    {
+        if (strobe.normalizedName == normalizedStrobeName)
+        {
+            return &strobe;
+        }
+    }
+
+    return nullptr;
 }
 
 /**
@@ -378,8 +387,21 @@ inline const PageStrobeDefinition* FindActivePageStrobeDefinition(const PageDefi
  */
 inline PageStrobeDefinition* FindActivePageStrobeDefinition(PageDefinition& page)
 {
-    return const_cast<PageStrobeDefinition*>(
-        FindActivePageStrobeDefinition(static_cast<const PageDefinition&>(page)));
+    if (page.strobes.empty())
+    {
+        return nullptr;
+    }
+
+    if (!page.normalizedActiveStrobeName.empty())
+    {
+        if (PageStrobeDefinition* active = FindPageStrobeDefinition(page, page.normalizedActiveStrobeName);
+            active != nullptr)
+        {
+            return active;
+        }
+    }
+
+    return &page.strobes.front();
 }
 
 /**
@@ -412,8 +434,17 @@ inline const PageLayerDefinition* FindPageLayerDefinition(const PageDefinition& 
  */
 inline PageLayerDefinition* FindPageLayerDefinition(PageDefinition& page, const std::string_view layerId)
 {
-    return const_cast<PageLayerDefinition*>(
-        FindPageLayerDefinition(static_cast<const PageDefinition&>(page), layerId));
+    const std::string normalizedLayerId = NormalizePageName(layerId);
+
+    for (PageLayerDefinition& layer : page.layers)
+    {
+        if (NormalizePageName(layer.id) == normalizedLayerId)
+        {
+            return &layer;
+        }
+    }
+
+    return nullptr;
 }
 
 /**
@@ -447,7 +478,16 @@ inline const DynamicReticleLayerBinding* FindDynamicReticleLayerBinding(const Pa
 inline DynamicReticleLayerBinding* FindDynamicReticleLayerBinding(PageDefinition& page,
                                                                   const std::string_view templateId)
 {
-    return const_cast<DynamicReticleLayerBinding*>(
-        FindDynamicReticleLayerBinding(static_cast<const PageDefinition&>(page), templateId));
+    const std::string normalizedTemplateId = NormalizePageName(templateId);
+
+    for (DynamicReticleLayerBinding& binding : page.dynamicReticleBindings)
+    {
+        if (NormalizePageName(binding.templateId) == normalizedTemplateId)
+        {
+            return &binding;
+        }
+    }
+
+    return nullptr;
 }
 } // namespace mfd

@@ -1725,8 +1725,6 @@ void EditorApplication::PrepareTutorialStep()
         }
         break;
     case static_cast<int>(TutorialStepId::CreateRadarTrackLayerOnPage1):
-        selectTutorialPageOrFallback("Page1");
-        break;
     case static_cast<int>(TutorialStepId::AllowPage1DynamicReticleTemplate):
         selectTutorialPageOrFallback("Page1");
         break;
@@ -1854,8 +1852,6 @@ void EditorApplication::PrepareTutorialStep()
         layoutState_.pagePreviewViewOptions.showPageContext = false;
         break;
     case static_cast<int>(TutorialStepId::InspectPageImportWorkflow):
-        selectTutorialPageOrFallback("Page1");
-        break;
     case static_cast<int>(TutorialStepId::InspectPageRenameWorkflow):
         selectTutorialPageOrFallback("Page1");
         break;

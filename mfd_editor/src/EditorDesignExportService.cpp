@@ -202,17 +202,9 @@ std::string SanitizeFileStem(const std::string_view value)
     for (const char character : value)
     {
         const unsigned char unsignedCharacter = static_cast<unsigned char>(character);
-        if (std::isalnum(unsignedCharacter))
+        if (std::isalnum(unsignedCharacter) || character == '-' || character == '_')
         {
             sanitized.push_back(character);
-        }
-        else if (character == '-' || character == '_')
-        {
-            sanitized.push_back(character);
-        }
-        else if (character == ' ' || character == '.' || character == '/')
-        {
-            sanitized.push_back('_');
         }
         else
         {
@@ -2118,8 +2110,9 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
             std::max(maxLabelWidth, MeasureTextEx(font, label.detail.c_str(), kExplodedDetailFontSize, 0.5f).x);
     }
 
-    const int finalHeight = std::max(kExplodedMinimumHeight,
-                                     static_cast<int>(std::ceil(140.0f + labels.size() * kExplodedLabelSpacing)));
+    const float explodedLabelCount = static_cast<float>(labels.size());
+    const int finalHeight =
+        std::max(kExplodedMinimumHeight, static_cast<int>(std::ceil(140.0f + explodedLabelCount * kExplodedLabelSpacing)));
     const int finalWidth = kExplodedCanvasMargin * 2 + kExplodedCanvasSize + kExplodedLabelGutter +
                            static_cast<int>(std::ceil(maxLabelWidth)) + 120;
 

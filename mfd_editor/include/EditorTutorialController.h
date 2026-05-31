@@ -55,8 +55,13 @@ public:
     void Finish();
     /** @brief Draws the guided tutorial coach panel. */
     void DrawCoach();
-    /** @brief Draws a persistent callout and halo around the current tutorial target. */
-    void DrawHalo(const char* targetId, const char* title, const char* reason) const;
+    /**
+     * @brief Draws a persistent callout and halo around the current tutorial target.
+     * @param targetId ImGui target identifier to highlight.
+     * @param title Short callout title.
+     * @param reason Detailed guidance displayed inside the callout bubble.
+     */
+    void DrawHalo(std::string_view targetId, std::string_view title, std::string_view reason) const;
 
     /**
      * @brief Returns `true` when the current tutorial target matches the provided id.

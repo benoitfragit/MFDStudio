@@ -723,6 +723,12 @@ std::optional<std::filesystem::path> FindTemplateIdCollision(const std::filesyst
         }
         catch (const std::exception&)
         {
+            iterator.increment(iterationError);
+            if (iterationError)
+            {
+                throw std::runtime_error("Directory scan failed: " + iterationError.message());
+            }
+            continue;
         }
 
         iterator.increment(iterationError);

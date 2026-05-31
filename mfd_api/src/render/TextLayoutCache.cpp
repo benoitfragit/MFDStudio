@@ -10,6 +10,7 @@
 
 #include "TextLayoutCache.h"
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -231,13 +232,13 @@ std::string TextLayoutCache::FormatTimeWithStrftime(const TimeGeometry& geometry
 {
     const std::tm calendarTime = ToCalendarTime(second, geometry.utc);
 
-    char buffer[128] {};
-    if (std::strftime(buffer, sizeof(buffer), geometry.format.c_str(), &calendarTime) == 0U)
+    std::array<char, 128> buffer {};
+    if (std::strftime(buffer.data(), buffer.size(), geometry.format.c_str(), &calendarTime) == 0U)
     {
         return geometry.utc ? "UTC" : "--:--:--";
     }
 
-    return std::string(buffer);
+    return std::string(buffer.data());
 }
 
 CachedTextLayout TextLayoutCache::BuildLayout(std::string text,

@@ -816,7 +816,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
         mfd::PageNamesEqual(draft.templateId, activeTutorialTemplate->templateId))
     {
         tutorial_->DrawHalo(
-            activeTutorialTemplate->targetId.data(),
+            activeTutorialTemplate->targetId,
             activeTutorialTemplate->label,
             activeTutorialTemplate->reason);
     }
@@ -1023,7 +1023,7 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     }
     ShowItemTooltip("Name used by the editor, runtime selection, and generated client API.");
     tutorial_->DrawHalo(
-        tutorialNameTargetId.data(),
+        tutorialNameTargetId,
         "Keep the guided strobe name",
         isAlternativeStrobeTutorialStep
             ? "Keep `Strobe1` so the generated client exposes one clear runtime alternative next to Default."
@@ -1060,7 +1060,7 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     }
     ShowItemTooltip("Choose which shared reticle template will be instantiated for the next strobe you add.");
     tutorial_->DrawHalo(
-        tutorialTemplateTargetId.data(),
+        tutorialTemplateTargetId,
         isAlternativeStrobeTutorialStep ? "Choose mfd_tutorial_aircraft" : "Choose mfd_tutorial_strobe_cursor",
         tutorialTemplateReason);
     if (tutorial_->MatchesTarget(tutorialTemplateTargetId) && draft.templateId == tutorialExpectedTemplateId)
@@ -1108,7 +1108,7 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     ImGui::EndDisabled();
     ShowItemTooltip("Instantiate one new strobe from the chosen library template and add it to this page.");
     tutorial_->DrawHalo(
-        tutorialAddTargetId.data(),
+        tutorialAddTargetId,
         "Add the guided strobe",
         tutorialAddReason);
 
@@ -2957,7 +2957,7 @@ void EditorApplication::DrawLibraryReticleInspector()
     tutorial_->DrawHalo(
         "library_add_to_page",
         "Click Add to active page",
-        tutorial_->LibraryAddToPageHaloReason().data());
+        tutorial_->LibraryAddToPageHaloReason());
     if (!canAddToPage)
     {
         ImGui::EndDisabled();
@@ -3197,7 +3197,7 @@ void EditorApplication::DrawLibraryReticleInspector()
     tutorial_->DrawHalo(
         "library_append_primitive",
         "Click Append primitive",
-        tutorial_->LibraryAppendPrimitiveHaloReason().data());
+        tutorial_->LibraryAppendPrimitiveHaloReason());
 
     ImGui::SameLine();
     if (ImGui::Button("Remove selected primitive"))

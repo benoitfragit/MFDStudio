@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -46,6 +47,17 @@ struct ReticleUiEntry
     bool effectiveVisible = false;
 };
 
+std::uint8_t ClampUnitFloatToByte(const float value) noexcept
+{
+    const float clamped = std::clamp(value, 0.0f, 1.0f);
+    return static_cast<std::uint8_t>(std::lround(clamped * 255.0f));
+}
+
+void DrawDisabledText(const std::string_view text)
+{
+    ImGui::TextDisabled("%.*s", static_cast<int>(text.size()), text.data());
+}
+
 ImVec4 ToImGuiColor(const ColorRgba& color) noexcept
 {
     return ImVec4(
@@ -57,18 +69,11 @@ ImVec4 ToImGuiColor(const ColorRgba& color) noexcept
 
 ColorRgba FromImGuiColor(const ImVec4& color) noexcept
 {
-    const auto clampChannel =
-        [](const float value) noexcept -> std::uint8_t
-    {
-        const float clamped = std::clamp(value, 0.0f, 1.0f);
-        return static_cast<std::uint8_t>(clamped * 255.0f + 0.5f);
-    };
-
     return ColorRgba {
-        clampChannel(color.x),
-        clampChannel(color.y),
-        clampChannel(color.z),
-        clampChannel(color.w)};
+        ClampUnitFloatToByte(color.x),
+        ClampUnitFloatToByte(color.y),
+        ClampUnitFloatToByte(color.z),
+        ClampUnitFloatToByte(color.w)};
 }
 
 const char* ReticleKindLabel(const ReticleKind kind) noexcept
@@ -542,7 +547,7 @@ bool RuntimeDebugOverlay::ConsumeRuntimeShortcuts() const noexcept
     return state_.Active();
 }
 
-bool RuntimeDebugOverlay::SelectFirstReticleOnActivePage(const SceneRegistry& displayScene, std::string* statusOut)
+void RuntimeDebugOverlay::SelectFirstReticleOnActivePage(const SceneRegistry& displayScene, std::string* statusOut)
 {
     const std::string activePage = displayScene.ActivePageName();
     const PageDefinition* page = FindPage(displayScene.Document(), activePage);
@@ -552,18 +557,17 @@ bool RuntimeDebugOverlay::SelectFirstReticleOnActivePage(const SceneRegistry& di
         {
             *statusOut = "No active page is available for the manual test panel.";
         }
-        return false;
+        return;
     }
 
-    const auto reticleViews = displayScene.CollectPageReticleViews(page->name);
     const auto reticlePointers = displayScene.CollectPageReticlePointers(page->name);
-    if (reticleViews.empty() || reticlePointers.empty())
+    if (reticlePointers.empty())
     {
         if (statusOut != nullptr)
         {
             *statusOut = "The active page does not expose any reticle.";
         }
-        return false;
+        return;
     }
 
     const ReticleGroup* firstReticle = reticlePointers.front();
@@ -573,7 +577,7 @@ bool RuntimeDebugOverlay::SelectFirstReticleOnActivePage(const SceneRegistry& di
         {
             *statusOut = "The first reticle entry is invalid.";
         }
-        return false;
+        return;
     }
 
     state_.SelectReticle(ReticleKey {page->name, firstReticle->id, ClassifyReticle(*page, firstReticle->id)});
@@ -581,7 +585,6 @@ bool RuntimeDebugOverlay::SelectFirstReticleOnActivePage(const SceneRegistry& di
     {
         *statusOut = "Selected reticle '" + firstReticle->id + "' on page '" + page->name + "'.";
     }
-    return true;
 }
 
 const ReticleGroup* RuntimeDebugOverlay::FindSelectedReticle(const SceneRegistry& displayScene) const
@@ -916,7 +919,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     }
     else
     {
-        ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+        DrawDisabledText(RuntimeDebugInspectorFrameState::RefreshNotice());
     }
 
     ImGui::Separator();
@@ -924,7 +927,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
 
     if (!sceneFrameState.SnapshotValid())
     {
-        ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+        DrawDisabledText(RuntimeDebugInspectorFrameState::RefreshNotice());
     }
     else
     {
@@ -1011,7 +1014,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
 
             if (!sceneFrameState.SnapshotValid())
             {
-                ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+                DrawDisabledText(RuntimeDebugInspectorFrameState::RefreshNotice());
             }
             else
             {
@@ -1092,7 +1095,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
     ImGui::BeginChild("DebugBody", ImVec2(0.0f, -kBottomPanelHeight), false);
     if (!sceneFrameState.SnapshotValid())
     {
-        ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+        DrawDisabledText(RuntimeDebugInspectorFrameState::RefreshNotice());
     }
     else
     {
@@ -1548,7 +1551,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                 else
                 {
                     ImGui::Separator();
-                    ImGui::TextDisabled("%s", RuntimeDebugInspectorFrameState::RefreshNotice().data());
+                    DrawDisabledText(RuntimeDebugInspectorFrameState::RefreshNotice());
                 }
                 ImGui::PopID();
                 ImGui::PopID();

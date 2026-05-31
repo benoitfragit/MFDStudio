@@ -59,8 +59,8 @@ public:
      * @param transportMap Optional generated transport map used to resolve
      * named authored identifiers before serialization.
      */
-    CommandClient(const WindowCommandTransportConfig& config,
-                  std::optional<GeneratedTransportMap> transportMap = std::nullopt);
+    explicit CommandClient(const WindowCommandTransportConfig& config,
+                           std::optional<GeneratedTransportMap> transportMap = std::nullopt);
 
     /**
      * @brief Creates a client using a UDP transport.
@@ -68,8 +68,8 @@ public:
      * @param transportMap Optional generated transport map used to resolve
      * named authored identifiers before serialization.
      */
-    CommandClient(const WindowUdpCommandTransport& config,
-                  std::optional<GeneratedTransportMap> transportMap = std::nullopt);
+    explicit CommandClient(const WindowUdpCommandTransport& config,
+                           std::optional<GeneratedTransportMap> transportMap = std::nullopt);
 
     /**
      * @brief Indicates whether the underlying transport is ready.

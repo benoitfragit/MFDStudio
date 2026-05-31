@@ -70,13 +70,13 @@ std::wstring ToWideString(const std::string_view text)
     return std::wstring(text.begin(), text.end());
 }
 
-std::optional<std::filesystem::path> OpenExistingFileDialog(const [[maybe_unused]] std::filesystem::path& initialFolder,
+std::optional<std::filesystem::path> OpenExistingFileDialog([[maybe_unused]] const std::filesystem::path& initialFolder,
                                                             [[maybe_unused]] const wchar_t* dialogTitle,
                                                             [[maybe_unused]] const wchar_t* filter,
                                                             std::string* error)
 {
 #if defined(_WIN32)
-    std::wstring initialFolderWide = initialFolder.wstring();
+    const std::wstring initialFolderWide = initialFolder.wstring();
     std::array<wchar_t, 4096> selectedFileBuffer {};
 
     OPENFILENAMEW dialog {};
@@ -89,7 +89,7 @@ std::optional<std::filesystem::path> OpenExistingFileDialog(const [[maybe_unused
     dialog.lpstrTitle = dialogTitle;
     dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
-    if (!GetOpenFileNameW(&dialog))
+    if (GetOpenFileNameW(&dialog) == FALSE)
     {
         const DWORD dialogError = CommDlgExtendedError();
         if (dialogError != 0 && error != nullptr)
@@ -114,7 +114,7 @@ std::optional<std::filesystem::path> OpenJsonAssetFileDialog(const std::filesyst
                                                              std::string* error)
 {
     static constexpr wchar_t kJsonAssetFilter[] = L"JSON Assets (*.json)\0*.json\0All Files (*.*)\0*.*\0";
-    return OpenExistingFileDialog(initialFolder, dialogTitle, kJsonAssetFilter, error);
+    return OpenExistingFileDialog(initialFolder, dialogTitle, &kJsonAssetFilter[0], error);
 }
 } // namespace
 
@@ -155,7 +155,7 @@ std::optional<std::filesystem::path> SaveJsonAssetFileDialog([[maybe_unused]] co
     OPENFILENAMEW dialog {};
     dialog.lStructSize = sizeof(dialog);
     dialog.hwndOwner = GetActiveWindow();
-    dialog.lpstrFilter = kJsonAssetFilter;
+    dialog.lpstrFilter = &kJsonAssetFilter[0];
     dialog.lpstrFile = selectedFileBuffer.data();
     dialog.nMaxFile = static_cast<DWORD>(selectedFileBuffer.size());
     dialog.lpstrInitialDir = initialFolderWide.c_str();
@@ -163,7 +163,7 @@ std::optional<std::filesystem::path> SaveJsonAssetFileDialog([[maybe_unused]] co
     dialog.lpstrDefExt = L"json";
     dialog.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR | OFN_EXPLORER;
 
-    if (!GetSaveFileNameW(&dialog))
+    if (GetSaveFileNameW(&dialog) == FALSE)
     {
         const DWORD dialogError = CommDlgExtendedError();
         if (dialogError != 0 && error != nullptr)
@@ -188,7 +188,7 @@ std::optional<std::filesystem::path> OpenFontAssetFileDialog(const std::filesyst
 {
     static constexpr wchar_t kFontAssetFilter[] =
         L"Font Assets (*.ttf;*.otf)\0*.ttf;*.otf\0All Files (*.*)\0*.*\0";
-    return OpenExistingFileDialog(initialFolder, L"Select MFD window font", kFontAssetFilter, error);
+    return OpenExistingFileDialog(initialFolder, L"Select MFD window font", &kFontAssetFilter[0], error);
 }
 
 std::optional<std::filesystem::path> OpenFolderDialog(const std::filesystem::path& initialFolder,

@@ -67,15 +67,12 @@ pb::StrobeCaptureShape ToProtoCaptureShape(const StrobeCaptureShape shape) noexc
 
 StrobeCaptureShape FromProtoCaptureShape(const pb::StrobeCaptureShape shape) noexcept
 {
-    switch (shape)
+    if (shape == pb::STROBE_CAPTURE_SHAPE_RECTANGLE)
     {
-    case pb::STROBE_CAPTURE_SHAPE_RECTANGLE:
         return StrobeCaptureShape::Rectangle;
-
-    case pb::STROBE_CAPTURE_SHAPE_CIRCLE:
-    default:
-        return StrobeCaptureShape::Circle;
     }
+
+    return StrobeCaptureShape::Circle;
 }
 
 void FillProtoCaptureConfig(const StrobeCaptureConfig& capture, pb::StrobeCaptureArea* target)

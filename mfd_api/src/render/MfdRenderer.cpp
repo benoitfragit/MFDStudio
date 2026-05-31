@@ -11,6 +11,7 @@
 #include "mfd/render/MfdRenderer.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -34,12 +35,18 @@ Color ToRayColor(const ColorRgba& color) noexcept
     return Color {color.r, color.g, color.b, color.a};
 }
 
+std::uint8_t ClampUnitFloatToByte(const float value) noexcept
+{
+    const float clamped = std::clamp(value, 0.0f, 1.0f);
+    return static_cast<std::uint8_t>(std::lround(clamped * 255.0f));
+}
+
 Font ResolveTextFont(const Font* textFont) noexcept
 {
     return textFont != nullptr ? *textFont : GetFontDefault();
 }
 
-void ApplyPointFilterToFont(const Font font) noexcept
+void ApplyPointFilterToFont(const Font& font) noexcept
 {
     if (font.texture.id != 0)
     {
@@ -94,7 +101,7 @@ bool HasSamePageTitleDisplay(const PageTitleDisplayDefinition& lhs, const PageTi
 class TextureModeScope
 {
 public:
-    explicit TextureModeScope(const RenderTexture2D target) noexcept
+    explicit TextureModeScope(const RenderTexture2D& target) noexcept
         : active_(true)
     {
         BeginTextureMode(target);
@@ -519,8 +526,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
 
         if (display.brightness < 0.9995f)
         {
-            const std::uint8_t overlayAlpha =
-                static_cast<std::uint8_t>(std::clamp(1.0f - display.brightness, 0.0f, 1.0f) * 255.0f + 0.5f);
+            const std::uint8_t overlayAlpha = ClampUnitFloatToByte(1.0f - display.brightness);
             DrawRectangle(0, 0, viewportWidth, viewportHeight, Color {0, 0, 0, overlayAlpha});
         }
 

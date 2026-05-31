@@ -90,8 +90,8 @@ public:
      * @param commandConfig UDP command transport configuration.
      * @param feedbackConfig UDP feedback transport configuration.
      */
-    UdpRuntimeBridge(WindowCommandTransportConfig commandConfig = {},
-                     WindowFeedbackTransportConfig feedbackConfig = {});
+    explicit UdpRuntimeBridge(WindowCommandTransportConfig commandConfig = {},
+                              WindowFeedbackTransportConfig feedbackConfig = {});
 
     /**
      * @brief Creates a bridge from channel factories (useful for custom transports and tests).

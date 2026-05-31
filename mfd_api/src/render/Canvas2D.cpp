@@ -401,17 +401,17 @@ std::string FormatTimeText(const TimeGeometry& geometry)
     const std::time_t rawTime = std::chrono::system_clock::to_time_t(now);
     const std::tm calendarTime = ToCalendarTime(rawTime, geometry.utc);
 
-    char buffer[128] {};
-    if (std::strftime(buffer, sizeof(buffer), geometry.format.c_str(), &calendarTime) == 0U)
+    std::array<char, 128> buffer {};
+    if (std::strftime(buffer.data(), buffer.size(), geometry.format.c_str(), &calendarTime) == 0U)
     {
         return geometry.utc ? "UTC" : "--:--:--";
     }
 
-    return std::string(buffer);
+    return std::string(buffer.data());
 }
 
 void DrawCenteredText(const std::string& text,
-                      const Font font,
+                      const Font& font,
                       const float fontSize,
                       const float letterSpacing,
                       const Vector2 screenPosition,

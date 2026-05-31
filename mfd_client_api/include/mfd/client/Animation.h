@@ -98,10 +98,10 @@ public:
      * @param transportId Stable generated transport id of the strobe entry.
      * @param defaultActive Indicates whether this strobe is the authored default on its page.
      */
-    StrobeType(std::string_view name,
-               StrobeInfo info = {},
-               mfd::TransportId transportId = 0,
-               bool defaultActive = false);
+    explicit StrobeType(std::string_view name,
+                        StrobeInfo info = {},
+                        mfd::TransportId transportId = 0,
+                        bool defaultActive = false);
 
     /**
      * @brief Returns the user-facing name of the strobe entry.
@@ -612,7 +612,9 @@ public:
      * @param info Authored strobe metadata.
      * @param pageTransportId Optional generated transport id of the owning page.
      */
-    StrobeHandle(std::string_view pageName, StrobeInfo info = {}, mfd::TransportId pageTransportId = 0);
+    explicit StrobeHandle(std::string_view pageName,
+                          StrobeInfo info = {},
+                          mfd::TransportId pageTransportId = 0);
     /**
      * @brief Builds one page-scoped strobe handle over an authored strobe catalog.
      * @param pageName Owning authored page name.

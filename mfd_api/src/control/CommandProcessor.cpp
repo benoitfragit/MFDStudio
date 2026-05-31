@@ -758,11 +758,8 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
         {
             using Command = std::decay_t<decltype(value)>;
 
-            if constexpr (std::is_same_v<Command, ActivatePageCommand>)
-            {
-                return ResolveGeneratedPage(value.page, value.pageId);
-            }
-            else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
+            if constexpr (std::is_same_v<Command, ActivatePageCommand> ||
+                          std::is_same_v<Command, SetPageViewCommand>)
             {
                 return ResolveGeneratedPage(value.page, value.pageId);
             }

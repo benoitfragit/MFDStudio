@@ -54,6 +54,8 @@ public:
      * @tparam U Source vector element type.
      * @param source Source vector.
      */
+    // cppcheck-suppress noExplicitConstructor
+    // Intentional span-like implicit conversion from contiguous containers.
     template <typename U,
               typename = std::enable_if_t<std::is_convertible<U(*)[], T(*)[]>::value>>
     constexpr ArrayView(std::vector<U>& source) noexcept
@@ -67,6 +69,8 @@ public:
      * @tparam U Source vector element type.
      * @param source Source vector.
      */
+    // cppcheck-suppress noExplicitConstructor
+    // Intentional span-like implicit conversion from contiguous containers.
     template <typename U,
               typename = std::enable_if_t<std::is_convertible<const U(*)[], T(*)[]>::value>>
     constexpr ArrayView(const std::vector<U>& source) noexcept
@@ -81,6 +85,8 @@ public:
      * @tparam N Source array size.
      * @param source Source array.
      */
+    // cppcheck-suppress noExplicitConstructor
+    // Intentional span-like implicit conversion from contiguous containers.
     template <typename U,
               std::size_t N,
               typename = std::enable_if_t<std::is_convertible<U(*)[], T(*)[]>::value>>
@@ -96,6 +102,8 @@ public:
      * @tparam N Source array size.
      * @param source Source array.
      */
+    // cppcheck-suppress noExplicitConstructor
+    // Intentional span-like implicit conversion from contiguous containers.
     template <typename U,
               std::size_t N,
               typename = std::enable_if_t<std::is_convertible<const U(*)[], T(*)[]>::value>>

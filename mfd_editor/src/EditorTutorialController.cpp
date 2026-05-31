@@ -559,14 +559,16 @@ void EditorTutorialController::DrawCoach()
     ImGui::PopStyleColor();
 }
 
-void EditorTutorialController::DrawHalo(const char* targetId, const char* title, const char* reason) const
+void EditorTutorialController::DrawHalo(const std::string_view targetId,
+                                        const std::string_view title,
+                                        const std::string_view reason) const
 {
     if (!active_ || stepIndex_ < kTutorialStepMin || stepIndex_ >= editor::tutorial::StepCount())
     {
         return;
     }
 
-    if (targetId == nullptr || title == nullptr || reason == nullptr || !MatchesTarget(targetId))
+    if (targetId.empty() || title.empty() || reason.empty() || !MatchesTarget(targetId))
     {
         return;
     }
@@ -582,8 +584,12 @@ void EditorTutorialController::DrawHalo(const char* targetId, const char* title,
     drawList->AddRect(outerMin, outerMax, IM_COL32(84, 224, 255, 110), 12.0f, 0, 3.5f);
 
     constexpr float kWrapWidth = 260.0f;
-    const ImVec2 titleSize = ImGui::CalcTextSize(title, nullptr, false, kWrapWidth);
-    const ImVec2 reasonSize = ImGui::CalcTextSize(reason, nullptr, false, kWrapWidth);
+    const char* const titleBegin = title.data();
+    const char* const titleEnd = titleBegin + title.size();
+    const char* const reasonBegin = reason.data();
+    const char* const reasonEnd = reasonBegin + reason.size();
+    const ImVec2 titleSize = ImGui::CalcTextSize(titleBegin, titleEnd, false, kWrapWidth);
+    const ImVec2 reasonSize = ImGui::CalcTextSize(reasonBegin, reasonEnd, false, kWrapWidth);
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
     ImVec2 bubbleMin(max.x + 18.0f, min.y - 4.0f);
@@ -617,14 +623,21 @@ void EditorTutorialController::DrawHalo(const char* targetId, const char* title,
     drawList->AddCircleFilled(itemCenter, 4.0f, IM_COL32(84, 224, 255, 255));
 
     const ImVec2 textPos(bubbleMin.x + 12.0f, bubbleMin.y + 10.0f);
-    drawList->AddText(ImGui::GetFont(), ImGui::GetFontSize(), textPos, IM_COL32(255, 255, 255, 255), title, nullptr, kWrapWidth);
+    drawList->AddText(
+        ImGui::GetFont(),
+        ImGui::GetFontSize(),
+        textPos,
+        IM_COL32(255, 255, 255, 255),
+        titleBegin,
+        titleEnd,
+        kWrapWidth);
     drawList->AddText(
         ImGui::GetFont(),
         ImGui::GetFontSize(),
         ImVec2(textPos.x, textPos.y + titleSize.y + 6.0f),
         IM_COL32(181, 216, 228, 255),
-        reason,
-        nullptr,
+        reasonBegin,
+        reasonEnd,
         kWrapWidth);
 }
 

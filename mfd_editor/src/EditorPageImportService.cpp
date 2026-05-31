@@ -212,20 +212,20 @@ std::string LoadCanonicalJsonFile(const std::filesystem::path& path)
     return CanonicalizeJson(LoadJsonFile(path));
 }
 
-const json& ExtractPageNode(const json& document)
+const json* FindPageNode(const json& document) noexcept
 {
     if (document.is_object() && document.contains("page") && document.at("page").is_object())
     {
-        return document.at("page");
+        return &document.at("page");
     }
 
-    return document;
+    return &document;
 }
 
 PageSourceMetadata ParsePageSourceMetadata(const std::filesystem::path& sourcePageFile)
 {
     const json document = LoadJsonFile(sourcePageFile);
-    const json& pageNode = ExtractPageNode(document);
+    const json& pageNode = *FindPageNode(document);
     if (!pageNode.is_object())
     {
         throw std::runtime_error("Page JSON must contain one object root or one {\"page\": {...}} wrapper.");

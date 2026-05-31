@@ -177,33 +177,33 @@ void WriteJsonFile(const std::filesystem::path& path, const std::string_view con
     }
 }
 
-const json& ExtractPageNode(const json& document)
+const json* FindPageNode(const json& document) noexcept
 {
     if (document.is_object() &&
         document.contains("page") &&
         document.at("page").is_object())
     {
-        return document.at("page");
+        return &document.at("page");
     }
 
-    return document;
+    return &document;
 }
 
-json& ExtractMutablePageNode(json& document)
+json* FindMutablePageNode(json& document) noexcept
 {
     if (document.is_object() &&
         document.contains("page") &&
         document.at("page").is_object())
     {
-        return document.at("page");
+        return &document.at("page");
     }
 
-    return document;
+    return &document;
 }
 
 std::string ExtractPageName(const json& document)
 {
-    const json& pageNode = ExtractPageNode(document);
+    const json& pageNode = *FindPageNode(document);
     if (!pageNode.is_object())
     {
         throw std::runtime_error("Page JSON must contain one object root or one {\"page\": {...}} wrapper.");
@@ -234,7 +234,7 @@ std::string ExtractPageName(const json& document)
 
 void RewritePageName(json& document, const std::string& newPageName)
 {
-    json& pageNode = ExtractMutablePageNode(document);
+    json& pageNode = *FindMutablePageNode(document);
     if (!pageNode.is_object())
     {
         throw std::runtime_error("Page JSON must contain one object root or one {\"page\": {...}} wrapper.");

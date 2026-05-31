@@ -108,6 +108,44 @@ std::string MakeDynamicLifecycleKey(const mfd::SetDynamicReticleSetVisibilityCom
 void PutDynamicLifecycleCommand(std::vector<DynamicLifecycleOperation>& operations,
                                 DynamicOperationMap& operationIndexes,
                                 std::string key,
+                                mfd::UserCommand command);
+
+template <typename Command>
+void PutDynamicLifecycleValue(std::vector<DynamicLifecycleOperation>& operations,
+                              DynamicOperationMap& operationIndexes,
+                              const Command& command)
+{
+    PutDynamicLifecycleCommand(operations, operationIndexes, MakeDynamicLifecycleKey(command), command);
+}
+
+void PutExpandedDynamicLifecycleValues(const mfd::UpsertDynamicReticlesCommand& command,
+                                       std::vector<DynamicLifecycleOperation>& operations,
+                                       DynamicOperationMap& operationIndexes)
+{
+    operations.reserve(operations.size() + command.reticles.size());
+    operationIndexes.reserve(operationIndexes.size() + command.reticles.size());
+
+    for (const mfd::DynamicReticleState& state : command.reticles)
+    {
+        mfd::UpsertDynamicReticleCommand expandedCommand;
+        expandedCommand.target =
+            mfd::DynamicReticleHandle {command.page, state.reticleId, command.pageId, state.runtimeReticleId};
+        expandedCommand.templateId = command.templateId;
+        expandedCommand.templateTransportId = command.templateTransportId;
+        expandedCommand.patch = state.patch;
+
+        const std::string lifecycleKey = MakeDynamicLifecycleKey(expandedCommand);
+        PutDynamicLifecycleCommand(
+            operations,
+            operationIndexes,
+            lifecycleKey,
+            std::move(expandedCommand));
+    }
+}
+
+void PutDynamicLifecycleCommand(std::vector<DynamicLifecycleOperation>& operations,
+                                DynamicOperationMap& operationIndexes,
+                                std::string key,
                                 mfd::UserCommand command)
 {
     if (key.empty())
@@ -138,49 +176,15 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
             [&operations, &operationIndexes](const auto& value)
             {
                 using Command = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand>)
+                if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand> ||
+                              std::is_same_v<Command, mfd::RemoveDynamicReticleCommand> ||
+                              std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
                 {
-                    PutDynamicLifecycleCommand(
-                        operations,
-                        operationIndexes,
-                        MakeDynamicLifecycleKey(value),
-                        value);
-                }
-                else if constexpr (std::is_same_v<Command, mfd::RemoveDynamicReticleCommand>)
-                {
-                    PutDynamicLifecycleCommand(
-                        operations,
-                        operationIndexes,
-                        MakeDynamicLifecycleKey(value),
-                        value);
+                    PutDynamicLifecycleValue(operations, operationIndexes, value);
                 }
                 else if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticlesCommand>)
                 {
-                    operations.reserve(operations.size() + value.reticles.size());
-                    operationIndexes.reserve(operationIndexes.size() + value.reticles.size());
-
-                    for (const mfd::DynamicReticleState& state : value.reticles)
-                    {
-                        mfd::UpsertDynamicReticleCommand command;
-                        command.target =
-                            mfd::DynamicReticleHandle {value.page, state.reticleId, value.pageId, state.runtimeReticleId};
-                        command.templateId = value.templateId;
-                        command.templateTransportId = value.templateTransportId;
-                        command.patch = state.patch;
-                        PutDynamicLifecycleCommand(
-                            operations,
-                            operationIndexes,
-                            MakeDynamicLifecycleKey(command),
-                            std::move(command));
-                    }
-                }
-                else if constexpr (std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
-                {
-                    PutDynamicLifecycleCommand(
-                        operations,
-                        operationIndexes,
-                        MakeDynamicLifecycleKey(value),
-                        value);
+                    PutExpandedDynamicLifecycleValues(value, operations, operationIndexes);
                 }
             },
             command);

@@ -821,13 +821,12 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
             {
                 using Command = std::decay_t<decltype(value)>;
 
-                if constexpr (std::is_same_v<Command, ActivatePageCommand>)
+                if constexpr (std::is_same_v<Command, ActivatePageCommand> ||
+                              std::is_same_v<Command, SetPageViewCommand>)
                 {
-                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, "ActivatePageCommand");
-                }
-                else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
-                {
-                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, "SetPageViewCommand");
+                    constexpr const char* kCommandName =
+                        std::is_same_v<Command, ActivatePageCommand> ? "ActivatePageCommand" : "SetPageViewCommand";
+                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, kCommandName);
                 }
                 else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand> ||
                                    std::is_same_v<Command, ResetWindowCommand>)

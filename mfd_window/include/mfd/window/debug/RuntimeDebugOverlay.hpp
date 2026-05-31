@@ -115,7 +115,7 @@ private:
     void Deactivate();
     bool RefreshPreviewFromLive(const SceneRegistry& liveScene);
     void RecordObservedRuntimeState(const SceneRegistry& liveScene, const std::vector<CommandBatch>& drainedBatches);
-    [[nodiscard]] bool SelectFirstReticleOnActivePage(const SceneRegistry& displayScene, std::string* statusOut);
+    void SelectFirstReticleOnActivePage(const SceneRegistry& displayScene, std::string* statusOut);
     [[nodiscard]] const ReticleGroup* FindSelectedReticle(const SceneRegistry& displayScene) const;
     template <typename Mutation>
     bool MutateSelectedReticleWithRollback(const SceneRegistry& liveScene,

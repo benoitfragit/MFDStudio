@@ -373,8 +373,8 @@ MFD_API ReticleStyleOverride MergeOverrides(const ReticleStyleOverride& base, co
  */
 MFD_API ReticleGroup InstantiateReticle(const ReticleGroup& templ,
                                         std::string instanceId,
-                                        Transform2D transform = {},
-                                        ReticleStyleOverride overrides = {});
+                                        const Transform2D& transform = {},
+                                        const ReticleStyleOverride& overrides = {});
 
 /**
  * @brief Finds a primitive by id inside a reticle.

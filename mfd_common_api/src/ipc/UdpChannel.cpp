@@ -263,9 +263,8 @@ std::optional<std::vector<std::byte>> UdpChannel::TryReceive()
     }
 
     impl_->lastError.clear();
-    return std::vector<std::byte>(
-        impl_->receiveBuffer.begin(),
-        impl_->receiveBuffer.begin() + static_cast<std::size_t>(receivedBytes));
+    const auto payloadEnd = impl_->receiveBuffer.begin() + receivedBytes;
+    return std::vector<std::byte>(impl_->receiveBuffer.begin(), payloadEnd);
 #else
     return std::nullopt;
 #endif

@@ -1202,8 +1202,13 @@ private:
             {
                 pluginApi_.close(pluginApi_.plugin_context);
             }
+            catch (const std::exception& exception)
+            {
+                std::cerr << "Framebuffer plugin close callback threw: " << exception.what() << '\n';
+            }
             catch (...)
             {
+                std::cerr << "Framebuffer plugin close callback threw an unknown exception.\n";
             }
         }
 
@@ -1213,8 +1218,13 @@ private:
             {
                 pluginApi_.destroy(pluginApi_.plugin_context);
             }
+            catch (const std::exception& exception)
+            {
+                std::cerr << "Framebuffer plugin destroy callback threw: " << exception.what() << '\n';
+            }
             catch (...)
             {
+                std::cerr << "Framebuffer plugin destroy callback threw an unknown exception.\n";
             }
         }
 
