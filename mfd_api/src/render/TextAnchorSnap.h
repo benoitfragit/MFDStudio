@@ -7,7 +7,7 @@
 
 /**
  * @file
- * @brief Internal helpers keeping centered text anchors stable on the pixel grid.
+ * @brief Internal helpers keeping text anchors stable on the pixel grid.
  */
 
 #include <cmath>
@@ -17,17 +17,17 @@
 namespace mfd::detail
 {
 /**
- * @brief Snaps one centered text anchor to the nearest screen pixel.
+ * @brief Snaps one text anchor to the nearest screen pixel.
  *
- * @details The title chrome and other centered text primitives use their visual
- * center as the authored logical anchor. Snapping that center directly avoids
- * visible drift when glyph measurements vary slightly while the window is being
- * resized.
+ * @details Text-like primitives use one logical anchor that can represent the
+ * left edge, the visual center, or the right edge depending on the authored
+ * alignment. Snapping that anchor directly avoids visible drift when glyph
+ * measurements vary slightly while the window is being resized.
  *
- * @param anchorScreenPosition Screen-space center anchor passed to `DrawTextPro`.
- * @return Pixel-snapped center anchor, or the original value when it is not finite.
+ * @param anchorScreenPosition Screen-space anchor passed to `DrawTextPro`.
+ * @return Pixel-snapped anchor, or the original value when it is not finite.
  */
-inline Vector2 SnapCenteredTextAnchor(const Vector2 anchorScreenPosition) noexcept
+inline Vector2 SnapTextAnchor(const Vector2 anchorScreenPosition) noexcept
 {
     if (!std::isfinite(anchorScreenPosition.x) || !std::isfinite(anchorScreenPosition.y))
     {

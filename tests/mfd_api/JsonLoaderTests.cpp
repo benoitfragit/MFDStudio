@@ -290,6 +290,74 @@ TEST(JsonLoaderTests, LoadDocumentParsesPrimitiveReticleSensitivityFlags)
     EXPECT_FALSE(page.strobes.front().reticle.primitives.front().reticleScaleSensitive);
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesTextAndTimeAlignmentFields)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+
+    WriteTextFile(reticleFolder / "label.json",
+                  R"json({
+  "id": "label",
+  "elements": [
+    {
+      "id": "caption",
+      "type": "text",
+      "text": "UTC",
+      "align": "left"
+    },
+    {
+      "id": "clock",
+      "type": "time",
+      "alignment": "right",
+      "utc": true
+    }
+  ]
+})json");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": [
+        { "id": "label_instance", "template": "label", "layerId": "default" }
+      ],
+      "strobes": [
+        {
+          "name": "Default",
+          "template": "label",
+          "id": "label_strobe"
+        }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+    ASSERT_EQ(document.pages.size(), 1U);
+    const mfd::PageDefinition& page = document.pages.front();
+    ASSERT_EQ(page.staticReticles.size(), 1U);
+    ASSERT_EQ(page.staticReticles.front().primitives.size(), 2U);
+
+    const auto& textGeometry = std::get<mfd::TextGeometry>(page.staticReticles.front().primitives[0].geometry);
+    const auto& timeGeometry = std::get<mfd::TimeGeometry>(page.staticReticles.front().primitives[1].geometry);
+    EXPECT_EQ(textGeometry.align, mfd::Align::Left);
+    EXPECT_EQ(timeGeometry.align, mfd::Align::Right);
+
+    ASSERT_EQ(page.strobes.size(), 1U);
+    ASSERT_EQ(page.strobes.front().reticle.primitives.size(), 2U);
+    const auto& strobeTextGeometry = std::get<mfd::TextGeometry>(page.strobes.front().reticle.primitives[0].geometry);
+    const auto& strobeTimeGeometry = std::get<mfd::TimeGeometry>(page.strobes.front().reticle.primitives[1].geometry);
+    EXPECT_EQ(strobeTextGeometry.align, mfd::Align::Left);
+    EXPECT_EQ(strobeTimeGeometry.align, mfd::Align::Right);
+}
+
 TEST(JsonLoaderTests, LoadDocumentRejectsUnknownDefaultBlinkType)
 {
     TemporaryFolder workspace;

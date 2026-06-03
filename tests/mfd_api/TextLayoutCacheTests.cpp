@@ -62,8 +62,8 @@ TEST(TextLayoutCacheTests, ResolveStaticTextReusesMeasuredLayoutForMatchingInput
     mfd::TextLayoutCache cache(&FakeMeasureText, &FakeFormatTime);
     const Font font = MakeFont();
 
-    const mfd::CachedTextLayout& first = cache.ResolveStaticText("CALLSIGN", font, 14.0f, 2.0f);
-    const mfd::CachedTextLayout& second = cache.ResolveStaticText("CALLSIGN", font, 14.0f, 2.0f);
+    const mfd::CachedTextLayout& first = cache.ResolveStaticText("CALLSIGN", font, 14.0f, 2.0f, mfd::Align::Center);
+    const mfd::CachedTextLayout& second = cache.ResolveStaticText("CALLSIGN", font, 14.0f, 2.0f, mfd::Align::Center);
 
     EXPECT_EQ(&first, &second);
     EXPECT_EQ(gMeasureCallCount, 1);
@@ -84,15 +84,30 @@ TEST(TextLayoutCacheTests, ResolveStaticTextMissesWhenMeasurementInputsChange)
     mfd::TextLayoutCache cache(&FakeMeasureText, &FakeFormatTime);
     const Font font = MakeFont();
 
-    cache.ResolveStaticText("ALT", font, 14.0f, 2.0f);
-    cache.ResolveStaticText("ALT", font, 14.0f, 3.0f);
-    cache.ResolveStaticText("ALT", MakeFont(8U), 14.0f, 3.0f);
+    cache.ResolveStaticText("ALT", font, 14.0f, 2.0f, mfd::Align::Center);
+    cache.ResolveStaticText("ALT", font, 14.0f, 3.0f, mfd::Align::Center);
+    cache.ResolveStaticText("ALT", MakeFont(8U), 14.0f, 3.0f, mfd::Align::Center);
 
     EXPECT_EQ(gMeasureCallCount, 3);
     const mfd::TextLayoutCache::Stats stats = cache.CacheStats();
     EXPECT_EQ(stats.staticMisses, 3U);
     EXPECT_EQ(stats.staticHits, 0U);
     EXPECT_EQ(cache.StaticEntryCount(), 3U);
+}
+
+TEST(TextLayoutCacheTests, ResolveStaticTextTracksAlignmentInCacheKeyAndOrigin)
+{
+    ResetCounters();
+    mfd::TextLayoutCache cache(&FakeMeasureText, &FakeFormatTime);
+    const Font font = MakeFont();
+
+    const mfd::CachedTextLayout& left = cache.ResolveStaticText("ALT", font, 14.0f, 2.0f, mfd::Align::Left);
+    const mfd::CachedTextLayout& right = cache.ResolveStaticText("ALT", font, 14.0f, 2.0f, mfd::Align::Right);
+
+    EXPECT_EQ(gMeasureCallCount, 2);
+    EXPECT_FLOAT_EQ(left.origin.x, 0.0f);
+    EXPECT_FLOAT_EQ(right.origin.x, right.size.x);
+    EXPECT_NE(&left, &right);
 }
 
 TEST(TextLayoutCacheTests, ResolveTimeTextReusesFormattedLayoutWithinSameSecond)
@@ -117,13 +132,16 @@ TEST(TextLayoutCacheTests, ResolveTimeTextReusesFormattedLayoutWithinSameSecond)
     mfd::TimeGeometry localGeometry = geometry;
     localGeometry.utc = false;
     cache.ResolveTimeText(localGeometry, font, 18.0f, 1.0f, sameSecond);
+    localGeometry = geometry;
+    localGeometry.align = mfd::Align::Right;
+    cache.ResolveTimeText(localGeometry, font, 18.0f, 1.0f, sameSecond);
     cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, nextSecond);
 
-    EXPECT_EQ(gFormatCallCount, 3);
-    EXPECT_EQ(gMeasureCallCount, 3);
+    EXPECT_EQ(gFormatCallCount, 4);
+    EXPECT_EQ(gMeasureCallCount, 4);
 
     const mfd::TextLayoutCache::Stats stats = cache.CacheStats();
-    EXPECT_EQ(stats.timeMisses, 3U);
+    EXPECT_EQ(stats.timeMisses, 4U);
     EXPECT_EQ(stats.timeHits, 1U);
-    EXPECT_EQ(cache.TimeEntryCount(), 3U);
+    EXPECT_EQ(cache.TimeEntryCount(), 4U);
 }

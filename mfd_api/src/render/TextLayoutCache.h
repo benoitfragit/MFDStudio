@@ -33,7 +33,7 @@ struct CachedTextLayout
     std::string text {};
     /** @brief Full measured text bounds in pixels. */
     Vector2 size {};
-    /** @brief Center origin used by `DrawTextPro`. */
+    /** @brief Alignment-aware origin used by `DrawTextPro`. */
     Vector2 origin {};
 };
 
@@ -85,12 +85,14 @@ public:
      * @param font Font used to measure and draw the text.
      * @param fontSize Font size in pixels.
      * @param letterSpacing Letter spacing in pixels.
+     * @param align Horizontal alignment resolved by the caller.
      * @return Cached layout owned by the cache.
      */
     const CachedTextLayout& ResolveStaticText(std::string_view text,
                                               const Font& font,
                                               float fontSize,
-                                              float letterSpacing);
+                                              float letterSpacing,
+                                              Align align);
 
     /**
      * @brief Returns one cached layout for a time primitive in one second bucket.
@@ -138,6 +140,7 @@ private:
         std::size_t fontFingerprint = 0U;
         std::uint32_t fontSizeBits = 0U;
         std::uint32_t letterSpacingBits = 0U;
+        Align align = Align::Center;
 
         [[nodiscard]] bool operator==(const StaticKey& other) const noexcept;
     };
@@ -150,6 +153,7 @@ private:
         std::size_t fontFingerprint = 0U;
         std::uint32_t fontSizeBits = 0U;
         std::uint32_t letterSpacingBits = 0U;
+        Align align = Align::Center;
 
         [[nodiscard]] bool operator==(const TimeKey& other) const noexcept;
     };
@@ -179,6 +183,7 @@ private:
                                         const Font& font,
                                         float fontSize,
                                         float letterSpacing,
+                                        Align align,
                                         MeasureTextCallback measureText);
 
     template <typename Map>

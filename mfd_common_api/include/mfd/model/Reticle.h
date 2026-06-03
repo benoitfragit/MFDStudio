@@ -57,6 +57,16 @@ enum class PrimitiveType
 };
 
 /**
+ * @brief Horizontal alignment used by text-like primitives.
+ */
+enum class Align
+{
+    Left,
+    Center,
+    Right
+};
+
+/**
  * @brief Shared visual style applied to a primitive before reticle-level overrides.
  */
 struct PrimitiveStyle
@@ -94,6 +104,8 @@ struct TextGeometry
     std::string text;
     float fontSize = kDefaultTextFontSize;
     float letterSpacing = kDefaultTextLetterSpacing;
+    /** @brief Horizontal alignment used when the text width changes. */
+    Align align = Align::Center;
 };
 
 /**
@@ -105,6 +117,8 @@ struct TimeGeometry
     bool utc = false;
     float fontSize = kDefaultTextFontSize;
     float letterSpacing = kDefaultTextLetterSpacing;
+    /** @brief Horizontal alignment used when the rendered time width changes. */
+    Align align = Align::Center;
 };
 
 /**

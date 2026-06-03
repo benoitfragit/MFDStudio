@@ -66,6 +66,25 @@ bool IsFiniteVec2(const Vec2& value) noexcept
     return std::isfinite(value.x) && std::isfinite(value.y);
 }
 
+float TextHorizontalOrigin(const float width, const Align align) noexcept
+{
+    switch (align)
+    {
+    case Align::Left:
+        return 0.0f;
+    case Align::Right:
+        return width;
+    case Align::Center:
+    default:
+        return width * 0.5f;
+    }
+}
+
+Vector2 TextLayoutOrigin(const Vector2 size, const Align align) noexcept
+{
+    return Vector2 {TextHorizontalOrigin(size.x, align), size.y * 0.5f};
+}
+
 int SanitizeSegmentCount(const int requested, const int minimum) noexcept
 {
     return std::clamp(requested, minimum, kMaxPrimitiveSegments);
@@ -410,16 +429,16 @@ std::string FormatTimeText(const TimeGeometry& geometry)
     return std::string(buffer.data());
 }
 
-void DrawCenteredText(const std::string& text,
-                      const Font& font,
-                      const float fontSize,
-                      const float letterSpacing,
-                      const Vector2 screenPosition,
-                      const Vector2 origin,
-                      const float rotationDegrees,
-                      const Color color)
+void DrawAlignedText(const std::string& text,
+                     const Font& font,
+                     const float fontSize,
+                     const float letterSpacing,
+                     const Vector2 screenPosition,
+                     const Vector2 origin,
+                     const float rotationDegrees,
+                     const Color color)
 {
-    const Vector2 snappedScreenPosition = detail::SnapCenteredTextAnchor(screenPosition);
+    const Vector2 snappedScreenPosition = detail::SnapTextAnchor(screenPosition);
     DrawTextPro(font,
                 text.c_str(),
                 snappedScreenPosition,
@@ -734,13 +753,13 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         const CachedTextLayout* layout = nullptr;
         if (textLayoutCache_ != nullptr)
         {
-            layout = &textLayoutCache_->ResolveStaticText(text->text, font, fontSize, letterSpacing);
+            layout = &textLayoutCache_->ResolveStaticText(text->text, font, fontSize, letterSpacing, text->align);
         }
         else
         {
             fallbackLayout.text = text->text;
             fallbackLayout.size = MeasureTextEx(font, fallbackLayout.text.c_str(), fontSize, letterSpacing);
-            fallbackLayout.origin = Vector2 {fallbackLayout.size.x * 0.5f, fallbackLayout.size.y * 0.5f};
+            fallbackLayout.origin = TextLayoutOrigin(fallbackLayout.size, text->align);
             layout = &fallbackLayout;
         }
 
@@ -749,14 +768,14 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        DrawCenteredText(layout->text,
-                         font,
-                         fontSize,
-                         letterSpacing,
-                         screenPosition,
-                         layout->origin,
-                         -combinedTransform.rotationDegrees,
-                         strokeColor);
+        DrawAlignedText(layout->text,
+                        font,
+                        fontSize,
+                        letterSpacing,
+                        screenPosition,
+                        layout->origin,
+                        -combinedTransform.rotationDegrees,
+                        strokeColor);
         break;
     }
     case PrimitiveType::Time:
@@ -790,7 +809,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         {
             fallbackLayout.text = FormatTimeText(*time);
             fallbackLayout.size = MeasureTextEx(font, fallbackLayout.text.c_str(), fontSize, letterSpacing);
-            fallbackLayout.origin = Vector2 {fallbackLayout.size.x * 0.5f, fallbackLayout.size.y * 0.5f};
+            fallbackLayout.origin = TextLayoutOrigin(fallbackLayout.size, time->align);
             layout = &fallbackLayout;
         }
 
@@ -799,14 +818,14 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        DrawCenteredText(layout->text,
-                         font,
-                         fontSize,
-                         letterSpacing,
-                         screenPosition,
-                         layout->origin,
-                         -combinedTransform.rotationDegrees,
-                         strokeColor);
+        DrawAlignedText(layout->text,
+                        font,
+                        fontSize,
+                        letterSpacing,
+                        screenPosition,
+                        layout->origin,
+                        -combinedTransform.rotationDegrees,
+                        strokeColor);
         break;
     }
     case PrimitiveType::Line:

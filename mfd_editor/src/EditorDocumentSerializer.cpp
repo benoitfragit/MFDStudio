@@ -97,6 +97,20 @@ const char* ToLineStyleText(const mfd::LineStyle lineStyle) noexcept
     }
 }
 
+const char* ToAlignText(const mfd::Align align) noexcept
+{
+    switch (align)
+    {
+    case mfd::Align::Left:
+        return "left";
+    case mfd::Align::Right:
+        return "right";
+    case mfd::Align::Center:
+    default:
+        return "center";
+    }
+}
+
 std::string SerializePathRelativeTo(const std::filesystem::path& path, const std::filesystem::path& baseFolder)
 {
     if (path.empty())
@@ -345,6 +359,10 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive, const s
         {
             node["letterSpacing"] = text->letterSpacing;
         }
+        if (text->align != mfd::Align::Center)
+        {
+            node["align"] = ToAlignText(text->align);
+        }
         return;
     }
 
@@ -359,6 +377,10 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive, const s
         if (time->utc)
         {
             node["utc"] = true;
+        }
+        if (time->align != mfd::Align::Center)
+        {
+            node["align"] = ToAlignText(time->align);
         }
         return;
     }

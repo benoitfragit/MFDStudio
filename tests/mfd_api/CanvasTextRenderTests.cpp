@@ -10,8 +10,11 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
+#include <string>
 #include <utility>
 
 #include <raylib.h>
@@ -64,6 +67,24 @@ mfd::ReticleGroup MakeSmallTextReticle(const mfd::Vec2 position)
     text.type = mfd::PrimitiveType::Text;
     text.transform.position = position;
     text.geometry = mfd::TextGeometry {"PIX", 0.06f, 0.0f};
+    text.style.color = Green();
+    reticle.primitives.push_back(std::move(text));
+
+    return reticle;
+}
+
+mfd::ReticleGroup MakeAlignedTextReticle(const std::string& textValue,
+                                         const mfd::Align align,
+                                         const mfd::Vec2 position)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "aligned_text";
+
+    mfd::Primitive text;
+    text.id = "label";
+    text.type = mfd::PrimitiveType::Text;
+    text.transform.position = position;
+    text.geometry = mfd::TextGeometry {textValue, 0.18f, 0.0f, align};
     text.style.color = Green();
     reticle.primitives.push_back(std::move(text));
 
@@ -124,6 +145,41 @@ std::size_t CountDifferentPixels(const mfd::Rgba32Framebuffer& lhs, const mfd::R
 
     return differenceCount;
 }
+
+struct ForegroundSpan
+{
+    int minX = kRenderSize;
+    int maxX = -1;
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return maxX >= minX;
+    }
+};
+
+ForegroundSpan ComputeForegroundSpan(const mfd::Rgba32Framebuffer& framebuffer,
+                                     const int minY,
+                                     const int maxY)
+{
+    ForegroundSpan span;
+    for (int y = minY; y < maxY; ++y)
+    {
+        for (int x = 0; x < framebuffer.width; ++x)
+        {
+            const std::size_t index =
+                static_cast<std::size_t>(y) * static_cast<std::size_t>(framebuffer.width) +
+                static_cast<std::size_t>(x);
+            const mfd::Rgba8Pixel& pixel = framebuffer.pixels.at(index);
+            if (pixel.g > 80U && pixel.g > pixel.r + 30U && pixel.g > pixel.b + 30U)
+            {
+                span.minX = std::min(span.minX, x);
+                span.maxX = std::max(span.maxX, x);
+            }
+        }
+    }
+
+    return span;
+}
 } // namespace
 
 TEST(CanvasTextRenderTests, TextAndTimePrimitivesStillRenderVisiblePixels)
@@ -178,4 +234,34 @@ TEST(CanvasTextRenderTests, SmallTextSubPixelTranslationKeepsRasterStable)
     EXPECT_GT(CountForegroundPixels(alignedFramebuffer, 40, 48, 88, 80), 8U);
     EXPECT_GT(CountForegroundPixels(shiftedFramebuffer, 40, 48, 88, 80), 8U);
     EXPECT_EQ(CountDifferentPixels(alignedFramebuffer, shiftedFramebuffer), 0U);
+}
+
+TEST(CanvasTextRenderTests, LeftAndRightAlignedTextKeepTheirAnchoredSideWhenWidthChanges)
+{
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(kRenderSize, kRenderSize, "mfd_canvas_text_alignment_tests");
+    ASSERT_TRUE(IsWindowReady());
+
+    mfd::TextLayoutCache cache;
+    const mfd::Rgba32Framebuffer leftShort = RenderReticle(MakeAlignedTextReticle("UTC", mfd::Align::Left, {-0.35f, 0.0f}), cache);
+    const mfd::Rgba32Framebuffer leftLong = RenderReticle(MakeAlignedTextReticle("UTCX", mfd::Align::Left, {-0.35f, 0.0f}), cache);
+    const mfd::Rgba32Framebuffer rightShort = RenderReticle(MakeAlignedTextReticle("UTC", mfd::Align::Right, {0.35f, 0.0f}), cache);
+    const mfd::Rgba32Framebuffer rightLong = RenderReticle(MakeAlignedTextReticle("UTCX", mfd::Align::Right, {0.35f, 0.0f}), cache);
+
+    CloseWindow();
+
+    const ForegroundSpan leftShortSpan = ComputeForegroundSpan(leftShort, 44, 84);
+    const ForegroundSpan leftLongSpan = ComputeForegroundSpan(leftLong, 44, 84);
+    const ForegroundSpan rightShortSpan = ComputeForegroundSpan(rightShort, 44, 84);
+    const ForegroundSpan rightLongSpan = ComputeForegroundSpan(rightLong, 44, 84);
+
+    ASSERT_TRUE(leftShortSpan.valid());
+    ASSERT_TRUE(leftLongSpan.valid());
+    ASSERT_TRUE(rightShortSpan.valid());
+    ASSERT_TRUE(rightLongSpan.valid());
+
+    EXPECT_LE(std::abs(leftShortSpan.minX - leftLongSpan.minX), 1);
+    EXPECT_GT(leftLongSpan.maxX, leftShortSpan.maxX + 1);
+    EXPECT_LE(std::abs(rightShortSpan.maxX - rightLongSpan.maxX), 1);
+    EXPECT_LT(rightLongSpan.minX, rightShortSpan.minX - 1);
 }

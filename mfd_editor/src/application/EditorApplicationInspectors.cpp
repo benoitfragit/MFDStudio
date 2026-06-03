@@ -11,8 +11,10 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <numeric>
+#include <string_view>
 #include <unordered_map>
 
 #include "internal/application/EditorApplicationInternal.h"
@@ -86,6 +88,28 @@ std::string NormalizeEditorIdentifier(const std::string_view value)
     return mfd::NormalizePageName(value);
 }
 
+int FindPageStrobeIndexByName(const mfd::PageDefinition& page, const std::string_view strobeName) noexcept
+{
+    const std::string normalizedTarget = NormalizeEditorIdentifier(strobeName);
+    if (normalizedTarget.empty())
+    {
+        return -1;
+    }
+
+    for (std::size_t index = 0; index < page.strobes.size(); ++index)
+    {
+        const mfd::PageStrobeDefinition& strobe = page.strobes[index];
+        const std::string normalizedName =
+            strobe.normalizedName.empty() ? NormalizeEditorIdentifier(strobe.name) : strobe.normalizedName;
+        if (normalizedName == normalizedTarget)
+        {
+            return static_cast<int>(index);
+        }
+    }
+
+    return -1;
+}
+
 class ScopedImGuiId
 {
 public:
@@ -99,6 +123,45 @@ public:
         ImGui::PopID();
     }
 };
+
+constexpr std::array<mfd::Align, 3> kSupportedTextAlignments {{
+    mfd::Align::Left,
+    mfd::Align::Center,
+    mfd::Align::Right}};
+
+const char* AlignLabel(const mfd::Align align) noexcept
+{
+    switch (align)
+    {
+    case mfd::Align::Left:
+        return "Left";
+    case mfd::Align::Right:
+        return "Right";
+    case mfd::Align::Center:
+    default:
+        return "Center";
+    }
+}
+
+template <typename TGeometry>
+void SetPrimitiveTextAlignment(mfd::Primitive& primitive, TGeometry& geometry, const mfd::Align newAlign)
+{
+    if (geometry.align == newAlign)
+    {
+        return;
+    }
+
+    const float halfWidth = editor::detail::EstimatePrimitiveTextHalfWidth(geometry);
+    const float width = editor::detail::EstimatedPrimitiveTextWidth(halfWidth);
+    const float currentOriginX = editor::detail::PrimitiveTextOriginX(width, geometry.align);
+    const float newOriginX = editor::detail::PrimitiveTextOriginX(width, newAlign);
+    const mfd::Vec2 localDelta {newOriginX - currentOriginX, 0.0f};
+
+    geometry.align = newAlign;
+    primitive.transform.position =
+        primitive.transform.position +
+        mfd::Rotate(mfd::Scale(localDelta, primitive.transform.scale), primitive.transform.rotationDegrees);
+}
 
 /**
  * @brief Returns the local-space visual center of one reticle template or instance.
@@ -1085,19 +1148,48 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
                  iterator != documentState_.loaded.document.reticleLibrary.end())
         {
             PushUndoSnapshot();
-            mfd::PageStrobeDefinition strobe = MakePageStrobeFromTemplate(page, iterator->second, std::nullopt);
-            strobe.name = MakeUniqueStrobeName(page, draft.name.empty() ? SuggestPageStrobeDraftName(page) : draft.name);
-            strobe.normalizedName = mfd::NormalizePageName(strobe.name);
-            RefreshBlinkBindingForEditor(page, strobe.reticle.blink);
-            page.strobes.push_back(std::move(strobe));
-            if (page.strobes.size() == 1U || page.normalizedActiveStrobeName.empty())
+            if (tutorial_->MatchesTarget(tutorialAddTargetId) && draft.templateId == kTutorialStrobeCursorTemplateId)
             {
-                SetActivePageStrobe(page, page.strobes.back());
+                tutorial_->ConfigureTutorialDefaultStrobeTemplate(iterator->second);
             }
 
-            const int newIndex = static_cast<int>(page.strobes.size()) - 1;
-            SelectPageStrobe(documentState_.selection.pageIndex, newIndex);
-            RebuildStatus("Strobe '" + page.strobes.back().name + "' added to page '" + page.name + "'.", false);
+            const bool guidedAdd =
+                tutorial_->MatchesTarget(tutorialAddTargetId) && !tutorialExpectedStrobeName.empty();
+            const int guidedStrobeIndex =
+                guidedAdd ? FindPageStrobeIndexByName(page, tutorialExpectedStrobeName) : -1;
+
+            if (guidedStrobeIndex >= 0)
+            {
+                mfd::PageStrobeDefinition updatedStrobe = MakePageStrobeFromTemplate(
+                    page,
+                    iterator->second,
+                    page.strobes[static_cast<std::size_t>(guidedStrobeIndex)]);
+                updatedStrobe.name = std::string(tutorialExpectedStrobeName);
+                updatedStrobe.normalizedName = mfd::NormalizePageName(updatedStrobe.name);
+                RefreshBlinkBindingForEditor(page, updatedStrobe.reticle.blink);
+                page.strobes[static_cast<std::size_t>(guidedStrobeIndex)] = std::move(updatedStrobe);
+                SelectPageStrobe(documentState_.selection.pageIndex, guidedStrobeIndex);
+                RebuildStatus("Strobe '" + page.strobes[static_cast<std::size_t>(guidedStrobeIndex)].name +
+                                  "' updated on page '" + page.name + "'.",
+                              false);
+            }
+            else
+            {
+                mfd::PageStrobeDefinition strobe = MakePageStrobeFromTemplate(page, iterator->second, std::nullopt);
+                strobe.name = MakeUniqueStrobeName(page, draft.name.empty() ? SuggestPageStrobeDraftName(page) : draft.name);
+                strobe.normalizedName = mfd::NormalizePageName(strobe.name);
+                RefreshBlinkBindingForEditor(page, strobe.reticle.blink);
+                page.strobes.push_back(std::move(strobe));
+                if (page.strobes.size() == 1U || page.normalizedActiveStrobeName.empty())
+                {
+                    SetActivePageStrobe(page, page.strobes.back());
+                }
+
+                const int newIndex = static_cast<int>(page.strobes.size()) - 1;
+                SelectPageStrobe(documentState_.selection.pageIndex, newIndex);
+                RebuildStatus("Strobe '" + page.strobes.back().name + "' added to page '" + page.name + "'.", false);
+            }
+
             draft.name = SuggestPageStrobeDraftName(page);
             if (tutorial_->MatchesTarget(tutorialAddTargetId))
             {
@@ -2246,6 +2338,27 @@ void EditorApplication::DrawPageReticleInspector()
                 text->text = buffer.data();
             }
 
+            const std::string alignLabel = "Alignment##" + primitive.id;
+            if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(text->align)))
+            {
+                for (const mfd::Align candidate : kSupportedTextAlignments)
+                {
+                    const bool selected = text->align == candidate;
+                    if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
+                    {
+                        PushUndoSnapshot();
+                        SetPrimitiveTextAlignment(primitive, *text, candidate);
+                    }
+                    if (selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+            ShowItemTooltip("Choose whether this text grows left, right, or stays centered around its current anchor.");
+
             float letterSpacing = text->letterSpacing;
             const std::string spacingLabel = "Letter spacing##" + primitive.id;
             const bool spacingChanged =
@@ -2277,6 +2390,27 @@ void EditorApplication::DrawPageReticleInspector()
             {
                 time->format = format.data();
             }
+
+            const std::string alignLabel = "Alignment##" + primitive.id;
+            if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(time->align)))
+            {
+                for (const mfd::Align candidate : kSupportedTextAlignments)
+                {
+                    const bool selected = time->align == candidate;
+                    if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
+                    {
+                        PushUndoSnapshot();
+                        SetPrimitiveTextAlignment(primitive, *time, candidate);
+                    }
+                    if (selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+            ShowItemTooltip("Choose whether this time display grows left, right, or stays centered around its current anchor.");
 
             bool utc = time->utc;
             const std::string utcLabel = "UTC##" + primitive.id;
@@ -2757,6 +2891,29 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
                 text->text = buffer.data();
             }
 
+            const std::string alignLabel = hasPrimitiveId ? "Alignment##strobe_" + primitive.id
+                                                          : "Alignment #" + std::to_string(fallbackIndex) +
+                                                                "##strobe_text_align_" + std::to_string(primitiveIndex);
+            if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(text->align)))
+            {
+                for (const mfd::Align candidate : kSupportedTextAlignments)
+                {
+                    const bool selected = text->align == candidate;
+                    if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
+                    {
+                        PushUndoSnapshot();
+                        SetPrimitiveTextAlignment(primitive, *text, candidate);
+                    }
+                    if (selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+            ShowItemTooltip("Choose whether this text grows left, right, or stays centered around its current anchor.");
+
             float letterSpacing = text->letterSpacing;
             const std::string spacingLabel = hasPrimitiveId ? "Letter spacing##strobe_" + primitive.id
                                                             : "Letter spacing #" + std::to_string(fallbackIndex) +
@@ -2794,6 +2951,29 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
             {
                 time->format = format.data();
             }
+
+            const std::string alignLabel = hasPrimitiveId ? "Alignment##strobe_" + primitive.id
+                                                          : "Alignment #" + std::to_string(fallbackIndex) +
+                                                                "##strobe_time_align_" + std::to_string(primitiveIndex);
+            if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(time->align)))
+            {
+                for (const mfd::Align candidate : kSupportedTextAlignments)
+                {
+                    const bool selected = time->align == candidate;
+                    if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
+                    {
+                        PushUndoSnapshot();
+                        SetPrimitiveTextAlignment(primitive, *time, candidate);
+                    }
+                    if (selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+            ShowItemTooltip("Choose whether this time display grows left, right, or stays centered around its current anchor.");
 
             bool utc = time->utc;
             const std::string utcLabel = hasPrimitiveId ? "UTC##strobe_" + primitive.id
@@ -3237,6 +3417,10 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     }
 
     const ScopedImGuiId scopedId("LibraryPrimitiveInspector");
+    const bool tutorialExposedPrimitiveSelected =
+        tutorial_->IsExposedPrimitiveTutorialSelection(documentState_.selection.libraryReticleId, primitive->id);
+    const bool tutorialAlternativeStrobeLabelSelected =
+        tutorial_->IsAlternativeStrobeLabelSelection(documentState_.selection.libraryReticleId, primitive->id);
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Primitive");
     ImGui::TextDisabled("Green handle moves the primitive. Orange handles edit geometry directly in the studio.");
@@ -3284,22 +3468,18 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     {
         bool exposed = primitive->exposed;
-        const bool tutorialExposedSelected =
-            tutorial_->IsExposedPrimitiveTutorialSelection(documentState_.selection.libraryReticleId, primitive->id);
-        const bool tutorialAlternativeStrobeLabelSelected =
-            tutorial_->IsAlternativeStrobeLabelSelection(documentState_.selection.libraryReticleId, primitive->id);
         if (ImGui::Checkbox("Exposed", &exposed))
         {
             PushUndoSnapshot();
             primitive->exposed = exposed;
 
-            if (exposed && tutorial_->MatchesTarget("primitive_exposed_checkbox") && tutorialExposedSelected)
+            if (exposed && tutorial_->MatchesTarget("primitive_exposed_checkbox") && tutorialExposedPrimitiveSelected)
             {
                 tutorial_->CompleteStep();
             }
         }
         ShowItemTooltip("Expose this primitive through the generated client API so runtime code can drive it directly.");
-        if (tutorialExposedSelected)
+        if (tutorialExposedPrimitiveSelected)
         {
             tutorial_->DrawHalo(
                 "primitive_exposed_checkbox",
@@ -3506,6 +3686,55 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         {
             text->text = buffer.data();
         }
+
+        const bool alignmentComboOpen = ImGui::BeginCombo("Alignment", AlignLabel(text->align));
+        if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("primitive_alignment"))
+        {
+            tutorial_->AdvancePhase();
+        }
+        if (alignmentComboOpen)
+        {
+            for (const mfd::Align candidate : kSupportedTextAlignments)
+            {
+                const bool selected = text->align == candidate;
+                if (ImGui::Selectable(AlignLabel(candidate), selected))
+                {
+                    if (!selected)
+                    {
+                        PushUndoSnapshot();
+                        SetPrimitiveTextAlignment(*primitive, *text, candidate);
+                    }
+
+                    if (candidate == mfd::Align::Right &&
+                        tutorial_->MatchesTarget("primitive_alignment_right") &&
+                        tutorialAlternativeStrobeLabelSelected)
+                    {
+                        tutorial_->CompleteStep();
+                    }
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+                if (candidate == mfd::Align::Right && tutorialAlternativeStrobeLabelSelected)
+                {
+                    tutorial_->DrawHalo(
+                        "primitive_alignment_right",
+                        "Choose Right",
+                        "Keep the aircraft label anchored near the triangle while longer captions grow to the left.");
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Choose whether this text grows left, right, or stays centered around its current anchor.");
+        if (tutorialAlternativeStrobeLabelSelected)
+        {
+            tutorial_->DrawHalo(
+                "primitive_alignment",
+                "Open Alignment",
+                "Choose the aircraft label alignment before the next transform-related tutorial steps.");
+        }
+
         if (ImGui::DragFloat("Font size", &text->fontSize, 0.002f, 0.01f, 0.25f, "%.4f"))
         {
             if (ImGui::IsItemActivated())
@@ -3539,6 +3768,25 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         {
             time->format = buffer.data();
         }
+
+        if (ImGui::BeginCombo("Alignment", AlignLabel(time->align)))
+        {
+            for (const mfd::Align candidate : kSupportedTextAlignments)
+            {
+                const bool selected = time->align == candidate;
+                if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
+                {
+                    PushUndoSnapshot();
+                    SetPrimitiveTextAlignment(*primitive, *time, candidate);
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Choose whether this time display grows left, right, or stays centered around its current anchor.");
 
         bool utc = time->utc;
         if (ImGui::Checkbox("UTC", &utc))

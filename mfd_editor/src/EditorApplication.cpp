@@ -383,36 +383,6 @@ bool IsPointInsidePolygon(const std::vector<ImVec2>& polygon, const ImVec2 point
     return inside;
 }
 
-float EstimatedTextHalfWidth(const std::string_view text, const float fontSize, const float letterSpacing)
-{
-    return editor::detail::EstimatePrimitiveTextHalfWidth(text, fontSize, letterSpacing);
-}
-
-float EstimatedTextHalfWidth(const mfd::TextGeometry& text)
-{
-    return editor::detail::EstimatePrimitiveTextHalfWidth(text);
-}
-
-float EstimatedTextHalfWidth(const mfd::TimeGeometry& time)
-{
-    return editor::detail::EstimatePrimitiveTextHalfWidth(time);
-}
-
-float EstimatedTextHalfHeight(const float fontSize)
-{
-    return editor::detail::EstimatePrimitiveTextHalfHeight(fontSize);
-}
-
-float EstimatedTextHalfHeight(const mfd::TextGeometry& text)
-{
-    return editor::detail::EstimatePrimitiveTextHalfHeight(text);
-}
-
-float EstimatedTextHalfHeight(const mfd::TimeGeometry& time)
-{
-    return editor::detail::EstimatePrimitiveTextHalfHeight(time);
-}
-
 std::vector<mfd::Vec2> ApproximateEllipsePoints(const float width, const float height, const int segments = 48)
 {
     const int segmentCount = std::max(12, segments);
@@ -5792,16 +5762,8 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
     if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
     {
-        const float halfWidth = EstimatedTextHalfWidth(*text);
-        const float halfHeight = EstimatedTextHalfHeight(*text);
-        const ImVec2 tl = toScreenPoint({-halfWidth, -halfHeight});
-        const ImVec2 br = toScreenPoint({halfWidth, halfHeight});
-        const float minX = std::min(tl.x, br.x);
-        const float maxX = std::max(tl.x, br.x);
-        const float minY = std::min(tl.y, br.y);
-        const float maxY = std::max(tl.y, br.y);
-        if (mousePosition.x >= minX - 6.0f && mousePosition.x <= maxX + 6.0f &&
-            mousePosition.y >= minY - 6.0f && mousePosition.y <= maxY + 6.0f)
+        if (mousePosition.x >= bounds.min.x - 6.0f && mousePosition.x <= bounds.max.x + 6.0f &&
+            mousePosition.y >= bounds.min.y - 6.0f && mousePosition.y <= bounds.max.y + 6.0f)
         {
             bestDistance = std::min(bestDistance, 2.0f);
         }
@@ -5810,16 +5772,8 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
     if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
     {
-        const float halfWidth = EstimatedTextHalfWidth(*time);
-        const float halfHeight = EstimatedTextHalfHeight(*time);
-        const ImVec2 tl = toScreenPoint({-halfWidth, -halfHeight});
-        const ImVec2 br = toScreenPoint({halfWidth, halfHeight});
-        const float minX = std::min(tl.x, br.x);
-        const float maxX = std::max(tl.x, br.x);
-        const float minY = std::min(tl.y, br.y);
-        const float maxY = std::max(tl.y, br.y);
-        if (mousePosition.x >= minX - 6.0f && mousePosition.x <= maxX + 6.0f &&
-            mousePosition.y >= minY - 6.0f && mousePosition.y <= maxY + 6.0f)
+        if (mousePosition.x >= bounds.min.x - 6.0f && mousePosition.x <= bounds.max.x + 6.0f &&
+            mousePosition.y >= bounds.min.y - 6.0f && mousePosition.y <= bounds.max.y + 6.0f)
         {
             bestDistance = std::min(bestDistance, 2.0f);
         }

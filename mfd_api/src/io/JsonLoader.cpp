@@ -1021,6 +1021,42 @@ std::optional<float> ParseLetterSpacingField(const json& node)
     return std::nullopt;
 }
 
+Align ParseTextAlign(const json& value)
+{
+    if (!value.is_string())
+    {
+        throw std::runtime_error("Text alignment must be a string");
+    }
+
+    const std::string normalized = Lowercase(TrimAsciiWhitespace(value.get<std::string>()));
+    if (normalized == "left")
+    {
+        return Align::Left;
+    }
+
+    if (normalized == "center" || normalized == "centre")
+    {
+        return Align::Center;
+    }
+
+    if (normalized == "right")
+    {
+        return Align::Right;
+    }
+
+    throw std::runtime_error("Text alignment must be 'left', 'center', or 'right'");
+}
+
+std::optional<Align> ParseTextAlignField(const json& node)
+{
+    if (const json* align = FindField(node, {"align", "alignment"}))
+    {
+        return ParseTextAlign(*align);
+    }
+
+    return std::nullopt;
+}
+
 std::optional<bool> ParseFilledFlag(const json& node)
 {
     if (const json* filled = FindField(node, {"filled"}))
@@ -1411,6 +1447,10 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
         {
             geometry.letterSpacing = *letterSpacing;
         }
+        if (const auto align = ParseTextAlignField(node); align.has_value())
+        {
+            geometry.align = *align;
+        }
         primitive.geometry = std::move(geometry);
         break;
     }
@@ -1423,6 +1463,10 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
         if (const auto letterSpacing = ParseLetterSpacingField(node); letterSpacing.has_value())
         {
             geometry.letterSpacing = *letterSpacing;
+        }
+        if (const auto align = ParseTextAlignField(node); align.has_value())
+        {
+            geometry.align = *align;
         }
         primitive.geometry = std::move(geometry);
         break;

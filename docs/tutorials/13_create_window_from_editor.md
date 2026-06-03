@@ -21,6 +21,7 @@ You will learn how to:
 - use the page-preview View menu without modifying authored JSON assets
 - understand how the generated C++17 client API mirrors the authored window
 - discover that the page title is a dedicated chrome element that can be framed, moved, scaled, hidden, and recolored
+- choose left / center / right alignment for authored text and time primitives without moving the current label immediately
 - create `RadarTrackLayer` on `Page1` and bind `mfd_tutorial_radar_track` without changing the existing steering cue
 - continue with the right generated-API and documentation path once the editor tour is done
 
@@ -33,7 +34,7 @@ The integrated editor tutorial is available from:
 
 That guided flow is intentionally split into four phases:
 
-1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles including the triangle-based `mfd_tutorial_aircraft`, rename the local Page1 ownship instance, add two distinct Page1 strobes, `RadarTrackLayer`, and the exposed primitives used by the generated client.
+1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles including the triangle-based `mfd_tutorial_aircraft`, right-align its exposed label, rename the local Page1 ownship instance, add two distinct Page1 strobes, `RadarTrackLayer`, and the exposed primitives used by the generated client.
 2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / export workflows without mutating the tutorial assets.
 3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
 4. **Continue in docs**: follow the mockup, generated-client, and architecture reading path.
@@ -173,8 +174,11 @@ title is no longer one hardcoded overlay. It is an authored chrome element with
 its own visibility, color, line style, and transform.
 
 Later steps return to the primitive inspector on `mfd_tutorial_aircraft`: the
-tutorial asks you to expose `aircraft_label`, then disable its parent reticle
-rotation and scale inheritance. That is the authored way to keep one text
+tutorial asks you to expose `aircraft_label`, switch its `Alignment` to
+`Right`, then disable its parent reticle rotation and scale inheritance. That
+alignment step keeps the current label visually stable while making longer
+runtime captions grow to the left, closer to the aircraft body. Disabling the
+parent transform inheritance is then the authored way to keep that text
 primitive upright while the alternative Page1 strobe reticle itself can still
 rotate or scale at runtime.
 
@@ -458,7 +462,7 @@ By the end of the integrated flow, the user should understand the full chain:
 - editor action
 - saved authored JSON
 - static ownship anchor through `mfd_tutorial_aircraft` on `Page1`
-- exposed `aircraft_label` plus its disabled parent rotation/scale inheritance
+- exposed `aircraft_label`, its right alignment, and its disabled parent rotation/scale inheritance
 - `RadarTrackLayer` plus the `mfd_tutorial_radar_track` binding on `Page1`
 - generated transport map
 - generated C++17 page and reticle wrappers

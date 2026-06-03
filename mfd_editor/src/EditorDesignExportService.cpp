@@ -561,6 +561,41 @@ float EstimatedTextHalfHeight(const mfd::TimeGeometry& time)
     return EstimatedTextHalfHeight(time.fontSize);
 }
 
+float EstimatedTextWidth(const float halfWidth)
+{
+    return halfWidth * 2.0f;
+}
+
+float TextOriginX(const float width, const mfd::Align align)
+{
+    switch (align)
+    {
+    case mfd::Align::Left:
+        return 0.0f;
+    case mfd::Align::Right:
+        return width;
+    case mfd::Align::Center:
+    default:
+        return width * 0.5f;
+    }
+}
+
+template <typename TCallback>
+void ForEachAlignedTextBoundsPoint(const float width,
+                                   const float halfHeight,
+                                   const mfd::Align align,
+                                   TCallback&& callback)
+{
+    const float originX = TextOriginX(width, align);
+    const float left = -originX;
+    const float right = width - originX;
+
+    callback(mfd::Vec2 {left, -halfHeight});
+    callback(mfd::Vec2 {right, -halfHeight});
+    callback(mfd::Vec2 {right, halfHeight});
+    callback(mfd::Vec2 {left, halfHeight});
+}
+
 std::vector<mfd::Vec2> ApproximateEllipsePoints(const float width, const float height, const int segments = 48)
 {
     const int segmentCount = std::max(12, segments);
@@ -720,19 +755,27 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
     {
         const float halfWidth = EstimatedTextHalfWidth(*text);
         const float halfHeight = EstimatedTextHalfHeight(*text);
-        IncludePrimitiveTransformedPoint(bounds, primitive, {-halfWidth, -halfHeight});
-        IncludePrimitiveTransformedPoint(bounds, primitive, {halfWidth, -halfHeight});
-        IncludePrimitiveTransformedPoint(bounds, primitive, {halfWidth, halfHeight});
-        IncludePrimitiveTransformedPoint(bounds, primitive, {-halfWidth, halfHeight});
+        ForEachAlignedTextBoundsPoint(
+            EstimatedTextWidth(halfWidth),
+            halfHeight,
+            text->align,
+            [&bounds, &primitive](const mfd::Vec2 point)
+            {
+                IncludePrimitiveTransformedPoint(bounds, primitive, point);
+            });
     }
     else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
     {
         const float halfWidth = EstimatedTextHalfWidth(*time);
         const float halfHeight = EstimatedTextHalfHeight(*time);
-        IncludePrimitiveTransformedPoint(bounds, primitive, {-halfWidth, -halfHeight});
-        IncludePrimitiveTransformedPoint(bounds, primitive, {halfWidth, -halfHeight});
-        IncludePrimitiveTransformedPoint(bounds, primitive, {halfWidth, halfHeight});
-        IncludePrimitiveTransformedPoint(bounds, primitive, {-halfWidth, halfHeight});
+        ForEachAlignedTextBoundsPoint(
+            EstimatedTextWidth(halfWidth),
+            halfHeight,
+            time->align,
+            [&bounds, &primitive](const mfd::Vec2 point)
+            {
+                IncludePrimitiveTransformedPoint(bounds, primitive, point);
+            });
     }
     else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
     {
@@ -856,19 +899,27 @@ LogicalBounds ComputeReticleWorldBounds(const mfd::ReticleGroup& reticle)
         {
             const float halfWidth = EstimatedTextHalfWidth(*text);
             const float halfHeight = EstimatedTextHalfHeight(*text);
-            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {-halfWidth, -halfHeight});
-            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {halfWidth, -halfHeight});
-            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {halfWidth, halfHeight});
-            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {-halfWidth, halfHeight});
+            ForEachAlignedTextBoundsPoint(
+                EstimatedTextWidth(halfWidth),
+                halfHeight,
+                text->align,
+                [&worldBounds, &reticle, &primitive](const mfd::Vec2 point)
+                {
+                    IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, point);
+                });
         }
         else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
         {
             const float halfWidth = EstimatedTextHalfWidth(*time);
             const float halfHeight = EstimatedTextHalfHeight(*time);
-            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {-halfWidth, -halfHeight});
-            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {halfWidth, -halfHeight});
-            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {halfWidth, halfHeight});
-            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {-halfWidth, halfHeight});
+            ForEachAlignedTextBoundsPoint(
+                EstimatedTextWidth(halfWidth),
+                halfHeight,
+                time->align,
+                [&worldBounds, &reticle, &primitive](const mfd::Vec2 point)
+                {
+                    IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, point);
+                });
         }
         else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
         {
@@ -1103,29 +1154,33 @@ void AppendPrimitiveScreenSegments(const ExportViewport& viewport,
     {
         const float halfWidth = EstimatedTextHalfWidth(*text);
         const float halfHeight = EstimatedTextHalfHeight(*text);
-        AppendScreenPolylineSegments(viewport,
-                                     reticle,
-                                     primitive,
-                                     {{-halfWidth, -halfHeight},
-                                      {halfWidth, -halfHeight},
-                                      {halfWidth, halfHeight},
-                                      {-halfWidth, halfHeight}},
-                                     true,
-                                     segments);
+        std::vector<mfd::Vec2> points;
+        points.reserve(4U);
+        ForEachAlignedTextBoundsPoint(
+            EstimatedTextWidth(halfWidth),
+            halfHeight,
+            text->align,
+            [&points](const mfd::Vec2 point)
+            {
+                points.push_back(point);
+            });
+        AppendScreenPolylineSegments(viewport, reticle, primitive, points, true, segments);
     }
     else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
     {
         const float halfWidth = EstimatedTextHalfWidth(*time);
         const float halfHeight = EstimatedTextHalfHeight(*time);
-        AppendScreenPolylineSegments(viewport,
-                                     reticle,
-                                     primitive,
-                                     {{-halfWidth, -halfHeight},
-                                      {halfWidth, -halfHeight},
-                                      {halfWidth, halfHeight},
-                                      {-halfWidth, halfHeight}},
-                                     true,
-                                     segments);
+        std::vector<mfd::Vec2> points;
+        points.reserve(4U);
+        ForEachAlignedTextBoundsPoint(
+            EstimatedTextWidth(halfWidth),
+            halfHeight,
+            time->align,
+            [&points](const mfd::Vec2 point)
+            {
+                points.push_back(point);
+            });
+        AppendScreenPolylineSegments(viewport, reticle, primitive, points, true, segments);
     }
     else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
     {

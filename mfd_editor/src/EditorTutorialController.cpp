@@ -1000,6 +1000,24 @@ void EditorTutorialController::ConfigureAppendedPrimitive(mfd::Primitive& primit
     }
 }
 
+void EditorTutorialController::ConfigureTutorialDefaultStrobeTemplate(mfd::ReticleGroup& reticle) const
+{
+    if (reticle.id != kTutorialStrobeCursorTemplateId)
+    {
+        return;
+    }
+
+    if (!reticle.primitives.empty())
+    {
+        ConfigureTutorialStrobeLinePrimitive(reticle.primitives.front(), false);
+    }
+
+    if (reticle.primitives.size() > 1U)
+    {
+        ConfigureTutorialStrobeLinePrimitive(reticle.primitives[1], true);
+    }
+}
+
 std::string_view EditorTutorialController::LibraryAppendPrimitiveHaloReason() const noexcept
 {
     using editor::tutorial::TutorialStepId;
@@ -1105,6 +1123,8 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
                                  (stepPhase_ == 1 ? "page_strobe_alternative" : "page_strobe_alternative_add");
     case static_cast<int>(TutorialStepId::ExposeAircraftLabelPrimitive):
         return "primitive_exposed_checkbox";
+    case static_cast<int>(TutorialStepId::AlignAircraftLabelPrimitive):
+        return stepPhase_ == 0 ? "primitive_alignment" : "primitive_alignment_right";
     case static_cast<int>(TutorialStepId::DisableAircraftLabelTransformInheritance):
         return stepPhase_ == 0 ? "primitive_reticle_rotation_checkbox" : "primitive_reticle_scale_checkbox";
     case static_cast<int>(TutorialStepId::AddAircraftReticleToPage1):

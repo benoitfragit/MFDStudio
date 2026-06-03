@@ -101,6 +101,10 @@ If your main entry point is the visual tool, start here:
 
 - [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md)
 
+The editor authors text and time alignment directly in the asset model with the
+same `left`, `center`, and `right` behavior used by both the preview gizmos and
+`mfd_window` at runtime.
+
 ## Developer Checks
 
 Use the repository clang-tidy entry point when you want one industrial C++ review pass without rebuilding the Visual Studio tree:

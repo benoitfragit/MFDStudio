@@ -454,6 +454,49 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplatePersistsPrimitiveRet
     EXPECT_FALSE(element.at("reticleScaleSensitive").get<bool>());
 }
 
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateOmitsDefaultCenteredTextAlignment)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "text_defaults";
+
+    mfd::Primitive primitive;
+    primitive.id = "caption";
+    primitive.type = mfd::PrimitiveType::Text;
+    primitive.geometry = mfd::TextGeometry {"UTC", 0.04f, 0.002f, mfd::Align::Center};
+    reticle.primitives.push_back(std::move(primitive));
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_EQ(jsonNode.at("elements").size(), 1U);
+    EXPECT_FALSE(jsonNode.at("elements").at(0).contains("align"));
+}
+
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesExplicitTextAlignment)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "text_alignment";
+
+    mfd::Primitive text;
+    text.id = "left_caption";
+    text.type = mfd::PrimitiveType::Text;
+    text.geometry = mfd::TextGeometry {"UTC", 0.04f, 0.002f, mfd::Align::Left};
+    reticle.primitives.push_back(text);
+
+    mfd::Primitive time;
+    time.id = "right_clock";
+    time.type = mfd::PrimitiveType::Time;
+    time.geometry = mfd::TimeGeometry {"%H:%M:%S", true, 0.04f, 0.002f, mfd::Align::Right};
+    reticle.primitives.push_back(time);
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_EQ(jsonNode.at("elements").size(), 2U);
+    EXPECT_EQ(jsonNode.at("elements").at(0).at("align").get<std::string>(), "left");
+    EXPECT_EQ(jsonNode.at("elements").at(1).at("align").get<std::string>(), "right");
+}
+
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesRingAndArcGeometry)
 {
     mfd::ReticleGroup reticle;

@@ -437,8 +437,8 @@ The families of primitives supported by the author model are:
 
 | Primitive | Typical usage | Specific fields |
 | --- | --- | --- |
-| `text` | labels, values | `text`, `fontSize`, `letterSpacing` |
-| `time` | clock | `format`, `utc`, `fontSize`, `letterSpacing` |
+| `text` | labels, values | `text`, `fontSize`, `letterSpacing`, `align` |
+| `time` | clock | `format`, `utc`, `fontSize`, `letterSpacing`, `align` |
 | `line` | features | `start`, `end` |
 | `circle` | markers | `radius` |
 | `ring` | crowns | `innerRadius`, `outerRadius`, `segments` |
@@ -476,6 +476,12 @@ non-fillable primitives.
 Disable them when one primitive must ignore parent page-reticle or page-strobe
 rotation and scale while still remaining patchable directly through the
 generated client API.
+
+`align` is supported on `text` and `time` with three values only:
+`left`, `center`, and `right`. `center` remains the default and preserves the
+historical behavior. In the editor, changing only the alignment does not move
+the currently authored text immediately; it changes which side expands later
+when the rendered string becomes wider.
 
 ## 4.11 Selection and direct editing on the canvas
 

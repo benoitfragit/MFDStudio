@@ -129,6 +129,8 @@ public:
                                  std::string& error) const;
     /** @brief Applies tutorial-specific defaults to a freshly appended primitive when required. */
     void ConfigureAppendedPrimitive(mfd::Primitive& primitive) const;
+    /** @brief Reapplies the expected exposed line primitives on the guided default strobe template. */
+    void ConfigureTutorialDefaultStrobeTemplate(mfd::ReticleGroup& reticle) const;
     /** @brief Returns the contextual halo reason displayed on the append-primitive button. */
     std::string_view LibraryAppendPrimitiveHaloReason() const noexcept;
     /** @brief Returns `true` when the selected primitive matches the guided exposure step. */

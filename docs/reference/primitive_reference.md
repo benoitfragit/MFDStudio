@@ -90,6 +90,8 @@ Specific fields:
 | `letterSpacing` | number | no | Character spacing. |
 | `spacing` | number | no | Alias of `letterSpacing`. |
 | `tracking` | number | no | Alias of `letterSpacing`. |
+| `align` | string | no | Horizontal alignment: `left`, `center`, or `right`. |
+| `alignment` | string | no | Alias of `align`. |
 
 Example:
 
@@ -101,9 +103,14 @@ Example:
   "position": [0.10, 0.04],
   "fontSize": 0.035,
   "letterSpacing": 0.003,
+  "align": "right",
   "stroke": "hud"
 }
 ```
+
+`center` is the default. Switching to `left` or `right` does not move the
+current authored text by itself: it changes which side grows when the string
+later becomes wider.
 
 ## `time`
 
@@ -126,6 +133,8 @@ Specific fields:
 | `letterSpacing` | number | no | Character spacing. |
 | `spacing` | number | no | Alias of `letterSpacing`. |
 | `tracking` | number | no | Alias of `letterSpacing`. |
+| `align` | string | no | Horizontal alignment: `left`, `center`, or `right`. |
+| `alignment` | string | no | Alias of `align`. |
 
 Example:
 
@@ -136,7 +145,8 @@ Example:
   "format": "%H:%M:%S",
   "utc": true,
   "fontSize": 0.04,
-  "letterSpacing": 0.002
+  "letterSpacing": 0.002,
+  "align": "left"
 }
 ```
 

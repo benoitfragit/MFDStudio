@@ -82,47 +82,63 @@
   ],
   "buildPresets": [
     {
+      "name": "build-base",
+      "hidden": true,
+      "environment": {
+        "CMAKE_BUILD_PARALLEL_LEVEL": "$penv{NUMBER_OF_PROCESSORS}"
+      }
+    },
+    {
       "name": "debug-x64",
+      "inherits": "build-base",
       "configurePreset": "vs2022-x64",
       "configuration": "Debug"
     },
     {
       "name": "release-x64",
+      "inherits": "build-base",
       "configurePreset": "vs2022-x64",
       "configuration": "Release"
     },
     {
       "name": "debug-x64-no-tests",
+      "inherits": "build-base",
       "configurePreset": "vs2022-x64-no-tests",
       "configuration": "Debug"
     },
     {
       "name": "release-x64-no-tests",
+      "inherits": "build-base",
       "configurePreset": "vs2022-x64-no-tests",
       "configuration": "Release"
     },
     {
       "name": "debug-win32",
+      "inherits": "build-base",
       "configurePreset": "vs2022-win32",
       "configuration": "Debug"
     },
     {
       "name": "release-win32",
+      "inherits": "build-base",
       "configurePreset": "vs2022-win32",
       "configuration": "Release"
     },
     {
       "name": "debug-win32-no-tests",
+      "inherits": "build-base",
       "configurePreset": "vs2022-win32-no-tests",
       "configuration": "Debug"
     },
     {
       "name": "release-win32-no-tests",
+      "inherits": "build-base",
       "configurePreset": "vs2022-win32-no-tests",
       "configuration": "Release"
     },
     {
       "name": "fuzz-x64",
+      "inherits": "build-base",
       "configurePreset": "clang-fuzz-x64"
     }
   ],

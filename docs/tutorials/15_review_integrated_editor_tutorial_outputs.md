@@ -36,7 +36,7 @@ The important Page1 rule is:
 - the tutorial adds `mfd_tutorial_radar_track` on `RadarTrackLayer`
 - `Default` and `Strobe1` now use two distinct templates
 - the default strobe cursor exposes its line primitives for generated-client mutation
-- `aircraft_label` is exposed and opts out of parent reticle rotation and scale so it stays upright on the alternative strobe
+- `aircraft_label` is exposed, aligned to the right, and opts out of parent reticle rotation and scale so it stays upright on the alternative strobe
 
 Minimal before / after for `dynamicReticleBindings`:
 
@@ -100,7 +100,7 @@ tutorial flow.
 Focus especially on:
 
 - `mfd_tutorial_strobe_cursor.json`: the crosshair lines are marked `exposed`
-- `mfd_tutorial_aircraft.json`: `aircraft_label` is marked `exposed`, `reticleRotationSensitive: false`, and `reticleScaleSensitive: false`
+- `mfd_tutorial_aircraft.json`: `aircraft_label` is marked `exposed`, sets `align: "right"`, and keeps `reticleRotationSensitive: false` plus `reticleScaleSensitive: false`
 
 ## Step 4 - Inspect The Generated Runtime Map
 

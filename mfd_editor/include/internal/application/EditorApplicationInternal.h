@@ -377,6 +377,60 @@ inline float EstimatePrimitiveTextHalfHeight(const mfd::TimeGeometry& time) noex
 }
 
 /**
+ * @brief Returns the full logical preview width used by one text-like primitive.
+ * @param halfWidth Conservative text half width.
+ * @return Full logical preview width.
+ */
+inline float EstimatedPrimitiveTextWidth(const float halfWidth) noexcept
+{
+    return halfWidth * 2.0f;
+}
+
+/**
+ * @brief Returns the horizontal origin inside one text preview box for the requested alignment.
+ * @param width Conservative logical text width.
+ * @param align Horizontal text alignment.
+ * @return Local origin offset measured from the left preview edge.
+ */
+inline float PrimitiveTextOriginX(const float width, const mfd::Align align) noexcept
+{
+    switch (align)
+    {
+    case mfd::Align::Left:
+        return 0.0f;
+    case mfd::Align::Right:
+        return width;
+    case mfd::Align::Center:
+    default:
+        return width * 0.5f;
+    }
+}
+
+/**
+ * @brief Visits one conservative text preview rectangle for the requested alignment.
+ * @tparam TCallback Callable receiving one geometry-local corner at a time.
+ * @param width Conservative logical text width.
+ * @param halfHeight Conservative logical text half height.
+ * @param align Horizontal text alignment.
+ * @param callback Visitor receiving the four preview corners.
+ */
+template <typename TCallback>
+inline void ForEachAlignedTextBoundsLocalPoint(const float width,
+                                               const float halfHeight,
+                                               const mfd::Align align,
+                                               TCallback&& callback)
+{
+    const float originX = PrimitiveTextOriginX(width, align);
+    const float left = -originX;
+    const float right = width - originX;
+
+    callback(mfd::Vec2 {left, -halfHeight});
+    callback(mfd::Vec2 {right, -halfHeight});
+    callback(mfd::Vec2 {right, halfHeight});
+    callback(mfd::Vec2 {left, halfHeight});
+}
+
+/**
  * @brief Visits the logical arc samples used to bound one preview arc.
  * @tparam TCallback Callable receiving one logical point per sample.
  * @param radius Authored arc radius.
@@ -427,19 +481,21 @@ inline void ForEachPrimitiveBoundsLocalPoint(const mfd::Primitive& primitive, TC
     {
         const float halfWidth = EstimatePrimitiveTextHalfWidth(*text);
         const float halfHeight = EstimatePrimitiveTextHalfHeight(*text);
-        callback(mfd::Vec2 {-halfWidth, -halfHeight});
-        callback(mfd::Vec2 {halfWidth, -halfHeight});
-        callback(mfd::Vec2 {halfWidth, halfHeight});
-        callback(mfd::Vec2 {-halfWidth, halfHeight});
+        ForEachAlignedTextBoundsLocalPoint(
+            EstimatedPrimitiveTextWidth(halfWidth),
+            halfHeight,
+            text->align,
+            callback);
     }
     else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
     {
         const float halfWidth = EstimatePrimitiveTextHalfWidth(*time);
         const float halfHeight = EstimatePrimitiveTextHalfHeight(*time);
-        callback(mfd::Vec2 {-halfWidth, -halfHeight});
-        callback(mfd::Vec2 {halfWidth, -halfHeight});
-        callback(mfd::Vec2 {halfWidth, halfHeight});
-        callback(mfd::Vec2 {-halfWidth, halfHeight});
+        ForEachAlignedTextBoundsLocalPoint(
+            EstimatedPrimitiveTextWidth(halfWidth),
+            halfHeight,
+            time->align,
+            callback);
     }
     else if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
     {

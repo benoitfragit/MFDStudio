@@ -13,6 +13,8 @@
 
 #include <gtest/gtest.h>
 
+#include <vector>
+
 TEST(EditorApplicationInternalTests, SeedPrimitiveFillColorIfNeededUsesStrokeWhenFillIsTransparent)
 {
     mfd::PrimitiveStyle style;
@@ -212,4 +214,86 @@ TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointSkipsInvisi
         });
 
     EXPECT_TRUE(points.empty());
+}
+
+TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointKeepsCenteredTextBoundsByDefault)
+{
+    mfd::Primitive primitive;
+    primitive.id = "caption";
+    primitive.type = mfd::PrimitiveType::Text;
+    primitive.geometry = mfd::TextGeometry {"UTC", 0.04f, 0.002f};
+
+    std::vector<mfd::Vec2> points;
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(
+        primitive,
+        [&points](const mfd::Vec2 point)
+        {
+            points.push_back(point);
+        });
+
+    const auto& text = std::get<mfd::TextGeometry>(primitive.geometry);
+    const float halfWidth = editor::detail::EstimatePrimitiveTextHalfWidth(text);
+    const float halfHeight = editor::detail::EstimatePrimitiveTextHalfHeight(text);
+
+    ASSERT_EQ(points.size(), 4U);
+    EXPECT_FLOAT_EQ(points[0].x, -halfWidth);
+    EXPECT_FLOAT_EQ(points[0].y, -halfHeight);
+    EXPECT_FLOAT_EQ(points[1].x, halfWidth);
+    EXPECT_FLOAT_EQ(points[1].y, -halfHeight);
+    EXPECT_FLOAT_EQ(points[2].x, halfWidth);
+    EXPECT_FLOAT_EQ(points[2].y, halfHeight);
+    EXPECT_FLOAT_EQ(points[3].x, -halfWidth);
+    EXPECT_FLOAT_EQ(points[3].y, halfHeight);
+}
+
+TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointHonorsLeftAndRightTextAlignment)
+{
+    mfd::Primitive leftPrimitive;
+    leftPrimitive.id = "left_caption";
+    leftPrimitive.type = mfd::PrimitiveType::Text;
+    leftPrimitive.geometry = mfd::TextGeometry {"UTC", 0.04f, 0.002f, mfd::Align::Left};
+
+    mfd::Primitive rightPrimitive;
+    rightPrimitive.id = "right_caption";
+    rightPrimitive.type = mfd::PrimitiveType::Time;
+    rightPrimitive.geometry = mfd::TimeGeometry {"%H:%M:%S", true, 0.04f, 0.002f, mfd::Align::Right};
+
+    std::vector<mfd::Vec2> leftPoints;
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(
+        leftPrimitive,
+        [&leftPoints](const mfd::Vec2 point)
+        {
+            leftPoints.push_back(point);
+        });
+
+    std::vector<mfd::Vec2> rightPoints;
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(
+        rightPrimitive,
+        [&rightPoints](const mfd::Vec2 point)
+        {
+            rightPoints.push_back(point);
+        });
+
+    const auto& leftText = std::get<mfd::TextGeometry>(leftPrimitive.geometry);
+    const auto& rightTime = std::get<mfd::TimeGeometry>(rightPrimitive.geometry);
+    const float leftHalfWidth = editor::detail::EstimatePrimitiveTextHalfWidth(leftText);
+    const float leftHalfHeight = editor::detail::EstimatePrimitiveTextHalfHeight(leftText);
+    const float leftWidth = editor::detail::EstimatedPrimitiveTextWidth(leftHalfWidth);
+    const float rightHalfWidth = editor::detail::EstimatePrimitiveTextHalfWidth(rightTime);
+    const float rightHalfHeight = editor::detail::EstimatePrimitiveTextHalfHeight(rightTime);
+    const float rightWidth = editor::detail::EstimatedPrimitiveTextWidth(rightHalfWidth);
+
+    ASSERT_EQ(leftPoints.size(), 4U);
+    EXPECT_FLOAT_EQ(leftPoints[0].x, 0.0f);
+    EXPECT_FLOAT_EQ(leftPoints[0].y, -leftHalfHeight);
+    EXPECT_FLOAT_EQ(leftPoints[1].x, leftWidth);
+    EXPECT_FLOAT_EQ(leftPoints[2].x, leftWidth);
+    EXPECT_FLOAT_EQ(leftPoints[3].x, 0.0f);
+
+    ASSERT_EQ(rightPoints.size(), 4U);
+    EXPECT_FLOAT_EQ(rightPoints[0].x, -rightWidth);
+    EXPECT_FLOAT_EQ(rightPoints[0].y, -rightHalfHeight);
+    EXPECT_FLOAT_EQ(rightPoints[1].x, 0.0f);
+    EXPECT_FLOAT_EQ(rightPoints[2].x, 0.0f);
+    EXPECT_FLOAT_EQ(rightPoints[3].x, -rightWidth);
 }

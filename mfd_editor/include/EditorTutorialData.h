@@ -36,6 +36,7 @@ enum class TutorialStepId : int
     AddPage1DefaultStrobe,
     AddPage1AlternativeStrobe,
     ExposeAircraftLabelPrimitive,
+    AlignAircraftLabelPrimitive,
     DisableAircraftLabelTransformInheritance,
     AddAircraftReticleToPage1,
     RenameAircraftReticleOnPage1,
