@@ -12,10 +12,8 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cmath>
 #include "mfd/core/ArrayView.h"
-#include <ctime>
 #include <string>
 #include <utility>
 
@@ -64,25 +62,6 @@ bool IsFiniteVector(const Vector2& value) noexcept
 bool IsFiniteVec2(const Vec2& value) noexcept
 {
     return std::isfinite(value.x) && std::isfinite(value.y);
-}
-
-float TextHorizontalOrigin(const float width, const Align align) noexcept
-{
-    switch (align)
-    {
-    case Align::Left:
-        return 0.0f;
-    case Align::Right:
-        return width;
-    case Align::Center:
-    default:
-        return width * 0.5f;
-    }
-}
-
-Vector2 TextLayoutOrigin(const Vector2 size, const Align align) noexcept
-{
-    return Vector2 {TextHorizontalOrigin(size.x, align), size.y * 0.5f};
 }
 
 int SanitizeSegmentCount(const int requested, const int minimum) noexcept
@@ -385,48 +364,6 @@ void SampleEllipseInto(const EllipseGeometry& geometry, const int segments, std:
             std::cos(angle) * halfWidth,
             std::sin(angle) * halfHeight});
     }
-}
-
-std::tm ToCalendarTime(const std::time_t rawTime, const bool utc) noexcept
-{
-    std::tm calendarTime {};
-
-#if defined(_WIN32)
-    if (utc)
-    {
-        gmtime_s(&calendarTime, &rawTime);
-    }
-    else
-    {
-        localtime_s(&calendarTime, &rawTime);
-    }
-#else
-    if (utc)
-    {
-        gmtime_r(&rawTime, &calendarTime);
-    }
-    else
-    {
-        localtime_r(&rawTime, &calendarTime);
-    }
-#endif
-
-    return calendarTime;
-}
-
-std::string FormatTimeText(const TimeGeometry& geometry)
-{
-    const auto now = std::chrono::system_clock::now();
-    const std::time_t rawTime = std::chrono::system_clock::to_time_t(now);
-    const std::tm calendarTime = ToCalendarTime(rawTime, geometry.utc);
-
-    std::array<char, 128> buffer {};
-    if (std::strftime(buffer.data(), buffer.size(), geometry.format.c_str(), &calendarTime) == 0U)
-    {
-        return geometry.utc ? "UTC" : "--:--:--";
-    }
-
-    return std::string(buffer.data());
 }
 
 void DrawAlignedText(const std::string& text,
@@ -749,31 +686,21 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        CachedTextLayout fallbackLayout;
-        const CachedTextLayout* layout = nullptr;
-        if (textLayoutCache_ != nullptr)
-        {
-            layout = &textLayoutCache_->ResolveStaticText(text->text, font, fontSize, letterSpacing, text->align);
-        }
-        else
-        {
-            fallbackLayout.text = text->text;
-            fallbackLayout.size = MeasureTextEx(font, fallbackLayout.text.c_str(), fontSize, letterSpacing);
-            fallbackLayout.origin = TextLayoutOrigin(fallbackLayout.size, text->align);
-            layout = &fallbackLayout;
-        }
+        TextLayoutCache localTextLayoutCache;
+        TextLayoutCache& layoutCache = textLayoutCache_ != nullptr ? *textLayoutCache_ : localTextLayoutCache;
+        const CachedTextLayout& layout = layoutCache.ResolveStaticText(text->text, font, fontSize, letterSpacing, text->align);
 
-        if (layout == nullptr || !IsFiniteVector(layout->size) || !IsFiniteVector(layout->origin))
+        if (!IsFiniteVector(layout.size) || !IsFiniteVector(layout.origin))
         {
             break;
         }
 
-        DrawAlignedText(layout->text,
+        DrawAlignedText(layout.text,
                         font,
                         fontSize,
                         letterSpacing,
                         screenPosition,
-                        layout->origin,
+                        layout.origin,
                         -combinedTransform.rotationDegrees,
                         strokeColor);
         break;
@@ -799,31 +726,21 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        CachedTextLayout fallbackLayout;
-        const CachedTextLayout* layout = nullptr;
-        if (textLayoutCache_ != nullptr)
-        {
-            layout = &textLayoutCache_->ResolveTimeText(*time, font, fontSize, letterSpacing);
-        }
-        else
-        {
-            fallbackLayout.text = FormatTimeText(*time);
-            fallbackLayout.size = MeasureTextEx(font, fallbackLayout.text.c_str(), fontSize, letterSpacing);
-            fallbackLayout.origin = TextLayoutOrigin(fallbackLayout.size, time->align);
-            layout = &fallbackLayout;
-        }
+        TextLayoutCache localTextLayoutCache;
+        TextLayoutCache& layoutCache = textLayoutCache_ != nullptr ? *textLayoutCache_ : localTextLayoutCache;
+        const CachedTextLayout& layout = layoutCache.ResolveTimeText(*time, font, fontSize, letterSpacing);
 
-        if (layout == nullptr || !IsFiniteVector(layout->size) || !IsFiniteVector(layout->origin))
+        if (!IsFiniteVector(layout.size) || !IsFiniteVector(layout.origin))
         {
             break;
         }
 
-        DrawAlignedText(layout->text,
+        DrawAlignedText(layout.text,
                         font,
                         fontSize,
                         letterSpacing,
                         screenPosition,
-                        layout->origin,
+                        layout.origin,
                         -combinedTransform.rotationDegrees,
                         strokeColor);
         break;

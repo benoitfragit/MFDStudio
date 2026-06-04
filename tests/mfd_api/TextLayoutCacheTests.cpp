@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cmath>
 #include <ctime>
 #include <string>
 #include <string_view>
@@ -108,6 +109,22 @@ TEST(TextLayoutCacheTests, ResolveStaticTextTracksAlignmentInCacheKeyAndOrigin)
     EXPECT_FLOAT_EQ(left.origin.x, 0.0f);
     EXPECT_FLOAT_EQ(right.origin.x, right.size.x);
     EXPECT_NE(&left, &right);
+}
+
+TEST(TextLayoutCacheTests, ResolveStaticTextFallsBackWhenRaylibFontHasNoGlyphs)
+{
+    mfd::TextLayoutCache cache;
+    const Font invalidFont {};
+
+    const mfd::CachedTextLayout& layout =
+        cache.ResolveStaticText("UTC", invalidFont, 14.0f, 2.0f, mfd::Align::Right);
+
+    EXPECT_EQ(layout.text, "UTC");
+    EXPECT_TRUE(std::isfinite(layout.size.x));
+    EXPECT_TRUE(std::isfinite(layout.size.y));
+    EXPECT_GT(layout.size.x, 0.0f);
+    EXPECT_GT(layout.size.y, 0.0f);
+    EXPECT_FLOAT_EQ(layout.origin.x, layout.size.x);
 }
 
 TEST(TextLayoutCacheTests, ResolveTimeTextReusesFormattedLayoutWithinSameSecond)

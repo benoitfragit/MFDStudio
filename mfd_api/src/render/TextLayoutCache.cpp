@@ -10,7 +10,9 @@
 
 #include "TextLayoutCache.h"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -62,6 +64,28 @@ float HorizontalOrigin(const float width, const Align align) noexcept
     default:
         return width * 0.5f;
     }
+}
+
+bool CanMeasureTextWithRaylib(const Font& font) noexcept
+{
+    return font.texture.id != 0 &&
+           font.glyphs != nullptr &&
+           font.recs != nullptr &&
+           font.glyphCount > 0;
+}
+
+Vector2 EstimateTextSize(const std::string_view text,
+                         const float fontSize,
+                         const float letterSpacing) noexcept
+{
+    const std::size_t characterCount = std::max<std::size_t>(std::size_t {1}, text.size());
+    const float safeFontSize = std::isfinite(fontSize) ? std::max(1.0f, std::abs(fontSize)) : 1.0f;
+    const float safeLetterSpacing = std::isfinite(letterSpacing) ? std::max(0.0f, letterSpacing) : 0.0f;
+    const float spacingWidth = safeLetterSpacing * static_cast<float>(characterCount - 1U);
+
+    return Vector2 {
+        safeFontSize * static_cast<float>(characterCount) * 0.60f + spacingWidth,
+        safeFontSize};
 }
 
 std::tm ToCalendarTime(const std::time_t rawTime, const bool utc) noexcept
@@ -245,8 +269,19 @@ Vector2 TextLayoutCache::MeasureTextWithRaylib(const std::string_view text,
                                                const float fontSize,
                                                const float letterSpacing)
 {
+    if (!CanMeasureTextWithRaylib(font))
+    {
+        return EstimateTextSize(text, fontSize, letterSpacing);
+    }
+
     const std::string ownedText(text);
-    return MeasureTextEx(font, ownedText.c_str(), fontSize, letterSpacing);
+    const Vector2 measuredSize = MeasureTextEx(font, ownedText.c_str(), fontSize, letterSpacing);
+    if (!std::isfinite(measuredSize.x) || !std::isfinite(measuredSize.y))
+    {
+        return EstimateTextSize(text, fontSize, letterSpacing);
+    }
+
+    return measuredSize;
 }
 
 std::string TextLayoutCache::FormatTimeWithStrftime(const TimeGeometry& geometry, const std::time_t second)

@@ -564,6 +564,193 @@ struct PageClipPrimitiveHit
     float reticleDistance = std::numeric_limits<float>::max();
 };
 
+constexpr float kPreviewTextMeasurementPixelsPerLogicalUnit = 1024.0f;
+
+float SanitizePreviewLetterSpacing(const float letterSpacing) noexcept
+{
+    return std::isfinite(letterSpacing) ? letterSpacing : mfd::kDefaultTextLetterSpacing;
+}
+
+mfd::Vec2 FallbackPreviewTextSizeLogical(const mfd::TextGeometry& geometry) noexcept
+{
+    return {
+        editor::detail::EstimatedPrimitiveTextWidth(editor::detail::EstimatePrimitiveTextHalfWidth(geometry)),
+        editor::detail::EstimatePrimitiveTextHalfHeight(geometry) * 2.0f};
+}
+
+mfd::Vec2 FallbackPreviewTextSizeLogical(const mfd::TimeGeometry& geometry) noexcept
+{
+    return {
+        editor::detail::EstimatedPrimitiveTextWidth(editor::detail::EstimatePrimitiveTextHalfWidth(geometry)),
+        editor::detail::EstimatePrimitiveTextHalfHeight(geometry) * 2.0f};
+}
+
+Font ResolvePreviewMeasurementFont(const Font* const previewFont) noexcept
+{
+    return previewFont != nullptr ? *previewFont : GetFontDefault();
+}
+
+float EditorViewportZoom(const editor::app::ViewportState& viewport) noexcept
+{
+    return mfd::SanitizeZoom(viewport.view.zoom);
+}
+
+float ToEditorViewPixels(const editor::app::ViewportState& viewport, const float logicalValue) noexcept
+{
+    return logicalValue * viewport.LogicalScale() * EditorViewportZoom(viewport);
+}
+
+Vector2 RotateScreenOffset(const Vector2 offset, const float rotationDegrees) noexcept
+{
+    const float radians = rotationDegrees * PI / 180.0f;
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+
+    return Vector2 {
+        offset.x * cosine - offset.y * sine,
+        offset.x * sine + offset.y * cosine};
+}
+
+void IncludeScreenPoint(editor::app::ReticleScreenBounds& bounds, const ImVec2 point) noexcept
+{
+    if (!std::isfinite(point.x) || !std::isfinite(point.y))
+    {
+        return;
+    }
+
+    if (!bounds.valid)
+    {
+        bounds.min = point;
+        bounds.max = point;
+        bounds.valid = true;
+        return;
+    }
+
+    bounds.min.x = std::min(bounds.min.x, point.x);
+    bounds.min.y = std::min(bounds.min.y, point.y);
+    bounds.max.x = std::max(bounds.max.x, point.x);
+    bounds.max.y = std::max(bounds.max.y, point.y);
+}
+
+class PrimitiveScreenBoundsAccumulator
+{
+public:
+    PrimitiveScreenBoundsAccumulator(editor::app::ReticleScreenBounds& bounds,
+                                     const editor::app::ViewportState& viewport,
+                                     const mfd::ReticleGroup& reticle,
+                                     const mfd::Primitive& primitive) noexcept
+        : bounds_(bounds)
+        , viewport_(viewport)
+        , reticle_(reticle)
+        , primitive_(primitive)
+    {
+    }
+
+    void operator()(const mfd::Vec2 localPoint) const
+    {
+        IncludeScreenPoint(bounds_, viewport_.ToScreen(TransformPrimitiveWorldPoint(reticle_, primitive_, localPoint)));
+    }
+
+private:
+    editor::app::ReticleScreenBounds& bounds_;
+    const editor::app::ViewportState& viewport_;
+    const mfd::ReticleGroup& reticle_;
+    const mfd::Primitive& primitive_;
+};
+
+void IncludeAlignedTextLogicalBounds(editor::app::ReticleScreenBounds& bounds,
+                                     const editor::app::ViewportState& viewport,
+                                     const mfd::ReticleGroup& reticle,
+                                     const mfd::Primitive& primitive,
+                                     const float width,
+                                     const float halfHeight,
+                                     const mfd::Align align)
+{
+    const float originX = editor::detail::PrimitiveTextOriginX(width, align);
+    const float left = -originX;
+    const float right = width - originX;
+
+    IncludeScreenPoint(bounds, viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, {left, -halfHeight})));
+    IncludeScreenPoint(bounds, viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, {right, -halfHeight})));
+    IncludeScreenPoint(bounds, viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, {right, halfHeight})));
+    IncludeScreenPoint(bounds, viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, {left, halfHeight})));
+}
+
+bool IncludeTextLayoutScreenBounds(editor::app::ReticleScreenBounds& bounds,
+                                   const editor::app::ViewportState& viewport,
+                                   const mfd::ReticleGroup& reticle,
+                                   const mfd::Primitive& primitive,
+                                   const mfd::CachedTextLayout& layout)
+{
+    const mfd::Transform2D combinedTransform = mfd::ResolvePrimitiveWorldTransform(primitive, reticle);
+    if (!std::isfinite(layout.size.x) || !std::isfinite(layout.size.y) ||
+        !std::isfinite(layout.origin.x) || !std::isfinite(layout.origin.y) ||
+        !std::isfinite(combinedTransform.rotationDegrees) ||
+        layout.size.x <= 0.0f || layout.size.y <= 0.0f)
+    {
+        return false;
+    }
+
+    const float left = -layout.origin.x;
+    const float right = layout.size.x - layout.origin.x;
+    const float top = -layout.origin.y;
+    const float bottom = layout.size.y - layout.origin.y;
+    const ImVec2 anchor = viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, {}));
+    const float screenRotationDegrees = -combinedTransform.rotationDegrees;
+
+    const std::array<Vector2, 4> offsets {{
+        {left, top},
+        {right, top},
+        {right, bottom},
+        {left, bottom}}};
+    for (const Vector2 offset : offsets)
+    {
+        const Vector2 rotatedOffset = RotateScreenOffset(offset, screenRotationDegrees);
+        IncludeScreenPoint(bounds, ImVec2(anchor.x + rotatedOffset.x, anchor.y + rotatedOffset.y));
+    }
+
+    return true;
+}
+
+bool IncludeMeasuredTextScreenBounds(editor::app::ReticleScreenBounds& bounds,
+                                     const editor::app::ViewportState& viewport,
+                                     const mfd::ReticleGroup& reticle,
+                                     const mfd::Primitive& primitive,
+                                     mfd::TextLayoutCache& textLayoutCache,
+                                     const mfd::TextGeometry& text,
+                                     const Font* const previewFont)
+{
+    const Font font = ResolvePreviewMeasurementFont(previewFont);
+    const float textScale = mfd::PrimitiveAverageScale(primitive, reticle);
+    const float fontSizePixels = std::max(1.0f, std::abs(ToEditorViewPixels(viewport, text.fontSize * textScale)));
+    const float letterSpacingPixels = std::isfinite(text.letterSpacing)
+                                          ? ToEditorViewPixels(viewport, text.letterSpacing * textScale)
+                                          : ToEditorViewPixels(viewport, mfd::kDefaultTextLetterSpacing * textScale);
+    const mfd::CachedTextLayout& layout =
+        textLayoutCache.ResolveStaticText(text.text, font, fontSizePixels, letterSpacingPixels, text.align);
+
+    return IncludeTextLayoutScreenBounds(bounds, viewport, reticle, primitive, layout);
+}
+
+bool IncludeMeasuredTimeScreenBounds(editor::app::ReticleScreenBounds& bounds,
+                                     const editor::app::ViewportState& viewport,
+                                     const mfd::ReticleGroup& reticle,
+                                     const mfd::Primitive& primitive,
+                                     mfd::TextLayoutCache& textLayoutCache,
+                                     const mfd::TimeGeometry& time,
+                                     const Font* const previewFont)
+{
+    const Font font = ResolvePreviewMeasurementFont(previewFont);
+    const float textScale = mfd::PrimitiveAverageScale(primitive, reticle);
+    const float fontSizePixels = std::max(1.0f, std::abs(ToEditorViewPixels(viewport, time.fontSize * textScale)));
+    const float letterSpacingPixels = std::isfinite(time.letterSpacing)
+                                          ? ToEditorViewPixels(viewport, time.letterSpacing * textScale)
+                                          : ToEditorViewPixels(viewport, mfd::kDefaultTextLetterSpacing * textScale);
+    const mfd::CachedTextLayout& layout = textLayoutCache.ResolveTimeText(time, font, fontSizePixels, letterSpacingPixels);
+
+    return IncludeTextLayoutScreenBounds(bounds, viewport, reticle, primitive, layout);
+}
+
 void IncludeLogicalPoint(LogicalBounds& bounds, const mfd::Vec2 point)
 {
     if (!bounds.valid)
@@ -2081,6 +2268,7 @@ void EditorApplication::ApplyPreviewFontFile(std::filesystem::path fontFile)
         return;
     }
 
+    previewState_.previewTextLayoutCache.Clear();
     ReleasePreviewFont();
     previewState_.previewFontFile = std::move(fontFile);
     previewState_.previewFontLoadAttempted = false;
@@ -2123,6 +2311,61 @@ void EditorApplication::ReleasePreviewFont() noexcept
 const Font* EditorApplication::PreviewTextFont() const noexcept
 {
     return previewState_.previewFontReady ? &previewState_.previewFont : nullptr;
+}
+
+float EditorApplication::MeasurePreviewTextWidthLogical(const mfd::TextGeometry& geometry)
+{
+    const mfd::Vec2 fallback = FallbackPreviewTextSizeLogical(geometry);
+    if (!IsWindowReady())
+    {
+        return fallback.x;
+    }
+
+    const float fontSizePixels = std::max(
+        1.0f,
+        std::abs(geometry.fontSize * kPreviewTextMeasurementPixelsPerLogicalUnit));
+    const float letterSpacingPixels =
+        SanitizePreviewLetterSpacing(geometry.letterSpacing) * kPreviewTextMeasurementPixelsPerLogicalUnit;
+    const mfd::CachedTextLayout& layout = previewState_.previewTextLayoutCache.ResolveStaticText(
+        geometry.text,
+        ResolvePreviewMeasurementFont(PreviewTextFont()),
+        fontSizePixels,
+        letterSpacingPixels,
+        geometry.align);
+    if (!std::isfinite(layout.size.x) || !std::isfinite(layout.size.y) ||
+        layout.size.x <= 0.0f || layout.size.y <= 0.0f)
+    {
+        return fallback.x;
+    }
+
+    return std::max(0.03f, layout.size.x / kPreviewTextMeasurementPixelsPerLogicalUnit);
+}
+
+float EditorApplication::MeasurePreviewTextWidthLogical(const mfd::TimeGeometry& geometry)
+{
+    const mfd::Vec2 fallback = FallbackPreviewTextSizeLogical(geometry);
+    if (!IsWindowReady())
+    {
+        return fallback.x;
+    }
+
+    const float fontSizePixels = std::max(
+        1.0f,
+        std::abs(geometry.fontSize * kPreviewTextMeasurementPixelsPerLogicalUnit));
+    const float letterSpacingPixels =
+        SanitizePreviewLetterSpacing(geometry.letterSpacing) * kPreviewTextMeasurementPixelsPerLogicalUnit;
+    const mfd::CachedTextLayout& layout = previewState_.previewTextLayoutCache.ResolveTimeText(
+        geometry,
+        ResolvePreviewMeasurementFont(PreviewTextFont()),
+        fontSizePixels,
+        letterSpacingPixels);
+    if (!std::isfinite(layout.size.x) || !std::isfinite(layout.size.y) ||
+        layout.size.x <= 0.0f || layout.size.y <= 0.0f)
+    {
+        return fallback.x;
+    }
+
+    return std::max(0.03f, layout.size.x / kPreviewTextMeasurementPixelsPerLogicalUnit);
 }
 
 void EditorApplication::ResetPagePreviewView() noexcept
@@ -5653,24 +5896,48 @@ EditorApplication::ReticleScreenBounds EditorApplication::ComputePrimitiveScreen
     const ViewportState& viewport) const
 {
     ReticleScreenBounds bounds;
-    editor::detail::ForEachPrimitiveBoundsLocalPoint(
-        primitive,
-        [&bounds, &viewport, &reticle, &primitive](const mfd::Vec2 localPoint)
-        {
-            const ImVec2 screenPoint = viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
-            if (!bounds.valid)
-            {
-                bounds.min = screenPoint;
-                bounds.max = screenPoint;
-                bounds.valid = true;
-                return;
-            }
+    if (!primitive.style.visible)
+    {
+        return bounds;
+    }
 
-            bounds.min.x = std::min(bounds.min.x, screenPoint.x);
-            bounds.min.y = std::min(bounds.min.y, screenPoint.y);
-            bounds.max.x = std::max(bounds.max.x, screenPoint.x);
-            bounds.max.y = std::max(bounds.max.y, screenPoint.y);
-        });
+    if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
+    {
+        mfd::TextLayoutCache textLayoutCache;
+        if (!IncludeMeasuredTextScreenBounds(
+                bounds,
+                viewport,
+                reticle,
+                primitive,
+                textLayoutCache,
+                *text,
+                PreviewTextFont()))
+        {
+            const mfd::Vec2 size = FallbackPreviewTextSizeLogical(*text);
+            IncludeAlignedTextLogicalBounds(bounds, viewport, reticle, primitive, size.x, size.y * 0.5f, text->align);
+        }
+    }
+    else if (const auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry))
+    {
+        mfd::TextLayoutCache textLayoutCache;
+        if (!IncludeMeasuredTimeScreenBounds(
+                bounds,
+                viewport,
+                reticle,
+                primitive,
+                textLayoutCache,
+                *time,
+                PreviewTextFont()))
+        {
+            const mfd::Vec2 size = FallbackPreviewTextSizeLogical(*time);
+            IncludeAlignedTextLogicalBounds(bounds, viewport, reticle, primitive, size.x, size.y * 0.5f, time->align);
+        }
+    }
+    else
+    {
+        const PrimitiveScreenBoundsAccumulator accumulator(bounds, viewport, reticle, primitive);
+        editor::detail::ForEachPrimitiveBoundsLocalPoint(primitive, accumulator);
+    }
 
     if (bounds.valid)
     {

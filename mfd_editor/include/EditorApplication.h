@@ -294,6 +294,10 @@ private:
     void ReleasePreviewFont() noexcept;
     /** @brief Returns the preview font override when one is currently loaded. */
     const Font* PreviewTextFont() const noexcept;
+    /** @brief Returns the renderer-aligned logical width of one preview text primitive. */
+    [[nodiscard]] float MeasurePreviewTextWidthLogical(const mfd::TextGeometry& geometry);
+    /** @brief Returns the renderer-aligned logical width of one preview time primitive. */
+    [[nodiscard]] float MeasurePreviewTextWidthLogical(const mfd::TimeGeometry& geometry);
     /** @brief Resets the page preview camera from the currently active authored page view. */
     void ResetPagePreviewView() noexcept;
     /** @brief Resets the library preview camera to its neutral editor-only view. */

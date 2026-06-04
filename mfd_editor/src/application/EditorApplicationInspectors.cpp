@@ -144,15 +144,16 @@ const char* AlignLabel(const mfd::Align align) noexcept
 }
 
 template <typename TGeometry>
-void SetPrimitiveTextAlignment(mfd::Primitive& primitive, TGeometry& geometry, const mfd::Align newAlign)
+void ApplyPrimitiveTextAlignmentChange(mfd::Primitive& primitive,
+                                       TGeometry& geometry,
+                                       const mfd::Align newAlign,
+                                       const float width)
 {
     if (geometry.align == newAlign)
     {
         return;
     }
 
-    const float halfWidth = editor::detail::EstimatePrimitiveTextHalfWidth(geometry);
-    const float width = editor::detail::EstimatedPrimitiveTextWidth(halfWidth);
     const float currentOriginX = editor::detail::PrimitiveTextOriginX(width, geometry.align);
     const float newOriginX = editor::detail::PrimitiveTextOriginX(width, newAlign);
     const mfd::Vec2 localDelta {newOriginX - currentOriginX, 0.0f};
@@ -2347,7 +2348,11 @@ void EditorApplication::DrawPageReticleInspector()
                     if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
                     {
                         PushUndoSnapshot();
-                        SetPrimitiveTextAlignment(primitive, *text, candidate);
+                        ApplyPrimitiveTextAlignmentChange(
+                            primitive,
+                            *text,
+                            candidate,
+                            MeasurePreviewTextWidthLogical(*text));
                     }
                     if (selected)
                     {
@@ -2400,7 +2405,11 @@ void EditorApplication::DrawPageReticleInspector()
                     if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
                     {
                         PushUndoSnapshot();
-                        SetPrimitiveTextAlignment(primitive, *time, candidate);
+                        ApplyPrimitiveTextAlignmentChange(
+                            primitive,
+                            *time,
+                            candidate,
+                            MeasurePreviewTextWidthLogical(*time));
                     }
                     if (selected)
                     {
@@ -2902,7 +2911,11 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
                     if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
                     {
                         PushUndoSnapshot();
-                        SetPrimitiveTextAlignment(primitive, *text, candidate);
+                        ApplyPrimitiveTextAlignmentChange(
+                            primitive,
+                            *text,
+                            candidate,
+                            MeasurePreviewTextWidthLogical(*text));
                     }
                     if (selected)
                     {
@@ -2963,7 +2976,11 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
                     if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
                     {
                         PushUndoSnapshot();
-                        SetPrimitiveTextAlignment(primitive, *time, candidate);
+                        ApplyPrimitiveTextAlignmentChange(
+                            primitive,
+                            *time,
+                            candidate,
+                            MeasurePreviewTextWidthLogical(*time));
                     }
                     if (selected)
                     {
@@ -3702,7 +3719,11 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
                     if (!selected)
                     {
                         PushUndoSnapshot();
-                        SetPrimitiveTextAlignment(*primitive, *text, candidate);
+                        ApplyPrimitiveTextAlignmentChange(
+                            *primitive,
+                            *text,
+                            candidate,
+                            MeasurePreviewTextWidthLogical(*text));
                     }
 
                     if (candidate == mfd::Align::Right &&
@@ -3777,7 +3798,11 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
                 if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
                 {
                     PushUndoSnapshot();
-                    SetPrimitiveTextAlignment(*primitive, *time, candidate);
+                    ApplyPrimitiveTextAlignmentChange(
+                        *primitive,
+                        *time,
+                        candidate,
+                        MeasurePreviewTextWidthLogical(*time));
                 }
                 if (selected)
                 {

@@ -58,6 +58,7 @@ Forbidden:
 - broad lambda captures `[&]` or `[=]` except for tiny direct STL predicates or required external callbacks
 - local structs/classes inside functions
 - large UI functions mixing rendering, state mutation, rollback, validation, and business logic
+- new `mutable` data members unless explicitly approved for a narrowly documented cache invariant
 - manual `new`/`delete` unless forced by an external API and encapsulated
 - unexplained `reinterpret_cast`, `const_cast`, or C-style casts
 - broad rewrites that do not reduce concrete maintenance risk
@@ -86,6 +87,7 @@ git grep -n "unused"
 git grep -n "ignored"
 git grep -n "dummy"
 git grep -n "}();"
+git grep -n "mutable"
 git grep -n "\\[&\\]"
 git grep -n "\\[=\\]"
 ```
