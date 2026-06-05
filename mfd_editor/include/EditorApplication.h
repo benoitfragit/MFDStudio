@@ -219,6 +219,8 @@ private:
                                          std::string primitiveId);
     /** @brief Draws one editable 2D point field and records undo activation when needed. */
     void EditPointArrayField(const char* label, mfd::Vec2& value);
+    /** @brief Edits one time-format field and only commits complete supported directives when editing finishes. */
+    void EditTimeFormatField(const std::string& label, const char* tooltip, mfd::TimeGeometry& geometry);
 
     /** @brief Draws the current page into the main preview viewport. */
     void DrawPagePreview(const ViewportState& viewport);

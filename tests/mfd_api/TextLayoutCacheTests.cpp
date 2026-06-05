@@ -17,6 +17,7 @@
 #include <string_view>
 
 #include "TextLayoutCache.h"
+#include "TimeFormatValidation.h"
 
 namespace
 {
@@ -127,6 +128,21 @@ TEST(TextLayoutCacheTests, ResolveStaticTextFallsBackWhenRaylibFontHasNoGlyphs)
     EXPECT_FLOAT_EQ(layout.origin.x, layout.size.x);
 }
 
+TEST(TextLayoutCacheTests, TimeFormatValidationRejectsIncompleteAndUnknownDirectives)
+{
+    EXPECT_TRUE(mfd::detail::IsValidTimeFormatString("%H:%M:%S"));
+    EXPECT_TRUE(mfd::detail::IsValidTimeFormatString("UTC %Y-%m-%d %H:%M"));
+    EXPECT_TRUE(mfd::detail::IsValidTimeFormatString("%%H"));
+#if defined(_WIN32)
+    EXPECT_TRUE(mfd::detail::IsValidTimeFormatString("%#H:%M"));
+#endif
+
+    EXPECT_FALSE(mfd::detail::IsValidTimeFormatString(""));
+    EXPECT_FALSE(mfd::detail::IsValidTimeFormatString("%"));
+    EXPECT_FALSE(mfd::detail::IsValidTimeFormatString("%H:%M:%"));
+    EXPECT_FALSE(mfd::detail::IsValidTimeFormatString("%Q"));
+}
+
 TEST(TextLayoutCacheTests, ResolveTimeTextReusesFormattedLayoutWithinSameSecond)
 {
     ResetCounters();
@@ -161,4 +177,21 @@ TEST(TextLayoutCacheTests, ResolveTimeTextReusesFormattedLayoutWithinSameSecond)
     EXPECT_EQ(stats.timeMisses, 4U);
     EXPECT_EQ(stats.timeHits, 1U);
     EXPECT_EQ(cache.TimeEntryCount(), 4U);
+}
+
+TEST(TextLayoutCacheTests, ResolveTimeTextFallsBackWhenFormatIsInvalid)
+{
+    ResetCounters();
+    mfd::TextLayoutCache cache(&FakeMeasureText);
+    const Font font = MakeFont();
+    mfd::TimeGeometry geometry;
+    geometry.format = "%H:%M:%";
+    geometry.utc = false;
+
+    const auto second = std::chrono::system_clock::from_time_t(1'700'000'000);
+    const mfd::CachedTextLayout& layout = cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, second);
+
+    EXPECT_EQ(layout.text, "--:--:--");
+    EXPECT_EQ(gMeasureCallCount, 1);
+    EXPECT_EQ(gFormatCallCount, 0);
 }

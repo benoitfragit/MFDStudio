@@ -9,6 +9,7 @@
  */
 
 #include "TextLayoutCache.h"
+#include "TimeFormatValidation.h"
 
 #include <algorithm>
 #include <array>
@@ -286,6 +287,11 @@ Vector2 TextLayoutCache::MeasureTextWithRaylib(const std::string_view text,
 
 std::string TextLayoutCache::FormatTimeWithStrftime(const TimeGeometry& geometry, const std::time_t second)
 {
+    if (!detail::IsValidTimeFormatString(geometry.format))
+    {
+        return geometry.utc ? "UTC" : "--:--:--";
+    }
+
     const std::tm calendarTime = ToCalendarTime(second, geometry.utc);
 
     std::array<char, 128> buffer {};

@@ -22,6 +22,7 @@
 #include "EditorTutorialData.h"
 #include "EditorUiTheme.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
+#include "TimeFormatValidation.h"
 
 namespace
 {
@@ -242,6 +243,45 @@ struct StrobeDraftState
     std::string name;
     std::string templateId;
 };
+
+std::string DescribeRequestedTimeFormat(const std::string_view format)
+{
+    return format.empty() ? std::string {"<empty>"} : std::string(format);
+}
+
+std::string InvalidTimeFormatMessage(const std::string_view format)
+{
+    return "Rejected invalid time format '" + DescribeRequestedTimeFormat(format) +
+           "'. Use complete strftime directives such as %H:%M:%S.";
+}
+}
+
+void EditorApplication::EditTimeFormatField(const std::string& label,
+                                            const char* const tooltip,
+                                            mfd::TimeGeometry& geometry)
+{
+    std::array<char, 128> buffer {};
+    CopyTextBuffer(buffer, geometry.format);
+    ImGui::InputText(label.c_str(), buffer.data(), buffer.size());
+    ShowItemTooltip(tooltip);
+    if (ImGui::IsItemActivated())
+    {
+        PushUndoSnapshot();
+    }
+
+    if (!ImGui::IsItemDeactivatedAfterEdit())
+    {
+        return;
+    }
+
+    std::string requestedFormat(buffer.data());
+    if (!mfd::detail::IsValidTimeFormatString(requestedFormat))
+    {
+        RebuildStatus(InvalidTimeFormatMessage(requestedFormat), true);
+        return;
+    }
+
+    geometry.format = std::move(requestedFormat);
 }
 
 void EditorApplication::DrawWindowInspector()
@@ -2382,19 +2422,11 @@ void EditorApplication::DrawPageReticleInspector()
 
         if (time != nullptr)
         {
-            std::array<char, 128> format {};
-            CopyTextBuffer(format, time->format);
             const std::string formatLabel = "Time format##" + primitive.id;
-            const bool formatChanged = ImGui::InputText(formatLabel.c_str(), format.data(), format.size());
-            ShowItemTooltip("Override the strftime-style format used by this time primitive.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (formatChanged)
-            {
-                time->format = format.data();
-            }
+            EditTimeFormatField(formatLabel,
+                                "Override the strftime-style format used by this time primitive. "
+                                "Changes apply when the field loses focus and invalid directives are rejected.",
+                                *time);
 
             const std::string alignLabel = "Alignment##" + primitive.id;
             if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(time->align)))
@@ -2949,21 +2981,13 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
         {
             const bool hasPrimitiveId = !primitive.id.empty();
             const int fallbackIndex = unnamedTimePrimitiveIndex++;
-            std::array<char, 128> format {};
-            CopyTextBuffer(format, time->format);
             const std::string formatLabel = hasPrimitiveId ? "Time format##strobe_" + primitive.id
                                                            : "Time format #" + std::to_string(fallbackIndex) +
                                                                  "##strobe_time_" + std::to_string(primitiveIndex);
-            const bool formatChanged = ImGui::InputText(formatLabel.c_str(), format.data(), format.size());
-            ShowItemTooltip("Override the strftime-style format used by this time primitive on the page strobe.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (formatChanged)
-            {
-                time->format = format.data();
-            }
+            EditTimeFormatField(formatLabel,
+                                "Override the strftime-style format used by this time primitive on the page strobe. "
+                                "Changes apply when the field loses focus and invalid directives are rejected.",
+                                *time);
 
             const std::string alignLabel = hasPrimitiveId ? "Alignment##strobe_" + primitive.id
                                                           : "Alignment #" + std::to_string(fallbackIndex) +
@@ -3777,18 +3801,10 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* time = std::get_if<mfd::TimeGeometry>(&primitive->geometry))
     {
-        std::array<char, 128> buffer {};
-        CopyTextBuffer(buffer, time->format);
-        const bool changed = ImGui::InputText("Format", buffer.data(), buffer.size());
-        ShowItemTooltip("strftime-style format string used by this time primitive.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (changed)
-        {
-            time->format = buffer.data();
-        }
+        EditTimeFormatField("Format",
+                            "strftime-style format string used by this time primitive. "
+                            "Changes apply when the field loses focus and invalid directives are rejected.",
+                            *time);
 
         if (ImGui::BeginCombo("Alignment", AlignLabel(time->align)))
         {
