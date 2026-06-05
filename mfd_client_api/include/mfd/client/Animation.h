@@ -299,6 +299,33 @@ public:
                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
 
     void SetLetterSpacing(float letterSpacing);
+    /**
+     * @brief Stages a numeric runtime value for this time primitive.
+     *
+     * @param value Calendar and clock fields to display.
+     * @pre `value` must describe a valid date and time accepted by the runtime.
+     * @note The value stays active until `ClearTimeValue()` or a later value update is sent.
+     */
+    void SetTimeValue(mfd::TimeValue value);
+    /**
+     * @brief Stages a command that stops the active numeric runtime value bypass.
+     *
+     * @note Structured field visibility and UTC/local overrides remain unchanged.
+     */
+    void ClearTimeValue();
+    /**
+     * @brief Stages the UTC/local rendering choice for this time primitive.
+     *
+     * @param utc `true` for UTC clock time, `false` for local clock time.
+     */
+    void SetUtc(bool utc);
+    /**
+     * @brief Stages the structured field visibility used to render this time primitive.
+     *
+     * @param fields Field selection to display.
+     * @pre At least one field must be visible.
+     */
+    void SetFieldVisibility(mfd::TimeFieldVisibility fields);
 };
 
 /**

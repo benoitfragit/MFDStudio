@@ -400,6 +400,7 @@ TEST(CommandProcessorTests, SerializedDynamicRuntimeIdsStillMagnetizeActiveStrob
     dynamicBatch.commands.push_back(upsertCommand);
     EXPECT_TRUE(processor.Submit(mfd::SerializeCommandBatch(dynamicBatch)));
     EXPECT_TRUE(processor.LastError().empty());
+    EXPECT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "radar_track", true));
 
     mfd::UpdateStrobeCommand strobeCommand;
     strobeCommand.pageId = 11U;

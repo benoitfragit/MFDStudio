@@ -273,6 +273,22 @@ handles such as `CircleHandle`, `RingHandle`, `RectangleHandle`,
 `BezierHandle`, and `ImageHandle` do not expose `SetFillColor(...)` or
 `SetFilled(...)`.
 
+Exposed time primitives use structured runtime controls instead of raw text
+formats:
+
+```cpp
+radar.geometryPanel.MissionTime().SetTimeValue(mfd::TimeValue {2026, 6, 5, 14, 3, 9});
+radar.geometryPanel.MissionTime().SetUtc(true);
+radar.geometryPanel.MissionTime().SetFieldVisibility(
+    mfd::TimeFieldVisibility {true, true, true, true, true, false});
+radar.geometryPanel.MissionTime().ClearTimeValue();
+```
+
+`SetTimeValue(...)` bypasses the live clock numerically. `ClearTimeValue()`
+stops only that numeric bypass; any UTC/local or field-visibility choice staged
+earlier remains active until the client changes it again or the runtime is
+reset.
+
 ### Step C - Know when to use generated UI vs low-level API
 
 - Use generated accessors for discoverability and safer page/reticle/primitive

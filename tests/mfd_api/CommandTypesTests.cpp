@@ -50,6 +50,9 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     primitivePatch.segments = 48;
     primitivePatch.startAngleDegrees = -30.0f;
     primitivePatch.endAngleDegrees = 210.0f;
+    primitivePatch.timeValue = mfd::TimeValue {2026, 6, 5, 14, 3, 9};
+    primitivePatch.timeUtc = true;
+    primitivePatch.timeFields = mfd::TimeFieldVisibility {true, true, true, true, true, false};
 
     mfd::ReticlePatch patch;
     patch.blinkTypeId = 44U;
@@ -106,6 +109,16 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).endAngleDegrees.has_value());
     EXPECT_FLOAT_EQ(*update->patch.primitivePatchesById.at(55U).startAngleDegrees, -30.0f);
     EXPECT_FLOAT_EQ(*update->patch.primitivePatchesById.at(55U).endAngleDegrees, 210.0f);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).timeValue.has_value());
+    EXPECT_EQ(update->patch.primitivePatchesById.at(55U).timeValue->year, 2026);
+    EXPECT_EQ(update->patch.primitivePatchesById.at(55U).timeValue->month, 6);
+    EXPECT_EQ(update->patch.primitivePatchesById.at(55U).timeValue->day, 5);
+    EXPECT_EQ(update->patch.primitivePatchesById.at(55U).timeValue->hour, 14);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).timeUtc.has_value());
+    EXPECT_TRUE(*update->patch.primitivePatchesById.at(55U).timeUtc);
+    ASSERT_TRUE(update->patch.primitivePatchesById.at(55U).timeFields.has_value());
+    EXPECT_TRUE(update->patch.primitivePatchesById.at(55U).timeFields->year);
+    EXPECT_FALSE(update->patch.primitivePatchesById.at(55U).timeFields->second);
 }
 
 TEST(CommandTypesTests, SerializeCommandBatchRejectsLegacyNamedTargetsWithoutGeneratedIds)
@@ -154,6 +167,67 @@ TEST(CommandTypesTests, DeserializeCommandBatchRejectsExplicitUnspecifiedPrimiti
 
     EXPECT_FALSE(decoded.has_value());
     EXPECT_NE(error.find("UNSPECIFIED"), std::string::npos);
+}
+
+TEST(CommandTypesTests, DeserializeCommandBatchRejectsInvalidPrimitiveTimePatch)
+{
+    mfd::transport::CommandEnvelope envelope;
+    auto* update = envelope.add_commands()->mutable_update_reticle();
+    update->mutable_target()->set_page_id(11U);
+    update->mutable_target()->set_reticle_id(22U);
+    auto* primitivePatch = &(*update->mutable_patch()->mutable_primitive_patches_by_id())[33U];
+    primitivePatch->mutable_time_value()->set_year(2026);
+    primitivePatch->mutable_time_value()->set_month(2);
+    primitivePatch->mutable_time_value()->set_day(30);
+
+    std::string payload;
+    ASSERT_TRUE(envelope.SerializeToString(&payload));
+
+    std::string error;
+    const auto decoded = mfd::DeserializeCommandBatch(payload, &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_NE(error.find("day"), std::string::npos);
+}
+
+TEST(CommandTypesTests, DeserializeCommandBatchRejectsAmbiguousPrimitiveTimeBypassPatch)
+{
+    mfd::transport::CommandEnvelope envelope;
+    auto* update = envelope.add_commands()->mutable_update_reticle();
+    update->mutable_target()->set_page_id(11U);
+    update->mutable_target()->set_reticle_id(22U);
+    auto* primitivePatch = &(*update->mutable_patch()->mutable_primitive_patches_by_id())[33U];
+    primitivePatch->mutable_time_value()->set_year(2026);
+    primitivePatch->mutable_time_value()->set_month(6);
+    primitivePatch->mutable_time_value()->set_day(5);
+    primitivePatch->set_clear_time_value(true);
+
+    std::string payload;
+    ASSERT_TRUE(envelope.SerializeToString(&payload));
+
+    std::string error;
+    const auto decoded = mfd::DeserializeCommandBatch(payload, &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_NE(error.find("set and clear"), std::string::npos);
+}
+
+TEST(CommandTypesTests, DeserializeCommandBatchRejectsHiddenPrimitiveTimeFields)
+{
+    mfd::transport::CommandEnvelope envelope;
+    auto* update = envelope.add_commands()->mutable_update_reticle();
+    update->mutable_target()->set_page_id(11U);
+    update->mutable_target()->set_reticle_id(22U);
+    (*update->mutable_patch()->mutable_primitive_patches_by_id())[33U].mutable_time_fields();
+
+    std::string payload;
+    ASSERT_TRUE(envelope.SerializeToString(&payload));
+
+    std::string error;
+    const auto decoded = mfd::DeserializeCommandBatch(payload, &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_NE(error.find("at least one"), std::string::npos);
 }
 
 TEST(CommandTypesTests, DeserializeCommandBatchRejectsTooManyCommands)

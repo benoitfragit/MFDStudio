@@ -1324,7 +1324,7 @@ fill is meaningful only when `SetClosed(true)` is also active.
 | Handle | Extra methods |
 | --- | --- |
 | `TextHandle` | `SetText`, `SetLetterSpacing` |
-| `TimeHandle` | `SetLetterSpacing` |
+| `TimeHandle` | `SetLetterSpacing`, `SetTimeValue`, `ClearTimeValue`, `SetUtc`, `SetFieldVisibility` |
 | `LineHandle` | `SetStart`, `SetEnd` |
 | `CircleHandle` | `SetRadius` |
 | `RingHandle` | `SetInnerRadius`, `SetOuterRadius`, `SetSegments` |
@@ -1337,6 +1337,12 @@ fill is meaningful only when `SetClosed(true)` is also active.
 | `BezierHandle` | `SetControlPoints`, `SetSegments` |
 | `ArcHandle` | `SetRadius`, `SetStartAngleDegrees`, `SetEndAngleDegrees`, `SetSegments` |
 | `ImageHandle` | common primitive surface only |
+
+`TimeHandle` deliberately uses structured runtime fields. `SetTimeValue`
+provides the numeric calendar and clock value, `ClearTimeValue` stops that
+numeric bypass, `SetUtc` switches UTC/local rendering, and
+`SetFieldVisibility` selects which date/time fields are displayed. No raw
+runtime text format is accepted through the generated API.
 
 > Common mistake:
 > Wrong: expose every decorative primitive and then patch them from business code.

@@ -150,6 +150,10 @@ private:
         std::string format {};
         bool utc = false;
         std::time_t second = 0;
+        bool hasValueOverride = false;
+        TimeValue valueOverride {};
+        bool hasStructuredFields = false;
+        TimeFieldVisibility structuredFields {};
         std::size_t fontFingerprint = 0U;
         std::uint32_t fontSizeBits = 0U;
         std::uint32_t letterSpacingBits = 0U;

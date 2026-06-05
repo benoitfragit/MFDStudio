@@ -73,6 +73,10 @@ preferred surface. It gives typed access to pages, reticles, exposed
 primitives, strobes, and dynamic sets, while `CommandClient` remains the final
 transport sender.
 
+For time primitives, the generated API exposes structured runtime controls:
+numeric time bypass, bypass clear, UTC/local selection, and field visibility.
+It does not require clients to send raw format strings at runtime.
+
 Treat the generated header, generated source, and companion
 `<window>.generated.map` as one contract. The generated runtime path is only
 valid when `mfd_window` loads the matching `.generated.map`. Use generated

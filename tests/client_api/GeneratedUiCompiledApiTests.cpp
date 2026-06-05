@@ -192,6 +192,11 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     radar.geometryPanel.PanelImage().SetScale({1.25f, 0.85f});
     radar.geometryPanel.PanelImage().SetRotationDegrees(17.0f);
     radar.geometryPanel.MissionTime().SetLetterSpacing(0.02f);
+    radar.geometryPanel.MissionTime().SetTimeValue(mfd::TimeValue {2026, 6, 5, 14, 3, 9});
+    radar.geometryPanel.MissionTime().SetUtc(true);
+    radar.geometryPanel.MissionTime().SetFieldVisibility(
+        mfd::TimeFieldVisibility {true, true, true, true, true, false});
+    radar.geometryPanel.MissionTime().ClearTimeValue();
 
     auto& track = radar.DynamicGeometryTemplate().Create();
     track.SetPosition({0.10f, -0.20f});
@@ -227,6 +232,8 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     track.OverlayImage().SetScale({0.75f, 1.10f});
     track.OverlayImage().SetRotationDegrees(-12.0f);
     track.MissionTime().SetLetterSpacing(0.03f);
+    track.MissionTime().SetTimeValue(mfd::TimeValue {2026, 6, 5, 15, 4, 10});
+    track.MissionTime().SetFieldVisibility(mfd::TimeFieldVisibility {false, false, false, true, true, true});
 
     const mfd::CommandBatch batch = ui.BuildCommandBatch(9U);
     EXPECT_EQ(batch.sequence, 9U);

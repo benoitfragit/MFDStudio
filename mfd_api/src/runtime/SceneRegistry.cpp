@@ -34,7 +34,9 @@ using runtime_validation::IsFiniteAbsWithin;
 using runtime_validation::IsPositiveFiniteWithin;
 using runtime_validation::IsValidScale;
 using runtime_validation::IsValidTextPayload;
+using runtime_validation::IsValidTimeValue;
 using runtime_validation::IsValidVec2;
+using runtime_validation::HasVisibleTimeField;
 using runtime_validation::kMaxAbsAngleDegrees;
 using runtime_validation::kMaxFilledPolygonPoints;
 using runtime_validation::kMaxLogicalSize;
@@ -189,6 +191,21 @@ bool IsValidPrimitivePatch(const PrimitivePatch& patch) noexcept
 
     if (patch.segments.has_value() &&
         (*patch.segments < 2 || *patch.segments > kMaxPrimitiveSegments))
+    {
+        return false;
+    }
+
+    if (patch.clearTimeValue && patch.timeValue.has_value())
+    {
+        return false;
+    }
+
+    if (patch.timeValue.has_value() && !IsValidTimeValue(*patch.timeValue))
+    {
+        return false;
+    }
+
+    if (patch.timeFields.has_value() && !HasVisibleTimeField(*patch.timeFields))
     {
         return false;
     }
@@ -561,6 +578,33 @@ bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
         else if (TimeGeometry* timeGeometry = std::get_if<TimeGeometry>(&primitive.geometry))
         {
             timeGeometry->letterSpacing = *patch.letterSpacing;
+            applied = true;
+        }
+    }
+
+    if (TimeGeometry* timeGeometry = std::get_if<TimeGeometry>(&primitive.geometry))
+    {
+        if (patch.timeValue.has_value())
+        {
+            timeGeometry->runtimeValueOverride = *patch.timeValue;
+            applied = true;
+        }
+
+        if (patch.clearTimeValue)
+        {
+            timeGeometry->runtimeValueOverride.reset();
+            applied = true;
+        }
+
+        if (patch.timeUtc.has_value())
+        {
+            timeGeometry->runtimeUtc = *patch.timeUtc;
+            applied = true;
+        }
+
+        if (patch.timeFields.has_value())
+        {
+            timeGeometry->runtimeFields = *patch.timeFields;
             applied = true;
         }
     }

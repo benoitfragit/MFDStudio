@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -109,12 +110,119 @@ struct TextGeometry
 };
 
 /**
+ * @brief Numeric calendar value used to override a time primitive at runtime.
+ */
+struct TimeValue
+{
+    int year = 1970;
+    int month = 1;
+    int day = 1;
+    int hour = 0;
+    int minute = 0;
+    int second = 0;
+};
+
+/**
+ * @brief Returns true when two numeric time values are identical.
+ *
+ * @param lhs Left-hand value.
+ * @param rhs Right-hand value.
+ * @return true when every numeric field matches.
+ */
+inline bool operator==(const TimeValue& lhs, const TimeValue& rhs) noexcept
+{
+    return lhs.year == rhs.year && lhs.month == rhs.month && lhs.day == rhs.day && lhs.hour == rhs.hour
+           && lhs.minute == rhs.minute && lhs.second == rhs.second;
+}
+
+/**
+ * @brief Returns true when two numeric time values differ.
+ *
+ * @param lhs Left-hand value.
+ * @param rhs Right-hand value.
+ * @return true when at least one numeric field differs.
+ */
+inline bool operator!=(const TimeValue& lhs, const TimeValue& rhs) noexcept
+{
+    return !(lhs == rhs);
+}
+
+/**
+ * @brief Structured display selection for a time primitive.
+ */
+struct TimeFieldVisibility
+{
+    bool year = false;
+    bool month = false;
+    bool day = false;
+    bool hour = true;
+    bool minute = true;
+    bool second = true;
+};
+
+/**
+ * @brief Returns true when two time field selections are identical.
+ *
+ * @param lhs Left-hand field selection.
+ * @param rhs Right-hand field selection.
+ * @return true when every display flag matches.
+ */
+inline bool operator==(const TimeFieldVisibility& lhs, const TimeFieldVisibility& rhs) noexcept
+{
+    return lhs.year == rhs.year && lhs.month == rhs.month && lhs.day == rhs.day && lhs.hour == rhs.hour
+           && lhs.minute == rhs.minute && lhs.second == rhs.second;
+}
+
+/**
+ * @brief Returns true when two time field selections differ.
+ *
+ * @param lhs Left-hand field selection.
+ * @param rhs Right-hand field selection.
+ * @return true when at least one display flag differs.
+ */
+inline bool operator!=(const TimeFieldVisibility& lhs, const TimeFieldVisibility& rhs) noexcept
+{
+    return !(lhs == rhs);
+}
+
+/**
  * @brief Geometry payload for a clock/time text primitive.
  */
 struct TimeGeometry
 {
+    /** @brief Creates a time geometry with the default authored clock format. */
+    TimeGeometry() = default;
+
+    /**
+     * @brief Creates a time geometry with authored display settings.
+     *
+     * @param formatValue Authored `strftime` format used until structured runtime fields are received.
+     * @param utcValue Authored UTC/local clock choice.
+     * @param fontSizeValue Logical font size.
+     * @param letterSpacingValue Logical letter spacing.
+     * @param alignValue Horizontal alignment used when the rendered text width changes.
+     */
+    TimeGeometry(std::string formatValue,
+                 bool utcValue,
+                 float fontSizeValue = kDefaultTextFontSize,
+                 float letterSpacingValue = kDefaultTextLetterSpacing,
+                 Align alignValue = Align::Center)
+        : format(std::move(formatValue))
+        , utc(utcValue)
+        , fontSize(fontSizeValue)
+        , letterSpacing(letterSpacingValue)
+        , align(alignValue)
+    {
+    }
+
     std::string format = "%H:%M:%S";
     bool utc = false;
+    /** @brief Runtime numeric value override received from the command API. */
+    std::optional<TimeValue> runtimeValueOverride;
+    /** @brief Runtime UTC/local choice received from the command API. */
+    std::optional<bool> runtimeUtc;
+    /** @brief Runtime structured display selection received from the command API. */
+    std::optional<TimeFieldVisibility> runtimeFields;
     float fontSize = kDefaultTextFontSize;
     float letterSpacing = kDefaultTextLetterSpacing;
     /** @brief Horizontal alignment used when the rendered time width changes. */

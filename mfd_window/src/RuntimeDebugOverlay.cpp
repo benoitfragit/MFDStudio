@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <cmath>
 #include <optional>
 #include <string>
@@ -74,6 +75,88 @@ ColorRgba FromImGuiColor(const ImVec4& color) noexcept
         ClampUnitFloatToByte(color.y),
         ClampUnitFloatToByte(color.z),
         ClampUnitFloatToByte(color.w)};
+}
+
+bool IsLeapYearForTimeUi(const int year) noexcept
+{
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+
+int DaysInMonthForTimeUi(const int year, const int month) noexcept
+{
+    switch (month)
+    {
+    case 2:
+        return IsLeapYearForTimeUi(year) ? 29 : 28;
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+        return 30;
+    default:
+        return 31;
+    }
+}
+
+bool HasVisibleTimeFieldForUi(const TimeFieldVisibility& fields) noexcept
+{
+    return fields.year || fields.month || fields.day || fields.hour || fields.minute || fields.second;
+}
+
+TimeValue ClampTimeValueForUi(TimeValue value) noexcept
+{
+    value.year = std::clamp(value.year, 1, 9999);
+    value.month = std::clamp(value.month, 1, 12);
+    value.day = std::clamp(value.day, 1, DaysInMonthForTimeUi(value.year, value.month));
+    value.hour = std::clamp(value.hour, 0, 23);
+    value.minute = std::clamp(value.minute, 0, 59);
+    value.second = std::clamp(value.second, 0, 59);
+    return value;
+}
+
+TimeValue CurrentTimeValueForUi(const bool utc) noexcept
+{
+    const std::time_t now = std::time(nullptr);
+    std::tm calendarTime {};
+#if defined(_WIN32)
+    if (utc)
+    {
+        gmtime_s(&calendarTime, &now);
+    }
+    else
+    {
+        localtime_s(&calendarTime, &now);
+    }
+#else
+    if (utc)
+    {
+        gmtime_r(&now, &calendarTime);
+    }
+    else
+    {
+        localtime_r(&now, &calendarTime);
+    }
+#endif
+
+    TimeValue value;
+    value.year = calendarTime.tm_year + 1900;
+    value.month = calendarTime.tm_mon + 1;
+    value.day = calendarTime.tm_mday;
+    value.hour = calendarTime.tm_hour;
+    value.minute = calendarTime.tm_min;
+    value.second = calendarTime.tm_sec;
+    return ClampTimeValueForUi(value);
+}
+
+TimeGeometry* FindEditableTimeGeometry(ReticleGroup& reticle, const std::string_view primitiveId) noexcept
+{
+    Primitive* editable = FindPrimitive(reticle, primitiveId);
+    if (editable == nullptr)
+    {
+        return nullptr;
+    }
+
+    return std::get_if<TimeGeometry>(&editable->geometry);
 }
 
 const char* ReticleKindLabel(const ReticleKind kind) noexcept
@@ -268,7 +351,34 @@ void DrawPrimitiveGeometryReadOnly(const Primitive& primitive)
     if (const auto* geometry = std::get_if<TimeGeometry>(&primitive.geometry))
     {
         ImGui::Text("Format: %s", geometry->format.c_str());
-        ImGui::Text("UTC: %s", geometry->utc ? "true" : "false");
+        ImGui::Text(
+            "UTC: %s%s",
+            geometry->runtimeUtc.value_or(geometry->utc) ? "true" : "false",
+            geometry->runtimeUtc.has_value() ? " (runtime)" : "");
+        if (geometry->runtimeValueOverride.has_value())
+        {
+            const TimeValue& value = *geometry->runtimeValueOverride;
+            ImGui::Text(
+                "Runtime time: %04d-%02d-%02d %02d:%02d:%02d",
+                value.year,
+                value.month,
+                value.day,
+                value.hour,
+                value.minute,
+                value.second);
+        }
+        if (geometry->runtimeFields.has_value())
+        {
+            const TimeFieldVisibility& fields = *geometry->runtimeFields;
+            ImGui::Text(
+                "Runtime fields: Y=%d M=%d D=%d h=%d m=%d s=%d",
+                fields.year ? 1 : 0,
+                fields.month ? 1 : 0,
+                fields.day ? 1 : 0,
+                fields.hour ? 1 : 0,
+                fields.minute ? 1 : 0,
+                fields.second ? 1 : 0);
+        }
         ImGui::Text("Font size: %.4f", geometry->fontSize);
         ImGui::Text("Letter spacing: %.4f", geometry->letterSpacing);
         return;
@@ -1539,6 +1649,199 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     if (inspectorFrameState.SnapshotValid() && !anyEditableText)
                     {
                         ImGui::TextDisabled("No editable text primitive is attached to this reticle.");
+                    }
+                }
+
+                if (inspectorFrameState.SnapshotValid())
+                {
+                    ImGui::Separator();
+                    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.00f), "Time primitives");
+                    bool anyEditableTime = false;
+                    for (std::size_t primitiveIndex = 0; primitiveIndex < inspectedReticle->primitives.size(); ++primitiveIndex)
+                    {
+                        const Primitive& primitive = inspectedReticle->primitives[primitiveIndex];
+                        const auto* geometry = std::get_if<TimeGeometry>(&primitive.geometry);
+                        if (geometry == nullptr)
+                        {
+                            continue;
+                        }
+
+                        anyEditableTime = true;
+                        ImGui::PushID(primitive.id.c_str());
+                        ImGui::PushID(static_cast<int>(primitiveIndex));
+                        ImGui::Text("%s", primitive.id.empty() ? "<unnamed time>" : primitive.id.c_str());
+
+                        bool valueBypass = geometry->runtimeValueOverride.has_value();
+                        if (ImGui::Checkbox("Numeric value bypass", &valueBypass))
+                        {
+                            const TimeValue seedValue =
+                                geometry->runtimeValueOverride.value_or(CurrentTimeValueForUi(
+                                    geometry->runtimeUtc.value_or(geometry->utc)));
+                            MutateSelectedReticleWithRollback(
+                                liveScene,
+                                displayScene,
+                                [primitiveId = primitive.id, valueBypass, seedValue](ReticleGroup& draft)
+                                {
+                                    if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
+                                        editableTime != nullptr)
+                                    {
+                                        if (valueBypass)
+                                        {
+                                            editableTime->runtimeValueOverride = seedValue;
+                                        }
+                                        else
+                                        {
+                                            editableTime->runtimeValueOverride.reset();
+                                        }
+                                    }
+                                },
+                                valueBypass ? "Enabled one time numeric bypass." : "Cleared one time numeric bypass.");
+                            inspectorFrameState.InvalidateSnapshot();
+                            ImGui::PopID();
+                            ImGui::PopID();
+                            break;
+                        }
+
+                        if (geometry->runtimeValueOverride.has_value())
+                        {
+                            TimeValue value = *geometry->runtimeValueOverride;
+                            std::array<int, 3> date {value.year, value.month, value.day};
+                            if (ImGui::InputInt3("Date Y/M/D", date.data()))
+                            {
+                                value.year = date[0];
+                                value.month = date[1];
+                                value.day = date[2];
+                                value = ClampTimeValueForUi(value);
+                                MutateSelectedReticleWithRollback(
+                                    liveScene,
+                                    displayScene,
+                                    [primitiveId = primitive.id, value](ReticleGroup& draft)
+                                    {
+                                        if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
+                                            editableTime != nullptr)
+                                        {
+                                            editableTime->runtimeValueOverride = value;
+                                        }
+                                    },
+                                    "Updated one time bypass date.");
+                                inspectorFrameState.InvalidateSnapshot();
+                                ImGui::PopID();
+                                ImGui::PopID();
+                                break;
+                            }
+
+                            std::array<int, 3> clock {value.hour, value.minute, value.second};
+                            if (ImGui::InputInt3("Time H/M/S", clock.data()))
+                            {
+                                value.hour = clock[0];
+                                value.minute = clock[1];
+                                value.second = clock[2];
+                                value = ClampTimeValueForUi(value);
+                                MutateSelectedReticleWithRollback(
+                                    liveScene,
+                                    displayScene,
+                                    [primitiveId = primitive.id, value](ReticleGroup& draft)
+                                    {
+                                        if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
+                                            editableTime != nullptr)
+                                        {
+                                            editableTime->runtimeValueOverride = value;
+                                        }
+                                    },
+                                    "Updated one time bypass clock.");
+                                inspectorFrameState.InvalidateSnapshot();
+                                ImGui::PopID();
+                                ImGui::PopID();
+                                break;
+                            }
+                        }
+
+                        bool utc = geometry->runtimeUtc.value_or(geometry->utc);
+                        if (ImGui::Checkbox("UTC", &utc))
+                        {
+                            MutateSelectedReticleWithRollback(
+                                liveScene,
+                                displayScene,
+                                [primitiveId = primitive.id, utc](ReticleGroup& draft)
+                                {
+                                    if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
+                                        editableTime != nullptr)
+                                    {
+                                        editableTime->runtimeUtc = utc;
+                                    }
+                                },
+                                "Updated one time UTC mode.");
+                            inspectorFrameState.InvalidateSnapshot();
+                            ImGui::PopID();
+                            ImGui::PopID();
+                            break;
+                        }
+
+                        TimeFieldVisibility fields = geometry->runtimeFields.value_or(TimeFieldVisibility {});
+                        bool fieldsChanged = false;
+                        fieldsChanged = ImGui::Checkbox("Show year", &fields.year) || fieldsChanged;
+                        ImGui::SameLine();
+                        fieldsChanged = ImGui::Checkbox("Show month", &fields.month) || fieldsChanged;
+                        ImGui::SameLine();
+                        fieldsChanged = ImGui::Checkbox("Show day", &fields.day) || fieldsChanged;
+                        fieldsChanged = ImGui::Checkbox("Show hour", &fields.hour) || fieldsChanged;
+                        ImGui::SameLine();
+                        fieldsChanged = ImGui::Checkbox("Show minute", &fields.minute) || fieldsChanged;
+                        ImGui::SameLine();
+                        fieldsChanged = ImGui::Checkbox("Show second", &fields.second) || fieldsChanged;
+                        if (fieldsChanged)
+                        {
+                            if (HasVisibleTimeFieldForUi(fields))
+                            {
+                                MutateSelectedReticleWithRollback(
+                                    liveScene,
+                                    displayScene,
+                                    [primitiveId = primitive.id, fields](ReticleGroup& draft)
+                                    {
+                                        if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
+                                            editableTime != nullptr)
+                                        {
+                                            editableTime->runtimeFields = fields;
+                                        }
+                                    },
+                                    "Updated one time field visibility.");
+                                inspectorFrameState.InvalidateSnapshot();
+                                ImGui::PopID();
+                                ImGui::PopID();
+                                break;
+                            }
+
+                            ImGui::TextDisabled("At least one time field must stay visible.");
+                        }
+
+                        float letterSpacing = geometry->letterSpacing;
+                        if (ImGui::DragFloat("Letter spacing", &letterSpacing, 0.0005f, 0.0f, 0.2f, "%.4f"))
+                        {
+                            MutateSelectedReticleWithRollback(
+                                liveScene,
+                                displayScene,
+                                [primitiveId = primitive.id, letterSpacing](ReticleGroup& draft)
+                                {
+                                    if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
+                                        editableTime != nullptr)
+                                    {
+                                        editableTime->letterSpacing = letterSpacing;
+                                    }
+                                },
+                                "Updated one time primitive letter spacing.");
+                            inspectorFrameState.InvalidateSnapshot();
+                            ImGui::PopID();
+                            ImGui::PopID();
+                            break;
+                        }
+
+                        ImGui::Spacing();
+                        ImGui::PopID();
+                        ImGui::PopID();
+                    }
+                    if (inspectorFrameState.SnapshotValid() && !anyEditableTime)
+                    {
+                        ImGui::TextDisabled("No editable time primitive is attached to this reticle.");
                     }
                 }
 

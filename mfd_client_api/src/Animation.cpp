@@ -177,7 +177,11 @@ bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs)
            EqualOptional(lhs.closed, rhs.closed) &&
            EqualOptional(lhs.segments, rhs.segments) &&
            EqualOptional(lhs.startAngleDegrees, rhs.startAngleDegrees) &&
-           EqualOptional(lhs.endAngleDegrees, rhs.endAngleDegrees);
+           EqualOptional(lhs.endAngleDegrees, rhs.endAngleDegrees) &&
+           EqualOptional(lhs.timeValue, rhs.timeValue) &&
+           lhs.clearTimeValue == rhs.clearTimeValue &&
+           EqualOptional(lhs.timeUtc, rhs.timeUtc) &&
+           EqualOptional(lhs.timeFields, rhs.timeFields);
 }
 
 bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
@@ -285,6 +289,13 @@ mfd::PrimitivePatch BuildDeltaPrimitivePatch(const mfd::PrimitivePatch& desired,
     CopyChangedOptionalField(desired.segments, previous.segments, delta.segments);
     CopyChangedOptionalField(desired.startAngleDegrees, previous.startAngleDegrees, delta.startAngleDegrees);
     CopyChangedOptionalField(desired.endAngleDegrees, previous.endAngleDegrees, delta.endAngleDegrees);
+    CopyChangedOptionalField(desired.timeValue, previous.timeValue, delta.timeValue);
+    if (desired.clearTimeValue && !previous.clearTimeValue)
+    {
+        delta.clearTimeValue = true;
+    }
+    CopyChangedOptionalField(desired.timeUtc, previous.timeUtc, delta.timeUtc);
+    CopyChangedOptionalField(desired.timeFields, previous.timeFields, delta.timeFields);
     return delta;
 }
 
@@ -852,6 +863,32 @@ TimeHandle::TimeHandle(mfd::ReticlePatch& patch,
 void TimeHandle::SetLetterSpacing(const float letterSpacing)
 {
     Patch().letterSpacing = letterSpacing;
+    MarkDirty();
+}
+
+void TimeHandle::SetTimeValue(const mfd::TimeValue value)
+{
+    Patch().timeValue = value;
+    Patch().clearTimeValue = false;
+    MarkDirty();
+}
+
+void TimeHandle::ClearTimeValue()
+{
+    Patch().timeValue.reset();
+    Patch().clearTimeValue = true;
+    MarkDirty();
+}
+
+void TimeHandle::SetUtc(const bool utc)
+{
+    Patch().timeUtc = utc;
+    MarkDirty();
+}
+
+void TimeHandle::SetFieldVisibility(const mfd::TimeFieldVisibility fields)
+{
+    Patch().timeFields = fields;
     MarkDirty();
 }
 

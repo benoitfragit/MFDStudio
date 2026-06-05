@@ -15,6 +15,7 @@
 #include <string_view>
 #include <vector>
 
+#include "mfd/model/Reticle.h"
 #include "mfd/model/Types.h"
 
 namespace mfd::runtime_validation
@@ -39,6 +40,10 @@ constexpr std::size_t kMaxPrimitivePoints = 2048U;
 constexpr std::size_t kMaxFilledPolygonPoints = 512U;
 /** @brief Maximum number of UTF-8 bytes accepted by runtime text payloads. */
 constexpr std::size_t kMaxTextBytes = 4096U;
+/** @brief Minimum accepted year for runtime numeric time overrides. */
+constexpr int kMinTimeYear = 1;
+/** @brief Maximum accepted year for runtime numeric time overrides. */
+constexpr int kMaxTimeYear = 9999;
 
 /**
  * @brief Returns whether one logical vector contains only finite coordinates.
@@ -103,6 +108,75 @@ inline bool IsValidScale(const Vec2& value) noexcept
 inline bool IsValidTextPayload(const std::string_view value) noexcept
 {
     return value.size() <= kMaxTextBytes;
+}
+
+/**
+ * @brief Returns whether a Gregorian year is a leap year.
+ * @param year Year to inspect.
+ * @return `true` when February has 29 days.
+ */
+inline bool IsLeapYear(const int year) noexcept
+{
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+
+/**
+ * @brief Returns the accepted day count for one month.
+ * @param year Gregorian year.
+ * @param month Month in [1, 12].
+ * @return Number of days in the month, or 31 for out-of-range months.
+ */
+inline int DaysInMonth(const int year, const int month) noexcept
+{
+    switch (month)
+    {
+    case 2:
+        return IsLeapYear(year) ? 29 : 28;
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+        return 30;
+    default:
+        return 31;
+    }
+}
+
+/**
+ * @brief Returns whether one structured time field selection displays something.
+ * @param fields Field selection to inspect.
+ * @return `true` when at least one field is visible.
+ */
+inline bool HasVisibleTimeField(const TimeFieldVisibility& fields) noexcept
+{
+    return fields.year || fields.month || fields.day || fields.hour || fields.minute || fields.second;
+}
+
+/**
+ * @brief Returns whether one numeric runtime time value is in accepted bounds.
+ * @param value Numeric value to inspect.
+ * @return `true` when the date and clock components are valid.
+ */
+inline bool IsValidTimeValue(const TimeValue& value) noexcept
+{
+    if (value.year < kMinTimeYear || value.year > kMaxTimeYear)
+    {
+        return false;
+    }
+
+    if (value.month < 1 || value.month > 12)
+    {
+        return false;
+    }
+
+    if (value.day < 1 || value.day > DaysInMonth(value.year, value.month))
+    {
+        return false;
+    }
+
+    return value.hour >= 0 && value.hour <= 23 &&
+           value.minute >= 0 && value.minute <= 59 &&
+           value.second >= 0 && value.second <= 59;
 }
 
 /**

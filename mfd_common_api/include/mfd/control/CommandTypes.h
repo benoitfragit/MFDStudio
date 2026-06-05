@@ -20,6 +20,7 @@
 
 #include "mfd/MfdExport.h"
 #include "mfd/model/Types.h"
+#include "mfd/model/Reticle.h"
 #include "mfd/runtime/GeneratedTransportMap.h"
 
 namespace mfd
@@ -129,6 +130,19 @@ struct PrimitivePatch
     std::optional<float> startAngleDegrees;
     /** @brief Optional end-angle override for arc primitives. */
     std::optional<float> endAngleDegrees;
+    /** @brief Optional numeric time override for time primitives. */
+    std::optional<TimeValue> timeValue;
+    /**
+     * @brief Clears the active numeric time override on time primitives.
+     *
+     * @note This is a one-way command flag. It must not be combined with
+     * `timeValue` in the same patch.
+     */
+    bool clearTimeValue = false;
+    /** @brief Optional UTC/local display override for time primitives. */
+    std::optional<bool> timeUtc;
+    /** @brief Optional structured display selection for time primitives. */
+    std::optional<TimeFieldVisibility> timeFields;
 };
 
 /**

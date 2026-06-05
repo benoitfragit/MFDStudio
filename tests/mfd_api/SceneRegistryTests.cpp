@@ -71,6 +71,20 @@ mfd::ReticleGroup MakeTextReticle(const std::string_view id)
     return reticle;
 }
 
+mfd::ReticleGroup MakeTimeReticle(const std::string_view id)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = std::string(id);
+    reticle.layerId = std::string(kDefaultLayerId);
+
+    mfd::Primitive clock;
+    clock.id = "clock";
+    clock.type = mfd::PrimitiveType::Time;
+    clock.geometry = mfd::TimeGeometry {};
+    reticle.primitives.push_back(std::move(clock));
+    return reticle;
+}
+
 mfd::ReticleGroup MakeGeometryPatchReticle(const std::string_view id)
 {
     mfd::ReticleGroup reticle;
@@ -213,6 +227,17 @@ const mfd::TextGeometry* FindTextGeometry(const mfd::ReticleGroup& reticle, cons
     }
 
     return std::get_if<mfd::TextGeometry>(&primitive->geometry);
+}
+
+const mfd::TimeGeometry* FindTimeGeometry(const mfd::ReticleGroup& reticle, const std::string_view primitiveId)
+{
+    const mfd::Primitive* primitive = mfd::FindPrimitive(reticle, primitiveId);
+    if (primitive == nullptr)
+    {
+        return nullptr;
+    }
+
+    return std::get_if<mfd::TimeGeometry>(&primitive->geometry);
 }
 } // namespace
 
@@ -723,6 +748,54 @@ TEST(SceneRegistryTests, ApplyReticlePatchSupportsRichPrimitiveOverrides)
     const auto* circleGeometry = std::get_if<mfd::CircleGeometry>(&circlePrimitive->geometry);
     ASSERT_NE(circleGeometry, nullptr);
     EXPECT_FLOAT_EQ(circleGeometry->radius, 0.12f);
+}
+
+TEST(SceneRegistryTests, ApplyReticlePatchSupportsRuntimeTimeOverridesAndClear)
+{
+    mfd::MfdDocument document;
+    mfd::PageDefinition page = MakeBlinkPage();
+    page.staticReticles.push_back(MakeTimeReticle("timing"));
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::PrimitivePatch timePatch;
+    timePatch.timeValue = mfd::TimeValue {2026, 6, 5, 14, 3, 9};
+    timePatch.timeUtc = true;
+    timePatch.timeFields = mfd::TimeFieldVisibility {true, true, true, true, true, false};
+
+    mfd::ReticlePatch reticlePatch;
+    reticlePatch.primitivePatches.emplace("clock", timePatch);
+    EXPECT_TRUE(registry.ApplyReticlePatch("Radar", "timing", reticlePatch));
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    const mfd::ReticleGroup* timing = FindReticle(reticles, "timing");
+    ASSERT_NE(timing, nullptr);
+
+    const mfd::TimeGeometry* patchedTime = FindTimeGeometry(*timing, "clock");
+    ASSERT_NE(patchedTime, nullptr);
+    ASSERT_TRUE(patchedTime->runtimeValueOverride.has_value());
+    EXPECT_EQ(patchedTime->runtimeValueOverride->year, 2026);
+    EXPECT_EQ(patchedTime->runtimeValueOverride->hour, 14);
+    ASSERT_TRUE(patchedTime->runtimeUtc.has_value());
+    EXPECT_TRUE(*patchedTime->runtimeUtc);
+    ASSERT_TRUE(patchedTime->runtimeFields.has_value());
+    EXPECT_TRUE(patchedTime->runtimeFields->year);
+    EXPECT_FALSE(patchedTime->runtimeFields->second);
+
+    mfd::PrimitivePatch clearPatch;
+    clearPatch.clearTimeValue = true;
+    mfd::ReticlePatch clearReticlePatch;
+    clearReticlePatch.primitivePatches.emplace("clock", clearPatch);
+    EXPECT_TRUE(registry.ApplyReticlePatch("Radar", "timing", clearReticlePatch));
+
+    patchedTime = FindTimeGeometry(*timing, "clock");
+    ASSERT_NE(patchedTime, nullptr);
+    EXPECT_FALSE(patchedTime->runtimeValueOverride.has_value());
+    ASSERT_TRUE(patchedTime->runtimeUtc.has_value());
+    EXPECT_TRUE(*patchedTime->runtimeUtc);
+    ASSERT_TRUE(patchedTime->runtimeFields.has_value());
+    EXPECT_TRUE(patchedTime->runtimeFields->year);
 }
 
 TEST(SceneRegistryTests, ApplyReticlePatchSupportsPointListFillAndArcOverrides)
@@ -1503,6 +1576,31 @@ TEST(SceneRegistryTests, ApplyReticlePatchRejectsInvalidPayloadsWithoutMutatingS
     EXPECT_FLOAT_EQ(textual->transform.scale.x, 1.0f);
     EXPECT_FLOAT_EQ(textual->transform.scale.y, 1.0f);
     EXPECT_EQ(patchedText->text, "INIT");
+}
+
+TEST(SceneRegistryTests, ApplyReticlePatchRejectsInvalidTimePayloadWithoutMutatingState)
+{
+    mfd::MfdDocument document;
+    mfd::PageDefinition page = MakeBlinkPage();
+    page.staticReticles.push_back(MakeTimeReticle("timing"));
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::PrimitivePatch invalidTimePatch;
+    invalidTimePatch.timeValue = mfd::TimeValue {2026, 2, 30, 14, 3, 9};
+
+    mfd::ReticlePatch invalidReticlePatch;
+    invalidReticlePatch.primitivePatches.emplace("clock", invalidTimePatch);
+    EXPECT_FALSE(registry.ApplyReticlePatch("Radar", "timing", invalidReticlePatch));
+
+    const mfd::ReticleGroup* timing = FindReticle(registry.CollectPageReticlePointers("Radar"), "timing");
+    ASSERT_NE(timing, nullptr);
+    const mfd::TimeGeometry* time = FindTimeGeometry(*timing, "clock");
+    ASSERT_NE(time, nullptr);
+    EXPECT_FALSE(time->runtimeValueOverride.has_value());
+    EXPECT_FALSE(time->runtimeUtc.has_value());
+    EXPECT_FALSE(time->runtimeFields.has_value());
 }
 
 TEST(SceneRegistryTests, ApplyDynamicReticlePatchRejectsInvalidPayloadsWithoutMutatingState)

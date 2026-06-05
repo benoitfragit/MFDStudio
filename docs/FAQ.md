@@ -156,7 +156,7 @@ The integrated runtime debug overlay lets you inspect:
 - active page
 - reticle tree
 - transport state
-- temporary local bypasses
+- temporary local bypasses, including structured time primitive overrides
 
 ## How do I capture the framebuffer?
 

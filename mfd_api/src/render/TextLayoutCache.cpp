@@ -115,6 +115,107 @@ std::tm ToCalendarTime(const std::time_t rawTime, const bool utc) noexcept
 
     return calendarTime;
 }
+
+std::tm ToCalendarTime(const TimeValue& value) noexcept
+{
+    std::tm calendarTime {};
+    calendarTime.tm_year = value.year - 1900;
+    calendarTime.tm_mon = value.month - 1;
+    calendarTime.tm_mday = value.day;
+    calendarTime.tm_hour = value.hour;
+    calendarTime.tm_min = value.minute;
+    calendarTime.tm_sec = value.second;
+    return calendarTime;
+}
+
+TimeValue FromCalendarTime(const std::tm& calendarTime) noexcept
+{
+    TimeValue value;
+    value.year = calendarTime.tm_year + 1900;
+    value.month = calendarTime.tm_mon + 1;
+    value.day = calendarTime.tm_mday;
+    value.hour = calendarTime.tm_hour;
+    value.minute = calendarTime.tm_min;
+    value.second = calendarTime.tm_sec;
+    return value;
+}
+
+bool EffectiveUtc(const TimeGeometry& geometry) noexcept
+{
+    return geometry.runtimeUtc.value_or(geometry.utc);
+}
+
+void AppendPaddedNumber(std::string& text, const int value, const int width)
+{
+    const std::string number = std::to_string(value);
+    for (int index = static_cast<int>(number.size()); index < width; ++index)
+    {
+        text.push_back('0');
+    }
+    text += number;
+}
+
+void AppendDateField(std::string& text, const int value, const int width)
+{
+    if (!text.empty())
+    {
+        text.push_back('-');
+    }
+
+    AppendPaddedNumber(text, value, width);
+}
+
+void AppendClockField(std::string& text, const int value)
+{
+    if (!text.empty())
+    {
+        text.push_back(':');
+    }
+
+    AppendPaddedNumber(text, value, 2);
+}
+
+std::string FormatStructuredTimeValue(const TimeValue& value, const TimeFieldVisibility& fields)
+{
+    std::string dateText;
+    if (fields.year)
+    {
+        AppendDateField(dateText, value.year, 4);
+    }
+
+    if (fields.month)
+    {
+        AppendDateField(dateText, value.month, 2);
+    }
+
+    if (fields.day)
+    {
+        AppendDateField(dateText, value.day, 2);
+    }
+
+    std::string clockText;
+    if (fields.hour)
+    {
+        AppendClockField(clockText, value.hour);
+    }
+
+    if (fields.minute)
+    {
+        AppendClockField(clockText, value.minute);
+    }
+
+    if (fields.second)
+    {
+        AppendClockField(clockText, value.second);
+    }
+
+    if (!dateText.empty() && !clockText.empty())
+    {
+        return dateText + " " + clockText;
+    }
+
+    return dateText.empty() ? clockText : dateText;
+}
 } // namespace
 
 TextLayoutCache::TextLayoutCache(const MeasureTextCallback measureText,
@@ -165,8 +266,18 @@ const CachedTextLayout& TextLayoutCache::ResolveTimeText(const TimeGeometry& geo
 {
     TimeKey key;
     key.format = geometry.format;
-    key.utc = geometry.utc;
-    key.second = std::chrono::system_clock::to_time_t(now);
+    key.utc = EffectiveUtc(geometry);
+    key.second = geometry.runtimeValueOverride.has_value() ? 0 : std::chrono::system_clock::to_time_t(now);
+    key.hasValueOverride = geometry.runtimeValueOverride.has_value();
+    if (geometry.runtimeValueOverride.has_value())
+    {
+        key.valueOverride = *geometry.runtimeValueOverride;
+    }
+    key.hasStructuredFields = geometry.runtimeFields.has_value();
+    if (geometry.runtimeFields.has_value())
+    {
+        key.structuredFields = *geometry.runtimeFields;
+    }
     key.fontFingerprint = ComputeFontFingerprint(font);
     key.fontSizeBits = FloatBits(fontSize);
     key.letterSpacingBits = FloatBits(letterSpacing);
@@ -229,6 +340,10 @@ bool TextLayoutCache::TimeKey::operator==(const TimeKey& other) const noexcept
     return format == other.format &&
            utc == other.utc &&
            second == other.second &&
+           hasValueOverride == other.hasValueOverride &&
+           valueOverride == other.valueOverride &&
+           hasStructuredFields == other.hasStructuredFields &&
+           structuredFields == other.structuredFields &&
            fontFingerprint == other.fontFingerprint &&
            fontSizeBits == other.fontSizeBits &&
            letterSpacingBits == other.letterSpacingBits &&
@@ -258,6 +373,20 @@ std::size_t TextLayoutCache::TimeKeyHasher::operator()(const TimeKey& key) const
     }
     HashCombine(hash, static_cast<std::uint64_t>(key.utc ? 1U : 0U));
     HashCombine(hash, static_cast<std::uint64_t>(static_cast<std::int64_t>(key.second)));
+    HashCombine(hash, static_cast<std::uint64_t>(key.hasValueOverride ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.year));
+    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.month));
+    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.day));
+    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.hour));
+    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.minute));
+    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.second));
+    HashCombine(hash, static_cast<std::uint64_t>(key.hasStructuredFields ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.year ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.month ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.day ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.hour ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.minute ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.second ? 1U : 0U));
     HashCombine(hash, static_cast<std::uint64_t>(key.fontFingerprint));
     HashCombine(hash, static_cast<std::uint64_t>(key.fontSizeBits));
     HashCombine(hash, static_cast<std::uint64_t>(key.letterSpacingBits));
@@ -287,17 +416,25 @@ Vector2 TextLayoutCache::MeasureTextWithRaylib(const std::string_view text,
 
 std::string TextLayoutCache::FormatTimeWithStrftime(const TimeGeometry& geometry, const std::time_t second)
 {
-    if (!detail::IsValidTimeFormatString(geometry.format))
+    const bool utc = EffectiveUtc(geometry);
+    const std::tm calendarTime = geometry.runtimeValueOverride.has_value()
+                                     ? ToCalendarTime(*geometry.runtimeValueOverride)
+                                     : ToCalendarTime(second, utc);
+
+    if (geometry.runtimeFields.has_value())
     {
-        return geometry.utc ? "UTC" : "--:--:--";
+        return FormatStructuredTimeValue(FromCalendarTime(calendarTime), *geometry.runtimeFields);
     }
 
-    const std::tm calendarTime = ToCalendarTime(second, geometry.utc);
+    if (!detail::IsValidTimeFormatString(geometry.format))
+    {
+        return utc ? "UTC" : "--:--:--";
+    }
 
     std::array<char, 128> buffer {};
     if (std::strftime(buffer.data(), buffer.size(), geometry.format.c_str(), &calendarTime) == 0U)
     {
-        return geometry.utc ? "UTC" : "--:--:--";
+        return utc ? "UTC" : "--:--:--";
     }
 
     return std::string(buffer.data());

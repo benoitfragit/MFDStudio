@@ -13,6 +13,8 @@ At the end of this tutorial you will know how to:
 - inspect the transport state and the active page
 - force the preview to another page without touching the live client
 - inspect one reticle tree and locally bypass one reticle
+- override exposed time primitives locally, including numeric value, UTC mode,
+  and visible fields
 - leave debug mode and return every reticle to the live UDP-driven state
 
 ## Prerequisites
@@ -114,6 +116,7 @@ Select one reticle, for example `Ownship`, then change one field such as:
 - `Color override`
 - `Thickness override`
 - one editable text primitive value
+- one time primitive numeric value, UTC mode, visible fields, or letter spacing
 
 The first local modification automatically creates a reticle bypass.
 
@@ -125,6 +128,13 @@ That means:
 - every other non-bypassed reticle keeps following live updates normally
 
 The `Bypassed` checkbox reflects that local ownership explicitly.
+
+Time primitive edits follow the same rule. `Numeric value bypass` freezes the
+displayed value from numeric fields (`year`, `month`, `day`, `hour`, `minute`,
+`second`). Clearing that checkbox sends the local clear command and the preview
+returns to the live clock or the last UDP-driven time state. The UTC checkbox
+and field-visibility checkboxes are independent runtime state; changing them
+does not require continuously resending the numeric value.
 
 ## Step 6 - Release the bypass correctly
 

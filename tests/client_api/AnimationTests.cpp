@@ -33,6 +33,7 @@ public:
           routePolyline(MutableDesiredPatch(), DirtyFlag(), "route_polyline"),
           guideBezier(MutableDesiredPatch(), DirtyFlag(), "guide_bezier"),
           scanArc(MutableDesiredPatch(), DirtyFlag(), "scan_arc"),
+          missionTime(MutableDesiredPatch(), DirtyFlag(), "mission_time"),
           overlayImage(MutableDesiredPatch(), DirtyFlag(), "overlay_image")
     {
     }
@@ -45,6 +46,7 @@ public:
     mfd::client::PolylineHandle routePolyline;
     mfd::client::BezierHandle guideBezier;
     mfd::client::ArcHandle scanArc;
+    mfd::client::TimeHandle missionTime;
     mfd::client::ImageHandle overlayImage;
 };
 
@@ -246,6 +248,10 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     reticle.scanArc.SetStartAngleDegrees(-45.0f);
     reticle.scanArc.SetEndAngleDegrees(135.0f);
     reticle.scanArc.SetSegments(24);
+    reticle.missionTime.SetTimeValue(mfd::TimeValue {2026, 6, 5, 14, 3, 9});
+    reticle.missionTime.SetUtc(true);
+    reticle.missionTime.SetFieldVisibility(mfd::TimeFieldVisibility {true, true, true, true, true, false});
+    reticle.missionTime.SetLetterSpacing(0.015f);
     reticle.overlayImage.SetPosition({0.05f, 0.09f});
     reticle.overlayImage.SetRotationDegrees(18.0f);
     reticle.overlayImage.SetScale({1.5f, 0.75f});
@@ -257,7 +263,7 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
 
     const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
     ASSERT_NE(update, nullptr);
-    ASSERT_EQ(update->patch.primitivePatches.size(), 9U);
+    ASSERT_EQ(update->patch.primitivePatches.size(), 10U);
 
     const auto& textPatch = update->patch.primitivePatches.at("heading_value");
     ASSERT_TRUE(textPatch.visible.has_value());
@@ -335,6 +341,18 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     EXPECT_FLOAT_EQ(*arcPatch.endAngleDegrees, 135.0f);
     EXPECT_EQ(*arcPatch.segments, 24);
 
+    const auto& timePatch = update->patch.primitivePatches.at("mission_time");
+    ASSERT_TRUE(timePatch.timeValue.has_value());
+    EXPECT_EQ(timePatch.timeValue->year, 2026);
+    EXPECT_EQ(timePatch.timeValue->hour, 14);
+    ASSERT_TRUE(timePatch.timeUtc.has_value());
+    EXPECT_TRUE(*timePatch.timeUtc);
+    ASSERT_TRUE(timePatch.timeFields.has_value());
+    EXPECT_TRUE(timePatch.timeFields->year);
+    EXPECT_FALSE(timePatch.timeFields->second);
+    ASSERT_TRUE(timePatch.letterSpacing.has_value());
+    EXPECT_FLOAT_EQ(*timePatch.letterSpacing, 0.015f);
+
     const auto& imagePatch = update->patch.primitivePatches.at("overlay_image");
     ASSERT_TRUE(imagePatch.visible.has_value());
     ASSERT_TRUE(imagePatch.position.has_value());
@@ -346,6 +364,27 @@ TEST(AnimationTests, PrimitiveHandlesEmitRichPrimitivePatchesThroughReticleDelta
     EXPECT_FLOAT_EQ(*imagePatch.rotationDegrees, 18.0f);
     EXPECT_FLOAT_EQ(imagePatch.scale->x, 1.5f);
     EXPECT_FLOAT_EQ(imagePatch.scale->y, 0.75f);
+}
+
+TEST(AnimationTests, TimeHandleCanClearNumericRuntimeBypass)
+{
+    PrimitiveFixtureReticle reticle;
+
+    reticle.missionTime.SetTimeValue(mfd::TimeValue {2026, 6, 5, 14, 3, 9});
+
+    std::vector<mfd::UserCommand> commands;
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    commands.clear();
+
+    reticle.missionTime.ClearTimeValue();
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* update = std::get_if<mfd::UpdateReticleCommand>(&commands.front());
+    ASSERT_NE(update, nullptr);
+    const auto& timePatch = update->patch.primitivePatches.at("mission_time");
+    EXPECT_FALSE(timePatch.timeValue.has_value());
+    EXPECT_TRUE(timePatch.clearTimeValue);
 }
 
 TEST(AnimationTests, GeneratedStaticHandlesCarryTransportIdsAlongsideLegacyFields)

@@ -31,6 +31,26 @@ message DynamicReticleHandle
   uint64 runtime_reticle_id = 2;
 }
 
+message TimeValue
+{
+  int32 year = 1;
+  int32 month = 2;
+  int32 day = 3;
+  int32 hour = 4;
+  int32 minute = 5;
+  int32 second = 6;
+}
+
+message TimeFieldVisibility
+{
+  bool year = 1;
+  bool month = 2;
+  bool day = 3;
+  bool hour = 4;
+  bool minute = 5;
+  bool second = 6;
+}
+
 message PrimitivePatch
 {
   optional bool visible = 1;
@@ -57,6 +77,10 @@ message PrimitivePatch
   optional float start_angle_degrees = 22;
   optional float end_angle_degrees = 23;
   optional PrimitiveLineStyle line_style = 24;
+  optional TimeValue time_value = 25;
+  optional bool clear_time_value = 26;
+  optional bool time_utc = 27;
+  optional TimeFieldVisibility time_fields = 28;
 }
 
 message ReticlePatch

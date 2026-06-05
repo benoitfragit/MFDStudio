@@ -45,6 +45,19 @@ mfd::ReticleGroup MakeReticle(std::string id, const mfd::Vec2 position = {})
     return reticle;
 }
 
+mfd::ReticleGroup MakeTimeReticle(std::string id)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = std::move(id);
+
+    mfd::Primitive primitive;
+    primitive.id = "clock";
+    primitive.type = mfd::PrimitiveType::Time;
+    primitive.geometry = mfd::TimeGeometry {};
+    reticle.primitives.push_back(std::move(primitive));
+    return reticle;
+}
+
 mfd::PageBlinkDefinition MakeBlinkType(std::string name, const std::uint32_t durationMs)
 {
     mfd::PageBlinkDefinition blinkType;
@@ -263,6 +276,17 @@ const mfd::ReticleGroup* FindReticle(const mfd::SceneRegistry& scene,
 
     return nullptr;
 }
+
+const mfd::TimeGeometry* FindTimeGeometry(const mfd::ReticleGroup& reticle, const std::string_view primitiveId)
+{
+    const mfd::Primitive* primitive = mfd::FindPrimitive(reticle, primitiveId);
+    if (primitive == nullptr)
+    {
+        return nullptr;
+    }
+
+    return std::get_if<mfd::TimeGeometry>(&primitive->geometry);
+}
 } // namespace
 
 /**
@@ -456,6 +480,72 @@ TEST(RuntimeDebugPreviewTests, ReleasingBypassRestoresLastLiveReticleState)
     EXPECT_FALSE(previewReticle->visible);
     EXPECT_FLOAT_EQ(previewReticle->transform.position.x, liveReticle->transform.position.x);
     EXPECT_FLOAT_EQ(previewReticle->transform.position.y, liveReticle->transform.position.y);
+}
+
+/**
+ * @brief Verifies a local debug bypass can clear a live numeric time override.
+ */
+TEST(RuntimeDebugPreviewTests, ReticleBypassCanClearRuntimeTimeValue)
+{
+    using namespace mfd::window::debug;
+
+    mfd::MfdDocument document = MakeRuntimeDebugDocument();
+    for (mfd::PageDefinition& page : document.pages)
+    {
+        if (page.name == "Radar")
+        {
+            page.staticReticles.push_back(MakeTimeReticle("Clock"));
+            break;
+        }
+    }
+
+    mfd::SceneRegistry liveScene;
+    liveScene.LoadDocument(document);
+    liveScene.SetActivePage("Radar");
+
+    mfd::PrimitivePatch liveTimePatch;
+    liveTimePatch.timeValue = mfd::TimeValue {2026, 6, 5, 14, 3, 9};
+    liveTimePatch.timeUtc = true;
+    liveTimePatch.timeFields = mfd::TimeFieldVisibility {true, true, true, true, true, false};
+
+    mfd::ReticlePatch livePatch;
+    livePatch.primitivePatches.emplace("clock", liveTimePatch);
+    ASSERT_TRUE(liveScene.ApplyReticlePatch("Radar", "Clock", livePatch));
+
+    RuntimeDebugState state;
+    state.Activate();
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const mfd::ReticleGroup* previewClock = FindReticle(preview.Scene(), "Radar", "Clock");
+    ASSERT_NE(previewClock, nullptr);
+    const mfd::TimeGeometry* time = FindTimeGeometry(*previewClock, "clock");
+    ASSERT_NE(time, nullptr);
+    ASSERT_TRUE(time->runtimeValueOverride.has_value());
+
+    const ReticleKey key {"Radar", "Clock", ReticleKind::Static};
+    ReticleBypassState& bypass = state.EnsureReticleBypass(key, *previewClock);
+    mfd::Primitive* draftPrimitive = mfd::FindPrimitive(bypass.draft, "clock");
+    ASSERT_NE(draftPrimitive, nullptr);
+    auto* draftTime = std::get_if<mfd::TimeGeometry>(&draftPrimitive->geometry);
+    ASSERT_NE(draftTime, nullptr);
+    draftTime->runtimeValueOverride.reset();
+    draftTime->runtimeUtc = true;
+    draftTime->runtimeFields = mfd::TimeFieldVisibility {true, true, true, true, true, false};
+
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    previewClock = FindReticle(preview.Scene(), "Radar", "Clock");
+    ASSERT_NE(previewClock, nullptr);
+    time = FindTimeGeometry(*previewClock, "clock");
+    ASSERT_NE(time, nullptr);
+    EXPECT_FALSE(time->runtimeValueOverride.has_value());
+    ASSERT_TRUE(time->runtimeUtc.has_value());
+    EXPECT_TRUE(*time->runtimeUtc);
+    ASSERT_TRUE(time->runtimeFields.has_value());
+    EXPECT_TRUE(time->runtimeFields->year);
+    EXPECT_FALSE(time->runtimeFields->second);
 }
 
 /**

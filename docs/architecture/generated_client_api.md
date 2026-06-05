@@ -278,6 +278,14 @@ The fill-capable handle families are:
 not expose fill mutators in the generated client API. For polylines, fill is
 meaningful only when the client also stages `SetClosed(true)`.
 
+`TimeHandle` exposes only structured runtime controls. User code can send a
+numeric value with `SetTimeValue(TimeValue)`, stop that numeric bypass with
+`ClearTimeValue()`, choose UTC/local rendering with `SetUtc(bool)`, and select
+visible fields with `SetFieldVisibility(TimeFieldVisibility)`. It does not
+accept a raw text format string through the generated runtime API; the runtime
+keeps the authored `strftime` format until a structured field selection is
+received.
+
 Specialized handle families currently exposed by the public client layer:
 
 - `TextHandle`

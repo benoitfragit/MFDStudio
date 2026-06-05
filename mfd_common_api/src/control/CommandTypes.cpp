@@ -41,6 +41,8 @@ constexpr std::size_t kMaxFilledPolygonPoints = 512U;
 constexpr std::size_t kMaxPatchEntryCount = 2048U;
 constexpr std::size_t kMaxDynamicReticlesPerBatch = 4096U;
 constexpr std::size_t kMaxTextBytes = 4096U;
+constexpr int kMinTimeYear = 1;
+constexpr int kMaxTimeYear = 9999;
 
 template <typename>
 inline constexpr bool kUnsupportedCommand = false;
@@ -116,6 +118,74 @@ void ValidateSegmentCount(const int value, const char* fieldName)
     {
         throw std::runtime_error(std::string(fieldName) + " must stay in [2, " +
                                  std::to_string(kMaxPrimitiveSegments) + "]");
+    }
+}
+
+bool IsLeapYear(const int year) noexcept
+{
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+
+int DaysInMonth(const int year, const int month) noexcept
+{
+    switch (month)
+    {
+    case 2:
+        return IsLeapYear(year) ? 29 : 28;
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+        return 30;
+    default:
+        return 31;
+    }
+}
+
+bool HasVisibleTimeField(const TimeFieldVisibility& fields) noexcept
+{
+    return fields.year || fields.month || fields.day || fields.hour || fields.minute || fields.second;
+}
+
+void ValidateTimeValue(const TimeValue& value, const char* fieldName)
+{
+    if (value.year < kMinTimeYear || value.year > kMaxTimeYear)
+    {
+        throw std::runtime_error(std::string(fieldName) + ".year must stay in [1, 9999]");
+    }
+
+    if (value.month < 1 || value.month > 12)
+    {
+        throw std::runtime_error(std::string(fieldName) + ".month must stay in [1, 12]");
+    }
+
+    const int maxDay = DaysInMonth(value.year, value.month);
+    if (value.day < 1 || value.day > maxDay)
+    {
+        throw std::runtime_error(std::string(fieldName) + ".day is outside the selected month");
+    }
+
+    if (value.hour < 0 || value.hour > 23)
+    {
+        throw std::runtime_error(std::string(fieldName) + ".hour must stay in [0, 23]");
+    }
+
+    if (value.minute < 0 || value.minute > 59)
+    {
+        throw std::runtime_error(std::string(fieldName) + ".minute must stay in [0, 59]");
+    }
+
+    if (value.second < 0 || value.second > 59)
+    {
+        throw std::runtime_error(std::string(fieldName) + ".second must stay in [0, 59]");
+    }
+}
+
+void ValidateTimeFieldVisibility(const TimeFieldVisibility& fields, const char* fieldName)
+{
+    if (!HasVisibleTimeField(fields))
+    {
+        throw std::runtime_error(std::string(fieldName) + " must show at least one field");
     }
 }
 
@@ -227,6 +297,21 @@ void ValidatePrimitivePatch(const PrimitivePatch& patch)
     if (patch.endAngleDegrees.has_value())
     {
         ValidateFiniteAbs(*patch.endAngleDegrees, "PrimitivePatch.endAngleDegrees", kMaxAbsAngleDegrees);
+    }
+
+    if (patch.clearTimeValue && patch.timeValue.has_value())
+    {
+        throw std::runtime_error("PrimitivePatch cannot set and clear timeValue in the same patch");
+    }
+
+    if (patch.timeValue.has_value())
+    {
+        ValidateTimeValue(*patch.timeValue, "PrimitivePatch.timeValue");
+    }
+
+    if (patch.timeFields.has_value())
+    {
+        ValidateTimeFieldVisibility(*patch.timeFields, "PrimitivePatch.timeFields");
     }
 }
 
@@ -484,6 +569,52 @@ Vec2 FromProtoVec2(const pb::Vec2& value)
     return result;
 }
 
+void FillProtoTimeValue(const TimeValue& value, pb::TimeValue* target)
+{
+    target->set_year(value.year);
+    target->set_month(value.month);
+    target->set_day(value.day);
+    target->set_hour(value.hour);
+    target->set_minute(value.minute);
+    target->set_second(value.second);
+}
+
+TimeValue FromProtoTimeValue(const pb::TimeValue& value)
+{
+    TimeValue result;
+    result.year = value.year();
+    result.month = value.month();
+    result.day = value.day();
+    result.hour = value.hour();
+    result.minute = value.minute();
+    result.second = value.second();
+    ValidateTimeValue(result, "Protocol Buffers TimeValue");
+    return result;
+}
+
+void FillProtoTimeFieldVisibility(const TimeFieldVisibility& value, pb::TimeFieldVisibility* target)
+{
+    target->set_year(value.year);
+    target->set_month(value.month);
+    target->set_day(value.day);
+    target->set_hour(value.hour);
+    target->set_minute(value.minute);
+    target->set_second(value.second);
+}
+
+TimeFieldVisibility FromProtoTimeFieldVisibility(const pb::TimeFieldVisibility& value)
+{
+    TimeFieldVisibility result;
+    result.year = value.year();
+    result.month = value.month();
+    result.day = value.day();
+    result.hour = value.hour();
+    result.minute = value.minute();
+    result.second = value.second();
+    ValidateTimeFieldVisibility(result, "Protocol Buffers TimeFieldVisibility");
+    return result;
+}
+
 pb::PrimitiveLineStyle ToProtoLineStyle(const LineStyle value) noexcept
 {
     if (value == LineStyle::Dotted)
@@ -640,6 +771,26 @@ void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* ta
     {
         target->set_end_angle_degrees(*patch.endAngleDegrees);
     }
+
+    if (patch.timeValue.has_value())
+    {
+        FillProtoTimeValue(*patch.timeValue, target->mutable_time_value());
+    }
+
+    if (patch.clearTimeValue)
+    {
+        target->set_clear_time_value(true);
+    }
+
+    if (patch.timeUtc.has_value())
+    {
+        target->set_time_utc(*patch.timeUtc);
+    }
+
+    if (patch.timeFields.has_value())
+    {
+        FillProtoTimeFieldVisibility(*patch.timeFields, target->mutable_time_fields());
+    }
 }
 
 PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
@@ -779,6 +930,26 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
     if (value.has_end_angle_degrees())
     {
         patch.endAngleDegrees = value.end_angle_degrees();
+    }
+
+    if (value.has_time_value())
+    {
+        patch.timeValue = FromProtoTimeValue(value.time_value());
+    }
+
+    if (value.has_clear_time_value())
+    {
+        patch.clearTimeValue = value.clear_time_value();
+    }
+
+    if (value.has_time_utc())
+    {
+        patch.timeUtc = value.time_utc();
+    }
+
+    if (value.has_time_fields())
+    {
+        patch.timeFields = FromProtoTimeFieldVisibility(value.time_fields());
     }
 
     ValidatePrimitivePatch(patch);

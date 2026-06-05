@@ -154,6 +154,24 @@ PrimitivePatch BuildPrimitivePatch(const Primitive& current, const Primitive* ba
     else if (const auto* timeGeometry = std::get_if<TimeGeometry>(&current.geometry))
     {
         patch.letterSpacing = timeGeometry->letterSpacing;
+        if (timeGeometry->runtimeValueOverride.has_value())
+        {
+            patch.timeValue = *timeGeometry->runtimeValueOverride;
+        }
+        else
+        {
+            patch.clearTimeValue = true;
+        }
+
+        if (timeGeometry->runtimeUtc.has_value())
+        {
+            patch.timeUtc = *timeGeometry->runtimeUtc;
+        }
+
+        if (timeGeometry->runtimeFields.has_value())
+        {
+            patch.timeFields = *timeGeometry->runtimeFields;
+        }
     }
     else if (const auto* lineGeometry = std::get_if<LineGeometry>(&current.geometry))
     {
@@ -238,6 +256,18 @@ PrimitivePatch BuildPrimitivePatch(const Primitive& current, const Primitive* ba
         if (baseGeometry != nullptr && timeGeometry->letterSpacing == baseGeometry->letterSpacing)
         {
             patch.letterSpacing.reset();
+        }
+        if (baseGeometry != nullptr && timeGeometry->runtimeValueOverride == baseGeometry->runtimeValueOverride)
+        {
+            patch.timeValue.reset();
+        }
+        if (baseGeometry != nullptr && timeGeometry->runtimeUtc == baseGeometry->runtimeUtc)
+        {
+            patch.timeUtc.reset();
+        }
+        if (baseGeometry != nullptr && timeGeometry->runtimeFields == baseGeometry->runtimeFields)
+        {
+            patch.timeFields.reset();
         }
     }
     else if (const auto* lineGeometry = std::get_if<LineGeometry>(&current.geometry))
@@ -361,7 +391,11 @@ ReticlePatch BuildReticlePatch(const ReticleGroup& current, const ReticleGroup& 
             primitivePatch.outerRadius.has_value() ||
             primitivePatch.width.has_value() ||
             primitivePatch.height.has_value() ||
-            primitivePatch.size.has_value())
+            primitivePatch.size.has_value() ||
+            primitivePatch.timeValue.has_value() ||
+            primitivePatch.clearTimeValue ||
+            primitivePatch.timeUtc.has_value() ||
+            primitivePatch.timeFields.has_value())
         {
             patch.primitivePatches.emplace(primitive.id, std::move(primitivePatch));
         }

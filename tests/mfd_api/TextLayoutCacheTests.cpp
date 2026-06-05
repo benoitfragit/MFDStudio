@@ -38,7 +38,16 @@ Vector2 FakeMeasureText(const std::string_view text,
 std::string FakeFormatTime(const mfd::TimeGeometry& geometry, const std::time_t second)
 {
     ++gFormatCallCount;
-    return geometry.format + (geometry.utc ? "_utc_" : "_local_") + std::to_string(static_cast<long long>(second));
+    std::string suffix = geometry.runtimeUtc.value_or(geometry.utc) ? "_utc_" : "_local_";
+    if (geometry.runtimeValueOverride.has_value())
+    {
+        suffix += std::to_string(geometry.runtimeValueOverride->hour);
+    }
+    if (geometry.runtimeFields.has_value())
+    {
+        suffix += geometry.runtimeFields->second ? "_seconds" : "_no_seconds";
+    }
+    return geometry.format + suffix + "_" + std::to_string(static_cast<long long>(second));
 }
 
 Font MakeFont(const unsigned int textureId = 7U)
@@ -192,6 +201,48 @@ TEST(TextLayoutCacheTests, ResolveTimeTextFallsBackWhenFormatIsInvalid)
     const mfd::CachedTextLayout& layout = cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, second);
 
     EXPECT_EQ(layout.text, "--:--:--");
+    EXPECT_EQ(gMeasureCallCount, 1);
+    EXPECT_EQ(gFormatCallCount, 0);
+}
+
+TEST(TextLayoutCacheTests, ResolveTimeTextTracksRuntimeTimeStateInCacheKey)
+{
+    ResetCounters();
+    mfd::TextLayoutCache cache(&FakeMeasureText, &FakeFormatTime);
+    const Font font = MakeFont();
+    mfd::TimeGeometry geometry;
+    geometry.format = "clock";
+
+    const auto second = std::chrono::system_clock::from_time_t(1'700'000'000);
+    cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, second);
+
+    geometry.runtimeUtc = true;
+    cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, second);
+
+    geometry.runtimeValueOverride = mfd::TimeValue {2026, 6, 5, 14, 3, 9};
+    cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, second);
+
+    geometry.runtimeFields = mfd::TimeFieldVisibility {false, false, false, true, true, false};
+    cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, second);
+
+    EXPECT_EQ(gFormatCallCount, 4);
+    EXPECT_EQ(gMeasureCallCount, 4);
+    EXPECT_EQ(cache.TimeEntryCount(), 4U);
+}
+
+TEST(TextLayoutCacheTests, ResolveTimeTextFormatsStructuredNumericOverride)
+{
+    ResetCounters();
+    mfd::TextLayoutCache cache(&FakeMeasureText);
+    const Font font = MakeFont();
+    mfd::TimeGeometry geometry;
+    geometry.runtimeValueOverride = mfd::TimeValue {2026, 6, 5, 14, 3, 9};
+    geometry.runtimeFields = mfd::TimeFieldVisibility {true, true, true, true, true, false};
+
+    const auto second = std::chrono::system_clock::from_time_t(1'700'000'000);
+    const mfd::CachedTextLayout& layout = cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, second);
+
+    EXPECT_EQ(layout.text, "2026-06-05 14:03");
     EXPECT_EQ(gMeasureCallCount, 1);
     EXPECT_EQ(gFormatCallCount, 0);
 }
