@@ -184,6 +184,27 @@ If magnetization is enabled:
 - nearby dynamic reticles remain valid magnet targets even though their
   runtime instance ids are hidden behind generated handles in user code
 
+Dynamic reticles are not magnet targets automatically anymore. One generated
+dynamic set must opt in explicitly:
+
+```cpp
+auto& page1 = ui.Page1();
+auto& tracks = page1.DynamicMfdTutorialRadarTrack();
+auto& cues = page1.DynamicInspiredSteeringCue();
+
+tracks.SetStrobeMagnetEnabled(true);
+cues.SetStrobeMagnetEnabled(false);
+```
+
+That opt-in is evaluated when the strobe searches a magnet target:
+
+- `SetStrobeMagnetEnabled(true)` makes dynamic instances from that set eligible
+  for strobe snap/follow behavior
+- `SetStrobeMagnetEnabled(false)` keeps them non-magnetized even if the strobe
+  is positioned on top of them
+- capture is still independent, so `DynamicReticle::IsStrobeCaptured()` can
+  become `true` for a non-magnetized set when the strobe is over it
+
 So the feedback position may differ from the command position.
 
 That is expected.
@@ -230,8 +251,11 @@ int main()
     tutorial_ui::TutorialUi ui;
     auto& page1 = ui.Page1();
     auto& tracks = page1.DynamicMfdTutorialRadarTrack();
+    auto& cues = page1.DynamicInspiredSteeringCue();
     auto& track = tracks.Create();
 
+    tracks.SetStrobeMagnetEnabled(true);
+    cues.SetStrobeMagnetEnabled(false);
     track.SetVisible(true);
     track.SetPosition({0.22f, -0.10f});
 

@@ -419,6 +419,15 @@ void ValidateUserCommand(const UserCommand& command)
                         "SetDynamicReticleSetVisibilityCommand requires page and template identifiers");
                 }
             }
+            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
+            {
+                if ((value.pageId == 0 && value.page.empty()) ||
+                    (value.templateTransportId == 0 && value.templateId.empty()))
+                {
+                    throw std::runtime_error(
+                        "SetDynamicReticleSetStrobeMagnetEnabledCommand requires page and template identifiers");
+                }
+            }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
                 if ((value.target.pageId == 0 && value.target.page.empty()) ||
@@ -1169,6 +1178,25 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
                 message->set_page_id(value.pageId);
                 message->set_template_transport_id(value.templateTransportId);
             }
+            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
+            {
+                auto* message = target->mutable_set_dynamic_reticle_set_strobe_magnet_enabled();
+                message->set_enabled(value.enabled);
+                if (value.pageId == 0)
+                {
+                    throw std::runtime_error(
+                        "SetDynamicReticleSetStrobeMagnetEnabledCommand serialization requires generated pageId");
+                }
+
+                if (value.templateTransportId == 0)
+                {
+                    throw std::runtime_error(
+                        "SetDynamicReticleSetStrobeMagnetEnabledCommand serialization requires templateTransportId");
+                }
+
+                message->set_page_id(value.pageId);
+                message->set_template_transport_id(value.templateTransportId);
+            }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
                 FillProtoDynamicHandle(value.target, target->mutable_remove_dynamic_reticle()->mutable_target());
@@ -1283,6 +1311,15 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
         command.visible = value.set_dynamic_reticle_set_visibility().visible();
         command.pageId = value.set_dynamic_reticle_set_visibility().page_id();
         command.templateTransportId = value.set_dynamic_reticle_set_visibility().template_transport_id();
+        return command;
+    }
+
+    case pb::UserCommand::kSetDynamicReticleSetStrobeMagnetEnabled:
+    {
+        SetDynamicReticleSetStrobeMagnetEnabledCommand command;
+        command.enabled = value.set_dynamic_reticle_set_strobe_magnet_enabled().enabled();
+        command.pageId = value.set_dynamic_reticle_set_strobe_magnet_enabled().page_id();
+        command.templateTransportId = value.set_dynamic_reticle_set_strobe_magnet_enabled().template_transport_id();
         return command;
     }
 

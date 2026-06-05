@@ -1015,6 +1015,55 @@ TEST(AnimationTests, DynamicReticleSetVisibilityEmitsDedicatedTemplateCommand)
     EXPECT_TRUE(showVisibility->visible);
 }
 
+TEST(AnimationTests, DynamicReticleSetStrobeMagnetEligibilityEmitsDedicatedTemplateCommand)
+{
+    mfd::client::DynamicReticleSet set("Radar", "radar_track", 11U, 77U);
+    set.SetStrobeMagnetEnabled(true);
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* magnet = std::get_if<mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand>(&commands[0]);
+    ASSERT_NE(magnet, nullptr);
+    EXPECT_EQ(magnet->page, "Radar");
+    EXPECT_EQ(magnet->templateId, "radar_track");
+    EXPECT_EQ(magnet->pageId, 11U);
+    EXPECT_EQ(magnet->templateTransportId, 77U);
+    EXPECT_TRUE(magnet->enabled);
+
+    commands.clear();
+    EXPECT_EQ(set.AppendCommands(commands), 0U);
+    EXPECT_TRUE(commands.empty());
+
+    set.SetStrobeMagnetEnabled(false);
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* disabledMagnet =
+        std::get_if<mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand>(&commands[0]);
+    ASSERT_NE(disabledMagnet, nullptr);
+    EXPECT_FALSE(disabledMagnet->enabled);
+}
+
+TEST(AnimationTests, GeneratedDynamicReticleSetStrobeMagnetEligibilityEmitsDedicatedTemplateCommand)
+{
+    GeneratedDynamicFixtureSet set;
+    set.SetStrobeMagnetEnabled(true);
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(set.AppendCommands(commands), 1U);
+    ASSERT_EQ(commands.size(), 1U);
+
+    const auto* magnet = std::get_if<mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand>(&commands[0]);
+    ASSERT_NE(magnet, nullptr);
+    EXPECT_EQ(magnet->page, "Radar");
+    EXPECT_EQ(magnet->templateId, "radar_track");
+    EXPECT_EQ(magnet->pageId, 11U);
+    EXPECT_EQ(magnet->templateTransportId, 77U);
+    EXPECT_TRUE(magnet->enabled);
+}
+
 TEST(AnimationTests, StrobeHandleReportsValidityAndEmitsPageScopedCommands)
 {
     mfd::client::StrobeInfo info;

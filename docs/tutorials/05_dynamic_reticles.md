@@ -89,7 +89,31 @@ client.SendBatch(ui.BuildBatch());
 
 The runtime keeps the dynamic instances alive and only masks their rendering.
 
-## Step 5 - Remove one dynamic reticle
+## Step 5 - Opt one full generated set into strobe magnetization
+
+Set-level magnet eligibility is controlled separately from visibility:
+
+```cpp
+tracks.SetStrobeMagnetEnabled(true);
+client.SendBatch(ui.BuildBatch());
+```
+
+Important behavior:
+
+- the default is conservative: dynamic sets are not magnet-eligible until you
+  opt them in
+- this does not enable the page strobe magnet by itself; the authored strobe
+  still needs magnetization configured
+- the set can remain capturable through runtime feedback even while
+  `SetStrobeMagnetEnabled(false)` prevents the strobe from snapping to it
+
+The integrated `client_tutorial` uses that split explicitly:
+
+- `DynamicMfdTutorialRadarTrack().SetStrobeMagnetEnabled(true)` for the
+  waypoint-like radar contacts
+- `DynamicInspiredSteeringCue().SetStrobeMagnetEnabled(false)` for the cue set
+
+## Step 6 - Remove one dynamic reticle
 
 Removal also uses the typed handle, not a user-managed id:
 
@@ -102,7 +126,7 @@ client.SendBatch(ui.BuildBatch());
 After `Remove(...)`, drop your pointer or reference immediately. The generated
 set owns the lifetime of that handle.
 
-## Step 6 - Manage one external source cleanly
+## Step 7 - Manage one external source cleanly
 
 A common pattern is:
 
@@ -114,7 +138,7 @@ A common pattern is:
 This keeps your application logic stable without exposing any MFD-specific
 runtime id.
 
-## Step 7 - Keep the raw API only for explicit low-level work
+## Step 8 - Keep the raw API only for explicit low-level work
 
 If you intentionally stay on raw `CommandClient`, the low-level API still
 exists. In that case, construct `CommandClient` with the companion generated
@@ -156,4 +180,5 @@ You now know how to:
 - create dynamic reticles without managing ids yourself
 - control them through generated typed setters
 - declutter a whole dynamic template set
+- opt a dynamic template family into strobe magnetization explicitly
 - remove them cleanly through the generated handle

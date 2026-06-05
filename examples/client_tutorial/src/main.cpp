@@ -655,6 +655,14 @@ int mainImpl()
     auto& page1DefaultStrobeReticle = page1.defaultReticle;
     auto& page1AlternativeStrobeReticle = page1.strobe1Reticle;
 
+    // The radar-track set acts as the waypoint-like magnet target catalog for
+    // this tutorial: the strobe may snap to those dynamic contacts.
+    page1TrackSet.SetStrobeMagnetEnabled(true);
+
+    // The steering cue still remains capturable through runtime feedback, but
+    // it must never magnetize the strobe or pull it along.
+    page1TrackLinkSet.SetStrobeMagnetEnabled(false);
+
     // The aircraft symbol is authored statically in Page1 JSON at the same
     // anchor used by `BuildTutorialProjector`. The runtime loop updates only
     // track business coordinates; page-space poses are derived later.

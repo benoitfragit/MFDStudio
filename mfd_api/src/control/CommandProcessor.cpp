@@ -99,6 +99,10 @@ bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
             {
                 return value.pageId != 0 || value.templateTransportId != 0;
             }
+            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
+            {
+                return value.pageId != 0 || value.templateTransportId != 0;
+            }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
                 return DynamicHandleUsesGeneratedIdentifiers(value.target);
@@ -141,6 +145,8 @@ CommandProcessor::CommandProcessor(SceneRegistry& scene)
     dispatcher_.sink<UpsertDynamicReticleCommand>().connect<&CommandProcessor::OnUpsertDynamicReticle>(*this);
     dispatcher_.sink<UpsertDynamicReticlesCommand>().connect<&CommandProcessor::OnUpsertDynamicReticles>(*this);
     dispatcher_.sink<SetDynamicReticleSetVisibilityCommand>().connect<&CommandProcessor::OnSetDynamicReticleSetVisibility>(*this);
+    dispatcher_.sink<SetDynamicReticleSetStrobeMagnetEnabledCommand>()
+        .connect<&CommandProcessor::OnSetDynamicReticleSetStrobeMagnetEnabled>(*this);
     dispatcher_.sink<RemoveDynamicReticleCommand>().connect<&CommandProcessor::OnRemoveDynamicReticle>(*this);
     dispatcher_.sink<ResetWindowCommand>().connect<&CommandProcessor::OnResetWindow>(*this);
 }
@@ -813,6 +819,11 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
                 return ResolveGeneratedPage(value.page, value.pageId) &&
                        ResolveGeneratedTemplate(value.templateId, value.templateTransportId);
             }
+            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
+            {
+                return ResolveGeneratedPage(value.page, value.pageId) &&
+                       ResolveGeneratedTemplate(value.templateId, value.templateTransportId);
+            }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
                 return ResolveGeneratedDynamicReticle(value.target);
@@ -1050,6 +1061,16 @@ void CommandProcessor::OnSetDynamicReticleSetVisibility(const SetDynamicReticleS
     {
         SetFailure("Unable to update dynamic reticle set visibility for template '" + command.templateId +
                    "' on page '" + command.page + "'");
+    }
+}
+
+void CommandProcessor::OnSetDynamicReticleSetStrobeMagnetEnabled(
+    const SetDynamicReticleSetStrobeMagnetEnabledCommand& command)
+{
+    if (!scene_.SetDynamicReticleSetStrobeMagnetEnabled(command.page, command.templateId, command.enabled))
+    {
+        SetFailure("Unable to update dynamic reticle set strobe-magnet eligibility for template '" +
+                   command.templateId + "' on page '" + command.page + "'");
     }
 }
 

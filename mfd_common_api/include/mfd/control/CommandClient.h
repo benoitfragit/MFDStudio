@@ -281,6 +281,13 @@ public:
      *  @note Requires this client to be constructed with a `GeneratedTransportMap`.
      */
     bool SetDynamicReticleSetVisible(std::string_view page, std::string_view templateId, bool visible);
+    /** @brief Enables or disables strobe-magnet eligibility for all dynamic reticles of one page/template set.
+     *  @note Dynamic sets are non-magnetized by default until this helper enables them.
+     *  Requires this client to be constructed with a `GeneratedTransportMap`.
+     */
+    bool SetDynamicReticleSetStrobeMagnetEnabled(std::string_view page,
+                                                 std::string_view templateId,
+                                                 bool enabled);
 
     /**
      * @brief Removes a dynamic reticle from a page.

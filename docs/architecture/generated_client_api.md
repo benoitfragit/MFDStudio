@@ -388,6 +388,36 @@ This model gives three benefits:
 - the generated API still exposes typed primitive access on dynamic instances
 - lifecycle remains explicit through `Create()` and `Remove(...)`
 
+Generated dynamic sets also expose one set-level strobe-magnet eligibility
+toggle:
+
+```cpp
+auto& page1 = ui.Page1();
+auto& waypoints = page1.DynamicMfdTutorialRadarTrack();
+auto& cues = page1.DynamicInspiredSteeringCue();
+
+waypoints.SetStrobeMagnetEnabled(true);
+cues.SetStrobeMagnetEnabled(false);
+```
+
+That switch is intentionally independent from `SetVisible(...)`:
+
+- `SetVisible(...)` masks or restores rendering for the whole set
+- `SetStrobeMagnetEnabled(...)` decides whether dynamic instances from that set
+  are eligible strobe magnet targets
+- the page strobe still needs its own authored magnet configuration to be
+  enabled before any snap can happen
+- `DynamicReticle::IsStrobeCaptured()` remains authoritative runtime feedback
+  and can still become `true` for a dynamic reticle even when its set is not
+  magnet-eligible
+
+The integrated `client_tutorial` uses that split explicitly:
+
+- `DynamicMfdTutorialRadarTrack().SetStrobeMagnetEnabled(true)` for the
+  waypoint-like radar contacts
+- `DynamicInspiredSteeringCue().SetStrobeMagnetEnabled(false)` for the cue that
+  must remain non-magnetized
+
 When runtime feedback is wired back into the generated root, dynamic reticles
 also expose one authoritative capture query:
 

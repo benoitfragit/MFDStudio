@@ -179,6 +179,7 @@ class GenerateUiTests(unittest.TestCase):
                 "class StatusTemplateDynamicReticleSet final : private mfd::client::GeneratedDynamicReticleSet",
                 "using mfd::client::GeneratedDynamicReticleSet::AppendCommands;",
                 "using mfd::client::GeneratedDynamicReticleSet::ResetToAuthored;",
+                "using mfd::client::GeneratedDynamicReticleSet::SetStrobeMagnetEnabled;",
                 "using LineStyle = mfd::client::LineStyle;",
                 "class RadarRadarStatusReticle final : private mfd::client::Reticle",
                 "using mfd::client::Reticle::AppendCommands;",

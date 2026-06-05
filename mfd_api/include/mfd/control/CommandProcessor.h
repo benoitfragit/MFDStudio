@@ -132,6 +132,7 @@ private:
     void OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command);
     void OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command);
     void OnSetDynamicReticleSetVisibility(const SetDynamicReticleSetVisibilityCommand& command);
+    void OnSetDynamicReticleSetStrobeMagnetEnabled(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command);
     void OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
     void OnResetWindow(const ResetWindowCommand& command);
 

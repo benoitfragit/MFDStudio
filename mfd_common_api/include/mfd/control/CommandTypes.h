@@ -402,6 +402,34 @@ struct SetDynamicReticleSetVisibilityCommand
 };
 
 /**
+ * @brief Command toggling strobe-magnet eligibility for all dynamic reticles of one page/template set.
+ */
+struct SetDynamicReticleSetStrobeMagnetEnabledCommand
+{
+    /**
+     * @brief Target page receiving the dynamic reticles.
+     *
+     * @note This convenience field is resolved to `pageId` before
+     * serialization. Protocol Buffers transport carries only `pageId`.
+     */
+    std::string page;
+    /** @brief Optional generated transport id of the target page. */
+    TransportId pageId = 0;
+    /**
+     * @brief Dynamic reticle template id defining the set.
+     *
+     * @note This convenience field is resolved to `templateTransportId`
+     * before serialization. Protocol Buffers transport carries only
+     * `templateTransportId`.
+     */
+    std::string templateId;
+    /** @brief Optional generated transport id of the authored template defining the set. */
+    TransportId templateTransportId = 0;
+    /** @brief Indicates whether dynamic reticles of the set are eligible for strobe magnetization. */
+    bool enabled = false;
+};
+
+/**
  * @brief Command removing a dynamic reticle from a page.
  */
 struct RemoveDynamicReticleCommand
@@ -431,6 +459,7 @@ using UserCommand = std::variant<ActivatePageCommand,
                                  UpsertDynamicReticleCommand,
                                  UpsertDynamicReticlesCommand,
                                  SetDynamicReticleSetVisibilityCommand,
+                                 SetDynamicReticleSetStrobeMagnetEnabledCommand,
                                  RemoveDynamicReticleCommand,
                                  ResetWindowCommand>;
 

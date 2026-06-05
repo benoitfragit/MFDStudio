@@ -105,6 +105,11 @@ std::string MakeDynamicLifecycleKey(const mfd::SetDynamicReticleSetVisibilityCom
     return MakeDynamicTemplateKey(command.page, command.templateId);
 }
 
+std::string MakeDynamicLifecycleKey(const mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand& command)
+{
+    return MakeDynamicTemplateKey(command.page, command.templateId) + '\x1D' + "strobe_magnet";
+}
+
 void PutDynamicLifecycleCommand(std::vector<DynamicLifecycleOperation>& operations,
                                 DynamicOperationMap& operationIndexes,
                                 std::string key,
@@ -178,7 +183,8 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
                 using Command = std::decay_t<decltype(value)>;
                 if constexpr (std::is_same_v<Command, mfd::UpsertDynamicReticleCommand> ||
                               std::is_same_v<Command, mfd::RemoveDynamicReticleCommand> ||
-                              std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand>)
+                              std::is_same_v<Command, mfd::SetDynamicReticleSetVisibilityCommand> ||
+                              std::is_same_v<Command, mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand>)
                 {
                     PutDynamicLifecycleValue(operations, operationIndexes, value);
                 }

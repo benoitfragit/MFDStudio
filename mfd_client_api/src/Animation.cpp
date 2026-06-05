@@ -1850,6 +1850,7 @@ void GeneratedDynamicReticleSet::ClearDirty() noexcept
     }
 
     visibilityDirty_ = false;
+    strobeMagnetDirty_ = false;
 }
 
 void GeneratedDynamicReticleSet::ResetToAuthored() noexcept
@@ -1857,6 +1858,9 @@ void GeneratedDynamicReticleSet::ResetToAuthored() noexcept
     desiredVisible_ = true;
     lastSentVisible_ = true;
     visibilityDirty_ = false;
+    desiredStrobeMagnetEnabled_ = false;
+    lastSentStrobeMagnetEnabled_ = false;
+    strobeMagnetDirty_ = false;
 
     for (DynamicEntry& entry : reticles_)
     {
@@ -1875,6 +1879,12 @@ void GeneratedDynamicReticleSet::SetVisible(const bool visible)
 {
     desiredVisible_ = visible;
     visibilityDirty_ = true;
+}
+
+void GeneratedDynamicReticleSet::SetStrobeMagnetEnabled(const bool enabled)
+{
+    desiredStrobeMagnetEnabled_ = enabled;
+    strobeMagnetDirty_ = true;
 }
 
 DynamicReticle& GeneratedDynamicReticleSet::Create()
@@ -1912,6 +1922,19 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
         command.visible = desiredVisible_;
         commands.emplace_back(std::move(command));
         lastSentVisible_ = desiredVisible_;
+        ++count;
+    }
+
+    if (strobeMagnetDirty_ && desiredStrobeMagnetEnabled_ != lastSentStrobeMagnetEnabled_)
+    {
+        mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand command;
+        command.page = pageName_;
+        command.pageId = pageTransportId_;
+        command.templateId = templateId_;
+        command.templateTransportId = templateTransportId_;
+        command.enabled = desiredStrobeMagnetEnabled_;
+        commands.emplace_back(std::move(command));
+        lastSentStrobeMagnetEnabled_ = desiredStrobeMagnetEnabled_;
         ++count;
     }
 
@@ -1974,6 +1997,7 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
     }
 
     visibilityDirty_ = false;
+    strobeMagnetDirty_ = false;
 
     return count;
 }
@@ -2091,6 +2115,12 @@ void DynamicReticleSet::SetVisible(const bool visible)
     visibilityDirty_ = true;
 }
 
+void DynamicReticleSet::SetStrobeMagnetEnabled(const bool enabled)
+{
+    desiredStrobeMagnetEnabled_ = enabled;
+    strobeMagnetDirty_ = true;
+}
+
 DynamicReticle& DynamicReticleSet::Upsert(const std::string_view reticleId)
 {
     if (DynamicReticle* existing = Find(reticleId); existing != nullptr)
@@ -2121,6 +2151,19 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
         command.visible = desiredVisible_;
         commands.emplace_back(std::move(command));
         lastSentVisible_ = desiredVisible_;
+        ++count;
+    }
+
+    if (strobeMagnetDirty_ && desiredStrobeMagnetEnabled_ != lastSentStrobeMagnetEnabled_)
+    {
+        mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand command;
+        command.page = pageName_;
+        command.pageId = pageTransportId_;
+        command.templateId = templateId_;
+        command.templateTransportId = templateTransportId_;
+        command.enabled = desiredStrobeMagnetEnabled_;
+        commands.emplace_back(std::move(command));
+        lastSentStrobeMagnetEnabled_ = desiredStrobeMagnetEnabled_;
         ++count;
     }
 
@@ -2181,6 +2224,7 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
     }
 
     visibilityDirty_ = false;
+    strobeMagnetDirty_ = false;
     return count;
 }
 

@@ -549,6 +549,24 @@ TEST(SceneRegistryTests, DynamicTemplateVisibilityCommandSerializationRoundTrips
     EXPECT_FALSE(visibility->visible);
 }
 
+TEST(SceneRegistryTests, DynamicTemplateStrobeMagnetCommandSerializationRoundTrips)
+{
+    mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand original;
+    original.pageId = 11U;
+    original.templateTransportId = 77U;
+    original.enabled = true;
+    const mfd::UserCommand command = original;
+    const std::string payload = mfd::SerializeUserCommand(command);
+    const auto decoded = mfd::DeserializeUserCommand(payload);
+
+    ASSERT_TRUE(decoded.has_value());
+    const auto* magnet = std::get_if<mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand>(&*decoded);
+    ASSERT_NE(magnet, nullptr);
+    EXPECT_EQ(magnet->pageId, 11U);
+    EXPECT_EQ(magnet->templateTransportId, 77U);
+    EXPECT_TRUE(magnet->enabled);
+}
+
 TEST(SceneRegistryTests, ResetWindowCommandSerializationRoundTrips)
 {
     const mfd::UserCommand command = mfd::ResetWindowCommand {};
@@ -965,6 +983,7 @@ TEST(SceneRegistryTests, StrobeMagnetizationAndCaptureTrackNearestVisibleDynamic
     registry.UpsertDynamicReticle("Radar", nearTrack);
     registry.UpsertDynamicReticle("Radar", farTrack);
     registry.UpsertDynamicReticle("Radar", hiddenTrack);
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "track_template", true));
 
     ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.02f}));
 
@@ -1055,6 +1074,70 @@ TEST(SceneRegistryTests, InactivePageStrobeStateStaysUnavailableUntilPageBecomes
     EXPECT_EQ(capture->reticleId, "nav_track");
 }
 
+TEST(SceneRegistryTests, StrobeCaptureIgnoresDynamicSetMagnetEligibility)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
+    track.sourceTemplateId = "track_template";
+    track.transform.position = {0.1f, 0.0f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.02f}));
+
+    const auto strobe = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobe.has_value());
+    EXPECT_FLOAT_EQ(strobe->position.x, 0.08f);
+    EXPECT_FLOAT_EQ(strobe->position.y, 0.02f);
+
+    const auto magnet = registry.ActiveStrobeMagnetSummary();
+    ASSERT_TRUE(magnet.has_value());
+    EXPECT_TRUE(magnet->enabled);
+    EXPECT_FALSE(magnet->magnetized);
+    EXPECT_TRUE(magnet->reticleId.empty());
+
+    const auto capture = registry.CaptureActivePageStrobe();
+    ASSERT_TRUE(capture.has_value());
+    EXPECT_EQ(capture->reticleId, "track_alpha");
+}
+
+TEST(SceneRegistryTests, DisablingDynamicSetMagnetStopsStickyFollow)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
+    track.sourceTemplateId = "track_template";
+    track.transform.position = {0.1f, 0.0f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "track_template", true));
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.02f}));
+    ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
+    EXPECT_FLOAT_EQ(registry.ActiveStrobeSummary()->position.x, 0.1f);
+
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "track_template", false));
+
+    mfd::ReticlePatch patch;
+    patch.position = mfd::Vec2 {0.24f, -0.05f};
+    ASSERT_TRUE(registry.ApplyDynamicReticlePatch("Radar", "track_alpha", patch));
+
+    const auto strobe = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobe.has_value());
+    EXPECT_FLOAT_EQ(strobe->position.x, 0.1f);
+    EXPECT_FLOAT_EQ(strobe->position.y, 0.0f);
+
+    const auto magnet = registry.ActiveStrobeMagnetSummary();
+    ASSERT_TRUE(magnet.has_value());
+    EXPECT_FALSE(magnet->magnetized);
+    EXPECT_TRUE(magnet->reticleId.empty());
+}
+
 TEST(SceneRegistryTests, StrobeMagnetVisualShapeIsOptionalAndRestoresAuthoredReticle)
 {
     mfd::PageDefinition page = MakeRuntimePage();
@@ -1075,6 +1158,7 @@ TEST(SceneRegistryTests, StrobeMagnetVisualShapeIsOptionalAndRestoresAuthoredRet
     mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
     track.transform.position = {0.10f, 0.00f};
     registry.UpsertDynamicReticle("Radar", std::move(track));
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "track_template", true));
 
     ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.01f}));
 
@@ -1139,6 +1223,7 @@ TEST(SceneRegistryTests, StrobeMagnetizationIgnoresNonFiniteDynamicPositions)
     mfd::ReticleGroup invalidTrack = MakeDynamicTextReticle("invalid_track");
     invalidTrack.transform.position = {std::numeric_limits<float>::quiet_NaN(), 0.0f};
     registry.UpsertDynamicReticle("Radar", std::move(invalidTrack));
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", kDefaultDynamicTemplateId, true));
 
     ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.0f, 0.0f}));
 
@@ -1161,6 +1246,7 @@ TEST(SceneRegistryTests, StrobeMagnetizationFollowsMovingDynamicReticle)
     track.sourceTemplateId = "track_template";
     track.transform.position = {0.10f, 0.00f};
     registry.UpsertDynamicReticle("Radar", std::move(track));
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "track_template", true));
 
     ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.01f}));
     ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());
@@ -1204,6 +1290,7 @@ TEST(SceneRegistryTests, ManualStrobeMoveBreaksStickyMagnetization)
     mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha");
     track.transform.position = {0.10f, 0.00f};
     registry.UpsertDynamicReticle("Radar", std::move(track));
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", kDefaultDynamicTemplateId, true));
 
     ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.09f, 0.01f}));
     ASSERT_TRUE(registry.ActiveStrobeSummary().has_value());

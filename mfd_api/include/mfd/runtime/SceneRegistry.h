@@ -321,6 +321,12 @@ public:
     bool SetDynamicReticleSetVisible(std::string_view pageName,
                                      std::string_view templateId,
                                      bool visible) noexcept;
+    /** @brief Enables or disables strobe-magnet eligibility for all dynamic reticles matching one page/template set.
+     *  @note Dynamic sets are non-magnetized by default until explicitly enabled.
+     */
+    bool SetDynamicReticleSetStrobeMagnetEnabled(std::string_view pageName,
+                                                 std::string_view templateId,
+                                                 bool enabled) noexcept;
 
     /** @brief Enables or disables a page strobe. */
     bool SetStrobeActive(std::string_view pageName, bool active) noexcept;
@@ -408,11 +414,19 @@ private:
             bool visible = true;
         };
 
+        struct DynamicTemplateStrobeMagnetState
+        {
+            std::string normalizedPageName;
+            std::string normalizedTemplateId;
+            bool enabled = false;
+        };
+
         std::vector<PageState> pages;
         std::vector<ReticleState> staticReticles;
         std::vector<DynamicReticleState> dynamicReticles;
         std::vector<StrobeState> strobes;
         std::vector<DynamicTemplateVisibilityState> dynamicTemplateVisibility;
+        std::vector<DynamicTemplateStrobeMagnetState> dynamicTemplateStrobeMagnet;
         std::uint64_t nextDynamicCreationSequence = 1;
         std::string activePage;
         WindowDisplayState windowDisplay {};
@@ -528,6 +542,9 @@ private:
     std::string MakeDynamicTemplateLookupKey(std::string_view normalizedPageName, std::string_view templateId) const;
     /** @brief Returns whether one dynamic template set is currently visible on one page. */
     bool IsDynamicTemplateVisible(std::string_view normalizedPageName, std::string_view templateId) const noexcept;
+    /** @brief Returns whether one dynamic template set is currently eligible for strobe magnetization on one page. */
+    bool IsDynamicTemplateStrobeMagnetEnabled(std::string_view normalizedPageName,
+                                              std::string_view templateId) const noexcept;
     /** @brief Returns the dynamic reticle binding configured for one page/template pair, when it exists. */
     const DynamicReticleLayerBinding* FindDynamicReticleLayerBinding(std::string_view normalizedPageName,
                                                                      std::string_view templateId) const noexcept;
@@ -574,6 +591,9 @@ private:
     std::unordered_map<std::string, entt::entity, TransparentStringHash, TransparentStringEqual> reticleEntities_ {};
     /** @brief Optional per-page visibility overrides indexed by dynamic template id. */
     std::unordered_map<std::string, bool, TransparentStringHash, TransparentStringEqual> dynamicTemplateVisibility_ {};
+    /** @brief Optional per-page strobe-magnet eligibility overrides indexed by dynamic template id. */
+    std::unordered_map<std::string, bool, TransparentStringHash, TransparentStringEqual>
+        dynamicTemplateStrobeMagnetEnabled_ {};
     /** @brief Generated page-name lookup indexed by generated transport id. */
     std::unordered_map<TransportId, std::string> transportPageNames_ {};
     /** @brief Generated static-reticle lookup indexed by generated transport id. */

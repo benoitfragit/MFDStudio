@@ -141,6 +141,13 @@ message SetDynamicReticleSetVisibilityCommand
   uint64 template_transport_id = 3;
 }
 
+message SetDynamicReticleSetStrobeMagnetEnabledCommand
+{
+  bool enabled = 1;
+  uint64 page_id = 2;
+  uint64 template_transport_id = 3;
+}
+
 message RemoveDynamicReticleCommand
 {
   DynamicReticleHandle target = 1;
@@ -164,6 +171,7 @@ message UserCommand
     RemoveDynamicReticleCommand remove_dynamic_reticle = 8;
     SetDynamicReticleSetVisibilityCommand set_dynamic_reticle_set_visibility = 9;
     ResetWindowCommand reset_window = 10;
+    SetDynamicReticleSetStrobeMagnetEnabledCommand set_dynamic_reticle_set_strobe_magnet_enabled = 11;
   }
 }
 

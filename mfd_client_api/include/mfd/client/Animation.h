@@ -843,6 +843,10 @@ public:
     void Reset() noexcept;
     /** @brief Enables or disables all generated dynamic reticles of this page/template set at runtime. */
     void SetVisible(bool visible);
+    /** @brief Enables or disables strobe-magnet eligibility for all generated dynamic reticles of this page/template set.
+     *  @note Dynamic sets are non-magnetized by default until this opt-in is enabled.
+     */
+    void SetStrobeMagnetEnabled(bool enabled);
     DynamicReticle& Create();
     void Remove(DynamicReticle& reticle);
     std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);
@@ -872,6 +876,9 @@ private:
     bool desiredVisible_ = true;
     bool lastSentVisible_ = true;
     bool visibilityDirty_ = false;
+    bool desiredStrobeMagnetEnabled_ = false;
+    bool lastSentStrobeMagnetEnabled_ = false;
+    bool strobeMagnetDirty_ = false;
     std::uint32_t runtimeIdSessionNonce_ = 0;
     std::uint64_t nextReticleSequence_ = 1;
 };
@@ -892,6 +899,10 @@ public:
     void Reset() noexcept;
     /** @brief Enables or disables all dynamic reticles of this page/template set at runtime. */
     void SetVisible(bool visible);
+    /** @brief Enables or disables strobe-magnet eligibility for all dynamic reticles of this page/template set.
+     *  @note Dynamic sets are non-magnetized by default until this opt-in is enabled.
+     */
+    void SetStrobeMagnetEnabled(bool enabled);
     DynamicReticle& Upsert(std::string_view reticleId);
     std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);
     std::size_t AppendRemovalCommands(std::vector<mfd::UserCommand>& commands);
@@ -909,6 +920,9 @@ private:
     bool desiredVisible_ = true;
     bool lastSentVisible_ = true;
     bool visibilityDirty_ = false;
+    bool desiredStrobeMagnetEnabled_ = false;
+    bool lastSentStrobeMagnetEnabled_ = false;
+    bool strobeMagnetDirty_ = false;
 };
 
 class MFD_CLIENT_API WindowDisplay

@@ -87,6 +87,10 @@ bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
             {
                 return value.pageId != 0 || value.templateTransportId != 0;
             }
+            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
+            {
+                return value.pageId != 0 || value.templateTransportId != 0;
+            }
             else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
             {
                 return value.target.pageId != 0;
@@ -935,6 +939,21 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
                                value.templateTransportId,
                                "SetDynamicReticleSetVisibilityCommand");
                 }
+                else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
+                {
+                    return ResolveGeneratedPage(
+                               transportMap_,
+                               lastError_,
+                               value.page,
+                               value.pageId,
+                               "SetDynamicReticleSetStrobeMagnetEnabledCommand") &&
+                           ResolveGeneratedTemplate(
+                               transportMap_,
+                               lastError_,
+                               value.templateId,
+                               value.templateTransportId,
+                               "SetDynamicReticleSetStrobeMagnetEnabledCommand");
+                }
                 else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
                 {
                     return ResolveGeneratedPage(
@@ -1261,6 +1280,17 @@ bool CommandClient::SetDynamicReticleSetVisible(const std::string_view page,
     command.page = std::string(page);
     command.templateId = std::string(templateId);
     command.visible = visible;
+    return Send(command);
+}
+
+bool CommandClient::SetDynamicReticleSetStrobeMagnetEnabled(const std::string_view page,
+                                                            const std::string_view templateId,
+                                                            const bool enabled)
+{
+    SetDynamicReticleSetStrobeMagnetEnabledCommand command;
+    command.page = std::string(page);
+    command.templateId = std::string(templateId);
+    command.enabled = enabled;
     return Send(command);
 }
 

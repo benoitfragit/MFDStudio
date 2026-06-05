@@ -356,7 +356,8 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     ASSERT_TRUE(client.SetStrobeActive("Radar", true)) << client.LastError();
     ASSERT_TRUE(client.SetStrobePosition("Radar", {0.1f, -0.2f})) << client.LastError();
     ASSERT_TRUE(client.SetDynamicReticleSetVisible("Radar", "radar_track", false)) << client.LastError();
-    ASSERT_EQ(rawChannel->SentPayloads().size(), 5U);
+    ASSERT_TRUE(client.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "radar_track", true)) << client.LastError();
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 6U);
 
     const auto activateBatch = DecodeBatchPayload(rawChannel->SentPayloads()[0]);
     ASSERT_TRUE(activateBatch.has_value());
@@ -411,6 +412,18 @@ TEST(CommandClientTests, PageStrobeAndDynamicSetHelpersResolveGeneratedIdsWhenTr
     EXPECT_TRUE(setVisibility->page.empty());
     EXPECT_TRUE(setVisibility->templateId.empty());
     EXPECT_FALSE(setVisibility->visible);
+
+    const auto setMagnetBatch = DecodeBatchPayload(rawChannel->SentPayloads()[5]);
+    ASSERT_TRUE(setMagnetBatch.has_value());
+    EXPECT_EQ(setMagnetBatch->mappingHash, "map_hash");
+    const auto* setMagnet =
+        std::get_if<mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand>(&setMagnetBatch->commands.front());
+    ASSERT_NE(setMagnet, nullptr);
+    EXPECT_EQ(setMagnet->pageId, 11U);
+    EXPECT_EQ(setMagnet->templateTransportId, 55U);
+    EXPECT_TRUE(setMagnet->page.empty());
+    EXPECT_TRUE(setMagnet->templateId.empty());
+    EXPECT_TRUE(setMagnet->enabled);
 }
 
 TEST(CommandClientTests, UpdateStrobeCommandNormalizesPageNameAndGeneratedStrobeIdTogether)

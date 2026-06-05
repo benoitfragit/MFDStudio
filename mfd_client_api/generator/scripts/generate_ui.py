@@ -72,6 +72,7 @@ DYNAMIC_SET_EXPOSED_BASE_MEMBERS = (
     "AppendRemovalCommands",
     "ClearDirty",
     "ResetToAuthored",
+    "SetStrobeMagnetEnabled",
     "SetVisible",
 )
 

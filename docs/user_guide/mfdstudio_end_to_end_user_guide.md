@@ -1495,10 +1495,13 @@ Both signals are authoritative runtime feedback:
 - `IsActive()` means the runtime is actually rendering that page
 - `IsStrobeCaptured()` means the runtime confirmed that exact dynamic instance
   as the captured target on the currently active page strobe
+- `SetStrobeMagnetEnabled(bool)` remains a separate set-level publication
+  choice: it controls whether one dynamic template family may magnetize the
+  strobe, but it does not suppress capture feedback for that family
 
 > Common mistake:
 > Wrong: assume capture as soon as the client places the strobe on top of a track.
-> Right: wait for the runtime feedback path to confirm the active page and the captured runtime reticle.
+> Right: wait for the runtime feedback path to confirm the active page and the captured runtime reticle, and treat magnet eligibility as a separate opt-in.
 
 ## 6.14 What feedback guarantees
 
@@ -1509,6 +1512,9 @@ The generated feedback helpers intentionally expose only authoritative runtime s
   the currently active page identifies that exact runtime reticle
 - `DynamicReticle::IsStrobeCaptured()` becomes false again when another page
   becomes active until a fresh strobe snapshot arrives for the new active page
+- `GeneratedDynamicReticleSet::SetStrobeMagnetEnabled(false)` keeps the set
+  non-magnetized but does not prevent the runtime from reporting capture when
+  the strobe is positioned over one of its dynamic reticles
 - stale feedback sequences are ignored by the runtime-feedback tracker
 - if the feedback channel is disabled, these helpers remain conservative rather than speculative
 
@@ -2460,3 +2466,4 @@ This appendix is the one-page cheat sheet for the API calls that appear most oft
 | check page activity | `bool IsActive() const noexcept` | runtime page active |
 | check dynamic validity | `bool IsAlive() const noexcept` | stale handle guard |
 | check capture state | `bool IsStrobeCaptured() const noexcept` | runtime target captured on the active page strobe |
+| opt one dynamic set into strobe magnetization | `void SetStrobeMagnetEnabled(bool)` | allow this template family to snap/follow the strobe while keeping capture feedback independent |

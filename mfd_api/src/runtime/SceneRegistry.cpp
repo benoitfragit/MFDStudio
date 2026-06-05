@@ -1058,6 +1058,7 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
     strobeEntities_.clear();
     reticleEntities_.clear();
     dynamicTemplateVisibility_.clear();
+    dynamicTemplateStrobeMagnetEnabled_.clear();
     transportPageNames_.clear();
     transportReticles_.clear();
     transportTemplates_.clear();
@@ -1662,6 +1663,15 @@ SceneRegistry::RuntimeSnapshot SceneRegistry::CaptureRuntimeSnapshot() const
                             normalizedTemplateId,
                             false});
                 }
+
+                if (IsDynamicTemplateStrobeMagnetEnabled(page->normalizedName, normalizedTemplateId))
+                {
+                    snapshot.dynamicTemplateStrobeMagnet.push_back(
+                        RuntimeSnapshot::DynamicTemplateStrobeMagnetState {
+                            page->normalizedName,
+                            normalizedTemplateId,
+                            true});
+                }
             }
         }
     }
@@ -1788,6 +1798,16 @@ void SceneRegistry::RestoreRuntimeSnapshot(const RuntimeSnapshot& snapshot)
         {
             dynamicTemplateVisibility_[MakeDynamicTemplateLookupKey(visibilityState.normalizedPageName,
                                                                     visibilityState.normalizedTemplateId)] = false;
+        }
+    }
+
+    for (const RuntimeSnapshot::DynamicTemplateStrobeMagnetState& magnetState :
+         snapshot.dynamicTemplateStrobeMagnet)
+    {
+        if (magnetState.enabled)
+        {
+            dynamicTemplateStrobeMagnetEnabled_[MakeDynamicTemplateLookupKey(magnetState.normalizedPageName,
+                                                                             magnetState.normalizedTemplateId)] = true;
         }
     }
 
@@ -2533,6 +2553,32 @@ bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
     return true;
 }
 
+bool SceneRegistry::SetDynamicReticleSetStrobeMagnetEnabled(const std::string_view pageName,
+                                                            const std::string_view templateId,
+                                                            const bool enabled) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const std::string normalizedTemplateId = NormalizePageName(templateId);
+    if (!HasNormalizedPage(normalizedPageName) || normalizedTemplateId.empty() ||
+        FindDynamicReticleLayerBinding(normalizedPageName, normalizedTemplateId) == nullptr)
+    {
+        return false;
+    }
+
+    const std::string key = MakeDynamicTemplateLookupKey(normalizedPageName, normalizedTemplateId);
+    if (enabled)
+    {
+        dynamicTemplateStrobeMagnetEnabled_[key] = true;
+    }
+    else
+    {
+        dynamicTemplateStrobeMagnetEnabled_.erase(key);
+    }
+
+    RefreshStickyStrobePosition(normalizedPageName);
+    return true;
+}
+
 const SceneRegistry::ReticleComponent* SceneRegistry::FindLockedStrobeMagnetTarget(
     const std::string_view normalizedPageName,
     const std::string_view reticleId) const noexcept
@@ -2568,7 +2614,8 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindLockedStrobeMagnetTarg
 
     const BlinkClock::time_point now = BlinkClock::now();
     if (!IsReticleVisibleNow(*page, reticle->group, now) ||
-        !IsDynamicTemplateVisible(normalizedPageName, reticle->group.sourceTemplateId))
+        !IsDynamicTemplateVisible(normalizedPageName, reticle->group.sourceTemplateId) ||
+        !IsDynamicTemplateStrobeMagnetEnabled(normalizedPageName, reticle->group.sourceTemplateId))
     {
         return nullptr;
     }
@@ -2608,7 +2655,8 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindNearestStrobeMagnetTar
 
         const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity);
         if (!IsReticleVisibleNow(*page, dynamicReticle.group, now) ||
-            !IsDynamicTemplateVisible(normalizedPageName, dynamicReticle.group.sourceTemplateId))
+            !IsDynamicTemplateVisible(normalizedPageName, dynamicReticle.group.sourceTemplateId) ||
+            !IsDynamicTemplateStrobeMagnetEnabled(normalizedPageName, dynamicReticle.group.sourceTemplateId))
         {
             continue;
         }
@@ -3166,6 +3214,25 @@ bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPa
     if (iterator == dynamicTemplateVisibility_.end())
     {
         return true;
+    }
+
+    return iterator->second;
+}
+
+bool SceneRegistry::IsDynamicTemplateStrobeMagnetEnabled(const std::string_view normalizedPageName,
+                                                         const std::string_view templateId) const noexcept
+{
+    const std::string normalizedTemplateId = NormalizePageName(templateId);
+    if (normalizedTemplateId.empty())
+    {
+        return false;
+    }
+
+    const auto iterator = dynamicTemplateStrobeMagnetEnabled_.find(
+        MakeDynamicTemplateLookupKey(normalizedPageName, normalizedTemplateId));
+    if (iterator == dynamicTemplateStrobeMagnetEnabled_.end())
+    {
+        return false;
     }
 
     return iterator->second;
