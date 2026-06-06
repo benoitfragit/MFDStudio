@@ -74,11 +74,101 @@ Preferred:
 - focused tests with readable fixtures
 - incremental refactoring with unchanged behavior
 
+## C++ maintainability anti-drift rules
+
+The C++ codebase must remain explicit, local, reviewable, and predictable.
+Avoid clever C++ when a named helper or explicit overload is clearer.
+
+Forbidden unless strongly justified:
+- template tricks used only to make `static_assert` compile
+- anonymous variable-template helpers such as `template <typename> inline constexpr bool ... = false`
+- broad `std::visit` dispatch duplicated across several files
+- duplicated command-type rules spread across client, processor, serializer, batching, and tests
+- generic `template <typename T>` helpers that rely on undocumented duck typing
+- UI lambdas that perform business mutations, rollback, validation, or complex state updates
+- immediately invoked lambdas
+- broad lambda captures `[&]` or `[=]`
+- artificial unused-variable suppression with `static_cast<void>(x)` or `(void)x`
+- dummy names such as `_`, `unused`, `ignored`, or `dummy`
+- structured bindings where one bound value is unused
+- local structs/classes inside functions when a named helper would be clearer
+- unexplained `reinterpret_cast`, `const_cast`, or C-style casts
+- manual `new`/`delete` unless required by an external API and isolated
+- broad rewrites that do not reduce a concrete maintenance risk
+
+Preferred:
+- explicit named helper functions
+- explicit overloads over unconstrained C++17 duck-typing templates
+- local internal helpers instead of public API expansion
+- centralized command traits or command helpers when behavior must stay consistent
+- small ImGui callbacks that delegate business logic to named functions
+- RAII
+- const-correct code
+- narrow scopes
+- stable public APIs
+- focused tests covering the behavior being protected
+
+## C++ command maintenance rules
+
+Command behavior must remain consistent across validation, serialization, client normalization, runtime identifier resolution, runtime dispatch, batching, and tests.
+
+When adding or modifying a command type, review all related paths:
+- command type definition
+- protobuf serialization/deserialization
+- command validation
+- generated identifier detection
+- client transport normalization
+- runtime identifier resolution
+- runtime dispatch
+- batching/coalescing logic
+- tests
+
+Do not duplicate command rules casually.
+Prefer internal command helper functions or command traits when the same rule is needed in more than one implementation file.
+
+## C++ UI mutation rules
+
+UI code may collect user intent, but business mutation must stay in named helpers.
+Avoid inline ImGui callbacks that directly mutate runtime/domain objects, perform rollback, or update several related fields.
+
+Preferred pattern:
+
+```cpp
+if (ImGui::Button("Nudge right"))
+{
+    ApplySelectedReticleNudge(liveScene, displayScene, Vec2 {kStep, 0.0f});
+}
+```
+
+Instead of:
+
+```cpp
+if (ImGui::Button("Nudge right"))
+{
+    MutateSelectedReticleWithRollback(
+        liveScene,
+        displayScene,
+        [](ReticleGroup& draft)
+        {
+            draft.transform.position.x += kStep;
+        },
+        "Updated reticle position.");
+}
+```
+
 ## C++ readability validation before commit
 
 Before committing C++ changes, review the output of:
 
-```text
+```bash
+git grep -n "template <typename"
+git grep -n "inline constexpr"
+git grep -n "std::enable_if_t"
+git grep -n "std::visit"
+git grep -n "if constexpr"
+git grep -n "std::is_same_v"
+git grep -n "reinterpret_cast"
+git grep -n "const_cast"
 git grep -n "static_cast<void>"
 git grep -n "(void)"
 git grep -n "auto& \\[_"
@@ -87,12 +177,19 @@ git grep -n "unused"
 git grep -n "ignored"
 git grep -n "dummy"
 git grep -n "}();"
-git grep -n "mutable"
 git grep -n "\\[&\\]"
 git grep -n "\\[=\\]"
+git grep -n "using namespace"
+git grep -n "new "
+git grep -n "delete "
+git grep -n "malloc"
+git grep -n "free("
+git grep -n "TODO"
+git grep -n "FIXME"
+git grep -n "mutable"
 ```
 
-Every hit must be reviewed. A hit may remain only if it is intentional, justified, and cleaner than the alternative.
+Every hit must be reviewed. A hit may remain only if it is intentional, localized, justified, and clearer than the alternative.
 
 ## Architecture
 

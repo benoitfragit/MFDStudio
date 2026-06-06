@@ -16,7 +16,6 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
-#include <type_traits>
 #include <vector>
 
 #include "mfd/client/LatestBatchPublisher.h"
@@ -35,14 +34,7 @@ bool ContainsCommandType(const mfd::CommandBatch& batch)
 {
     for (const mfd::UserCommand& command : batch.commands)
     {
-        const bool found = std::visit(
-            [](const auto& value) noexcept
-            {
-                return std::is_same_v<std::decay_t<decltype(value)>, CommandType>;
-            },
-            command);
-
-        if (found)
+        if (std::holds_alternative<CommandType>(command))
         {
             return true;
         }
@@ -81,8 +73,6 @@ TEST(LatestBatchPublisherTests, FlushDeliversAcceptedBatch)
 
 TEST(LatestBatchPublisherTests, KeepsOnlyNewestPendingBatchWhileBusy)
 {
-    using namespace std::chrono_literals;
-
     std::mutex mutex;
     std::condition_variable condition;
     bool releaseFirstSend = false;
@@ -117,7 +107,7 @@ TEST(LatestBatchPublisherTests, KeepsOnlyNewestPendingBatchWhileBusy)
         std::unique_lock lock(mutex);
         ASSERT_TRUE(condition.wait_for(
             lock,
-            1s,
+            std::chrono::seconds {1},
             [&enteredSendCount]()
             {
                 return enteredSendCount >= 1U;
@@ -183,8 +173,6 @@ TEST(LatestBatchPublisherTests, RejectsSubmissionsAfterStop)
 
 TEST(LatestBatchPublisherTests, PreservesPendingDynamicReticleLifecycleCommands)
 {
-    using namespace std::chrono_literals;
-
     std::mutex mutex;
     std::condition_variable condition;
     bool releaseFirstSend = false;
@@ -223,7 +211,7 @@ TEST(LatestBatchPublisherTests, PreservesPendingDynamicReticleLifecycleCommands)
         std::unique_lock lock(mutex);
         ASSERT_TRUE(condition.wait_for(
             lock,
-            1s,
+            std::chrono::seconds {1},
             [&enteredSendCount]()
             {
                 return enteredSendCount >= 1U;
@@ -259,8 +247,6 @@ TEST(LatestBatchPublisherTests, PreservesPendingDynamicReticleLifecycleCommands)
 
 TEST(LatestBatchPublisherTests, PreservesPendingResetWindowCommandWhenMergingNewerSameHashBatch)
 {
-    using namespace std::chrono_literals;
-
     std::mutex mutex;
     std::condition_variable condition;
     bool releaseFirstSend = false;
@@ -295,7 +281,7 @@ TEST(LatestBatchPublisherTests, PreservesPendingResetWindowCommandWhenMergingNew
         std::unique_lock lock(mutex);
         ASSERT_TRUE(condition.wait_for(
             lock,
-            1s,
+            std::chrono::seconds {1},
             [&enteredSendCount]()
             {
                 return enteredSendCount >= 1U;
@@ -332,8 +318,6 @@ TEST(LatestBatchPublisherTests, PreservesPendingResetWindowCommandWhenMergingNew
 
 TEST(LatestBatchPublisherTests, NewestResetWindowCommandDropsOlderPendingDynamicLifecycleState)
 {
-    using namespace std::chrono_literals;
-
     std::mutex mutex;
     std::condition_variable condition;
     bool releaseFirstSend = false;
@@ -368,7 +352,7 @@ TEST(LatestBatchPublisherTests, NewestResetWindowCommandDropsOlderPendingDynamic
         std::unique_lock lock(mutex);
         ASSERT_TRUE(condition.wait_for(
             lock,
-            1s,
+            std::chrono::seconds {1},
             [&enteredSendCount]()
             {
                 return enteredSendCount >= 1U;
@@ -407,8 +391,6 @@ TEST(LatestBatchPublisherTests, NewestResetWindowCommandDropsOlderPendingDynamic
 
 TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingState)
 {
-    using namespace std::chrono_literals;
-
     std::mutex mutex;
     std::condition_variable condition;
     bool releaseFirstSend = false;
@@ -444,7 +426,7 @@ TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingS
         std::unique_lock lock(mutex);
         ASSERT_TRUE(condition.wait_for(
             lock,
-            1s,
+            std::chrono::seconds {1},
             [&enteredSendCount]()
             {
                 return enteredSendCount >= 1U;
@@ -485,8 +467,6 @@ TEST(LatestBatchPublisherTests, NewDynamicReticleLifecycleStateOverridesPendingS
 
 TEST(LatestBatchPublisherTests, DoesNotCarryPendingDynamicLifecycleAcrossDifferentMappingHashes)
 {
-    using namespace std::chrono_literals;
-
     std::mutex mutex;
     std::condition_variable condition;
     bool releaseFirstSend = false;
@@ -525,7 +505,7 @@ TEST(LatestBatchPublisherTests, DoesNotCarryPendingDynamicLifecycleAcrossDiffere
         std::unique_lock lock(mutex);
         ASSERT_TRUE(condition.wait_for(
             lock,
-            1s,
+            std::chrono::seconds {1},
             [&enteredSendCount]()
             {
                 return enteredSendCount >= 1U;
@@ -563,8 +543,6 @@ TEST(LatestBatchPublisherTests, DoesNotCarryPendingDynamicLifecycleAcrossDiffere
 
 TEST(LatestBatchPublisherTests, PreservesGeneratedIdentifiersWhenFlatteningBulkDynamicUpdates)
 {
-    using namespace std::chrono_literals;
-
     std::mutex mutex;
     std::condition_variable condition;
     bool releaseFirstSend = false;
@@ -599,7 +577,7 @@ TEST(LatestBatchPublisherTests, PreservesGeneratedIdentifiersWhenFlatteningBulkD
         std::unique_lock lock(mutex);
         ASSERT_TRUE(condition.wait_for(
             lock,
-            1s,
+            std::chrono::seconds {1},
             [&enteredSendCount]()
             {
                 return enteredSendCount >= 1U;

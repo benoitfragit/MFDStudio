@@ -13,6 +13,7 @@
 
 #include <filesystem>
 #include <initializer_list>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -21,11 +22,15 @@ namespace
 {
 editor::EditorLaunchOptionsParseResult Parse(std::initializer_list<const char*> arguments)
 {
+    std::vector<std::string> argumentStorage;
+    argumentStorage.reserve(arguments.size());
+
     std::vector<char*> argv;
     argv.reserve(arguments.size());
     for (const char* argument : arguments)
     {
-        argv.push_back(const_cast<char*>(argument));
+        argumentStorage.emplace_back(argument);
+        argv.push_back(argumentStorage.back().data());
     }
 
     return editor::ParseEditorLaunchOptions(static_cast<int>(argv.size()), argv.data());

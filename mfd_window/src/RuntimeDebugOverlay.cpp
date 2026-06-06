@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <ctime>
 #include <cmath>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -157,6 +158,174 @@ TimeGeometry* FindEditableTimeGeometry(ReticleGroup& reticle, const std::string_
     }
 
     return std::get_if<TimeGeometry>(&editable->geometry);
+}
+
+TextGeometry* FindEditableTextGeometry(ReticleGroup& reticle, const std::string_view primitiveId) noexcept
+{
+    Primitive* editable = FindPrimitive(reticle, primitiveId);
+    if (editable == nullptr)
+    {
+        return nullptr;
+    }
+
+    return std::get_if<TextGeometry>(&editable->geometry);
+}
+
+void SetReticleVisible(ReticleGroup& reticle, const bool visible) noexcept
+{
+    reticle.visible = visible;
+}
+
+void NudgeReticlePosition(ReticleGroup& reticle, const Vec2& delta) noexcept
+{
+    reticle.transform.position.x += delta.x;
+    reticle.transform.position.y += delta.y;
+}
+
+void SetReticleBlinkEnabled(ReticleGroup& reticle, const bool blinkEnabled) noexcept
+{
+    reticle.blink.enabled = blinkEnabled;
+}
+
+void ClearReticleBlinkType(ReticleGroup& reticle)
+{
+    reticle.blink.typeName.clear();
+    reticle.blink.normalizedTypeName.clear();
+    reticle.blink.durationMs = 0;
+}
+
+void SetReticleBlinkType(ReticleGroup& reticle, const PageBlinkDefinition& blinkType)
+{
+    reticle.blink.enabled = true;
+    reticle.blink.typeName = blinkType.name;
+    reticle.blink.normalizedTypeName = blinkType.normalizedName;
+    reticle.blink.durationMs = blinkType.durationMs;
+}
+
+void SetReticlePosition(ReticleGroup& reticle, const Vec2& position) noexcept
+{
+    reticle.transform.position = position;
+}
+
+void SetReticleRotation(ReticleGroup& reticle, const float rotationDegrees) noexcept
+{
+    reticle.transform.rotationDegrees = rotationDegrees;
+}
+
+void SetReticleColorOverrideEnabled(ReticleGroup& reticle,
+                                    const bool enabled,
+                                    const ColorRgba& color)
+{
+    if (enabled)
+    {
+        reticle.overrides.color = color;
+    }
+    else
+    {
+        reticle.overrides.color.reset();
+    }
+}
+
+void SetReticleColorOverrideValue(ReticleGroup& reticle, const ColorRgba& color)
+{
+    reticle.overrides.color = color;
+}
+
+void SetReticleThicknessOverrideEnabled(ReticleGroup& reticle,
+                                        const bool enabled,
+                                        const float thickness) noexcept
+{
+    if (enabled)
+    {
+        reticle.overrides.thickness = thickness;
+    }
+    else
+    {
+        reticle.overrides.thickness.reset();
+    }
+}
+
+void SetReticleThicknessOverrideValue(ReticleGroup& reticle, const float thickness) noexcept
+{
+    reticle.overrides.thickness = thickness;
+}
+
+void SetTextPrimitiveText(ReticleGroup& reticle,
+                          const std::string_view primitiveId,
+                          const std::string_view text)
+{
+    if (TextGeometry* editableText = FindEditableTextGeometry(reticle, primitiveId); editableText != nullptr)
+    {
+        editableText->text = text;
+    }
+}
+
+void SetTextPrimitiveLetterSpacing(ReticleGroup& reticle,
+                                   const std::string_view primitiveId,
+                                   const float letterSpacing) noexcept
+{
+    if (TextGeometry* editableText = FindEditableTextGeometry(reticle, primitiveId); editableText != nullptr)
+    {
+        editableText->letterSpacing = letterSpacing;
+    }
+}
+
+void SetTimePrimitiveValueBypassEnabled(ReticleGroup& reticle,
+                                        const std::string_view primitiveId,
+                                        const bool enabled,
+                                        const TimeValue& seedValue)
+{
+    if (TimeGeometry* editableTime = FindEditableTimeGeometry(reticle, primitiveId); editableTime != nullptr)
+    {
+        if (enabled)
+        {
+            editableTime->runtimeValueOverride = seedValue;
+        }
+        else
+        {
+            editableTime->runtimeValueOverride.reset();
+        }
+    }
+}
+
+void SetTimePrimitiveOverrideValue(ReticleGroup& reticle,
+                                   const std::string_view primitiveId,
+                                   const TimeValue& value)
+{
+    if (TimeGeometry* editableTime = FindEditableTimeGeometry(reticle, primitiveId); editableTime != nullptr)
+    {
+        editableTime->runtimeValueOverride = value;
+    }
+}
+
+void SetTimePrimitiveUtc(ReticleGroup& reticle,
+                         const std::string_view primitiveId,
+                         const bool utc) noexcept
+{
+    if (TimeGeometry* editableTime = FindEditableTimeGeometry(reticle, primitiveId); editableTime != nullptr)
+    {
+        editableTime->runtimeUtc = utc;
+    }
+}
+
+void SetTimePrimitiveFields(ReticleGroup& reticle,
+                            const std::string_view primitiveId,
+                            const TimeFieldVisibility& fields)
+{
+    if (TimeGeometry* editableTime = FindEditableTimeGeometry(reticle, primitiveId); editableTime != nullptr)
+    {
+        editableTime->runtimeFields = fields;
+    }
+}
+
+void SetTimePrimitiveLetterSpacing(ReticleGroup& reticle,
+                                   const std::string_view primitiveId,
+                                   const float letterSpacing) noexcept
+{
+    if (TimeGeometry* editableTime = FindEditableTimeGeometry(reticle, primitiveId); editableTime != nullptr)
+    {
+        editableTime->letterSpacing = letterSpacing;
+    }
 }
 
 const char* ReticleKindLabel(const ReticleKind kind) noexcept
@@ -712,11 +881,12 @@ const ReticleGroup* RuntimeDebugOverlay::FindSelectedReticle(const SceneRegistry
     return FindReticle(displayScene, *state_.SelectedReticle());
 }
 
-template <typename Mutation>
+template <typename Mutation, typename... Args>
 bool RuntimeDebugOverlay::MutateSelectedReticleWithRollback(const SceneRegistry& liveScene,
                                                             const SceneRegistry& displayScene,
                                                             Mutation&& mutation,
-                                                            const char* const successMessage)
+                                                            const char* const successMessage,
+                                                            Args&&... args)
 {
     if (!state_.SelectedReticle().has_value())
     {
@@ -740,7 +910,10 @@ bool RuntimeDebugOverlay::MutateSelectedReticleWithRollback(const SceneRegistry&
     }
 
     ReticleBypassState& bypass = state_.EnsureReticleBypass(key, *currentReticle);
-    std::forward<Mutation>(mutation)(bypass.draft);
+    std::invoke(
+        std::forward<Mutation>(mutation),
+        bypass.draft,
+        std::forward<Args>(args)...);
     if (!RefreshPreviewFromLive(liveScene))
     {
         const std::string mutationError =
@@ -828,11 +1001,9 @@ void RuntimeDebugOverlay::DrawManualTestPanel(const SceneRegistry& liveScene, co
             MutateSelectedReticleWithRollback(
                 liveScene,
                 displayScene,
-                [](ReticleGroup& draft)
-                {
-                    draft.visible = !draft.visible;
-                },
-                "Toggled the selected reticle visibility.");
+                SetReticleVisible,
+                "Toggled the selected reticle visibility.",
+                !reticle->visible);
         }
     }
     ImGui::SameLine();
@@ -848,11 +1019,9 @@ void RuntimeDebugOverlay::DrawManualTestPanel(const SceneRegistry& liveScene, co
             MutateSelectedReticleWithRollback(
                 liveScene,
                 displayScene,
-                [](ReticleGroup& draft)
-                {
-                    draft.transform.position.x += kReticleNudgeStep;
-                },
-                "Moved the selected reticle by +0.05 on the X axis.");
+                NudgeReticlePosition,
+                "Moved the selected reticle by +0.05 on the X axis.",
+                Vec2 {kReticleNudgeStep, 0.0f});
         }
     }
     ImGui::SameLine();
@@ -1370,11 +1539,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         MutateSelectedReticleWithRollback(
                             liveScene,
                             displayScene,
-                            [visible](ReticleGroup& draft)
-                            {
-                                draft.visible = visible;
-                            },
-                            "Updated reticle visibility through the manual debug bypass.");
+                            SetReticleVisible,
+                            "Updated reticle visibility through the manual debug bypass.",
+                            visible);
                         inspectorFrameState.InvalidateSnapshot();
                     }
                 }
@@ -1390,11 +1557,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         MutateSelectedReticleWithRollback(
                             liveScene,
                             displayScene,
-                            [blinkEnabled](ReticleGroup& draft)
-                            {
-                                draft.blink.enabled = blinkEnabled;
-                            },
-                            "Updated reticle blink state.");
+                            SetReticleBlinkEnabled,
+                            "Updated reticle blink state.",
+                            blinkEnabled);
                         inspectorFrameState.InvalidateSnapshot();
                     }
                     ImGui::EndDisabled();
@@ -1416,12 +1581,7 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                             MutateSelectedReticleWithRollback(
                                 liveScene,
                                 displayScene,
-                                [](ReticleGroup& draft)
-                                {
-                                    draft.blink.typeName.clear();
-                                    draft.blink.normalizedTypeName.clear();
-                                    draft.blink.durationMs = 0;
-                                },
+                                ClearReticleBlinkType,
                                 "Cleared the reticle-specific blink type.");
                             inspectorFrameState.InvalidateSnapshot();
                         }
@@ -1443,14 +1603,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                                 MutateSelectedReticleWithRollback(
                                     liveScene,
                                     displayScene,
-                                    [&blinkType](ReticleGroup& draft)
-                                    {
-                                        draft.blink.enabled = true;
-                                        draft.blink.typeName = blinkType.name;
-                                        draft.blink.normalizedTypeName = blinkType.normalizedName;
-                                        draft.blink.durationMs = blinkType.durationMs;
-                                    },
-                                    "Updated the reticle-specific blink type.");
+                                    SetReticleBlinkType,
+                                    "Updated the reticle-specific blink type.",
+                                    blinkType);
                                 inspectorFrameState.InvalidateSnapshot();
                                 break;
                             }
@@ -1483,11 +1638,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         MutateSelectedReticleWithRollback(
                             liveScene,
                             displayScene,
-                            [position](ReticleGroup& draft)
-                            {
-                                draft.transform.position = Vec2 {position[0], position[1]};
-                            },
-                            "Updated the reticle position.");
+                            SetReticlePosition,
+                            "Updated the reticle position.",
+                            Vec2 {position[0], position[1]});
                         inspectorFrameState.InvalidateSnapshot();
                     }
                 }
@@ -1500,11 +1653,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         MutateSelectedReticleWithRollback(
                             liveScene,
                             displayScene,
-                            [rotation](ReticleGroup& draft)
-                            {
-                                draft.transform.rotationDegrees = rotation;
-                            },
-                            "Updated the reticle rotation.");
+                            SetReticleRotation,
+                            "Updated the reticle rotation.",
+                            rotation);
                         inspectorFrameState.InvalidateSnapshot();
                     }
                 }
@@ -1515,33 +1666,26 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                     ImVec4 color = ToImGuiColor(ResolveReticleColor(*inspectedReticle));
                     if (ImGui::Checkbox("Color override", &colorOverride))
                     {
+                        const ColorRgba overrideColor = FromImGuiColor(color);
                         MutateSelectedReticleWithRollback(
                             liveScene,
                             displayScene,
-                            [colorOverride, color](ReticleGroup& draft)
-                            {
-                                if (colorOverride)
-                                {
-                                    draft.overrides.color = FromImGuiColor(color);
-                                }
-                                else
-                                {
-                                    draft.overrides.color.reset();
-                                }
-                            },
-                            colorOverride ? "Enabled one local color override." : "Removed the local color override.");
+                            SetReticleColorOverrideEnabled,
+                            colorOverride ? "Enabled one local color override."
+                                          : "Removed the local color override.",
+                            colorOverride,
+                            overrideColor);
                         inspectorFrameState.InvalidateSnapshot();
                     }
                     if (inspectorFrameState.SnapshotValid() && colorOverride && ImGui::ColorEdit4("Color", &color.x))
                     {
+                        const ColorRgba overrideColor = FromImGuiColor(color);
                         MutateSelectedReticleWithRollback(
                             liveScene,
                             displayScene,
-                            [color](ReticleGroup& draft)
-                            {
-                                draft.overrides.color = FromImGuiColor(color);
-                            },
-                            "Updated the local reticle color override.");
+                            SetReticleColorOverrideValue,
+                            "Updated the local reticle color override.",
+                            overrideColor);
                         inspectorFrameState.InvalidateSnapshot();
                     }
                 }
@@ -1555,19 +1699,11 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         MutateSelectedReticleWithRollback(
                             liveScene,
                             displayScene,
-                            [thicknessOverride, thickness](ReticleGroup& draft)
-                            {
-                                if (thicknessOverride)
-                                {
-                                    draft.overrides.thickness = thickness;
-                                }
-                                else
-                                {
-                                    draft.overrides.thickness.reset();
-                                }
-                            },
+                            SetReticleThicknessOverrideEnabled,
                             thicknessOverride ? "Enabled one local thickness override."
-                                              : "Removed the local thickness override.");
+                                              : "Removed the local thickness override.",
+                            thicknessOverride,
+                            thickness);
                         inspectorFrameState.InvalidateSnapshot();
                     }
                     if (inspectorFrameState.SnapshotValid() &&
@@ -1577,11 +1713,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                         MutateSelectedReticleWithRollback(
                             liveScene,
                             displayScene,
-                            [thickness](ReticleGroup& draft)
-                            {
-                                draft.overrides.thickness = thickness;
-                            },
-                            "Updated the local reticle thickness override.");
+                            SetReticleThicknessOverrideValue,
+                            "Updated the local reticle thickness override.",
+                            thickness);
                         inspectorFrameState.InvalidateSnapshot();
                     }
                 }
@@ -1605,18 +1739,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                                 MutateSelectedReticleWithRollback(
                                     liveScene,
                                     displayScene,
-                                    [primitiveId = primitive.id, text](ReticleGroup& draft)
-                                    {
-                                        if (Primitive* editable = FindPrimitive(draft, primitiveId); editable != nullptr)
-                                        {
-                                            if (TextGeometry* editableText = std::get_if<TextGeometry>(&editable->geometry);
-                                                editableText != nullptr)
-                                            {
-                                                editableText->text = text;
-                                            }
-                                        }
-                                    },
-                                    "Updated one text primitive.");
+                                    SetTextPrimitiveText,
+                                    "Updated one text primitive.",
+                                    primitive.id,
+                                    text);
                                 inspectorFrameState.InvalidateSnapshot();
                                 break;
                             }
@@ -1629,18 +1755,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                                 MutateSelectedReticleWithRollback(
                                     liveScene,
                                     displayScene,
-                                    [primitiveId = primitive.id, letterSpacing](ReticleGroup& draft)
-                                    {
-                                        if (Primitive* editable = FindPrimitive(draft, primitiveId); editable != nullptr)
-                                        {
-                                            if (TextGeometry* editableText = std::get_if<TextGeometry>(&editable->geometry);
-                                                editableText != nullptr)
-                                            {
-                                                editableText->letterSpacing = letterSpacing;
-                                            }
-                                        }
-                                    },
-                                    "Updated one text primitive letter spacing.");
+                                    SetTextPrimitiveLetterSpacing,
+                                    "Updated one text primitive letter spacing.",
+                                    primitive.id,
+                                    letterSpacing);
                                 inspectorFrameState.InvalidateSnapshot();
                                 break;
                             }
@@ -1680,22 +1798,12 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                             MutateSelectedReticleWithRollback(
                                 liveScene,
                                 displayScene,
-                                [primitiveId = primitive.id, valueBypass, seedValue](ReticleGroup& draft)
-                                {
-                                    if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
-                                        editableTime != nullptr)
-                                    {
-                                        if (valueBypass)
-                                        {
-                                            editableTime->runtimeValueOverride = seedValue;
-                                        }
-                                        else
-                                        {
-                                            editableTime->runtimeValueOverride.reset();
-                                        }
-                                    }
-                                },
-                                valueBypass ? "Enabled one time numeric bypass." : "Cleared one time numeric bypass.");
+                                SetTimePrimitiveValueBypassEnabled,
+                                valueBypass ? "Enabled one time numeric bypass."
+                                            : "Cleared one time numeric bypass.",
+                                primitive.id,
+                                valueBypass,
+                                seedValue);
                             inspectorFrameState.InvalidateSnapshot();
                             ImGui::PopID();
                             ImGui::PopID();
@@ -1715,15 +1823,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                                 MutateSelectedReticleWithRollback(
                                     liveScene,
                                     displayScene,
-                                    [primitiveId = primitive.id, value](ReticleGroup& draft)
-                                    {
-                                        if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
-                                            editableTime != nullptr)
-                                        {
-                                            editableTime->runtimeValueOverride = value;
-                                        }
-                                    },
-                                    "Updated one time bypass date.");
+                                    SetTimePrimitiveOverrideValue,
+                                    "Updated one time bypass date.",
+                                    primitive.id,
+                                    value);
                                 inspectorFrameState.InvalidateSnapshot();
                                 ImGui::PopID();
                                 ImGui::PopID();
@@ -1740,15 +1843,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                                 MutateSelectedReticleWithRollback(
                                     liveScene,
                                     displayScene,
-                                    [primitiveId = primitive.id, value](ReticleGroup& draft)
-                                    {
-                                        if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
-                                            editableTime != nullptr)
-                                        {
-                                            editableTime->runtimeValueOverride = value;
-                                        }
-                                    },
-                                    "Updated one time bypass clock.");
+                                    SetTimePrimitiveOverrideValue,
+                                    "Updated one time bypass clock.",
+                                    primitive.id,
+                                    value);
                                 inspectorFrameState.InvalidateSnapshot();
                                 ImGui::PopID();
                                 ImGui::PopID();
@@ -1762,15 +1860,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                             MutateSelectedReticleWithRollback(
                                 liveScene,
                                 displayScene,
-                                [primitiveId = primitive.id, utc](ReticleGroup& draft)
-                                {
-                                    if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
-                                        editableTime != nullptr)
-                                    {
-                                        editableTime->runtimeUtc = utc;
-                                    }
-                                },
-                                "Updated one time UTC mode.");
+                                SetTimePrimitiveUtc,
+                                "Updated one time UTC mode.",
+                                primitive.id,
+                                utc);
                             inspectorFrameState.InvalidateSnapshot();
                             ImGui::PopID();
                             ImGui::PopID();
@@ -1796,15 +1889,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                                 MutateSelectedReticleWithRollback(
                                     liveScene,
                                     displayScene,
-                                    [primitiveId = primitive.id, fields](ReticleGroup& draft)
-                                    {
-                                        if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
-                                            editableTime != nullptr)
-                                        {
-                                            editableTime->runtimeFields = fields;
-                                        }
-                                    },
-                                    "Updated one time field visibility.");
+                                    SetTimePrimitiveFields,
+                                    "Updated one time field visibility.",
+                                    primitive.id,
+                                    fields);
                                 inspectorFrameState.InvalidateSnapshot();
                                 ImGui::PopID();
                                 ImGui::PopID();
@@ -1820,15 +1908,10 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
                             MutateSelectedReticleWithRollback(
                                 liveScene,
                                 displayScene,
-                                [primitiveId = primitive.id, letterSpacing](ReticleGroup& draft)
-                                {
-                                    if (TimeGeometry* editableTime = FindEditableTimeGeometry(draft, primitiveId);
-                                        editableTime != nullptr)
-                                    {
-                                        editableTime->letterSpacing = letterSpacing;
-                                    }
-                                },
-                                "Updated one time primitive letter spacing.");
+                                SetTimePrimitiveLetterSpacing,
+                                "Updated one time primitive letter spacing.",
+                                primitive.id,
+                                letterSpacing);
                             inspectorFrameState.InvalidateSnapshot();
                             ImGui::PopID();
                             ImGui::PopID();

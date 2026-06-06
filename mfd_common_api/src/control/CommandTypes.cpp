@@ -45,7 +45,9 @@ constexpr int kMinTimeYear = 1;
 constexpr int kMaxTimeYear = 9999;
 
 template <typename>
-inline constexpr bool kUnsupportedCommand = false;
+struct AlwaysFalse : std::false_type
+{
+};
 
 bool IsFiniteVec2(const Vec2& value) noexcept
 {
@@ -1378,7 +1380,7 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
             }
             else
             {
-                static_assert(kUnsupportedCommand<Command>, "Unsupported user command type");
+                static_assert(AlwaysFalse<Command>::value, "Unsupported user command type");
             }
         },
         command);

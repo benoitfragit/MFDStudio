@@ -826,6 +826,10 @@ struct BlinkPatchResult
     Status status = Status::Unchanged;
     ReticleBlinkState blink {};
 };
+
+bool IsBlinkVisible(std::uint32_t durationMs,
+                    BlinkClock::time_point blinkEpoch,
+                    BlinkClock::time_point now) noexcept;
 } // namespace
 
 struct SceneRegistry::PageComponent
@@ -850,6 +854,145 @@ struct SceneRegistry::PageComponent
     std::vector<entt::entity> orderedReticleEntities;
     bool hasStrobe = false;
     bool active = false;
+
+    [[nodiscard]] std::size_t ResolveLayerOrder(const std::string_view layerId) const noexcept
+    {
+        const std::string normalizedLayerId = NormalizePageName(layerId);
+        const auto iterator = layerOrdersById.find(normalizedLayerId);
+        return iterator == layerOrdersById.end() ? layerOrdersById.size() : iterator->second;
+    }
+
+    [[nodiscard]] const DynamicReticleLayerBinding* ResolveDynamicBinding(
+        const std::string_view templateId) const noexcept
+    {
+        const std::string normalizedTemplateId = NormalizePageName(templateId);
+        if (normalizedTemplateId.empty())
+        {
+            return nullptr;
+        }
+
+        const auto iterator = dynamicBindingsByTemplate.find(normalizedTemplateId);
+        return iterator == dynamicBindingsByTemplate.end() ? nullptr : &iterator->second;
+    }
+
+    [[nodiscard]] ReticleDrawOrderKey BuildStaticReticleDrawOrderKey(const ReticleGroup& reticle,
+                                                                     const std::size_t authoredOrder) const noexcept
+    {
+        ReticleDrawOrderKey key;
+        key.pass = reticle.drawOnTop ? ReticleDrawPass::DrawOnTop : ReticleDrawPass::Normal;
+        key.layerOrder = ResolveLayerOrder(reticle.layerId);
+        key.band = ReticleDrawBand::Static;
+        key.staticAuthoredOrder = authoredOrder;
+        return key;
+    }
+
+    [[nodiscard]] ReticleDrawOrderKey BuildDynamicReticleDrawOrderKey(const ReticleGroup& reticle,
+                                                                      const std::uint64_t creationSequence) const noexcept
+    {
+        ReticleDrawOrderKey key;
+        key.pass = reticle.drawOnTop ? ReticleDrawPass::DrawOnTop : ReticleDrawPass::Normal;
+        key.layerOrder = ResolveLayerOrder(reticle.layerId);
+        key.band = ReticleDrawBand::Dynamic;
+        key.dynamicCreationOrder = creationSequence;
+
+        if (const DynamicReticleLayerBinding* binding = ResolveDynamicBinding(reticle.sourceTemplateId);
+            binding != nullptr)
+        {
+            key.dynamicTemplateOrder = binding->orderInLayer;
+        }
+
+        return key;
+    }
+
+    [[nodiscard]] bool TryResolveBlinkSelection(const ReticleBlinkState& candidate,
+                                                std::uint32_t& durationMs) const noexcept
+    {
+        if (!candidate.typeName.empty())
+        {
+            const std::string normalizedTypeName = candidate.normalizedTypeName.empty()
+                                                       ? NormalizePageName(candidate.typeName)
+                                                       : candidate.normalizedTypeName;
+            const auto iterator = blinkDurationsByType.find(normalizedTypeName);
+            if (iterator == blinkDurationsByType.end())
+            {
+                return false;
+            }
+
+            durationMs = iterator->second;
+            return true;
+        }
+
+        if (!candidate.enabled)
+        {
+            durationMs = 0;
+            return true;
+        }
+
+        if (defaultBlinkDurationMs == 0)
+        {
+            return false;
+        }
+
+        durationMs = defaultBlinkDurationMs;
+        return true;
+    }
+
+    [[nodiscard]] BlinkPatchResult EvaluateBlinkPatch(const ReticleGroup& reticle,
+                                                      const ReticlePatch& patch) const noexcept
+    {
+        if (!patch.blinkEnabled.has_value() && !patch.blinkType.has_value())
+        {
+            return {};
+        }
+
+        BlinkPatchResult result;
+        result.status = BlinkPatchResult::Status::Applied;
+        result.blink = reticle.blink;
+
+        if (patch.blinkType.has_value())
+        {
+            result.blink.typeName = *patch.blinkType;
+            result.blink.normalizedTypeName = NormalizePageName(result.blink.typeName);
+            if (!patch.blinkType->empty())
+            {
+                result.blink.enabled = true;
+            }
+        }
+
+        if (patch.blinkEnabled.has_value())
+        {
+            result.blink.enabled = *patch.blinkEnabled;
+        }
+
+        std::uint32_t durationMs = result.blink.durationMs;
+        if (!TryResolveBlinkSelection(result.blink, durationMs))
+        {
+            result.status = BlinkPatchResult::Status::Invalid;
+            return result;
+        }
+
+        result.blink.durationMs = durationMs;
+        return result;
+    }
+
+    bool ResolveBlinkForReticle(ReticleGroup& reticle) const noexcept
+    {
+        std::uint32_t durationMs = reticle.blink.durationMs;
+        if (!TryResolveBlinkSelection(reticle.blink, durationMs))
+        {
+            reticle.blink = {};
+            return false;
+        }
+
+        reticle.blink.durationMs = durationMs;
+        return true;
+    }
+
+    [[nodiscard]] bool IsReticleVisibleNow(const ReticleGroup& reticle, const BlinkClock::time_point now) const noexcept
+    {
+        return reticle.visible &&
+               (!reticle.blink.enabled || IsBlinkVisible(reticle.blink.durationMs, blinkEpoch, now));
+    }
 };
 
 struct SceneRegistry::PageMembership
@@ -894,160 +1037,12 @@ struct SceneRegistry::StrobeBehaviorComponent
 
 namespace
 {
-ReticleDrawPass ResolveDrawPass(const ReticleGroup& reticle) noexcept
-{
-    return reticle.drawOnTop ? ReticleDrawPass::DrawOnTop : ReticleDrawPass::Normal;
-}
-
 ReticleDrawOrderKey MakeStrobeDrawOrderKey() noexcept
 {
     ReticleDrawOrderKey key;
     key.pass = ReticleDrawPass::Strobe;
     key.band = ReticleDrawBand::Strobe;
     return key;
-}
-
-template <typename PageLike>
-std::size_t ResolveLayerOrder(const PageLike& page, const std::string_view layerId) noexcept
-{
-    const std::string normalizedLayerId = NormalizePageName(layerId);
-    const auto iterator = page.layerOrdersById.find(normalizedLayerId);
-    return iterator == page.layerOrdersById.end() ? page.layerOrdersById.size() : iterator->second;
-}
-
-template <typename PageLike>
-const DynamicReticleLayerBinding* ResolveDynamicBinding(const PageLike& page,
-                                                        const std::string_view templateId) noexcept
-{
-    const std::string normalizedTemplateId = NormalizePageName(templateId);
-    if (normalizedTemplateId.empty())
-    {
-        return nullptr;
-    }
-
-    const auto iterator = page.dynamicBindingsByTemplate.find(normalizedTemplateId);
-    return iterator == page.dynamicBindingsByTemplate.end() ? nullptr : &iterator->second;
-}
-
-template <typename PageLike>
-ReticleDrawOrderKey BuildStaticReticleDrawOrderKey(const PageLike& page,
-                                                   const ReticleGroup& reticle,
-                                                   const std::size_t authoredOrder) noexcept
-{
-    ReticleDrawOrderKey key;
-    key.pass = ResolveDrawPass(reticle);
-    key.layerOrder = ResolveLayerOrder(page, reticle.layerId);
-    key.band = ReticleDrawBand::Static;
-    key.staticAuthoredOrder = authoredOrder;
-    return key;
-}
-
-template <typename PageLike>
-ReticleDrawOrderKey BuildDynamicReticleDrawOrderKey(const PageLike& page,
-                                                    const ReticleGroup& reticle,
-                                                    const std::uint64_t creationSequence) noexcept
-{
-    ReticleDrawOrderKey key;
-    key.pass = ResolveDrawPass(reticle);
-    key.layerOrder = ResolveLayerOrder(page, reticle.layerId);
-    key.band = ReticleDrawBand::Dynamic;
-    key.dynamicCreationOrder = creationSequence;
-
-    if (const DynamicReticleLayerBinding* binding = ResolveDynamicBinding(page, reticle.sourceTemplateId);
-        binding != nullptr)
-    {
-        key.dynamicTemplateOrder = binding->orderInLayer;
-    }
-
-    return key;
-}
-
-template <typename PageLike>
-bool TryResolveBlinkSelection(const PageLike& page,
-                              const ReticleBlinkState& candidate,
-                              std::uint32_t& durationMs) noexcept
-{
-    if (!candidate.typeName.empty())
-    {
-        const std::string normalizedTypeName =
-            candidate.normalizedTypeName.empty() ? NormalizePageName(candidate.typeName) : candidate.normalizedTypeName;
-        const auto iterator = page.blinkDurationsByType.find(normalizedTypeName);
-        if (iterator == page.blinkDurationsByType.end())
-        {
-            return false;
-        }
-
-        durationMs = iterator->second;
-        return true;
-    }
-
-    if (!candidate.enabled)
-    {
-        durationMs = 0;
-        return true;
-    }
-
-    if (page.defaultBlinkDurationMs == 0)
-    {
-        return false;
-    }
-
-    durationMs = page.defaultBlinkDurationMs;
-    return true;
-}
-
-template <typename PageLike>
-BlinkPatchResult EvaluateBlinkPatch(const PageLike& page,
-                                    const ReticleGroup& reticle,
-                                    const ReticlePatch& patch) noexcept
-{
-    if (!patch.blinkEnabled.has_value() && !patch.blinkType.has_value())
-    {
-        return {};
-    }
-
-    BlinkPatchResult result;
-    result.status = BlinkPatchResult::Status::Applied;
-    result.blink = reticle.blink;
-
-    if (patch.blinkType.has_value())
-    {
-        result.blink.typeName = *patch.blinkType;
-        result.blink.normalizedTypeName = NormalizePageName(result.blink.typeName);
-        if (!patch.blinkType->empty())
-        {
-            result.blink.enabled = true;
-        }
-    }
-
-    if (patch.blinkEnabled.has_value())
-    {
-        result.blink.enabled = *patch.blinkEnabled;
-    }
-
-    std::uint32_t durationMs = result.blink.durationMs;
-    if (!TryResolveBlinkSelection(page, result.blink, durationMs))
-    {
-        result.status = BlinkPatchResult::Status::Invalid;
-        return result;
-    }
-
-    result.blink.durationMs = durationMs;
-    return result;
-}
-
-template <typename PageLike>
-bool ResolveBlinkForReticle(const PageLike& page, ReticleGroup& reticle) noexcept
-{
-    std::uint32_t durationMs = reticle.blink.durationMs;
-    if (!TryResolveBlinkSelection(page, reticle.blink, durationMs))
-    {
-        reticle.blink = {};
-        return false;
-    }
-
-    reticle.blink.durationMs = durationMs;
-    return true;
 }
 
 bool IsBlinkVisible(const std::uint32_t durationMs,
@@ -1068,14 +1063,6 @@ bool IsBlinkVisible(const std::uint32_t durationMs,
     return phaseMs < visibleWindowMs;
 }
 
-template <typename PageLike>
-bool IsReticleVisibleNow(const PageLike& page,
-                         const ReticleGroup& reticle,
-                         const BlinkClock::time_point now) noexcept
-{
-    return reticle.visible &&
-           (!reticle.blink.enabled || IsBlinkVisible(reticle.blink.durationMs, page.blinkEpoch, now));
-}
 } // namespace
 
 SceneRegistry::SceneRegistry(MfdDocument document)
@@ -1177,8 +1164,7 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
             const entt::entity reticleEntity = registry_.create();
             registry_.emplace<ReticleComponent>(reticleEntity,
                                                ReticleComponent {page.staticReticles[index],
-                                                                 BuildStaticReticleDrawOrderKey(
-                                                                     storedPageComponent,
+                                                                 storedPageComponent.BuildStaticReticleDrawOrderKey(
                                                                      page.staticReticles[index],
                                                                      index)});
             registry_.emplace<PageMembership>(reticleEntity, PageMembership {page.normalizedName});
@@ -1591,7 +1577,7 @@ std::optional<StrobeSummary> SceneRegistry::StrobeForPageKey(const std::string_v
         strobePosition,
         behavior->capture,
         behavior->magnet,
-        IsReticleVisibleNow(*page, reticle->group, now)};
+        page->IsReticleVisibleNow(reticle->group, now)};
 }
 
 std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPage(const std::string_view pageName) const
@@ -1632,7 +1618,7 @@ std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const s
 
     const BlinkClock::time_point now = BlinkClock::now();
 
-    if (!IsReticleVisibleNow(*page, reticle->group, now) ||
+    if (!page->IsReticleVisibleNow(reticle->group, now) ||
         !behavior->magnet.enabled || behavior->magnet.radius <= 0.0f)
     {
         return summary;
@@ -1875,9 +1861,8 @@ void SceneRegistry::RestoreRuntimeSnapshot(const RuntimeSnapshot& snapshot)
         component->runtimeReticleId = reticleState.runtimeReticleId;
         component->sourceTemplateTransportId = reticleState.sourceTemplateTransportId;
         component->dynamicCreationSequence = reticleState.dynamicCreationSequence;
-        component->drawOrder = BuildDynamicReticleDrawOrderKey(*page,
-                                                               component->group,
-                                                               reticleState.dynamicCreationSequence);
+        component->drawOrder = page->BuildDynamicReticleDrawOrderKey(component->group,
+                                                                     reticleState.dynamicCreationSequence);
         RemoveReticleFromPageDrawList(reticleState.normalizedPageName, entity);
         InsertReticleIntoPageDrawList(reticleState.normalizedPageName, entity);
     }
@@ -1948,7 +1933,7 @@ std::vector<ReticleGroup> SceneRegistry::CollectPageReticlesByKey(const std::str
             continue;
         }
 
-        bool visible = IsReticleVisibleNow(*page, reticle->group, now);
+        bool visible = page->IsReticleVisibleNow(reticle->group, now);
         if (visible && registry_.all_of<DynamicTag>(entity))
         {
             visible = IsDynamicTemplateVisible(pageName, reticle->group.sourceTemplateId);
@@ -2002,7 +1987,7 @@ void SceneRegistry::CollectPageReticleViewsByKey(const std::string_view pageName
             continue;
         }
 
-        bool visible = IsReticleVisibleNow(*page, reticle->group, now);
+        bool visible = page->IsReticleVisibleNow(reticle->group, now);
         if (visible && registry_.all_of<DynamicTag>(entity))
         {
             visible = IsDynamicTemplateVisible(pageName, reticle->group.sourceTemplateId);
@@ -2474,7 +2459,7 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
         return false;
     }
 
-    const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
+    const BlinkPatchResult blinkResult = page->EvaluateBlinkPatch(reticle->group, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Invalid)
     {
         return false;
@@ -2550,7 +2535,7 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
         return false;
     }
 
-    const BlinkPatchResult blinkResult = EvaluateBlinkPatch(*page, reticle->group, patch);
+    const BlinkPatchResult blinkResult = page->EvaluateBlinkPatch(reticle->group, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Invalid)
     {
         return false;
@@ -2657,7 +2642,7 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindLockedStrobeMagnetTarg
     }
 
     const BlinkClock::time_point now = BlinkClock::now();
-    if (!IsReticleVisibleNow(*page, reticle->group, now) ||
+    if (!page->IsReticleVisibleNow(reticle->group, now) ||
         !IsDynamicTemplateVisible(normalizedPageName, reticle->group.sourceTemplateId) ||
         !IsDynamicTemplateStrobeMagnetEnabled(normalizedPageName, reticle->group.sourceTemplateId))
     {
@@ -2698,7 +2683,7 @@ const SceneRegistry::ReticleComponent* SceneRegistry::FindNearestStrobeMagnetTar
         }
 
         const auto& dynamicReticle = dynamicView.get<ReticleComponent>(entity);
-        if (!IsReticleVisibleNow(*page, dynamicReticle.group, now) ||
+        if (!page->IsReticleVisibleNow(dynamicReticle.group, now) ||
             !IsDynamicTemplateVisible(normalizedPageName, dynamicReticle.group.sourceTemplateId) ||
             !IsDynamicTemplateStrobeMagnetEnabled(normalizedPageName, dynamicReticle.group.sourceTemplateId))
         {
@@ -2940,7 +2925,7 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
     }
 
     const BlinkClock::time_point now = BlinkClock::now();
-    if (!IsReticleVisibleNow(*page, strobe->group, now))
+    if (!page->IsReticleVisibleNow(strobe->group, now))
     {
         return std::nullopt;
     }
@@ -2967,7 +2952,7 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
 
         const auto& reticleComponent = dynamicView.get<ReticleComponent>(entity);
         const auto& reticle = reticleComponent.group;
-        if (!IsReticleVisibleNow(*page, reticle, now) ||
+        if (!page->IsReticleVisibleNow(reticle, now) ||
             !IsDynamicTemplateVisible(pageName, reticle.sourceTemplateId))
         {
             continue;
@@ -3013,14 +2998,14 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
         return;
     }
 
-    const DynamicReticleLayerBinding* binding = ResolveDynamicBinding(*page, reticle.sourceTemplateId);
+    const DynamicReticleLayerBinding* binding = page->ResolveDynamicBinding(reticle.sourceTemplateId);
     if (binding == nullptr)
     {
         return;
     }
 
     reticle.layerId = binding->layerId;
-    ResolveBlinkForReticle(*page, reticle);
+    page->ResolveBlinkForReticle(reticle);
 
     const entt::entity existingEntity = FindReticleEntity(normalizedPageName, reticle.id);
     if (existingEntity != entt::null)
@@ -3029,7 +3014,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
         {
             if (auto* component = registry_.try_get<ReticleComponent>(existingEntity))
             {
-                component->drawOrder = BuildDynamicReticleDrawOrderKey(*page, reticle, component->dynamicCreationSequence);
+                component->drawOrder = page->BuildDynamicReticleDrawOrderKey(reticle, component->dynamicCreationSequence);
                 component->group = std::move(reticle);
                 RemoveReticleFromPageDrawList(normalizedPageName, existingEntity);
                 InsertReticleIntoPageDrawList(normalizedPageName, existingEntity);
@@ -3041,7 +3026,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
 
     const entt::entity entity = registry_.create();
     const std::uint64_t creationSequence = nextDynamicCreationSequence_++;
-    const ReticleDrawOrderKey drawOrder = BuildDynamicReticleDrawOrderKey(*page, reticle, creationSequence);
+    const ReticleDrawOrderKey drawOrder = page->BuildDynamicReticleDrawOrderKey(reticle, creationSequence);
     registry_.emplace<ReticleComponent>(entity,
                                         ReticleComponent {std::move(reticle), drawOrder, 0, 0, creationSequence});
     registry_.emplace<PageMembership>(entity, PageMembership {normalizedPageName});
@@ -3287,7 +3272,7 @@ const DynamicReticleLayerBinding* SceneRegistry::FindDynamicReticleLayerBinding(
     const std::string_view templateId) const noexcept
 {
     const PageComponent* page = FindPage(normalizedPageName);
-    return page == nullptr ? nullptr : ResolveDynamicBinding(*page, templateId);
+    return page == nullptr ? nullptr : page->ResolveDynamicBinding(templateId);
 }
 
 void SceneRegistry::InsertReticleIntoPageDrawList(const std::string_view normalizedPageName, const entt::entity entity)

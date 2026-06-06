@@ -117,11 +117,12 @@ private:
     void RecordObservedRuntimeState(const SceneRegistry& liveScene, const std::vector<CommandBatch>& drainedBatches);
     void SelectFirstReticleOnActivePage(const SceneRegistry& displayScene, std::string* statusOut);
     [[nodiscard]] const ReticleGroup* FindSelectedReticle(const SceneRegistry& displayScene) const;
-    template <typename Mutation>
+    template <typename Mutation, typename... Args>
     bool MutateSelectedReticleWithRollback(const SceneRegistry& liveScene,
                                            const SceneRegistry& displayScene,
                                            Mutation&& mutation,
-                                           const char* successMessage);
+                                           const char* successMessage,
+                                           Args&&... args);
     void DrawManualTestPanel(const SceneRegistry& liveScene, const SceneRegistry& displayScene);
     [[nodiscard]] bool UsesPreviewScene() const noexcept;
     [[nodiscard]] UdpRuntimeBridgeMetrics CollectTransportMetrics(const UdpRuntimeBridge* bridge,

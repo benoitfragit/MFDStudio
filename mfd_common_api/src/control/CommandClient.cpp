@@ -24,6 +24,7 @@
 #include "mfd/ipc/ExchangeChannel.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/PageName.h"
+#include "mfd/control/internal/CommandIdentifierHelpers.h"
 
 namespace mfd
 {
@@ -31,77 +32,6 @@ namespace
 {
 constexpr RuntimeDynamicId kGeneratedDynamicRuntimeIdBit = RuntimeDynamicId {1} << 63U;
 constexpr std::size_t kMaxDynamicReticlesPerSplit = 4096U;
-
-bool PatchUsesGeneratedIdentifiers(const ReticlePatch& patch) noexcept
-{
-    return patch.blinkTypeId.has_value() ||
-           !patch.textsById.empty() ||
-           !patch.letterSpacingsById.empty() ||
-           !patch.primitivePatchesById.empty();
-}
-
-bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
-{
-    return std::visit(
-        [](const auto& value) noexcept -> bool
-        {
-            using Command = std::decay_t<decltype(value)>;
-
-            if constexpr (std::is_same_v<Command, ActivatePageCommand> ||
-                          std::is_same_v<Command, SetPageViewCommand>)
-            {
-                return value.pageId != 0;
-            }
-            else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
-            {
-                return value.pageId != 0 || value.strobeId != 0;
-            }
-            else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
-            {
-                return value.target.pageId != 0 || value.target.reticleId != 0 ||
-                       PatchUsesGeneratedIdentifiers(value.patch);
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
-            {
-                return value.target.pageId != 0 || value.templateTransportId != 0 ||
-                       PatchUsesGeneratedIdentifiers(value.patch);
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
-            {
-                if (value.pageId != 0 || value.templateTransportId != 0)
-                {
-                    return true;
-                }
-
-                for (const DynamicReticleState& state : value.reticles)
-                {
-                    if (PatchUsesGeneratedIdentifiers(state.patch))
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
-            {
-                return value.pageId != 0 || value.templateTransportId != 0;
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
-            {
-                return value.pageId != 0 || value.templateTransportId != 0;
-            }
-            else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
-            {
-                return value.target.pageId != 0;
-            }
-            else
-            {
-                return false;
-            }
-        },
-        command);
-}
 
 std::uint64_t AppendFnv1aHash(std::uint64_t hash, const std::string_view value) noexcept
 {
@@ -983,7 +913,7 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
         normalizedBatch.commands.end(),
         [](const UserCommand& command)
         {
-            return CommandUsesGeneratedIdentifiers(command);
+            return detail::CommandUsesGeneratedIdentifiers(command);
         });
 
     if (usesGeneratedIdentifiers)

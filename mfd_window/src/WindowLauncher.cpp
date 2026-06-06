@@ -288,22 +288,33 @@ void* LoadFirstGlProcAddress(const std::initializer_list<const char*> names) noe
 
     return nullptr;
 }
+
+template <typename Proc>
+Proc LoadGlProc(const char* name) noexcept
+{
+    return reinterpret_cast<Proc>(LoadGlProcAddress(name));
+}
+
+template <typename Proc>
+Proc LoadFirstGlProc(const std::initializer_list<const char*> names) noexcept
+{
+    return reinterpret_cast<Proc>(LoadFirstGlProcAddress(names));
+}
 #endif
 
 PboReadbackApi::PboReadbackApi() noexcept
 {
 #if defined(_WIN32)
-    genBuffers_ = reinterpret_cast<GlGenBuffersProc>(LoadFirstGlProcAddress({"glGenBuffers", "glGenBuffersARB"}));
-    deleteBuffers_ =
-        reinterpret_cast<GlDeleteBuffersProc>(LoadFirstGlProcAddress({"glDeleteBuffers", "glDeleteBuffersARB"}));
-    bindBuffer_ = reinterpret_cast<GlBindBufferProc>(LoadFirstGlProcAddress({"glBindBuffer", "glBindBufferARB"}));
-    bufferData_ = reinterpret_cast<GlBufferDataProc>(LoadFirstGlProcAddress({"glBufferData", "glBufferDataARB"}));
-    readPixels_ = reinterpret_cast<GlReadPixelsProc>(LoadGlProcAddress("glReadPixels"));
-    mapBuffer_ = reinterpret_cast<GlMapBufferProc>(LoadFirstGlProcAddress({"glMapBuffer", "glMapBufferARB"}));
-    unmapBuffer_ = reinterpret_cast<GlUnmapBufferProc>(LoadFirstGlProcAddress({"glUnmapBuffer", "glUnmapBufferARB"}));
-    fenceSync_ = reinterpret_cast<GlFenceSyncProc>(LoadGlProcAddress("glFenceSync"));
-    clientWaitSync_ = reinterpret_cast<GlClientWaitSyncProc>(LoadGlProcAddress("glClientWaitSync"));
-    deleteSync_ = reinterpret_cast<GlDeleteSyncProc>(LoadGlProcAddress("glDeleteSync"));
+    genBuffers_ = LoadFirstGlProc<GlGenBuffersProc>({"glGenBuffers", "glGenBuffersARB"});
+    deleteBuffers_ = LoadFirstGlProc<GlDeleteBuffersProc>({"glDeleteBuffers", "glDeleteBuffersARB"});
+    bindBuffer_ = LoadFirstGlProc<GlBindBufferProc>({"glBindBuffer", "glBindBufferARB"});
+    bufferData_ = LoadFirstGlProc<GlBufferDataProc>({"glBufferData", "glBufferDataARB"});
+    readPixels_ = LoadGlProc<GlReadPixelsProc>("glReadPixels");
+    mapBuffer_ = LoadFirstGlProc<GlMapBufferProc>({"glMapBuffer", "glMapBufferARB"});
+    unmapBuffer_ = LoadFirstGlProc<GlUnmapBufferProc>({"glUnmapBuffer", "glUnmapBufferARB"});
+    fenceSync_ = LoadGlProc<GlFenceSyncProc>("glFenceSync");
+    clientWaitSync_ = LoadGlProc<GlClientWaitSyncProc>("glClientWaitSync");
+    deleteSync_ = LoadGlProc<GlDeleteSyncProc>("glDeleteSync");
 #endif
 }
 
