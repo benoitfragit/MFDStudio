@@ -226,6 +226,24 @@ void MergePrimitivePatch(PrimitivePatch& target, const PrimitivePatch& source)
     {
         target.endAngleDegrees = source.endAngleDegrees;
     }
+    if (source.timeValue.has_value())
+    {
+        target.timeValue = source.timeValue;
+        target.clearTimeValue = false;
+    }
+    if (source.clearTimeValue)
+    {
+        target.timeValue.reset();
+        target.clearTimeValue = true;
+    }
+    if (source.timeUtc.has_value())
+    {
+        target.timeUtc = source.timeUtc;
+    }
+    if (source.timeFields.has_value())
+    {
+        target.timeFields = source.timeFields;
+    }
 }
 
 void MergeReticlePatch(ReticlePatch& target, const ReticlePatch& source)

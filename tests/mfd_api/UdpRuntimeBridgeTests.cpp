@@ -188,6 +188,55 @@ mfd::UserCommand MakeReticlePositionCommand(const float x)
 }
 
 /**
+ * @brief Builds one reticle time-value update command for primitive-level coalescing tests.
+ */
+mfd::UserCommand MakeReticleTimeValueCommand()
+{
+    mfd::UpdateReticleCommand command;
+    command.target.pageId = 11U;
+    command.target.reticleId = 23U;
+    command.patch.primitivePatchesById[101U].timeValue = mfd::TimeValue {2026, 6, 13, 14, 30, 45};
+    return command;
+}
+
+/**
+ * @brief Builds one reticle UTC toggle update command for primitive-level coalescing tests.
+ */
+mfd::UserCommand MakeReticleTimeUtcCommand(const bool utc)
+{
+    mfd::UpdateReticleCommand command;
+    command.target.pageId = 11U;
+    command.target.reticleId = 23U;
+    command.patch.primitivePatchesById[101U].timeUtc = utc;
+    return command;
+}
+
+/**
+ * @brief Builds one reticle time-field visibility update command for primitive-level coalescing tests.
+ */
+mfd::UserCommand MakeReticleTimeFieldVisibilityCommand()
+{
+    mfd::UpdateReticleCommand command;
+    command.target.pageId = 11U;
+    command.target.reticleId = 23U;
+    command.patch.primitivePatchesById[101U].timeFields =
+        mfd::TimeFieldVisibility {true, true, false, true, true, false};
+    return command;
+}
+
+/**
+ * @brief Builds one reticle clear-time override command for primitive-level coalescing tests.
+ */
+mfd::UserCommand MakeReticleClearTimeValueCommand()
+{
+    mfd::UpdateReticleCommand command;
+    command.target.pageId = 11U;
+    command.target.reticleId = 23U;
+    command.patch.primitivePatchesById[101U].clearTimeValue = true;
+    return command;
+}
+
+/**
  * @brief Builds one window brightness update command for coalescing tests.
  */
 mfd::UserCommand MakeWindowBrightnessCommand(const float brightness)
@@ -509,6 +558,108 @@ TEST(UdpRuntimeBridgeTests, CoalescingMergesStatePatchFields)
     EXPECT_FLOAT_EQ(*command->patch.brightness, 0.35f);
     EXPECT_TRUE(*command->patch.disabled);
     EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 1U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingMergesPrimitiveTimePatchFields)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 34U;
+    batch.commands.push_back(MakeReticleTimeValueCommand());
+    batch.commands.push_back(MakeReticleTimeUtcCommand(true));
+    batch.commands.push_back(MakeReticleTimeFieldVisibilityCommand());
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+
+    const auto* command = std::get_if<mfd::UpdateReticleCommand>(&drained.front().commands.front());
+    ASSERT_NE(command, nullptr);
+    ASSERT_EQ(command->patch.primitivePatchesById.size(), 1U);
+
+    const mfd::PrimitivePatch& primitivePatch = command->patch.primitivePatchesById.at(101U);
+    ASSERT_TRUE(primitivePatch.timeValue.has_value());
+    EXPECT_EQ(primitivePatch.timeValue->year, 2026);
+    EXPECT_EQ(primitivePatch.timeValue->hour, 14);
+    ASSERT_TRUE(primitivePatch.timeUtc.has_value());
+    EXPECT_TRUE(*primitivePatch.timeUtc);
+    ASSERT_TRUE(primitivePatch.timeFields.has_value());
+    EXPECT_TRUE(primitivePatch.timeFields->year);
+    EXPECT_TRUE(primitivePatch.timeFields->minute);
+    EXPECT_FALSE(primitivePatch.timeFields->day);
+    EXPECT_FALSE(primitivePatch.clearTimeValue);
+    EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 2U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingLetsClearTimeOverrideReplaceEarlierTimeValue)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 35U;
+    batch.commands.push_back(MakeReticleTimeValueCommand());
+    batch.commands.push_back(MakeReticleTimeUtcCommand(true));
+    batch.commands.push_back(MakeReticleClearTimeValueCommand());
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+
+    const auto* command = std::get_if<mfd::UpdateReticleCommand>(&drained.front().commands.front());
+    ASSERT_NE(command, nullptr);
+    ASSERT_EQ(command->patch.primitivePatchesById.size(), 1U);
+
+    const mfd::PrimitivePatch& primitivePatch = command->patch.primitivePatchesById.at(101U);
+    EXPECT_FALSE(primitivePatch.timeValue.has_value());
+    EXPECT_TRUE(primitivePatch.clearTimeValue);
+    ASSERT_TRUE(primitivePatch.timeUtc.has_value());
+    EXPECT_TRUE(*primitivePatch.timeUtc);
+    EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 2U);
     bridge.Stop();
 }
 
