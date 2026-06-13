@@ -14,9 +14,21 @@
 
 #include <cmath>
 #include <cstdio>
+#include <map>
+#include <string>
 
 namespace editor::ui
 {
+namespace
+{
+/**
+ * @brief Optional caller-owned store used to persist inspector-section open states across sessions.
+ *
+ * @note Single injected pointer rather than a parameter on every section call: the editor sets it
+ * once at startup and clears it at shutdown, keeping the section helper call sites terse.
+ */
+std::map<std::string, bool>* g_inspectorSectionStateStore = nullptr;
+} // namespace
 void ApplyEditorTheme()
 {
     ImGuiStyle& style = ImGui::GetStyle();
@@ -110,6 +122,62 @@ void ShowItemTooltip(const char* text)
     ImGui::TextUnformatted(text);
     ImGui::PopTextWrapPos();
     ImGui::EndTooltip();
+}
+
+bool BeginInspectorSection(const char* strId, const char* label, const bool defaultOpen, const bool forceOpen)
+{
+    const std::string key(strId != nullptr ? strId : "");
+    const auto storedIterator =
+        g_inspectorSectionStateStore != nullptr ? g_inspectorSectionStateStore->find(key)
+                                                : std::map<std::string, bool>::iterator {};
+    const bool hasStoredState =
+        g_inspectorSectionStateStore != nullptr && storedIterator != g_inspectorSectionStateStore->end();
+
+    if (forceOpen)
+    {
+        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+    }
+    else if (hasStoredState)
+    {
+        // Seed the live ImGui state from the persisted preference the first time the section is shown.
+        ImGui::SetNextItemOpen(storedIterator->second, ImGuiCond_Once);
+    }
+    else if (defaultOpen)
+    {
+        ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+    }
+
+    // Push a stable id so the persistent open/closed state is keyed on the caller-provided id
+    // rather than the visible caption, which several inspectors reuse.
+    ImGui::PushID(strId);
+    const bool open = ImGui::CollapsingHeader(label != nullptr ? label : strId);
+    ImGui::PopID();
+
+    // Mirror live changes back into the store, but never while force-opened so the tutorial does not
+    // overwrite the user's real preference.
+    if (g_inspectorSectionStateStore != nullptr && !forceOpen)
+    {
+        (*g_inspectorSectionStateStore)[key] = open;
+    }
+
+    return open;
+}
+
+void SetInspectorSectionStateStore(std::map<std::string, bool>* const store) noexcept
+{
+    g_inspectorSectionStateStore = store;
+}
+
+void InspectorHelpMarker(const char* text)
+{
+    if (text == nullptr || text[0] == '\0')
+    {
+        return;
+    }
+
+    ImGui::SameLine();
+    ImGui::TextDisabled("(?)");
+    ShowItemTooltip(text);
 }
 
 std::string FormatViewportToolbarInfoLabel(const float zoom, const std::optional<mfd::Vec2>& mouseLogical)

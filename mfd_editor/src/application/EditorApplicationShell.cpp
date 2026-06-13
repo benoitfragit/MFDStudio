@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <string>
 
 #include "internal/application/EditorApplicationInternal.h"
 #include "EditorTutorialController.h"
@@ -34,6 +35,20 @@ constexpr float kMinReticleStudioWidth = 320.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
+
+void DrawRuntimeErrorBanner(const std::string& runtimeError)
+{
+    if (runtimeError.empty())
+    {
+        return;
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.55f, 0.55f, 1.0f));
+    ImGui::TextWrapped("Runtime error: %s", runtimeError.c_str());
+    ImGui::PopStyleColor();
+    ImGui::Separator();
+    ImGui::Spacing();
+}
 }
 
 void EditorApplication::DrawMenuBar()
@@ -512,36 +527,71 @@ bool EditorApplication::CanToggleFullscreenPagePreview() const
 
 void EditorApplication::DrawSidebar()
 {
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "MFD Editor");
-    ImGui::TextDisabled("Work directly in the page visualization.");
-    ImGui::Separator();
-
     if (!HasOpenWindow())
     {
+        ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "MFD Editor");
+        ImGui::TextDisabled("Work directly in the page visualization.");
+        ImGui::Separator();
         ImGui::TextWrapped("No authored window is open yet.");
         ImGui::Spacing();
         ImGui::TextDisabled("Use File > Open window asset... or File > New window from scratch.");
-
-        if (!workflowState_.lastRuntimeError.empty())
-        {
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "Runtime: %s", workflowState_.lastRuntimeError.c_str());
-        }
+        ImGui::Spacing();
+        DrawRuntimeErrorBanner(workflowState_.lastRuntimeError);
         return;
     }
 
-    DrawPageTree();
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-    DrawLibraryTree();
+    // Surface runtime failures at the top of the panel where they cannot be missed.
+    DrawRuntimeErrorBanner(workflowState_.lastRuntimeError);
 
-    if (!workflowState_.lastRuntimeError.empty())
+    const bool tutorialActive = tutorial_->IsCoachVisible();
+
+    // A filter keeps long page and library lists scannable. It is intentionally
+    // disabled and cleared during the guided tutorial so every halo target stays visible.
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::BeginDisabled(tutorialActive);
+    ImGui::InputTextWithHint(
+        "##SidebarFilter",
+        "Filter pages and reticles...",
+        layoutState_.sidebarFilter.data(),
+        layoutState_.sidebarFilter.size());
+    ImGui::EndDisabled();
+    ShowItemTooltip("Type to filter pages and reticle templates by name. Disabled while the tutorial is running.");
+    if (tutorialActive && layoutState_.sidebarFilter[0] != '\0')
     {
+        layoutState_.sidebarFilter[0] = '\0';
+    }
+    ImGui::Spacing();
+
+    if (tutorialActive)
+    {
+        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+    }
+    if (ImGui::CollapsingHeader("Pages", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        if (AccentButton("+ Add page"))
+        {
+            OpenNewPagePopup();
+        }
+        ShowItemTooltip("Create a new page and its backing JSON file.");
         ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "Runtime: %s", workflowState_.lastRuntimeError.c_str());
+        DrawPageTree();
+    }
+
+    ImGui::Spacing();
+
+    if (tutorialActive)
+    {
+        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+    }
+    if (ImGui::CollapsingHeader("Reticle library", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        if (AccentButton("+ New reticle"))
+        {
+            OpenNewLibraryReticlePopup();
+        }
+        ShowItemTooltip("Create a new library reticle seeded with one primitive.");
+        ImGui::Spacing();
+        DrawLibraryTree();
     }
 }
 
@@ -837,6 +887,35 @@ void EditorApplication::DrawInspector()
         ImGui::TextWrapped("Open one existing window asset or create a new window to edit pages, reticles and strobe settings.");
         return;
     }
+
+    const char* contextLabel = "Selection";
+    switch (documentState_.selection.kind)
+    {
+    case SelectionKind::Window:
+        contextLabel = "Window settings";
+        break;
+    case SelectionKind::Page:
+        contextLabel = "Page";
+        break;
+    case SelectionKind::PageReticle:
+        contextLabel = "Page > Reticle";
+        break;
+    case SelectionKind::PageTitle:
+        contextLabel = "Page > Title chrome";
+        break;
+    case SelectionKind::PageStrobe:
+        contextLabel = "Page > Strobe";
+        break;
+    case SelectionKind::LibraryReticle:
+        contextLabel = "Library > Reticle";
+        break;
+    case SelectionKind::LibraryPrimitive:
+        contextLabel = "Library > Reticle > Primitive";
+        break;
+    }
+    ImGui::TextColored(ImVec4(0.55f, 0.62f, 0.70f, 1.0f), "%s", contextLabel);
+    ImGui::Separator();
+    ImGui::Spacing();
 
     switch (documentState_.selection.kind)
     {

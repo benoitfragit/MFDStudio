@@ -13,6 +13,7 @@
 #include <array>
 #include <filesystem>
 #include <limits>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -408,6 +409,8 @@ struct LayoutState
     bool sidebarVisible = true;
     float inspectorWidth = 360.0f;
     bool inspectorVisible = true;
+    std::array<char, 96> sidebarFilter {};
+    std::map<std::string, bool> inspectorSectionOpen {};
     float libraryStudioPageWidth = 0.0f;
     bool libraryStudioShowPrimitiveLabels = true;
     bool libraryStudioShowGizmos = true;

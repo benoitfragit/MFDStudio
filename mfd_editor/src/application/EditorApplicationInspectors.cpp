@@ -27,6 +27,8 @@
 namespace
 {
 using editor::ui::AccentButton;
+using editor::ui::BeginInspectorSection;
+using editor::ui::InspectorHelpMarker;
 using editor::ui::ShowItemTooltip;
 using editor::detail::BootstrapEditorLayersForPage;
 using editor::detail::ClampFeedbackFastIntervalSeconds;
@@ -378,9 +380,10 @@ void EditorApplication::DrawWindowInspector()
     }
 
     ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Commands UDP");
+    const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
+    if (BeginInspectorSection("section_window_commands_udp", "Commands UDP", true, sectionForceOpen))
+    {
     bool hasCommandUdp = documentState_.loaded.window.commandTransports.udp.has_value();
     if (ImGui::Checkbox("Expose command UDP", &hasCommandUdp))
     {
@@ -446,10 +449,11 @@ void EditorApplication::DrawWindowInspector()
         }
     }
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Feedback UDP");
+    }
 
+    ImGui::Spacing();
+    if (BeginInspectorSection("section_window_feedback_udp", "Feedback UDP", true, sectionForceOpen))
+    {
     bool hasFeedbackUdp = documentState_.loaded.window.feedbackTransports.udp.has_value();
     if (ImGui::Checkbox("Expose feedback UDP", &hasFeedbackUdp))
     {
@@ -556,6 +560,7 @@ void EditorApplication::DrawWindowInspector()
         ImGui::TextDisabled("Fast: %.0f ms", documentState_.loaded.window.feedbackFastIntervalSeconds * 1000.0f);
         ImGui::TextDisabled("Heartbeat: %.0f ms", documentState_.loaded.window.feedbackHeartbeatIntervalSeconds * 1000.0f);
     }
+    }
 }
 
 
@@ -584,31 +589,37 @@ void EditorApplication::DrawPageInspector()
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page");
     ImGui::TextDisabled("Edit the page and work directly in the preview.");
 
-    if (ImGui::Button("Remove page from window"))
-    {
-        OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, documentState_.selection.pageIndex);
-        return;
-    }
-    ShowItemTooltip("Remove the currently selected page from this window while keeping its authored JSON file.");
+    const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
-    ImGui::SameLine();
-    if (ImGui::Button("Delete page asset..."))
+    if (ImGui::Button("Page actions..."))
     {
-        OpenPageManagementPopup(PageManagementAction::DeleteAsset, documentState_.selection.pageIndex);
-        return;
+        ImGui::OpenPopup("PageActionsMenu");
     }
-    ShowItemTooltip("Remove the page from this window and mark its JSON file for deletion on the next save.");
+    ShowItemTooltip("Remove, delete or rename this page asset.");
+    InspectorHelpMarker("Del opens the delete confirmation. Ctrl+V pastes copied reticles.");
 
-    ImGui::SameLine();
-    if (ImGui::Button("Rename page globally..."))
+    if (ImGui::BeginPopup("PageActionsMenu"))
     {
-        OpenPageRenamePopup(documentState_.selection.pageIndex);
-        return;
+        if (ImGui::MenuItem("Remove page from window"))
+        {
+            OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, documentState_.selection.pageIndex);
+            ImGui::EndPopup();
+            return;
+        }
+        if (ImGui::MenuItem("Delete page asset..."))
+        {
+            OpenPageManagementPopup(PageManagementAction::DeleteAsset, documentState_.selection.pageIndex);
+            ImGui::EndPopup();
+            return;
+        }
+        if (ImGui::MenuItem("Rename page globally..."))
+        {
+            OpenPageRenamePopup(documentState_.selection.pageIndex);
+            ImGui::EndPopup();
+            return;
+        }
+        ImGui::EndPopup();
     }
-    ShowItemTooltip("Rename this page asset safely across the current asset tree and update every referenced window defaultPage.");
-
-    ImGui::SameLine();
-    ImGui::TextDisabled("Shortcut: Suppr opens the delete confirmation");
 
     const bool canPasteReticles = !clipboardState_.pageReticleClipboard.empty();
     ImGui::BeginDisabled(!canPasteReticles);
@@ -722,10 +733,22 @@ void EditorApplication::DrawPageInspector()
 
     ImGui::TextDisabled("If no page is marked default, the runtime opens the first page in the window JSON.");
 
-    DrawPageBlinkInspector(*page);
-    DrawPageLayerInspector(*page);
-    DrawPageDynamicTemplateInspector(*page);
-    DrawPageStrobeInspector(*page);
+    if (BeginInspectorSection("section_page_blink", "Blink types", false, sectionForceOpen))
+    {
+        DrawPageBlinkInspector(*page);
+    }
+    if (BeginInspectorSection("section_page_layers", "Editor layers", false, sectionForceOpen))
+    {
+        DrawPageLayerInspector(*page);
+    }
+    if (BeginInspectorSection("section_page_dynamic", "Dynamic reticles", false, sectionForceOpen))
+    {
+        DrawPageDynamicTemplateInspector(*page);
+    }
+    if (BeginInspectorSection("section_page_strobe", "Strobe", false, sectionForceOpen))
+    {
+        DrawPageStrobeInspector(*page);
+    }
 
     ImGui::Spacing();
     ImGui::TextDisabled("Static reticles: %d", static_cast<int>(page->staticReticles.size()));
@@ -1941,31 +1964,31 @@ void EditorApplication::DrawPageReticleInspector()
         ImGui::TextDisabled("Ctrl+click in the page or in the tree to add or remove reticles from the selection.");
         ImGui::Separator();
 
-        if (AccentButton("Copy selection"))
+        // Full-width stacked actions so the labels never overflow the inspector panel.
+        const ImVec2 actionSize(-1.0f, 0.0f);
+
+        if (ImGui::Button("Copy selection", actionSize))
         {
             CopySelectedPageReticles();
         }
         ShowItemTooltip("Copy all selected page reticle instances.");
 
-        ImGui::SameLine();
-        if (ImGui::Button("Cut selection"))
+        if (ImGui::Button("Cut selection", actionSize))
         {
             CutSelectedPageReticles();
             return;
         }
         ShowItemTooltip("Copy all selected page reticle instances, then remove them from the page.");
 
-        ImGui::SameLine();
-        if (ImGui::Button("Delete from page"))
+        if (ImGui::Button("Delete from page", actionSize))
         {
             DeleteSelection();
             return;
         }
         ShowItemTooltip("Delete all selected reticles from the active page.");
 
-        ImGui::SameLine();
         ImGui::BeginDisabled(clipboardState_.pageReticleClipboard.empty());
-        if (ImGui::Button("Paste copies"))
+        if (ImGui::Button("Paste copies", actionSize))
         {
             PasteCopiedPageReticles();
             ImGui::EndDisabled();
@@ -1974,25 +1997,27 @@ void EditorApplication::DrawPageReticleInspector()
         ShowItemTooltip("Paste copied page reticles onto the active page.");
         ImGui::EndDisabled();
 
-    ImGui::SameLine();
-    if (ImGui::Button("Extract as reticle..."))
-    {
-        if (tutorial_->MatchesTarget("page_reticle_extract"))
+        if (ImGui::Button("Extract as reticle...", actionSize))
         {
-            tutorial_->AdvancePhase();
+            if (tutorial_->MatchesTarget("page_reticle_extract"))
+            {
+                tutorial_->AdvancePhase();
+            }
+            OpenReticleExtractionPopup();
+            return;
         }
-        OpenReticleExtractionPopup();
-        return;
-    }
-    ShowItemTooltip("Replace the current selection with one reusable reticle template staged in the shared library.");
-    tutorial_->DrawHalo(
-        "page_reticle_extract",
-        "Click Extract as reticle...",
-        "Open the extraction workflow to review how page content can become one reusable library template.");
+        ShowItemTooltip("Replace the current selection with one reusable reticle template staged in the shared library.");
+        tutorial_->DrawHalo(
+            "page_reticle_extract",
+            "Click Extract as reticle...",
+            "Open the extraction workflow to review how page content can become one reusable library template.");
 
-        ImGui::TextDisabled("Shortcuts: Ctrl+C, Ctrl+X, Ctrl+V, Suppr, Esc");
-        ImGui::TextDisabled("Drag one selected reticle in the preview to move the whole group.");
-        ImGui::TextDisabled("Direct property editing stays available when a single reticle is selected.");
+        ImGui::Spacing();
+        ImGui::TextDisabled("Tips (?)");
+        ShowItemTooltip(
+            "Shortcuts: Ctrl+C / Ctrl+X / Ctrl+V / Del / Esc.\n"
+            "Drag one selected reticle in the preview to move the whole group.\n"
+            "Direct property editing stays available when a single reticle is selected.");
         return;
     }
 
@@ -2037,39 +2062,16 @@ void EditorApplication::DrawPageReticleInspector()
 
     const int reticleIndex = documentState_.selection.pageReticleIndex;
     const int lastReticleIndex = static_cast<int>(page->staticReticles.size()) - 1;
+    const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
+    // Primary actions stay visible; secondary clipboard/template actions move into an overflow menu
+    // so the top of the inspector stays compact.
     if (ImGui::Button("Delete from page"))
     {
         DeleteSelection();
         return;
     }
     ShowItemTooltip("Delete this reticle instance from the active page.");
-
-    ImGui::SameLine();
-    if (AccentButton("Copy"))
-    {
-        CopySelectedPageReticles();
-    }
-    ShowItemTooltip("Copy this page reticle instance.");
-
-    ImGui::SameLine();
-    if (ImGui::Button("Cut"))
-    {
-        CutSelectedPageReticles();
-        return;
-    }
-    ShowItemTooltip("Copy this page reticle instance, then remove it from the page.");
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(clipboardState_.pageReticleClipboard.empty());
-    if (ImGui::Button("Paste copies"))
-    {
-        PasteCopiedPageReticles();
-        ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Paste copied page reticles onto the active page.");
-    ImGui::EndDisabled();
 
     ImGui::SameLine();
     if (ImGui::Button("Extract as reticle..."))
@@ -2087,108 +2089,133 @@ void EditorApplication::DrawPageReticleInspector()
         "Click Extract as reticle...",
         "Open the extraction workflow to review how one page reticle can be promoted into the shared library.");
 
-    if (!reticle->sourceTemplateId.empty() &&
-        documentState_.loaded.document.reticleLibrary.find(reticle->sourceTemplateId) != documentState_.loaded.document.reticleLibrary.end() &&
-        ImGui::Button("Edit source template"))
+    ImGui::SameLine();
+    if (ImGui::Button("More..."))
     {
-        SelectLibraryReticle(reticle->sourceTemplateId);
-        RebuildStatus("Editing template '" + reticle->sourceTemplateId + "' in the reticle studio.", false);
-        return;
+        ImGui::OpenPopup("PageReticleActionsMenu");
     }
-    if (!reticle->sourceTemplateId.empty() && documentState_.loaded.document.reticleLibrary.find(reticle->sourceTemplateId) != documentState_.loaded.document.reticleLibrary.end())
-    {
-        ShowItemTooltip("Open the shared template that this page reticle instance was created from.");
-    }
+    ShowItemTooltip("Copy, cut, paste or jump to the source template of this page reticle.");
 
-    if (!reticle->sourceTemplateId.empty() && documentState_.loaded.document.reticleLibrary.find(reticle->sourceTemplateId) != documentState_.loaded.document.reticleLibrary.end())
-    {
-        ImGui::SameLine();
-    }
+    const bool hasSourceTemplate =
+        !reticle->sourceTemplateId.empty() &&
+        documentState_.loaded.document.reticleLibrary.find(reticle->sourceTemplateId) !=
+            documentState_.loaded.document.reticleLibrary.end();
 
-    ImGui::TextDisabled("Shortcut: Suppr");
-    ImGui::TextDisabled("Cut / copy / paste: Ctrl+X / Ctrl+C / Ctrl+V");
-    ImGui::TextDisabled("Esc clears the current page-reticle selection.");
-    ImGui::TextDisabled("Draw order: %d / %d", reticleIndex + 1, std::max(1, static_cast<int>(page->staticReticles.size())));
-
-    const std::string currentLayerLabel = reticle->layerId.empty() ? std::string {"<missing>"} : reticle->layerId;
-    if (ImGui::BeginCombo("Editor layer", currentLayerLabel.c_str()))
+    if (ImGui::BeginPopup("PageReticleActionsMenu"))
     {
-        for (const auto& layer : page->editor.layers)
+        if (ImGui::MenuItem("Copy"))
         {
-            const bool selected = reticle->layerId == layer.id;
-            const std::string label = layer.id + (layer.visible ? "" : " (hidden)");
-            if (ImGui::Selectable(label.c_str(), selected))
-            {
-                PushUndoSnapshot();
-                reticle->layerId = layer.id;
-            }
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
+            CopySelectedPageReticles();
         }
-
-        ImGui::EndCombo();
+        if (ImGui::MenuItem("Cut"))
+        {
+            CutSelectedPageReticles();
+            ImGui::EndPopup();
+            return;
+        }
+        if (ImGui::MenuItem("Paste copies", nullptr, false, !clipboardState_.pageReticleClipboard.empty()))
+        {
+            PasteCopiedPageReticles();
+            ImGui::EndPopup();
+            return;
+        }
+        if (ImGui::MenuItem("Edit source template", nullptr, false, hasSourceTemplate))
+        {
+            SelectLibraryReticle(reticle->sourceTemplateId);
+            RebuildStatus("Editing template '" + reticle->sourceTemplateId + "' in the reticle studio.", false);
+            ImGui::EndPopup();
+            return;
+        }
+        ImGui::EndPopup();
     }
-    ShowItemTooltip("Assign this page reticle to an editor-only layer.");
-    ImGui::SameLine();
-    if (ImGui::Button("Page layers..."))
-    {
-        SelectPage(documentState_.selection.pageIndex);
-        RebuildStatus("Layer editor opened for page '" + page->name + "'.", false);
-        return;
-    }
-    ShowItemTooltip("Open the page inspector to edit the available editor-only layers.");
-    ImGui::TextDisabled("Hidden layers stay editable in the inspector but are not rendered in the editor preview.");
+    InspectorHelpMarker(
+        "Shortcuts: Del removes the reticle, Ctrl+X / Ctrl+C / Ctrl+V cut/copy/paste, Esc clears the selection.");
 
-    const bool canMoveBackward = reticleIndex > 0;
-    const bool canMoveForward = reticleIndex >= 0 && reticleIndex < lastReticleIndex;
-
-    ImGui::BeginDisabled(!canMoveBackward);
-    if (ImGui::Button("Send to back", ImVec2(130.0f, 0.0f)))
+    if (BeginInspectorSection("section_page_reticle_placement", "Placement & draw order", true, sectionForceOpen))
     {
-        MoveSelectedPageReticleToIndex(*page, *reticle, 0, "to the back");
+        ImGui::TextDisabled("Draw order: %d / %d", reticleIndex + 1, std::max(1, static_cast<int>(page->staticReticles.size())));
+
+        const std::string currentLayerLabel = reticle->layerId.empty() ? std::string {"<missing>"} : reticle->layerId;
+        if (ImGui::BeginCombo("Editor layer", currentLayerLabel.c_str()))
+        {
+            for (const auto& layer : page->editor.layers)
+            {
+                const bool selected = reticle->layerId == layer.id;
+                const std::string label = layer.id + (layer.visible ? "" : " (hidden)");
+                if (ImGui::Selectable(label.c_str(), selected))
+                {
+                    PushUndoSnapshot();
+                    reticle->layerId = layer.id;
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Assign this page reticle to an editor-only layer.");
+        ImGui::SameLine();
+        if (ImGui::Button("Page layers..."))
+        {
+            SelectPage(documentState_.selection.pageIndex);
+            RebuildStatus("Layer editor opened for page '" + page->name + "'.", false);
+            return;
+        }
+        ShowItemTooltip("Open the page inspector to edit the available editor-only layers.");
+        InspectorHelpMarker("Hidden layers stay editable in the inspector but are not rendered in the editor preview.");
+
+        const bool canMoveBackward = reticleIndex > 0;
+        const bool canMoveForward = reticleIndex >= 0 && reticleIndex < lastReticleIndex;
+
+        ImGui::BeginDisabled(!canMoveBackward);
+        if (ImGui::Button("<<##reticle_send_to_back"))
+        {
+            MoveSelectedPageReticleToIndex(*page, *reticle, 0, "to the back");
+            ImGui::EndDisabled();
+            return;
+        }
+        ShowItemTooltip("Send to back (first draw-order slot).");
         ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Move this reticle to the first draw-order slot on the page.");
-    ImGui::EndDisabled();
 
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!canMoveBackward);
-    if (ImGui::Button("Step back", ImVec2(110.0f, 0.0f)))
-    {
-        MoveSelectedPageReticleToIndex(*page, *reticle, reticleIndex - 1, "backward");
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!canMoveBackward);
+        if (ImGui::Button("<##reticle_step_back"))
+        {
+            MoveSelectedPageReticleToIndex(*page, *reticle, reticleIndex - 1, "backward");
+            ImGui::EndDisabled();
+            return;
+        }
+        ShowItemTooltip("Step one slot earlier in the draw order.");
         ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Move this reticle one step earlier in the page draw order.");
-    ImGui::EndDisabled();
 
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!canMoveForward);
-    if (ImGui::Button("Step forward", ImVec2(130.0f, 0.0f)))
-    {
-        MoveSelectedPageReticleToIndex(*page, *reticle, reticleIndex + 1, "forward");
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!canMoveForward);
+        if (ImGui::Button(">##reticle_step_forward"))
+        {
+            MoveSelectedPageReticleToIndex(*page, *reticle, reticleIndex + 1, "forward");
+            ImGui::EndDisabled();
+            return;
+        }
+        ShowItemTooltip("Step one slot later in the draw order.");
         ImGui::EndDisabled();
-        return;
-    }
-    ShowItemTooltip("Move this reticle one step later in the page draw order.");
-    ImGui::EndDisabled();
 
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!canMoveForward);
-    if (ImGui::Button("Bring to front", ImVec2(130.0f, 0.0f)))
-    {
-        MoveSelectedPageReticleToIndex(*page, *reticle, lastReticleIndex, "to the front");
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!canMoveForward);
+        if (ImGui::Button(">>##reticle_bring_to_front"))
+        {
+            MoveSelectedPageReticleToIndex(*page, *reticle, lastReticleIndex, "to the front");
+            ImGui::EndDisabled();
+            return;
+        }
+        ShowItemTooltip("Bring to front (last draw-order slot).");
         ImGui::EndDisabled();
-        return;
+        ImGui::SameLine();
+        ImGui::TextDisabled("Order");
     }
-    ShowItemTooltip("Move this reticle to the last draw-order slot on the page.");
-    ImGui::EndDisabled();
 
-    ImGui::Separator();
-
+    if (BeginInspectorSection("section_page_reticle_display", "Display & blink", true, sectionForceOpen))
     {
         bool visible = reticle->visible;
         if (ImGui::Checkbox("Visible", &visible))
@@ -2197,9 +2224,7 @@ void EditorApplication::DrawPageReticleInspector()
             reticle->visible = visible;
         }
         ShowItemTooltip("Toggle whether this page reticle instance is rendered.");
-    }
 
-    {
         bool drawOnTop = reticle->drawOnTop;
         if (ImGui::Checkbox("Draw on top", &drawOnTop))
         {
@@ -2207,12 +2232,12 @@ void EditorApplication::DrawPageReticleInspector()
             reticle->drawOnTop = drawOnTop;
         }
         ShowItemTooltip("Render this page reticle after regular page reticles while keeping the strobe on top.");
+
+        DrawPageReticleBlinkInspector(*page, *reticle);
     }
 
-    DrawPageReticleBlinkInspector(*page, *reticle);
-
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Clipping");
+    if (BeginInspectorSection("section_page_reticle_clipping", "Clipping", false, sectionForceOpen))
+    {
     const std::vector<ClipPrimitiveOption> clipOptions = CollectClipPrimitiveOptions(*reticle);
     if (clipOptions.empty())
     {
@@ -2287,7 +2312,10 @@ void EditorApplication::DrawPageReticleInspector()
 
         ImGui::TextDisabled("The selected primitive erases toward the page background when this reticle is drawn.");
     }
+    }
 
+    if (BeginInspectorSection("section_page_reticle_transform", "Transform & style", true, sectionForceOpen))
+    {
     const bool positionChanged = ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f");
     ShowItemTooltip("Logical position of this page reticle on the active page.");
     if (ImGui::IsItemActivated())
@@ -2353,7 +2381,10 @@ void EditorApplication::DrawPageReticleInspector()
         reticle->overrides.thickness = std::max(0.0005f, thickness);
     }
     ShowItemTooltip("Override the template stroke thickness for this page reticle instance.");
+    }
 
+    if (BeginInspectorSection("section_page_reticle_text", "Text & time overrides", true, sectionForceOpen))
+    {
     for (auto& primitive : reticle->primitives)
     {
         auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry);
@@ -2477,6 +2508,7 @@ void EditorApplication::DrawPageReticleInspector()
             }
         }
     }
+    }
 
 }
 
@@ -2497,11 +2529,14 @@ void EditorApplication::DrawSelectedPageTitleInspector()
 
     const std::string displayedTitle = mfd::ResolvePageDisplayTitleText(page->name, page->title);
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page title");
+    InspectorHelpMarker(
+        "Move inside the frame, rotate with the blue handle, scale with the corner handles.\n"
+        "Edit the title text from the page inspector.");
     ImGui::Text("Page: %s", page->name.c_str());
     ImGui::TextWrapped("Displayed text: %s", displayedTitle.c_str());
-    ImGui::TextDisabled("Move inside the frame, rotate with the blue handle, scale with the corner handles.");
-    ImGui::TextDisabled("Edit the title text from the page inspector.");
     ImGui::Separator();
+
+    const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
     bool visible = titleDisplay->visible;
     if (ImGui::Checkbox("Visible", &visible))
@@ -2518,6 +2553,8 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     }
     ShowItemTooltip("Return to the page inspector to edit the page name and title text.");
 
+    if (BeginInspectorSection("section_title_appearance", "Decoration & color", true, sectionForceOpen))
+    {
     const char* currentDecoration = PageTitleDecorationLabel(titleDisplay->decoration);
     const bool decorationComboOpen = ImGui::BeginCombo("Decoration", currentDecoration);
     if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("page_title_decoration"))
@@ -2621,7 +2658,10 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     }
     ShowItemTooltip("Stroke thickness used by the underline or the frame.");
     ImGui::EndDisabled();
+    }
 
+    if (BeginInspectorSection("section_title_transform", "Transform", true, sectionForceOpen))
+    {
     const bool positionChanged =
         ImGui::DragFloat2("Position", &titleDisplay->transform.position.x, 0.01f, -4.0f, 4.0f, "%.3f");
     ShowItemTooltip("Logical page-space anchor of the title chrome.");
@@ -2672,6 +2712,7 @@ void EditorApplication::DrawSelectedPageTitleInspector()
             titleDisplay->transform.scale);
     }
     ShowItemTooltip("Per-axis scale applied to the generated title chrome.");
+    }
 }
 
 void EditorApplication::ApplySelectedPageStrobeClipping(mfd::ReticleGroup& reticle,
@@ -2722,8 +2763,12 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
     {
         ImGui::TextDisabled("Template: %s", reticle->sourceTemplateId.c_str());
     }
-    ImGui::TextDisabled("Move inside the frame, rotate with the blue handle, scale with the corner handles.");
+    InspectorHelpMarker(
+        "Move inside the frame, rotate with the blue handle, scale with the corner handles.\n"
+        "Del removes the page strobe, Esc clears the selection. The strobe renders after regular page reticles.");
     ImGui::Separator();
+
+    const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
     if (!reticle->sourceTemplateId.empty() &&
         documentState_.loaded.document.reticleLibrary.find(reticle->sourceTemplateId) != documentState_.loaded.document.reticleLibrary.end() &&
@@ -2740,10 +2785,7 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
         ImGui::SameLine();
     }
 
-    ImGui::TextDisabled("Shortcut: Suppr removes the page strobe.");
-    ImGui::TextDisabled("Esc clears the current page-strobe selection.");
-    ImGui::TextDisabled("The page strobe renders after regular page reticles.");
-
+    if (BeginInspectorSection("section_strobe_display", "Display & blink", true, sectionForceOpen))
     {
         bool visible = reticle->visible;
         if (ImGui::Checkbox("Visible", &visible))
@@ -2752,12 +2794,12 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
             reticle->visible = visible;
         }
         ShowItemTooltip("Toggle whether this page strobe instance is rendered.");
+
+        DrawPageReticleBlinkInspector(*page, *reticle);
     }
 
-    DrawPageReticleBlinkInspector(*page, *reticle);
-
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Clipping");
+    if (BeginInspectorSection("section_strobe_clipping", "Clipping", false, sectionForceOpen))
+    {
     const std::vector<ClipPrimitiveOption> clipOptions = CollectClipPrimitiveOptions(*reticle);
 
     if (clipOptions.empty())
@@ -2833,7 +2875,10 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
 
         ImGui::TextDisabled("The selected primitive erases toward the page background when this strobe is drawn.");
     }
+    }
 
+    if (BeginInspectorSection("section_strobe_transform", "Transform & style", true, sectionForceOpen))
+    {
     const bool positionChanged = ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f");
     ShowItemTooltip("Logical position of this page strobe on the active page.");
     if (ImGui::IsItemActivated())
@@ -2899,7 +2944,10 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
         reticle->overrides.thickness = std::max(0.0005f, thickness);
     }
     ShowItemTooltip("Override the template stroke thickness for this page strobe instance.");
+    }
 
+    if (BeginInspectorSection("section_strobe_text", "Text & time overrides", true, sectionForceOpen))
+    {
     int unnamedTextPrimitiveIndex = 0;
     int unnamedTimePrimitiveIndex = 0;
     for (int primitiveIndex = 0; primitiveIndex < static_cast<int>(reticle->primitives.size()); ++primitiveIndex)
@@ -3045,8 +3093,12 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
             }
         }
     }
+    }
 
-    DrawPageStrobeInspector(*page);
+    if (BeginInspectorSection("section_strobe_behaviour", "Strobe behaviour", true, sectionForceOpen))
+    {
+        DrawPageStrobeInspector(*page);
+    }
 }
 
 void EditorApplication::DrawPageReticleBlinkInspector(mfd::PageDefinition& page, mfd::ReticleGroup& reticle)
@@ -3147,13 +3199,14 @@ void EditorApplication::DrawLibraryReticleInspector()
     {
         ImGui::TextDisabled("File: %s", fileIt->second.filename().string().c_str());
     }
-    ImGui::TextDisabled("Drag this reticle from the library tree to the page preview, or edit it directly in the reticle studio.");
+    InspectorHelpMarker(
+        "Drag this reticle from the library tree to the page preview, or edit it directly in the reticle studio.\n"
+        "Ctrl+C / Ctrl+V copies and pastes the template while it stays focused.");
+
+    const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
     const bool canAddToPage = ActivePage() != nullptr;
-    if (!canAddToPage)
-    {
-        ImGui::BeginDisabled();
-    }
+    ImGui::BeginDisabled(!canAddToPage);
     if (AccentButton("Add to active page"))
     {
         const bool tutorialAddMatched = tutorial_->MatchesTarget("library_add_to_page");
@@ -3163,6 +3216,7 @@ void EditorApplication::DrawLibraryReticleInspector()
         if (tutorialAddMatched && !tutorial_->ValidateAddToPage(page, *reticle, tutorialError))
         {
             RebuildStatus(tutorialError, true);
+            ImGui::EndDisabled();
             return;
         }
         if (CreatePageReticleInstanceFromTemplate(reticle->id, dropPosition) && tutorialAddMatched)
@@ -3174,54 +3228,49 @@ void EditorApplication::DrawLibraryReticleInspector()
             tutorial_->CompleteStep();
         }
     }
+    ImGui::EndDisabled();
     ShowItemTooltip("Instantiate this template on the active page at the current editor camera center.");
     tutorial_->DrawHalo(
         "library_add_to_page",
         "Click Add to active page",
         tutorial_->LibraryAddToPageHaloReason());
-    if (!canAddToPage)
-    {
-        ImGui::EndDisabled();
-    }
 
     ImGui::SameLine();
-    if (AccentButton("Copy"))
+    if (ImGui::Button("More..."))
     {
-        CopySelectedLibraryReticle();
+        ImGui::OpenPopup("LibraryReticleActionsMenu");
     }
-    ShowItemTooltip("Copy this shared reticle template.");
+    ShowItemTooltip("Copy, paste, rename or delete this shared reticle template.");
 
-    ImGui::SameLine();
-    ImGui::BeginDisabled(!clipboardState_.libraryReticleClipboard.has_value());
-    if (ImGui::Button("Paste copy"))
+    if (ImGui::BeginPopup("LibraryReticleActionsMenu"))
     {
-        PasteCopiedLibraryReticle();
-        ImGui::EndDisabled();
-        return;
+        if (ImGui::MenuItem("Copy"))
+        {
+            CopySelectedLibraryReticle();
+        }
+        if (ImGui::MenuItem("Paste copy", nullptr, false, clipboardState_.libraryReticleClipboard.has_value()))
+        {
+            PasteCopiedLibraryReticle();
+            ImGui::EndPopup();
+            return;
+        }
+        if (ImGui::MenuItem("Rename globally..."))
+        {
+            OpenReticleRenamePopup(reticle->id);
+            ImGui::EndPopup();
+            return;
+        }
+        if (ImGui::MenuItem("Delete library reticle"))
+        {
+            DeleteSelectedLibraryReticle();
+            ImGui::EndPopup();
+            return;
+        }
+        ImGui::EndPopup();
     }
-    ShowItemTooltip("Paste the copied shared reticle template as one new library entry.");
-    ImGui::EndDisabled();
 
-    ImGui::SameLine();
-    if (ImGui::Button("Rename reticle globally..."))
+    if (BeginInspectorSection("section_library_reticle_defaults", "Default appearance", true, sectionForceOpen))
     {
-        OpenReticleRenamePopup(reticle->id);
-        return;
-    }
-    ShowItemTooltip("Rename this shared reticle template safely across the current asset tree and every page that references it.");
-
-    ImGui::SameLine();
-    if (ImGui::Button("Delete library reticle"))
-    {
-        DeleteSelectedLibraryReticle();
-        return;
-    }
-    ShowItemTooltip("Delete this shared reticle template from the library.");
-
-    ImGui::TextDisabled("Template shortcuts: Ctrl+C / Ctrl+V while the reticle stays focused.");
-
-    ImGui::Separator();
-
     {
         bool visible = reticle->visible;
         if (ImGui::Checkbox("Visible", &visible))
@@ -3320,9 +3369,11 @@ void EditorApplication::DrawLibraryReticleInspector()
         ShowItemTooltip("Default filled state inherited by fill-capable primitives unless they override it locally.");
     }
 
-    ImGui::Separator();
-    ImGui::TextDisabled("Primitives");
-    ImGui::TextDisabled("Click a primitive below or directly in the studio preview to focus and edit it.");
+    }
+
+    if (BeginInspectorSection("section_library_reticle_primitives", "Primitives", true, sectionForceOpen))
+    {
+    InspectorHelpMarker("Click a primitive below or directly in the studio preview to focus and edit it.");
 
     ImGui::BeginChild("PrimitiveCatalog", ImVec2(0.0f, 210.0f), true);
     for (int index = 0; index < static_cast<int>(reticle->primitives.size()); ++index)
@@ -3433,7 +3484,7 @@ void EditorApplication::DrawLibraryReticleInspector()
         }
     }
     ShowItemTooltip("Delete the currently selected primitive from this reticle.");
-
+    }
 }
 
 void EditorApplication::EditPointArrayField(const char* const label, mfd::Vec2& value)
@@ -3463,8 +3514,9 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     const bool tutorialAlternativeStrobeLabelSelected =
         tutorial_->IsAlternativeStrobeLabelSelection(documentState_.selection.libraryReticleId, primitive->id);
 
+    const bool sectionForceOpen = tutorial_->IsCoachVisible();
+
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Primitive");
-    ImGui::TextDisabled("Green handle moves the primitive. Orange handles edit geometry directly in the studio.");
     if (AccentButton("Copy primitive"))
     {
         CopySelectedLibraryPrimitive();
@@ -3481,7 +3533,9 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     }
     ShowItemTooltip("Paste the copied primitive into the current reticle template.");
     ImGui::EndDisabled();
-    ImGui::TextDisabled("Shortcut: Ctrl+C / Ctrl+V");
+    InspectorHelpMarker(
+        "Ctrl+C / Ctrl+V copies and pastes this primitive.\n"
+        "In the studio: the green handle moves the primitive, the orange handles edit its geometry.");
 
     std::array<char, 128> primitiveId {};
     CopyTextBuffer(primitiveId, primitive->id);
@@ -3497,6 +3551,9 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     }
 
     ImGui::TextDisabled("Type: %s", PrimitiveTypeLabel(primitive->type).c_str());
+
+    if (BeginInspectorSection("section_primitive_behaviour", "Visibility & generated API", true, sectionForceOpen))
+    {
     {
         bool visible = primitive->style.visible;
         if (ImGui::Checkbox("Visible", &visible))
@@ -3582,7 +3639,10 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
                 "Keep the aircraft label size stable even when the alternative Page1 strobe scales.");
         }
     }
+    }
 
+    if (BeginInspectorSection("section_primitive_transform", "Transform", true, sectionForceOpen))
+    {
     if (ImGui::DragFloat2("Position", &primitive->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f"))
     {
         if (ImGui::IsItemActivated())
@@ -3611,7 +3671,10 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         primitive->transform.scale.y = std::max(0.05f, primitive->transform.scale.y);
     }
     ShowItemTooltip("Per-axis scale applied to this primitive.");
+    }
 
+    if (BeginInspectorSection("section_primitive_appearance", "Stroke & fill", true, sectionForceOpen))
+    {
     ImVec4 stroke = ToImGuiColor(primitive->style.color);
     if (ImGui::ColorEdit4("Stroke", &stroke.x))
     {
@@ -3712,7 +3775,10 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
                             ? "This primitive filled state is masked by the reticle default filled state."
                             : "Toggle filled rendering for primitives that support it.");
     }
+    }
 
+    if (BeginInspectorSection("section_primitive_geometry", "Geometry", true, sectionForceOpen))
+    {
     if (auto* text = std::get_if<mfd::TextGeometry>(&primitive->geometry))
     {
         std::array<char, 128> buffer {};
@@ -4117,5 +4183,5 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         }
         ShowItemTooltip("Logical size of the image before the primitive scale is applied.");
     }
-
+    }
 }

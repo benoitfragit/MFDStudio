@@ -10,6 +10,7 @@
  * @brief Shared ImGui styling helpers used by the MFD editor shell.
  */
 
+#include <map>
 #include <optional>
 #include <string>
 
@@ -47,6 +48,34 @@ bool DrawVerticalSplitter(const char* id, float height);
  * @param text Tooltip text.
  */
 void ShowItemTooltip(const char* text);
+
+/**
+ * @brief Draws a collapsible inspector section header used to tame dense inspector panels.
+ * @param strId Stable unique ImGui id for the section, kept distinct from the visible label so two
+ *              sections sharing a caption across inspectors never collide.
+ * @param label Human-readable section title.
+ * @param defaultOpen Whether the section starts expanded the first time it is shown in a session.
+ * @param forceOpen When `true` the section is forced open for this frame; used while the guided
+ *                  tutorial runs so every highlighted target stays visible.
+ * @return `true` when the section body must be drawn this frame.
+ */
+bool BeginInspectorSection(const char* strId, const char* label, bool defaultOpen, bool forceOpen);
+
+/**
+ * @brief Injects the map used to persist collapsible inspector-section open states across sessions.
+ * @param store Map keyed by section id, owned by the caller, or `nullptr` to detach (e.g. on shutdown).
+ * @note When attached, `BeginInspectorSection` seeds each section from the stored value on first use
+ *       and mirrors live changes back into the map so the owner can serialize it. The store is left
+ *       untouched while a section is force-opened so the user's real preference survives the tutorial.
+ */
+void SetInspectorSectionStateStore(std::map<std::string, bool>* store) noexcept;
+
+/**
+ * @brief Draws a compact "(?)" marker that reveals detailed guidance in a hover tooltip.
+ * @param text Tooltip text. The marker is skipped when the text is null or empty.
+ * @note Drawn on the same line as the previous item so it can annotate a section header or field.
+ */
+void InspectorHelpMarker(const char* text);
 
 /**
  * @brief Formats the compact viewport overlay text shown next to the help button.

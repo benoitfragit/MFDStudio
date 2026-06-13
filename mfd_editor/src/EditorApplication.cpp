@@ -24,6 +24,8 @@
 #include <numeric>
 #include <random>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -33,6 +35,7 @@
 
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
+#include "EditorUiStatePersistence.h"
 #include "internal/application/EditorApplicationInternal.h"
 #include "EditorFileDialogs.h"
 #include "EditorReticleExtractionService.h"
@@ -98,6 +101,44 @@ using editor::app::SummarizeDynamicLayerBindings;
 using editor::app::SupportsPrimitiveLineStyle;
 using json = nlohmann::json;
 
+char LowerAscii(const char value) noexcept
+{
+    return (value >= 'A' && value <= 'Z') ? static_cast<char>(value - 'A' + 'a') : value;
+}
+
+bool ContainsCaseInsensitive(const std::string_view haystack, const std::string_view needle) noexcept
+{
+    if (needle.empty())
+    {
+        return true;
+    }
+
+    if (needle.size() > haystack.size())
+    {
+        return false;
+    }
+
+    for (std::size_t offset = 0; offset + needle.size() <= haystack.size(); ++offset)
+    {
+        bool matched = true;
+        for (std::size_t index = 0; index < needle.size(); ++index)
+        {
+            if (LowerAscii(haystack[offset + index]) != LowerAscii(needle[index]))
+            {
+                matched = false;
+                break;
+            }
+        }
+
+        if (matched)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 constexpr float kSidebarWidth = 320.0f;
 constexpr float kInspectorWidth = 360.0f;
 constexpr float kMinSidebarWidth = 220.0f;
@@ -112,6 +153,7 @@ constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
 constexpr const char* kPagePreviewDisplayPopupId = "PagePreviewDisplayPopup";
 constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
+constexpr const char* kUiStateFileName = "assets/.editor_ui_state.json";
 
 enum class DroppedJsonDocumentKind
 {
@@ -1200,11 +1242,41 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     ResetPagePreviewView();
     ResetLibraryPreviewView();
     RebuildStatus("Open one window asset or create assets to begin authoring.", false);
+
+    const editor::EditorUiPersistentState uiState =
+        editor::LoadEditorUiState(documentState_.assetPaths.DefaultAssetPath(kUiStateFileName));
+    if (uiState.sidebarWidth.has_value())
+    {
+        layoutState_.sidebarWidth = *uiState.sidebarWidth;
+    }
+    if (uiState.inspectorWidth.has_value())
+    {
+        layoutState_.inspectorWidth = *uiState.inspectorWidth;
+    }
+    if (uiState.libraryStudioPageWidth.has_value())
+    {
+        layoutState_.libraryStudioPageWidth = *uiState.libraryStudioPageWidth;
+    }
+    layoutState_.inspectorSectionOpen = uiState.sectionOpen;
+    editor::ui::SetInspectorSectionStateStore(&layoutState_.inspectorSectionOpen);
+
     tutorial_->LoadProgress();
 }
 
 EditorApplication::~EditorApplication()
 {
+    editor::ui::SetInspectorSectionStateStore(nullptr);
+
+    editor::EditorUiPersistentState uiState;
+    uiState.sidebarWidth = layoutState_.sidebarWidth;
+    uiState.inspectorWidth = layoutState_.inspectorWidth;
+    if (layoutState_.libraryStudioPageWidth > 0.0f)
+    {
+        uiState.libraryStudioPageWidth = layoutState_.libraryStudioPageWidth;
+    }
+    uiState.sectionOpen = layoutState_.inspectorSectionOpen;
+    editor::SaveEditorUiState(documentState_.assetPaths.DefaultAssetPath(kUiStateFileName), uiState);
+
     ReleasePreviewGpuResources();
 }
 
@@ -1784,14 +1856,22 @@ void EditorApplication::DeleteSelectedLibraryReticle()
 
 void EditorApplication::DrawPageTree()
 {
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Pages");
-    ShowItemTooltip("Browse authored pages and select a page, one of its page reticles, or its optional strobe.");
     const editor::ReticleUsageHighlightResult* usageHighlight =
         layoutState_.pagePreviewViewOptions.highlightReticleUsages ? ResolveReticleUsageHighlight() : nullptr;
+
+    const std::string_view sidebarFilter(layoutState_.sidebarFilter.data());
+    const bool filterActive = !sidebarFilter.empty() && !tutorial_->IsCoachVisible();
 
     for (int pageIndex = 0; pageIndex < static_cast<int>(documentState_.loaded.document.pages.size()); ++pageIndex)
     {
         const auto& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
+        if (filterActive &&
+            !ContainsCaseInsensitive(page.name, sidebarFilter) &&
+            !ContainsCaseInsensitive(page.title, sidebarFilter))
+        {
+            continue;
+        }
+
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_OpenOnArrow |
             ImGuiTreeNodeFlags_OpenOnDoubleClick |
@@ -1968,16 +2048,27 @@ void EditorApplication::DrawPageTree()
 
 void EditorApplication::DrawLibraryTree()
 {
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle library");
-    ShowItemTooltip("Shared reticle templates that can be edited in the studio or dropped onto pages.");
+    const std::string_view sidebarFilter(layoutState_.sidebarFilter.data());
+    const bool filterActive = !sidebarFilter.empty() && !tutorial_->IsCoachVisible();
 
     std::vector<std::string> templateIds;
     templateIds.reserve(documentState_.loaded.document.reticleLibrary.size());
     for (const auto& entry : documentState_.loaded.document.reticleLibrary)
     {
+        if (filterActive && !ContainsCaseInsensitive(entry.first, sidebarFilter))
+        {
+            continue;
+        }
+
         templateIds.push_back(entry.first);
     }
     std::sort(templateIds.begin(), templateIds.end());
+
+    if (templateIds.empty())
+    {
+        ImGui::TextDisabled(filterActive ? "No reticle matches the filter." : "No library reticle yet.");
+        return;
+    }
 
     for (const auto& templateId : templateIds)
     {
@@ -2055,12 +2146,6 @@ void EditorApplication::DrawLibraryTree()
             ImGui::EndPopup();
         }
     }
-
-    if (AccentButton("New reticle"))
-    {
-        OpenNewLibraryReticlePopup();
-    }
-    ShowItemTooltip("Create a new library reticle seeded with one primitive.");
 }
 
 void EditorApplication::RebuildStatus(std::string message, const bool isError)
