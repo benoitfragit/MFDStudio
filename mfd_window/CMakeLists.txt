@@ -24,13 +24,16 @@ add_library(mfd::window_launcher ALIAS mfd_window_launcher)
 
 target_include_directories(mfd_window_launcher
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${MFD_ROOT_DIR}/mfd_runtime_api/src)
 
 target_link_libraries(mfd_window_launcher
     PUBLIC
         mfd::api
         mfd::window_plugin_api
     PRIVATE
+        mfd::runtime_api
         mfd::render_raylib
         rlimgui)
 
@@ -145,6 +148,11 @@ if(MFD_API_BUILD_SHARED)
         DESTINATION .
         COMPONENT ${MFD_COMPONENT_WINDOW_LAUNCHER_RUNTIME})
 endif()
+
+install(FILES
+    "$<TARGET_FILE:mfd_runtime_api>"
+    DESTINATION .
+    COMPONENT ${MFD_COMPONENT_WINDOW_LAUNCHER_RUNTIME})
 
 install(FILES
     "${MFD_WINDOW_SCRIPT_SOURCE_DIR}/Start-MfdWindow.bat"

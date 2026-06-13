@@ -296,9 +296,9 @@ def add_cover(doc: Document, title: str, subtitle: str) -> None:
     paragraph.add_run("Document generated on ").bold = True
     paragraph.add_run(dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
     paragraph.add_run("\nScope: ").bold = True
-    paragraph.add_run("editor, architecture, generator, client API, framebuffer plugin, launch scripts")
+    paragraph.add_run("editor, architecture, generator, client API, offscreen runtime embedding, framebuffer plugin, launch scripts")
     paragraph.add_run("\nTarget audience: ").bold = True
-    paragraph.add_run("MFD authors, C++ integrators, and runtime teams")
+    paragraph.add_run("MFD authors, C++ integrators, embedding application teams, and runtime teams")
 
     band_table = doc.add_table(rows=1, cols=3)
     for index, (label, fill) in enumerate((

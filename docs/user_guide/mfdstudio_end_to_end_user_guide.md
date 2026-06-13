@@ -1,10 +1,11 @@
 # MFDStudio - Detailed User Guide
 
-Subtitle: design in `mfd_editor`, C++17 API generation, live client integration, framebuffer plugin, and launch scripts
+Subtitle: design in `mfd_editor`, C++17 API generation, live client integration, offscreen runtime embedding, framebuffer plugin, and launch scripts
 
 Target document:
 - MFD page and window authors
 - C++ integrators who must control a window live
+- teams who must embed the runtime offscreen inside their own application
 - teams who want to capture the framebuffer via a DLL plugin
 
 [[TOC]]
@@ -35,6 +36,7 @@ The historical technical prefix of the repository remains `mfd` in namespaces, C
 | `mfd_editor` | visual tool for authoring windows, pages, and reticles |
 | `assets/` | versioned source of truth |
 | `mfd_client_api/generator` | generates typed C++ wrappers and the companion `.generated.map` file |
+| `mfd_runtime_api` | dedicated public package for offscreen runtime embedding without exposing `mfd_api` |
 | `mfd_window` | runtime host that opens a JSON window, renders the active page, and accepts live commands |
 | `client_mockup` | reference client that shows how to use the public API |
 | `mfd_window_plugin_api` | stable C ABI for framebuffer capture DLL plugins |
@@ -55,6 +57,11 @@ The normal flow of an MFDStudio project is as follows:
 6. the runtime can send UDP feedback to the client
 7. optional, a DLL plugin receives one plugin-selected `RGBA32` or `BGRA32` framebuffer at each frame
 
+For an embedded host application, steps 4 to 7 can also be replaced by one
+direct `mfd_runtime_api` integration which loads the same authored window,
+keeps the same UDP in/out contract, and renders into one caller-owned
+offscreen surface.
+
 ## 1.3 Who does MFDStudio serve?
 
 MFDStudio is suitable when you need:
@@ -63,6 +70,7 @@ MFDStudio is suitable when you need:
 - keep a readable and versionable author model
 - drive pages by an external client without embedding the rendering engine in the client
 - generate C++ type wrappers from an author window
+- embed the runtime offscreen inside a dedicated host application without exposing low-level render dependencies to that application
 - plug a framebuffer capture pipeline into a stable DLL ABI
 
 ## 1.4 What MFDStudio is not
@@ -95,6 +103,7 @@ The repository architecture is modular. Each module keeps a deliberately narrow 
 | `mfd_api` | loading JSON, runtime, scene registry, and low-level API |
 | `mfd_client_api` | client overlay: handles, batching, publication, feedback |
 | `mfd_client_api/generator` | derives a C++ UI and a transport map from a JSON window |
+| `mfd_runtime_api` | dedicated offscreen runtime package exporting `RuntimeSession` and `OffscreenSurface` |
 | `mfd_editor` | visual authoring and protected workflows on assets |
 | `mfd_window` | generic runtime launcher and debug overlay |
 | `mfd_window_plugin_api` | Stable C contract for framebuffer capture plugins |
@@ -173,6 +182,7 @@ For a clean integration:
 - authoring the visual structure into JSON
 - only expose the necessary primitives to the client
 - use the generated API rather than text names everywhere
+- use `mfd_runtime_api` rather than exposing `mfd_api` directly when one external application must embed the runtime offscreen
 - preserve `CommandClient` as final sending layer
 - reserve framebuffer plugins for image output, not for business control
 
@@ -212,6 +222,12 @@ For one specific generated client:
 
 ```powershell
 cmake --build --preset debug-win32 --target client_mockup_minimal
+```
+
+For the dedicated offscreen embedding path:
+
+```powershell
+cmake --build --preset debug-win32 --target offscreen_viewer
 ```
 
 ## 3.4 Tree structure to know
@@ -1830,6 +1846,131 @@ int main()
 
 <!-- PAGEBREAK -->
 
+## 6.19 Render a window offscreen with `mfd_runtime_api`
+
+Use `mfd_runtime_api` when your application must load one authored window,
+keep the authored UDP in/out contract, and render the runtime into one
+application-owned image without launching `mfd_window`.
+
+This package is the dedicated public surface for that use case:
+
+- it exposes `RuntimeSession` and `OffscreenSurface`
+- it keeps `mfd_api` hidden from the consumer-facing API
+- it keeps low-level render dependencies private at the package boundary
+- it lets the host application decide how to present the produced pixels
+
+The intended separation is simple:
+
+- `mfd_window` + framebuffer plugin: when you want the generic runtime host and one DLL capture hook
+- `mfd_runtime_api`: when you want to embed the runtime directly inside your own application
+
+### 6.19.1 Consumption contract
+
+From an external CMake project, consume the package directly:
+
+```cmake
+find_package(MFDStudioRuntimeApi CONFIG REQUIRED)
+target_link_libraries(my_host_app PRIVATE MFDStudio::RuntimeApi)
+```
+
+The host application may use any presentation layer it wants for the final
+image. If it needs a GUI or a GPU upload path, that dependency stays the host
+application's choice rather than part of the `mfd_runtime_api` public contract.
+
+### 6.19.2 Runtime objects and responsibilities
+
+`RuntimeSession` owns the authored runtime state:
+
+- load one window JSON
+- keep the authored UDP command and feedback configuration
+- advance the runtime frame
+- switch pages and inspect lightweight status
+
+`OffscreenSurface` owns one independent offscreen output:
+
+- explicit `Resize(width, height)` controlled by the host application
+- one private render target per surface
+- one private CPU readback buffer per surface
+- one `FrameView()` for the latest rendered image
+
+Because each surface owns its own target and CPU buffer, multiple windows or
+multiple views can be rendered in the same host frame without texture
+collisions.
+
+### 6.19.3 Clipping and resizing guarantees
+
+The offscreen path preserves the same clipping semantics as the window path.
+Each `OffscreenSurface` uses its own stencil-capable target, so reticle
+clipping remains valid after resize and does not leak from one surface to
+another.
+
+The host application is responsible for calling `Resize(...)` whenever its own
+presentation area changes size. This keeps the offscreen output aligned with
+the exact dimensions requested by the application instead of an implicit window
+size.
+
+### 6.19.4 Minimal host loop
+
+```cpp
+// Scenario: host one authored window offscreen and upload the latest image elsewhere.
+#include "mfd/runtime_api/OffscreenSurface.h"
+#include "mfd/runtime_api/RuntimeSession.h"
+
+mfd::runtime_api::RuntimeSession runtimeSession;
+std::string error;
+
+if (!runtimeSession.LoadWindowFile("assets/windows/demo_pages_minimal.json", error))
+{
+    return 1;
+}
+
+mfd::runtime_api::OffscreenSurface surface(800, 600);
+
+for (;;)
+{
+    runtimeSession.Advance(dtSeconds);
+    surface.Resize(currentWidth, currentHeight);
+    surface.Render(runtimeSession);
+
+    const mfd::runtime_api::OffscreenFrameView frame = surface.FrameView();
+    UploadFrameToMyUi(frame.pixels, frame.width, frame.height, frame.rowStrideBytes);
+}
+```
+
+The host loop stays intentionally small:
+
+1. advance the runtime
+2. resize the offscreen surface if the host view changed
+3. render the runtime
+4. upload or copy the returned frame into the host application's own UI layer
+
+### 6.19.5 Reference example
+
+The repository ships one complete example:
+
+```text
+examples/offscreen_viewer/src/main.cpp
+```
+
+That example:
+
+- does not use `WindowLauncher` scripts
+- loads the runtime through `mfd_runtime_api`
+- keeps UDP in/out active from the authored window
+- renders two independent offscreen surfaces
+- displays both uploaded images in a resizable host window
+
+Build it with:
+
+```powershell
+cmake --build --preset debug-win32 --target offscreen_viewer
+```
+
+Use this path when your goal is embedding. Keep the framebuffer plugin ABI for
+the `mfd_window` host path only.
+
+<!-- PAGEBREAK -->
+
 # 7. Write a framebuffer capture DLL plugin
 
 ![ABI framebuffer plugin](../../docs/user_guide/rendered/06_framebuffer_plugin_abi.png)
@@ -2401,10 +2542,10 @@ Check in this order:
 4. declare dynamic template bindings and page strobe behavior intentionally
 5. regenerate `Ui.h`, `Ui.cpp`, and `<window>.generated.map`
 6. rebuild the client target that includes the generated `.cpp`
-7. launch `mfd_window`
+7. choose the runtime host path: `mfd_window` or one application embedding `mfd_runtime_api`
 8. publish coherent batches through `CommandClient` or `LatestBatchPublisher`
 9. poll feedback if page activity or strobe capture matters
-10. attach a framebuffer plugin when the rendered image must leave the runtime
+10. attach a framebuffer plugin only when the `mfd_window` host must export the rendered image
 
 ## 9.2 Design errors to avoid
 
@@ -2413,6 +2554,7 @@ Check in this order:
 - keep stale generated outputs after an authored contract change
 - scatter `SendBatch()` calls throughout the frame
 - bypass runtime feedback when logic depends on authoritative page or capture state
+- expose `mfd_api` directly to one embedding application when `mfd_runtime_api` is the intended public boundary
 - keep framebuffer pointers after `submit_frame` returns
 
 ## 9.3 Files every integrator should know
@@ -2429,10 +2571,14 @@ Check in this order:
 | `mfd_api/include/mfd/io/JsonLoader.h` | low-level authored window and page loader; this is the only header republished from the low-level API into the packaged client SDK through `ClientSdk.h` |
 | `mfd_client_api/include/mfd/client/Animation.h` | generated-runtime support header used by `GeneratedUiSupport.h`; not the normal user include for window-specific code |
 | `mfd_client_api/include/mfd/client/LatestBatchPublisher.h` | latest-state asynchronous publisher |
+| `mfd_runtime_api/include/mfd/runtime_api/RuntimeSession.h` | public offscreen runtime session entry point |
+| `mfd_runtime_api/include/mfd/runtime_api/OffscreenSurface.h` | public resizable offscreen output surface |
 | `mfd_window_plugin_api/include/mfd/window/WindowLauncherPlugin.h` | stable framebuffer-plugin ABI |
 | `Scripts/Start-MfdWindow.bat` | runtime and plugin launch path |
 | `Scripts/Start-MfdPackageTest.bat` | lightweight launcher for the package-consumer validation window |
+| `examples/offscreen_viewer/src/main.cpp` | reference embedding example for the offscreen runtime package |
 | `examples/client_test_package/CMakeLists.txt` | reference `find_package(MFDStudioClientApi)` consumer using the staged delivery |
+| `_Deliveries/packages_windows/MFDStudioRuntimeApi/build/native/cmake/MFDStudioRuntimeApiConfig.cmake` | packaged development SDK entry point for offscreen embedding |
 | `_Deliveries/packages_windows/MFDStudioClientApi/build/native/cmake/MFDStudioClientApiConfig.cmake` | packaged development SDK entry point exported for external CMake clients |
 | `_Deliveries/packages_bin_windows/MFDStudioClientApi.Install/_Exec/<toolset>/<platform>/<config>/mfd_client_api.dll` | standalone runtime payload required by packaged generated clients |
 
@@ -2444,7 +2590,8 @@ The clean MFDStudio path is:
 - generate one typed C++ contract from the authored window
 - publish one coherent client batch per frame
 - let runtime feedback confirm page activity and strobe capture
-- copy framebuffer pixels safely before crossing into async plugin logic
+- choose `mfd_runtime_api` for direct embedding and keep framebuffer plugins for the `mfd_window` path
+- copy framebuffer pixels safely before crossing into async plugin logic when a plugin is involved
 
 This keeps the repository modular, the client surface intentional, and the runtime behavior debuggable.
 

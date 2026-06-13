@@ -17,6 +17,7 @@ paths first:
 | --- | --- | --- |
 | Launch a window and see something live | [Quick Start](./docs/QUICKSTART.md) | [Test A Window With The Mockup](./docs/tutorials/03_test_with_mfd_mockup.md) |
 | Drive a window from a generated C++ client API | [Use The Mockup As A Client API Reference](./docs/tutorials/11_use_the_mockup_as_a_client_api_reference.md) | [Drive A Window From A Live Client](./docs/tutorials/04_drive_a_window_from_a_live_client.md) |
+| Embed the runtime offscreen into your own app | [Detailed User Guide (.docx)](./docs/user_guide/MFDStudio_End_To_End_User_Guide.docx) | Build `offscreen_viewer` and review section `6.19` |
 | Capture the runtime framebuffer | [Capture The Window As Raw Pixels](./docs/tutorials/07_framebuffer_rgba32_capture.md) | [Quick Start](./docs/QUICKSTART.md) |
 | Build or edit assets visually | [Create A Window From Scratch In `mfd_editor`](./docs/tutorials/13_create_window_from_editor.md) | [Review The Integrated Editor Tutorial Outputs](./docs/tutorials/15_review_integrated_editor_tutorial_outputs.md) |
 | Need a compact map of the docs | [Documentation Guide](./docs/README.md) | [Tutorial Index](./docs/tutorials/README.md) |
@@ -98,6 +99,24 @@ There are two practical capture paths:
 Start here:
 
 - [Capture The Window As Raw Pixels](./docs/tutorials/07_framebuffer_rgba32_capture.md)
+
+### Embed The Runtime Offscreen
+
+When your application must render one MFD without launching `mfd_window`, use
+the dedicated `mfd_runtime_api` package. It keeps the authored UDP in/out
+contract, preserves clipping offscreen, and lets the host application resize
+each offscreen surface explicitly.
+
+Build the shipped example:
+
+```powershell
+cmake --build --preset debug-win32 --target offscreen_viewer
+```
+
+Then run `offscreen_viewer` from the staged build tree. The example loads one
+window JSON through `mfd_runtime_api`, renders two independent offscreen
+surfaces, and displays the uploaded images in a resizable host window without
+using `WindowLauncher` scripts.
 
 ### Work In The Editor
 
@@ -181,6 +200,7 @@ The suite:
 | `mfd_window` | Runtime host that loads one window JSON file |
 | `client_mockup` | Live UDP client used to validate pages, reticles, blink, strobe, and feedback |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
+| `offscreen_viewer` | Resizable example embedding `mfd_runtime_api` and displaying two offscreen images |
 | `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin for the `mfd_window` capture ABI |
 
 ## Advanced Docs
@@ -192,7 +212,6 @@ Keep these for later, when you actually need them:
 - [Reference](./docs/reference/README.md)
 - [Development Guide](./docs/DEVELOPMENT.md)
 - [Detailed User Guide (.docx)](./docs/user_guide/MFDStudio_End_To_End_User_Guide.docx)
-- [Detailed User Guide (.pdf)](./docs/user_guide/MFDStudio_End_To_End_User_Guide.pdf)
 - [Architecture Notes](./docs/architecture/README.md)
 
 ## Licenses

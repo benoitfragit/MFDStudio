@@ -147,6 +147,8 @@ set(MFD_PACKAGE_LIB_DESTINATION "libs/${MFD_PACKAGE_TOOLSET}/${MFD_PACKAGE_ARCH}
 
 set(MFD_COMPONENT_API_DEVELOPMENT mfd_api_development)
 set(MFD_COMPONENT_API_RUNTIME mfd_api_runtime)
+set(MFD_COMPONENT_RUNTIME_API_DEVELOPMENT mfd_runtime_api_development)
+set(MFD_COMPONENT_RUNTIME_API_RUNTIME mfd_runtime_api_runtime)
 set(MFD_COMPONENT_CLIENT_API_DEVELOPMENT mfd_client_api_development)
 set(MFD_COMPONENT_CLIENT_API_RUNTIME mfd_client_api_runtime)
 set(MFD_COMPONENT_WINDOW_PLUGIN_DEVELOPMENT mfd_window_plugin_api_development)
@@ -159,6 +161,7 @@ endif()
 
 add_subdirectory(mfd_common_api)
 add_subdirectory(mfd_api)
+add_subdirectory(mfd_runtime_api)
 add_subdirectory(mfd_client_api/generator)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/mfd_client_api/generator/ClientApiGenerator.cmake)

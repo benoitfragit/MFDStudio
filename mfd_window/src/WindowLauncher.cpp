@@ -54,16 +54,13 @@ extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* na
 #include <raylib.h>
 #include <rlgl.h>
 
-#include "mfd/control/CommandProcessor.h"
-#include "mfd/control/StrobeFeedback.h"
-#include "mfd/control/UdpRuntimeBridge.h"
-#include "mfd/io/JsonLoader.h"
 #include "mfd/render/MfdRenderer.h"
 #include "mfd/render/OpenGlFramebufferReader.h"
 #include "mfd/render/WindowBranding.h"
 #include "mfd/runtime/SceneRegistry.h"
+#include "mfd/runtime_api/RuntimeSession.h"
 
-#include "mfd/window/RuntimeFeedbackThrottle.hpp"
+#include "internal/RuntimeSessionInternalAccess.hpp"
 #include "WindowLauncherInternal.h"
 #include "mfd/window/debug/RuntimeDebugOverlay.hpp"
 
@@ -74,7 +71,6 @@ extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 namespace
 {
 constexpr unsigned int kCaptureRingSize = 2;
-constexpr std::size_t kMaxCommandsPerFrame = 512;
 constexpr std::size_t kPluginErrorBufferCapacity = 1024U;
 constexpr int kFramebufferResizeCooldownFrames = 3;
 using GlSyncHandle = void*;
@@ -806,98 +802,6 @@ bool TextureReady(const Texture2D& texture) noexcept
     return texture.id != 0 && texture.width > 0 && texture.height > 0;
 }
 
-mfd::StrobeFeedbackCapture ToFeedbackCapture(const mfd::StrobeCaptureResult& capture)
-{
-    return mfd::StrobeFeedbackCapture {
-        capture.runtimeReticleId,
-        capture.sourceTemplateTransportId,
-        capture.reticleId,
-        capture.sourceTemplateId,
-        capture.label,
-        capture.category,
-        capture.position,
-        capture.distance,
-        capture.metadata};
-}
-
-mfd::StrobeFeedbackMagnet ToFeedbackMagnet(const std::optional<mfd::StrobeMagnetSummary>& magnetSummary)
-{
-    if (!magnetSummary.has_value())
-    {
-        return {};
-    }
-
-    return mfd::StrobeFeedbackMagnet {
-        magnetSummary->enabled,
-        magnetSummary->radius,
-        magnetSummary->strength,
-        magnetSummary->magnetized,
-        magnetSummary->runtimeReticleId,
-        magnetSummary->reticleId,
-        magnetSummary->targetPosition,
-        magnetSummary->distance};
-}
-
-bool SameVec2(const mfd::Vec2& lhs, const mfd::Vec2& rhs) noexcept
-{
-    return lhs.x == rhs.x && lhs.y == rhs.y;
-}
-
-bool SameCaptureConfig(const mfd::StrobeCaptureConfig& lhs, const mfd::StrobeCaptureConfig& rhs) noexcept
-{
-    return lhs.shape == rhs.shape &&
-           lhs.radius == rhs.radius &&
-           SameVec2(lhs.size, rhs.size);
-}
-
-bool SameFeedbackMagnet(const mfd::StrobeFeedbackMagnet& lhs, const mfd::StrobeFeedbackMagnet& rhs)
-{
-    return lhs.enabled == rhs.enabled &&
-           lhs.radius == rhs.radius &&
-           lhs.strength == rhs.strength &&
-           lhs.magnetized == rhs.magnetized &&
-           lhs.runtimeReticleId == rhs.runtimeReticleId &&
-           lhs.reticleId == rhs.reticleId &&
-           SameVec2(lhs.targetPosition, rhs.targetPosition) &&
-           lhs.distance == rhs.distance;
-}
-
-bool SameFeedbackCapture(const mfd::StrobeFeedbackCapture& lhs, const mfd::StrobeFeedbackCapture& rhs)
-{
-    return lhs.runtimeReticleId == rhs.runtimeReticleId &&
-           lhs.sourceTemplateTransportId == rhs.sourceTemplateTransportId &&
-           lhs.reticleId == rhs.reticleId &&
-           lhs.sourceTemplateId == rhs.sourceTemplateId &&
-           lhs.label == rhs.label &&
-           lhs.category == rhs.category &&
-           SameVec2(lhs.position, rhs.position) &&
-           lhs.distance == rhs.distance &&
-           lhs.metadata == rhs.metadata;
-}
-
-bool SameOptionalFeedbackCapture(const std::optional<mfd::StrobeFeedbackCapture>& lhs,
-                                 const std::optional<mfd::StrobeFeedbackCapture>& rhs)
-{
-    if (lhs.has_value() != rhs.has_value())
-    {
-        return false;
-    }
-
-    return !lhs.has_value() || SameFeedbackCapture(*lhs, *rhs);
-}
-
-bool SameStrobeFeedbackState(const mfd::StrobeStatusFeedback& lhs, const mfd::StrobeStatusFeedback& rhs)
-{
-    return lhs.pageId == rhs.pageId &&
-           lhs.pageName == rhs.pageName &&
-           lhs.strobeId == rhs.strobeId &&
-           lhs.active == rhs.active &&
-           SameVec2(lhs.position, rhs.position) &&
-           SameCaptureConfig(lhs.capture, rhs.capture) &&
-           SameFeedbackMagnet(lhs.magnet, rhs.magnet) &&
-           SameOptionalFeedbackCapture(lhs.captureResult, rhs.captureResult);
-}
-
 #if defined(_WIN32)
 std::string NarrowWideString(const std::wstring_view text)
 {
@@ -1350,8 +1254,7 @@ public:
         applicationName_(std::move(applicationName)),
         windowFile_(std::move(windowFile)),
         framebufferCallback_(std::move(framebufferCallback)),
-        framebufferPixelFormat_(framebufferPixelFormat),
-        commandProcessor_(scene_)
+        framebufferPixelFormat_(framebufferPixelFormat)
     {
         if (framebufferCallback_)
         {
@@ -1397,7 +1300,7 @@ public:
 
             try
             {
-                const mfd::SceneRegistry& renderScene = debugOverlay_.RenderScene(scene_);
+                const mfd::SceneRegistry& renderScene = debugOverlay_.RenderScene(RuntimeScene());
                 const bool debugWasActiveDuringDraw = debugOverlay_.Active();
                 if (ShouldDrawStartupSplash())
                 {
@@ -1408,7 +1311,7 @@ public:
                     ClearBackground(ToRayColor(renderScene.ActiveBackgroundColor()));
                     renderer_.DrawActivePage(renderScene, RenderViewportWidth(), GetScreenHeight());
                 }
-                debugOverlay_.Draw(scene_, windowDefinition_, applicationName_, lastRuntimeError_);
+                debugOverlay_.Draw(RuntimeScene(), windowDefinition_, applicationName_, lastRuntimeError_);
                 if (debugWasActiveDuringDraw != debugOverlay_.Active())
                 {
                     ApplyWindowHostLayout(true);
@@ -1439,6 +1342,36 @@ public:
     }
 
 private:
+    [[nodiscard]] mfd::SceneRegistry& RuntimeScene() noexcept
+    {
+        return mfd::runtime_api::internal::RuntimeSessionInternalAccess::Scene(runtimeSession_);
+    }
+
+    [[nodiscard]] const mfd::SceneRegistry& RuntimeScene() const noexcept
+    {
+        return mfd::runtime_api::internal::RuntimeSessionInternalAccess::Scene(runtimeSession_);
+    }
+
+    [[nodiscard]] const mfd::WindowAssetDefinition& RuntimeWindowDefinition() const noexcept
+    {
+        return mfd::runtime_api::internal::RuntimeSessionInternalAccess::WindowDefinition(runtimeSession_);
+    }
+
+    [[nodiscard]] mfd::UdpRuntimeBridge* RuntimeBridge() noexcept
+    {
+        return mfd::runtime_api::internal::RuntimeSessionInternalAccess::RuntimeBridge(runtimeSession_);
+    }
+
+    [[nodiscard]] const mfd::UdpRuntimeBridge* RuntimeBridge() const noexcept
+    {
+        return mfd::runtime_api::internal::RuntimeSessionInternalAccess::RuntimeBridge(runtimeSession_);
+    }
+
+    [[nodiscard]] const std::vector<mfd::CommandBatch>& AppliedCommandBatches() const noexcept
+    {
+        return mfd::runtime_api::internal::RuntimeSessionInternalAccess::AppliedCommandBatches(runtimeSession_);
+    }
+
     void RefreshBranding()
     {
         resolvedIconFile_ = mfd::ResolveWindowBrandingIconFile(windowDefinition_.iconFile, windowFile_);
@@ -1457,9 +1390,9 @@ private:
     [[nodiscard]] bool ShouldDrawStartupSplash() const noexcept
     {
         return !debugOverlay_.SuppressStartupSplash() &&
-               udpRuntimeBridge_ != nullptr &&
-               udpRuntimeBridge_->HasCommandReceiver() &&
-               !receivedFirstClientCommand_;
+               RuntimeBridge() != nullptr &&
+               RuntimeBridge()->HasCommandReceiver() &&
+               !runtimeSession_.ReceivedFirstClientCommand();
     }
 
     void DrawStartupSplash() const
@@ -1559,75 +1492,31 @@ private:
 
     bool ReloadConfiguration()
     {
-        try
+        if (!runtimeSession_.LoadWindowFile(windowFile_, lastReloadError_))
         {
-            const std::string previousPage = scene_.ActivePageName();
-            mfd::LoadedWindowConfiguration loaded = loader_.LoadWindowConfiguration(windowFile_);
-            if (loaded.document.pages.empty())
-            {
-                throw std::runtime_error("The window JSON does not contain any page.");
-            }
-
-            windowDefinition_ = loaded.window;
-            scene_.LoadDocument(std::move(loaded.document), std::move(loaded.generatedTransportMap));
-            renderer_.SetTextFontFile(windowDefinition_.fontFile);
-            udpRuntimeBridge_ = std::make_unique<mfd::UdpRuntimeBridge>(
-                windowDefinition_.commandTransports,
-                windowDefinition_.feedbackTransports);
-            udpRuntimeBridge_->Start();
-
-            if (scene_.HasPage(previousPage))
-            {
-                scene_.SetActivePage(previousPage);
-            }
-
-            runtimeFeedbackThrottle_.Reset();
-            lastPublishedStrobeFeedbacks_.clear();
-            lastPublishedActivePage_.reset();
-            nextStrobeFeedbackSequence_ = 1;
-            receivedFirstClientCommand_ = false;
-            lastRuntimeError_.clear();
-
-            if (udpRuntimeBridge_ == nullptr || !udpRuntimeBridge_->HasCommandReceiver())
-            {
-                lastCommandStatus_ = "No UDP command transport configured in the window JSON.";
-            }
-            else
-            {
-                lastCommandStatus_ = udpRuntimeBridge_->LastCommandStatus();
-            }
-
-            if (udpRuntimeBridge_ == nullptr || !udpRuntimeBridge_->HasFeedbackSender())
-            {
-                lastFeedbackStatus_ = "No UDP feedback transport configured in the window JSON.";
-            }
-            else
-            {
-                lastFeedbackStatus_ = udpRuntimeBridge_->LastFeedbackStatus();
-            }
-
-            if (IsWindowReady())
-            {
-                SetWindowTitle(windowDefinition_.title.c_str());
-                ApplyWindowHostLayout(false);
-                RefreshBranding();
-            }
-
-            debugOverlay_.OnRuntimeReloaded(scene_);
-            lastReloadError_.clear();
-            return true;
-        }
-        catch (const std::exception& exception)
-        {
-            lastReloadError_ = exception.what();
             return false;
         }
+
+        windowDefinition_ = RuntimeWindowDefinition();
+        renderer_.SetTextFontFile(windowDefinition_.fontFile);
+        lastRuntimeError_.clear();
+
+        if (IsWindowReady())
+        {
+            SetWindowTitle(windowDefinition_.title.c_str());
+            ApplyWindowHostLayout(false);
+            RefreshBranding();
+        }
+
+        debugOverlay_.OnRuntimeReloaded(RuntimeScene());
+        lastReloadError_.clear();
+        return true;
     }
 
     void HandleShortcuts()
     {
         const bool debugWasActive = debugOverlay_.Active();
-        if (debugOverlay_.HandleShortcut(scene_))
+        if (debugOverlay_.HandleShortcut(RuntimeScene()))
         {
             if (debugWasActive != debugOverlay_.Active())
             {
@@ -1660,198 +1549,29 @@ private:
             KEY_EIGHT,
             KEY_NINE};
 
-        const auto pages = scene_.Pages();
+        const auto pages = runtimeSession_.Pages();
         for (std::size_t index = 0; index < pages.size() && index < keyBindings.size(); ++index)
         {
             if (IsKeyPressed(keyBindings[index]))
             {
-                scene_.SetActivePage(pages[index].name);
+                const bool pageActivated = runtimeSession_.SetActivePage(pages[index].name);
+                if (!pageActivated)
+                {
+                    break;
+                }
             }
         }
     }
 
     void Update(const float deltaSeconds)
     {
-        appliedCommandBatches_.clear();
-
-        if (udpRuntimeBridge_ != nullptr)
-        {
-            pendingCommandBatches_.clear();
-            const std::size_t drainedBatches =
-                udpRuntimeBridge_->DrainReceivedBatchesForCommandBudget(
-                    pendingCommandBatches_,
-                    kMaxCommandsPerFrame);
-            if (drainedBatches > 0)
-            {
-                receivedFirstClientCommand_ = true;
-                bool success = true;
-
-                std::size_t appliedCommands = 0;
-                std::size_t skippedCommands = 0;
-                for (const mfd::CommandBatch& batch : pendingCommandBatches_)
-                {
-                    const std::size_t batchCommandCount = batch.commands.size();
-                    const bool batchApplied = commandProcessor_.Submit(batch);
-                    success = batchApplied && success;
-                    if (batchApplied)
-                    {
-                        appliedCommands += batchCommandCount;
-                    }
-                    else
-                    {
-                        skippedCommands += batchCommandCount;
-                    }
-                    if (batchApplied)
-                    {
-                        appliedCommandBatches_.push_back(batch);
-                    }
-                }
-
-                udpRuntimeBridge_->RecordCommandProcessingResult(
-                    appliedCommands,
-                    skippedCommands,
-                    0U);
-
-                if (success)
-                {
-                    lastCommandStatus_ = "Applied " + std::to_string(appliedCommands) +
-                                         " command(s) from the UDP I/O thread.";
-                    const mfd::UdpRuntimeBridgeMetrics metrics = udpRuntimeBridge_->MetricsSnapshot();
-                    if (metrics.inboundQueueDepth > 0U)
-                    {
-                        lastCommandStatus_ += " " + std::to_string(metrics.inboundQueueDepth) +
-                                              " batch(es) remain queued by the frame budget.";
-                    }
-                }
-                else if (!commandProcessor_.LastError().empty())
-                {
-                    lastCommandStatus_ = commandProcessor_.LastError();
-                }
-            }
-            else
-            {
-                const mfd::UdpRuntimeBridgeMetrics metrics = udpRuntimeBridge_->MetricsSnapshot();
-                if (metrics.inboundQueueDepth > 0U)
-                {
-                    lastCommandStatus_ = "UDP command queue is frame-budget limited; " +
-                                         std::to_string(metrics.inboundQueueDepth) +
-                                         " batch(es) remain queued.";
-                }
-                else if (!udpRuntimeBridge_->LastCommandStatus().empty())
-                {
-                    lastCommandStatus_ = udpRuntimeBridge_->LastCommandStatus();
-                }
-            }
-        }
-
-        PublishStrobeFeedbacks(deltaSeconds);
+        runtimeSession_.Advance(deltaSeconds);
         debugOverlay_.Synchronize(
-            scene_,
-            udpRuntimeBridge_.get(),
-            lastCommandStatus_,
-            lastFeedbackStatus_,
-            appliedCommandBatches_);
-    }
-
-    [[nodiscard]] std::optional<mfd::StrobeStatusFeedback> BuildStrobeFeedback(const std::string& pageName) const
-    {
-        const auto strobe = scene_.StrobeForPage(pageName);
-        if (!strobe.has_value())
-        {
-            return std::nullopt;
-        }
-
-        mfd::StrobeStatusFeedback feedback;
-        feedback.pageId = strobe->pageId;
-        feedback.pageName = strobe->pageName;
-        feedback.strobeId = strobe->reticleId;
-        feedback.active = strobe->visible;
-        feedback.position = strobe->position;
-        feedback.capture = strobe->capture;
-        feedback.magnet = ToFeedbackMagnet(scene_.StrobeMagnetForPage(pageName));
-
-        if (const auto capture = scene_.CaptureWithStrobe(pageName); capture.has_value())
-        {
-            feedback.captureResult = ToFeedbackCapture(*capture);
-        }
-
-        return feedback;
-    }
-
-    void PublishStrobeFeedbacks(const float deltaSeconds)
-    {
-        if (udpRuntimeBridge_ == nullptr || !udpRuntimeBridge_->FeedbackTransportReady())
-        {
-            return;
-        }
-
-        runtimeFeedbackThrottle_.Advance(deltaSeconds);
-        const float fastInterval = windowDefinition_.feedbackFastIntervalSeconds;
-        const float heartbeatInterval = windowDefinition_.feedbackHeartbeatIntervalSeconds;
-        const bool changedDue = runtimeFeedbackThrottle_.ShouldSendChanged(fastInterval);
-        const bool heartbeatDue = runtimeFeedbackThrottle_.ShouldSendHeartbeat(heartbeatInterval);
-        bool sentChanged = false;
-        bool sentHeartbeat = false;
-
-        const std::string activePageName = scene_.ActivePageName();
-        const bool activePageChanged =
-            !lastPublishedActivePage_.has_value() || *lastPublishedActivePage_ != activePageName;
-        if (!activePageName.empty() && activePageChanged && changedDue)
-        {
-            mfd::ActivePageFeedback activePageFeedback;
-            activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
-            activePageFeedback.pageName = activePageName;
-            udpRuntimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
-            lastPublishedActivePage_ = activePageName;
-            sentChanged = true;
-        }
-        else if (!activePageName.empty() && !activePageChanged && heartbeatDue)
-        {
-            mfd::ActivePageFeedback activePageFeedback;
-            activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
-            activePageFeedback.pageName = activePageName;
-            udpRuntimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
-            sentHeartbeat = true;
-        }
-
-        if (scene_.ActivePageHasStrobe())
-        {
-            std::optional<mfd::StrobeStatusFeedback> feedback = BuildStrobeFeedback(activePageName);
-            if (feedback.has_value())
-            {
-                const auto previous = lastPublishedStrobeFeedbacks_.find(activePageName);
-                const bool changed = previous == lastPublishedStrobeFeedbacks_.end() ||
-                                     !SameStrobeFeedbackState(previous->second, *feedback);
-                const bool shouldSendChanged = activePageChanged || changed;
-                if (shouldSendChanged && changedDue)
-                {
-                    feedback->sequence = nextStrobeFeedbackSequence_++;
-                    udpRuntimeBridge_->EnqueueStrobeFeedback(*feedback);
-                    lastPublishedStrobeFeedbacks_[activePageName] = std::move(*feedback);
-                    sentChanged = true;
-                }
-                else if (!shouldSendChanged && heartbeatDue)
-                {
-                    feedback->sequence = nextStrobeFeedbackSequence_++;
-                    udpRuntimeBridge_->EnqueueStrobeFeedback(*feedback);
-                    sentHeartbeat = true;
-                }
-            }
-        }
-
-        if (sentChanged)
-        {
-            runtimeFeedbackThrottle_.MarkChangedSent(fastInterval);
-        }
-        else if (sentHeartbeat)
-        {
-            runtimeFeedbackThrottle_.MarkHeartbeatSent(heartbeatInterval);
-        }
-
-        if (!udpRuntimeBridge_->LastFeedbackStatus().empty())
-        {
-            lastFeedbackStatus_ = udpRuntimeBridge_->LastFeedbackStatus();
-        }
+            RuntimeScene(),
+            RuntimeBridge(),
+            runtimeSession_.LastCommandStatus(),
+            runtimeSession_.LastFeedbackStatus(),
+            AppliedCommandBatches());
     }
 
     void PrintStartupSummary() const
@@ -1863,7 +1583,7 @@ private:
         {
             std::cout << "Branding icon: " << resolvedIconFile_.string() << '\n';
         }
-        std::cout << "Pages: " << scene_.Pages().size() << '\n';
+        std::cout << "Pages: " << runtimeSession_.Pages().size() << '\n';
         std::cout << "Shortcuts: F1 toggles runtime debug, R reloads, 1..9 switch pages\n";
     }
 
@@ -1952,28 +1672,16 @@ private:
     std::filesystem::path windowFile_;
     mfd::window::LauncherFramebufferCallback framebufferCallback_ {};
     MfdWindowFramebufferPixelFormat framebufferPixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
-    mfd::JsonLoader loader_ {};
-    mfd::SceneRegistry scene_ {};
-    mfd::CommandProcessor commandProcessor_;
+    mfd::runtime_api::RuntimeSession runtimeSession_ {};
     mfd::MfdRenderer renderer_ {};
     mfd::window::debug::RuntimeDebugOverlay debugOverlay_ {};
     std::unique_ptr<AsyncFramebufferCapture> framebufferCapture_ {};
     mfd::WindowAssetDefinition windowDefinition_ {};
-    std::unique_ptr<mfd::UdpRuntimeBridge> udpRuntimeBridge_ {};
-    std::vector<mfd::CommandBatch> pendingCommandBatches_ {};
-    std::vector<mfd::CommandBatch> appliedCommandBatches_ {};
-    mfd::window::RuntimeFeedbackThrottle runtimeFeedbackThrottle_ {};
-    std::unordered_map<std::string, mfd::StrobeStatusFeedback> lastPublishedStrobeFeedbacks_ {};
-    std::optional<std::string> lastPublishedActivePage_ {};
-    std::uint32_t nextStrobeFeedbackSequence_ = 1;
-    bool receivedFirstClientCommand_ = false;
     int lastObservedCaptureWidth_ = 0;
     int lastObservedCaptureHeight_ = 0;
     int framebufferResizeCooldownFrames_ = 0;
     std::filesystem::path resolvedIconFile_ {};
     std::string brandingStatus_ {};
-    std::string lastCommandStatus_ {};
-    std::string lastFeedbackStatus_ {};
     std::string lastReloadError_ {};
     std::string lastRuntimeError_ {};
 };
