@@ -106,6 +106,7 @@ using json_loader_detail::TrimAsciiWhitespace;
 using runtime_validation::kMaxAbsAngleDegrees;
 using runtime_validation::kMaxAbsCoordinate;
 using runtime_validation::kMaxAbsScale;
+using runtime_validation::kMaxBezierControlPoints;
 using runtime_validation::kMaxFilledPolygonPoints;
 using runtime_validation::kMaxLogicalSize;
 using runtime_validation::kMaxPrimitivePoints;
@@ -298,6 +299,13 @@ void ValidatePrimitiveForRuntime(const Primitive& primitive)
             else if constexpr (std::is_same_v<Geometry, BezierGeometry>)
             {
                 ValidatePointCount(geometry.controlPoints.size(), 2U, "Bezier control point count");
+                if (geometry.controlPoints.size() > kMaxBezierControlPoints)
+                {
+                    throw std::runtime_error(
+                        "Bezier control point count exceeds the runtime safety limit of " +
+                        std::to_string(kMaxBezierControlPoints) +
+                        " (De Casteljau sampling cost grows quadratically with the control point count)");
+                }
                 ValidateSegmentCount(geometry.segments, "Bezier segments");
                 for (const Vec2& point : geometry.controlPoints)
                 {

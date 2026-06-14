@@ -36,6 +36,16 @@ constexpr float kMaxZoom = 1'000.0f;
 constexpr int kMaxPrimitiveSegments = 1024;
 /** @brief Maximum number of points accepted by runtime polyline and bezier payloads. */
 constexpr std::size_t kMaxPrimitivePoints = 2048U;
+/**
+ * @brief Maximum number of bezier control points accepted by the runtime.
+ *
+ * @details Bezier sampling evaluates De Casteljau in `O(n^2)` per sampled point and is repeated for
+ * every segment, so the cost grows as `O(n^2 * segments)`. A high control-point count combined with a
+ * high segment count can stall a frame for seconds. A degree well below this bound already covers every
+ * practical authored curve, so the budget caps `n` far lower than @ref kMaxPrimitivePoints to keep
+ * bezier rebuilds bounded on the JSON, command and editor paths.
+ */
+constexpr std::size_t kMaxBezierControlPoints = 64U;
 /** @brief Maximum number of points accepted by one filled polygon path. */
 constexpr std::size_t kMaxFilledPolygonPoints = 512U;
 /** @brief Maximum number of UTF-8 bytes accepted by runtime text payloads. */

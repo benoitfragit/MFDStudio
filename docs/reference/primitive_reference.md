@@ -463,7 +463,7 @@ Specific fields:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `controlPoints` | array of vec2 | yes unless `points` is used | Bezier control points. |
+| `controlPoints` | array of vec2 | yes unless `points` is used | Bezier control points. Between 2 and 64 points. |
 | `points` | array of vec2 | yes unless `controlPoints` is used | Alias input for control points. |
 | `segments` | integer | no | Number of line segments used to render the curve. |
 
@@ -482,6 +482,13 @@ Example:
   "segments": 48
 }
 ```
+
+Notes:
+
+- a bezier accepts at most 64 control points; De Casteljau sampling costs grow quadratically with
+  the control-point count, so larger sets are rejected at load time and ignored on runtime updates to
+  keep the render loop responsive
+- chain several lower-degree bezier primitives instead of authoring one very high-degree curve
 
 ## `arc`
 

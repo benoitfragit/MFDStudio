@@ -38,6 +38,7 @@ using runtime_validation::IsValidTimeValue;
 using runtime_validation::IsValidVec2;
 using runtime_validation::HasVisibleTimeField;
 using runtime_validation::kMaxAbsAngleDegrees;
+using runtime_validation::kMaxBezierControlPoints;
 using runtime_validation::kMaxFilledPolygonPoints;
 using runtime_validation::kMaxLogicalSize;
 using runtime_validation::kMaxPrimitiveSegments;
@@ -455,8 +456,12 @@ bool ApplyBezierPrimitivePatch(BezierGeometry& geometry, const PrimitivePatch& p
 {
     bool applied = false;
 
-    if (patch.points.has_value() && patch.points->size() >= 2U)
+    if (patch.points.has_value() &&
+        patch.points->size() >= 2U &&
+        patch.points->size() <= kMaxBezierControlPoints)
     {
+        // Reject oversized bezier control-point sets: De Casteljau sampling is O(n^2 * segments) and a
+        // large set could stall a frame. Other patch fields still apply so the rest of the update lands.
         geometry.controlPoints = *patch.points;
         applied = true;
     }

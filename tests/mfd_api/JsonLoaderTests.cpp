@@ -1480,6 +1480,67 @@ TEST(JsonLoaderTests, LoadDocumentRejectsBezierWithAmbiguousPointFields)
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
 
+namespace
+{
+std::string MakeBezierPagesJson(const int controlPointCount)
+{
+    std::string controlPoints;
+    for (int index = 0; index < controlPointCount; ++index)
+    {
+        const float x = -0.3f + 0.005f * static_cast<float>(index);
+        controlPoints += index == 0 ? "" : ", ";
+        controlPoints += "[" + std::to_string(x) + ", 0.0]";
+    }
+
+    return std::string(R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": [
+        {
+          "id": "shape",
+          "layerId": "default",
+          "elements": [
+            { "id": "curve", "type": "bezier", "controlPoints": [)json") +
+           controlPoints +
+           R"json(] }
+          ]
+        }
+      ]
+    }
+  ]
+})json";
+}
+} // namespace
+
+TEST(JsonLoaderTests, LoadDocumentAcceptsBezierAtControlPointBudget)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    std::filesystem::create_directories(workspace.Path() / "reticles");
+    WriteTextFile(pagesFile, MakeBezierPagesJson(64));
+
+    mfd::JsonLoader loader;
+    EXPECT_NO_THROW(loader.LoadDocument(pagesFile));
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsBezierAboveControlPointBudget)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    std::filesystem::create_directories(workspace.Path() / "reticles");
+
+    // 65 control points would make De Casteljau sampling O(65^2 * segments) and risk a frame stall.
+    WriteTextFile(pagesFile, MakeBezierPagesJson(65));
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
 TEST(JsonLoaderTests, LoadDocumentParsesArcPrimitiveWithAnglesAndSegments)
 {
     TemporaryFolder workspace;
