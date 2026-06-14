@@ -34,5 +34,9 @@ struct PagePreviewViewOptions
     bool showGizmos = true;
     /** @brief Keeps the page-context panel visible while editing one library reticle. */
     bool showPageContext = true;
+    /** @brief Snaps reticle drags and keyboard nudges to a logical grid when enabled. */
+    bool snapToGrid = false;
+    /** @brief Logical spacing of the snapping grid. */
+    float gridStepLogical = 0.05f;
 };
 } // namespace editor

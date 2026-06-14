@@ -24,6 +24,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleExtractionServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleUsageHighlightServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleRenameServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorSnappingTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUndoHistoryTests.cpp)

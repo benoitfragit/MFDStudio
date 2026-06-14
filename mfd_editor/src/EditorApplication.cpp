@@ -41,6 +41,7 @@
 #include "EditorFileDialogs.h"
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
+#include "EditorSnapping.h"
 #include "EditorUiTheme.h"
 #include "EditorWorkspaceLayout.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
@@ -105,6 +106,13 @@ using json = nlohmann::json;
 char LowerAscii(const char value) noexcept
 {
     return (value >= 'A' && value <= 'Z') ? static_cast<char>(value - 'A' + 'a') : value;
+}
+
+mfd::Vec2 ApplyNudgeToPosition(mfd::Vec2 position, const mfd::Vec2 delta, const bool snap, const float gridStep)
+{
+    position.x = std::clamp(position.x + delta.x, -1.0f, 1.0f);
+    position.y = std::clamp(position.y + delta.y, -1.0f, 1.0f);
+    return snap ? editor::app::SnapToGrid(position, gridStep) : position;
 }
 
 bool ContainsCaseInsensitive(const std::string_view haystack, const std::string_view needle) noexcept
@@ -1647,6 +1655,49 @@ void EditorApplication::PushUndoSnapshot(UndoSnapshot snapshot)
     InvalidateReticleUsageHighlightCache();
 }
 
+void EditorApplication::NudgeSelection(const mfd::Vec2 delta)
+{
+    if (delta.x == 0.0f && delta.y == 0.0f)
+    {
+        return;
+    }
+
+    const bool snap = layoutState_.pagePreviewViewOptions.snapToGrid;
+    const float gridStep = layoutState_.pagePreviewViewOptions.gridStepLogical;
+
+    if (IsPageTitleSelected())
+    {
+        if (mfd::PageTitleDisplayDefinition* title = SelectedPageTitleDisplay(); title != nullptr)
+        {
+            PushUndoSnapshot();
+            title->transform.position = ApplyNudgeToPosition(title->transform.position, delta, snap, gridStep);
+        }
+        return;
+    }
+
+    mfd::PageDefinition* page = ActivePage();
+    const std::vector<int> selectedReticles = SelectedPageReticleIndices();
+    if (page != nullptr && !selectedReticles.empty())
+    {
+        PushUndoSnapshot();
+        for (const int index : selectedReticles)
+        {
+            if (index >= 0 && index < static_cast<int>(page->staticReticles.size()))
+            {
+                mfd::Vec2& position = page->staticReticles[static_cast<std::size_t>(index)].transform.position;
+                position = ApplyNudgeToPosition(position, delta, snap, gridStep);
+            }
+        }
+        return;
+    }
+
+    if (mfd::ReticleGroup* editable = SelectedEditablePageReticle(); editable != nullptr)
+    {
+        PushUndoSnapshot();
+        editable->transform.position = ApplyNudgeToPosition(editable->transform.position, delta, snap, gridStep);
+    }
+}
+
 void EditorApplication::HandleShortcuts()
 {
     HandleDroppedFiles();
@@ -1690,6 +1741,23 @@ void EditorApplication::HandleShortcuts()
     else if (undoShortcutTriggered)
     {
         Undo();
+    }
+
+    if (!io.WantTextInput)
+    {
+        const float nudgeStep = layoutState_.pagePreviewViewOptions.snapToGrid
+                                    ? layoutState_.pagePreviewViewOptions.gridStepLogical
+                                    : (io.KeyShift ? 0.05f : 0.01f);
+        const mfd::Vec2 nudge = editor::app::ArrowNudgeDelta(
+            ImGui::IsKeyPressed(ImGuiKey_LeftArrow),
+            ImGui::IsKeyPressed(ImGuiKey_RightArrow),
+            ImGui::IsKeyPressed(ImGuiKey_UpArrow),
+            ImGui::IsKeyPressed(ImGuiKey_DownArrow),
+            nudgeStep);
+        if (nudge.x != 0.0f || nudge.y != 0.0f)
+        {
+            NudgeSelection(nudge);
+        }
     }
 
     if (!io.WantTextInput &&
@@ -3248,6 +3316,16 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
         ImGui::Separator();
         ImGui::Checkbox("Reticle names", &layoutState_.pagePreviewViewOptions.showReticleNames);
         ImGui::Checkbox("Gizmos", &layoutState_.pagePreviewViewOptions.showGizmos);
+        ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
+        ShowItemTooltip("Snap reticle drags and arrow-key nudges to a logical grid. Arrow keys move the "
+                        "selection; hold Shift for a larger step when snapping is off.");
+        if (layoutState_.pagePreviewViewOptions.snapToGrid)
+        {
+            ImGui::SetNextItemWidth(120.0f);
+            ImGui::DragFloat("Grid step", &layoutState_.pagePreviewViewOptions.gridStepLogical, 0.005f, 0.01f, 0.5f, "%.3f");
+            layoutState_.pagePreviewViewOptions.gridStepLogical =
+                std::clamp(layoutState_.pagePreviewViewOptions.gridStepLogical, 0.01f, 0.5f);
+        }
         const bool pageContextChanged = ImGui::Checkbox("Page context", &layoutState_.pagePreviewViewOptions.showPageContext);
         if (pageContextChanged && layoutState_.pagePreviewViewOptions.showPageContext &&
             tutorial_->MatchesTarget("page_preview_view_page_context"))
@@ -7038,11 +7116,16 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 
     case InteractionMode::MoveReticle:
     {
+        const bool snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
+        const float gridStep = layoutState_.pagePreviewViewOptions.gridStepLogical;
         const mfd::Vec2 translationDelta = mouseLogical - interactionState_.startMouseLogical;
         if (!interactionState_.reticleIndices.empty() &&
             interactionState_.reticleIndices.size() == interactionState_.startReticleTransforms.size())
         {
-            // Apply one shared translation delta to the exact transform snapshot captured at drag start.
+            // Snap the shared delta so a multi-selection keeps its relative layout while moving in
+            // grid increments.
+            const mfd::Vec2 appliedDelta =
+                snapToGrid ? editor::app::SnapToGrid(translationDelta, gridStep) : translationDelta;
             for (std::size_t index = 0; index < interactionState_.reticleIndices.size(); ++index)
             {
                 const int movedReticleIndex = interactionState_.reticleIndices[index];
@@ -7052,13 +7135,18 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
                 }
 
                 mfd::Transform2D nextTransform = interactionState_.startReticleTransforms[index];
-                nextTransform.position = nextTransform.position + translationDelta;
+                nextTransform.position = nextTransform.position + appliedDelta;
                 page->staticReticles[static_cast<std::size_t>(movedReticleIndex)].transform = nextTransform;
             }
         }
         else
         {
-            reticleTransform->position = interactionState_.startTransform.position + translationDelta;
+            mfd::Vec2 nextPosition = interactionState_.startTransform.position + translationDelta;
+            if (snapToGrid)
+            {
+                nextPosition = editor::app::SnapToGrid(nextPosition, gridStep);
+            }
+            reticleTransform->position = nextPosition;
         }
         break;
     }

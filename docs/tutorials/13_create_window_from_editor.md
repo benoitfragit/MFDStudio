@@ -530,6 +530,12 @@ The editor watches the open window, page, and reticle template files. If one of 
 outside the editor (for example, edited by hand or pulled from version control), the editor offers to
 **Reload from disk** or **Keep editing**. Reloading discards any unsaved in-editor changes.
 
+## Precise placement
+
+Use the arrow keys to nudge the current page selection (reticles, the strobe, or the title chrome) by
+a small logical step; hold `Shift` for a larger step. Enable `Snap to grid` from the preview `View`
+menu to snap both drags and nudges to a logical grid, and tune the `Grid step` there.
+
 ## Result
 
 You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, local page-reticle rename handling, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.

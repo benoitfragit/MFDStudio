@@ -124,6 +124,8 @@ private:
     void PushUndoSnapshot();
     /** @brief Pushes one pre-captured undo snapshot into the undo stack. */
     void PushUndoSnapshot(UndoSnapshot snapshot);
+    /** @brief Moves the current page selection (reticles, strobe, or title) by a logical delta. */
+    void NudgeSelection(mfd::Vec2 delta);
     /** @brief Handles global keyboard shortcuts such as save, undo and delete. */
     void HandleShortcuts();
     /** @brief Deletes the current selection when that selection supports deletion. */

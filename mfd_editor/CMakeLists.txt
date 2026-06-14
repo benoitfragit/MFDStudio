@@ -52,6 +52,7 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPagePreviewViewOptions.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleUsageHighlightService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleRenameService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorSnapping.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiStatePersistence.h
