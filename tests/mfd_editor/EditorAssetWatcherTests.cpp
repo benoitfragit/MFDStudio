@@ -88,17 +88,47 @@ TEST(EditorAssetWatcherTests, DetectsChangeInAnyWatchedFile)
     EXPECT_TRUE(watcher.DetectExternalChange());
 }
 
-TEST(EditorAssetWatcherTests, SkipsMissingFilesAndClearResets)
+TEST(EditorAssetWatcherTests, TracksMissingFilesAsAbsentAndClearResets)
 {
     ScopedTempDir dir;
     const auto file = WriteFile(dir.Path() / "page.json", "{}");
 
     editor::EditorAssetWatcher watcher;
     watcher.Watch({file, dir.Path() / "does_not_exist.json"});
-    EXPECT_EQ(watcher.WatchedCount(), 1U);
+    // Missing files are tracked as absent so a later reappearance can be reported.
+    EXPECT_EQ(watcher.WatchedCount(), 2U);
+    EXPECT_FALSE(watcher.DetectExternalChange());
 
     watcher.Clear();
     EXPECT_EQ(watcher.WatchedCount(), 0U);
+    EXPECT_FALSE(watcher.DetectExternalChange());
+}
+
+TEST(EditorAssetWatcherTests, DetectsDeletionOfAWatchedFileOnce)
+{
+    ScopedTempDir dir;
+    const auto file = WriteFile(dir.Path() / "page.json", "{}");
+
+    editor::EditorAssetWatcher watcher;
+    watcher.Watch({file});
+
+    std::filesystem::remove(file);
+    EXPECT_TRUE(watcher.DetectExternalChange());
+    // The deletion is re-baselined, so it is not reported again.
+    EXPECT_FALSE(watcher.DetectExternalChange());
+}
+
+TEST(EditorAssetWatcherTests, DetectsReappearanceOfAWatchedFileOnce)
+{
+    ScopedTempDir dir;
+    const auto missing = dir.Path() / "page.json";
+
+    editor::EditorAssetWatcher watcher;
+    watcher.Watch({missing});
+    EXPECT_FALSE(watcher.DetectExternalChange());
+
+    WriteFile(missing, "{}");
+    EXPECT_TRUE(watcher.DetectExternalChange());
     EXPECT_FALSE(watcher.DetectExternalChange());
 }
 } // namespace

@@ -7346,7 +7346,7 @@ void EditorApplication::DrawPopups()
     }
     if (ImGui::BeginPopupModal("Files changed##external", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::TextUnformatted("Authored files changed on disk outside the editor.");
+        ImGui::TextUnformatted("Authored files were changed, removed, or renamed on disk outside the editor.");
         ImGui::TextDisabled(workflowState_.documentDirty
                                 ? "Reloading discards your unsaved editor changes."
                                 : "Reload to pick up the external changes.");
