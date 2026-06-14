@@ -230,6 +230,50 @@ TEST(TextLayoutCacheTests, ResolveTimeTextTracksRuntimeTimeStateInCacheKey)
     EXPECT_EQ(cache.TimeEntryCount(), 4U);
 }
 
+TEST(TextLayoutCacheTests, ResolveTimeTextSharesEntryAcrossSecondsWhenSecondsHidden)
+{
+    ResetCounters();
+    mfd::TextLayoutCache cache(&FakeMeasureText, &FakeFormatTime);
+    const Font font = MakeFont();
+    mfd::TimeGeometry geometry;
+    geometry.format = "clock";
+    geometry.runtimeFields = mfd::TimeFieldVisibility {false, false, false, true, true, false}; // HH:MM
+
+    const auto base = std::chrono::system_clock::from_time_t(1'700'000'000);
+    const auto sameMinute = std::chrono::system_clock::from_time_t(1'700'000'039);
+    const auto nextMinute = std::chrono::system_clock::from_time_t(1'700'000'040);
+
+    const mfd::CachedTextLayout& first = cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, base);
+    const mfd::CachedTextLayout& second = cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, sameMinute);
+    EXPECT_EQ(&first, &second);
+    EXPECT_EQ(gFormatCallCount, 1);
+    EXPECT_EQ(gMeasureCallCount, 1);
+    EXPECT_EQ(cache.TimeEntryCount(), 1U);
+
+    cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, nextMinute);
+    EXPECT_EQ(gFormatCallCount, 2);
+    EXPECT_EQ(gMeasureCallCount, 2);
+    EXPECT_EQ(cache.TimeEntryCount(), 2U);
+}
+
+TEST(TextLayoutCacheTests, ResolveTimeTextKeepsPerSecondEntriesWhenSecondsVisible)
+{
+    ResetCounters();
+    mfd::TextLayoutCache cache(&FakeMeasureText, &FakeFormatTime);
+    const Font font = MakeFont();
+    mfd::TimeGeometry geometry;
+    geometry.format = "clock";
+    geometry.runtimeFields = mfd::TimeFieldVisibility {false, false, false, true, true, true}; // HH:MM:SS
+
+    const auto base = std::chrono::system_clock::from_time_t(1'700'000'000);
+    const auto nextSecond = std::chrono::system_clock::from_time_t(1'700'000'001);
+
+    cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, base);
+    cache.ResolveTimeText(geometry, font, 18.0f, 1.0f, nextSecond);
+    EXPECT_EQ(gFormatCallCount, 2);
+    EXPECT_EQ(cache.TimeEntryCount(), 2U);
+}
+
 TEST(TextLayoutCacheTests, ResolveTimeTextFormatsStructuredNumericOverride)
 {
     ResetCounters();

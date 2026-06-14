@@ -16,7 +16,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <iterator>
+#include <optional>
 #include <utility>
 
 namespace mfd
@@ -41,6 +43,23 @@ void HashCombine(std::uint64_t& hash, const std::uint64_t value) noexcept
 {
     hash ^= value;
     hash *= kFnvPrime;
+}
+
+std::time_t QuantizeVisibleTimeKeySecond(const std::time_t raw,
+                                         const std::optional<TimeFieldVisibility>& fields) noexcept
+{
+    // With structured fields that hide the seconds (e.g. HH:MM), the formatted text only changes once
+    // per minute, so a per-second cache key forces a miss and a re-measure every second. Truncating the
+    // key to whole minutes is timezone-independent (every UTC offset is a whole number of minutes), so
+    // two instants in the same displayed minute share one entry. Coarser truncation (hour/day) is
+    // intentionally avoided because 30/45-minute timezones are not aligned to epoch hour boundaries, and
+    // strftime formats are left at full resolution because their smallest visible unit is not provable.
+    if (!fields.has_value() || fields->second || raw < 0)
+    {
+        return raw;
+    }
+
+    return raw - (raw % 60);
 }
 
 std::size_t ComputeFontFingerprint(const Font& font) noexcept
@@ -267,7 +286,10 @@ const CachedTextLayout& TextLayoutCache::ResolveTimeText(const TimeGeometry& geo
     TimeKey key;
     key.format = geometry.format;
     key.utc = EffectiveUtc(geometry);
-    key.second = geometry.runtimeValueOverride.has_value() ? 0 : std::chrono::system_clock::to_time_t(now);
+    key.second = geometry.runtimeValueOverride.has_value()
+                     ? 0
+                     : QuantizeVisibleTimeKeySecond(std::chrono::system_clock::to_time_t(now),
+                                                    geometry.runtimeFields);
     key.hasValueOverride = geometry.runtimeValueOverride.has_value();
     if (geometry.runtimeValueOverride.has_value())
     {
