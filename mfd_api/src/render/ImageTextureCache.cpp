@@ -10,12 +10,20 @@
 
 #include "ImageTextureCache.h"
 
+#include <chrono>
 #include <string>
 #include <unordered_map>
 #include <utility>
 
 namespace mfd
 {
+namespace
+{
+// A failed load is retried at most once per interval so a file that appears on disk after a first miss
+// is eventually picked up, without re-hitting the filesystem every frame for a genuinely missing file.
+constexpr std::chrono::seconds kImageRetryInterval {2};
+} // namespace
+
 struct ImageTextureCache::Impl
 {
     struct Entry
@@ -23,6 +31,7 @@ struct ImageTextureCache::Impl
         Texture2D texture {};
         bool ready = false;
         bool attempted = false;
+        std::chrono::steady_clock::time_point lastAttempt {};
     };
 
     std::unordered_map<std::string, Entry> entries {};
@@ -57,12 +66,14 @@ const Texture2D* ImageTextureCache::Resolve(const std::filesystem::path& file)
         return &entry.texture;
     }
 
-    if (entry.attempted)
+    const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    if (entry.attempted && (now - entry.lastAttempt) < kImageRetryInterval)
     {
         return nullptr;
     }
 
     entry.attempted = true;
+    entry.lastAttempt = now;
     entry.texture = LoadTexture(normalizedPath.string().c_str());
     if (entry.texture.id == 0)
     {
