@@ -38,6 +38,8 @@
 #include "EditorTutorialData.h"
 #include "EditorUiStatePersistence.h"
 #include "internal/application/EditorApplicationInternal.h"
+#include "internal/application/EditorViewportGrid.h"
+#include "internal/application/EditorViewportSnap.h"
 #include "EditorFileDialogs.h"
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
@@ -113,6 +115,26 @@ mfd::Vec2 ApplyNudgeToPosition(mfd::Vec2 position, const mfd::Vec2 delta, const 
     position.x = std::clamp(position.x + delta.x, -1.0f, 1.0f);
     position.y = std::clamp(position.y + delta.y, -1.0f, 1.0f);
     return snap ? editor::app::SnapToGrid(position, gridStep) : position;
+}
+
+float SharedGridStepLogical(const editor::PagePreviewViewOptions& viewOptions) noexcept
+{
+    return editor::app::SanitizeGridStepLogical(viewOptions.gridStepLogical);
+}
+
+mfd::Vec2 SnapToSharedGridIfEnabled(const mfd::Vec2 value, const editor::PagePreviewViewOptions& viewOptions) noexcept
+{
+    return viewOptions.snapToGrid ? editor::app::SnapToGrid(value, SharedGridStepLogical(viewOptions)) : value;
+}
+
+editor::app::ViewportGridInput MakeViewportGridInput(const editor::app::ViewportState& viewport,
+                                                     const editor::PagePreviewViewOptions& viewOptions) noexcept
+{
+    return editor::app::ViewportGridInput {
+        static_cast<int>(viewport.size.x),
+        static_cast<int>(viewport.size.y),
+        viewport.view,
+        SharedGridStepLogical(viewOptions)};
 }
 
 bool ContainsCaseInsensitive(const std::string_view haystack, const std::string_view needle) noexcept
@@ -1119,6 +1141,7 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
         ImGui::BulletText("Right-drag: pan the studio camera.");
         ImGui::BulletText("Click a primitive: focus it in the studio and inspector.");
         ImGui::BulletText("Left-drag the handles: edit the selected primitive geometry.");
+        ImGui::BulletText("View > Grid and Snap to grid: reuse the shared logical placement grid.");
     }
     else
     {
@@ -1135,6 +1158,7 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
         ImGui::BulletText("Right-drag: pan the page camera.");
         ImGui::BulletText("Right-click: open selection and clipping actions.");
         ImGui::BulletText("Left-drag the minimap viewport: navigate the page.");
+        ImGui::BulletText("View > Grid and Snap to grid: align the visible helper grid with reticle drags and nudges.");
     }
 
     ImGui::Separator();
@@ -1271,6 +1295,18 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     {
         layoutState_.libraryStudioPageWidth = *uiState.libraryStudioPageWidth;
     }
+    if (uiState.showGrid.has_value())
+    {
+        layoutState_.pagePreviewViewOptions.showGrid = *uiState.showGrid;
+    }
+    if (uiState.snapToGrid.has_value())
+    {
+        layoutState_.pagePreviewViewOptions.snapToGrid = *uiState.snapToGrid;
+    }
+    if (uiState.gridStepLogical.has_value())
+    {
+        layoutState_.pagePreviewViewOptions.gridStepLogical = *uiState.gridStepLogical;
+    }
     layoutState_.inspectorSectionOpen = uiState.sectionOpen;
     editor::ui::SetInspectorSectionStateStore(&layoutState_.inspectorSectionOpen);
 
@@ -1296,6 +1332,9 @@ EditorApplication::~EditorApplication()
     {
         uiState.libraryStudioPageWidth = layoutState_.libraryStudioPageWidth;
     }
+    uiState.showGrid = layoutState_.pagePreviewViewOptions.showGrid;
+    uiState.snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
+    uiState.gridStepLogical = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
     uiState.sectionOpen = layoutState_.inspectorSectionOpen;
     editor::SaveEditorUiState(documentState_.assetPaths.DefaultAssetPath(kUiStateFileName), uiState);
 
@@ -1670,7 +1709,7 @@ void EditorApplication::NudgeSelection(const mfd::Vec2 delta)
     }
 
     const bool snap = layoutState_.pagePreviewViewOptions.snapToGrid;
-    const float gridStep = layoutState_.pagePreviewViewOptions.gridStepLogical;
+    const float gridStep = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
 
     if (IsPageTitleSelected())
     {
@@ -1753,7 +1792,7 @@ void EditorApplication::HandleShortcuts()
     if (!io.WantTextInput)
     {
         const float nudgeStep = layoutState_.pagePreviewViewOptions.snapToGrid
-                                    ? layoutState_.pagePreviewViewOptions.gridStepLogical
+                                    ? SharedGridStepLogical(layoutState_.pagePreviewViewOptions)
                                     : (io.KeyShift ? 0.05f : 0.01f);
         const mfd::Vec2 nudge = editor::app::ArrowNudgeDelta(
             ImGui::IsKeyPressed(ImGuiKey_LeftArrow),
@@ -2967,6 +3006,13 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     BeginTextureMode(previewState_.previewTexture);
     ClearBackground(ToRayColor(page->backgroundColor));
     {
+        if (layoutState_.pagePreviewViewOptions.showGrid)
+        {
+            editor::app::DrawViewportGrid(
+                MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
+                ToRayColor(page->backgroundColor));
+        }
+
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
@@ -3049,7 +3095,10 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             {
                 const ImVec2 dropMousePosition = ImGui::GetMousePos();
                 const bool dropInsideViewport = IsPointInsideRect(dropMousePosition, viewport.origin, viewportMax);
-                const mfd::Vec2 dropPosition = dropInsideViewport ? viewport.ToLogical(dropMousePosition) : viewport.view.center;
+                const mfd::Vec2 rawDropPosition =
+                    dropInsideViewport ? viewport.ToLogical(dropMousePosition) : viewport.view.center;
+                const mfd::Vec2 dropPosition =
+                    SnapToSharedGridIfEnabled(rawDropPosition, layoutState_.pagePreviewViewOptions);
                 if (CreatePageReticleInstanceFromTemplate(templateId, dropPosition) && !dropInsideViewport)
                 {
                     RebuildStatus("Reticle '" + std::string(templateId) +
@@ -3091,6 +3140,13 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     BeginTextureMode(previewState_.previewTexture);
     ClearBackground(Color {10, 18, 24, 255});
     {
+        if (layoutState_.pagePreviewViewOptions.showGrid)
+        {
+            editor::app::DrawViewportGrid(
+                MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
+                Color {10, 18, 24, 255});
+        }
+
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
@@ -3323,15 +3379,18 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
         ImGui::Separator();
         ImGui::Checkbox("Reticle names", &layoutState_.pagePreviewViewOptions.showReticleNames);
         ImGui::Checkbox("Gizmos", &layoutState_.pagePreviewViewOptions.showGizmos);
+        ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
+        ShowItemTooltip("Draw a discreet editor-only grid matching the shared logical snapping step.");
         ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
-        ShowItemTooltip("Snap reticle drags and arrow-key nudges to a logical grid. Arrow keys move the "
-                        "selection; hold Shift for a larger step when snapping is off.");
-        if (layoutState_.pagePreviewViewOptions.snapToGrid)
+        ShowItemTooltip("Snap page-preview drags and nudges plus reticle-studio edits to the shared logical grid. "
+                        "Arrow keys move the page selection; hold Shift for a larger step when snapping is off.");
+        if (layoutState_.pagePreviewViewOptions.showGrid || layoutState_.pagePreviewViewOptions.snapToGrid)
         {
             ImGui::SetNextItemWidth(120.0f);
             ImGui::DragFloat("Grid step", &layoutState_.pagePreviewViewOptions.gridStepLogical, 0.005f, 0.01f, 0.5f, "%.3f");
             layoutState_.pagePreviewViewOptions.gridStepLogical =
-                std::clamp(layoutState_.pagePreviewViewOptions.gridStepLogical, 0.01f, 0.5f);
+                editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
+            ShowItemTooltip("Shared logical spacing reused by the visible grid, page-preview snapping, and reticle-studio snapping.");
         }
         const bool pageContextChanged = ImGui::Checkbox("Page context", &layoutState_.pagePreviewViewOptions.showPageContext);
         if (pageContextChanged && layoutState_.pagePreviewViewOptions.showPageContext &&
@@ -5190,18 +5249,28 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }
 
         mfd::Primitive& primitive = reticle->primitives[static_cast<std::size_t>(interactionState_.primitiveIndex)];
+        const bool snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
+        const float gridStep = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
         const mfd::Vec2 previewMouseLogical = viewport.ToLogical(ImGui::GetMousePos());
-        const mfd::Vec2 mouseReticleLocal = InverseTransformPoint(previewMouseLogical, reticle->transform);
 
         if (interactionState_.mode == InteractionMode::MovePrimitive)
         {
-            primitive.transform.position =
-                interactionState_.startPrimitive.transform.position + (mouseReticleLocal - interactionState_.startMouseReticleLocal);
+            primitive.transform.position = editor::app::ResolvePrimitiveMovePosition(
+                reticle->transform,
+                interactionState_.startPrimitive,
+                interactionState_.startMouseLogical,
+                previewMouseLogical,
+                snapToGrid,
+                gridStep);
         }
         else if (interactionState_.mode == InteractionMode::EditPrimitiveHandle)
         {
-            const mfd::Vec2 mousePrimitiveLocal =
-                InversePrimitiveWorldPoint(*reticle, interactionState_.startPrimitive, previewMouseLogical);
+            const mfd::Vec2 mousePrimitiveLocal = editor::app::ResolvePrimitiveHandleLocalPoint(
+                *reticle,
+                interactionState_.startPrimitive,
+                previewMouseLogical,
+                snapToGrid,
+                gridStep);
 
             if (auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
             {
@@ -7178,7 +7247,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
     case InteractionMode::MoveReticle:
     {
         const bool snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
-        const float gridStep = layoutState_.pagePreviewViewOptions.gridStepLogical;
+        const float gridStep = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
         const mfd::Vec2 translationDelta = mouseLogical - interactionState_.startMouseLogical;
         if (!interactionState_.reticleIndices.empty() &&
             interactionState_.reticleIndices.size() == interactionState_.startReticleTransforms.size())

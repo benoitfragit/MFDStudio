@@ -16,6 +16,7 @@
 #include <string>
 
 #include "internal/application/EditorApplicationInternal.h"
+#include "internal/application/EditorViewportGrid.h"
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorUiTheme.h"
@@ -826,6 +827,19 @@ void EditorApplication::DrawReticleStudioPanel(const float width)
         ImGui::Checkbox("Show page context", &layoutState_.pagePreviewViewOptions.showPageContext);
         ImGui::Checkbox("Show primitive names", &layoutState_.libraryStudioShowPrimitiveLabels);
         ImGui::Checkbox("Show gizmos", &layoutState_.libraryStudioShowGizmos);
+        ImGui::Separator();
+        ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
+        ShowItemTooltip("Draw the shared editor-only placement grid behind the reticle-studio content.");
+        ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
+        ShowItemTooltip("Snap reticle-studio primitive moves and handle edits to the same logical grid used by the page preview.");
+        if (layoutState_.pagePreviewViewOptions.showGrid || layoutState_.pagePreviewViewOptions.snapToGrid)
+        {
+            ImGui::SetNextItemWidth(120.0f);
+            ImGui::DragFloat("Grid step", &layoutState_.pagePreviewViewOptions.gridStepLogical, 0.005f, 0.01f, 0.5f, "%.3f");
+            layoutState_.pagePreviewViewOptions.gridStepLogical =
+                editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
+            ShowItemTooltip("Shared logical spacing reused by the visible grid and both editor snapping workflows.");
+        }
         ImGui::EndPopup();
     }
 

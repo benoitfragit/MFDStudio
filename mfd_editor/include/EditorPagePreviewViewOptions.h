@@ -7,16 +7,17 @@
 
 /**
  * @file
- * @brief Editor-only view preferences used by the page preview panel.
+ * @brief Editor-only view preferences used by the page preview and shared viewport helpers.
  */
 
 namespace editor
 {
 /**
- * @brief Session-scoped display options controlling the page preview overlays.
+ * @brief Session-scoped display options controlling the page preview overlays and shared grid state.
  *
  * @details These preferences belong to the editor UI only. They must never be
- * serialized into window, page, or reticle JSON assets.
+ * serialized into window, page, or reticle JSON assets. Grid-related members
+ * are also reused by the reticle studio so both editing workspaces stay aligned.
  */
 struct PagePreviewViewOptions
 {
@@ -32,6 +33,8 @@ struct PagePreviewViewOptions
     bool showReticleNames = true;
     /** @brief Shows page-preview gizmos such as selection bounds and handles when enabled. */
     bool showGizmos = true;
+    /** @brief Shows the shared editor-only visible grid that matches the snapping step. */
+    bool showGrid = true;
     /** @brief Keeps the page-context panel visible while editing one library reticle. */
     bool showPageContext = true;
     /** @brief Snaps reticle drags and keyboard nudges to a logical grid when enabled. */

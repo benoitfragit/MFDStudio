@@ -28,7 +28,10 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorSnappingTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/EditorUndoHistoryTests.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiStatePersistenceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorUndoHistoryTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportSnapTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportGridTests.cpp)
 
 add_executable(mfd_editor_tests ${MFD_EDITOR_TEST_SOURCES})
 
@@ -88,6 +91,12 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorReticleRenameService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorReticleUsageHighlightService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorReticleUsageHighlightService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorUiStatePersistence.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiStatePersistence.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorViewportGrid.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportGrid.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorViewportSnap.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportSnap.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiTheme.cpp)
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)

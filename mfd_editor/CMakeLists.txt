@@ -6,6 +6,8 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetReferenceIndexService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetPathService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportGrid.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportSnap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationShell.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationInspectors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplicationWorkflow.cpp
@@ -61,7 +63,9 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUndoHistory.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationAuthoringSupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationInternal.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationState.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationState.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportGrid.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportSnap.h)
 
 set(MFD_EDITOR_WINDOWS_RESOURCES)
 if(WIN32)

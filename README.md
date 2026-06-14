@@ -126,7 +126,9 @@ If your main entry point is the visual tool, start here:
 
 The editor authors text and time alignment directly in the asset model with the
 same `left`, `center`, and `right` behavior used by both the preview gizmos and
-`mfd_window` at runtime.
+`mfd_window` at runtime. It also keeps one shared editor-only visible grid,
+shared snap toggle, and shared logical grid step across the page preview and
+reticle studio without serializing those preferences into the authored JSON.
 
 ## Developer Checks
 

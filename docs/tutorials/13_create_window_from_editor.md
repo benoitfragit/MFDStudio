@@ -19,6 +19,7 @@ You will learn how to:
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
 - use the page-preview View menu without modifying authored JSON assets
+- use one shared visible grid and snapping step in both the page preview and the reticle studio
 - understand how the generated C++17 client API mirrors the authored window
 - discover that the page title is a dedicated chrome element that can be framed, moved, scaled, hidden, and recolored
 - choose left / center / right alignment for authored text and time primitives without moving the current label immediately
@@ -226,6 +227,9 @@ The page preview now owns one editor-only **View** menu. Open it from the previe
 - **Highlight reticle usages**
 - **Reticle names**
 - **Gizmos**
+- **Grid**
+- **Snap to grid**
+- **Grid step**
 - **Page context**
 
 Default startup behavior stays intentionally conservative:
@@ -237,7 +241,12 @@ Default startup behavior stays intentionally conservative:
 - **Reticle names** starts on
 - **Gizmos** starts on
 
-These switches are session preferences only. They help you inspect the current page, but they do not change the authored window/page/reticle JSON files.
+These controls stay editor-only. They help you inspect the current page, but
+they do not change the authored window/page/reticle JSON files.
+
+The same **Grid**, **Snap to grid**, and **Grid step** settings are reused by
+the reticle-studio **View** popup, so both editing workspaces keep the same
+logical spacing and placement feedback.
 
 If the **View** button shows `!`, validation diagnostics exist and you can enable **Problems** to inspect them directly from the preview.
 
@@ -533,8 +542,12 @@ outside the editor (for example, edited by hand or pulled from version control),
 ## Precise placement
 
 Use the arrow keys to nudge the current page selection (reticles, the strobe, or the title chrome) by
-a small logical step; hold `Shift` for a larger step. Enable `Snap to grid` from the preview `View`
-menu to snap both drags and nudges to a logical grid, and tune the `Grid step` there.
+a small logical step; hold `Shift` for a larger step. Enable **Grid** from the preview `View`
+menu to display the shared logical placement grid, then enable **Snap to grid**
+to snap both drags and nudges to that spacing. The same `Grid step` is reused
+by the reticle studio for primitive moves and handle edits, and the editor
+remembers those three grid preferences across sessions through its UI-state
+file only.
 
 ## Navigating validation problems
 

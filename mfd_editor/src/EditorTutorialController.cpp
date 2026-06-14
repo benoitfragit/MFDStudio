@@ -335,7 +335,7 @@ constexpr std::array<TutorialStageInfo, 4> kTutorialStages {{
      static_cast<int>(editor::tutorial::TutorialStepId::CreateWindow),
      static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
     {"Stage 2 - Explore Editor Tools",
-     "Use the page-preview helper panels, save the tutorial assets, and discover the import, rename, and export workflows directly from the editor.",
+     "Use the page-preview helper panels, the shared visible grid and snap controls, save the tutorial assets, and discover the import, rename, and export workflows directly from the editor.",
      static_cast<int>(editor::tutorial::TutorialStepId::ShowPageContext),
      static_cast<int>(editor::tutorial::TutorialStepId::InspectDesignExportWorkflow)},
     {"Stage 3 - Review Saved Outputs",

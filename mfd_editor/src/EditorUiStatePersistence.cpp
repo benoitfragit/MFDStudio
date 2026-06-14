@@ -16,6 +16,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "internal/application/EditorViewportGrid.h"
+
 namespace editor
 {
 namespace
@@ -39,6 +41,32 @@ void ReadOptionalWidth(const json& root, const char* key, std::optional<float>& 
     {
         destination = static_cast<float>(value);
     }
+}
+
+void ReadOptionalFlag(const json& root, const char* key, std::optional<bool>& destination)
+{
+    if (!root.contains(key) || !root.at(key).is_boolean())
+    {
+        return;
+    }
+
+    destination = root.at(key).get<bool>();
+}
+
+void ReadOptionalGridStep(const json& root, const char* key, std::optional<float>& destination)
+{
+    if (!root.contains(key) || !root.at(key).is_number())
+    {
+        return;
+    }
+
+    const double value = root.at(key).get<double>();
+    if (!std::isfinite(value) || value <= 0.0)
+    {
+        return;
+    }
+
+    destination = editor::app::SanitizeGridStepLogical(static_cast<float>(value));
 }
 } // namespace
 
@@ -70,6 +98,9 @@ EditorUiPersistentState LoadEditorUiState(const std::filesystem::path& file)
         ReadOptionalWidth(root, "sidebarWidth", state.sidebarWidth);
         ReadOptionalWidth(root, "inspectorWidth", state.inspectorWidth);
         ReadOptionalWidth(root, "libraryStudioPageWidth", state.libraryStudioPageWidth);
+        ReadOptionalFlag(root, "showGrid", state.showGrid);
+        ReadOptionalFlag(root, "snapToGrid", state.snapToGrid);
+        ReadOptionalGridStep(root, "gridStepLogical", state.gridStepLogical);
 
         if (root.contains("sections") && root.at("sections").is_object())
         {
@@ -106,6 +137,18 @@ void SaveEditorUiState(const std::filesystem::path& file, const EditorUiPersiste
         if (state.libraryStudioPageWidth.has_value())
         {
             root["libraryStudioPageWidth"] = *state.libraryStudioPageWidth;
+        }
+        if (state.showGrid.has_value())
+        {
+            root["showGrid"] = *state.showGrid;
+        }
+        if (state.snapToGrid.has_value())
+        {
+            root["snapToGrid"] = *state.snapToGrid;
+        }
+        if (state.gridStepLogical.has_value())
+        {
+            root["gridStepLogical"] = editor::app::SanitizeGridStepLogical(*state.gridStepLogical);
         }
 
         json sections = json::object();

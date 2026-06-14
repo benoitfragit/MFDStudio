@@ -27,9 +27,19 @@ namespace editor
  */
 struct EditorUiPersistentState
 {
+    /** @brief Persisted width of the left navigation sidebar. */
     std::optional<float> sidebarWidth {};
+    /** @brief Persisted width of the right inspector panel. */
     std::optional<float> inspectorWidth {};
+    /** @brief Persisted width of the page-context pane in reticle-studio mode. */
     std::optional<float> libraryStudioPageWidth {};
+    /** @brief Persisted state of the shared visible editor grid. */
+    std::optional<bool> showGrid {};
+    /** @brief Persisted state of the shared grid snapping mode. */
+    std::optional<bool> snapToGrid {};
+    /** @brief Persisted shared logical step used by the visible grid and snapping. */
+    std::optional<float> gridStepLogical {};
+    /** @brief Persisted open-state map for inspector sections keyed by their stable id. */
     std::map<std::string, bool> sectionOpen {};
 };
 

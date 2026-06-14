@@ -13,7 +13,7 @@ top-left corner:
 - `?`: open the interaction help for the current viewport
 - `R`: recenter the current editor camera without changing the authored JSON
 
-These toggles are session-only editor preferences:
+These editor-only view controls never touch authored assets:
 
 - **Layer Inspector**
 - **Minimap**
@@ -21,9 +21,14 @@ These toggles are session-only editor preferences:
 - **Highlight reticle usages**
 - **Reticle names**
 - **Gizmos**
+- **Grid**
+- **Snap to grid**
+- **Grid step**
 - **Page context**
 
-They do not rewrite the authored window, page, or reticle JSON files.
+The visible grid, the snap toggle, and the shared `Grid step` are reused by
+both the page preview and the reticle studio so placement reads the same way in
+both workspaces.
 
 ## Fullscreen Preview
 
@@ -55,3 +60,12 @@ fullscreen preview exits.
 
 View toggles and fullscreen preview state are not serialized into authored
 assets.
+
+The shared visible-grid preferences are persisted in the editor UI state file:
+
+- **Grid**
+- **Snap to grid**
+- **Grid step**
+
+That persistence remains editor-only and does not modify any window, page, or
+reticle JSON file.
