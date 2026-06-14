@@ -1385,7 +1385,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         layoutState_.layerFocusState = {};
         SelectPage(DefaultPageIndex(documentState_.loaded.document.pages));
         ResetLibraryPreviewView();
-        documentState_.undoStack.clear();
+        documentState_.history.Clear();
         InvalidateReticleUsageHighlightCache();
         documentState_.windowFile = path;
         workflowState_.lastRuntimeError.clear();
@@ -1420,14 +1420,42 @@ bool EditorApplication::SaveAll()
 
 void EditorApplication::Undo()
 {
-    if (documentState_.undoStack.empty())
+    std::optional<UndoSnapshot> previous = documentState_.history.Undo(CaptureCurrentSnapshot());
+    if (!previous.has_value())
     {
         RebuildStatus("Nothing to undo.", true);
         return;
     }
 
-    UndoSnapshot snapshot = std::move(documentState_.undoStack.back());
-    documentState_.undoStack.pop_back();
+    RestoreSnapshot(std::move(*previous));
+    RebuildStatus("Undo applied.", false);
+}
+
+void EditorApplication::Redo()
+{
+    std::optional<UndoSnapshot> next = documentState_.history.Redo(CaptureCurrentSnapshot());
+    if (!next.has_value())
+    {
+        RebuildStatus("Nothing to redo.", true);
+        return;
+    }
+
+    RestoreSnapshot(std::move(*next));
+    RebuildStatus("Redo applied.", false);
+}
+
+EditorApplication::UndoSnapshot EditorApplication::CaptureCurrentSnapshot() const
+{
+    return UndoSnapshot {
+        documentState_.loaded,
+        documentState_.files,
+        documentState_.selection,
+        layoutState_.pagePreviewView,
+        layoutState_.libraryPreviewView};
+}
+
+void EditorApplication::RestoreSnapshot(UndoSnapshot snapshot)
+{
     documentState_.loaded = std::move(snapshot.loaded);
     documentState_.files = std::move(snapshot.files);
     documentState_.selection = std::move(snapshot.selection);
@@ -1443,23 +1471,17 @@ void EditorApplication::Undo()
 
     SanitizeLayerFocusForActivePage();
     SanitizePageReticleSelectionForCurrentFocus();
-    RebuildStatus("Undo applied.", false);
     InvalidateReticleUsageHighlightCache();
 }
 
 void EditorApplication::PushUndoSnapshot()
 {
-    PushUndoSnapshot(UndoSnapshot {documentState_.loaded, documentState_.files, documentState_.selection, layoutState_.pagePreviewView, layoutState_.libraryPreviewView});
+    PushUndoSnapshot(CaptureCurrentSnapshot());
 }
 
 void EditorApplication::PushUndoSnapshot(UndoSnapshot snapshot)
 {
-    if (documentState_.undoStack.size() >= 64)
-    {
-        documentState_.undoStack.erase(documentState_.undoStack.begin());
-    }
-
-    documentState_.undoStack.push_back(std::move(snapshot));
+    documentState_.history.Record(std::move(snapshot));
     InvalidateReticleUsageHighlightCache();
 }
 
@@ -1495,7 +1517,15 @@ void EditorApplication::HandleShortcuts()
     const bool undoShortcutTriggered =
         ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
         IsRaylibControlChordPressed({KEY_Z, KEY_W});
-    if (undoShortcutTriggered)
+    const bool redoShortcutTriggered =
+        ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Y, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
+        ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
+        IsRaylibControlChordPressed({KEY_Y});
+    if (redoShortcutTriggered)
+    {
+        Redo();
+    }
+    else if (undoShortcutTriggered)
     {
         Undo();
     }

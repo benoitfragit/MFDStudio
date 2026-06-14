@@ -36,6 +36,7 @@
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleRenameService.h"
 #include "EditorReticleUsageHighlightService.h"
+#include "EditorUndoHistory.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 #include "BezierPolylineCache.h"
@@ -307,7 +308,7 @@ struct DocumentState
     mfd::LoadedWindowConfiguration loaded {};
     editor::EditorFileLayout files {};
     Selection selection {};
-    std::vector<UndoSnapshot> undoStack {};
+    editor::UndoHistory<UndoSnapshot> history {};
 };
 
 /** @brief GPU resources, preview caches and per-canvas derived caches. */

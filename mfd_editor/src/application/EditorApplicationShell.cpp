@@ -156,11 +156,18 @@ void EditorApplication::DrawMenuBar()
 
     if (ImGui::BeginMenu("Edit"))
     {
-        const bool undoRequested = ImGui::MenuItem("Undo", "Ctrl+Z", false, !documentState_.undoStack.empty());
+        const bool undoRequested = ImGui::MenuItem("Undo", "Ctrl+Z", false, documentState_.history.CanUndo());
         ShowItemTooltip("Restore the previous editor snapshot.");
         if (undoRequested)
         {
             Undo();
+        }
+
+        const bool redoRequested = ImGui::MenuItem("Redo", "Ctrl+Y", false, documentState_.history.CanRedo());
+        ShowItemTooltip("Reapply the editor snapshot that was just undone.");
+        if (redoRequested)
+        {
+            Redo();
         }
 
         const bool hasPageReticleSelection =

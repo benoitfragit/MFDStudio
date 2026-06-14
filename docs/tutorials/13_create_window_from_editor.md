@@ -502,6 +502,10 @@ The editor keeps one undo snapshot per page-modifying action:
 
 `Copy` alone does not create an undo step because it only updates the internal clipboard and does not modify the authored page.
 
+Use `Ctrl+Z` to undo and `Ctrl+Y` (or `Ctrl+Shift+Z`) to redo. The editor keeps up to 64 steps in
+each direction; recording a new edit after an undo clears the redo branch. Both actions are also
+available from the `Edit` menu.
+
 ## Result
 
 You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, local page-reticle rename handling, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.

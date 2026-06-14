@@ -102,6 +102,12 @@ private:
     bool SaveAll();
     /** @brief Restores the latest undo snapshot when available. */
     void Undo();
+    /** @brief Restores the next redo snapshot when available. */
+    void Redo();
+    /** @brief Captures the current document, file layout, selection and preview views as one snapshot. */
+    [[nodiscard]] UndoSnapshot CaptureCurrentSnapshot() const;
+    /** @brief Restores one snapshot into the live editor state and resynchronizes derived caches. */
+    void RestoreSnapshot(UndoSnapshot snapshot);
     /** @brief Captures the current document state into the undo stack. */
     void PushUndoSnapshot();
     /** @brief Pushes one pre-captured undo snapshot into the undo stack. */
