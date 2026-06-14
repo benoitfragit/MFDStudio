@@ -35,11 +35,6 @@ Color ToRayColor(const ColorRgba& color) noexcept
     return Color {color.r, color.g, color.b, color.a};
 }
 
-Font ResolveTextFont(const Font* textFont) noexcept
-{
-    return textFont != nullptr ? *textFont : GetFontDefault();
-}
-
 void ApplyPointFilterToFont(const Font& font) noexcept
 {
     if (font.texture.id != 0)
@@ -209,6 +204,20 @@ public:
         return textFontReady_ ? &textFont_ : nullptr;
     }
 
+    void EnsureDefaultFontPointFilter() noexcept
+    {
+        // The loaded font receives the point filter once at load time. The default font, used when no
+        // custom font is ready, has no load step here, so apply its filter exactly once instead of
+        // repeating the GL texture-parameter call every frame.
+        if (defaultFontFilterApplied_)
+        {
+            return;
+        }
+
+        ApplyPointFilterToFont(GetFontDefault());
+        defaultFontFilterApplied_ = true;
+    }
+
     const ReticleGroup& ResolveTitleReticle(const PageSummary& activePage)
     {
         if (!titleReticleCache_.valid ||
@@ -246,7 +255,10 @@ public:
         EnsureTextFont();
         const ReticleGroup& titleReticle = ResolveTitleReticle(*activePage);
         const Font* activeTextFont = ActiveTextFont();
-        ApplyPointFilterToFont(ResolveTextFont(activeTextFont));
+        if (activeTextFont == nullptr)
+        {
+            EnsureDefaultFontPointFilter();
+        }
 
         scene.CollectActiveReticleViews(activeReticlesScratch_);
         const bool clippingEnabled =
@@ -269,6 +281,7 @@ private:
     Font textFont_ {};
     bool textFontReady_ = false;
     bool textFontLoadAttempted_ = false;
+    bool defaultFontFilterApplied_ = false;
     std::vector<ReticleRenderView> activeReticlesScratch_ {};
     BezierPolylineCache bezierCache_ {};
     ImageTextureCache imageCache_ {};

@@ -41,11 +41,6 @@ std::uint8_t ClampUnitFloatToByte(const float value) noexcept
     return static_cast<std::uint8_t>(std::lround(clamped * 255.0f));
 }
 
-Font ResolveTextFont(const Font* textFont) noexcept
-{
-    return textFont != nullptr ? *textFont : GetFontDefault();
-}
-
 void ApplyPointFilterToFont(const Font& font) noexcept
 {
     if (font.texture.id != 0)
@@ -215,6 +210,7 @@ struct MfdRenderer::Impl
     Font textFont {};
     bool textFontReady = false;
     bool textFontLoadAttempted = false;
+    bool defaultFontFilterApplied = false;
     std::vector<ReticleRenderView> activeReticlesScratch {};
     BezierPolylineCache bezierCache {};
     ImageTextureCache imageCache {};
@@ -381,6 +377,20 @@ struct MfdRenderer::Impl
         return textFontReady ? &textFont : nullptr;
     }
 
+    void EnsureDefaultFontPointFilter() noexcept
+    {
+        // The loaded font receives the point filter once at load time. The default font, used when no
+        // custom font is ready, has no load step here, so apply its filter exactly once instead of
+        // repeating the GL texture-parameter call every frame.
+        if (defaultFontFilterApplied)
+        {
+            return;
+        }
+
+        ApplyPointFilterToFont(GetFontDefault());
+        defaultFontFilterApplied = true;
+    }
+
     const ReticleGroup& ResolveTitleReticle(const PageSummary& activePage)
     {
         if (!titleReticleCache.valid ||
@@ -471,7 +481,17 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     }
 
     const Font* textFont = impl_ == nullptr ? nullptr : impl_->ActiveTextFont();
-    ApplyPointFilterToFont(ResolveTextFont(textFont));
+    if (impl_ != nullptr)
+    {
+        if (textFont == nullptr)
+        {
+            impl_->EnsureDefaultFontPointFilter();
+        }
+    }
+    else
+    {
+        ApplyPointFilterToFont(GetFontDefault());
+    }
     std::vector<ReticleRenderView> fallbackActiveReticles;
     const std::vector<ReticleRenderView>* activeReticles = nullptr;
     if (impl_ != nullptr)
