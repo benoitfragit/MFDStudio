@@ -26,6 +26,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 
 #include "mfd/control/CommandTransport.h"
 #include "mfd/control/CommandTypes.h"
@@ -489,23 +490,30 @@ public:
     }
 };
 
+std::string DescribeFeedbackTargetImpl(const StrobeStatusFeedback& feedback)
+{
+    return "page '" + feedback.pageName + "' strobe";
+}
+
+std::string DescribeFeedbackTargetImpl(const ActivePageFeedback& feedback)
+{
+    return "active page '" + feedback.pageName + "'";
+}
+
 std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
 {
-    return std::visit(
-        [](const auto& value) -> std::string
-        {
-            using FeedbackType = std::decay_t<decltype(value)>;
+    // Explicit named overloads keep the description per alternative. The static_assert turns any future
+    // extension of FeedbackPayload into a compile error here, forcing a matching overload to be added
+    // instead of silently falling through.
+    static_assert(std::variant_size_v<FeedbackPayload> == 2,
+                  "DescribeFeedbackTarget must cover every FeedbackPayload alternative");
 
-            if constexpr (std::is_same_v<FeedbackType, StrobeStatusFeedback>)
-            {
-                return "page '" + value.pageName + "' strobe";
-            }
-            else if constexpr (std::is_same_v<FeedbackType, ActivePageFeedback>)
-            {
-                return "active page '" + value.pageName + "'";
-            }
-        },
-        feedback);
+    if (const auto* strobe = std::get_if<StrobeStatusFeedback>(&feedback))
+    {
+        return DescribeFeedbackTargetImpl(*strobe);
+    }
+
+    return DescribeFeedbackTargetImpl(std::get<ActivePageFeedback>(feedback));
 }
 
 } // namespace
