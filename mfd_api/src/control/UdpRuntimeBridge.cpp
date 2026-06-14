@@ -41,7 +41,11 @@ namespace
 constexpr std::size_t kMaxPacketsPerPump = 64;
 constexpr std::size_t kMaxQueuedBatches = 8192;
 constexpr std::size_t kMaxQueuedFeedback = 256;
-constexpr auto kIdleWait = std::chrono::milliseconds(2);
+// Idle backoff of the worker loop. Incoming command packets are polled (TryReceive is non-blocking) and
+// the wait is only interrupted by stop requests and outbound feedback, so this delay bounds the extra
+// latency before idle incoming commands are pumped. 5 ms keeps that well under one frame at 60 fps while
+// more than halving the at-rest wake-up rate versus the previous 2 ms busy poll.
+constexpr auto kIdleWait = std::chrono::milliseconds(5);
 
 enum class CommandCoalescingKind
 {
