@@ -517,6 +517,13 @@ guards against losing that work:
 
 Saving (`Ctrl+S`) or reloading clears the unsaved state.
 
+## Crash recovery
+
+While a window has unsaved changes, the editor periodically writes a recovery snapshot next to the
+assets (`assets/.editor_recovery.json`). A clean exit or a save deletes it. If the editor stops
+unexpectedly, the next launch finds the leftover snapshot and offers to **Recover** the work or
+**Discard** it. Recovering writes the snapshot back to the authored files and reloads them.
+
 ## Result
 
 You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, local page-reticle rename handling, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.

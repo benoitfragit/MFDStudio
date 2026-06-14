@@ -23,6 +23,7 @@
 #include <raylib.h>
 
 #include "EditorAssetPathService.h"
+#include "EditorAutosaveScheduler.h"
 #include "EditorDocumentSerializer.h"
 #include "EditorDesignExportService.h"
 #include "EditorFullscreenPreviewController.h"
@@ -100,6 +101,12 @@ private:
     bool LoadWindowConfiguration(const std::filesystem::path& path);
     /** @brief Serializes every modified file back to disk. */
     bool SaveAll();
+    /** @brief Writes a crash-recovery snapshot of the current document next to the assets. */
+    void WriteRecoverySnapshot();
+    /** @brief Deletes the crash-recovery snapshot once it is no longer needed. */
+    void ClearRecoverySnapshot();
+    /** @brief Restores the document from a previous-session recovery snapshot, then reloads it. */
+    void RecoverPreviousSession();
     /** @brief Restores the latest undo snapshot when available. */
     void Undo();
     /** @brief Restores the next redo snapshot when available. */
@@ -528,6 +535,8 @@ private:
     editor::app::ClipboardState clipboardState_ {};
     /** @brief Private controller that owns the guided tutorial state and workflow. */
     std::unique_ptr<EditorTutorialController> tutorial_ {};
+    /** @brief Cadence control deciding when to write the crash-recovery snapshot. */
+    editor::EditorAutosaveScheduler autosave_ {};
     /** @brief Grouped stateless services and controllers shared across editor responsibilities. */
     editor::app::ServicesState services_ {};
     /** @brief Grouped direct-manipulation state used by page-preview and reticle-studio gestures. */

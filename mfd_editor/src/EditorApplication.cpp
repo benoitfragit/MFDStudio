@@ -23,6 +23,7 @@
 #include <limits>
 #include <numeric>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -154,6 +155,7 @@ constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
 constexpr const char* kPagePreviewDisplayPopupId = "PagePreviewDisplayPopup";
 constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
 constexpr const char* kUiStateFileName = "assets/.editor_ui_state.json";
+constexpr const char* kRecoveryFileName = "assets/.editor_recovery.json";
 
 enum class DroppedJsonDocumentKind
 {
@@ -1260,6 +1262,14 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     layoutState_.inspectorSectionOpen = uiState.sectionOpen;
     editor::ui::SetInspectorSectionStateStore(&layoutState_.inspectorSectionOpen);
 
+    std::error_code recoveryExistsError;
+    if (std::filesystem::exists(documentState_.assetPaths.DefaultAssetPath(kRecoveryFileName), recoveryExistsError) &&
+        !recoveryExistsError)
+    {
+        // A recovery snapshot left behind means the previous session did not exit cleanly.
+        workflowState_.recoveryPromptPending = true;
+    }
+
     tutorial_->LoadProgress();
 }
 
@@ -1368,12 +1378,23 @@ int EditorApplication::Run()
 
         EndDrawing();
 
+        autosave_.Advance(GetFrameTime());
+        if (HasOpenWindow() &&
+            !workflowState_.recoveryPromptPending &&
+            autosave_.DueForAutosave(editor::EditorAutosaveScheduler::kDefaultIntervalSeconds, workflowState_.documentDirty))
+        {
+            WriteRecoverySnapshot();
+            autosave_.MarkAutosaved();
+        }
+
         if (workflowState_.exitConfirmed)
         {
             break;
         }
     }
 
+    // A clean exit (saved, or an explicit quit-without-saving) must not look like a crash next launch.
+    ClearRecoverySnapshot();
     rlImGuiShutdown();
     ReleasePreviewGpuResources();
     CloseWindow();
@@ -1407,6 +1428,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         InvalidateReticleUsageHighlightCache();
         documentState_.windowFile = path;
         workflowState_.documentDirty = false;
+        autosave_.Reset();
         workflowState_.lastRuntimeError.clear();
         RebuildStatus("Editor loaded '" + documentState_.loaded.window.title + "'.", false);
         return true;
@@ -1434,8 +1456,81 @@ bool EditorApplication::SaveAll()
     }
 
     workflowState_.documentDirty = false;
+    autosave_.Reset();
+    ClearRecoverySnapshot();
     RebuildStatus("Window, pages and library saved.", false);
     return true;
+}
+
+void EditorApplication::WriteRecoverySnapshot()
+{
+    if (!HasOpenWindow())
+    {
+        return;
+    }
+
+    try
+    {
+        const std::string bundle =
+            editor::SerializeRecoveryBundleToJsonString(documentState_.loaded, documentState_.files);
+        const std::filesystem::path path = documentState_.assetPaths.DefaultAssetPath(kRecoveryFileName);
+        if (path.has_parent_path())
+        {
+            std::error_code directoryError;
+            std::filesystem::create_directories(path.parent_path(), directoryError);
+        }
+
+        std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+        if (stream.is_open())
+        {
+            stream << bundle;
+        }
+    }
+    catch (const std::exception&)
+    {
+        // Best-effort recovery snapshot: never interrupt authoring if it cannot be written.
+    }
+}
+
+void EditorApplication::ClearRecoverySnapshot()
+{
+    std::error_code removeError;
+    std::filesystem::remove(documentState_.assetPaths.DefaultAssetPath(kRecoveryFileName), removeError);
+}
+
+void EditorApplication::RecoverPreviousSession()
+{
+    const std::filesystem::path path = documentState_.assetPaths.DefaultAssetPath(kRecoveryFileName);
+    std::string bundle;
+    try
+    {
+        std::ifstream stream(path, std::ios::binary);
+        std::ostringstream buffer;
+        buffer << stream.rdbuf();
+        bundle = buffer.str();
+    }
+    catch (const std::exception&)
+    {
+        bundle.clear();
+    }
+
+    std::filesystem::path windowFile;
+    std::string error;
+    if (!bundle.empty() && editor::RestoreRecoveryBundle(bundle, windowFile, &error) &&
+        LoadWindowConfiguration(windowFile))
+    {
+        RebuildStatus("Recovered unsaved work from the previous session.", false);
+    }
+    else if (!error.empty())
+    {
+        RebuildStatus("Recovery failed: " + error, true);
+    }
+    else
+    {
+        RebuildStatus("Recovery snapshot could not be restored.", true);
+    }
+
+    ClearRecoverySnapshot();
 }
 
 void EditorApplication::Undo()
@@ -6966,6 +7061,31 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 void EditorApplication::DrawPopups()
 {
     using editor::tutorial::TutorialStepId;
+
+    if (workflowState_.recoveryPromptPending && !ImGui::IsPopupOpen("Recover session##recovery"))
+    {
+        ImGui::OpenPopup("Recover session##recovery");
+    }
+    if (ImGui::BeginPopupModal("Recover session##recovery", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("Unsaved work from a previous session was found.");
+        ImGui::TextDisabled("Recover it, or discard the recovery snapshot.");
+        ImGui::Separator();
+        if (AccentButton("Recover"))
+        {
+            workflowState_.recoveryPromptPending = false;
+            ImGui::CloseCurrentPopup();
+            RecoverPreviousSession();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Discard"))
+        {
+            workflowState_.recoveryPromptPending = false;
+            ClearRecoverySnapshot();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 
     if (workflowState_.unsavedExitRequested && !ImGui::IsPopupOpen("Unsaved changes##exit"))
     {

@@ -1003,3 +1003,73 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentOmitsDefaultPageTitleTrans
     EXPECT_EQ(titleDisplayJson.at("decoration").get<std::string>(), "frame");
     EXPECT_FALSE(titleDisplayJson.contains("at"));
 }
+
+TEST(EditorDocumentSerializerTests, RecoveryBundleRoundTripsAllAuthoredFiles)
+{
+    ScopedTempDir tempDir;
+
+    const auto windowFile = tempDir.Path() / "demo_window.json";
+    const auto pageFile = tempDir.Path() / "radar_page.json";
+    const auto reticleLibraryFolder = tempDir.Path() / "reticles";
+    const auto templateFile = reticleLibraryFolder / "radar_track.json";
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = windowFile;
+    loaded.window.title = "Demo";
+    loaded.window.width = 800;
+    loaded.window.height = 600;
+    loaded.window.reticleLibraryFolder = reticleLibraryFolder;
+
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar Page";
+    page.defaultPage = true;
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+
+    mfd::ReticleGroup pageReticle;
+    pageReticle.id = "page1_ownship";
+    pageReticle.sourceTemplateId = "radar_track";
+    pageReticle.layerId = "default";
+    page.staticReticles.push_back(std::move(pageReticle));
+    loaded.document.pages.push_back(std::move(page));
+
+    mfd::ReticleGroup templateReticle;
+    templateReticle.id = "radar_track";
+    mfd::Primitive primitive;
+    primitive.id = "track_label";
+    primitive.type = mfd::PrimitiveType::Text;
+    primitive.geometry = mfd::TextGeometry {"INIT", 0.04f, 0.002f};
+    templateReticle.primitives.push_back(std::move(primitive));
+    loaded.document.reticleLibrary.emplace("radar_track", std::move(templateReticle));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(pageFile);
+    layout.templateFiles.emplace("radar_track", templateFile);
+
+    const std::string bundle = editor::SerializeRecoveryBundleToJsonString(loaded, layout);
+    ASSERT_FALSE(bundle.empty());
+
+    // Nothing is on disk yet: the recovery path must materialize every authored file.
+    ASSERT_FALSE(std::filesystem::exists(windowFile));
+
+    std::filesystem::path recoveredWindowFile;
+    std::string error;
+    ASSERT_TRUE(editor::RestoreRecoveryBundle(bundle, recoveredWindowFile, &error)) << error;
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(recoveredWindowFile, windowFile);
+    EXPECT_TRUE(std::filesystem::exists(windowFile));
+    EXPECT_TRUE(std::filesystem::exists(pageFile));
+    EXPECT_TRUE(std::filesystem::exists(templateFile));
+
+    // The restored tree must reload cleanly through the runtime loader.
+    mfd::JsonLoader loader;
+    EXPECT_NO_THROW(loader.LoadWindowConfiguration(recoveredWindowFile));
+}
+
+TEST(EditorDocumentSerializerTests, RestoreRecoveryBundleRejectsMalformedJson)
+{
+    std::filesystem::path windowFile;
+    std::string error;
+    EXPECT_FALSE(editor::RestoreRecoveryBundle("{ not valid json", windowFile, &error));
+    EXPECT_FALSE(error.empty());
+}

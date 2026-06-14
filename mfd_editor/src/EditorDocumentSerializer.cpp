@@ -1379,6 +1379,62 @@ std::string MakeNormalizedGenericPathKey(const std::filesystem::path& path)
 {
     return path.lexically_normal().generic_string();
 }
+
+// Serializes every authored file (window, pages, reticle templates) into (path, document) pairs
+// without touching disk, so both the on-disk save and the in-memory recovery bundle share one source
+// of truth for what a saved document looks like.
+std::vector<std::pair<std::filesystem::path, json>> CollectEditorDocumentFiles(
+    const mfd::LoadedWindowConfiguration& loaded,
+    const EditorFileLayout& layout)
+{
+    if (layout.pageFiles.size() != loaded.document.pages.size())
+    {
+        throw std::runtime_error("Page file layout does not match the number of pages");
+    }
+
+    ValidatePageNameCatalog(loaded.document);
+
+    std::vector<std::pair<std::filesystem::path, json>> files;
+    files.reserve(1U + loaded.document.pages.size() + loaded.document.reticleLibrary.size());
+
+    files.emplace_back(loaded.window.sourceFile, SerializeWindow(loaded.window, loaded.document, layout));
+
+    for (std::size_t index = 0; index < loaded.document.pages.size(); ++index)
+    {
+        files.emplace_back(
+            layout.pageFiles[index],
+            SerializePage(loaded.document.pages[index],
+                          loaded.document.reticleLibrary,
+                          layout.pageFiles[index].parent_path()));
+    }
+
+    std::vector<std::string> templateIds;
+    templateIds.reserve(loaded.document.reticleLibrary.size());
+    for (const auto& entry : loaded.document.reticleLibrary)
+    {
+        templateIds.push_back(entry.first);
+    }
+    std::sort(templateIds.begin(), templateIds.end());
+
+    for (const auto& templateId : templateIds)
+    {
+        const auto iterator = loaded.document.reticleLibrary.find(templateId);
+        if (iterator == loaded.document.reticleLibrary.end())
+        {
+            continue;
+        }
+
+        const auto fileIterator = layout.templateFiles.find(templateId);
+        const std::filesystem::path templatePath =
+            fileIterator != layout.templateFiles.end()
+                ? fileIterator->second
+                : DefaultTemplateFilePath(loaded.window.reticleLibraryFolder, templateId);
+
+        files.emplace_back(templatePath, SerializeInlineReticle(iterator->second, templatePath.parent_path()));
+    }
+
+    return files;
+}
 } // namespace
 
 std::filesystem::path DefaultPageFilePath(const std::filesystem::path& windowFile, const std::string_view pageName)
@@ -1470,63 +1526,11 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
 {
     try
     {
-        if (layout.pageFiles.size() != loaded.document.pages.size())
+        const std::vector<std::pair<std::filesystem::path, json>> files =
+            CollectEditorDocumentFiles(loaded, layout);
+        for (const auto& [path, document] : files)
         {
-            throw std::runtime_error("Page file layout does not match the number of pages");
-        }
-
-        ValidatePageNameCatalog(loaded.document);
-
-        const json windowDocument = SerializeWindow(loaded.window, loaded.document, layout);
-
-        std::vector<json> pageDocuments;
-        pageDocuments.reserve(loaded.document.pages.size());
-        for (std::size_t index = 0; index < loaded.document.pages.size(); ++index)
-        {
-            pageDocuments.push_back(SerializePage(loaded.document.pages[index],
-                                                  loaded.document.reticleLibrary,
-                                                  layout.pageFiles[index].parent_path()));
-        }
-
-        std::vector<std::pair<std::filesystem::path, json>> templateDocuments;
-        templateDocuments.reserve(loaded.document.reticleLibrary.size());
-        std::vector<std::string> templateIds;
-        templateIds.reserve(loaded.document.reticleLibrary.size());
-        for (const auto& entry : loaded.document.reticleLibrary)
-        {
-            templateIds.push_back(entry.first);
-        }
-        std::sort(templateIds.begin(), templateIds.end());
-
-        for (const auto& templateId : templateIds)
-        {
-            const auto iterator = loaded.document.reticleLibrary.find(templateId);
-            if (iterator == loaded.document.reticleLibrary.end())
-            {
-                continue;
-            }
-
-            auto fileIterator = layout.templateFiles.find(templateId);
-            const std::filesystem::path templatePath =
-                fileIterator != layout.templateFiles.end()
-                    ? fileIterator->second
-                    : DefaultTemplateFilePath(loaded.window.reticleLibraryFolder, templateId);
-
-            templateDocuments.emplace_back(
-                templatePath,
-                SerializeInlineReticle(iterator->second, templatePath.parent_path()));
-        }
-
-        WriteJsonFile(loaded.window.sourceFile, windowDocument);
-
-        for (std::size_t index = 0; index < pageDocuments.size(); ++index)
-        {
-            WriteJsonFile(layout.pageFiles[index], pageDocuments[index]);
-        }
-
-        for (const auto& [templatePath, templateDocument] : templateDocuments)
-        {
-            WriteJsonFile(templatePath, templateDocument);
+            WriteJsonFile(path, document);
         }
 
         std::unordered_set<std::string> currentPageFiles;
@@ -1558,6 +1562,71 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
             }
         }
 
+        if (error != nullptr)
+        {
+            error->clear();
+        }
+
+        return true;
+    }
+    catch (const std::exception& exception)
+    {
+        if (error != nullptr)
+        {
+            *error = exception.what();
+        }
+        return false;
+    }
+}
+
+std::string SerializeRecoveryBundleToJsonString(const mfd::LoadedWindowConfiguration& loaded,
+                                                const EditorFileLayout& layout)
+{
+    const std::vector<std::pair<std::filesystem::path, json>> files = CollectEditorDocumentFiles(loaded, layout);
+
+    json bundle = json::object();
+    bundle["schemaVersion"] = 1;
+    bundle["windowFile"] = loaded.window.sourceFile.generic_string();
+
+    json fileArray = json::array();
+    for (const auto& [path, document] : files)
+    {
+        json entry = json::object();
+        entry["path"] = path.generic_string();
+        entry["document"] = document;
+        fileArray.push_back(std::move(entry));
+    }
+    bundle["files"] = std::move(fileArray);
+
+    return bundle.dump(2);
+}
+
+bool RestoreRecoveryBundle(const std::string& bundleJson,
+                           std::filesystem::path& windowFile,
+                           std::string* error)
+{
+    try
+    {
+        const json bundle = json::parse(bundleJson);
+        if (!bundle.is_object() ||
+            !bundle.contains("windowFile") || !bundle.at("windowFile").is_string() ||
+            !bundle.contains("files") || !bundle.at("files").is_array())
+        {
+            throw std::runtime_error("Malformed recovery bundle");
+        }
+
+        for (const auto& entry : bundle.at("files"))
+        {
+            if (!entry.is_object() || !entry.contains("path") || !entry.at("path").is_string() ||
+                !entry.contains("document"))
+            {
+                throw std::runtime_error("Malformed recovery bundle entry");
+            }
+
+            WriteJsonFile(std::filesystem::path(entry.at("path").get<std::string>()), entry.at("document"));
+        }
+
+        windowFile = std::filesystem::path(bundle.at("windowFile").get<std::string>());
         if (error != nullptr)
         {
             error->clear();

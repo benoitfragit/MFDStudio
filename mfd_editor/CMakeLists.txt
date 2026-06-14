@@ -33,6 +33,7 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAssetReferenceIndexService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAssetPathService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorApplication.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorAutosaveScheduler.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDocumentSerializer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorDesignExportService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h

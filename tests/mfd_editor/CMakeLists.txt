@@ -5,6 +5,7 @@ include(GoogleTest)
 
 set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorApplicationInternalTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutosaveSchedulerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetReferenceIndexServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetPathServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp

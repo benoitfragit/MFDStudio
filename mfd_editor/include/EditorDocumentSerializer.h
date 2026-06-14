@@ -64,4 +64,24 @@ std::string SerializeWindowToJsonString(const mfd::WindowAssetDefinition& window
 bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
                         const EditorFileLayout& layout,
                         std::string* error);
+
+/**
+ * @brief Serializes the whole editor document into one self-contained crash-recovery bundle.
+ * @param loaded Loaded window configuration to snapshot.
+ * @param layout Authored file layout providing the target paths.
+ * @return A JSON string carrying every authored file path and its serialized content.
+ */
+std::string SerializeRecoveryBundleToJsonString(const mfd::LoadedWindowConfiguration& loaded,
+                                                const EditorFileLayout& layout);
+
+/**
+ * @brief Restores a recovery bundle by writing its files back to disk.
+ * @param bundleJson Bundle produced by @ref SerializeRecoveryBundleToJsonString.
+ * @param windowFile Receives the window file path to reload after restoration.
+ * @param error Optional destination for a human-readable failure description.
+ * @return `true` when every file was written and the window path was recovered.
+ */
+bool RestoreRecoveryBundle(const std::string& bundleJson,
+                           std::filesystem::path& windowFile,
+                           std::string* error);
 } // namespace editor

@@ -55,3 +55,7 @@
 /mfd_client_api/generator/scripts/__pycache__/generate_ui.cpython-37.pyc
 *.cpython-37.pyc
 /outputs/*
+
+# Editor runtime state written next to the assets (not authored content)
+/assets/.editor_recovery.json
+/assets/.editor_ui_state.json
