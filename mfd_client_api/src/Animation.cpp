@@ -73,6 +73,11 @@ bool SameStrobeSelection(const mfd::TransportId lhsId,
     return lhsNameNormalized == rhsNameNormalized;
 }
 
+// Accept-or-equal comparison for runtime feedback ordering. The `>=` is intentional: re-applying the
+// same sequence stays idempotent (callers compute "changed" separately), so a duplicated feedback is not
+// rejected. Wraparound of the 32-bit sequence is deliberately not handled: sequences are monotonic within
+// a session and cannot reach UINT32_MAX in practice. If the protocol ever needs to survive a wraparound,
+// replace this with an explicit modulo comparison and add the matching tests.
 bool SequenceIsNewer(const std::uint32_t sequence, const std::uint32_t previous) noexcept
 {
     return sequence >= previous;
