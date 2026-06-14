@@ -17,6 +17,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorLayerFocusControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPagePreviewDrawOrderControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPagePreviewHitTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorProblemNavigationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageManagementServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageImportServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageRenameServiceTests.cpp

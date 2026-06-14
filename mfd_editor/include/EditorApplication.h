@@ -31,6 +31,7 @@
 #include "EditorLayerFocusController.h"
 #include "EditorPageImportService.h"
 #include "EditorPagePreviewHit.h"
+#include "EditorProblemNavigation.h"
 #include "EditorPageManagementService.h"
 #include "EditorPageRenameService.h"
 #include "EditorPagePreviewViewOptions.h"
@@ -247,7 +248,7 @@ private:
     /** @brief Draws the selected library reticle into the studio preview viewport. */
     void DrawLibraryPreview(const ViewportState& viewport);
     /** @brief Draws the shared page-preview workspace used by page view and page-context view. */
-    void DrawPagePreviewWorkspace(const std::vector<std::string>& pagePreviewProblems,
+    void DrawPagePreviewWorkspace(const std::vector<editor::PagePreviewProblem>& pagePreviewProblems,
                                   const char* previewChildId,
                                   const char* layersChildId,
                                   const char* problemsChildId,
@@ -268,7 +269,9 @@ private:
     /** @brief Draws the docked layer-inspector panel shown next to the page preview. */
     void DrawLayerInspectorPanel(const mfd::PageDefinition& page);
     /** @brief Draws the docked validation panel shown under the page preview. */
-    void DrawProblemsPanel(const std::vector<std::string>& problemMessages);
+    void DrawProblemsPanel(const std::vector<editor::PagePreviewProblem>& problems);
+    /** @brief Selects the editor entity referenced by one validation problem context. */
+    void NavigateToProblem(const std::string& contextId);
     /** @brief Draws page and instance highlights for the currently selected reticle template. */
     void DrawReticleUsageHighlightPlaceholder(const ViewportState& viewport);
     /** @brief Returns the cached reticle-template highlight result when the workflow is active. */
@@ -325,7 +328,7 @@ private:
     /** @brief Resets the library preview camera to its neutral editor-only view. */
     void ResetLibraryPreviewView() noexcept;
     /** @brief Returns the current page-preview problem messages derived from validation. */
-    std::vector<std::string> BuildPagePreviewProblemMessages() const;
+    std::vector<editor::PagePreviewProblem> BuildPagePreviewProblems() const;
     /** @brief Updates the footer status message. */
     void RebuildStatus(std::string message, bool isError);
 

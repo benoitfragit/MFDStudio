@@ -556,18 +556,22 @@ std::string PageReticleProblemId(const mfd::PageDefinition& page, const mfd::Ret
     return PageProblemId(page) + "/reticle/" + NormalizeEditorIdentifier(reticle.id);
 }
 
-void PushProblem(std::vector<std::string>& messages, const std::string_view entityId, const std::string_view message)
+void PushProblem(std::vector<editor::PagePreviewProblem>& problems,
+                 const std::string_view entityId,
+                 const std::string_view message)
 {
     if (entityId.empty())
     {
-        messages.emplace_back(message);
+        problems.push_back(editor::PagePreviewProblem {std::string(message), std::string {}});
         return;
     }
 
-    messages.push_back(std::string(entityId) + ": " + std::string(message));
+    problems.push_back(editor::PagePreviewProblem {
+        std::string(entityId) + ": " + std::string(message),
+        std::string(entityId)});
 }
 
-void AppendPrimitiveProblems(std::vector<std::string>& messages,
+void AppendPrimitiveProblems(std::vector<editor::PagePreviewProblem>& messages,
                              const std::vector<mfd::Primitive>& primitives,
                              const std::string_view ownerId)
 {
@@ -2729,9 +2733,9 @@ void EditorApplication::ResetLibraryPreviewView() noexcept
     layoutState_.libraryPreviewView.zoom = 1.0f;
 }
 
-std::vector<std::string> EditorApplication::BuildPagePreviewProblemMessages() const
+std::vector<editor::PagePreviewProblem> EditorApplication::BuildPagePreviewProblems() const
 {
-    std::vector<std::string> messages;
+    std::vector<editor::PagePreviewProblem> messages;
     if (!HasOpenWindow())
     {
         return messages;
@@ -3881,35 +3885,89 @@ void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
     }
 }
 
-void EditorApplication::DrawProblemsPanel(const std::vector<std::string>& problemMessages)
+void EditorApplication::NavigateToProblem(const std::string& contextId)
+{
+    if (contextId.empty() || !HasOpenWindow())
+    {
+        return;
+    }
+
+    if (contextId == "window")
+    {
+        SelectWindow();
+        return;
+    }
+
+    std::vector<std::string> normalizedPageIds;
+    normalizedPageIds.reserve(documentState_.loaded.document.pages.size());
+    for (const mfd::PageDefinition& page : documentState_.loaded.document.pages)
+    {
+        normalizedPageIds.push_back(
+            NormalizeEditorIdentifier(page.normalizedName.empty() ? page.name : page.normalizedName));
+    }
+
+    if (const int pageIndex = editor::MatchProblemPageIndex(normalizedPageIds, contextId); pageIndex >= 0)
+    {
+        SelectPage(pageIndex);
+        return;
+    }
+
+    if (contextId.rfind("reticle/", 0) == 0)
+    {
+        const std::string reticleSegment = contextId.substr(std::string_view("reticle/").size());
+        for (const auto& entry : documentState_.loaded.document.reticleLibrary)
+        {
+            if (NormalizeEditorIdentifier(entry.first) == reticleSegment)
+            {
+                SelectLibraryReticle(entry.first);
+                return;
+            }
+        }
+    }
+}
+
+void EditorApplication::DrawProblemsPanel(const std::vector<editor::PagePreviewProblem>& problems)
 {
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.67f, 1.0f), "Problems");
-    if (!problemMessages.empty())
+    if (!problems.empty())
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("(%zu)", problemMessages.size());
+        ImGui::TextDisabled("(%zu)", problems.size());
     }
-    ImGui::TextDisabled("Validation diagnostics for the current editor state.");
+    ImGui::TextDisabled("Validation diagnostics for the current editor state. Click a problem to select it.");
     ImGui::Separator();
 
     if (ImGui::BeginChild("PagePreviewProblemsScrollRegion", ImVec2(0.0f, 0.0f), false))
     {
-        if (problemMessages.empty())
+        if (problems.empty())
         {
             ImGui::TextDisabled("No validation problems detected.");
         }
         else
         {
-            for (std::size_t index = 0; index < problemMessages.size(); ++index)
+            for (std::size_t index = 0; index < problems.size(); ++index)
             {
+                const editor::PagePreviewProblem& problem = problems[index];
                 ImGui::PushID(static_cast<int>(index));
                 ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.44f, 1.0f), "%02zu.", index + 1U);
                 ImGui::SameLine();
                 const float wrapPos = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
                 ImGui::PushTextWrapPos(wrapPos);
-                ImGui::TextUnformatted(problemMessages[index].c_str());
+                ImGui::TextUnformatted(problem.message.c_str());
                 ImGui::PopTextWrapPos();
-                if (index + 1U < problemMessages.size())
+                if (!problem.contextId.empty())
+                {
+                    if (ImGui::IsItemHovered())
+                    {
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                    }
+                    ShowItemTooltip("Click to select the entity this problem refers to.");
+                    if (ImGui::IsItemClicked())
+                    {
+                        NavigateToProblem(problem.contextId);
+                    }
+                }
+                if (index + 1U < problems.size())
                 {
                     ImGui::Spacing();
                 }

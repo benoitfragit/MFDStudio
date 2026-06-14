@@ -623,7 +623,7 @@ void EditorApplication::DrawWorkspace()
         return;
     }
 
-    const std::vector<std::string> pagePreviewProblems = BuildPagePreviewProblemMessages();
+    const std::vector<editor::PagePreviewProblem> pagePreviewProblems = BuildPagePreviewProblems();
     const bool hasPagePreviewProblems = !pagePreviewProblems.empty();
     const bool libraryStudioVisible = IsLibraryStudioWorkspaceVisible();
     const bool fullscreenPreviewActive = services_.fullscreenPreview.IsActive();
@@ -709,7 +709,7 @@ void EditorApplication::DrawWorkspace()
         "MainPagePreviewPanel", "MainPageLayersPanel", "MainPageProblemsPanel", true, true);
 }
 
-void EditorApplication::DrawPagePreviewWorkspace(const std::vector<std::string>& pagePreviewProblems,
+void EditorApplication::DrawPagePreviewWorkspace(const std::vector<editor::PagePreviewProblem>& pagePreviewProblems,
                                                  const char* previewChildId,
                                                  const char* layersChildId,
                                                  const char* problemsChildId,

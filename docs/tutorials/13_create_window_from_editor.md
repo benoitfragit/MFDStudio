@@ -536,6 +536,12 @@ Use the arrow keys to nudge the current page selection (reticles, the strobe, or
 a small logical step; hold `Shift` for a larger step. Enable `Snap to grid` from the preview `View`
 menu to snap both drags and nudges to a logical grid, and tune the `Grid step` there.
 
+## Navigating validation problems
+
+Enable the `Problems` panel from the preview `View` menu. Each diagnostic is clickable: clicking a
+page-scoped problem selects that page, a reticle-template problem opens that template in the studio,
+and a window-scoped problem opens the window inspector.
+
 ## Result
 
 You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, local page-reticle rename handling, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.
