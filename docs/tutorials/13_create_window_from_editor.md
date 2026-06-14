@@ -524,6 +524,12 @@ assets (`assets/.editor_recovery.json`). A clean exit or a save deletes it. If t
 unexpectedly, the next launch finds the leftover snapshot and offers to **Recover** the work or
 **Discard** it. Recovering writes the snapshot back to the authored files and reloads them.
 
+## External edits
+
+The editor watches the open window, page, and reticle template files. If one of them changes on disk
+outside the editor (for example, edited by hand or pulled from version control), the editor offers to
+**Reload from disk** or **Keep editing**. Reloading discards any unsaved in-editor changes.
+
 ## Result
 
 You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, local page-reticle rename handling, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.

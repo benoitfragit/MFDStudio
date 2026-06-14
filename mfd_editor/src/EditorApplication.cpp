@@ -1378,13 +1378,28 @@ int EditorApplication::Run()
 
         EndDrawing();
 
-        autosave_.Advance(GetFrameTime());
+        const float frameSeconds = GetFrameTime();
+        autosave_.Advance(frameSeconds);
         if (HasOpenWindow() &&
             !workflowState_.recoveryPromptPending &&
             autosave_.DueForAutosave(editor::EditorAutosaveScheduler::kDefaultIntervalSeconds, workflowState_.documentDirty))
         {
             WriteRecoverySnapshot();
             autosave_.MarkAutosaved();
+        }
+
+        assetWatchAccumulatorSeconds_ += frameSeconds;
+        if (assetWatchAccumulatorSeconds_ >= 2.0f)
+        {
+            assetWatchAccumulatorSeconds_ = 0.0f;
+            const bool anyPromptPending = workflowState_.recoveryPromptPending ||
+                                          workflowState_.unsavedExitRequested ||
+                                          workflowState_.reloadConfirmRequested ||
+                                          workflowState_.externalReloadPromptPending;
+            if (HasOpenWindow() && !anyPromptPending && assetWatcher_.DetectExternalChange())
+            {
+                workflowState_.externalReloadPromptPending = true;
+            }
         }
 
         if (workflowState_.exitConfirmed)
@@ -1429,6 +1444,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         documentState_.windowFile = path;
         workflowState_.documentDirty = false;
         autosave_.Reset();
+        RearmAssetWatcher();
         workflowState_.lastRuntimeError.clear();
         RebuildStatus("Editor loaded '" + documentState_.loaded.window.title + "'.", false);
         return true;
@@ -1457,6 +1473,7 @@ bool EditorApplication::SaveAll()
 
     workflowState_.documentDirty = false;
     autosave_.Reset();
+    RearmAssetWatcher();
     ClearRecoverySnapshot();
     RebuildStatus("Window, pages and library saved.", false);
     return true;
@@ -1531,6 +1548,34 @@ void EditorApplication::RecoverPreviousSession()
     }
 
     ClearRecoverySnapshot();
+}
+
+std::vector<std::filesystem::path> EditorApplication::CollectWatchedAssetFiles() const
+{
+    std::vector<std::filesystem::path> files;
+    if (!HasOpenWindow())
+    {
+        return files;
+    }
+
+    files.reserve(1U + documentState_.files.pageFiles.size() + documentState_.files.templateFiles.size());
+    files.push_back(documentState_.loaded.window.sourceFile);
+    for (const std::filesystem::path& pageFile : documentState_.files.pageFiles)
+    {
+        files.push_back(pageFile);
+    }
+    for (const auto& entry : documentState_.files.templateFiles)
+    {
+        files.push_back(entry.second);
+    }
+
+    return files;
+}
+
+void EditorApplication::RearmAssetWatcher()
+{
+    assetWatcher_.Watch(CollectWatchedAssetFiles());
+    assetWatchAccumulatorSeconds_ = 0.0f;
 }
 
 void EditorApplication::Undo()
@@ -7144,6 +7189,32 @@ void EditorApplication::DrawPopups()
         if (ImGui::Button("Cancel"))
         {
             workflowState_.reloadConfirmRequested = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (workflowState_.externalReloadPromptPending && !ImGui::IsPopupOpen("Files changed##external"))
+    {
+        ImGui::OpenPopup("Files changed##external");
+    }
+    if (ImGui::BeginPopupModal("Files changed##external", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("Authored files changed on disk outside the editor.");
+        ImGui::TextDisabled(workflowState_.documentDirty
+                                ? "Reloading discards your unsaved editor changes."
+                                : "Reload to pick up the external changes.");
+        ImGui::Separator();
+        if (AccentButton("Reload from disk"))
+        {
+            workflowState_.externalReloadPromptPending = false;
+            ImGui::CloseCurrentPopup();
+            LoadWindowConfiguration(documentState_.windowFile);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Keep editing"))
+        {
+            workflowState_.externalReloadPromptPending = false;
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();

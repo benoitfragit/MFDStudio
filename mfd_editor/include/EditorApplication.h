@@ -23,6 +23,7 @@
 #include <raylib.h>
 
 #include "EditorAssetPathService.h"
+#include "EditorAssetWatcher.h"
 #include "EditorAutosaveScheduler.h"
 #include "EditorDocumentSerializer.h"
 #include "EditorDesignExportService.h"
@@ -107,6 +108,10 @@ private:
     void ClearRecoverySnapshot();
     /** @brief Restores the document from a previous-session recovery snapshot, then reloads it. */
     void RecoverPreviousSession();
+    /** @brief Returns the authored files (window, pages, templates) watched for external edits. */
+    [[nodiscard]] std::vector<std::filesystem::path> CollectWatchedAssetFiles() const;
+    /** @brief Re-baselines the asset watcher after the editor itself loaded or wrote the files. */
+    void RearmAssetWatcher();
     /** @brief Restores the latest undo snapshot when available. */
     void Undo();
     /** @brief Restores the next redo snapshot when available. */
@@ -537,6 +542,10 @@ private:
     std::unique_ptr<EditorTutorialController> tutorial_ {};
     /** @brief Cadence control deciding when to write the crash-recovery snapshot. */
     editor::EditorAutosaveScheduler autosave_ {};
+    /** @brief Tracks the authored files for edits made outside the editor. */
+    editor::EditorAssetWatcher assetWatcher_ {};
+    /** @brief Seconds accumulated since the last external-change poll. */
+    float assetWatchAccumulatorSeconds_ = 0.0f;
     /** @brief Grouped stateless services and controllers shared across editor responsibilities. */
     editor::app::ServicesState services_ {};
     /** @brief Grouped direct-manipulation state used by page-preview and reticle-studio gestures. */

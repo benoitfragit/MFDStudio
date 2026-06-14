@@ -344,6 +344,7 @@ struct WorkflowState
     bool exitConfirmed = false;
     bool reloadConfirmRequested = false;
     bool recoveryPromptPending = false;
+    bool externalReloadPromptPending = false;
     bool showNewPagePopup = false;
     bool showNewWindowPopup = false;
     bool showNewLibraryReticlePopup = false;
