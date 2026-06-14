@@ -1322,8 +1322,21 @@ int EditorApplication::Run()
     rlImGuiSetup(true);
     ApplyEditorTheme();
 
-    while (!WindowShouldClose())
+    while (true)
     {
+        if (WindowShouldClose())
+        {
+            if (HasOpenWindow() && workflowState_.documentDirty)
+            {
+                // Defer the close so the unsaved-changes modal can offer to save first.
+                workflowState_.unsavedExitRequested = true;
+            }
+            else
+            {
+                break;
+            }
+        }
+
         BeginDrawing();
         ClearBackground(Color {8, 13, 18, 255});
 
@@ -1354,6 +1367,11 @@ int EditorApplication::Run()
         }
 
         EndDrawing();
+
+        if (workflowState_.exitConfirmed)
+        {
+            break;
+        }
     }
 
     rlImGuiShutdown();
@@ -1388,6 +1406,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         documentState_.history.Clear();
         InvalidateReticleUsageHighlightCache();
         documentState_.windowFile = path;
+        workflowState_.documentDirty = false;
         workflowState_.lastRuntimeError.clear();
         RebuildStatus("Editor loaded '" + documentState_.loaded.window.title + "'.", false);
         return true;
@@ -1414,6 +1433,7 @@ bool EditorApplication::SaveAll()
         return false;
     }
 
+    workflowState_.documentDirty = false;
     RebuildStatus("Window, pages and library saved.", false);
     return true;
 }
@@ -1472,6 +1492,7 @@ void EditorApplication::RestoreSnapshot(UndoSnapshot snapshot)
     SanitizeLayerFocusForActivePage();
     SanitizePageReticleSelectionForCurrentFocus();
     InvalidateReticleUsageHighlightCache();
+    workflowState_.documentDirty = true;
 }
 
 void EditorApplication::PushUndoSnapshot()
@@ -1482,6 +1503,7 @@ void EditorApplication::PushUndoSnapshot()
 void EditorApplication::PushUndoSnapshot(UndoSnapshot snapshot)
 {
     documentState_.history.Record(std::move(snapshot));
+    workflowState_.documentDirty = true;
     InvalidateReticleUsageHighlightCache();
 }
 
@@ -6944,6 +6966,68 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 void EditorApplication::DrawPopups()
 {
     using editor::tutorial::TutorialStepId;
+
+    if (workflowState_.unsavedExitRequested && !ImGui::IsPopupOpen("Unsaved changes##exit"))
+    {
+        ImGui::OpenPopup("Unsaved changes##exit");
+    }
+    if (ImGui::BeginPopupModal("Unsaved changes##exit", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("This window has unsaved changes.");
+        ImGui::TextDisabled("Save before quitting, or quit and discard the changes.");
+        ImGui::Separator();
+        if (AccentButton("Save and quit"))
+        {
+            if (SaveAll())
+            {
+                workflowState_.unsavedExitRequested = false;
+                workflowState_.exitConfirmed = true;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Quit without saving"))
+        {
+            workflowState_.unsavedExitRequested = false;
+            workflowState_.exitConfirmed = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (workflowState_.reloadConfirmRequested && !ImGui::IsPopupOpen("Unsaved changes##reload"))
+    {
+        ImGui::OpenPopup("Unsaved changes##reload");
+    }
+    if (ImGui::BeginPopupModal("Unsaved changes##reload", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("Reloading discards unsaved editor changes.");
+        ImGui::Separator();
+        if (AccentButton("Save and reload"))
+        {
+            const bool saved = SaveAll();
+            workflowState_.reloadConfirmRequested = false;
+            ImGui::CloseCurrentPopup();
+            if (saved)
+            {
+                LoadWindowConfiguration(documentState_.windowFile);
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Discard and reload"))
+        {
+            workflowState_.reloadConfirmRequested = false;
+            ImGui::CloseCurrentPopup();
+            LoadWindowConfiguration(documentState_.windowFile);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel"))
+        {
+            workflowState_.reloadConfirmRequested = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 
     if (workflowState_.showNewPagePopup)
     {

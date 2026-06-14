@@ -506,6 +506,17 @@ Use `Ctrl+Z` to undo and `Ctrl+Y` (or `Ctrl+Shift+Z`) to redo. The editor keeps 
 each direction; recording a new edit after an undo clears the redo branch. Both actions are also
 available from the `Edit` menu.
 
+## Unsaved-change safety
+
+The menu bar shows a `*` in front of the window title while there are unsaved changes. The editor
+guards against losing that work:
+
+- closing the window with unsaved changes asks you to **Save and quit** or **Quit without saving**;
+- `File > Reload current` with unsaved changes asks you to **Save and reload**, **Discard and
+  reload**, or **Cancel**.
+
+Saving (`Ctrl+S`) or reloading clears the unsaved state.
+
 ## Result
 
 You now have a full window created from scratch directly in `mfd_editor`, including geometry, typography, page creation/import flows, fullscreen preview, local page-reticle rename handling, safe shared-page and shared-reticle rename handling, design-document export, default page selection, and UDP runtime transport configuration.

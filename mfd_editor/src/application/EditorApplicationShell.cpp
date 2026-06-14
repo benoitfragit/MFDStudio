@@ -145,7 +145,14 @@ void EditorApplication::DrawMenuBar()
         ShowItemTooltip("Reload the current window asset from disk and discard unsaved editor changes.");
         if (reloadRequested)
         {
-            LoadWindowConfiguration(documentState_.windowFile);
+            if (workflowState_.documentDirty)
+            {
+                workflowState_.reloadConfirmRequested = true;
+            }
+            else
+            {
+                LoadWindowConfiguration(documentState_.windowFile);
+            }
         }
         ImGui::EndMenu();
     }
@@ -412,7 +419,12 @@ void EditorApplication::DrawMenuBar()
 
     ImGui::TextDisabled("|");
     const char* titleLabel = hasOpenWindow && !documentState_.loaded.window.title.empty() ? documentState_.loaded.window.title.c_str() : "No asset open";
-    ImGui::Text("%s", titleLabel);
+    const bool showDirtyMarker = hasOpenWindow && workflowState_.documentDirty;
+    ImGui::Text("%s%s", showDirtyMarker ? "* " : "", titleLabel);
+    if (showDirtyMarker)
+    {
+        ShowItemTooltip("This window has unsaved changes. Save with Ctrl+S.");
+    }
     if (hasOpenWindow)
     {
         ImGui::SameLine();

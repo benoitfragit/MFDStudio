@@ -339,6 +339,10 @@ struct WorkflowState
     std::string statusMessage {};
     bool statusIsError = false;
     std::string lastRuntimeError {};
+    bool documentDirty = false;
+    bool unsavedExitRequested = false;
+    bool exitConfirmed = false;
+    bool reloadConfirmRequested = false;
     bool showNewPagePopup = false;
     bool showNewWindowPopup = false;
     bool showNewLibraryReticlePopup = false;
