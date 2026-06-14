@@ -211,6 +211,7 @@ struct MfdRenderer::Impl
     bool textFontReady = false;
     bool textFontLoadAttempted = false;
     bool defaultFontFilterApplied = false;
+    bool invertColorsFallbackWarned = false;
     std::vector<ReticleRenderView> activeReticlesScratch {};
     BezierPolylineCache bezierCache {};
     ImageTextureCache imageCache {};
@@ -375,6 +376,20 @@ struct MfdRenderer::Impl
     const Font* ActiveTextFont() const noexcept
     {
         return textFontReady ? &textFont : nullptr;
+    }
+
+    void WarnInvertColorsFallbackOnce() noexcept
+    {
+        // The brightness fallback overlay cannot reproduce colour inversion, so signal once that a
+        // requested invertColors could not be honoured when the render target or shader is unavailable.
+        if (invertColorsFallbackWarned)
+        {
+            return;
+        }
+
+        TraceLog(LOG_WARNING,
+                 "MFD: window post-process unavailable; invertColors requested but not applied (brightness fallback only).");
+        invertColorsFallbackWarned = true;
     }
 
     void EnsureDefaultFontPointFilter() noexcept
@@ -548,6 +563,11 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         {
             const std::uint8_t overlayAlpha = ClampUnitFloatToByte(1.0f - display.brightness);
             DrawRectangle(0, 0, viewportWidth, viewportHeight, Color {0, 0, 0, overlayAlpha});
+        }
+
+        if (display.invertColors && impl_ != nullptr)
+        {
+            impl_->WarnInvertColorsFallbackOnce();
         }
 
         return;
