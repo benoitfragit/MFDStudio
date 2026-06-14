@@ -158,16 +158,15 @@ void ReflectOnInterval(float& value, float& rate, const float minimum, const flo
  */
 void WrapRadians(float& radians) noexcept
 {
-    const float fullTurn = 2.0f * kPi;
-    while (radians > kPi)
+    // Guard against non-finite input: a while-loop normalization would never converge on +/-inf
+    // (inf - 2pi == inf) and could spin for a very long time on a huge finite value. std::remainder
+    // performs the reduction to [-pi, pi] in O(1).
+    if (!std::isfinite(radians))
     {
-        radians -= fullTurn;
+        return;
     }
 
-    while (radians < -kPi)
-    {
-        radians += fullTurn;
-    }
+    radians = std::remainder(radians, 2.0f * kPi);
 }
 
 /**
