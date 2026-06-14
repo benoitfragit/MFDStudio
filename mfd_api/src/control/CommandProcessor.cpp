@@ -26,6 +26,12 @@ namespace mfd
 namespace
 {
 constexpr std::size_t kMaxCommandsPerPoll = 64;
+// Upper bound on the number of distinct chunked batches retained for a single sequence value. A client
+// may legitimately send several distinct batches under the same sequence (chunked payloads), so the
+// fingerprint history must grow, but it is cleared only when the sequence advances. Without this cap a
+// client that keeps the same sequence and varies the payload could grow the history without bound on the
+// UDP boundary. The cap is generous for legitimate chunking while keeping the per-sequence history finite.
+constexpr std::size_t kMaxFingerprintsPerSequence = 256;
 constexpr std::uint64_t kFnvOffsetBasis = 1469598103934665603ULL;
 constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 
@@ -128,6 +134,13 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
             sequenceState.acceptedFingerprints.find(*batchFingerprint) != sequenceState.acceptedFingerprints.end())
         {
             SetFailure("Dropped stale or duplicate command batch");
+            return false;
+        }
+
+        if (batch.sequence == sequenceState.lastSequence &&
+            sequenceState.acceptedFingerprints.size() >= kMaxFingerprintsPerSequence)
+        {
+            SetFailure("Too many distinct command batches retained for the same sequence");
             return false;
         }
     }

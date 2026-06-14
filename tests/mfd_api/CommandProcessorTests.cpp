@@ -740,6 +740,56 @@ TEST(CommandProcessorTests, AcceptsDistinctSequencedBatchesWithSameSequenceToSup
     EXPECT_EQ(text->text, "321");
 }
 
+TEST(CommandProcessorTests, BoundsRetainedFingerprintsForASingleSequence)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    constexpr std::size_t kCap = 256U;
+
+    // Distinct chunked batches under a single sequence are accepted up to the documented cap.
+    for (std::size_t index = 0; index < kCap; ++index)
+    {
+        mfd::ReticlePatch patch;
+        patch.text = std::to_string(index);
+
+        mfd::CommandBatch chunk;
+        chunk.mappingHash = "map_hash";
+        chunk.sequence = 7U;
+        chunk.commands.push_back(
+            mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
+
+        EXPECT_TRUE(processor.Submit(chunk)) << "chunk index " << index;
+        EXPECT_TRUE(processor.LastError().empty());
+    }
+
+    // A further distinct batch on the same sequence is refused instead of growing the history without bound.
+    mfd::ReticlePatch overflowPatch;
+    overflowPatch.text = "overflow";
+
+    mfd::CommandBatch overflowChunk;
+    overflowChunk.mappingHash = "map_hash";
+    overflowChunk.sequence = 7U;
+    overflowChunk.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, overflowPatch});
+
+    EXPECT_FALSE(processor.Submit(overflowChunk));
+    EXPECT_EQ(processor.LastError(), "Too many distinct command batches retained for the same sequence");
+
+    // Advancing the sequence clears the per-sequence history, so legitimate traffic resumes.
+    mfd::ReticlePatch nextPatch;
+    nextPatch.text = "after-advance";
+
+    mfd::CommandBatch nextSequence;
+    nextSequence.mappingHash = "map_hash";
+    nextSequence.sequence = 8U;
+    nextSequence.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, nextPatch});
+
+    EXPECT_TRUE(processor.Submit(nextSequence));
+    EXPECT_TRUE(processor.LastError().empty());
+}
+
 TEST(CommandProcessorTests, AllowsSameSequenceAcrossNameBasedBatchesWithoutMappingHash)
 {
     mfd::SceneRegistry registry = MakeRegistry();
