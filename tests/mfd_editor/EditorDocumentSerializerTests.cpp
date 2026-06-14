@@ -14,6 +14,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -1054,12 +1055,14 @@ TEST(EditorDocumentSerializerTests, RecoveryBundleRoundTripsAllAuthoredFiles)
 
     std::filesystem::path recoveredWindowFile;
     std::string error;
-    ASSERT_TRUE(editor::RestoreRecoveryBundle(bundle, recoveredWindowFile, &error)) << error;
+    ASSERT_TRUE(editor::RestoreRecoveryBundle(bundle, tempDir.Path(), recoveredWindowFile, &error)) << error;
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(recoveredWindowFile, windowFile);
     EXPECT_TRUE(std::filesystem::exists(windowFile));
     EXPECT_TRUE(std::filesystem::exists(pageFile));
     EXPECT_TRUE(std::filesystem::exists(templateFile));
+    // No staging artifact must be left behind on success.
+    EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(windowFile).concat(".recovery_tmp")));
 
     // The restored tree must reload cleanly through the runtime loader.
     mfd::JsonLoader loader;
@@ -1070,6 +1073,81 @@ TEST(EditorDocumentSerializerTests, RestoreRecoveryBundleRejectsMalformedJson)
 {
     std::filesystem::path windowFile;
     std::string error;
-    EXPECT_FALSE(editor::RestoreRecoveryBundle("{ not valid json", windowFile, &error));
+    EXPECT_FALSE(editor::RestoreRecoveryBundle("{ not valid json", std::filesystem::temp_directory_path(),
+                                               windowFile, &error));
     EXPECT_FALSE(error.empty());
+}
+
+TEST(EditorDocumentSerializerTests, RestoreRecoveryBundleRejectsPathOutsideAssetRoot)
+{
+    ScopedTempDir assetRoot;
+    ScopedTempDir outside;
+
+    const auto windowInside = assetRoot.Path() / "window.json";
+    const auto escapingFile = outside.Path() / "stolen.json";
+
+    nlohmann::json bundle = nlohmann::json::object();
+    bundle["schemaVersion"] = 1;
+    bundle["windowFile"] = windowInside.generic_string();
+    nlohmann::json files = nlohmann::json::array();
+    nlohmann::json entry = nlohmann::json::object();
+    entry["path"] = escapingFile.generic_string();
+    entry["document"] = nlohmann::json::object();
+    files.push_back(std::move(entry));
+    bundle["files"] = std::move(files);
+
+    std::filesystem::path recoveredWindowFile;
+    std::string error;
+    EXPECT_FALSE(
+        editor::RestoreRecoveryBundle(bundle.dump(), assetRoot.Path(), recoveredWindowFile, &error));
+    EXPECT_FALSE(error.empty());
+    // Nothing outside the asset root may be written, and no staging artifact may leak.
+    EXPECT_FALSE(std::filesystem::exists(escapingFile));
+    EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(escapingFile).concat(".recovery_tmp")));
+}
+
+TEST(EditorDocumentSerializerTests, RestoreRecoveryBundleLeavesAuthoredFilesIntactWhenAnEntryEscapes)
+{
+    ScopedTempDir assetRoot;
+    ScopedTempDir outside;
+
+    const auto windowInside = assetRoot.Path() / "window.json";
+    const auto validPage = assetRoot.Path() / "pages" / "radar.json";
+    const auto escapingFile = outside.Path() / "stolen.json";
+
+    // Seed an existing authored file so we can assert it is never overwritten.
+    std::filesystem::create_directories(validPage.parent_path());
+    {
+        std::ofstream seed(validPage, std::ios::binary | std::ios::trunc);
+        seed << "{\"original\":true}\n";
+    }
+
+    nlohmann::json bundle = nlohmann::json::object();
+    bundle["schemaVersion"] = 1;
+    bundle["windowFile"] = windowInside.generic_string();
+    nlohmann::json files = nlohmann::json::array();
+
+    nlohmann::json validEntry = nlohmann::json::object();
+    validEntry["path"] = validPage.generic_string();
+    validEntry["document"] = nlohmann::json {{"replaced", true}};
+    files.push_back(std::move(validEntry));
+
+    nlohmann::json escapingEntry = nlohmann::json::object();
+    escapingEntry["path"] = escapingFile.generic_string();
+    escapingEntry["document"] = nlohmann::json::object();
+    files.push_back(std::move(escapingEntry));
+
+    bundle["files"] = std::move(files);
+
+    std::filesystem::path recoveredWindowFile;
+    std::string error;
+    EXPECT_FALSE(
+        editor::RestoreRecoveryBundle(bundle.dump(), assetRoot.Path(), recoveredWindowFile, &error));
+
+    // The escaping entry is rejected during validation, before any write, so the pre-existing authored
+    // file keeps its original content and no staging artifact remains.
+    std::ifstream check(validPage, std::ios::binary);
+    const std::string content((std::istreambuf_iterator<char>(check)), std::istreambuf_iterator<char>());
+    EXPECT_NE(content.find("\"original\""), std::string::npos);
+    EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(validPage).concat(".recovery_tmp")));
 }

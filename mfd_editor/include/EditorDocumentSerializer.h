@@ -75,13 +75,19 @@ std::string SerializeRecoveryBundleToJsonString(const mfd::LoadedWindowConfigura
                                                 const EditorFileLayout& layout);
 
 /**
- * @brief Restores a recovery bundle by writing its files back to disk.
+ * @brief Restores a recovery bundle by writing its files back to disk, transactionally.
  * @param bundleJson Bundle produced by @ref SerializeRecoveryBundleToJsonString.
+ * @param assetRoot Authored asset root; every bundle path must resolve inside it.
  * @param windowFile Receives the window file path to reload after restoration.
  * @param error Optional destination for a human-readable failure description.
  * @return `true` when every file was written and the window path was recovered.
+ * @pre `assetRoot` is the directory that legitimately contains the authored files.
+ * @note Paths outside `assetRoot` are rejected before any write. All entries are validated and staged
+ * into temporary files first, then renamed into place, so a mid-restore failure leaves the existing
+ * authored files untouched.
  */
 bool RestoreRecoveryBundle(const std::string& bundleJson,
+                           const std::filesystem::path& assetRoot,
                            std::filesystem::path& windowFile,
                            std::string* error);
 } // namespace editor

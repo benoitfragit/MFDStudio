@@ -1543,23 +1543,26 @@ void EditorApplication::RecoverPreviousSession()
         bundle.clear();
     }
 
+    // The recovery file lives at the asset root, so its parent bounds every legitimate authored file.
+    const std::filesystem::path assetRoot = path.parent_path();
+
     std::filesystem::path windowFile;
     std::string error;
-    if (!bundle.empty() && editor::RestoreRecoveryBundle(bundle, windowFile, &error) &&
+    if (!bundle.empty() && editor::RestoreRecoveryBundle(bundle, assetRoot, windowFile, &error) &&
         LoadWindowConfiguration(windowFile))
     {
         RebuildStatus("Recovered unsaved work from the previous session.", false);
+        // Only discard the snapshot once the restore and reload both succeeded.
+        ClearRecoverySnapshot();
     }
     else if (!error.empty())
     {
-        RebuildStatus("Recovery failed: " + error, true);
+        RebuildStatus("Recovery failed (snapshot kept): " + error, true);
     }
     else
     {
-        RebuildStatus("Recovery snapshot could not be restored.", true);
+        RebuildStatus("Recovery snapshot could not be restored (snapshot kept).", true);
     }
-
-    ClearRecoverySnapshot();
 }
 
 std::vector<std::filesystem::path> EditorApplication::CollectWatchedAssetFiles() const

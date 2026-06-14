@@ -1357,6 +1357,24 @@ void DeleteFileIfPresent(const std::filesystem::path& path)
     std::filesystem::remove(path, error);
 }
 
+bool IsPathWithinRoot(const std::filesystem::path& candidate, const std::filesystem::path& root)
+{
+    // Reject any bundle path that does not resolve to a descendant of the authored asset root. The
+    // candidate is made absolute against the root when relative, then normalized, so "..", absolute
+    // paths and drive changes that escape the root are refused before any write touches the disk.
+    const std::filesystem::path normalizedRoot = root.lexically_normal();
+    const std::filesystem::path absoluteCandidate =
+        candidate.is_absolute() ? candidate.lexically_normal() : (normalizedRoot / candidate).lexically_normal();
+
+    const std::filesystem::path relative = absoluteCandidate.lexically_relative(normalizedRoot);
+    if (relative.empty())
+    {
+        return false;
+    }
+
+    return *relative.begin() != "..";
+}
+
 std::optional<std::string> TryReadTemplateId(const std::filesystem::path& path)
 {
     std::ifstream stream(path);
@@ -1602,9 +1620,11 @@ std::string SerializeRecoveryBundleToJsonString(const mfd::LoadedWindowConfigura
 }
 
 bool RestoreRecoveryBundle(const std::string& bundleJson,
+                           const std::filesystem::path& assetRoot,
                            std::filesystem::path& windowFile,
                            std::string* error)
 {
+    std::vector<std::filesystem::path> stagedTempFiles;
     try
     {
         const json bundle = json::parse(bundleJson);
@@ -1615,6 +1635,16 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
             throw std::runtime_error("Malformed recovery bundle");
         }
 
+        const std::filesystem::path recoveredWindowFile(bundle.at("windowFile").get<std::string>());
+        if (!IsPathWithinRoot(recoveredWindowFile, assetRoot))
+        {
+            throw std::runtime_error("Recovery bundle window path escapes the asset root: " +
+                                     recoveredWindowFile.string());
+        }
+
+        // Phase 1: validate every entry and its target path before writing anything to disk.
+        std::vector<std::pair<std::filesystem::path, const json*>> targets;
+        targets.reserve(bundle.at("files").size());
         for (const auto& entry : bundle.at("files"))
         {
             if (!entry.is_object() || !entry.contains("path") || !entry.at("path").is_string() ||
@@ -1623,10 +1653,32 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
                 throw std::runtime_error("Malformed recovery bundle entry");
             }
 
-            WriteJsonFile(std::filesystem::path(entry.at("path").get<std::string>()), entry.at("document"));
+            std::filesystem::path target(entry.at("path").get<std::string>());
+            if (!IsPathWithinRoot(target, assetRoot))
+            {
+                throw std::runtime_error("Recovery bundle path escapes the asset root: " + target.string());
+            }
+
+            targets.emplace_back(std::move(target), &entry.at("document"));
         }
 
-        windowFile = std::filesystem::path(bundle.at("windowFile").get<std::string>());
+        // Phase 2: stage every document into a temporary sibling file. A failure here leaves the
+        // authored files untouched; the catch removes any temporary already written.
+        for (const auto& [target, document] : targets)
+        {
+            std::filesystem::path tempFile = target;
+            tempFile += ".recovery_tmp";
+            WriteJsonFile(tempFile, *document);
+            stagedTempFiles.push_back(std::move(tempFile));
+        }
+
+        // Phase 3: promote each staged file into place. Same-directory renames are atomic.
+        for (std::size_t index = 0; index < targets.size(); ++index)
+        {
+            std::filesystem::rename(stagedTempFiles[index], targets[index].first);
+        }
+
+        windowFile = recoveredWindowFile;
         if (error != nullptr)
         {
             error->clear();
@@ -1636,6 +1688,12 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
     }
     catch (const std::exception& exception)
     {
+        for (const std::filesystem::path& tempFile : stagedTempFiles)
+        {
+            std::error_code removeError;
+            std::filesystem::remove(tempFile, removeError);
+        }
+
         if (error != nullptr)
         {
             *error = exception.what();
