@@ -15,6 +15,8 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "EditorUiTheme.h"
@@ -24,6 +26,272 @@ namespace
 {
 using editor::app::IsPageStrobeVisibleInEditor;
 using editor::ui::ShowItemTooltip;
+
+std::string NormalizeEditorIdentifier(const std::string_view value)
+{
+    return mfd::NormalizePageName(value);
+}
+
+std::string PageProblemId(const mfd::PageDefinition& page)
+{
+    return "page/" + NormalizeEditorIdentifier(page.normalizedName.empty() ? page.name : page.normalizedName);
+}
+
+std::string ReticleAssetProblemId(const std::string_view templateId)
+{
+    return "reticle/" + NormalizeEditorIdentifier(templateId);
+}
+
+std::string PageReticleProblemId(const mfd::PageDefinition& page, const mfd::ReticleGroup& reticle)
+{
+    return PageProblemId(page) + "/reticle/" + NormalizeEditorIdentifier(reticle.id);
+}
+
+void PushProblem(std::vector<editor::PagePreviewProblem>& problems,
+                 const std::string_view entityId,
+                 const std::string_view message)
+{
+    if (entityId.empty())
+    {
+        problems.push_back(editor::PagePreviewProblem {std::string(message), std::string {}});
+        return;
+    }
+
+    problems.push_back(editor::PagePreviewProblem {
+        std::string(entityId) + ": " + std::string(message),
+        std::string(entityId)});
+}
+
+void AppendPrimitiveProblems(std::vector<editor::PagePreviewProblem>& messages,
+                             const std::vector<mfd::Primitive>& primitives,
+                             const std::string_view ownerId)
+{
+    std::unordered_set<std::string> primitiveIds;
+    for (const mfd::Primitive& primitive : primitives)
+    {
+        if (primitive.id.empty())
+        {
+            continue;
+        }
+
+        if (!primitiveIds.insert(NormalizeEditorIdentifier(primitive.id)).second)
+        {
+            PushProblem(messages, ownerId, "Primitive ids must stay unique inside one reticle.");
+        }
+    }
+}
+}
+
+std::vector<editor::PagePreviewProblem> EditorApplication::BuildPagePreviewProblems() const
+{
+    std::vector<editor::PagePreviewProblem> messages;
+    if (!HasOpenWindow())
+    {
+        return messages;
+    }
+
+    if (!documentState_.loaded.document.pages.empty() && documentState_.files.pageFiles.size() != documentState_.loaded.document.pages.size())
+    {
+        PushProblem(messages, "window", "Page file layout count must match the number of authored pages.");
+    }
+
+    std::unordered_set<std::string> pageNames;
+    for (const mfd::PageDefinition& page : documentState_.loaded.document.pages)
+    {
+        const std::string pageId = PageProblemId(page);
+        const std::string normalizedPageId =
+            page.normalizedName.empty() ? NormalizeEditorIdentifier(page.name) : page.normalizedName;
+
+        if (page.name.empty())
+        {
+            PushProblem(messages, pageId, "Page name cannot be empty.");
+        }
+
+        if (!pageNames.insert(normalizedPageId).second)
+        {
+            PushProblem(messages, pageId, "Page ids must stay unique.");
+        }
+
+        std::unordered_set<std::string> runtimeLayerIds;
+        for (const mfd::PageLayerDefinition& layer : page.layers)
+        {
+            if (layer.id.empty())
+            {
+                PushProblem(messages, pageId, "Page layer ids cannot be empty.");
+                continue;
+            }
+
+            if (!runtimeLayerIds.insert(NormalizeEditorIdentifier(layer.id)).second)
+            {
+                PushProblem(messages, pageId, "Page layer ids must stay unique inside one page.");
+            }
+        }
+
+        std::unordered_set<std::string> editorLayerIds;
+        for (const mfd::EditorLayerDefinition& layer : page.editor.layers)
+        {
+            if (layer.id.empty())
+            {
+                PushProblem(messages, pageId, "Editor layer ids cannot be empty.");
+                continue;
+            }
+
+            const std::string normalizedLayerId = NormalizeEditorIdentifier(layer.id);
+            if (!editorLayerIds.insert(normalizedLayerId).second)
+            {
+                PushProblem(messages, pageId, "Editor layer ids must stay unique inside one page.");
+            }
+
+            if (runtimeLayerIds.find(normalizedLayerId) == runtimeLayerIds.end())
+            {
+                PushProblem(messages, pageId, "Editor layer state must reference one runtime page layer.");
+            }
+        }
+
+        std::unordered_set<std::string> blinkTypeNames;
+        for (const mfd::PageBlinkDefinition& blinkType : page.blinkTypes)
+        {
+            const std::string normalizedBlinkName =
+                blinkType.normalizedName.empty() ? NormalizeEditorIdentifier(blinkType.name) : blinkType.normalizedName;
+            if (normalizedBlinkName.empty())
+            {
+                PushProblem(messages, pageId, "Blink type names cannot be empty.");
+                continue;
+            }
+
+            if (!blinkTypeNames.insert(normalizedBlinkName).second)
+            {
+                PushProblem(messages, pageId, "Blink type names must stay unique inside one page.");
+            }
+        }
+
+        if (!page.defaultBlinkTypeName.empty() &&
+            mfd::FindPageBlinkDefinition(page, page.defaultBlinkTypeName) == nullptr)
+        {
+            PushProblem(messages, pageId, "The page default blink type must resolve inside the page blink catalog.");
+        }
+
+        std::unordered_set<std::string> dynamicTemplateIds;
+        std::unordered_map<std::string, std::unordered_set<int>> dynamicBindingOrdersByLayer;
+        for (const mfd::DynamicReticleLayerBinding& binding : page.dynamicReticleBindings)
+        {
+            if (binding.templateId.empty())
+            {
+                PushProblem(messages, pageId, "Page dynamic reticle bindings must define a template id.");
+                continue;
+            }
+
+            const std::string normalizedTemplateId = NormalizeEditorIdentifier(binding.templateId);
+            if (!dynamicTemplateIds.insert(normalizedTemplateId).second)
+            {
+                PushProblem(messages, pageId, "Page dynamic reticle binding template ids must stay unique inside one page.");
+            }
+
+            if (documentState_.loaded.document.reticleLibrary.find(binding.templateId) == documentState_.loaded.document.reticleLibrary.end())
+            {
+                PushProblem(messages, pageId, "Page dynamic reticle binding template ids must resolve inside the loaded reticle library.");
+            }
+
+            const std::string normalizedLayerId = NormalizeEditorIdentifier(binding.layerId);
+            if (normalizedLayerId.empty())
+            {
+                PushProblem(messages, pageId, "Page dynamic reticle bindings must define a layer id.");
+            }
+            else if (runtimeLayerIds.find(normalizedLayerId) == runtimeLayerIds.end())
+            {
+                PushProblem(messages, pageId, "Page dynamic reticle bindings must reference one runtime page layer.");
+            }
+
+            if (!dynamicBindingOrdersByLayer[normalizedLayerId].insert(binding.orderInLayer).second)
+            {
+                PushProblem(messages, pageId, "Page dynamic reticle binding orderInLayer values must stay unique inside one layer.");
+            }
+        }
+
+        std::unordered_set<std::string> reticleIds;
+        for (const mfd::ReticleGroup& reticle : page.staticReticles)
+        {
+            const std::string reticleId = PageReticleProblemId(page, reticle);
+            if (reticle.id.empty())
+            {
+                PushProblem(messages, pageId, "Page reticle ids cannot be empty.");
+            }
+
+            if (!reticleIds.insert(NormalizeEditorIdentifier(reticle.id)).second)
+            {
+                PushProblem(messages, reticleId, "Page reticle ids must stay unique inside one page.");
+            }
+
+            if (!reticle.sourceTemplateId.empty() &&
+                documentState_.loaded.document.reticleLibrary.find(reticle.sourceTemplateId) == documentState_.loaded.document.reticleLibrary.end())
+            {
+                PushProblem(messages, reticleId, "Page reticle source template must resolve inside the loaded reticle library.");
+            }
+
+            const std::string normalizedLayerId = NormalizeEditorIdentifier(reticle.layerId);
+            if (normalizedLayerId.empty())
+            {
+                PushProblem(messages, reticleId, "Page reticles must define a runtime layer id.");
+            }
+            else if (runtimeLayerIds.find(normalizedLayerId) == runtimeLayerIds.end())
+            {
+                PushProblem(messages, reticleId, "Page reticles must reference an existing runtime page layer.");
+            }
+
+            AppendPrimitiveProblems(messages, reticle.primitives, reticleId);
+            if (reticle.clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(reticle) == nullptr)
+            {
+                PushProblem(messages, reticleId, "Reticle clipping must reference an existing supported primitive.");
+            }
+
+            if (reticle.blink.enabled &&
+                !reticle.blink.typeName.empty() &&
+                mfd::FindPageBlinkDefinition(page, reticle.blink.typeName) == nullptr)
+            {
+                PushProblem(messages, reticleId, "Page reticle blink bindings must reference one page-local blink type.");
+            }
+        }
+
+        for (const auto& strobe : page.strobes)
+        {
+            if (strobe.reticle.blink.enabled &&
+                !strobe.reticle.blink.typeName.empty() &&
+                mfd::FindPageBlinkDefinition(page, strobe.reticle.blink.typeName) == nullptr)
+            {
+                PushProblem(messages,
+                            pageId,
+                            "Page strobe blink bindings must reference one page-local blink type.");
+            }
+
+            if (strobe.reticle.clipping.mode != mfd::ReticleClipMode::None &&
+                mfd::ResolveClipPrimitive(strobe.reticle) == nullptr)
+            {
+                PushProblem(messages, pageId, "Page strobe clipping must reference an existing supported primitive.");
+            }
+        }
+    }
+
+    for (const auto& [templateId, reticle] : documentState_.loaded.document.reticleLibrary)
+    {
+        const std::string reticleId = ReticleAssetProblemId(templateId);
+        if (NormalizeEditorIdentifier(templateId) != NormalizeEditorIdentifier(reticle.id))
+        {
+            PushProblem(messages, reticleId, "Reticle-library map key and reticle id must stay aligned.");
+        }
+
+        if (documentState_.files.templateFiles.find(templateId) == documentState_.files.templateFiles.end())
+        {
+            PushProblem(messages, reticleId, "Missing template file path for reticle asset.");
+        }
+
+        AppendPrimitiveProblems(messages, reticle.primitives, reticleId);
+        if (reticle.clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(reticle) == nullptr)
+        {
+            PushProblem(messages, reticleId, "Reticle clipping must reference an existing supported primitive.");
+        }
+    }
+
+    return messages;
 }
 
 void EditorApplication::NavigateToProblem(const std::string& contextId)
