@@ -15,6 +15,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationPopups.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationDocument.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationTreeViews.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationLayerFocus.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplicationWorkflow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDesignExportService.cpp
