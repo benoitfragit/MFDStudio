@@ -9,7 +9,9 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportGrid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportSnap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationShell.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationInspectors.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationWindowPageInspectors.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationPageReticleInspectors.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationLibraryInspectors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationHitTesting.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationSelection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationPopups.cpp
