@@ -646,6 +646,11 @@ inline constexpr std::array<mfd::PrimitiveType, 14> kPrimitiveTypes {
     mfd::PrimitiveType::Image};
 
 /**
+ * @brief Asset-relative path of the best-effort autosave recovery snapshot.
+ */
+inline constexpr const char* kRecoveryFileName = "assets/.editor_recovery.json";
+
+/**
  * @brief Tutorial template id reserved for the integrated aircraft-reference walkthrough.
  */
 inline constexpr std::string_view kTutorialAircraftTemplateId = "mfd_tutorial_aircraft";
