@@ -89,6 +89,17 @@ public:
     void Advance(float deltaSeconds);
 
     /**
+     * @brief Emits one final window lifecycle `Closing` feedback payload.
+     *
+     * @note Call this once before tearing the session down so connected clients
+     * can immediately detect a graceful shutdown and reset their transports.
+     * The call is idempotent and a no-op when no feedback transport is
+     * configured. Abrupt termination (crash or kill) is still detectable on the
+     * client side through the absence of the lifecycle heartbeat.
+     */
+    void NotifyClosing();
+
+    /**
      * @brief Returns the loaded root window JSON file path.
      * @return Loaded root window JSON file path, or an empty path before the first successful load.
      */

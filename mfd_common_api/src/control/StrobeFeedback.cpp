@@ -140,6 +140,30 @@ void FillProtoCaptureResult(const StrobeFeedbackCapture& capture, pb::StrobeCapt
     }
 }
 
+pb::WindowLifecycleState ToProtoLifecycleState(const WindowLifecycleState state) noexcept
+{
+    switch (state)
+    {
+    case WindowLifecycleState::Alive:
+        return pb::WINDOW_LIFECYCLE_STATE_ALIVE;
+
+    case WindowLifecycleState::Closing:
+        return pb::WINDOW_LIFECYCLE_STATE_CLOSING;
+    }
+
+    return pb::WINDOW_LIFECYCLE_STATE_ALIVE;
+}
+
+WindowLifecycleState FromProtoLifecycleState(const pb::WindowLifecycleState state) noexcept
+{
+    if (state == pb::WINDOW_LIFECYCLE_STATE_CLOSING)
+    {
+        return WindowLifecycleState::Closing;
+    }
+
+    return WindowLifecycleState::Alive;
+}
+
 StrobeFeedbackCapture FromProtoCaptureResult(const pb::StrobeCaptureStatus& value)
 {
     StrobeFeedbackCapture capture;
@@ -194,6 +218,12 @@ std::string SerializeFeedbackPayload(const FeedbackPayload& feedback)
                 pb::ActivePageFeedback* message = envelope.mutable_active_page();
                 message->set_sequence(value.sequence);
                 message->set_page(value.pageName);
+            }
+            else if constexpr (std::is_same_v<FeedbackType, WindowLifecycleFeedback>)
+            {
+                pb::WindowLifecycleFeedback* message = envelope.mutable_window_lifecycle();
+                message->set_sequence(value.sequence);
+                message->set_state(ToProtoLifecycleState(value.state));
             }
         },
         feedback);
@@ -270,6 +300,16 @@ std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view
             return FeedbackPayload {std::move(feedback)};
         }
 
+        if (envelope.payload_case() == pb::FeedbackEnvelope::kWindowLifecycle)
+        {
+            const pb::WindowLifecycleFeedback& message = envelope.window_lifecycle();
+
+            WindowLifecycleFeedback feedback;
+            feedback.sequence = message.sequence();
+            feedback.state = FromProtoLifecycleState(message.state());
+            return FeedbackPayload {std::move(feedback)};
+        }
+
         throw std::runtime_error("Unsupported feedback payload");
     }
     catch (const std::exception& exception)
@@ -327,6 +367,33 @@ std::optional<ActivePageFeedback> DeserializeActivePageFeedback(const std::strin
     }
 
     if (const auto* feedback = std::get_if<ActivePageFeedback>(&(*decoded)); feedback != nullptr)
+    {
+        return *feedback;
+    }
+
+    errorTarget->clear();
+    return std::nullopt;
+}
+
+std::string SerializeWindowLifecycleFeedback(const WindowLifecycleFeedback& feedback)
+{
+    return SerializeFeedbackPayload(FeedbackPayload {feedback});
+}
+
+std::optional<WindowLifecycleFeedback> DeserializeWindowLifecycleFeedback(const std::string_view payload,
+                                                                          std::string* error)
+{
+    std::string localError;
+    std::string* errorTarget = error == nullptr ? &localError : error;
+    errorTarget->clear();
+
+    const auto decoded = DeserializeFeedbackPayload(payload, errorTarget);
+    if (!decoded.has_value())
+    {
+        return std::nullopt;
+    }
+
+    if (const auto* feedback = std::get_if<WindowLifecycleFeedback>(&(*decoded)); feedback != nullptr)
     {
         return *feedback;
     }

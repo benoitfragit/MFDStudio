@@ -78,6 +78,12 @@ For time primitives, the generated API exposes structured runtime controls:
 numeric time bypass, bypass clear, UTC/local selection, and field visibility.
 It does not require clients to send raw format strings at runtime.
 
+When the target window exposes a feedback transport, a client can also detect
+window shutdown over the connectionless UDP stream with
+`mfd::client::WindowLivenessMonitor` and reset its connections cleanly. See the
+[Detailed User Guide](./docs/user_guide/MFDStudio_End_To_End_User_Guide.docx)
+section `6.20`.
+
 Treat the generated header, generated source, and companion
 `<window>.generated.map` as one contract. The generated runtime path is only
 valid when `mfd_window` loads the matching `.generated.map`. Use generated

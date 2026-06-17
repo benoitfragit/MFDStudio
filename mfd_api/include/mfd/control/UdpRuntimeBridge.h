@@ -215,6 +215,16 @@ public:
     void EnqueueActivePageFeedback(ActivePageFeedback feedback);
 
     /**
+     * @brief Queues a window lifecycle heartbeat payload to be sent by the worker thread.
+     * @param feedback Lifecycle snapshot to enqueue.
+     *
+     * @note The window emits periodic `Alive` payloads and one final `Closing`
+     * payload during a graceful shutdown so clients can detect window
+     * termination and reset their transports.
+     */
+    void EnqueueWindowLifecycleFeedback(WindowLifecycleFeedback feedback);
+
+    /**
      * @brief Returns the last command-side status or error string.
      * @return Command-side status string.
      */

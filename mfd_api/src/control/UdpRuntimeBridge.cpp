@@ -504,12 +504,18 @@ std::string DescribeFeedbackTargetImpl(const ActivePageFeedback& feedback)
     return "active page '" + feedback.pageName + "'";
 }
 
+std::string DescribeFeedbackTargetImpl(const WindowLifecycleFeedback& feedback)
+{
+    return feedback.state == WindowLifecycleState::Closing ? "window lifecycle 'closing'"
+                                                           : "window lifecycle 'alive'";
+}
+
 std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
 {
     // Explicit named overloads keep the description per alternative. The static_assert turns any future
     // extension of FeedbackPayload into a compile error here, forcing a matching overload to be added
     // instead of silently falling through.
-    static_assert(std::variant_size_v<FeedbackPayload> == 2,
+    static_assert(std::variant_size_v<FeedbackPayload> == 3,
                   "DescribeFeedbackTarget must cover every FeedbackPayload alternative");
 
     if (const auto* strobe = std::get_if<StrobeStatusFeedback>(&feedback))
@@ -517,7 +523,12 @@ std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
         return DescribeFeedbackTargetImpl(*strobe);
     }
 
-    return DescribeFeedbackTargetImpl(std::get<ActivePageFeedback>(feedback));
+    if (const auto* activePage = std::get_if<ActivePageFeedback>(&feedback))
+    {
+        return DescribeFeedbackTargetImpl(*activePage);
+    }
+
+    return DescribeFeedbackTargetImpl(std::get<WindowLifecycleFeedback>(feedback));
 }
 
 } // namespace
@@ -615,6 +626,24 @@ struct UdpRuntimeBridge::Impl
 
         inboundBatches.push_back(std::move(batch));
         IncrementCounter(counters.queuedBatches);
+    }
+
+    void PushQueuedFeedback(FeedbackPayload&& feedback)
+    {
+        {
+            std::lock_guard lock(outboundMutex);
+            if (outboundFeedback.size() >= kMaxQueuedFeedback)
+            {
+                outboundFeedback.pop_front();
+                IncrementCounter(counters.feedbackDropped);
+                SetFeedbackStatus("UDP feedback queue overflow, dropping oldest runtime feedback");
+            }
+
+            outboundFeedback.emplace_back(std::move(feedback));
+            IncrementCounter(counters.feedbackQueued);
+        }
+
+        waitCondition.notify_all();
     }
 
     bool FlushQueuedFeedback()
@@ -1118,20 +1147,7 @@ void UdpRuntimeBridge::EnqueueStrobeFeedback(StrobeStatusFeedback feedback)
         return;
     }
 
-    {
-        std::lock_guard lock(impl_->outboundMutex);
-        if (impl_->outboundFeedback.size() >= kMaxQueuedFeedback)
-        {
-            impl_->outboundFeedback.pop_front();
-            IncrementCounter(impl_->counters.feedbackDropped);
-            impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest runtime feedback");
-        }
-
-        impl_->outboundFeedback.emplace_back(std::move(feedback));
-        IncrementCounter(impl_->counters.feedbackQueued);
-    }
-
-    impl_->waitCondition.notify_all();
+    impl_->PushQueuedFeedback(FeedbackPayload {std::move(feedback)});
 }
 
 void UdpRuntimeBridge::EnqueueActivePageFeedback(ActivePageFeedback feedback)
@@ -1141,20 +1157,17 @@ void UdpRuntimeBridge::EnqueueActivePageFeedback(ActivePageFeedback feedback)
         return;
     }
 
-    {
-        std::lock_guard lock(impl_->outboundMutex);
-        if (impl_->outboundFeedback.size() >= kMaxQueuedFeedback)
-        {
-            impl_->outboundFeedback.pop_front();
-            IncrementCounter(impl_->counters.feedbackDropped);
-            impl_->SetFeedbackStatus("UDP feedback queue overflow, dropping oldest runtime feedback");
-        }
+    impl_->PushQueuedFeedback(FeedbackPayload {std::move(feedback)});
+}
 
-        impl_->outboundFeedback.emplace_back(std::move(feedback));
-        IncrementCounter(impl_->counters.feedbackQueued);
+void UdpRuntimeBridge::EnqueueWindowLifecycleFeedback(WindowLifecycleFeedback feedback)
+{
+    if (impl_ == nullptr || !HasFeedbackSender())
+    {
+        return;
     }
 
-    impl_->waitCondition.notify_all();
+    impl_->PushQueuedFeedback(FeedbackPayload {std::move(feedback)});
 }
 
 std::string UdpRuntimeBridge::LastCommandStatus() const

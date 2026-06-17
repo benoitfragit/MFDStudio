@@ -64,11 +64,24 @@ message ActivePageFeedback
   string page = 2;
 }
 
+enum WindowLifecycleState
+{
+  WINDOW_LIFECYCLE_STATE_ALIVE = 0;
+  WINDOW_LIFECYCLE_STATE_CLOSING = 1;
+}
+
+message WindowLifecycleFeedback
+{
+  uint32 sequence = 1;
+  WindowLifecycleState state = 2;
+}
+
 message FeedbackEnvelope
 {
   oneof payload
   {
     StrobeStatusFeedback strobe_status = 1;
     ActivePageFeedback active_page = 2;
+    WindowLifecycleFeedback window_lifecycle = 3;
   }
 }

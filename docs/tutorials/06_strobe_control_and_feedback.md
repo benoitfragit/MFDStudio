@@ -308,6 +308,24 @@ This is the preferred high-level flow for generated clients:
   snapshot arrives for the newly active page
 - becomes `false` again when the strobe captures another dynamic reticle
 
+## Step 6b - Detect window shutdown from the same feedback stream
+
+The same feedback channel also carries a window-level lifecycle signal that is
+**not** tied to the strobe: a periodic `Alive` heartbeat and a final `Closing`
+payload at graceful shutdown. Feed `mfd::client::WindowLivenessMonitor` from the
+generated counters to detect a closed or crashed window and reset the client:
+
+```cpp
+liveness.Observe(ui.TotalDecodedFeedbackPackets(), ui.WindowReportedClosing(), nowSeconds);
+if (liveness.ConsumeDisconnect())
+{
+    // rebuild transports, ui.Initialize(), liveness.Reset()
+}
+```
+
+See [04 Drive A Window From A Live Client](./04_drive_a_window_from_a_live_client.md)
+Step 12 and end to end user guide section 6.20.
+
 ## Step 7 - Use the raw decoder only when you intentionally stay low-level
 
 If you are not using generated client bindings, decode the runtime feedback

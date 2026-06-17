@@ -20,6 +20,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -694,6 +695,53 @@ TEST(UdpRuntimeBridgeTests, SendsQueuedStrobeFeedbackFromWorkerThread)
         }));
 
     bridge.Stop();
+    EXPECT_FALSE(bridge.IsRunning());
+}
+
+TEST(UdpRuntimeBridgeTests, SendsQueuedWindowLifecycleFeedbackFromWorkerThread)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    mfd::WindowLifecycleFeedback feedback;
+    feedback.sequence = 5U;
+    feedback.state = mfd::WindowLifecycleState::Closing;
+    bridge.EnqueueWindowLifecycleFeedback(std::move(feedback));
+
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [senderState]()
+        {
+            std::lock_guard lock(senderState->mutex);
+            return !senderState->sentPayloads.empty();
+        }));
+
+    bridge.Stop();
+
+    std::vector<std::byte> sentPayload;
+    {
+        std::lock_guard lock(senderState->mutex);
+        ASSERT_FALSE(senderState->sentPayloads.empty());
+        sentPayload = senderState->sentPayloads.front();
+    }
+
+    // The fake sender stores raw bytes; decode them through the public feedback decoder.
+    const std::string_view payloadView(reinterpret_cast<const char*>(sentPayload.data()), sentPayload.size());
+    const auto decoded = mfd::DeserializeWindowLifecycleFeedback(payloadView);
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded->sequence, 5U);
+    EXPECT_EQ(decoded->state, mfd::WindowLifecycleState::Closing);
     EXPECT_FALSE(bridge.IsRunning());
 }
 

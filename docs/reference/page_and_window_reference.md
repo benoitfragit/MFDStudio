@@ -210,6 +210,11 @@ Runtime note:
 - `StrobeStatusFeedback` is emitted only for that active page strobe
 - inactive pages keep their authored strobe definition, but they do not expose
   live strobe, magnetization, or capture state until they become active
+- `WindowLifecycleFeedback` is a window-level liveness signal, independent of any
+  page or strobe: the window emits a periodic `Alive` heartbeat on the heartbeat
+  cadence (even when no page or strobe is active) and one final `Closing` payload
+  during a graceful shutdown. Clients use `mfd::client::WindowLivenessMonitor` to
+  detect a closed, crashed, or unreachable window and reset their transports.
 
 ## 4. Page JSON
 

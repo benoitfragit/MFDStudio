@@ -330,6 +330,10 @@ The editor exposes two configuration groups.
 
 For a single position, use `127.0.0.1`.
 
+When the feedback UDP flow is enabled, the window also emits a window lifecycle
+heartbeat and a final `Closing` payload at shutdown. Clients use these to detect
+when the window is gone and reset their connections (see section 6.20).
+
 ## 4.5 Create a first page
 
 During window creation, you can activate `Create one initial page` then enter:
@@ -1542,6 +1546,9 @@ The generated feedback helpers intentionally expose only authoritative runtime s
 
 This makes the generated feedback surface safe to use in client state machines.
 
+Window shutdown detection is a separate, window-level feedback covered in
+section 6.20.
+
 ## 6.15 Client sanitization and hygiene
 
 The generated layer makes publication easier, but it does not sanitize domain data for you. A robust client still needs to validate its own upstream inputs.
@@ -1968,6 +1975,60 @@ cmake --build --preset debug-win32 --target offscreen_viewer
 
 Use this path when your goal is embedding. Keep the framebuffer plugin ABI for
 the `mfd_window` host path only.
+
+<!-- PAGEBREAK -->
+
+## 6.20 Detect window shutdown and reset the client
+
+The command and feedback streams are connectionless UDP. A client cannot rely on
+a socket error to learn that the window vanished, so the runtime publishes a
+dedicated **window lifecycle** feedback. It is a window-level liveness signal,
+intentionally independent of any page or strobe:
+
+- the window emits a periodic `Alive` heartbeat on the configured feedback
+  heartbeat cadence, even when no page or strobe is active
+- the window emits one final `Closing` payload during a graceful shutdown, just
+  before it tears down its transports
+
+On the client side, `mfd::client::WindowLivenessMonitor` turns those two signals
+into a single connection state. It combines the explicit `Closing` (immediate
+reaction) with an absence-of-heartbeat timeout (covers crash, kill, or network
+loss). The monitor keeps no internal clock: you pass a monotonic time in
+seconds, which keeps it deterministic and testable.
+
+```cpp
+mfd::client::WindowLivenessMonitor liveness(2.0); // timeout > heartbeat interval
+
+// Once per frame, after polling feedback through the generated UI:
+ui.PollFeedback(*feedbackChannel, 8U, &feedbackError);
+liveness.Observe(ui.TotalDecodedFeedbackPackets(),
+                 ui.WindowReportedClosing(),
+                 nowSeconds);
+
+if (liveness.ConsumeDisconnect())
+{
+    // The window closed or stopped answering: drop the stale transports and
+    // rebuild them so a relaunched window starts from a clean baseline.
+    client = mfd::CommandClient(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
+    feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);
+    ui.Initialize();       // re-send the full authored state on the next batch
+    liveness.Reset();      // re-arm for the next connection
+}
+```
+
+Clients that decode the raw feedback channel themselves (instead of the
+generated `PollFeedback`) feed the monitor directly: `RecordActivity(nowSeconds)`
+for every decoded packet, `RecordWindowClosing(nowSeconds)` when a `Closing`
+payload arrives, and `Update(nowSeconds)` once per frame to apply the timeout.
+
+Choose a timeout safely larger than the window feedback heartbeat interval so a
+single dropped UDP heartbeat does not raise a false disconnect. The detection
+only works against a window that exposes a feedback transport: a command-only
+window emits no heartbeat and cannot be monitored.
+
+The shipped examples illustrate both ends of the pattern: `client_tutorial` and
+`client_mockup` rebuild their transports and reconnect, while
+`client_mockup_minimal` detects the shutdown and stops cleanly.
 
 <!-- PAGEBREAK -->
 

@@ -303,7 +303,8 @@ public:
             }
         }
 
-        PublishStrobeFeedbacks(deltaSeconds);
+        PublishWindowLifecycleHeartbeat(deltaSeconds);
+        PublishRuntimeFeedback(deltaSeconds);
     }
 
     [[nodiscard]] bool ApplyLoadedWindowConfiguration(LoadedWindowConfiguration loaded, std::string& error)
@@ -332,11 +333,14 @@ public:
         runtimeBridge_ = std::move(newBridge);
         windowFile_ = windowDefinition_.sourceFile;
         feedbackThrottle_.Reset();
+        lifecycleThrottle_.Reset();
         pendingCommandBatches_.clear();
         appliedCommandBatches_.clear();
         lastPublishedStrobeFeedbacks_.clear();
         lastPublishedActivePage_.reset();
-        nextStrobeFeedbackSequence_ = 1U;
+        nextFeedbackSequence_ = 1U;
+        lifecycleHeartbeatPending_ = true;
+        closingNotified_ = false;
         receivedFirstClientCommand_ = false;
 
         if (runtimeBridge_ == nullptr || !runtimeBridge_->HasCommandReceiver())
@@ -386,7 +390,48 @@ public:
         return feedback;
     }
 
-    void PublishStrobeFeedbacks(const float deltaSeconds)
+    // The window lifecycle heartbeat is a window-level liveness signal. It is
+    // intentionally independent of the active page and of any strobe so that an
+    // idle window with no strobe still proves it is alive to its clients.
+    void PublishWindowLifecycleHeartbeat(const float deltaSeconds)
+    {
+        if (runtimeBridge_ == nullptr || !runtimeBridge_->FeedbackTransportReady())
+        {
+            return;
+        }
+
+        lifecycleThrottle_.Advance(deltaSeconds);
+
+        const float heartbeatInterval = windowDefinition_.feedbackHeartbeatIntervalSeconds;
+        if (!lifecycleHeartbeatPending_ && !lifecycleThrottle_.ShouldSendHeartbeat(heartbeatInterval))
+        {
+            return;
+        }
+
+        WindowLifecycleFeedback lifecycle;
+        lifecycle.sequence = nextFeedbackSequence_++;
+        lifecycle.state = WindowLifecycleState::Alive;
+        runtimeBridge_->EnqueueWindowLifecycleFeedback(std::move(lifecycle));
+
+        lifecycleThrottle_.MarkHeartbeatSent(heartbeatInterval);
+        lifecycleHeartbeatPending_ = false;
+    }
+
+    void NotifyClosing()
+    {
+        if (closingNotified_ || runtimeBridge_ == nullptr || !runtimeBridge_->HasFeedbackSender())
+        {
+            return;
+        }
+
+        WindowLifecycleFeedback lifecycle;
+        lifecycle.sequence = nextFeedbackSequence_++;
+        lifecycle.state = WindowLifecycleState::Closing;
+        runtimeBridge_->EnqueueWindowLifecycleFeedback(std::move(lifecycle));
+        closingNotified_ = true;
+    }
+
+    void PublishRuntimeFeedback(const float deltaSeconds)
     {
         if (runtimeBridge_ == nullptr || !runtimeBridge_->FeedbackTransportReady())
         {
@@ -407,7 +452,7 @@ public:
         if (!activePageName.empty() && activePageChanged && changedDue)
         {
             ActivePageFeedback activePageFeedback;
-            activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
+            activePageFeedback.sequence = nextFeedbackSequence_++;
             activePageFeedback.pageName = activePageName;
             runtimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
             lastPublishedActivePage_ = activePageName;
@@ -416,7 +461,7 @@ public:
         else if (!activePageName.empty() && !activePageChanged && heartbeatDue)
         {
             ActivePageFeedback activePageFeedback;
-            activePageFeedback.sequence = nextStrobeFeedbackSequence_++;
+            activePageFeedback.sequence = nextFeedbackSequence_++;
             activePageFeedback.pageName = activePageName;
             runtimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
             sentHeartbeat = true;
@@ -433,14 +478,14 @@ public:
                 const bool shouldSendChanged = activePageChanged || changed;
                 if (shouldSendChanged && changedDue)
                 {
-                    feedback->sequence = nextStrobeFeedbackSequence_++;
+                    feedback->sequence = nextFeedbackSequence_++;
                     runtimeBridge_->EnqueueStrobeFeedback(*feedback);
                     lastPublishedStrobeFeedbacks_[activePageName] = std::move(*feedback);
                     sentChanged = true;
                 }
                 else if (!shouldSendChanged && heartbeatDue)
                 {
-                    feedback->sequence = nextStrobeFeedbackSequence_++;
+                    feedback->sequence = nextFeedbackSequence_++;
                     runtimeBridge_->EnqueueStrobeFeedback(*feedback);
                     sentHeartbeat = true;
                 }
@@ -563,11 +608,14 @@ private:
     WindowAssetDefinition windowDefinition_ {};
     std::unique_ptr<UdpRuntimeBridge> runtimeBridge_ {};
     RuntimeFeedbackThrottle feedbackThrottle_ {};
+    RuntimeFeedbackThrottle lifecycleThrottle_ {};
     std::vector<CommandBatch> pendingCommandBatches_ {};
     std::vector<CommandBatch> appliedCommandBatches_ {};
     std::unordered_map<std::string, StrobeStatusFeedback> lastPublishedStrobeFeedbacks_ {};
     std::optional<std::string> lastPublishedActivePage_ {};
-    std::uint32_t nextStrobeFeedbackSequence_ = 1U;
+    std::uint32_t nextFeedbackSequence_ = 1U;
+    bool lifecycleHeartbeatPending_ = true;
+    bool closingNotified_ = false;
     bool receivedFirstClientCommand_ = false;
     std::string lastCommandStatus_ {};
     std::string lastFeedbackStatus_ {};
@@ -595,6 +643,14 @@ void RuntimeSession::Advance(const float deltaSeconds)
     if (impl_ != nullptr)
     {
         impl_->Advance(deltaSeconds);
+    }
+}
+
+void RuntimeSession::NotifyClosing()
+{
+    if (impl_ != nullptr)
+    {
+        impl_->NotifyClosing();
     }
 }
 

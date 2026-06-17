@@ -12,6 +12,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -159,6 +160,13 @@ public:
     bool Apply(const mfd::ActivePageFeedback& feedback);
 
     /**
+     * @brief Applies one decoded window lifecycle feedback payload.
+     * @param feedback Lifecycle heartbeat emitted by the window.
+     * @return `true` when the reported lifecycle state changed.
+     */
+    bool Apply(const mfd::WindowLifecycleFeedback& feedback);
+
+    /**
      * @brief Decodes and applies one binary runtime feedback payload.
      * @param payload Raw Protocol Buffers payload received from the window.
      * @param error Optional output string receiving the parsing error.
@@ -211,6 +219,36 @@ public:
      */
     bool IsDynamicReticleCaptured(mfd::TransportId pageId, mfd::RuntimeDynamicId runtimeReticleId) const noexcept;
 
+    /**
+     * @brief Returns the total number of feedback packets decoded since the last reset.
+     *
+     * @note This counter increases for every successfully decoded packet,
+     * including unchanged heartbeats, so liveness logic can distinguish a silent
+     * window from a window still emitting feedback. Use it to feed a
+     * `WindowLivenessMonitor` from generated clients.
+     *
+     * @return Monotonic decoded-packet counter.
+     */
+    std::uint64_t TotalDecodedFeedbackPackets() const noexcept;
+
+    /**
+     * @brief Returns whether any window lifecycle feedback has been received.
+     * @return `true` once the window reported a lifecycle heartbeat.
+     */
+    bool HasWindowLifecycle() const noexcept;
+
+    /**
+     * @brief Returns the last reported window lifecycle state.
+     * @return Last lifecycle state, or `WindowLifecycleState::Alive` before any heartbeat.
+     */
+    mfd::WindowLifecycleState LastWindowLifecycleState() const noexcept;
+
+    /**
+     * @brief Returns whether the window reported a graceful shutdown.
+     * @return `true` once a `Closing` lifecycle payload has been received.
+     */
+    bool WindowReportedClosing() const noexcept;
+
 private:
     struct PageCaptureState
     {
@@ -226,6 +264,10 @@ private:
     std::string activePageNameNormalized_ {};
     std::uint32_t lastActivePageSequence_ = 0;
     bool hasActivePage_ = false;
+    std::uint64_t decodedFeedbackPackets_ = 0;
+    std::uint32_t lastLifecycleSequence_ = 0;
+    mfd::WindowLifecycleState lastLifecycleState_ = mfd::WindowLifecycleState::Alive;
+    bool hasLifecycle_ = false;
 };
 
 /**

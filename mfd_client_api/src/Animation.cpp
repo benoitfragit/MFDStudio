@@ -551,6 +551,22 @@ bool RuntimeFeedbackState::Apply(const mfd::ActivePageFeedback& feedback)
     return changed;
 }
 
+bool RuntimeFeedbackState::Apply(const mfd::WindowLifecycleFeedback& feedback)
+{
+    // Ignore reordered older lifecycle packets so a late `Alive` cannot override
+    // a more recent `Closing` and silently un-detect a window shutdown.
+    if (hasLifecycle_ && !SequenceIsNewer(feedback.sequence, lastLifecycleSequence_))
+    {
+        return false;
+    }
+
+    const bool changed = !hasLifecycle_ || lastLifecycleState_ != feedback.state;
+    lastLifecycleState_ = feedback.state;
+    lastLifecycleSequence_ = feedback.sequence;
+    hasLifecycle_ = true;
+    return changed;
+}
+
 bool RuntimeFeedbackState::ApplyPayload(const std::string_view payload, std::string* error)
 {
     std::string localError;
@@ -562,6 +578,8 @@ bool RuntimeFeedbackState::ApplyPayload(const std::string_view payload, std::str
     {
         return false;
     }
+
+    ++decodedFeedbackPackets_;
 
     return std::visit(
         [this](const auto& value)
@@ -625,6 +643,30 @@ void RuntimeFeedbackState::Reset() noexcept
     activePageNameNormalized_.clear();
     lastActivePageSequence_ = 0;
     hasActivePage_ = false;
+    decodedFeedbackPackets_ = 0;
+    lastLifecycleState_ = mfd::WindowLifecycleState::Alive;
+    lastLifecycleSequence_ = 0;
+    hasLifecycle_ = false;
+}
+
+std::uint64_t RuntimeFeedbackState::TotalDecodedFeedbackPackets() const noexcept
+{
+    return decodedFeedbackPackets_;
+}
+
+bool RuntimeFeedbackState::HasWindowLifecycle() const noexcept
+{
+    return hasLifecycle_;
+}
+
+mfd::WindowLifecycleState RuntimeFeedbackState::LastWindowLifecycleState() const noexcept
+{
+    return lastLifecycleState_;
+}
+
+bool RuntimeFeedbackState::WindowReportedClosing() const noexcept
+{
+    return hasLifecycle_ && lastLifecycleState_ == mfd::WindowLifecycleState::Closing;
 }
 
 bool RuntimeFeedbackState::HasActivePage() const noexcept

@@ -32,6 +32,7 @@ set(CLIENT_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedUiCompiledApiTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedUiRuntimeTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LatestBatchPublisherTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/WindowLivenessMonitorTests.cpp
     ${CLIENT_API_GENERATED_UI_FIXTURE_SOURCE})
 
 add_executable(client_api_tests ${CLIENT_API_TEST_SOURCES})

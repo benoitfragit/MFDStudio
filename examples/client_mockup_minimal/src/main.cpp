@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -50,6 +51,8 @@ struct ExampleConfig
 {
     /** @brief UDP command transport consumed by the headless client. */
     mfd::WindowUdpCommandTransport transport {};
+    /** @brief Optional UDP feedback transport used to detect window shutdown. */
+    mfd::WindowFeedbackTransportConfig feedback {};
     /** @brief Generated transport map used by the raw command helpers. */
     mfd::GeneratedTransportMap generatedTransportMap {};
     /** @brief Authored page view re-applied during startup. */
@@ -208,6 +211,7 @@ ExampleConfig LoadExampleConfig()
 
     ExampleConfig config;
     config.transport = *loaded.window.commandTransports.udp;
+    config.feedback = loaded.window.feedbackTransports;
     config.generatedTransportMap = *loaded.generatedTransportMap;
     config.cockpitView = cockpitPage->view;
     return config;
@@ -461,6 +465,12 @@ int main()
                 "Unable to prime the cockpit mockup UI");
         ui.Initialize();
 
+        // Detect a window shutdown over the feedback stream so the headless
+        // client stops cleanly instead of streaming commands into the void.
+        std::unique_ptr<mfd::IExchangeChannel> feedbackReceiver =
+            mfd::CreateFeedbackReceiverChannel(config.feedback);
+        mfd::client::WindowLivenessMonitor livenessMonitor(2.0);
+
         CockpitSimulationState simulation;
 
         std::cout << "client_mockup_minimal\n";
@@ -471,8 +481,9 @@ int main()
         std::cout << "Start Scripts\\Start-MfdCockpit.bat or the staged Start-MfdCockpit.bat separately and press Ctrl+C here to stop.\n";
 
         using clock = std::chrono::steady_clock;
-        auto nextTick = clock::now();
-        auto lastReport = nextTick;
+        const auto startTime = clock::now();
+        auto nextTick = startTime;
+        auto lastReport = startTime;
 
         while (gStopRequested == 0)
         {
@@ -486,6 +497,19 @@ int main()
             if (!ui.SubmitLatest(publisher, simulation.sequence))
             {
                 throw std::runtime_error("Unable to queue the cockpit batch: " + publisher.LastError());
+            }
+
+            if (feedbackReceiver != nullptr)
+            {
+                std::string feedbackError;
+                ui.PollFeedback(*feedbackReceiver, 16, &feedbackError);
+                const double nowSeconds = std::chrono::duration<double>(clock::now() - startTime).count();
+                livenessMonitor.Observe(ui.TotalDecodedFeedbackPackets(), ui.WindowReportedClosing(), nowSeconds);
+                if (livenessMonitor.ConsumeDisconnect())
+                {
+                    std::cout << "Window closed or lost; stopping the headless cockpit client.\n";
+                    break;
+                }
             }
 
             const auto now = clock::now();

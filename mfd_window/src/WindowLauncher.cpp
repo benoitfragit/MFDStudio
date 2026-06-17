@@ -1335,6 +1335,7 @@ public:
             }
         }
 
+        runtimeSession_.NotifyClosing();
         debugOverlay_.Shutdown();
         ReleaseRenderResourcesBeforeWindowClose();
         CloseWindow();

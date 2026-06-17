@@ -791,6 +791,46 @@ TEST(AnimationTests, RuntimeFeedbackStateTracksActivePageAndCapturedDynamicRetic
     EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured(42U, 1001U));
 }
 
+TEST(AnimationTests, RuntimeFeedbackStateTracksWindowLifecycleAndDecodedPacketCount)
+{
+    mfd::client::RuntimeFeedbackState feedbackState;
+    EXPECT_FALSE(feedbackState.HasWindowLifecycle());
+    EXPECT_FALSE(feedbackState.WindowReportedClosing());
+    EXPECT_EQ(feedbackState.TotalDecodedFeedbackPackets(), 0U);
+
+    mfd::WindowLifecycleFeedback alive;
+    alive.sequence = 1U;
+    alive.state = mfd::WindowLifecycleState::Alive;
+    EXPECT_TRUE(feedbackState.Apply(alive));
+    EXPECT_TRUE(feedbackState.HasWindowLifecycle());
+    EXPECT_FALSE(feedbackState.WindowReportedClosing());
+    EXPECT_EQ(feedbackState.LastWindowLifecycleState(), mfd::WindowLifecycleState::Alive);
+
+    // An unchanged heartbeat reports no state change but still counts as a decoded packet.
+    EXPECT_FALSE(feedbackState.ApplyPayload(mfd::SerializeWindowLifecycleFeedback(alive)));
+    EXPECT_EQ(feedbackState.TotalDecodedFeedbackPackets(), 1U);
+
+    mfd::WindowLifecycleFeedback closing;
+    closing.sequence = 2U;
+    closing.state = mfd::WindowLifecycleState::Closing;
+    EXPECT_TRUE(feedbackState.ApplyPayload(mfd::SerializeWindowLifecycleFeedback(closing)));
+    EXPECT_EQ(feedbackState.TotalDecodedFeedbackPackets(), 2U);
+    EXPECT_TRUE(feedbackState.WindowReportedClosing());
+    EXPECT_EQ(feedbackState.LastWindowLifecycleState(), mfd::WindowLifecycleState::Closing);
+
+    // A reordered older Alive must not override the more recent Closing.
+    mfd::WindowLifecycleFeedback staleAlive;
+    staleAlive.sequence = 1U;
+    staleAlive.state = mfd::WindowLifecycleState::Alive;
+    EXPECT_FALSE(feedbackState.Apply(staleAlive));
+    EXPECT_TRUE(feedbackState.WindowReportedClosing());
+
+    feedbackState.Reset();
+    EXPECT_FALSE(feedbackState.HasWindowLifecycle());
+    EXPECT_FALSE(feedbackState.WindowReportedClosing());
+    EXPECT_EQ(feedbackState.TotalDecodedFeedbackPackets(), 0U);
+}
+
 TEST(AnimationTests, RuntimeFeedbackStateTracksCapturedDynamicReticleByTransportIds)
 {
     mfd::client::RuntimeFeedbackState feedbackState;

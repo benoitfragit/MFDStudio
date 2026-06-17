@@ -6,11 +6,13 @@ set(CLIENT_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/ClientSdk.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/ClientExport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/GeneratedUiSupport.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/LatestBatchPublisher.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/LatestBatchPublisher.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/WindowLivenessMonitor.h)
 
 set(CLIENT_API_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Animation.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/LatestBatchPublisher.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/LatestBatchPublisher.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/WindowLivenessMonitor.cpp)
 
 add_library(mfd_client_api SHARED
     ${CLIENT_API_PUBLIC_HEADERS}

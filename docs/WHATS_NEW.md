@@ -101,6 +101,15 @@ can now also expose authored `StrobeType` entries such as
 That lets a client switch from one authored strobe behavior to another without
 dropping back to raw transport logic.
 
+### Clients Can Now Detect When The Window Closes
+
+The window publishes a window-level lifecycle feedback (a periodic `Alive`
+heartbeat plus a final `Closing` payload at shutdown), independent of any page
+or strobe. A new `mfd::client::WindowLivenessMonitor` turns that into a single
+connection state so a client can reset and rebuild its transports when the
+window closes, crashes, or stops answering. `client_tutorial` and
+`client_mockup` reconnect on this signal; `client_mockup_minimal` stops cleanly.
+
 ### The Transport Story Is Clearer
 
 The current doc set is much more explicit about:

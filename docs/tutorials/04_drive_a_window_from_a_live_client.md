@@ -362,6 +362,32 @@ That means:
 - the render thread applies the commands through `CommandProcessor` and `EnTT`
 - runtime feedback snapshots are queued back to the UDP thread for sending
 
+## Step 12 - Detect when the window closes and reset
+
+UDP is connectionless, so the client is not told when the window disappears. The
+runtime publishes a window-level lifecycle feedback for exactly this case: a
+periodic `Alive` heartbeat (independent of any page or strobe) plus a final
+`Closing` payload at graceful shutdown.
+
+Track it with `mfd::client::WindowLivenessMonitor` once per frame, after polling
+feedback:
+
+```cpp
+mfd::client::WindowLivenessMonitor liveness(2.0); // timeout > heartbeat interval
+
+// ... each frame, after ui.PollFeedback(...) ...
+liveness.Observe(ui.TotalDecodedFeedbackPackets(), ui.WindowReportedClosing(), nowSeconds);
+if (liveness.ConsumeDisconnect())
+{
+    // Rebuild the command client and feedback receiver, replay the authored
+    // state with ui.Initialize(), then liveness.Reset() to re-arm.
+}
+```
+
+`client_tutorial` and `client_mockup` rebuild their transports and reconnect on
+this signal; `client_mockup_minimal` detects it and stops cleanly. See the end
+to end user guide section 6.20 for the full pattern.
+
 ## What You Should See
 
 If the loop is correct:

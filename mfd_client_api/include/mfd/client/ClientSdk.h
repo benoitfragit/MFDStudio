@@ -20,6 +20,7 @@
  */
 
 #include "mfd/client/LatestBatchPublisher.h"
+#include "mfd/client/WindowLivenessMonitor.h"
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/PageDefinition.h"

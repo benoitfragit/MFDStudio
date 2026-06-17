@@ -109,9 +109,36 @@ struct ActivePageFeedback
 };
 
 /**
+ * @brief Window lifecycle state reported by a runtime feedback heartbeat.
+ */
+enum class WindowLifecycleState
+{
+    /** @brief The window runtime is alive and serving the authored contract. */
+    Alive,
+    /** @brief The window runtime is shutting down and will stop emitting feedback. */
+    Closing
+};
+
+/**
+ * @brief Liveness heartbeat emitted by a window so clients can detect shutdown.
+ *
+ * @note The window emits `Alive` payloads on a slow cadence and one final
+ * `Closing` payload during a graceful shutdown. Clients combine the explicit
+ * `Closing` signal with an absence-of-heartbeat timeout to detect both graceful
+ * and abrupt window termination.
+ */
+struct WindowLifecycleFeedback
+{
+    /** @brief Monotonic sequence set by the window. */
+    std::uint32_t sequence = 0;
+    /** @brief Reported lifecycle state. */
+    WindowLifecycleState state = WindowLifecycleState::Alive;
+};
+
+/**
  * @brief Variant carrying one supported runtime feedback payload.
  */
-using FeedbackPayload = std::variant<StrobeStatusFeedback, ActivePageFeedback>;
+using FeedbackPayload = std::variant<StrobeStatusFeedback, ActivePageFeedback, WindowLifecycleFeedback>;
 
 /**
  * @brief Serializes any supported runtime feedback payload to Protocol Buffers.
@@ -170,4 +197,25 @@ MFD_API std::string SerializeActivePageFeedback(const ActivePageFeedback& feedba
  */
 MFD_API std::optional<ActivePageFeedback> DeserializeActivePageFeedback(std::string_view payload,
                                                                         std::string* error = nullptr);
+
+/**
+ * @brief Serializes a window lifecycle feedback payload to Protocol Buffers.
+ * @param feedback Feedback payload to serialize.
+ * @return Binary payload ready to be sent through UDP.
+ */
+MFD_API std::string SerializeWindowLifecycleFeedback(const WindowLifecycleFeedback& feedback);
+
+/**
+ * @brief Deserializes a Protocol Buffers window lifecycle feedback payload.
+ *
+ * @note When the payload contains another supported feedback kind, this
+ * decoder returns `std::nullopt` without treating it as an error.
+ *
+ * @param payload Raw binary Protocol Buffers payload.
+ * @param error Optional output string receiving the parsing error.
+ * @return Parsed window lifecycle feedback payload, or `std::nullopt` if the
+ * payload is invalid or belongs to another supported feedback kind.
+ */
+MFD_API std::optional<WindowLifecycleFeedback> DeserializeWindowLifecycleFeedback(std::string_view payload,
+                                                                                  std::string* error = nullptr);
 } // namespace mfd

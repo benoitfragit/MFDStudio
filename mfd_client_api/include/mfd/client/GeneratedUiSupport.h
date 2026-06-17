@@ -22,6 +22,7 @@
 
 #include "mfd/client/Animation.h"
 #include "mfd/client/LatestBatchPublisher.h"
+#include "mfd/client/WindowLivenessMonitor.h"
 #include "mfd/control/CommandClient.h"
 #include "mfd/control/CommandTypes.h"
 #include "mfd/control/StrobeFeedback.h"

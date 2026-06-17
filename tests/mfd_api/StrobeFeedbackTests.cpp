@@ -193,6 +193,68 @@ TEST(StrobeFeedbackTests, RoundTripsActivePageFeedbackEnvelope)
     EXPECT_EQ(decoded->pageName, "Page1");
 }
 
+TEST(StrobeFeedbackTests, RoundTripsWindowLifecycleClosingEnvelope)
+{
+    mfd::WindowLifecycleFeedback original;
+    original.sequence = 87U;
+    original.state = mfd::WindowLifecycleState::Closing;
+
+    const std::string payload = mfd::SerializeWindowLifecycleFeedback(original);
+    std::string error;
+    const auto decoded = mfd::DeserializeWindowLifecycleFeedback(payload, &error);
+
+    ASSERT_TRUE(decoded.has_value()) << error;
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(decoded->sequence, 87U);
+    EXPECT_EQ(decoded->state, mfd::WindowLifecycleState::Closing);
+}
+
+TEST(StrobeFeedbackTests, RoundTripsWindowLifecycleAliveEnvelope)
+{
+    mfd::WindowLifecycleFeedback original;
+    original.sequence = 3U;
+    original.state = mfd::WindowLifecycleState::Alive;
+
+    std::string error;
+    const auto decoded =
+        mfd::DeserializeWindowLifecycleFeedback(mfd::SerializeWindowLifecycleFeedback(original), &error);
+
+    ASSERT_TRUE(decoded.has_value()) << error;
+    EXPECT_EQ(decoded->sequence, 3U);
+    EXPECT_EQ(decoded->state, mfd::WindowLifecycleState::Alive);
+}
+
+TEST(StrobeFeedbackTests, GenericDecoderReturnsWindowLifecycleVariant)
+{
+    mfd::WindowLifecycleFeedback lifecycle;
+    lifecycle.sequence = 64U;
+    lifecycle.state = mfd::WindowLifecycleState::Closing;
+
+    std::string error;
+    const auto decoded =
+        mfd::DeserializeFeedbackPayload(mfd::SerializeWindowLifecycleFeedback(lifecycle), &error);
+
+    ASSERT_TRUE(decoded.has_value()) << error;
+    const auto* value = std::get_if<mfd::WindowLifecycleFeedback>(&(*decoded));
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(value->sequence, 64U);
+    EXPECT_EQ(value->state, mfd::WindowLifecycleState::Closing);
+}
+
+TEST(StrobeFeedbackTests, StrobeDecoderIgnoresWindowLifecycleFeedbackWithoutError)
+{
+    mfd::WindowLifecycleFeedback lifecycle;
+    lifecycle.sequence = 12U;
+    lifecycle.state = mfd::WindowLifecycleState::Alive;
+
+    std::string error;
+    const auto decoded =
+        mfd::DeserializeStrobeStatusFeedback(mfd::SerializeWindowLifecycleFeedback(lifecycle), &error);
+
+    EXPECT_FALSE(decoded.has_value());
+    EXPECT_TRUE(error.empty());
+}
+
 TEST(StrobeFeedbackTests, RejectsInvalidPayload)
 {
     std::string error;

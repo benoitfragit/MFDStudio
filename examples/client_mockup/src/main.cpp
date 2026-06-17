@@ -577,6 +577,8 @@ private:
     void RecreateClient();
     /** @brief Recreates the optional inbound strobe-feedback receiver. */
     void RecreateFeedbackReceiver();
+    /** @brief Rebuilds the UDP transports after the window was detected closed. */
+    void HandleWindowDisconnect();
     /** @brief Polls pending UDP feedback packets and updates the local cache. */
     void PollFeedback();
     /** @brief Returns a page by UI index. */
@@ -704,6 +706,8 @@ private:
     std::unique_ptr<cockpit_demo_ui::CockpitDemoMockupUi> cockpitGeneratedUi_ {};
     /** @brief Optional inbound receiver for live strobe feedback. */
     std::unique_ptr<mfd::IExchangeChannel> feedbackReceiver_ {};
+    /** @brief Detects window shutdown so the client can rebuild its transports. */
+    mfd::client::WindowLivenessMonitor livenessMonitor_ {2.0};
     /** @brief Hidden generated handles used by the full-demo radar simulator. */
     std::vector<full_demo_ui::RadarTrackDynamicReticle*> fullDemoRadarTracks_ {};
     /** @brief Hidden generated handles used by the minimal-radar simulator. */
@@ -1172,6 +1176,19 @@ void MockupApplication::PollFeedback()
             continue;
         }
 
+        // Any decoded packet proves the window is alive.
+        livenessMonitor_.RecordActivity(TimeSeconds());
+
+        if (const auto* lifecycle = std::get_if<mfd::WindowLifecycleFeedback>(&(*decoded)); lifecycle != nullptr)
+        {
+            if (lifecycle->state == mfd::WindowLifecycleState::Closing)
+            {
+                livenessMonitor_.RecordWindowClosing(TimeSeconds());
+            }
+
+            continue;
+        }
+
         const auto* feedback = std::get_if<mfd::StrobeStatusFeedback>(&(*decoded));
         if (feedback == nullptr)
         {
@@ -1194,6 +1211,22 @@ void MockupApplication::PollFeedback()
     {
         lastFeedbackStatus_ = feedbackReceiver_->LastError();
     }
+
+    livenessMonitor_.Update(TimeSeconds());
+    if (livenessMonitor_.ConsumeDisconnect())
+    {
+        HandleWindowDisconnect();
+    }
+}
+
+void MockupApplication::HandleWindowDisconnect()
+{
+    strobeFeedbackByPage_.clear();
+    RecreateClient();
+    RecreateFeedbackReceiver();
+    livenessMonitor_.Reset();
+    SetStatus("Window connection closed or lost. Rebuilt the UDP transports; waiting for the window to return.",
+              false);
 }
 
 const mfd::PageDefinition* MockupApplication::PageByIndex(const int pageIndex) const

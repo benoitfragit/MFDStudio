@@ -614,6 +614,35 @@ std::size_t CountCapturedTracks(const std::array<TutorialTrackState, 2>& persist
            static_cast<std::size_t>(std::count_if(transientTracks.begin(), transientTracks.end(), capturedPredicate));
 }
 
+/**
+ * @brief Rebuilds the tutorial transports after the window was detected closed.
+ *
+ * Recreating the command client and the feedback receiver drops the stale
+ * sockets, and `ui.Initialize()` re-sends the full authored state on the next
+ * batch so a freshly relaunched window starts from a clean baseline.
+ *
+ * @param loaded Loaded window configuration used to rebuild the transports.
+ * @param client Command client rebuilt in place.
+ * @param feedbackChannel Feedback receiver rebuilt in place when UDP feedback is configured.
+ * @param ui Generated tutorial UI re-armed for a full reinitialization.
+ * @param monitor Liveness monitor re-armed for a fresh connection.
+ */
+void ResetTutorialConnections(const mfd::LoadedWindowConfiguration& loaded,
+                              mfd::CommandClient& client,
+                              std::unique_ptr<mfd::IExchangeChannel>& feedbackChannel,
+                              tutorial_ui::TutorialUi& ui,
+                              mfd::client::WindowLivenessMonitor& monitor)
+{
+    client = mfd::CommandClient(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
+    if (loaded.window.feedbackTransports.udp.has_value())
+    {
+        feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);
+    }
+
+    ui.Initialize();
+    monitor.Reset();
+}
+
 int mainImpl()
 {
     mfd::JsonLoader loader;
@@ -638,6 +667,10 @@ int mainImpl()
     {
         feedbackChannel = mfd::CreateFeedbackReceiverChannel(*loaded.window.feedbackTransports.udp);
     }
+
+    // Detect a window shutdown (graceful close or abrupt termination) so the
+    // client can drop its stale transports and rebuild them cleanly.
+    mfd::client::WindowLivenessMonitor livenessMonitor(2.0);
 
     std::mt19937 rng(42U);
     std::uniform_real_distribution<float> ownshipHeadingDistribution(-kPi, kPi);
@@ -804,6 +837,16 @@ int mainImpl()
             if (!feedbackError.empty())
             {
                 std::cerr << "Runtime feedback decode error: " << feedbackError << '\n';
+            }
+
+            livenessMonitor.Observe(generatedUi.TotalDecodedFeedbackPackets(),
+                                    generatedUi.WindowReportedClosing(),
+                                    static_cast<double>(elapsedProgressSeconds));
+            if (livenessMonitor.ConsumeDisconnect())
+            {
+                std::cout << "Tutorial: window closed, resetting client connections.\n";
+                ResetTutorialConnections(loaded, client, feedbackChannel, generatedUi, livenessMonitor);
+                continue;
             }
 
             if (appliedFeedbackCount > 0U)
