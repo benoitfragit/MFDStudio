@@ -380,14 +380,6 @@ Color ToRayColor(const mfd::ColorRgba& color)
     return Color {color.r, color.g, color.b, color.a};
 }
 
-void ApplyPointFilterToFont(const Font font) noexcept
-{
-    if (font.texture.id != 0)
-    {
-        SetTextureFilter(font.texture, TEXTURE_FILTER_POINT);
-    }
-}
-
 ImVec4 ToImGuiColor(const mfd::ColorRgba& color)
 {
     return ImVec4(
@@ -2462,99 +2454,32 @@ void EditorApplication::RebuildStatus(std::string message, const bool isError)
 
 void EditorApplication::EnsurePreviewTexture(const int width, const int height)
 {
-    if (previewState_.previewTextureReady &&
-        previewState_.previewTexture.texture.width == width &&
-        previewState_.previewTexture.texture.height == height)
-    {
-        return;
-    }
-
-    ReleasePreviewTexture();
-    previewState_.previewTextureStencilReady = false;
-    previewState_.previewTexture = mfd::LoadRenderTextureWithStencil(width, height, &previewState_.previewTextureStencilReady);
-    previewState_.previewTextureReady = previewState_.previewTexture.texture.id != 0;
+    previewResources_.EnsureTexture(width, height);
 }
 
 void EditorApplication::ReleasePreviewTexture()
 {
-    const bool windowReady = IsWindowReady();
-    if (previewState_.previewTextureReady)
-    {
-        if (windowReady)
-        {
-            UnloadRenderTexture(previewState_.previewTexture);
-        }
-        previewState_.previewTexture = {};
-    }
-
-    previewState_.previewTextureReady = false;
-    previewState_.previewTextureStencilReady = false;
+    previewResources_.ReleaseTexture();
 }
 
 void EditorApplication::EnsureTooltipPreviewTexture(const int width, const int height)
 {
-    if (previewState_.tooltipPreviewTextureReady &&
-        previewState_.tooltipPreviewTexture.texture.width == width &&
-        previewState_.tooltipPreviewTexture.texture.height == height)
-    {
-        return;
-    }
-
-    ReleaseTooltipPreviewTexture();
-    previewState_.tooltipPreviewTextureStencilReady = false;
-    previewState_.tooltipPreviewTexture =
-        mfd::LoadRenderTextureWithStencil(width, height, &previewState_.tooltipPreviewTextureStencilReady);
-    previewState_.tooltipPreviewTextureReady = previewState_.tooltipPreviewTexture.texture.id != 0;
+    previewResources_.EnsureTooltipTexture(width, height);
 }
 
 void EditorApplication::ReleaseTooltipPreviewTexture()
 {
-    const bool windowReady = IsWindowReady();
-    if (previewState_.tooltipPreviewTextureReady)
-    {
-        if (windowReady)
-        {
-            UnloadRenderTexture(previewState_.tooltipPreviewTexture);
-        }
-        previewState_.tooltipPreviewTexture = {};
-    }
-
-    previewState_.tooltipPreviewTextureReady = false;
-    previewState_.tooltipPreviewTextureStencilReady = false;
+    previewResources_.ReleaseTooltipTexture();
 }
 
 void EditorApplication::ReleaseLayerPreviewTextures() noexcept
 {
-    const bool windowReady = IsWindowReady();
-    for (LayerPreviewTextureSlot& slot : previewState_.layerPreviewTextures)
-    {
-        if (slot.ready)
-        {
-            if (windowReady)
-            {
-                UnloadRenderTexture(slot.texture);
-            }
-            slot.texture = {};
-        }
-
-        slot.ready = false;
-        slot.stencilReady = false;
-        slot.width = 0;
-        slot.height = 0;
-    }
-
-    previewState_.layerPreviewTextures.clear();
+    previewResources_.ReleaseLayerTextures();
 }
 
 void EditorApplication::ReleasePreviewGpuResources() noexcept
 {
-    previewState_.previewBezierCache.Clear();
-    previewState_.previewImageCache.Clear();
-    previewState_.previewTextLayoutCache.Clear();
-    ReleaseLayerPreviewTextures();
-    ReleaseTooltipPreviewTexture();
-    ReleasePreviewTexture();
-    ReleasePreviewFont();
+    previewResources_.ReleaseGpuResources();
 }
 
 const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std::size_t thumbnailIndex,
@@ -2566,28 +2491,7 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
     width = std::max(width, 1);
     height = std::max(height, 1);
 
-    if (thumbnailIndex >= previewState_.layerPreviewTextures.size())
-    {
-        previewState_.layerPreviewTextures.resize(thumbnailIndex + 1U);
-    }
-
-    LayerPreviewTextureSlot& slot = previewState_.layerPreviewTextures[thumbnailIndex];
-    if (!slot.ready || slot.width != width || slot.height != height)
-    {
-        if (slot.ready)
-        {
-            UnloadRenderTexture(slot.texture);
-            slot.texture = {};
-            slot.ready = false;
-        }
-
-        slot.stencilReady = false;
-        slot.texture = mfd::LoadRenderTextureWithStencil(width, height, &slot.stencilReady);
-        slot.ready = slot.texture.texture.id != 0;
-        slot.width = width;
-        slot.height = height;
-    }
-
+    LayerPreviewTextureSlot& slot = previewResources_.ResolveLayerSlot(thumbnailIndex, width, height);
     if (!slot.ready)
     {
         return nullptr;
@@ -2613,16 +2517,16 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
     ClearBackground(background);
     {
         EnsurePreviewFont();
-        ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        editor::ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(width,
                              height,
                              previewView,
                              PreviewTextFont(),
                              background,
                              slot.stencilReady,
-                             &previewState_.previewBezierCache,
-                             &previewState_.previewImageCache,
-                             &previewState_.previewTextLayoutCache);
+                             &previewResources_.BezierCache(),
+                             &previewResources_.ImageCache(),
+                             &previewResources_.TextLayoutCache());
 
         for (const mfd::ReticleGroup& reticle : page.staticReticles)
         {
@@ -2649,59 +2553,22 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
 
 void EditorApplication::ApplyPreviewFontFile(std::filesystem::path fontFile)
 {
-    if (!fontFile.empty())
-    {
-        fontFile = fontFile.lexically_normal();
-    }
-
-    if (previewState_.previewFontFile == fontFile)
-    {
-        return;
-    }
-
-    previewState_.previewTextLayoutCache.Clear();
-    ReleasePreviewFont();
-    previewState_.previewFontFile = std::move(fontFile);
-    previewState_.previewFontLoadAttempted = false;
+    previewResources_.ApplyFontFile(std::move(fontFile));
 }
 
 void EditorApplication::EnsurePreviewFont()
 {
-    if (previewState_.previewFontReady || previewState_.previewFontLoadAttempted || previewState_.previewFontFile.empty() || !IsWindowReady())
-    {
-        return;
-    }
-
-    previewState_.previewFontLoadAttempted = true;
-    const std::string path = previewState_.previewFontFile.string();
-    Font loadedFont = LoadFont(path.c_str());
-    if (loadedFont.texture.id == 0)
-    {
-        return;
-    }
-
-    ApplyPointFilterToFont(loadedFont);
-    previewState_.previewFont = loadedFont;
-    previewState_.previewFontReady = true;
+    previewResources_.EnsureFont();
 }
 
 void EditorApplication::ReleasePreviewFont() noexcept
 {
-    const bool windowReady = IsWindowReady();
-    if (previewState_.previewFontReady)
-    {
-        if (windowReady)
-        {
-            UnloadFont(previewState_.previewFont);
-        }
-        previewState_.previewFont = {};
-        previewState_.previewFontReady = false;
-    }
+    previewResources_.ReleaseFont();
 }
 
 const Font* EditorApplication::PreviewTextFont() const noexcept
 {
-    return previewState_.previewFontReady ? &previewState_.previewFont : nullptr;
+    return previewResources_.TextFont();
 }
 
 float EditorApplication::MeasurePreviewTextWidthLogical(const mfd::TextGeometry& geometry)
@@ -2717,7 +2584,7 @@ float EditorApplication::MeasurePreviewTextWidthLogical(const mfd::TextGeometry&
         std::abs(geometry.fontSize * kPreviewTextMeasurementPixelsPerLogicalUnit));
     const float letterSpacingPixels =
         SanitizePreviewLetterSpacing(geometry.letterSpacing) * kPreviewTextMeasurementPixelsPerLogicalUnit;
-    const mfd::CachedTextLayout& layout = previewState_.previewTextLayoutCache.ResolveStaticText(
+    const mfd::CachedTextLayout& layout = previewResources_.TextLayoutCache().ResolveStaticText(
         geometry.text,
         ResolvePreviewMeasurementFont(PreviewTextFont()),
         fontSizePixels,
@@ -2745,7 +2612,7 @@ float EditorApplication::MeasurePreviewTextWidthLogical(const mfd::TimeGeometry&
         std::abs(geometry.fontSize * kPreviewTextMeasurementPixelsPerLogicalUnit));
     const float letterSpacingPixels =
         SanitizePreviewLetterSpacing(geometry.letterSpacing) * kPreviewTextMeasurementPixelsPerLogicalUnit;
-    const mfd::CachedTextLayout& layout = previewState_.previewTextLayoutCache.ResolveTimeText(
+    const mfd::CachedTextLayout& layout = previewResources_.TextLayoutCache().ResolveTimeText(
         geometry,
         ResolvePreviewMeasurementFont(PreviewTextFont()),
         fontSizePixels,
@@ -2998,12 +2865,12 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     }
 
     EnsurePreviewTexture(static_cast<int>(viewport.size.x), static_cast<int>(viewport.size.y));
-    if (!previewState_.previewTextureReady)
+    if (!previewResources_.TextureReady())
     {
         return;
     }
 
-    BeginTextureMode(previewState_.previewTexture);
+    BeginTextureMode(previewResources_.Texture());
     ClearBackground(ToRayColor(page->backgroundColor));
     {
         if (layoutState_.pagePreviewViewOptions.showGrid)
@@ -3014,19 +2881,19 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         }
 
         EnsurePreviewFont();
-        ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        editor::ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
-            previewState_.previewTexture.texture.width,
-            previewState_.previewTexture.texture.height,
+            previewResources_.Texture().texture.width,
+            previewResources_.Texture().texture.height,
             viewport.view,
             PreviewTextFont(),
             ToRayColor(page->backgroundColor),
-            previewState_.previewTextureStencilReady,
-            &previewState_.previewBezierCache,
-            &previewState_.previewImageCache,
-            &previewState_.previewTextLayoutCache);
-        services_.pagePreviewDrawOrder.CollectStaticReticleDrawOrder(*page, previewState_.orderedStaticReticleIndices);
-        for (const int reticleIndex : previewState_.orderedStaticReticleIndices)
+            previewResources_.TextureStencilReady(),
+            &previewResources_.BezierCache(),
+            &previewResources_.ImageCache(),
+            &previewResources_.TextLayoutCache());
+        services_.pagePreviewDrawOrder.CollectStaticReticleDrawOrder(*page, previewResources_.ScratchStaticReticleOrder());
+        for (const int reticleIndex : previewResources_.ScratchStaticReticleOrder())
         {
             const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
             if (!IsReticleVisibleInEditor(*page, reticle))
@@ -3060,7 +2927,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     EndTextureMode();
 
     ImGui::Image(
-        (ImTextureID)(uintptr_t)previewState_.previewTexture.texture.id,
+        (ImTextureID)(uintptr_t)previewResources_.Texture().texture.id,
         viewport.size,
         ImVec2(0.0f, 1.0f),
         ImVec2(1.0f, 0.0f));
@@ -3132,12 +2999,12 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     }
 
     EnsurePreviewTexture(static_cast<int>(viewport.size.x), static_cast<int>(viewport.size.y));
-    if (!previewState_.previewTextureReady)
+    if (!previewResources_.TextureReady())
     {
         return;
     }
 
-    BeginTextureMode(previewState_.previewTexture);
+    BeginTextureMode(previewResources_.Texture());
     ClearBackground(Color {10, 18, 24, 255});
     {
         if (layoutState_.pagePreviewViewOptions.showGrid)
@@ -3148,23 +3015,23 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
         }
 
         EnsurePreviewFont();
-        ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        editor::ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
-            previewState_.previewTexture.texture.width,
-            previewState_.previewTexture.texture.height,
+            previewResources_.Texture().texture.width,
+            previewResources_.Texture().texture.height,
             viewport.view,
             PreviewTextFont(),
             Color {10, 18, 24, 255},
-            previewState_.previewTextureStencilReady,
-            &previewState_.previewBezierCache,
-            &previewState_.previewImageCache,
-            &previewState_.previewTextLayoutCache);
+            previewResources_.TextureStencilReady(),
+            &previewResources_.BezierCache(),
+            &previewResources_.ImageCache(),
+            &previewResources_.TextLayoutCache());
         canvas.DrawReticle(*reticle);
     }
     EndTextureMode();
 
     ImGui::Image(
-        (ImTextureID)(uintptr_t)previewState_.previewTexture.texture.id,
+        (ImTextureID)(uintptr_t)previewResources_.Texture().texture.id,
         viewport.size,
         ImVec2(0.0f, 1.0f),
         ImVec2(1.0f, 0.0f));
@@ -3934,17 +3801,7 @@ void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
         }
     }
 
-    if (previewState_.layerPreviewTextures.size() > model.entries.size())
-    {
-        for (std::size_t slotIndex = model.entries.size(); slotIndex < previewState_.layerPreviewTextures.size(); ++slotIndex)
-        {
-            if (previewState_.layerPreviewTextures[slotIndex].ready)
-            {
-                UnloadRenderTexture(previewState_.layerPreviewTextures[slotIndex].texture);
-            }
-        }
-        previewState_.layerPreviewTextures.resize(model.entries.size());
-    }
+    previewResources_.TrimLayerTextures(model.entries.size());
 }
 
 void EditorApplication::NavigateToProblem(const std::string& contextId)
@@ -6337,7 +6194,7 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
     constexpr int kTooltipPreviewHeight = 180;
 
     EnsureTooltipPreviewTexture(kTooltipPreviewWidth, kTooltipPreviewHeight);
-    if (!previewState_.tooltipPreviewTextureReady)
+    if (!previewResources_.TooltipTextureReady())
     {
         return;
     }
@@ -6347,20 +6204,20 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
     const mfd::PageViewState previewView =
         MakeViewFittingBounds(ComputeReticleWorldBounds(previewReticle), kTooltipPreviewWidth, kTooltipPreviewHeight);
 
-    BeginTextureMode(previewState_.tooltipPreviewTexture);
+    BeginTextureMode(previewResources_.TooltipTexture());
     ClearBackground(backgroundColor);
     {
         EnsurePreviewFont();
-        ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+        editor::ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(kTooltipPreviewWidth,
                              kTooltipPreviewHeight,
                              previewView,
                              PreviewTextFont(),
                              backgroundColor,
-                             previewState_.tooltipPreviewTextureStencilReady,
-                             &previewState_.previewBezierCache,
-                             &previewState_.previewImageCache,
-                             &previewState_.previewTextLayoutCache);
+                             previewResources_.TooltipTextureStencilReady(),
+                             &previewResources_.BezierCache(),
+                             &previewResources_.ImageCache(),
+                             &previewResources_.TextLayoutCache());
         canvas.DrawReticle(previewReticle);
     }
     EndTextureMode();
@@ -6372,7 +6229,7 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
         ImGui::Separator();
     }
     ImGui::Image(
-        (ImTextureID)(uintptr_t)previewState_.tooltipPreviewTexture.texture.id,
+        (ImTextureID)(uintptr_t)previewResources_.TooltipTexture().texture.id,
         ImVec2(static_cast<float>(kTooltipPreviewWidth), static_cast<float>(kTooltipPreviewHeight)),
         ImVec2(0.0f, 1.0f),
         ImVec2(1.0f, 0.0f));

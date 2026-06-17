@@ -39,9 +39,6 @@
 #include "EditorUndoHistory.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
-#include "BezierPolylineCache.h"
-#include "ImageTextureCache.h"
-#include "TextLayoutCache.h"
 
 namespace editor::app
 {
@@ -311,24 +308,9 @@ struct DocumentState
     editor::UndoHistory<UndoSnapshot> history {};
 };
 
-/** @brief GPU resources, preview caches and per-canvas derived caches. */
+/** @brief Business-level preview caches that stay derived from the authored document rather than GPU lifecycle. */
 struct PreviewState
 {
-    RenderTexture2D previewTexture {};
-    bool previewTextureReady = false;
-    bool previewTextureStencilReady = false;
-    std::vector<int> orderedStaticReticleIndices {};
-    mfd::BezierPolylineCache previewBezierCache {};
-    mfd::ImageTextureCache previewImageCache {};
-    mfd::TextLayoutCache previewTextLayoutCache {};
-    RenderTexture2D tooltipPreviewTexture {};
-    bool tooltipPreviewTextureReady = false;
-    bool tooltipPreviewTextureStencilReady = false;
-    std::vector<LayerPreviewTextureSlot> layerPreviewTextures {};
-    std::filesystem::path previewFontFile {};
-    Font previewFont {};
-    bool previewFontReady = false;
-    bool previewFontLoadAttempted = false;
     ReticleUsageHighlightCacheState reticleUsageHighlightCache {};
     mutable PageTitlePreviewReticleCacheState pageTitlePreviewReticleCache {};
 };

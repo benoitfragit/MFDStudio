@@ -35,6 +35,7 @@
 #include "EditorPageManagementService.h"
 #include "EditorPageRenameService.h"
 #include "EditorPagePreviewViewOptions.h"
+#include "EditorPreviewResources.h"
 #include "EditorPrimitiveClipboardService.h"
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
@@ -538,8 +539,10 @@ private:
     static std::string MakeUniqueLayerId(const mfd::PageDefinition& page, std::string_view baseId);
     /** @brief Grouped document state: asset roots, loaded JSON, file layout, selection and undo history. */
     editor::app::DocumentState documentState_ {};
-    /** @brief Grouped preview resources: GPU render targets, caches and derived preview state. */
+    /** @brief Business-level preview caches derived from the authored document. */
     editor::app::PreviewState previewState_ {};
+    /** @brief GPU-backed preview render targets, font and render caches owned outside this class. */
+    editor::PreviewResources previewResources_ {};
     /** @brief Grouped workflow UI state: status bar, drafts and modal popup state. */
     editor::app::WorkflowState workflowState_ {};
     /** @brief Grouped clipboard state shared by page-reticle and reticle-studio copy/paste flows. */
