@@ -31,11 +31,18 @@ target_include_directories(mfd_client_api
         "$<BUILD_INTERFACE:${MFD_API_PUBLIC_INCLUDE_DIR}>"
         "$<INSTALL_INTERFACE:include>")
 
+# `mfd_client_api` statically bundles the shared `mfd_*_objects` (compiled with
+# MFD_API_EXPORTS, i.e. __declspec(dllexport)) instead of linking mfd_api.dll, so
+# its own sources must see the common API as exported-and-local, not imported.
+# Consumers, in contrast, import every re-exported symbol from this single DLL.
+# The *_DLL (dllimport) decorations are therefore INTERFACE-only; the build of
+# this target itself exports both surfaces explicitly (no WINDOWS_EXPORT_ALL_SYMBOLS).
 target_compile_definitions(mfd_client_api
-    PUBLIC
+    INTERFACE
         MFD_API_DLL
         MFD_CLIENT_API_DLL
     PRIVATE
+        MFD_API_EXPORTS
         MFD_CLIENT_API_EXPORTS)
 
 target_compile_features(mfd_client_api PUBLIC cxx_std_17)
@@ -48,9 +55,6 @@ target_link_libraries(mfd_client_api
 if(WIN32)
     target_link_libraries(mfd_client_api PRIVATE ws2_32)
 endif()
-
-set_target_properties(mfd_client_api PROPERTIES
-    WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 mfd_enable_target_warnings(mfd_client_api)
 
