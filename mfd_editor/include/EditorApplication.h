@@ -57,8 +57,6 @@ class EditorTutorialController;
  */
 class EditorApplication
 {
-    friend class EditorTutorialController;
-
 public:
     /**
      * @brief Builds the editor shell with its default UI state.
@@ -73,6 +71,15 @@ public:
      * @return Process exit code.
      */
     int Run();
+
+    /** @brief Returns the currently loaded window file, exposed for `EditorTutorialController`. */
+    [[nodiscard]] const std::filesystem::path& CurrentWindowFile() const noexcept;
+    /** @brief Loads a root window file plus its referenced authored assets into the editor. */
+    bool LoadWindowConfiguration(const std::filesystem::path& path);
+    /** @brief Updates the footer status message. */
+    void RebuildStatus(std::string message, bool isError);
+    /** @brief Seeds the editor state expected by the current tutorial step. */
+    void PrepareTutorialStep();
 
 private:
     /** @brief Input buffer capacity used for editable filesystem paths in the editor UI. */
@@ -99,8 +106,6 @@ private:
     using DesignExportPopupState = editor::app::DesignExportPopupState;
     using LayerPreviewTextureSlot = editor::app::LayerPreviewTextureSlot;
 
-    /** @brief Loads a root window file plus its referenced authored assets into the editor. */
-    bool LoadWindowConfiguration(const std::filesystem::path& path);
     /** @brief Serializes every modified file back to disk. */
     bool SaveAll();
     /** @brief Writes a crash-recovery snapshot of the current document next to the assets. */
@@ -329,8 +334,6 @@ private:
     void ResetLibraryPreviewView() noexcept;
     /** @brief Returns the current page-preview problem messages derived from validation. */
     std::vector<editor::PagePreviewProblem> BuildPagePreviewProblems() const;
-    /** @brief Updates the footer status message. */
-    void RebuildStatus(std::string message, bool isError);
 
     /** @brief Opens the "new page" popup and seeds its draft values. */
     void OpenNewPagePopup();
@@ -368,8 +371,6 @@ private:
     void DrawReticleExtractionPopup();
     /** @brief Draws the design-export planning popup. */
     void DrawDesignExportPopup();
-    /** @brief Seeds the editor state expected by the current tutorial step. */
-    void PrepareTutorialStep();
 
     /** @brief Creates a new page from the popup draft. */
     bool CreateNewPage();

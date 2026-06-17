@@ -6098,6 +6098,11 @@ bool EditorApplication::HasOpenWindow() const noexcept
     return !documentState_.loaded.window.sourceFile.empty();
 }
 
+const std::filesystem::path& EditorApplication::CurrentWindowFile() const noexcept
+{
+    return documentState_.windowFile;
+}
+
 void EditorApplication::CopySelectedPageReticles()
 {
     mfd::PageDefinition* page = ActivePage();
