@@ -3,9 +3,33 @@
 This page documents the editor-only page preview modes available in
 `mfd_editor`.
 
-## View Menu
+## Responsive Shell Layout
 
-The page preview header exposes one **View** menu.
+The editor shell arranges the left **sidebar**, the central **workspace** and
+the right **inspector** responsively. The workspace always keeps priority:
+
+- when the window is wide, all three columns are shown (`Wide` layout)
+- when it narrows, auxiliary panels first compress toward their minimum width
+- when space is still tight, the sidebar auto-collapses (`Compact` layout),
+  then the inspector auto-collapses (`Focus` layout)
+
+Auto-collapse is temporary: it never changes your saved panel widths, and
+widening the window restores the hidden panel at its previous width. The menu
+bar shows a `[Compact layout]` or `[Focus layout]` marker while panels are
+auto-hidden.
+
+The top-level menu bar exposes a **View** menu to show or hide the sidebar and
+inspector manually:
+
+- **View > Sidebar**
+- **View > Inspector**
+
+This gives every panel a visible way back, whether it was auto-collapsed on a
+narrow window or hidden on purpose.
+
+## Page Preview View Menu
+
+The page preview header exposes its own **View** menu for preview-only overlays.
 
 The page and reticle viewports also expose two compact toolbar buttons in the
 top-left corner:

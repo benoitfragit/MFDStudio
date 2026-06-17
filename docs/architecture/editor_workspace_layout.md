@@ -1,6 +1,46 @@
 # Editor Workspace Layout
 
-The page-preview workspace now routes docked editor panels through one pure
+The editor resolves its layout through small, pure, testable helpers instead of
+hard-coding panel rules in the ImGui drawing path:
+
+- `EditorResponsiveLayout` resolves the **root shell** (sidebar, workspace,
+  inspector) into one responsive arrangement.
+- `EditorWorkspaceLayout` resolves the **page-preview docks** and the
+  **page-context / reticle-studio split** inside the workspace.
+
+## Responsive Shell Layout
+
+The root shell no longer enforces a rigid stack of cumulative minimum widths.
+`EditorResponsiveLayout::ComputeShellLayout()` takes the available width, the
+splitter width, the workspace floor and each side panel's preference
+(`wantVisible`, `preferredWidth`, `minWidth`) and returns:
+
+- one `ShellLayoutMode`: `Wide` (sidebar + workspace + inspector), `Compact`
+  (workspace + one auxiliary panel) or `Focus` (workspace only)
+- effective, clamped widths for the sidebar, the workspace and the inspector
+- per-panel `autoCollapsed` flags
+
+### Degradation policy
+
+- the editable **workspace keeps priority** and never drops below its floor
+- side panels are **preferences, not hard constraints**: they compress toward
+  their minimum width before anything else gives way
+- when width is still insufficient, panels collapse along a strict priority
+  ladder: the **sidebar collapses before the inspector**, so resizing walks a
+  monotonic `Wide -> Compact -> Focus` sequence with no visual swapping
+- auto-collapse is **transient**: it is reported through `autoCollapsed` and
+  never written back into the user's persisted width or visibility preferences,
+  so widening the window restores the panel at its untouched preferred width
+- a narrow window only lowers the native minimum to a sane technical floor
+  (`720x480`); the full three-column layout is no longer required to resize
+
+The shell surfaces the current mode in the menu bar and lets the user toggle
+panel visibility from the top-level **View** menu, so an auto-collapsed or
+user-hidden panel always has a visible way back.
+
+## Page-Preview Docks
+
+The page-preview workspace routes docked editor panels through the pure
 `EditorWorkspaceLayout` helper instead of hard-coding every panel directly in
 the ImGui drawing path.
 
@@ -47,8 +87,15 @@ The result returns three clamped regions:
 - `previewPanel`
 - `bottomPanel`
 
-The helper itself does not depend on ImGui state and is covered by dedicated
-unit tests.
+The same module also exposes `ComputeStudioSplitLayout()` for the
+library-studio workspace. The reticle studio is the primary surface there, so
+the page-context pane compresses toward its minimum and then auto-collapses
+(reported through `secondaryAutoCollapsed`) before the studio loses its own
+minimum width. Like the shell helper, this never overwrites the persisted
+page-context width.
+
+Both helpers are pure, do not depend on ImGui state, sanitize non-finite,
+negative or too-small inputs, and are covered by dedicated unit tests.
 
 ## Integration Boundary
 

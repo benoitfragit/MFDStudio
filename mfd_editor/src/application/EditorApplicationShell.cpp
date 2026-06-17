@@ -17,6 +17,7 @@
 
 #include "internal/application/EditorApplicationInternal.h"
 #include "internal/application/EditorViewportGrid.h"
+#include "EditorResponsiveLayout.h"
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorUiTheme.h"
@@ -28,9 +29,12 @@ using editor::ui::AccentButton;
 using editor::ui::DrawVerticalSplitter;
 using editor::ui::ShowItemTooltip;
 
-constexpr float kMinSidebarWidth = 220.0f;
+// Auxiliary panels expose a usable technical minimum, not a hard resize floor: when
+// the window shrinks they compress to these widths and then auto-collapse so the
+// central workspace always keeps `kMinWorkspaceWidth` of editable space.
+constexpr float kMinSidebarWidth = 200.0f;
 constexpr float kMinInspectorWidth = 280.0f;
-constexpr float kMinWorkspaceWidth = 420.0f;
+constexpr float kMinWorkspaceWidth = 360.0f;
 constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
@@ -212,6 +216,23 @@ void EditorApplication::DrawMenuBar()
         {
             DeleteSelection();
         }
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("View"))
+    {
+        // Visibility is a session preference: toggling here never fights the responsive
+        // auto-collapse, which only hides a wanted panel transiently on a narrow window.
+        ImGui::MenuItem("Sidebar", nullptr, &layoutState_.sidebarVisible);
+        ShowItemTooltip(
+            layoutState_.sidebarAutoCollapsed
+                ? "Sidebar is temporarily auto-hidden because the window is narrow. Widen the window to bring it back."
+                : "Show or hide the left navigation sidebar.");
+        ImGui::MenuItem("Inspector", nullptr, &layoutState_.inspectorVisible);
+        ShowItemTooltip(
+            layoutState_.inspectorAutoCollapsed
+                ? "Inspector is temporarily auto-hidden because the window is narrow. Widen the window to bring it back."
+                : "Show or hide the right inspector panel.");
         ImGui::EndMenu();
     }
 
@@ -434,6 +455,17 @@ void EditorApplication::DrawMenuBar()
     ImGui::SameLine();
     ImGui::TextDisabled("%s", workflowState_.statusMessage.c_str());
 
+    if (layoutState_.shellLayoutMode != editor::ShellLayoutMode::Wide)
+    {
+        ImGui::SameLine();
+        const char* layoutModeLabel =
+            layoutState_.shellLayoutMode == editor::ShellLayoutMode::Compact ? "Compact layout" : "Focus layout";
+        ImGui::TextColored(ImVec4(0.40f, 0.74f, 0.95f, 1.0f), "[%s]", layoutModeLabel);
+        ShowItemTooltip(
+            "The window is narrow: auxiliary panels auto-collapse to protect the workspace. "
+            "Use the View menu or widen the window to restore them.");
+    }
+
     ImGui::EndMainMenuBar();
 }
 
@@ -455,63 +487,63 @@ void EditorApplication::DrawRootLayout()
 
     const float totalWidth = ImGui::GetContentRegionAvail().x;
     const float totalHeight = ImGui::GetContentRegionAvail().y;
-    const float splitterCount = static_cast<float>((layoutState_.sidebarVisible ? 1 : 0) + (layoutState_.inspectorVisible ? 1 : 0));
-    const float reservedInspectorWidth = layoutState_.inspectorVisible ? layoutState_.inspectorWidth : 0.0f;
 
-    if (layoutState_.sidebarVisible)
-    {
-        const float maxSidebarWidth = std::max(
-            kMinSidebarWidth, totalWidth - reservedInspectorWidth - kMinWorkspaceWidth - splitterCount * editor::ui::kPaneSplitterWidth);
-        layoutState_.sidebarWidth = std::floor(std::clamp(layoutState_.sidebarWidth, kMinSidebarWidth, maxSidebarWidth));
-    }
+    // Resolve the responsive arrangement from the user's width and visibility
+    // preferences. The helper never mutates those preferences: it returns effective
+    // widths and reports transient auto-collapse separately, so a narrow window never
+    // overwrites what the user expects when the window grows back.
+    editor::ShellLayoutRequest layoutRequest;
+    layoutRequest.totalWidth = std::max(0.0f, totalWidth);
+    layoutRequest.splitterWidth = editor::ui::kPaneSplitterWidth;
+    layoutRequest.minWorkspaceWidth = kMinWorkspaceWidth;
+    layoutRequest.sidebar.wantVisible = layoutState_.sidebarVisible;
+    layoutRequest.sidebar.preferredWidth = layoutState_.sidebarWidth;
+    layoutRequest.sidebar.minWidth = kMinSidebarWidth;
+    layoutRequest.inspector.wantVisible = layoutState_.inspectorVisible;
+    layoutRequest.inspector.preferredWidth = layoutState_.inspectorWidth;
+    layoutRequest.inspector.minWidth = kMinInspectorWidth;
+    const editor::ShellLayoutResult layout = editor::ComputeShellLayout(layoutRequest);
 
-    if (layoutState_.inspectorVisible)
-    {
-        const float maxInspectorWidth = std::max(
-            kMinInspectorWidth, totalWidth - (layoutState_.sidebarVisible ? layoutState_.sidebarWidth : 0.0f) - kMinWorkspaceWidth -
-                                   splitterCount * editor::ui::kPaneSplitterWidth);
-        layoutState_.inspectorWidth = std::floor(std::clamp(layoutState_.inspectorWidth, kMinInspectorWidth, maxInspectorWidth));
-    }
+    // Stash transient layout state so the menu-bar indicator can surface auto-collapse
+    // (read by `DrawMenuBar` on the next frame, where mode changes are rare and benign).
+    layoutState_.shellLayoutMode = layout.mode;
+    layoutState_.sidebarAutoCollapsed = layout.sidebar.autoCollapsed;
+    layoutState_.inspectorAutoCollapsed = layout.inspector.autoCollapsed;
 
-    if (layoutState_.sidebarVisible)
+    const float splitterTotal = editor::ui::kPaneSplitterWidth *
+        static_cast<float>((layout.sidebar.visible ? 1 : 0) + (layout.inspector.visible ? 1 : 0));
+
+    if (layout.sidebar.visible)
     {
-        ImGui::BeginChild("Sidebar", ImVec2(layoutState_.sidebarWidth, 0.0f), true);
+        ImGui::BeginChild("Sidebar", ImVec2(std::floor(layout.sidebar.width), 0.0f), true);
         DrawSidebar();
         ImGui::EndChild();
 
         ImGui::SameLine();
         if (DrawVerticalSplitter("##SidebarSplitter", totalHeight))
         {
+            const float maxSidebarWidth =
+                std::max(kMinSidebarWidth, totalWidth - splitterTotal - kMinWorkspaceWidth - layout.inspector.width);
             const float nextSidebarWidth = layoutState_.sidebarWidth + ImGui::GetIO().MouseDelta.x;
-            const float nextMaxSidebarWidth =
-                std::max(kMinSidebarWidth,
-                         totalWidth - (layoutState_.inspectorVisible ? layoutState_.inspectorWidth : 0.0f) - kMinWorkspaceWidth -
-                             splitterCount * editor::ui::kPaneSplitterWidth);
-            layoutState_.sidebarWidth = std::floor(std::clamp(nextSidebarWidth, kMinSidebarWidth, nextMaxSidebarWidth));
+            layoutState_.sidebarWidth = std::floor(std::clamp(nextSidebarWidth, kMinSidebarWidth, maxSidebarWidth));
         }
 
         ImGui::SameLine();
     }
 
-    const float workspaceWidth = std::floor(std::max(kMinWorkspaceWidth,
-                                                     totalWidth - (layoutState_.sidebarVisible ? layoutState_.sidebarWidth : 0.0f) -
-                                                         (layoutState_.inspectorVisible ? layoutState_.inspectorWidth : 0.0f) -
-                                                         splitterCount * editor::ui::kPaneSplitterWidth));
-    ImGui::BeginChild("Workspace", ImVec2(workspaceWidth, 0.0f), true);
+    ImGui::BeginChild("Workspace", ImVec2(std::floor(std::max(0.0f, layout.workspaceWidth)), 0.0f), true);
     DrawWorkspace();
     ImGui::EndChild();
 
-    if (layoutState_.inspectorVisible)
+    if (layout.inspector.visible)
     {
         ImGui::SameLine();
         if (DrawVerticalSplitter("##InspectorSplitter", totalHeight))
         {
+            const float maxInspectorWidth =
+                std::max(kMinInspectorWidth, totalWidth - splitterTotal - kMinWorkspaceWidth - layout.sidebar.width);
             const float nextInspectorWidth = layoutState_.inspectorWidth - ImGui::GetIO().MouseDelta.x;
-            const float nextMaxInspectorWidth =
-                std::max(kMinInspectorWidth,
-                         totalWidth - (layoutState_.sidebarVisible ? layoutState_.sidebarWidth : 0.0f) - kMinWorkspaceWidth -
-                             splitterCount * editor::ui::kPaneSplitterWidth);
-            layoutState_.inspectorWidth = std::floor(std::clamp(nextInspectorWidth, kMinInspectorWidth, nextMaxInspectorWidth));
+            layoutState_.inspectorWidth = std::floor(std::clamp(nextInspectorWidth, kMinInspectorWidth, maxInspectorWidth));
         }
 
         ImGui::SameLine();
@@ -648,23 +680,32 @@ void EditorApplication::DrawWorkspace()
         const float totalWidth = ImGui::GetContentRegionAvail().x;
         const float totalHeight = ImGui::GetContentRegionAvail().y;
 
-        if (!layoutState_.pagePreviewViewOptions.showPageContext)
-        {
-            DrawReticleStudioPanel();
-            return;
-        }
-
+        // Seed a sensible page-context width on first use without overwriting it later:
+        // the value below is the persisted user preference, not a transient clamp.
         if (layoutState_.libraryStudioPageWidth <= 0.0f)
         {
             layoutState_.libraryStudioPageWidth = std::max(kMinPageContextWidth, totalWidth * 0.56f);
         }
 
-        const float maxPageWidth = std::max(kMinPageContextWidth,
-                                            totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
-        layoutState_.libraryStudioPageWidth = std::floor(std::clamp(layoutState_.libraryStudioPageWidth, kMinPageContextWidth, maxPageWidth));
-        const float pageWidth = layoutState_.libraryStudioPageWidth;
-        const float studioWidth = std::max(kMinReticleStudioWidth,
-                                           std::floor(totalWidth - pageWidth - editor::ui::kPaneSplitterWidth));
+        editor::StudioSplitRequest splitRequest;
+        splitRequest.width = std::max(0.0f, totalWidth);
+        splitRequest.spacing = editor::ui::kPaneSplitterWidth;
+        splitRequest.showSecondary = layoutState_.pagePreviewViewOptions.showPageContext;
+        splitRequest.secondaryPreferredWidth = layoutState_.libraryStudioPageWidth;
+        splitRequest.minSecondaryWidth = kMinPageContextWidth;
+        splitRequest.minPrimaryWidth = kMinReticleStudioWidth;
+        const editor::StudioSplitResult split = editor::ComputeStudioSplitLayout(splitRequest);
+
+        // When the page-context pane is disabled or auto-collapses on a narrow window,
+        // hand the whole row to the reticle studio without touching the preference.
+        if (!split.secondaryVisible)
+        {
+            DrawReticleStudioPanel();
+            return;
+        }
+
+        const float pageWidth = std::floor(split.secondaryWidth);
+        const float studioWidth = std::max(0.0f, std::floor(split.primaryWidth));
 
         ImGui::BeginChild("PageContextPanel", ImVec2(pageWidth, 0.0f), true);
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page context");
@@ -688,10 +729,10 @@ void EditorApplication::DrawWorkspace()
         ImGui::SameLine();
         if (DrawVerticalSplitter("##WorkspaceSplitter", totalHeight))
         {
+            const float maxPageWidth = std::max(kMinPageContextWidth,
+                                                totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
             const float nextPageWidth = layoutState_.libraryStudioPageWidth + ImGui::GetIO().MouseDelta.x;
-            const float nextMaxPageWidth = std::max(kMinPageContextWidth,
-                                                    totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
-            layoutState_.libraryStudioPageWidth = std::floor(std::clamp(nextPageWidth, kMinPageContextWidth, nextMaxPageWidth));
+            layoutState_.libraryStudioPageWidth = std::floor(std::clamp(nextPageWidth, kMinPageContextWidth, maxPageWidth));
         }
 
         ImGui::SameLine();

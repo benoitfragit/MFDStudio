@@ -32,6 +32,7 @@
 #include "EditorPagePreviewHit.h"
 #include "EditorPagePreviewViewOptions.h"
 #include "EditorPageRenameService.h"
+#include "EditorResponsiveLayout.h"
 #include "EditorPrimitiveClipboardService.h"
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleRenameService.h"
@@ -416,6 +417,12 @@ struct LayoutState
     bool sidebarVisible = true;
     float inspectorWidth = 360.0f;
     bool inspectorVisible = true;
+    /** @brief Last responsive arrangement resolved by the shell, surfaced in the menu bar. */
+    editor::ShellLayoutMode shellLayoutMode = editor::ShellLayoutMode::Wide;
+    /** @brief `true` when the user wants the sidebar but it is auto-collapsed for lack of width. */
+    bool sidebarAutoCollapsed = false;
+    /** @brief `true` when the user wants the inspector but it is auto-collapsed for lack of width. */
+    bool inspectorAutoCollapsed = false;
     std::array<char, 96> sidebarFilter {};
     std::map<std::string, bool> inspectorSectionOpen {};
     float libraryStudioPageWidth = 0.0f;

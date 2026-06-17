@@ -14,6 +14,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorFullscreenPreviewControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorLaunchOptionsTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorWorkspaceLayoutTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorResponsiveLayoutTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorLayerFocusControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPagePreviewDrawOrderControllerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPagePreviewHitTests.cpp
@@ -73,6 +74,8 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorFullscreenPreviewController.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorWorkspaceLayout.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorWorkspaceLayout.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorResponsiveLayout.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorResponsiveLayout.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorLayerFocusController.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorLayerFocusController.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorPagePreviewDrawOrderController.h

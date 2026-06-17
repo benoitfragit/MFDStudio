@@ -136,6 +136,13 @@ same `left`, `center`, and `right` behavior used by both the preview gizmos and
 shared snap toggle, and shared logical grid step across the page preview and
 reticle studio without serializing those preferences into the authored JSON.
 
+The editor shell is responsive: the central workspace always keeps priority, so
+narrowing the window first compresses and then auto-collapses the sidebar and
+inspector instead of blocking the resize. Auto-collapse is temporary and never
+changes your saved panel widths; use the menu-bar **View** menu or widen the
+window to bring panels back. See
+[Editor View Modes](./docs/reference/editor_view_modes.md) for details.
+
 ## Developer Checks
 
 Use the repository clang-tidy entry point when you want one industrial C++ review pass without rebuilding the Visual Studio tree:

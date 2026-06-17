@@ -1377,7 +1377,10 @@ int EditorApplication::Run()
     InitWindow(1720, 980, "MFDStudio");
     SetExitKey(KEY_NULL);
     TryApplyEditorWindowIcon();
-    SetWindowMinSize(1320, 760);
+    // Keep only a sane technical floor: the responsive shell layout degrades panels
+    // progressively, so the full three-column arrangement is no longer required to
+    // allow the window to shrink.
+    SetWindowMinSize(720, 480);
     SetTargetFPS(60);
 
     rlImGuiSetup(true);

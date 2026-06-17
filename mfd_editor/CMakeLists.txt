@@ -16,6 +16,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFullscreenPreviewController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorLaunchOptions.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorResponsiveLayout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorWorkspaceLayout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorLayerFocusController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPagePreviewDrawOrderController.cpp
@@ -42,6 +43,7 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFileDialogs.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorFullscreenPreviewController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLaunchOptions.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorResponsiveLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorWorkspaceLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLayerFocusController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPagePreviewHit.h
