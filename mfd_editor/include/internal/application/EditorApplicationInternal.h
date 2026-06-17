@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <imgui.h>
+#include <raylib.h>
 
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/PageDefinition.h"
@@ -801,5 +802,102 @@ inline int FindPageReticleIndexById(const mfd::PageDefinition& page, const std::
     }
 
     return -1;
+}
+
+/**
+ * @brief Returns the Euclidean distance between two screen-space points.
+ * @param lhs First screen-space point.
+ * @param rhs Second screen-space point.
+ * @return Distance in pixels.
+ */
+inline float Distance(const ImVec2 lhs, const ImVec2 rhs)
+{
+    const float dx = lhs.x - rhs.x;
+    const float dy = lhs.y - rhs.y;
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+/**
+ * @brief Transforms one primitive-local point into reticle-local world space.
+ * @param reticle Owning reticle providing the outer transform.
+ * @param primitive Primitive providing the inner transform.
+ * @param localPoint Geometry-local point to transform.
+ * @return World point inside the reticle's local space.
+ */
+inline mfd::Vec2 TransformPrimitiveWorldPoint(const mfd::ReticleGroup& reticle,
+                                              const mfd::Primitive& primitive,
+                                              const mfd::Vec2 localPoint)
+{
+    return mfd::ApplyPrimitiveWorldTransform(localPoint, primitive, reticle);
+}
+
+/**
+ * @brief Returns one finite letter-spacing value, substituting the authoring default when invalid.
+ * @param letterSpacing Authored letter-spacing value to sanitize.
+ * @return Finite letter-spacing value safe to measure with.
+ */
+inline float SanitizePreviewLetterSpacing(const float letterSpacing) noexcept
+{
+    return std::isfinite(letterSpacing) ? letterSpacing : mfd::kDefaultTextLetterSpacing;
+}
+
+/**
+ * @brief Returns one conservative logical preview size for a text geometry before layout is measured.
+ * @param geometry Authored text geometry.
+ * @return Conservative logical width/height pair.
+ */
+inline mfd::Vec2 FallbackPreviewTextSizeLogical(const mfd::TextGeometry& geometry) noexcept
+{
+    return {
+        EstimatedPrimitiveTextWidth(EstimatePrimitiveTextHalfWidth(geometry)),
+        EstimatePrimitiveTextHalfHeight(geometry) * 2.0f};
+}
+
+/**
+ * @brief Returns one conservative logical preview size for a time geometry before layout is measured.
+ * @param geometry Authored time geometry.
+ * @return Conservative logical width/height pair.
+ */
+inline mfd::Vec2 FallbackPreviewTextSizeLogical(const mfd::TimeGeometry& geometry) noexcept
+{
+    return {
+        EstimatedPrimitiveTextWidth(EstimatePrimitiveTextHalfWidth(geometry)),
+        EstimatePrimitiveTextHalfHeight(geometry) * 2.0f};
+}
+
+/**
+ * @brief Resolves the font used to measure preview text, falling back to the raylib default font.
+ * @param previewFont Optional loaded preview font, or `nullptr` when none is ready.
+ * @return Font safe to pass to raylib text-measurement calls.
+ */
+inline Font ResolvePreviewMeasurementFont(const Font* const previewFont) noexcept
+{
+    return previewFont != nullptr ? *previewFont : GetFontDefault();
+}
+
+/**
+ * @brief Approximates one arc as a sequence of geometry-local points.
+ * @param radius Authored arc radius.
+ * @param startAngleDegrees Authored arc start angle in degrees.
+ * @param endAngleDegrees Authored arc end angle in degrees.
+ * @param segments Requested authored segment count.
+ * @return Sampled geometry-local points along the arc.
+ */
+inline std::vector<mfd::Vec2> ApproximateArcPoints(const float radius,
+                                                   const float startAngleDegrees,
+                                                   const float endAngleDegrees,
+                                                   const int segments = 48)
+{
+    std::vector<mfd::Vec2> points;
+    points.reserve(static_cast<std::size_t>(std::max(2, segments)) + 1U);
+    ForEachPrimitiveArcPoint(radius,
+                             startAngleDegrees,
+                             endAngleDegrees,
+                             segments,
+                             [&points](const mfd::Vec2 point)
+                             {
+                                 points.push_back(point);
+                             });
+    return points;
 }
 } // namespace editor::detail

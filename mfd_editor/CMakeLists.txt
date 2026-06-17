@@ -10,6 +10,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportSnap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationShell.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationInspectors.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationHitTesting.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplicationWorkflow.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDesignExportService.cpp
