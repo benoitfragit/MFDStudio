@@ -191,6 +191,14 @@ std::optional<std::filesystem::path> OpenFontAssetFileDialog(const std::filesyst
     return OpenExistingFileDialog(initialFolder, L"Select MFD window font", &kFontAssetFilter[0], error);
 }
 
+std::optional<std::filesystem::path> OpenImageAssetFileDialog(const std::filesystem::path& initialFolder,
+                                                              std::string* error)
+{
+    static constexpr wchar_t kImageAssetFilter[] =
+        L"Image Assets (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tga)\0*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tga\0All Files (*.*)\0*.*\0";
+    return OpenExistingFileDialog(initialFolder, L"Select primitive image", &kImageAssetFilter[0], error);
+}
+
 std::optional<std::filesystem::path> OpenFolderDialog(const std::filesystem::path& initialFolder,
                                                       const std::string_view title,
                                                       std::string* error)

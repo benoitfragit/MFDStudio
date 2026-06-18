@@ -306,6 +306,11 @@ window and page JSON files, an open-file picker for the optional font, and a
 folder picker for the reticle library. The popup stays open after each picker
 returns so the draft can be completed in one pass.
 
+Once the window is open, the right inspector mirrors those pickers for live
+editing through `Browse font file...`, `Browse reticle folder...`, and (for an
+image primitive) `Browse image file...`, so a path no longer has to be typed by
+hand.
+
 ## 4.4 Configure UDP transports
 
 The editor exposes two configuration groups.

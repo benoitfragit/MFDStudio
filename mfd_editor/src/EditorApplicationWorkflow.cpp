@@ -759,6 +759,91 @@ void EditorApplication::BrowseNewPageFile()
     workflowState_.showNewPagePopup = true;
 }
 
+void EditorApplication::BrowseWindowFontFile()
+{
+    if (!HasOpenWindow())
+    {
+        return;
+    }
+
+    const std::filesystem::path currentFile = documentState_.loaded.window.fontFile;
+    const std::filesystem::path initialFolder =
+        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("assets/fonts")
+                            : editor::EditorAssetPathService::ConfiguredPathFolder(currentFile);
+
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFile = editor::OpenFontAssetFileDialog(initialFolder, &error);
+    if (selectedFile.has_value())
+    {
+        PushUndoSnapshot();
+        documentState_.loaded.window.fontFile = selectedFile->lexically_normal();
+        ApplyPreviewFontFile(documentState_.loaded.window.fontFile);
+    }
+    else if (!error.empty())
+    {
+        RebuildStatus(error, true);
+    }
+}
+
+void EditorApplication::BrowseWindowReticleLibraryFolder()
+{
+    if (!HasOpenWindow())
+    {
+        return;
+    }
+
+    std::filesystem::path initialFolder =
+        editor::EditorAssetPathService::ConfiguredPathFolder(documentState_.loaded.window.reticleLibraryFolder);
+    if (initialFolder.empty())
+    {
+        initialFolder = documentState_.assetPaths.DefaultAssetPath("assets/reticles");
+    }
+
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFolder =
+        editor::OpenFolderDialog(initialFolder, "Select reticle library folder", &error);
+    if (selectedFolder.has_value())
+    {
+        PushUndoSnapshot();
+        documentState_.loaded.window.reticleLibraryFolder = selectedFolder->lexically_normal();
+    }
+    else if (!error.empty())
+    {
+        RebuildStatus(error, true);
+    }
+}
+
+void EditorApplication::BrowseSelectedPrimitiveImageFile()
+{
+    mfd::Primitive* primitive = SelectedLibraryPrimitive();
+    if (primitive == nullptr)
+    {
+        return;
+    }
+
+    auto* image = std::get_if<mfd::ImageGeometry>(&primitive->geometry);
+    if (image == nullptr)
+    {
+        return;
+    }
+
+    const std::filesystem::path initialFolder =
+        image->file.empty() ? documentState_.assetPaths.DefaultAssetPath("assets")
+                            : editor::EditorAssetPathService::ConfiguredPathFolder(image->file);
+
+    std::string error;
+    const std::optional<std::filesystem::path> selectedFile = editor::OpenImageAssetFileDialog(initialFolder, &error);
+    if (selectedFile.has_value())
+    {
+        PushUndoSnapshot();
+        image->file = selectedFile->lexically_normal();
+    }
+    else if (!error.empty())
+    {
+        RebuildStatus(error, true);
+    }
+}
+
 void EditorApplication::OpenNewLibraryReticlePopup()
 {
     workflowState_.showNewLibraryReticlePopup = true;

@@ -354,6 +354,12 @@ private:
     void BrowseNewWindowFirstPageFile();
     /** @brief Opens a native save-file dialog for the new-page JSON field. */
     void BrowseNewPageFile();
+    /** @brief Opens a native open-file dialog for the loaded-window font file field in the inspector. */
+    void BrowseWindowFontFile();
+    /** @brief Opens a native folder picker for the loaded-window reticle-library field in the inspector. */
+    void BrowseWindowReticleLibraryFolder();
+    /** @brief Opens a native open-file dialog for the selected image primitive file field in the inspector. */
+    void BrowseSelectedPrimitiveImageFile();
     /** @brief Draws and resolves all modal popups owned by the editor. */
     void DrawPopups();
     /** @brief Draws the remove/delete page confirmation popup. */

@@ -53,6 +53,14 @@ std::optional<std::filesystem::path> SaveJsonAssetFileDialog(const std::filesyst
 std::optional<std::filesystem::path> OpenFontAssetFileDialog(const std::filesystem::path& initialFolder,
                                                              std::string* error);
 /**
+ * @brief Opens a native file-explorer dialog to pick one existing raster image asset.
+ * @param initialFolder Folder opened first by the dialog.
+ * @param error Optional error message populated when the dialog fails.
+ * @return Selected image path, or `std::nullopt` when the user cancels.
+ */
+std::optional<std::filesystem::path> OpenImageAssetFileDialog(const std::filesystem::path& initialFolder,
+                                                              std::string* error);
+/**
  * @brief Opens a native folder picker used by export workflows.
  * @param initialFolder Folder opened first by the dialog.
  * @param title Window title shown by the native picker.

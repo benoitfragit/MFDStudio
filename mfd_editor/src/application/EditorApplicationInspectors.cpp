@@ -366,6 +366,11 @@ void EditorApplication::DrawWindowInspector()
         documentState_.loaded.window.fontFile = std::filesystem::path(fontFile.data()).lexically_normal();
         ApplyPreviewFontFile(documentState_.loaded.window.fontFile);
     }
+    if (ImGui::Button("Browse font file..."))
+    {
+        BrowseWindowFontFile();
+    }
+    ShowItemTooltip("Pick the window font through the native file explorer.");
 
     const bool reticleFolderChanged =
         ImGui::InputText("Reticle library folder", reticleLibraryFolder.data(), reticleLibraryFolder.size());
@@ -378,6 +383,11 @@ void EditorApplication::DrawWindowInspector()
     {
         documentState_.loaded.window.reticleLibraryFolder = std::filesystem::path(reticleLibraryFolder.data()).lexically_normal();
     }
+    if (ImGui::Button("Browse reticle folder..."))
+    {
+        BrowseWindowReticleLibraryFolder();
+    }
+    ShowItemTooltip("Pick the reticle library folder through the native folder picker.");
 
     ImGui::Spacing();
     const bool sectionForceOpen = tutorial_->IsCoachVisible();
@@ -4171,6 +4181,11 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         {
             image->file = std::filesystem::path(imagePath.data()).lexically_normal();
         }
+        if (ImGui::Button("Browse image file..."))
+        {
+            BrowseSelectedPrimitiveImageFile();
+        }
+        ShowItemTooltip("Pick the raster image through the native file explorer.");
 
         if (ImGui::DragFloat2("Size", &image->width, 0.002f, 0.001f, 2.0f, "%.4f"))
         {
