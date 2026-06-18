@@ -23,6 +23,8 @@
 
 #include "internal/RuntimeSessionInternalAccess.hpp"
 #include "mfd/control/CommandProcessor.h"
+#include "mfd/control/StrobeFeedback.h"
+#include "mfd/control/WindowFeedback.h"
 
 namespace mfd::runtime_api
 {

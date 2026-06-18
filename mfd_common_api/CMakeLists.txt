@@ -117,6 +117,7 @@ set(MFD_TRANSPORT_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/CommandTypes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/FeedbackTransport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/StrobeFeedback.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/WindowFeedback.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/ExchangeChannel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpChannel.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpLimits.h
@@ -128,6 +129,8 @@ set(MFD_TRANSPORT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandTypes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/FeedbackTransport.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/StrobeFeedback.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/StrobeFeedbackProto.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/WindowFeedback.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/UdpChannel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/GeneratedTransportMap.cpp
     ${MFD_COMMON_API_PROTO_HEADERS}

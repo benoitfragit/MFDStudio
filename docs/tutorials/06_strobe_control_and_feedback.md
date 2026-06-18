@@ -333,6 +333,7 @@ envelope generically:
 
 ```cpp
 #include "mfd/control/StrobeFeedback.h"
+#include "mfd/control/WindowFeedback.h"
 
 const auto payload = feedbackChannel->TryReceive();
 if (payload.has_value())

@@ -15,6 +15,7 @@
 
 #include "mfd/control/CommandTypes.h"
 #include "mfd/control/StrobeFeedback.h"
+#include "mfd/control/WindowFeedback.h"
 
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, const std::size_t size)
 {

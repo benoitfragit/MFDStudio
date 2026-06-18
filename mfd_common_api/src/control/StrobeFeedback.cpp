@@ -11,9 +11,9 @@
 #include "mfd/control/StrobeFeedback.h"
 
 #include <stdexcept>
-#include <type_traits>
-#include <utility>
 
+#include "StrobeFeedbackProto.h"
+#include "mfd/control/WindowFeedback.h"
 #include "mfd_feedback.pb.h"
 
 namespace mfd
@@ -140,30 +140,6 @@ void FillProtoCaptureResult(const StrobeFeedbackCapture& capture, pb::StrobeCapt
     }
 }
 
-pb::WindowLifecycleState ToProtoLifecycleState(const WindowLifecycleState state) noexcept
-{
-    switch (state)
-    {
-    case WindowLifecycleState::Alive:
-        return pb::WINDOW_LIFECYCLE_STATE_ALIVE;
-
-    case WindowLifecycleState::Closing:
-        return pb::WINDOW_LIFECYCLE_STATE_CLOSING;
-    }
-
-    return pb::WINDOW_LIFECYCLE_STATE_ALIVE;
-}
-
-WindowLifecycleState FromProtoLifecycleState(const pb::WindowLifecycleState state) noexcept
-{
-    if (state == pb::WINDOW_LIFECYCLE_STATE_CLOSING)
-    {
-        return WindowLifecycleState::Closing;
-    }
-
-    return WindowLifecycleState::Alive;
-}
-
 StrobeFeedbackCapture FromProtoCaptureResult(const pb::StrobeCaptureStatus& value)
 {
     StrobeFeedbackCapture capture;
@@ -188,140 +164,62 @@ StrobeFeedbackCapture FromProtoCaptureResult(const pb::StrobeCaptureStatus& valu
 }
 } // namespace
 
-std::string SerializeFeedbackPayload(const FeedbackPayload& feedback)
+namespace detail
 {
-    pb::FeedbackEnvelope envelope;
-    std::visit(
-        [&envelope](const auto& value)
-        {
-            using FeedbackType = std::decay_t<decltype(value)>;
+void FillStrobeStatusFeedbackProto(const StrobeStatusFeedback& feedback, pb::StrobeStatusFeedback* target)
+{
+    target->set_sequence(feedback.sequence);
+    target->set_page_id(feedback.pageId);
+    target->set_page(feedback.pageName);
+    target->set_strobe_id(feedback.strobeId);
+    target->set_active(feedback.active);
+    FillProtoVec2(feedback.position, target->mutable_position());
+    FillProtoCaptureConfig(feedback.capture, target->mutable_capture());
+    FillProtoMagnet(feedback.magnet, target->mutable_magnet());
 
-            if constexpr (std::is_same_v<FeedbackType, StrobeStatusFeedback>)
-            {
-                pb::StrobeStatusFeedback* message = envelope.mutable_strobe_status();
-                message->set_sequence(value.sequence);
-                message->set_page_id(value.pageId);
-                message->set_page(value.pageName);
-                message->set_strobe_id(value.strobeId);
-                message->set_active(value.active);
-                FillProtoVec2(value.position, message->mutable_position());
-                FillProtoCaptureConfig(value.capture, message->mutable_capture());
-                FillProtoMagnet(value.magnet, message->mutable_magnet());
-
-                if (value.captureResult.has_value())
-                {
-                    FillProtoCaptureResult(*value.captureResult, message->mutable_capture_result());
-                }
-            }
-            else if constexpr (std::is_same_v<FeedbackType, ActivePageFeedback>)
-            {
-                pb::ActivePageFeedback* message = envelope.mutable_active_page();
-                message->set_sequence(value.sequence);
-                message->set_page(value.pageName);
-            }
-            else if constexpr (std::is_same_v<FeedbackType, WindowLifecycleFeedback>)
-            {
-                pb::WindowLifecycleFeedback* message = envelope.mutable_window_lifecycle();
-                message->set_sequence(value.sequence);
-                message->set_state(ToProtoLifecycleState(value.state));
-            }
-        },
-        feedback);
-
-    std::string payload;
-    if (!envelope.SerializeToString(&payload))
+    if (feedback.captureResult.has_value())
     {
-        throw std::runtime_error("Unable to serialize Protocol Buffers runtime feedback payload");
+        FillProtoCaptureResult(*feedback.captureResult, target->mutable_capture_result());
     }
-
-    return payload;
 }
 
-std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view payload, std::string* error)
+StrobeStatusFeedback ParseStrobeStatusFeedbackProto(const pb::StrobeStatusFeedback& message)
 {
-    try
+    if (!IsValidFeedbackIdentifier(message.page()) || !IsValidFeedbackIdentifier(message.strobe_id()))
     {
-        pb::FeedbackEnvelope envelope;
-        if (!envelope.ParseFromArray(payload.data(), static_cast<int>(payload.size())))
-        {
-            throw std::runtime_error("Unable to parse Protocol Buffers runtime feedback payload");
-        }
-
-        if (envelope.payload_case() == pb::FeedbackEnvelope::kStrobeStatus)
-        {
-            const pb::StrobeStatusFeedback& message = envelope.strobe_status();
-            if (!IsValidFeedbackIdentifier(message.page()) ||
-                !IsValidFeedbackIdentifier(message.strobe_id()))
-            {
-                throw std::runtime_error("Unsupported feedback payload");
-            }
-
-            StrobeStatusFeedback feedback;
-            feedback.sequence = message.sequence();
-            feedback.pageId = message.page_id();
-            feedback.pageName = message.page();
-            feedback.strobeId = message.strobe_id();
-            feedback.active = message.active();
-
-            if (message.has_position())
-            {
-                feedback.position = FromProtoVec2(message.position());
-            }
-
-            if (message.has_capture())
-            {
-                feedback.capture = FromProtoCaptureConfig(message.capture());
-            }
-
-            if (message.has_magnet())
-            {
-                feedback.magnet = FromProtoMagnet(message.magnet());
-            }
-
-            if (message.has_capture_result())
-            {
-                feedback.captureResult = FromProtoCaptureResult(message.capture_result());
-            }
-
-            return FeedbackPayload {std::move(feedback)};
-        }
-
-        if (envelope.payload_case() == pb::FeedbackEnvelope::kActivePage)
-        {
-            const pb::ActivePageFeedback& message = envelope.active_page();
-            if (!IsValidFeedbackIdentifier(message.page()))
-            {
-                throw std::runtime_error("Unsupported feedback payload");
-            }
-
-            ActivePageFeedback feedback;
-            feedback.sequence = message.sequence();
-            feedback.pageName = message.page();
-            return FeedbackPayload {std::move(feedback)};
-        }
-
-        if (envelope.payload_case() == pb::FeedbackEnvelope::kWindowLifecycle)
-        {
-            const pb::WindowLifecycleFeedback& message = envelope.window_lifecycle();
-
-            WindowLifecycleFeedback feedback;
-            feedback.sequence = message.sequence();
-            feedback.state = FromProtoLifecycleState(message.state());
-            return FeedbackPayload {std::move(feedback)};
-        }
-
         throw std::runtime_error("Unsupported feedback payload");
     }
-    catch (const std::exception& exception)
-    {
-        if (error != nullptr)
-        {
-            *error = exception.what();
-        }
 
-        return std::nullopt;
+    StrobeStatusFeedback feedback;
+    feedback.sequence = message.sequence();
+    feedback.pageId = message.page_id();
+    feedback.pageName = message.page();
+    feedback.strobeId = message.strobe_id();
+    feedback.active = message.active();
+
+    if (message.has_position())
+    {
+        feedback.position = FromProtoVec2(message.position());
     }
+
+    if (message.has_capture())
+    {
+        feedback.capture = FromProtoCaptureConfig(message.capture());
+    }
+
+    if (message.has_magnet())
+    {
+        feedback.magnet = FromProtoMagnet(message.magnet());
+    }
+
+    if (message.has_capture_result())
+    {
+        feedback.captureResult = FromProtoCaptureResult(message.capture_result());
+    }
+
+    return feedback;
 }
+} // namespace detail
 
 std::string SerializeStrobeStatusFeedback(const StrobeStatusFeedback& feedback)
 {
@@ -341,59 +239,6 @@ std::optional<StrobeStatusFeedback> DeserializeStrobeStatusFeedback(const std::s
     }
 
     if (const auto* feedback = std::get_if<StrobeStatusFeedback>(&(*decoded)); feedback != nullptr)
-    {
-        return *feedback;
-    }
-
-    errorTarget->clear();
-    return std::nullopt;
-}
-
-std::string SerializeActivePageFeedback(const ActivePageFeedback& feedback)
-{
-    return SerializeFeedbackPayload(FeedbackPayload {feedback});
-}
-
-std::optional<ActivePageFeedback> DeserializeActivePageFeedback(const std::string_view payload, std::string* error)
-{
-    std::string localError;
-    std::string* errorTarget = error == nullptr ? &localError : error;
-    errorTarget->clear();
-
-    const auto decoded = DeserializeFeedbackPayload(payload, errorTarget);
-    if (!decoded.has_value())
-    {
-        return std::nullopt;
-    }
-
-    if (const auto* feedback = std::get_if<ActivePageFeedback>(&(*decoded)); feedback != nullptr)
-    {
-        return *feedback;
-    }
-
-    errorTarget->clear();
-    return std::nullopt;
-}
-
-std::string SerializeWindowLifecycleFeedback(const WindowLifecycleFeedback& feedback)
-{
-    return SerializeFeedbackPayload(FeedbackPayload {feedback});
-}
-
-std::optional<WindowLifecycleFeedback> DeserializeWindowLifecycleFeedback(const std::string_view payload,
-                                                                          std::string* error)
-{
-    std::string localError;
-    std::string* errorTarget = error == nullptr ? &localError : error;
-    errorTarget->clear();
-
-    const auto decoded = DeserializeFeedbackPayload(payload, errorTarget);
-    if (!decoded.has_value())
-    {
-        return std::nullopt;
-    }
-
-    if (const auto* feedback = std::get_if<WindowLifecycleFeedback>(&(*decoded)); feedback != nullptr)
     {
         return *feedback;
     }

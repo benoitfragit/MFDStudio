@@ -28,6 +28,7 @@
 #include "mfd/control/CommandTypes.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/control/UdpRuntimeBridge.h"
+#include "mfd/control/WindowFeedback.h"
 #include "mfd/ipc/ExchangeChannel.h"
 
 namespace

@@ -26,5 +26,6 @@
 #include "mfd/control/CommandClient.h"
 #include "mfd/control/CommandTypes.h"
 #include "mfd/control/StrobeFeedback.h"
+#include "mfd/control/WindowFeedback.h"
 #include "mfd/ipc/ExchangeChannel.h"
 #include "mfd/model/Types.h"

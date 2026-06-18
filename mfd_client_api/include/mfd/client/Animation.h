@@ -24,6 +24,7 @@
 #include "mfd/client/ClientExport.h"
 #include "mfd/control/CommandTypes.h"
 #include "mfd/control/StrobeFeedback.h"
+#include "mfd/control/WindowFeedback.h"
 #include "mfd/ipc/ExchangeChannel.h"
 #include "mfd/model/PageName.h"
 #include "mfd/model/PageDefinition.h"
