@@ -665,7 +665,8 @@ The exported package may contain:
 | `README.md` | package entry exports |
 | `window_icd.md` | window view |
 | `pages/*.md` | detailed views per page |
-| `images/*_design_exploded.png` | exploded views if rendering was successful |
+| `images/*_design_exploded.png` | exploded views with reticle labels if rendering was successful |
+| `images/*_design_page.png` | clean page views without reticle labels if rendering was successful |
 | `data/design_manifest.json` | design manifesto exports |
 
 Options available in the popup:

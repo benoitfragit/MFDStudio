@@ -63,6 +63,14 @@ std::string ReadTextFile(const std::filesystem::path& path)
     return std::string {(std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>()};
 }
 
+bool WriteStubImageFile(const std::filesystem::path& imagePath)
+{
+    std::filesystem::create_directories(imagePath.parent_path());
+    std::ofstream stream(imagePath, std::ios::binary);
+    stream << "fake_png";
+    return stream.good();
+}
+
 bool IsPathWithinRoot(const std::filesystem::path& root, const std::filesystem::path& candidate)
 {
     const std::filesystem::path normalizedRoot = std::filesystem::absolute(root).lexically_normal();
@@ -216,6 +224,13 @@ TEST(EditorDesignExportServiceTests, BuildPlanListsExpectedFilesAndSanitizesPage
     EXPECT_TRUE(std::find(plan.filesToWrite.begin(), plan.filesToWrite.end(), plan.readmeFile) != plan.filesToWrite.end());
     EXPECT_TRUE(std::find(plan.filesToWrite.begin(), plan.filesToWrite.end(), plan.windowIcdFile) != plan.filesToWrite.end());
     EXPECT_TRUE(std::find(plan.filesToWrite.begin(), plan.filesToWrite.end(), plan.manifestFile) != plan.filesToWrite.end());
+
+    // Image exports default to on and plan both the labeled exploded view and the clean page view.
+    EXPECT_FALSE(plan.pages.front().imageFile.empty());
+    EXPECT_FALSE(plan.pages.front().cleanImageFile.empty());
+    EXPECT_NE(plan.pages.front().cleanImageFile.filename().string().find("_design_page"), std::string::npos);
+    EXPECT_TRUE(std::find(plan.filesToWrite.begin(), plan.filesToWrite.end(), plan.pages.front().cleanImageFile) !=
+                plan.filesToWrite.end());
 }
 
 TEST(EditorDesignExportServiceTests, ExecuteCreatesMarkdownFilesWithReticleCoordinatesStrobeAndBlinkSections)
@@ -278,6 +293,46 @@ TEST(EditorDesignExportServiceTests, ExecuteUsesRelativeImageLinksWhenExplodedVi
     EXPECT_NE(pageMarkdown.find("../images/"), std::string::npos);
     EXPECT_TRUE(std::find(result.writtenFiles.begin(), result.writtenFiles.end(), plan.pages.front().imageFile) !=
                 result.writtenFiles.end());
+}
+
+TEST(EditorDesignExportServiceTests, ExecuteWritesCleanPageViewAlongsideExplodedView)
+{
+    ScopedTempDir tempDir;
+    const DesignExportFixture fixture = MakeFixture(tempDir.Path(), "Radar");
+
+    editor::EditorDesignExportService service(
+        [](const editor::DesignExportPlan&, const editor::DesignExportPageArtifact& artifact, std::string*) -> bool
+        {
+            return WriteStubImageFile(artifact.imageFile);
+        },
+        [](const editor::DesignExportPlan&, const editor::DesignExportPageArtifact& artifact, std::string*) -> bool
+        {
+            return WriteStubImageFile(artifact.cleanImageFile);
+        });
+
+    editor::DesignExportRequest request = MakeRequest(tempDir.Path() / "export", fixture);
+    request.exportExplodedViews = true;
+    const editor::DesignExportPlan plan = service.BuildPlan(request);
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+
+    const editor::DesignExportResult result = service.Execute(plan);
+
+    EXPECT_TRUE(std::filesystem::exists(plan.pages.front().imageFile));
+    EXPECT_TRUE(std::filesystem::exists(plan.pages.front().cleanImageFile));
+    EXPECT_TRUE(std::find(result.writtenFiles.begin(), result.writtenFiles.end(), plan.pages.front().cleanImageFile) !=
+                result.writtenFiles.end());
+
+    const std::string pageMarkdown = ReadTextFile(plan.pages.front().markdownFile);
+    EXPECT_NE(pageMarkdown.find("![Page design view]"), std::string::npos);
+
+    const std::string manifest = ReadTextFile(plan.manifestFile);
+    EXPECT_NE(manifest.find("cleanImageWritten"), std::string::npos);
+    EXPECT_NE(manifest.find("_design_page"), std::string::npos);
+
+    for (const auto& writtenFile : result.writtenFiles)
+    {
+        EXPECT_TRUE(IsPathWithinRoot(result.outputFolder, writtenFile)) << writtenFile.string();
+    }
 }
 
 TEST(EditorDesignExportServiceTests, ExecuteDocumentsEveryReticleOnThePage)

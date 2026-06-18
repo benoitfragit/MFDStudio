@@ -69,6 +69,8 @@ struct DesignExportPageArtifact
     std::filesystem::path markdownFile;
     /** @brief Exploded-view image generated for this page, when enabled. */
     std::filesystem::path imageFile;
+    /** @brief Clean page image without reticle labels generated for this page, when enabled. */
+    std::filesystem::path cleanImageFile;
 };
 
 /**
@@ -144,10 +146,18 @@ public:
         std::function<bool(const DesignExportPlan&, const DesignExportPageArtifact&, std::string* error)>;
 
     /**
-     * @brief Builds the service with an optional exploded-view renderer override.
-     * @param explodedViewRenderer Optional callback used instead of the default raylib renderer.
+     * @brief Optional callback used to override clean page-image rendering during tests.
      */
-    explicit EditorDesignExportService(ExplodedViewRenderer explodedViewRenderer = {});
+    using PageImageRenderer =
+        std::function<bool(const DesignExportPlan&, const DesignExportPageArtifact&, std::string* error)>;
+
+    /**
+     * @brief Builds the service with optional rendering overrides.
+     * @param explodedViewRenderer Optional callback used instead of the default exploded-view raylib renderer.
+     * @param pageImageRenderer Optional callback used instead of the default clean page-image raylib renderer.
+     */
+    explicit EditorDesignExportService(ExplodedViewRenderer explodedViewRenderer = {},
+                                       PageImageRenderer pageImageRenderer = {});
 
     /**
      * @brief Builds one read-only export plan from the current editor state.
@@ -168,6 +178,11 @@ private:
                                           const DesignExportPageArtifact& artifact,
                                           std::string* error) const;
 
+    [[nodiscard]] bool RenderPageImage(const DesignExportPlan& plan,
+                                       const DesignExportPageArtifact& artifact,
+                                       std::string* error) const;
+
     ExplodedViewRenderer explodedViewRenderer_ {};
+    PageImageRenderer pageImageRenderer_ {};
 };
 } // namespace editor

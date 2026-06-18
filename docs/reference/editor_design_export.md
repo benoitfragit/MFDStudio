@@ -20,6 +20,7 @@ The export creates one folder containing:
 - `window_icd.md`
 - `pages/*.md`
 - `images/*_design_exploded.png`
+- `images/*_design_page.png`
 - `data/design_manifest.json`
 
 If the selected output folder is not empty, the editor creates one timestamped
@@ -55,6 +56,17 @@ The current MVP layout:
 - derives callout anchors from the supported primitive geometries used by the reticle model, with a bounds fallback when no outline can be sampled
 
 These images are design documentation, not pixel-perfect runtime screenshots.
+
+## Clean Page Views
+
+Alongside each exploded view, the export also writes one clean page image
+(`*_design_page.png`) that renders the same page canvas **without** any reticle
+labels or callout lines. It is a complement to the exploded view, not a
+replacement: the exploded view stays the annotated reference while the clean
+view provides a label-free render suitable for embedding elsewhere.
+
+Both images share the same view framing and are gated by the single
+`Export exploded designer views` option.
 
 If one image cannot be rendered, the Markdown files are still generated and the
 export reports a warning.

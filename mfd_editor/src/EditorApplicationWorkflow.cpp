@@ -1455,6 +1455,7 @@ void EditorApplication::DrawDesignExportPopup()
     ImGui::SeparatorText("Options");
     ImGui::Checkbox("Export Markdown ICD", &workflowState_.designExportPopup.exportMarkdownIcd);
     ImGui::Checkbox("Export exploded designer views", &workflowState_.designExportPopup.exportExplodedViews);
+    ShowItemTooltip("Render, per page, one exploded designer view with reticle labels and one clean page view without labels.");
     ImGui::Checkbox("Include canvas coordinates", &workflowState_.designExportPopup.includeCanvasCoordinates);
     ImGui::Checkbox("Include generated C++ usage snippets", &workflowState_.designExportPopup.includeCppSnippets);
     ImGui::Checkbox("Include strobe section", &workflowState_.designExportPopup.includeStrobe);

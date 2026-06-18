@@ -1561,7 +1561,8 @@ std::string BuildBlinkSnippet(const std::string_view pageName,
 
 std::string BuildReadmeMarkdown(const DesignExportPlan& plan,
                                 const std::string& generatedAt,
-                                const std::vector<bool>& imageWritten)
+                                const std::vector<bool>& imageWritten,
+                                const std::vector<bool>& cleanImageWritten)
 {
     std::ostringstream stream;
     stream << "# MFDStudio Design Export\n\n";
@@ -1585,14 +1586,24 @@ std::string BuildReadmeMarkdown(const DesignExportPlan& plan,
     {
         for (std::size_t index = 0; index < plan.pages.size(); ++index)
         {
-            stream << "- ";
+            stream << "- " << plan.pages[index].pageName << ":\n";
+            stream << "  - exploded: ";
             if (imageWritten[index])
             {
                 stream << "`" << RelativeMarkdownPath(plan.readmeFile, plan.pages[index].imageFile) << "`\n";
             }
             else
             {
-                stream << plan.pages[index].pageName << ": not available\n";
+                stream << "not available\n";
+            }
+            stream << "  - page (no labels): ";
+            if (cleanImageWritten[index])
+            {
+                stream << "`" << RelativeMarkdownPath(plan.readmeFile, plan.pages[index].cleanImageFile) << "`\n";
+            }
+            else
+            {
+                stream << "not available\n";
             }
         }
     }
@@ -1653,7 +1664,8 @@ std::string BuildWindowIcdMarkdown(const DesignExportPlan& plan)
 
 std::string BuildPageMarkdown(const DesignExportPlan& plan,
                               const DesignExportPageArtifact& artifact,
-                              const bool imageAvailable)
+                              const bool imageAvailable,
+                              const bool cleanImageAvailable)
 {
     const mfd::PageDefinition& page = plan.loaded.document.pages[artifact.pageIndex];
     const mfd::GeneratedTransportMap* map = ResolveGeneratedMap(plan);
@@ -1671,6 +1683,15 @@ std::string BuildPageMarkdown(const DesignExportPlan& plan,
         else
         {
             stream << "Exploded design view: not available.\n\n";
+        }
+
+        if (cleanImageAvailable)
+        {
+            stream << "![Page design view](" << RelativeMarkdownPath(artifact.markdownFile, artifact.cleanImageFile) << ")\n\n";
+        }
+        else
+        {
+            stream << "Page design view: not available.\n\n";
         }
     }
 
@@ -1848,6 +1869,7 @@ std::string BuildPageMarkdown(const DesignExportPlan& plan,
 json BuildManifestJson(const DesignExportPlan& plan,
                        const std::string& generatedAt,
                        const std::vector<bool>& imageWritten,
+                       const std::vector<bool>& cleanImageWritten,
                        const std::vector<std::string>& warnings)
 {
     json pages = json::array();
@@ -1864,6 +1886,11 @@ json BuildManifestJson(const DesignExportPlan& plan,
              artifact.imageFile.empty() ? json(nullptr)
                                         : json(MarkdownPath(artifact.imageFile.lexically_relative(plan.outputFolder)))},
             {"imageWritten", imageWritten[index]},
+            {"cleanImageFile",
+             artifact.cleanImageFile.empty()
+                 ? json(nullptr)
+                 : json(MarkdownPath(artifact.cleanImageFile.lexically_relative(plan.outputFolder)))},
+            {"cleanImageWritten", cleanImageWritten[index]},
             {"reticleCount", page.staticReticles.size()},
             {"hasStrobe", !page.strobes.empty()},
             {"blinkTypeCount", page.blinkTypes.size()}});
@@ -1894,10 +1921,77 @@ json BuildManifestJson(const DesignExportPlan& plan,
         {"pages", std::move(pages)},
         {"warnings", warnings}};
 }
+
+LogicalBounds ComputePageWorldBounds(const mfd::PageDefinition& page)
+{
+    LogicalBounds pageBounds;
+    for (const auto& reticle : page.staticReticles)
+    {
+        IncludeLogicalBounds(pageBounds, ComputeReticleWorldBounds(reticle));
+    }
+    for (const auto& strobe : page.strobes)
+    {
+        IncludeLogicalBounds(pageBounds, ComputeReticleWorldBounds(strobe.reticle));
+    }
+
+    if (!pageBounds.valid)
+    {
+        pageBounds.valid = true;
+        pageBounds.min = {-1.0f, -1.0f};
+        pageBounds.max = {1.0f, 1.0f};
+        pageBounds.center = {0.0f, 0.0f};
+    }
+
+    return pageBounds;
+}
+
+// Renders one page's static reticles and strobes into a square offscreen render texture using the
+// shared Canvas2D path. The caller owns the returned texture and must `UnloadRenderTexture` it.
+// `stencilReady` reports whether clip-dependent primitives can match the live editor preview.
+RenderTexture2D RenderPageCanvasTexture(const mfd::PageDefinition& page,
+                                        const ExportViewport& viewport,
+                                        bool& stencilReady)
+{
+    stencilReady = false;
+    RenderTexture2D pageTexture = mfd::LoadRenderTextureWithStencil(viewport.width, viewport.height, &stencilReady);
+    if (pageTexture.texture.id == 0U)
+    {
+        return pageTexture;
+    }
+
+    mfd::BezierPolylineCache bezierCache;
+    mfd::ImageTextureCache imageCache;
+    mfd::TextLayoutCache textLayoutCache;
+    BeginTextureMode(pageTexture);
+    ClearBackground(ToRayColor(page.backgroundColor));
+    {
+        mfd::Canvas2D canvas(pageTexture.texture.width,
+                             pageTexture.texture.height,
+                             viewport.view,
+                             nullptr,
+                             ToRayColor(page.backgroundColor),
+                             stencilReady,
+                             &bezierCache,
+                             &imageCache,
+                             &textLayoutCache);
+        for (const auto& reticle : page.staticReticles)
+        {
+            canvas.DrawReticle(reticle);
+        }
+        for (const auto& strobe : page.strobes)
+        {
+            canvas.DrawReticle(strobe.reticle);
+        }
+    }
+    EndTextureMode();
+    return pageTexture;
+}
 } // namespace
 
-EditorDesignExportService::EditorDesignExportService(ExplodedViewRenderer explodedViewRenderer)
-    : explodedViewRenderer_(std::move(explodedViewRenderer))
+EditorDesignExportService::EditorDesignExportService(ExplodedViewRenderer explodedViewRenderer,
+                                                     PageImageRenderer pageImageRenderer)
+    : explodedViewRenderer_(std::move(explodedViewRenderer)),
+      pageImageRenderer_(std::move(pageImageRenderer))
 {
 }
 
@@ -1970,6 +2064,9 @@ DesignExportPlan EditorDesignExportService::BuildPlan(const DesignExportRequest&
         artifact.imageFile = plan.exportExplodedViews
                                  ? plan.outputFolder / "images" / std::filesystem::path(safeStem + "_design_exploded.png")
                                  : std::filesystem::path {};
+        artifact.cleanImageFile = plan.exportExplodedViews
+                                      ? plan.outputFolder / "images" / std::filesystem::path(safeStem + "_design_page.png")
+                                      : std::filesystem::path {};
         artifact.sourcePageFile =
             pageIndex < plan.files.pageFiles.size() ? plan.files.pageFiles[pageIndex] : std::filesystem::path {};
         plan.pages.push_back(std::move(artifact));
@@ -1992,6 +2089,10 @@ DesignExportPlan EditorDesignExportService::BuildPlan(const DesignExportRequest&
             if (!artifact.imageFile.empty())
             {
                 plan.filesToWrite.push_back(artifact.imageFile);
+            }
+            if (!artifact.cleanImageFile.empty())
+            {
+                plan.filesToWrite.push_back(artifact.cleanImageFile);
             }
         }
     }
@@ -2045,12 +2146,18 @@ DesignExportResult EditorDesignExportService::Execute(const DesignExportPlan& pl
     result.warnings = plan.warnings;
     const std::string generatedAt = FormatDisplayTimestamp(std::chrono::system_clock::now());
     std::vector<bool> imageWritten(plan.pages.size(), false);
+    std::vector<bool> cleanImageWritten(plan.pages.size(), false);
 
     for (std::size_t index = 0; index < plan.pages.size(); ++index)
     {
         const DesignExportPageArtifact& artifact = plan.pages[index];
+        if (!plan.exportExplodedViews)
+        {
+            continue;
+        }
 
-        if (plan.exportExplodedViews && !artifact.imageFile.empty())
+        // Exploded designer view: the page render annotated with reticle labels.
+        if (!artifact.imageFile.empty())
         {
             if (!IsPathWithinRoot(plan.outputFolder, artifact.imageFile))
             {
@@ -2075,13 +2182,40 @@ DesignExportResult EditorDesignExportService::Execute(const DesignExportPlan& pl
                 }
             }
         }
+
+        // Clean companion view: the same page render without any reticle labels.
+        if (!artifact.cleanImageFile.empty())
+        {
+            if (!IsPathWithinRoot(plan.outputFolder, artifact.cleanImageFile))
+            {
+                result.warnings.push_back("Skipped one clean page-view export outside the output folder: " +
+                                          artifact.cleanImageFile.string());
+            }
+            else
+            {
+                std::string renderError;
+                const bool rendered = pageImageRenderer_ != nullptr
+                                          ? pageImageRenderer_(plan, artifact, &renderError)
+                                          : RenderPageImage(plan, artifact, &renderError);
+                if (rendered)
+                {
+                    cleanImageWritten[index] = true;
+                    result.writtenFiles.push_back(artifact.cleanImageFile);
+                }
+                else
+                {
+                    result.warnings.push_back("Clean page view for page '" + artifact.pageName + "' was not generated: " +
+                                              (renderError.empty() ? std::string {"unknown error"} : renderError));
+                }
+            }
+        }
     }
 
     try
     {
         if (plan.exportMarkdownIcd)
         {
-            WriteTextFile(plan.readmeFile, BuildReadmeMarkdown(plan, generatedAt, imageWritten));
+            WriteTextFile(plan.readmeFile, BuildReadmeMarkdown(plan, generatedAt, imageWritten, cleanImageWritten));
             result.writtenFiles.push_back(plan.readmeFile);
 
             WriteTextFile(plan.windowIcdFile, BuildWindowIcdMarkdown(plan));
@@ -2090,13 +2224,14 @@ DesignExportResult EditorDesignExportService::Execute(const DesignExportPlan& pl
             for (std::size_t index = 0; index < plan.pages.size(); ++index)
             {
                 const DesignExportPageArtifact& artifact = plan.pages[index];
-                WriteTextFile(artifact.markdownFile, BuildPageMarkdown(plan, artifact, imageWritten[index]));
+                WriteTextFile(artifact.markdownFile,
+                              BuildPageMarkdown(plan, artifact, imageWritten[index], cleanImageWritten[index]));
                 result.writtenFiles.push_back(artifact.markdownFile);
             }
         }
 
         WriteTextFile(plan.manifestFile,
-                      BuildManifestJson(plan, generatedAt, imageWritten, result.warnings).dump(2));
+                      BuildManifestJson(plan, generatedAt, imageWritten, cleanImageWritten, result.warnings).dump(2));
         result.writtenFiles.push_back(plan.manifestFile);
     }
     catch (const std::exception& exception)
@@ -2130,23 +2265,7 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
     }
 
     const mfd::PageDefinition& page = plan.loaded.document.pages[artifact.pageIndex];
-    LogicalBounds pageBounds;
-    for (const auto& reticle : page.staticReticles)
-    {
-        IncludeLogicalBounds(pageBounds, ComputeReticleWorldBounds(reticle));
-    }
-    for (const auto& strobe : page.strobes)
-    {
-        IncludeLogicalBounds(pageBounds, ComputeReticleWorldBounds(strobe.reticle));
-    }
-
-    if (!pageBounds.valid)
-    {
-        pageBounds.valid = true;
-        pageBounds.min = {-1.0f, -1.0f};
-        pageBounds.max = {1.0f, 1.0f};
-        pageBounds.center = {0.0f, 0.0f};
-    }
+    const LogicalBounds pageBounds = ComputePageWorldBounds(page);
 
     ExportViewport viewport;
     viewport.width = kExplodedCanvasSize;
@@ -2172,8 +2291,7 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
                            static_cast<int>(std::ceil(maxLabelWidth)) + 120;
 
     bool previewTextureStencilReady = false;
-    RenderTexture2D previewTexture =
-        mfd::LoadRenderTextureWithStencil(kExplodedCanvasSize, kExplodedCanvasSize, &previewTextureStencilReady);
+    RenderTexture2D previewTexture = RenderPageCanvasTexture(page, viewport, previewTextureStencilReady);
     if (previewTexture.texture.id == 0U)
     {
         if (error != nullptr)
@@ -2195,32 +2313,6 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
     }
 
     bool success = false;
-    mfd::BezierPolylineCache bezierCache;
-    mfd::ImageTextureCache imageCache;
-    mfd::TextLayoutCache textLayoutCache;
-    BeginTextureMode(previewTexture);
-    ClearBackground(ToRayColor(page.backgroundColor));
-    {
-        mfd::Canvas2D canvas(previewTexture.texture.width,
-                             previewTexture.texture.height,
-                             viewport.view,
-                             nullptr,
-                             ToRayColor(page.backgroundColor),
-                             previewTextureStencilReady,
-                             &bezierCache,
-                             &imageCache,
-                             &textLayoutCache);
-        for (const auto& reticle : page.staticReticles)
-        {
-            canvas.DrawReticle(reticle);
-        }
-        for (const auto& strobe : page.strobes)
-        {
-            canvas.DrawReticle(strobe.reticle);
-        }
-    }
-    EndTextureMode();
-
     BeginTextureMode(finalTexture);
     ClearBackground(Color {247, 245, 239, 255});
     const Rectangle source {0.0f, 0.0f, static_cast<float>(previewTexture.texture.width),
@@ -2298,6 +2390,80 @@ bool EditorDesignExportService::RenderExplodedView(const DesignExportPlan& plan,
     UnloadRenderTexture(finalTexture);
     UnloadRenderTexture(previewTexture);
 
+    return success;
+}
+
+bool EditorDesignExportService::RenderPageImage(const DesignExportPlan& plan,
+                                                const DesignExportPageArtifact& artifact,
+                                                std::string* error) const
+{
+    if (artifact.cleanImageFile.empty())
+    {
+        if (error != nullptr)
+        {
+            *error = "No clean page-image path was planned.";
+        }
+        return false;
+    }
+
+    if (artifact.pageIndex >= plan.loaded.document.pages.size())
+    {
+        if (error != nullptr)
+        {
+            *error = "Invalid page index.";
+        }
+        return false;
+    }
+
+    if (!IsWindowReady())
+    {
+        if (error != nullptr)
+        {
+            *error = "raylib is not ready, so the clean page view could not be rendered.";
+        }
+        return false;
+    }
+
+    const mfd::PageDefinition& page = plan.loaded.document.pages[artifact.pageIndex];
+
+    ExportViewport viewport;
+    viewport.width = kExplodedCanvasSize;
+    viewport.height = kExplodedCanvasSize;
+    viewport.view = MakeViewFittingBounds(ComputePageWorldBounds(page), viewport.width, viewport.height);
+
+    bool stencilReady = false;
+    RenderTexture2D pageTexture = RenderPageCanvasTexture(page, viewport, stencilReady);
+    if (pageTexture.texture.id == 0U)
+    {
+        if (error != nullptr)
+        {
+            *error = "Unable to allocate the clean page render texture.";
+        }
+        return false;
+    }
+
+    bool success = false;
+    Image pageImage = LoadImageFromTexture(pageTexture.texture);
+    if (pageImage.data == nullptr)
+    {
+        if (error != nullptr)
+        {
+            *error = "Unable to read back the clean page texture.";
+        }
+    }
+    else
+    {
+        ImageFlipVertical(&pageImage);
+        EnsureParentFolder(artifact.cleanImageFile);
+        success = ExportImage(pageImage, artifact.cleanImageFile.string().c_str());
+        if (!success && error != nullptr)
+        {
+            *error = "ExportImage failed for '" + artifact.cleanImageFile.string() + "'.";
+        }
+        UnloadImage(pageImage);
+    }
+
+    UnloadRenderTexture(pageTexture);
     return success;
 }
 } // namespace editor
