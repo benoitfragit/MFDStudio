@@ -1,39 +1,42 @@
 # T07 — Supprimer l'imbrication `stateMutex` sous les mutex de file
 
-- **Gravite** : P2 (danger latent d'ordre de verrouillage / serialisation)
-- **Module** : `mfd_api/src/control/UdpRuntimeBridge.cpp`
-- **Fonctions** : `Impl::PushQueuedBatch` (l. ~609-624), `Impl::PushQueuedFeedback` (l. ~634-639)
+- **Criticite** : P2 (danger latent d'ordre de verrouillage / serialisation inutile)
 - **Vague CI** : 2
 - **Statut** : PLAUSIBLE
 
-## Scenario minimal
+## Description breve
 
-Fort debit de commandes + feedback : `PushQueuedBatch` detient deja `inboundMutex`
-(l. ~609) et `PushQueuedFeedback` detient `outboundMutex` (l. ~634), puis appellent
-`SetCommandStatus` / `SetFeedbackStatus` qui verrouillent `stateMutex`.
+`PushQueuedBatch` (tient `inboundMutex`) et `PushQueuedFeedback` (tient `outboundMutex`)
+appellent `Set*Status` qui verrouille `stateMutex` : `stateMutex` est donc imbrique sous
+les mutex de file. Pas de deadlock aujourd'hui, mais ordre de verrouillage non documente
+et contention inutile de la file sur le mutex d'etat.
 
-## Cause exacte
+## Fichiers impactes
 
-`stateMutex` est donc imbrique **a l'interieur** de `inboundMutex` / `outboundMutex`.
-Aucun chemin actuel ne prend inbound/outbound en tenant `stateMutex`, donc pas
-d'interblocage aujourd'hui — mais c'est un ordre de verrouillage non documente et
-fragile, et la file reste serialisee sur le mutex d'etat.
+- `mfd_api/src/control/UdpRuntimeBridge.cpp` — `Impl::PushQueuedBatch` (l. ~609-624),
+  `Impl::PushQueuedFeedback` (l. ~634-639), `SetCommandStatus`/`SetFeedbackStatus`
+- `tests/mfd_api/` — test multithread (idealement sous TSan)
 
-## Impact
+## Contrainte de dev (AGENTS.md)
 
-Pas de deadlock prouve. Risque latent en cas d'evolution + contention inutile de la
-file sur `stateMutex`. Viole l'esprit AGENTS.md « encapsuler les invariants » et
-predictibilite du runtime.
+- « garder un code [...] predictible » ; « encapsuler les invariants »
+- « risques memoire / desynchronisations » = cible prioritaire de la revue
+- « toute revue touchant au runtime doit proposer ou ajouter des tests anti-freeze »
 
-## Correction recommandee (minimale)
+## Strategie de resolution detaillee
 
-Construire la chaine de statut **sous** le verrou de file, **liberer** le verrou de
-file, puis appeler `Set*Status`. A defaut, documenter explicitement l'ordre de
-verrouillage `inbound/outbound > state` dans le code et garantir qu'aucun chemin ne
-l'inverse.
+1. Construire la chaine de statut **sous** le verrou de file, liberer ce verrou, puis
+   appeler `Set*Status` (qui prend `stateMutex`). Plus aucune imbrication.
+2. A defaut (si la construction depend de l'etat protege par `stateMutex`), documenter
+   explicitement l'ordre `inbound/outbound > state` et garantir qu'aucun chemin ne l'inverse.
 
-## Test de non-regression
+## Strategie de test
 
-Test multithread (ideanlement sous ThreadSanitizer) martelant `PushQueuedBatch` /
-`PushQueuedFeedback` en concurrence avec `MetricsSnapshot` / `IsRunning` ; absence de
-data race signalee et progression garantie.
+- Test concurrent martelant `PushQueuedBatch`/`PushQueuedFeedback` contre
+  `MetricsSnapshot`/`IsRunning` ; absence de data race (TSan) et progression garantie
+  (anti-freeze).
+
+## Documentation impactee
+
+Commentaire d'ordre de verrouillage dans `UdpRuntimeBridge.cpp` ; `docs/architecture/`
+si le modele de threading du bridge y est decrit.

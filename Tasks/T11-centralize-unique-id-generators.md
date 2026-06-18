@@ -1,47 +1,52 @@
 # T11 — Centraliser les generateurs d'identifiants uniques
 
-- **Gravite** : P2 (dette de maintenabilite / duplication ; risque overflow theorique)
-- **Module** : `mfd_editor` (entetes internes + `EditorApplication.cpp`)
+- **Criticite** : P2 (duplication ; risque d'overflow theorique)
 - **Vague CI** : 3
-- **Statut** : CONFIRME (duplication)
+- **Statut** : CONFIRME
 
-## Constat
+## Description breve
 
-~9 boucles dupliquees du meme motif « incrementer un suffixe jusqu'a ce que le
-candidat ne soit plus en conflit » :
+~9 boucles dupliquees du meme motif « incrementer un suffixe jusqu'a ce que le candidat
+ne soit plus en conflit ». Compteur `int` increment sans borne (UB d'overflow signe
+theorique). A factoriser dans un helper unique.
 
-- `include/internal/application/EditorApplicationAuthoringSupport.h:190` (`SuggestPageStrobeDraftName`), `:335` (`MakeUniqueBlinkTypeName`)
-- `include/internal/application/EditorApplicationInternal.h:200` (`MakeUniqueLibraryReticleId`), `:300` (`MakeUniquePageReticleInstanceId`)
-- `src/EditorApplication.cpp:8013` (`MakeUniqueReticleId`), `:8039` (`MakeUniqueStrobeName`), `:8073` (`MakeUniqueLayerId`)
-- `src/EditorPrimitiveClipboardService.cpp:51` (`MakeUniquePrimitivePasteId`)
-- `src/EditorDesignExportService.cpp:298` (collision de dossier `_N`), `:2055` (dedup de stem `do/while`)
+## Fichiers impactes
 
-Variante apparentee (scan de conflit `++order`, a ne pas forcer dans le meme moule) :
-`EditorApplicationAuthoringSupport.h:689` (`NextPageDynamicOrderInLayer`).
+- `mfd_editor/include/internal/application/EditorApplicationAuthoringSupport.h` (l. 190, 335)
+- `mfd_editor/include/internal/application/EditorApplicationInternal.h` (l. 200, 300)
+- `mfd_editor/src/EditorApplication.cpp` (l. 8013, 8039, 8073)
+- `mfd_editor/src/EditorPrimitiveClipboardService.cpp` (l. 51)
+- `mfd_editor/src/EditorDesignExportService.cpp` (l. 298, 2055)
+- nouveau helper interne (entete `internal` editeur)
+- `tests/mfd_editor/` — tests de caracterisation
 
-## Cause / impact
+## Contrainte de dev (AGENTS.md)
 
-Logique dupliquee a maintenir en N endroits (viole AGENTS.md « ne pas dupliquer les
-regles »). De plus le compteur `int suffix` est increment sans borne : depassement
-signe = UB **theorique** (necessiterait ~2^31 noms en conflit, donc P2 en pratique).
+- « ne pas dupliquer les regles » ; « centralized command traits or command helpers when
+  behavior must stay consistent »
+- « eviter les classes monolithiques » indirectement (reduit `EditorApplication.cpp`)
 
-## Correction recommandee (minimale, comportement constant)
+## Strategie de resolution detaillee
 
-Introduire **un** helper interne, ex. dans un entete `internal` de l'editeur :
-```cpp
-// Renvoie le premier "base + sep + n" (n a partir de start) tel que !exists(candidate).
-template <typename ExistsPredicate>
-std::string MakeUniqueCandidate(std::string_view base,
-                                std::string_view separator,
-                                int start,
-                                ExistsPredicate exists);
-```
-Remplacer les sites par des appels a ce helper. Centraliser donne aussi **un seul**
-endroit pour ajouter une borne / garde d'overflow. Conserver strictement le format de
-nom produit par chaque site (pas de changement de comportement observable).
+1. Ajouter un helper interne :
+   ```cpp
+   template <typename ExistsPredicate>
+   std::string MakeUniqueCandidate(std::string_view base, std::string_view separator,
+                                   int start, ExistsPredicate exists);
+   ```
+   bouclant `for (int n = start; ; ++n)` et renvoyant le premier candidat libre ;
+   ajouter une borne/garde d'overflow au seul endroit centralise.
+2. Remplacer chaque site, en conservant **strictement** le format de nom produit
+   (separateur, casse, point de depart).
+3. Laisser la variante `++order` (`NextPageDynamicOrderInLayer`, l. 689) telle quelle
+   (motif distinct).
 
-## Test de non-regression
+## Strategie de test
 
-`tests/mfd_editor` : pour chaque categorie (reticle id, strobe name, layer id, blink
-type, primitive paste id), verifier qu'avec des collisions existantes le helper renvoie
-le meme identifiant qu'avant la centralisation (tests de caracterisation).
+- `tests/mfd_editor` : tests de caracterisation par categorie (reticle id, strobe name,
+  layer id, blink type, primitive paste id) verifiant que, sous collisions existantes, le
+  helper renvoie **le meme** identifiant qu'avant centralisation.
+
+## Documentation impactee
+
+Aucune (helper interne ; identifiants produits inchanges).

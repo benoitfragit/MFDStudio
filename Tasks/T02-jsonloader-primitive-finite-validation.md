@@ -1,42 +1,40 @@
 # T02 — Valider la finitude des rayons avant arithmetique (ring / ellipse)
 
-- **Gravite** : P2 (robustesse aux frontieres d'entree)
-- **Module** : `mfd_api/src/io/JsonLoader.cpp`
-- **Fonction** : `ParsePrimitive` (zones ring l. ~1516-1525, ellipse l. ~1543-1548)
+- **Criticite** : P2 (robustesse aux frontieres d'entree)
 - **Vague CI** : 1
 - **Statut** : PLAUSIBLE
 
-## Scenario minimal
+## Description breve
 
-```json
-{ "type": "ring", "outerRadius": 1e30, "bandWidth": -1e30 }
-```
-ou une ellipse avec `rx`/`ry` non finis.
+Dans `ParsePrimitive`, les rayons bruts (`outerRadius`, `bandWidth`, `rx`, `ry`) sont
+combines par `std::max`/`std::min`/soustraction/`* 2.0f` **avant** toute validation de
+finitude. Une entree enorme produit `Inf` et `std::max(0.0f, NaN)` peut renvoyer `NaN`.
 
-## Cause exacte
+## Fichiers impactes
 
-Les valeurs brutes `node.value()` (rayons, bande, rx/ry) sont combinees par
-`std::max` / `std::min` / soustraction / `* 2.0f` **avant** toute validation de
-finitude. Une entree enorme produit `Inf`, et `std::max(0.0f, NaN)` peut renvoyer
-`NaN` (selon l'ordre des arguments). On fait donc de l'arithmetique fragile sur des
-flottants non fiables.
+- `mfd_api/src/io/JsonLoader.cpp` — `ParsePrimitive` (zones ring l. ~1516-1525, ellipse l. ~1543-1548)
+- `tests/mfd_api/JsonLoaderTests.cpp` — nouveaux cas
 
-## Impact
+## Contrainte de dev (AGENTS.md)
 
-Limite : les controles aval `ValidateFiniteAbs` / `ValidateSegmentCount`
-(l. ~263-277) rattrapent la valeur et levent une exception. Le risque est l'usage
-d'arithmetique intermediaire sur des flottants non valides (NaN/Inf transitoires)
-et un diagnostic moins clair pour l'utilisateur. Aucun UB demontre.
+- « pour chaque frontiere d'entree [...] verifier explicitement les bornes [...] et valeurs non finies »
+- « optimiser les allocations, les copies » -> reutiliser le helper de finitude existant
+  plutot que d'en introduire un nouveau (cf. T14, `IsFiniteVec2`/predicats centralises)
 
-## Correction recommandee (minimale)
+## Strategie de resolution detaillee
 
-Faire passer `outerRadius`, `bandWidth`, `rx`, `ry` par une lecture validant la
-finitude (helper local `ParseFiniteFloatField`) **avant** les combinaisons
-`std::max`/`std::min`. Reutiliser le helper de finitude deja present plutot que
-d'en introduire un nouveau.
+1. Lire chaque rayon via un helper de finitude (idealement celui centralise par T14,
+   sinon `ParseFiniteFloatField` local au `.cpp`) **avant** les combinaisons
+   `std::max`/`std::min`.
+2. En cas de valeur non finie, lever une erreur de validation explicite citant le champ.
+3. Conserver l'ordre des operations existant pour les valeurs valides (comportement constant).
 
-## Test de non-regression
+## Strategie de test
 
-`JsonLoaderTests` : un ring avec `outerRadius` non fini (et une ellipse `rx` non fini)
-levent une erreur de validation de finitude explicite ; les primitives valides restent
-inchangees.
+- `JsonLoaderTests` : ring avec `outerRadius` non fini et ellipse `rx` non fini -> erreur
+  de finitude claire.
+- Non-regression : primitives ring/ellipse valides inchangees (memes dimensions calculees).
+
+## Documentation impactee
+
+Aucune (validation interne ; aucun changement d'API ni de format JSON documente).

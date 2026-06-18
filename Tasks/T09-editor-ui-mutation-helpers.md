@@ -1,61 +1,49 @@
 # T09 — Extraire les mutations metier des callbacks ImGui
 
-- **Gravite** : P2 (violation directe « C++ UI mutation rules » de AGENTS.md)
-- **Module** : `mfd_editor/src/application/EditorApplicationInspectors.cpp` (et `EditorApplication.cpp`)
+- **Criticite** : P2 (violation directe « C++ UI mutation rules »)
 - **Vague CI** : 4
 - **Statut** : CONFIRME
 
-## Constat
+## Description breve
 
-AGENTS.md impose : « UI code may collect user intent, but business mutation must stay
-in named helpers. Avoid inline ImGui callbacks that directly mutate runtime/domain
-objects, perform rollback, or update several related fields. »
+40+ callbacks ImGui inline melent capture undo + mutation multi-champs du domaine +
+validation (grep `PushUndoSnapshot`). AGENTS.md impose que le callback ne collecte que
+l'intention et delegue la mutation a une fonction nommee.
 
-Le grep `PushUndoSnapshot` revele 40+ callbacks inline melant capture undo + mutation
-multi-champs + validation dans ce seul fichier. Cas representatifs :
+## Fichiers impactes
 
-- `EditorApplicationInspectors.cpp:1319-1334` — `ImGui::InputText("Name##strobe_name")` :
-  calcule `previousNormalizedName`, normalise/uniquifie, ecrit `strobe.name` +
-  `strobe.normalizedName`, et appelle conditionnellement `SetActivePageStrobe`.
-  -> extraire `RenameSelectedPageStrobe(page, strobe, requestedName)`.
-- `EditorApplicationInspectors.cpp:1344-1369` — bouton « Remove strobe » : efface dans
-  `page.strobes`, vide `activeStrobeName`/`normalizedActiveStrobeName`, reselectionne,
-  reconstruit le statut. -> extraire `RemovePageStrobe(page, index)`.
-- `EditorApplicationInspectors.cpp:1409-1438` — `ImGui::Selectable(templateId)` :
-  `PushUndoSnapshot()`, snapshot `previousStrobe`, reaffecte
-  `MakePageStrobeFromTemplate(...)`, rafraichit le binding de blink, pose le statut
-  (= exactement l'anti-pattern « MutateWithRollback inline » de AGENTS.md).
-  -> extraire `ChangeSelectedStrobeTemplate(page, editedStrobe, templateId)`.
-- `EditorApplicationInspectors.cpp:309-409` (`DrawWindowInspector`) — motif repete
-  `IsItemActivated() -> PushUndoSnapshot()` + ecriture de champ + effet de bord
-  (`ApplyPreviewFontFile`). -> helpers `ApplyWindow<Field>Edit(...)`.
-- `EditorApplicationInspectors.cpp:398-408` — `Checkbox("Expose command UDP")` :
-  construit/reset un `optional` du domaine inline. -> extraire
-  `SetWindowCommandUdpEnabled(bool)`.
-- `EditorApplication.cpp:4796, 4838-4840` — `HandlePreviewInteraction` : `PushUndoSnapshot()`
-  + mutation de `interactionState_` en plein callback. -> `BeginReticleDrag(...)`.
+- `mfd_editor/src/application/EditorApplicationInspectors.cpp` — cas representatifs :
+  l. 1319-1334 (rename strobe), 1344-1369 (remove strobe), 1409-1438 (change template),
+  309-409 (`DrawWindowInspector`), 398-408 (toggle UDP)
+- `mfd_editor/src/EditorApplication.cpp` — l. 4796, 4838-4840 (`HandlePreviewInteraction`)
+- `tests/mfd_editor/` — tests des helpers extraits
 
-## Impact
+## Contrainte de dev (AGENTS.md)
 
-Fonctions UI illisibles melant rendu / undo / validation / mutation ; difficiles a
-tester et a faire evoluer sans regression. Forte source de bugs d'etat.
+- section « C++ UI mutation rules » : « business mutation must stay in named helpers » ;
+  « Avoid inline ImGui callbacks that directly mutate runtime/domain objects, perform
+  rollback, or update several related fields » (avec le patron `ApplySelectedReticleNudge`)
+- « small ImGui callbacks that delegate business logic to named functions »
 
-## Correction recommandee (incrementale, comportement constant)
+## Strategie de resolution detaillee
 
-Pour chaque callback, deplacer la mutation metier dans une fonction nommee
-(membre prive ou helper interne), le callback ne gardant que la collecte d'intention,
-selon le patron AGENTS.md :
-```cpp
-if (ImGui::Button("Nudge right"))
-{
-    ApplySelectedReticleNudge(liveScene, displayScene, Vec2 {kStep, 0.0f});
-}
-```
-Avancer par petits lots relisibles ; chaque lot doit conserver exactement le
-comportement (undo inclus).
+Par petits lots relisibles, extraire chaque mutation dans une fonction nommee (membre
+prive), le callback ne gardant que la collecte d'intention :
+- `RenameSelectedPageStrobe(page, strobe, requestedName)`
+- `RemovePageStrobe(page, index)` (renvoie un resultat ; le `break` reste dans l'UI)
+- `ChangeSelectedStrobeTemplate(page, editedStrobe, templateId)`
+- `ApplyWindow<Field>Edit(...)` / `SetWindowCommandUdpEnabled(bool)`
+- `BeginReticleDrag(...)` pour l'interaction preview
 
-## Test de non-regression
+Chaque lot conserve exactement le comportement (undo inclus).
 
-`tests/mfd_editor` : tests cibles sur les nouveaux helpers (rename strobe, remove
-strobe, change template, toggle UDP) verifiant l'effet sur le modele **et** la pile
-undo, independamment de ImGui.
+## Strategie de test
+
+- `tests/mfd_editor` : tests cibles sur chaque helper (rename/remove/change template/
+  toggle UDP) verifiant l'effet sur le modele **et** sur la pile undo, sans ImGui.
+- Non-regression : comportement editeur inchange.
+
+## Documentation impactee
+
+Aucune (refactor interne) ; mentionner le patron dans la doc archi editeur si elle
+decrit la couche UI.

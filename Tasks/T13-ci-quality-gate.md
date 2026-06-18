@@ -1,47 +1,46 @@
 # T13 — Garde-fou CI (clang-tidy + grep AGENTS.md)
 
-- **Gravite** : P2 (prevention de regression / reduction des cycles CI)
-- **Module** : `.github/workflows/`, `Scripts/`, `.clang-tidy`
+- **Criticite** : P2 (prevention de regression / reduction des cycles CI)
 - **Vague CI** : 0 (a faire en premier ; independant)
 - **Statut** : PROPOSITION
 
-## Constat
+## Description breve
 
-- `.clang-tidy` definit un set de checks correct mais `WarningsAsErrors: ''` : rien
-  n'echoue. La CI (`ci.yml`) ne lance **ni** clang-tidy **ni** le script de grep
-  d'anti-patterns que AGENTS.md decrit pourtant (« C++ readability validation before
-  commit »).
-- `MFD_ENABLE_WARNINGS_AS_ERRORS` existe (CMake) mais vaut `OFF`.
-- Resultat : les anti-patterns AGENTS.md (lambdas-helpers, casts non expliques, `(void)`,
-  `using namespace`, structs locales...) ne sont detectes par personne avant la revue.
+`.clang-tidy` n'echoue jamais (`WarningsAsErrors: ''`) et la CI ne lance ni clang-tidy ni
+le script de grep d'anti-patterns que AGENTS.md decrit. Les anti-patterns ne sont donc
+detectes par personne avant la revue. Ajouter un filet rapide qui echoue tot, hors de la
+matrice Windows lourde.
 
-## Objectif
+## Fichiers impactes
 
-Faire echouer **tot et localement** (avant de consommer un des 4 builds Windows de la
-CI) toute reintroduction des classes de defauts listees par AGENTS.md, et stabiliser la
-qualite pendant que les vagues 1-5 reduisent la dette.
+- `.github/workflows/` — nouveau job de lint leger (Linux)
+- `Scripts/check_agents_patterns.*` — nouveau script de garde
+- `.clang-tidy` / `CMakeLists.txt` (`MFD_ENABLE_WARNINGS_AS_ERRORS`) — activation progressive
+- `docs/DEVELOPMENT.md` — usage local
 
-## Correction recommandee (minimale, additive)
+## Contrainte de dev (AGENTS.md)
 
-1. **Script de garde** `Scripts/check_agents_patterns.*` reprenant la liste de grep de
-   AGENTS.md (section « C++ readability validation before commit ») et renvoyant un code
-   d'echec sur les motifs interdits **non justifies** (allowlist explicite pour les
-   frontieres C deja auditees : sockets, WGL/GL, Win32, protobuf wire — cf. revue casts).
-2. **Job CI dedie** (Linux, leger) executant ce script + `clang-tidy` sur
-   `compile_commands.json` (deja exporte via `CMAKE_EXPORT_COMPILE_COMMANDS`), **separe**
-   de la matrice de build Windows pour ne pas rallonger ni multiplier les builds lourds.
-3. Activer progressivement `MFD_ENABLE_WARNINGS_AS_ERRORS=ON` **une fois** les vagues
-   nettoyees, d'abord sur un seul preset.
+- section « C++ readability validation before commit » (la liste de grep a reprendre)
+- « Every hit must be reviewed [...] intentional, localized, justified »
+- Build : « presets Visual Studio 2022 Win32 » restent la reference de build ; le lint est
+  un job **separe** pour ne pas multiplier les builds lourds
 
-## Reduction des « build go »
+## Strategie de resolution detaillee
 
-Un job de lint rapide qui echoue en quelques secondes evite de declencher (et d'attendre)
-4 builds Windows pour un defaut trivial. Le script est aussi executable en local avant
-push, ce qui supprime les allers-retours CI.
+1. Script `Scripts/check_agents_patterns` reprenant les grep de AGENTS.md, renvoyant un
+   code d'echec sur motifs interdits **non justifies**, avec allowlist explicite pour les
+   frontieres C deja auditees (sockets, WGL/GL, Win32, protobuf wire — cf. revue casts).
+2. Job CI Linux leger : execute le script + `clang-tidy` sur `compile_commands.json`
+   (deja exporte), **separe** de la matrice Windows.
+3. Activer `MFD_ENABLE_WARNINGS_AS_ERRORS=ON` **apres** nettoyage des vagues, d'abord sur
+   un seul preset.
 
-## Test / validation
+## Strategie de test
 
-- Le script doit echouer sur un cas de test introduit volontairement (ex. une lambda
-  `}();` non justifiee) et reussir sur l'arbre courant (apres allowlist des frontieres
-  C deja auditees).
-- Documenter l'usage dans `docs/DEVELOPMENT.md`.
+- Le script echoue sur un cas introduit volontairement (ex. `}();` non justifie) et
+  reussit sur l'arbre courant (apres allowlist).
+- Le job CI s'execute en quelques secondes et bloque la PR avant les builds Windows.
+
+## Documentation impactee
+
+`docs/DEVELOPMENT.md` : documenter l'execution locale du script avant push.

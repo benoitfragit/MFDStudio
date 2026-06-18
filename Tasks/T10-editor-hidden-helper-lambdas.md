@@ -1,48 +1,45 @@
 # T10 — Promouvoir les lambdas-helpers en fonctions nommees
 
-- **Gravite** : P2 (violation « lambdas used as hidden helper functions » de AGENTS.md)
-- **Module** : `mfd_editor/src/EditorApplication.cpp`
+- **Criticite** : P2 (violation « lambdas used as hidden helper functions »)
 - **Vague CI** : 4
 - **Statut** : CONFIRME
 
-## Constat
+## Description breve
 
-AGENTS.md interdit « lambdas used as hidden helper functions » et reserve les lambdas
-aux predicats STL directs (`find_if`, `sort`, `visit`...). Sites a corriger :
+Plusieurs lambdas locales de `EditorApplication.cpp` servent de helpers metier/rendu
+(rendu de menus, mutation de selection, init d'interaction, reset d'etat) au lieu de
+simples predicats STL. AGENTS.md reserve les lambdas aux predicats STL directs.
 
-- `EditorApplication.cpp:5025-5086` — `drawClipItemsForTarget` : rend des items de menu
-  ET appelle `ApplyPageReticleClipping` + pilote la completion du tutoriel.
-  -> membre prive `DrawReticleClipMenuItems(page, reticleIndex, primitiveIndex)`.
-- `EditorApplication.cpp:5145-5156` / `5158-5211` — `collectClipTargetsForReticle` et
-  `drawReticleContextContent` (qui capture deux autres lambdas, rend, et mute la
-  selection via `SelectPageReticle` / `TogglePageReticleSelection`).
-  -> deux membres prives.
-- `EditorApplication.cpp:4767-4798` — `initializeInteraction` : 30 lignes mutant
-  `interactionState_` + `PushUndoSnapshot()`. -> `BeginReticleHandleInteraction(...)`.
-- `EditorApplication.cpp:4513-4519` / `5260` — `cancelPreviewInteraction` /
-  `cancelLibraryPreviewInteraction` : reinitialisent 4 champs.
-  -> `ResetPreviewInteractionState()`.
-- `EditorApplication.cpp:3495-3500` et `5508/5522/6573/6543/6550` — `toScreenPoint`,
-  `drawHandle` et helpers de geometrie/rendu multi-lignes reutilises (l'exception
-  « petit predicat STL » ne s'applique pas). -> fonctions libres locales au `.cpp`
-  ou membres.
+## Fichiers impactes
 
-Aucune capture large `[&]`/`[=]` ni struct locale dans une fonction trouvee dans ce
-fichier : ces anti-patterns sont propres ici.
+- `mfd_editor/src/EditorApplication.cpp` — `drawClipItemsForTarget` (l. 5025-5086),
+  `collectClipTargetsForReticle`/`drawReticleContextContent` (l. 5145-5211),
+  `initializeInteraction` (l. 4767-4798), `cancelPreviewInteraction`/
+  `cancelLibraryPreviewInteraction` (l. 4513-4519, 5260), `toScreenPoint`/`drawHandle`
+  et helpers geometrie (l. 3495-3500, 5508/5522/6543/6550/6573)
+- `tests/mfd_editor/` — tests des helpers extraits
 
-## Impact
+## Contrainte de dev (AGENTS.md)
 
-Helpers metier caches dans des lambdas locales : difficiles a tester, a nommer dans
-les traces, et a relire. Aggrave le god object (cf. T08).
+- « ne pas introduire de lambda locale pour des helpers UI ou metier si elle n'est pas
+  utilisee directement par un algorithme (`find_if`, `sort`, `visit`...) ; preferer une
+  fonction nommee, locale au `.cpp` si possible »
+- « lambdas used as hidden helper functions » -> interdit
 
-## Correction recommandee (incrementale, comportement constant)
+## Strategie de resolution detaillee
 
-Promouvoir chaque lambda-helper en fonction nommee (membre prive ou fonction libre
-locale au `.cpp` quand l'etat `this` n'est pas requis). Aucun changement de
-comportement.
+Promouvoir chaque lambda-helper en :
+- **membre prive** quand l'etat `this` est requis (`DrawReticleClipMenuItems`,
+  `BeginReticleHandleInteraction`, `ResetPreviewInteractionState`) ;
+- **fonction libre locale au `.cpp`** sinon (`toScreenPoint`, `drawHandle`, geometrie).
+Aucun changement de comportement. (Aucune capture large `[&]`/`[=]` ni struct locale dans
+ce fichier : ces points sont deja propres.)
 
-## Test de non-regression
+## Strategie de test
 
-Couverture ciblee sur les nouveaux helpers extraits (clipping de reticule, reset
-d'interaction) ; verification que le comportement de selection/interaction est
-inchange.
+- `tests/mfd_editor` : couverture cible sur clipping de reticule et reset d'interaction ;
+  comportement de selection/interaction inchange.
+
+## Documentation impactee
+
+Aucune (refactor interne).

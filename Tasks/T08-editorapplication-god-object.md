@@ -1,73 +1,59 @@
-# T08 — Decomposer le god object `EditorApplication`
+# T08 — Decomposer (de maniere ciblee) le god object `EditorApplication`
 
-- **Gravite** : P2 (violation « eviter les classes monolithiques » de AGENTS.md ;
-  chantier de fond)
-- **Module** : `mfd_editor` (`EditorApplication.{h,cpp}`, `application/*`)
-- **Vague CI** : 5 (phase en plusieurs PR internes)
+- **Criticite** : P2 (maintenabilite ; chantier de fond, phase)
+- **Vague CI** : 5 (plusieurs PR internes)
 - **Statut** : CONFIRME
 
-## Constat
+## Description breve
 
-`EditorApplication` (`include/EditorApplication.h`) declare **~190 methodes privees**
-et porte les etats `documentState_`, `previewState_`, `workflowState_`,
-`clipboardState_`, `interactionState_`, `layoutState_`, `services_`. Bien qu'il delegue
-deja a des services `editor::*`, la classe reste le hub central et melange **9 clusters
-de responsabilites** repartis sur `EditorApplication.cpp` (8080 l.),
-`EditorApplicationInspectors.cpp` (4202 l.) et `EditorApplicationShell.cpp`.
+`EditorApplication` declare ~190 methodes privees et porte 7 blocs d'etat ; il melange
+9 clusters de responsabilites sur 3 gros `.cpp` (8080 + 4202 + 1004 lignes). Decoupage
+**incremental et cible** en services cohesifs, sans reecriture massive.
 
-Clusters identifies (avec evidence de methodes / lignes) :
+## Fichiers impactes
 
-1. **Document / persistance** (~15) : `LoadWindowConfiguration` (1506), `SaveAll` (1546),
-   `WriteRecoverySnapshot` (1569), `RecoverPreviousSession` (1605),
-   `CollectWatchedAssetFiles` (1643), `RearmAssetWatcher` (1665). -> `EditorDocumentSession`.
-2. **Undo/redo** (~6) : `Undo`/`Redo` (1671/1684), `CaptureCurrentSnapshot` (1697),
-   `RestoreSnapshot` (1707), `PushUndoSnapshot` x2 (1728/1733). -> `EditorUndoCoordinator`.
-3. **Modele de selection** (~25) : `Select*` (5742-5963), accesseurs `Selected*`/`Active*`
-   (5964-6113). -> `EditorSelectionModel`.
-4. **Presse-papier** (~9) : `Copy/Cut/PasteSelectedPageReticles` (6164-6346), variantes
-   library/primitive. -> completer `EditorPrimitiveClipboardService`.
-5. **Preview GPU / texture / police** (~17) : `EnsurePreviewTexture`,
-   `RenderLayerPreviewThumbnail`, `Apply/Ensure/ReleasePreviewFont`,
-   `MeasurePreviewTextWidthLogical` (2499-2810). -> `EditorPreviewRenderer`.
-6. **Hit-testing / manipulation directe** (~15) : `HandlePreviewInteraction` (4503),
-   `ApplyMouseTransform` (7214), `Collect/FindNearestPageReticle` (7013/7074),
-   `Compute*ScreenBounds`/`*HitDistancePixels` (6441-6806).
-   -> `EditorViewportInteractionController`.
-7. **Rendu preview / overlays** (~15) : `DrawPagePreview`, `DrawPreviewOverlays`,
-   `DrawPagePreviewMinimap`/`Gizmos`, `DrawProblemsPanel` (3026-4105). -> `EditorPreviewView`.
-8. **Inspecteurs** (12 grandes fns, tout `EditorApplicationInspectors.cpp`) :
-   `DrawWindowInspector` (289), `DrawPageInspector` (577), `DrawPageStrobeInspector` (1072),
-   `DrawPageReticleInspector` (1959), `DrawLibraryPrimitiveInspector` (3511)...
-   -> classes d'inspecteur par cible.
-9. **Popups / workflows de creation** (~25) : `DrawPopups` (7387), `CreateNewPage/Window`,
-   `Open*Popup`, `Build*Request`, `Execute*Plan`, `Browse*`. -> `EditorWorkflowController`.
+- `mfd_editor/include/EditorApplication.h`
+- `mfd_editor/src/EditorApplication.cpp` (8080 l.)
+- `mfd_editor/src/application/EditorApplicationInspectors.cpp` (4202 l.)
+- `mfd_editor/src/application/EditorApplicationShell.cpp`
+- nouveaux entetes/sources de services extraits (ex. `EditorUndoCoordinator`,
+  `EditorSelectionModel`, `EditorPreviewRenderer`, `EditorViewportInteractionController`,
+  `EditorWorkflowController`)
+- `tests/mfd_editor/` — tests des services extraits
 
-## Impact
+## Contrainte de dev (AGENTS.md) — avec la nuance god object
 
-Classe ingerable : surface enorme, etats partages, couplage fort entre rendu, etat et
-metier. Tout changement risque une regression a distance. Viole frontalement
-AGENTS.md (« une classe = une responsabilite principale », « eviter les classes
-monolithiques », « limiter la surface publique »).
+- « une classe = une responsabilite principale » ; « eviter les classes monolithiques » ;
+  « limiter la surface publique »
+- **MAIS** regle explicite qui permet de s'affranchir d'un decoupage total :
+  « This project favors controlled, local improvements over broad rewrites » et
+  « broad rewrites that do not reduce concrete maintenance risk » sont **interdites**.
+  => On ne casse PAS `EditorApplication` pour le principe : on extrait **uniquement** les
+  clusters ou l'extraction reduit un risque de maintenance concret, par PR independantes.
+  Un noyau de composition/orchestration peut legitimement rester volumineux.
 
-## Correction recommandee (phasee, comportement constant)
+## Strategie de resolution detaillee
 
-Refactor **incremental**, un service extrait par PR, en commencant par les clusters
-les moins couples afin que chaque PR reste verte independamment (et consomme un seul
-cycle CI). Ordre suggere :
+Faire T09 et T10 d'abord (reduisent la surface a deplacer). Puis, **un service par PR**,
+du moins couple au plus couple, chacune verte independamment (1 cycle CI / PR) :
 
-1. T09 + T10 d'abord (vague 4) : extraire helpers et lambdas -> reduit la surface a
-   deplacer.
-2. `EditorUndoCoordinator` (cluster 2) puis `EditorSelectionModel` (cluster 3) :
-   dependances claires, fort effet de levier.
-3. `EditorPreviewRenderer` (5) + `EditorPreviewView` (7).
-4. `EditorViewportInteractionController` (6).
-5. `EditorWorkflowController` (9) + decoupage des inspecteurs (8).
+1. `EditorUndoCoordinator` (Undo/Redo/Capture/Restore/PushUndoSnapshot, l. ~1671-1733).
+2. `EditorSelectionModel` (Select*/accesseurs Selected*/Active*, l. ~5742-6113).
+3. `EditorPreviewRenderer` (textures/police/thumbnails, l. ~2499-2810)
+   + `EditorPreviewView` (DrawPagePreview/Overlays/Minimap/Gizmos, l. ~3026-4105).
+4. `EditorViewportInteractionController` (hit-testing/ApplyMouseTransform, l. ~4503-7214).
+5. `EditorWorkflowController` (popups/creation, l. ~7387+) + inspecteurs par cible.
 
-Chaque extraction : deplacer l'etat + les methodes dans le nouveau type, `EditorApplication`
-ne garde que la composition, **aucun** changement de comportement, tests existants verts.
+Chaque extraction : deplacer etat + methodes dans le nouveau type, `EditorApplication`
+ne garde que la composition. Aucun changement de comportement.
 
-## Test de non-regression
+## Strategie de test
 
-A chaque phase : conserver les tests `tests/mfd_editor` existants verts et ajouter des
-tests cibles sur le service extrait (undo, selection, interaction) en isolation de
-`EditorApplication`.
+- Conserver verts les tests `tests/mfd_editor` existants a chaque phase.
+- Ajouter des tests cibles par service extrait (undo, selection, interaction) en
+  isolation de `EditorApplication`.
+
+## Documentation impactee
+
+`docs/architecture/editor_workspace_layout.md` (ou doc archi editeur) : refleter la
+nouvelle decomposition en services au fur et a mesure des PR.

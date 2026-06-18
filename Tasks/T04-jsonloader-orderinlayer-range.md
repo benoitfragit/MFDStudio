@@ -1,42 +1,46 @@
 # T04 — Borner `orderInLayer` (int64 + controle de plage)
 
-- **Gravite** : P2 (robustesse / erreur logique silencieuse)
-- **Module** : `mfd_api/src/io/JsonLoader.cpp`
-- **Fonction** : `ParseDynamicReticleLayerBindings` (l. ~2224-2232)
+- **Criticite** : P2 (robustesse / erreur logique silencieuse)
 - **Vague CI** : 1
 - **Statut** : PLAUSIBLE
 
-## Scenario minimal
+## Description breve
 
-```json
-{ "orderInLayer": 99999999999999999 }
-```
+`ParseDynamicReticleLayerBindings` verifie `is_number_integer()` mais lit avec
+`get<int>()`, ce qui tronque silencieusement une valeur depassant `int`
+(ex. `"orderInLayer": 99999999999999999`). La valeur tronquee fausse la detection de
+doublons `bindingOrdersByLayer`.
 
-## Cause exacte
+## Fichiers impactes
 
-`is_number_integer()` est verifie (l. ~2224), mais `get<int>()` (l. ~2232) reduit
-une valeur pouvant depasser `int`, avec **troncature silencieuse** (wrap). La valeur
-tronquee alimente ensuite la detection de doublons `bindingOrdersByLayer`.
+- `mfd_api/src/io/JsonLoader.cpp` — `ParseDynamicReticleLayerBindings` (l. ~2224-2232)
+- `tests/mfd_api/JsonLoaderTests.cpp` — nouveau cas
+- include : `<limits>`
 
-## Impact
+## Contrainte de dev (AGENTS.md)
 
-Erreur logique (detection de conflit d'ordre faussee), pas d'insecurite memoire.
-Viole la regle AGENTS.md « verifier explicitement les bornes et valeurs des ids/enums
-a chaque frontiere ».
+- « pour chaque frontiere d'entree [...] verifier explicitement les bornes [...] ids, enums »
+- « encapsuler les invariants dans les types »
 
-## Correction recommandee (minimale)
+## Strategie de resolution detaillee
 
-Lire en `std::int64_t` puis valider la plage avant affectation :
-```cpp
-const std::int64_t raw = node.get<std::int64_t>();
-if (raw < std::numeric_limits<int>::min() || raw > std::numeric_limits<int>::max())
-{
-    throw std::runtime_error("Field 'orderInLayer' is out of range");
-}
-const int orderInLayer = static_cast<int>(raw);
-```
+1. Lire en `std::int64_t` puis controler la plage avant affectation :
+   ```cpp
+   const std::int64_t raw = node.get<std::int64_t>();
+   if (raw < std::numeric_limits<int>::min() || raw > std::numeric_limits<int>::max())
+   {
+       throw std::runtime_error("Field 'orderInLayer' is out of range");
+   }
+   const int orderInLayer = static_cast<int>(raw);
+   ```
+2. Verifier l'include `<limits>`.
 
-## Test de non-regression
+## Strategie de test
 
-`JsonLoaderTests` : un binding avec `orderInLayer = 2^40` leve une erreur de plage
-au lieu d'une troncature silencieuse ; les ordres valides restent inchanges.
+- `JsonLoaderTests` : binding avec `orderInLayer = 2^40` -> erreur de plage (pas de troncature).
+- Non-regression : ordres valides (negatifs/positifs dans `int`) inchanges, detection de
+  doublon correcte.
+
+## Documentation impactee
+
+Aucune.

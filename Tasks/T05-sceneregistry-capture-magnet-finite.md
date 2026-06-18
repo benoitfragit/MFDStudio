@@ -1,39 +1,45 @@
 # T05 — Valider capture / magnet (chargement + restauration de snapshot)
 
-- **Gravite** : P2 (robustesse / propagation NaN)
-- **Module** : `mfd_api/src/runtime/SceneRegistry.cpp`
-- **Fonctions** : `IsInsideCaptureArea` (l. ~335-339), `RestoreRuntimeSnapshot` (l. ~1890-1896)
+- **Criticite** : P2 (robustesse / propagation NaN)
 - **Vague CI** : 2
 - **Statut** : PLAUSIBLE
 
-## Scenario minimal
+## Description breve
 
-Un strobe charge depuis un document (ou restaure depuis un snapshot) dont
-`capture.radius` / `capture.size` ou `magnet.radius` est `NaN` ou negatif.
-Contrairement aux setters live, le chargement de document et la restauration de
-snapshot **ne revalident pas** ces flottants.
+Le chargement de document et `RestoreRuntimeSnapshot` ne revalident pas
+`capture.radius`/`capture.size`/`magnet.radius` (contrairement aux setters live). Un
+rayon `NaN`/negatif rend toute comparaison `<=` fausse (aucune capture silencieusement)
+et propage du `NaN` dans la logique magnet.
 
-## Cause exacte
+## Fichiers impactes
 
-Les comparaisons `radius * radius` et `size.x * 0.5f` avec `<=` renvoient toujours
-`false` sur `NaN` (toute comparaison avec NaN est fausse). Un rayon de magnet non
-fini se propage ensuite dans `FindNearestStrobeMagnetTarget` / `StrobeMagnetSummary`.
+- `mfd_api/src/runtime/SceneRegistry.cpp` — `IsInsideCaptureArea` (l. ~335-339),
+  `RestoreRuntimeSnapshot` (l. ~1890-1896), chemins de load document
+- `tests/mfd_api/SceneRegistryTests.cpp` — nouveau test
 
-## Impact
+## Contrainte de dev (AGENTS.md)
 
-Comportement silencieux et faux (aucune capture la ou elle devrait avoir lieu),
-propagation de NaN dans la logique magnet. Pas de crash demontre. Viole l'exigence
-AGENTS.md de revalider les entrees a **toutes** les frontieres, y compris load/restore.
+- « verifier explicitement [...] les valeurs non finies » a **toutes** les frontieres
+- « ne jamais ecarter un risque au motif que l'editeur ne devrait pas produire cette valeur »
+- « centralized [...] helpers when behavior must stay consistent » (memes regles que les setters live)
+- s'appuie sur les predicats centralises (cf. T14)
 
-## Correction recommandee (minimale)
+## Strategie de resolution detaillee
 
-Appliquer aux chemins « load document » et `RestoreRuntimeSnapshot` la **meme**
-validation/clamp que les setters live (rayon/taille finis et >= 0). Factoriser dans
-un helper interne `SanitizeCaptureConfig` / `SanitizeMagnetConfig` reutilise par les
-setters et par load/restore, pour eviter la divergence de regles (regle AGENTS.md
-« command/rule helpers »).
+1. Factoriser la regle des setters live dans des helpers internes
+   `SanitizeCaptureConfig` / `SanitizeMagnetConfig` (rayon/taille finis et >= 0,
+   sinon clamp/desactivation deterministe).
+2. Appeler ces helpers sur les chemins « load document » **et** dans `RestoreRuntimeSnapshot`.
+3. Reutiliser `runtime_validation::IsFinite*` (centralise par T14) pour les tests de finitude.
 
-## Test de non-regression
+## Strategie de test
 
-`SceneRegistryTests` : restaurer un snapshot avec rayon magnet / capture = NaN
-donne un resultat deterministe et sur (pas de capture, pas de NaN qui s'echappe).
+- `SceneRegistryTests` : restaurer un snapshot avec rayon magnet/capture = `NaN` ->
+  resultat deterministe (pas de capture), aucun `NaN` qui s'echappe vers
+  `FindNearestStrobeMagnetTarget`/`StrobeMagnetSummary`.
+- Non-regression : capture/magnet valides inchanges.
+
+## Documentation impactee
+
+`docs/CONCEPTS.md` ou doc runtime si le comportement de capture/magnet sur entree
+invalide y est decrit (preciser le clamp/desactivation). Sinon aucune.
