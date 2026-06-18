@@ -127,6 +127,29 @@ mfd::Vec2 SnapToSharedGridIfEnabled(const mfd::Vec2 value, const editor::PagePre
     return viewOptions.snapToGrid ? editor::app::SnapToGrid(value, SharedGridStepLogical(viewOptions)) : value;
 }
 
+// Draws one shell side-panel visibility checkbox. The checkbox reflects the effective
+// visibility, so when the responsive layout auto-collapses a wanted panel on a narrow
+// window the entry is shown unchecked and disabled instead of falsely claiming a hidden
+// panel is visible. Returns true when the user toggled the visibility preference.
+bool DrawShellPanelVisibilityToggle(const char* label,
+                                    bool& visiblePreference,
+                                    const bool autoCollapsed,
+                                    const char* tooltip)
+{
+    bool effectiveVisible = visiblePreference && !autoCollapsed;
+    ImGui::BeginDisabled(autoCollapsed);
+    const bool changed = ImGui::Checkbox(label, &effectiveVisible);
+    ImGui::EndDisabled();
+    if (changed)
+    {
+        visiblePreference = effectiveVisible;
+    }
+    ShowItemTooltip(autoCollapsed
+                        ? "This panel is temporarily auto-hidden because the window is narrow. Widen the window to bring it back."
+                        : tooltip);
+    return changed;
+}
+
 editor::app::ViewportGridInput MakeViewportGridInput(const editor::app::ViewportState& viewport,
                                                      const editor::PagePreviewViewOptions& viewOptions) noexcept
 {
@@ -1287,9 +1310,17 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     {
         layoutState_.sidebarWidth = *uiState.sidebarWidth;
     }
+    if (uiState.sidebarVisible.has_value())
+    {
+        layoutState_.sidebarVisible = *uiState.sidebarVisible;
+    }
     if (uiState.inspectorWidth.has_value())
     {
         layoutState_.inspectorWidth = *uiState.inspectorWidth;
+    }
+    if (uiState.inspectorVisible.has_value())
+    {
+        layoutState_.inspectorVisible = *uiState.inspectorVisible;
     }
     if (uiState.libraryStudioPageWidth.has_value())
     {
@@ -1327,7 +1358,9 @@ EditorApplication::~EditorApplication()
 
     editor::EditorUiPersistentState uiState;
     uiState.sidebarWidth = layoutState_.sidebarWidth;
+    uiState.sidebarVisible = layoutState_.sidebarVisible;
     uiState.inspectorWidth = layoutState_.inspectorWidth;
+    uiState.inspectorVisible = layoutState_.inspectorVisible;
     if (layoutState_.libraryStudioPageWidth > 0.0f)
     {
         uiState.libraryStudioPageWidth = layoutState_.libraryStudioPageWidth;
@@ -3331,6 +3364,33 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
 
     if (ImGui::BeginPopup(kPagePreviewDisplayPopupId))
     {
+        // Shell side panels belong to the normal editor layout only. They are offered here,
+        // next to the fullscreen button, so the menu bar no longer needs a separate View menu.
+        // Fullscreen hides the shell, so the toggles are skipped while it is active.
+        const bool showShellPanelToggles = allowFullscreenToggle && !services_.fullscreenPreview.IsActive();
+        if (showShellPanelToggles)
+        {
+            ImGui::TextDisabled("Panels");
+            if (DrawShellPanelVisibilityToggle("Sidebar",
+                                               layoutState_.sidebarVisible,
+                                               layoutState_.sidebarAutoCollapsed,
+                                               "Show or hide the left page and reticle selector sidebar.") &&
+                tutorial_->MatchesTarget("page_preview_view_sidebar"))
+            {
+                tutorial_->CompleteStep();
+            }
+            tutorial_->DrawHalo(
+                "page_preview_view_sidebar",
+                "Toggle Sidebar",
+                "Hide the left page and reticle selector to focus on the page preview. Re-open this menu to show it again.");
+
+            DrawShellPanelVisibilityToggle("Inspector",
+                                           layoutState_.inspectorVisible,
+                                           layoutState_.inspectorAutoCollapsed,
+                                           "Show or hide the right inspector panel.");
+            ImGui::Separator();
+        }
+
         const bool layerInspectorChanged = ImGui::Checkbox("Layer Inspector", &layoutState_.pagePreviewViewOptions.showLayerInspector);
         if (layerInspectorChanged && !layoutState_.pagePreviewViewOptions.showLayerInspector)
         {

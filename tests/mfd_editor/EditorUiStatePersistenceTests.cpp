@@ -55,7 +55,9 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
 
     editor::EditorUiPersistentState saved;
     saved.sidebarWidth = 320.0f;
+    saved.sidebarVisible = false;
     saved.inspectorWidth = 420.0f;
+    saved.inspectorVisible = true;
     saved.libraryStudioPageWidth = 540.0f;
     saved.showGrid = false;
     saved.snapToGrid = true;
@@ -66,13 +68,17 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     const editor::EditorUiPersistentState loaded = editor::LoadEditorUiState(file);
 
     ASSERT_TRUE(loaded.sidebarWidth.has_value());
+    ASSERT_TRUE(loaded.sidebarVisible.has_value());
     ASSERT_TRUE(loaded.inspectorWidth.has_value());
+    ASSERT_TRUE(loaded.inspectorVisible.has_value());
     ASSERT_TRUE(loaded.libraryStudioPageWidth.has_value());
     ASSERT_TRUE(loaded.showGrid.has_value());
     ASSERT_TRUE(loaded.snapToGrid.has_value());
     ASSERT_TRUE(loaded.gridStepLogical.has_value());
     EXPECT_FLOAT_EQ(*loaded.sidebarWidth, 320.0f);
+    EXPECT_FALSE(*loaded.sidebarVisible);
     EXPECT_FLOAT_EQ(*loaded.inspectorWidth, 420.0f);
+    EXPECT_TRUE(*loaded.inspectorVisible);
     EXPECT_FLOAT_EQ(*loaded.libraryStudioPageWidth, 540.0f);
     EXPECT_FALSE(*loaded.showGrid);
     EXPECT_TRUE(*loaded.snapToGrid);

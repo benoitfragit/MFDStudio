@@ -221,6 +221,8 @@ The same popup also exposes **Copy selection**, **Cut selection**, **Paste copie
 
 The page preview now owns one editor-only **View** menu. Open it from the preview header to toggle:
 
+- **Panels > Sidebar** (hide or show the left page and reticle selector)
+- **Panels > Inspector** (hide or show the right inspector)
 - **Layer Inspector**
 - **Minimap**
 - **Problems**

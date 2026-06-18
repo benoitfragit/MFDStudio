@@ -29,8 +29,12 @@ struct EditorUiPersistentState
 {
     /** @brief Persisted width of the left navigation sidebar. */
     std::optional<float> sidebarWidth {};
+    /** @brief Persisted visibility preference of the left navigation sidebar. */
+    std::optional<bool> sidebarVisible {};
     /** @brief Persisted width of the right inspector panel. */
     std::optional<float> inspectorWidth {};
+    /** @brief Persisted visibility preference of the right inspector panel. */
+    std::optional<bool> inspectorVisible {};
     /** @brief Persisted width of the page-context pane in reticle-studio mode. */
     std::optional<float> libraryStudioPageWidth {};
     /** @brief Persisted state of the shared visible editor grid. */

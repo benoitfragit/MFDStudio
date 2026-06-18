@@ -35,8 +35,10 @@ splitter width, the workspace floor and each side panel's preference
   (`720x480`); the full three-column layout is no longer required to resize
 
 The shell surfaces the current mode in the menu bar and lets the user toggle
-panel visibility from the top-level **View** menu, so an auto-collapsed or
-user-hidden panel always has a visible way back.
+panel visibility from the **Panels** section of the page-preview **View** button,
+so an auto-collapsed or user-hidden panel always has a visible way back. The
+visibility preferences are persisted across sessions, while the transient
+auto-collapse state is shown as a disabled, unchecked entry.
 
 ## Page-Preview Docks
 

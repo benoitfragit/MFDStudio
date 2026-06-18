@@ -219,23 +219,6 @@ void EditorApplication::DrawMenuBar()
         ImGui::EndMenu();
     }
 
-    if (ImGui::BeginMenu("View"))
-    {
-        // Visibility is a session preference: toggling here never fights the responsive
-        // auto-collapse, which only hides a wanted panel transiently on a narrow window.
-        ImGui::MenuItem("Sidebar", nullptr, &layoutState_.sidebarVisible);
-        ShowItemTooltip(
-            layoutState_.sidebarAutoCollapsed
-                ? "Sidebar is temporarily auto-hidden because the window is narrow. Widen the window to bring it back."
-                : "Show or hide the left navigation sidebar.");
-        ImGui::MenuItem("Inspector", nullptr, &layoutState_.inspectorVisible);
-        ShowItemTooltip(
-            layoutState_.inspectorAutoCollapsed
-                ? "Inspector is temporarily auto-hidden because the window is narrow. Widen the window to bring it back."
-                : "Show or hide the right inspector panel.");
-        ImGui::EndMenu();
-    }
-
     if (ImGui::BeginMenu("Window", hasOpenWindow))
     {
         const bool editWindowRequested = ImGui::MenuItem("Window settings");
@@ -463,7 +446,7 @@ void EditorApplication::DrawMenuBar()
         ImGui::TextColored(ImVec4(0.40f, 0.74f, 0.95f, 1.0f), "[%s]", layoutModeLabel);
         ShowItemTooltip(
             "The window is narrow: auxiliary panels auto-collapse to protect the workspace. "
-            "Use the View menu or widen the window to restore them.");
+            "Use the page-preview View button or widen the window to restore them.");
     }
 
     ImGui::EndMainMenuBar();
@@ -565,6 +548,7 @@ bool EditorApplication::IsLibraryStudioWorkspaceVisible() const
         tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowMinimap)) ||
         tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights)) ||
         tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowProblemsPanel)) ||
+        tutorial_->IsStep(static_cast<int>(TutorialStepId::HideWorkspacePanels)) ||
         tutorial_->IsStep(static_cast<int>(TutorialStepId::ToggleFullscreenPreview)) ||
         tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectReticleRenameWorkflow)) ||
         tutorial_->IsStep(static_cast<int>(TutorialStepId::InspectDesignExportWorkflow));

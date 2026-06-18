@@ -758,7 +758,8 @@ bool EditorTutorialController::ShouldResetPagePreviewViewPhaseOnClose() const no
            IsStepPhase(static_cast<int>(TutorialStepId::ShowLayerInspector), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::ShowMinimap), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights), 1) ||
-           IsStepPhase(static_cast<int>(TutorialStepId::ShowProblemsPanel), 1);
+           IsStepPhase(static_cast<int>(TutorialStepId::ShowProblemsPanel), 1) ||
+           IsStepPhase(static_cast<int>(TutorialStepId::HideWorkspacePanels), 1);
 }
 
 bool EditorTutorialController::ShouldResetReticleCreatePopupOnCancel() const noexcept
@@ -1147,6 +1148,8 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
         return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_highlight_usages";
     case static_cast<int>(TutorialStepId::ShowProblemsPanel):
         return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_problems";
+    case static_cast<int>(TutorialStepId::HideWorkspacePanels):
+        return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_sidebar";
     case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
         return "page_preview_fullscreen";
     case static_cast<int>(TutorialStepId::SaveTutorialAssets):
@@ -1242,6 +1245,8 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
         return stepPhase_ == 0 ? "Click View." : "Enable Highlight reticle usages.";
     case static_cast<int>(TutorialStepId::ShowProblemsPanel):
         return stepPhase_ == 0 ? "Click View." : "Enable Problems.";
+    case static_cast<int>(TutorialStepId::HideWorkspacePanels):
+        return stepPhase_ == 0 ? "Click View." : "Toggle Sidebar under Panels.";
     case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
         return stepPhase_ == 0 ? "Click the fullscreen button." : "Click the fullscreen button again to restore the layout.";
     case static_cast<int>(TutorialStepId::SaveTutorialAssets):

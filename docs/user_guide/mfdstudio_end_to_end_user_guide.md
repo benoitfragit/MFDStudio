@@ -533,6 +533,8 @@ The available toggles are:
 
 | Option `View` | Effect |
 | --- | --- |
+| `Panels > Sidebar` | shows or hides the left page and reticle selector (persisted) |
+| `Panels > Inspector` | shows or hides the right inspector (persisted) |
 | `Layer Inspector` | layer dock and focus by layer |
 | `Minimap` | mini navigation view |
 | `Problems` | dockes diagnostics |

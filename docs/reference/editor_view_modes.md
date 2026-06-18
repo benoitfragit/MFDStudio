@@ -18,18 +18,21 @@ widening the window restores the hidden panel at its previous width. The menu
 bar shows a `[Compact layout]` or `[Focus layout]` marker while panels are
 auto-hidden.
 
-The top-level menu bar exposes a **View** menu to show or hide the sidebar and
-inspector manually:
+The page preview **View** button (next to the fullscreen button) exposes a
+**Panels** section to show or hide the sidebar and inspector manually:
 
-- **View > Sidebar**
-- **View > Inspector**
+- **Panels > Sidebar**
+- **Panels > Inspector**
 
-This gives every panel a visible way back, whether it was auto-collapsed on a
-narrow window or hidden on purpose.
+These visibility preferences are persisted across editor sessions. When a wanted
+panel is temporarily auto-collapsed on a narrow window, the matching entry is
+shown unchecked and disabled so it never claims a hidden panel is visible; widen
+the window to bring it back.
 
 ## Page Preview View Menu
 
-The page preview header exposes its own **View** menu for preview-only overlays.
+The page preview header exposes its **View** button for preview-only overlays
+and the shell **Panels** toggles described above.
 
 The page and reticle viewports also expose two compact toolbar buttons in the
 top-left corner:

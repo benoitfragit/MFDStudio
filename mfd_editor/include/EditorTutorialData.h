@@ -52,6 +52,7 @@ enum class TutorialStepId : int
     ShowMinimap,
     ShowReticleUsageHighlights,
     ShowProblemsPanel,
+    HideWorkspacePanels,
     ToggleFullscreenPreview,
     SaveTutorialAssets,
     InspectPageImportWorkflow,

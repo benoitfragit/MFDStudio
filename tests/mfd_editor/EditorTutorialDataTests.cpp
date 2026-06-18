@@ -168,6 +168,10 @@ TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps
     const auto& exportStep = Step(editor::tutorial::TutorialStepId::InspectDesignExportWorkflow);
     EXPECT_STREQ(exportStep.targetId, "menu_file");
     EXPECT_NE(std::string_view(exportStep.instruction).find("export"), std::string_view::npos);
+
+    const auto& hidePanelsStep = Step(editor::tutorial::TutorialStepId::HideWorkspacePanels);
+    EXPECT_STREQ(hidePanelsStep.targetId, "page_preview_view_menu");
+    EXPECT_NE(std::string_view(hidePanelsStep.instruction).find("Sidebar"), std::string_view::npos);
 }
 
 TEST(EditorTutorialDataTests, TutorialMetadataPointsToFollowUpDocuments)
