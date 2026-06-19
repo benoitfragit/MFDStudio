@@ -3541,16 +3541,24 @@ void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
                 editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
             ShowItemTooltip("Shared logical spacing reused by the visible grid, page-preview snapping, and reticle-studio snapping.");
         }
-        const bool pageContextChanged = ImGui::Checkbox("Page context", &layoutState_.pagePreviewViewOptions.showPageContext);
-        if (pageContextChanged && layoutState_.pagePreviewViewOptions.showPageContext &&
-            tutorial_->MatchesTarget("page_preview_view_page_context"))
+        // The page-context split only exists while editing a library reticle, so the toggle is
+        // meaningless in the plain page-preview view. Keep it reachable for the tutorial step that
+        // introduces it from the page preview, otherwise restrict it to the reticle-studio layout.
+        const bool offerPageContextToggle =
+            IsLibraryStudioWorkspaceVisible() || tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowPageContext));
+        if (offerPageContextToggle)
         {
-            tutorial_->CompleteStep();
+            const bool pageContextChanged = ImGui::Checkbox("Page context", &layoutState_.pagePreviewViewOptions.showPageContext);
+            if (pageContextChanged && layoutState_.pagePreviewViewOptions.showPageContext &&
+                tutorial_->MatchesTarget("page_preview_view_page_context"))
+            {
+                tutorial_->CompleteStep();
+            }
+            tutorial_->DrawHalo(
+                "page_preview_view_page_context",
+                "Enable Page context",
+                "Turn on the page-context split so the active page stays visible while you inspect the rest of the workspace.");
         }
-        tutorial_->DrawHalo(
-            "page_preview_view_page_context",
-            "Enable Page context",
-            "Turn on the page-context split so the active page stays visible while you inspect the rest of the workspace.");
         if (showProblemsIndicator && !layoutState_.pagePreviewViewOptions.showProblemsPanel)
         {
             ImGui::Separator();
