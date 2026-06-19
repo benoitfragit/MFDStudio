@@ -30,6 +30,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorTutorialData.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorUiStatePersistence.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorIcons.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorUiTheme.cpp)
 
 set(MFD_EDITOR_HEADERS
@@ -61,6 +62,7 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorTutorialData.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiStatePersistence.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorIcons.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUiTheme.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorUndoHistory.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationAuthoringSupport.h

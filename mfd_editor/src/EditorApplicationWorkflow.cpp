@@ -17,6 +17,7 @@
 
 #include "internal/application/EditorApplicationInternal.h"
 #include "EditorFileDialogs.h"
+#include "EditorIcons.h"
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorUiTheme.h"
@@ -41,6 +42,8 @@ using editor::detail::ReticleLibraryIdExistsNormalized;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
 using editor::ui::AccentButton;
+using editor::ui::EditorIcon;
+using editor::ui::IconButton;
 using editor::ui::ShowItemTooltip;
 
 const char* ReticleReferenceKindLabel(const editor::ReticleReferenceKind kind) noexcept
@@ -1433,7 +1436,7 @@ void EditorApplication::DrawDesignExportPopup()
 
     ImGui::InputText("Output folder", workflowState_.designExportPopup.outputFolder.data(), workflowState_.designExportPopup.outputFolder.size());
     ImGui::SameLine();
-    if (ImGui::Button("Browse..."))
+    if (IconButton("##browse_design_output", EditorIcon::Search, "Browse for the design export output folder."))
     {
         std::string dialogError;
         const std::filesystem::path initialFolder =

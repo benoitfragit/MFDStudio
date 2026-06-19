@@ -44,6 +44,7 @@
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorSnapping.h"
+#include "EditorIcons.h"
 #include "EditorUiTheme.h"
 #include "EditorWorkspaceLayout.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
@@ -56,8 +57,11 @@ namespace
 {
 using editor::ui::AccentButton;
 using editor::ui::ApplyEditorTheme;
+using editor::ui::BeginRowIconStrip;
 using editor::ui::DrawVerticalSplitter;
+using editor::ui::EditorIcon;
 using editor::ui::FormatViewportToolbarInfoLabel;
+using editor::ui::IconButton;
 using editor::ui::ShowItemTooltip;
 using editor::detail::BootstrapEditorLayersForPage;
 using editor::detail::ClampFeedbackFastIntervalSeconds;
@@ -2217,7 +2221,8 @@ void EditorApplication::DrawPageTree()
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_OpenOnArrow |
             ImGuiTreeNodeFlags_OpenOnDoubleClick |
-            ImGuiTreeNodeFlags_SpanAvailWidth;
+            ImGuiTreeNodeFlags_SpanAvailWidth |
+            ImGuiTreeNodeFlags_AllowOverlap;
 
         if (documentState_.selection.kind == SelectionKind::Page && documentState_.selection.pageIndex == pageIndex)
         {
@@ -2238,6 +2243,8 @@ void EditorApplication::DrawPageTree()
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.78f, 0.38f, 1.0f));
         }
         const bool open = ImGui::TreeNodeEx((pageLabel + "##page_" + std::to_string(pageIndex)).c_str(), flags);
+        const ImVec2 pageRowMin = ImGui::GetItemRectMin();
+        const ImVec2 pageRowMax = ImGui::GetItemRectMax();
         if (pageUsesSelectedReticle)
         {
             ImGui::PopStyleColor();
@@ -2269,6 +2276,34 @@ void EditorApplication::DrawPageTree()
             }
 
             ImGui::EndPopup();
+        }
+
+        // Inline row actions surface the same rename/remove/delete language directly on the
+        // hovered or selected page row, mirroring the page inspector and the top menu.
+        const bool pageRowActive =
+            (documentState_.selection.kind == SelectionKind::Page && documentState_.selection.pageIndex == pageIndex) ||
+            ImGui::IsMouseHoveringRect(pageRowMin, pageRowMax);
+        if (pageRowActive)
+        {
+            const std::string suffix = "##page_row_" + std::to_string(pageIndex);
+            const float iconSize = BeginRowIconStrip(pageRowMin, pageRowMax, 3);
+            if (IconButton(("rename" + suffix).c_str(), EditorIcon::Rename, "Rename this page globally.", true, iconSize))
+            {
+                SelectPage(pageIndex);
+                OpenPageRenamePopup(pageIndex);
+            }
+            ImGui::SameLine();
+            if (IconButton(("remove" + suffix).c_str(), EditorIcon::RemoveFromWindow, "Remove this page from the window.", true, iconSize))
+            {
+                SelectPage(pageIndex);
+                OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, pageIndex);
+            }
+            ImGui::SameLine();
+            if (IconButton(("delete" + suffix).c_str(), EditorIcon::Delete, "Delete this page asset.", true, iconSize))
+            {
+                SelectPage(pageIndex);
+                OpenPageManagementPopup(PageManagementAction::DeleteAsset, pageIndex);
+            }
         }
 
         if (open)
@@ -2313,7 +2348,8 @@ void EditorApplication::DrawPageTree()
                 ImGuiTreeNodeFlags leafFlags =
                     ImGuiTreeNodeFlags_Leaf |
                     ImGuiTreeNodeFlags_NoTreePushOnOpen |
-                    ImGuiTreeNodeFlags_SpanAvailWidth;
+                    ImGuiTreeNodeFlags_SpanAvailWidth |
+                    ImGuiTreeNodeFlags_AllowOverlap;
                 if (HasSelectedPageReticle(pageIndex, reticleIndex))
                 {
                     leafFlags |= ImGuiTreeNodeFlags_Selected;
@@ -2324,6 +2360,8 @@ void EditorApplication::DrawPageTree()
                     std::to_string(pageIndex) + "_" + std::to_string(reticleIndex);
                 ImGui::BeginDisabled(!reticleSelectable);
                 ImGui::TreeNodeEx(reticleLabel.c_str(), leafFlags);
+                const ImVec2 reticleRowMin = ImGui::GetItemRectMin();
+                const ImVec2 reticleRowMax = ImGui::GetItemRectMax();
                 DrawReticleHoverPreviewTooltip(
                     reticle,
                     std::string("Page reticle: ") + (reticle.id.empty() ? "reticle" : reticle.id),
@@ -2349,6 +2387,26 @@ void EditorApplication::DrawPageTree()
                                         layerVisible ? "" : " hidden");
                 }
                 ImGui::EndDisabled();
+
+                if (reticleSelectable &&
+                    (HasSelectedPageReticle(pageIndex, reticleIndex) ||
+                     ImGui::IsMouseHoveringRect(reticleRowMin, reticleRowMax)))
+                {
+                    const std::string suffix =
+                        "##page_reticle_row_" + std::to_string(pageIndex) + "_" + std::to_string(reticleIndex);
+                    const float iconSize = BeginRowIconStrip(reticleRowMin, reticleRowMax, 2);
+                    if (IconButton(("copy" + suffix).c_str(), EditorIcon::Copy, "Copy this page reticle.", true, iconSize))
+                    {
+                        SelectPageReticle(pageIndex, reticleIndex);
+                        CopySelectedPageReticles();
+                    }
+                    ImGui::SameLine();
+                    if (IconButton(("delete" + suffix).c_str(), EditorIcon::Delete, "Delete this reticle from the page.", true, iconSize))
+                    {
+                        SelectPageReticle(pageIndex, reticleIndex);
+                        DeleteSelection();
+                    }
+                }
             }
 
             for (std::size_t strobeIndex = 0; strobeIndex < page.strobes.size(); ++strobeIndex)
@@ -2422,13 +2480,16 @@ void EditorApplication::DrawLibraryTree()
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_Leaf |
             ImGuiTreeNodeFlags_NoTreePushOnOpen |
-            ImGuiTreeNodeFlags_SpanAvailWidth;
+            ImGuiTreeNodeFlags_SpanAvailWidth |
+            ImGuiTreeNodeFlags_AllowOverlap;
         if (selected)
         {
             flags |= ImGuiTreeNodeFlags_Selected;
         }
 
         ImGui::TreeNodeEx((templateId + "##library").c_str(), flags);
+        const ImVec2 libraryRowMin = ImGui::GetItemRectMin();
+        const ImVec2 libraryRowMax = ImGui::GetItemRectMax();
         const auto libraryIt = documentState_.loaded.document.reticleLibrary.find(templateId);
         if (libraryIt != documentState_.loaded.document.reticleLibrary.end())
         {
@@ -2486,6 +2547,31 @@ void EditorApplication::DrawLibraryTree()
             }
 
             ImGui::EndPopup();
+        }
+
+        // Inline row actions mirror the library inspector's icon bar so the hovered or selected
+        // template can be renamed, duplicated or deleted without opening the inspector.
+        if (selected || ImGui::IsMouseHoveringRect(libraryRowMin, libraryRowMax))
+        {
+            const std::string suffix = "##library_row_" + templateId;
+            const float iconSize = BeginRowIconStrip(libraryRowMin, libraryRowMax, 3);
+            if (IconButton(("rename" + suffix).c_str(), EditorIcon::Rename, "Rename this template globally.", true, iconSize))
+            {
+                SelectLibraryReticle(templateId);
+                OpenReticleRenamePopup(templateId);
+            }
+            ImGui::SameLine();
+            if (IconButton(("duplicate" + suffix).c_str(), EditorIcon::Duplicate, "Duplicate this template under a new id.", true, iconSize))
+            {
+                SelectLibraryReticle(templateId);
+                OpenDuplicateLibraryReticlePopup();
+            }
+            ImGui::SameLine();
+            if (IconButton(("delete" + suffix).c_str(), EditorIcon::Delete, "Delete this template from the library.", true, iconSize))
+            {
+                SelectLibraryReticle(templateId);
+                DeleteSelectedLibraryReticle();
+            }
         }
     }
 }
@@ -7591,11 +7677,10 @@ void EditorApplication::DrawPopups()
         ImGui::TextDisabled("Window file and runtime parameters");
         ImGui::InputText("Window file", workflowState_.newWindowDraft.windowFile.data(), workflowState_.newWindowDraft.windowFile.size());
         ImGui::SameLine();
-        if (ImGui::Button("Browse window file..."))
+        if (IconButton("##browse_new_window_file", EditorIcon::Search, "Choose the new window JSON path with the native Windows file picker."))
         {
             BrowseNewWindowFile();
         }
-        ShowItemTooltip("Choose the new window JSON path with the native Windows file picker.");
         ImGui::InputText("Window title", workflowState_.newWindowDraft.title.data(), workflowState_.newWindowDraft.title.size());
         int windowSize[2] {workflowState_.newWindowDraft.width, workflowState_.newWindowDraft.height};
         if (ImGui::InputInt2("Size (px)", windowSize))
@@ -7611,18 +7696,16 @@ void EditorApplication::DrawPopups()
         }
         ImGui::InputText("Font file (optional)", workflowState_.newWindowDraft.fontFile.data(), workflowState_.newWindowDraft.fontFile.size());
         ImGui::SameLine();
-        if (ImGui::Button("Browse font file..."))
+        if (IconButton("##browse_new_window_font", EditorIcon::Search, "Choose an existing .ttf or .otf font file with the native Windows file picker."))
         {
             BrowseNewWindowFontFile();
         }
-        ShowItemTooltip("Choose an existing .ttf or .otf font file with the native Windows file picker.");
         ImGui::InputText("Reticle library folder", workflowState_.newWindowDraft.reticleLibraryFolder.data(), workflowState_.newWindowDraft.reticleLibraryFolder.size());
         ImGui::SameLine();
-        if (ImGui::Button("Browse reticle folder..."))
+        if (IconButton("##browse_new_window_reticle_folder", EditorIcon::Search, "Choose where new reticle template JSON files should be saved with the native Windows folder picker."))
         {
             BrowseNewWindowReticleLibraryFolder();
         }
-        ShowItemTooltip("Choose where new reticle template JSON files should be saved with the native Windows folder picker.");
 
         ImGui::SeparatorText("Commands UDP (incoming)");
         ImGui::Checkbox("Expose command UDP", &workflowState_.newWindowDraft.commandUdpExposed);
@@ -7682,11 +7765,10 @@ void EditorApplication::DrawPopups()
             ImGui::InputText("First page title", workflowState_.newWindowDraft.firstPageTitle.data(), workflowState_.newWindowDraft.firstPageTitle.size());
             ImGui::InputText("First page file", workflowState_.newWindowDraft.firstPageFile.data(), workflowState_.newWindowDraft.firstPageFile.size());
             ImGui::SameLine();
-            if (ImGui::Button("Browse page file..."))
+            if (IconButton("##browse_new_window_first_page", EditorIcon::Search, "Choose the first page JSON path with the native Windows file picker."))
             {
                 BrowseNewWindowFirstPageFile();
             }
-            ShowItemTooltip("Choose the first page JSON path with the native Windows file picker.");
             ImGui::ColorEdit4("First page background", &workflowState_.newWindowDraft.firstPageBackground.x);
         }
 
@@ -7730,11 +7812,10 @@ void EditorApplication::DrawPopups()
         ImGui::InputText("File", workflowState_.newPageDraft.fileName.data(), workflowState_.newPageDraft.fileName.size());
         ShowItemTooltip("JSON file path written for this page. The .json extension is added automatically when missing.");
         ImGui::SameLine();
-        if (ImGui::Button("Browse page file..."))
+        if (IconButton("##browse_new_page_file", EditorIcon::Search, "Choose the page JSON path with the native Windows file picker."))
         {
             BrowseNewPageFile();
         }
-        ShowItemTooltip("Choose the page JSON path with the native Windows file picker.");
         ImGui::ColorEdit4("Background", &workflowState_.newPageDraft.background.x);
         ShowItemTooltip("Initial page background color.");
         ImGui::TextDisabled("Use the repo source assets folders, not the staged runtime copy under _Exec.");

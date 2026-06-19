@@ -20,6 +20,7 @@
 #include "EditorResponsiveLayout.h"
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
+#include "EditorIcons.h"
 #include "EditorUiTheme.h"
 #include "EditorWorkspaceLayout.h"
 
@@ -27,6 +28,9 @@ namespace
 {
 using editor::ui::AccentButton;
 using editor::ui::DrawVerticalSplitter;
+using editor::ui::EditorIcon;
+using editor::ui::IconButton;
+using editor::ui::IconText;
 using editor::ui::ShowItemTooltip;
 
 // Auxiliary panels expose a usable technical minimum, not a hard resize floor: when
@@ -283,19 +287,8 @@ void EditorApplication::DrawMenuBar()
             OpenPageRenamePopup(documentState_.selection.pageIndex);
         }
 
-        const bool removePageRequested = ImGui::MenuItem("Remove current page from window", nullptr, false, ActivePage() != nullptr);
-        ShowItemTooltip("Detach the current page from the window while keeping its JSON file.");
-        if (removePageRequested)
-        {
-            OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, documentState_.selection.pageIndex);
-        }
-
-        const bool deletePageRequested = ImGui::MenuItem("Delete current page asset...", "Del", false, ActivePage() != nullptr);
-        ShowItemTooltip("Open the confirmation flow that removes the page and marks its JSON file for deletion on the next save.");
-        if (deletePageRequested)
-        {
-            OpenPageManagementPopup(PageManagementAction::DeleteAsset, documentState_.selection.pageIndex);
-        }
+        // Remove-from-window and delete-asset now live on the page tree row and page inspector
+        // icon bars, so the menu keeps only creation, import and the safe global rename.
         ImGui::EndMenu();
     }
     else if (tutorial_->ShouldResetPageMenuPhaseOnClose())
@@ -373,14 +366,8 @@ void EditorApplication::DrawMenuBar()
             }
         }
 
-        const bool duplicateReticleRequested =
-            ImGui::MenuItem("Duplicate selected library reticle", nullptr, false, hasFocusedLibraryReticle);
-        ShowItemTooltip("Duplicate the focused library reticle under a new template id.");
-        if (duplicateReticleRequested)
-        {
-            OpenDuplicateLibraryReticlePopup();
-        }
-
+        // Duplicate and delete now live on the library tree row and library inspector icon bars,
+        // so the menu keeps creation, clipboard (which also serves primitives) and global rename.
         const bool renameReticleRequested =
             ImGui::MenuItem("Rename selected library reticle globally...", nullptr, false, hasFocusedLibraryReticle);
         ShowItemTooltip("Rename the focused library reticle template safely across the current asset tree and every page that references it.");
@@ -395,14 +382,6 @@ void EditorApplication::DrawMenuBar()
                 tutorial_->AdvancePhase();
             }
             OpenReticleRenamePopup(documentState_.selection.libraryReticleId);
-        }
-
-        const bool deleteReticleRequested =
-            ImGui::MenuItem("Delete selected library reticle", "Del", false, hasFocusedLibraryReticle);
-        ShowItemTooltip("Delete the focused library reticle template from the shared library.");
-        if (deleteReticleRequested)
-        {
-            DeleteSelectedLibraryReticle();
         }
         ImGui::EndMenu();
     }
@@ -583,8 +562,10 @@ void EditorApplication::DrawSidebar()
 
     // A filter keeps long page and library lists scannable. It is intentionally
     // disabled and cleared during the guided tutorial so every halo target stays visible.
-    ImGui::SetNextItemWidth(-1.0f);
     ImGui::BeginDisabled(tutorialActive);
+    IconText(EditorIcon::Search);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(-1.0f);
     ImGui::InputTextWithHint(
         "##SidebarFilter",
         "Filter pages and reticles...",
@@ -901,10 +882,13 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
 
     const ImVec2 headlineSize = ImGui::CalcTextSize(headline);
     const ImVec2 descriptionSize = ImGui::CalcTextSize(description);
-    const float buttonRowWidth = 420.0f;
-    const float totalHeight = headlineSize.y + descriptionSize.y + 126.0f;
+    const float bigIconSize = 72.0f;
+    const float cellSpacing = 40.0f;
+    const float iconRowWidth = 3.0f * bigIconSize + 2.0f * cellSpacing;
+    const float captionLineHeight = ImGui::GetTextLineHeightWithSpacing();
+    const float totalHeight = headlineSize.y + descriptionSize.y + 48.0f + bigIconSize + captionLineHeight;
     const ImVec2 start(
-        std::max(0.0f, (available.x - std::max(std::max(headlineSize.x, descriptionSize.x), buttonRowWidth)) * 0.5f),
+        std::max(0.0f, (available.x - std::max(std::max(headlineSize.x, descriptionSize.x), iconRowWidth)) * 0.5f),
         std::max(0.0f, (available.y - totalHeight) * 0.5f));
 
     ImGui::SetCursorPos(start);
@@ -914,27 +898,41 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
     ImGui::Spacing();
     ImGui::Spacing();
 
-    ImGui::SetCursorPosX(start.x);
-    if (AccentButton("Open window asset..."))
+    // Three large, centered glyph actions on one line, each with a caption underneath.
+    const float blockLeftX = std::max(0.0f, (available.x - iconRowWidth) * 0.5f);
+    const float iconRowTopY = ImGui::GetCursorPosY();
+    ImGui::SetCursorPosX(blockLeftX);
+    const bool openRequested =
+        IconButton("##empty_open", EditorIcon::Search, "Browse to an existing window JSON.", true, bigIconSize);
+    ImGui::SameLine(0.0f, cellSpacing);
+    const bool newRequested =
+        IconButton("##empty_new", EditorIcon::Add, "Create a brand-new authored window.", true, bigIconSize);
+    ImGui::SameLine(0.0f, cellSpacing);
+    const bool tutorialRequested =
+        IconButton("##empty_tutorial", EditorIcon::Tutorial, "Launch the guided tutorial.", true, bigIconSize);
+
+    const float captionY = iconRowTopY + bigIconSize + 6.0f;
+    const char* captions[3] = {"Open window", "New window", "Tutorial"};
+    for (int cell = 0; cell < 3; ++cell)
+    {
+        const ImVec2 captionSize = ImGui::CalcTextSize(captions[cell]);
+        const float cellX = blockLeftX + static_cast<float>(cell) * (bigIconSize + cellSpacing);
+        ImGui::SetCursorPos(ImVec2(cellX + (bigIconSize - captionSize.x) * 0.5f, captionY));
+        ImGui::TextDisabled("%s", captions[cell]);
+    }
+
+    if (openRequested)
     {
         OpenWindowAssetFromFileExplorer();
     }
-
-    ImGui::SetCursorPosX(start.x);
-    if (ImGui::Button("New window from scratch", ImVec2(220.0f, 0.0f)))
+    if (newRequested)
     {
         OpenNewWindowPopup();
     }
-
-    ImGui::SetCursorPosX(start.x);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.54f, 0.61f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.66f, 0.73f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.12f, 0.44f, 0.52f, 1.00f));
-    if (ImGui::Button("Launch the tutorial", ImVec2(220.0f, 0.0f)))
+    if (tutorialRequested)
     {
         tutorial_->OpenFlow();
     }
-    ImGui::PopStyleColor(3);
 }
 
 void EditorApplication::DrawInspector()

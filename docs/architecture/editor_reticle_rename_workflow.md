@@ -109,10 +109,11 @@ window.
 
 ## Current UI Flow
 
-The editor exposes the workflow from three entry points:
+The editor exposes the workflow from several entry points:
 
+- reticle-library tree row: the rename (pencil) icon shown on the hovered or selected row
 - reticle-library tree right click: `Rename reticle globally...`
-- library reticle inspector button: `Rename reticle globally...`
+- library reticle inspector: the rename (pencil) icon in the reticle action bar
 - top menu: `Reticle > Rename selected library reticle globally...`
 
 The popup shows:

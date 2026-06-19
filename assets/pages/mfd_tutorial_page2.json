@@ -1,0 +1,17 @@
+{
+  "bg": "#0A1424FF",
+  "layers": [
+    {
+      "id": "default"
+    }
+  ],
+  "name": "Page2",
+  "staticReticles": [
+    {
+      "id": "mfd_tutorial_progress_bar",
+      "layerId": "default",
+      "template": "mfd_tutorial_progress_bar"
+    }
+  ],
+  "title": "Page 2"
+}

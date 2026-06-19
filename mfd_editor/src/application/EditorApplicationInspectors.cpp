@@ -20,6 +20,7 @@
 #include "internal/application/EditorApplicationInternal.h"
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
+#include "EditorIcons.h"
 #include "EditorUiTheme.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "TimeFormatValidation.h"
@@ -28,6 +29,8 @@ namespace
 {
 using editor::ui::AccentButton;
 using editor::ui::BeginInspectorSection;
+using editor::ui::EditorIcon;
+using editor::ui::IconButton;
 using editor::ui::InspectorHelpMarker;
 using editor::ui::ShowItemTooltip;
 using editor::detail::BootstrapEditorLayersForPage;
@@ -366,11 +369,11 @@ void EditorApplication::DrawWindowInspector()
         documentState_.loaded.window.fontFile = std::filesystem::path(fontFile.data()).lexically_normal();
         ApplyPreviewFontFile(documentState_.loaded.window.fontFile);
     }
-    if (ImGui::Button("Browse font file..."))
+    ImGui::SameLine();
+    if (IconButton("##browse_font_file", EditorIcon::Search, "Pick the window font through the native file explorer."))
     {
         BrowseWindowFontFile();
     }
-    ShowItemTooltip("Pick the window font through the native file explorer.");
 
     const bool reticleFolderChanged =
         ImGui::InputText("Reticle library folder", reticleLibraryFolder.data(), reticleLibraryFolder.size());
@@ -383,11 +386,11 @@ void EditorApplication::DrawWindowInspector()
     {
         documentState_.loaded.window.reticleLibraryFolder = std::filesystem::path(reticleLibraryFolder.data()).lexically_normal();
     }
-    if (ImGui::Button("Browse reticle folder..."))
+    ImGui::SameLine();
+    if (IconButton("##browse_reticle_folder", EditorIcon::Search, "Pick the reticle library folder through the native folder picker."))
     {
         BrowseWindowReticleLibraryFolder();
     }
-    ShowItemTooltip("Pick the reticle library folder through the native folder picker.");
 
     ImGui::Spacing();
     const bool sectionForceOpen = tutorial_->IsCoachVisible();
@@ -601,52 +604,36 @@ void EditorApplication::DrawPageInspector()
 
     const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
-    if (ImGui::Button("Page actions..."))
-    {
-        ImGui::OpenPopup("PageActionsMenu");
-    }
-    ShowItemTooltip("Remove, delete or rename this page asset.");
-    InspectorHelpMarker("Del opens the delete confirmation. Ctrl+V pastes copied reticles.");
-
-    if (ImGui::BeginPopup("PageActionsMenu"))
-    {
-        if (ImGui::MenuItem("Remove page from window"))
-        {
-            OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, documentState_.selection.pageIndex);
-            ImGui::EndPopup();
-            return;
-        }
-        if (ImGui::MenuItem("Delete page asset..."))
-        {
-            OpenPageManagementPopup(PageManagementAction::DeleteAsset, documentState_.selection.pageIndex);
-            ImGui::EndPopup();
-            return;
-        }
-        if (ImGui::MenuItem("Rename page globally..."))
-        {
-            OpenPageRenamePopup(documentState_.selection.pageIndex);
-            ImGui::EndPopup();
-            return;
-        }
-        ImGui::EndPopup();
-    }
-
+    // Page-asset actions share one inline icon bar so the same rename/remove/delete/paste
+    // language appears here, on the page tree row, and in the top menu.
+    const int activePageIndex = documentState_.selection.pageIndex;
     const bool canPasteReticles = !clipboardState_.pageReticleClipboard.empty();
-    ImGui::BeginDisabled(!canPasteReticles);
-    if (ImGui::Button("Paste copied reticles"))
+
+    if (IconButton("##page_rename", EditorIcon::Rename, "Rename this page globally across the asset tree."))
     {
-        PasteCopiedPageReticles();
-        ImGui::EndDisabled();
+        OpenPageRenamePopup(activePageIndex);
         return;
     }
-    ShowItemTooltip("Paste copied page reticles onto this page.");
-    ImGui::EndDisabled();
-
-    if (canPasteReticles)
+    ImGui::SameLine();
+    if (IconButton("##page_remove", EditorIcon::RemoveFromWindow, "Remove this page from the window without deleting its asset."))
     {
-        ImGui::SameLine();
-        ImGui::TextDisabled("Shortcut: Ctrl+V");
+        OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, activePageIndex);
+        return;
     }
+    ImGui::SameLine();
+    if (IconButton("##page_delete", EditorIcon::Delete, "Delete this page asset from disk."))
+    {
+        OpenPageManagementPopup(PageManagementAction::DeleteAsset, activePageIndex);
+        return;
+    }
+    ImGui::SameLine();
+    if (IconButton("##page_paste", EditorIcon::Paste, "Paste copied page reticles onto this page (Ctrl+V).", canPasteReticles))
+    {
+        PasteCopiedPageReticles();
+        return;
+    }
+    InspectorHelpMarker(
+        "Pencil renames the page globally, eject removes it from the window, trash deletes the asset, clipboard pastes copied reticles (Ctrl+V).");
 
     std::array<char, 128> name {};
     std::array<char, 128> title {};
@@ -1019,7 +1006,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
         ShowItemTooltip("Choose which page layer owns runtime instances of this dynamic reticle type.");
 
         ImGui::SameLine();
-        if (ImGui::Button("Remove"))
+        if (IconButton("##dyn_remove", EditorIcon::Delete, "Remove this dynamic reticle type from the page."))
         {
             PushUndoSnapshot();
             const std::string removedTemplateId = binding.templateId;
@@ -1028,7 +1015,6 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
             ImGui::PopID();
             break;
         }
-        ShowItemTooltip("Remove this dynamic reticle type from the page.");
 
         std::vector<std::size_t> siblingIndexes;
         for (std::size_t siblingIndex : sortedBindingIndexes)
@@ -1341,7 +1327,7 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
         ImGui::TextDisabled("Template: %s",
                             strobe.reticle.sourceTemplateId.empty() ? "<custom strobe>" : strobe.reticle.sourceTemplateId.c_str());
 
-        if (ImGui::Button("Remove strobe##page_strobe_remove"))
+        if (IconButton("##strobe_remove", EditorIcon::Delete, "Remove this authored strobe from the page list."))
         {
             PushUndoSnapshot();
             const std::string removedName = strobe.name;
@@ -1367,7 +1353,6 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
             ImGui::PopID();
             break;
         }
-        ShowItemTooltip("Remove this authored strobe from the page list.");
 
         ImGui::Separator();
         ImGui::PopID();
@@ -1735,8 +1720,11 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             }
         }
 
-        ImGui::BeginDisabled(page.layers.size() <= 1U || assignedReticles > 0U || assignedBindings > 0U);
-        if (ImGui::Button("Remove layer"))
+        const bool canRemoveLayer = page.layers.size() > 1U && assignedReticles == 0U && assignedBindings == 0U;
+        if (IconButton("##layer_remove",
+                       EditorIcon::Delete,
+                       "Delete one unused runtime layer. A layer cannot be removed while reticles or dynamic bindings still reference it.",
+                       canRemoveLayer))
         {
             const std::string removedLayerId = layer.id;
             PushUndoSnapshot();
@@ -1746,12 +1734,9 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             SanitizePageReticleSelectionForCurrentFocus();
             RebuildStatus("Runtime layer '" + removedLayerId + "' removed from page '" + page.name + "'.", false);
 
-            ImGui::EndDisabled();
             ImGui::PopID();
             break;
         }
-        ImGui::EndDisabled();
-        ShowItemTooltip("Delete one unused runtime layer. A layer cannot be removed while reticles or dynamic bindings still reference it.");
 
         ImGui::PopID();
     }
@@ -1878,7 +1863,7 @@ void EditorApplication::DrawPageBlinkInspector(mfd::PageDefinition& page)
             RefreshPageBlinkStateForEditor(page);
         }
 
-        if (ImGui::Button("Remove blink type"))
+        if (IconButton("##blink_remove", EditorIcon::Delete, "Delete this blink definition and clear page reticles that referenced it."))
         {
             const std::string removedName = blinkType.name;
             const std::string removedNormalizedName = blinkType.normalizedName;
@@ -1907,7 +1892,6 @@ void EditorApplication::DrawPageBlinkInspector(mfd::PageDefinition& page)
             ImGui::PopID();
             break;
         }
-        ShowItemTooltip("Delete this blink definition and clear page reticles that referenced it.");
 
         ImGui::PopID();
     }
@@ -2074,14 +2058,31 @@ void EditorApplication::DrawPageReticleInspector()
     const int lastReticleIndex = static_cast<int>(page->staticReticles.size()) - 1;
     const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
-    // Primary actions stay visible; secondary clipboard/template actions move into an overflow menu
-    // so the top of the inspector stays compact.
-    if (ImGui::Button("Delete from page"))
+    // Clipboard and delete actions share the inline icon language; Extract stays a labeled
+    // button because the guided tutorial highlights it, and the rare "edit source" jump moves
+    // into the overflow menu so the action bar stays compact.
+    if (IconButton("##pret_delete", EditorIcon::Delete, "Delete this reticle instance from the active page (Del)."))
     {
         DeleteSelection();
         return;
     }
-    ShowItemTooltip("Delete this reticle instance from the active page.");
+    ImGui::SameLine();
+    if (IconButton("##pret_copy", EditorIcon::Copy, "Copy this page reticle (Ctrl+C)."))
+    {
+        CopySelectedPageReticles();
+    }
+    ImGui::SameLine();
+    if (IconButton("##pret_cut", EditorIcon::Cut, "Cut this page reticle (Ctrl+X)."))
+    {
+        CutSelectedPageReticles();
+        return;
+    }
+    ImGui::SameLine();
+    if (IconButton("##pret_paste", EditorIcon::Paste, "Paste copied page reticles (Ctrl+V).", !clipboardState_.pageReticleClipboard.empty()))
+    {
+        PasteCopiedPageReticles();
+        return;
+    }
 
     ImGui::SameLine();
     if (ImGui::Button("Extract as reticle..."))
@@ -2099,36 +2100,18 @@ void EditorApplication::DrawPageReticleInspector()
         "Click Extract as reticle...",
         "Open the extraction workflow to review how one page reticle can be promoted into the shared library.");
 
-    ImGui::SameLine();
-    if (ImGui::Button("More..."))
-    {
-        ImGui::OpenPopup("PageReticleActionsMenu");
-    }
-    ShowItemTooltip("Copy, cut, paste or jump to the source template of this page reticle.");
-
     const bool hasSourceTemplate =
         !reticle->sourceTemplateId.empty() &&
         documentState_.loaded.document.reticleLibrary.find(reticle->sourceTemplateId) !=
             documentState_.loaded.document.reticleLibrary.end();
 
+    ImGui::SameLine();
+    if (IconButton("##pret_overflow", EditorIcon::Overflow, "More page-reticle actions."))
+    {
+        ImGui::OpenPopup("PageReticleActionsMenu");
+    }
     if (ImGui::BeginPopup("PageReticleActionsMenu"))
     {
-        if (ImGui::MenuItem("Copy"))
-        {
-            CopySelectedPageReticles();
-        }
-        if (ImGui::MenuItem("Cut"))
-        {
-            CutSelectedPageReticles();
-            ImGui::EndPopup();
-            return;
-        }
-        if (ImGui::MenuItem("Paste copies", nullptr, false, !clipboardState_.pageReticleClipboard.empty()))
-        {
-            PasteCopiedPageReticles();
-            ImGui::EndPopup();
-            return;
-        }
         if (ImGui::MenuItem("Edit source template", nullptr, false, hasSourceTemplate))
         {
             SelectLibraryReticle(reticle->sourceTemplateId);
@@ -2139,7 +2122,7 @@ void EditorApplication::DrawPageReticleInspector()
         ImGui::EndPopup();
     }
     InspectorHelpMarker(
-        "Shortcuts: Del removes the reticle, Ctrl+X / Ctrl+C / Ctrl+V cut/copy/paste, Esc clears the selection.");
+        "Trash removes the reticle (Del), then copy / cut / paste (Ctrl+C / Ctrl+X / Ctrl+V). The overflow menu jumps to the source template.");
 
     if (BeginInspectorSection("section_page_reticle_placement", "Placement & draw order", true, sectionForceOpen))
     {
@@ -3245,39 +3228,38 @@ void EditorApplication::DrawLibraryReticleInspector()
         "Click Add to active page",
         tutorial_->LibraryAddToPageHaloReason());
 
+    // Shared-template actions use the same inline icon language as the library tree row.
     ImGui::SameLine();
-    if (ImGui::Button("More..."))
+    if (IconButton("##lib_copy", EditorIcon::Copy, "Copy this shared reticle template (Ctrl+C)."))
     {
-        ImGui::OpenPopup("LibraryReticleActionsMenu");
+        CopySelectedLibraryReticle();
     }
-    ShowItemTooltip("Copy, paste, rename or delete this shared reticle template.");
-
-    if (ImGui::BeginPopup("LibraryReticleActionsMenu"))
+    ImGui::SameLine();
+    if (IconButton("##lib_paste", EditorIcon::Paste, "Paste the copied template as one new library entry (Ctrl+V).", clipboardState_.libraryReticleClipboard.has_value()))
     {
-        if (ImGui::MenuItem("Copy"))
-        {
-            CopySelectedLibraryReticle();
-        }
-        if (ImGui::MenuItem("Paste copy", nullptr, false, clipboardState_.libraryReticleClipboard.has_value()))
-        {
-            PasteCopiedLibraryReticle();
-            ImGui::EndPopup();
-            return;
-        }
-        if (ImGui::MenuItem("Rename globally..."))
-        {
-            OpenReticleRenamePopup(reticle->id);
-            ImGui::EndPopup();
-            return;
-        }
-        if (ImGui::MenuItem("Delete library reticle"))
-        {
-            DeleteSelectedLibraryReticle();
-            ImGui::EndPopup();
-            return;
-        }
-        ImGui::EndPopup();
+        PasteCopiedLibraryReticle();
+        return;
     }
+    ImGui::SameLine();
+    if (IconButton("##lib_rename", EditorIcon::Rename, "Rename this template globally across the asset tree and every page."))
+    {
+        OpenReticleRenamePopup(reticle->id);
+        return;
+    }
+    ImGui::SameLine();
+    if (IconButton("##lib_duplicate", EditorIcon::Duplicate, "Duplicate this template under a new id."))
+    {
+        OpenDuplicateLibraryReticlePopup();
+        return;
+    }
+    ImGui::SameLine();
+    if (IconButton("##lib_delete", EditorIcon::Delete, "Delete this template from the shared library."))
+    {
+        DeleteSelectedLibraryReticle();
+        return;
+    }
+    InspectorHelpMarker(
+        "Copy / paste (Ctrl+C / Ctrl+V), pencil renames globally, duplicate clones under a new id, trash deletes from the library.");
 
     if (BeginInspectorSection("section_library_reticle_defaults", "Default appearance", true, sectionForceOpen))
     {
@@ -4181,11 +4163,11 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         {
             image->file = std::filesystem::path(imagePath.data()).lexically_normal();
         }
-        if (ImGui::Button("Browse image file..."))
+        ImGui::SameLine();
+        if (IconButton("##browse_image_file", EditorIcon::Search, "Pick the raster image through the native file explorer."))
         {
             BrowseSelectedPrimitiveImageFile();
         }
-        ShowItemTooltip("Pick the raster image through the native file explorer.");
 
         if (ImGui::DragFloat2("Size", &image->width, 0.002f, 0.001f, 2.0f, "%.4f"))
         {

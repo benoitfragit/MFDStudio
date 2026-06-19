@@ -89,10 +89,11 @@ document.
 
 ## Current UI Flow
 
-The editor exposes the workflow from three entry points:
+The editor exposes the workflow from several entry points:
 
+- page tree row: the rename (pencil) icon shown on the hovered or selected row
 - page tree right click: `Rename page globally...`
-- page inspector button: `Rename page globally...`
+- page inspector: the rename (pencil) icon in the page action bar
 - top menu: `Page > Rename current page globally...`
 
 The popup shows:
