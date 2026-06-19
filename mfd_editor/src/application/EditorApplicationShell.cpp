@@ -43,7 +43,13 @@ constexpr float kMinPageContextWidth = 320.0f;
 constexpr float kMinReticleStudioWidth = 320.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
-constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
+
+// The sidebar uses a slightly larger font and roomier rows than the rest of the editor so
+// the page/reticle lists stay comfortable to scan and the inline row action buttons (rename,
+// remove, delete, ...) read as clearly clickable. The row icons are sized from the tree-row
+// height, so this extra vertical frame padding also enlarges them without overflowing the line.
+constexpr float kSidebarFontScale = 1.12f;
+constexpr float kSidebarRowFramePaddingY = 11.0f;
 
 void DrawRuntimeErrorBanner(const std::string& runtimeError)
 {
@@ -222,6 +228,8 @@ void EditorApplication::DrawMenuBar()
         }
         ImGui::EndMenu();
     }
+
+    DrawViewMenu();
 
     if (ImGui::BeginMenu("Window", hasOpenWindow))
     {
@@ -425,7 +433,7 @@ void EditorApplication::DrawMenuBar()
         ImGui::TextColored(ImVec4(0.40f, 0.74f, 0.95f, 1.0f), "[%s]", layoutModeLabel);
         ShowItemTooltip(
             "The window is narrow: auxiliary panels auto-collapse to protect the workspace. "
-            "Use the page-preview View button or widen the window to restore them.");
+            "Use the View menu or widen the window to restore them.");
     }
 
     ImGui::EndMainMenuBar();
@@ -537,13 +545,18 @@ bool EditorApplication::IsLibraryStudioWorkspaceVisible() const
 
 bool EditorApplication::CanToggleFullscreenPagePreview() const
 {
-    return services_.fullscreenPreview.IsActive() || (HasOpenWindow() && !IsLibraryStudioWorkspaceVisible());
+    // Fullscreen preview only rearranges editor-only panel visibility and pane sizes; it never reads
+    // document state, so it stays available in every workspace, including before a window is opened.
+    return true;
 }
 
 void EditorApplication::DrawSidebar()
 {
     if (!HasOpenWindow())
     {
+        // Keep the empty-state hint at the default size even after a window was closed, since the
+        // enlarged scale below persists on the child window until explicitly reset.
+        ImGui::SetWindowFontScale(1.0f);
         ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "MFD Editor");
         ImGui::TextDisabled("Work directly in the page visualization.");
         ImGui::Separator();
@@ -554,6 +567,13 @@ void EditorApplication::DrawSidebar()
         DrawRuntimeErrorBanner(workflowState_.lastRuntimeError);
         return;
     }
+
+    // Enlarge the sidebar font and row height a touch so the page/reticle lists read well and
+    // the inline row action icons (sized from the tree-row height) grow with them. The font scale
+    // applies to this child window only; the frame padding is popped before the function returns.
+    ImGui::SetWindowFontScale(kSidebarFontScale);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2(ImGui::GetStyle().FramePadding.x, kSidebarRowFramePaddingY));
 
     // Surface runtime failures at the top of the panel where they cannot be missed.
     DrawRuntimeErrorBanner(workflowState_.lastRuntimeError);
@@ -610,6 +630,8 @@ void EditorApplication::DrawSidebar()
         ImGui::Spacing();
         DrawLibraryTree();
     }
+
+    ImGui::PopStyleVar();
 }
 
 void EditorApplication::DrawWorkspace()
@@ -623,13 +645,15 @@ void EditorApplication::DrawWorkspace()
 
     const std::vector<editor::PagePreviewProblem> pagePreviewProblems = BuildPagePreviewProblems();
     const bool hasPagePreviewProblems = !pagePreviewProblems.empty();
+    // Stash the result so the menu-bar View entry (drawn earlier in the frame) can flag pending
+    // validation issues without recomputing the diagnostics.
+    layoutState_.pagePreviewHasProblems = hasPagePreviewProblems;
     const bool libraryStudioVisible = IsLibraryStudioWorkspaceVisible();
     const bool fullscreenPreviewActive = services_.fullscreenPreview.IsActive();
 
     if (fullscreenPreviewActive)
     {
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-        DrawPagePreviewHeaderControls("##FullscreenPagePreviewViewMenu", hasPagePreviewProblems);
         ImGui::TextDisabled("Fullscreen preview keeps the page canvas interactive. Press F11 or Esc to restore the editor layout.");
         tutorial_->DrawCoach();
         ImGui::Separator();
@@ -674,7 +698,6 @@ void EditorApplication::DrawWorkspace()
 
         ImGui::BeginChild("PageContextPanel", ImVec2(pageWidth, 0.0f), true);
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page context");
-        DrawPagePreviewHeaderControls("##PageContextViewMenu", hasPagePreviewProblems, false);
         ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
         tutorial_->DrawCoach();
         ImGui::Separator();
@@ -706,8 +729,7 @@ void EditorApplication::DrawWorkspace()
     }
 
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-    DrawPagePreviewHeaderControls("##MainPagePreviewViewMenu", hasPagePreviewProblems);
-    ImGui::TextDisabled("Use View to toggle preview-only overlays without touching authored JSON assets.");
+    ImGui::TextDisabled("Use the View menu to toggle preview-only overlays without touching authored JSON assets.");
     tutorial_->DrawCoach();
     ImGui::Separator();
 
@@ -818,37 +840,6 @@ void EditorApplication::DrawReticleStudioPanel(const float width)
     const float panelWidth = width > 0.0f ? width : std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
     ImGui::BeginChild("ReticleStudioPanel", ImVec2(panelWidth, 0.0f), true);
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
-
-    const ImGuiStyle& style = ImGui::GetStyle();
-    const float buttonWidth = ImGui::CalcTextSize("View").x + style.FramePadding.x * 2.0f;
-    ImGui::SameLine();
-    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - buttonWidth));
-    if (ImGui::Button("View##ReticleStudioDisplay"))
-    {
-        ImGui::OpenPopup(kReticleStudioDisplayPopupId);
-    }
-
-    if (ImGui::BeginPopup(kReticleStudioDisplayPopupId))
-    {
-        ImGui::Checkbox("Show page context", &layoutState_.pagePreviewViewOptions.showPageContext);
-        ImGui::Checkbox("Show primitive names", &layoutState_.libraryStudioShowPrimitiveLabels);
-        ImGui::Checkbox("Show gizmos", &layoutState_.libraryStudioShowGizmos);
-        ImGui::Separator();
-        ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
-        ShowItemTooltip("Draw the shared editor-only placement grid behind the reticle-studio content.");
-        ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
-        ShowItemTooltip("Snap reticle-studio primitive moves and handle edits to the same logical grid used by the page preview.");
-        if (layoutState_.pagePreviewViewOptions.showGrid || layoutState_.pagePreviewViewOptions.snapToGrid)
-        {
-            ImGui::SetNextItemWidth(120.0f);
-            ImGui::DragFloat("Grid step", &layoutState_.pagePreviewViewOptions.gridStepLogical, 0.005f, 0.01f, 0.5f, "%.3f");
-            layoutState_.pagePreviewViewOptions.gridStepLogical =
-                editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
-            ShowItemTooltip("Shared logical spacing reused by the visible grid and both editor snapping workflows.");
-        }
-        ImGui::EndPopup();
-    }
-
     ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry, then use Ctrl+C / Ctrl+V to duplicate it.");
     ImGui::Separator();
 

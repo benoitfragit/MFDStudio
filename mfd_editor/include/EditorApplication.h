@@ -256,8 +256,16 @@ private:
                                   bool handlePreviewInteraction);
     /** @brief Draws the reticle-studio panel with one optional explicit width. */
     void DrawReticleStudioPanel(float width = 0.0f);
-    /** @brief Draws the page-preview header controls shared by normal and context previews. */
-    void DrawPagePreviewHeaderControls(const char* buttonId, bool showProblemsIndicator, bool allowFullscreenToggle = true);
+    /** @brief Draws the always-visible menu-bar View entry whose content adapts to the active workspace. */
+    void DrawViewMenu();
+    /** @brief Draws the sidebar and inspector visibility toggles shared by every View-menu context. */
+    void DrawShellPanelVisibilityMenuItems();
+    /** @brief Draws the View-menu items for the page-preview and fullscreen workspaces. */
+    void DrawPagePreviewViewMenuItems(bool showProblemsIndicator);
+    /** @brief Draws the View-menu items for the reticle-studio workspace. */
+    void DrawReticleStudioViewMenuItems();
+    /** @brief Draws the fullscreen-preview toggle shared by every View-menu context. */
+    void DrawFullscreenPreviewMenuItem();
     /** @brief Draws guides, selection boxes and coordinate overlays on the page preview. */
     void DrawPreviewOverlays(const ViewportState& viewport);
     /** @brief Draws the optional page-preview minimap overlay. */

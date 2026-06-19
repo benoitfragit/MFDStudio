@@ -18,8 +18,8 @@ widening the window restores the hidden panel at its previous width. The menu
 bar shows a `[Compact layout]` or `[Focus layout]` marker while panels are
 auto-hidden.
 
-The page preview **View** button (next to the fullscreen button) exposes a
-**Panels** section to show or hide the sidebar and inspector manually:
+The menu-bar **View** menu exposes a **Panels** section to show or hide the
+sidebar and inspector manually:
 
 - **Panels > Sidebar**
 - **Panels > Inspector**
@@ -29,10 +29,15 @@ panel is temporarily auto-collapsed on a narrow window, the matching entry is
 shown unchecked and disabled so it never claims a hidden panel is visible; widen
 the window to bring it back.
 
-## Page Preview View Menu
+## View Menu
 
-The page preview header exposes its **View** button for preview-only overlays
-and the shell **Panels** toggles described above.
+The **View** menu lives in the top menu bar and stays available at all times. Its
+content adapts to the active workspace, so the same menu drives the page-preview
+overlays and the reticle-studio display options without a separate per-panel
+button. Even before a window is open it still exposes the **Panels** (sidebar and
+inspector) toggles, since those panels render regardless of the loaded document.
+When pending validation issues exist while the **Problems** panel is hidden, the
+menu label shows `View !`.
 
 The page and reticle viewports also expose two compact toolbar buttons in the
 top-left corner:
@@ -40,7 +45,8 @@ top-left corner:
 - `?`: open the interaction help for the current viewport
 - `R`: recenter the current editor camera without changing the authored JSON
 
-These editor-only view controls never touch authored assets:
+In the page-preview and fullscreen workspaces, the **View** menu exposes these
+editor-only controls, which never touch authored assets:
 
 - **Layer Inspector**
 - **Minimap**
@@ -51,7 +57,17 @@ These editor-only view controls never touch authored assets:
 - **Grid**
 - **Snap to grid**
 - **Grid step**
-- **Page context**
+- **Fullscreen preview** (`F11`)
+
+In the reticle-studio workspace, the same menu instead exposes the studio
+display options:
+
+- **Show page context**
+- **Show primitive names**
+- **Show gizmos**
+- **Grid**
+- **Snap to grid**
+- **Grid step**
 
 The visible grid, the snap toggle, and the shared `Grid step` are reused by
 both the page preview and the reticle studio so placement reads the same way in
@@ -59,18 +75,19 @@ both workspaces.
 
 ## Fullscreen Preview
 
-The page-preview editing header exposes one small fullscreen button immediately
-next to **View**.
+Fullscreen preview is toggled from the **View** menu (**Fullscreen preview**) or
+with the `F11` key.
 
-The button is intentionally hidden from the reticle-studio **Page context**
-panel so fullscreen stays scoped to the page-editing workspace.
+It is a pure editor layout mode that depends on no document state, so the toggle
+is available in every workspace and from the moment the editor opens, even before
+a window is loaded.
 
 Behavior:
 
-1. click the button to enter fullscreen preview
+1. enable **Fullscreen preview** in the **View** menu, or press `F11`, to enter
 2. the sidebar, inspector, page-context split, and docked helper panels are hidden
 3. the page canvas stays interactive
-4. click the same button again, press `F11`, or press `Esc` to restore the previous layout
+4. disable the same entry, press `F11`, or press `Esc` to restore the previous layout
 
 Fullscreen preview is an editor workspace mode, not an operating-system
 fullscreen window mode.
@@ -80,7 +97,7 @@ fullscreen preview exits.
 
 ## Shortcuts
 
-- `F11`: toggle fullscreen preview while the page-editing workspace is active
+- `F11`: toggle fullscreen preview from any workspace, at any time
 - `Esc`: exit fullscreen preview first, then fall back to the normal selection clear workflow
 
 ## Persistence

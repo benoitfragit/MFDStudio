@@ -532,9 +532,13 @@ In case of superimposed reticles:
 2. choice of the desired reticle in the context menu
 3. copy/cut/delete operations on the current selection
 
-## 4.12 Menu `View` from the preview
+## 4.12 The `View` menu
 
-The available toggles are:
+The `View` menu lives in the top menu bar and stays available at all times. Its
+content adapts to the active workspace; even before a window is open it still
+exposes the `Panels` sidebar and inspector toggles.
+
+In the page-preview and fullscreen workspaces, the available toggles are:
 
 | Option `View` | Effect |
 | --- | --- |
@@ -546,17 +550,25 @@ The available toggles are:
 | `Highlight reticle usages` | highlights the pages that reference the selected template |
 | `Reticle names` | displays names |
 | `Gizmos` | shows visual manipulations |
-| `Page context` | preview context linked to the page |
+| `Fullscreen preview` | enters or leaves fullscreen preview (`F11`) |
+
+While editing a library reticle, the same menu instead exposes `Show page
+context`, `Show primitive names`, `Show gizmos`, plus the shared `Grid`, `Snap to
+grid`, and `Grid step` controls.
 
 These options are session preferences. They do not rewrite the author JSON.
 
 ### Fullscreen preview
 
-The button `[]`, `F11` Or `Esc` allows you to:
+The `Fullscreen preview` entry in the `View` menu, the `F11` key, or `Esc`
+allows you to:
 
 - hide sidebar, inspectors and docks
 - keep the canvas interactive
 - restore the previous state then
+
+It is a pure editor layout mode, available in every workspace and from the moment
+the editor opens, even before a window is loaded.
 
 ## 4.13 Layer Focus Mode
 

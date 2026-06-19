@@ -18,7 +18,7 @@ You will learn how to:
 - focus one page layer without changing authored JSON
 - remove a page from the current window or delete its asset safely
 - configure incoming command UDP and outgoing feedback UDP
-- use the page-preview View menu without modifying authored JSON assets
+- use the menu-bar View menu without modifying authored JSON assets
 - use one shared visible grid and snapping step in both the page preview and the reticle studio
 - understand how the generated C++17 client API mirrors the authored window
 - discover that the page title is a dedicated chrome element that can be framed, moved, scaled, hidden, and recolored
@@ -217,9 +217,11 @@ When several reticles overlap in the page preview:
 
 The same popup also exposes **Copy selection**, **Cut selection**, **Paste copies**, and **Delete selection** for the current page-reticle group.
 
-## Step 9 - Use the Page Preview View menu
+## Step 9 - Use the View menu
 
-The page preview now owns one editor-only **View** menu. Open it from the preview header to toggle:
+The editor-only **View** menu now lives in the top menu bar and stays available
+at all times (even before a window is open it still exposes the **Panels**
+sidebar and inspector toggles). Open it to toggle:
 
 - **Panels > Sidebar** (hide or show the left page and reticle selector)
 - **Panels > Inspector** (hide or show the right inspector)
@@ -232,7 +234,7 @@ The page preview now owns one editor-only **View** menu. Open it from the previe
 - **Grid**
 - **Snap to grid**
 - **Grid step**
-- **Page context**
+- **Fullscreen preview** (`F11`)
 
 Default startup behavior stays intentionally conservative:
 
@@ -246,11 +248,12 @@ Default startup behavior stays intentionally conservative:
 These controls stay editor-only. They help you inspect the current page, but
 they do not change the authored window/page/reticle JSON files.
 
-The same **Grid**, **Snap to grid**, and **Grid step** settings are reused by
-the reticle-studio **View** popup, so both editing workspaces keep the same
-logical spacing and placement feedback.
+When you edit a library reticle, the **View** menu adapts to the reticle studio
+and instead exposes **Show page context**, **Show primitive names**, **Show
+gizmos**, plus the shared **Grid**, **Snap to grid**, and **Grid step** controls,
+so both editing workspaces keep the same logical spacing and placement feedback.
 
-If the **View** button shows `!`, validation diagnostics exist and you can enable **Problems** to inspect them directly from the preview.
+If the **View** menu label shows `View !`, validation diagnostics exist and you can enable **Problems** to inspect them directly from the preview.
 
 When **Problems** is enabled, the diagnostics are now shown in one full-width
 docked panel under the preview. The list is scrollable, so the minimap and the
@@ -258,18 +261,18 @@ actual page canvas stay visible and interactive while you review the issues.
 
 ### Fullscreen preview
 
-The page-preview editing header now exposes one small fullscreen toggle
-immediately next to **View**.
+The **View** menu exposes a **Fullscreen preview** entry, and the `F11` key
+toggles the same mode from anywhere.
 
-The toggle is only available in the page-editing workspace, not in the
-reticle-studio **Page context** panel.
+It is a pure editor layout mode, so it is always available - in any workspace and
+even before a window is open.
 
 Use it when you want to edit the page with the editor chrome hidden:
 
-1. click the `[]` button next to **View**
+1. enable **Fullscreen preview** in the **View** menu, or press `F11`
 2. the sidebar, inspector, page-context split, and docked helper panels are hidden
 3. keep using zoom, pan, selection, and gizmos directly on the page canvas
-4. click the same button again, press `F11`, or press `Esc` to restore the previous layout
+4. disable the same entry, press `F11`, or press `Esc` to restore the previous layout
 
 `Esc` exits fullscreen first, then falls back to the normal page-selection clear
 behavior when fullscreen is not active.

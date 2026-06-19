@@ -209,8 +209,6 @@ constexpr float kLayerInspectorPreviewHeight = 84.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
-constexpr const char* kPagePreviewDisplayPopupId = "PagePreviewDisplayPopup";
-constexpr const char* kReticleStudioDisplayPopupId = "ReticleStudioDisplayPopup";
 constexpr const char* kUiStateFileName = "assets/.editor_ui_state.json";
 constexpr const char* kRecoveryFileName = "assets/.editor_recovery.json";
 
@@ -3389,187 +3387,236 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     }
 }
 
-void EditorApplication::DrawPagePreviewHeaderControls(const char* buttonId,
-                                                      const bool showProblemsIndicator,
-                                                      const bool allowFullscreenToggle)
+void EditorApplication::DrawViewMenu()
 {
-    using editor::tutorial::TutorialStepId;
+    const bool hasOpenWindow = HasOpenWindow();
+    // The label flags pending validation issues exactly like the former workspace View button.
+    // The underlying count is computed by the workspace and stashed last frame, so the menu bar
+    // (drawn before the workspace) can surface it without recomputing the diagnostics.
+    const bool showProblemsIndicator =
+        hasOpenWindow && layoutState_.pagePreviewHasProblems && !layoutState_.pagePreviewViewOptions.showProblemsPanel;
+    const char* const menuLabel = showProblemsIndicator ? "View !" : "View";
 
-    const ImGuiStyle& style = ImGui::GetStyle();
-    const std::string label =
-        showProblemsIndicator && !layoutState_.pagePreviewViewOptions.showProblemsPanel ? "View !" : "View";
-    const std::string buttonLabel = label + (buttonId == nullptr ? "##PagePreviewViewMenu" : buttonId);
-    const float buttonWidth = ImGui::CalcTextSize(label.c_str()).x + style.FramePadding.x * 2.0f;
-    const float fullscreenButtonWidth =
-        allowFullscreenToggle ? ImGui::CalcTextSize("[]").x + style.FramePadding.x * 2.0f : 0.0f;
-    const float controlsWidth =
-        buttonWidth + (allowFullscreenToggle ? style.ItemSpacing.x + fullscreenButtonWidth : 0.0f);
-
-    ImGui::SameLine();
-    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - controlsWidth));
-    if (ImGui::Button(buttonLabel.c_str()))
-    {
-        if (tutorial_->MatchesTarget("page_preview_view_menu"))
-        {
-            tutorial_->AdvancePhase();
-        }
-        ImGui::OpenPopup(kPagePreviewDisplayPopupId);
-    }
-    ShowItemTooltip("Toggle page-preview overlays and editor-only helper panels.");
+    // The menu stays enabled at all times: even without an authored window the shell panels render,
+    // so the sidebar and inspector visibility toggles must remain reachable.
+    const bool viewMenuOpen = ImGui::BeginMenu(menuLabel);
     tutorial_->DrawHalo(
         "page_preview_view_menu",
         "Click View",
-        "Open the page-preview helper menu so the coach can walk through the editor-only overlays one by one.");
-
-    if (allowFullscreenToggle)
+        "Open the View menu so the coach can walk through the editor-only overlays one by one.");
+    if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("page_preview_view_menu"))
     {
-        ImGui::SameLine();
-        if (ImGui::Button("[]##PagePreviewFullscreenToggle"))
-        {
-            ToggleFullscreenPagePreview();
-            if (tutorial_->MatchesTarget("page_preview_fullscreen"))
-            {
-                if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 0))
-                {
-                    tutorial_->AdvancePhase();
-                }
-                else
-                {
-                    tutorial_->CompleteStep();
-                }
-            }
-        }
-        ShowItemTooltip(services_.fullscreenPreview.IsActive() ? "Exit fullscreen preview" : "Fullscreen page preview");
-        tutorial_->DrawHalo(
-            "page_preview_fullscreen",
-            "Toggle fullscreen preview",
-            tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 0)
-                ? "Enter fullscreen preview to focus on the page canvas."
-                : "Leave fullscreen preview to restore the normal editor layout.");
+        tutorial_->AdvancePhase();
     }
-
-    if (ImGui::BeginPopup(kPagePreviewDisplayPopupId))
+    if (viewMenuOpen)
     {
-        // Shell side panels belong to the normal editor layout only. They are offered here,
-        // next to the fullscreen button, so the menu bar no longer needs a separate View menu.
-        // Fullscreen hides the shell, so the toggles are skipped while it is active.
-        const bool showShellPanelToggles = allowFullscreenToggle && !services_.fullscreenPreview.IsActive();
-        if (showShellPanelToggles)
+        // The content adapts to the active workspace: without a window only the shell panels apply,
+        // the reticle studio exposes its own display options, and every other workspace shares the
+        // page-preview overlays and the fullscreen toggle.
+        if (!hasOpenWindow)
         {
-            ImGui::TextDisabled("Panels");
-            if (DrawShellPanelVisibilityToggle("Sidebar",
-                                               layoutState_.sidebarVisible,
-                                               layoutState_.sidebarAutoCollapsed,
-                                               "Show or hide the left page and reticle selector sidebar.") &&
-                tutorial_->MatchesTarget("page_preview_view_sidebar"))
+            if (!services_.fullscreenPreview.IsActive())
             {
-                tutorial_->CompleteStep();
+                DrawShellPanelVisibilityMenuItems();
+                ImGui::Separator();
             }
-            tutorial_->DrawHalo(
-                "page_preview_view_sidebar",
-                "Toggle Sidebar",
-                "Hide the left page and reticle selector to focus on the page preview. Re-open this menu to show it again.");
-
-            DrawShellPanelVisibilityToggle("Inspector",
-                                           layoutState_.inspectorVisible,
-                                           layoutState_.inspectorAutoCollapsed,
-                                           "Show or hide the right inspector panel.");
-            ImGui::Separator();
+            DrawFullscreenPreviewMenuItem();
         }
-
-        const bool layerInspectorChanged = ImGui::Checkbox("Layer Inspector", &layoutState_.pagePreviewViewOptions.showLayerInspector);
-        if (layerInspectorChanged && !layoutState_.pagePreviewViewOptions.showLayerInspector)
+        else if (IsLibraryStudioWorkspaceVisible())
         {
-            ClearLayerFocus(false);
-            ReleaseLayerPreviewTextures();
+            DrawReticleStudioViewMenuItems();
         }
-        if (layerInspectorChanged && layoutState_.pagePreviewViewOptions.showLayerInspector &&
-            tutorial_->MatchesTarget("page_preview_view_layer_inspector"))
+        else
         {
-            tutorial_->CompleteStep();
+            DrawPagePreviewViewMenuItems(showProblemsIndicator);
         }
-        tutorial_->DrawHalo(
-            "page_preview_view_layer_inspector",
-            "Enable Layer Inspector",
-            "Turn on the layer strip to inspect editor-only layers and their thumbnails.");
-
-        const bool minimapChanged = ImGui::Checkbox("Minimap", &layoutState_.pagePreviewViewOptions.showMinimap);
-        if (minimapChanged && layoutState_.pagePreviewViewOptions.showMinimap &&
-            tutorial_->MatchesTarget("page_preview_view_minimap"))
-        {
-            tutorial_->CompleteStep();
-        }
-        tutorial_->DrawHalo(
-            "page_preview_view_minimap",
-            "Enable Minimap",
-            "Turn on the minimap so page navigation stays readable while zooming and panning.");
-
-        const bool problemsChanged = ImGui::Checkbox("Problems", &layoutState_.pagePreviewViewOptions.showProblemsPanel);
-        if (problemsChanged && layoutState_.pagePreviewViewOptions.showProblemsPanel &&
-            tutorial_->MatchesTarget("page_preview_view_problems"))
-        {
-            tutorial_->CompleteStep();
-        }
-        tutorial_->DrawHalo(
-            "page_preview_view_problems",
-            "Enable Problems",
-            "Dock the validation panel under the preview so diagnostics stay visible while editing.");
-
-        const bool highlightChanged = ImGui::Checkbox("Highlight reticle usages", &layoutState_.pagePreviewViewOptions.highlightReticleUsages);
-        if (highlightChanged && layoutState_.pagePreviewViewOptions.highlightReticleUsages &&
-            tutorial_->MatchesTarget("page_preview_view_highlight_usages"))
-        {
-            tutorial_->CompleteStep();
-        }
-        tutorial_->DrawHalo(
-            "page_preview_view_highlight_usages",
-            "Enable Highlight reticle usages",
-            "Turn on template usage highlighting for the currently selected shared reticle.");
-        ImGui::Separator();
-        ImGui::Checkbox("Reticle names", &layoutState_.pagePreviewViewOptions.showReticleNames);
-        ImGui::Checkbox("Gizmos", &layoutState_.pagePreviewViewOptions.showGizmos);
-        ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
-        ShowItemTooltip("Draw a discreet editor-only grid matching the shared logical snapping step.");
-        ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
-        ShowItemTooltip("Snap page-preview drags and nudges plus reticle-studio edits to the shared logical grid. "
-                        "Arrow keys move the page selection; hold Shift for a larger step when snapping is off.");
-        if (layoutState_.pagePreviewViewOptions.showGrid || layoutState_.pagePreviewViewOptions.snapToGrid)
-        {
-            ImGui::SetNextItemWidth(120.0f);
-            ImGui::DragFloat("Grid step", &layoutState_.pagePreviewViewOptions.gridStepLogical, 0.005f, 0.01f, 0.5f, "%.3f");
-            layoutState_.pagePreviewViewOptions.gridStepLogical =
-                editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
-            ShowItemTooltip("Shared logical spacing reused by the visible grid, page-preview snapping, and reticle-studio snapping.");
-        }
-        // The page-context split only exists while editing a library reticle, so the toggle is
-        // meaningless in the plain page-preview view. Keep it reachable for the tutorial step that
-        // introduces it from the page preview, otherwise restrict it to the reticle-studio layout.
-        const bool offerPageContextToggle =
-            IsLibraryStudioWorkspaceVisible() || tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowPageContext));
-        if (offerPageContextToggle)
-        {
-            const bool pageContextChanged = ImGui::Checkbox("Page context", &layoutState_.pagePreviewViewOptions.showPageContext);
-            if (pageContextChanged && layoutState_.pagePreviewViewOptions.showPageContext &&
-                tutorial_->MatchesTarget("page_preview_view_page_context"))
-            {
-                tutorial_->CompleteStep();
-            }
-            tutorial_->DrawHalo(
-                "page_preview_view_page_context",
-                "Enable Page context",
-                "Turn on the page-context split so the active page stays visible while you inspect the rest of the workspace.");
-        }
-        if (showProblemsIndicator && !layoutState_.pagePreviewViewOptions.showProblemsPanel)
-        {
-            ImGui::Separator();
-            ImGui::TextDisabled("Validation issues are available. Enable Problems to inspect them below the preview.");
-        }
-        ImGui::EndPopup();
+        ImGui::EndMenu();
     }
     else if (tutorial_->ShouldResetPagePreviewViewPhaseOnClose())
     {
         tutorial_->ResetPhase();
     }
+}
+
+void EditorApplication::DrawShellPanelVisibilityMenuItems()
+{
+    ImGui::TextDisabled("Panels");
+    if (DrawShellPanelVisibilityToggle("Sidebar",
+                                       layoutState_.sidebarVisible,
+                                       layoutState_.sidebarAutoCollapsed,
+                                       "Show or hide the left page and reticle selector sidebar.") &&
+        tutorial_->MatchesTarget("page_preview_view_sidebar"))
+    {
+        tutorial_->CompleteStep();
+    }
+    tutorial_->DrawHalo(
+        "page_preview_view_sidebar",
+        "Toggle Sidebar",
+        "Hide the left page and reticle selector to focus on the page preview. Re-open this menu to show it again.");
+
+    DrawShellPanelVisibilityToggle("Inspector",
+                                   layoutState_.inspectorVisible,
+                                   layoutState_.inspectorAutoCollapsed,
+                                   "Show or hide the right inspector panel.");
+}
+
+void EditorApplication::DrawPagePreviewViewMenuItems(const bool showProblemsIndicator)
+{
+    using editor::tutorial::TutorialStepId;
+
+    // Shell side panels belong to the normal editor layout only, so the toggles are skipped while
+    // fullscreen preview hides the shell.
+    const bool fullscreenActive = services_.fullscreenPreview.IsActive();
+    if (!fullscreenActive)
+    {
+        DrawShellPanelVisibilityMenuItems();
+        ImGui::Separator();
+    }
+
+    const bool layerInspectorChanged = ImGui::Checkbox("Layer Inspector", &layoutState_.pagePreviewViewOptions.showLayerInspector);
+    if (layerInspectorChanged && !layoutState_.pagePreviewViewOptions.showLayerInspector)
+    {
+        ClearLayerFocus(false);
+        ReleaseLayerPreviewTextures();
+    }
+    if (layerInspectorChanged && layoutState_.pagePreviewViewOptions.showLayerInspector &&
+        tutorial_->MatchesTarget("page_preview_view_layer_inspector"))
+    {
+        tutorial_->CompleteStep();
+    }
+    tutorial_->DrawHalo(
+        "page_preview_view_layer_inspector",
+        "Enable Layer Inspector",
+        "Turn on the layer strip to inspect editor-only layers and their thumbnails.");
+
+    const bool minimapChanged = ImGui::Checkbox("Minimap", &layoutState_.pagePreviewViewOptions.showMinimap);
+    if (minimapChanged && layoutState_.pagePreviewViewOptions.showMinimap &&
+        tutorial_->MatchesTarget("page_preview_view_minimap"))
+    {
+        tutorial_->CompleteStep();
+    }
+    tutorial_->DrawHalo(
+        "page_preview_view_minimap",
+        "Enable Minimap",
+        "Turn on the minimap so page navigation stays readable while zooming and panning.");
+
+    const bool problemsChanged = ImGui::Checkbox("Problems", &layoutState_.pagePreviewViewOptions.showProblemsPanel);
+    if (problemsChanged && layoutState_.pagePreviewViewOptions.showProblemsPanel &&
+        tutorial_->MatchesTarget("page_preview_view_problems"))
+    {
+        tutorial_->CompleteStep();
+    }
+    tutorial_->DrawHalo(
+        "page_preview_view_problems",
+        "Enable Problems",
+        "Dock the validation panel under the preview so diagnostics stay visible while editing.");
+
+    const bool highlightChanged = ImGui::Checkbox("Highlight reticle usages", &layoutState_.pagePreviewViewOptions.highlightReticleUsages);
+    if (highlightChanged && layoutState_.pagePreviewViewOptions.highlightReticleUsages &&
+        tutorial_->MatchesTarget("page_preview_view_highlight_usages"))
+    {
+        tutorial_->CompleteStep();
+    }
+    tutorial_->DrawHalo(
+        "page_preview_view_highlight_usages",
+        "Enable Highlight reticle usages",
+        "Turn on template usage highlighting for the currently selected shared reticle.");
+    ImGui::Separator();
+    ImGui::Checkbox("Reticle names", &layoutState_.pagePreviewViewOptions.showReticleNames);
+    ImGui::Checkbox("Gizmos", &layoutState_.pagePreviewViewOptions.showGizmos);
+    ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
+    ShowItemTooltip("Draw a discreet editor-only grid matching the shared logical snapping step.");
+    ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
+    ShowItemTooltip("Snap page-preview drags and nudges plus reticle-studio edits to the shared logical grid. "
+                    "Arrow keys move the page selection; hold Shift for a larger step when snapping is off.");
+    if (layoutState_.pagePreviewViewOptions.showGrid || layoutState_.pagePreviewViewOptions.snapToGrid)
+    {
+        ImGui::SetNextItemWidth(120.0f);
+        ImGui::DragFloat("Grid step", &layoutState_.pagePreviewViewOptions.gridStepLogical, 0.005f, 0.01f, 0.5f, "%.3f");
+        layoutState_.pagePreviewViewOptions.gridStepLogical =
+            editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
+        ShowItemTooltip("Shared logical spacing reused by the visible grid, page-preview snapping, and reticle-studio snapping.");
+    }
+    // The page-context split only exists while editing a library reticle, so the toggle is
+    // meaningless in the plain page-preview view. It stays reachable here for the tutorial step that
+    // introduces it from the page preview; otherwise it lives in the reticle-studio View items.
+    if (tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowPageContext)))
+    {
+        const bool pageContextChanged = ImGui::Checkbox("Page context", &layoutState_.pagePreviewViewOptions.showPageContext);
+        if (pageContextChanged && layoutState_.pagePreviewViewOptions.showPageContext &&
+            tutorial_->MatchesTarget("page_preview_view_page_context"))
+        {
+            tutorial_->CompleteStep();
+        }
+        tutorial_->DrawHalo(
+            "page_preview_view_page_context",
+            "Enable Page context",
+            "Turn on the page-context split so the active page stays visible while you inspect the rest of the workspace.");
+    }
+    ImGui::Separator();
+    DrawFullscreenPreviewMenuItem();
+
+    if (showProblemsIndicator)
+    {
+        ImGui::Separator();
+        ImGui::TextDisabled("Validation issues are available. Enable Problems to inspect them below the preview.");
+    }
+}
+
+void EditorApplication::DrawReticleStudioViewMenuItems()
+{
+    ImGui::Checkbox("Show page context", &layoutState_.pagePreviewViewOptions.showPageContext);
+    ImGui::Checkbox("Show primitive names", &layoutState_.libraryStudioShowPrimitiveLabels);
+    ImGui::Checkbox("Show gizmos", &layoutState_.libraryStudioShowGizmos);
+    ImGui::Separator();
+    ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
+    ShowItemTooltip("Draw the shared editor-only placement grid behind the reticle-studio content.");
+    ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
+    ShowItemTooltip("Snap reticle-studio primitive moves and handle edits to the same logical grid used by the page preview.");
+    if (layoutState_.pagePreviewViewOptions.showGrid || layoutState_.pagePreviewViewOptions.snapToGrid)
+    {
+        ImGui::SetNextItemWidth(120.0f);
+        ImGui::DragFloat("Grid step", &layoutState_.pagePreviewViewOptions.gridStepLogical, 0.005f, 0.01f, 0.5f, "%.3f");
+        layoutState_.pagePreviewViewOptions.gridStepLogical =
+            editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
+        ShowItemTooltip("Shared logical spacing reused by the visible grid and both editor snapping workflows.");
+    }
+    ImGui::Separator();
+    DrawFullscreenPreviewMenuItem();
+}
+
+void EditorApplication::DrawFullscreenPreviewMenuItem()
+{
+    using editor::tutorial::TutorialStepId;
+
+    // Fullscreen preview is a pure editor layout mode that depends on nothing in the document, so it
+    // is offered in every View-menu context, including before a window is open. Rendered as a checkbox
+    // so it reads exactly like the other View toggles; a checkbox also keeps the menu open after a
+    // click, which lets the guided tutorial enter at phase 1 and leave at phase 2 without reopening it.
+    const bool fullscreenActive = services_.fullscreenPreview.IsActive();
+    bool fullscreenEnabled = fullscreenActive;
+    if (ImGui::Checkbox("Fullscreen preview", &fullscreenEnabled))
+    {
+        ToggleFullscreenPagePreview();
+        if (tutorial_->MatchesTarget("page_preview_fullscreen"))
+        {
+            if (tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 1))
+            {
+                tutorial_->AdvancePhase();
+            }
+            else
+            {
+                tutorial_->CompleteStep();
+            }
+        }
+    }
+    ShowItemTooltip(fullscreenActive ? "Exit fullscreen preview (F11)" : "Fullscreen page preview (F11)");
+    tutorial_->DrawHalo(
+        "page_preview_fullscreen",
+        "Toggle fullscreen preview",
+        tutorial_->IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 1)
+            ? "Enter fullscreen preview to focus on the page canvas."
+            : "Leave fullscreen preview to restore the normal editor layout.");
 }
 
 void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport)

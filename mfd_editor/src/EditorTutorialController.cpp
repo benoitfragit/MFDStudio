@@ -759,7 +759,10 @@ bool EditorTutorialController::ShouldResetPagePreviewViewPhaseOnClose() const no
            IsStepPhase(static_cast<int>(TutorialStepId::ShowMinimap), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::ShowProblemsPanel), 1) ||
-           IsStepPhase(static_cast<int>(TutorialStepId::HideWorkspacePanels), 1);
+           IsStepPhase(static_cast<int>(TutorialStepId::HideWorkspacePanels), 1) ||
+           // Only the pre-enter phase resets to the "open View" prompt; the exit phase recovers by
+           // reopening the menu, since resetting it would wrongly point back to the enter step.
+           IsStepPhase(static_cast<int>(TutorialStepId::ToggleFullscreenPreview), 1);
 }
 
 bool EditorTutorialController::ShouldResetReticleCreatePopupOnCancel() const noexcept
@@ -1151,7 +1154,9 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
     case static_cast<int>(TutorialStepId::HideWorkspacePanels):
         return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_sidebar";
     case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
-        return "page_preview_fullscreen";
+        // Fullscreen now lives inside the menu-bar View menu: phase 0 opens it, then the checkbox
+        // keeps the menu open so phase 1 enters and phase 2 leaves through the same control.
+        return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_fullscreen";
     case static_cast<int>(TutorialStepId::SaveTutorialAssets):
         return stepPhase_ == 0 ? "menu_file" : "menu_file_save";
     case static_cast<int>(TutorialStepId::InspectPageImportWorkflow):
@@ -1248,7 +1253,9 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
     case static_cast<int>(TutorialStepId::HideWorkspacePanels):
         return stepPhase_ == 0 ? "Click View." : "Toggle Sidebar under Panels.";
     case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
-        return stepPhase_ == 0 ? "Click the fullscreen button." : "Click the fullscreen button again to restore the layout.";
+        return stepPhase_ == 0 ? "Click View."
+                               : (stepPhase_ == 1 ? "Enable Fullscreen preview."
+                                                  : "Disable Fullscreen preview to restore the layout.");
     case static_cast<int>(TutorialStepId::SaveTutorialAssets):
         return stepPhase_ == 0 ? "Click File." : "Click Save.";
     case static_cast<int>(TutorialStepId::InspectPageImportWorkflow):

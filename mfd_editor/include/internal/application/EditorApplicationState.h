@@ -423,6 +423,8 @@ struct LayoutState
     bool sidebarAutoCollapsed = false;
     /** @brief `true` when the user wants the inspector but it is auto-collapsed for lack of width. */
     bool inspectorAutoCollapsed = false;
+    /** @brief Last page-preview validation result, stashed so the menu-bar View entry can flag issues. */
+    bool pagePreviewHasProblems = false;
     std::array<char, 96> sidebarFilter {};
     std::map<std::string, bool> inspectorSectionOpen {};
     float libraryStudioPageWidth = 0.0f;
