@@ -10,8 +10,8 @@ If you prefer visual authoring first, start with the optional editor bootstrap i
 
 For the exact page and window field reference, see:
 
-- [Common JSON Syntax](../reference/common_json_syntax.md)
-- [Page And Window Reference](../reference/page_and_window_reference.md)
+- [JSON Syntax](../src/reference/json.md)
+- [Pages And Windows Reference](../src/reference/pages_and_windows.md)
 
 ## At A Glance
 

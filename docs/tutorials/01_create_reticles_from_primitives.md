@@ -7,8 +7,8 @@ pages.
 
 For the exact list of primitive fields and aliases, see:
 
-- [Common JSON Syntax](../reference/common_json_syntax.md)
-- [Primitive Reference](../reference/primitive_reference.md)
+- [JSON Syntax](../src/reference/json.md)
+- [Primitives Reference](../src/reference/primitives.md)
 
 ## At A Glance
 
