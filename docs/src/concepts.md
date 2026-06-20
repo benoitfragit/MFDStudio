@@ -1,6 +1,7 @@
 # Concepts
 
-The minimum vocabulary you need before the tutorials or the JSON reference.
+The minimum vocabulary you need before the
+[Getting Started Tutorial](./getting-started.md) or the JSON reference.
 
 ![Object model](./images/mfd_object_model.svg)
 

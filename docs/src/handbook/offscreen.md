@@ -75,3 +75,9 @@ Choose offscreen embedding when:
 The runtime keeps the same authored command and feedback contract as
 `mfd_window`, so a client written against the generated API behaves identically
 whether it targets the standalone host or your embedded surfaces.
+
+## C++ API reference
+
+For the full `RuntimeSession`, `OffscreenSurface`, and `OffscreenFrameView`
+signatures, see the [C++ API Reference](../api.md), generated from
+`mfd_runtime_api/include`.

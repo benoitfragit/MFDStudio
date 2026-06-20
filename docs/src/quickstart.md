@@ -59,6 +59,7 @@ to tell an authored-asset issue from a client-side or runtime-side issue.
 
 | Goal | Read next |
 | --- | --- |
+| Follow the same loop end to end, with C++ | [Getting Started Tutorial](./getting-started.md) |
 | Drive the runtime from a generated C++ API | [Generated Client API](./handbook/generated_api.md) |
 | Capture raw pixels | [Framebuffer Capture](./handbook/framebuffer.md) |
 | Author assets visually | [Editor](./handbook/editor.md) |

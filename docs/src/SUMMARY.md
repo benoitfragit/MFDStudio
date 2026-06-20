@@ -3,7 +3,9 @@
 [Introduction](./index.md)
 
 - [Quick Start](./quickstart.md)
+- [Getting Started Tutorial](./getting-started.md)
 - [Concepts](./concepts.md)
+- [Gallery](./gallery.md)
 
 # Handbook
 
@@ -12,6 +14,7 @@
 - [Runtime](./handbook/runtime.md)
 - [Offscreen Embedding](./handbook/offscreen.md)
 - [Framebuffer Capture](./handbook/framebuffer.md)
+- [Cookbook](./cookbook.md)
 - [Troubleshooting](./handbook/troubleshooting.md)
 
 # Reference
@@ -19,6 +22,7 @@
 - [JSON Syntax](./reference/json.md)
 - [Primitives](./reference/primitives.md)
 - [Pages And Windows](./reference/pages_and_windows.md)
+- [Public API Contract](./reference/public_contract.md)
 
 # Development
 
