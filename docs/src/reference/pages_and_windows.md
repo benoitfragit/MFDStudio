@@ -6,6 +6,20 @@ strobe catalogs. See [JSON Syntax](./json.md) for shared conventions.
 By convention, window files live in `assets/windows` and page files in
 `assets/pages`.
 
+```mermaid
+flowchart TB
+    Window["Window JSON<br/>(transports, default page)"] --> Page1["Page JSON<br/>(layers, view, strobe)"]
+    Window --> Page2["Page JSON<br/>(layers, view, strobe)"]
+    Page1 --> Layer["Layer<br/>(draw order)"]
+    Layer --> Static["Static reticle instance<br/>(template or inline)"]
+    Layer --> Dynamic["Dynamic reticle binding<br/>(template -> layer)"]
+    Static --> Primitive["Primitives<br/>(text, geometry, image, time)"]
+```
+
+One window owns several pages; one page owns ordered layers; each layer holds
+static reticle instances and dynamic-reticle bindings, and each reticle is made
+of primitives.
+
 ## Window JSON
 
 ```json

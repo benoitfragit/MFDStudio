@@ -10,6 +10,7 @@ default-theme = "navy"
 preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/benoitfragit/MFDStudio"
 edit-url-template = "https://github.com/benoitfragit/MFDStudio/edit/master/docs/{path}"
+additional-js = ["theme/mermaid-init.js"]
 
 [output.html.fold]
 enable = true
