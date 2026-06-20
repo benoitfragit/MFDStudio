@@ -80,6 +80,18 @@ jobs:
 
           "plantuml_jar=$plantUmlJar" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Install mdBook
+        shell: pwsh
+        run: |
+          $mdBookVersion = "v0.4.40"
+          $mdBookDirectory = Join-Path $env:RUNNER_TEMP "mdbook"
+          New-Item -ItemType Directory -Force $mdBookDirectory | Out-Null
+          $archive = Join-Path $mdBookDirectory "mdbook.zip"
+          $downloadUri = "https://github.com/rust-lang/mdBook/releases/download/$mdBookVersion/mdbook-$mdBookVersion-x86_64-pc-windows-msvc.zip"
+          Invoke-WebRequest -Uri $downloadUri -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $mdBookDirectory -Force
+          $mdBookDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
@@ -94,21 +106,17 @@ jobs:
 
           "docs_version=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Generate Doxygen HTML
+      - name: Build combined documentation site
         shell: pwsh
         run: |
-          pwsh -File docs/GenerateDocs.ps1 `
+          pwsh -File docs/BuildDocsSite.ps1 `
             -Version "${{ steps.version.outputs.docs_version }}" `
             -PlantUmlJarPath "${{ steps.docs_tools.outputs.plantuml_jar }}"
-
-      - name: Disable Jekyll processing
-        shell: pwsh
-        run: New-Item -ItemType File -Force "build/docs/doxygen/html/.nojekyll" | Out-Null
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: build/docs/doxygen/html
+          path: build/docs/site
 
   deploy-docs:
     needs: build-docs
