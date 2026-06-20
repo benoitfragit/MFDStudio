@@ -58,9 +58,81 @@ jobs:
           "release_tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "is_prerelease=$isPrerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Doxygen, Graphviz, and PlantUML
+        id: docs_tools
+        shell: pwsh
+        run: |
+          choco install doxygen.install graphviz -y --no-progress
+          $plantUmlDirectory = Join-Path $env:RUNNER_TEMP "plantuml"
+          New-Item -ItemType Directory -Force $plantUmlDirectory | Out-Null
+          $plantUmlJar = Join-Path $plantUmlDirectory "plantuml.jar"
+          Invoke-WebRequest -Uri "https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar" -OutFile $plantUmlJar
+
+          $candidatePaths = @(
+            "${env:ProgramFiles}\doxygen\bin",
+            "${env:ProgramFiles}\Graphviz\bin"
+          )
+
+          foreach ($candidatePath in $candidatePaths) {
+            if (Test-Path $candidatePath) {
+              $candidatePath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
+          }
+
+          "plantuml_jar=$plantUmlJar" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Install mdBook
+        shell: pwsh
+        run: |
+          $mdBookVersion = "v0.4.40"
+          $mdBookDirectory = Join-Path $env:RUNNER_TEMP "mdbook"
+          New-Item -ItemType Directory -Force $mdBookDirectory | Out-Null
+          $archive = Join-Path $mdBookDirectory "mdbook.zip"
+          $downloadUri = "https://github.com/rust-lang/mdBook/releases/download/$mdBookVersion/mdbook-$mdBookVersion-x86_64-pc-windows-msvc.zip"
+          Invoke-WebRequest -Uri $downloadUri -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $mdBookDirectory -Force
+          $mdBookDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build combined documentation site
+        shell: pwsh
+        run: |
+          pwsh -File docs/BuildDocsSite.ps1 `
+            -Version "${{ steps.release_context.outputs.release_tag }}" `
+            -PlantUmlJarPath "${{ steps.docs_tools.outputs.plantuml_jar }}"
+
+      - name: Package documentation site
+        id: docs_package
+        shell: pwsh
+        run: |
+          $siteDirectory = "build/docs/site"
+          if (-not (Test-Path (Join-Path $siteDirectory "index.html"))) {
+            throw "Documentation site was not built at $siteDirectory."
+          }
+
+          $archiveName = "MFDStudio-docs-${{ steps.release_context.outputs.release_tag }}.zip"
+          $archivePath = Join-Path $env:RUNNER_TEMP $archiveName
+          if (Test-Path $archivePath) {
+            Remove-Item -Force $archivePath
+          }
+
+          Compress-Archive -Path (Join-Path $siteDirectory "*") -DestinationPath $archivePath -Force
+          "docs_archive=$archivePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_context.outputs.release_tag }}
           prerelease: ${{ steps.release_context.outputs.is_prerelease }}
           generate_release_notes: true
+          files: ${{ steps.docs_package.outputs.docs_archive }}
