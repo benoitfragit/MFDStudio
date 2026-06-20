@@ -666,10 +666,24 @@ double ParseNumericToken(const std::string_view value)
     }
 
     std::size_t processedCharacters = 0;
-    const double parsedValue = std::stod(std::string(trimmed), &processedCharacters);
+    double parsedValue = 0.0;
+    try
+    {
+        parsedValue = std::stod(std::string(trimmed), &processedCharacters);
+    }
+    catch (const std::out_of_range&)
+    {
+        throw std::runtime_error("Numeric token is out of range");
+    }
+
     if (processedCharacters != trimmed.size())
     {
         throw std::runtime_error("Invalid numeric token");
+    }
+
+    if (!std::isfinite(parsedValue))
+    {
+        throw std::runtime_error("Numeric token is not finite");
     }
 
     return parsedValue;

@@ -2017,6 +2017,100 @@ TEST(JsonLoaderTests, LoadDocumentParsesPageTitleDisplayChrome)
     EXPECT_EQ(titleDisplay.decoration, mfd::PageTitleDecoration::Frame);
 }
 
+TEST(JsonLoaderTests, LoadDocumentRejectsNonFiniteRgbColorChannel)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+    std::filesystem::create_directories(reticleFolder);
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "title": "Main page",
+      "titleDisplay": {
+        "stroke": "rgb(1e999,0,0)"
+      },
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": []
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsInfiniteRgbColorChannel)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+    std::filesystem::create_directories(reticleFolder);
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "title": "Main page",
+      "titleDisplay": {
+        "stroke": "rgb(inf,0,0)"
+      },
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": []
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, LoadDocumentParsesFiniteRgbColorChannel)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+    std::filesystem::create_directories(reticleFolder);
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Main",
+      "title": "Main page",
+      "titleDisplay": {
+        "stroke": "rgb(255,0,0)"
+      },
+      "layers": [
+        { "id": "default" }
+      ],
+      "staticReticles": []
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument document = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(document.pages.size(), 1U);
+    const mfd::PageTitleDisplayDefinition& titleDisplay = document.pages.front().titleDisplay;
+    EXPECT_EQ(titleDisplay.color.r, 255);
+    EXPECT_EQ(titleDisplay.color.g, 0);
+    EXPECT_EQ(titleDisplay.color.b, 0);
+    EXPECT_EQ(titleDisplay.color.a, 255);
+}
+
 TEST(JsonLoaderTests, LoadDocumentRejectsNonBooleanPageTitleDisplayVisibility)
 {
     TemporaryFolder workspace;
