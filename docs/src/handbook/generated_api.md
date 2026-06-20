@@ -90,3 +90,9 @@ Two umbrella entry points matter most:
 
 - `mfd/client/ClientSdk.h` for standalone applications and shipped examples
 - `mfd/client/GeneratedUiSupport.h` for generated source files
+
+## C++ API reference
+
+For the exact signatures of `CommandClient`, `LatestBatchPublisher`,
+`WindowLivenessMonitor`, and the client SDK helpers, see the
+[C++ API Reference](../api.md), generated from `mfd_client_api/include`.

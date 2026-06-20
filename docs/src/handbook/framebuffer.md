@@ -35,3 +35,9 @@ Or use the shipped preset:
 
 To build your own sink, implement the plugin ABI from `mfd_window_plugin_api`
 and model it on the shipped sample.
+
+## C++ API reference
+
+For the framebuffer plugin ABI (`mfd/window/WindowLauncherPlugin.h`) and its
+pixel-format options, see the [C++ API Reference](../api.md), generated from
+`mfd_window_plugin_api/include`.
