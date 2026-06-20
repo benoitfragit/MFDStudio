@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 560" font-family="Segoe UI, Arial, sans-serif">
+  <rect x="0" y="0" width="920" height="560" fill="#08131B"/>
+  <text x="30" y="40" fill="#EAD29B" font-size="24">MFDStudio primitives</text>
+  <text x="30" y="62" fill="#6E8AA0" font-size="14">Atomic drawable types, shown in the &quot;hud&quot; stroke on a dark page background. A reticle is built from one or more of these.</text>
+
+  <!-- shared style: stroke #33FF88, no fill, thin -->
+  <g fill="none" stroke="#33FF88" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- Row 1 -->
+    <!-- line @ c0(120,150) -->
+    <line x1="86" y1="182" x2="154" y2="118"/>
+    <!-- circle @ c1(290,150) -->
+    <circle cx="290" cy="150" r="38"/>
+    <!-- ring @ c2(460,150) -->
+    <circle cx="460" cy="150" r="40"/>
+    <circle cx="460" cy="150" r="22"/>
+    <!-- arc @ c3(630,150) : open partial circle -->
+    <path d="M 592 168 A 44 44 0 1 1 668 168"/>
+    <!-- bezier @ c4(800,150) : smooth S-curve -->
+    <path d="M 758 184 C 786 110, 814 190, 842 116"/>
+
+    <!-- Row 2 -->
+    <!-- rectangle @ c0(120,310) -->
+    <rect x="68" y="282" width="104" height="56"/>
+    <!-- square @ c1(290,310) -->
+    <rect x="255" y="275" width="70" height="70"/>
+    <!-- ellipse @ c2(460,310) -->
+    <ellipse cx="460" cy="310" rx="52" ry="32"/>
+    <!-- diamond @ c3(630,310) -->
+    <polygon points="630,268 672,310 630,352 588,310"/>
+    <!-- triangle @ c4(800,310) -->
+    <polygon points="800,270 840,348 760,348"/>
+
+    <!-- Row 3 -->
+    <!-- polyline (open) @ c0(120,470) -->
+    <polyline points="78,492 105,448 132,492 160,448"/>
+    <!-- image @ c1(290,470) : framed picture glyph -->
+    <rect x="247" y="438" width="86" height="64"/>
+    <circle cx="268" cy="458" r="7"/>
+    <polyline points="251,498 282,468 300,486 329,460"/>
+  </g>
+
+  <!-- text primitive @ c2(460,470) -->
+  <text x="460" y="480" fill="#33FF88" font-family="Consolas, monospace" font-size="26" text-anchor="middle">TEXT</text>
+  <!-- time primitive @ c3(630,470) -->
+  <text x="630" y="480" fill="#33FF88" font-family="Consolas, monospace" font-size="24" text-anchor="middle">12:30:45</text>
+
+  <!-- legend cell @ c4(800,470) -->
+  <g>
+    <rect x="755" y="440" width="90" height="60" fill="none" stroke="#1E3344" stroke-width="2"/>
+    <line x1="767" y1="462" x2="833" y2="462" stroke="#33FF88" stroke-width="3"/>
+    <rect x="767" y="474" width="66" height="14" fill="#112233" stroke="#33FF88" stroke-width="2"/>
+    <text x="800" y="432" fill="#6E8AA0" font-size="12" text-anchor="middle">stroke / fill</text>
+  </g>
+
+  <!-- labels -->
+  <g fill="#9FB3C8" font-size="15" text-anchor="middle">
+    <text x="120" y="212">line</text>
+    <text x="290" y="212">circle</text>
+    <text x="460" y="212">ring</text>
+    <text x="630" y="212">arc</text>
+    <text x="800" y="212">bezier</text>
+
+    <text x="120" y="372">rectangle</text>
+    <text x="290" y="372">square</text>
+    <text x="460" y="372">ellipse</text>
+    <text x="630" y="372">diamond</text>
+    <text x="800" y="372">triangle</text>
+
+    <text x="120" y="532">polyline</text>
+    <text x="290" y="532">image</text>
+    <text x="460" y="532">text</text>
+    <text x="630" y="532">time</text>
+    <text x="800" y="532">legend</text>
+  </g>
+</svg>

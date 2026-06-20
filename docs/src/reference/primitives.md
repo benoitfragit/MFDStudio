@@ -3,6 +3,14 @@
 Supported primitive types and their JSON fields. For transform, color, and style
 syntax see [JSON Syntax](./json.md).
 
+## Visual overview
+
+![Primitive types](../images/mfd_primitives_overview.svg)
+
+Every type above is drawn from the same normalized `[-1, 1]` space and styled
+with the shared stroke/fill conventions. A reticle composes one or more of these
+primitives.
+
 ## Common fields
 
 Every primitive supports these:
