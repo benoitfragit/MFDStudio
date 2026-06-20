@@ -157,5 +157,5 @@ Continue with:
 1. [Create A Window From Scratch In `mfd_editor`](./13_create_window_from_editor.md)
 2. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
 3. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
-4. [Generated Client API Architecture](../architecture/generated_client_api.md)
+4. [Generated Client API](../src/handbook/generated_api.md)
 5. [Capture The Window As Raw Pixels](./07_framebuffer_rgba32_capture.md)

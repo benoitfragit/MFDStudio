@@ -1,133 +1,38 @@
-# MFDStudio Documentation Portal
+# MFDStudio C++ API Reference
 
-@tableofcontents
+This site is the generated C++ header reference for the public MFDStudio
+surface. It is scoped to the API only.
 
-<div class="mfd-hero"><span class="mfd-eyebrow">Release-Synchronized Docs</span><span class="mfd-hero-title">MFDStudio documentation, generated client API guidance, and C++ reference</span><span class="mfd-hero-copy">Use one published portal to onboard quickly, author JSON assets, integrate live clients through the generated API, and inspect the public C++ headers shipped in the current release.</span><div class="mfd-pill-row"><span class="mfd-pill">Generated API first</span><span class="mfd-pill">C++17 runtime API</span><span class="mfd-pill">Tutorial-driven onboarding</span><span class="mfd-pill">JSON + architecture</span></div><div class="mfd-stage-grid"><div class="mfd-stage"><strong>Start</strong><span>README, quick start, and curated reading paths</span></div><div class="mfd-stage"><strong>Integrate</strong><span>Generated client API, transport map, dynamic reticles, and strobe flows</span></div><div class="mfd-stage"><strong>Author</strong><span>Editor workflow plus exact page, reticle, and primitive JSON reference</span></div><div class="mfd-stage"><strong>Inspect</strong><span>Versioned header reference with Graphviz and PlantUML diagrams</span></div></div></div>
+For onboarding, authoring, integration, and architecture guidance, use the main
+MFDStudio documentation portal (built with mdBook). The published portal links
+back to this reference at its `/api/` path.
 
-## Overview
+## Public Modules
 
-This portal is the generated Doxygen site for the public MFDStudio
-documentation and the shipped public C++ headers.
+The reference covers the public headers of:
 
-\startuml
-left to right direction
-rectangle "Project README" as Readme
-rectangle "Documentation Guide" as Guide
-rectangle "Quick Start + Tutorials" as Tutorials
-rectangle "Generated API + Architecture" as Guides
-rectangle "Reference + Architecture Notes" as Reference
-rectangle "Public C++ Headers" as Api
+- `mfd_common_api/include` — shared low-level model and transport types
+- `mfd_api/include` — core runtime, JSON I/O, and the low-level command API
+- `mfd_client_api/include` — client-side helpers and the generated-client support layer
+- `mfd_runtime_api/include` — offscreen embedding of the runtime
+- `mfd_window/include` — runtime host integration points
+- `mfd_window_plugin_api/include` — public framebuffer-plugin SDK
 
-Readme --> Guide
-Guide --> Tutorials
-Guide --> Guides
-Guide --> Reference
-Tutorials --> Api
-Guides --> Api
-Reference --> Api
-\enduml
+## Client Integration Entry Points
 
-It brings together:
-
-- newcomer and operator guides from the repository markdown pages
-- generated-client onboarding and usage pages
-- tutorial flows and exact JSON authoring reference pages
-- architecture notes for generated APIs and transport maps
-- the internal `mfd_common_api` build-graph note describing the shared static
-  low-level module
-- the versioned C++ header surface exposed from `mfd_common_api/include`,
-  `mfd_api/include`, `mfd_client_api/include`, `mfd_window/include`, and
-  `mfd_window_plugin_api/include`
-
-Internally, the repository implementation now starts from the dedicated
-`mfd_common_api` module, which owns `mfd_model` and `mfd_transport`, then
-layers `mfd_io_json` and `mfd_runtime` into `mfd_api`, while the
-`mfd_render_raylib` backend stays host-side for repository applications. The
-published client-facing documentation therefore stays render-agnostic: the
-public API focuses on authored data, command flow, runtime control, and
-generated clients rather than exposing one renderer as a required dependency.
-
-For customer-facing client code, two umbrella entry points matter most:
+For customer-facing client code, two umbrella headers matter most:
 
 - `mfd/client/ClientSdk.h` for standalone applications and shipped examples
-- `mfd/client/GeneratedUiSupport.h` for generated source files emitted by the client API generator
+- `mfd/client/GeneratedUiSupport.h` for generated source files emitted by the
+  client API generator
 
-`ClientSdk.h` stays focused on standalone loader, transport, feedback, and
-publication helpers. Generated window-specific headers include
-`GeneratedUiSupport.h` directly so the normal generated surface does not depend
-on transitive include accidents.
+Generated code and shipped examples should link only `mfd_client_api`, even when
+they reach lower-level helpers such as `CommandClient`, `JsonLoader`, or
+`UserSpaceProjector` through the packaged SDK surface. External CMake consumers
+use `find_package(MFDStudioClientApi)` and `MFDStudio::ClientApi`.
 
-Generated code and shipped examples should therefore link only
-`mfd_client_api`, even when they reach lower-level helpers such as
-`CommandClient`, `JsonLoader`, or `UserSpaceProjector` through the packaged SDK
-surface.
+## Where To Go Next
 
-The packaged SDK boundary is deliberately curated: external CMake consumers use
-`find_package(MFDStudioClientApi)` and `MFDStudio::ClientApi`, receive only the
-headers and import libraries required by generated clients, and depend on
-`mfd_client_api.dll` rather than `mfd_api.dll` on the client runtime side.
-The repository reference consumer for that path is
-`examples/client_test_package`.
-
-<div class="mfd-callout"><strong>Preferred client integration:</strong> for one C++ client specific to one authored window, start from the generated UI emitted by the generator, mutate generated page / reticle / primitive handles, then let <code>CommandClient</code> publish the resulting batch.</div>
-
-## Start Here
-
-| If you need... | Open |
-| --- | --- |
-| the product overview and shipped entry points | [Project README](../README.md) |
-| the curated reading paths by goal | [Documentation Guide](../docs/README.md) |
-| the fastest first visible result | [Quick Start](./QUICKSTART.md) |
-| build, test, CI, and release details | [Development Guide](./DEVELOPMENT.md) |
-| the full tutorial ladder | [Tutorial Index](./tutorials/README.md) |
-| exact authoring syntax and JSON fields | [JSON Reference](./reference/README.md) |
-| the generated client API usage path | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) |
-| deeper API and transport rationale | [Architecture Notes](./architecture/README.md) |
-| the transport mapping details | [Generated Transport Map Specification](./architecture/generated_transport_map.md) |
-
-## Documentation Lanes
-
-| Lane | Best first page | What you get next |
-| --- | --- | --- |
-| Asset author | [Core Concepts](./CONCEPTS.md) | JSON tutorials, editor workflow pages, and exact authoring reference |
-| Generated API integrator | [Use The Mockup As A Client API Reference](./tutorials/11_use_the_mockup_as_a_client_api_reference.md) | live-client loop, dynamic reticles, strobe, generated API architecture, and transport mapping |
-| Advanced integrator | [Generated Transport Map Specification](./architecture/generated_transport_map.md) | authored-to-transport mapping rules, command routing, and lower-level compatibility details |
-| Contributor | [Development Guide](./DEVELOPMENT.md) | presets, tests, repository layout, release automation, and the published API surface |
-| API reviewer | [Generated Client API Architecture](./architecture/generated_client_api.md) | generated surface rationale, transport mapping, and header reference |
-
-## What Is Published Here
-
-| Area | What you get |
-| --- | --- |
-| Onboarding | README, quick start, concepts, and tutorials for new users or integrators |
-| Generated Client API | How to use the generated page, reticle, primitive, strobe, and dynamic-set handles as the normal client-facing workflow |
-| Reference | Exact JSON fields and architecture notes linked from the same portal |
-| C++ Headers | Namespace, class, function, and type reference for the public C++ surface, with source browsing and include graphs |
-
-## Feature Coverage At A Glance
-
-The generated client-facing documentation now covers:
-
-- whole-window display control
-- page activation and page view
-- static reticle mutation
-- primitive-level text, geometry, time, and image updates
-- exposed-primitive patterns such as progress bars
-- dynamic reticle creation, bulk update, and removal
-- generated authored-state reinitialization back to the runtime baseline
-- generated per-cycle `Run()` and full `Initialize()` flows
-- page-scoped strobe control and feedback
-- generated `BuildBatch()`, `BuildResetBatch()`, `BuildCommandBatch(sequence)`,
-  `BuildResetCommandBatch(sequence)`, `SubmitLatest(...)`, and `SubmitReset(...)`
-  publication flows
-- package-consumer integration through `find_package(MFDStudioClientApi)` with
-  mono-config deliveries that expose only the shipped import configurations
-- authored `drawOnTop` and `exposed` rules as they affect generation and
-  runtime behavior
-
-## Release Publishing
-
-The repository publishes this documentation portal automatically to GitHub
-Pages each time a GitHub release is published. The published site therefore
-tracks the latest released API and documentation set, not the latest
-unpublished commit on `master`.
+The main user and integrator documentation lives in the mdBook portal, not here.
+Start there for the generated client API workflow, offscreen embedding,
+framebuffer capture, the JSON reference, and the build and architecture notes.
