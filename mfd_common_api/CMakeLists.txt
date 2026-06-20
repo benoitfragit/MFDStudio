@@ -78,6 +78,7 @@ set(MFD_MODEL_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageDefinition.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageName.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Reticle.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/RuntimeBudgets.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/Types.h)
 
 set(MFD_MODEL_SOURCES

@@ -22,7 +22,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "../runtime/RuntimeValidation.h"
+#include "mfd/model/RuntimeBudgets.h"
 #include "json/JsonNumberParsing.h"
 #include "json/JsonValueHelpers.h"
 #include "mfd/runtime/DocumentSemanticValidator.h"

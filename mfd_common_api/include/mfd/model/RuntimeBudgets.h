@@ -7,7 +7,13 @@
 
 /**
  * @file
- * @brief Shared runtime safety budgets reused by JSON loading and live scene mutation validation.
+ * @brief Shared runtime safety budgets and validity predicates owned by `mfd_common_api`.
+ *
+ * @details This is the single source of truth for the runtime safety budgets and finiteness/validity
+ * predicates reused by the command path (`CommandTypes.cpp`), JSON loading (`JsonLoader.cpp`), live
+ * scene mutation (`SceneRegistry.cpp`) and rendering (`Canvas2D.cpp`). Keeping the budgets in
+ * `mfd_common_api` lets the lowest layer consume them without inverting the module dependency, so the
+ * command and JSON/scene paths can no longer apply diverging limits.
  */
 
 #include <cmath>

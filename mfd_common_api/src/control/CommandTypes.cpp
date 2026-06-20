@@ -21,38 +21,42 @@
 
 #include "mfd_commands.pb.h"
 #include "mfd/model/PageName.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 namespace mfd
 {
 namespace
 {
 namespace pb = ::mfd::transport;
+
+// Runtime safety budgets and validity predicates are owned by mfd_common_api so the command path
+// shares one source of truth with the JSON/scene paths and cannot drift away from them.
+using runtime_validation::DaysInMonth;
+using runtime_validation::HasVisibleTimeField;
+using runtime_validation::IsFiniteVec2;
+using runtime_validation::kMaxAbsAngleDegrees;
+using runtime_validation::kMaxAbsCoordinate;
+using runtime_validation::kMaxAbsScale;
+using runtime_validation::kMaxFilledPolygonPoints;
+using runtime_validation::kMaxLogicalSize;
+using runtime_validation::kMaxPrimitivePoints;
+using runtime_validation::kMaxPrimitiveSegments;
+using runtime_validation::kMaxTextBytes;
+using runtime_validation::kMaxThickness;
+using runtime_validation::kMaxTimeYear;
+using runtime_validation::kMaxZoom;
+using runtime_validation::kMinTimeYear;
+
+// Command-transport-specific budgets that have no JSON/scene equivalent and therefore stay local.
 constexpr std::size_t kMaxCommandPayloadBytes = 1024ULL * 1024ULL;
 constexpr std::size_t kMaxCommandsPerEnvelope = 1024U;
-constexpr float kMaxAbsCoordinate = 1'000'000.0f;
-constexpr float kMaxAbsScale = 1'000.0f;
-constexpr float kMaxAbsAngleDegrees = 1'000'000.0f;
-constexpr float kMaxThickness = 100.0f;
-constexpr float kMaxLogicalSize = 1'000'000.0f;
-constexpr float kMaxZoom = 1'000.0f;
-constexpr int kMaxPrimitiveSegments = 1024;
-constexpr std::size_t kMaxPrimitivePoints = 2048U;
-constexpr std::size_t kMaxFilledPolygonPoints = 512U;
 constexpr std::size_t kMaxPatchEntryCount = 2048U;
 constexpr std::size_t kMaxDynamicReticlesPerBatch = 4096U;
-constexpr std::size_t kMaxTextBytes = 4096U;
-constexpr int kMinTimeYear = 1;
-constexpr int kMaxTimeYear = 9999;
 
 template <typename>
 struct AlwaysFalse : std::false_type
 {
 };
-
-bool IsFiniteVec2(const Vec2& value) noexcept
-{
-    return std::isfinite(value.x) && std::isfinite(value.y);
-}
 
 void ValidateFiniteAbs(const float value, const char* fieldName, const float maxAbs)
 {
@@ -121,32 +125,6 @@ void ValidateSegmentCount(const int value, const char* fieldName)
         throw std::runtime_error(std::string(fieldName) + " must stay in [2, " +
                                  std::to_string(kMaxPrimitiveSegments) + "]");
     }
-}
-
-bool IsLeapYear(const int year) noexcept
-{
-    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-}
-
-int DaysInMonth(const int year, const int month) noexcept
-{
-    switch (month)
-    {
-    case 2:
-        return IsLeapYear(year) ? 29 : 28;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-        return 30;
-    default:
-        return 31;
-    }
-}
-
-bool HasVisibleTimeField(const TimeFieldVisibility& fields) noexcept
-{
-    return fields.year || fields.month || fields.day || fields.hour || fields.minute || fields.second;
 }
 
 void ValidateTimeValue(const TimeValue& value, const char* fieldName)

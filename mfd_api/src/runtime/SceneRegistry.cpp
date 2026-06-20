@@ -11,7 +11,7 @@
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "mfd/control/CommandTypes.h"
-#include "RuntimeValidation.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 #include <algorithm>
 #include <chrono>

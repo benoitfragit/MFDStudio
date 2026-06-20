@@ -14,6 +14,7 @@
 #include <array>
 #include <cmath>
 #include "mfd/core/ArrayView.h"
+#include "mfd/model/RuntimeBudgets.h"
 #include <string>
 #include <utility>
 
@@ -59,10 +60,7 @@ bool IsFiniteVector(const Vector2& value) noexcept
     return std::isfinite(value.x) && std::isfinite(value.y);
 }
 
-bool IsFiniteVec2(const Vec2& value) noexcept
-{
-    return std::isfinite(value.x) && std::isfinite(value.y);
-}
+using runtime_validation::IsFiniteVec2;
 
 int SanitizeSegmentCount(const int requested, const int minimum) noexcept
 {

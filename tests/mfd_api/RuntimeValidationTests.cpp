@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include "RuntimeValidation.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 TEST(RuntimeValidationTests, Vec2ValidationRejectsNonFiniteAndOutOfBudgetCoordinates)
 {
