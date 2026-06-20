@@ -15,14 +15,20 @@ You do not need to read this book linearly. Most users only need one path first.
 | Goal | Start here |
 | --- | --- |
 | Launch a window and see something live | [Quick Start](./quickstart.md) |
+| Follow one end-to-end walkthrough | [Getting Started Tutorial](./getting-started.md) |
 | Understand the JSON model | [Concepts](./concepts.md) |
+| Copy a short task-focused recipe | [Cookbook](./cookbook.md) |
 | Drive a window from a generated C++ client | [Generated Client API](./handbook/generated_api.md) |
 | Embed the runtime offscreen in your app | [Offscreen Embedding](./handbook/offscreen.md) |
 | Capture raw runtime pixels | [Framebuffer Capture](./handbook/framebuffer.md) |
 | Author assets visually | [Editor](./handbook/editor.md) |
 | Look up exact JSON fields | [JSON Syntax](./reference/json.md) |
+| Know what is stable to depend on | [Public API Contract](./reference/public_contract.md) |
 | Build, test, or contribute | [Build](./dev/build.md) |
 | Browse the public C++ headers | [C++ API Reference](./api.md) |
+
+A visual tour of the runtime, editor, and client is in the
+[Gallery](./gallery.md).
 
 ## Main Applications
 
