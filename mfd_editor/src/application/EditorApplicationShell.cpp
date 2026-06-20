@@ -476,6 +476,14 @@ void EditorApplication::DrawRootLayout()
     const float totalWidth = ImGui::GetContentRegionAvail().x;
     const float totalHeight = ImGui::GetContentRegionAvail().y;
 
+    // Compute the validation diagnostics once per frame so the sidebar (drawn first) and the
+    // workspace problems panel share a single source of truth instead of recomputing them. The
+    // sidebar folds them into per-entity badges; the menu-bar View entry reads the stash next frame.
+    const std::vector<editor::PagePreviewProblem> pagePreviewProblems = BuildPagePreviewProblems();
+    layoutState_.pagePreviewHasProblems = !pagePreviewProblems.empty();
+    const editor::SidebarProblemSummary sidebarProblems =
+        editor::SummarizeSidebarProblems(pagePreviewProblems, CollectNormalizedPageIds());
+
     // Resolve the responsive arrangement from the user's width and visibility
     // preferences. The helper never mutates those preferences: it returns effective
     // widths and reports transient auto-collapse separately, so a narrow window never
@@ -504,7 +512,7 @@ void EditorApplication::DrawRootLayout()
     if (layout.sidebar.visible)
     {
         ImGui::BeginChild("Sidebar", ImVec2(std::floor(layout.sidebar.width), 0.0f), true);
-        DrawSidebar();
+        DrawSidebar(sidebarProblems);
         ImGui::EndChild();
 
         ImGui::SameLine();
@@ -520,7 +528,7 @@ void EditorApplication::DrawRootLayout()
     }
 
     ImGui::BeginChild("Workspace", ImVec2(std::floor(std::max(0.0f, layout.workspaceWidth)), 0.0f), true);
-    DrawWorkspace();
+    DrawWorkspace(pagePreviewProblems);
     ImGui::EndChild();
 
     if (layout.inspector.visible)
@@ -568,7 +576,7 @@ bool EditorApplication::CanToggleFullscreenPagePreview() const
     return true;
 }
 
-void EditorApplication::DrawSidebar()
+void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problems)
 {
     if (!HasOpenWindow())
     {
@@ -610,18 +618,42 @@ void EditorApplication::DrawSidebar()
         layoutState_.sidebarFilter.data(),
         layoutState_.sidebarFilter.size());
     ImGui::EndDisabled();
-    ShowItemTooltip("Type to filter pages and reticle templates by name. Disabled while the tutorial is running.");
+    ShowItemTooltip(
+        "Type to filter pages and reticle templates by name. Start with 'page:', 'reticle:' or "
+        "'problem:' to aim the same filter at one section. Disabled while the tutorial is running.");
     if (tutorialActive && layoutState_.sidebarFilter[0] != '\0')
     {
         layoutState_.sidebarFilter[0] = '\0';
     }
+
+    // Surface a single, navigable count of pending validation problems. Clicking it opens the
+    // Problems panel, which already resolves each diagnostic to the offending entity.
+    if (problems.total > 0)
+    {
+        ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.35f, 1.0f),
+                           "! %zu validation problem%s",
+                           problems.total,
+                           problems.total == 1U ? "" : "s");
+        ShowItemTooltip("Click to open the Problems panel and jump to each issue.");
+        if (ImGui::IsItemClicked())
+        {
+            layoutState_.pagePreviewViewOptions.showProblemsPanel = true;
+        }
+    }
     ImGui::Spacing();
+
+    const editor::SidebarFilterQuery filter = ResolveSidebarFilter();
+    const int visiblePages = CountVisibleSidebarPages(filter, problems);
+    const int visibleReticles = CountVisibleSidebarReticles(filter, problems);
 
     if (tutorialActive)
     {
         ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     }
-    if (ImGui::CollapsingHeader("Pages", ImGuiTreeNodeFlags_DefaultOpen))
+    // The visible count lives in the label while the stable id (after '###') keeps the open state
+    // from resetting whenever the filter changes that count.
+    const std::string pagesHeader = "Pages (" + std::to_string(visiblePages) + ")###SidebarPagesHeader";
+    if (ImGui::CollapsingHeader(pagesHeader.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
     {
         if (AccentButton("+ Add page"))
         {
@@ -629,7 +661,7 @@ void EditorApplication::DrawSidebar()
         }
         ShowItemTooltip("Create a new page and its backing JSON file.");
         ImGui::Spacing();
-        DrawPageTree();
+        DrawPageTree(filter, problems);
     }
 
     ImGui::Spacing();
@@ -638,7 +670,9 @@ void EditorApplication::DrawSidebar()
     {
         ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     }
-    if (ImGui::CollapsingHeader("Reticle library", ImGuiTreeNodeFlags_DefaultOpen))
+    const std::string libraryHeader =
+        "Reticle library (" + std::to_string(visibleReticles) + ")###SidebarLibraryHeader";
+    if (ImGui::CollapsingHeader(libraryHeader.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
     {
         if (AccentButton("+ New reticle"))
         {
@@ -646,13 +680,13 @@ void EditorApplication::DrawSidebar()
         }
         ShowItemTooltip("Create a new library reticle seeded with one primitive.");
         ImGui::Spacing();
-        DrawLibraryTree();
+        DrawLibraryTree(filter, problems);
     }
 
     ImGui::PopStyleVar();
 }
 
-void EditorApplication::DrawWorkspace()
+void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProblem>& pagePreviewProblems)
 {
     if (!HasOpenWindow())
     {
@@ -661,11 +695,6 @@ void EditorApplication::DrawWorkspace()
         return;
     }
 
-    const std::vector<editor::PagePreviewProblem> pagePreviewProblems = BuildPagePreviewProblems();
-    const bool hasPagePreviewProblems = !pagePreviewProblems.empty();
-    // Stash the result so the menu-bar View entry (drawn earlier in the frame) can flag pending
-    // validation issues without recomputing the diagnostics.
-    layoutState_.pagePreviewHasProblems = hasPagePreviewProblems;
     const bool libraryStudioVisible = IsLibraryStudioWorkspaceVisible();
     const bool fullscreenPreviewActive = services_.fullscreenPreview.IsActive();
 

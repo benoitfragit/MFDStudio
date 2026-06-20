@@ -2220,23 +2220,144 @@ void EditorApplication::DeleteSelectedLibraryReticle()
     RebuildStatus("Library reticle '" + reticleId + "' deleted.", false);
 }
 
-void EditorApplication::DrawPageTree()
+editor::SidebarFilterQuery EditorApplication::ResolveSidebarFilter() const
+{
+    // The guided tutorial relies on every halo target staying visible, so the filter is neutralized
+    // (and the input is disabled and cleared in the sidebar) while the coach is running.
+    if (tutorial_->IsCoachVisible())
+    {
+        return {};
+    }
+
+    return editor::ParseSidebarFilter(std::string_view(layoutState_.sidebarFilter.data()));
+}
+
+std::vector<std::string> EditorApplication::CollectNormalizedPageIds() const
+{
+    std::vector<std::string> normalizedPageIds;
+    normalizedPageIds.reserve(documentState_.loaded.document.pages.size());
+    for (const mfd::PageDefinition& page : documentState_.loaded.document.pages)
+    {
+        normalizedPageIds.push_back(
+            NormalizeEditorIdentifier(page.normalizedName.empty() ? page.name : page.normalizedName));
+    }
+
+    return normalizedPageIds;
+}
+
+bool EditorApplication::PageMatchesSidebarFilter(const int pageIndex,
+                                                 const mfd::PageDefinition& page,
+                                                 const editor::SidebarFilterQuery& filter,
+                                                 const editor::SidebarProblemSummary& problems) const
+{
+    if (!editor::SidebarFilterShowsPages(filter.scope))
+    {
+        return false;
+    }
+
+    if (filter.scope == editor::SidebarFilterScope::Problems &&
+        !editor::SidebarProblemSummaryHasPage(problems, pageIndex))
+    {
+        return false;
+    }
+
+    if (filter.text.empty())
+    {
+        return true;
+    }
+
+    return ContainsCaseInsensitive(page.name, filter.text) || ContainsCaseInsensitive(page.title, filter.text);
+}
+
+bool EditorApplication::LibraryReticleMatchesSidebarFilter(const std::string& templateId,
+                                                           const editor::SidebarFilterQuery& filter,
+                                                           const editor::SidebarProblemSummary& problems) const
+{
+    if (!editor::SidebarFilterShowsReticles(filter.scope))
+    {
+        return false;
+    }
+
+    if (filter.scope == editor::SidebarFilterScope::Problems &&
+        !editor::SidebarProblemSummaryHasReticle(problems, NormalizeEditorIdentifier(templateId)))
+    {
+        return false;
+    }
+
+    if (filter.text.empty())
+    {
+        return true;
+    }
+
+    return ContainsCaseInsensitive(templateId, filter.text);
+}
+
+int EditorApplication::CountVisibleSidebarPages(const editor::SidebarFilterQuery& filter,
+                                                const editor::SidebarProblemSummary& problems) const
+{
+    int visible = 0;
+    for (int pageIndex = 0; pageIndex < static_cast<int>(documentState_.loaded.document.pages.size()); ++pageIndex)
+    {
+        const mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
+        if (PageMatchesSidebarFilter(pageIndex, page, filter, problems))
+        {
+            ++visible;
+        }
+    }
+
+    return visible;
+}
+
+int EditorApplication::CountVisibleSidebarReticles(const editor::SidebarFilterQuery& filter,
+                                                   const editor::SidebarProblemSummary& problems) const
+{
+    int visible = 0;
+    for (const auto& entry : documentState_.loaded.document.reticleLibrary)
+    {
+        if (LibraryReticleMatchesSidebarFilter(entry.first, filter, problems))
+        {
+            ++visible;
+        }
+    }
+
+    return visible;
+}
+
+void EditorApplication::DrawPageTree(const editor::SidebarFilterQuery& filter,
+                                     const editor::SidebarProblemSummary& problems)
 {
     const editor::ReticleUsageHighlightResult* usageHighlight =
         layoutState_.pagePreviewViewOptions.highlightReticleUsages ? ResolveReticleUsageHighlight() : nullptr;
 
-    const std::string_view sidebarFilter(layoutState_.sidebarFilter.data());
-    const bool filterActive = !sidebarFilter.empty() && !tutorial_->IsCoachVisible();
+    const bool filterActive = editor::SidebarFilterIsActive(filter);
+    bool openedFirstFilterMatch = false;
 
     for (int pageIndex = 0; pageIndex < static_cast<int>(documentState_.loaded.document.pages.size()); ++pageIndex)
     {
         const auto& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
-        if (filterActive &&
-            !ContainsCaseInsensitive(page.name, sidebarFilter) &&
-            !ContainsCaseInsensitive(page.title, sidebarFilter))
+        if (!PageMatchesSidebarFilter(pageIndex, page, filter, problems))
         {
             continue;
         }
+
+        // Keep the branch that owns the current selection expanded so it never scrolls out of reach,
+        // and open the first filtered match so search results surface without a manual click.
+        const bool selectionInsidePage =
+            documentState_.selection.pageIndex == pageIndex &&
+            (documentState_.selection.kind == SelectionKind::PageReticle ||
+             documentState_.selection.kind == SelectionKind::PageTitle ||
+             documentState_.selection.kind == SelectionKind::PageStrobe);
+        if (selectionInsidePage)
+        {
+            ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+        }
+        else if (filterActive && !openedFirstFilterMatch)
+        {
+            ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+            openedFirstFilterMatch = true;
+        }
+
+        const bool pageHasProblems = editor::SidebarProblemSummaryHasPage(problems, pageIndex);
 
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_OpenOnArrow |
@@ -2273,6 +2394,13 @@ void EditorApplication::DrawPageTree()
         if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
         {
             SelectPage(pageIndex);
+        }
+
+        if (pageHasProblems)
+        {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.35f, 1.0f), "!");
+            ShowItemTooltip("This page has validation problems. Open the Problems panel to review them.");
         }
 
         if (ImGui::BeginPopupContextItem(("PageContextMenu##" + std::to_string(pageIndex)).c_str()))
@@ -2466,16 +2594,16 @@ void EditorApplication::DrawPageTree()
     }
 }
 
-void EditorApplication::DrawLibraryTree()
+void EditorApplication::DrawLibraryTree(const editor::SidebarFilterQuery& filter,
+                                       const editor::SidebarProblemSummary& problems)
 {
-    const std::string_view sidebarFilter(layoutState_.sidebarFilter.data());
-    const bool filterActive = !sidebarFilter.empty() && !tutorial_->IsCoachVisible();
+    const bool filterActive = editor::SidebarFilterIsActive(filter);
 
     std::vector<std::string> templateIds;
     templateIds.reserve(documentState_.loaded.document.reticleLibrary.size());
     for (const auto& entry : documentState_.loaded.document.reticleLibrary)
     {
-        if (filterActive && !ContainsCaseInsensitive(entry.first, sidebarFilter))
+        if (!LibraryReticleMatchesSidebarFilter(entry.first, filter, problems))
         {
             continue;
         }
@@ -2529,6 +2657,13 @@ void EditorApplication::DrawLibraryTree()
             {
                 SelectLibraryReticle(templateId);
             }
+        }
+
+        if (editor::SidebarProblemSummaryHasReticle(problems, NormalizeEditorIdentifier(templateId)))
+        {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.35f, 1.0f), "!");
+            ShowItemTooltip("This library reticle has validation problems. Open the Problems panel to review them.");
         }
 
         if (ImGui::BeginDragDropSource())
@@ -4175,14 +4310,7 @@ void EditorApplication::NavigateToProblem(const std::string& contextId)
         return;
     }
 
-    std::vector<std::string> normalizedPageIds;
-    normalizedPageIds.reserve(documentState_.loaded.document.pages.size());
-    for (const mfd::PageDefinition& page : documentState_.loaded.document.pages)
-    {
-        normalizedPageIds.push_back(
-            NormalizeEditorIdentifier(page.normalizedName.empty() ? page.name : page.normalizedName));
-    }
-
+    const std::vector<std::string> normalizedPageIds = CollectNormalizedPageIds();
     if (const int pageIndex = editor::MatchProblemPageIndex(normalizedPageIds, contextId); pageIndex >= 0)
     {
         SelectPage(pageIndex);

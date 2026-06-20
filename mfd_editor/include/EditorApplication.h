@@ -32,6 +32,7 @@
 #include "EditorPageImportService.h"
 #include "EditorPagePreviewHit.h"
 #include "EditorProblemNavigation.h"
+#include "EditorSidebarFilter.h"
 #include "EditorPageManagementService.h"
 #include "EditorPageRenameService.h"
 #include "EditorPagePreviewViewOptions.h"
@@ -186,9 +187,9 @@ private:
     /** @brief Draws the root multi-pane editor layout. */
     void DrawRootLayout();
     /** @brief Draws the navigation sidebar. */
-    void DrawSidebar();
+    void DrawSidebar(const editor::SidebarProblemSummary& problems);
     /** @brief Draws the central preview workspace. */
-    void DrawWorkspace();
+    void DrawWorkspace(const std::vector<editor::PagePreviewProblem>& problems);
     /** @brief Draws the empty-state placeholder when no authored window is open. */
     void DrawEmptyWorkspacePlaceholder();
     /** @brief Draws the right-hand inspector for the current selection. */
@@ -198,10 +199,29 @@ private:
     /** @brief Returns whether the fullscreen page preview can be toggled from the current workspace. */
     [[nodiscard]] bool CanToggleFullscreenPagePreview() const;
 
-    /** @brief Draws the authored page tree. */
-    void DrawPageTree();
-    /** @brief Draws the reticle-library tree. */
-    void DrawLibraryTree();
+    /** @brief Draws the authored page tree, filtered and badged by the resolved sidebar filter. */
+    void DrawPageTree(const editor::SidebarFilterQuery& filter, const editor::SidebarProblemSummary& problems);
+    /** @brief Draws the reticle-library tree, filtered and badged by the resolved sidebar filter. */
+    void DrawLibraryTree(const editor::SidebarFilterQuery& filter, const editor::SidebarProblemSummary& problems);
+    /** @brief Resolves the live sidebar filter, returning a neutral query while the tutorial runs. */
+    [[nodiscard]] editor::SidebarFilterQuery ResolveSidebarFilter() const;
+    /** @brief Normalized page identifiers indexed like the authored pages, matching problem contexts. */
+    [[nodiscard]] std::vector<std::string> CollectNormalizedPageIds() const;
+    /** @brief Returns whether one page passes the resolved sidebar filter (text, scope and problems). */
+    [[nodiscard]] bool PageMatchesSidebarFilter(int pageIndex,
+                                                const mfd::PageDefinition& page,
+                                                const editor::SidebarFilterQuery& filter,
+                                                const editor::SidebarProblemSummary& problems) const;
+    /** @brief Returns whether one library reticle passes the resolved sidebar filter. */
+    [[nodiscard]] bool LibraryReticleMatchesSidebarFilter(const std::string& templateId,
+                                                          const editor::SidebarFilterQuery& filter,
+                                                          const editor::SidebarProblemSummary& problems) const;
+    /** @brief Counts the authored pages that currently pass the resolved sidebar filter. */
+    [[nodiscard]] int CountVisibleSidebarPages(const editor::SidebarFilterQuery& filter,
+                                               const editor::SidebarProblemSummary& problems) const;
+    /** @brief Counts the library reticles that currently pass the resolved sidebar filter. */
+    [[nodiscard]] int CountVisibleSidebarReticles(const editor::SidebarFilterQuery& filter,
+                                                  const editor::SidebarProblemSummary& problems) const;
     /** @brief Draws window-level properties such as transports and feedback cadence. */
     void DrawWindowInspector();
     /** @brief Draws page-level properties such as view and blink types. */

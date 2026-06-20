@@ -143,6 +143,16 @@ changes your saved panel widths; use the menu-bar **View** menu or widen the
 window to bring panels back. See
 [Editor View Modes](./docs/reference/editor_view_modes.md) for details.
 
+The navigation sidebar keeps long projects scannable. The **Pages** and **Reticle
+library** headers show live counts of the entries currently passing the filter,
+and a single line near the filter surfaces the number of pending validation
+problems (click it to open the Problems panel). The filter box matches page and
+reticle names by default; start the text with `page:`, `reticle:`, or `problem:`
+to aim the same filter at one section (the `problem:` token keeps only entries
+that still have validation issues). The branch holding the current selection
+stays expanded, and the first filtered match opens automatically so search
+results never hide behind a collapsed page.
+
 ## Developer Checks
 
 Use the repository clang-tidy entry point when you want one industrial C++ review pass without rebuilding the Visual Studio tree:

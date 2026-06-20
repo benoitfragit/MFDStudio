@@ -50,6 +50,7 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorLayerFocusController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPagePreviewHit.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorProblemNavigation.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorSidebarFilter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorPagePreviewDrawOrderController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageManagementService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageImportService.h
