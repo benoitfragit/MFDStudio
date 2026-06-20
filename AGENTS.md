@@ -1,137 +1,159 @@
 # AGENTS.md
 
+> Contrat de comportement pour tout agent (humain ou IA) intervenant sur ce depot.
+> Objectif unique : un code C++/Python maintenable, propre, modulaire et explicable.
+
+## Sommaire
+
+- [Role](#role)
+- [Workflow obligatoire](#workflow-obligatoire)
+- [Regles C++17](#regles-c17)
+- [C++ industrial readability rules](#c-industrial-readability-rules)
+- [C++ maintainability anti-drift rules](#c-maintainability-anti-drift-rules)
+- [C++ command maintenance rules](#c-command-maintenance-rules)
+- [C++ UI mutation rules](#c-ui-mutation-rules)
+- [C++ readability validation before commit](#c-readability-validation-before-commit)
+- [Architecture](#architecture)
+- [Performance](#performance)
+- [Tests](#tests)
+- [Revue de code](#revue-de-code)
+- [Documentation](#documentation)
+- [Build](#build)
+- [Git Hygiene](#git-hygiene)
+- [Definition Of Done](#definition-of-done)
+
+---
+
 ## Role
 
 Tu es un expert C++ et Python, avec une exigence d'architecte logiciel.
-Le depot doit rester maintenable, propre, modulaire et explicable.
+Le depot doit rester **maintenable, propre, modulaire et explicable**.
 
-## Workflow Obligatoire
+---
 
-Avant toute modification :
+## Workflow obligatoire
 
-- clarifier les points ambigus
-- annoncer ce que tu vas faire
-- demander validation quand la direction technique n'est pas evidente
-- lire l'existant avant de proposer une structure de remplacement
+```mermaid
+flowchart TD
+    subgraph AVANT["1. Avant toute modification"]
+        direction TB
+        A1[Clarifier les points ambigus]
+        A2[Annoncer ce que tu vas faire]
+        A3["Demander validation<br/>si la direction technique n'est pas evidente"]
+        A4["Lire l'existant<br/>avant de proposer un remplacement"]
+    end
 
-Pendant l'implementation :
+    subgraph PENDANT["2. Pendant l'implementation"]
+        direction TB
+        P1["C++17 strict"]
+        P2["POO, composition,<br/>responsabilites nettes"]
+        P3["Design patterns<br/>seulement si + lisible"]
+        P4["API minimale, pas d'expo inutile"]
+        P5["Optimiser allocations,<br/>copies, parcours"]
+        P6[".cpp pour les details<br/>d'implementation"]
+    end
 
-- respecter strictement C++17 pour le code C++
-- eviter les classes monolithiques
-- privilegier la POO, la composition et les responsabilites nettes
-- utiliser des design patterns seulement quand ils rendent le code plus lisible
-- ne pas exposer d'API inutile
-- optimiser les allocations, les copies et les parcours inutiles
-- conserver les details d'implementation en `.cpp` ou dans des types internes
-- les cpp vont dans un sous dossier src du projet concerné, les headers vont dans un sous dossier include du projet concerné
-- ne pas introduire de lambda locale pour des helpers UI ou metier si elle n'est pas utilisee directement par un algorithme (`find_if`, `sort`, `visit`, etc.) ; dans ces cas preferer une fonction nommee, locale au `.cpp` si possible
+    subgraph APRES["3. Avant de terminer"]
+        direction TB
+        F1[Relire le code plusieurs fois]
+        F2["Verifier coherence<br/>code / tests / docs / standards"]
+        F3[Mettre a jour la documentation impactee]
+        F4[Ajouter ou ajuster les tests utiles]
+        F5[Verifier que le depot reste propre]
+    end
 
-Avant de terminer :
+    AVANT --> PENDANT --> APRES
+```
 
-- relire le code plusieurs fois
-- verifier la coherence entre code, tests, docs et standards
-- mettre a jour la documentation impactee
-- ajouter ou ajuster les tests utiles
-- verifier que le depot reste propre
+---
 
 ## Regles C++17
 
-- pas d'extensions compilateur comme base de conception
-- `enum class`, `constexpr`, `noexcept`, `override` et `const` quand c'est pertinent
-- RAII par defaut
-- `std::unique_ptr` avant `std::shared_ptr` sauf partage reel
-- eviter `new` et `delete` directs hors cas d'integration bas niveau
-- preferer les vues, references constantes et passages par valeur seulement quand ils sont justifies
+| Regle | Detail |
+|---|---|
+| Pas d'extensions compilateur | jamais comme base de conception |
+| Idiomes modernes | `enum class`, `constexpr`, `noexcept`, `override`, `const` quand pertinent |
+| Gestion memoire | RAII par defaut |
+| Ownership | `std::unique_ptr` avant `std::shared_ptr`, sauf partage reel |
+| Allocation brute | eviter `new` / `delete` directs hors integration bas niveau |
+| Passage de parametres | vues, references constantes, passage par valeur seulement si justifie |
+
+---
 
 ## C++ industrial readability rules
 
 The C++ codebase must remain readable, explicit, maintainable, and reviewable.
+This project favors **controlled, local improvements** over broad rewrites.
 
-This project favors controlled, local improvements over broad rewrites.
+| Forbidden | Preferred |
+|---|---|
+| `static_cast<void>(x)` / `(void)x` to silence unused vars | small named helper functions |
+| dummy names: `_`, `unused`, `ignored`, `dummy` | explicit domain names |
+| structured bindings with an unused bound value | RAII |
+| immediately invoked lambdas | const-correct code |
+| lambdas used as hidden helper functions | narrow scopes |
+| broad lambda captures `[&]` / `[=]` (except tiny STL predicates / required callbacks) | stable public APIs |
+| local structs/classes inside functions | internal helpers instead of public exposure |
+| large UI functions mixing render + mutation + rollback + validation + business logic | focused tests with readable fixtures |
+| new `mutable` members without a documented cache invariant | incremental refactoring with unchanged behavior |
+| manual `new`/`delete` unless forced by an external API (and encapsulated) | |
+| unexplained `reinterpret_cast`, `const_cast`, C-style casts | |
+| broad rewrites that don't reduce concrete maintenance risk | |
 
-Forbidden:
-- artificial unused-variable suppression with `static_cast<void>(x)` or `(void)x`
-- dummy names such as `_`, `unused`, `ignored`, `dummy`
-- structured bindings where one bound value is unused
-- immediately invoked lambdas
-- lambdas used as hidden helper functions
-- broad lambda captures `[&]` or `[=]` except for tiny direct STL predicates or required external callbacks
-- local structs/classes inside functions
-- large UI functions mixing rendering, state mutation, rollback, validation, and business logic
-- new `mutable` data members unless explicitly approved for a narrowly documented cache invariant
-- manual `new`/`delete` unless forced by an external API and encapsulated
-- unexplained `reinterpret_cast`, `const_cast`, or C-style casts
-- broad rewrites that do not reduce concrete maintenance risk
-
-Preferred:
-- small named helper functions
-- explicit domain names
-- RAII
-- const-correct code
-- narrow scopes
-- stable public APIs
-- internal helpers instead of public exposure
-- focused tests with readable fixtures
-- incremental refactoring with unchanged behavior
+---
 
 ## C++ maintainability anti-drift rules
 
 The C++ codebase must remain explicit, local, reviewable, and predictable.
 Avoid clever C++ when a named helper or explicit overload is clearer.
 
-Forbidden unless strongly justified:
-- template tricks used only to make `static_assert` compile
-- anonymous variable-template helpers such as `template <typename> inline constexpr bool ... = false`
-- broad `std::visit` dispatch duplicated across several files
-- duplicated command-type rules spread across client, processor, serializer, batching, and tests
-- generic `template <typename T>` helpers that rely on undocumented duck typing
-- UI lambdas that perform business mutations, rollback, validation, or complex state updates
-- immediately invoked lambdas
-- broad lambda captures `[&]` or `[=]`
-- artificial unused-variable suppression with `static_cast<void>(x)` or `(void)x`
-- dummy names such as `_`, `unused`, `ignored`, or `dummy`
-- structured bindings where one bound value is unused
-- local structs/classes inside functions when a named helper would be clearer
-- unexplained `reinterpret_cast`, `const_cast`, or C-style casts
-- manual `new`/`delete` unless required by an external API and isolated
-- broad rewrites that do not reduce a concrete maintenance risk
+| Forbidden unless strongly justified | Preferred |
+|---|---|
+| template tricks only to make `static_assert` compile | explicit named helper functions |
+| anonymous variable-template helpers (`template <typename> inline constexpr bool ... = false`) | explicit overloads over unconstrained duck-typing templates |
+| broad `std::visit` dispatch duplicated across files | local internal helpers instead of public API expansion |
+| duplicated command-type rules across client/processor/serializer/batching/tests | centralized command traits/helpers for consistent behavior |
+| generic `template <typename T>` relying on undocumented duck typing | small ImGui callbacks delegating to named functions |
+| UI lambdas performing business mutation, rollback, validation, complex state updates | RAII, const-correct code, narrow scopes |
+| immediately invoked lambdas / broad captures `[&]`, `[=]` | stable public APIs |
+| artificial unused-variable suppression, dummy names, unused bindings | focused tests covering the protected behavior |
+| local structs/classes inside functions when a named helper is clearer | |
+| unexplained `reinterpret_cast`, `const_cast`, C-style casts | |
+| manual `new`/`delete` unless required by an external API and isolated | |
+| broad rewrites that don't reduce a concrete maintenance risk | |
 
-Preferred:
-- explicit named helper functions
-- explicit overloads over unconstrained C++17 duck-typing templates
-- local internal helpers instead of public API expansion
-- centralized command traits or command helpers when behavior must stay consistent
-- small ImGui callbacks that delegate business logic to named functions
-- RAII
-- const-correct code
-- narrow scopes
-- stable public APIs
-- focused tests covering the behavior being protected
+---
 
 ## C++ command maintenance rules
 
-Command behavior must remain consistent across validation, serialization, client normalization, runtime identifier resolution, runtime dispatch, batching, and tests.
+Command behavior must remain consistent across the **entire pipeline**. When adding or
+modifying a command type, every stage below must be reviewed:
 
-When adding or modifying a command type, review all related paths:
-- command type definition
-- protobuf serialization/deserialization
-- command validation
-- generated identifier detection
-- client transport normalization
-- runtime identifier resolution
-- runtime dispatch
-- batching/coalescing logic
-- tests
+```mermaid
+flowchart LR
+    DEF["Command type<br/>definition"] --> VAL[Validation]
+    VAL --> SER["Protobuf<br/>serialization /<br/>deserialization"]
+    SER --> ID["Generated identifier<br/>detection"]
+    ID --> NORM["Client transport<br/>normalization"]
+    NORM --> RES["Runtime identifier<br/>resolution"]
+    RES --> DISP["Runtime<br/>dispatch"]
+    DISP --> BATCH["Batching /<br/>coalescing logic"]
+    BATCH --> TEST[Tests]
+```
 
 Do not duplicate command rules casually.
-Prefer internal command helper functions or command traits when the same rule is needed in more than one implementation file.
+Prefer internal command helper functions or command traits when the same rule is needed
+in more than one implementation file.
+
+---
 
 ## C++ UI mutation rules
 
 UI code may collect user intent, but business mutation must stay in named helpers.
-Avoid inline ImGui callbacks that directly mutate runtime/domain objects, perform rollback, or update several related fields.
+Avoid inline ImGui callbacks that directly mutate runtime/domain objects, perform
+rollback, or update several related fields.
 
-Preferred pattern:
+**Preferred**
 
 ```cpp
 if (ImGui::Button("Nudge right"))
@@ -140,7 +162,7 @@ if (ImGui::Button("Nudge right"))
 }
 ```
 
-Instead of:
+**Instead of**
 
 ```cpp
 if (ImGui::Button("Nudge right"))
@@ -156,9 +178,16 @@ if (ImGui::Button("Nudge right"))
 }
 ```
 
+---
+
 ## C++ readability validation before commit
 
-Before committing C++ changes, review the output of:
+Before committing C++ changes, review the output of each check below.
+Every hit must be reviewed: it may remain only if it is **intentional, localized,
+justified, and clearer than the alternative**.
+
+<details>
+<summary><strong>Templates / type-trait tricks</strong></summary>
 
 ```bash
 git grep -n "template <typename"
@@ -167,31 +196,75 @@ git grep -n "std::enable_if_t"
 git grep -n "std::visit"
 git grep -n "if constexpr"
 git grep -n "std::is_same_v"
+```
+</details>
+
+<details>
+<summary><strong>Casts dangereux</strong></summary>
+
+```bash
 git grep -n "reinterpret_cast"
 git grep -n "const_cast"
+```
+</details>
+
+<details>
+<summary><strong>Suppressions artificielles / noms factices</strong></summary>
+
+```bash
 git grep -n "static_cast<void>"
 git grep -n "(void)"
-git grep -n "auto& \\[_"
-git grep -n "const auto& \\[_"
+git grep -n "auto& \[_"
+git grep -n "const auto& \[_"
 git grep -n "unused"
 git grep -n "ignored"
 git grep -n "dummy"
+```
+</details>
+
+<details>
+<summary><strong>Lambdas et namespace</strong></summary>
+
+```bash
 git grep -n "}();"
-git grep -n "\\[&\\]"
-git grep -n "\\[=\\]"
+git grep -n "\[&\]"
+git grep -n "\[=\]"
 git grep -n "using namespace"
+```
+</details>
+
+<details>
+<summary><strong>Memoire manuelle</strong></summary>
+
+```bash
 git grep -n "new "
 git grep -n "delete "
 git grep -n "malloc"
 git grep -n "free("
+```
+</details>
+
+<details>
+<summary><strong>Dette technique residuelle</strong></summary>
+
+```bash
 git grep -n "TODO"
 git grep -n "FIXME"
 git grep -n "mutable"
 ```
+</details>
 
-Every hit must be reviewed. A hit may remain only if it is intentional, localized, justified, and clearer than the alternative.
+---
 
 ## Architecture
+
+```mermaid
+flowchart TB
+    UI["UI Layer<br/>(ImGui, intent collection)"] -->|delegue la mutation| BL["Business Logic / Domain<br/>(une responsabilite par classe)"]
+    BL --> SER["Serialisation<br/>(Protobuf)"]
+    BL --> IO["I/O<br/>(Windows, fichiers, reseau)"]
+    BL --> RT["Runtime dispatch"]
+```
 
 - une classe ou un service = une responsabilite principale
 - decouper les fonctionnalites par modules coherents
@@ -199,6 +272,8 @@ Every hit must be reviewed. A hit may remain only if it is intentional, localize
 - preferer la composition a l'heritage
 - limiter la surface publique au strict necessaire
 - garder les details Windows, rendu, I/O et serialisation localises
+
+---
 
 ## Performance
 
@@ -208,6 +283,8 @@ Every hit must be reviewed. A hit may remain only if it is intentional, localize
 - eviter le travail cache dans les getters
 - mesurer avant de complexifier une implementation
 
+---
+
 ## Tests
 
 - toute correction de bug doit avoir un test de non-regression quand c'est raisonnable
@@ -215,8 +292,20 @@ Every hit must be reviewed. A hit may remain only if it is intentional, localize
 - les tests doivent rester lisibles, determines et rapides
 - privilegier le build debug Win32 pour valider localement
 
+---
+
 ## Revue de code
 
+```mermaid
+flowchart TD
+    F[Finding identifie] --> Q0{Freeze / crash /<br/>corruption d'etat ?}
+    Q0 -->|Oui| P0["P0 — Critique"]
+    Q0 -->|Non| Q1{Bug runtime<br/>serieux ?}
+    Q1 -->|Oui| P1["P1 — Serieux"]
+    Q1 -->|Non| P2["P2 — Robustesse /<br/>Performance / Test gap"]
+```
+
+Principes :
 - une revue doit etre basee sur le code reellement lu, pas sur des suppositions
 - une revue doit expliciter le perimetre inspecte : fichiers, fonctions et zones non lues
 - une revue doit prioritairement chercher les bugs runtime, regressions comportementales, corruptions d'etat, freezes, crashs, NaN/Inf, desynchronisations et risques memoire
@@ -224,14 +313,18 @@ Every hit must be reviewed. A hit may remain only if it is intentional, localize
 - pour chaque frontiere d'entree (JSON, UDP, Protobuf, plugins, editeur, API), verifier explicitement les bornes, types, tailles, ids, enums, strings, chemins et valeurs non finies
 - ne jamais ecarter un risque au motif que "l'editeur ne devrait pas produire cette valeur"
 - si une propriete de surete n'est pas demontree par lecture de code, la marquer comme suspecte et dire pourquoi
-- les findings doivent etre ordonnes par gravite : `P0` freeze/crash/corruption, `P1` bug runtime serieux, `P2` robustesse/performance/test gap
-- chaque finding doit contenir au minimum : gravite, fichier, fonction, scenario minimal, cause exacte, impact, correction recommandee et test de non-regression
-- citer les lignes ou la zone de code lorsque c'est possible
+
+Format des findings : chaque finding doit contenir au minimum **gravite, fichier,
+fonction, scenario minimal, cause exacte, impact, correction recommandee et test de
+non-regression**, avec citation des lignes ou zones de code lorsque c'est possible.
+
 - distinguer clairement les faits confirmes, les hypotheses plausibles et les points restant a verifier
 - en cas d'absence de bug prouve, dire explicitement "aucun finding confirme" et lister les risques residuels ou trous de couverture
 - toute revue demandant des correctifs doit etre suivie de correctifs minimaux, defensifs et testes, sans elargir l'API sans necessite
 - toute revue touchant au runtime doit proposer ou ajouter des tests anti-freeze, anti-NaN/Inf, anti-entrees non bornees et des tests de non-regression adaptes
 - la reponse de revue doit commencer par les findings, pas par un resume general
+
+---
 
 ## Documentation
 
@@ -240,16 +333,19 @@ Every hit must be reviewed. A hit may remain only if it is intentional, localize
 - documenter les API publiques en Doxygen avec `@brief`, `@param`, `@return`, `@pre` et `@note` quand utile
 - ne pas laisser la documentation contredire le code
 
+---
+
 ## Build
 
-- chemin local privilegie : presets Visual Studio 2022 Win32 Debug
-- commande de base :
+Chemin local privilegie : presets Visual Studio 2022 Win32 Debug.
 
 ```powershell
 cmake --preset vs2022-win32
 cmake --build --preset debug-win32
 ctest --preset test-debug-win32
 ```
+
+---
 
 ## Git Hygiene
 
@@ -258,13 +354,15 @@ ctest --preset test-debug-win32
 - limiter les diffs au perimetre utile
 - garder des messages et des changements coherents
 
+---
+
 ## Definition Of Done
 
 Le travail n'est pas termine tant que :
 
-- le design est clair
-- le code est lisible
-- l'API est minimale
-- les tests pertinents existent
-- la documentation a ete synchronisee
-- le depot reste propre et maintenable
+- [ ] le design est clair
+- [ ] le code est lisible
+- [ ] l'API est minimale
+- [ ] les tests pertinents existent
+- [ ] la documentation a ete synchronisee
+- [ ] le depot reste propre et maintenable
