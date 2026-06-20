@@ -306,6 +306,23 @@ private:
     void DrawLibraryPreviewOverlays(const ViewportState& viewport);
     /** @brief Handles drag interactions in the library-studio preview. */
     void HandleLibraryPreviewInteraction(const ViewportState& viewport);
+    /** @brief Clears the page-preview drag interaction state. */
+    void CancelPreviewInteraction() noexcept;
+    /** @brief Begins a rotate/scale handle interaction for the selected page reticle. */
+    void BeginReticleHandleInteraction(InteractionMode mode,
+                                       ImVec2 cornerScreen,
+                                       const ViewportState& viewport,
+                                       ImVec2 mouse,
+                                       const mfd::Transform2D& selectedTransform,
+                                       const mfd::ReticleGroup& selectedPreviewReticle);
+    /** @brief Clears the library-preview primitive handle interaction state. */
+    void CancelLibraryPreviewInteraction() noexcept;
+    /** @brief Draws the clip menu items for one hovered page-reticle primitive. */
+    void DrawReticleClipMenuItems(mfd::PageDefinition& page, int reticleIndex, int primitiveIndex);
+    /** @brief Returns the hovered clip targets that belong to one page reticle. */
+    std::vector<PageClipTarget> CollectClipTargetsForReticle(int reticleIndex) const;
+    /** @brief Draws the per-reticle page-preview context menu content. */
+    void DrawReticleContextContent(mfd::PageDefinition& page, int reticleIndex);
 
     /** @brief Ensures the off-screen preview texture matches the requested size. */
     void EnsurePreviewTexture(int width, int height);

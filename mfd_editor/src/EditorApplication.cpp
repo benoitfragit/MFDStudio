@@ -548,6 +548,23 @@ mfd::Vec2 TransformPrimitiveWorldPoint(const mfd::ReticleGroup& reticle,
     return mfd::ApplyPrimitiveWorldTransform(localPoint, primitive, reticle);
 }
 
+ImVec2 PrimitiveHandleScreenPoint(const editor::app::ViewportState& viewport,
+                                  const mfd::ReticleGroup& reticle,
+                                  const mfd::Primitive& primitive,
+                                  const mfd::Vec2 localPoint)
+{
+    return viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
+}
+
+void DrawSelectionHandle(ImDrawList* const drawList,
+                         const ImVec2 point,
+                         const ImU32 color,
+                         const float radius = 6.0f)
+{
+    drawList->AddCircleFilled(point, radius, color, 16);
+    drawList->AddCircle(point, radius, IM_COL32(10, 18, 24, 255), 16, 1.5f);
+}
+
 mfd::Vec2 InversePrimitiveWorldPoint(const mfd::ReticleGroup& reticle,
                                      const mfd::Primitive& primitive,
                                      const mfd::Vec2 worldPoint)
@@ -3633,17 +3650,6 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
                                       documentState_.selection.primitiveIndex >= 0 &&
                                       documentState_.selection.primitiveIndex < static_cast<int>(reticle->primitives.size());
 
-    auto toScreenPoint = [&viewport, reticle](const mfd::Primitive& primitive, const mfd::Vec2 localPoint)
-    {
-        return viewport.ToScreen(TransformPrimitiveWorldPoint(*reticle, primitive, localPoint));
-    };
-
-    auto drawHandle = [drawList](const ImVec2 point, const ImU32 color, const float radius = 6.0f)
-    {
-        drawList->AddCircleFilled(point, radius, color, 16);
-        drawList->AddCircle(point, radius, IM_COL32(10, 18, 24, 255), 16, 1.5f);
-    };
-
     for (int primitiveIndex = 0; primitiveIndex < static_cast<int>(reticle->primitives.size()); ++primitiveIndex)
     {
         const mfd::Primitive& primitive = reticle->primitives[static_cast<std::size_t>(primitiveIndex)];
@@ -3681,88 +3687,88 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
             continue;
         }
 
-        const ImVec2 primitiveCenter = toScreenPoint(primitive, {});
-        drawHandle(primitiveCenter, IM_COL32(94, 224, 174, 255), 7.0f);
+        const ImVec2 primitiveCenter = PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {});
+        DrawSelectionHandle(drawList, primitiveCenter, IM_COL32(94, 224, 174, 255), 7.0f);
 
         if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
         {
-            drawHandle(toScreenPoint(primitive, line->start), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, line->end), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, line->start), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, line->end), IM_COL32(255, 140, 92, 255));
             continue;
         }
 
         if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
         {
             drawList->AddCircle(primitiveCenter,
-                                std::max(8.0f, Distance(primitiveCenter, toScreenPoint(primitive, {circle->radius, 0.0f}))),
+                                std::max(8.0f, Distance(primitiveCenter, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {circle->radius, 0.0f}))),
                                 IM_COL32(255, 212, 110, 140),
                                 48,
                                 1.2f);
-            drawHandle(toScreenPoint(primitive, {circle->radius, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {circle->radius, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
             continue;
         }
 
         if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
         {
             drawList->AddCircle(primitiveCenter,
-                                std::max(8.0f, Distance(primitiveCenter, toScreenPoint(primitive, {ring->outerRadius, 0.0f}))),
+                                std::max(8.0f, Distance(primitiveCenter, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {ring->outerRadius, 0.0f}))),
                                 IM_COL32(255, 212, 110, 140),
                                 48,
                                 1.2f);
             drawList->AddCircle(primitiveCenter,
-                                std::max(4.0f, Distance(primitiveCenter, toScreenPoint(primitive, {ring->innerRadius, 0.0f}))),
+                                std::max(4.0f, Distance(primitiveCenter, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {ring->innerRadius, 0.0f}))),
                                 IM_COL32(255, 212, 110, 90),
                                 48,
                                 1.0f);
-            drawHandle(toScreenPoint(primitive, {ring->innerRadius, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
-            drawHandle(toScreenPoint(primitive, {ring->outerRadius, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {ring->innerRadius, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {ring->outerRadius, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
             continue;
         }
 
         if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
         {
-            drawHandle(toScreenPoint(primitive, {-rectangle->width * 0.5f, -rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {rectangle->width * 0.5f, -rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {rectangle->width * 0.5f, rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {-rectangle->width * 0.5f, rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {-rectangle->width * 0.5f, -rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {rectangle->width * 0.5f, -rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {rectangle->width * 0.5f, rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {-rectangle->width * 0.5f, rectangle->height * 0.5f}), IM_COL32(255, 140, 92, 255));
             continue;
         }
 
         if (const auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
         {
             drawList->AddCircle(primitiveCenter,
-                                std::max(8.0f, Distance(primitiveCenter, toScreenPoint(primitive, {ellipse->width * 0.5f, 0.0f}))),
+                                std::max(8.0f, Distance(primitiveCenter, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {ellipse->width * 0.5f, 0.0f}))),
                                 IM_COL32(255, 212, 110, 90),
                                 48,
                                 1.0f);
-            drawHandle(toScreenPoint(primitive, {ellipse->width * 0.5f, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
-            drawHandle(toScreenPoint(primitive, {0.0f, ellipse->height * 0.5f}), IM_COL32(110, 180, 250, 255), 7.0f);
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {ellipse->width * 0.5f, 0.0f}), IM_COL32(110, 180, 250, 255), 7.0f);
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {0.0f, ellipse->height * 0.5f}), IM_COL32(110, 180, 250, 255), 7.0f);
             continue;
         }
 
         if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
         {
-            drawHandle(toScreenPoint(primitive, {-square->width * 0.5f, -square->height * 0.5f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {square->width * 0.5f, -square->height * 0.5f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {square->width * 0.5f, square->height * 0.5f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {-square->width * 0.5f, square->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {-square->width * 0.5f, -square->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {square->width * 0.5f, -square->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {square->width * 0.5f, square->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {-square->width * 0.5f, square->height * 0.5f}), IM_COL32(255, 140, 92, 255));
             continue;
         }
 
         if (const auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
         {
-            drawHandle(toScreenPoint(primitive, {0.0f, diamond->height * 0.5f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {diamond->width * 0.5f, 0.0f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {0.0f, -diamond->height * 0.5f}), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, {-diamond->width * 0.5f, 0.0f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {0.0f, diamond->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {diamond->width * 0.5f, 0.0f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {0.0f, -diamond->height * 0.5f}), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {-diamond->width * 0.5f, 0.0f}), IM_COL32(255, 140, 92, 255));
             continue;
         }
 
         if (const auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
         {
-            drawHandle(toScreenPoint(primitive, triangle->points[0]), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, triangle->points[1]), IM_COL32(255, 140, 92, 255));
-            drawHandle(toScreenPoint(primitive, triangle->points[2]), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, triangle->points[0]), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, triangle->points[1]), IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, triangle->points[2]), IM_COL32(255, 140, 92, 255));
             continue;
         }
 
@@ -3770,7 +3776,7 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
         {
             for (const auto& point : polyline->points)
             {
-                drawHandle(toScreenPoint(primitive, point), IM_COL32(255, 140, 92, 255));
+                DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, point), IM_COL32(255, 140, 92, 255));
             }
             continue;
         }
@@ -3779,7 +3785,7 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
         {
             for (const auto& point : bezier->controlPoints)
             {
-                drawHandle(toScreenPoint(primitive, point), IM_COL32(255, 140, 92, 255));
+                DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, point), IM_COL32(255, 140, 92, 255));
             }
             continue;
         }
@@ -3790,8 +3796,8 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
                 ApproximateArcPoints(arc->radius, arc->startAngleDegrees, arc->endAngleDegrees, arc->segments);
             for (std::size_t index = 0; index + 1U < arcPoints.size(); ++index)
             {
-                drawList->AddLine(toScreenPoint(primitive, arcPoints[index]),
-                                  toScreenPoint(primitive, arcPoints[index + 1U]),
+                drawList->AddLine(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints[index]),
+                                  PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints[index + 1U]),
                                   IM_COL32(255, 212, 110, 110),
                                   1.5f);
             }
@@ -3804,10 +3810,10 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
 
             if (!arcPoints.empty())
             {
-                drawHandle(toScreenPoint(primitive, arcPoints.front()), IM_COL32(255, 140, 92, 255));
-                drawHandle(toScreenPoint(primitive, arcPoints.back()), IM_COL32(255, 140, 92, 255));
+                DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints.front()), IM_COL32(255, 140, 92, 255));
+                DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints.back()), IM_COL32(255, 140, 92, 255));
             }
-            drawHandle(toScreenPoint(primitive, middlePoint), IM_COL32(110, 180, 250, 255), 7.0f);
+            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, middlePoint), IM_COL32(110, 180, 250, 255), 7.0f);
         }
     }
 }
@@ -4641,6 +4647,50 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
     drawSingleSelectionHandles(*reticle, bounds);
 }
 
+void EditorApplication::CancelPreviewInteraction() noexcept
+{
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+}
+
+void EditorApplication::BeginReticleHandleInteraction(const InteractionMode mode,
+                                                      const ImVec2 cornerScreen,
+                                                      const ViewportState& viewport,
+                                                      const ImVec2 mouse,
+                                                      const mfd::Transform2D& selectedTransform,
+                                                      const mfd::ReticleGroup& selectedPreviewReticle)
+{
+    interactionState_.reticleIndex =
+        documentState_.selection.kind == SelectionKind::PageReticle ? documentState_.selection.pageReticleIndex : -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    if (documentState_.selection.kind == SelectionKind::PageReticle)
+    {
+        interactionState_.reticleIndices = {documentState_.selection.pageReticleIndex};
+        interactionState_.startReticleTransforms = {selectedTransform};
+    }
+    interactionState_.startTransform = selectedTransform;
+    interactionState_.startReticleVisualCenterLocal = ReticleVisualCenterLocal(selectedPreviewReticle);
+    interactionState_.startMouseLogical = viewport.ToLogical(mouse);
+    const mfd::Vec2 interactionPivotLogical =
+        mfd::ApplyTransform(interactionState_.startReticleVisualCenterLocal, interactionState_.startTransform);
+    interactionState_.startAngleDegrees =
+        std::atan2(interactionState_.startMouseLogical.y - interactionPivotLogical.y,
+                   interactionState_.startMouseLogical.x - interactionPivotLogical.x) *
+        180.0f / 3.14159265f;
+    interactionState_.startDistance = std::max(
+        0.001f,
+        std::sqrt(
+            std::pow(interactionState_.startMouseLogical.x - interactionPivotLogical.x, 2.0f) +
+            std::pow(interactionState_.startMouseLogical.y - interactionPivotLogical.y, 2.0f)));
+    interactionState_.startCenterScreen = viewport.ToScreen(interactionPivotLogical);
+    interactionState_.startCornerScreen = cornerScreen;
+    PushUndoSnapshot();
+    interactionState_.mode = mode;
+}
+
 void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 {
     using editor::tutorial::TutorialStepId;
@@ -4650,14 +4700,6 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     {
         return;
     }
-
-    auto cancelPreviewInteraction = [this]()
-    {
-        interactionState_.mode = InteractionMode::None;
-        interactionState_.reticleIndex = -1;
-        interactionState_.reticleIndices.clear();
-        interactionState_.startReticleTransforms.clear();
-    };
 
     ViewportState interactiveViewport = viewport;
     interactiveViewport.view = layoutState_.pagePreviewView;
@@ -4686,7 +4728,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                 {
                     layoutState_.suppressNextPagePreviewContextMenu = false;
                 }
-                cancelPreviewInteraction();
+                CancelPreviewInteraction();
             }
         }
         return;
@@ -4843,7 +4885,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
             interactionState_.mode == InteractionMode::PanPage ? !rightMouseDown : !leftMouseDown;
         if (interactionButtonReleased)
         {
-            cancelPreviewInteraction();
+            CancelPreviewInteraction();
         }
         return;
     }
@@ -4905,44 +4947,16 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                     (selectedBounds.min.x + selectedBounds.max.x) * 0.5f,
                     selectedBounds.min.y - 26.0f);
 
-                const auto initializeInteraction =
-                    [this, &viewport, mouse, selectedTransform, selectedPreviewReticle](const InteractionMode mode,
-                                                                                        const ImVec2 cornerScreen)
-                {
-                    interactionState_.reticleIndex =
-                        documentState_.selection.kind == SelectionKind::PageReticle ? documentState_.selection.pageReticleIndex : -1;
-                    interactionState_.reticleIndices.clear();
-                    interactionState_.startReticleTransforms.clear();
-                    if (documentState_.selection.kind == SelectionKind::PageReticle)
-                    {
-                        interactionState_.reticleIndices = {documentState_.selection.pageReticleIndex};
-                        interactionState_.startReticleTransforms = {*selectedTransform};
-                    }
-                    interactionState_.startTransform = *selectedTransform;
-                    interactionState_.startReticleVisualCenterLocal = ReticleVisualCenterLocal(*selectedPreviewReticle);
-                    interactionState_.startMouseLogical = viewport.ToLogical(mouse);
-                    const mfd::Vec2 interactionPivotLogical =
-                        mfd::ApplyTransform(interactionState_.startReticleVisualCenterLocal, interactionState_.startTransform);
-                    interactionState_.startAngleDegrees =
-                        std::atan2(interactionState_.startMouseLogical.y - interactionPivotLogical.y,
-                                   interactionState_.startMouseLogical.x - interactionPivotLogical.x) *
-                        180.0f / 3.14159265f;
-                    interactionState_.startDistance = std::max(
-                        0.001f,
-                        std::sqrt(
-                            std::pow(interactionState_.startMouseLogical.x - interactionPivotLogical.x, 2.0f) +
-                            std::pow(interactionState_.startMouseLogical.y - interactionPivotLogical.y, 2.0f)));
-                    interactionState_.startCenterScreen = viewport.ToScreen(interactionPivotLogical);
-                    interactionState_.startCornerScreen = cornerScreen;
-                    PushUndoSnapshot();
-                    interactionState_.mode = mode;
-                };
-
                 if (layoutState_.pagePreviewViewOptions.showGizmos)
                 {
                     if (Distance(mouse, selectedRotateHandle) <= 16.0f)
                     {
-                        initializeInteraction(InteractionMode::RotateReticle, selectedBounds.center);
+                        BeginReticleHandleInteraction(InteractionMode::RotateReticle,
+                                                      selectedBounds.center,
+                                                      viewport,
+                                                      mouse,
+                                                      *selectedTransform,
+                                                      *selectedPreviewReticle);
                         return;
                     }
 
@@ -4950,7 +4964,12 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                     {
                         if (Distance(mouse, corner) <= 16.0f)
                         {
-                            initializeInteraction(InteractionMode::ScaleReticle, corner);
+                            BeginReticleHandleInteraction(InteractionMode::ScaleReticle,
+                                                          corner,
+                                                          viewport,
+                                                          mouse,
+                                                          *selectedTransform,
+                                                          *selectedPreviewReticle);
                             return;
                         }
                     }
@@ -5148,6 +5167,140 @@ bool EditorApplication::ApplyPageReticleClipping(const int reticleIndex,
     return true;
 }
 
+void EditorApplication::DrawReticleClipMenuItems(mfd::PageDefinition& page,
+                                                 const int reticleIndex,
+                                                 const int primitiveIndex)
+{
+    if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page.staticReticles.size()))
+    {
+        ImGui::TextDisabled("Invalid reticle target.");
+        return;
+    }
+
+    mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
+    if (primitiveIndex < 0 || primitiveIndex >= static_cast<int>(reticle.primitives.size()))
+    {
+        ImGui::TextDisabled("Invalid primitive target.");
+        return;
+    }
+
+    mfd::Primitive& primitive = reticle.primitives[static_cast<std::size_t>(primitiveIndex)];
+    if (primitive.id.empty() || !mfd::SupportsReticleClipPrimitive(primitive))
+    {
+        ImGui::TextDisabled("The selected primitive does not support clipping.");
+        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
+        return;
+    }
+
+    ImGui::TextDisabled("%s", (primitive.id + " (" + PrimitiveTypeLabel(primitive.type) + ")").c_str());
+    ImGui::Separator();
+
+    if (ImGui::MenuItem("Clip inside",
+                        nullptr,
+                        reticle.clipping.mode == mfd::ReticleClipMode::Inner &&
+                            reticle.clipping.primitiveId == primitive.id))
+    {
+        ApplyPageReticleClipping(reticleIndex, mfd::ReticleClipMode::Inner, primitive.id);
+    }
+    ShowItemTooltip("Erase the inside of this convex primitive toward the page background color.");
+
+    if (ImGui::MenuItem("Clip outside",
+                        nullptr,
+                        reticle.clipping.mode == mfd::ReticleClipMode::Outer &&
+                            reticle.clipping.primitiveId == primitive.id))
+    {
+        const bool tutorialClipMatched = tutorial_->MatchesTarget("context_clip_outer");
+        if (ApplyPageReticleClipping(reticleIndex, mfd::ReticleClipMode::Outer, primitive.id) &&
+            tutorialClipMatched &&
+            (tutorial_->TrackedReticleId().empty() || reticle.id == tutorial_->TrackedReticleId()))
+        {
+            tutorial_->CompleteStep();
+        }
+    }
+    ShowItemTooltip("Erase everything outside this convex primitive toward the page background color.");
+    tutorial_->DrawHalo(
+        "context_clip_outer",
+        "Click Clip outside",
+        "Keep only the inside of the tutorial circle so you can discover page-level masking.");
+
+    if (ImGui::MenuItem("Disable clipping",
+                        nullptr,
+                        reticle.clipping.mode == mfd::ReticleClipMode::None))
+    {
+        ApplyPageReticleClipping(reticleIndex, mfd::ReticleClipMode::None, reticle.clipping.primitiveId);
+    }
+    ShowItemTooltip("Disable clipping for this page reticle.");
+}
+
+std::vector<EditorApplication::PageClipTarget> EditorApplication::CollectClipTargetsForReticle(
+    const int reticleIndex) const
+{
+    std::vector<PageClipTarget> targets;
+    for (const PageClipTarget& target : layoutState_.pagePreviewContextTargets)
+    {
+        if (target.reticleIndex == reticleIndex)
+        {
+            targets.push_back(target);
+        }
+    }
+    return targets;
+}
+
+void EditorApplication::DrawReticleContextContent(mfd::PageDefinition& page, const int reticleIndex)
+{
+    if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page.staticReticles.size()))
+    {
+        ImGui::TextDisabled("Invalid reticle target.");
+        return;
+    }
+
+    mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
+    const bool selected = HasSelectedPageReticle(documentState_.selection.pageIndex, reticleIndex);
+    if (ImGui::MenuItem("Select only", nullptr, selected))
+    {
+        SelectPageReticle(documentState_.selection.pageIndex, reticleIndex);
+    }
+    ShowItemTooltip("Focus only this reticle in the inspector and preview.");
+
+    const char* toggleLabel = selected ? "Remove from selection" : "Add to selection";
+    if (ImGui::MenuItem(toggleLabel, "Ctrl+click"))
+    {
+        TogglePageReticleSelection(documentState_.selection.pageIndex, reticleIndex);
+    }
+    ShowItemTooltip("Add or remove this reticle from the current multi-selection.");
+
+    const std::vector<PageClipTarget> reticleTargets = CollectClipTargetsForReticle(reticleIndex);
+    ImGui::Separator();
+    if (reticleTargets.empty())
+    {
+        ImGui::TextDisabled("No convex primitive under the mouse for clipping.");
+        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
+        return;
+    }
+
+    if (reticleTargets.size() == 1U)
+    {
+        DrawReticleClipMenuItems(page, reticleIndex, reticleTargets.front().primitiveIndex);
+        return;
+    }
+
+    ImGui::TextDisabled("Clip through one of the hovered primitives:");
+    for (const PageClipTarget& target : reticleTargets)
+    {
+        const mfd::Primitive& primitive =
+            reticle.primitives[static_cast<std::size_t>(target.primitiveIndex)];
+        const std::string primitiveLabel =
+            (primitive.id.empty() ? std::string {"primitive"} : primitive.id) +
+            " (" + PrimitiveTypeLabel(primitive.type) + ")##context_primitive_" +
+            std::to_string(reticleIndex) + "_" + std::to_string(target.primitiveIndex);
+        if (ImGui::BeginMenu(primitiveLabel.c_str()))
+        {
+            DrawReticleClipMenuItems(page, reticleIndex, target.primitiveIndex);
+            ImGui::EndMenu();
+        }
+    }
+}
+
 void EditorApplication::DrawPageReticleContextMenu()
 {
     if (!ImGui::BeginPopup("PageReticleContextMenu"))
@@ -5162,69 +5315,6 @@ void EditorApplication::DrawPageReticleContextMenu()
         ImGui::EndPopup();
         return;
     }
-
-    auto drawClipItemsForTarget = [this, page](const int reticleIndex, const int primitiveIndex)
-    {
-        if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page->staticReticles.size()))
-        {
-            ImGui::TextDisabled("Invalid reticle target.");
-            return;
-        }
-
-        mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
-        if (primitiveIndex < 0 || primitiveIndex >= static_cast<int>(reticle.primitives.size()))
-        {
-            ImGui::TextDisabled("Invalid primitive target.");
-            return;
-        }
-
-        mfd::Primitive& primitive = reticle.primitives[static_cast<std::size_t>(primitiveIndex)];
-        if (primitive.id.empty() || !mfd::SupportsReticleClipPrimitive(primitive))
-        {
-            ImGui::TextDisabled("The selected primitive does not support clipping.");
-            ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
-            return;
-        }
-
-        ImGui::TextDisabled("%s", (primitive.id + " (" + PrimitiveTypeLabel(primitive.type) + ")").c_str());
-        ImGui::Separator();
-
-        if (ImGui::MenuItem("Clip inside",
-                            nullptr,
-                            reticle.clipping.mode == mfd::ReticleClipMode::Inner &&
-                                reticle.clipping.primitiveId == primitive.id))
-        {
-            ApplyPageReticleClipping(reticleIndex, mfd::ReticleClipMode::Inner, primitive.id);
-        }
-        ShowItemTooltip("Erase the inside of this convex primitive toward the page background color.");
-
-        if (ImGui::MenuItem("Clip outside",
-                            nullptr,
-                            reticle.clipping.mode == mfd::ReticleClipMode::Outer &&
-                                reticle.clipping.primitiveId == primitive.id))
-        {
-            const bool tutorialClipMatched = tutorial_->MatchesTarget("context_clip_outer");
-            if (ApplyPageReticleClipping(reticleIndex, mfd::ReticleClipMode::Outer, primitive.id) &&
-                tutorialClipMatched &&
-                (tutorial_->TrackedReticleId().empty() || reticle.id == tutorial_->TrackedReticleId()))
-            {
-                tutorial_->CompleteStep();
-            }
-        }
-        ShowItemTooltip("Erase everything outside this convex primitive toward the page background color.");
-        tutorial_->DrawHalo(
-            "context_clip_outer",
-            "Click Clip outside",
-            "Keep only the inside of the tutorial circle so you can discover page-level masking.");
-
-        if (ImGui::MenuItem("Disable clipping",
-                            nullptr,
-                            reticle.clipping.mode == mfd::ReticleClipMode::None))
-        {
-            ApplyPageReticleClipping(reticleIndex, mfd::ReticleClipMode::None, reticle.clipping.primitiveId);
-        }
-        ShowItemTooltip("Disable clipping for this page reticle.");
-    };
 
     const std::vector<int> selectedIndices = SelectedPageReticleIndices();
     const bool hasSelectedGroup = !selectedIndices.empty();
@@ -5283,74 +5373,6 @@ void EditorApplication::DrawPageReticleContextMenu()
         ImGui::Separator();
     }
 
-    auto collectClipTargetsForReticle = [this](const int reticleIndex)
-    {
-        std::vector<PageClipTarget> targets;
-        for (const PageClipTarget& target : layoutState_.pagePreviewContextTargets)
-        {
-            if (target.reticleIndex == reticleIndex)
-            {
-                targets.push_back(target);
-            }
-        }
-        return targets;
-    };
-
-    auto drawReticleContextContent = [this, page, &drawClipItemsForTarget, &collectClipTargetsForReticle](const int reticleIndex)
-    {
-        if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page->staticReticles.size()))
-        {
-            ImGui::TextDisabled("Invalid reticle target.");
-            return;
-        }
-
-        mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
-        const bool selected = HasSelectedPageReticle(documentState_.selection.pageIndex, reticleIndex);
-        if (ImGui::MenuItem("Select only", nullptr, selected))
-        {
-            SelectPageReticle(documentState_.selection.pageIndex, reticleIndex);
-        }
-        ShowItemTooltip("Focus only this reticle in the inspector and preview.");
-
-        const char* toggleLabel = selected ? "Remove from selection" : "Add to selection";
-        if (ImGui::MenuItem(toggleLabel, "Ctrl+click"))
-        {
-            TogglePageReticleSelection(documentState_.selection.pageIndex, reticleIndex);
-        }
-        ShowItemTooltip("Add or remove this reticle from the current multi-selection.");
-
-        const std::vector<PageClipTarget> reticleTargets = collectClipTargetsForReticle(reticleIndex);
-        ImGui::Separator();
-        if (reticleTargets.empty())
-        {
-            ImGui::TextDisabled("No convex primitive under the mouse for clipping.");
-            ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
-            return;
-        }
-
-        if (reticleTargets.size() == 1U)
-        {
-            drawClipItemsForTarget(reticleIndex, reticleTargets.front().primitiveIndex);
-            return;
-        }
-
-        ImGui::TextDisabled("Clip through one of the hovered primitives:");
-        for (const PageClipTarget& target : reticleTargets)
-        {
-            const mfd::Primitive& primitive =
-                reticle.primitives[static_cast<std::size_t>(target.primitiveIndex)];
-            const std::string primitiveLabel =
-                (primitive.id.empty() ? std::string {"primitive"} : primitive.id) +
-                " (" + PrimitiveTypeLabel(primitive.type) + ")##context_primitive_" +
-                std::to_string(reticleIndex) + "_" + std::to_string(target.primitiveIndex);
-            if (ImGui::BeginMenu(primitiveLabel.c_str()))
-            {
-                drawClipItemsForTarget(reticleIndex, target.primitiveIndex);
-                ImGui::EndMenu();
-            }
-        }
-    };
-
     if (layoutState_.pagePreviewContextReticleIndices.size() == 1U)
     {
         const int reticleIndex = layoutState_.pagePreviewContextReticleIndices.front();
@@ -5359,7 +5381,7 @@ void EditorApplication::DrawPageReticleContextMenu()
             const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
             ImGui::TextUnformatted(reticle.id.c_str());
             ImGui::Separator();
-            drawReticleContextContent(reticleIndex);
+            DrawReticleContextContent(*page, reticleIndex);
         }
     }
     else
@@ -5378,7 +5400,7 @@ void EditorApplication::DrawPageReticleContextMenu()
                 "##context_reticle_" + std::to_string(reticleIndex);
             if (ImGui::BeginMenu(label.c_str()))
             {
-                drawReticleContextContent(reticleIndex);
+                DrawReticleContextContent(*page, reticleIndex);
                 ImGui::EndMenu();
             }
         }
@@ -5390,6 +5412,14 @@ void EditorApplication::DrawPageReticleContextMenu()
     ImGui::EndPopup();
 }
 
+void EditorApplication::CancelLibraryPreviewInteraction() noexcept
+{
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.primitiveIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
+    interactionState_.handleIndex = -1;
+}
+
 void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& viewport)
 {
     mfd::ReticleGroup* reticle = SelectedLibraryReticle();
@@ -5398,18 +5428,10 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         return;
     }
 
-    auto cancelLibraryPreviewInteraction = [this]()
-    {
-        interactionState_.mode = InteractionMode::None;
-        interactionState_.primitiveIndex = -1;
-        interactionState_.handleKind = PrimitiveHandleKind::None;
-        interactionState_.handleIndex = -1;
-    };
-
     if (ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId))
     {
         layoutState_.suppressNextLibraryPreviewContextMenu = false;
-        cancelLibraryPreviewInteraction();
+        CancelLibraryPreviewInteraction();
         return;
     }
 
@@ -5432,7 +5454,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             {
                 layoutState_.suppressNextLibraryPreviewContextMenu = false;
             }
-            cancelLibraryPreviewInteraction();
+            CancelLibraryPreviewInteraction();
         }
         else
         {
@@ -5448,7 +5470,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     {
         if (interactionState_.primitiveIndex < 0 || interactionState_.primitiveIndex >= static_cast<int>(reticle->primitives.size()))
         {
-            cancelLibraryPreviewInteraction();
+            CancelLibraryPreviewInteraction();
             return;
         }
 
@@ -5586,7 +5608,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
 
         if (!leftMouseDown)
         {
-            cancelLibraryPreviewInteraction();
+            CancelLibraryPreviewInteraction();
         }
         return;
     }
@@ -5646,11 +5668,6 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     SelectLibraryPrimitive(reticle->id, *bestPrimitiveIndex);
     mfd::Primitive& primitive = reticle->primitives[static_cast<std::size_t>(*bestPrimitiveIndex)];
 
-    auto toScreenPoint = [&viewport, reticle, &primitive](const mfd::Vec2 localPoint)
-    {
-        return viewport.ToScreen(TransformPrimitiveWorldPoint(*reticle, primitive, localPoint));
-    };
-
     interactionState_.primitiveIndex = *bestPrimitiveIndex;
     interactionState_.startPrimitive = primitive;
     interactionState_.startMouseLogical = viewport.ToLogical(mouse);
@@ -5670,7 +5687,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         const std::array<mfd::Vec2, 2> points {line->start, line->end};
         for (int index = 0; index < 2; ++index)
         {
-            if (matchesHandle(toScreenPoint(points[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, points[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5682,7 +5699,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     }
     else if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
     {
-        if (matchesHandle(toScreenPoint({circle->radius, 0.0f})))
+        if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {circle->radius, 0.0f})))
         {
             PushUndoSnapshot();
             interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5699,7 +5716,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 2; ++index)
         {
-            if (matchesHandle(toScreenPoint(handles[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5719,7 +5736,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 4; ++index)
         {
-            if (matchesHandle(toScreenPoint(corners[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, corners[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5737,7 +5754,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 2; ++index)
         {
-            if (matchesHandle(toScreenPoint(handles[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5757,7 +5774,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 4; ++index)
         {
-            if (matchesHandle(toScreenPoint(corners[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, corners[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5777,7 +5794,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 4; ++index)
         {
-            if (matchesHandle(toScreenPoint(handles[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5791,7 +5808,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     {
         for (int index = 0; index < 3; ++index)
         {
-            if (matchesHandle(toScreenPoint(triangle->points[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, triangle->points[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5805,7 +5822,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     {
         for (int index = 0; index < static_cast<int>(polyline->points.size()); ++index)
         {
-            if (matchesHandle(toScreenPoint(polyline->points[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, polyline->points[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5819,7 +5836,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     {
         for (int index = 0; index < static_cast<int>(bezier->controlPoints.size()); ++index)
         {
-            if (matchesHandle(toScreenPoint(bezier->controlPoints[static_cast<std::size_t>(index)])))
+            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, bezier->controlPoints[static_cast<std::size_t>(index)])))
             {
                 PushUndoSnapshot();
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5839,7 +5856,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             std::cos(middleAngleRadians) * std::abs(arc->radius),
             std::sin(middleAngleRadians) * std::abs(arc->radius)};
 
-        if (!arcPoints.empty() && matchesHandle(toScreenPoint(arcPoints.front())))
+        if (!arcPoints.empty() && matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints.front())))
         {
             PushUndoSnapshot();
             interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5848,7 +5865,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             return;
         }
 
-        if (!arcPoints.empty() && matchesHandle(toScreenPoint(arcPoints.back())))
+        if (!arcPoints.empty() && matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints.back())))
         {
             PushUndoSnapshot();
             interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -5857,7 +5874,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             return;
         }
 
-        if (matchesHandle(toScreenPoint(radiusHandle)))
+        if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, radiusHandle)))
         {
             PushUndoSnapshot();
             interactionState_.mode = InteractionMode::EditPrimitiveHandle;
@@ -6711,11 +6728,6 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
     float bestDistance = distanceToPoint(bounds.center);
 
-    auto toScreenPoint = [&viewport, &reticle, &primitive](const mfd::Vec2 localPoint)
-    {
-        return viewport.ToScreen(TransformPrimitiveWorldPoint(reticle, primitive, localPoint));
-    };
-
     if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
     {
         if (mousePosition.x >= bounds.min.x - 6.0f && mousePosition.x <= bounds.max.x + 6.0f &&
@@ -6738,16 +6750,16 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
     if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
     {
-        return std::min(bestDistance, distanceToSegment(toScreenPoint(line->start), toScreenPoint(line->end)));
+        return std::min(bestDistance, distanceToSegment(PrimitiveHandleScreenPoint(viewport, reticle, primitive, line->start), PrimitiveHandleScreenPoint(viewport, reticle, primitive, line->end)));
     }
 
     if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
     {
         const std::array<ImVec2, 4> imageCorners {
-            toScreenPoint({-image->width * 0.5f, -image->height * 0.5f}),
-            toScreenPoint({image->width * 0.5f, -image->height * 0.5f}),
-            toScreenPoint({image->width * 0.5f, image->height * 0.5f}),
-            toScreenPoint({-image->width * 0.5f, image->height * 0.5f})};
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-image->width * 0.5f, -image->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {image->width * 0.5f, -image->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {image->width * 0.5f, image->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-image->width * 0.5f, image->height * 0.5f})};
         std::vector<ImVec2> polygon(imageCorners.begin(), imageCorners.end());
         if (IsPointInsidePolygon(polygon, mousePosition))
         {
@@ -6765,8 +6777,8 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
     if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
     {
-        const ImVec2 center = toScreenPoint({});
-        const ImVec2 edge = toScreenPoint({circle->radius, 0.0f});
+        const ImVec2 center = PrimitiveHandleScreenPoint(viewport, reticle, primitive, {});
+        const ImVec2 edge = PrimitiveHandleScreenPoint(viewport, reticle, primitive, {circle->radius, 0.0f});
         const float radiusPixels = std::max(1.0f, Distance(center, edge));
         const float centerDistance = distanceToPoint(center);
         bestDistance = std::min(bestDistance, std::abs(centerDistance - radiusPixels));
@@ -6779,9 +6791,9 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
     if (const auto* ring = std::get_if<mfd::RingGeometry>(&primitive.geometry))
     {
-        const ImVec2 center = toScreenPoint({});
-        const ImVec2 innerEdge = toScreenPoint({ring->innerRadius, 0.0f});
-        const ImVec2 outerEdge = toScreenPoint({ring->outerRadius, 0.0f});
+        const ImVec2 center = PrimitiveHandleScreenPoint(viewport, reticle, primitive, {});
+        const ImVec2 innerEdge = PrimitiveHandleScreenPoint(viewport, reticle, primitive, {ring->innerRadius, 0.0f});
+        const ImVec2 outerEdge = PrimitiveHandleScreenPoint(viewport, reticle, primitive, {ring->outerRadius, 0.0f});
         float innerRadiusPixels = Distance(center, innerEdge);
         float outerRadiusPixels = std::max(1.0f, Distance(center, outerEdge));
         if (innerRadiusPixels > outerRadiusPixels)
@@ -6820,7 +6832,7 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
         arcPoints.reserve(logicalArcPoints.size());
         for (const auto& point : logicalArcPoints)
         {
-            arcPoints.push_back(toScreenPoint(point));
+            arcPoints.push_back(PrimitiveHandleScreenPoint(viewport, reticle, primitive, point));
         }
 
         for (std::size_t index = 0; index + 1U < arcPoints.size(); ++index)
@@ -6832,7 +6844,7 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
         {
             std::vector<ImVec2> sectorPoints;
             sectorPoints.reserve(arcPoints.size() + 1U);
-            sectorPoints.push_back(toScreenPoint({}));
+            sectorPoints.push_back(PrimitiveHandleScreenPoint(viewport, reticle, primitive, {}));
             sectorPoints.insert(sectorPoints.end(), arcPoints.begin(), arcPoints.end());
             for (std::size_t index = 0; index + 1U < sectorPoints.size(); ++index)
             {
@@ -6853,46 +6865,46 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
     if (const auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive.geometry))
     {
         points = {
-            toScreenPoint({-rectangle->width * 0.5f, -rectangle->height * 0.5f}),
-            toScreenPoint({rectangle->width * 0.5f, -rectangle->height * 0.5f}),
-            toScreenPoint({rectangle->width * 0.5f, rectangle->height * 0.5f}),
-            toScreenPoint({-rectangle->width * 0.5f, rectangle->height * 0.5f})};
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-rectangle->width * 0.5f, -rectangle->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {rectangle->width * 0.5f, -rectangle->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {rectangle->width * 0.5f, rectangle->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-rectangle->width * 0.5f, rectangle->height * 0.5f})};
     }
     else if (const auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive.geometry))
     {
         for (const auto& point : ApproximateEllipsePoints(ellipse->width, ellipse->height))
         {
-            points.push_back(toScreenPoint(point));
+            points.push_back(PrimitiveHandleScreenPoint(viewport, reticle, primitive, point));
         }
     }
     else if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
     {
         points = {
-            toScreenPoint({-square->width * 0.5f, -square->height * 0.5f}),
-            toScreenPoint({square->width * 0.5f, -square->height * 0.5f}),
-            toScreenPoint({square->width * 0.5f, square->height * 0.5f}),
-            toScreenPoint({-square->width * 0.5f, square->height * 0.5f})};
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-square->width * 0.5f, -square->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {square->width * 0.5f, -square->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {square->width * 0.5f, square->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-square->width * 0.5f, square->height * 0.5f})};
     }
     else if (const auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
     {
         points = {
-            toScreenPoint({0.0f, diamond->height * 0.5f}),
-            toScreenPoint({diamond->width * 0.5f, 0.0f}),
-            toScreenPoint({0.0f, -diamond->height * 0.5f}),
-            toScreenPoint({-diamond->width * 0.5f, 0.0f})};
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {0.0f, diamond->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {diamond->width * 0.5f, 0.0f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {0.0f, -diamond->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-diamond->width * 0.5f, 0.0f})};
     }
     else if (const auto* triangle = std::get_if<mfd::TriangleGeometry>(&primitive.geometry))
     {
         points = {
-            toScreenPoint(triangle->points[0]),
-            toScreenPoint(triangle->points[1]),
-            toScreenPoint(triangle->points[2])};
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, triangle->points[0]),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, triangle->points[1]),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, triangle->points[2])};
     }
     else if (const auto* polyline = std::get_if<mfd::PolylineGeometry>(&primitive.geometry))
     {
         for (const auto& point : polyline->points)
         {
-            points.push_back(toScreenPoint(point));
+            points.push_back(PrimitiveHandleScreenPoint(viewport, reticle, primitive, point));
         }
 
         for (std::size_t index = 0; index + 1 < points.size(); ++index)
@@ -6911,16 +6923,16 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
     {
         for (const auto& point : bezier->controlPoints)
         {
-            points.push_back(toScreenPoint(point));
+            points.push_back(PrimitiveHandleScreenPoint(viewport, reticle, primitive, point));
         }
     }
     else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
     {
         points = {
-            toScreenPoint({-image->width * 0.5f, -image->height * 0.5f}),
-            toScreenPoint({image->width * 0.5f, -image->height * 0.5f}),
-            toScreenPoint({image->width * 0.5f, image->height * 0.5f}),
-            toScreenPoint({-image->width * 0.5f, image->height * 0.5f})};
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-image->width * 0.5f, -image->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {image->width * 0.5f, -image->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {image->width * 0.5f, image->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-image->width * 0.5f, image->height * 0.5f})};
     }
 
     for (std::size_t index = 0; index < points.size(); ++index)
