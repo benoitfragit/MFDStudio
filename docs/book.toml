@@ -1,0 +1,19 @@
+[book]
+title = "MFDStudio Documentation"
+description = "Authoring and running 2D multi-function display windows from JSON."
+authors = ["MFDStudio contributors"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/benoitfragit/MFDStudio"
+edit-url-template = "https://github.com/benoitfragit/MFDStudio/edit/master/docs/{path}"
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
