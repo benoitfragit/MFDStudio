@@ -21,6 +21,34 @@ Treat the generated header, the generated source, and the companion
 If the generated C++ and the generated map drift apart, or the runtime did not
 load the matching sidecar, generated batches are rejected.
 
+## Minimal usage
+
+A generated client links `mfd_client_api`, builds the transport with
+`CommandClient`, then drives the generated UI class through page handles and
+batches:
+
+```cpp
+#include "mfd/client/ClientSdk.h"
+#include "tutorial_ui/TutorialUi.h"
+
+mfd::CommandClient client(udpCommandTransport, generatedTransportMap);
+if (!client.IsReady())
+{
+    // handle client.LastError()
+}
+
+tutorial_ui::TutorialUi generatedUi;
+auto& page1 = generatedUi.Page1();
+
+client.ActivatePage(page1);
+generatedUi.Initialize();
+
+// each cycle: mutate generated handles, then publish one batch
+page1.mfdTutorialCircle.SetVisible(true);
+const std::vector<mfd::UserCommand> commands = generatedUi.BuildBatch();
+client.SendBatch(commands);
+```
+
 ## `Run()` vs `Initialize()`
 
 - `ui.Run()` starts one new local client cycle. It drops staged dirty state

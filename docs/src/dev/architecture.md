@@ -2,6 +2,32 @@
 
 The repository is split into coherent modules with narrow public surfaces.
 
+```mermaid
+flowchart TB
+    subgraph Hosts["Host applications"]
+        Window["mfd_window<br/>(runtime host)"]
+        Editor["mfd_editor<br/>(authoring app)"]
+    end
+
+    subgraph PublicSDKs["Public SDKs"]
+        RuntimeApi["mfd_runtime_api<br/>(offscreen embedding)"]
+        ClientApi["mfd_client_api<br/>(generated client)"]
+        WindowPluginApi["mfd_window_plugin_api<br/>(framebuffer plugins)"]
+    end
+
+    subgraph Core["Core"]
+        Api["mfd_api<br/>(io_json, runtime, render_raylib)"]
+        Common["mfd_common_api<br/>(mfd_model, mfd_transport)"]
+    end
+
+    Window --> Api
+    Editor --> Api
+    RuntimeApi --> Api
+    ClientApi --> Common
+    WindowPluginApi --> Window
+    Api --> Common
+```
+
 ## Module layers
 
 | Module | Role |
@@ -49,6 +75,18 @@ serialization, validation, generated identifier detection, client transport
 normalization, runtime id resolution, runtime dispatch, batching/coalescing, and
 tests. Prefer internal command helpers or command traits over duplicating a rule
 across files.
+
+```mermaid
+flowchart LR
+    Def["Command type<br/>definition"] --> Val[Validation]
+    Val --> Ser["Protobuf<br/>serialization"]
+    Ser --> Id["Generated identifier<br/>detection"]
+    Id --> Norm["Client transport<br/>normalization"]
+    Norm --> Res["Runtime identifier<br/>resolution"]
+    Res --> Disp["Runtime<br/>dispatch"]
+    Disp --> Batch["Batching /<br/>coalescing"]
+    Batch --> Test[Tests]
+```
 
 ## Repository layout
 
