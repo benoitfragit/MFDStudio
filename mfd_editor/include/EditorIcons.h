@@ -34,7 +34,8 @@ enum class EditorIcon
     Add,              ///< Plus silhouette used for create/add actions.
     Search,           ///< Magnifier silhouette used to annotate the filter field and file pickers.
     Overflow,         ///< Three-dot silhouette used for an overflow menu trigger.
-    Tutorial          ///< Graduation-cap silhouette used for the guided tutorial entry point.
+    Tutorial,         ///< Graduation-cap silhouette used for the guided tutorial entry point.
+    Recent            ///< Clock silhouette used to reopen recently authored windows.
 };
 
 /**

@@ -24,6 +24,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageImportService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPageRenameService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorPrimitiveClipboardService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorRecentWindowsService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorReticleExtractionService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorReticleRenameService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorReticleUsageHighlightService.cpp
@@ -54,6 +55,7 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageImportService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPageRenameService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPrimitiveClipboardService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorRecentWindowsService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleExtractionService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorPagePreviewViewOptions.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/EditorReticleUsageHighlightService.h

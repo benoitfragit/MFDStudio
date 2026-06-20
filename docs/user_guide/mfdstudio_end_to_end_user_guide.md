@@ -268,6 +268,13 @@ At startup, the editor does not automatically reload a copy from `_Exec`. It ope
 
 - load an existing window
 - or create a new window
+- or reopen a recently authored window
+
+The empty workspace acts as a resume hub: besides the `Open window`, `New window` and
+`Tutorial` actions, a `Recent` action appears as soon as at least one previously opened
+window still exists on disk. The same list is also available under
+`File > Open recent window`. The recent list is editor-local and stored next to the assets
+in `assets/.editor_recent_windows.json`.
 
 ## 4.2 Anatomy of the interface
 

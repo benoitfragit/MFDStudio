@@ -23,6 +23,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageImportServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPageRenameServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorPrimitiveClipboardServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorRecentWindowsServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleExtractionServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleUsageHighlightServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleRenameServiceTests.cpp
@@ -88,6 +89,8 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorPageRenameService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorPrimitiveClipboardService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorPrimitiveClipboardService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/EditorRecentWindowsService.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorRecentWindowsService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorReticleExtractionService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorReticleExtractionService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorReticleRenameService.h

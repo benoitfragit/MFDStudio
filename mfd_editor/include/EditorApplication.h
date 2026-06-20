@@ -36,6 +36,7 @@
 #include "EditorPageRenameService.h"
 #include "EditorPagePreviewViewOptions.h"
 #include "EditorPrimitiveClipboardService.h"
+#include "EditorRecentWindowsService.h"
 #include "EditorReticleExtractionService.h"
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorReticleRenameService.h"
@@ -578,6 +579,8 @@ private:
     std::unique_ptr<EditorTutorialController> tutorial_ {};
     /** @brief Cadence control deciding when to write the crash-recovery snapshot. */
     editor::EditorAutosaveScheduler autosave_ {};
+    /** @brief Recently opened window assets surfaced by the empty workspace resume hub. */
+    editor::EditorRecentWindowsService recentWindows_ {};
     /** @brief Tracks the authored files for edits made outside the editor. */
     editor::EditorAssetWatcher assetWatcher_ {};
     /** @brief Seconds accumulated since the last external-change poll. */

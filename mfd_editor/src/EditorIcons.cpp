@@ -185,6 +185,14 @@ void PaintTutorial(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
     drawList.AddCircleFilled(ImVec2(right.x, right.y + m.radius * 0.75f), std::max(1.0f, m.radius * 0.1f), col);
 }
 
+void PaintRecent(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Clock: a ring with an hour and a minute hand.
+    drawList.AddCircle(m.center, m.radius, col, 0, m.thickness);
+    drawList.AddLine(m.center, ImVec2(m.center.x, m.center.y - m.radius * 0.55f), col, m.thickness);
+    drawList.AddLine(m.center, ImVec2(m.center.x + m.radius * 0.45f, m.center.y), col, m.thickness);
+}
+
 void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLeft, const float boxSize, const ImU32 col)
 {
     GlyphMetrics metrics {};
@@ -226,6 +234,9 @@ void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLe
         return;
     case EditorIcon::Tutorial:
         PaintTutorial(drawList, metrics, col);
+        return;
+    case EditorIcon::Recent:
+        PaintRecent(drawList, metrics, col);
         return;
     }
 }

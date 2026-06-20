@@ -211,6 +211,7 @@ constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
 constexpr const char* kUiStateFileName = "assets/.editor_ui_state.json";
 constexpr const char* kRecoveryFileName = "assets/.editor_recovery.json";
+constexpr const char* kRecentWindowsFileName = "assets/.editor_recent_windows.json";
 
 enum class DroppedJsonDocumentKind
 {
@@ -1323,6 +1324,8 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     ResetLibraryPreviewView();
     RebuildStatus("Open one window asset or create assets to begin authoring.", false);
 
+    recentWindows_.Load(documentState_.assetPaths.DefaultAssetPath(kRecentWindowsFileName));
+
     const editor::EditorUiPersistentState uiState =
         editor::LoadEditorUiState(documentState_.assetPaths.DefaultAssetPath(kUiStateFileName));
     if (uiState.sidebarWidth.has_value())
@@ -1551,6 +1554,8 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         workflowState_.documentDirty = false;
         autosave_.Reset();
         RearmAssetWatcher();
+        recentWindows_.Remember(path);
+        recentWindows_.Save(documentState_.assetPaths.DefaultAssetPath(kRecentWindowsFileName));
         workflowState_.lastRuntimeError.clear();
         RebuildStatus("Editor loaded '" + documentState_.loaded.window.title + "'.", false);
         return true;

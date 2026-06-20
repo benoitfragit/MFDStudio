@@ -14,6 +14,7 @@
 #include <cmath>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include "internal/application/EditorApplicationInternal.h"
 #include "internal/application/EditorViewportGrid.h"
@@ -104,6 +105,23 @@ void EditorApplication::DrawMenuBar()
         if (openWindowRequested)
         {
             OpenWindowAssetFromFileExplorer();
+        }
+
+        const std::vector<std::filesystem::path> recentWindowFiles = recentWindows_.ExistingEntries();
+        const bool recentMenuOpen = ImGui::BeginMenu("Open recent window", !recentWindowFiles.empty());
+        ShowItemTooltip("Reopen one of the recently authored windows.");
+        if (recentMenuOpen)
+        {
+            for (const std::filesystem::path& entry : recentWindowFiles)
+            {
+                const std::string label = entry.filename().string() + "##recent_" + entry.generic_string();
+                if (ImGui::MenuItem(label.c_str()))
+                {
+                    LoadWindowConfiguration(entry);
+                }
+                ShowItemTooltip(entry.generic_string().c_str());
+            }
+            ImGui::EndMenu();
         }
 
         const bool exportMenuOpen = ImGui::BeginMenu("Export", hasOpenWindow);
@@ -866,6 +884,11 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
         return;
     }
 
+    // A fourth "Recent" action joins the trio only when a recently opened window still exists,
+    // turning the empty workspace into a resume hub without disturbing the default visual identity.
+    const std::vector<std::filesystem::path> recentEntries = recentWindows_.ExistingEntries();
+    const int actionCount = recentEntries.empty() ? 3 : 4;
+
     const char* headline = "Open or create assets";
     const char* description =
         "Start with a new authored window or browse to an existing window JSON.\n"
@@ -875,7 +898,8 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
     const ImVec2 descriptionSize = ImGui::CalcTextSize(description);
     const float bigIconSize = 72.0f;
     const float cellSpacing = 40.0f;
-    const float iconRowWidth = 3.0f * bigIconSize + 2.0f * cellSpacing;
+    const float iconRowWidth =
+        static_cast<float>(actionCount) * bigIconSize + static_cast<float>(actionCount - 1) * cellSpacing;
     const float captionLineHeight = ImGui::GetTextLineHeightWithSpacing();
     const float totalHeight = headlineSize.y + descriptionSize.y + 48.0f + bigIconSize + captionLineHeight;
     const ImVec2 start(
@@ -889,22 +913,38 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
     ImGui::Spacing();
     ImGui::Spacing();
 
-    // Three large, centered glyph actions on one line, each with a caption underneath.
+    // Large, centered glyph actions on one line, each with a caption underneath.
+    const EditorIcon icons[4] = {EditorIcon::Search, EditorIcon::Add, EditorIcon::Tutorial, EditorIcon::Recent};
+    const char* const buttonIds[4] = {"##empty_open", "##empty_new", "##empty_tutorial", "##empty_recent"};
+    const char* const tooltips[4] = {
+        "Browse to an existing window JSON.",
+        "Create a brand-new authored window.",
+        "Launch the guided tutorial.",
+        "Reopen a recently authored window."};
+    const char* const captions[4] = {"Open window", "New window", "Tutorial", "Recent"};
+
     const float blockLeftX = std::max(0.0f, (available.x - iconRowWidth) * 0.5f);
     const float iconRowTopY = ImGui::GetCursorPosY();
-    ImGui::SetCursorPosX(blockLeftX);
-    const bool openRequested =
-        IconButton("##empty_open", EditorIcon::Search, "Browse to an existing window JSON.", true, bigIconSize);
-    ImGui::SameLine(0.0f, cellSpacing);
-    const bool newRequested =
-        IconButton("##empty_new", EditorIcon::Add, "Create a brand-new authored window.", true, bigIconSize);
-    ImGui::SameLine(0.0f, cellSpacing);
-    const bool tutorialRequested =
-        IconButton("##empty_tutorial", EditorIcon::Tutorial, "Launch the guided tutorial.", true, bigIconSize);
+    int pressedAction = -1;
+    for (int cell = 0; cell < actionCount; ++cell)
+    {
+        if (cell == 0)
+        {
+            ImGui::SetCursorPosX(blockLeftX);
+        }
+        else
+        {
+            ImGui::SameLine(0.0f, cellSpacing);
+        }
+
+        if (IconButton(buttonIds[cell], icons[cell], tooltips[cell], true, bigIconSize))
+        {
+            pressedAction = cell;
+        }
+    }
 
     const float captionY = iconRowTopY + bigIconSize + 6.0f;
-    const char* captions[3] = {"Open window", "New window", "Tutorial"};
-    for (int cell = 0; cell < 3; ++cell)
+    for (int cell = 0; cell < actionCount; ++cell)
     {
         const ImVec2 captionSize = ImGui::CalcTextSize(captions[cell]);
         const float cellX = blockLeftX + static_cast<float>(cell) * (bigIconSize + cellSpacing);
@@ -912,17 +952,39 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
         ImGui::TextDisabled("%s", captions[cell]);
     }
 
-    if (openRequested)
+    switch (pressedAction)
     {
+    case 0:
         OpenWindowAssetFromFileExplorer();
-    }
-    if (newRequested)
-    {
+        break;
+    case 1:
         OpenNewWindowPopup();
-    }
-    if (tutorialRequested)
-    {
+        break;
+    case 2:
         tutorial_->OpenFlow();
+        break;
+    case 3:
+        ImGui::OpenPopup("EmptyWorkspaceRecentWindows");
+        break;
+    default:
+        break;
+    }
+
+    if (ImGui::BeginPopup("EmptyWorkspaceRecentWindows"))
+    {
+        ImGui::TextDisabled("Recent windows");
+        ImGui::Separator();
+        for (const std::filesystem::path& entry : recentEntries)
+        {
+            const std::string label = entry.filename().string() + "##" + entry.generic_string();
+            if (ImGui::MenuItem(label.c_str()))
+            {
+                LoadWindowConfiguration(entry);
+                ImGui::CloseCurrentPopup();
+            }
+            ShowItemTooltip(entry.generic_string().c_str());
+        }
+        ImGui::EndPopup();
     }
 }
 
