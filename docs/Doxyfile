@@ -1,6 +1,6 @@
 PROJECT_NAME           = "MFDStudio"
 PROJECT_NUMBER         = "2.2.3"
-PROJECT_BRIEF          = "Versioned documentation portal and C++ API reference for the MFDStudio toolkit"
+PROJECT_BRIEF          = "C++ API reference for the MFDStudio toolkit"
 OUTPUT_DIRECTORY       = build/docs/doxygen
 OUTPUT_LANGUAGE        = English
 MARKDOWN_SUPPORT       = YES
@@ -34,13 +34,11 @@ RECURSIVE              = YES
 FILE_PATTERNS          = *.h \
                          *.hpp \
                          *.md
-INPUT                  = README.md \
-                         THIRD_PARTY_NOTICES.md \
-                         docs \
-                         mfd_common_api/README.md \
+INPUT                  = docs/API_REFERENCE_MAINPAGE.md \
                          mfd_common_api/include \
                          mfd_api/include \
                          mfd_client_api/include \
+                         mfd_runtime_api/include \
                          mfd_window/include \
                          mfd_window_plugin_api/include
 USE_MDFILE_AS_MAINPAGE = docs/API_REFERENCE_MAINPAGE.md
@@ -105,10 +103,7 @@ DOT_GRAPH_MAX_NODES    = 80
 MAX_DOT_GRAPH_DEPTH    = 2
 DOT_CLEANUP            = YES
 IMAGE_PATH             = docs \
-                         docs/images \
-                         docs/architecture \
-                         docs/reference \
-                         docs/tutorials
+                         docs/images
 PLANTUML_JAR_PATH      =
 PLANTUML_CFG_FILE      = docs/doxygen/plantuml-theme.puml
 PREDEFINED             = MFD_API= \
