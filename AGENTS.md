@@ -1,7 +1,26 @@
 # AGENTS.md
 
-> Contrat de comportement pour tout agent (humain ou IA) intervenant sur ce depot.
-> Objectif unique : un code C++/Python maintenable, propre, modulaire et explicable.
+> Ce document est le **contrat de comportement** pour quiconque modifie le code de
+> [MFDStudio](./README.md) — humain ou agent IA (Claude, Copilot, etc.).
+> Il complete le [README](./README.md) (qui explique *quoi* est ce projet) en
+> expliquant *comment* on y travaille au quotidien.
+
+**A retenir avant tout :** ce depot doit rester maintenable, propre, modulaire et
+explicable. Chaque regle ci-dessous sert ce seul objectif.
+
+## En 30 secondes
+
+Si tu ne lis qu'une chose, lis ce tableau.
+
+| Quand | Fais |
+|---|---|
+| Avant de coder | clarifie l'ambigu, annonce ton plan, lis l'existant |
+| En codant (C++) | C++17 strict, RAII, une responsabilite par classe, API minimale |
+| En codant (UI) | l'UI collecte l'intention, la mutation vit dans une fonction nommee |
+| Avant de committer | relis le code, verifie code/tests/docs coherents, lance les checks `git grep` |
+| En revue de code | classe chaque probleme P0 (crash/corruption), P1 (bug runtime) ou P2 (robustesse/perf) |
+
+Le reste de ce document detaille chacune de ces regles.
 
 ## Sommaire
 
@@ -46,7 +65,7 @@ flowchart TD
     subgraph PENDANT["2. Pendant l'implementation"]
         direction TB
         P1["C++17 strict"]
-        P2["POO, composition,<br/>responsabilites nettes"]
+        P2["Objets, composition,<br/>responsabilites nettes"]
         P3["Design patterns<br/>seulement si + lisible"]
         P4["API minimale, pas d'expo inutile"]
         P5["Optimiser allocations,<br/>copies, parcours"]
@@ -73,7 +92,7 @@ flowchart TD
 |---|---|
 | Pas d'extensions compilateur | jamais comme base de conception |
 | Idiomes modernes | `enum class`, `constexpr`, `noexcept`, `override`, `const` quand pertinent |
-| Gestion memoire | RAII par defaut |
+| Gestion memoire | [RAII](https://en.cppreference.com/w/cpp/language/raii) par defaut (la duree de vie d'une ressource = la duree de vie d'un objet) |
 | Ownership | `std::unique_ptr` avant `std::shared_ptr`, sauf partage reel |
 | Allocation brute | eviter `new` / `delete` directs hors integration bas niveau |
 | Passage de parametres | vues, references constantes, passage par valeur seulement si justifie |
@@ -81,6 +100,10 @@ flowchart TD
 ---
 
 ## C++ industrial readability rules
+
+> En clair : preferer le code "ennuyeux" et explicite a tout ce qui demande de
+> deviner ce que fait une ligne. Si une astuce C++ economise 3 lignes mais en coute
+> 30 a comprendre en revue, elle est interdite.
 
 The C++ codebase must remain readable, explicit, maintainable, and reviewable.
 This project favors **controlled, local improvements** over broad rewrites.
@@ -103,6 +126,11 @@ This project favors **controlled, local improvements** over broad rewrites.
 ---
 
 ## C++ maintainability anti-drift rules
+
+> En clair : ce tableau prolonge celui du dessus, avec un focus sur les pieges
+> de generecite (templates, `std::visit`) et de duplication de logique de commande.
+> Si une regle apparait deux fois, c'est volontaire : elle est assez importante
+> pour etre rappelee sous deux angles.
 
 The C++ codebase must remain explicit, local, reviewable, and predictable.
 Avoid clever C++ when a named helper or explicit overload is clearer.
@@ -186,6 +214,10 @@ Before committing C++ changes, review the output of each check below.
 Every hit must be reviewed: it may remain only if it is **intentional, localized,
 justified, and clearer than the alternative**.
 
+> Astuce : lance ces commandes depuis la racine du depot, sur les fichiers que tu
+> viens de modifier (`git diff --name-only`). Pas de hit ne veut pas dire "rien a
+> verifier" : ca veut dire que cette categorie de risque est deja propre.
+
 <details>
 <summary><strong>Templates / type-trait tricks</strong></summary>
 
@@ -258,6 +290,9 @@ git grep -n "mutable"
 
 ## Architecture
 
+> En clair : l'UI ne fait que collecter l'intention de l'utilisateur ; toute la
+> logique metier vit dans des classes/fonctions dediees, que l'UI appelle.
+
 ```mermaid
 flowchart TB
     UI["UI Layer<br/>(ImGui, intent collection)"] -->|delegue la mutation| BL["Business Logic / Domain<br/>(une responsabilite par classe)"]
@@ -295,6 +330,9 @@ flowchart TB
 ---
 
 ## Revue de code
+
+> En clair : commence toujours par chercher ce qui peut faire planter, geler ou
+> corrompre l'etat ; le reste (style, perf, tests manquants) vient apres.
 
 ```mermaid
 flowchart TD
