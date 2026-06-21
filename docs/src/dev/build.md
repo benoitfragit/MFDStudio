@@ -80,7 +80,7 @@ The suite covers three layers:
 staging area. `_Deliveries` is rebuilt only by `Scripts\BuildDeliveries.bat`:
 
 ```powershell
-Scripts\BuildDeliveries.bat --version 1.8.5
+Scripts\BuildDeliveries.bat --version <version>
 ```
 
 It configures the no-tests presets, builds Debug and Release for both

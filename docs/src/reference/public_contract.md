@@ -72,11 +72,40 @@ Treat the generated header, the generated source, and the `.generated.map` as
 - if the generated C++ and the map drift apart, or the runtime loaded no/old
   sidecar, generated batches are **rejected**
 
-```text
-window JSON  ──generate──>  *_Ui.h/.cpp        (client links these)
-     │                      <window>.generated.map
-     └──────────────────>   loaded by mfd_window  (must match the client's map)
+The full cycle, from authored JSON to a rendered frame:
+
+```mermaid
+flowchart LR
+    JSON["window/page/reticle JSON"] -->|"client_api_generate_ui(...)\nat CMake configure time"| GEN["generated *_Ui.h / *_Ui.cpp"]
+    JSON -->|"same generation step"| MAP["&lt;window&gt;.generated.map\n(sidecar build artifact)"]
+    GEN -->|"compiled into"| CLIENT["typed C++ client\n(generated UI + CommandClient)"]
+    MAP -->|"loaded at startup"| RUNTIME["mfd_window runtime"]
+    CLIENT -->|"BuildBatch / SendBatch\n(id-based UserCommand list)"| VALIDATE["runtime identifier\nresolution & validation"]
+    RUNTIME --> VALIDATE
+    VALIDATE -->|"accepted"| RENDER["active page re-rendered"]
+    VALIDATE -->|"map/client mismatch"| REJECT["batch rejected\n(see Troubleshooting)"]
 ```
+
+- **Where the map is produced.** `client_api_generate_ui(... OUTPUT_MAP
+  <window>.generated.map ...)` emits it next to the window JSON at CMake
+  configure time, in the same step that emits the generated header/source.
+- **How it is linked to JSON.** The map is derived purely from the window's
+  page/reticle/primitive ids; it has no independent authored content and is
+  not meant to be hand-edited.
+- **How the runtime loads it.** `mfd_window` reads the sidecar that sits next
+  to the window JSON it was launched with. There is no version negotiation:
+  it is either the matching map or a stale one.
+- **How the generated client uses it.** The generated `*_Ui` class and
+  `CommandClient` use the map for raw-name fallback and for the id-based
+  command encoding the runtime expects.
+- **What to redo after a JSON change.** Re-run CMake configure (or rebuild the
+  generation step) so the header, source, and map are regenerated together,
+  then re-launch `mfd_window` so it loads the fresh map. Regenerating only the
+  client, or only reloading the runtime, reintroduces drift.
+- **Diagnosing a stale or mismatched map.** See
+  [Generated batches are rejected](../handbook/troubleshooting.md#generated-batches-are-rejected)
+  and [`.generated.map` missing or stale](../handbook/troubleshooting.md#generatedmap-missing-or-stale)
+  in Troubleshooting for symptoms and the fix.
 
 The rule of thumb: regenerate the client and the map together from the same
 window JSON, and ship the map beside the window the runtime loads.

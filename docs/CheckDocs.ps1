@@ -13,6 +13,12 @@
       3. absolute local filesystem paths leaking into the docs
       4. pages under docs/src that are not referenced by SUMMARY.md (orphans)
       5. mdBook build (skipped with -SkipBuild or when mdbook is absent)
+      6. hardcoded `--version <digits>` examples instead of a placeholder
+      7. visible TODO/FIXME markers left in published pages
+      8. code fences for diagram languages mdBook cannot render (e.g. plantuml,
+         dot, graphviz) that would show up as raw text instead of an image
+      9. broken local links from the repository root README.md, the project's
+         main entry point on GitHub
 
     Doxygen "./api/..." links are ignored: they resolve only on the combined
     site produced by BuildDocsSite.ps1.
@@ -85,6 +91,63 @@ foreach ($file in $markdownFiles) {
     if ($file.Name -eq "SUMMARY.md") { continue }
     if (-not $referenced.Contains($file.FullName)) {
         Add-Problem ("{0}: page is not referenced by SUMMARY.md (orphan)" -f $file.FullName.Substring($repoRoot.Length + 1))
+    }
+}
+
+# --- 6: hardcoded version examples ------------------------------------------
+$hardcodedVersionPattern = [regex]'--version\s+\d+\.\d+\.\d+'
+foreach ($file in $markdownFiles) {
+    $lineNumber = 0
+    foreach ($line in Get-Content -LiteralPath $file.FullName) {
+        $lineNumber++
+        if ($hardcodedVersionPattern.IsMatch($line)) {
+            Add-Problem ("{0}:{1}: hardcoded version example, use a placeholder like <version>: {2}" -f $file.FullName.Substring($repoRoot.Length + 1), $lineNumber, $line.Trim())
+        }
+    }
+}
+
+# --- 7: visible TODO/FIXME markers ------------------------------------------
+$todoPattern = [regex]'\b(TODO|FIXME)\b'
+foreach ($file in $markdownFiles) {
+    $lineNumber = 0
+    foreach ($line in Get-Content -LiteralPath $file.FullName) {
+        $lineNumber++
+        if ($todoPattern.IsMatch($line)) {
+            Add-Problem ("{0}:{1}: visible TODO/FIXME marker: {2}" -f $file.FullName.Substring($repoRoot.Length + 1), $lineNumber, $line.Trim())
+        }
+    }
+}
+
+# --- 8: unrenderable diagram code fences ------------------------------------
+# mdBook only renders ```mermaid blocks (via docs/theme/mermaid-init.js).
+# Other diagram languages fall back to plain code text on the published site.
+$unsupportedDiagramFence = [regex]'^```(plantuml|puml|dot|graphviz|uml)\b'
+foreach ($file in $markdownFiles) {
+    $lineNumber = 0
+    foreach ($line in Get-Content -LiteralPath $file.FullName) {
+        $lineNumber++
+        if ($unsupportedDiagramFence.IsMatch($line.Trim())) {
+            Add-Problem ("{0}:{1}: unrenderable diagram fence (use a pre-rendered SVG or a mermaid block): {2}" -f $file.FullName.Substring($repoRoot.Length + 1), $lineNumber, $line.Trim())
+        }
+    }
+}
+
+# --- 9: README.md (main entry point) local links ----------------------------
+$readmePath = Join-Path $repoRoot "README.md"
+$readmeText = Get-Content -LiteralPath $readmePath -Raw
+foreach ($match in $linkPattern.Matches($readmeText)) {
+    $isImage = $match.Groups[1].Value -eq "!"
+    $target = $match.Groups[2].Value.Trim().Split(" ")[0]
+
+    if ($target -match '^(https?:|mailto:|#)') { continue }
+
+    $relative = $target.Split("#")[0]
+    if ([string]::IsNullOrWhiteSpace($relative)) { continue }
+
+    $resolved = Join-Path $repoRoot $relative
+    if (-not (Test-Path -LiteralPath $resolved)) {
+        $kind = if ($isImage) { "missing image" } else { "broken link" }
+        Add-Problem ("README.md: {0} -> {1}" -f $kind, $target)
     }
 }
 

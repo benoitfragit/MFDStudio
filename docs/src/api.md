@@ -24,3 +24,28 @@ integration guidance, stay in this book:
 > The `./api/` link resolves only on the published site or after a local build
 > with `docs/BuildDocsSite.ps1`, which copies the Doxygen HTML into
 > `build/docs/site/api`.
+
+## Where to start in the generated reference
+
+These deep links go straight to the most-used public symbols, named exactly as
+in the headers. They resolve only where `./api/` resolves (see above).
+
+| Area | Symbol | Open |
+| --- | --- | --- |
+| SDK client / transport sender | `mfd::CommandClient` | [class reference](./api/classmfd_1_1CommandClient.html) |
+| Generated API support | `mfd::GeneratedTransportMap` | [struct reference](./api/structmfd_1_1GeneratedTransportMap.html) |
+| Generated API support | `mfd::client::LatestBatchPublisher` | [class reference](./api/classmfd_1_1client_1_1LatestBatchPublisher.html) |
+| Batch / command types | `mfd::CommandBatch` | [struct reference](./api/structmfd_1_1CommandBatch.html) |
+| Offscreen runtime session | `mfd::runtime_api::RuntimeSession` | [class reference](./api/classmfd_1_1runtime__api_1_1RuntimeSession.html) |
+| Offscreen surface | `mfd::runtime_api::OffscreenSurface` | [class reference](./api/classmfd_1_1runtime__api_1_1OffscreenSurface.html) |
+| Offscreen frame view | `mfd::runtime_api::OffscreenFrameView` | [struct reference](./api/structmfd_1_1runtime__api_1_1OffscreenFrameView.html) |
+| Window liveness detection | `mfd::client::WindowLivenessMonitor` | [class reference](./api/classmfd_1_1client_1_1WindowLivenessMonitor.html) |
+| Framebuffer plugin ABI | `MfdWindowFramebufferPluginApi` | [struct reference](./api/structMfdWindowFramebufferPluginApi.html) |
+| Framebuffer plugin ABI | `MfdWindowFramebufferPluginHostApi` | [struct reference](./api/structMfdWindowFramebufferPluginHostApi.html) |
+| Framebuffer plugin ABI | `MfdWindowFramebufferFrame` | [struct reference](./api/structMfdWindowFramebufferFrame.html) |
+| Public enums (`PrimitiveType`, `ReticleClipMode`, `WindowLifecycleState`, ...) | `mfd` namespace | [namespace reference](./api/namespacemfd.html) |
+
+Class- and struct-named links above point to stable, name-derived Doxygen
+pages and stay valid across rebuilds. The namespace link is the right anchor
+for enums: Doxygen places free `enum class` declarations on the owning
+namespace page rather than on their own page.

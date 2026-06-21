@@ -24,6 +24,7 @@ and the C++ API reference (Doxygen):
 | 5. Run the runtime | [Runtime](https://benoitfragit.github.io/MFDStudio/handbook/runtime.html) |
 | 6. Embed offscreen | [Offscreen Embedding](https://benoitfragit.github.io/MFDStudio/handbook/offscreen.html) |
 | 7. Build and contribute | [Development](https://benoitfragit.github.io/MFDStudio/dev/build.html) |
+| 8. Browse the public headers | [C++ API Reference (Doxygen)](https://benoitfragit.github.io/MFDStudio/api/index.html) |
 
 Task-focused recipes live in the
 [Cookbook](https://benoitfragit.github.io/MFDStudio/cookbook.html), and what you
