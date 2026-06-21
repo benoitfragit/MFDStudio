@@ -1,5 +1,12 @@
 # Tutorials
 
+> **Not the canonical entry point.** For onboarding, use the published
+> documentation site (https://benoitfragit.github.io/MFDStudio), starting with
+> [Quick Start](https://benoitfragit.github.io/MFDStudio/quickstart.html) and
+> the [Getting Started Tutorial](https://benoitfragit.github.io/MFDStudio/getting-started.html).
+> This folder is a deeper, step-by-step contributor reference that predates
+> the mdBook guide; it is not built into the published site.
+
 This folder contains the practical workflows of the project.
 
 If you are new here, do not start with the full list. Start with one route.
