@@ -9,6 +9,30 @@ typed client surface see [Generated Client API](./handbook/generated_api.md).
 
 All coordinates are normalized logical space in `[-1, 1]`, never pixels.
 
+C++ snippets here use real, verified method and class names from the
+generated client API and `mfd_client_api` headers, but most are condensed
+patterns, not standalone compilable units (transports, error handling, and
+loop boilerplate are cut for brevity). The one fully compilable, buildable
+reference is [`examples/client_tutorial`](https://github.com/benoitfragit/MFDStudio/tree/master/examples/client_tutorial)
+(target `client_tutorial`); the "Drive a page from the generated API" recipe
+below is condensed directly from it.
+
+**Recipes on this page:**
+
+- [Create a minimal page](#create-a-minimal-page)
+- [Show a simple reticle](#show-a-simple-reticle)
+- [Drive a page from the generated API](#drive-a-page-from-the-generated-api)
+- [Update an exposed text primitive](#update-an-exposed-text-primitive)
+- [Use dynamic reticles](#use-dynamic-reticles)
+- [Rotate a reticle](#rotate-a-reticle)
+- [Keep a primitive upright or fixed-size under rotation/scale](#keep-a-primitive-upright-or-fixed-size-under-rotationscale)
+- [Clip with a stencil mask](#clip-with-a-stencil-mask)
+- [Add a strobe (cursor)](#add-a-strobe-cursor)
+- [Offer an alternative strobe](#offer-an-alternative-strobe)
+- [Exploit runtime feedback](#exploit-runtime-feedback)
+- [Render offscreen (no window)](#render-offscreen-no-window)
+- [Capture the framebuffer through a plugin](#capture-the-framebuffer-through-a-plugin)
+
 ---
 
 ## Create a minimal page
@@ -63,10 +87,15 @@ served by a library `template` (see [Pages And Windows](./reference/pages_and_wi
 **Objective.** Activate a page and publish one batch from C++.
 
 **Files.** Generated `*_Ui.h/.cpp`, the window `.generated.map`, your client.
+**Status: Supported** — condensed from the compiling
+[`client_tutorial`](https://github.com/benoitfragit/MFDStudio/blob/master/examples/client_tutorial/src/main.cpp)
+example; see the full, runnable version there and in
+[Generated Client API](./handbook/generated_api.md#minimal-usage).
 
 ```cpp
-mfd::CommandClient client(udpCommandTransport, generatedTransportMap);
-ui_ns::MyUi ui;
+// loaded: mfd::LoadedWindowConfiguration from mfd::JsonLoader::LoadWindowConfiguration(...)
+mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
+tutorial_ui::TutorialUi ui;
 auto& page = ui.Page1();
 
 client.ActivatePage(page);
