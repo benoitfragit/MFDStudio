@@ -3277,7 +3277,19 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
 
     BeginTextureMode(previewState_.previewTexture);
     ClearBackground(ToRayColor(page->backgroundColor));
+
+    // Repaint background, grid and page border. Editor-only visual guides must survive reticle
+    // clipping, so this is reused as the Canvas2D restore callback (called while a stencil is
+    // active) instead of letting the canvas erase the clipped region with the flat background.
+    const auto drawEditorPreviewBackground = [this, page, &viewport]()
     {
+        DrawRectangle(
+            0,
+            0,
+            previewState_.previewTexture.texture.width,
+            previewState_.previewTexture.texture.height,
+            ToRayColor(page->backgroundColor));
+
         if (layoutState_.pagePreviewViewOptions.showGrid)
         {
             editor::app::DrawViewportGrid(
@@ -3293,6 +3305,10 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
                     documentState_.loaded.window.width, documentState_.loaded.window.height),
                 ToRayColor(page->backgroundColor));
         }
+    };
+
+    {
+        drawEditorPreviewBackground();
 
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
@@ -3305,7 +3321,8 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             previewState_.previewTextureStencilReady,
             &previewState_.previewBezierCache,
             &previewState_.previewImageCache,
-            &previewState_.previewTextLayoutCache);
+            &previewState_.previewTextLayoutCache,
+            drawEditorPreviewBackground);
         services_.pagePreviewDrawOrder.CollectStaticReticleDrawOrder(*page, previewState_.orderedStaticReticleIndices);
         for (const int reticleIndex : previewState_.orderedStaticReticleIndices)
         {
@@ -3418,14 +3435,27 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
         return;
     }
 
+    const Color libraryPreviewBackground {10, 18, 24, 255};
+
     BeginTextureMode(previewState_.previewTexture);
-    ClearBackground(Color {10, 18, 24, 255});
+    ClearBackground(libraryPreviewBackground);
+
+    // Same rationale as DrawPagePreview: keep the grid and page border visible even when a library
+    // reticle clips part of the preview. Reused as the Canvas2D restore callback under an active stencil.
+    const auto drawLibraryPreviewBackground = [this, &viewport, libraryPreviewBackground]()
     {
+        DrawRectangle(
+            0,
+            0,
+            previewState_.previewTexture.texture.width,
+            previewState_.previewTexture.texture.height,
+            libraryPreviewBackground);
+
         if (layoutState_.pagePreviewViewOptions.showGrid)
         {
             editor::app::DrawViewportGrid(
                 MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
-                Color {10, 18, 24, 255});
+                libraryPreviewBackground);
         }
 
         if (layoutState_.pagePreviewViewOptions.showPageBorder)
@@ -3434,8 +3464,12 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
                 MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
                 editor::app::ComputePageBorderHalfExtent(
                     documentState_.loaded.window.width, documentState_.loaded.window.height),
-                Color {10, 18, 24, 255});
+                libraryPreviewBackground);
         }
+    };
+
+    {
+        drawLibraryPreviewBackground();
 
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
@@ -3444,11 +3478,12 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
             previewState_.previewTexture.texture.height,
             viewport.view,
             PreviewTextFont(),
-            Color {10, 18, 24, 255},
+            libraryPreviewBackground,
             previewState_.previewTextureStencilReady,
             &previewState_.previewBezierCache,
             &previewState_.previewImageCache,
-            &previewState_.previewTextLayoutCache);
+            &previewState_.previewTextLayoutCache,
+            drawLibraryPreviewBackground);
         canvas.DrawReticle(*reticle);
     }
     EndTextureMode();

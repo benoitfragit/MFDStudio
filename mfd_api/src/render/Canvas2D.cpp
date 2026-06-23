@@ -393,13 +393,15 @@ Canvas2D::Canvas2D(const int width,
                    const bool clippingEnabled,
                    BezierPolylineCache* bezierCache,
                    ImageTextureCache* imageCache,
-                   TextLayoutCache* textLayoutCache)
+                   TextLayoutCache* textLayoutCache,
+                   BackgroundRestoreCallback backgroundRestore)
     : width_(width)
     , height_(height)
     , view_(view)
     , textFont_(textFont)
     , backgroundColor_(backgroundColor)
     , clippingEnabled_(clippingEnabled)
+    , backgroundRestore_(std::move(backgroundRestore))
     , bezierCache_(bezierCache)
     , imageCache_(imageCache)
     , textLayoutCache_(textLayoutCache)
@@ -468,6 +470,17 @@ void Canvas2D::DrawReticlePrimitives(const ReticleGroup& reticle) const
     }
 }
 
+void Canvas2D::RestoreClippedBackground() const
+{
+    if (backgroundRestore_)
+    {
+        backgroundRestore_();
+        return;
+    }
+
+    DrawRectangle(0, 0, width_, height_, backgroundColor_);
+}
+
 void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const
 {
     rlDrawRenderBatchActive();
@@ -505,7 +518,7 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
                                          : detail::GlStencilCompare::Equal,
                                       0,
                                       0xFF);
-    DrawRectangle(0, 0, width_, height_, backgroundColor_);
+    RestoreClippedBackground();
 
     rlDrawRenderBatchActive();
     detail::OpenGlSetStencilMask(0xFF);

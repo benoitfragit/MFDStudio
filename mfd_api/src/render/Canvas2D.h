@@ -11,6 +11,7 @@
  */
 
 #include <cstddef>
+#include <functional>
 #include <vector>
 
 #include <raylib.h>
@@ -30,6 +31,14 @@ class Canvas2D
 {
 public:
     /**
+     * @brief Repaints the page background inside the currently active clip region.
+     *
+     * Invoked while a clipping stencil is active, so the callback must redraw the
+     * background exactly as for a normal frame and must not touch the stencil state.
+     */
+    using BackgroundRestoreCallback = std::function<void()>;
+
+    /**
      * @brief Creates a canvas for a given viewport size and page view.
      * @param width Viewport width in pixels.
      * @param height Viewport height in pixels.
@@ -40,6 +49,8 @@ public:
      * @param bezierCache Optional persistent cache used to flatten Bézier primitives once.
      * @param imageCache Optional texture cache used by image primitives.
      * @param textLayoutCache Optional text-layout cache reused across frames.
+     * @param backgroundRestore Optional callback repainting the clipped background; when empty the
+     *        runtime behaviour of filling the erased region with @p backgroundColor is kept.
      */
     Canvas2D(int width,
              int height,
@@ -49,7 +60,8 @@ public:
              bool clippingEnabled = false,
              BezierPolylineCache* bezierCache = nullptr,
              ImageTextureCache* imageCache = nullptr,
-             TextLayoutCache* textLayoutCache = nullptr);
+             TextLayoutCache* textLayoutCache = nullptr,
+             BackgroundRestoreCallback backgroundRestore = {});
 
     /**
      * @brief Draws one full reticle group.
@@ -77,6 +89,7 @@ private:
                                const ReticleGroup& group,
                                std::vector<Vector2>& destination) const;
     void DrawReticlePrimitives(const ReticleGroup& reticle) const;
+    void RestoreClippedBackground() const;
     void ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const;
     bool DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
     void DrawPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
@@ -87,6 +100,7 @@ private:
     const Font* textFont_ = nullptr;
     Color backgroundColor_ = BLACK;
     bool clippingEnabled_ = false;
+    BackgroundRestoreCallback backgroundRestore_ {};
     BezierPolylineCache* bezierCache_ = nullptr;
     ImageTextureCache* imageCache_ = nullptr;
     TextLayoutCache* textLayoutCache_ = nullptr;
