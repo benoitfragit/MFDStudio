@@ -429,7 +429,7 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
     reticle.lockBox.SetSize({0.32f, 0.14f});
     reticle.uncertaintyEllipse.SetWidth(0.40f);
     reticle.uncertaintyEllipse.SetHeight(0.20f);
-    reticle.targetSquare.SetSize({0.11f, 0.11f});
+    reticle.targetSquare.SetSize(0.11f);
     reticle.steerDiamond.SetWidth(0.18f);
     reticle.steerDiamond.SetHeight(0.24f);
     reticle.warningTriangle.SetPoints(std::array<mfd::Vec2, 3> {{{-0.2f, -0.1f}, {0.0f, 0.2f}, {0.2f, -0.1f}}});

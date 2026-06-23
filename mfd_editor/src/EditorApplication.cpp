@@ -5679,8 +5679,12 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             }
             else if (auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
             {
-                square->width = std::max(0.001f, std::abs(mousePrimitiveLocal.x) * 2.0f);
-                square->height = std::max(0.001f, std::abs(mousePrimitiveLocal.y) * 2.0f);
+                // Keep the square uniform: the dragged corner drives a single side
+                // length applied to both width and height.
+                const float side = std::max(0.001f,
+                                            std::max(std::abs(mousePrimitiveLocal.x), std::abs(mousePrimitiveLocal.y)) * 2.0f);
+                square->width = side;
+                square->height = side;
             }
             else if (auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive.geometry))
             {

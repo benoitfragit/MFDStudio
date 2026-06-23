@@ -190,8 +190,10 @@ struct GeometryMutator
 
     void operator()(mfd::SquareGeometry& geometry) noexcept
     {
-        geometry.width = NextPossiblyInvalidFloat(input, -4.0f, 4.0f);
-        geometry.height = NextPossiblyInvalidFloat(input, -4.0f, 4.0f);
+        // A square is uniform: a single side length drives both dimensions.
+        const float side = NextPossiblyInvalidFloat(input, -4.0f, 4.0f);
+        geometry.width = side;
+        geometry.height = side;
     }
 
     void operator()(mfd::DiamondGeometry& geometry) noexcept

@@ -276,6 +276,11 @@ struct EllipseGeometry
 
 /**
  * @brief Geometry payload for a square primitive.
+ *
+ * @note A square is uniform by construction: `width` and `height` always share
+ * the same side length. Every authoring and runtime entry point edits a single
+ * side value that drives both fields together, so the shape can never be
+ * deformed into a rectangle.
  */
 struct SquareGeometry
 {

@@ -485,9 +485,14 @@ public:
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this square is rendered filled. */
     void SetFilled(bool filled);
-    void SetWidth(float width);
-    void SetHeight(float height);
-    void SetSize(mfd::Vec2 size);
+    /**
+     * @brief Stages one uniform side length for this square.
+     * @param side Logical side length applied to both width and height.
+     *
+     * @note A square is never deformable, so only a single side dimension is
+     * exposed; it drives the square width and height together.
+     */
+    void SetSize(float side);
 };
 
 /**

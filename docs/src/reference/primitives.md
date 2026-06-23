@@ -64,7 +64,11 @@ primitives can always be patched directly through the generated client API.
   `holeRadius`), `bandWidth` (alias `ringWidth`), `segments`.
 - **`rectangle`** — `width`, `height`, `size` (uniform fallback).
 - **`ellipse`** — `width`, `height`, `radiusX`/`radiusY` (`rx`/`ry`), `radius`.
-- **`square`** / **`diamond`** — `size`, `width`, `height`.
+- **`square`** — `size` (single uniform side length). A square is never
+  deformable: legacy `width`/`height` keys are accepted only as a fallback side
+  source and are forced equal on load, and the editor exposes a single side
+  control.
+- **`diamond`** — `size`, `width`, `height`.
 - **`triangle`** — `points` (exactly three).
 - **`polyline`** — `points` (≥ 2), `closed`. Closed + filled renders the polygon
   (convex/concave; not self-intersecting).

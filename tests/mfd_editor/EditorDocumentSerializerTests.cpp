@@ -567,6 +567,30 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesExplicitFalseF
     EXPECT_EQ(rectangleNode.at("fill").get<std::string>(), "#000000FF");
 }
 
+TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesUniformSquareAsSingleSize)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "square_demo";
+
+    mfd::Primitive square;
+    square.id = "marker";
+    square.type = mfd::PrimitiveType::Square;
+    square.geometry = mfd::SquareGeometry {0.18f, 0.18f};
+    reticle.primitives.push_back(std::move(square));
+
+    const std::string jsonText = editor::SerializeReticleTemplateToJsonString(reticle);
+    const auto jsonNode = nlohmann::json::parse(jsonText);
+
+    ASSERT_EQ(jsonNode.at("elements").size(), 1U);
+    const auto& squareNode = jsonNode.at("elements").front();
+    // A square is uniform, so it always round-trips through a single side length
+    // and never emits separate width/height keys that could deform it.
+    ASSERT_TRUE(squareNode.contains("size"));
+    EXPECT_FLOAT_EQ(squareNode.at("size").get<float>(), 0.18f);
+    EXPECT_FALSE(squareNode.contains("width"));
+    EXPECT_FALSE(squareNode.contains("height"));
+}
+
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateOmitsFilledFlagForNonFillCapablePrimitive)
 {
     mfd::ReticleGroup reticle;

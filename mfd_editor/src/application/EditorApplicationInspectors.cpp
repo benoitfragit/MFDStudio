@@ -4001,16 +4001,20 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* square = std::get_if<mfd::SquareGeometry>(&primitive->geometry))
     {
-        if (ImGui::DragFloat2("Size", &square->width, 0.002f, 0.001f, 1.0f, "%.4f"))
+        // A square is uniform: a single side dimension drives both width and height
+        // so the shape can never be deformed into a rectangle.
+        float side = std::max(square->width, square->height);
+        if (ImGui::DragFloat("Size", &side, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
             if (ImGui::IsItemActivated())
             {
                 PushUndoSnapshot();
             }
-            square->width = std::max(0.001f, square->width);
-            square->height = std::max(0.001f, square->height);
+            side = std::max(0.001f, side);
+            square->width = side;
+            square->height = side;
         }
-        ShowItemTooltip("Square width and height in logical units.");
+        ShowItemTooltip("Square side length in logical units (width and height stay equal).");
         return;
     }
 

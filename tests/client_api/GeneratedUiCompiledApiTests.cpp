@@ -178,7 +178,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     radar.geometryPanel.RoutePolyline().SetClosed(true);
     radar.geometryPanel.UncertaintyEllipse().SetWidth(0.40f);
     radar.geometryPanel.UncertaintyEllipse().SetHeight(0.20f);
-    radar.geometryPanel.TargetSquare().SetSize({0.11f, 0.11f});
+    radar.geometryPanel.TargetSquare().SetSize(0.11f);
     radar.geometryPanel.SteerDiamond().SetWidth(0.18f);
     radar.geometryPanel.SteerDiamond().SetHeight(0.24f);
     radar.geometryPanel.GuideBezier().SetControlPoints({{-0.22f, -0.12f}, {-0.06f, 0.18f}, {0.08f, 0.18f}, {0.22f, -0.02f}});
@@ -218,7 +218,7 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureBuildsIdBasedCommandsFromRealG
     track.RoutePolyline().SetClosed(true);
     track.UncertaintyEllipse().SetWidth(0.20f);
     track.UncertaintyEllipse().SetHeight(0.12f);
-    track.TargetSquare().SetSize({0.07f, 0.07f});
+    track.TargetSquare().SetSize(0.07f);
     track.SteerDiamond().SetWidth(0.09f);
     track.SteerDiamond().SetHeight(0.13f);
     track.GuideBezier().SetControlPoints({{-0.18f, -0.08f}, {-0.05f, 0.12f}, {0.05f, 0.12f}, {0.18f, -0.02f}});

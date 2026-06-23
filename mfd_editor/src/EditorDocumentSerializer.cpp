@@ -439,15 +439,8 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive, const s
 
     if (const auto* square = std::get_if<mfd::SquareGeometry>(&primitive.geometry))
     {
-        if (std::abs(square->width - square->height) < 0.0001f)
-        {
-            node["size"] = square->width;
-        }
-        else
-        {
-            node["width"] = square->width;
-            node["height"] = square->height;
-        }
+        // A square is uniform, so a single side length round-trips the geometry.
+        node["size"] = square->width;
         return;
     }
 

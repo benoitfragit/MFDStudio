@@ -1565,10 +1565,13 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
     }
     case PrimitiveType::Square:
     {
+        // A square is uniform by construction: a single side length drives both
+        // width and height. Legacy "width"/"height" keys are accepted as a
+        // fallback side source but can never deform the shape.
         SquareGeometry geometry;
-        const float size = node.value("size", 10.0f);
-        geometry.width = node.value("width", size);
-        geometry.height = node.value("height", size);
+        const float side = node.value("size", node.value("width", node.value("height", 10.0f)));
+        geometry.width = side;
+        geometry.height = side;
         primitive.geometry = std::move(geometry);
         break;
     }

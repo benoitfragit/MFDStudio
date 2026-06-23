@@ -1115,21 +1115,9 @@ void SquareHandle::SetFilled(const bool filled)
     SetFilledInternal(filled);
 }
 
-void SquareHandle::SetWidth(const float width)
+void SquareHandle::SetSize(const float side)
 {
-    Patch().width = width;
-    MarkDirty();
-}
-
-void SquareHandle::SetHeight(const float height)
-{
-    Patch().height = height;
-    MarkDirty();
-}
-
-void SquareHandle::SetSize(const mfd::Vec2 size)
-{
-    Patch().size = size;
+    Patch().size = mfd::Vec2 {side, side};
     MarkDirty();
 }
 
