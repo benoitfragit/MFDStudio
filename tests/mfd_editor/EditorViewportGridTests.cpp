@@ -78,6 +78,31 @@ TEST(EditorViewportGridTests, LowZoomHidesMinorLinesAndRarefiesMajorGrid)
     EXPECT_GT(layout.majorLineMultiple, editor::app::kViewportGridMajorLineMultiple);
 }
 
+TEST(EditorViewportGridTests, PageBorderHalfExtentIsUnitSquareForSquareWindow)
+{
+    const mfd::Vec2 extent = editor::app::ComputePageBorderHalfExtent(600, 600);
+    EXPECT_FLOAT_EQ(extent.x, 1.0f);
+    EXPECT_FLOAT_EQ(extent.y, 1.0f);
+}
+
+TEST(EditorViewportGridTests, PageBorderHalfExtentGrowsWiderAxisForRectangularWindow)
+{
+    const mfd::Vec2 landscape = editor::app::ComputePageBorderHalfExtent(800, 600);
+    EXPECT_FLOAT_EQ(landscape.x, 800.0f / 600.0f);
+    EXPECT_FLOAT_EQ(landscape.y, 1.0f);
+
+    const mfd::Vec2 portrait = editor::app::ComputePageBorderHalfExtent(600, 800);
+    EXPECT_FLOAT_EQ(portrait.x, 1.0f);
+    EXPECT_FLOAT_EQ(portrait.y, 800.0f / 600.0f);
+}
+
+TEST(EditorViewportGridTests, PageBorderHalfExtentFallsBackToUnitSquareForInvalidWindow)
+{
+    const mfd::Vec2 extent = editor::app::ComputePageBorderHalfExtent(0, -10);
+    EXPECT_FLOAT_EQ(extent.x, 1.0f);
+    EXPECT_FLOAT_EQ(extent.y, 1.0f);
+}
+
 TEST(EditorViewportGridTests, MajorGridCountStaysBoundedOnVeryLargeVisibleRange)
 {
     mfd::PageViewState view;

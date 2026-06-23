@@ -100,6 +100,7 @@ EditorUiPersistentState LoadEditorUiState(const std::filesystem::path& file)
         ReadOptionalWidth(root, "inspectorWidth", state.inspectorWidth);
         ReadOptionalFlag(root, "inspectorVisible", state.inspectorVisible);
         ReadOptionalFlag(root, "showGrid", state.showGrid);
+        ReadOptionalFlag(root, "showPageBorder", state.showPageBorder);
         ReadOptionalFlag(root, "snapToGrid", state.snapToGrid);
         ReadOptionalGridStep(root, "gridStepLogical", state.gridStepLogical);
 
@@ -146,6 +147,10 @@ void SaveEditorUiState(const std::filesystem::path& file, const EditorUiPersiste
         if (state.showGrid.has_value())
         {
             root["showGrid"] = *state.showGrid;
+        }
+        if (state.showPageBorder.has_value())
+        {
+            root["showPageBorder"] = *state.showPageBorder;
         }
         if (state.snapToGrid.has_value())
         {

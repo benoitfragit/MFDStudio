@@ -232,6 +232,7 @@ sidebar and inspector toggles). Open it to toggle:
 - **Reticle names**
 - **Gizmos**
 - **Grid**
+- **Page border**
 - **Snap to grid**
 - **Grid step**
 - **Fullscreen preview** (`F11`)
@@ -242,6 +243,7 @@ Default startup behavior stays intentionally conservative:
 - **Minimap** starts off
 - **Problems** starts off
 - **Highlight reticle usages** starts off
+- **Page border** starts off
 - **Reticle names** starts on
 - **Gizmos** starts on
 
@@ -553,6 +555,12 @@ to snap both drags and nudges to that spacing. The same `Grid step` is reused
 by the reticle studio for primitive moves and handle edits, and the editor
 remembers those three grid preferences across sessions through its UI-state
 file only.
+
+Enable **Page border** from the same `View` menu to draw a stronger editor-only
+outline around the authored window `-1..1` bounds. It is a square when the
+window is square and a rectangle otherwise, so you can immediately see where a
+reticle sits relative to the page edges. Like the grid, it is a placement guide
+only and never becomes part of the authored page.
 
 ## Navigating validation problems
 

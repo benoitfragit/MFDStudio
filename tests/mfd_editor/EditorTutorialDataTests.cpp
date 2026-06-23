@@ -151,6 +151,10 @@ TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)
 
 TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps)
 {
+    const auto& pageBorderStep = Step(editor::tutorial::TutorialStepId::ShowPageBorder);
+    EXPECT_STREQ(pageBorderStep.targetId, "page_preview_view_menu");
+    EXPECT_NE(std::string_view(pageBorderStep.instruction).find("Page border"), std::string_view::npos);
+
     const auto& importStep = Step(editor::tutorial::TutorialStepId::InspectPageImportWorkflow);
     EXPECT_STREQ(importStep.targetId, "menu_page");
     EXPECT_NE(std::string_view(importStep.instruction).find("cancel"), std::string_view::npos);

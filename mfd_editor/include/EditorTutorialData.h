@@ -47,6 +47,7 @@ enum class TutorialStepId : int
     CreateProgressBarReticle,
     ExposeProgressBarFillPrimitive,
     AddProgressBarToPage2,
+    ShowPageBorder,
     ShowLayerInspector,
     ShowMinimap,
     ShowReticleUsageHighlights,

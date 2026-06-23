@@ -59,6 +59,7 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     saved.inspectorWidth = 420.0f;
     saved.inspectorVisible = true;
     saved.showGrid = false;
+    saved.showPageBorder = true;
     saved.snapToGrid = true;
     saved.gridStepLogical = 0.125f;
     saved.sectionOpen["page.preview"] = true;
@@ -71,6 +72,7 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     ASSERT_TRUE(loaded.inspectorWidth.has_value());
     ASSERT_TRUE(loaded.inspectorVisible.has_value());
     ASSERT_TRUE(loaded.showGrid.has_value());
+    ASSERT_TRUE(loaded.showPageBorder.has_value());
     ASSERT_TRUE(loaded.snapToGrid.has_value());
     ASSERT_TRUE(loaded.gridStepLogical.has_value());
     EXPECT_FLOAT_EQ(*loaded.sidebarWidth, 320.0f);
@@ -78,6 +80,7 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     EXPECT_FLOAT_EQ(*loaded.inspectorWidth, 420.0f);
     EXPECT_TRUE(*loaded.inspectorVisible);
     EXPECT_FALSE(*loaded.showGrid);
+    EXPECT_TRUE(*loaded.showPageBorder);
     EXPECT_TRUE(*loaded.snapToGrid);
     EXPECT_FLOAT_EQ(*loaded.gridStepLogical, 0.125f);
     ASSERT_EQ(loaded.sectionOpen.size(), 1U);

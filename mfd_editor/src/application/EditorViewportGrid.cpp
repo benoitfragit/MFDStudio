@@ -200,6 +200,23 @@ ViewportGridPalette BuildViewportGridPalette(const Color backgroundColor) noexce
         Color {24, 30, 36, 72}};
 }
 
+Color BuildPageBorderColor(const Color backgroundColor) noexcept
+{
+    const float red = static_cast<float>(backgroundColor.r) / 255.0f;
+    const float green = static_cast<float>(backgroundColor.g) / 255.0f;
+    const float blue = static_cast<float>(backgroundColor.b) / 255.0f;
+    const float luminance = 0.2126f * red + 0.7152f * green + 0.0722f * blue;
+
+    // The page border is a stronger guide than the grid, so it keeps a higher
+    // opacity while staying tinted toward a readable contrast over the background.
+    if (luminance < 0.45f)
+    {
+        return Color {236, 241, 245, 168};
+    }
+
+    return Color {24, 30, 36, 150};
+}
+
 bool ShouldDrawLineCoordinate(const float coordinatePixels, const int extentPixels) noexcept
 {
     return std::isfinite(coordinatePixels) &&
@@ -404,5 +421,50 @@ void DrawViewportGrid(const ViewportGridInput& input, const Color backgroundColo
     {
         DrawHorizontalGridLine(input, 0.0, palette.axis, 1.25f);
     }
+}
+
+mfd::Vec2 ComputePageBorderHalfExtent(const int windowWidth, const int windowHeight) noexcept
+{
+    if (windowWidth <= 0 || windowHeight <= 0)
+    {
+        return mfd::Vec2 {1.0f, 1.0f};
+    }
+
+    const float minDimension = static_cast<float>(std::min(windowWidth, windowHeight));
+    return mfd::Vec2 {static_cast<float>(windowWidth) / minDimension,
+                      static_cast<float>(windowHeight) / minDimension};
+}
+
+void DrawViewportPageBorder(const ViewportGridInput& input,
+                            const mfd::Vec2 halfExtent,
+                            const Color backgroundColor) noexcept
+{
+    if (input.width <= 0 || input.height <= 0 || !std::isfinite(halfExtent.x) ||
+        !std::isfinite(halfExtent.y) || halfExtent.x <= 0.0f || halfExtent.y <= 0.0f)
+    {
+        return;
+    }
+
+    const Vector2 topLeft {ToTextureX(input, -static_cast<double>(halfExtent.x)),
+                           ToTextureY(input, static_cast<double>(halfExtent.y))};
+    const Vector2 topRight {ToTextureX(input, static_cast<double>(halfExtent.x)),
+                            ToTextureY(input, static_cast<double>(halfExtent.y))};
+    const Vector2 bottomRight {ToTextureX(input, static_cast<double>(halfExtent.x)),
+                               ToTextureY(input, -static_cast<double>(halfExtent.y))};
+    const Vector2 bottomLeft {ToTextureX(input, -static_cast<double>(halfExtent.x)),
+                              ToTextureY(input, -static_cast<double>(halfExtent.y))};
+    if (!std::isfinite(topLeft.x) || !std::isfinite(topLeft.y) || !std::isfinite(topRight.x) ||
+        !std::isfinite(topRight.y) || !std::isfinite(bottomRight.x) || !std::isfinite(bottomRight.y) ||
+        !std::isfinite(bottomLeft.x) || !std::isfinite(bottomLeft.y))
+    {
+        return;
+    }
+
+    const Color borderColor = BuildPageBorderColor(backgroundColor);
+    constexpr float kBorderThicknessPixels = 2.0f;
+    DrawLineEx(topLeft, topRight, kBorderThicknessPixels, borderColor);
+    DrawLineEx(topRight, bottomRight, kBorderThicknessPixels, borderColor);
+    DrawLineEx(bottomRight, bottomLeft, kBorderThicknessPixels, borderColor);
+    DrawLineEx(bottomLeft, topLeft, kBorderThicknessPixels, borderColor);
 }
 } // namespace editor::app

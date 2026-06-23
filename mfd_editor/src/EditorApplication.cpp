@@ -1346,6 +1346,10 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     {
         layoutState_.pagePreviewViewOptions.showGrid = *uiState.showGrid;
     }
+    if (uiState.showPageBorder.has_value())
+    {
+        layoutState_.pagePreviewViewOptions.showPageBorder = *uiState.showPageBorder;
+    }
     if (uiState.snapToGrid.has_value())
     {
         layoutState_.pagePreviewViewOptions.snapToGrid = *uiState.snapToGrid;
@@ -1378,6 +1382,7 @@ EditorApplication::~EditorApplication()
     uiState.inspectorWidth = layoutState_.inspectorWidth;
     uiState.inspectorVisible = layoutState_.inspectorVisible;
     uiState.showGrid = layoutState_.pagePreviewViewOptions.showGrid;
+    uiState.showPageBorder = layoutState_.pagePreviewViewOptions.showPageBorder;
     uiState.snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
     uiState.gridStepLogical = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
     uiState.sectionOpen = layoutState_.inspectorSectionOpen;
@@ -3280,6 +3285,15 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
                 ToRayColor(page->backgroundColor));
         }
 
+        if (layoutState_.pagePreviewViewOptions.showPageBorder)
+        {
+            editor::app::DrawViewportPageBorder(
+                MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
+                editor::app::ComputePageBorderHalfExtent(
+                    documentState_.loaded.window.width, documentState_.loaded.window.height),
+                ToRayColor(page->backgroundColor));
+        }
+
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
         mfd::Canvas2D canvas(
@@ -3411,6 +3425,15 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
         {
             editor::app::DrawViewportGrid(
                 MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
+                Color {10, 18, 24, 255});
+        }
+
+        if (layoutState_.pagePreviewViewOptions.showPageBorder)
+        {
+            editor::app::DrawViewportPageBorder(
+                MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
+                editor::app::ComputePageBorderHalfExtent(
+                    documentState_.loaded.window.width, documentState_.loaded.window.height),
                 Color {10, 18, 24, 255});
         }
 
@@ -3673,6 +3696,18 @@ void EditorApplication::DrawPagePreviewViewMenuItems(const bool showProblemsIndi
     ImGui::Checkbox("Gizmos", &layoutState_.pagePreviewViewOptions.showGizmos);
     ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
     ShowItemTooltip("Draw a discreet editor-only grid matching the shared logical snapping step.");
+    const bool pageBorderChanged = ImGui::Checkbox("Page border", &layoutState_.pagePreviewViewOptions.showPageBorder);
+    ShowItemTooltip("Outline the authored window -1..1 bounds so you can see where a reticle sits "
+                    "relative to the page edges. It is a square for a square window and a rectangle otherwise.");
+    if (pageBorderChanged && layoutState_.pagePreviewViewOptions.showPageBorder &&
+        tutorial_->MatchesTarget("page_preview_view_page_border"))
+    {
+        tutorial_->CompleteStep();
+    }
+    tutorial_->DrawHalo(
+        "page_preview_view_page_border",
+        "Enable Page border",
+        "Outline the authored window -1..1 bounds so you can place reticles relative to the page edges.");
     ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
     ShowItemTooltip("Snap page-preview drags and nudges plus reticle-studio edits to the shared logical grid. "
                     "Arrow keys move the page selection; hold Shift for a larger step when snapping is off.");
@@ -3701,6 +3736,8 @@ void EditorApplication::DrawReticleStudioViewMenuItems()
     ImGui::Separator();
     ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
     ShowItemTooltip("Draw the shared editor-only placement grid behind the reticle-studio content.");
+    ImGui::Checkbox("Page border", &layoutState_.pagePreviewViewOptions.showPageBorder);
+    ShowItemTooltip("Outline the authored window -1..1 bounds behind the reticle-studio content.");
     ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
     ShowItemTooltip("Snap reticle-studio primitive moves and handle edits to the same logical grid used by the page preview.");
     if (layoutState_.pagePreviewViewOptions.showGrid || layoutState_.pagePreviewViewOptions.snapToGrid)

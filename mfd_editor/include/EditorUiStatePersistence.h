@@ -37,6 +37,8 @@ struct EditorUiPersistentState
     std::optional<bool> inspectorVisible {};
     /** @brief Persisted state of the shared visible editor grid. */
     std::optional<bool> showGrid {};
+    /** @brief Persisted state of the editor-only page border outlining the window bounds. */
+    std::optional<bool> showPageBorder {};
     /** @brief Persisted state of the shared grid snapping mode. */
     std::optional<bool> snapToGrid {};
     /** @brief Persisted shared logical step used by the visible grid and snapping. */

@@ -93,4 +93,27 @@ struct ViewportGridLayout
  * @param backgroundColor Current viewport background color used to derive a readable neutral palette.
  */
 void DrawViewportGrid(const ViewportGridInput& input, Color backgroundColor) noexcept;
+
+/**
+ * @brief Computes the logical half-extent of the authored window -1..1 bounds.
+ * @param windowWidth Authored window width in pixels.
+ * @param windowHeight Authored window height in pixels.
+ * @return Logical half-extent: `{1, 1}` for a square window, and the wider axis
+ * grows past `1` for a rectangular window, matching the runtime logical mapping.
+ *
+ * @note Non-positive dimensions fall back to a unit square so the border stays valid.
+ */
+[[nodiscard]] mfd::Vec2 ComputePageBorderHalfExtent(int windowWidth, int windowHeight) noexcept;
+
+/**
+ * @brief Draws the editor-only page border outlining the authored window bounds.
+ * @param input Viewport pixel size, view, and shared logical step.
+ * @param halfExtent Logical half-extent returned by ComputePageBorderHalfExtent().
+ * @param backgroundColor Current viewport background color used to derive a readable border color.
+ *
+ * @note This guide follows the same background-pass logic as the grid: it helps
+ * the user see where a reticle sits relative to the window edges and is never
+ * part of the authored page.
+ */
+void DrawViewportPageBorder(const ViewportGridInput& input, mfd::Vec2 halfExtent, Color backgroundColor) noexcept;
 } // namespace editor::app

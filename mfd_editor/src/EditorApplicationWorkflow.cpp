@@ -1904,6 +1904,10 @@ void EditorApplication::PrepareTutorialStep()
             SelectLibraryReticle("mfd_tutorial_progress_bar");
         }
         break;
+    case static_cast<int>(TutorialStepId::ShowPageBorder):
+        selectTutorialPageOrFallback("Page1");
+        layoutState_.pagePreviewViewOptions.showPageBorder = false;
+        break;
     case static_cast<int>(TutorialStepId::ShowLayerInspector):
         selectTutorialPageOrFallback("Page1");
         layoutState_.pagePreviewViewOptions.showLayerInspector = false;

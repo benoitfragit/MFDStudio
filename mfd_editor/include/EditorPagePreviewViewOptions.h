@@ -35,6 +35,8 @@ struct PagePreviewViewOptions
     bool showGizmos = true;
     /** @brief Shows the shared editor-only visible grid that matches the snapping step. */
     bool showGrid = true;
+    /** @brief Shows the editor-only page border outlining the authored window -1..1 bounds. */
+    bool showPageBorder = false;
     /** @brief Snaps reticle drags and keyboard nudges to a logical grid when enabled. */
     bool snapToGrid = false;
     /** @brief Logical spacing of the snapping grid. */
