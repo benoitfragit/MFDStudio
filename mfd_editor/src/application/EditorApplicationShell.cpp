@@ -40,8 +40,6 @@ using editor::ui::ShowItemTooltip;
 constexpr float kMinSidebarWidth = 200.0f;
 constexpr float kMinInspectorWidth = 280.0f;
 constexpr float kMinWorkspaceWidth = 360.0f;
-constexpr float kMinPageContextWidth = 320.0f;
-constexpr float kMinReticleStudioWidth = 320.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 
@@ -713,65 +711,8 @@ void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProbl
 
     if (libraryStudioVisible)
     {
-        const float totalWidth = ImGui::GetContentRegionAvail().x;
-        const float totalHeight = ImGui::GetContentRegionAvail().y;
-
-        // Seed a sensible page-context width on first use without overwriting it later:
-        // the value below is the persisted user preference, not a transient clamp.
-        if (layoutState_.libraryStudioPageWidth <= 0.0f)
-        {
-            layoutState_.libraryStudioPageWidth = std::max(kMinPageContextWidth, totalWidth * 0.56f);
-        }
-
-        editor::StudioSplitRequest splitRequest;
-        splitRequest.width = std::max(0.0f, totalWidth);
-        splitRequest.spacing = editor::ui::kPaneSplitterWidth;
-        splitRequest.showSecondary = layoutState_.pagePreviewViewOptions.showPageContext;
-        splitRequest.secondaryPreferredWidth = layoutState_.libraryStudioPageWidth;
-        splitRequest.minSecondaryWidth = kMinPageContextWidth;
-        splitRequest.minPrimaryWidth = kMinReticleStudioWidth;
-        const editor::StudioSplitResult split = editor::ComputeStudioSplitLayout(splitRequest);
-
-        // When the page-context pane is disabled or auto-collapses on a narrow window,
-        // hand the whole row to the reticle studio without touching the preference.
-        if (!split.secondaryVisible)
-        {
-            DrawReticleStudioPanel();
-            return;
-        }
-
-        const float pageWidth = std::floor(split.secondaryWidth);
-        const float studioWidth = std::max(0.0f, std::floor(split.primaryWidth));
-
-        ImGui::BeginChild("PageContextPanel", ImVec2(pageWidth, 0.0f), true);
-        ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page context");
-        ImGui::TextDisabled("Keep drag & drop and page composition visible while editing the library reticle.");
-        tutorial_->DrawCoach();
-        ImGui::Separator();
-
-        DrawPagePreviewWorkspace(pagePreviewProblems,
-                                 "PageContextPreviewPanel",
-                                 "PageContextLayersPanel",
-                                 "PageContextProblemsPanel",
-                                 documentState_.selection.kind == SelectionKind::PageReticle ||
-                                     documentState_.selection.kind == SelectionKind::PageTitle ||
-                                     documentState_.selection.kind == SelectionKind::PageStrobe,
-                                 documentState_.selection.kind == SelectionKind::PageReticle ||
-                                     documentState_.selection.kind == SelectionKind::PageTitle ||
-                                     documentState_.selection.kind == SelectionKind::PageStrobe);
-        ImGui::EndChild();
-
-        ImGui::SameLine();
-        if (DrawVerticalSplitter("##WorkspaceSplitter", totalHeight))
-        {
-            const float maxPageWidth = std::max(kMinPageContextWidth,
-                                                totalWidth - kMinReticleStudioWidth - editor::ui::kPaneSplitterWidth);
-            const float nextPageWidth = layoutState_.libraryStudioPageWidth + ImGui::GetIO().MouseDelta.x;
-            layoutState_.libraryStudioPageWidth = std::floor(std::clamp(nextPageWidth, kMinPageContextWidth, maxPageWidth));
-        }
-
-        ImGui::SameLine();
-        DrawReticleStudioPanel(studioWidth);
+        // Editing a library reticle hands the whole workspace row to the reticle studio.
+        DrawReticleStudioPanel();
         return;
     }
 
@@ -888,6 +829,7 @@ void EditorApplication::DrawReticleStudioPanel(const float width)
     ImGui::BeginChild("ReticleStudioPanel", ImVec2(panelWidth, 0.0f), true);
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
     ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry, then use Ctrl+C / Ctrl+V to duplicate it.");
+    tutorial_->DrawCoach();
     ImGui::Separator();
 
     ViewportState studioViewport;

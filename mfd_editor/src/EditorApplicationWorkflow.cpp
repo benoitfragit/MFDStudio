@@ -260,13 +260,11 @@ editor::FullscreenPreviewLayoutState EditorApplication::CaptureFullscreenPreview
     editor::FullscreenPreviewLayoutState state;
     state.sidebarVisible = layoutState_.sidebarVisible;
     state.inspectorVisible = layoutState_.inspectorVisible;
-    state.pageContextVisible = layoutState_.pagePreviewViewOptions.showPageContext;
     state.layerInspectorVisible = layoutState_.pagePreviewViewOptions.showLayerInspector;
     state.minimapVisible = layoutState_.pagePreviewViewOptions.showMinimap;
     state.problemsVisible = layoutState_.pagePreviewViewOptions.showProblemsPanel;
     state.sidebarWidth = layoutState_.sidebarWidth;
     state.inspectorWidth = layoutState_.inspectorWidth;
-    state.pageContextWidth = layoutState_.libraryStudioPageWidth;
     return state;
 }
 
@@ -274,13 +272,11 @@ void EditorApplication::ApplyFullscreenPreviewLayoutState(const editor::Fullscre
 {
     layoutState_.sidebarVisible = state.sidebarVisible;
     layoutState_.inspectorVisible = state.inspectorVisible;
-    layoutState_.pagePreviewViewOptions.showPageContext = state.pageContextVisible;
     layoutState_.pagePreviewViewOptions.showLayerInspector = state.layerInspectorVisible;
     layoutState_.pagePreviewViewOptions.showMinimap = state.minimapVisible;
     layoutState_.pagePreviewViewOptions.showProblemsPanel = state.problemsVisible;
     layoutState_.sidebarWidth = state.sidebarWidth > 0.0f ? state.sidebarWidth : layoutState_.sidebarWidth;
     layoutState_.inspectorWidth = state.inspectorWidth > 0.0f ? state.inspectorWidth : layoutState_.inspectorWidth;
-    layoutState_.libraryStudioPageWidth = state.pageContextWidth;
 }
 
 void EditorApplication::ToggleFullscreenPagePreview()
@@ -1908,18 +1904,12 @@ void EditorApplication::PrepareTutorialStep()
             SelectLibraryReticle("mfd_tutorial_progress_bar");
         }
         break;
-    case static_cast<int>(TutorialStepId::ShowPageContext):
-        selectTutorialPageOrFallback("Page2");
-        layoutState_.pagePreviewViewOptions.showPageContext = false;
-        break;
     case static_cast<int>(TutorialStepId::ShowLayerInspector):
         selectTutorialPageOrFallback("Page1");
-        layoutState_.pagePreviewViewOptions.showPageContext = false;
         layoutState_.pagePreviewViewOptions.showLayerInspector = false;
         break;
     case static_cast<int>(TutorialStepId::ShowMinimap):
         selectTutorialPageOrFallback("Page1");
-        layoutState_.pagePreviewViewOptions.showPageContext = false;
         layoutState_.pagePreviewViewOptions.showMinimap = false;
         break;
     case static_cast<int>(TutorialStepId::ShowReticleUsageHighlights):
@@ -1929,7 +1919,6 @@ void EditorApplication::PrepareTutorialStep()
         break;
     case static_cast<int>(TutorialStepId::ShowProblemsPanel):
         selectTutorialPageOrFallback("Page1");
-        layoutState_.pagePreviewViewOptions.showPageContext = false;
         layoutState_.pagePreviewViewOptions.showProblemsPanel = false;
         break;
     case static_cast<int>(TutorialStepId::ToggleFullscreenPreview):
@@ -1938,7 +1927,6 @@ void EditorApplication::PrepareTutorialStep()
             ToggleFullscreenPagePreview();
         }
         selectTutorialPageOrFallback("Page1");
-        layoutState_.pagePreviewViewOptions.showPageContext = false;
         break;
     case static_cast<int>(TutorialStepId::InspectPageImportWorkflow):
     case static_cast<int>(TutorialStepId::InspectPageRenameWorkflow):
@@ -1956,7 +1944,6 @@ void EditorApplication::PrepareTutorialStep()
             ToggleFullscreenPagePreview();
         }
         selectTutorialPageOrFallback("Page1");
-        layoutState_.pagePreviewViewOptions.showPageContext = false;
         break;
     default:
         break;

@@ -151,9 +151,6 @@ TEST(EditorTutorialDataTests, ProgressBarTutorialStepsTargetReticleExposureFlow)
 
 TEST(EditorTutorialDataTests, TutorialMetadataCoversEditorWorkflowDiscoverySteps)
 {
-    const auto& pageContextStep = Step(editor::tutorial::TutorialStepId::ShowPageContext);
-    EXPECT_STREQ(pageContextStep.targetId, "page_preview_view_menu");
-
     const auto& importStep = Step(editor::tutorial::TutorialStepId::InspectPageImportWorkflow);
     EXPECT_STREQ(importStep.targetId, "menu_page");
     EXPECT_NE(std::string_view(importStep.instruction).find("cancel"), std::string_view::npos);

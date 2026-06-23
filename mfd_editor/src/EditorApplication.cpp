@@ -202,8 +202,6 @@ constexpr float kInspectorWidth = 360.0f;
 constexpr float kMinSidebarWidth = 220.0f;
 constexpr float kMinInspectorWidth = 280.0f;
 constexpr float kMinWorkspaceWidth = 420.0f;
-constexpr float kMinPageContextWidth = 320.0f;
-constexpr float kMinReticleStudioWidth = 320.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kLayerInspectorPreviewHeight = 84.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
@@ -1344,10 +1342,6 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     {
         layoutState_.inspectorVisible = *uiState.inspectorVisible;
     }
-    if (uiState.libraryStudioPageWidth.has_value())
-    {
-        layoutState_.libraryStudioPageWidth = *uiState.libraryStudioPageWidth;
-    }
     if (uiState.showGrid.has_value())
     {
         layoutState_.pagePreviewViewOptions.showGrid = *uiState.showGrid;
@@ -1383,10 +1377,6 @@ EditorApplication::~EditorApplication()
     uiState.sidebarVisible = layoutState_.sidebarVisible;
     uiState.inspectorWidth = layoutState_.inspectorWidth;
     uiState.inspectorVisible = layoutState_.inspectorVisible;
-    if (layoutState_.libraryStudioPageWidth > 0.0f)
-    {
-        uiState.libraryStudioPageWidth = layoutState_.libraryStudioPageWidth;
-    }
     uiState.showGrid = layoutState_.pagePreviewViewOptions.showGrid;
     uiState.snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
     uiState.gridStepLogical = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
@@ -3694,22 +3684,6 @@ void EditorApplication::DrawPagePreviewViewMenuItems(const bool showProblemsIndi
             editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
         ShowItemTooltip("Shared logical spacing reused by the visible grid, page-preview snapping, and reticle-studio snapping.");
     }
-    // The page-context split only exists while editing a library reticle, so the toggle is
-    // meaningless in the plain page-preview view. It stays reachable here for the tutorial step that
-    // introduces it from the page preview; otherwise it lives in the reticle-studio View items.
-    if (tutorial_->IsStep(static_cast<int>(TutorialStepId::ShowPageContext)))
-    {
-        const bool pageContextChanged = ImGui::Checkbox("Page context", &layoutState_.pagePreviewViewOptions.showPageContext);
-        if (pageContextChanged && layoutState_.pagePreviewViewOptions.showPageContext &&
-            tutorial_->MatchesTarget("page_preview_view_page_context"))
-        {
-            tutorial_->CompleteStep();
-        }
-        tutorial_->DrawHalo(
-            "page_preview_view_page_context",
-            "Enable Page context",
-            "Turn on the page-context split so the active page stays visible while you inspect the rest of the workspace.");
-    }
     ImGui::Separator();
     DrawFullscreenPreviewMenuItem();
 
@@ -3722,7 +3696,6 @@ void EditorApplication::DrawPagePreviewViewMenuItems(const bool showProblemsIndi
 
 void EditorApplication::DrawReticleStudioViewMenuItems()
 {
-    ImGui::Checkbox("Show page context", &layoutState_.pagePreviewViewOptions.showPageContext);
     ImGui::Checkbox("Show primitive names", &layoutState_.libraryStudioShowPrimitiveLabels);
     ImGui::Checkbox("Show gizmos", &layoutState_.libraryStudioShowGizmos);
     ImGui::Separator();

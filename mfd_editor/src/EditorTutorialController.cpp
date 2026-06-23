@@ -336,7 +336,7 @@ constexpr std::array<TutorialStageInfo, 4> kTutorialStages {{
      static_cast<int>(editor::tutorial::TutorialStepId::AddProgressBarToPage2)},
     {"Stage 2 - Explore Editor Tools",
      "Use the page-preview helper panels, the shared visible grid and snap controls, save the tutorial assets, and discover the import, rename, and export workflows directly from the editor.",
-     static_cast<int>(editor::tutorial::TutorialStepId::ShowPageContext),
+     static_cast<int>(editor::tutorial::TutorialStepId::ShowLayerInspector),
      static_cast<int>(editor::tutorial::TutorialStepId::InspectDesignExportWorkflow)},
     {"Stage 3 - Review Saved Outputs",
      "Open the dedicated follow-up guide to inspect the authored assets, the generated map, and the runtime entry points without replaying long code snippets inside the editor.",
@@ -754,8 +754,7 @@ bool EditorTutorialController::ShouldResetPagePreviewViewPhaseOnClose() const no
 {
     using editor::tutorial::TutorialStepId;
 
-    return IsStepPhase(static_cast<int>(TutorialStepId::ShowPageContext), 1) ||
-           IsStepPhase(static_cast<int>(TutorialStepId::ShowLayerInspector), 1) ||
+    return IsStepPhase(static_cast<int>(TutorialStepId::ShowLayerInspector), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::ShowMinimap), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::ShowReticleUsageHighlights), 1) ||
            IsStepPhase(static_cast<int>(TutorialStepId::ShowProblemsPanel), 1) ||
@@ -1141,8 +1140,6 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
         return stepPhase_ == 0 ? "page_preview_clip_source" : "context_clip_outer";
     case static_cast<int>(TutorialStepId::AddAndHideEditorLayer):
         return stepPhase_ == 0 ? "inspector_add_layer" : "inspector_layer_visibility";
-    case static_cast<int>(TutorialStepId::ShowPageContext):
-        return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_page_context";
     case static_cast<int>(TutorialStepId::ShowLayerInspector):
         return stepPhase_ == 0 ? "page_preview_view_menu" : "page_preview_view_layer_inspector";
     case static_cast<int>(TutorialStepId::ShowMinimap):
@@ -1240,8 +1237,6 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
         return stepPhase_ == 0 ? "Right-click the circle reticle in the page preview." : "Click Clip outside.";
     case static_cast<int>(TutorialStepId::AddAndHideEditorLayer):
         return stepPhase_ == 0 ? "Click Add layer." : "Click Visible to hide the new layer.";
-    case static_cast<int>(TutorialStepId::ShowPageContext):
-        return stepPhase_ == 0 ? "Click View." : "Enable Page context.";
     case static_cast<int>(TutorialStepId::ShowLayerInspector):
         return stepPhase_ == 0 ? "Click View." : "Enable Layer Inspector.";
     case static_cast<int>(TutorialStepId::ShowMinimap):

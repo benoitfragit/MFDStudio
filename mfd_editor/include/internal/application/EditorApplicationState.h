@@ -427,7 +427,6 @@ struct LayoutState
     bool pagePreviewHasProblems = false;
     std::array<char, 96> sidebarFilter {};
     std::map<std::string, bool> inspectorSectionOpen {};
-    float libraryStudioPageWidth = 0.0f;
     bool libraryStudioShowPrimitiveLabels = true;
     bool libraryStudioShowGizmos = true;
     editor::PagePreviewViewOptions pagePreviewViewOptions {};

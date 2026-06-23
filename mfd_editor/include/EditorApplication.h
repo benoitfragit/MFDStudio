@@ -268,7 +268,7 @@ private:
     void DrawPagePreview(const ViewportState& viewport);
     /** @brief Draws the selected library reticle into the studio preview viewport. */
     void DrawLibraryPreview(const ViewportState& viewport);
-    /** @brief Draws the shared page-preview workspace used by page view and page-context view. */
+    /** @brief Draws the shared page-preview workspace used by the page view and the fullscreen preview. */
     void DrawPagePreviewWorkspace(const std::vector<editor::PagePreviewProblem>& pagePreviewProblems,
                                   const char* previewChildId,
                                   const char* layersChildId,

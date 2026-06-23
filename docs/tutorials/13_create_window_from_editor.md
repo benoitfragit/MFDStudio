@@ -248,8 +248,8 @@ Default startup behavior stays intentionally conservative:
 These controls stay editor-only. They help you inspect the current page, but
 they do not change the authored window/page/reticle JSON files.
 
-When you edit a library reticle, the **View** menu adapts to the reticle studio
-and instead exposes **Show page context**, **Show primitive names**, **Show
+When you edit a library reticle, the reticle studio takes the whole workspace
+and the **View** menu adapts to it, exposing **Show primitive names**, **Show
 gizmos**, plus the shared **Grid**, **Snap to grid**, and **Grid step** controls,
 so both editing workspaces keep the same logical spacing and placement feedback.
 
@@ -270,7 +270,7 @@ even before a window is open.
 Use it when you want to edit the page with the editor chrome hidden:
 
 1. enable **Fullscreen preview** in the **View** menu, or press `F11`
-2. the sidebar, inspector, page-context split, and docked helper panels are hidden
+2. the sidebar, inspector, and docked helper panels are hidden
 3. keep using zoom, pan, selection, and gizmos directly on the page canvas
 4. disable the same entry, press `F11`, or press `Esc` to restore the previous layout
 

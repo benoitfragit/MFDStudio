@@ -58,7 +58,6 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     saved.sidebarVisible = false;
     saved.inspectorWidth = 420.0f;
     saved.inspectorVisible = true;
-    saved.libraryStudioPageWidth = 540.0f;
     saved.showGrid = false;
     saved.snapToGrid = true;
     saved.gridStepLogical = 0.125f;
@@ -71,7 +70,6 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     ASSERT_TRUE(loaded.sidebarVisible.has_value());
     ASSERT_TRUE(loaded.inspectorWidth.has_value());
     ASSERT_TRUE(loaded.inspectorVisible.has_value());
-    ASSERT_TRUE(loaded.libraryStudioPageWidth.has_value());
     ASSERT_TRUE(loaded.showGrid.has_value());
     ASSERT_TRUE(loaded.snapToGrid.has_value());
     ASSERT_TRUE(loaded.gridStepLogical.has_value());
@@ -79,7 +77,6 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     EXPECT_FALSE(*loaded.sidebarVisible);
     EXPECT_FLOAT_EQ(*loaded.inspectorWidth, 420.0f);
     EXPECT_TRUE(*loaded.inspectorVisible);
-    EXPECT_FLOAT_EQ(*loaded.libraryStudioPageWidth, 540.0f);
     EXPECT_FALSE(*loaded.showGrid);
     EXPECT_TRUE(*loaded.snapToGrid);
     EXPECT_FLOAT_EQ(*loaded.gridStepLogical, 0.125f);
@@ -96,7 +93,6 @@ TEST(EditorUiStatePersistenceTests, LoadIgnoresInvalidGridFlagsAndClampsGridStep
     ASSERT_TRUE(stream.is_open());
     stream << R"json({
   "sidebarWidth": 280.0,
-  "libraryStudioPageWidth": -5.0,
   "showGrid": "yes",
   "snapToGrid": false,
   "gridStepLogical": 2.0,
@@ -111,7 +107,6 @@ TEST(EditorUiStatePersistenceTests, LoadIgnoresInvalidGridFlagsAndClampsGridStep
 
     ASSERT_TRUE(loaded.sidebarWidth.has_value());
     EXPECT_FLOAT_EQ(*loaded.sidebarWidth, 280.0f);
-    EXPECT_FALSE(loaded.libraryStudioPageWidth.has_value());
     EXPECT_FALSE(loaded.showGrid.has_value());
     ASSERT_TRUE(loaded.snapToGrid.has_value());
     EXPECT_FALSE(*loaded.snapToGrid);

@@ -19,7 +19,6 @@ FullscreenPreviewLayoutState MakeFullscreenState(const FullscreenPreviewLayoutSt
     FullscreenPreviewLayoutState fullscreenState = currentState;
     fullscreenState.sidebarVisible = false;
     fullscreenState.inspectorVisible = false;
-    fullscreenState.pageContextVisible = false;
     fullscreenState.layerInspectorVisible = false;
     fullscreenState.minimapVisible = false;
     fullscreenState.problemsVisible = false;

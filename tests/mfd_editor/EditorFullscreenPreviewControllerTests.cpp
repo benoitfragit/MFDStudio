@@ -20,13 +20,11 @@ editor::FullscreenPreviewLayoutState MakeLayoutState()
     editor::FullscreenPreviewLayoutState state;
     state.sidebarVisible = true;
     state.inspectorVisible = true;
-    state.pageContextVisible = true;
     state.layerInspectorVisible = true;
     state.minimapVisible = true;
     state.problemsVisible = true;
     state.sidebarWidth = 320.0f;
     state.inspectorWidth = 360.0f;
-    state.pageContextWidth = 640.0f;
     return state;
 }
 } // namespace
@@ -42,13 +40,11 @@ TEST(FullscreenPreviewControllerTests, EnterActivatesFullscreenAndHidesEditorPan
     EXPECT_TRUE(controller.IsActive());
     EXPECT_FALSE(transition.state.sidebarVisible);
     EXPECT_FALSE(transition.state.inspectorVisible);
-    EXPECT_FALSE(transition.state.pageContextVisible);
     EXPECT_FALSE(transition.state.layerInspectorVisible);
     EXPECT_FALSE(transition.state.minimapVisible);
     EXPECT_FALSE(transition.state.problemsVisible);
     EXPECT_FLOAT_EQ(transition.state.sidebarWidth, 320.0f);
     EXPECT_FLOAT_EQ(transition.state.inspectorWidth, 360.0f);
-    EXPECT_FLOAT_EQ(transition.state.pageContextWidth, 640.0f);
 }
 
 TEST(FullscreenPreviewControllerTests, ExitRestoresPreviousLayoutExactly)
@@ -64,13 +60,11 @@ TEST(FullscreenPreviewControllerTests, ExitRestoresPreviousLayoutExactly)
     EXPECT_FALSE(controller.IsActive());
     EXPECT_TRUE(transition.state.sidebarVisible);
     EXPECT_TRUE(transition.state.inspectorVisible);
-    EXPECT_TRUE(transition.state.pageContextVisible);
     EXPECT_TRUE(transition.state.layerInspectorVisible);
     EXPECT_TRUE(transition.state.minimapVisible);
     EXPECT_TRUE(transition.state.problemsVisible);
     EXPECT_FLOAT_EQ(transition.state.sidebarWidth, 320.0f);
     EXPECT_FLOAT_EQ(transition.state.inspectorWidth, 360.0f);
-    EXPECT_FLOAT_EQ(transition.state.pageContextWidth, 640.0f);
 }
 
 TEST(FullscreenPreviewControllerTests, ToggleAlternatesBetweenFullscreenAndCapturedLayout)
@@ -105,7 +99,6 @@ TEST(FullscreenPreviewControllerTests, RepeatedEnterExitKeepsOriginalCapturedSta
     EXPECT_TRUE(exit.changed);
     EXPECT_TRUE(exit.state.sidebarVisible);
     EXPECT_TRUE(exit.state.inspectorVisible);
-    EXPECT_TRUE(exit.state.pageContextVisible);
 }
 
 TEST(FullscreenPreviewControllerTests, ExitWithoutActiveFullscreenDoesNothing)

@@ -63,42 +63,4 @@ struct WorkspaceLayoutResult
  * @return Clamped visible regions preserving the requested minimum preview size.
  */
 [[nodiscard]] WorkspaceLayoutResult ComputeWorkspaceLayout(const WorkspaceLayoutRequest& request) noexcept;
-
-/**
- * @brief Input describing the horizontal page-context / reticle-studio split.
- *
- * @note The reticle studio is the primary surface here: the page-context pane
- * (secondary) compresses toward its minimum and then auto-collapses before the
- * studio loses its own minimum width.
- */
-struct StudioSplitRequest
-{
-    float width = 0.0f;
-    float spacing = 0.0f;
-    bool showSecondary = false;
-    float secondaryPreferredWidth = 0.0f;
-    float minSecondaryWidth = 0.0f;
-    float minPrimaryWidth = 0.0f;
-};
-
-/**
- * @brief Resolved widths of the page-context / reticle-studio split.
- */
-struct StudioSplitResult
-{
-    bool secondaryVisible = false;
-    bool secondaryAutoCollapsed = false;
-    float secondaryWidth = 0.0f;
-    float primaryWidth = 0.0f;
-};
-
-/**
- * @brief Splits the library-studio workspace into the page-context pane and the reticle studio.
- * @param request Available width, spacing and the page-context preference and minima.
- * @return Clamped widths; the secondary pane is hidden when both minima cannot coexist.
- *
- * @note Inputs are sanitized: non-finite, negative or too-small values are clamped so
- * the result always stays consistent and the studio keeps a usable surface.
- */
-[[nodiscard]] StudioSplitResult ComputeStudioSplitLayout(const StudioSplitRequest& request) noexcept;
 } // namespace editor

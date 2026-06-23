@@ -74,39 +74,4 @@ WorkspaceLayoutResult ComputeWorkspaceLayout(const WorkspaceLayoutRequest& reque
     result.previewPanel = {previewX, 0.0f, previewWidth, previewHeight};
     return result;
 }
-
-StudioSplitResult ComputeStudioSplitLayout(const StudioSplitRequest& request) noexcept
-{
-    const float totalWidth = SanitizeNonNegativeWidth(request.width);
-    const float spacing = SanitizeNonNegativeWidth(request.spacing);
-    const float minPrimaryWidth = SanitizeNonNegativeWidth(request.minPrimaryWidth);
-    const float minSecondaryWidth = SanitizeNonNegativeWidth(request.minSecondaryWidth);
-
-    StudioSplitResult result;
-    result.primaryWidth = totalWidth;
-
-    if (!request.showSecondary)
-    {
-        return result;
-    }
-
-    const float maxSecondaryWidth = totalWidth - minPrimaryWidth - spacing;
-    if (maxSecondaryWidth < minSecondaryWidth)
-    {
-        // The page-context pane and the studio cannot both keep their minimum width:
-        // hand the whole row to the studio and report the transient auto-collapse.
-        result.secondaryAutoCollapsed = true;
-        return result;
-    }
-
-    const float preferredSecondaryWidth = std::isfinite(request.secondaryPreferredWidth)
-                                              ? request.secondaryPreferredWidth
-                                              : minSecondaryWidth;
-    const float secondaryWidth = std::clamp(preferredSecondaryWidth, minSecondaryWidth, maxSecondaryWidth);
-
-    result.secondaryVisible = true;
-    result.secondaryWidth = secondaryWidth;
-    result.primaryWidth = std::max(0.0f, totalWidth - secondaryWidth - spacing);
-    return result;
-}
 } // namespace editor

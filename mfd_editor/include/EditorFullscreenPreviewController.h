@@ -25,8 +25,6 @@ struct FullscreenPreviewLayoutState
     bool sidebarVisible = true;
     /** @brief Indicates whether the right inspector is visible. */
     bool inspectorVisible = true;
-    /** @brief Indicates whether the page-context split is visible in reticle studio mode. */
-    bool pageContextVisible = true;
     /** @brief Indicates whether the docked layer inspector is visible next to the preview. */
     bool layerInspectorVisible = false;
     /** @brief Indicates whether the preview minimap overlay is visible. */
@@ -37,8 +35,6 @@ struct FullscreenPreviewLayoutState
     float sidebarWidth = 0.0f;
     /** @brief Persisted width of the right inspector. */
     float inspectorWidth = 0.0f;
-    /** @brief Persisted width of the page-context pane inside the split workspace. */
-    float pageContextWidth = 0.0f;
 };
 
 /**
