@@ -56,7 +56,6 @@ using editor::app::CountDynamicLayerBindings;
 using editor::app::CountEditorLayerAssignments;
 using editor::app::ClipPrimitiveOption;
 using editor::app::EffectiveDefaultBlinkTypeIndex;
-using editor::app::FindActivePageStrobeIndex;
 using editor::app::FindBlinkTypeIndex;
 using editor::app::IsReticleVisibleInEditor;
 using editor::app::kInvalidBlinkTypeIndex;
@@ -1115,7 +1114,7 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Strobe");
     DisabledTextWrapped("Each page exposes a list of named strobes, but only one is active at runtime.");
-    DisabledTextWrapped("Add alternative strobes here, choose the default one, then edit the selected strobe below.");
+    DisabledTextWrapped("Add alternative strobes here, choose the default one, then click a strobe's edit icon to unfold its settings below.");
 
     std::vector<std::string> templateIds;
     templateIds.reserve(documentState_.loaded.document.reticleLibrary.size());
@@ -1281,7 +1280,6 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     {
         mfd::PageStrobeDefinition& strobe = page.strobes[strobeIndex];
         const std::string strobeDisplayLabel = PageStrobeDisplayLabel(page, strobe, strobeIndex);
-        const std::string strobeSelectableLabel = strobeDisplayLabel + "##strobe_select";
         const bool selected =
             documentState_.selection.kind == SelectionKind::PageStrobe &&
             documentState_.selection.pageReticleIndex == static_cast<int>(strobeIndex);
@@ -1289,9 +1287,13 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
                             (page.normalizedActiveStrobeName.empty() && strobeIndex == 0U);
 
         ImGui::PushID(static_cast<int>(strobeIndex));
-        if (ImGui::Selectable(strobeSelectableLabel.c_str(), selected))
+        if (selected)
         {
-            SelectPageStrobe(documentState_.selection.pageIndex, static_cast<int>(strobeIndex));
+            ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "%s", strobeDisplayLabel.c_str());
+        }
+        else
+        {
+            ImGui::TextUnformatted(strobeDisplayLabel.c_str());
         }
 
         if (ImGui::RadioButton("Active by default##strobe_default", active) && !active)
@@ -1329,6 +1331,13 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
         ImGui::TextDisabled("Template: %s",
                             strobe.reticle.sourceTemplateId.empty() ? "<custom strobe>" : strobe.reticle.sourceTemplateId.c_str());
 
+        if (IconButton("##strobe_edit",
+                       EditorIcon::Rename,
+                       "Edit this strobe: unfold its capture and magnet settings below."))
+        {
+            SelectPageStrobe(documentState_.selection.pageIndex, static_cast<int>(strobeIndex));
+        }
+        ImGui::SameLine();
         if (IconButton("##strobe_remove", EditorIcon::Delete, "Remove this authored strobe from the page list."))
         {
             PushUndoSnapshot();
@@ -1371,18 +1380,15 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
         return;
     }
 
-    int editedStrobeIndex = FindActivePageStrobeIndex(page);
-    if (documentState_.selection.kind == SelectionKind::PageStrobe &&
-        documentState_.selection.pageReticleIndex >= 0 &&
-        documentState_.selection.pageReticleIndex < static_cast<int>(page.strobes.size()))
+    if (documentState_.selection.kind != SelectionKind::PageStrobe ||
+        documentState_.selection.pageReticleIndex < 0 ||
+        documentState_.selection.pageReticleIndex >= static_cast<int>(page.strobes.size()))
     {
-        editedStrobeIndex = documentState_.selection.pageReticleIndex;
-    }
-    if (editedStrobeIndex < 0 || editedStrobeIndex >= static_cast<int>(page.strobes.size()))
-    {
-        editedStrobeIndex = 0;
+        DisabledTextWrapped("Click a strobe's edit icon above to unfold its capture and magnet settings.");
+        return;
     }
 
+    const int editedStrobeIndex = documentState_.selection.pageReticleIndex;
     mfd::PageStrobeDefinition& editedStrobe = page.strobes[static_cast<std::size_t>(editedStrobeIndex)];
     const std::string currentTemplateId = editedStrobe.reticle.sourceTemplateId;
 

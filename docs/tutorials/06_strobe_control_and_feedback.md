@@ -109,8 +109,9 @@ If you expose it on `0.0.0.0`, any reachable host can receive the stream.
 
 If you author the page in `mfd_editor`, use:
 
-- `Page inspector > Strobe > Strobe template` to assign one of the library
-  reticles as the page strobe
+- `Page inspector > Strobe` to add strobes and choose the default, then click a
+  strobe's edit (pencil) icon to unfold its `Strobe template`, capture, and
+  magnet settings
 - `Window > Window settings` to tune the feedback UDP endpoint plus the fast
   and heartbeat cadence after the window already exists
 
