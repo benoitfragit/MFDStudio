@@ -168,6 +168,18 @@ void SetInspectorSectionStateStore(std::map<std::string, bool>* const store) noe
     g_inspectorSectionStateStore = store;
 }
 
+void DisabledTextWrapped(const char* text)
+{
+    if (text == nullptr || text[0] == '\0')
+    {
+        return;
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped("%s", text);
+    ImGui::PopStyleColor();
+}
+
 void InspectorHelpMarker(const char* text)
 {
     if (text == nullptr || text[0] == '\0')

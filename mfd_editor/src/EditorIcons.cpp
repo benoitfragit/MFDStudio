@@ -11,6 +11,7 @@
  */
 
 #include <algorithm>
+#include <cmath>
 
 #include <imgui.h>
 
@@ -22,6 +23,9 @@ namespace
 {
 /// Neutral white used for the resting glyph color, matched to the theme text tone.
 constexpr ImU32 kGlyphRest = IM_COL32(236, 244, 250, 255);
+
+/// Half-turn in radians, used to lay out the arc-based glyphs without the imgui_internal header.
+constexpr float kPi = 3.14159265358979323846f;
 
 /**
  * @brief Geometry passed to every glyph painter: the icon's center, radius and stroke width.
@@ -193,6 +197,33 @@ void PaintRecent(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
     drawList.AddLine(m.center, ImVec2(m.center.x + m.radius * 0.45f, m.center.y), col, m.thickness);
 }
 
+void PaintHelp(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Question mark: an open hook resting over a short stem and a dot.
+    const ImVec2 hookCenter(m.center.x, m.center.y - m.radius * 0.45f);
+    const float hookRadius = m.radius * 0.6f;
+    const float hookEndAngle = kPi * 2.55f;
+    drawList.PathArcTo(hookCenter, hookRadius, kPi * 1.05f, hookEndAngle, 20);
+    drawList.PathStroke(col, ImDrawFlags_None, m.thickness);
+
+    const ImVec2 hookEnd(hookCenter.x + hookRadius * std::cos(hookEndAngle),
+                         hookCenter.y + hookRadius * std::sin(hookEndAngle));
+    drawList.AddLine(hookEnd, ImVec2(m.center.x, m.center.y + m.radius * 0.35f), col, m.thickness);
+    drawList.AddCircleFilled(ImVec2(m.center.x, m.center.y + m.radius * 0.95f), std::max(1.2f, m.thickness * 0.65f), col);
+}
+
+void PaintRecenter(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Recenter camera: a crosshair ring with axis ticks and a center dot.
+    const float ring = m.radius * 0.72f;
+    drawList.AddCircle(m.center, ring, col, 0, m.thickness);
+    drawList.AddCircleFilled(m.center, std::max(1.2f, m.thickness * 0.7f), col);
+    drawList.AddLine(ImVec2(m.center.x - m.radius, m.center.y), ImVec2(m.center.x - ring, m.center.y), col, m.thickness);
+    drawList.AddLine(ImVec2(m.center.x + ring, m.center.y), ImVec2(m.center.x + m.radius, m.center.y), col, m.thickness);
+    drawList.AddLine(ImVec2(m.center.x, m.center.y - m.radius), ImVec2(m.center.x, m.center.y - ring), col, m.thickness);
+    drawList.AddLine(ImVec2(m.center.x, m.center.y + ring), ImVec2(m.center.x, m.center.y + m.radius), col, m.thickness);
+}
+
 void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLeft, const float boxSize, const ImU32 col)
 {
     GlyphMetrics metrics {};
@@ -237,6 +268,12 @@ void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLe
         return;
     case EditorIcon::Recent:
         PaintRecent(drawList, metrics, col);
+        return;
+    case EditorIcon::Help:
+        PaintHelp(drawList, metrics, col);
+        return;
+    case EditorIcon::Recenter:
+        PaintRecenter(drawList, metrics, col);
         return;
     }
 }

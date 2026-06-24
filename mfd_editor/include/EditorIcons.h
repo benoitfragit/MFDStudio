@@ -35,7 +35,9 @@ enum class EditorIcon
     Search,           ///< Magnifier silhouette used to annotate the filter field and file pickers.
     Overflow,         ///< Three-dot silhouette used for an overflow menu trigger.
     Tutorial,         ///< Graduation-cap silhouette used for the guided tutorial entry point.
-    Recent            ///< Clock silhouette used to reopen recently authored windows.
+    Recent,           ///< Clock silhouette used to reopen recently authored windows.
+    Help,             ///< Question-mark silhouette used to open a view's controls summary.
+    Recenter          ///< Crosshair silhouette used to recenter a preview camera.
 };
 
 /**

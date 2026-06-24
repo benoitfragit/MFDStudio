@@ -71,6 +71,14 @@ bool BeginInspectorSection(const char* strId, const char* label, bool defaultOpe
 void SetInspectorSectionStateStore(std::map<std::string, bool>* store) noexcept;
 
 /**
+ * @brief Draws dimmed helper text that wraps onto several lines at the panel edge.
+ * @param text Caption to display; skipped when null or empty.
+ * @note Used for the long explanatory captions in inspectors and side panels so they
+ *       stay fully readable on narrow panes instead of being clipped at the border.
+ */
+void DisabledTextWrapped(const char* text);
+
+/**
  * @brief Draws a compact "(?)" marker that reveals detailed guidance in a hover tooltip.
  * @param text Tooltip text. The marker is skipped when the text is null or empty.
  * @note Drawn on the same line as the previous item so it can annotate a section header or field.

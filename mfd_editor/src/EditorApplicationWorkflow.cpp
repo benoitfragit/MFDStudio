@@ -42,6 +42,7 @@ using editor::detail::ReticleLibraryIdExistsNormalized;
 using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
 using editor::ui::AccentButton;
+using editor::ui::DisabledTextWrapped;
 using editor::ui::EditorIcon;
 using editor::ui::IconButton;
 using editor::ui::ShowItemTooltip;
@@ -902,7 +903,7 @@ void EditorApplication::DrawPageImportPopup()
     ImGui::SeparatorText("Reticle dependencies");
     if (plan.reticles.empty())
     {
-        ImGui::TextDisabled("No reticle template dependency detected for this page.");
+        DisabledTextWrapped("No reticle template dependency detected for this page.");
     }
     else
     {
@@ -927,8 +928,8 @@ void EditorApplication::DrawPageImportPopup()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("Imported assets are staged in memory first and written with File > Save.");
-    ImGui::TextDisabled("Deterministic collision policy: missing target = copy, identical target = keep existing, different target = rename copy.");
+    DisabledTextWrapped("Imported assets are staged in memory first and written with File > Save.");
+    DisabledTextWrapped("Deterministic collision policy: missing target = copy, identical target = keep existing, different target = rename copy.");
 
     if (!plan.error.empty())
     {
@@ -1002,7 +1003,7 @@ void EditorApplication::DrawPageRenamePopup()
     ImGui::SeparatorText("References found");
     if (plan.references.empty())
     {
-        ImGui::TextDisabled("No scanned window reference is currently eligible for this rename.");
+        DisabledTextWrapped("No scanned window reference is currently eligible for this rename.");
     }
     else
     {
@@ -1012,7 +1013,7 @@ void EditorApplication::DrawPageRenamePopup()
             ImGui::TextWrapped("%s", reference.windowFile.string().c_str());
             if (reference.updatesDefaultPage)
             {
-                ImGui::TextDisabled("defaultPage will be updated in this window JSON");
+                DisabledTextWrapped("defaultPage will be updated in this window JSON");
             }
             ImGui::PopID();
         }
@@ -1050,7 +1051,7 @@ void EditorApplication::DrawPageRenamePopup()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("This workflow updates the scanned JSON assets directly across the current asset tree.");
+    DisabledTextWrapped("This workflow updates the scanned JSON assets directly across the current asset tree.");
     ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f),
                        "These disk changes are not covered by Ctrl+Z once the rename starts.");
 
@@ -1140,7 +1141,7 @@ void EditorApplication::DrawReticleRenamePopup()
     ImGui::SeparatorText("Template file");
     if (plan.currentTemplateFile.empty())
     {
-        ImGui::TextDisabled("No tracked template file is currently available.");
+        DisabledTextWrapped("No tracked template file is currently available.");
     }
     else
     {
@@ -1151,14 +1152,14 @@ void EditorApplication::DrawReticleRenamePopup()
         }
         else
         {
-            ImGui::TextDisabled("Logical rename only: keep the current template JSON file path.");
+            DisabledTextWrapped("Logical rename only: keep the current template JSON file path.");
         }
     }
 
     ImGui::SeparatorText("References found");
     if (plan.references.empty())
     {
-        ImGui::TextDisabled("No scanned page currently references this template. Only the template JSON will be rewritten.");
+        DisabledTextWrapped("No scanned page currently references this template. Only the template JSON will be rewritten.");
     }
     else
     {
@@ -1218,10 +1219,10 @@ void EditorApplication::DrawReticleRenamePopup()
     }
 
     ImGui::Spacing();
-    ImGui::TextDisabled("This workflow updates the scanned JSON assets directly across the current asset tree.");
+    DisabledTextWrapped("This workflow updates the scanned JSON assets directly across the current asset tree.");
     ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f),
                        "These disk changes are not covered by Ctrl+Z once the rename starts.");
-    ImGui::TextDisabled("After a successful rename, regenerate the generated client API if this template is exposed there.");
+    DisabledTextWrapped("After a successful rename, regenerate the generated client API if this template is exposed there.");
 
     if (!plan.error.empty())
     {
@@ -1298,7 +1299,7 @@ void EditorApplication::DrawReticleExtractionPopup()
     ImGui::SeparatorText("Extraction result");
     if (plan.targetTemplateId.empty())
     {
-        ImGui::TextDisabled("No target template id is currently available.");
+        DisabledTextWrapped("No target template id is currently available.");
     }
     else
     {
@@ -1313,7 +1314,7 @@ void EditorApplication::DrawReticleExtractionPopup()
 
     if (plan.targetTemplateFile.empty())
     {
-        ImGui::TextDisabled("No target template file is currently available.");
+        DisabledTextWrapped("No target template file is currently available.");
     }
     else
     {
@@ -1332,8 +1333,8 @@ void EditorApplication::DrawReticleExtractionPopup()
     ImGui::TextDisabled("Draw order: %s", plan.drawOnTop ? "draw on top" : "regular page reticle order");
 
     ImGui::Spacing();
-    ImGui::TextDisabled("The new template is staged in memory first, then written with File > Save.");
-    ImGui::TextDisabled("Unsupported cases are rejected here instead of partially mutating the page.");
+    DisabledTextWrapped("The new template is staged in memory first, then written with File > Save.");
+    DisabledTextWrapped("Unsupported cases are rejected here instead of partially mutating the page.");
 
     if (!plan.error.empty())
     {

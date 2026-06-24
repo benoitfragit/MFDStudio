@@ -28,6 +28,7 @@
 namespace
 {
 using editor::ui::AccentButton;
+using editor::ui::DisabledTextWrapped;
 using editor::ui::DrawVerticalSplitter;
 using editor::ui::EditorIcon;
 using editor::ui::IconButton;
@@ -582,11 +583,11 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
         // enlarged scale below persists on the child window until explicitly reset.
         ImGui::SetWindowFontScale(1.0f);
         ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "MFD Editor");
-        ImGui::TextDisabled("Work directly in the page visualization.");
+        DisabledTextWrapped("Work directly in the page visualization.");
         ImGui::Separator();
         ImGui::TextWrapped("No authored window is open yet.");
         ImGui::Spacing();
-        ImGui::TextDisabled("Use File > Open window asset... or File > New window from scratch.");
+        DisabledTextWrapped("Use File > Open window asset... or File > New window from scratch.");
         ImGui::Spacing();
         DrawRuntimeErrorBanner(workflowState_.lastRuntimeError);
         return;
@@ -775,7 +776,7 @@ void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProbl
     if (fullscreenPreviewActive)
     {
         ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-        ImGui::TextDisabled("Fullscreen preview keeps the page canvas interactive. Press F11 or Esc to restore the editor layout.");
+        DisabledTextWrapped("Fullscreen preview keeps the page canvas interactive. Press F11 or Esc to restore the editor layout.");
         tutorial_->DrawCoach();
         ImGui::Separator();
 
@@ -793,7 +794,7 @@ void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProbl
     }
 
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-    ImGui::TextDisabled("Use the View menu to toggle preview-only overlays without touching authored JSON assets.");
+    DisabledTextWrapped("Use the View menu to toggle preview-only overlays without touching authored JSON assets.");
     tutorial_->DrawCoach();
     ImGui::Separator();
 
@@ -904,7 +905,7 @@ void EditorApplication::DrawReticleStudioPanel(const float width)
     const float panelWidth = width > 0.0f ? width : std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
     ImGui::BeginChild("ReticleStudioPanel", ImVec2(panelWidth, 0.0f), true);
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
-    ImGui::TextDisabled("Click a primitive to focus it, drag the handles to edit its geometry, then use Ctrl+C / Ctrl+V to duplicate it.");
+    DisabledTextWrapped("Click a primitive to focus it, drag the handles to edit its geometry, then use Ctrl+C / Ctrl+V to duplicate it.");
     tutorial_->DrawCoach();
     ImGui::Separator();
 

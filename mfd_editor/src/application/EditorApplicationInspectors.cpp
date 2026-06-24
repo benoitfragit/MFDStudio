@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <numeric>
 #include <string_view>
 #include <unordered_map>
@@ -29,6 +30,7 @@ namespace
 {
 using editor::ui::AccentButton;
 using editor::ui::BeginInspectorSection;
+using editor::ui::DisabledTextWrapped;
 using editor::ui::EditorIcon;
 using editor::ui::IconButton;
 using editor::ui::InspectorHelpMarker;
@@ -298,7 +300,7 @@ void EditorApplication::DrawWindowInspector()
     }
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Window");
-    ImGui::TextDisabled("Tune the root window asset, transports and runtime feedback cadence.");
+    DisabledTextWrapped("Tune the root window asset, transports and runtime feedback cadence.");
     ImGui::TextDisabled("Source file: %s", documentState_.loaded.window.sourceFile.string().c_str());
     ImGui::TextDisabled("Loaded pages: %d", static_cast<int>(documentState_.loaded.document.pages.size()));
 
@@ -600,7 +602,7 @@ void EditorApplication::DrawPageInspector()
     }
 
     ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page");
-    ImGui::TextDisabled("Edit the page and work directly in the preview.");
+    DisabledTextWrapped("Edit the page and work directly in the preview.");
 
     const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
@@ -643,7 +645,7 @@ void EditorApplication::DrawPageInspector()
 
     ImGui::InputText("Name", name.data(), name.size(), ImGuiInputTextFlags_ReadOnly);
     ShowItemTooltip("Internal page id used in JSON and API references.");
-    ImGui::TextDisabled("Use 'Rename page globally...' to change this id safely.");
+    DisabledTextWrapped("Use 'Rename page globally...' to change this id safely.");
 
     const bool titleChanged = ImGui::InputText("Title", title.data(), title.size());
     ShowItemTooltip("Human-readable title shown in the editor and optionally in the runtime page chrome.");
@@ -728,7 +730,7 @@ void EditorApplication::DrawPageInspector()
     }
     ShowItemTooltip("Mark this page as the default page opened by the runtime for this window.");
 
-    ImGui::TextDisabled("If no page is marked default, the runtime opens the first page in the window JSON.");
+    DisabledTextWrapped("If no page is marked default, the runtime opens the first page in the window JSON.");
 
     if (BeginInspectorSection("section_page_blink", "Blink types", false, sectionForceOpen))
     {
@@ -777,8 +779,8 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Dynamic reticles");
-    ImGui::TextDisabled("Choose one reticle template, choose one page layer, then click Add.");
-    ImGui::TextDisabled("These entries are runtime-only bindings. They do not create authored static reticles on the page canvas.");
+    DisabledTextWrapped("Choose one reticle template, choose one page layer, then click Add.");
+    DisabledTextWrapped("These entries are runtime-only bindings. They do not create authored static reticles on the page canvas.");
 
     std::vector<std::string> templateIds;
     templateIds.reserve(documentState_.loaded.document.reticleLibrary.size());
@@ -847,17 +849,17 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     }
 
     ImGui::TextDisabled("Configured on this page: %d", static_cast<int>(page.dynamicReticleBindings.size()));
-    ImGui::TextDisabled("Each reticle template can appear at most once in this dynamic list.");
+    DisabledTextWrapped("Each reticle template can appear at most once in this dynamic list.");
 
     if (templateIds.empty())
     {
-        ImGui::TextDisabled("No library reticle is available yet. Create one first.");
+        DisabledTextWrapped("No library reticle is available yet. Create one first.");
         return;
     }
 
     if (page.layers.empty())
     {
-        ImGui::TextDisabled("No page layer is available yet. Add one in Page layers first.");
+        DisabledTextWrapped("No page layer is available yet. Add one in Page layers first.");
         return;
     }
 
@@ -868,7 +870,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     {
         if (availableTemplateIds.empty())
         {
-            ImGui::TextDisabled("All library templates are already bound on this page.");
+            DisabledTextWrapped("All library templates are already bound on this page.");
         }
         else
         {
@@ -947,7 +949,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
 
     if (page.dynamicReticleBindings.empty())
     {
-        ImGui::TextDisabled("No dynamic reticle is configured on this page yet.");
+        DisabledTextWrapped("No dynamic reticle is configured on this page yet.");
         return;
     }
 
@@ -1112,8 +1114,8 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Strobe");
-    ImGui::TextDisabled("Each page exposes a list of named strobes, but only one is active at runtime.");
-    ImGui::TextDisabled("Add alternative strobes here, choose the default one, then edit the selected strobe below.");
+    DisabledTextWrapped("Each page exposes a list of named strobes, but only one is active at runtime.");
+    DisabledTextWrapped("Add alternative strobes here, choose the default one, then edit the selected strobe below.");
 
     std::vector<std::string> templateIds;
     templateIds.reserve(documentState_.loaded.document.reticleLibrary.size());
@@ -1266,13 +1268,13 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
 
     if (templateIds.empty())
     {
-        ImGui::TextDisabled("No library reticle is available yet. Create one first.");
+        DisabledTextWrapped("No library reticle is available yet. Create one first.");
         return;
     }
 
     ImGui::Spacing();
     ImGui::TextDisabled("Configured strobes: %d", static_cast<int>(page.strobes.size()));
-    ImGui::TextDisabled("Exactly one strobe is active at runtime. The default choice is stored on the page.");
+    DisabledTextWrapped("Exactly one strobe is active at runtime. The default choice is stored on the page.");
 
     bool removedStrobe = false;
     for (std::size_t strobeIndex = 0; strobeIndex < page.strobes.size(); ++strobeIndex)
@@ -1587,7 +1589,7 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.82f, 0.73f, 0.94f, 1.0f), "Page layers");
-    ImGui::TextDisabled("Page layers drive runtime draw order. Visibility below only affects the editor preview.");
+    DisabledTextWrapped("Page layers drive runtime draw order. Visibility below only affects the editor preview.");
 
     if (AccentButton("Add layer"))
     {
@@ -1628,7 +1630,7 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
 
     if (page.layers.empty())
     {
-        ImGui::TextDisabled("No runtime layer exists on this page yet.");
+        DisabledTextWrapped("No runtime layer exists on this page yet.");
         return;
     }
 
@@ -1747,7 +1749,7 @@ void EditorApplication::DrawPageBlinkInspector(mfd::PageDefinition& page)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.96f, 0.81f, 0.52f, 1.0f), "Blink types");
-    ImGui::TextDisabled("Blink names are page-local. Same effective duration means same phase.");
+    DisabledTextWrapped("Blink names are page-local. Same effective duration means same phase.");
 
     if (AccentButton("Add blink type"))
     {
@@ -1803,7 +1805,7 @@ void EditorApplication::DrawPageBlinkInspector(mfd::PageDefinition& page)
     }
     ShowItemTooltip("Fallback blink used when a reticle enables blink without choosing a named type.");
 
-    ImGui::TextDisabled("Used when a reticle enables blink without choosing an explicit type.");
+    DisabledTextWrapped("Used when a reticle enables blink without choosing an explicit type.");
 
     for (std::size_t index = 0; index < page.blinkTypes.size(); ++index)
     {
@@ -1955,7 +1957,7 @@ void EditorApplication::DrawPageReticleInspector()
         ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page reticles");
         ImGui::Text("Page: %s", page->name.c_str());
         ImGui::Text("%d reticles selected", static_cast<int>(selectedIndices.size()));
-        ImGui::TextDisabled("Ctrl+click in the page or in the tree to add or remove reticles from the selection.");
+        DisabledTextWrapped("Ctrl+click in the page or in the tree to add or remove reticles from the selection.");
         ImGui::Separator();
 
         // Full-width stacked actions so the labels never overflow the inspector panel.
@@ -2051,7 +2053,7 @@ void EditorApplication::DrawPageReticleInspector()
     {
         ImGui::TextDisabled("Template: %s", reticle->sourceTemplateId.c_str());
     }
-    ImGui::TextDisabled("Move inside the frame, rotate with the blue handle, scale with the corner handles.");
+    DisabledTextWrapped("Move inside the frame, rotate with the blue handle, scale with the corner handles.");
     ImGui::Separator();
 
     const int reticleIndex = documentState_.selection.pageReticleIndex;
@@ -2234,8 +2236,8 @@ void EditorApplication::DrawPageReticleInspector()
     const std::vector<ClipPrimitiveOption> clipOptions = CollectClipPrimitiveOptions(*reticle);
     if (clipOptions.empty())
     {
-        ImGui::TextDisabled("No supported convex primitive with an id is available for clipping.");
-        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
+        DisabledTextWrapped("No supported convex primitive with an id is available for clipping.");
+        DisabledTextWrapped("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
     }
     else
     {
@@ -2303,7 +2305,7 @@ void EditorApplication::DrawPageReticleInspector()
             ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.42f, 1.0f), "The current clip primitive is missing or unsupported.");
         }
 
-        ImGui::TextDisabled("The selected primitive erases toward the page background when this reticle is drawn.");
+        DisabledTextWrapped("The selected primitive erases toward the page background when this reticle is drawn.");
     }
     }
 
@@ -2797,8 +2799,8 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
 
     if (clipOptions.empty())
     {
-        ImGui::TextDisabled("No supported convex primitive with an id is available for clipping.");
-        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
+        DisabledTextWrapped("No supported convex primitive with an id is available for clipping.");
+        DisabledTextWrapped("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
     }
     else
     {
@@ -2866,7 +2868,7 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
             ImGui::TextColored(ImVec4(1.0f, 0.72f, 0.42f, 1.0f), "The current clip primitive is missing or unsupported.");
         }
 
-        ImGui::TextDisabled("The selected primitive erases toward the page background when this strobe is drawn.");
+        DisabledTextWrapped("The selected primitive erases toward the page background when this strobe is drawn.");
     }
     }
 
@@ -3099,11 +3101,11 @@ void EditorApplication::DrawPageReticleBlinkInspector(mfd::PageDefinition& page,
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.96f, 0.81f, 0.52f, 1.0f), "Blink");
-    ImGui::TextDisabled("Blink is managed by the page, not by the reticle template.");
+    DisabledTextWrapped("Blink is managed by the page, not by the reticle template.");
 
     if (page.blinkTypes.empty())
     {
-        ImGui::TextDisabled("This page has no blink type yet. Add one in the page inspector.");
+        DisabledTextWrapped("This page has no blink type yet. Add one in the page inspector.");
         return;
     }
 
@@ -3126,7 +3128,7 @@ void EditorApplication::DrawPageReticleBlinkInspector(mfd::PageDefinition& page,
 
     if (!reticle.blink.enabled)
     {
-        ImGui::TextDisabled("Enable blink to use the page default or pick a named page type.");
+        DisabledTextWrapped("Enable blink to use the page default or pick a named page type.");
         return;
     }
 
@@ -3496,7 +3498,7 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     mfd::Primitive* primitive = SelectedLibraryPrimitive();
     if (reticle == nullptr || primitive == nullptr)
     {
-        ImGui::TextDisabled("Select a primitive inside a library reticle.");
+        DisabledTextWrapped("Select a primitive inside a library reticle.");
         return;
     }
 
@@ -3725,18 +3727,26 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             ImGui::TextDisabled("Effective fill preview");
             if (fillColorOverridden)
             {
-                ImGui::TextDisabled("Fill color comes from the reticle default: #%02X%02X%02X%02X",
-                                    effectiveStyle.fillColor.r,
-                                    effectiveStyle.fillColor.g,
-                                    effectiveStyle.fillColor.b,
-                                    effectiveStyle.fillColor.a);
+                char fillColorCaption[80] {};
+                std::snprintf(fillColorCaption,
+                              sizeof(fillColorCaption),
+                              "Fill color comes from the reticle default: #%02X%02X%02X%02X",
+                              effectiveStyle.fillColor.r,
+                              effectiveStyle.fillColor.g,
+                              effectiveStyle.fillColor.b,
+                              effectiveStyle.fillColor.a);
+                DisabledTextWrapped(fillColorCaption);
             }
             if (filledStateOverridden)
             {
-                ImGui::TextDisabled("Filled state comes from the reticle default: %s",
-                                    effectiveStyle.filled ? "enabled" : "disabled");
+                char filledStateCaption[80] {};
+                std::snprintf(filledStateCaption,
+                              sizeof(filledStateCaption),
+                              "Filled state comes from the reticle default: %s",
+                              effectiveStyle.filled ? "enabled" : "disabled");
+                DisabledTextWrapped(filledStateCaption);
             }
-            ImGui::TextDisabled("Edit the reticle Default fill / Default filled controls to change this preview.");
+            DisabledTextWrapped("Edit the reticle Default fill / Default filled controls to change this preview.");
         }
 
         ImGui::BeginDisabled(fillColorOverridden);

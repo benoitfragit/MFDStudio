@@ -58,6 +58,7 @@ namespace
 using editor::ui::AccentButton;
 using editor::ui::ApplyEditorTheme;
 using editor::ui::BeginRowIconStrip;
+using editor::ui::DisabledTextWrapped;
 using editor::ui::DrawVerticalSplitter;
 using editor::ui::EditorIcon;
 using editor::ui::FormatViewportToolbarInfoLabel;
@@ -1154,11 +1155,10 @@ ViewportToolbarLayout ComputeViewportToolbarLayout(const ImVec2 viewportOrigin,
     const std::string infoLabel = FormatViewportToolbarInfoLabel(zoom, mouseLogical);
     std::snprintf(layout.infoLabel.data(), layout.infoLabel.size(), "%s", infoLabel.c_str());
 
-    const ImVec2 buttonLabelSize = ImGui::CalcTextSize("?");
     const ImVec2 textSize = ImGui::CalcTextSize(layout.infoLabel.data());
-    layout.buttonSize = ImVec2(
-        buttonLabelSize.x + style.FramePadding.x * 2.0f,
-        buttonLabelSize.y + style.FramePadding.y * 2.0f);
+    // Square, frame-height buttons so the glyph toolbar aligns with the standard widgets.
+    const float buttonExtent = ImGui::GetFrameHeight();
+    layout.buttonSize = ImVec2(buttonExtent, buttonExtent);
     layout.helpButtonPos = ImVec2(viewportOrigin.x + 12.0f, viewportOrigin.y + 12.0f);
     layout.resetButtonPos = ImVec2(layout.helpButtonPos.x + layout.buttonSize.x + style.ItemSpacing.x,
                                    layout.helpButtonPos.y);
@@ -1177,7 +1177,7 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
     {
         ImGui::TextDisabled("Reticle studio");
         ImGui::Separator();
-        ImGui::BulletText("Toolbar R: recenter the studio camera.");
+        ImGui::BulletText("Toolbar recenter button: recenter the studio camera.");
         ImGui::BulletText("Mouse wheel: zoom the studio camera.");
         ImGui::BulletText("Right-drag: pan the studio camera.");
         ImGui::BulletText("Click a primitive: focus it in the studio and inspector.");
@@ -1194,7 +1194,7 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
         ImGui::BulletText("Drag a selected reticle or strobe: move it directly in logical space.");
         ImGui::BulletText("Blue handle: rotate the selected reticle or strobe.");
         ImGui::BulletText("Corner handles: scale the selected reticle or strobe.");
-        ImGui::BulletText("Toolbar R: recenter the page camera.");
+        ImGui::BulletText("Toolbar recenter button: recenter the page camera.");
         ImGui::BulletText("Mouse wheel: zoom the page camera.");
         ImGui::BulletText("Right-drag: pan the page camera.");
         ImGui::BulletText("Right-click: open selection and clipping actions.");
@@ -1231,16 +1231,16 @@ bool DrawViewportToolbar(const ImVec2 viewportOrigin,
     bool resetRequested = false;
 
     ImGui::SetCursorScreenPos(layout.helpButtonPos);
-    if (ImGui::Button(helpButtonId, layout.buttonSize))
+    if (IconButton(helpButtonId, EditorIcon::Help, "Open a compact summary of the controls available in this view."))
     {
         ImGui::OpenPopup(popupId);
     }
-    ShowItemTooltip("Open a compact summary of the controls available in this view.");
 
     ImGui::SetCursorScreenPos(layout.resetButtonPos);
-    resetRequested = ImGui::Button(resetButtonId, layout.buttonSize);
-    ShowItemTooltip(libraryPreview ? "Recenter the reticle-studio camera on its neutral view."
-                                   : "Recenter the page camera on the authored page view.");
+    resetRequested = IconButton(resetButtonId,
+                                EditorIcon::Recenter,
+                                libraryPreview ? "Recenter the reticle-studio camera on its neutral view."
+                                               : "Recenter the page camera on the authored page view.");
 
     ImGui::SetCursorScreenPos(layout.textPos);
     ImGui::TextDisabled("%s", layout.infoLabel.data());
@@ -3708,7 +3708,7 @@ void EditorApplication::DrawPagePreviewViewMenuItems(const bool showProblemsIndi
     if (showProblemsIndicator)
     {
         ImGui::Separator();
-        ImGui::TextDisabled("Validation issues are available. Enable Problems to inspect them below the preview.");
+        DisabledTextWrapped("Validation issues are available. Enable Problems to inspect them below the preview.");
     }
 }
 
@@ -4262,7 +4262,7 @@ void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
 
         if (entry.reticleCount == 0U)
         {
-            ImGui::TextDisabled("No page reticles currently target this layer.");
+            DisabledTextWrapped("No page reticles currently target this layer.");
         }
 
         if (!entry.fullView && !entry.visible)
@@ -4332,7 +4332,7 @@ void EditorApplication::DrawProblemsPanel(const std::vector<editor::PagePreviewP
         ImGui::SameLine();
         ImGui::TextDisabled("(%zu)", problems.size());
     }
-    ImGui::TextDisabled("Validation diagnostics for the current editor state. Click a problem to select it.");
+    DisabledTextWrapped("Validation diagnostics for the current editor state. Click a problem to select it.");
     ImGui::Separator();
 
     if (ImGui::BeginChild("PagePreviewProblemsScrollRegion", ImVec2(0.0f, 0.0f), false))
@@ -5313,8 +5313,8 @@ void EditorApplication::DrawReticleClipMenuItems(mfd::PageDefinition& page,
     mfd::Primitive& primitive = reticle.primitives[static_cast<std::size_t>(primitiveIndex)];
     if (primitive.id.empty() || !mfd::SupportsReticleClipPrimitive(primitive))
     {
-        ImGui::TextDisabled("The selected primitive does not support clipping.");
-        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
+        DisabledTextWrapped("The selected primitive does not support clipping.");
+        DisabledTextWrapped("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
         return;
     }
 
@@ -5399,8 +5399,8 @@ void EditorApplication::DrawReticleContextContent(mfd::PageDefinition& page, con
     ImGui::Separator();
     if (reticleTargets.empty())
     {
-        ImGui::TextDisabled("No convex primitive under the mouse for clipping.");
-        ImGui::TextDisabled("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
+        DisabledTextWrapped("No convex primitive under the mouse for clipping.");
+        DisabledTextWrapped("Supported mask shapes: triangle, square, rectangle, circle, ellipse.");
         return;
     }
 
@@ -5410,7 +5410,7 @@ void EditorApplication::DrawReticleContextContent(mfd::PageDefinition& page, con
         return;
     }
 
-    ImGui::TextDisabled("Clip through one of the hovered primitives:");
+    DisabledTextWrapped("Clip through one of the hovered primitives:");
     for (const PageClipTarget& target : reticleTargets)
     {
         const mfd::Primitive& primitive =
@@ -5533,7 +5533,7 @@ void EditorApplication::DrawPageReticleContextMenu()
     }
 
     ImGui::Separator();
-    ImGui::TextDisabled("Right-click lists every hovered reticle, then lets you target clipping per hovered primitive.");
+    DisabledTextWrapped("Right-click lists every hovered reticle, then lets you target clipping per hovered primitive.");
 
     ImGui::EndPopup();
 }
@@ -7678,7 +7678,7 @@ void EditorApplication::DrawPopups()
     if (ImGui::BeginPopupModal("Recover session##recovery", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::TextUnformatted("Unsaved work from a previous session was found.");
-        ImGui::TextDisabled("Recover it, or discard the recovery snapshot.");
+        DisabledTextWrapped("Recover it, or discard the recovery snapshot.");
         ImGui::Separator();
         if (AccentButton("Recover"))
         {
@@ -7703,7 +7703,7 @@ void EditorApplication::DrawPopups()
     if (ImGui::BeginPopupModal("Unsaved changes##exit", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::TextUnformatted("This window has unsaved changes.");
-        ImGui::TextDisabled("Save before quitting, or quit and discard the changes.");
+        DisabledTextWrapped("Save before quitting, or quit and discard the changes.");
         ImGui::Separator();
         if (AccentButton("Save and quit"))
         {
@@ -7969,7 +7969,7 @@ void EditorApplication::DrawPopups()
             ImGui::ColorEdit4("First page background", &workflowState_.newWindowDraft.firstPageBackground.x);
         }
 
-        ImGui::TextDisabled("Use the repo source assets folders, not the staged runtime copy under _Exec.");
+        DisabledTextWrapped("Use the repo source assets folders, not the staged runtime copy under _Exec.");
 
         if (AccentButton("Create window"))
         {
@@ -8015,7 +8015,7 @@ void EditorApplication::DrawPopups()
         }
         ImGui::ColorEdit4("Background", &workflowState_.newPageDraft.background.x);
         ShowItemTooltip("Initial page background color.");
-        ImGui::TextDisabled("Use the repo source assets folders, not the staged runtime copy under _Exec.");
+        DisabledTextWrapped("Use the repo source assets folders, not the staged runtime copy under _Exec.");
 
         if (AccentButton("Create page"))
         {

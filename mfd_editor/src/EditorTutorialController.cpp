@@ -28,6 +28,7 @@
 namespace
 {
 using editor::ui::AccentButton;
+using editor::ui::DisabledTextWrapped;
 
 constexpr int kTutorialStepMin = 0;
 constexpr std::string_view kEditorDefaultWindowFile = "assets/windows/demo_pages.json";
@@ -537,7 +538,7 @@ void EditorTutorialController::DrawCoach()
     }
     else
     {
-        ImGui::TextDisabled("This step stays blocked until the highlighted click succeeds.");
+        DisabledTextWrapped("This step stays blocked until the highlighted click succeeds.");
         const std::string_view actionLabel = CurrentActionLabel();
         if (!actionLabel.empty())
         {
