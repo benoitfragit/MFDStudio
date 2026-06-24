@@ -653,11 +653,7 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const std::string pagesHeader = "Pages (" + std::to_string(visiblePages) + ")###SidebarPagesHeader";
     if (ImGui::CollapsingHeader(pagesHeader.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
     {
-        if (AccentButton("+ Add page"))
-        {
-            OpenNewPagePopup();
-        }
-        ShowItemTooltip("Create a new page and its backing JSON file.");
+        DrawPageActionToolbar();
         ImGui::Spacing();
         DrawPageTree(filter, problems);
     }
@@ -672,16 +668,96 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
         "Reticle library (" + std::to_string(visibleReticles) + ")###SidebarLibraryHeader";
     if (ImGui::CollapsingHeader(libraryHeader.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
     {
-        if (AccentButton("+ New reticle"))
-        {
-            OpenNewLibraryReticlePopup();
-        }
-        ShowItemTooltip("Create a new library reticle seeded with one primitive.");
+        DrawLibraryActionToolbar();
         ImGui::Spacing();
         DrawLibraryTree(filter, problems);
     }
 
     ImGui::PopStyleVar();
+}
+
+void EditorApplication::DrawPageActionToolbar()
+{
+    // The add-page affordance now speaks the same white-glyph icon language as the rest of the editor
+    // instead of a text accent button.
+    if (IconButton("##sidebar_add_page", EditorIcon::Add, "Create a new page and its backing JSON file."))
+    {
+        OpenNewPagePopup();
+    }
+
+    // The rename/remove/delete actions ride next to the add button rather than crowding every page row,
+    // so they only surface while a page is the active selection.
+    const int pageCount = static_cast<int>(documentState_.loaded.document.pages.size());
+    const bool pageSelected =
+        documentState_.selection.kind == SelectionKind::Page &&
+        documentState_.selection.pageIndex >= 0 &&
+        documentState_.selection.pageIndex < pageCount;
+    if (!pageSelected)
+    {
+        return;
+    }
+
+    const int pageIndex = documentState_.selection.pageIndex;
+    ImGui::SameLine();
+    if (IconButton("##sidebar_rename_page", EditorIcon::Rename, "Rename the selected page globally."))
+    {
+        OpenPageRenamePopup(pageIndex);
+    }
+    ImGui::SameLine();
+    if (IconButton("##sidebar_remove_page", EditorIcon::RemoveFromWindow, "Remove the selected page from the window."))
+    {
+        OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, pageIndex);
+    }
+    ImGui::SameLine();
+    if (IconButton("##sidebar_delete_page", EditorIcon::Delete, "Delete the selected page asset."))
+    {
+        OpenPageManagementPopup(PageManagementAction::DeleteAsset, pageIndex);
+    }
+}
+
+void EditorApplication::DrawLibraryActionToolbar()
+{
+    if (IconButton("##sidebar_add_reticle", EditorIcon::Add, "Create a new library reticle seeded with one primitive."))
+    {
+        OpenNewLibraryReticlePopup();
+    }
+
+    // Resolve the template the row actions should target: the browser highlight wins, otherwise the
+    // template currently edited in the studio. Captured by value so a delete cannot invalidate it.
+    std::string selectedReticleId = documentState_.selection.libraryBrowserReticleId;
+    if (selectedReticleId.empty() &&
+        (documentState_.selection.kind == SelectionKind::LibraryReticle ||
+         documentState_.selection.kind == SelectionKind::LibraryPrimitive))
+    {
+        selectedReticleId = documentState_.selection.libraryReticleId;
+    }
+
+    const bool reticleSelected =
+        !selectedReticleId.empty() &&
+        documentState_.loaded.document.reticleLibrary.count(selectedReticleId) > 0;
+    if (!reticleSelected)
+    {
+        return;
+    }
+
+    ImGui::SameLine();
+    if (IconButton("##sidebar_rename_reticle", EditorIcon::Rename, "Rename the selected template globally."))
+    {
+        SelectLibraryReticle(selectedReticleId);
+        OpenReticleRenamePopup(selectedReticleId);
+    }
+    ImGui::SameLine();
+    if (IconButton("##sidebar_duplicate_reticle", EditorIcon::Duplicate, "Duplicate the selected template under a new id."))
+    {
+        SelectLibraryReticle(selectedReticleId);
+        OpenDuplicateLibraryReticlePopup();
+    }
+    ImGui::SameLine();
+    if (IconButton("##sidebar_delete_reticle", EditorIcon::Delete, "Delete the selected template from the library."))
+    {
+        SelectLibraryReticle(selectedReticleId);
+        DeleteSelectedLibraryReticle();
+    }
 }
 
 void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProblem>& pagePreviewProblems)

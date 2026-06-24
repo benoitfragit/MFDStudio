@@ -2379,8 +2379,6 @@ void EditorApplication::DrawPageTree(const editor::SidebarFilterQuery& filter,
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.78f, 0.38f, 1.0f));
         }
         const bool open = ImGui::TreeNodeEx((pageLabel + "##page_" + std::to_string(pageIndex)).c_str(), flags);
-        const ImVec2 pageRowMin = ImGui::GetItemRectMin();
-        const ImVec2 pageRowMax = ImGui::GetItemRectMax();
         if (pageUsesSelectedReticle)
         {
             ImGui::PopStyleColor();
@@ -2421,34 +2419,8 @@ void EditorApplication::DrawPageTree(const editor::SidebarFilterQuery& filter,
             ImGui::EndPopup();
         }
 
-        // Inline row actions surface the same rename/remove/delete language directly on the
-        // hovered or selected page row, mirroring the page inspector and the top menu.
-        const bool pageRowActive =
-            (documentState_.selection.kind == SelectionKind::Page && documentState_.selection.pageIndex == pageIndex) ||
-            ImGui::IsMouseHoveringRect(pageRowMin, pageRowMax);
-        if (pageRowActive)
-        {
-            const std::string suffix = "##page_row_" + std::to_string(pageIndex);
-            const float iconSize = BeginRowIconStrip(pageRowMin, pageRowMax, 3);
-            if (IconButton(("rename" + suffix).c_str(), EditorIcon::Rename, "Rename this page globally.", true, iconSize))
-            {
-                SelectPage(pageIndex);
-                OpenPageRenamePopup(pageIndex);
-            }
-            ImGui::SameLine();
-            if (IconButton(("remove" + suffix).c_str(), EditorIcon::RemoveFromWindow, "Remove this page from the window.", true, iconSize))
-            {
-                SelectPage(pageIndex);
-                OpenPageManagementPopup(PageManagementAction::RemoveFromWindow, pageIndex);
-            }
-            ImGui::SameLine();
-            if (IconButton(("delete" + suffix).c_str(), EditorIcon::Delete, "Delete this page asset.", true, iconSize))
-            {
-                SelectPage(pageIndex);
-                OpenPageManagementPopup(PageManagementAction::DeleteAsset, pageIndex);
-            }
-        }
-
+        // Page rename/remove/delete actions live on the Pages header toolbar (DrawPageActionToolbar),
+        // next to the add-page glyph, so the rows stay uncluttered while a page is selected.
         if (open)
         {
             ImGui::TextDisabled("file: %s", pageIndex < static_cast<int>(documentState_.files.pageFiles.size())
@@ -2631,8 +2603,6 @@ void EditorApplication::DrawLibraryTree(const editor::SidebarFilterQuery& filter
         }
 
         ImGui::TreeNodeEx((templateId + "##library").c_str(), flags);
-        const ImVec2 libraryRowMin = ImGui::GetItemRectMin();
-        const ImVec2 libraryRowMax = ImGui::GetItemRectMax();
         const auto libraryIt = documentState_.loaded.document.reticleLibrary.find(templateId);
         if (libraryIt != documentState_.loaded.document.reticleLibrary.end())
         {
@@ -2699,30 +2669,8 @@ void EditorApplication::DrawLibraryTree(const editor::SidebarFilterQuery& filter
             ImGui::EndPopup();
         }
 
-        // Inline row actions mirror the library inspector's icon bar so the hovered or selected
-        // template can be renamed, duplicated or deleted without opening the inspector.
-        if (selected || ImGui::IsMouseHoveringRect(libraryRowMin, libraryRowMax))
-        {
-            const std::string suffix = "##library_row_" + templateId;
-            const float iconSize = BeginRowIconStrip(libraryRowMin, libraryRowMax, 3);
-            if (IconButton(("rename" + suffix).c_str(), EditorIcon::Rename, "Rename this template globally.", true, iconSize))
-            {
-                SelectLibraryReticle(templateId);
-                OpenReticleRenamePopup(templateId);
-            }
-            ImGui::SameLine();
-            if (IconButton(("duplicate" + suffix).c_str(), EditorIcon::Duplicate, "Duplicate this template under a new id.", true, iconSize))
-            {
-                SelectLibraryReticle(templateId);
-                OpenDuplicateLibraryReticlePopup();
-            }
-            ImGui::SameLine();
-            if (IconButton(("delete" + suffix).c_str(), EditorIcon::Delete, "Delete this template from the library.", true, iconSize))
-            {
-                SelectLibraryReticle(templateId);
-                DeleteSelectedLibraryReticle();
-            }
-        }
+        // Template rename/duplicate/delete actions live on the Reticle-library header toolbar
+        // (DrawLibraryActionToolbar), next to the add-reticle glyph, so the rows stay uncluttered.
     }
 }
 
