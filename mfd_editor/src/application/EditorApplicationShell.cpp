@@ -44,13 +44,6 @@ constexpr float kMinWorkspaceWidth = 360.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 
-// The sidebar uses a slightly larger font and roomier rows than the rest of the editor so
-// the page/reticle lists stay comfortable to scan and the inline row action buttons (rename,
-// remove, delete, ...) read as clearly clickable. The row icons are sized from the tree-row
-// height, so this extra vertical frame padding also enlarges them without overflowing the line.
-constexpr float kSidebarFontScale = 1.12f;
-constexpr float kSidebarRowFramePaddingY = 11.0f;
-
 void DrawRuntimeErrorBanner(const std::string& runtimeError)
 {
     if (runtimeError.empty())
@@ -579,9 +572,6 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
 {
     if (!HasOpenWindow())
     {
-        // Keep the empty-state hint at the default size even after a window was closed, since the
-        // enlarged scale below persists on the child window until explicitly reset.
-        ImGui::SetWindowFontScale(1.0f);
         ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "MFD Editor");
         DisabledTextWrapped("Work directly in the page visualization.");
         ImGui::Separator();
@@ -592,13 +582,6 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
         DrawRuntimeErrorBanner(workflowState_.lastRuntimeError);
         return;
     }
-
-    // Enlarge the sidebar font and row height a touch so the page/reticle lists read well and
-    // the inline row action icons (sized from the tree-row height) grow with them. The font scale
-    // applies to this child window only; the frame padding is popped before the function returns.
-    ImGui::SetWindowFontScale(kSidebarFontScale);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(ImGui::GetStyle().FramePadding.x, kSidebarRowFramePaddingY));
 
     // Surface runtime failures at the top of the panel where they cannot be missed.
     DrawRuntimeErrorBanner(workflowState_.lastRuntimeError);
@@ -673,8 +656,6 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
         ImGui::Spacing();
         DrawLibraryTree(filter, problems);
     }
-
-    ImGui::PopStyleVar();
 }
 
 void EditorApplication::DrawPageActionToolbar()
