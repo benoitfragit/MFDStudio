@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <imgui.h>
@@ -762,6 +763,62 @@ inline void BootstrapEditorLayersForPage(mfd::PageDefinition& page)
             binding.layerId = fallbackLayerId;
         }
     }
+}
+
+/**
+ * @brief Direction in which one runtime page layer can be shifted inside the page order.
+ */
+enum class PageLayerMoveDirection
+{
+    /** @brief Moves the layer one slot earlier in the render order. */
+    Up,
+    /** @brief Moves the layer one slot later in the render order. */
+    Down
+};
+
+/**
+ * @brief Moves one runtime page layer up or down by a single slot, keeping editor state in sync.
+ * @param page Mutable page whose layer order is updated.
+ * @param layerIndex Index of the layer to move inside `page.layers`.
+ * @param direction Direction of the requested single-slot move.
+ * @return `true` when the layer actually moved, `false` for any no-op.
+ *
+ * @note `PageDefinition::layers` and `PageDefinition::editor.layers` are reordered together so the
+ * runtime draw order and the editor-only visibility mirror never desynchronize. The whole layer
+ * elements are swapped, so every layer id, editor-only visibility flag and any other
+ * `PageLayerDefinition` property travels with the moved layer. Reticle and dynamic-binding layer
+ * references are keyed by id and therefore stay valid without modification.
+ * @note Invalid indices, moving the first layer up and moving the last layer down are no-ops that
+ * leave the page untouched.
+ * @pre `BootstrapEditorLayersForPage` is invoked before the swap so the editor mirror is aligned
+ * one-to-one with the runtime layers.
+ */
+inline bool MovePageLayer(mfd::PageDefinition& page,
+                          const std::size_t layerIndex,
+                          const PageLayerMoveDirection direction)
+{
+    if (layerIndex >= page.layers.size())
+    {
+        return false;
+    }
+
+    const bool movingUp = direction == PageLayerMoveDirection::Up;
+    if (movingUp && layerIndex == 0U)
+    {
+        return false;
+    }
+    if (!movingUp && layerIndex + 1U >= page.layers.size())
+    {
+        return false;
+    }
+
+    const std::size_t targetIndex = movingUp ? layerIndex - 1U : layerIndex + 1U;
+
+    BootstrapEditorLayersForPage(page);
+
+    std::swap(page.layers[layerIndex], page.layers[targetIndex]);
+    std::swap(page.editor.layers[layerIndex], page.editor.layers[targetIndex]);
+    return true;
 }
 
 /**

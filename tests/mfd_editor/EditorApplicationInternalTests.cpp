@@ -165,6 +165,132 @@ TEST(EditorApplicationInternalTests, ShouldAdvanceTutorialOnSuccessfulSaveReject
     EXPECT_FALSE(editor::detail::ShouldAdvanceTutorialOnSuccessfulSave(true, false, false));
 }
 
+namespace
+{
+mfd::PageDefinition MakeThreeLayerPage()
+{
+    mfd::PageDefinition page;
+    page.layers = {
+        mfd::PageLayerDefinition {"background"},
+        mfd::PageLayerDefinition {"symbols"},
+        mfd::PageLayerDefinition {"overlay"}};
+    page.editor.layers = {
+        mfd::EditorLayerDefinition {"background", true},
+        mfd::EditorLayerDefinition {"symbols", false},
+        mfd::EditorLayerDefinition {"overlay", true}};
+
+    mfd::ReticleGroup symbolReticle;
+    symbolReticle.id = "track";
+    symbolReticle.layerId = "symbols";
+    page.staticReticles.push_back(symbolReticle);
+
+    mfd::DynamicReticleLayerBinding binding;
+    binding.templateId = "radar";
+    binding.layerId = "symbols";
+    binding.orderInLayer = 7;
+    page.dynamicReticleBindings.push_back(binding);
+
+    return page;
+}
+
+std::vector<std::string> LayerIds(const mfd::PageDefinition& page)
+{
+    std::vector<std::string> ids;
+    ids.reserve(page.layers.size());
+    for (const mfd::PageLayerDefinition& layer : page.layers)
+    {
+        ids.push_back(layer.id);
+    }
+    return ids;
+}
+
+std::vector<std::string> EditorLayerIds(const mfd::PageDefinition& page)
+{
+    std::vector<std::string> ids;
+    ids.reserve(page.editor.layers.size());
+    for (const mfd::EditorLayerDefinition& layer : page.editor.layers)
+    {
+        ids.push_back(layer.id);
+    }
+    return ids;
+}
+} // namespace
+
+TEST(EditorApplicationInternalTests, MovePageLayerUpMovesRuntimeAndEditorVectorsTogether)
+{
+    mfd::PageDefinition page = MakeThreeLayerPage();
+
+    EXPECT_TRUE(editor::detail::MovePageLayer(page, 1U, editor::detail::PageLayerMoveDirection::Up));
+
+    EXPECT_EQ(LayerIds(page), (std::vector<std::string> {"symbols", "background", "overlay"}));
+    EXPECT_EQ(EditorLayerIds(page), (std::vector<std::string> {"symbols", "background", "overlay"}));
+}
+
+TEST(EditorApplicationInternalTests, MovePageLayerDownMovesRuntimeAndEditorVectorsTogether)
+{
+    mfd::PageDefinition page = MakeThreeLayerPage();
+
+    EXPECT_TRUE(editor::detail::MovePageLayer(page, 1U, editor::detail::PageLayerMoveDirection::Down));
+
+    EXPECT_EQ(LayerIds(page), (std::vector<std::string> {"background", "overlay", "symbols"}));
+    EXPECT_EQ(EditorLayerIds(page), (std::vector<std::string> {"background", "overlay", "symbols"}));
+}
+
+TEST(EditorApplicationInternalTests, MovePageLayerFirstUpIsNoOp)
+{
+    mfd::PageDefinition page = MakeThreeLayerPage();
+
+    EXPECT_FALSE(editor::detail::MovePageLayer(page, 0U, editor::detail::PageLayerMoveDirection::Up));
+    EXPECT_EQ(LayerIds(page), (std::vector<std::string> {"background", "symbols", "overlay"}));
+}
+
+TEST(EditorApplicationInternalTests, MovePageLayerLastDownIsNoOp)
+{
+    mfd::PageDefinition page = MakeThreeLayerPage();
+
+    EXPECT_FALSE(editor::detail::MovePageLayer(page, 2U, editor::detail::PageLayerMoveDirection::Down));
+    EXPECT_EQ(LayerIds(page), (std::vector<std::string> {"background", "symbols", "overlay"}));
+}
+
+TEST(EditorApplicationInternalTests, MovePageLayerInvalidIndexIsNoOp)
+{
+    mfd::PageDefinition page = MakeThreeLayerPage();
+
+    EXPECT_FALSE(editor::detail::MovePageLayer(page, 9U, editor::detail::PageLayerMoveDirection::Up));
+    EXPECT_EQ(LayerIds(page), (std::vector<std::string> {"background", "symbols", "overlay"}));
+}
+
+TEST(EditorApplicationInternalTests, MovePageLayerKeepsEditorVisibilityWithItsLayer)
+{
+    mfd::PageDefinition page = MakeThreeLayerPage();
+
+    ASSERT_TRUE(editor::detail::MovePageLayer(page, 1U, editor::detail::PageLayerMoveDirection::Up));
+
+    const mfd::EditorLayerDefinition* symbols = nullptr;
+    for (const mfd::EditorLayerDefinition& layer : page.editor.layers)
+    {
+        if (layer.id == "symbols")
+        {
+            symbols = &layer;
+        }
+    }
+    ASSERT_NE(symbols, nullptr);
+    EXPECT_FALSE(symbols->visible);
+}
+
+TEST(EditorApplicationInternalTests, MovePageLayerPreservesReticleAndBindingLayerReferences)
+{
+    mfd::PageDefinition page = MakeThreeLayerPage();
+
+    ASSERT_TRUE(editor::detail::MovePageLayer(page, 1U, editor::detail::PageLayerMoveDirection::Down));
+
+    ASSERT_EQ(page.staticReticles.size(), 1U);
+    EXPECT_EQ(page.staticReticles.front().layerId, "symbols");
+    ASSERT_EQ(page.dynamicReticleBindings.size(), 1U);
+    EXPECT_EQ(page.dynamicReticleBindings.front().layerId, "symbols");
+    EXPECT_EQ(page.dynamicReticleBindings.front().orderInLayer, 7);
+}
+
 TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointEnumeratesImageCorners)
 {
     mfd::Primitive primitive;
