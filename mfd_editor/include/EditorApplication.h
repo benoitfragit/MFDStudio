@@ -336,6 +336,12 @@ private:
     void DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page);
     /** @brief Draws the docked layer-inspector panel shown next to the page preview. */
     void DrawLayerInspectorPanel(mfd::PageDefinition& page);
+    /**
+     * @brief Applies the layer-inspector focus selection for one strip entry.
+     * @param page Active page being inspected.
+     * @param entry Strip entry whose layer (or synthetic Full View) becomes focused.
+     */
+    void ApplyLayerInspectorEntryFocus(mfd::PageDefinition& page, const editor::LayerFocusStripEntry& entry);
     /** @brief Draws the docked validation panel shown under the page preview. */
     void DrawProblemsPanel(const std::vector<editor::PagePreviewProblem>& problems);
     /** @brief Selects the editor entity referenced by one validation problem context. */

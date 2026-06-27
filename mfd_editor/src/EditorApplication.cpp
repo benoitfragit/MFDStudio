@@ -4280,11 +4280,25 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
     }
 }
 
+void EditorApplication::ApplyLayerInspectorEntryFocus(mfd::PageDefinition& page,
+                                                      const editor::LayerFocusStripEntry& entry)
+{
+    if (entry.fullView)
+    {
+        ClearLayerFocus(true);
+        return;
+    }
+
+    layoutState_.layerFocusState = services_.layerFocus.MakeFocusedState(page, entry.layerId);
+    SanitizePageReticleSelectionForCurrentFocus();
+    RebuildStatus("Layer focus set to '" + entry.layerId + "' on page '" + page.name + "'.", false);
+}
+
 void EditorApplication::DrawLayerInspectorPanel(mfd::PageDefinition& page)
 {
     const editor::LayerFocusStripModel model = services_.layerFocus.BuildStripModel(page, layoutState_.layerFocusState);
     ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
-    ImGui::TextDisabled("Click a name or thumbnail to focus; use the up/down buttons to reorder.");
+    ImGui::TextDisabled("Click a layer or its thumbnail to focus; use the up/down buttons to reorder.");
     ImGui::Separator();
 
     const float previewWidth = std::max(72.0f, ImGui::GetContentRegionAvail().x);
@@ -4294,31 +4308,11 @@ void EditorApplication::DrawLayerInspectorPanel(mfd::PageDefinition& page)
     for (std::size_t index = 0; index < model.entries.size(); ++index)
     {
         const editor::LayerFocusStripEntry& entry = model.entries[index];
-        const bool pressed = ImGui::Selectable(entry.label.c_str(), entry.selected);
-        if (pressed)
-        {
-            if (entry.fullView)
-            {
-                ClearLayerFocus(true);
-            }
-            else
-            {
-                layoutState_.layerFocusState = services_.layerFocus.MakeFocusedState(page, entry.layerId);
-                SanitizePageReticleSelectionForCurrentFocus();
-                RebuildStatus("Layer focus set to '" + entry.layerId + "' on page '" + page.name + "'.", false);
-            }
-        }
+        ImGui::PushID(static_cast<int>(index));
 
-        const std::string metaLabel =
-            entry.fullView ? std::to_string(entry.reticleCount) + " page reticle(s)"
-                           : std::to_string(entry.reticleCount) + " reticle(s)" +
-                                 (entry.visible ? "" : "  hidden in preview");
-        ImGui::TextDisabled("%s", metaLabel.c_str());
-
-        // The synthetic Full View entry stays focus-only and never offers reorder controls.
+        int layerIndex = -1;
         if (!entry.fullView)
         {
-            int layerIndex = -1;
             for (std::size_t candidate = 0; candidate < page.layers.size(); ++candidate)
             {
                 if (page.layers[candidate].id == entry.layerId)
@@ -4327,39 +4321,52 @@ void EditorApplication::DrawLayerInspectorPanel(mfd::PageDefinition& page)
                     break;
                 }
             }
+        }
 
-            if (layerIndex >= 0)
+        // Title row: the label focuses the layer; reorder buttons sit on the same line.
+        const float iconSize = ImGui::GetFrameHeight();
+        const float spacing = ImGui::GetStyle().ItemSpacing.x;
+        const float reservedWidth = layerIndex >= 0 ? 2.0f * iconSize + 2.0f * spacing : 0.0f;
+        const float selectableWidth = std::max(1.0f, ImGui::GetContentRegionAvail().x - reservedWidth);
+        if (ImGui::Selectable(entry.label.c_str(), entry.selected, 0, ImVec2(selectableWidth, 0.0f)))
+        {
+            ApplyLayerInspectorEntryFocus(page, entry);
+        }
+
+        bool reordered = false;
+        if (layerIndex >= 0)
+        {
+            const bool isFirstLayer = layerIndex == 0;
+            const bool isLastLayer = static_cast<std::size_t>(layerIndex) + 1U >= page.layers.size();
+            ImGui::SameLine();
+            if (IconButton("##strip_move_up", EditorIcon::MoveUp, "Move layer up", !isFirstLayer))
             {
-                const bool isFirstLayer = layerIndex == 0;
-                const bool isLastLayer = static_cast<std::size_t>(layerIndex) + 1U >= page.layers.size();
-                ImGui::PushID(static_cast<int>(index));
-                bool reordered = false;
-                if (IconButton("##strip_move_up", EditorIcon::MoveUp, "Move layer up", !isFirstLayer))
-                {
-                    reordered = ReorderActivePageLayer(page, static_cast<std::size_t>(layerIndex), true);
-                }
-                ImGui::SameLine();
-                if (!reordered &&
-                    IconButton("##strip_move_down", EditorIcon::MoveDown, "Move layer down", !isLastLayer))
-                {
-                    reordered = ReorderActivePageLayer(page, static_cast<std::size_t>(layerIndex), false);
-                }
-                ImGui::PopID();
-                if (reordered)
-                {
-                    break;
-                }
-
-                // Compact read-only hint; the option itself is edited in the Page Layer Inspector.
-                if (page.layers[static_cast<std::size_t>(layerIndex)].clippingEraseLayerOnly)
-                {
-                    ImGui::TextDisabled("Erase layer only");
-                    ShowItemTooltip("Clipping in this layer only erases content drawn inside the same "
-                                    "layer. Edit this option in the Page layers inspector.");
-                }
+                reordered = ReorderActivePageLayer(page, static_cast<std::size_t>(layerIndex), true);
+            }
+            ImGui::SameLine();
+            if (!reordered &&
+                IconButton("##strip_move_down", EditorIcon::MoveDown, "Move layer down", !isLastLayer))
+            {
+                reordered = ReorderActivePageLayer(page, static_cast<std::size_t>(layerIndex), false);
             }
         }
 
+        if (reordered)
+        {
+            ImGui::PopID();
+            break;
+        }
+
+        // Compact read-only hint; the option itself is edited in the Page Layer Inspector.
+        if (layerIndex >= 0 && page.layers[static_cast<std::size_t>(layerIndex)].clippingEraseLayerOnly)
+        {
+            ImGui::TextDisabled("Erase layer only");
+            ShowItemTooltip("Clipping in this layer only erases content drawn inside the same "
+                            "layer. Edit this option in the Page layers inspector.");
+        }
+
+        // The whole thumbnail is clickable and focuses the same layer entry.
+        const ImVec2 thumbnailPos = ImGui::GetCursorScreenPos();
         if (const RenderTexture2D* previewTexture =
                 RenderLayerPreviewThumbnail(index, page, entry, previewWidthPixels, previewHeightPixels);
             previewTexture != nullptr)
@@ -4374,15 +4381,22 @@ void EditorApplication::DrawLayerInspectorPanel(mfd::PageDefinition& page)
             ImGui::Dummy(ImVec2(previewWidth, kLayerInspectorPreviewHeight));
         }
 
+        ImGui::SetCursorScreenPos(thumbnailPos);
+        if (ImGui::InvisibleButton("##thumb_focus", ImVec2(previewWidth, kLayerInspectorPreviewHeight)))
+        {
+            ApplyLayerInspectorEntryFocus(page, entry);
+        }
+        if (!entry.fullView && !entry.visible)
+        {
+            ShowItemTooltip("This editor layer is currently hidden in the page preview.");
+        }
+
         if (entry.reticleCount == 0U)
         {
             DisabledTextWrapped("No page reticles currently target this layer.");
         }
 
-        if (!entry.fullView && !entry.visible)
-        {
-            ShowItemTooltip("This editor layer is currently hidden in the page preview.");
-        }
+        ImGui::PopID();
 
         if (index + 1U < model.entries.size())
         {
