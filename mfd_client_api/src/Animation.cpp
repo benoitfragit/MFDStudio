@@ -434,6 +434,12 @@ mfd::PrimitivePatch& PatchPrimitive(mfd::ReticlePatch& patch, const std::string_
 {
     return patch.primitivePatches[std::string(primitiveId)];
 }
+
+const mfd::PrimitivePatch* FindPrimitivePatch(const mfd::ReticlePatch& patch, const std::string_view primitiveId)
+{
+    const auto it = patch.primitivePatches.find(std::string(primitiveId));
+    return it != patch.primitivePatches.end() ? &it->second : nullptr;
+}
 } // namespace
 
 BlinkType::BlinkType(const std::string_view name, const mfd::TransportId transportId) :
@@ -788,11 +794,13 @@ PrimitiveHandle::PrimitiveHandle(mfd::ReticlePatch& patch,
                                  bool* dirty,
                                  const std::string_view primitiveId,
                                  const mfd::TransportId transportId,
-                                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
+                                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                                 PrimitiveBaseline baseline) :
     patch_(&patch),
     dirty_(dirty),
     primitiveId_(primitiveId),
-    transportId_(transportId)
+    transportId_(transportId),
+    baseline_(std::move(baseline))
 {
     if (primitiveTransportIds != nullptr && transportId_ != 0)
     {
@@ -869,6 +877,11 @@ mfd::PrimitivePatch& PrimitiveHandle::Patch() noexcept
     return PatchPrimitive(*patch_, primitiveId_);
 }
 
+const mfd::PrimitivePatch* PrimitiveHandle::Patch() const noexcept
+{
+    return FindPrimitivePatch(*patch_, primitiveId_);
+}
+
 void PrimitiveHandle::MarkDirty() noexcept
 {
     if (dirty_ != nullptr)
@@ -877,12 +890,54 @@ void PrimitiveHandle::MarkDirty() noexcept
     }
 }
 
+bool PrimitiveHandle::GetVisible() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->visible.has_value()) ? *patch->visible : baseline_.visible;
+}
+
+mfd::Vec2 PrimitiveHandle::GetPosition() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->position.has_value()) ? *patch->position : baseline_.position;
+}
+
+float PrimitiveHandle::GetRotationDegrees() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->rotationDegrees.has_value()) ? *patch->rotationDegrees : baseline_.rotationDegrees;
+}
+
+mfd::Vec2 PrimitiveHandle::GetScale() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->scale.has_value()) ? *patch->scale : baseline_.scale;
+}
+
+mfd::ColorRgba PrimitiveHandle::GetColor() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->color.has_value()) ? *patch->color : baseline_.color;
+}
+
+LineStyle PrimitiveHandle::GetLineStyle() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->lineStyle.has_value()) ? *patch->lineStyle : baseline_.lineStyle;
+}
+
+const PrimitiveBaseline& PrimitiveHandle::Baseline() const noexcept
+{
+    return baseline_;
+}
+
 TextHandle::TextHandle(mfd::ReticlePatch& patch,
                        bool* dirty,
                        const std::string_view primitiveId,
                        const mfd::TransportId transportId,
-                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                       PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -898,12 +953,23 @@ void TextHandle::SetLetterSpacing(const float letterSpacing)
     MarkDirty();
 }
 
+std::string TextHandle::GetText() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->text.has_value())
+    {
+        return *patch->text;
+    }
+    return Baseline().text;
+}
+
 TimeHandle::TimeHandle(mfd::ReticlePatch& patch,
                        bool* dirty,
                        const std::string_view primitiveId,
                        const mfd::TransportId transportId,
-                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                       PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -939,12 +1005,19 @@ void TimeHandle::SetFieldVisibility(const mfd::TimeFieldVisibility fields)
     MarkDirty();
 }
 
+std::optional<mfd::TimeValue> TimeHandle::GetTimeValue() const noexcept
+{
+    const auto* patch = Patch();
+    return patch != nullptr ? patch->timeValue : std::nullopt;
+}
+
 LineHandle::LineHandle(mfd::ReticlePatch& patch,
                        bool* dirty,
                        const std::string_view primitiveId,
                        const mfd::TransportId transportId,
-                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                       PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -960,12 +1033,25 @@ void LineHandle::SetEnd(const mfd::Vec2 end)
     MarkDirty();
 }
 
+mfd::Vec2 LineHandle::GetStart() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->lineStart.has_value()) ? *patch->lineStart : Baseline().lineStart;
+}
+
+mfd::Vec2 LineHandle::GetEnd() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->lineEnd.has_value()) ? *patch->lineEnd : Baseline().lineEnd;
+}
+
 CircleHandle::CircleHandle(mfd::ReticlePatch& patch,
                            bool* dirty,
                            const std::string_view primitiveId,
                            const mfd::TransportId transportId,
-                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                           PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -985,12 +1071,19 @@ void CircleHandle::SetRadius(const float radius)
     MarkDirty();
 }
 
+float CircleHandle::GetRadius() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->radius.has_value()) ? *patch->radius : Baseline().radius;
+}
+
 RingHandle::RingHandle(mfd::ReticlePatch& patch,
                        bool* dirty,
                        const std::string_view primitiveId,
                        const mfd::TransportId transportId,
-                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                       std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                       PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1022,12 +1115,31 @@ void RingHandle::SetSegments(const int segments)
     MarkDirty();
 }
 
+float RingHandle::GetInnerRadius() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->innerRadius.has_value()) ? *patch->innerRadius : Baseline().innerRadius;
+}
+
+float RingHandle::GetOuterRadius() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->outerRadius.has_value()) ? *patch->outerRadius : Baseline().outerRadius;
+}
+
+int RingHandle::GetSegments() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->segments.has_value()) ? *patch->segments : Baseline().segments;
+}
+
 RectangleHandle::RectangleHandle(mfd::ReticlePatch& patch,
                                  bool* dirty,
                                  const std::string_view primitiveId,
                                  const mfd::TransportId transportId,
-                                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                                 PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1059,12 +1171,55 @@ void RectangleHandle::SetSize(const mfd::Vec2 size)
     MarkDirty();
 }
 
+float RectangleHandle::GetWidth() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->width.has_value())
+    {
+        return *patch->width;
+    }
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return patch->size->x;
+    }
+    return Baseline().width;
+}
+
+float RectangleHandle::GetHeight() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->height.has_value())
+    {
+        return *patch->height;
+    }
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return patch->size->y;
+    }
+    return Baseline().height;
+}
+
+mfd::Vec2 RectangleHandle::GetSize() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return *patch->size;
+    }
+    if (patch != nullptr && (patch->width.has_value() || patch->height.has_value()))
+    {
+        return mfd::Vec2 {GetWidth(), GetHeight()};
+    }
+    return mfd::Vec2 {Baseline().width, Baseline().height};
+}
+
 EllipseHandle::EllipseHandle(mfd::ReticlePatch& patch,
                              bool* dirty,
                              const std::string_view primitiveId,
                              const mfd::TransportId transportId,
-                             std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                             std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                             PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1096,12 +1251,55 @@ void EllipseHandle::SetSize(const mfd::Vec2 size)
     MarkDirty();
 }
 
+float EllipseHandle::GetWidth() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->width.has_value())
+    {
+        return *patch->width;
+    }
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return patch->size->x;
+    }
+    return Baseline().width;
+}
+
+float EllipseHandle::GetHeight() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->height.has_value())
+    {
+        return *patch->height;
+    }
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return patch->size->y;
+    }
+    return Baseline().height;
+}
+
+mfd::Vec2 EllipseHandle::GetSize() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return *patch->size;
+    }
+    if (patch != nullptr && (patch->width.has_value() || patch->height.has_value()))
+    {
+        return mfd::Vec2 {GetWidth(), GetHeight()};
+    }
+    return mfd::Vec2 {Baseline().width, Baseline().height};
+}
+
 SquareHandle::SquareHandle(mfd::ReticlePatch& patch,
                            bool* dirty,
                            const std::string_view primitiveId,
                            const mfd::TransportId transportId,
-                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                           PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1121,12 +1319,19 @@ void SquareHandle::SetSize(const float side)
     MarkDirty();
 }
 
+float SquareHandle::GetSize() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->size.has_value()) ? patch->size->x : Baseline().width;
+}
+
 DiamondHandle::DiamondHandle(mfd::ReticlePatch& patch,
                              bool* dirty,
                              const std::string_view primitiveId,
                              const mfd::TransportId transportId,
-                             std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                             std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                             PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1158,12 +1363,55 @@ void DiamondHandle::SetSize(const mfd::Vec2 size)
     MarkDirty();
 }
 
+float DiamondHandle::GetWidth() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->width.has_value())
+    {
+        return *patch->width;
+    }
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return patch->size->x;
+    }
+    return Baseline().width;
+}
+
+float DiamondHandle::GetHeight() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->height.has_value())
+    {
+        return *patch->height;
+    }
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return patch->size->y;
+    }
+    return Baseline().height;
+}
+
+mfd::Vec2 DiamondHandle::GetSize() const noexcept
+{
+    const auto* patch = Patch();
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return *patch->size;
+    }
+    if (patch != nullptr && (patch->width.has_value() || patch->height.has_value()))
+    {
+        return mfd::Vec2 {GetWidth(), GetHeight()};
+    }
+    return mfd::Vec2 {Baseline().width, Baseline().height};
+}
+
 TriangleHandle::TriangleHandle(mfd::ReticlePatch& patch,
                                bool* dirty,
                                const std::string_view primitiveId,
                                const mfd::TransportId transportId,
-                               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                               PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1183,12 +1431,25 @@ void TriangleHandle::SetPoints(const std::array<mfd::Vec2, 3>& points)
     MarkDirty();
 }
 
+std::array<mfd::Vec2, 3> TriangleHandle::GetPoints() const noexcept
+{
+    const auto* patch = Patch();
+    const std::vector<mfd::Vec2>& points = (patch != nullptr && patch->points.has_value()) ? *patch->points : Baseline().points;
+    std::array<mfd::Vec2, 3> result {};
+    for (std::size_t index = 0; index < result.size() && index < points.size(); ++index)
+    {
+        result[index] = points[index];
+    }
+    return result;
+}
+
 PolylineHandle::PolylineHandle(mfd::ReticlePatch& patch,
                                bool* dirty,
                                const std::string_view primitiveId,
                                const mfd::TransportId transportId,
-                               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                               PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1214,12 +1475,25 @@ void PolylineHandle::SetClosed(const bool closed)
     MarkDirty();
 }
 
+std::vector<mfd::Vec2> PolylineHandle::GetPoints() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->points.has_value()) ? *patch->points : Baseline().points;
+}
+
+bool PolylineHandle::GetClosed() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->closed.has_value()) ? *patch->closed : Baseline().closed;
+}
+
 BezierHandle::BezierHandle(mfd::ReticlePatch& patch,
                            bool* dirty,
                            const std::string_view primitiveId,
                            const mfd::TransportId transportId,
-                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                           std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                           PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1235,12 +1509,25 @@ void BezierHandle::SetSegments(const int segments)
     MarkDirty();
 }
 
+std::vector<mfd::Vec2> BezierHandle::GetControlPoints() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->points.has_value()) ? *patch->points : Baseline().points;
+}
+
+int BezierHandle::GetSegments() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->segments.has_value()) ? *patch->segments : Baseline().segments;
+}
+
 ArcHandle::ArcHandle(mfd::ReticlePatch& patch,
                      bool* dirty,
                      const std::string_view primitiveId,
                      const mfd::TransportId transportId,
-                     std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                     std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                     PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
@@ -1278,23 +1565,50 @@ void ArcHandle::SetSegments(const int segments)
     MarkDirty();
 }
 
+float ArcHandle::GetRadius() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->radius.has_value()) ? *patch->radius : Baseline().radius;
+}
+
+float ArcHandle::GetStartAngleDegrees() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->startAngleDegrees.has_value()) ? *patch->startAngleDegrees : Baseline().startAngleDegrees;
+}
+
+float ArcHandle::GetEndAngleDegrees() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->endAngleDegrees.has_value()) ? *patch->endAngleDegrees : Baseline().endAngleDegrees;
+}
+
+int ArcHandle::GetSegments() const noexcept
+{
+    const auto* patch = Patch();
+    return (patch != nullptr && patch->segments.has_value()) ? *patch->segments : Baseline().segments;
+}
+
 ImageHandle::ImageHandle(mfd::ReticlePatch& patch,
                          bool* dirty,
                          const std::string_view primitiveId,
                          const mfd::TransportId transportId,
-                         std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds) :
-    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds)
+                         std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds,
+                         PrimitiveBaseline baseline) :
+    PrimitiveHandle(patch, dirty, primitiveId, transportId, primitiveTransportIds, std::move(baseline))
 {
 }
 
 Reticle::Reticle(const std::string_view pageName,
                  const std::string_view reticleId,
                  const mfd::TransportId pageTransportId,
-                 const mfd::TransportId reticleTransportId) :
+                 const mfd::TransportId reticleTransportId,
+                 ReticleBaseline baseline) :
     pageName_(pageName),
     reticleId_(reticleId),
     pageTransportId_(pageTransportId),
     reticleTransportId_(reticleTransportId),
+    baseline_(std::move(baseline)),
     Blink(desiredPatch_, &dirty_)
 {
 }
@@ -1394,6 +1708,36 @@ void Reticle::SetLetterSpacing(const std::string_view primitiveId, const float l
 {
     PatchSetLetterSpacing(desiredPatch_, primitiveId, letterSpacing);
     dirty_ = true;
+}
+
+bool Reticle::GetVisible() const noexcept
+{
+    return desiredPatch_.visible.value_or(baseline_.visible);
+}
+
+mfd::Vec2 Reticle::GetPosition() const noexcept
+{
+    return desiredPatch_.position.value_or(baseline_.position);
+}
+
+float Reticle::GetRotationDegrees() const noexcept
+{
+    return desiredPatch_.rotationDegrees.value_or(baseline_.rotationDegrees);
+}
+
+mfd::Vec2 Reticle::GetScale() const noexcept
+{
+    return desiredPatch_.scale.value_or(baseline_.scale);
+}
+
+mfd::ColorRgba Reticle::GetColor() const noexcept
+{
+    return desiredPatch_.color.value_or(baseline_.color);
+}
+
+std::string Reticle::GetText() const noexcept
+{
+    return desiredPatch_.text.value_or(baseline_.text);
 }
 
 bool Reticle::AppendCommands(std::vector<mfd::UserCommand>& commands)
@@ -1727,8 +2071,9 @@ void StrobeHandle::SelectDefaultStrobe() noexcept
     desiredStrobeNameNormalized_ = NormalizeStrobeName(selected.Name());
 }
 
-DynamicReticle::DynamicReticle(const std::string_view reticleId) :
+DynamicReticle::DynamicReticle(const std::string_view reticleId, ReticleBaseline baseline) :
     reticleId_(reticleId),
+    baseline_(std::move(baseline)),
     Blink(desiredPatch_, &dirty_)
 {
 }
@@ -1840,6 +2185,36 @@ void DynamicReticle::SetLetterSpacing(const std::string_view primitiveId, const 
 {
     PatchSetLetterSpacing(desiredPatch_, primitiveId, letterSpacing);
     dirty_ = true;
+}
+
+bool DynamicReticle::GetVisible() const noexcept
+{
+    return desiredPatch_.visible.value_or(baseline_.visible);
+}
+
+mfd::Vec2 DynamicReticle::GetPosition() const noexcept
+{
+    return desiredPatch_.position.value_or(baseline_.position);
+}
+
+float DynamicReticle::GetRotationDegrees() const noexcept
+{
+    return desiredPatch_.rotationDegrees.value_or(baseline_.rotationDegrees);
+}
+
+mfd::Vec2 DynamicReticle::GetScale() const noexcept
+{
+    return desiredPatch_.scale.value_or(baseline_.scale);
+}
+
+mfd::ColorRgba DynamicReticle::GetColor() const noexcept
+{
+    return desiredPatch_.color.value_or(baseline_.color);
+}
+
+std::string DynamicReticle::GetText() const noexcept
+{
+    return desiredPatch_.text.value_or(baseline_.text);
 }
 
 mfd::ReticlePatch& DynamicReticle::MutableDesiredPatch() noexcept

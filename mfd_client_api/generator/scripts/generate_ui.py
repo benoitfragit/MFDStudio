@@ -48,6 +48,12 @@ STATIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "SetScale",
     "SetColor",
     "SetThickness",
+    "GetVisible",
+    "GetPosition",
+    "GetRotationDegrees",
+    "GetScale",
+    "GetColor",
+    "GetText",
 )
 
 DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS = (
@@ -65,6 +71,12 @@ DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "SetRotationDegrees",
     "SetColor",
     "SetThickness",
+    "GetVisible",
+    "GetPosition",
+    "GetRotationDegrees",
+    "GetScale",
+    "GetColor",
+    "GetText",
 )
 
 DYNAMIC_SET_EXPOSED_BASE_MEMBERS = (
@@ -86,6 +98,7 @@ class PrimitiveSpec:
     primitive_type: str
     canonical_key: str
     transport_id: int
+    baseline_initializer: str
 
 
 @dataclass(frozen=True)
@@ -97,6 +110,7 @@ class ReticleSpec:
     transport_id: int
     primitives: list[PrimitiveSpec]
     status_primitive_accessor_name: str | None
+    baseline_initializer: str
 
 
 @dataclass(frozen=True)
@@ -261,6 +275,376 @@ def explicit_exposure(element: dict) -> bool:
             return bool(client_node["public"])
 
     return False
+
+
+PRIMITIVE_BASELINE_DEFAULTS: dict = {
+    "visible": True,
+    "position": (0.0, 0.0),
+    "rotationDegrees": 0.0,
+    "scale": (1.0, 1.0),
+    "color": (0, 255, 102, 255),
+    "lineStyle": "Solid",
+    "text": "",
+    "lineStart": (-0.0208, 0.0),
+    "lineEnd": (0.0208, 0.0),
+    "radius": 0.0208,
+    "innerRadius": 0.0167,
+    "outerRadius": 0.0208,
+    "width": 0.0417,
+    "height": 0.0208,
+    "points": (),
+    "closed": False,
+    "segments": 32,
+    "startAngleDegrees": 0.0,
+    "endAngleDegrees": 180.0,
+}
+
+RETICLE_BASELINE_DEFAULTS: dict = {
+    "visible": True,
+    "position": (0.0, 0.0),
+    "rotationDegrees": 0.0,
+    "scale": (1.0, 1.0),
+    "color": (0, 255, 102, 255),
+    "text": "",
+}
+
+
+def find_alias_field(node: dict, keys: tuple[str, ...]) -> object:
+    for key in keys:
+        if key in node and node[key] is not None:
+            return node[key]
+    return None
+
+
+def parse_vec2_value(value: object) -> tuple[float, float] | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value), float(value)
+    if isinstance(value, list) and len(value) == 2:
+        return float(value[0]), float(value[1])
+    if isinstance(value, dict):
+        return float(value.get("x", 0.0)), float(value.get("y", 0.0))
+    return None
+
+
+def parse_visible(node: dict) -> bool | None:
+    show = find_alias_field(node, ("show", "visible"))
+    if isinstance(show, bool):
+        return show
+
+    hidden = find_alias_field(node, ("hidden",))
+    if isinstance(hidden, bool):
+        return not hidden
+
+    return None
+
+
+def parse_transform(node: dict) -> dict:
+    result: dict = {}
+    sources = []
+    transform_node = node.get("transform")
+    if isinstance(transform_node, dict):
+        sources.append(transform_node)
+    sources.append(node)
+
+    for source in sources:
+        position = find_alias_field(source, ("position", "at", "pos"))
+        if position is not None:
+            parsed_position = parse_vec2_value(position)
+            if parsed_position is not None:
+                result["position"] = parsed_position
+        if "x" in source or "y" in source:
+            current = result.get("position", (0.0, 0.0))
+            x = source["x"] if "x" in source else current[0]
+            y = source["y"] if "y" in source else current[1]
+            if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                result["position"] = (float(x), float(y))
+
+        angle = find_alias_field(source, ("rotationDegrees", "angle", "rotation"))
+        if isinstance(angle, (int, float)):
+            result["rotationDegrees"] = float(angle)
+
+        scale = find_alias_field(source, ("scale", "zoom"))
+        if scale is not None:
+            if isinstance(scale, (int, float)):
+                result["scale"] = (float(scale), float(scale))
+            else:
+                parsed_scale = parse_vec2_value(scale)
+                if parsed_scale is not None:
+                    result["scale"] = parsed_scale
+        if any(key in source for key in ("sx", "sy", "scaleX", "scaleY")):
+            current = result.get("scale", (1.0, 1.0))
+            sx = source.get("sx", source.get("scaleX", current[0]))
+            sy = source.get("sy", source.get("scaleY", current[1]))
+            if isinstance(sx, (int, float)) and isinstance(sy, (int, float)):
+                result["scale"] = (float(sx), float(sy))
+
+    return result
+
+
+def parse_color_value(value: object) -> tuple[int, int, int, int] | None:
+    if isinstance(value, list) and 3 <= len(value) <= 4:
+        try:
+            channels = [int(channel) for channel in value]
+        except (TypeError, ValueError):
+            return None
+        red, green, blue = channels[0], channels[1], channels[2]
+        alpha = channels[3] if len(channels) == 4 else 255
+        return red, green, blue, alpha
+
+    if isinstance(value, dict):
+        red = value.get("r", 0)
+        green = value.get("g", 255)
+        blue = value.get("b", 0)
+        alpha = value.get("a", 255)
+        if all(isinstance(channel, (int, float)) for channel in (red, green, blue, alpha)):
+            return int(red), int(green), int(blue), int(alpha)
+        return None
+
+    if isinstance(value, str) and value.startswith("#"):
+        hex_digits = value[1:]
+        if len(hex_digits) == 6:
+            hex_digits += "ff"
+        if len(hex_digits) == 8:
+            try:
+                return (
+                    int(hex_digits[0:2], 16),
+                    int(hex_digits[2:4], 16),
+                    int(hex_digits[4:6], 16),
+                    int(hex_digits[6:8], 16),
+                )
+            except ValueError:
+                return None
+
+    return None
+
+
+def parse_color(node: dict) -> tuple[int, int, int, int] | None:
+    value = find_alias_field(node, ("stroke", "color", "strokeColor"))
+    if value is None:
+        return None
+    return parse_color_value(value)
+
+
+def parse_line_style(node: dict) -> str | None:
+    value = find_alias_field(node, ("lineStyle", "strokeStyle", "strokePattern"))
+    if not isinstance(value, str):
+        return None
+
+    token = normalize_lookup_name(value)
+    if token in ("solid", "plain", "full", "plein"):
+        return "Solid"
+    if token in ("dotted", "dot", "pointille"):
+        return "Dotted"
+    if token in ("dashed", "dash", "tiret", "tirets"):
+        return "Dashed"
+    return None
+
+
+def parse_primitive_geometry_baseline(element: dict, primitive_type: str) -> dict:
+    result: dict = {}
+
+    if primitive_type == "line":
+        start = find_alias_field(element, ("start", "from"))
+        if start is not None:
+            parsed_start = parse_vec2_value(start)
+            if parsed_start is not None:
+                result["lineStart"] = parsed_start
+        end = find_alias_field(element, ("end", "to"))
+        if end is not None:
+            parsed_end = parse_vec2_value(end)
+            if parsed_end is not None:
+                result["lineEnd"] = parsed_end
+
+    elif primitive_type == "circle":
+        radius = element.get("radius")
+        result["radius"] = float(radius) if isinstance(radius, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["radius"]
+
+    elif primitive_type == "ring":
+        outer_radius = find_alias_field(element, ("outerRadius", "radius"))
+        outer_radius = (
+            float(outer_radius) if isinstance(outer_radius, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["outerRadius"])
+        inner_radius = find_alias_field(element, ("innerRadius", "holeRadius"))
+        inner_radius = (
+            float(inner_radius) if isinstance(inner_radius, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["innerRadius"])
+        segments = element.get("segments")
+        result["outerRadius"] = max(0.0, outer_radius)
+        result["innerRadius"] = min(max(0.0, inner_radius), result["outerRadius"])
+        result["segments"] = max(12, segments) if isinstance(segments, int) else 64
+
+    elif primitive_type in ("rectangle", "ellipse"):
+        size = element.get("size")
+        size = float(size) if isinstance(size, (int, float)) else None
+        if primitive_type == "rectangle":
+            default_width = size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["width"]
+            default_height = size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["height"]
+        else:
+            radius_x_field = find_alias_field(element, ("radiusX", "rx"))
+            radius_x = float(radius_x_field) if isinstance(radius_x_field, (int, float)) else None
+            radius_y_field = find_alias_field(element, ("radiusY", "ry"))
+            radius_y = float(radius_y_field) if isinstance(radius_y_field, (int, float)) else None
+            default_width = (
+                radius_x * 2.0 if radius_x is not None else (size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["width"]))
+            default_height = (
+                radius_y * 2.0 if radius_y is not None else (size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["height"]))
+
+        width = find_alias_field(element, ("width", "diameterX"))
+        height = find_alias_field(element, ("height", "diameterY"))
+        result["width"] = float(width) if isinstance(width, (int, float)) else default_width
+        result["height"] = float(height) if isinstance(height, (int, float)) else default_height
+
+    elif primitive_type == "square":
+        side = find_alias_field(element, ("size", "width", "height"))
+        side = float(side) if isinstance(side, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["width"]
+        result["width"] = side
+        result["height"] = side
+
+    elif primitive_type == "diamond":
+        size = element.get("size")
+        default_side = float(size) if isinstance(size, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["width"]
+        width = element.get("width")
+        height = element.get("height")
+        result["width"] = float(width) if isinstance(width, (int, float)) else default_side
+        result["height"] = float(height) if isinstance(height, (int, float)) else default_side
+
+    elif primitive_type == "triangle":
+        points = element.get("points")
+        if isinstance(points, list) and len(points) == 3:
+            parsed_points = [parse_vec2_value(point) for point in points]
+            if all(point is not None for point in parsed_points):
+                result["points"] = tuple(parsed_points)
+
+    elif primitive_type == "polyline":
+        points = element.get("points")
+        if isinstance(points, list) and len(points) >= 2:
+            parsed_points = [parse_vec2_value(point) for point in points]
+            if all(point is not None for point in parsed_points):
+                result["points"] = tuple(parsed_points)
+        closed = element.get("closed")
+        if isinstance(closed, bool):
+            result["closed"] = closed
+
+    elif primitive_type == "bezier":
+        points = element.get("controlPoints")
+        if not isinstance(points, list):
+            points = element.get("points")
+        if isinstance(points, list) and len(points) >= 2:
+            parsed_points = [parse_vec2_value(point) for point in points]
+            if all(point is not None for point in parsed_points):
+                result["points"] = tuple(parsed_points)
+        segments = element.get("segments")
+        result["segments"] = segments if isinstance(segments, int) else 32
+
+    elif primitive_type == "arc":
+        radius = element.get("radius")
+        result["radius"] = float(radius) if isinstance(radius, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["radius"]
+        segments = element.get("segments")
+        result["segments"] = segments if isinstance(segments, int) else 48
+        start_angle = find_alias_field(element, ("startAngleDegrees", "startAngle", "fromDegrees", "angleStart"))
+        result["startAngleDegrees"] = (
+            float(start_angle) if isinstance(start_angle, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["startAngleDegrees"])
+        end_angle = find_alias_field(element, ("endAngleDegrees", "endAngle", "toDegrees", "angleEnd"))
+        result["endAngleDegrees"] = (
+            float(end_angle) if isinstance(end_angle, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["endAngleDegrees"])
+
+    return result
+
+
+def render_vec2_literal(pair: tuple[float, float]) -> str:
+    return f"mfd::Vec2 {{{float_literal(pair[0])}, {float_literal(pair[1])}}}"
+
+
+def render_color_literal(channels: tuple[int, int, int, int]) -> str:
+    red, green, blue, alpha = channels
+    return f"mfd::ColorRgba {{{int(red)}, {int(green)}, {int(blue)}, {int(alpha)}}}"
+
+
+def render_points_literal(points: tuple) -> str:
+    if not points:
+        return "std::vector<mfd::Vec2> {}"
+    entries = ", ".join(f"mfd::Vec2 {{{float_literal(point[0])}, {float_literal(point[1])}}}" for point in points)
+    return f"std::vector<mfd::Vec2> {{{entries}}}"
+
+
+def build_primitive_baseline_initializer(element: dict, primitive_type: str) -> str:
+    values = dict(PRIMITIVE_BASELINE_DEFAULTS)
+
+    visible = parse_visible(element)
+    if visible is not None:
+        values["visible"] = visible
+
+    values.update(parse_transform(element))
+
+    color = parse_color(element)
+    if color is not None:
+        values["color"] = color
+
+    line_style = parse_line_style(element)
+    if line_style is not None:
+        values["lineStyle"] = line_style
+
+    text = element.get("text")
+    if isinstance(text, str):
+        values["text"] = text
+
+    values.update(parse_primitive_geometry_baseline(element, primitive_type))
+
+    return (
+        "mfd::client::PrimitiveBaseline {"
+        f"{'true' if values['visible'] else 'false'}, "
+        f"{render_vec2_literal(values['position'])}, "
+        f"{float_literal(values['rotationDegrees'])}, "
+        f"{render_vec2_literal(values['scale'])}, "
+        f"{render_color_literal(values['color'])}, "
+        f"mfd::LineStyle::{values['lineStyle']}, "
+        f'"{cpp_string(values["text"])}", '
+        f"{render_vec2_literal(values['lineStart'])}, "
+        f"{render_vec2_literal(values['lineEnd'])}, "
+        f"{float_literal(values['radius'])}, "
+        f"{float_literal(values['innerRadius'])}, "
+        f"{float_literal(values['outerRadius'])}, "
+        f"{float_literal(values['width'])}, "
+        f"{float_literal(values['height'])}, "
+        f"{render_points_literal(values['points'])}, "
+        f"{'true' if values['closed'] else 'false'}, "
+        f"{values['segments']}, "
+        f"{float_literal(values['startAngleDegrees'])}, "
+        f"{float_literal(values['endAngleDegrees'])}"
+        "}"
+    )
+
+
+def build_reticle_baseline_initializer(node: dict) -> str:
+    values = dict(RETICLE_BASELINE_DEFAULTS)
+
+    visible = parse_visible(node)
+    if visible is not None:
+        values["visible"] = visible
+
+    transform = parse_transform(node)
+    for key in ("position", "rotationDegrees", "scale"):
+        if key in transform:
+            values[key] = transform[key]
+
+    color = parse_color(node)
+    if color is not None:
+        values["color"] = color
+
+    text = find_alias_field(node, ("text", "value"))
+    if isinstance(text, str):
+        values["text"] = text
+
+    return (
+        "mfd::client::ReticleBaseline {"
+        f"{'true' if values['visible'] else 'false'}, "
+        f"{render_vec2_literal(values['position'])}, "
+        f"{float_literal(values['rotationDegrees'])}, "
+        f"{render_vec2_literal(values['scale'])}, "
+        f"{render_color_literal(values['color'])}, "
+        f'"{cpp_string(values["text"])}"'
+        "}"
+    )
 
 
 def collect_named_elements(elements: list[dict]) -> list[dict]:
@@ -565,6 +949,7 @@ def build_primitive_specs(owner_kind: str,
             primitive_type=primitive_type,
             canonical_key=canonical_key,
             transport_id=stable_transport_id(canonical_key),
+            baseline_initializer=build_primitive_baseline_initializer(element, primitive_type),
         ))
 
     return primitive_specs
@@ -866,6 +1251,7 @@ def build_page_specs(window_root: dict,
                 transport_id=transport_id,
                 primitives=primitives,
                 status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
+                baseline_initializer=build_reticle_baseline_initializer(reticle),
             ))
 
         blink_members: list[BlinkSpec] = []
@@ -1341,7 +1727,8 @@ def emit_source(namespace_name: str,
         ctor_initializers = ["    mfd::client::DynamicReticle(reticleId)"]
         for primitive in template.primitives:
             ctor_initializers.append(
-                f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
+                f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", '
+                f"{primitive.transport_id}U, PrimitiveTransportIds(), {primitive.baseline_initializer})")
 
         lines.append(f"{template.dynamic_reticle_class_name}::{template.dynamic_reticle_class_name}(std::string_view reticleId) :")
         lines.append(",\n".join(ctor_initializers))
@@ -1400,10 +1787,11 @@ def emit_source(namespace_name: str,
         for reticle in page.reticles:
             ctor_initializers = [
                 (f'    mfd::client::Reticle("{cpp_string(page.page_name)}", "{cpp_string(reticle.reticle_id)}", '
-                 f"{page.transport_id}U, {reticle.transport_id}U)")]
+                 f"{page.transport_id}U, {reticle.transport_id}U, {reticle.baseline_initializer})")]
             for primitive in reticle.primitives:
                 ctor_initializers.append(
-                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
+                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", '
+                    f"{primitive.transport_id}U, PrimitiveTransportIds(), {primitive.baseline_initializer})")
 
             lines.append(f"{reticle.wrapper_class_name}::{reticle.wrapper_class_name}() :")
             lines.append(",\n".join(ctor_initializers))
@@ -1435,7 +1823,8 @@ def emit_source(namespace_name: str,
                  f"{page.transport_id}U, {strobe.reticle_transport_id}U)")]
             for primitive in strobe.primitives:
                 ctor_initializers.append(
-                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
+                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", '
+                    f"{primitive.transport_id}U, PrimitiveTransportIds(), {primitive.baseline_initializer})")
 
             lines.append(f"{strobe.reticle_wrapper_class_name}::{strobe.reticle_wrapper_class_name}() :")
             lines.append(",\n".join(ctor_initializers))
