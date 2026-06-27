@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(MFD
-    VERSION 2.3.2
+    VERSION 2.3.3
     DESCRIPTION "2D Multi-Function Display framework with JSON pages and reusable reticles"
     LANGUAGES C CXX)
 

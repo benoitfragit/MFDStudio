@@ -2843,11 +2843,33 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
     const Color background = ToRayColor(page.backgroundColor);
     const bool drawDimmedLayer = !entry.fullView && !entry.visible;
 
+    std::vector<int> orderedIndices;
+    services_.pagePreviewDrawOrder.CollectStaticReticleDrawOrder(page, orderedIndices);
+
     BeginTextureMode(slot.texture);
     ClearBackground(background);
     {
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+
+        // Layer-local clipping in a thumbnail must keep lower layers visible just like the main
+        // preview: the restore callback repaints the background, then the strictly earlier-layer
+        // reticles shown in this thumbnail, without re-applying their own clipping.
+        std::size_t restoreLayerOrder = 0;
+        bool restoreEraseLayerOnly = false;
+        mfd::Canvas2D* canvasForRestore = nullptr;
+        const auto restoreThumbnailBackground =
+            [this, &page, &entry, &orderedIndices, background, width, height, drawDimmedLayer,
+             &restoreLayerOrder, &restoreEraseLayerOnly, &canvasForRestore]()
+        {
+            DrawRectangle(0, 0, width, height, background);
+            if (restoreEraseLayerOnly && canvasForRestore != nullptr)
+            {
+                RedrawEarlierThumbnailReticles(
+                    page, entry, orderedIndices, *canvasForRestore, restoreLayerOrder, drawDimmedLayer);
+            }
+        };
+
         mfd::Canvas2D canvas(width,
                              height,
                              previewView,
@@ -2856,15 +2878,21 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
                              slot.stencilReady,
                              &previewState_.previewBezierCache,
                              &previewState_.previewImageCache,
-                             &previewState_.previewTextLayoutCache);
+                             &previewState_.previewTextLayoutCache,
+                             restoreThumbnailBackground);
+        canvasForRestore = &canvas;
 
-        for (const mfd::ReticleGroup& reticle : page.staticReticles)
+        for (const int reticleIndex : orderedIndices)
         {
+            const mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
             const bool matchesEntry = entry.fullView ? IsReticleVisibleInEditor(page, reticle) : reticle.layerId == entry.layerId;
             if (!matchesEntry)
             {
                 continue;
             }
+
+            restoreLayerOrder = PageLayerRenderOrder(page, reticle.layerId);
+            restoreEraseLayerOnly = reticle.clipping.eraseLayerOnly;
 
             if (drawDimmedLayer)
             {
@@ -3267,6 +3295,34 @@ void EditorApplication::RedrawEarlierLayerReticlesForClipRestore(const mfd::Page
         if (ShouldDimPageReticleInCurrentFocus(page, reticle))
         {
             canvas.DrawReticleWithoutClipping(MakeDimmedReticlePreviewCopy(reticle, 0.30f), true);
+        }
+        else
+        {
+            canvas.DrawReticleWithoutClipping(reticle, true);
+        }
+    }
+}
+
+void EditorApplication::RedrawEarlierThumbnailReticles(const mfd::PageDefinition& page,
+                                                       const editor::LayerFocusStripEntry& entry,
+                                                       const std::vector<int>& orderedIndices,
+                                                       mfd::Canvas2D& canvas,
+                                                       const std::size_t currentLayerOrder,
+                                                       const bool dimmed)
+{
+    for (const int reticleIndex : orderedIndices)
+    {
+        const mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
+        const bool matchesEntry =
+            entry.fullView ? IsReticleVisibleInEditor(page, reticle) : reticle.layerId == entry.layerId;
+        if (!matchesEntry || PageLayerRenderOrder(page, reticle.layerId) >= currentLayerOrder)
+        {
+            continue;
+        }
+
+        if (dimmed)
+        {
+            canvas.DrawReticleWithoutClipping(MakeDimmedReticlePreviewCopy(reticle, 0.38f), true);
         }
         else
         {

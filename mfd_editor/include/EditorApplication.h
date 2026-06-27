@@ -305,6 +305,21 @@ private:
     void RedrawEarlierLayerReticlesForClipRestore(const mfd::PageDefinition& page,
                                                   mfd::Canvas2D& canvas,
                                                   std::size_t currentLayerOrder);
+    /**
+     * @brief Repaints strictly earlier-layer reticles of one layer-inspector thumbnail during a clip restore.
+     * @param page Active page being previewed.
+     * @param entry Strip entry whose thumbnail is being rendered.
+     * @param orderedIndices Page-reticle indices in runtime draw order.
+     * @param canvas Canvas drawing into the active stencil region.
+     * @param currentLayerOrder Render order of the layer whose clipping reticle is being restored.
+     * @param dimmed `true` when the thumbnail draws its reticles dimmed (hidden layer preview).
+     */
+    void RedrawEarlierThumbnailReticles(const mfd::PageDefinition& page,
+                                        const editor::LayerFocusStripEntry& entry,
+                                        const std::vector<int>& orderedIndices,
+                                        mfd::Canvas2D& canvas,
+                                        std::size_t currentLayerOrder,
+                                        bool dimmed);
     /** @brief Draws the selected library reticle into the studio preview viewport. */
     void DrawLibraryPreview(const ViewportState& viewport);
     /** @brief Draws the shared page-preview workspace used by the page view and the fullscreen preview. */
