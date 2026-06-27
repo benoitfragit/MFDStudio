@@ -132,6 +132,27 @@ mfd::Vec2 SnapToSharedGridIfEnabled(const mfd::Vec2 value, const editor::PagePre
     return viewOptions.snapToGrid ? editor::app::SnapToGrid(value, SharedGridStepLogical(viewOptions)) : value;
 }
 
+// Inter-layer render order of one page layer, matching the runtime order derived from page.layers.
+std::size_t PageLayerRenderOrder(const mfd::PageDefinition& page, const std::string_view layerId)
+{
+    for (std::size_t index = 0; index < page.layers.size(); ++index)
+    {
+        if (mfd::PageNamesEqual(page.layers[index].id, layerId))
+        {
+            return index;
+        }
+    }
+
+    return page.layers.size();
+}
+
+// Returns whether the layer owning one reticle restricts its clipping to the layer itself.
+bool PageLayerErasesLayerOnly(const mfd::PageDefinition& page, const std::string_view layerId)
+{
+    const std::size_t order = PageLayerRenderOrder(page, layerId);
+    return order < page.layers.size() && page.layers[order].clippingEraseLayerOnly;
+}
+
 // Draws one shell side-panel visibility checkbox. The checkbox reflects the effective
 // visibility, so when the responsive layout auto-collapses a wanted panel on a narrow
 // window the entry is shown unchecked and disabled instead of falsely claiming a hidden
@@ -3207,6 +3228,60 @@ std::vector<editor::PagePreviewProblem> EditorApplication::BuildPagePreviewProbl
     return messages;
 }
 
+void EditorApplication::DrawPagePreviewBackgroundGuides(const ViewportState& viewport, const mfd::PageDefinition& page)
+{
+    DrawRectangle(
+        0,
+        0,
+        previewState_.previewTexture.texture.width,
+        previewState_.previewTexture.texture.height,
+        ToRayColor(page.backgroundColor));
+
+    if (layoutState_.pagePreviewViewOptions.showGrid)
+    {
+        editor::app::DrawViewportGrid(
+            MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
+            ToRayColor(page.backgroundColor));
+    }
+
+    if (layoutState_.pagePreviewViewOptions.showPageBorder)
+    {
+        editor::app::DrawViewportPageBorder(
+            MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
+            editor::app::ComputePageBorderHalfExtent(
+                documentState_.loaded.window.width, documentState_.loaded.window.height),
+            ToRayColor(page.backgroundColor));
+    }
+}
+
+void EditorApplication::RedrawEarlierLayerReticlesForClipRestore(const mfd::PageDefinition& page,
+                                                                 mfd::Canvas2D& canvas,
+                                                                 const std::size_t currentLayerOrder)
+{
+    for (const int reticleIndex : previewState_.orderedStaticReticleIndices)
+    {
+        const mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
+        if (!IsReticleVisibleInEditor(page, reticle))
+        {
+            continue;
+        }
+
+        if (PageLayerRenderOrder(page, reticle.layerId) >= currentLayerOrder)
+        {
+            continue;
+        }
+
+        if (ShouldDimPageReticleInCurrentFocus(page, reticle))
+        {
+            canvas.DrawReticleWithoutClipping(MakeDimmedReticlePreviewCopy(reticle, 0.30f), true);
+        }
+        else
+        {
+            canvas.DrawReticleWithoutClipping(reticle, true);
+        }
+    }
+}
+
 void EditorApplication::DrawPagePreview(const ViewportState& viewport)
 {
     using editor::tutorial::TutorialStepId;
@@ -3226,40 +3301,28 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     BeginTextureMode(previewState_.previewTexture);
     ClearBackground(ToRayColor(page->backgroundColor));
 
-    // Repaint background, grid and page border. Editor-only visual guides must survive reticle
-    // clipping, so this is reused as the Canvas2D restore callback (called while a stencil is
-    // active) instead of letting the canvas erase the clipped region with the flat background.
-    const auto drawEditorPreviewBackground = [this, page, &viewport]()
     {
-        DrawRectangle(
-            0,
-            0,
-            previewState_.previewTexture.texture.width,
-            previewState_.previewTexture.texture.height,
-            ToRayColor(page->backgroundColor));
-
-        if (layoutState_.pagePreviewViewOptions.showGrid)
-        {
-            editor::app::DrawViewportGrid(
-                MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
-                ToRayColor(page->backgroundColor));
-        }
-
-        if (layoutState_.pagePreviewViewOptions.showPageBorder)
-        {
-            editor::app::DrawViewportPageBorder(
-                MakeViewportGridInput(viewport, layoutState_.pagePreviewViewOptions),
-                editor::app::ComputePageBorderHalfExtent(
-                    documentState_.loaded.window.width, documentState_.loaded.window.height),
-                ToRayColor(page->backgroundColor));
-        }
-    };
-
-    {
-        drawEditorPreviewBackground();
+        DrawPagePreviewBackgroundGuides(viewport, *page);
 
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+
+        // Layer-local clipping needs a per-reticle restore: redraw the editor guides, then the
+        // visible reticles of strictly earlier layers when the current layer erases its own content
+        // only. The mutable values below are refreshed before each clipping draw call.
+        std::size_t restoreLayerOrder = 0;
+        bool restoreEraseLayerOnly = false;
+        mfd::Canvas2D* canvasForRestore = nullptr;
+        const auto restoreClippedPreviewBackground =
+            [this, page, &viewport, &restoreLayerOrder, &restoreEraseLayerOnly, &canvasForRestore]()
+        {
+            DrawPagePreviewBackgroundGuides(viewport, *page);
+            if (restoreEraseLayerOnly && canvasForRestore != nullptr)
+            {
+                RedrawEarlierLayerReticlesForClipRestore(*page, *canvasForRestore, restoreLayerOrder);
+            }
+        };
+
         mfd::Canvas2D canvas(
             previewState_.previewTexture.texture.width,
             previewState_.previewTexture.texture.height,
@@ -3270,7 +3333,8 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             &previewState_.previewBezierCache,
             &previewState_.previewImageCache,
             &previewState_.previewTextLayoutCache,
-            drawEditorPreviewBackground);
+            restoreClippedPreviewBackground);
+        canvasForRestore = &canvas;
         services_.pagePreviewDrawOrder.CollectStaticReticleDrawOrder(*page, previewState_.orderedStaticReticleIndices);
         for (const int reticleIndex : previewState_.orderedStaticReticleIndices)
         {
@@ -3279,6 +3343,9 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             {
                 continue;
             }
+
+            restoreLayerOrder = PageLayerRenderOrder(*page, reticle.layerId);
+            restoreEraseLayerOnly = PageLayerErasesLayerOnly(*page, reticle.layerId);
 
             if (ShouldDimPageReticleInCurrentFocus(*page, reticle))
             {
@@ -3290,6 +3357,8 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             }
         }
 
+        // Strobes and the title chrome are not page layers: keep the historical guides-only restore.
+        restoreEraseLayerOnly = false;
         for (const auto& strobe : page->strobes)
         {
             if (!IsPageStrobeVisibleInEditor(*page, strobe))
@@ -4279,6 +4348,14 @@ void EditorApplication::DrawLayerInspectorPanel(mfd::PageDefinition& page)
                 if (reordered)
                 {
                     break;
+                }
+
+                // Compact read-only hint; the option itself is edited in the Page Layer Inspector.
+                if (page.layers[static_cast<std::size_t>(layerIndex)].clippingEraseLayerOnly)
+                {
+                    ImGui::TextDisabled("Erase layer only");
+                    ShowItemTooltip("Clipping in this layer only erases content drawn inside the same "
+                                    "layer. Edit this option in the Page layers inspector.");
                 }
             }
         }

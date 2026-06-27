@@ -418,6 +418,34 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenPageReticleBlinkT
     EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
 }
 
+TEST(EditorDocumentSerializerTests, SerializePageWritesClippingEraseLayerOnlyOnlyWhenEnabled)
+{
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"background", false});
+    page.layers.push_back(mfd::PageLayerDefinition {"symbols", true});
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back("radar.json");
+
+    const std::string jsonText = editor::SerializePageToJsonString(page, mfd::ReticleLibrary {}, layout, 0U);
+    const nlohmann::json node = nlohmann::json::parse(jsonText);
+
+    ASSERT_TRUE(node.contains("layers"));
+    const nlohmann::json& layers = node.at("layers");
+    ASSERT_EQ(layers.size(), 2U);
+
+    // The disabled layer keeps a compact entry without the optional flag.
+    EXPECT_EQ(layers.at(0).at("id"), "background");
+    EXPECT_FALSE(layers.at(0).contains("clippingEraseLayerOnly"));
+
+    // The enabled layer persists the flag as true.
+    EXPECT_EQ(layers.at(1).at("id"), "symbols");
+    ASSERT_TRUE(layers.at(1).contains("clippingEraseLayerOnly"));
+    EXPECT_TRUE(layers.at(1).at("clippingEraseLayerOnly").get<bool>());
+}
+
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateIncludesTemplateId)
 {
     mfd::ReticleGroup reticle;

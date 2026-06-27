@@ -735,7 +735,12 @@ SerializedPageLayerState SerializePageLayers(const mfd::PageDefinition& page)
             throw std::runtime_error("Page '" + page.name + "' contains duplicate runtime layer id '" + layer.id + "'.");
         }
 
-        result.layers.push_back(json {{"id", layer.id}});
+        json layerNode {{"id", layer.id}};
+        if (layer.clippingEraseLayerOnly)
+        {
+            layerNode["clippingEraseLayerOnly"] = true;
+        }
+        result.layers.push_back(std::move(layerNode));
     }
 
     return result;

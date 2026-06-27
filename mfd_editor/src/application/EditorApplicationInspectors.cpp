@@ -1704,6 +1704,18 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             ImGui::TextDisabled("Dynamic reticles: %s", dynamicBindingSummary.c_str());
         }
 
+        bool eraseLayerOnly = layer.clippingEraseLayerOnly;
+        if (ImGui::Checkbox("Erase layer only", &eraseLayerOnly))
+        {
+            if (eraseLayerOnly != layer.clippingEraseLayerOnly)
+            {
+                PushUndoSnapshot();
+                layer.clippingEraseLayerOnly = eraseLayerOnly;
+            }
+        }
+        ShowItemTooltip("When enabled, clipping in this layer only erases content already drawn "
+                        "inside the same layer. Lower layers stay intact.");
+
         std::array<char, 128> layerName {};
         CopyTextBuffer(layerName, layer.id);
         const bool nameChanged = ImGui::InputText("Layer id", layerName.data(), layerName.size());

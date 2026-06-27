@@ -13,6 +13,7 @@
 #include <entt/entt.hpp>
 
 #include <chrono>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -149,6 +150,10 @@ struct ReticleRenderView
     const ReticleGroup* group = nullptr;
     /** @brief Visibility resolved for the current frame, including blink state. */
     bool visible = false;
+    /** @brief Inter-layer render order of the reticle's layer; lower values draw earlier. */
+    std::size_t layerOrder = 0;
+    /** @brief Layer-local clipping policy copied from the reticle's owning page layer. */
+    bool clippingEraseLayerOnly = false;
 };
 
 /**

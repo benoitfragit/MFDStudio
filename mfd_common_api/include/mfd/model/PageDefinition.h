@@ -117,6 +117,15 @@ struct PageLayerDefinition
 {
     /** @brief Stable page-local layer identifier referenced by static reticles and dynamic bindings. */
     std::string id;
+    /**
+     * @brief Restricts the reach of clipping reticles drawn in this layer to the layer itself.
+     *
+     * When `false` (the default), a clipping reticle keeps the historical global behaviour and may
+     * erase everything already drawn behind it, including lower layers. When `true`, the clipping
+     * only erases content already drawn inside this same layer; pixels belonging to strictly earlier
+     * layers in the render order stay visible.
+     */
+    bool clippingEraseLayerOnly = false;
 };
 
 /**

@@ -818,6 +818,61 @@ TEST(JsonLoaderTests, LoadDocumentParsesPageDynamicReticleBindings)
     EXPECT_EQ(loaded.pages.front().dynamicReticleBindings.at(1).orderInLayer, 1);
 }
 
+TEST(JsonLoaderTests, LoadDocumentParsesClippingEraseLayerOnlyFlag)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    std::filesystem::create_directories(workspace.Path() / "reticles");
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Radar",
+      "layers": [
+        { "id": "background" },
+        { "id": "symbols", "clippingEraseLayerOnly": true }
+      ]
+    }
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    const mfd::MfdDocument loaded = loader.LoadDocument(pagesFile);
+
+    ASSERT_EQ(loaded.pages.size(), 1U);
+    ASSERT_EQ(loaded.pages.front().layers.size(), 2U);
+    // An absent field keeps the historical behaviour disabled.
+    EXPECT_FALSE(loaded.pages.front().layers.at(0).clippingEraseLayerOnly);
+    // An explicit true is parsed.
+    EXPECT_TRUE(loaded.pages.front().layers.at(1).clippingEraseLayerOnly);
+}
+
+TEST(JsonLoaderTests, LoadDocumentRejectsNonBooleanClippingEraseLayerOnly)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(pagesFile,
+                  R"json({
+  "reticleLibraryFolder": "reticles",
+  "pages": [
+    {
+      "name": "Radar",
+      "layers": [
+        { "id": "symbols", "clippingEraseLayerOnly": "yes" }
+      ]
+    }
+  ]
+})json");
+
+    std::filesystem::create_directories(workspace.Path() / "reticles");
+
+    mfd::JsonLoader loader;
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
 TEST(JsonLoaderTests, LoadWindowConfigurationRejectsUnknownDefaultPageName)
 {
     TemporaryFolder workspace;

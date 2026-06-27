@@ -457,6 +457,16 @@ void Canvas2D::DrawReticle(const ReticleGroup& reticle, const bool visible) cons
     DrawReticlePrimitives(reticle);
 }
 
+void Canvas2D::DrawReticleWithoutClipping(const ReticleGroup& reticle, const bool visible) const
+{
+    if (!visible)
+    {
+        return;
+    }
+
+    DrawReticlePrimitives(reticle);
+}
+
 void Canvas2D::DrawReticlePrimitives(const ReticleGroup& reticle) const
 {
     for (const auto& primitive : reticle.primitives)

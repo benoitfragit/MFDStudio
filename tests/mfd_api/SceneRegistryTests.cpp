@@ -358,6 +358,39 @@ TEST(SceneRegistryTests, CollectPageReticlesUsesCaseInsensitiveLayerLookupAcross
     EXPECT_EQ(ordered[4]->id, "dynamic_top");
 }
 
+TEST(SceneRegistryTests, CollectPageReticleViewsCarryLayerOrderAndClipEraseLayerOnly)
+{
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.normalizedName = "radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"background", false});
+    page.layers.push_back(mfd::PageLayerDefinition {"symbols", true});
+
+    mfd::ReticleGroup background = MakeReticle("background");
+    background.layerId = "background";
+    mfd::ReticleGroup symbol = MakeReticle("symbol");
+    symbol.layerId = "symbols";
+    page.staticReticles.push_back(std::move(background));
+    page.staticReticles.push_back(std::move(symbol));
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+    const std::vector<mfd::ReticleRenderView> views = registry.CollectPageReticleViews("Radar");
+
+    ASSERT_EQ(views.size(), 2U);
+    ASSERT_NE(views[0].group, nullptr);
+    ASSERT_NE(views[1].group, nullptr);
+    EXPECT_EQ(views[0].group->id, "background");
+    EXPECT_EQ(views[0].layerOrder, 0U);
+    EXPECT_FALSE(views[0].clippingEraseLayerOnly);
+    EXPECT_EQ(views[1].group->id, "symbol");
+    EXPECT_EQ(views[1].layerOrder, 1U);
+    EXPECT_TRUE(views[1].clippingEraseLayerOnly);
+}
+
 TEST(SceneRegistryTests, ActivatesMarkedDefaultPageWhenPresent)
 {
     mfd::PageDefinition firstPage = MakeBlinkPage();

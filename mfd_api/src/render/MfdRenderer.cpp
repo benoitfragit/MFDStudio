@@ -154,6 +154,55 @@ bool ActiveReticleViewsUseClipping(const std::vector<ReticleRenderView>& activeR
     return false;
 }
 
+bool ActiveReticleViewsUseLayerLocalClipping(const std::vector<ReticleRenderView>& activeReticles)
+{
+    for (const ReticleRenderView& reticle : activeReticles)
+    {
+        if (reticle.group != nullptr && reticle.visible && reticle.clippingEraseLayerOnly &&
+            ResolveClipPrimitive(*reticle.group) != nullptr)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief Mutable restoration context updated before each runtime reticle draw call.
+ *
+ * The single Canvas2D restore callback consults this context so it can decide, for the reticle
+ * currently clipping, whether to keep the historical flat-background restore or to additionally
+ * repaint the visible reticles of strictly earlier layers.
+ */
+struct LayerLocalRestoreContext
+{
+    const Canvas2D* canvas = nullptr;
+    const std::vector<ReticleRenderView>* reticles = nullptr;
+    Color background = BLACK;
+    int width = 0;
+    int height = 0;
+    std::size_t currentLayerOrder = 0;
+    bool eraseLayerOnly = false;
+};
+
+void RestoreLayerLocalBackground(const LayerLocalRestoreContext& context)
+{
+    DrawRectangle(0, 0, context.width, context.height, context.background);
+    if (!context.eraseLayerOnly || context.canvas == nullptr || context.reticles == nullptr)
+    {
+        return;
+    }
+
+    for (const ReticleRenderView& view : *context.reticles)
+    {
+        if (view.group != nullptr && view.visible && view.layerOrder < context.currentLayerOrder)
+        {
+            context.canvas->DrawReticleWithoutClipping(*view.group, view.visible);
+        }
+    }
+}
+
 void DrawActivePageContent(const SceneRegistry& scene,
                            const std::vector<ReticleRenderView>& activeReticles,
                            const ReticleGroup& titleReticle,
@@ -165,25 +214,46 @@ void DrawActivePageContent(const SceneRegistry& scene,
                            ImageTextureCache* imageCache,
                            TextLayoutCache* textLayoutCache)
 {
+    LayerLocalRestoreContext restoreContext;
+    restoreContext.reticles = &activeReticles;
+    restoreContext.background = ToRayColor(scene.ActiveBackgroundColor());
+    restoreContext.width = width;
+    restoreContext.height = height;
+
+    Canvas2D::BackgroundRestoreCallback restore;
+    if (clippingEnabled && ActiveReticleViewsUseLayerLocalClipping(activeReticles))
+    {
+        restore = [&restoreContext]()
+        {
+            RestoreLayerLocalBackground(restoreContext);
+        };
+    }
+
     Canvas2D canvas(
         width,
         height,
         scene.ActivePageView(),
         textFont,
-        ToRayColor(scene.ActiveBackgroundColor()),
+        restoreContext.background,
         clippingEnabled,
         bezierCache,
         imageCache,
-        textLayoutCache);
+        textLayoutCache,
+        std::move(restore));
+    restoreContext.canvas = &canvas;
 
     for (const ReticleRenderView& reticle : activeReticles)
     {
         if (reticle.group != nullptr)
         {
+            restoreContext.currentLayerOrder = reticle.layerOrder;
+            restoreContext.eraseLayerOnly = reticle.clippingEraseLayerOnly;
             canvas.DrawReticle(*reticle.group, reticle.visible);
         }
     }
 
+    // The title chrome is not part of a page layer: keep the historical flat-background restore.
+    restoreContext.eraseLayerOnly = false;
     canvas.DrawReticle(titleReticle);
 }
 } // namespace

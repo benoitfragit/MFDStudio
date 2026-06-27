@@ -75,6 +75,17 @@ public:
      */
     void DrawReticle(const ReticleGroup& reticle, bool visible) const;
 
+    /**
+     * @brief Draws one reticle's visible primitives without applying its clipping mask.
+     * @param reticle Reticle to render.
+     * @param visible Blink-resolved visibility to apply for this draw call.
+     *
+     * @note Used by layer-local clipping restore callbacks to repaint lower-layer reticles while a
+     * stencil is active. It never evaluates `ApplyClipMask` and never touches the stencil state, so
+     * it is safe to call from within a `BackgroundRestoreCallback`.
+     */
+    void DrawReticleWithoutClipping(const ReticleGroup& reticle, bool visible) const;
+
 private:
     Font TextFont() const noexcept;
     float LogicalScale() const noexcept;

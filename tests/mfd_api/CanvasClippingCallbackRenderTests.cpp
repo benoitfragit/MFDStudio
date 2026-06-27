@@ -65,6 +65,31 @@ mfd::ReticleGroup MakeGreenBackdrop()
     return backdrop;
 }
 
+mfd::ColorRgba Red() noexcept
+{
+    return {255, 0, 0, 255};
+}
+
+mfd::Primitive MakeFilledRedRectangle()
+{
+    mfd::Primitive primitive;
+    primitive.id = "current_layer";
+    primitive.type = mfd::PrimitiveType::Rectangle;
+    primitive.geometry = mfd::RectangleGeometry {1.60f, 1.60f};
+    primitive.style.color = Red();
+    primitive.style.fillColor = Red();
+    primitive.style.filled = true;
+    return primitive;
+}
+
+mfd::ReticleGroup MakeRedCurrentLayerReticle()
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "current_layer";
+    reticle.primitives.push_back(MakeFilledRedRectangle());
+    return reticle;
+}
+
 mfd::ReticleGroup MakeOuterClipMask()
 {
     mfd::ReticleGroup reticle;
@@ -138,6 +163,60 @@ bool IsGreen(const mfd::Rgba8Pixel& pixel) noexcept
     return pixel.r < 80U && pixel.g > 150U && pixel.b < 80U;
 }
 
+bool IsRed(const mfd::Rgba8Pixel& pixel) noexcept
+{
+    return pixel.r > 150U && pixel.g < 80U && pixel.b < 80U;
+}
+
+// Renders a two-layer scene where the current layer erases its own clipping only: a green lower
+// layer, a red current-layer reticle, then an outer clip mask in the same current layer. The restore
+// callback repaints the lower layer (without clipping) and the editor grid, but never the current
+// layer, mirroring the runtime layer-local restore.
+mfd::Rgba32Framebuffer RenderLayerLocalClippedScene()
+{
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(kRenderSize, kRenderSize, "mfd_canvas_clipping_layer_local_render_tests");
+    EXPECT_TRUE(IsWindowReady());
+
+    bool stencilReady = false;
+    RenderTexture2D target = mfd::LoadRenderTextureWithStencil(kRenderSize, kRenderSize, &stencilReady);
+
+    mfd::Rgba32Framebuffer framebuffer;
+    if (stencilReady)
+    {
+        const mfd::ReticleGroup backdrop = MakeGreenBackdrop();
+        mfd::Canvas2D* canvasForRestore = nullptr;
+        mfd::Canvas2D::BackgroundRestoreCallback restore =
+            [&canvasForRestore, &backdrop]()
+        {
+            DrawRectangle(0, 0, kRenderSize, kRenderSize, BLACK);
+            DrawGridLine();
+            if (canvasForRestore != nullptr)
+            {
+                canvasForRestore->DrawReticleWithoutClipping(backdrop, true);
+            }
+        };
+
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        DrawGridLine();
+
+        mfd::Canvas2D canvas(
+            kRenderSize, kRenderSize, {}, nullptr, BLACK, true, nullptr, nullptr, nullptr, std::move(restore));
+        canvasForRestore = &canvas;
+        canvas.DrawReticle(backdrop);                  // lower layer
+        canvas.DrawReticle(MakeRedCurrentLayerReticle()); // current layer content
+        canvas.DrawReticle(MakeOuterClipMask());          // current layer clipping reticle
+
+        framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
+        EndTextureMode();
+    }
+
+    UnloadRenderTexture(target);
+    CloseWindow();
+    return framebuffer;
+}
+
 bool IsGridRed(const mfd::Rgba8Pixel& pixel) noexcept
 {
     return pixel.r > 150U && pixel.g < 80U && pixel.b < 80U;
@@ -173,6 +252,30 @@ TEST(CanvasClippingCallbackRenderTests, RestoreCallbackRepaintsGridInsideClipped
     EXPECT_TRUE(IsGreen(PixelAt(framebuffer, kCenter, kCenter)));
 
     // Outside the circle the callback restored the background grid line, not only the flat fill.
+    EXPECT_GT(CountGridRedInColumn(framebuffer, kCenter), 0U);
+}
+
+TEST(CanvasClippingCallbackRenderTests, LayerLocalRestoreKeepsLowerLayerAndErasesCurrentLayer)
+{
+    const mfd::Rgba32Framebuffer framebuffer = RenderLayerLocalClippedScene();
+    if (framebuffer.Empty())
+    {
+        GTEST_SKIP() << "Stencil render target unavailable on this driver.";
+    }
+
+    ASSERT_EQ(framebuffer.width, kRenderSize);
+    ASSERT_EQ(framebuffer.height, kRenderSize);
+
+    // Inside the kept clip region, the current-layer red reticle survives.
+    EXPECT_TRUE(IsRed(PixelAt(framebuffer, kCenter, kCenter)));
+
+    // In the erased region, the lower layer is restored (green) while the current layer is not (no red).
+    // The probe row sits inside the backdrop rectangle but outside the clip circle and off the grid line.
+    constexpr int kOutsideY = 14;
+    EXPECT_TRUE(IsGreen(PixelAt(framebuffer, kCenter, kOutsideY)));
+    EXPECT_FALSE(IsRed(PixelAt(framebuffer, kCenter, kOutsideY)));
+
+    // The editor grid is still restored inside the clipped region when a callback is provided.
     EXPECT_GT(CountGridRedInColumn(framebuffer, kCenter), 0U);
 }
 

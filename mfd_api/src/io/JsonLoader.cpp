@@ -2146,6 +2146,17 @@ std::vector<PageLayerDefinition> ParsePageLayerDefinitions(const json& node)
             throw std::runtime_error("Duplicate page layer id: " + layer.id);
         }
 
+        if (entry.contains("clippingEraseLayerOnly"))
+        {
+            const json& eraseLayerOnly = entry.at("clippingEraseLayerOnly");
+            if (!eraseLayerOnly.is_boolean())
+            {
+                throw std::runtime_error("Page layer clippingEraseLayerOnly must be a boolean");
+            }
+
+            layer.clippingEraseLayerOnly = eraseLayerOnly.get<bool>();
+        }
+
         layers.push_back(std::move(layer));
     }
 

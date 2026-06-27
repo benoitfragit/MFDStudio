@@ -167,6 +167,39 @@ synthetic **Full View** entry always stays on top and never shows reorder
 buttons. Both inspectors edit the same page layer list, so a reorder done in one
 is immediately reflected in the other.
 
+#### Layer-local clipping (`Erase layer only`)
+
+Each real layer row of the **Page layers** inspector also exposes an **Erase
+layer only** checkbox:
+
+- when it is **disabled** (the default), clipping keeps its historical global
+  behaviour: a clipping reticle in that layer can erase everything already drawn
+  behind it, including lower layers;
+- when it is **enabled**, clipping in that layer only erases content already
+  drawn inside the same layer. Reticles belonging to strictly earlier layers in
+  the render order stay visible, while reticles already drawn in the current
+  layer (including the clipping reticle itself) are erased inside the clipped
+  region.
+
+The effect is visible both in the editor preview and in the runtime window, and
+it is saved in the page JSON. The option is a layer authoring/runtime property:
+no generated client API is added to change it. The editor grid and page border
+keep being restored as before. The thumbnail Layer Inspector shows a compact
+`Erase layer only` hint on layers where the option is enabled, but the option is
+edited from the **Page layers** inspector.
+
+The flag is stored per layer and only written when enabled, so old pages stay
+compatible:
+
+```json
+{
+  "layers": [
+    { "id": "background" },
+    { "id": "symbols", "clippingEraseLayerOnly": true }
+  ]
+}
+```
+
 ### Dynamic reticles on a page
 
 In the selected page inspector, the **Dynamic reticles** section now keeps the

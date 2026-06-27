@@ -50,6 +50,11 @@
 
 class EditorTutorialController;
 
+namespace mfd
+{
+class Canvas2D;
+} // namespace mfd
+
 /**
  * @brief Interactive editor for authored MFD assets.
  *
@@ -279,6 +284,27 @@ private:
 
     /** @brief Draws the current page into the main preview viewport. */
     void DrawPagePreview(const ViewportState& viewport);
+    /**
+     * @brief Repaints the editor preview background guides (page background, grid and page border).
+     * @param viewport Active preview viewport.
+     * @param page Active page providing the background color.
+     *
+     * @note Reused as the base of the Canvas2D clipping restore callback so the editor guides
+     * survive reticle clipping.
+     */
+    void DrawPagePreviewBackgroundGuides(const ViewportState& viewport, const mfd::PageDefinition& page);
+    /**
+     * @brief Repaints visible reticles of strictly earlier layers during a layer-local clip restore.
+     * @param page Active page being previewed.
+     * @param canvas Canvas drawing into the active stencil region.
+     * @param currentLayerOrder Render order of the layer whose clipping reticle is being restored.
+     *
+     * @note Earlier-layer reticles are redrawn without their own clipping so the restore never
+     * recurses into another clip mask. Reticles of the current and later layers stay erased.
+     */
+    void RedrawEarlierLayerReticlesForClipRestore(const mfd::PageDefinition& page,
+                                                  mfd::Canvas2D& canvas,
+                                                  std::size_t currentLayerOrder);
     /** @brief Draws the selected library reticle into the studio preview viewport. */
     void DrawLibraryPreview(const ViewportState& viewport);
     /** @brief Draws the shared page-preview workspace used by the page view and the fullscreen preview. */
