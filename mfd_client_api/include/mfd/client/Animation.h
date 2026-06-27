@@ -441,9 +441,11 @@ public:
                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                PrimitiveBaseline baseline = {});
 
+    using PrimitiveHandle::GetVisible;
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
+    using PrimitiveHandle::GetLineStyle;
 
     void SetLetterSpacing(float letterSpacing);
     /**

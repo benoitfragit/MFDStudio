@@ -863,6 +863,17 @@ TEST(AnimationTests, TimeHandleGetTimeValueIsNulloptUntilSetAndAfterClear)
     EXPECT_EQ(reticle.missionTime.GetTimeValue(), std::nullopt);
 }
 
+TEST(AnimationTests, TimeHandleExposesVisibleAndLineStyleButNotColor)
+{
+    BaselineFixtureReticle baselineReticle;
+
+    EXPECT_FALSE(baselineReticle.missionTime.GetVisible());
+    EXPECT_EQ(baselineReticle.missionTime.GetLineStyle(), mfd::client::LineStyle::Dashed);
+
+    baselineReticle.missionTime.SetVisible(true);
+    EXPECT_TRUE(baselineReticle.missionTime.GetVisible());
+}
+
 TEST(AnimationTests, PrimitiveGetterCallsDoNotMutateReticlePatchOrAffectAppendedCommands)
 {
     GeneratedGeometryFixtureReticle reticle;
