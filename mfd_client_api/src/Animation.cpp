@@ -914,18 +914,6 @@ mfd::Vec2 PrimitiveHandle::GetScale() const noexcept
     return (patch != nullptr && patch->scale.has_value()) ? *patch->scale : baseline_.scale;
 }
 
-mfd::ColorRgba PrimitiveHandle::GetColor() const noexcept
-{
-    const auto* patch = Patch();
-    return (patch != nullptr && patch->color.has_value()) ? *patch->color : baseline_.color;
-}
-
-LineStyle PrimitiveHandle::GetLineStyle() const noexcept
-{
-    const auto* patch = Patch();
-    return (patch != nullptr && patch->lineStyle.has_value()) ? *patch->lineStyle : baseline_.lineStyle;
-}
-
 const PrimitiveBaseline& PrimitiveHandle::Baseline() const noexcept
 {
     return baseline_;
@@ -1730,11 +1718,6 @@ mfd::Vec2 Reticle::GetScale() const noexcept
     return desiredPatch_.scale.value_or(baseline_.scale);
 }
 
-mfd::ColorRgba Reticle::GetColor() const noexcept
-{
-    return desiredPatch_.color.value_or(baseline_.color);
-}
-
 std::string Reticle::GetText() const noexcept
 {
     return desiredPatch_.text.value_or(baseline_.text);
@@ -2205,11 +2188,6 @@ float DynamicReticle::GetRotationDegrees() const noexcept
 mfd::Vec2 DynamicReticle::GetScale() const noexcept
 {
     return desiredPatch_.scale.value_or(baseline_.scale);
-}
-
-mfd::ColorRgba DynamicReticle::GetColor() const noexcept
-{
-    return desiredPatch_.color.value_or(baseline_.color);
 }
 
 std::string DynamicReticle::GetText() const noexcept

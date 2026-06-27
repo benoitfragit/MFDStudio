@@ -1418,71 +1418,6 @@ class GenerateUiTests(unittest.TestCase):
             self.assertIn(_expected_primitive_baseline(visible=False, radius=0.5), source_content)
             self.assertNotIn("10.0f", source_content)
 
-    def test_color_and_line_style_alias_coverage_in_baseline_initializer(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            page = root / "page.json"
-            page.write_text(
-                json.dumps(
-                    {
-                        "name": "Radar",
-                        "layers": [{"id": "default"}],
-                        "staticReticles": [
-                            {
-                                "id": "alias_panel",
-                                "layerId": "default",
-                                "elements": [
-                                    {"id": "stroke_line", "type": "line", "stroke": [10, 20, 30, 40], "exposed": True},
-                                    {"id": "color_line", "type": "line", "color": [50, 60, 70, 80], "exposed": True},
-                                    {
-                                        "id": "strokecolor_line",
-                                        "type": "line",
-                                        "strokeColor": [90, 100, 110, 120],
-                                        "exposed": True,
-                                    },
-                                    {"id": "dashed_en_line", "type": "line", "lineStyle": "dashed", "exposed": True},
-                                    {"id": "dashed_fr_line", "type": "line", "lineStyle": "tirets", "exposed": True},
-                                    {"id": "dotted_en_line", "type": "line", "lineStyle": "dotted", "exposed": True},
-                                    {"id": "dotted_fr_line", "type": "line", "lineStyle": "pointille", "exposed": True},
-                                ],
-                            },
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
-
-            window = root / "window.json"
-            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
-
-            output_header = root / "GeneratedUi.h"
-            output_source = root / "GeneratedUi.cpp"
-            output_map = root / "GeneratedUi.generated.map"
-
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(self.generator),
-                    "--window-json",
-                    str(window),
-                    "--output-header",
-                    str(output_header),
-                    "--output-source",
-                    str(output_source),
-                    "--output-map",
-                    str(output_map),
-                ],
-                check=True,
-            )
-
-            source_content = output_source.read_text(encoding="utf-8")
-
-            self.assertIn(_expected_primitive_baseline(color=(10, 20, 30, 40)), source_content)
-            self.assertIn(_expected_primitive_baseline(color=(50, 60, 70, 80)), source_content)
-            self.assertIn(_expected_primitive_baseline(color=(90, 100, 110, 120)), source_content)
-            self.assertIn(_expected_primitive_baseline(lineStyle="Dashed"), source_content)
-            self.assertIn(_expected_primitive_baseline(lineStyle="Dotted"), source_content)
-
     def test_generated_headers_expose_new_getters_via_using_declarations(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1548,13 +1483,11 @@ class GenerateUiTests(unittest.TestCase):
                 "using mfd::client::Reticle::GetPosition;",
                 "using mfd::client::Reticle::GetRotationDegrees;",
                 "using mfd::client::Reticle::GetScale;",
-                "using mfd::client::Reticle::GetColor;",
                 "using mfd::client::Reticle::GetText;",
                 "using mfd::client::DynamicReticle::GetVisible;",
                 "using mfd::client::DynamicReticle::GetPosition;",
                 "using mfd::client::DynamicReticle::GetRotationDegrees;",
                 "using mfd::client::DynamicReticle::GetScale;",
-                "using mfd::client::DynamicReticle::GetColor;",
                 "using mfd::client::DynamicReticle::GetText;",
             ]:
                 self.assertIn(expected, header_content)
@@ -1565,8 +1498,6 @@ _PRIMITIVE_BASELINE_DEFAULT_VALUES: dict = {
     "position": (0.0, 0.0),
     "rotationDegrees": 0.0,
     "scale": (1.0, 1.0),
-    "color": (0, 255, 102, 255),
-    "lineStyle": "Solid",
     "text": "",
     "lineStart": (-0.0208, 0.0),
     "lineEnd": (0.0208, 0.0),
@@ -1594,11 +1525,6 @@ def _vec2_literal(pair: tuple[float, float]) -> str:
     return f"mfd::Vec2 {{{_float_literal(pair[0])}, {_float_literal(pair[1])}}}"
 
 
-def _color_literal(channels: tuple[int, int, int, int]) -> str:
-    red, green, blue, alpha = channels
-    return f"mfd::ColorRgba {{{int(red)}, {int(green)}, {int(blue)}, {int(alpha)}}}"
-
-
 def _points_literal(points: tuple) -> str:
     if not points:
         return "std::vector<mfd::Vec2> {}"
@@ -1615,8 +1541,6 @@ def _expected_primitive_baseline(**overrides: object) -> str:
         f"{_vec2_literal(values['position'])}, "
         f"{_float_literal(values['rotationDegrees'])}, "
         f"{_vec2_literal(values['scale'])}, "
-        f"{_color_literal(values['color'])}, "
-        f"mfd::LineStyle::{values['lineStyle']}, "
         f'"{values["text"]}", '
         f"{_vec2_literal(values['lineStart'])}, "
         f"{_vec2_literal(values['lineEnd'])}, "

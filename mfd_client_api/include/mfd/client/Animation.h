@@ -285,8 +285,6 @@ struct PrimitiveBaseline
     mfd::Vec2 position {};
     float rotationDegrees = 0.0f;
     mfd::Vec2 scale {1.0f, 1.0f};
-    mfd::ColorRgba color {0, 255, 102, 255};
-    LineStyle lineStyle = LineStyle::Solid;
     std::string text {};
     mfd::Vec2 lineStart {-0.0208f, 0.0f};
     mfd::Vec2 lineEnd {0.0208f, 0.0f};
@@ -303,12 +301,8 @@ struct PrimitiveBaseline
 };
 
 /**
- * @brief Authored baseline values for a reticle's own transform/style/text
- * fields, resolved once at generated-construction time from the source JSON.
- *
- * @note `color` falls back to the same default as `PrimitiveStyle::color`
- * when neither a user override nor a JSON-authored reticle-level color is
- * present, since the model's `ReticleStyleOverride` has no default of its own.
+ * @brief Authored baseline values for a reticle's own transform/text fields,
+ * resolved once at generated-construction time from the source JSON.
  */
 struct ReticleBaseline
 {
@@ -316,7 +310,6 @@ struct ReticleBaseline
     mfd::Vec2 position {};
     float rotationDegrees = 0.0f;
     mfd::Vec2 scale {1.0f, 1.0f};
-    mfd::ColorRgba color {0, 255, 102, 255};
     std::string text {};
 };
 
@@ -378,16 +371,6 @@ protected:
      * @return Currently effective non-uniform scale.
      */
     mfd::Vec2 GetScale() const noexcept;
-    /**
-     * @brief Reads the effective stroke color: user override, else authored baseline.
-     * @return Currently effective stroke color.
-     */
-    mfd::ColorRgba GetColor() const noexcept;
-    /**
-     * @brief Reads the effective stroke pattern: user override, else authored baseline.
-     * @return Currently effective stroke pattern.
-     */
-    LineStyle GetLineStyle() const noexcept;
     /** @brief Read-only access to the authored baseline for derived-type-specific getters. */
     const PrimitiveBaseline& Baseline() const noexcept;
 
@@ -416,8 +399,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     void SetText(std::string value);
     void SetLetterSpacing(float letterSpacing);
@@ -445,7 +426,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetLineStyle;
 
     void SetLetterSpacing(float letterSpacing);
     /**
@@ -501,8 +481,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     void SetStart(mfd::Vec2 start);
     void SetEnd(mfd::Vec2 end);
@@ -529,8 +507,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this circle. */
     void SetFillColor(mfd::ColorRgba color);
@@ -558,8 +534,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this ring. */
     void SetFillColor(mfd::ColorRgba color);
@@ -593,8 +567,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this rectangle. */
     void SetFillColor(mfd::ColorRgba color);
@@ -638,8 +610,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this ellipse. */
     void SetFillColor(mfd::ColorRgba color);
@@ -683,8 +653,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this square. */
     void SetFillColor(mfd::ColorRgba color);
@@ -722,8 +690,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this diamond. */
     void SetFillColor(mfd::ColorRgba color);
@@ -767,8 +733,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this triangle. */
     void SetFillColor(mfd::ColorRgba color);
@@ -796,8 +760,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this polyline when it is closed. */
     void SetFillColor(mfd::ColorRgba color);
@@ -828,8 +790,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     void SetControlPoints(std::vector<mfd::Vec2> controlPoints);
     void SetSegments(int segments);
@@ -856,8 +816,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 
     /** @brief Stages one fill color override for this arc sector. */
     void SetFillColor(mfd::ColorRgba color);
@@ -894,8 +852,6 @@ public:
     using PrimitiveHandle::GetPosition;
     using PrimitiveHandle::GetRotationDegrees;
     using PrimitiveHandle::GetScale;
-    using PrimitiveHandle::GetColor;
-    using PrimitiveHandle::GetLineStyle;
 };
 
 class MFD_CLIENT_API Reticle
@@ -952,12 +908,6 @@ public:
     float GetRotationDegrees() const noexcept;
     /** @brief Reads the effective scale: user override, else authored baseline. */
     mfd::Vec2 GetScale() const noexcept;
-    /**
-     * @brief Reads the effective stroke color.
-     * @return User override, else authored baseline, else the `PrimitiveStyle`
-     * default `{0, 255, 102, 255}` when neither is present.
-     */
-    mfd::ColorRgba GetColor() const noexcept;
     /** @brief Reads the effective text content: user override, else authored baseline. */
     std::string GetText() const noexcept;
 
@@ -1172,12 +1122,6 @@ public:
     float GetRotationDegrees() const noexcept;
     /** @brief Reads the effective scale: user override, else authored baseline. */
     mfd::Vec2 GetScale() const noexcept;
-    /**
-     * @brief Reads the effective stroke color.
-     * @return User override, else authored baseline, else the `PrimitiveStyle`
-     * default `{0, 255, 102, 255}` when neither is present.
-     */
-    mfd::ColorRgba GetColor() const noexcept;
     /** @brief Reads the effective text content: user override, else authored baseline. */
     std::string GetText() const noexcept;
 

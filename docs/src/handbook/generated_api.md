@@ -85,13 +85,13 @@ accept `commands`; see [What Can Break Between Versions](../reference/public_con
   `SubmitLatest(...)`, and `SubmitReset(...)`
 - read-back `Get*` accessors on reticles, dynamic reticles, and primitive
   handles (e.g. `GetVisible`, `GetPosition`, `GetRotationDegrees`, `GetScale`,
-  `GetColor`, `GetText`, and per-type geometry getters such as `GetRadius` or
+  `GetText`, and per-type geometry getters such as `GetRadius` or
   `GetPoints`). Each resolves in three steps — a staged `Set*` override, then
   the JSON-authored value if the asset defined one, then the model's built-in
   default — and never stages a command or mutates state, so calling a getter
-  has no effect on the next built batch. Blink, thickness, fill/fill-color,
-  letter spacing, UTC, and `WindowDisplay`/`Page`-level getters are
-  intentionally not exposed.
+  has no effect on the next built batch. Blink, thickness, color, line style,
+  fill/fill-color, letter spacing, UTC, and `WindowDisplay`/`Page`-level
+  getters are intentionally not exposed.
 
 For time primitives the generated API exposes structured runtime controls
 (numeric time bypass, bypass clear, UTC/local selection, field visibility)

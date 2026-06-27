@@ -102,8 +102,6 @@ mfd::client::PrimitiveBaseline MakeNonDefaultPrimitiveBaseline()
     baseline.position = mfd::Vec2 {0.11f, 0.22f};
     baseline.rotationDegrees = 15.0f;
     baseline.scale = mfd::Vec2 {1.5f, 2.5f};
-    baseline.color = mfd::ColorRgba {5, 6, 7, 8};
-    baseline.lineStyle = mfd::client::LineStyle::Dashed;
     baseline.text = "baseline-text";
     baseline.lineStart = mfd::Vec2 {-1.0f, -2.0f};
     baseline.lineEnd = mfd::Vec2 {3.0f, 4.0f};
@@ -127,7 +125,6 @@ mfd::client::ReticleBaseline MakeNonDefaultReticleBaseline()
     baseline.position = mfd::Vec2 {1.5f, -2.5f};
     baseline.rotationDegrees = 45.0f;
     baseline.scale = mfd::Vec2 {2.0f, 3.0f};
-    baseline.color = mfd::ColorRgba {10, 20, 30, 40};
     baseline.text = "reticle-baseline-text";
     return baseline;
 }
@@ -610,11 +607,6 @@ TEST(AnimationTests, PrimitiveGettersReturnAuthoredBaselineWhenNoOverrideStaged)
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetRotationDegrees(), 15.0f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().x, 1.5f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().y, 2.5f);
-    EXPECT_EQ(reticle.horizonLine.GetColor().r, 5);
-    EXPECT_EQ(reticle.horizonLine.GetColor().g, 6);
-    EXPECT_EQ(reticle.horizonLine.GetColor().b, 7);
-    EXPECT_EQ(reticle.horizonLine.GetColor().a, 8);
-    EXPECT_EQ(reticle.horizonLine.GetLineStyle(), mfd::client::LineStyle::Dashed);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetStart().x, -1.0f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetEnd().x, 3.0f);
 
@@ -662,10 +654,6 @@ TEST(AnimationTests, PrimitiveGettersReturnAuthoredBaselineWhenNoOverrideStaged)
     EXPECT_FLOAT_EQ(reticle.GetRotationDegrees(), 45.0f);
     EXPECT_FLOAT_EQ(reticle.GetScale().x, 2.0f);
     EXPECT_FLOAT_EQ(reticle.GetScale().y, 3.0f);
-    EXPECT_EQ(reticle.GetColor().r, 10);
-    EXPECT_EQ(reticle.GetColor().g, 20);
-    EXPECT_EQ(reticle.GetColor().b, 30);
-    EXPECT_EQ(reticle.GetColor().a, 40);
     EXPECT_EQ(reticle.GetText(), "reticle-baseline-text");
 }
 
@@ -678,11 +666,6 @@ TEST(AnimationTests, PrimitiveGettersReturnModelDefaultWhenConstructedWithoutAut
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetRotationDegrees(), 0.0f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().x, 1.0f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().y, 1.0f);
-    EXPECT_EQ(reticle.horizonLine.GetColor().r, 0);
-    EXPECT_EQ(reticle.horizonLine.GetColor().g, 255);
-    EXPECT_EQ(reticle.horizonLine.GetColor().b, 102);
-    EXPECT_EQ(reticle.horizonLine.GetColor().a, 255);
-    EXPECT_EQ(reticle.horizonLine.GetLineStyle(), mfd::client::LineStyle::Solid);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetStart().x, -0.0208f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetEnd().x, 0.0208f);
 
@@ -713,22 +696,6 @@ TEST(AnimationTests, PrimitiveGettersReturnModelDefaultWhenConstructedWithoutAut
     EXPECT_FLOAT_EQ(geometry.steerDiamond.GetHeight(), 0.0208f);
 }
 
-TEST(AnimationTests, ReticleAndDynamicReticleColorFallsBackToPrimitiveStyleDefaultWithNoOverrideOrBaseline)
-{
-    RawPatchFixtureReticle reticle;
-    EXPECT_EQ(reticle.GetColor().r, 0);
-    EXPECT_EQ(reticle.GetColor().g, 255);
-    EXPECT_EQ(reticle.GetColor().b, 102);
-    EXPECT_EQ(reticle.GetColor().a, 255);
-
-    GeneratedDynamicFixtureSet set;
-    GeneratedDynamicFixtureReticle& track = set.CreateTrack();
-    EXPECT_EQ(track.GetColor().r, 0);
-    EXPECT_EQ(track.GetColor().g, 255);
-    EXPECT_EQ(track.GetColor().b, 102);
-    EXPECT_EQ(track.GetColor().a, 255);
-}
-
 TEST(AnimationTests, PrimitiveAndReticleGettersReturnUserOverrideAfterCorrespondingSetter)
 {
     GeneratedGeometryFixtureReticle reticle;
@@ -748,9 +715,6 @@ TEST(AnimationTests, PrimitiveAndReticleGettersReturnUserOverrideAfterCorrespond
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetRotationDegrees(), 33.0f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().x, 1.2f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().y, 1.3f);
-    EXPECT_EQ(reticle.horizonLine.GetColor().r, 1);
-    EXPECT_EQ(reticle.horizonLine.GetColor().a, 4);
-    EXPECT_EQ(reticle.horizonLine.GetLineStyle(), mfd::client::LineStyle::Dotted);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetStart().x, -0.5f);
     EXPECT_FLOAT_EQ(reticle.horizonLine.GetEnd().x, 0.5f);
 
@@ -810,7 +774,6 @@ TEST(AnimationTests, PrimitiveAndReticleGettersReturnUserOverrideAfterCorrespond
     EXPECT_FLOAT_EQ(textReticle.GetPosition().x, 0.7f);
     EXPECT_FLOAT_EQ(textReticle.GetRotationDegrees(), 12.0f);
     EXPECT_FLOAT_EQ(textReticle.GetScale().x, 1.4f);
-    EXPECT_EQ(textReticle.GetColor().r, 9);
     EXPECT_EQ(textReticle.GetText(), "new-value");
 }
 
@@ -863,12 +826,11 @@ TEST(AnimationTests, TimeHandleGetTimeValueIsNulloptUntilSetAndAfterClear)
     EXPECT_EQ(reticle.missionTime.GetTimeValue(), std::nullopt);
 }
 
-TEST(AnimationTests, TimeHandleExposesVisibleAndLineStyleButNotColor)
+TEST(AnimationTests, TimeHandleExposesVisibleGetter)
 {
     BaselineFixtureReticle baselineReticle;
 
     EXPECT_FALSE(baselineReticle.missionTime.GetVisible());
-    EXPECT_EQ(baselineReticle.missionTime.GetLineStyle(), mfd::client::LineStyle::Dashed);
 
     baselineReticle.missionTime.SetVisible(true);
     EXPECT_TRUE(baselineReticle.missionTime.GetVisible());
@@ -880,7 +842,6 @@ TEST(AnimationTests, PrimitiveGetterCallsDoNotMutateReticlePatchOrAffectAppended
 
     (void)reticle.horizonLine.GetVisible();
     (void)reticle.horizonLine.GetPosition();
-    (void)reticle.horizonLine.GetColor();
     (void)reticle.cursorCircle.GetRadius();
     (void)reticle.scopeRing.GetInnerRadius();
     (void)reticle.lockBox.GetWidth();

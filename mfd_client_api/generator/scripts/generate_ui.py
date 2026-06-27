@@ -52,7 +52,6 @@ STATIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "GetPosition",
     "GetRotationDegrees",
     "GetScale",
-    "GetColor",
     "GetText",
 )
 
@@ -75,7 +74,6 @@ DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "GetPosition",
     "GetRotationDegrees",
     "GetScale",
-    "GetColor",
     "GetText",
 )
 
@@ -282,8 +280,6 @@ PRIMITIVE_BASELINE_DEFAULTS: dict = {
     "position": (0.0, 0.0),
     "rotationDegrees": 0.0,
     "scale": (1.0, 1.0),
-    "color": (0, 255, 102, 255),
-    "lineStyle": "Solid",
     "text": "",
     "lineStart": (-0.0208, 0.0),
     "lineEnd": (0.0208, 0.0),
@@ -304,7 +300,6 @@ RETICLE_BASELINE_DEFAULTS: dict = {
     "position": (0.0, 0.0),
     "rotationDegrees": 0.0,
     "scale": (1.0, 1.0),
-    "color": (0, 255, 102, 255),
     "text": "",
 }
 
@@ -381,65 +376,6 @@ def parse_transform(node: dict) -> dict:
                 result["scale"] = (float(sx), float(sy))
 
     return result
-
-
-def parse_color_value(value: object) -> tuple[int, int, int, int] | None:
-    if isinstance(value, list) and 3 <= len(value) <= 4:
-        try:
-            channels = [int(channel) for channel in value]
-        except (TypeError, ValueError):
-            return None
-        red, green, blue = channels[0], channels[1], channels[2]
-        alpha = channels[3] if len(channels) == 4 else 255
-        return red, green, blue, alpha
-
-    if isinstance(value, dict):
-        red = value.get("r", 0)
-        green = value.get("g", 255)
-        blue = value.get("b", 0)
-        alpha = value.get("a", 255)
-        if all(isinstance(channel, (int, float)) for channel in (red, green, blue, alpha)):
-            return int(red), int(green), int(blue), int(alpha)
-        return None
-
-    if isinstance(value, str) and value.startswith("#"):
-        hex_digits = value[1:]
-        if len(hex_digits) == 6:
-            hex_digits += "ff"
-        if len(hex_digits) == 8:
-            try:
-                return (
-                    int(hex_digits[0:2], 16),
-                    int(hex_digits[2:4], 16),
-                    int(hex_digits[4:6], 16),
-                    int(hex_digits[6:8], 16),
-                )
-            except ValueError:
-                return None
-
-    return None
-
-
-def parse_color(node: dict) -> tuple[int, int, int, int] | None:
-    value = find_alias_field(node, ("stroke", "color", "strokeColor"))
-    if value is None:
-        return None
-    return parse_color_value(value)
-
-
-def parse_line_style(node: dict) -> str | None:
-    value = find_alias_field(node, ("lineStyle", "strokeStyle", "strokePattern"))
-    if not isinstance(value, str):
-        return None
-
-    token = normalize_lookup_name(value)
-    if token in ("solid", "plain", "full", "plein"):
-        return "Solid"
-    if token in ("dotted", "dot", "pointille"):
-        return "Dotted"
-    if token in ("dashed", "dash", "tiret", "tirets"):
-        return "Dashed"
-    return None
 
 
 def parse_primitive_geometry_baseline(element: dict, primitive_type: str) -> dict:
@@ -555,11 +491,6 @@ def render_vec2_literal(pair: tuple[float, float]) -> str:
     return f"mfd::Vec2 {{{float_literal(pair[0])}, {float_literal(pair[1])}}}"
 
 
-def render_color_literal(channels: tuple[int, int, int, int]) -> str:
-    red, green, blue, alpha = channels
-    return f"mfd::ColorRgba {{{int(red)}, {int(green)}, {int(blue)}, {int(alpha)}}}"
-
-
 def render_points_literal(points: tuple) -> str:
     if not points:
         return "std::vector<mfd::Vec2> {}"
@@ -576,14 +507,6 @@ def build_primitive_baseline_initializer(element: dict, primitive_type: str) -> 
 
     values.update(parse_transform(element))
 
-    color = parse_color(element)
-    if color is not None:
-        values["color"] = color
-
-    line_style = parse_line_style(element)
-    if line_style is not None:
-        values["lineStyle"] = line_style
-
     text = element.get("text")
     if isinstance(text, str):
         values["text"] = text
@@ -596,8 +519,6 @@ def build_primitive_baseline_initializer(element: dict, primitive_type: str) -> 
         f"{render_vec2_literal(values['position'])}, "
         f"{float_literal(values['rotationDegrees'])}, "
         f"{render_vec2_literal(values['scale'])}, "
-        f"{render_color_literal(values['color'])}, "
-        f"mfd::LineStyle::{values['lineStyle']}, "
         f'"{cpp_string(values["text"])}", '
         f"{render_vec2_literal(values['lineStart'])}, "
         f"{render_vec2_literal(values['lineEnd'])}, "
@@ -627,10 +548,6 @@ def build_reticle_baseline_initializer(node: dict) -> str:
         if key in transform:
             values[key] = transform[key]
 
-    color = parse_color(node)
-    if color is not None:
-        values["color"] = color
-
     text = find_alias_field(node, ("text", "value"))
     if isinstance(text, str):
         values["text"] = text
@@ -641,7 +558,6 @@ def build_reticle_baseline_initializer(node: dict) -> str:
         f"{render_vec2_literal(values['position'])}, "
         f"{float_literal(values['rotationDegrees'])}, "
         f"{render_vec2_literal(values['scale'])}, "
-        f"{render_color_literal(values['color'])}, "
         f'"{cpp_string(values["text"])}"'
         "}"
     )
