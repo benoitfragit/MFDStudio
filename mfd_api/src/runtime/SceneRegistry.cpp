@@ -847,7 +847,6 @@ struct SceneRegistry::PageComponent
     ColorRgba backgroundColor {6, 14, 20, 255};
     PageViewState view {};
     std::unordered_map<std::string, std::size_t, TransparentStringHash, TransparentStringEqual> layerOrdersById {};
-    std::unordered_map<std::string, bool, TransparentStringHash, TransparentStringEqual> clippingEraseLayerOnlyById {};
     std::unordered_map<std::string, DynamicReticleLayerBinding, TransparentStringHash, TransparentStringEqual>
         dynamicBindingsByTemplate {};
     std::unordered_map<std::string, std::uint32_t, TransparentStringHash, TransparentStringEqual> blinkDurationsByType {};
@@ -866,13 +865,6 @@ struct SceneRegistry::PageComponent
         const std::string normalizedLayerId = NormalizePageName(layerId);
         const auto iterator = layerOrdersById.find(normalizedLayerId);
         return iterator == layerOrdersById.end() ? layerOrdersById.size() : iterator->second;
-    }
-
-    [[nodiscard]] bool ResolveClippingEraseLayerOnly(const std::string_view layerId) const noexcept
-    {
-        const std::string normalizedLayerId = NormalizePageName(layerId);
-        const auto iterator = clippingEraseLayerOnlyById.find(normalizedLayerId);
-        return iterator != clippingEraseLayerOnlyById.end() && iterator->second;
     }
 
     [[nodiscard]] const DynamicReticleLayerBinding* ResolveDynamicBinding(
@@ -1136,11 +1128,7 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
 
         for (std::size_t layerIndex = 0; layerIndex < page.layers.size(); ++layerIndex)
         {
-            const std::string normalizedLayerId = NormalizePageName(page.layers[layerIndex].id);
-            pageComponent.layerOrdersById.emplace(normalizedLayerId, layerIndex);
-            pageComponent.clippingEraseLayerOnlyById.emplace(
-                normalizedLayerId,
-                page.layers[layerIndex].clippingEraseLayerOnly);
+            pageComponent.layerOrdersById.emplace(NormalizePageName(page.layers[layerIndex].id), layerIndex);
         }
 
         for (const auto& binding : page.dynamicReticleBindings)
@@ -2011,8 +1999,7 @@ void SceneRegistry::CollectPageReticleViewsByKey(const std::string_view pageName
         destination.push_back(ReticleRenderView {
             &reticle->group,
             visible,
-            page->ResolveLayerOrder(reticle->group.layerId),
-            page->ResolveClippingEraseLayerOnly(reticle->group.layerId)});
+            page->ResolveLayerOrder(reticle->group.layerId)});
     }
 }
 

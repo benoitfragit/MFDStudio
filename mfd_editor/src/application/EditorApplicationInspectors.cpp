@@ -1704,18 +1704,6 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
             ImGui::TextDisabled("Dynamic reticles: %s", dynamicBindingSummary.c_str());
         }
 
-        bool eraseLayerOnly = layer.clippingEraseLayerOnly;
-        if (ImGui::Checkbox("Erase layer only", &eraseLayerOnly))
-        {
-            if (eraseLayerOnly != layer.clippingEraseLayerOnly)
-            {
-                PushUndoSnapshot();
-                layer.clippingEraseLayerOnly = eraseLayerOnly;
-            }
-        }
-        ShowItemTooltip("When enabled, clipping in this layer only erases content already drawn "
-                        "inside the same layer. Lower layers stay intact.");
-
         std::array<char, 128> layerName {};
         CopyTextBuffer(layerName, layer.id);
         const bool nameChanged = ImGui::InputText("Layer id", layerName.data(), layerName.size());
@@ -2356,6 +2344,17 @@ void EditorApplication::DrawPageReticleInspector()
         }
         ShowItemTooltip(
             "Inner clipping erases the inside of the selected shape. Outer clipping erases everything outside it.");
+
+        if (reticle->clipping.mode != mfd::ReticleClipMode::None)
+        {
+            bool eraseLayerOnly = reticle->clipping.eraseLayerOnly;
+            if (ImGui::Checkbox("Erase layer only", &eraseLayerOnly))
+            {
+                ApplyPageReticleClipEraseLayerOnly(documentState_.selection.pageReticleIndex, eraseLayerOnly);
+            }
+            ShowItemTooltip("When enabled, this reticle's clipping only erases content already drawn "
+                            "inside its own layer. Lower layers stay intact.");
+        }
 
         if (reticle->clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(*reticle) == nullptr)
         {

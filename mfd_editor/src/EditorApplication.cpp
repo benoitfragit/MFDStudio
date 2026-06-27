@@ -146,13 +146,6 @@ std::size_t PageLayerRenderOrder(const mfd::PageDefinition& page, const std::str
     return page.layers.size();
 }
 
-// Returns whether the layer owning one reticle restricts its clipping to the layer itself.
-bool PageLayerErasesLayerOnly(const mfd::PageDefinition& page, const std::string_view layerId)
-{
-    const std::size_t order = PageLayerRenderOrder(page, layerId);
-    return order < page.layers.size() && page.layers[order].clippingEraseLayerOnly;
-}
-
 // Draws one shell side-panel visibility checkbox. The checkbox reflects the effective
 // visibility, so when the responsive layout auto-collapses a wanted panel on a narrow
 // window the entry is shown unchecked and disabled instead of falsely claiming a hidden
@@ -3345,7 +3338,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             }
 
             restoreLayerOrder = PageLayerRenderOrder(*page, reticle.layerId);
-            restoreEraseLayerOnly = PageLayerErasesLayerOnly(*page, reticle.layerId);
+            restoreEraseLayerOnly = reticle.clipping.eraseLayerOnly;
 
             if (ShouldDimPageReticleInCurrentFocus(*page, reticle))
             {
@@ -4355,14 +4348,6 @@ void EditorApplication::DrawLayerInspectorPanel(mfd::PageDefinition& page)
         {
             ImGui::PopID();
             break;
-        }
-
-        // Compact read-only hint; the option itself is edited in the Page Layer Inspector.
-        if (layerIndex >= 0 && page.layers[static_cast<std::size_t>(layerIndex)].clippingEraseLayerOnly)
-        {
-            ImGui::TextDisabled("Erase layer only");
-            ShowItemTooltip("Clipping in this layer only erases content drawn inside the same "
-                            "layer. Edit this option in the Page layers inspector.");
         }
 
         // The whole thumbnail is clickable and focuses the same layer entry.
@@ -5418,6 +5403,30 @@ bool EditorApplication::ApplyPageReticleClipping(const int reticleIndex,
                       false);
     }
 
+    return true;
+}
+
+bool EditorApplication::ApplyPageReticleClipEraseLayerOnly(const int reticleIndex, const bool eraseLayerOnly)
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr ||
+        reticleIndex < 0 ||
+        reticleIndex >= static_cast<int>(page->staticReticles.size()))
+    {
+        return false;
+    }
+
+    mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+    if (reticle.clipping.eraseLayerOnly == eraseLayerOnly)
+    {
+        return false;
+    }
+
+    PushUndoSnapshot();
+    reticle.clipping.eraseLayerOnly = eraseLayerOnly;
+    RebuildStatus(std::string(eraseLayerOnly ? "Layer-local clipping enabled" : "Layer-local clipping disabled") +
+                      " for page reticle '" + reticle.id + "'.",
+                  false);
     return true;
 }
 

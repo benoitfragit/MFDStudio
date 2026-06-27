@@ -163,11 +163,6 @@ bool IsGreen(const mfd::Rgba8Pixel& pixel) noexcept
     return pixel.r < 80U && pixel.g > 150U && pixel.b < 80U;
 }
 
-bool IsRed(const mfd::Rgba8Pixel& pixel) noexcept
-{
-    return pixel.r > 150U && pixel.g < 80U && pixel.b < 80U;
-}
-
 // Renders a two-layer scene where the current layer erases its own clipping only: a green lower
 // layer, a red current-layer reticle, then an outer clip mask in the same current layer. The restore
 // callback repaints the lower layer (without clipping) and the editor grid, but never the current
@@ -267,13 +262,13 @@ TEST(CanvasClippingCallbackRenderTests, LayerLocalRestoreKeepsLowerLayerAndErase
     ASSERT_EQ(framebuffer.height, kRenderSize);
 
     // Inside the kept clip region, the current-layer red reticle survives.
-    EXPECT_TRUE(IsRed(PixelAt(framebuffer, kCenter, kCenter)));
+    EXPECT_TRUE(IsGridRed(PixelAt(framebuffer, kCenter, kCenter)));
 
     // In the erased region, the lower layer is restored (green) while the current layer is not (no red).
     // The probe row sits inside the backdrop rectangle but outside the clip circle and off the grid line.
     constexpr int kOutsideY = 14;
     EXPECT_TRUE(IsGreen(PixelAt(framebuffer, kCenter, kOutsideY)));
-    EXPECT_FALSE(IsRed(PixelAt(framebuffer, kCenter, kOutsideY)));
+    EXPECT_FALSE(IsGridRed(PixelAt(framebuffer, kCenter, kOutsideY)));
 
     // The editor grid is still restored inside the clipped region when a callback is provided.
     EXPECT_GT(CountGridRedInColumn(framebuffer, kCenter), 0U);

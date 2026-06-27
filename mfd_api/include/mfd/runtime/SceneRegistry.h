@@ -152,8 +152,6 @@ struct ReticleRenderView
     bool visible = false;
     /** @brief Inter-layer render order of the reticle's layer; lower values draw earlier. */
     std::size_t layerOrder = 0;
-    /** @brief Layer-local clipping policy copied from the reticle's owning page layer. */
-    bool clippingEraseLayerOnly = false;
 };
 
 /**

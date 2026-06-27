@@ -735,12 +735,7 @@ SerializedPageLayerState SerializePageLayers(const mfd::PageDefinition& page)
             throw std::runtime_error("Page '" + page.name + "' contains duplicate runtime layer id '" + layer.id + "'.");
         }
 
-        json layerNode {{"id", layer.id}};
-        if (layer.clippingEraseLayerOnly)
-        {
-            layerNode["clippingEraseLayerOnly"] = true;
-        }
-        result.layers.push_back(std::move(layerNode));
+        result.layers.push_back(json {{"id", layer.id}});
     }
 
     return result;
@@ -1301,13 +1296,18 @@ std::optional<json> SerializeReticleClipping(const mfd::ReticleClipState& clippi
     json node = json::object();
     node["mode"] = clipping.mode == mfd::ReticleClipMode::Inner ? "inner" : "outer";
     node["primitive"] = clipping.primitiveId;
+    if (clipping.eraseLayerOnly)
+    {
+        node["eraseLayerOnly"] = true;
+    }
     return node;
 }
 
 std::optional<json> SerializeReticleClippingOverride(const mfd::ReticleClipState& clipping,
                                                      const mfd::ReticleClipState& inherited)
 {
-    if (clipping.mode == inherited.mode && clipping.primitiveId == inherited.primitiveId)
+    if (clipping.mode == inherited.mode && clipping.primitiveId == inherited.primitiveId &&
+        clipping.eraseLayerOnly == inherited.eraseLayerOnly)
     {
         return std::nullopt;
     }

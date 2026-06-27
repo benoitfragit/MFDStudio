@@ -611,6 +611,13 @@ private:
                                      ImVec2 mousePosition) const;
     /** @brief Applies one clipping mode change to a page reticle and reports status. */
     bool ApplyPageReticleClipping(int reticleIndex, mfd::ReticleClipMode mode, std::string primitiveId);
+    /**
+     * @brief Toggles the layer-local clipping erase policy of one page reticle.
+     * @param reticleIndex Index of the page reticle inside the active page.
+     * @param eraseLayerOnly New layer-local clipping erase policy.
+     * @return `true` when the value actually changed; an undo snapshot is recorded only then.
+     */
+    bool ApplyPageReticleClipEraseLayerOnly(int reticleIndex, bool eraseLayerOnly);
 
     /** @brief Builds a minimal reticle template containing one primitive of the requested type. */
     static mfd::ReticleGroup MakePrimitiveReticle(std::string id, mfd::PrimitiveType primitiveType);

@@ -818,11 +818,18 @@ TEST(JsonLoaderTests, LoadDocumentParsesPageDynamicReticleBindings)
     EXPECT_EQ(loaded.pages.front().dynamicReticleBindings.at(1).orderInLayer, 1);
 }
 
-TEST(JsonLoaderTests, LoadDocumentParsesClippingEraseLayerOnlyFlag)
+TEST(JsonLoaderTests, LoadDocumentParsesReticleClipEraseLayerOnlyFlag)
 {
     TemporaryFolder workspace;
     const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
-    std::filesystem::create_directories(workspace.Path() / "reticles");
+
+    WriteTextFile(workspace.Path() / "reticles" / "mask.json",
+                  R"json({
+  "id": "mask",
+  "elements": [
+    { "id": "shape", "type": "circle", "radius": 0.1 }
+  ]
+})json");
 
     WriteTextFile(pagesFile,
                   R"json({
@@ -830,9 +837,12 @@ TEST(JsonLoaderTests, LoadDocumentParsesClippingEraseLayerOnlyFlag)
   "pages": [
     {
       "name": "Radar",
-      "layers": [
-        { "id": "background" },
-        { "id": "symbols", "clippingEraseLayerOnly": true }
+      "layers": [ { "id": "default" } ],
+      "staticReticles": [
+        { "id": "plain", "template": "mask", "layerId": "default",
+          "clipping": { "mode": "inner", "primitive": "shape" } },
+        { "id": "local", "template": "mask", "layerId": "default",
+          "clipping": { "mode": "inner", "primitive": "shape", "eraseLayerOnly": true } }
       ]
     }
   ]
@@ -842,17 +852,25 @@ TEST(JsonLoaderTests, LoadDocumentParsesClippingEraseLayerOnlyFlag)
     const mfd::MfdDocument loaded = loader.LoadDocument(pagesFile);
 
     ASSERT_EQ(loaded.pages.size(), 1U);
-    ASSERT_EQ(loaded.pages.front().layers.size(), 2U);
-    // An absent field keeps the historical behaviour disabled.
-    EXPECT_FALSE(loaded.pages.front().layers.at(0).clippingEraseLayerOnly);
+    ASSERT_EQ(loaded.pages.front().staticReticles.size(), 2U);
+    // An absent field keeps the historical global clipping behaviour.
+    EXPECT_FALSE(loaded.pages.front().staticReticles.at(0).clipping.eraseLayerOnly);
     // An explicit true is parsed.
-    EXPECT_TRUE(loaded.pages.front().layers.at(1).clippingEraseLayerOnly);
+    EXPECT_TRUE(loaded.pages.front().staticReticles.at(1).clipping.eraseLayerOnly);
 }
 
-TEST(JsonLoaderTests, LoadDocumentRejectsNonBooleanClippingEraseLayerOnly)
+TEST(JsonLoaderTests, LoadDocumentRejectsNonBooleanReticleClipEraseLayerOnly)
 {
     TemporaryFolder workspace;
     const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+
+    WriteTextFile(workspace.Path() / "reticles" / "mask.json",
+                  R"json({
+  "id": "mask",
+  "elements": [
+    { "id": "shape", "type": "circle", "radius": 0.1 }
+  ]
+})json");
 
     WriteTextFile(pagesFile,
                   R"json({
@@ -860,14 +878,14 @@ TEST(JsonLoaderTests, LoadDocumentRejectsNonBooleanClippingEraseLayerOnly)
   "pages": [
     {
       "name": "Radar",
-      "layers": [
-        { "id": "symbols", "clippingEraseLayerOnly": "yes" }
+      "layers": [ { "id": "default" } ],
+      "staticReticles": [
+        { "id": "local", "template": "mask", "layerId": "default",
+          "clipping": { "mode": "inner", "primitive": "shape", "eraseLayerOnly": "yes" } }
       ]
     }
   ]
 })json");
-
-    std::filesystem::create_directories(workspace.Path() / "reticles");
 
     mfd::JsonLoader loader;
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);

@@ -169,34 +169,34 @@ is immediately reflected in the other.
 
 #### Layer-local clipping (`Erase layer only`)
 
-Each real layer row of the **Page layers** inspector also exposes an **Erase
-layer only** checkbox:
+Clipping reach is a **per-reticle** property, set in the reticle **Clipping**
+inspector section. Once a reticle has a clip mode (`Inner` or `Outer`), an
+**Erase layer only** checkbox appears next to its clip mode:
 
-- when it is **disabled** (the default), clipping keeps its historical global
-  behaviour: a clipping reticle in that layer can erase everything already drawn
-  behind it, including lower layers;
-- when it is **enabled**, clipping in that layer only erases content already
-  drawn inside the same layer. Reticles belonging to strictly earlier layers in
-  the render order stay visible, while reticles already drawn in the current
-  layer (including the clipping reticle itself) are erased inside the clipped
-  region.
+- when it is **disabled** (the default), the clipping keeps its historical
+  global behaviour: it can erase everything already drawn behind that reticle,
+  including lower layers;
+- when it is **enabled**, the clipping only erases content already drawn inside
+  the reticle's own layer. Reticles belonging to strictly earlier layers in the
+  render order stay visible, while content already drawn in the current layer
+  (including the clipping reticle itself) is erased inside the clipped region.
+
+Because the policy lives on each reticle, two reticles sharing one layer can use
+different behaviours: one can punch through everything while another only erases
+its own layer.
 
 The effect is visible both in the editor preview and in the runtime window, and
-it is saved in the page JSON. The option is a layer authoring/runtime property:
-no generated client API is added to change it. The editor grid and page border
-keep being restored as before. The thumbnail Layer Inspector shows a compact
-`Erase layer only` hint on layers where the option is enabled, but the option is
-edited from the **Page layers** inspector.
+it is saved in the reticle JSON. It is a reticle authoring/runtime property: no
+generated client API is added to change it. The editor grid and page border keep
+being restored as before.
 
-The flag is stored per layer and only written when enabled, so old pages stay
-compatible:
+The flag lives inside the reticle `clipping` object and is only written when
+enabled, so old assets stay compatible:
 
 ```json
 {
-  "layers": [
-    { "id": "background" },
-    { "id": "symbols", "clippingEraseLayerOnly": true }
-  ]
+  "id": "symbols_mask",
+  "clipping": { "mode": "inner", "primitive": "shape", "eraseLayerOnly": true }
 }
 ```
 

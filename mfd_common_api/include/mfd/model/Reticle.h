@@ -416,6 +416,16 @@ struct ReticleClipState
 {
     ReticleClipMode mode = ReticleClipMode::None;
     std::string primitiveId;
+    /**
+     * @brief Restricts this reticle's clipping erasure to its own layer.
+     *
+     * When `false` (the default), the clipping keeps its historical global behaviour and may erase
+     * everything already drawn behind this reticle, including lower layers. When `true`, the
+     * clipping only erases content already drawn inside this reticle's layer; pixels belonging to
+     * strictly earlier layers in the render order stay visible. Two reticles sharing one layer may
+     * therefore use different policies.
+     */
+    bool eraseLayerOnly = false;
 };
 
 /**

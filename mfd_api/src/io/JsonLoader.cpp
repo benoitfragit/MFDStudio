@@ -2044,6 +2044,17 @@ ReticleClipState ParseReticleClipState(const json& node)
         clipping.primitiveId = primitiveNode->get<std::string>();
     }
 
+    if (const json* eraseLayerOnlyNode = FindField(*clippingNode, {"eraseLayerOnly"});
+        eraseLayerOnlyNode != nullptr && !eraseLayerOnlyNode->is_null())
+    {
+        if (!eraseLayerOnlyNode->is_boolean())
+        {
+            throw std::runtime_error("clipping.eraseLayerOnly must be a boolean");
+        }
+
+        clipping.eraseLayerOnly = eraseLayerOnlyNode->get<bool>();
+    }
+
     return clipping;
 }
 
@@ -2144,17 +2155,6 @@ std::vector<PageLayerDefinition> ParsePageLayerDefinitions(const json& node)
         if (!normalizedLayerIds.insert(normalizedLayerId).second)
         {
             throw std::runtime_error("Duplicate page layer id: " + layer.id);
-        }
-
-        if (entry.contains("clippingEraseLayerOnly"))
-        {
-            const json& eraseLayerOnly = entry.at("clippingEraseLayerOnly");
-            if (!eraseLayerOnly.is_boolean())
-            {
-                throw std::runtime_error("Page layer clippingEraseLayerOnly must be a boolean");
-            }
-
-            layer.clippingEraseLayerOnly = eraseLayerOnly.get<bool>();
         }
 
         layers.push_back(std::move(layer));

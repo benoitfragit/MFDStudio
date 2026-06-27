@@ -418,32 +418,36 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentFailsWhenPageReticleBlinkT
     EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
 }
 
-TEST(EditorDocumentSerializerTests, SerializePageWritesClippingEraseLayerOnlyOnlyWhenEnabled)
+mfd::ReticleGroup MakeClippingReticle(const bool eraseLayerOnly)
 {
-    mfd::PageDefinition page;
-    page.name = "Radar";
-    page.title = "Radar";
-    page.layers.push_back(mfd::PageLayerDefinition {"background", false});
-    page.layers.push_back(mfd::PageLayerDefinition {"symbols", true});
+    mfd::ReticleGroup reticle;
+    reticle.id = "masker";
 
-    editor::EditorFileLayout layout;
-    layout.pageFiles.push_back("radar.json");
+    mfd::Primitive shape;
+    shape.id = "shape";
+    shape.type = mfd::PrimitiveType::Circle;
+    shape.geometry = mfd::CircleGeometry {0.1f};
+    reticle.primitives.push_back(std::move(shape));
 
-    const std::string jsonText = editor::SerializePageToJsonString(page, mfd::ReticleLibrary {}, layout, 0U);
-    const nlohmann::json node = nlohmann::json::parse(jsonText);
+    reticle.clipping.mode = mfd::ReticleClipMode::Inner;
+    reticle.clipping.primitiveId = "shape";
+    reticle.clipping.eraseLayerOnly = eraseLayerOnly;
+    return reticle;
+}
 
-    ASSERT_TRUE(node.contains("layers"));
-    const nlohmann::json& layers = node.at("layers");
-    ASSERT_EQ(layers.size(), 2U);
+TEST(EditorDocumentSerializerTests, SerializeReticleWritesClipEraseLayerOnlyOnlyWhenEnabled)
+{
+    const nlohmann::json disabledNode =
+        nlohmann::json::parse(editor::SerializeReticleTemplateToJsonString(MakeClippingReticle(false)));
+    ASSERT_TRUE(disabledNode.contains("clipping"));
+    // A disabled policy keeps a compact clipping object without the optional flag.
+    EXPECT_FALSE(disabledNode.at("clipping").contains("eraseLayerOnly"));
 
-    // The disabled layer keeps a compact entry without the optional flag.
-    EXPECT_EQ(layers.at(0).at("id"), "background");
-    EXPECT_FALSE(layers.at(0).contains("clippingEraseLayerOnly"));
-
-    // The enabled layer persists the flag as true.
-    EXPECT_EQ(layers.at(1).at("id"), "symbols");
-    ASSERT_TRUE(layers.at(1).contains("clippingEraseLayerOnly"));
-    EXPECT_TRUE(layers.at(1).at("clippingEraseLayerOnly").get<bool>());
+    const nlohmann::json enabledNode =
+        nlohmann::json::parse(editor::SerializeReticleTemplateToJsonString(MakeClippingReticle(true)));
+    ASSERT_TRUE(enabledNode.contains("clipping"));
+    ASSERT_TRUE(enabledNode.at("clipping").contains("eraseLayerOnly"));
+    EXPECT_TRUE(enabledNode.at("clipping").at("eraseLayerOnly").get<bool>());
 }
 
 TEST(EditorDocumentSerializerTests, SerializeReticleTemplateIncludesTemplateId)

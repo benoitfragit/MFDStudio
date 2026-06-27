@@ -358,19 +358,21 @@ TEST(SceneRegistryTests, CollectPageReticlesUsesCaseInsensitiveLayerLookupAcross
     EXPECT_EQ(ordered[4]->id, "dynamic_top");
 }
 
-TEST(SceneRegistryTests, CollectPageReticleViewsCarryLayerOrderAndClipEraseLayerOnly)
+TEST(SceneRegistryTests, CollectPageReticleViewsCarryLayerOrderAndPreserveClipEraseLayerOnly)
 {
     mfd::PageDefinition page;
     page.name = "Radar";
     page.normalizedName = "radar";
     page.title = "Radar";
-    page.layers.push_back(mfd::PageLayerDefinition {"background", false});
-    page.layers.push_back(mfd::PageLayerDefinition {"symbols", true});
+    page.layers.push_back(mfd::PageLayerDefinition {"background"});
+    page.layers.push_back(mfd::PageLayerDefinition {"symbols"});
 
     mfd::ReticleGroup background = MakeReticle("background");
     background.layerId = "background";
     mfd::ReticleGroup symbol = MakeReticle("symbol");
     symbol.layerId = "symbols";
+    symbol.clipping.mode = mfd::ReticleClipMode::Inner;
+    symbol.clipping.eraseLayerOnly = true;
     page.staticReticles.push_back(std::move(background));
     page.staticReticles.push_back(std::move(symbol));
 
@@ -383,12 +385,14 @@ TEST(SceneRegistryTests, CollectPageReticleViewsCarryLayerOrderAndClipEraseLayer
     ASSERT_EQ(views.size(), 2U);
     ASSERT_NE(views[0].group, nullptr);
     ASSERT_NE(views[1].group, nullptr);
+    // Render views carry the inter-layer order used to restore strictly earlier layers.
     EXPECT_EQ(views[0].group->id, "background");
     EXPECT_EQ(views[0].layerOrder, 0U);
-    EXPECT_FALSE(views[0].clippingEraseLayerOnly);
+    EXPECT_FALSE(views[0].group->clipping.eraseLayerOnly);
+    // The per-reticle clipping policy is preserved on the scene-owned reticle.
     EXPECT_EQ(views[1].group->id, "symbol");
     EXPECT_EQ(views[1].layerOrder, 1U);
-    EXPECT_TRUE(views[1].clippingEraseLayerOnly);
+    EXPECT_TRUE(views[1].group->clipping.eraseLayerOnly);
 }
 
 TEST(SceneRegistryTests, ActivatesMarkedDefaultPageWhenPresent)

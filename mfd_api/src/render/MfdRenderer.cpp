@@ -158,7 +158,7 @@ bool ActiveReticleViewsUseLayerLocalClipping(const std::vector<ReticleRenderView
 {
     for (const ReticleRenderView& reticle : activeReticles)
     {
-        if (reticle.group != nullptr && reticle.visible && reticle.clippingEraseLayerOnly &&
+        if (reticle.group != nullptr && reticle.visible && reticle.group->clipping.eraseLayerOnly &&
             ResolveClipPrimitive(*reticle.group) != nullptr)
         {
             return true;
@@ -247,7 +247,7 @@ void DrawActivePageContent(const SceneRegistry& scene,
         if (reticle.group != nullptr)
         {
             restoreContext.currentLayerOrder = reticle.layerOrder;
-            restoreContext.eraseLayerOnly = reticle.clippingEraseLayerOnly;
+            restoreContext.eraseLayerOnly = reticle.group->clipping.eraseLayerOnly;
             canvas.DrawReticle(*reticle.group, reticle.visible);
         }
     }
