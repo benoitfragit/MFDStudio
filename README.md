@@ -6,6 +6,12 @@ multi-function display (MFD) windows from JSON.
 The historical technical prefix `mfd` remains in namespaces, targets, folders,
 and APIs.
 
+[![PR CI](https://img.shields.io/github/actions/workflow/status/benoitfragit/MFDStudio/ci.yml?label=PR%20CI&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/benoitfragit/MFDStudio/release.yml?label=Release&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/actions/workflows/release.yml)
+[![Docs Deploy](https://img.shields.io/github/actions/workflow/status/benoitfragit/MFDStudio/docs-pages.yml?label=Docs%20Deploy&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/actions/workflows/docs-pages.yml)
+[![Latest Release](https://img.shields.io/github/v/release/benoitfragit/MFDStudio?display_name=tag&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/releases/latest)
+[![Docs Online](https://img.shields.io/badge/Docs-Online-8250df?style=for-the-badge)](https://benoitfragit.github.io/MFDStudio)
+
 ![Cockpit runtime screenshot](./docs/images/mfd_window_cockpit_capture.png)
 
 ## Documentation
@@ -32,6 +38,9 @@ can safely depend on is in the
 [Public API Contract](https://benoitfragit.github.io/MFDStudio/reference/public_contract.html).
 
 The documentation sources live under [`docs/src/`](./docs/src/index.md).
+Every GitHub release page also includes a validation summary for the x64/Win32
+build matrix and ships the published documentation as a downloadable ZIP
+archive.
 
 ## Build
 

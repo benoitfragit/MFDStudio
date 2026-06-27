@@ -87,3 +87,14 @@ It configures the no-tests presets, builds Debug and Release for both
 architectures, installs components, and verifies the delivery layout. Generated
 package families include `MFDStudioClientApi`, `MFDStudioWindowLauncherPlugin`,
 and the `*.Install` runtime payloads.
+
+## GitHub automation
+
+- Pull requests run the `PR Build and Tests` workflow across `x64` and `Win32`,
+  with automated `ctest` runs on both Debug presets.
+- Tagged releases rerun that validation scope before publishing the GitHub
+  release, then prepend the release page with a validation summary and links to
+  the documentation assets.
+- A successful release triggers the `Publish API Docs` workflow, which deploys
+  the combined mdBook and Doxygen site to
+  `https://benoitfragit.github.io/MFDStudio`.

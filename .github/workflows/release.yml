@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   publish-release:
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Resolve release context
@@ -62,6 +62,35 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Align checkout to requested release tag
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.release_context.outputs.release_tag != github.ref_name }}
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_context.outputs.release_tag }}
+        run: |
+          if (git show-ref --verify --quiet "refs/tags/$env:RELEASE_TAG") {
+            git checkout "refs/tags/$env:RELEASE_TAG"
+          }
+          else {
+            Write-Host "Tag '$env:RELEASE_TAG' does not exist yet; keeping the current checkout."
+          }
+
+      - name: Validate release build matrix
+        id: validation
+        shell: pwsh
+        run: |
+          $summaryMarkdownPath = Join-Path $env:RUNNER_TEMP "release-validation-summary.md"
+          $summaryJsonPath = Join-Path $env:RUNNER_TEMP "release-validation-summary.json"
+
+          pwsh -File .github/scripts/Invoke-ReleaseValidation.ps1 `
+            -SummaryMarkdownPath $summaryMarkdownPath `
+            -SummaryJsonPath $summaryJsonPath
+
+          "summary_markdown=$summaryMarkdownPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "summary_json=$summaryJsonPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          Get-Content $summaryMarkdownPath | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -129,10 +158,50 @@ jobs:
           Compress-Archive -Path (Join-Path $siteDirectory "*") -DestinationPath $archivePath -Force
           "docs_archive=$archivePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Compose release preamble
+        id: release_body
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_context.outputs.release_tag }}
+          DOCS_ARCHIVE: ${{ steps.docs_package.outputs.docs_archive }}
+          VALIDATION_SUMMARY_PATH: ${{ steps.validation.outputs.summary_markdown }}
+          VALIDATION_JSON_PATH: ${{ steps.validation.outputs.summary_json }}
+        run: |
+          $validationSummary = (Get-Content $env:VALIDATION_SUMMARY_PATH -Raw).TrimEnd()
+          $validationMetadata = Get-Content $env:VALIDATION_JSON_PATH -Raw | ConvertFrom-Json
+          $docsUrl = "https://benoitfragit.github.io/MFDStudio"
+          $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          $docsArchiveName = Split-Path -Leaf $env:DOCS_ARCHIVE
+          $releaseBodyPath = Join-Path $env:RUNNER_TEMP "release-body.md"
+
+          $bodyLines = @(
+            "## Release health",
+            "",
+            "[![Release pipeline](https://img.shields.io/badge/release-published-2ea043?style=for-the-badge)]($runUrl)",
+            "[![Validation](https://img.shields.io/badge/validation-passed-2ea043?style=for-the-badge)]($runUrl)",
+            "[![Repository state](https://img.shields.io/badge/repository-validated-0969da?style=for-the-badge)]($runUrl)",
+            "[![Docs](https://img.shields.io/badge/docs-online-8250df?style=for-the-badge)]($docsUrl)",
+            "",
+            ('- Release tag: `{0}`' -f $env:RELEASE_TAG),
+            "- Workflow run: [#${env:GITHUB_RUN_NUMBER}]($runUrl)",
+            "- Online documentation: [$docsUrl]($docsUrl)",
+            ('- Documentation archive: `{0}`' -f $docsArchiveName),
+            "- Validation scope: $($validationMetadata.BuildCount) build targets, $($validationMetadata.TestSuiteCount) automated test suites, $($validationMetadata.TestCaseCount) discovered test cases",
+            "",
+            $validationSummary,
+            "",
+            "---",
+            ""
+          )
+
+          $bodyLines | Set-Content -Path $releaseBodyPath -Encoding utf8
+          "release_body=$releaseBodyPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_context.outputs.release_tag }}
           prerelease: ${{ steps.release_context.outputs.is_prerelease }}
+          body_path: ${{ steps.release_body.outputs.release_body }}
           generate_release_notes: true
           files: ${{ steps.docs_package.outputs.docs_archive }}
