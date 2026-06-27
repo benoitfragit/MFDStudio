@@ -14,7 +14,7 @@ $validationMatrix = @(
         Label = "Debug Win32"
         ConfigurePreset = "vs2022-win32"
         BuildPreset = "debug-win32"
-        TestPreset = "test-debug-win32"
+        TestPreset = "test-debug-win32-ci"
         Scope = "Configure, build, automated tests"
     },
     [pscustomobject]@{

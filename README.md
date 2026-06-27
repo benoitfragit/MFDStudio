@@ -40,7 +40,8 @@ can safely depend on is in the
 The documentation sources live under [`docs/src/`](./docs/src/index.md).
 Every GitHub release page also includes a validation summary for the Win32
 delivery lane and ships the published documentation as a downloadable ZIP
-archive.
+archive. The GitHub Win32 automation lane excludes a narrow render/offscreen
+test subset that passes locally but fails on the hosted `windows-2022` runner.
 
 ## Build
 

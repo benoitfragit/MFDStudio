@@ -91,8 +91,10 @@ and the `*.Install` runtime payloads.
 ## GitHub automation
 
 - Pull requests run the `PR Build and Tests` workflow on the Win32 delivery
-  lane: `debug-win32` with `test-debug-win32`, plus `release-win32` as a
-  build-only check.
+  lane: `debug-win32` with the CI preset `test-debug-win32-ci`, plus
+  `release-win32` as a build-only check. That CI preset excludes the
+  render/offscreen suite subset that currently fails only on the hosted
+  `windows-2022` runner.
 - Tagged releases rerun that validation scope before publishing the GitHub
   release, then prepend the release page with a validation summary and links to
   the documentation assets.

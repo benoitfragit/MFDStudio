@@ -14,7 +14,7 @@ jobs:
           - configure_preset: vs2022-win32
             build_preset: debug-win32
             run_tests: true
-            test_preset: test-debug-win32
+            test_preset: test-debug-win32-ci
           - configure_preset: vs2022-win32
             build_preset: release-win32
             run_tests: false

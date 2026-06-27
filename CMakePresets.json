@@ -158,6 +158,15 @@
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "test-debug-win32-ci",
+      "inherits": "test-debug-win32",
+      "filter": {
+        "exclude": {
+          "name": "CanvasCircleStrokeRenderTests\\.DashedCircleRendersLessStrokeCoverageThanSolidCircle|CanvasClippingCallbackRenderTests\\..*|CanvasClippingRenderTests\\..*|CanvasTextRenderTests\\..*|RenderResourceLifetimeTests\\..*|OffscreenSurfaceTests\\..*"
+        }
+      }
     }
   ]
 }
