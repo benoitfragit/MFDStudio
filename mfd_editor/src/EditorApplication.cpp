@@ -4211,11 +4211,11 @@ void EditorApplication::DrawPagePreviewReticleNames(const ViewportState& viewpor
     }
 }
 
-void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
+void EditorApplication::DrawLayerInspectorPanel(mfd::PageDefinition& page)
 {
     const editor::LayerFocusStripModel model = services_.layerFocus.BuildStripModel(page, layoutState_.layerFocusState);
     ImGui::TextColored(ImVec4(0.85f, 0.91f, 0.96f, 1.0f), "Layer Inspector");
-    ImGui::TextDisabled("Focus one layer without changing JSON.");
+    ImGui::TextDisabled("Click a name or thumbnail to focus; use the up/down buttons to reorder.");
     ImGui::Separator();
 
     const float previewWidth = std::max(72.0f, ImGui::GetContentRegionAvail().x);
@@ -4245,6 +4245,43 @@ void EditorApplication::DrawLayerInspectorPanel(const mfd::PageDefinition& page)
                            : std::to_string(entry.reticleCount) + " reticle(s)" +
                                  (entry.visible ? "" : "  hidden in preview");
         ImGui::TextDisabled("%s", metaLabel.c_str());
+
+        // The synthetic Full View entry stays focus-only and never offers reorder controls.
+        if (!entry.fullView)
+        {
+            int layerIndex = -1;
+            for (std::size_t candidate = 0; candidate < page.layers.size(); ++candidate)
+            {
+                if (page.layers[candidate].id == entry.layerId)
+                {
+                    layerIndex = static_cast<int>(candidate);
+                    break;
+                }
+            }
+
+            if (layerIndex >= 0)
+            {
+                const bool isFirstLayer = layerIndex == 0;
+                const bool isLastLayer = static_cast<std::size_t>(layerIndex) + 1U >= page.layers.size();
+                ImGui::PushID(static_cast<int>(index));
+                bool reordered = false;
+                if (IconButton("##strip_move_up", EditorIcon::MoveUp, "Move layer up", !isFirstLayer))
+                {
+                    reordered = ReorderActivePageLayer(page, static_cast<std::size_t>(layerIndex), true);
+                }
+                ImGui::SameLine();
+                if (!reordered &&
+                    IconButton("##strip_move_down", EditorIcon::MoveDown, "Move layer down", !isLastLayer))
+                {
+                    reordered = ReorderActivePageLayer(page, static_cast<std::size_t>(layerIndex), false);
+                }
+                ImGui::PopID();
+                if (reordered)
+                {
+                    break;
+                }
+            }
+        }
 
         if (const RenderTexture2D* previewTexture =
                 RenderLayerPreviewThumbnail(index, page, entry, previewWidthPixels, previewHeightPixels);

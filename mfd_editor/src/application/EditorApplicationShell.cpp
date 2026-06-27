@@ -805,7 +805,7 @@ void EditorApplication::DrawPagePreviewWorkspace(const std::vector<editor::PageP
     layoutRequest.minCenterWidth = 220.0f;
     layoutRequest.minCenterHeight = 168.0f;
     const editor::WorkspaceLayoutResult layout = editor::ComputeWorkspaceLayout(layoutRequest);
-    const mfd::PageDefinition* activePage = ActivePage();
+    mfd::PageDefinition* activePage = ActivePage();
 
     if (layout.leadingPanel.IsVisible())
     {

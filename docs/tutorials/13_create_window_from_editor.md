@@ -160,6 +160,13 @@ dynamic bindings stay attached to the same layer. The **Visible** checkbox on
 each row stays editor-only: it only toggles the layer in the editor preview and
 is never written to the runtime page order.
 
+The left-side **Layer Inspector** panel, which shows one thumbnail per layer,
+exposes the same up/down buttons on each real layer card. Clicking a layer name
+or its thumbnail focuses that layer, while the up/down buttons reorder it. The
+synthetic **Full View** entry always stays on top and never shows reorder
+buttons. Both inspectors edit the same page layer list, so a reorder done in one
+is immediately reflected in the other.
+
 ### Dynamic reticles on a page
 
 In the selected page inspector, the **Dynamic reticles** section now keeps the

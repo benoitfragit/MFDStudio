@@ -309,7 +309,7 @@ private:
     /** @brief Draws the selection bounds and transform handles for the active page preview. */
     void DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page);
     /** @brief Draws the docked layer-inspector panel shown next to the page preview. */
-    void DrawLayerInspectorPanel(const mfd::PageDefinition& page);
+    void DrawLayerInspectorPanel(mfd::PageDefinition& page);
     /** @brief Draws the docked validation panel shown under the page preview. */
     void DrawProblemsPanel(const std::vector<editor::PagePreviewProblem>& problems);
     /** @brief Selects the editor entity referenced by one validation problem context. */

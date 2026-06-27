@@ -11,6 +11,8 @@
 
 #include "EditorLayerFocusController.h"
 
+#include "internal/application/EditorApplicationInternal.h"
+
 #include <gtest/gtest.h>
 
 namespace
@@ -115,4 +117,41 @@ TEST(LayerFocusControllerTests, SanitizeFocusStateClearsMissingLayer)
 
     EXPECT_TRUE(state.focusedLayerId.empty());
     EXPECT_FALSE(controller.IsFocusActive(page, state));
+}
+
+TEST(LayerFocusControllerTests, BuildStripModelReflectsLayerOrderAfterReorder)
+{
+    mfd::PageDefinition page = MakeLayeredPage();
+    editor::LayerFocusController controller;
+
+    ASSERT_TRUE(editor::detail::MovePageLayer(page, 1U, editor::detail::PageLayerMoveDirection::Down));
+
+    const editor::LayerFocusStripModel model = controller.BuildStripModel(page, editor::LayerFocusState {});
+
+    ASSERT_EQ(model.entries.size(), 4U);
+    // Full View stays in front and never behaves like a movable layer.
+    EXPECT_TRUE(model.entries[0].fullView);
+    EXPECT_TRUE(model.entries[0].layerId.empty());
+    // The displayed strip order follows the real runtime layer order after the reorder.
+    EXPECT_EQ(model.entries[1].layerId, "base");
+    EXPECT_EQ(model.entries[2].layerId, "hidden");
+    EXPECT_EQ(model.entries[3].layerId, "overlay");
+    // Editor-only visibility travels with its layer (hidden was not visible).
+    EXPECT_FALSE(model.entries[2].visible);
+    EXPECT_TRUE(model.entries[3].visible);
+}
+
+TEST(LayerFocusControllerTests, FocusByIdStaysStableAfterReorder)
+{
+    mfd::PageDefinition page = MakeLayeredPage();
+    editor::LayerFocusController controller;
+    editor::LayerFocusState state = controller.MakeFocusedState(page, "overlay");
+
+    ASSERT_TRUE(editor::detail::MovePageLayer(page, 1U, editor::detail::PageLayerMoveDirection::Down));
+
+    // The focused layer is tracked by id, so the reorder keeps focus on the same layer.
+    controller.SanitizeFocusState(page, state);
+    EXPECT_EQ(state.focusedLayerId, "overlay");
+    EXPECT_TRUE(controller.IsFocusActive(page, state));
+    EXPECT_TRUE(controller.IsReticleSelectable(page, page.staticReticles[1], state));
 }
