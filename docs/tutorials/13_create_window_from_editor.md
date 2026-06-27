@@ -142,6 +142,24 @@ After creation:
 2. Select a page in the tree.
 3. In the page inspector, toggle **Default page for this window** on the page that should open at startup.
 
+### Page layers and draw order
+
+In the selected page inspector, the **Page layers** section lists the runtime
+layers of the page. The order of this list is the source of truth for the
+runtime draw order: layers listed first are drawn first, so later layers render
+on top of earlier ones.
+
+Each real layer row exposes two compact white glyph buttons:
+
+- the up button moves the layer one slot earlier in the draw order;
+- the down button moves the layer one slot later in the draw order.
+
+The up button is disabled on the first layer and the down button is disabled on
+the last layer. Reordering layers never changes their ids, so page reticles and
+dynamic bindings stay attached to the same layer. The **Visible** checkbox on
+each row stays editor-only: it only toggles the layer in the editor preview and
+is never written to the runtime page order.
+
 ### Dynamic reticles on a page
 
 In the selected page inspector, the **Dynamic reticles** section now keeps the

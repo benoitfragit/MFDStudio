@@ -36,6 +36,8 @@ using editor::ui::IconButton;
 using editor::ui::InspectorHelpMarker;
 using editor::ui::ShowItemTooltip;
 using editor::detail::BootstrapEditorLayersForPage;
+using editor::detail::MovePageLayer;
+using editor::detail::PageLayerMoveDirection;
 using editor::detail::ClampFeedbackFastIntervalSeconds;
 using editor::detail::ClampFeedbackHeartbeatIntervalSeconds;
 using editor::detail::CopyTextBuffer;
@@ -1588,6 +1590,21 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     }
 }
 
+bool EditorApplication::ReorderActivePageLayer(mfd::PageDefinition& page, const std::size_t layerIndex, const bool moveUp)
+{
+    UndoSnapshot beforeMove = CaptureCurrentSnapshot();
+    const PageLayerMoveDirection direction = moveUp ? PageLayerMoveDirection::Up : PageLayerMoveDirection::Down;
+    if (!MovePageLayer(page, layerIndex, direction))
+    {
+        return false;
+    }
+
+    PushUndoSnapshot(std::move(beforeMove));
+    ReleaseLayerPreviewTextures();
+    RebuildStatus("Runtime layer order updated on page '" + page.name + "'.", false);
+    return true;
+}
+
 void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
 {
     BootstrapEditorLayersForPage(page);
@@ -1595,7 +1612,8 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.82f, 0.73f, 0.94f, 1.0f), "Page layers");
-    DisabledTextWrapped("Page layers drive runtime draw order. Visibility below only affects the editor preview.");
+    DisabledTextWrapped("Page layers drive runtime draw order. Use the up/down buttons to reorder them. "
+                        "Visibility below only affects the editor preview.");
 
     if (AccentButton("Add layer"))
     {
@@ -1727,6 +1745,27 @@ void EditorApplication::DrawPageLayerInspector(mfd::PageDefinition& page)
                 SanitizePageReticleSelectionForCurrentFocus();
             }
         }
+
+        const bool isFirstLayer = index == 0U;
+        const bool isLastLayer = index + 1U >= page.layers.size();
+        if (IconButton("##layer_move_up", EditorIcon::MoveUp, "Move layer up", !isFirstLayer))
+        {
+            if (ReorderActivePageLayer(page, index, true))
+            {
+                ImGui::PopID();
+                break;
+            }
+        }
+        ImGui::SameLine();
+        if (IconButton("##layer_move_down", EditorIcon::MoveDown, "Move layer down", !isLastLayer))
+        {
+            if (ReorderActivePageLayer(page, index, false))
+            {
+                ImGui::PopID();
+                break;
+            }
+        }
+        ImGui::SameLine();
 
         const bool canRemoveLayer = page.layers.size() > 1U && assignedReticles == 0U && assignedBindings == 0U;
         if (IconButton("##layer_remove",

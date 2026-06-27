@@ -234,6 +234,15 @@ private:
     void DrawPageStrobeInspector(mfd::PageDefinition& page);
     /** @brief Draws the editor-only layer manager for the active page. */
     void DrawPageLayerInspector(mfd::PageDefinition& page);
+    /**
+     * @brief Reorders one active-page layer by a single slot through the shared reorder helper.
+     * @param page Active page whose runtime layer order is updated.
+     * @param layerIndex Index of the layer to move inside `page.layers`.
+     * @param moveUp `true` moves the layer one slot earlier, `false` one slot later.
+     * @return `true` when the layer actually moved; an undo snapshot and a preview refresh happen
+     *         only in that case, so a no-op leaves the history and caches untouched.
+     */
+    bool ReorderActivePageLayer(mfd::PageDefinition& page, std::size_t layerIndex, bool moveUp);
     /** @brief Draws the editor-only generated dynamic-template selection for the active page. */
     void DrawPageDynamicTemplateInspector(mfd::PageDefinition& page);
     /** @brief Draws the inspector for one page reticle instance. */

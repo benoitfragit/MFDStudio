@@ -37,7 +37,9 @@ enum class EditorIcon
     Tutorial,         ///< Graduation-cap silhouette used for the guided tutorial entry point.
     Recent,           ///< Clock silhouette used to reopen recently authored windows.
     Help,             ///< Question-mark silhouette used to open a view's controls summary.
-    Recenter          ///< Crosshair silhouette used to recenter a preview camera.
+    Recenter,         ///< Crosshair silhouette used to recenter a preview camera.
+    MoveUp,           ///< Upward chevron used to move an ordered entry one slot earlier.
+    MoveDown          ///< Downward chevron used to move an ordered entry one slot later.
 };
 
 /**

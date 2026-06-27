@@ -224,6 +224,26 @@ void PaintRecenter(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
     drawList.AddLine(ImVec2(m.center.x, m.center.y + ring), ImVec2(m.center.x, m.center.y + m.radius), col, m.thickness);
 }
 
+void PaintMoveUp(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Upward chevron over a short stem, hinting "move one slot up".
+    const float halfWidth = m.radius * 0.85f;
+    const ImVec2 apex(m.center.x, m.center.y - m.radius * 0.65f);
+    drawList.AddLine(ImVec2(m.center.x - halfWidth, m.center.y), apex, col, m.thickness);
+    drawList.AddLine(apex, ImVec2(m.center.x + halfWidth, m.center.y), col, m.thickness);
+    drawList.AddLine(apex, ImVec2(m.center.x, m.center.y + m.radius * 0.85f), col, m.thickness);
+}
+
+void PaintMoveDown(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Downward chevron under a short stem, hinting "move one slot down".
+    const float halfWidth = m.radius * 0.85f;
+    const ImVec2 apex(m.center.x, m.center.y + m.radius * 0.65f);
+    drawList.AddLine(ImVec2(m.center.x - halfWidth, m.center.y), apex, col, m.thickness);
+    drawList.AddLine(apex, ImVec2(m.center.x + halfWidth, m.center.y), col, m.thickness);
+    drawList.AddLine(apex, ImVec2(m.center.x, m.center.y - m.radius * 0.85f), col, m.thickness);
+}
+
 void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLeft, const float boxSize, const ImU32 col)
 {
     GlyphMetrics metrics {};
@@ -274,6 +294,12 @@ void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLe
         return;
     case EditorIcon::Recenter:
         PaintRecenter(drawList, metrics, col);
+        return;
+    case EditorIcon::MoveUp:
+        PaintMoveUp(drawList, metrics, col);
+        return;
+    case EditorIcon::MoveDown:
+        PaintMoveDown(drawList, metrics, col);
         return;
     }
 }
