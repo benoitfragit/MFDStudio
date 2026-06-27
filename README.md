@@ -38,8 +38,8 @@ can safely depend on is in the
 [Public API Contract](https://benoitfragit.github.io/MFDStudio/reference/public_contract.html).
 
 The documentation sources live under [`docs/src/`](./docs/src/index.md).
-Every GitHub release page also includes a validation summary for the x64/Win32
-build matrix and ships the published documentation as a downloadable ZIP
+Every GitHub release page also includes a validation summary for the Win32
+delivery lane and ships the published documentation as a downloadable ZIP
 archive.
 
 ## Build

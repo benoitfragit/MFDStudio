@@ -11,20 +11,6 @@ Set-StrictMode -Version Latest
 
 $validationMatrix = @(
     [pscustomobject]@{
-        Label = "Debug x64"
-        ConfigurePreset = "vs2022-x64"
-        BuildPreset = "debug-x64"
-        TestPreset = "test-debug-x64"
-        Scope = "Configure, build, automated tests"
-    },
-    [pscustomobject]@{
-        Label = "Release x64"
-        ConfigurePreset = "vs2022-x64"
-        BuildPreset = "release-x64"
-        TestPreset = $null
-        Scope = "Configure and build"
-    },
-    [pscustomobject]@{
         Label = "Debug Win32"
         ConfigurePreset = "vs2022-win32"
         BuildPreset = "debug-win32"
