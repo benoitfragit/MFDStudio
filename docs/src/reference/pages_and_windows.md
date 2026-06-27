@@ -152,9 +152,12 @@ type), or `{ "enabled": false, "type": "slow" }` (keep a type while disabled).
 ```
 
 `mode` is `none`, `inner`, or `outer`; `primitive` is the mask id (geometry must
-be `circle`, `rectangle`, `ellipse`, `square`, or `triangle`). Diagnostics:
-`MFD014` missing primitive, `MFD015` unusable mask, `MFD016` empty id, `MFD017`
-duplicate primitive ids, `MFD018` colliding reticle ids.
+be `circle`, `rectangle`, `ellipse`, `square`, or `triangle`). Optional
+`eraseLayerOnly` (boolean, default `false`) restricts this reticle's clipping to
+its own layer: when `true`, the clipping only erases content already drawn in the
+same layer and lower layers stay visible; it is written only when enabled.
+Diagnostics: `MFD014` missing primitive, `MFD015` unusable mask, `MFD016` empty
+id, `MFD017` duplicate primitive ids, `MFD018` colliding reticle ids.
 
 ## Strobe catalog
 
