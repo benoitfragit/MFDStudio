@@ -1649,6 +1649,96 @@ class GenerateUiTests(unittest.TestCase):
                 source_content,
             )
 
+    def test_strobe_reticle_constructor_threads_template_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            # The strobe's reticle is sourced from this template, which defines a
+            # non-default reticle-level baseline.
+            (template_dir / "cursor_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "cursor_template",
+                        "hidden": True,
+                        "at": [0.3, -0.4],
+                        "rotationDegrees": 30.0,
+                        "scale": [1.5, 2.0],
+                        "text": "CUR",
+                        "elements": [{"id": "cursor_line", "type": "line", "exposed": True}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "activeStrobe": "Default",
+                        "strobes": [
+                            {
+                                "name": "Default",
+                                "id": "radar_strobe_default",
+                                "template": "cursor_template",
+                                "capture": {"shape": "circle", "radius": 0.09},
+                                "magnet": {"enabled": True, "radius": 0.18, "strength": 0.65},
+                            },
+                        ],
+                        "staticReticles": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+            source_content = output_source.read_text(encoding="utf-8")
+
+            # The strobe reticle wrapper threads the authored template baseline
+            # (hidden -> visible false, at -> position, rotationDegrees, scale,
+            # text) into mfd::client::Reticle instead of the C++ model defaults.
+            self.assertIn(
+                ', mfd::client::ReticleBaseline '
+                '{false, mfd::Vec2 {0.3f, -0.4f}, 30.0f, mfd::Vec2 {1.5f, 2.0f}, "CUR"})',
+                source_content,
+            )
+            self.assertIn("RadarDefaultStrobeReticle::RadarDefaultStrobeReticle() :", source_content)
+
+            # The strobe wrapper still exposes the common read-back getters, but
+            # never the forbidden color / line-style getters.
+            self.assertIn("using mfd::client::Reticle::GetVisible;", header_content)
+            self.assertNotIn("GetColor", header_content)
+            self.assertNotIn("GetLineStyle", header_content)
+
     def test_baseline_parser_rejects_non_finite_and_boolean_numbers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

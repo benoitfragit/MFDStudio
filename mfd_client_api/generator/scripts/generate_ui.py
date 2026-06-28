@@ -143,6 +143,7 @@ class StrobeSpec:
     primitives: list[PrimitiveSpec]
     status_primitive_accessor_name: str | None
     status_primitive_member_name: str | None
+    baseline_initializer: str
     default_active: bool
     valid: bool
     capture_shape: str
@@ -852,6 +853,23 @@ def resolved_elements(reticle_node: dict, template_library: dict[str, dict]) -> 
     return [element for element in elements if isinstance(element, dict)]
 
 
+def resolve_reticle_baseline_node(reticle_node: dict, template_library: dict[str, dict]) -> dict:
+    """Resolve the JSON node carrying a reticle's own transform/visible/text baseline.
+
+    Reticle-level fields declared directly on `reticle_node` win; any field the
+    node omits falls back to the template it references. Returns the node itself
+    (yielding model defaults through `build_reticle_baseline_initializer`) when
+    neither the node nor a referenced template defines reticle-level fields.
+    """
+    template_id = reticle_node.get("template") or reticle_node.get("sourceTemplateId")
+    template = template_library.get(template_id) if isinstance(template_id, str) else None
+    if isinstance(template, dict):
+        merged = dict(template)
+        merged.update(reticle_node)
+        return merged
+    return reticle_node
+
+
 def resolve_reticle_runtime_id(reticle_node: dict, owner_description: str) -> str:
     explicit_id = reticle_node.get("id")
     if isinstance(explicit_id, str) and explicit_id:
@@ -981,6 +999,8 @@ def build_strobe_spec(page_name: str,
         primitives=primitives,
         status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
         status_primitive_member_name=None if status_primitive is None else status_primitive.member_name,
+        baseline_initializer=build_reticle_baseline_initializer(
+            resolve_reticle_baseline_node(strobe_node, template_library)),
         default_active=default_active,
         valid=True,
         capture_shape=capture_shape,
@@ -1794,7 +1814,7 @@ def emit_source(namespace_name: str,
         for strobe in page.strobes:
             ctor_initializers = [
                 (f'    mfd::client::Reticle("{cpp_string(page.page_name)}", "{cpp_string(strobe.reticle_id)}", '
-                 f"{page.transport_id}U, {strobe.reticle_transport_id}U)")]
+                 f"{page.transport_id}U, {strobe.reticle_transport_id}U, {strobe.baseline_initializer})")]
             for primitive in strobe.primitives:
                 ctor_initializers.append(
                     f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", '

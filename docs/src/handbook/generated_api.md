@@ -83,13 +83,15 @@ accept `commands`; see [What Can Break Between Versions](../reference/public_con
 - publication flows: `BuildBatch()`, `BuildResetBatch()`,
   `BuildCommandBatch(sequence)`, `BuildResetCommandBatch(sequence)`,
   `SubmitLatest(...)`, and `SubmitReset(...)`
-- read-back `Get*` accessors on reticles, dynamic reticles, and primitive
-  handles (e.g. `GetVisible`, `GetPosition`, `GetRotationDegrees`, `GetScale`,
-  `GetText`, and per-type geometry getters such as `GetRadius` or
-  `GetPoints`). Each resolves in three steps — a staged `Set*` override, then
-  the JSON-authored value if the asset defined one, then the model's built-in
-  default — and never stages a command or mutates state, so calling a getter
-  has no effect on the next built batch. The four common transform getters
+- read-back `Get*` accessors on reticles, dynamic reticles, strobe reticle
+  wrappers, and primitive handles (e.g. `GetVisible`, `GetPosition`,
+  `GetRotationDegrees`, `GetScale`, `GetText`, and per-type geometry getters
+  such as `GetRadius` or `GetPoints`). Each resolves in three steps — a staged
+  `Set*` override, then the JSON-authored value if the asset defined one (for a
+  strobe reticle, the value authored on its inline reticle or the template it
+  is sourced from), then the model's built-in default — and never stages a
+  command or mutates state, so calling a getter has no effect on the next built
+  batch. The four common transform getters
   (`GetVisible`, `GetPosition`, `GetRotationDegrees`, `GetScale`) are public on
   the shared `PrimitiveHandle` base, so they stay symmetric with the public
   setters even through a generic `PrimitiveHandle`. Getters that would otherwise
