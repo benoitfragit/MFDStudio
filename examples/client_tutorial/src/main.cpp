@@ -543,10 +543,21 @@ void RebuildPersistentTutorialScene(
         CreatePersistentTrack(trackSet.Create(), serial++, 21.0f, 0.34f, -0.35f, -1.05f, -0.15f, -0.24f)};
 
     persistentTrackLink = &linkSet.Create();
+
+    // Read-back demonstration: Get* accessors resolve override -> authored JSON
+    // -> model default without ever staging a command, so this still reflects
+    // the authored baseline because no Set* call has touched this handle yet.
+    const bool authoredLinkVisible = persistentTrackLink->GetVisible();
+    const mfd::Vec2 authoredLinkPosition = persistentTrackLink->GetPosition();
+
     persistentTrackLink->SetVisible(true);
     persistentTrackLink->SetColor({255, 192, 96, 255});
     persistentTrackLink->SetThickness(kTrackLinkThickness);
     persistentTrackLink->Cue().SetLineStyle(mfd::LineStyle::Solid);
+
+    std::cout << "Tutorial: persistentTrackLink authored visible=" << (authoredLinkVisible ? "true" : "false")
+              << " position=(" << authoredLinkPosition.x << ", " << authoredLinkPosition.y << ")"
+              << " visible after SetVisible=" << (persistentTrackLink->GetVisible() ? "true" : "false") << '\n';
 }
 
 /**
@@ -725,9 +736,29 @@ int mainImpl()
     }
     UpdatePersistentTrackLink(*persistentTrackLink, persistentTracks, ownship, startupProjector);
     UpdateCapturedTrackVisuals(persistentTracks, transientTracks);
+    // Read-back demonstration: GetVisible/GetPosition resolve override -> authored
+    // JSON -> model default without staging a command, so this reflects the
+    // authored baseline because no Set* call has touched this reticle yet.
+    const bool authoredCircleVisible = page1Circle.GetVisible();
+    const mfd::Vec2 authoredCirclePosition = page1Circle.GetPosition();
+
     UpdateTransientCircleReticle(page1Circle, 0U, transientDeclutterVisible);
     UpdateDefaultStrobeReticle(page1DefaultStrobeReticle, 0.0f);
+
+    std::cout << "Tutorial: page1Circle authored visible=" << (authoredCircleVisible ? "true" : "false")
+              << " position=(" << authoredCirclePosition.x << ", " << authoredCirclePosition.y << ")"
+              << " visible after UpdateTransientCircleReticle=" << (page1Circle.GetVisible() ? "true" : "false") << '\n';
+
+    // Read-back demonstration: AircraftLabel().GetText() before/after the SetText
+    // call performed inside UpdateAlternativeStrobeReticle. GetText() returns a
+    // std::string_view aliasing handle-owned storage, so snapshot it into an
+    // owning std::string before the SetText override below changes that storage.
+    const std::string authoredAircraftLabelText {page1AlternativeStrobeReticle.AircraftLabel().GetText()};
+
     UpdateAlternativeStrobeReticle(page1AlternativeStrobeReticle, 0.0f);
+
+    std::cout << "Tutorial: AircraftLabel authored text=\"" << authoredAircraftLabelText << "\""
+              << " text after UpdateAlternativeStrobeReticle=\"" << page1AlternativeStrobeReticle.AircraftLabel().GetText() << "\"\n";
     if (page1Strobe.IsValid())
     {
         page1Strobe.SetActive(true);

@@ -272,6 +272,95 @@ private:
 };
 
 /**
+ * @brief Authored baseline values for one primitive, resolved once at
+ * generated-construction time from the source JSON (falling back to the
+ * matching `mfd::model` geometry default when JSON does not define a field).
+ *
+ * @note Getters never read this struct directly; they consult it only when
+ * no user override is staged for the corresponding field.
+ */
+struct PrimitiveBaseline
+{
+    bool visible = true;
+    mfd::Vec2 position {};
+    float rotationDegrees = 0.0f;
+    mfd::Vec2 scale {1.0f, 1.0f};
+    std::string text {};
+    mfd::Vec2 lineStart {-0.0208f, 0.0f};
+    mfd::Vec2 lineEnd {0.0208f, 0.0f};
+    float radius = 0.0208f;
+    float innerRadius = 0.0167f;
+    float outerRadius = 0.0208f;
+    float width = 0.0417f;
+    float height = 0.0208f;
+    std::vector<mfd::Vec2> points {};
+    bool closed = false;
+    int segments = 32;
+    float startAngleDegrees = 0.0f;
+    float endAngleDegrees = 180.0f;
+};
+
+/**
+ * @brief Builds the baseline used when a `SquareHandle`/`DiamondHandle` is
+ * constructed without an authored baseline.
+ *
+ * `SquareGeometry`/`DiamondGeometry`'s own model defaults are
+ * `width = height = 0.0208f`, which differs from `PrimitiveBaseline`'s plain
+ * `width`/`height` defaults (`0.0417f`/`0.0208f`, matching
+ * `RectangleGeometry`/`EllipseGeometry` instead).
+ */
+inline PrimitiveBaseline MakeSquareDiamondPrimitiveBaseline() noexcept
+{
+    PrimitiveBaseline baseline {};
+    baseline.width = 0.0208f;
+    baseline.height = 0.0208f;
+    return baseline;
+}
+
+/**
+ * @brief Builds the baseline used when a `RingHandle` is constructed without an
+ * authored baseline.
+ *
+ * `RingGeometry`'s own model default is `segments = 64`, which differs from
+ * `PrimitiveBaseline`'s plain `segments` default (`32`, matching
+ * `BezierGeometry`).
+ */
+inline PrimitiveBaseline MakeRingPrimitiveBaseline() noexcept
+{
+    PrimitiveBaseline baseline {};
+    baseline.segments = 64;
+    return baseline;
+}
+
+/**
+ * @brief Builds the baseline used when an `ArcHandle` is constructed without an
+ * authored baseline.
+ *
+ * `ArcGeometry`'s own model default is `segments = 48`, which differs from
+ * `PrimitiveBaseline`'s plain `segments` default (`32`, matching
+ * `BezierGeometry`).
+ */
+inline PrimitiveBaseline MakeArcPrimitiveBaseline() noexcept
+{
+    PrimitiveBaseline baseline {};
+    baseline.segments = 48;
+    return baseline;
+}
+
+/**
+ * @brief Authored baseline values for a reticle's own transform/text fields,
+ * resolved once at generated-construction time from the source JSON.
+ */
+struct ReticleBaseline
+{
+    bool visible = true;
+    mfd::Vec2 position {};
+    float rotationDegrees = 0.0f;
+    mfd::Vec2 scale {1.0f, 1.0f};
+    std::string text {};
+};
+
+/**
  * @brief Shared client-side handle mutating one named primitive inside a reticle patch.
  *
  * @note Fill controls are intentionally exposed only by fill-capable specialized
@@ -284,7 +373,8 @@ public:
                     bool* dirty,
                     std::string_view primitiveId,
                     mfd::TransportId transportId = 0,
-                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
+                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                    PrimitiveBaseline baseline = {});
 
     const std::string& Id() const noexcept;
     mfd::TransportId GeneratedId() const noexcept;
@@ -298,19 +388,50 @@ public:
     void SetThickness(float thickness);
     void SetLineStyle(LineStyle lineStyle);
 
+    /**
+     * @brief Reads the effective visibility: user override, else authored baseline.
+     * @return `true` unless a setter or the authored JSON staged `false`.
+     *
+     * @note These four common transform/visibility getters are public so the
+     * shared base handle stays symmetric with its public setters, including
+     * when callers hold a generic `PrimitiveHandle`.
+     */
+    bool GetVisible() const noexcept;
+    /**
+     * @brief Reads the effective position: user override, else authored baseline.
+     * @return Currently effective primitive-local position.
+     */
+    mfd::Vec2 GetPosition() const noexcept;
+    /**
+     * @brief Reads the effective rotation: user override, else authored baseline.
+     * @return Currently effective rotation in degrees.
+     */
+    float GetRotationDegrees() const noexcept;
+    /**
+     * @brief Reads the effective scale: user override, else authored baseline.
+     * @return Currently effective non-uniform scale.
+     */
+    mfd::Vec2 GetScale() const noexcept;
+
 protected:
     mfd::PrimitivePatch& Patch() noexcept;
+    /** @brief Read-only lookup; returns `nullptr` when no setter has staged a patch yet. */
+    const mfd::PrimitivePatch* Patch() const noexcept;
     void MarkDirty() noexcept;
     /** @brief Stages one fill color override for fill-capable primitive handles. */
     void SetFillColorInternal(mfd::ColorRgba color);
     /** @brief Stages one fill toggle override for fill-capable primitive handles. */
     void SetFilledInternal(bool filled);
 
+    /** @brief Read-only access to the authored baseline for derived-type-specific getters. */
+    const PrimitiveBaseline& Baseline() const noexcept;
+
 private:
     mfd::ReticlePatch* patch_ = nullptr;
     bool* dirty_ = nullptr;
     std::string primitiveId_;
     mfd::TransportId transportId_ = 0;
+    PrimitiveBaseline baseline_ {};
 };
 
 /**
@@ -323,10 +444,19 @@ public:
                bool* dirty,
                std::string_view primitiveId,
                mfd::TransportId transportId = 0,
-               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+               PrimitiveBaseline baseline = {});
     void SetText(std::string value);
     void SetLetterSpacing(float letterSpacing);
+    /**
+     * @brief Reads the effective text content: user override, else authored baseline.
+     * @return View over the currently effective text content.
+     *
+     * @note The returned view aliases storage owned by this handle (the staged
+     * patch entry or the authored baseline); it stays valid until the next
+     * mutating call on this handle.
+     */
+    std::string_view GetText() const noexcept;
 };
 
 /**
@@ -339,8 +469,8 @@ public:
                bool* dirty,
                std::string_view primitiveId,
                mfd::TransportId transportId = 0,
-               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+               PrimitiveBaseline baseline = {});
     void SetLetterSpacing(float letterSpacing);
     /**
      * @brief Stages a numeric runtime value for this time primitive.
@@ -369,6 +499,13 @@ public:
      * @pre At least one field must be visible.
      */
     void SetFieldVisibility(mfd::TimeFieldVisibility fields);
+    /**
+     * @brief Reads the currently staged runtime value, if any.
+     * @return The active value, or `std::nullopt` when no `SetTimeValue` is
+     * currently staged (authored JSON never defines a runtime value, so this
+     * never falls back to a baseline or model default).
+     */
+    std::optional<mfd::TimeValue> GetTimeValue() const noexcept;
 };
 
 /**
@@ -381,10 +518,14 @@ public:
                bool* dirty,
                std::string_view primitiveId,
                mfd::TransportId transportId = 0,
-               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+               PrimitiveBaseline baseline = {});
     void SetStart(mfd::Vec2 start);
     void SetEnd(mfd::Vec2 end);
+    /** @brief Reads the effective line start point: user override, else authored baseline. */
+    mfd::Vec2 GetStart() const noexcept;
+    /** @brief Reads the effective line end point: user override, else authored baseline. */
+    mfd::Vec2 GetEnd() const noexcept;
 };
 
 /**
@@ -397,13 +538,15 @@ public:
                  bool* dirty,
                  std::string_view primitiveId,
                  mfd::TransportId transportId = 0,
-                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                 PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this circle. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this circle is rendered filled. */
     void SetFilled(bool filled);
     void SetRadius(float radius);
+    /** @brief Reads the effective radius: user override, else authored baseline. */
+    float GetRadius() const noexcept;
 };
 
 /**
@@ -416,8 +559,8 @@ public:
                bool* dirty,
                std::string_view primitiveId,
                mfd::TransportId transportId = 0,
-               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+               PrimitiveBaseline baseline = MakeRingPrimitiveBaseline());
     /** @brief Stages one fill color override for this ring. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this ring is rendered filled. */
@@ -425,6 +568,12 @@ public:
     void SetInnerRadius(float radius);
     void SetOuterRadius(float radius);
     void SetSegments(int segments);
+    /** @brief Reads the effective inner radius: user override, else authored baseline. */
+    float GetInnerRadius() const noexcept;
+    /** @brief Reads the effective outer radius: user override, else authored baseline. */
+    float GetOuterRadius() const noexcept;
+    /** @brief Reads the effective segment count: user override, else authored baseline. */
+    int GetSegments() const noexcept;
 };
 
 /**
@@ -437,8 +586,8 @@ public:
                     bool* dirty,
                     std::string_view primitiveId,
                     mfd::TransportId transportId = 0,
-                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                    PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this rectangle. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this rectangle is rendered filled. */
@@ -446,6 +595,22 @@ public:
     void SetWidth(float width);
     void SetHeight(float height);
     void SetSize(mfd::Vec2 size);
+    /**
+     * @brief Reads the effective width.
+     * @return `SetWidth` override, else the x of a `SetSize` override, else authored baseline.
+     */
+    float GetWidth() const noexcept;
+    /**
+     * @brief Reads the effective height.
+     * @return `SetHeight` override, else the y of a `SetSize` override, else authored baseline.
+     */
+    float GetHeight() const noexcept;
+    /**
+     * @brief Reads the effective size.
+     * @return `SetSize` override, else `{GetWidth(), GetHeight()}` when either is
+     * individually overridden, else the authored baseline size.
+     */
+    mfd::Vec2 GetSize() const noexcept;
 };
 
 /**
@@ -458,8 +623,8 @@ public:
                   bool* dirty,
                   std::string_view primitiveId,
                   mfd::TransportId transportId = 0,
-                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                  PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this ellipse. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this ellipse is rendered filled. */
@@ -467,6 +632,22 @@ public:
     void SetWidth(float width);
     void SetHeight(float height);
     void SetSize(mfd::Vec2 size);
+    /**
+     * @brief Reads the effective width.
+     * @return `SetWidth` override, else the x of a `SetSize` override, else authored baseline.
+     */
+    float GetWidth() const noexcept;
+    /**
+     * @brief Reads the effective height.
+     * @return `SetHeight` override, else the y of a `SetSize` override, else authored baseline.
+     */
+    float GetHeight() const noexcept;
+    /**
+     * @brief Reads the effective size.
+     * @return `SetSize` override, else `{GetWidth(), GetHeight()}` when either is
+     * individually overridden, else the authored baseline size.
+     */
+    mfd::Vec2 GetSize() const noexcept;
 };
 
 /**
@@ -479,8 +660,8 @@ public:
                  bool* dirty,
                  std::string_view primitiveId,
                  mfd::TransportId transportId = 0,
-                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                 PrimitiveBaseline baseline = MakeSquareDiamondPrimitiveBaseline());
     /** @brief Stages one fill color override for this square. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this square is rendered filled. */
@@ -493,6 +674,11 @@ public:
      * exposed; it drives the square width and height together.
      */
     void SetSize(float side);
+    /**
+     * @brief Reads the effective uniform side length: user override, else authored baseline.
+     * @return Currently effective side length applied to both width and height.
+     */
+    float GetSize() const noexcept;
 };
 
 /**
@@ -505,8 +691,8 @@ public:
                   bool* dirty,
                   std::string_view primitiveId,
                   mfd::TransportId transportId = 0,
-                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                  PrimitiveBaseline baseline = MakeSquareDiamondPrimitiveBaseline());
     /** @brief Stages one fill color override for this diamond. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this diamond is rendered filled. */
@@ -514,6 +700,22 @@ public:
     void SetWidth(float width);
     void SetHeight(float height);
     void SetSize(mfd::Vec2 size);
+    /**
+     * @brief Reads the effective width.
+     * @return `SetWidth` override, else the x of a `SetSize` override, else authored baseline.
+     */
+    float GetWidth() const noexcept;
+    /**
+     * @brief Reads the effective height.
+     * @return `SetHeight` override, else the y of a `SetSize` override, else authored baseline.
+     */
+    float GetHeight() const noexcept;
+    /**
+     * @brief Reads the effective size.
+     * @return `SetSize` override, else `{GetWidth(), GetHeight()}` when either is
+     * individually overridden, else the authored baseline size.
+     */
+    mfd::Vec2 GetSize() const noexcept;
 };
 
 /**
@@ -526,13 +728,15 @@ public:
                    bool* dirty,
                    std::string_view primitiveId,
                    mfd::TransportId transportId = 0,
-                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                   PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this triangle. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this triangle is rendered filled. */
     void SetFilled(bool filled);
     void SetPoints(const std::array<mfd::Vec2, 3>& points);
+    /** @brief Reads the effective triangle points: user override, else authored baseline. */
+    std::array<mfd::Vec2, 3> GetPoints() const noexcept;
 };
 
 /**
@@ -545,14 +749,25 @@ public:
                    bool* dirty,
                    std::string_view primitiveId,
                    mfd::TransportId transportId = 0,
-                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                   PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this polyline when it is closed. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this polyline is rendered filled when it is closed. */
     void SetFilled(bool filled);
     void SetPoints(std::vector<mfd::Vec2> points);
     void SetClosed(bool closed);
+    /**
+     * @brief Reads the effective point list: user override, else authored baseline.
+     * @return Reference to the currently effective point list.
+     *
+     * @note The reference aliases storage owned by this handle (the staged
+     * patch entry or the authored baseline); it stays valid until the next
+     * mutating call on this handle.
+     */
+    const std::vector<mfd::Vec2>& GetPoints() const noexcept;
+    /** @brief Reads the effective closed flag: user override, else authored baseline. */
+    bool GetClosed() const noexcept;
 };
 
 /**
@@ -565,10 +780,21 @@ public:
                  bool* dirty,
                  std::string_view primitiveId,
                  mfd::TransportId transportId = 0,
-                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                 PrimitiveBaseline baseline = {});
     void SetControlPoints(std::vector<mfd::Vec2> controlPoints);
     void SetSegments(int segments);
+    /**
+     * @brief Reads the effective control point list: user override, else authored baseline.
+     * @return Reference to the currently effective control point list.
+     *
+     * @note The reference aliases storage owned by this handle (the staged
+     * patch entry or the authored baseline); it stays valid until the next
+     * mutating call on this handle.
+     */
+    const std::vector<mfd::Vec2>& GetControlPoints() const noexcept;
+    /** @brief Reads the effective segment count: user override, else authored baseline. */
+    int GetSegments() const noexcept;
 };
 
 /**
@@ -581,8 +807,8 @@ public:
               bool* dirty,
               std::string_view primitiveId,
               mfd::TransportId transportId = 0,
-              std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
-
+              std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+              PrimitiveBaseline baseline = MakeArcPrimitiveBaseline());
     /** @brief Stages one fill color override for this arc sector. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this arc is rendered as a filled sector. */
@@ -591,6 +817,14 @@ public:
     void SetStartAngleDegrees(float startAngleDegrees);
     void SetEndAngleDegrees(float endAngleDegrees);
     void SetSegments(int segments);
+    /** @brief Reads the effective radius: user override, else authored baseline. */
+    float GetRadius() const noexcept;
+    /** @brief Reads the effective start angle in degrees: user override, else authored baseline. */
+    float GetStartAngleDegrees() const noexcept;
+    /** @brief Reads the effective end angle in degrees: user override, else authored baseline. */
+    float GetEndAngleDegrees() const noexcept;
+    /** @brief Reads the effective segment count: user override, else authored baseline. */
+    int GetSegments() const noexcept;
 };
 
 /**
@@ -603,7 +837,8 @@ public:
                 bool* dirty,
                 std::string_view primitiveId,
                 mfd::TransportId transportId = 0,
-                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr);
+                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
+                PrimitiveBaseline baseline = {});
 };
 
 class MFD_CLIENT_API Reticle
@@ -612,7 +847,8 @@ public:
     Reticle(std::string_view pageName,
             std::string_view reticleId,
             mfd::TransportId pageTransportId = 0,
-            mfd::TransportId reticleTransportId = 0);
+            mfd::TransportId reticleTransportId = 0,
+            ReticleBaseline baseline = {});
     Reticle(const Reticle&) = delete;
     Reticle& operator=(const Reticle&) = delete;
     Reticle(Reticle&&) = delete;
@@ -651,6 +887,23 @@ public:
     void SetLetterSpacing(float letterSpacing);
     void SetLetterSpacing(std::string_view primitiveId, float letterSpacing);
 
+    /** @brief Reads the effective visibility: user override, else authored baseline. */
+    bool GetVisible() const noexcept;
+    /** @brief Reads the effective position: user override, else authored baseline. */
+    mfd::Vec2 GetPosition() const noexcept;
+    /** @brief Reads the effective rotation: user override, else authored baseline. */
+    float GetRotationDegrees() const noexcept;
+    /** @brief Reads the effective scale: user override, else authored baseline. */
+    mfd::Vec2 GetScale() const noexcept;
+    /**
+     * @brief Reads the effective reticle-level text: user override, else authored baseline.
+     * @return View over the currently effective reticle-level text.
+     *
+     * @note The returned view aliases storage owned by this reticle; it stays
+     * valid until the next mutating call on this reticle.
+     */
+    std::string_view GetText() const noexcept;
+
     bool AppendCommands(std::vector<mfd::UserCommand>& commands);
 
 protected:
@@ -670,6 +923,7 @@ private:
     mfd::ReticlePatch desiredPatch_ {};
     mfd::ReticlePatch lastSentPatch_ {};
     bool dirty_ = false;
+    ReticleBaseline baseline_ {};
 
 public:
     ReticleBlink Blink;
@@ -808,6 +1062,18 @@ public:
                 mfd::TransportId primitiveTransportId = 0);
 
     void SetValue(std::string value);
+    /**
+     * @brief Reads back the value previously staged by `SetValue`.
+     * @return View over the staged value, or an empty view when none was staged.
+     *
+     * @note This is the symmetric read of `SetValue`: it targets the same text
+     * primitive `SetValue` writes to, not the reticle-level `GetText`. The
+     * hand-written `TextReticle` carries no authored primitive baseline, so
+     * before any `SetValue` the view is empty. Generated wrappers that expose
+     * `SetValue` instead resolve through their typed primitive handle and so
+     * also report the authored JSON text and the C++ model default.
+     */
+    std::string_view GetValue() const noexcept;
 
 private:
     std::string primitiveId_;
@@ -816,7 +1082,7 @@ private:
 class MFD_CLIENT_API DynamicReticle
 {
 public:
-    explicit DynamicReticle(std::string_view reticleId);
+    explicit DynamicReticle(std::string_view reticleId, ReticleBaseline baseline = {});
     virtual ~DynamicReticle() = default;
     DynamicReticle(const DynamicReticle&) = delete;
     DynamicReticle& operator=(const DynamicReticle&) = delete;
@@ -853,6 +1119,23 @@ public:
     void SetLetterSpacing(float letterSpacing);
     void SetLetterSpacing(std::string_view primitiveId, float letterSpacing);
 
+    /** @brief Reads the effective visibility: user override, else authored baseline. */
+    bool GetVisible() const noexcept;
+    /** @brief Reads the effective position: user override, else authored baseline. */
+    mfd::Vec2 GetPosition() const noexcept;
+    /** @brief Reads the effective rotation: user override, else authored baseline. */
+    float GetRotationDegrees() const noexcept;
+    /** @brief Reads the effective scale: user override, else authored baseline. */
+    mfd::Vec2 GetScale() const noexcept;
+    /**
+     * @brief Reads the effective reticle-level text: user override, else authored baseline.
+     * @return View over the currently effective reticle-level text.
+     *
+     * @note The returned view aliases storage owned by this reticle; it stays
+     * valid until the next mutating call on this reticle.
+     */
+    std::string_view GetText() const noexcept;
+
 protected:
     mfd::ReticlePatch& MutableDesiredPatch() noexcept;
     bool* DirtyFlag() noexcept;
@@ -879,6 +1162,7 @@ private:
     bool seenThisCycle_ = false;
     bool published_ = false;
     bool alive_ = true;
+    ReticleBaseline baseline_ {};
 
 public:
     ReticleBlink Blink;

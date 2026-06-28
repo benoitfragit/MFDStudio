@@ -95,6 +95,76 @@ public:
     mfd::client::ArcHandle scanArc;
 };
 
+mfd::client::PrimitiveBaseline MakeNonDefaultPrimitiveBaseline()
+{
+    mfd::client::PrimitiveBaseline baseline {};
+    baseline.visible = false;
+    baseline.position = mfd::Vec2 {0.11f, 0.22f};
+    baseline.rotationDegrees = 15.0f;
+    baseline.scale = mfd::Vec2 {1.5f, 2.5f};
+    baseline.text = "baseline-text";
+    baseline.lineStart = mfd::Vec2 {-1.0f, -2.0f};
+    baseline.lineEnd = mfd::Vec2 {3.0f, 4.0f};
+    baseline.radius = 0.75f;
+    baseline.innerRadius = 0.30f;
+    baseline.outerRadius = 0.90f;
+    baseline.width = 1.10f;
+    baseline.height = 2.20f;
+    baseline.points = {mfd::Vec2 {0.0f, 0.0f}, mfd::Vec2 {1.0f, 1.0f}, mfd::Vec2 {2.0f, 2.0f}};
+    baseline.closed = true;
+    baseline.segments = 7;
+    baseline.startAngleDegrees = 10.0f;
+    baseline.endAngleDegrees = 200.0f;
+    return baseline;
+}
+
+mfd::client::ReticleBaseline MakeNonDefaultReticleBaseline()
+{
+    mfd::client::ReticleBaseline baseline {};
+    baseline.visible = false;
+    baseline.position = mfd::Vec2 {1.5f, -2.5f};
+    baseline.rotationDegrees = 45.0f;
+    baseline.scale = mfd::Vec2 {2.0f, 3.0f};
+    baseline.text = "reticle-baseline-text";
+    return baseline;
+}
+
+class BaselineFixtureReticle final : public mfd::client::Reticle
+{
+public:
+    BaselineFixtureReticle()
+        : mfd::client::Reticle("Radar", "baseline_fixture", 0U, 0U, MakeNonDefaultReticleBaseline()),
+          horizonLine(MutableDesiredPatch(), DirtyFlag(), "horizon_line", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          cursorCircle(MutableDesiredPatch(), DirtyFlag(), "cursor_circle", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          scopeRing(MutableDesiredPatch(), DirtyFlag(), "scope_ring", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          lockBox(MutableDesiredPatch(), DirtyFlag(), "lock_box", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          uncertaintyEllipse(MutableDesiredPatch(), DirtyFlag(), "uncertainty_ellipse", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          targetSquare(MutableDesiredPatch(), DirtyFlag(), "target_square", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          steerDiamond(MutableDesiredPatch(), DirtyFlag(), "steer_diamond", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          warningTriangle(MutableDesiredPatch(), DirtyFlag(), "warning_triangle", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          routePolyline(MutableDesiredPatch(), DirtyFlag(), "route_polyline", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          guideBezier(MutableDesiredPatch(), DirtyFlag(), "guide_bezier", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          scanArc(MutableDesiredPatch(), DirtyFlag(), "scan_arc", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          headingValue(MutableDesiredPatch(), DirtyFlag(), "heading_value", 0U, nullptr, MakeNonDefaultPrimitiveBaseline()),
+          missionTime(MutableDesiredPatch(), DirtyFlag(), "mission_time", 0U, nullptr, MakeNonDefaultPrimitiveBaseline())
+    {
+    }
+
+    mfd::client::LineHandle horizonLine;
+    mfd::client::CircleHandle cursorCircle;
+    mfd::client::RingHandle scopeRing;
+    mfd::client::RectangleHandle lockBox;
+    mfd::client::EllipseHandle uncertaintyEllipse;
+    mfd::client::SquareHandle targetSquare;
+    mfd::client::DiamondHandle steerDiamond;
+    mfd::client::TriangleHandle warningTriangle;
+    mfd::client::PolylineHandle routePolyline;
+    mfd::client::BezierHandle guideBezier;
+    mfd::client::ArcHandle scanArc;
+    mfd::client::TextHandle headingValue;
+    mfd::client::TimeHandle missionTime;
+};
+
 class GeneratedDynamicFixtureReticle final : public mfd::client::DynamicReticle
 {
 public:
@@ -525,6 +595,379 @@ TEST(AnimationTests, GeneratedPrimitiveLevelGeometryHandlesEmitTypeSpecificPatch
     EXPECT_FLOAT_EQ(*arcPatch.startAngleDegrees, -60.0f);
     EXPECT_FLOAT_EQ(*arcPatch.endAngleDegrees, 120.0f);
     EXPECT_EQ(*arcPatch.segments, 26);
+}
+
+TEST(AnimationTests, PrimitiveGettersReturnAuthoredBaselineWhenNoOverrideStaged)
+{
+    BaselineFixtureReticle reticle;
+
+    EXPECT_FALSE(reticle.horizonLine.GetVisible());
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetPosition().x, 0.11f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetPosition().y, 0.22f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetRotationDegrees(), 15.0f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().x, 1.5f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().y, 2.5f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetStart().x, -1.0f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetEnd().x, 3.0f);
+
+    EXPECT_FLOAT_EQ(reticle.cursorCircle.GetRadius(), 0.75f);
+
+    EXPECT_FLOAT_EQ(reticle.scopeRing.GetInnerRadius(), 0.30f);
+    EXPECT_FLOAT_EQ(reticle.scopeRing.GetOuterRadius(), 0.90f);
+    EXPECT_EQ(reticle.scopeRing.GetSegments(), 7);
+
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetWidth(), 1.10f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetHeight(), 2.20f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetSize().x, 1.10f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetSize().y, 2.20f);
+
+    EXPECT_FLOAT_EQ(reticle.uncertaintyEllipse.GetWidth(), 1.10f);
+    EXPECT_FLOAT_EQ(reticle.uncertaintyEllipse.GetHeight(), 2.20f);
+
+    EXPECT_FLOAT_EQ(reticle.targetSquare.GetSize(), 1.10f);
+
+    EXPECT_FLOAT_EQ(reticle.steerDiamond.GetWidth(), 1.10f);
+    EXPECT_FLOAT_EQ(reticle.steerDiamond.GetHeight(), 2.20f);
+
+    const std::array<mfd::Vec2, 3> trianglePoints = reticle.warningTriangle.GetPoints();
+    EXPECT_FLOAT_EQ(trianglePoints[1].x, 1.0f);
+    EXPECT_FLOAT_EQ(trianglePoints[1].y, 1.0f);
+
+    const std::vector<mfd::Vec2> polylinePoints = reticle.routePolyline.GetPoints();
+    ASSERT_EQ(polylinePoints.size(), 3U);
+    EXPECT_TRUE(reticle.routePolyline.GetClosed());
+
+    const std::vector<mfd::Vec2> bezierPoints = reticle.guideBezier.GetControlPoints();
+    ASSERT_EQ(bezierPoints.size(), 3U);
+    EXPECT_EQ(reticle.guideBezier.GetSegments(), 7);
+
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetRadius(), 0.75f);
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetStartAngleDegrees(), 10.0f);
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetEndAngleDegrees(), 200.0f);
+    EXPECT_EQ(reticle.scanArc.GetSegments(), 7);
+
+    EXPECT_EQ(reticle.headingValue.GetText(), "baseline-text");
+
+    EXPECT_FALSE(reticle.GetVisible());
+    EXPECT_FLOAT_EQ(reticle.GetPosition().x, 1.5f);
+    EXPECT_FLOAT_EQ(reticle.GetPosition().y, -2.5f);
+    EXPECT_FLOAT_EQ(reticle.GetRotationDegrees(), 45.0f);
+    EXPECT_FLOAT_EQ(reticle.GetScale().x, 2.0f);
+    EXPECT_FLOAT_EQ(reticle.GetScale().y, 3.0f);
+    EXPECT_EQ(reticle.GetText(), "reticle-baseline-text");
+}
+
+TEST(AnimationTests, PrimitiveGettersReturnModelDefaultWhenConstructedWithoutAuthoredBaseline)
+{
+    PrimitiveFixtureReticle reticle;
+
+    EXPECT_TRUE(reticle.horizonLine.GetVisible());
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetPosition().x, 0.0f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetRotationDegrees(), 0.0f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().x, 1.0f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().y, 1.0f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetStart().x, -0.0208f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetEnd().x, 0.0208f);
+
+    EXPECT_FLOAT_EQ(reticle.compassRing.GetInnerRadius(), 0.0167f);
+    EXPECT_FLOAT_EQ(reticle.compassRing.GetOuterRadius(), 0.0208f);
+    // RingGeometry's own model default is 64 segments (not the generic 32).
+    EXPECT_EQ(reticle.compassRing.GetSegments(), 64);
+
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetWidth(), 0.0417f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetHeight(), 0.0208f);
+
+    // BezierGeometry's own model default is 32 segments.
+    EXPECT_EQ(reticle.guideBezier.GetSegments(), 32);
+    EXPECT_FALSE(reticle.routePolyline.GetClosed());
+
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetRadius(), 0.0208f);
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetStartAngleDegrees(), 0.0f);
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetEndAngleDegrees(), 180.0f);
+    // ArcGeometry's own model default is 48 segments (not the generic 32).
+    EXPECT_EQ(reticle.scanArc.GetSegments(), 48);
+
+    EXPECT_EQ(reticle.headingValue.GetText(), "");
+    EXPECT_EQ(reticle.missionTime.GetTimeValue(), std::nullopt);
+
+    GeneratedGeometryFixtureReticle geometry;
+    EXPECT_FLOAT_EQ(geometry.cursorCircle.GetRadius(), 0.0208f);
+    EXPECT_FLOAT_EQ(geometry.uncertaintyEllipse.GetWidth(), 0.0417f);
+    EXPECT_FLOAT_EQ(geometry.uncertaintyEllipse.GetHeight(), 0.0208f);
+    // SquareGeometry/DiamondGeometry's own model default is 0.0208f for both
+    // sides, distinct from RectangleGeometry/EllipseGeometry's 0.0417f/0.0208f.
+    EXPECT_FLOAT_EQ(geometry.targetSquare.GetSize(), 0.0208f);
+    EXPECT_FLOAT_EQ(geometry.steerDiamond.GetWidth(), 0.0208f);
+    EXPECT_FLOAT_EQ(geometry.steerDiamond.GetHeight(), 0.0208f);
+}
+
+TEST(AnimationTests, PrimitiveAndReticleGettersReturnUserOverrideAfterCorrespondingSetter)
+{
+    GeneratedGeometryFixtureReticle reticle;
+
+    reticle.horizonLine.SetVisible(false);
+    reticle.horizonLine.SetPosition({0.5f, 0.6f});
+    reticle.horizonLine.SetRotationDegrees(33.0f);
+    reticle.horizonLine.SetScale({1.2f, 1.3f});
+    reticle.horizonLine.SetColor({1, 2, 3, 4});
+    reticle.horizonLine.SetLineStyle(mfd::client::LineStyle::Dotted);
+    reticle.horizonLine.SetStart({-0.5f, 0.0f});
+    reticle.horizonLine.SetEnd({0.5f, 0.0f});
+
+    EXPECT_FALSE(reticle.horizonLine.GetVisible());
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetPosition().x, 0.5f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetPosition().y, 0.6f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetRotationDegrees(), 33.0f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().x, 1.2f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetScale().y, 1.3f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetStart().x, -0.5f);
+    EXPECT_FLOAT_EQ(reticle.horizonLine.GetEnd().x, 0.5f);
+
+    reticle.cursorCircle.SetRadius(0.42f);
+    EXPECT_FLOAT_EQ(reticle.cursorCircle.GetRadius(), 0.42f);
+
+    reticle.scopeRing.SetInnerRadius(0.15f);
+    reticle.scopeRing.SetOuterRadius(0.21f);
+    reticle.scopeRing.SetSegments(40);
+    EXPECT_FLOAT_EQ(reticle.scopeRing.GetInnerRadius(), 0.15f);
+    EXPECT_FLOAT_EQ(reticle.scopeRing.GetOuterRadius(), 0.21f);
+    EXPECT_EQ(reticle.scopeRing.GetSegments(), 40);
+
+    reticle.targetSquare.SetSize(0.11f);
+    EXPECT_FLOAT_EQ(reticle.targetSquare.GetSize(), 0.11f);
+
+    reticle.steerDiamond.SetWidth(0.18f);
+    reticle.steerDiamond.SetHeight(0.24f);
+    EXPECT_FLOAT_EQ(reticle.steerDiamond.GetWidth(), 0.18f);
+    EXPECT_FLOAT_EQ(reticle.steerDiamond.GetHeight(), 0.24f);
+
+    reticle.warningTriangle.SetPoints(std::array<mfd::Vec2, 3> {{{-0.2f, -0.1f}, {0.0f, 0.2f}, {0.2f, -0.1f}}});
+    const std::array<mfd::Vec2, 3> trianglePoints = reticle.warningTriangle.GetPoints();
+    EXPECT_FLOAT_EQ(trianglePoints[1].y, 0.2f);
+
+    reticle.routePolyline.SetPoints({{-0.25f, -0.08f}, {-0.04f, 0.14f}, {0.18f, -0.02f}});
+    reticle.routePolyline.SetClosed(true);
+    EXPECT_EQ(reticle.routePolyline.GetPoints().size(), 3U);
+    EXPECT_TRUE(reticle.routePolyline.GetClosed());
+
+    reticle.guideBezier.SetControlPoints({{-0.2f, -0.12f}, {-0.05f, 0.18f}, {0.05f, 0.18f}, {0.2f, -0.02f}});
+    reticle.guideBezier.SetSegments(22);
+    EXPECT_EQ(reticle.guideBezier.GetControlPoints().size(), 4U);
+    EXPECT_EQ(reticle.guideBezier.GetSegments(), 22);
+
+    reticle.scanArc.SetRadius(0.19f);
+    reticle.scanArc.SetStartAngleDegrees(-60.0f);
+    reticle.scanArc.SetEndAngleDegrees(120.0f);
+    reticle.scanArc.SetSegments(26);
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetRadius(), 0.19f);
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetStartAngleDegrees(), -60.0f);
+    EXPECT_FLOAT_EQ(reticle.scanArc.GetEndAngleDegrees(), 120.0f);
+    EXPECT_EQ(reticle.scanArc.GetSegments(), 26);
+
+    PrimitiveFixtureReticle textFixture;
+    textFixture.headingValue.SetText("override-text");
+    EXPECT_EQ(textFixture.headingValue.GetText(), "override-text");
+
+    mfd::client::TextReticle textReticle("Radar", "caption", "value");
+    textReticle.SetVisible(false);
+    textReticle.SetPosition({0.7f, 0.8f});
+    textReticle.SetRotationDegrees(12.0f);
+    textReticle.SetScale({1.4f, 1.6f});
+    textReticle.SetColor({9, 8, 7, 6});
+    textReticle.SetText("new-value");
+    EXPECT_FALSE(textReticle.GetVisible());
+    EXPECT_FLOAT_EQ(textReticle.GetPosition().x, 0.7f);
+    EXPECT_FLOAT_EQ(textReticle.GetRotationDegrees(), 12.0f);
+    EXPECT_FLOAT_EQ(textReticle.GetScale().x, 1.4f);
+    EXPECT_EQ(textReticle.GetText(), "new-value");
+}
+
+TEST(AnimationTests, RectangleEllipseDiamondWidthHeightSizeGettersStayCoherentAcrossSetters)
+{
+    GeneratedGeometryFixtureReticle reticle;
+
+    reticle.lockBox.SetWidth(0.30f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetWidth(), 0.30f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetSize().x, 0.30f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetSize().y, 0.0208f);
+
+    reticle.lockBox.SetHeight(0.12f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetHeight(), 0.12f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetSize().x, 0.30f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetSize().y, 0.12f);
+
+    reticle.lockBox.SetSize({0.32f, 0.14f});
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetSize().x, 0.32f);
+    EXPECT_FLOAT_EQ(reticle.lockBox.GetSize().y, 0.14f);
+
+    GeneratedGeometryFixtureReticle freshSize;
+    freshSize.lockBox.SetSize({0.36f, 0.16f});
+    EXPECT_FLOAT_EQ(freshSize.lockBox.GetWidth(), 0.36f);
+    EXPECT_FLOAT_EQ(freshSize.lockBox.GetHeight(), 0.16f);
+
+    reticle.uncertaintyEllipse.SetWidth(0.40f);
+    EXPECT_FLOAT_EQ(reticle.uncertaintyEllipse.GetSize().x, 0.40f);
+    EXPECT_FLOAT_EQ(reticle.uncertaintyEllipse.GetSize().y, 0.0208f);
+
+    reticle.steerDiamond.SetHeight(0.24f);
+    EXPECT_FLOAT_EQ(reticle.steerDiamond.GetSize().x, 0.0417f);
+    EXPECT_FLOAT_EQ(reticle.steerDiamond.GetSize().y, 0.24f);
+
+    // A `size` override always wins over a later individual `width`/`height`
+    // override: GetWidth() reports the newer value, GetSize() keeps reporting
+    // the earlier staged size pair.
+    GeneratedGeometryFixtureReticle sizeThenWidth;
+    sizeThenWidth.lockBox.SetSize({0.30f, 0.12f});
+    sizeThenWidth.lockBox.SetWidth(0.50f);
+    EXPECT_FLOAT_EQ(sizeThenWidth.lockBox.GetWidth(), 0.50f);
+    EXPECT_FLOAT_EQ(sizeThenWidth.lockBox.GetSize().x, 0.30f);
+    EXPECT_FLOAT_EQ(sizeThenWidth.lockBox.GetSize().y, 0.12f);
+}
+
+TEST(AnimationTests, TimeHandleGetTimeValueIsNulloptUntilSetAndAfterClear)
+{
+    PrimitiveFixtureReticle reticle;
+
+    EXPECT_EQ(reticle.missionTime.GetTimeValue(), std::nullopt);
+
+    mfd::TimeValue value {};
+    value.hour = 13;
+    value.minute = 45;
+    reticle.missionTime.SetTimeValue(value);
+    ASSERT_TRUE(reticle.missionTime.GetTimeValue().has_value());
+    EXPECT_EQ(reticle.missionTime.GetTimeValue()->hour, 13);
+
+    reticle.missionTime.ClearTimeValue();
+    EXPECT_EQ(reticle.missionTime.GetTimeValue(), std::nullopt);
+}
+
+TEST(AnimationTests, TimeHandleExposesVisibleGetter)
+{
+    BaselineFixtureReticle baselineReticle;
+
+    EXPECT_FALSE(baselineReticle.missionTime.GetVisible());
+
+    baselineReticle.missionTime.SetVisible(true);
+    EXPECT_TRUE(baselineReticle.missionTime.GetVisible());
+}
+
+TEST(AnimationTests, PrimitiveGetterCallsDoNotMutateReticlePatchOrAffectAppendedCommands)
+{
+    GeneratedGeometryFixtureReticle reticle;
+
+    reticle.horizonLine.GetVisible();
+    reticle.horizonLine.GetPosition();
+    reticle.cursorCircle.GetRadius();
+    reticle.scopeRing.GetInnerRadius();
+    reticle.lockBox.GetWidth();
+    reticle.lockBox.GetSize();
+    reticle.uncertaintyEllipse.GetHeight();
+    reticle.targetSquare.GetSize();
+    reticle.steerDiamond.GetWidth();
+    reticle.warningTriangle.GetPoints();
+    reticle.routePolyline.GetPoints();
+    reticle.guideBezier.GetControlPoints();
+    reticle.scanArc.GetRadius();
+
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
+}
+
+TEST(AnimationTests, DynamicReticleBaselineFeedsGettersUntilOverridden)
+{
+    mfd::client::DynamicReticle dynamic("track", MakeNonDefaultReticleBaseline());
+
+    EXPECT_FALSE(dynamic.GetVisible());
+    EXPECT_FLOAT_EQ(dynamic.GetPosition().x, 1.5f);
+    EXPECT_FLOAT_EQ(dynamic.GetPosition().y, -2.5f);
+    EXPECT_FLOAT_EQ(dynamic.GetRotationDegrees(), 45.0f);
+    EXPECT_FLOAT_EQ(dynamic.GetScale().x, 2.0f);
+    EXPECT_FLOAT_EQ(dynamic.GetScale().y, 3.0f);
+    EXPECT_EQ(dynamic.GetText(), "reticle-baseline-text");
+
+    dynamic.SetVisible(true);
+    dynamic.SetPosition({0.4f, 0.5f});
+    dynamic.SetText("override");
+    EXPECT_TRUE(dynamic.GetVisible());
+    EXPECT_FLOAT_EQ(dynamic.GetPosition().x, 0.4f);
+    EXPECT_EQ(dynamic.GetText(), "override");
+}
+
+TEST(AnimationTests, TextReticleValueRoundTripsAndIsIndependentOfReticleText)
+{
+    mfd::client::TextReticle textReticle("Radar", "status", "status_value");
+
+    // No SetValue staged yet, and the hand-written TextReticle carries no
+    // authored primitive baseline, so the read-back is empty.
+    EXPECT_EQ(textReticle.GetValue(), "");
+
+    textReticle.SetValue("LOCK");
+    EXPECT_EQ(textReticle.GetValue(), "LOCK");
+
+    // SetValue writes the targeted text primitive, not the reticle-level text,
+    // so GetValue() is not a wrapper over the reticle-level GetText(): the
+    // reticle-level text stays empty.
+    EXPECT_EQ(textReticle.GetText(), "");
+}
+
+TEST(AnimationTests, PrimitiveHandleExposesCommonGettersThroughBaseReference)
+{
+    GeneratedGeometryFixtureReticle reticle;
+    mfd::client::PrimitiveHandle& base = reticle.cursorCircle;
+
+    base.SetVisible(false);
+    base.SetPosition({0.3f, 0.4f});
+    base.SetRotationDegrees(7.0f);
+    base.SetScale({1.1f, 1.2f});
+
+    EXPECT_FALSE(base.GetVisible());
+    EXPECT_FLOAT_EQ(base.GetPosition().x, 0.3f);
+    EXPECT_FLOAT_EQ(base.GetPosition().y, 0.4f);
+    EXPECT_FLOAT_EQ(base.GetRotationDegrees(), 7.0f);
+    EXPECT_FLOAT_EQ(base.GetScale().x, 1.1f);
+    EXPECT_FLOAT_EQ(base.GetScale().y, 1.2f);
+}
+
+TEST(AnimationTests, RingBezierArcSegmentDefaultsMatchPerTypeModelDefaults)
+{
+    PrimitiveFixtureReticle reticle;
+
+    EXPECT_EQ(reticle.compassRing.GetSegments(), 64);
+    EXPECT_EQ(reticle.guideBezier.GetSegments(), 32);
+    EXPECT_EQ(reticle.scanArc.GetSegments(), 48);
+
+    // An explicit authored baseline overrides the per-type model default.
+    BaselineFixtureReticle authored;
+    EXPECT_EQ(authored.scopeRing.GetSegments(), 7);
+    EXPECT_EQ(authored.guideBezier.GetSegments(), 7);
+    EXPECT_EQ(authored.scanArc.GetSegments(), 7);
+
+    // A user override wins over both the baseline and the model default.
+    reticle.compassRing.SetSegments(20);
+    EXPECT_EQ(reticle.compassRing.GetSegments(), 20);
+}
+
+TEST(AnimationTests, NonAllocatingGettersAliasHandleStorageAcrossRepeatedReads)
+{
+    BaselineFixtureReticle reticle;
+
+    // Repeated reads return a reference to the same handle-owned storage.
+    const std::vector<mfd::Vec2>& pointsA = reticle.routePolyline.GetPoints();
+    const std::vector<mfd::Vec2>& pointsB = reticle.routePolyline.GetPoints();
+    EXPECT_EQ(&pointsA, &pointsB);
+
+    const std::vector<mfd::Vec2>& controlA = reticle.guideBezier.GetControlPoints();
+    const std::vector<mfd::Vec2>& controlB = reticle.guideBezier.GetControlPoints();
+    EXPECT_EQ(&controlA, &controlB);
+
+    const std::string_view text = reticle.headingValue.GetText();
+    EXPECT_EQ(text, "baseline-text");
+
+    // Reading never stages a command.
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
 }
 
 TEST(AnimationTests, DynamicReticleSetBatchesUpsertsAndEmitsRemovalsForMissingReticles)

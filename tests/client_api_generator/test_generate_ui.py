@@ -1307,6 +1307,577 @@ class GenerateUiTests(unittest.TestCase):
                 check=True,
             )
 
+    def test_primitive_baseline_initializer_uses_model_defaults_when_json_omits_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [
+                            {
+                                "id": "geometry_panel",
+                                "layerId": "default",
+                                "elements": [
+                                    {"id": "bare_circle", "type": "circle", "exposed": True},
+                                    {"id": "bare_ring", "type": "ring", "exposed": True},
+                                    {"id": "bare_rectangle", "type": "rectangle", "exposed": True},
+                                    {"id": "bare_square", "type": "square", "exposed": True},
+                                    {"id": "bare_diamond", "type": "diamond", "exposed": True},
+                                    {"id": "bare_arc", "type": "arc", "exposed": True},
+                                ],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            source_content = output_source.read_text(encoding="utf-8")
+
+            self.assertIn(
+                f'bareCircle_(MutableDesiredPatch(), DirtyFlag(), "bare_circle", ',
+                source_content,
+            )
+            self.assertIn(_expected_primitive_baseline(), source_content)
+            self.assertNotIn("10.0f", source_content)
+
+            # SquareGeometry/DiamondGeometry's own model default is 0.0208 for
+            # both sides, distinct from RectangleGeometry/EllipseGeometry's
+            # 0.0417/0.0208 (which PRIMITIVE_BASELINE_DEFAULTS["width"] uses).
+            square_diamond_baseline = _expected_primitive_baseline(width=0.0208, height=0.0208)
+            self.assertIn(square_diamond_baseline, source_content)
+            self.assertEqual(source_content.count(square_diamond_baseline), 2)
+
+    def test_primitive_baseline_initializer_reflects_authored_json_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [
+                            {
+                                "id": "geometry_panel",
+                                "layerId": "default",
+                                "elements": [
+                                    {"id": "tuned_circle", "type": "circle", "radius": 0.5, "hidden": True, "exposed": True},
+                                ],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            source_content = output_source.read_text(encoding="utf-8")
+
+            self.assertIn(_expected_primitive_baseline(visible=False, radius=0.5), source_content)
+            self.assertNotIn("10.0f", source_content)
+
+    def test_generated_headers_expose_new_getters_via_using_declarations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "status_template.json").write_text(
+                json.dumps({"id": "status_template", "elements": [{"id": "status_value", "type": "text"}]}),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "status_template", "layerId": "default", "orderInLayer": 0}
+                        ],
+                        "staticReticles": [
+                            {
+                                "id": "radar_status",
+                                "layerId": "default",
+                                "elements": [{"id": "status_caption", "type": "text"}],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+
+            for expected in [
+                "using mfd::client::Reticle::GetVisible;",
+                "using mfd::client::Reticle::GetPosition;",
+                "using mfd::client::Reticle::GetRotationDegrees;",
+                "using mfd::client::Reticle::GetScale;",
+                "using mfd::client::Reticle::GetText;",
+                "using mfd::client::DynamicReticle::GetVisible;",
+                "using mfd::client::DynamicReticle::GetPosition;",
+                "using mfd::client::DynamicReticle::GetRotationDegrees;",
+                "using mfd::client::DynamicReticle::GetScale;",
+                "using mfd::client::DynamicReticle::GetText;",
+            ]:
+                self.assertIn(expected, header_content)
+
+    def test_status_wrappers_expose_get_value_symmetric_with_set_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "status_template.json").write_text(
+                json.dumps({"id": "status_template", "elements": [{"id": "status_value", "type": "text"}]}),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "status_template", "layerId": "default", "orderInLayer": 0}
+                        ],
+                        "staticReticles": [
+                            {
+                                "id": "radar_status",
+                                "layerId": "default",
+                                "elements": [{"id": "status_caption", "type": "text"}],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+            source_content = output_source.read_text(encoding="utf-8")
+
+            # Every wrapper that exposes SetValue also exposes a symmetric GetValue.
+            self.assertEqual(header_content.count("void SetValue(std::string value);"), 2)
+            self.assertEqual(header_content.count("std::string_view GetValue() const noexcept;"), 2)
+
+            # GetValue resolves through the typed primitive handle member (const-correct),
+            # mirroring the SetValue accessor write, not the reticle-level GetText.
+            self.assertIn(
+                "std::string_view StatusTemplateDynamicReticle::GetValue() const noexcept",
+                source_content,
+            )
+            self.assertIn("return statusValue_.GetText();", source_content)
+            self.assertIn("    StatusValue().SetText(std::move(value));", source_content)
+            self.assertIn(
+                "std::string_view RadarRadarStatusReticle::GetValue() const noexcept",
+                source_content,
+            )
+            self.assertIn("return statusCaption_.GetText();", source_content)
+
+    def test_dynamic_reticle_constructor_threads_template_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "status_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "status_template",
+                        "hidden": True,
+                        "at": [0.1, 0.2],
+                        "text": "RDY",
+                        "elements": [{"id": "status_value", "type": "text", "exposed": True}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "status_template", "layerId": "default", "orderInLayer": 0}
+                        ],
+                        "staticReticles": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            source_content = output_source.read_text(encoding="utf-8")
+
+            # The dynamic reticle base constructor receives the authored template
+            # baseline (hidden -> visible false, at -> position, text), instead of
+            # falling back to the C++ model defaults.
+            self.assertIn(
+                'mfd::client::DynamicReticle(reticleId, mfd::client::ReticleBaseline '
+                '{false, mfd::Vec2 {0.1f, 0.2f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "RDY"})',
+                source_content,
+            )
+
+    def test_strobe_reticle_constructor_threads_template_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            # The strobe's reticle is sourced from this template, which defines a
+            # non-default reticle-level baseline.
+            (template_dir / "cursor_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "cursor_template",
+                        "hidden": True,
+                        "at": [0.3, -0.4],
+                        "rotationDegrees": 30.0,
+                        "scale": [1.5, 2.0],
+                        "text": "CUR",
+                        "elements": [{"id": "cursor_line", "type": "line", "exposed": True}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "activeStrobe": "Default",
+                        "strobes": [
+                            {
+                                "name": "Default",
+                                "id": "radar_strobe_default",
+                                "template": "cursor_template",
+                                "capture": {"shape": "circle", "radius": 0.09},
+                                "magnet": {"enabled": True, "radius": 0.18, "strength": 0.65},
+                            },
+                        ],
+                        "staticReticles": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+            source_content = output_source.read_text(encoding="utf-8")
+
+            # The strobe reticle wrapper threads the authored template baseline
+            # (hidden -> visible false, at -> position, rotationDegrees, scale,
+            # text) into mfd::client::Reticle instead of the C++ model defaults.
+            self.assertIn(
+                ', mfd::client::ReticleBaseline '
+                '{false, mfd::Vec2 {0.3f, -0.4f}, 30.0f, mfd::Vec2 {1.5f, 2.0f}, "CUR"})',
+                source_content,
+            )
+            self.assertIn("RadarDefaultStrobeReticle::RadarDefaultStrobeReticle() :", source_content)
+
+            # The strobe wrapper still exposes the common read-back getters, but
+            # never the forbidden color / line-style getters.
+            self.assertIn("using mfd::client::Reticle::GetVisible;", header_content)
+            self.assertNotIn("GetColor", header_content)
+            self.assertNotIn("GetLineStyle", header_content)
+
+    def test_baseline_parser_rejects_non_finite_and_boolean_numbers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [
+                            {
+                                "id": "geometry_panel",
+                                "layerId": "default",
+                                "elements": [
+                                    # boolean used as a number, NaN, Infinity and a
+                                    # non-numeric string must all fall back to defaults.
+                                    {"id": "bool_circle", "type": "circle", "radius": True, "exposed": True},
+                                    {"id": "broken_ring", "type": "ring", "outerRadius": float("nan"),
+                                     "segments": float("inf"), "exposed": True},
+                                    {"id": "broken_arc", "type": "arc", "radius": float("inf"),
+                                     "segments": 12.5, "exposed": True},
+                                    {"id": "text_rect", "type": "rectangle", "width": "wide", "exposed": True},
+                                    {"id": "broken_poly", "type": "polyline",
+                                     "points": [[0.0, 0.0], [float("nan"), 0.1]], "exposed": True},
+                                ],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            source_content = output_source.read_text(encoding="utf-8")
+
+            # No non-finite C++ float literal is ever emitted. float_literal would
+            # render a non-finite value as "nan.0f" / "inf.0f" / "-inf.0f"; assert
+            # those exact literal forms never appear (a plain "inf"/"nan" substring
+            # check would false-match identifiers such as StrobeInfo).
+            lowered = source_content.lower()
+            self.assertNotIn("nan.0f", lowered)
+            self.assertNotIn("inf.0f", lowered)
+
+            # Each invalid value falls back to its model default.
+            self.assertIn(
+                'boolCircle_(MutableDesiredPatch(), DirtyFlag(), "bool_circle", ',
+                source_content,
+            )
+            self.assertIn(_expected_primitive_baseline(), source_content)  # circle/rect/poly default
+            self.assertIn(_expected_primitive_baseline(segments=64), source_content)  # ring default
+            self.assertIn(_expected_primitive_baseline(segments=48), source_content)  # arc default
+
+
+_PRIMITIVE_BASELINE_DEFAULT_VALUES: dict = {
+    "visible": True,
+    "position": (0.0, 0.0),
+    "rotationDegrees": 0.0,
+    "scale": (1.0, 1.0),
+    "text": "",
+    "lineStart": (-0.0208, 0.0),
+    "lineEnd": (0.0208, 0.0),
+    "radius": 0.0208,
+    "innerRadius": 0.0167,
+    "outerRadius": 0.0208,
+    "width": 0.0417,
+    "height": 0.0208,
+    "points": (),
+    "closed": False,
+    "segments": 32,
+    "startAngleDegrees": 0.0,
+    "endAngleDegrees": 180.0,
+}
+
+
+def _float_literal(value: float) -> str:
+    text = f"{value:.8g}"
+    if "." not in text and "e" not in text and "E" not in text:
+        text += ".0"
+    return f"{text}f"
+
+
+def _vec2_literal(pair: tuple[float, float]) -> str:
+    return f"mfd::Vec2 {{{_float_literal(pair[0])}, {_float_literal(pair[1])}}}"
+
+
+def _points_literal(points: tuple) -> str:
+    if not points:
+        return "std::vector<mfd::Vec2> {}"
+    entries = ", ".join(f"mfd::Vec2 {{{_float_literal(point[0])}, {_float_literal(point[1])}}}" for point in points)
+    return f"std::vector<mfd::Vec2> {{{entries}}}"
+
+
+def _expected_primitive_baseline(**overrides: object) -> str:
+    values = dict(_PRIMITIVE_BASELINE_DEFAULT_VALUES)
+    values.update(overrides)
+    return (
+        "mfd::client::PrimitiveBaseline {"
+        f"{'true' if values['visible'] else 'false'}, "
+        f"{_vec2_literal(values['position'])}, "
+        f"{_float_literal(values['rotationDegrees'])}, "
+        f"{_vec2_literal(values['scale'])}, "
+        f'"{values["text"]}", '
+        f"{_vec2_literal(values['lineStart'])}, "
+        f"{_vec2_literal(values['lineEnd'])}, "
+        f"{_float_literal(values['radius'])}, "
+        f"{_float_literal(values['innerRadius'])}, "
+        f"{_float_literal(values['outerRadius'])}, "
+        f"{_float_literal(values['width'])}, "
+        f"{_float_literal(values['height'])}, "
+        f"{_points_literal(values['points'])}, "
+        f"{'true' if values['closed'] else 'false'}, "
+        f"{values['segments']}, "
+        f"{_float_literal(values['startAngleDegrees'])}, "
+        f"{_float_literal(values['endAngleDegrees'])}"
+        "}"
+    )
+
 
 if __name__ == "__main__":
     parsed_args = parse_args()

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import sys
 from dataclasses import dataclass
@@ -48,6 +49,11 @@ STATIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "SetScale",
     "SetColor",
     "SetThickness",
+    "GetVisible",
+    "GetPosition",
+    "GetRotationDegrees",
+    "GetScale",
+    "GetText",
 )
 
 DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS = (
@@ -65,6 +71,11 @@ DYNAMIC_RETICLE_EXPOSED_BASE_MEMBERS = (
     "SetRotationDegrees",
     "SetColor",
     "SetThickness",
+    "GetVisible",
+    "GetPosition",
+    "GetRotationDegrees",
+    "GetScale",
+    "GetText",
 )
 
 DYNAMIC_SET_EXPOSED_BASE_MEMBERS = (
@@ -86,6 +97,7 @@ class PrimitiveSpec:
     primitive_type: str
     canonical_key: str
     transport_id: int
+    baseline_initializer: str
 
 
 @dataclass(frozen=True)
@@ -97,6 +109,8 @@ class ReticleSpec:
     transport_id: int
     primitives: list[PrimitiveSpec]
     status_primitive_accessor_name: str | None
+    status_primitive_member_name: str | None
+    baseline_initializer: str
 
 
 @dataclass(frozen=True)
@@ -128,6 +142,8 @@ class StrobeSpec:
     reticle_id: str
     primitives: list[PrimitiveSpec]
     status_primitive_accessor_name: str | None
+    status_primitive_member_name: str | None
+    baseline_initializer: str
     default_active: bool
     valid: bool
     capture_shape: str
@@ -151,6 +167,8 @@ class TemplateSpec:
     dynamic_accessor_name: str
     dynamic_member_name: str
     status_primitive_accessor_name: str | None
+    status_primitive_member_name: str | None
+    baseline_initializer: str
 
 
 @dataclass(frozen=True)
@@ -261,6 +279,330 @@ def explicit_exposure(element: dict) -> bool:
             return bool(client_node["public"])
 
     return False
+
+
+PRIMITIVE_BASELINE_DEFAULTS: dict = {
+    "visible": True,
+    "position": (0.0, 0.0),
+    "rotationDegrees": 0.0,
+    "scale": (1.0, 1.0),
+    "text": "",
+    "lineStart": (-0.0208, 0.0),
+    "lineEnd": (0.0208, 0.0),
+    "radius": 0.0208,
+    "innerRadius": 0.0167,
+    "outerRadius": 0.0208,
+    "width": 0.0417,
+    "height": 0.0208,
+    "points": (),
+    "closed": False,
+    "segments": 32,
+    "startAngleDegrees": 0.0,
+    "endAngleDegrees": 180.0,
+}
+
+RETICLE_BASELINE_DEFAULTS: dict = {
+    "visible": True,
+    "position": (0.0, 0.0),
+    "rotationDegrees": 0.0,
+    "scale": (1.0, 1.0),
+    "text": "",
+}
+
+
+def parse_finite_float(value: object) -> float | None:
+    """Convert one authored JSON scalar to a finite float, or return None.
+
+    Rejects booleans (so a JSON ``true``/``false`` is never silently read as
+    ``1.0``/``0.0``) and non-finite values (``NaN``, ``Infinity``,
+    ``-Infinity``, which Python's ``json`` module accepts by default). Invalid
+    values return None so callers fall back to the model default instead of
+    emitting non-finite C++ literals.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+        return number if math.isfinite(number) else None
+    return None
+
+
+def parse_finite_int(value: object) -> int | None:
+    """Convert one authored JSON scalar to an int, or return None.
+
+    Rejects booleans and any non-integer value (including finite floats and
+    non-finite values) so segment counts stay exact integers.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
+
+
+def find_alias_field(node: dict, keys: tuple[str, ...]) -> object:
+    for key in keys:
+        if key in node and node[key] is not None:
+            return node[key]
+    return None
+
+
+def parse_vec2_value(value: object) -> tuple[float, float] | None:
+    scalar = parse_finite_float(value)
+    if scalar is not None:
+        return scalar, scalar
+    if isinstance(value, list) and len(value) == 2:
+        x = parse_finite_float(value[0])
+        y = parse_finite_float(value[1])
+        if x is not None and y is not None:
+            return x, y
+        return None
+    if isinstance(value, dict):
+        x = parse_finite_float(value.get("x", 0.0))
+        y = parse_finite_float(value.get("y", 0.0))
+        if x is not None and y is not None:
+            return x, y
+        return None
+    return None
+
+
+def parse_visible(node: dict) -> bool | None:
+    show = find_alias_field(node, ("show", "visible"))
+    if isinstance(show, bool):
+        return show
+
+    hidden = find_alias_field(node, ("hidden",))
+    if isinstance(hidden, bool):
+        return not hidden
+
+    return None
+
+
+def parse_transform(node: dict) -> dict:
+    result: dict = {}
+    sources = []
+    transform_node = node.get("transform")
+    if isinstance(transform_node, dict):
+        sources.append(transform_node)
+    sources.append(node)
+
+    for source in sources:
+        position = find_alias_field(source, ("position", "at", "pos"))
+        if position is not None:
+            parsed_position = parse_vec2_value(position)
+            if parsed_position is not None:
+                result["position"] = parsed_position
+        if "x" in source or "y" in source:
+            current = result.get("position", (0.0, 0.0))
+            x = parse_finite_float(source["x"]) if "x" in source else current[0]
+            y = parse_finite_float(source["y"]) if "y" in source else current[1]
+            if x is not None and y is not None:
+                result["position"] = (float(x), float(y))
+
+        angle = parse_finite_float(find_alias_field(source, ("rotationDegrees", "angle", "rotation")))
+        if angle is not None:
+            result["rotationDegrees"] = angle
+
+        scale = find_alias_field(source, ("scale", "zoom"))
+        if scale is not None:
+            parsed_scale = parse_vec2_value(scale)
+            if parsed_scale is not None:
+                result["scale"] = parsed_scale
+        if any(key in source for key in ("sx", "sy", "scaleX", "scaleY")):
+            current = result.get("scale", (1.0, 1.0))
+            sx = parse_finite_float(source.get("sx", source.get("scaleX", current[0])))
+            sy = parse_finite_float(source.get("sy", source.get("scaleY", current[1])))
+            if sx is not None and sy is not None:
+                result["scale"] = (float(sx), float(sy))
+
+    return result
+
+
+def parse_primitive_geometry_baseline(element: dict, primitive_type: str) -> dict:
+    result: dict = {}
+
+    if primitive_type == "line":
+        start = find_alias_field(element, ("start", "from"))
+        if start is not None:
+            parsed_start = parse_vec2_value(start)
+            if parsed_start is not None:
+                result["lineStart"] = parsed_start
+        end = find_alias_field(element, ("end", "to"))
+        if end is not None:
+            parsed_end = parse_vec2_value(end)
+            if parsed_end is not None:
+                result["lineEnd"] = parsed_end
+
+    elif primitive_type == "circle":
+        radius = parse_finite_float(element.get("radius"))
+        result["radius"] = radius if radius is not None else PRIMITIVE_BASELINE_DEFAULTS["radius"]
+
+    elif primitive_type == "ring":
+        outer_radius = parse_finite_float(find_alias_field(element, ("outerRadius", "radius")))
+        if outer_radius is None:
+            outer_radius = PRIMITIVE_BASELINE_DEFAULTS["outerRadius"]
+        inner_radius = parse_finite_float(find_alias_field(element, ("innerRadius", "holeRadius")))
+        if inner_radius is None:
+            inner_radius = PRIMITIVE_BASELINE_DEFAULTS["innerRadius"]
+        segments = parse_finite_int(element.get("segments"))
+        result["outerRadius"] = max(0.0, outer_radius)
+        result["innerRadius"] = min(max(0.0, inner_radius), result["outerRadius"])
+        result["segments"] = max(12, segments) if segments is not None else 64
+
+    elif primitive_type in ("rectangle", "ellipse"):
+        size = parse_finite_float(element.get("size"))
+        if primitive_type == "rectangle":
+            default_width = size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["width"]
+            default_height = size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["height"]
+        else:
+            radius_x = parse_finite_float(find_alias_field(element, ("radiusX", "rx")))
+            radius_y = parse_finite_float(find_alias_field(element, ("radiusY", "ry")))
+            default_width = (
+                radius_x * 2.0 if radius_x is not None else (size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["width"]))
+            default_height = (
+                radius_y * 2.0 if radius_y is not None else (size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["height"]))
+
+        width = parse_finite_float(find_alias_field(element, ("width", "diameterX")))
+        height = parse_finite_float(find_alias_field(element, ("height", "diameterY")))
+        result["width"] = width if width is not None else default_width
+        result["height"] = height if height is not None else default_height
+
+    elif primitive_type == "square":
+        # SquareGeometry's own model default is 0.0208 for both sides, distinct
+        # from PRIMITIVE_BASELINE_DEFAULTS["width"] (0.0417), which matches
+        # RectangleGeometry/EllipseGeometry instead.
+        side = parse_finite_float(find_alias_field(element, ("size", "width", "height")))
+        side = side if side is not None else 0.0208
+        result["width"] = side
+        result["height"] = side
+
+    elif primitive_type == "diamond":
+        # DiamondGeometry's own model default is 0.0208 for both sides, same
+        # rationale as the square case above.
+        size = parse_finite_float(element.get("size"))
+        default_side = size if size is not None else 0.0208
+        width = parse_finite_float(element.get("width"))
+        height = parse_finite_float(element.get("height"))
+        result["width"] = width if width is not None else default_side
+        result["height"] = height if height is not None else default_side
+
+    elif primitive_type == "triangle":
+        points = element.get("points")
+        if isinstance(points, list) and len(points) == 3:
+            parsed_points = [parse_vec2_value(point) for point in points]
+            if all(point is not None for point in parsed_points):
+                result["points"] = tuple(parsed_points)
+
+    elif primitive_type == "polyline":
+        points = element.get("points")
+        if isinstance(points, list) and len(points) >= 2:
+            parsed_points = [parse_vec2_value(point) for point in points]
+            if all(point is not None for point in parsed_points):
+                result["points"] = tuple(parsed_points)
+        closed = element.get("closed")
+        if isinstance(closed, bool):
+            result["closed"] = closed
+
+    elif primitive_type == "bezier":
+        points = element.get("controlPoints")
+        if not isinstance(points, list):
+            points = element.get("points")
+        if isinstance(points, list) and len(points) >= 2:
+            parsed_points = [parse_vec2_value(point) for point in points]
+            if all(point is not None for point in parsed_points):
+                result["points"] = tuple(parsed_points)
+        segments = parse_finite_int(element.get("segments"))
+        result["segments"] = segments if segments is not None else 32
+
+    elif primitive_type == "arc":
+        radius = parse_finite_float(element.get("radius"))
+        result["radius"] = radius if radius is not None else PRIMITIVE_BASELINE_DEFAULTS["radius"]
+        segments = parse_finite_int(element.get("segments"))
+        result["segments"] = segments if segments is not None else 48
+        start_angle = parse_finite_float(find_alias_field(element, ("startAngleDegrees", "startAngle", "fromDegrees", "angleStart")))
+        result["startAngleDegrees"] = (
+            start_angle if start_angle is not None else PRIMITIVE_BASELINE_DEFAULTS["startAngleDegrees"])
+        end_angle = parse_finite_float(find_alias_field(element, ("endAngleDegrees", "endAngle", "toDegrees", "angleEnd")))
+        result["endAngleDegrees"] = (
+            end_angle if end_angle is not None else PRIMITIVE_BASELINE_DEFAULTS["endAngleDegrees"])
+
+    return result
+
+
+def render_vec2_literal(pair: tuple[float, float]) -> str:
+    return f"mfd::Vec2 {{{float_literal(pair[0])}, {float_literal(pair[1])}}}"
+
+
+def render_points_literal(points: tuple) -> str:
+    if not points:
+        return "std::vector<mfd::Vec2> {}"
+    entries = ", ".join(f"mfd::Vec2 {{{float_literal(point[0])}, {float_literal(point[1])}}}" for point in points)
+    return f"std::vector<mfd::Vec2> {{{entries}}}"
+
+
+def build_primitive_baseline_initializer(element: dict, primitive_type: str) -> str:
+    values = dict(PRIMITIVE_BASELINE_DEFAULTS)
+
+    visible = parse_visible(element)
+    if visible is not None:
+        values["visible"] = visible
+
+    values.update(parse_transform(element))
+
+    text = element.get("text")
+    if isinstance(text, str):
+        values["text"] = text
+
+    values.update(parse_primitive_geometry_baseline(element, primitive_type))
+
+    return (
+        "mfd::client::PrimitiveBaseline {"
+        f"{'true' if values['visible'] else 'false'}, "
+        f"{render_vec2_literal(values['position'])}, "
+        f"{float_literal(values['rotationDegrees'])}, "
+        f"{render_vec2_literal(values['scale'])}, "
+        f'"{cpp_string(values["text"])}", '
+        f"{render_vec2_literal(values['lineStart'])}, "
+        f"{render_vec2_literal(values['lineEnd'])}, "
+        f"{float_literal(values['radius'])}, "
+        f"{float_literal(values['innerRadius'])}, "
+        f"{float_literal(values['outerRadius'])}, "
+        f"{float_literal(values['width'])}, "
+        f"{float_literal(values['height'])}, "
+        f"{render_points_literal(values['points'])}, "
+        f"{'true' if values['closed'] else 'false'}, "
+        f"{values['segments']}, "
+        f"{float_literal(values['startAngleDegrees'])}, "
+        f"{float_literal(values['endAngleDegrees'])}"
+        "}"
+    )
+
+
+def build_reticle_baseline_initializer(node: dict) -> str:
+    values = dict(RETICLE_BASELINE_DEFAULTS)
+
+    visible = parse_visible(node)
+    if visible is not None:
+        values["visible"] = visible
+
+    transform = parse_transform(node)
+    for key in ("position", "rotationDegrees", "scale"):
+        if key in transform:
+            values[key] = transform[key]
+
+    text = find_alias_field(node, ("text", "value"))
+    if isinstance(text, str):
+        values["text"] = text
+
+    return (
+        "mfd::client::ReticleBaseline {"
+        f"{'true' if values['visible'] else 'false'}, "
+        f"{render_vec2_literal(values['position'])}, "
+        f"{float_literal(values['rotationDegrees'])}, "
+        f"{render_vec2_literal(values['scale'])}, "
+        f'"{cpp_string(values["text"])}"'
+        "}"
+    )
 
 
 def collect_named_elements(elements: list[dict]) -> list[dict]:
@@ -511,6 +853,23 @@ def resolved_elements(reticle_node: dict, template_library: dict[str, dict]) -> 
     return [element for element in elements if isinstance(element, dict)]
 
 
+def resolve_reticle_baseline_node(reticle_node: dict, template_library: dict[str, dict]) -> dict:
+    """Resolve the JSON node carrying a reticle's own transform/visible/text baseline.
+
+    Reticle-level fields declared directly on `reticle_node` win; any field the
+    node omits falls back to the template it references. Returns the node itself
+    (yielding model defaults through `build_reticle_baseline_initializer`) when
+    neither the node nor a referenced template defines reticle-level fields.
+    """
+    template_id = reticle_node.get("template") or reticle_node.get("sourceTemplateId")
+    template = template_library.get(template_id) if isinstance(template_id, str) else None
+    if isinstance(template, dict):
+        merged = dict(template)
+        merged.update(reticle_node)
+        return merged
+    return reticle_node
+
+
 def resolve_reticle_runtime_id(reticle_node: dict, owner_description: str) -> str:
     explicit_id = reticle_node.get("id")
     if isinstance(explicit_id, str) and explicit_id:
@@ -565,6 +924,7 @@ def build_primitive_specs(owner_kind: str,
             primitive_type=primitive_type,
             canonical_key=canonical_key,
             transport_id=stable_transport_id(canonical_key),
+            baseline_initializer=build_primitive_baseline_initializer(element, primitive_type),
         ))
 
     return primitive_specs
@@ -638,6 +998,9 @@ def build_strobe_spec(page_name: str,
         reticle_id=reticle_id,
         primitives=primitives,
         status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
+        status_primitive_member_name=None if status_primitive is None else status_primitive.member_name,
+        baseline_initializer=build_reticle_baseline_initializer(
+            resolve_reticle_baseline_node(strobe_node, template_library)),
         default_active=default_active,
         valid=True,
         capture_shape=capture_shape,
@@ -816,6 +1179,8 @@ def build_template_specs(template_library: dict[str, dict], included_template_id
             dynamic_accessor_name=f"Dynamic{template_base_name}",
             dynamic_member_name=f"dynamic{template_base_name}_",
             status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
+            status_primitive_member_name=None if status_primitive is None else status_primitive.member_name,
+            baseline_initializer=build_reticle_baseline_initializer(template_node),
         ))
 
     return templates
@@ -866,6 +1231,8 @@ def build_page_specs(window_root: dict,
                 transport_id=transport_id,
                 primitives=primitives,
                 status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
+                status_primitive_member_name=None if status_primitive is None else status_primitive.member_name,
+                baseline_initializer=build_reticle_baseline_initializer(reticle),
             ))
 
         blink_members: list[BlinkSpec] = []
@@ -1064,6 +1431,7 @@ def emit_header(namespace_name: str,
 
         if template.status_primitive_accessor_name is not None:
             lines.append("    void SetValue(std::string value);")
+            lines.append("    std::string_view GetValue() const noexcept;")
 
         for primitive in template.primitives:
             lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
@@ -1117,6 +1485,7 @@ def emit_header(namespace_name: str,
 
             if reticle.status_primitive_accessor_name is not None:
                 lines.append("    void SetValue(std::string value);")
+                lines.append("    std::string_view GetValue() const noexcept;")
 
             for primitive in reticle.primitives:
                 lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
@@ -1150,6 +1519,7 @@ def emit_header(namespace_name: str,
 
             if strobe.status_primitive_accessor_name is not None:
                 lines.append("    void SetValue(std::string value);")
+                lines.append("    std::string_view GetValue() const noexcept;")
 
             for primitive in strobe.primitives:
                 lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
@@ -1338,10 +1708,11 @@ def emit_source(namespace_name: str,
     ]
 
     for template in template_specs:
-        ctor_initializers = ["    mfd::client::DynamicReticle(reticleId)"]
+        ctor_initializers = [f"    mfd::client::DynamicReticle(reticleId, {template.baseline_initializer})"]
         for primitive in template.primitives:
             ctor_initializers.append(
-                f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
+                f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", '
+                f"{primitive.transport_id}U, PrimitiveTransportIds(), {primitive.baseline_initializer})")
 
         lines.append(f"{template.dynamic_reticle_class_name}::{template.dynamic_reticle_class_name}(std::string_view reticleId) :")
         lines.append(",\n".join(ctor_initializers))
@@ -1354,6 +1725,11 @@ def emit_source(namespace_name: str,
                 f"void {template.dynamic_reticle_class_name}::SetValue(std::string value)",
                 "{",
                 f"    {template.status_primitive_accessor_name}().SetText(std::move(value));",
+                "}",
+                "",
+                f"std::string_view {template.dynamic_reticle_class_name}::GetValue() const noexcept",
+                "{",
+                f"    return {template.status_primitive_member_name}.GetText();",
                 "}",
                 "",
             ])
@@ -1400,10 +1776,11 @@ def emit_source(namespace_name: str,
         for reticle in page.reticles:
             ctor_initializers = [
                 (f'    mfd::client::Reticle("{cpp_string(page.page_name)}", "{cpp_string(reticle.reticle_id)}", '
-                 f"{page.transport_id}U, {reticle.transport_id}U)")]
+                 f"{page.transport_id}U, {reticle.transport_id}U, {reticle.baseline_initializer})")]
             for primitive in reticle.primitives:
                 ctor_initializers.append(
-                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
+                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", '
+                    f"{primitive.transport_id}U, PrimitiveTransportIds(), {primitive.baseline_initializer})")
 
             lines.append(f"{reticle.wrapper_class_name}::{reticle.wrapper_class_name}() :")
             lines.append(",\n".join(ctor_initializers))
@@ -1416,6 +1793,11 @@ def emit_source(namespace_name: str,
                     f"void {reticle.wrapper_class_name}::SetValue(std::string value)",
                     "{",
                     f"    {reticle.status_primitive_accessor_name}().SetText(std::move(value));",
+                    "}",
+                    "",
+                    f"std::string_view {reticle.wrapper_class_name}::GetValue() const noexcept",
+                    "{",
+                    f"    return {reticle.status_primitive_member_name}.GetText();",
                     "}",
                     "",
                 ])
@@ -1432,10 +1814,11 @@ def emit_source(namespace_name: str,
         for strobe in page.strobes:
             ctor_initializers = [
                 (f'    mfd::client::Reticle("{cpp_string(page.page_name)}", "{cpp_string(strobe.reticle_id)}", '
-                 f"{page.transport_id}U, {strobe.reticle_transport_id}U)")]
+                 f"{page.transport_id}U, {strobe.reticle_transport_id}U, {strobe.baseline_initializer})")]
             for primitive in strobe.primitives:
                 ctor_initializers.append(
-                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", {primitive.transport_id}U, PrimitiveTransportIds())')
+                    f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", '
+                    f"{primitive.transport_id}U, PrimitiveTransportIds(), {primitive.baseline_initializer})")
 
             lines.append(f"{strobe.reticle_wrapper_class_name}::{strobe.reticle_wrapper_class_name}() :")
             lines.append(",\n".join(ctor_initializers))
@@ -1448,6 +1831,11 @@ def emit_source(namespace_name: str,
                     f"void {strobe.reticle_wrapper_class_name}::SetValue(std::string value)",
                     "{",
                     f"    {strobe.status_primitive_accessor_name}().SetText(std::move(value));",
+                    "}",
+                    "",
+                    f"std::string_view {strobe.reticle_wrapper_class_name}::GetValue() const noexcept",
+                    "{",
+                    f"    return {strobe.status_primitive_member_name}.GetText();",
                     "}",
                     "",
                 ])
