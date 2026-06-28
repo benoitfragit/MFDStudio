@@ -318,6 +318,36 @@ inline PrimitiveBaseline MakeSquareDiamondPrimitiveBaseline() noexcept
 }
 
 /**
+ * @brief Builds the baseline used when a `RingHandle` is constructed without an
+ * authored baseline.
+ *
+ * `RingGeometry`'s own model default is `segments = 64`, which differs from
+ * `PrimitiveBaseline`'s plain `segments` default (`32`, matching
+ * `BezierGeometry`).
+ */
+inline PrimitiveBaseline MakeRingPrimitiveBaseline() noexcept
+{
+    PrimitiveBaseline baseline {};
+    baseline.segments = 64;
+    return baseline;
+}
+
+/**
+ * @brief Builds the baseline used when an `ArcHandle` is constructed without an
+ * authored baseline.
+ *
+ * `ArcGeometry`'s own model default is `segments = 48`, which differs from
+ * `PrimitiveBaseline`'s plain `segments` default (`32`, matching
+ * `BezierGeometry`).
+ */
+inline PrimitiveBaseline MakeArcPrimitiveBaseline() noexcept
+{
+    PrimitiveBaseline baseline {};
+    baseline.segments = 48;
+    return baseline;
+}
+
+/**
  * @brief Authored baseline values for a reticle's own transform/text fields,
  * resolved once at generated-construction time from the source JSON.
  */
@@ -358,19 +388,13 @@ public:
     void SetThickness(float thickness);
     void SetLineStyle(LineStyle lineStyle);
 
-protected:
-    mfd::PrimitivePatch& Patch() noexcept;
-    /** @brief Read-only lookup; returns `nullptr` when no setter has staged a patch yet. */
-    const mfd::PrimitivePatch* Patch() const noexcept;
-    void MarkDirty() noexcept;
-    /** @brief Stages one fill color override for fill-capable primitive handles. */
-    void SetFillColorInternal(mfd::ColorRgba color);
-    /** @brief Stages one fill toggle override for fill-capable primitive handles. */
-    void SetFilledInternal(bool filled);
-
     /**
      * @brief Reads the effective visibility: user override, else authored baseline.
      * @return `true` unless a setter or the authored JSON staged `false`.
+     *
+     * @note These four common transform/visibility getters are public so the
+     * shared base handle stays symmetric with its public setters, including
+     * when callers hold a generic `PrimitiveHandle`.
      */
     bool GetVisible() const noexcept;
     /**
@@ -388,6 +412,17 @@ protected:
      * @return Currently effective non-uniform scale.
      */
     mfd::Vec2 GetScale() const noexcept;
+
+protected:
+    mfd::PrimitivePatch& Patch() noexcept;
+    /** @brief Read-only lookup; returns `nullptr` when no setter has staged a patch yet. */
+    const mfd::PrimitivePatch* Patch() const noexcept;
+    void MarkDirty() noexcept;
+    /** @brief Stages one fill color override for fill-capable primitive handles. */
+    void SetFillColorInternal(mfd::ColorRgba color);
+    /** @brief Stages one fill toggle override for fill-capable primitive handles. */
+    void SetFilledInternal(bool filled);
+
     /** @brief Read-only access to the authored baseline for derived-type-specific getters. */
     const PrimitiveBaseline& Baseline() const noexcept;
 
@@ -411,19 +446,17 @@ public:
                mfd::TransportId transportId = 0,
                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     void SetText(std::string value);
     void SetLetterSpacing(float letterSpacing);
     /**
      * @brief Reads the effective text content: user override, else authored baseline.
-     * @return Currently effective text content.
+     * @return View over the currently effective text content.
+     *
+     * @note The returned view aliases storage owned by this handle (the staged
+     * patch entry or the authored baseline); it stays valid until the next
+     * mutating call on this handle.
      */
-    std::string GetText() const noexcept;
+    std::string_view GetText() const noexcept;
 };
 
 /**
@@ -438,12 +471,6 @@ public:
                mfd::TransportId transportId = 0,
                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     void SetLetterSpacing(float letterSpacing);
     /**
      * @brief Stages a numeric runtime value for this time primitive.
@@ -493,12 +520,6 @@ public:
                mfd::TransportId transportId = 0,
                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     void SetStart(mfd::Vec2 start);
     void SetEnd(mfd::Vec2 end);
     /** @brief Reads the effective line start point: user override, else authored baseline. */
@@ -519,12 +540,6 @@ public:
                  mfd::TransportId transportId = 0,
                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                  PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     /** @brief Stages one fill color override for this circle. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this circle is rendered filled. */
@@ -545,13 +560,7 @@ public:
                std::string_view primitiveId,
                mfd::TransportId transportId = 0,
                std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
-               PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
+               PrimitiveBaseline baseline = MakeRingPrimitiveBaseline());
     /** @brief Stages one fill color override for this ring. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this ring is rendered filled. */
@@ -579,12 +588,6 @@ public:
                     mfd::TransportId transportId = 0,
                     std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                     PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     /** @brief Stages one fill color override for this rectangle. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this rectangle is rendered filled. */
@@ -622,12 +625,6 @@ public:
                   mfd::TransportId transportId = 0,
                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                   PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     /** @brief Stages one fill color override for this ellipse. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this ellipse is rendered filled. */
@@ -665,12 +662,6 @@ public:
                  mfd::TransportId transportId = 0,
                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                  PrimitiveBaseline baseline = MakeSquareDiamondPrimitiveBaseline());
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     /** @brief Stages one fill color override for this square. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this square is rendered filled. */
@@ -702,12 +693,6 @@ public:
                   mfd::TransportId transportId = 0,
                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                   PrimitiveBaseline baseline = MakeSquareDiamondPrimitiveBaseline());
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     /** @brief Stages one fill color override for this diamond. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this diamond is rendered filled. */
@@ -745,12 +730,6 @@ public:
                    mfd::TransportId transportId = 0,
                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                    PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     /** @brief Stages one fill color override for this triangle. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this triangle is rendered filled. */
@@ -772,20 +751,21 @@ public:
                    mfd::TransportId transportId = 0,
                    std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                    PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     /** @brief Stages one fill color override for this polyline when it is closed. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this polyline is rendered filled when it is closed. */
     void SetFilled(bool filled);
     void SetPoints(std::vector<mfd::Vec2> points);
     void SetClosed(bool closed);
-    /** @brief Reads the effective point list: user override, else authored baseline. */
-    std::vector<mfd::Vec2> GetPoints() const noexcept;
+    /**
+     * @brief Reads the effective point list: user override, else authored baseline.
+     * @return Reference to the currently effective point list.
+     *
+     * @note The reference aliases storage owned by this handle (the staged
+     * patch entry or the authored baseline); it stays valid until the next
+     * mutating call on this handle.
+     */
+    const std::vector<mfd::Vec2>& GetPoints() const noexcept;
     /** @brief Reads the effective closed flag: user override, else authored baseline. */
     bool GetClosed() const noexcept;
 };
@@ -802,16 +782,17 @@ public:
                  mfd::TransportId transportId = 0,
                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                  PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
     void SetControlPoints(std::vector<mfd::Vec2> controlPoints);
     void SetSegments(int segments);
-    /** @brief Reads the effective control point list: user override, else authored baseline. */
-    std::vector<mfd::Vec2> GetControlPoints() const noexcept;
+    /**
+     * @brief Reads the effective control point list: user override, else authored baseline.
+     * @return Reference to the currently effective control point list.
+     *
+     * @note The reference aliases storage owned by this handle (the staged
+     * patch entry or the authored baseline); it stays valid until the next
+     * mutating call on this handle.
+     */
+    const std::vector<mfd::Vec2>& GetControlPoints() const noexcept;
     /** @brief Reads the effective segment count: user override, else authored baseline. */
     int GetSegments() const noexcept;
 };
@@ -827,13 +808,7 @@ public:
               std::string_view primitiveId,
               mfd::TransportId transportId = 0,
               std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
-              PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
-
+              PrimitiveBaseline baseline = MakeArcPrimitiveBaseline());
     /** @brief Stages one fill color override for this arc sector. */
     void SetFillColor(mfd::ColorRgba color);
     /** @brief Stages whether this arc is rendered as a filled sector. */
@@ -864,11 +839,6 @@ public:
                 mfd::TransportId transportId = 0,
                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                 PrimitiveBaseline baseline = {});
-
-    using PrimitiveHandle::GetVisible;
-    using PrimitiveHandle::GetPosition;
-    using PrimitiveHandle::GetRotationDegrees;
-    using PrimitiveHandle::GetScale;
 };
 
 class MFD_CLIENT_API Reticle
@@ -925,8 +895,14 @@ public:
     float GetRotationDegrees() const noexcept;
     /** @brief Reads the effective scale: user override, else authored baseline. */
     mfd::Vec2 GetScale() const noexcept;
-    /** @brief Reads the effective text content: user override, else authored baseline. */
-    std::string GetText() const noexcept;
+    /**
+     * @brief Reads the effective reticle-level text: user override, else authored baseline.
+     * @return View over the currently effective reticle-level text.
+     *
+     * @note The returned view aliases storage owned by this reticle; it stays
+     * valid until the next mutating call on this reticle.
+     */
+    std::string_view GetText() const noexcept;
 
     bool AppendCommands(std::vector<mfd::UserCommand>& commands);
 
@@ -1086,6 +1062,18 @@ public:
                 mfd::TransportId primitiveTransportId = 0);
 
     void SetValue(std::string value);
+    /**
+     * @brief Reads back the value previously staged by `SetValue`.
+     * @return View over the staged value, or an empty view when none was staged.
+     *
+     * @note This is the symmetric read of `SetValue`: it targets the same text
+     * primitive `SetValue` writes to, not the reticle-level `GetText`. The
+     * hand-written `TextReticle` carries no authored primitive baseline, so
+     * before any `SetValue` the view is empty. Generated wrappers that expose
+     * `SetValue` instead resolve through their typed primitive handle and so
+     * also report the authored JSON text and the C++ model default.
+     */
+    std::string_view GetValue() const noexcept;
 
 private:
     std::string primitiveId_;
@@ -1139,8 +1127,14 @@ public:
     float GetRotationDegrees() const noexcept;
     /** @brief Reads the effective scale: user override, else authored baseline. */
     mfd::Vec2 GetScale() const noexcept;
-    /** @brief Reads the effective text content: user override, else authored baseline. */
-    std::string GetText() const noexcept;
+    /**
+     * @brief Reads the effective reticle-level text: user override, else authored baseline.
+     * @return View over the currently effective reticle-level text.
+     *
+     * @note The returned view aliases storage owned by this reticle; it stays
+     * valid until the next mutating call on this reticle.
+     */
+    std::string_view GetText() const noexcept;
 
 protected:
     mfd::ReticlePatch& MutableDesiredPatch() noexcept;

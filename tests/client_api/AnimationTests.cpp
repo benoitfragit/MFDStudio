@@ -671,18 +671,21 @@ TEST(AnimationTests, PrimitiveGettersReturnModelDefaultWhenConstructedWithoutAut
 
     EXPECT_FLOAT_EQ(reticle.compassRing.GetInnerRadius(), 0.0167f);
     EXPECT_FLOAT_EQ(reticle.compassRing.GetOuterRadius(), 0.0208f);
-    EXPECT_EQ(reticle.compassRing.GetSegments(), 32);
+    // RingGeometry's own model default is 64 segments (not the generic 32).
+    EXPECT_EQ(reticle.compassRing.GetSegments(), 64);
 
     EXPECT_FLOAT_EQ(reticle.lockBox.GetWidth(), 0.0417f);
     EXPECT_FLOAT_EQ(reticle.lockBox.GetHeight(), 0.0208f);
 
+    // BezierGeometry's own model default is 32 segments.
     EXPECT_EQ(reticle.guideBezier.GetSegments(), 32);
     EXPECT_FALSE(reticle.routePolyline.GetClosed());
 
     EXPECT_FLOAT_EQ(reticle.scanArc.GetRadius(), 0.0208f);
     EXPECT_FLOAT_EQ(reticle.scanArc.GetStartAngleDegrees(), 0.0f);
     EXPECT_FLOAT_EQ(reticle.scanArc.GetEndAngleDegrees(), 180.0f);
-    EXPECT_EQ(reticle.scanArc.GetSegments(), 32);
+    // ArcGeometry's own model default is 48 segments (not the generic 32).
+    EXPECT_EQ(reticle.scanArc.GetSegments(), 48);
 
     EXPECT_EQ(reticle.headingValue.GetText(), "");
     EXPECT_EQ(reticle.missionTime.GetTimeValue(), std::nullopt);
@@ -866,6 +869,102 @@ TEST(AnimationTests, PrimitiveGetterCallsDoNotMutateReticlePatchOrAffectAppended
     reticle.guideBezier.GetControlPoints();
     reticle.scanArc.GetRadius();
 
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    EXPECT_TRUE(commands.empty());
+}
+
+TEST(AnimationTests, DynamicReticleBaselineFeedsGettersUntilOverridden)
+{
+    mfd::client::DynamicReticle dynamic("track", MakeNonDefaultReticleBaseline());
+
+    EXPECT_FALSE(dynamic.GetVisible());
+    EXPECT_FLOAT_EQ(dynamic.GetPosition().x, 1.5f);
+    EXPECT_FLOAT_EQ(dynamic.GetPosition().y, -2.5f);
+    EXPECT_FLOAT_EQ(dynamic.GetRotationDegrees(), 45.0f);
+    EXPECT_FLOAT_EQ(dynamic.GetScale().x, 2.0f);
+    EXPECT_FLOAT_EQ(dynamic.GetScale().y, 3.0f);
+    EXPECT_EQ(dynamic.GetText(), "reticle-baseline-text");
+
+    dynamic.SetVisible(true);
+    dynamic.SetPosition({0.4f, 0.5f});
+    dynamic.SetText("override");
+    EXPECT_TRUE(dynamic.GetVisible());
+    EXPECT_FLOAT_EQ(dynamic.GetPosition().x, 0.4f);
+    EXPECT_EQ(dynamic.GetText(), "override");
+}
+
+TEST(AnimationTests, TextReticleValueRoundTripsAndIsIndependentOfReticleText)
+{
+    mfd::client::TextReticle textReticle("Radar", "status", "status_value");
+
+    // No SetValue staged yet, and the hand-written TextReticle carries no
+    // authored primitive baseline, so the read-back is empty.
+    EXPECT_EQ(textReticle.GetValue(), "");
+
+    textReticle.SetValue("LOCK");
+    EXPECT_EQ(textReticle.GetValue(), "LOCK");
+
+    // SetValue writes the targeted text primitive, not the reticle-level text,
+    // so GetValue() is not a wrapper over the reticle-level GetText(): the
+    // reticle-level text stays empty.
+    EXPECT_EQ(textReticle.GetText(), "");
+}
+
+TEST(AnimationTests, PrimitiveHandleExposesCommonGettersThroughBaseReference)
+{
+    GeneratedGeometryFixtureReticle reticle;
+    mfd::client::PrimitiveHandle& base = reticle.cursorCircle;
+
+    base.SetVisible(false);
+    base.SetPosition({0.3f, 0.4f});
+    base.SetRotationDegrees(7.0f);
+    base.SetScale({1.1f, 1.2f});
+
+    EXPECT_FALSE(base.GetVisible());
+    EXPECT_FLOAT_EQ(base.GetPosition().x, 0.3f);
+    EXPECT_FLOAT_EQ(base.GetPosition().y, 0.4f);
+    EXPECT_FLOAT_EQ(base.GetRotationDegrees(), 7.0f);
+    EXPECT_FLOAT_EQ(base.GetScale().x, 1.1f);
+    EXPECT_FLOAT_EQ(base.GetScale().y, 1.2f);
+}
+
+TEST(AnimationTests, RingBezierArcSegmentDefaultsMatchPerTypeModelDefaults)
+{
+    PrimitiveFixtureReticle reticle;
+
+    EXPECT_EQ(reticle.compassRing.GetSegments(), 64);
+    EXPECT_EQ(reticle.guideBezier.GetSegments(), 32);
+    EXPECT_EQ(reticle.scanArc.GetSegments(), 48);
+
+    // An explicit authored baseline overrides the per-type model default.
+    BaselineFixtureReticle authored;
+    EXPECT_EQ(authored.scopeRing.GetSegments(), 7);
+    EXPECT_EQ(authored.guideBezier.GetSegments(), 7);
+    EXPECT_EQ(authored.scanArc.GetSegments(), 7);
+
+    // A user override wins over both the baseline and the model default.
+    reticle.compassRing.SetSegments(20);
+    EXPECT_EQ(reticle.compassRing.GetSegments(), 20);
+}
+
+TEST(AnimationTests, NonAllocatingGettersAliasHandleStorageAcrossRepeatedReads)
+{
+    BaselineFixtureReticle reticle;
+
+    // Repeated reads return a reference to the same handle-owned storage.
+    const std::vector<mfd::Vec2>& pointsA = reticle.routePolyline.GetPoints();
+    const std::vector<mfd::Vec2>& pointsB = reticle.routePolyline.GetPoints();
+    EXPECT_EQ(&pointsA, &pointsB);
+
+    const std::vector<mfd::Vec2>& controlA = reticle.guideBezier.GetControlPoints();
+    const std::vector<mfd::Vec2>& controlB = reticle.guideBezier.GetControlPoints();
+    EXPECT_EQ(&controlA, &controlB);
+
+    const std::string_view text = reticle.headingValue.GetText();
+    EXPECT_EQ(text, "baseline-text");
+
+    // Reading never stages a command.
     std::vector<mfd::UserCommand> commands;
     EXPECT_FALSE(reticle.AppendCommands(commands));
     EXPECT_TRUE(commands.empty());

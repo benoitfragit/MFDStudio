@@ -89,9 +89,25 @@ accept `commands`; see [What Can Break Between Versions](../reference/public_con
   `GetPoints`). Each resolves in three steps — a staged `Set*` override, then
   the JSON-authored value if the asset defined one, then the model's built-in
   default — and never stages a command or mutates state, so calling a getter
-  has no effect on the next built batch. Blink, thickness, color, line style,
-  fill/fill-color, letter spacing, UTC, and `WindowDisplay`/`Page`-level
-  getters are intentionally not exposed.
+  has no effect on the next built batch. The four common transform getters
+  (`GetVisible`, `GetPosition`, `GetRotationDegrees`, `GetScale`) are public on
+  the shared `PrimitiveHandle` base, so they stay symmetric with the public
+  setters even through a generic `PrimitiveHandle`. Getters that would otherwise
+  return an owning container are `noexcept` and non-allocating: text getters
+  return `std::string_view` and point-list getters return
+  `const std::vector<mfd::Vec2>&`, each aliasing handle-owned storage that stays
+  valid until the next mutating call on the handle (snapshot into an owning
+  `std::string`/`std::vector` if you need to keep the value across a later
+  `Set*`). Blink, thickness, color, line style, fill/fill-color, letter
+  spacing, UTC, and `WindowDisplay`/`Page`-level getters are intentionally not
+  exposed.
+- symmetric status-text read-back: a generated wrapper that exposes
+  `SetValue(std::string)` for its authored status text primitive also exposes
+  `GetValue() const noexcept`, which reads back that same primitive's effective
+  text (override → JSON → default) through the wrapper's typed handle. `GetValue`
+  is the true counterpart of `SetValue`; it is independent of the reticle-level
+  `GetText`, which reads the reticle's own text field rather than the status
+  primitive.
 
 For time primitives the generated API exposes structured runtime controls
 (numeric time bypass, bypass clear, UTC/local selection, field visibility)

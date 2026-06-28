@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import sys
 from dataclasses import dataclass
@@ -108,6 +109,7 @@ class ReticleSpec:
     transport_id: int
     primitives: list[PrimitiveSpec]
     status_primitive_accessor_name: str | None
+    status_primitive_member_name: str | None
     baseline_initializer: str
 
 
@@ -140,6 +142,7 @@ class StrobeSpec:
     reticle_id: str
     primitives: list[PrimitiveSpec]
     status_primitive_accessor_name: str | None
+    status_primitive_member_name: str | None
     default_active: bool
     valid: bool
     capture_shape: str
@@ -163,6 +166,8 @@ class TemplateSpec:
     dynamic_accessor_name: str
     dynamic_member_name: str
     status_primitive_accessor_name: str | None
+    status_primitive_member_name: str | None
+    baseline_initializer: str
 
 
 @dataclass(frozen=True)
@@ -304,6 +309,36 @@ RETICLE_BASELINE_DEFAULTS: dict = {
 }
 
 
+def parse_finite_float(value: object) -> float | None:
+    """Convert one authored JSON scalar to a finite float, or return None.
+
+    Rejects booleans (so a JSON ``true``/``false`` is never silently read as
+    ``1.0``/``0.0``) and non-finite values (``NaN``, ``Infinity``,
+    ``-Infinity``, which Python's ``json`` module accepts by default). Invalid
+    values return None so callers fall back to the model default instead of
+    emitting non-finite C++ literals.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+        return number if math.isfinite(number) else None
+    return None
+
+
+def parse_finite_int(value: object) -> int | None:
+    """Convert one authored JSON scalar to an int, or return None.
+
+    Rejects booleans and any non-integer value (including finite floats and
+    non-finite values) so segment counts stay exact integers.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
+
+
 def find_alias_field(node: dict, keys: tuple[str, ...]) -> object:
     for key in keys:
         if key in node and node[key] is not None:
@@ -312,14 +347,21 @@ def find_alias_field(node: dict, keys: tuple[str, ...]) -> object:
 
 
 def parse_vec2_value(value: object) -> tuple[float, float] | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return float(value), float(value)
+    scalar = parse_finite_float(value)
+    if scalar is not None:
+        return scalar, scalar
     if isinstance(value, list) and len(value) == 2:
-        return float(value[0]), float(value[1])
+        x = parse_finite_float(value[0])
+        y = parse_finite_float(value[1])
+        if x is not None and y is not None:
+            return x, y
+        return None
     if isinstance(value, dict):
-        return float(value.get("x", 0.0)), float(value.get("y", 0.0))
+        x = parse_finite_float(value.get("x", 0.0))
+        y = parse_finite_float(value.get("y", 0.0))
+        if x is not None and y is not None:
+            return x, y
+        return None
     return None
 
 
@@ -351,28 +393,25 @@ def parse_transform(node: dict) -> dict:
                 result["position"] = parsed_position
         if "x" in source or "y" in source:
             current = result.get("position", (0.0, 0.0))
-            x = source["x"] if "x" in source else current[0]
-            y = source["y"] if "y" in source else current[1]
-            if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+            x = parse_finite_float(source["x"]) if "x" in source else current[0]
+            y = parse_finite_float(source["y"]) if "y" in source else current[1]
+            if x is not None and y is not None:
                 result["position"] = (float(x), float(y))
 
-        angle = find_alias_field(source, ("rotationDegrees", "angle", "rotation"))
-        if isinstance(angle, (int, float)):
-            result["rotationDegrees"] = float(angle)
+        angle = parse_finite_float(find_alias_field(source, ("rotationDegrees", "angle", "rotation")))
+        if angle is not None:
+            result["rotationDegrees"] = angle
 
         scale = find_alias_field(source, ("scale", "zoom"))
         if scale is not None:
-            if isinstance(scale, (int, float)):
-                result["scale"] = (float(scale), float(scale))
-            else:
-                parsed_scale = parse_vec2_value(scale)
-                if parsed_scale is not None:
-                    result["scale"] = parsed_scale
+            parsed_scale = parse_vec2_value(scale)
+            if parsed_scale is not None:
+                result["scale"] = parsed_scale
         if any(key in source for key in ("sx", "sy", "scaleX", "scaleY")):
             current = result.get("scale", (1.0, 1.0))
-            sx = source.get("sx", source.get("scaleX", current[0]))
-            sy = source.get("sy", source.get("scaleY", current[1]))
-            if isinstance(sx, (int, float)) and isinstance(sy, (int, float)):
+            sx = parse_finite_float(source.get("sx", source.get("scaleX", current[0])))
+            sy = parse_finite_float(source.get("sy", source.get("scaleY", current[1])))
+            if sx is not None and sy is not None:
                 result["scale"] = (float(sx), float(sy))
 
     return result
@@ -394,60 +433,57 @@ def parse_primitive_geometry_baseline(element: dict, primitive_type: str) -> dic
                 result["lineEnd"] = parsed_end
 
     elif primitive_type == "circle":
-        radius = element.get("radius")
-        result["radius"] = float(radius) if isinstance(radius, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["radius"]
+        radius = parse_finite_float(element.get("radius"))
+        result["radius"] = radius if radius is not None else PRIMITIVE_BASELINE_DEFAULTS["radius"]
 
     elif primitive_type == "ring":
-        outer_radius = find_alias_field(element, ("outerRadius", "radius"))
-        outer_radius = (
-            float(outer_radius) if isinstance(outer_radius, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["outerRadius"])
-        inner_radius = find_alias_field(element, ("innerRadius", "holeRadius"))
-        inner_radius = (
-            float(inner_radius) if isinstance(inner_radius, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["innerRadius"])
-        segments = element.get("segments")
+        outer_radius = parse_finite_float(find_alias_field(element, ("outerRadius", "radius")))
+        if outer_radius is None:
+            outer_radius = PRIMITIVE_BASELINE_DEFAULTS["outerRadius"]
+        inner_radius = parse_finite_float(find_alias_field(element, ("innerRadius", "holeRadius")))
+        if inner_radius is None:
+            inner_radius = PRIMITIVE_BASELINE_DEFAULTS["innerRadius"]
+        segments = parse_finite_int(element.get("segments"))
         result["outerRadius"] = max(0.0, outer_radius)
         result["innerRadius"] = min(max(0.0, inner_radius), result["outerRadius"])
-        result["segments"] = max(12, segments) if isinstance(segments, int) else 64
+        result["segments"] = max(12, segments) if segments is not None else 64
 
     elif primitive_type in ("rectangle", "ellipse"):
-        size = element.get("size")
-        size = float(size) if isinstance(size, (int, float)) else None
+        size = parse_finite_float(element.get("size"))
         if primitive_type == "rectangle":
             default_width = size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["width"]
             default_height = size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["height"]
         else:
-            radius_x_field = find_alias_field(element, ("radiusX", "rx"))
-            radius_x = float(radius_x_field) if isinstance(radius_x_field, (int, float)) else None
-            radius_y_field = find_alias_field(element, ("radiusY", "ry"))
-            radius_y = float(radius_y_field) if isinstance(radius_y_field, (int, float)) else None
+            radius_x = parse_finite_float(find_alias_field(element, ("radiusX", "rx")))
+            radius_y = parse_finite_float(find_alias_field(element, ("radiusY", "ry")))
             default_width = (
                 radius_x * 2.0 if radius_x is not None else (size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["width"]))
             default_height = (
                 radius_y * 2.0 if radius_y is not None else (size if size is not None else PRIMITIVE_BASELINE_DEFAULTS["height"]))
 
-        width = find_alias_field(element, ("width", "diameterX"))
-        height = find_alias_field(element, ("height", "diameterY"))
-        result["width"] = float(width) if isinstance(width, (int, float)) else default_width
-        result["height"] = float(height) if isinstance(height, (int, float)) else default_height
+        width = parse_finite_float(find_alias_field(element, ("width", "diameterX")))
+        height = parse_finite_float(find_alias_field(element, ("height", "diameterY")))
+        result["width"] = width if width is not None else default_width
+        result["height"] = height if height is not None else default_height
 
     elif primitive_type == "square":
         # SquareGeometry's own model default is 0.0208 for both sides, distinct
         # from PRIMITIVE_BASELINE_DEFAULTS["width"] (0.0417), which matches
         # RectangleGeometry/EllipseGeometry instead.
-        side = find_alias_field(element, ("size", "width", "height"))
-        side = float(side) if isinstance(side, (int, float)) else 0.0208
+        side = parse_finite_float(find_alias_field(element, ("size", "width", "height")))
+        side = side if side is not None else 0.0208
         result["width"] = side
         result["height"] = side
 
     elif primitive_type == "diamond":
         # DiamondGeometry's own model default is 0.0208 for both sides, same
         # rationale as the square case above.
-        size = element.get("size")
-        default_side = float(size) if isinstance(size, (int, float)) else 0.0208
-        width = element.get("width")
-        height = element.get("height")
-        result["width"] = float(width) if isinstance(width, (int, float)) else default_side
-        result["height"] = float(height) if isinstance(height, (int, float)) else default_side
+        size = parse_finite_float(element.get("size"))
+        default_side = size if size is not None else 0.0208
+        width = parse_finite_float(element.get("width"))
+        height = parse_finite_float(element.get("height"))
+        result["width"] = width if width is not None else default_side
+        result["height"] = height if height is not None else default_side
 
     elif primitive_type == "triangle":
         points = element.get("points")
@@ -474,20 +510,20 @@ def parse_primitive_geometry_baseline(element: dict, primitive_type: str) -> dic
             parsed_points = [parse_vec2_value(point) for point in points]
             if all(point is not None for point in parsed_points):
                 result["points"] = tuple(parsed_points)
-        segments = element.get("segments")
-        result["segments"] = segments if isinstance(segments, int) else 32
+        segments = parse_finite_int(element.get("segments"))
+        result["segments"] = segments if segments is not None else 32
 
     elif primitive_type == "arc":
-        radius = element.get("radius")
-        result["radius"] = float(radius) if isinstance(radius, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["radius"]
-        segments = element.get("segments")
-        result["segments"] = segments if isinstance(segments, int) else 48
-        start_angle = find_alias_field(element, ("startAngleDegrees", "startAngle", "fromDegrees", "angleStart"))
+        radius = parse_finite_float(element.get("radius"))
+        result["radius"] = radius if radius is not None else PRIMITIVE_BASELINE_DEFAULTS["radius"]
+        segments = parse_finite_int(element.get("segments"))
+        result["segments"] = segments if segments is not None else 48
+        start_angle = parse_finite_float(find_alias_field(element, ("startAngleDegrees", "startAngle", "fromDegrees", "angleStart")))
         result["startAngleDegrees"] = (
-            float(start_angle) if isinstance(start_angle, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["startAngleDegrees"])
-        end_angle = find_alias_field(element, ("endAngleDegrees", "endAngle", "toDegrees", "angleEnd"))
+            start_angle if start_angle is not None else PRIMITIVE_BASELINE_DEFAULTS["startAngleDegrees"])
+        end_angle = parse_finite_float(find_alias_field(element, ("endAngleDegrees", "endAngle", "toDegrees", "angleEnd")))
         result["endAngleDegrees"] = (
-            float(end_angle) if isinstance(end_angle, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["endAngleDegrees"])
+            end_angle if end_angle is not None else PRIMITIVE_BASELINE_DEFAULTS["endAngleDegrees"])
 
     return result
 
@@ -944,6 +980,7 @@ def build_strobe_spec(page_name: str,
         reticle_id=reticle_id,
         primitives=primitives,
         status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
+        status_primitive_member_name=None if status_primitive is None else status_primitive.member_name,
         default_active=default_active,
         valid=True,
         capture_shape=capture_shape,
@@ -1122,6 +1159,8 @@ def build_template_specs(template_library: dict[str, dict], included_template_id
             dynamic_accessor_name=f"Dynamic{template_base_name}",
             dynamic_member_name=f"dynamic{template_base_name}_",
             status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
+            status_primitive_member_name=None if status_primitive is None else status_primitive.member_name,
+            baseline_initializer=build_reticle_baseline_initializer(template_node),
         ))
 
     return templates
@@ -1172,6 +1211,7 @@ def build_page_specs(window_root: dict,
                 transport_id=transport_id,
                 primitives=primitives,
                 status_primitive_accessor_name=None if status_primitive is None else status_primitive.accessor_name,
+                status_primitive_member_name=None if status_primitive is None else status_primitive.member_name,
                 baseline_initializer=build_reticle_baseline_initializer(reticle),
             ))
 
@@ -1371,6 +1411,7 @@ def emit_header(namespace_name: str,
 
         if template.status_primitive_accessor_name is not None:
             lines.append("    void SetValue(std::string value);")
+            lines.append("    std::string_view GetValue() const noexcept;")
 
         for primitive in template.primitives:
             lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
@@ -1424,6 +1465,7 @@ def emit_header(namespace_name: str,
 
             if reticle.status_primitive_accessor_name is not None:
                 lines.append("    void SetValue(std::string value);")
+                lines.append("    std::string_view GetValue() const noexcept;")
 
             for primitive in reticle.primitives:
                 lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
@@ -1457,6 +1499,7 @@ def emit_header(namespace_name: str,
 
             if strobe.status_primitive_accessor_name is not None:
                 lines.append("    void SetValue(std::string value);")
+                lines.append("    std::string_view GetValue() const noexcept;")
 
             for primitive in strobe.primitives:
                 lines.append(f"    {primitive.cpp_type}& {primitive.accessor_name}() noexcept;")
@@ -1645,7 +1688,7 @@ def emit_source(namespace_name: str,
     ]
 
     for template in template_specs:
-        ctor_initializers = ["    mfd::client::DynamicReticle(reticleId)"]
+        ctor_initializers = [f"    mfd::client::DynamicReticle(reticleId, {template.baseline_initializer})"]
         for primitive in template.primitives:
             ctor_initializers.append(
                 f'    {primitive.member_name}(MutableDesiredPatch(), DirtyFlag(), "{cpp_string(primitive.primitive_id)}", '
@@ -1662,6 +1705,11 @@ def emit_source(namespace_name: str,
                 f"void {template.dynamic_reticle_class_name}::SetValue(std::string value)",
                 "{",
                 f"    {template.status_primitive_accessor_name}().SetText(std::move(value));",
+                "}",
+                "",
+                f"std::string_view {template.dynamic_reticle_class_name}::GetValue() const noexcept",
+                "{",
+                f"    return {template.status_primitive_member_name}.GetText();",
                 "}",
                 "",
             ])
@@ -1727,6 +1775,11 @@ def emit_source(namespace_name: str,
                     f"    {reticle.status_primitive_accessor_name}().SetText(std::move(value));",
                     "}",
                     "",
+                    f"std::string_view {reticle.wrapper_class_name}::GetValue() const noexcept",
+                    "{",
+                    f"    return {reticle.status_primitive_member_name}.GetText();",
+                    "}",
+                    "",
                 ])
 
             for primitive in reticle.primitives:
@@ -1758,6 +1811,11 @@ def emit_source(namespace_name: str,
                     f"void {strobe.reticle_wrapper_class_name}::SetValue(std::string value)",
                     "{",
                     f"    {strobe.status_primitive_accessor_name}().SetText(std::move(value));",
+                    "}",
+                    "",
+                    f"std::string_view {strobe.reticle_wrapper_class_name}::GetValue() const noexcept",
+                    "{",
+                    f"    return {strobe.status_primitive_member_name}.GetText();",
                     "}",
                     "",
                 ])

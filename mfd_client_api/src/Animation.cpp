@@ -995,7 +995,7 @@ void TextHandle::SetLetterSpacing(const float letterSpacing)
     MarkDirty();
 }
 
-std::string TextHandle::GetText() const noexcept
+std::string_view TextHandle::GetText() const noexcept
 {
     const auto* patch = Patch();
     if (patch != nullptr && patch->text.has_value())
@@ -1436,7 +1436,7 @@ void PolylineHandle::SetClosed(const bool closed)
     MarkDirty();
 }
 
-std::vector<mfd::Vec2> PolylineHandle::GetPoints() const noexcept
+const std::vector<mfd::Vec2>& PolylineHandle::GetPoints() const noexcept
 {
     const auto* patch = Patch();
     return (patch != nullptr && patch->points.has_value()) ? *patch->points : Baseline().points;
@@ -1470,7 +1470,7 @@ void BezierHandle::SetSegments(const int segments)
     MarkDirty();
 }
 
-std::vector<mfd::Vec2> BezierHandle::GetControlPoints() const noexcept
+const std::vector<mfd::Vec2>& BezierHandle::GetControlPoints() const noexcept
 {
     const auto* patch = Patch();
     return (patch != nullptr && patch->points.has_value()) ? *patch->points : Baseline().points;
@@ -1691,9 +1691,13 @@ mfd::Vec2 Reticle::GetScale() const noexcept
     return desiredPatch_.scale.value_or(baseline_.scale);
 }
 
-std::string Reticle::GetText() const noexcept
+std::string_view Reticle::GetText() const noexcept
 {
-    return desiredPatch_.text.value_or(baseline_.text);
+    if (desiredPatch_.text.has_value())
+    {
+        return *desiredPatch_.text;
+    }
+    return baseline_.text;
 }
 
 bool Reticle::AppendCommands(std::vector<mfd::UserCommand>& commands)
@@ -1776,6 +1780,17 @@ TextReticle::TextReticle(const std::string_view pageName,
 void TextReticle::SetValue(std::string value)
 {
     SetText(primitiveId_, std::move(value));
+}
+
+std::string_view TextReticle::GetValue() const noexcept
+{
+    const std::unordered_map<std::string, std::string>& texts = DesiredPatch().texts;
+    const auto entry = texts.find(primitiveId_);
+    if (entry != texts.end())
+    {
+        return entry->second;
+    }
+    return {};
 }
 
 StrobeHandle::StrobeHandle(const std::string_view pageName,
@@ -2163,9 +2178,13 @@ mfd::Vec2 DynamicReticle::GetScale() const noexcept
     return desiredPatch_.scale.value_or(baseline_.scale);
 }
 
-std::string DynamicReticle::GetText() const noexcept
+std::string_view DynamicReticle::GetText() const noexcept
 {
-    return desiredPatch_.text.value_or(baseline_.text);
+    if (desiredPatch_.text.has_value())
+    {
+        return *desiredPatch_.text;
+    }
+    return baseline_.text;
 }
 
 mfd::ReticlePatch& DynamicReticle::MutableDesiredPatch() noexcept

@@ -750,8 +750,10 @@ int mainImpl()
               << " visible after UpdateTransientCircleReticle=" << (page1Circle.GetVisible() ? "true" : "false") << '\n';
 
     // Read-back demonstration: AircraftLabel().GetText() before/after the SetText
-    // call performed inside UpdateAlternativeStrobeReticle.
-    const std::string authoredAircraftLabelText = page1AlternativeStrobeReticle.AircraftLabel().GetText();
+    // call performed inside UpdateAlternativeStrobeReticle. GetText() returns a
+    // std::string_view aliasing handle-owned storage, so snapshot it into an
+    // owning std::string before the SetText override below changes that storage.
+    const std::string authoredAircraftLabelText {page1AlternativeStrobeReticle.AircraftLabel().GetText()};
 
     UpdateAlternativeStrobeReticle(page1AlternativeStrobeReticle, 0.0f);
 

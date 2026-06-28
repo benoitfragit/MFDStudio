@@ -1499,6 +1499,230 @@ class GenerateUiTests(unittest.TestCase):
             ]:
                 self.assertIn(expected, header_content)
 
+    def test_status_wrappers_expose_get_value_symmetric_with_set_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "status_template.json").write_text(
+                json.dumps({"id": "status_template", "elements": [{"id": "status_value", "type": "text"}]}),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "status_template", "layerId": "default", "orderInLayer": 0}
+                        ],
+                        "staticReticles": [
+                            {
+                                "id": "radar_status",
+                                "layerId": "default",
+                                "elements": [{"id": "status_caption", "type": "text"}],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            header_content = output_header.read_text(encoding="utf-8")
+            source_content = output_source.read_text(encoding="utf-8")
+
+            # Every wrapper that exposes SetValue also exposes a symmetric GetValue.
+            self.assertEqual(header_content.count("void SetValue(std::string value);"), 2)
+            self.assertEqual(header_content.count("std::string_view GetValue() const noexcept;"), 2)
+
+            # GetValue resolves through the typed primitive handle member (const-correct),
+            # mirroring the SetValue accessor write, not the reticle-level GetText.
+            self.assertIn(
+                "std::string_view StatusTemplateDynamicReticle::GetValue() const noexcept",
+                source_content,
+            )
+            self.assertIn("return statusValue_.GetText();", source_content)
+            self.assertIn("    StatusValue().SetText(std::move(value));", source_content)
+            self.assertIn(
+                "std::string_view RadarRadarStatusReticle::GetValue() const noexcept",
+                source_content,
+            )
+            self.assertIn("return statusCaption_.GetText();", source_content)
+
+    def test_dynamic_reticle_constructor_threads_template_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            template_dir = root / "reticles"
+            template_dir.mkdir()
+
+            (template_dir / "status_template.json").write_text(
+                json.dumps(
+                    {
+                        "id": "status_template",
+                        "hidden": True,
+                        "at": [0.1, 0.2],
+                        "text": "RDY",
+                        "elements": [{"id": "status_value", "type": "text", "exposed": True}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "dynamicReticleBindings": [
+                            {"templateId": "status_template", "layerId": "default", "orderInLayer": 0}
+                        ],
+                        "staticReticles": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(
+                json.dumps({"reticleLibraryFolder": "reticles", "pages": [page.name]}),
+                encoding="utf-8",
+            )
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            source_content = output_source.read_text(encoding="utf-8")
+
+            # The dynamic reticle base constructor receives the authored template
+            # baseline (hidden -> visible false, at -> position, text), instead of
+            # falling back to the C++ model defaults.
+            self.assertIn(
+                'mfd::client::DynamicReticle(reticleId, mfd::client::ReticleBaseline '
+                '{false, mfd::Vec2 {0.1f, 0.2f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "RDY"})',
+                source_content,
+            )
+
+    def test_baseline_parser_rejects_non_finite_and_boolean_numbers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Radar",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [
+                            {
+                                "id": "geometry_panel",
+                                "layerId": "default",
+                                "elements": [
+                                    # boolean used as a number, NaN, Infinity and a
+                                    # non-numeric string must all fall back to defaults.
+                                    {"id": "bool_circle", "type": "circle", "radius": True, "exposed": True},
+                                    {"id": "broken_ring", "type": "ring", "outerRadius": float("nan"),
+                                     "segments": float("inf"), "exposed": True},
+                                    {"id": "broken_arc", "type": "arc", "radius": float("inf"),
+                                     "segments": 12.5, "exposed": True},
+                                    {"id": "text_rect", "type": "rectangle", "width": "wide", "exposed": True},
+                                    {"id": "broken_poly", "type": "polyline",
+                                     "points": [[0.0, 0.0], [float("nan"), 0.1]], "exposed": True},
+                                ],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            window = root / "window.json"
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            output_header = root / "GeneratedUi.h"
+            output_source = root / "GeneratedUi.cpp"
+            output_map = root / "GeneratedUi.generated.map"
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(output_source),
+                    "--output-map",
+                    str(output_map),
+                ],
+                check=True,
+            )
+
+            source_content = output_source.read_text(encoding="utf-8")
+
+            # No non-finite C++ float literal is ever emitted. float_literal would
+            # render a non-finite value as "nan.0f" / "inf.0f" / "-inf.0f"; assert
+            # those exact literal forms never appear (a plain "inf"/"nan" substring
+            # check would false-match identifiers such as StrobeInfo).
+            lowered = source_content.lower()
+            self.assertNotIn("nan.0f", lowered)
+            self.assertNotIn("inf.0f", lowered)
+
+            # Each invalid value falls back to its model default.
+            self.assertIn(
+                'boolCircle_(MutableDesiredPatch(), DirtyFlag(), "bool_circle", ',
+                source_content,
+            )
+            self.assertIn(_expected_primitive_baseline(), source_content)  # circle/rect/poly default
+            self.assertIn(_expected_primitive_baseline(segments=64), source_content)  # ring default
+            self.assertIn(_expected_primitive_baseline(segments=48), source_content)  # arc default
+
 
 _PRIMITIVE_BASELINE_DEFAULT_VALUES: dict = {
     "visible": True,
