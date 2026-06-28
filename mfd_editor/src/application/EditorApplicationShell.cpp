@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "internal/application/EditorApplicationInternal.h"
+#include "internal/application/EditorSidebarLayout.h"
 #include "internal/application/EditorViewportGrid.h"
 #include "EditorResponsiveLayout.h"
 #include "EditorTutorialController.h"
@@ -43,6 +44,8 @@ constexpr float kMinInspectorWidth = 280.0f;
 constexpr float kMinWorkspaceWidth = 360.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
+constexpr float kSidebarSectionMinVisibleRows = 3.0f;
+constexpr float kSidebarPagesPreferredVisibleRows = 8.0f;
 
 void DrawRuntimeErrorBanner(const std::string& runtimeError)
 {
@@ -628,10 +631,46 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const int visiblePages = CountVisibleSidebarPages(filter, problems);
     const int visibleReticles = CountVisibleSidebarReticles(filter, problems);
 
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const float sidebarBodyHeight = std::max(0.0f, ImGui::GetContentRegionAvail().y);
+    const float sectionRowHeight = ImGui::GetFrameHeightWithSpacing();
+    const float sectionChromeHeight =
+        ImGui::GetFrameHeightWithSpacing() +
+        ImGui::GetFrameHeightWithSpacing() +
+        style.ItemSpacing.y;
+    const float minSectionHeight =
+        sectionChromeHeight + sectionRowHeight * kSidebarSectionMinVisibleRows;
+    const float pagesPreferredHeight =
+        sectionChromeHeight +
+        sectionRowHeight *
+            std::min(static_cast<float>(std::max(visiblePages, 1)), kSidebarPagesPreferredVisibleRows);
+    const editor::app::SidebarSectionLayoutResult sectionLayout =
+        editor::app::ComputeSidebarSectionLayout(
+            {sidebarBodyHeight, style.ItemSpacing.y, pagesPreferredHeight, minSectionHeight, minSectionHeight});
+
+    DrawSidebarPagesSection(filter, problems, visiblePages, sectionLayout.pagesHeight);
+    if (sectionLayout.sectionSpacing > 0.0f)
+    {
+        ImGui::Dummy(ImVec2(0.0f, sectionLayout.sectionSpacing));
+    }
+    DrawSidebarReticleSection(filter, problems, visibleReticles, sectionLayout.reticlesHeight);
+}
+
+void EditorApplication::DrawSidebarPagesSection(const editor::SidebarFilterQuery& filter,
+                                                const editor::SidebarProblemSummary& problems,
+                                                const int visiblePages,
+                                                const float sectionHeight)
+{
+    const bool tutorialActive = tutorial_->IsCoachVisible();
+    // ImGui treats a zero-height child as "take the remaining height", which would break the split.
+    const float clampedSectionHeight = sectionHeight > 0.0f ? sectionHeight : 1.0f;
+    ImGui::BeginChild("SidebarPagesSection", ImVec2(0.0f, clampedSectionHeight), false);
+
     if (tutorialActive)
     {
         ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     }
+
     // The visible count lives in the label while the stable id (after '###') keeps the open state
     // from resetting whenever the filter changes that count.
     const std::string pagesHeader = "Pages (" + std::to_string(visiblePages) + ")###SidebarPagesHeader";
@@ -639,23 +678,45 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     {
         DrawPageActionToolbar();
         ImGui::Spacing();
+
+        const float scrollRegionHeight = std::max(1.0f, ImGui::GetContentRegionAvail().y);
+        ImGui::BeginChild("SidebarPagesScrollRegion", ImVec2(0.0f, scrollRegionHeight), false);
         DrawPageTree(filter, problems);
+        ImGui::EndChild();
     }
 
-    ImGui::Spacing();
+    ImGui::EndChild();
+}
+
+void EditorApplication::DrawSidebarReticleSection(const editor::SidebarFilterQuery& filter,
+                                                  const editor::SidebarProblemSummary& problems,
+                                                  const int visibleReticles,
+                                                  const float sectionHeight)
+{
+    const bool tutorialActive = tutorial_->IsCoachVisible();
+    // ImGui treats a zero-height child as "take the remaining height", which would break the split.
+    const float clampedSectionHeight = sectionHeight > 0.0f ? sectionHeight : 1.0f;
+    ImGui::BeginChild("SidebarReticleSection", ImVec2(0.0f, clampedSectionHeight), false);
 
     if (tutorialActive)
     {
         ImGui::SetNextItemOpen(true, ImGuiCond_Always);
     }
+
     const std::string libraryHeader =
         "Reticle library (" + std::to_string(visibleReticles) + ")###SidebarLibraryHeader";
     if (ImGui::CollapsingHeader(libraryHeader.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
     {
         DrawLibraryActionToolbar();
         ImGui::Spacing();
+
+        const float scrollRegionHeight = std::max(1.0f, ImGui::GetContentRegionAvail().y);
+        ImGui::BeginChild("SidebarReticleScrollRegion", ImVec2(0.0f, scrollRegionHeight), false);
         DrawLibraryTree(filter, problems);
+        ImGui::EndChild();
     }
+
+    ImGui::EndChild();
 }
 
 void EditorApplication::DrawPageActionToolbar()

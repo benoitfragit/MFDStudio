@@ -5,6 +5,7 @@ include(GoogleTest)
 
 set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorApplicationInternalTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorSidebarLayoutTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetWatcherTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutosaveSchedulerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetReferenceIndexServiceTests.cpp
@@ -101,6 +102,8 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorUiStatePersistence.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiStatePersistence.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorViewportGrid.h
+        ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorSidebarLayout.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorSidebarLayout.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportGrid.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorViewportSnap.h
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportSnap.cpp

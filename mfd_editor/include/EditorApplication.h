@@ -208,6 +208,28 @@ private:
     void DrawPageTree(const editor::SidebarFilterQuery& filter, const editor::SidebarProblemSummary& problems);
     /** @brief Draws the reticle-library tree, filtered and badged by the resolved sidebar filter. */
     void DrawLibraryTree(const editor::SidebarFilterQuery& filter, const editor::SidebarProblemSummary& problems);
+    /**
+     * @brief Draws the Pages sidebar section with fixed chrome and one independent scroll region.
+     * @param filter Resolved sidebar filter driving visibility and auto-expansion.
+     * @param problems Precomputed validation-problem summary folded into badges.
+     * @param visiblePages Count currently shown in the Pages header label.
+     * @param sectionHeight Total height reserved for the whole Pages section.
+     */
+    void DrawSidebarPagesSection(const editor::SidebarFilterQuery& filter,
+                                 const editor::SidebarProblemSummary& problems,
+                                 int visiblePages,
+                                 float sectionHeight);
+    /**
+     * @brief Draws the Reticle-library sidebar section with fixed chrome and one independent scroll region.
+     * @param filter Resolved sidebar filter driving visibility.
+     * @param problems Precomputed validation-problem summary folded into badges.
+     * @param visibleReticles Count currently shown in the Reticle-library header label.
+     * @param sectionHeight Total height reserved for the whole Reticle-library section.
+     */
+    void DrawSidebarReticleSection(const editor::SidebarFilterQuery& filter,
+                                   const editor::SidebarProblemSummary& problems,
+                                   int visibleReticles,
+                                   float sectionHeight);
     /** @brief Draws the Pages header toolbar: the add-page glyph plus the selected page's rename/remove/delete actions. */
     void DrawPageActionToolbar();
     /** @brief Draws the Reticle-library header toolbar: the add-reticle glyph plus the selected template's rename/duplicate/delete actions. */
