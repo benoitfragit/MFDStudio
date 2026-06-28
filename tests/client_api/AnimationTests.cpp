@@ -807,6 +807,16 @@ TEST(AnimationTests, RectangleEllipseDiamondWidthHeightSizeGettersStayCoherentAc
     reticle.steerDiamond.SetHeight(0.24f);
     EXPECT_FLOAT_EQ(reticle.steerDiamond.GetSize().x, 0.0417f);
     EXPECT_FLOAT_EQ(reticle.steerDiamond.GetSize().y, 0.24f);
+
+    // A `size` override always wins over a later individual `width`/`height`
+    // override: GetWidth() reports the newer value, GetSize() keeps reporting
+    // the earlier staged size pair.
+    GeneratedGeometryFixtureReticle sizeThenWidth;
+    sizeThenWidth.lockBox.SetSize({0.30f, 0.12f});
+    sizeThenWidth.lockBox.SetWidth(0.50f);
+    EXPECT_FLOAT_EQ(sizeThenWidth.lockBox.GetWidth(), 0.50f);
+    EXPECT_FLOAT_EQ(sizeThenWidth.lockBox.GetSize().x, 0.30f);
+    EXPECT_FLOAT_EQ(sizeThenWidth.lockBox.GetSize().y, 0.12f);
 }
 
 TEST(AnimationTests, TimeHandleGetTimeValueIsNulloptUntilSetAndAfterClear)
@@ -840,19 +850,19 @@ TEST(AnimationTests, PrimitiveGetterCallsDoNotMutateReticlePatchOrAffectAppended
 {
     GeneratedGeometryFixtureReticle reticle;
 
-    (void)reticle.horizonLine.GetVisible();
-    (void)reticle.horizonLine.GetPosition();
-    (void)reticle.cursorCircle.GetRadius();
-    (void)reticle.scopeRing.GetInnerRadius();
-    (void)reticle.lockBox.GetWidth();
-    (void)reticle.lockBox.GetSize();
-    (void)reticle.uncertaintyEllipse.GetHeight();
-    (void)reticle.targetSquare.GetSize();
-    (void)reticle.steerDiamond.GetWidth();
-    (void)reticle.warningTriangle.GetPoints();
-    (void)reticle.routePolyline.GetPoints();
-    (void)reticle.guideBezier.GetControlPoints();
-    (void)reticle.scanArc.GetRadius();
+    reticle.horizonLine.GetVisible();
+    reticle.horizonLine.GetPosition();
+    reticle.cursorCircle.GetRadius();
+    reticle.scopeRing.GetInnerRadius();
+    reticle.lockBox.GetWidth();
+    reticle.lockBox.GetSize();
+    reticle.uncertaintyEllipse.GetHeight();
+    reticle.targetSquare.GetSize();
+    reticle.steerDiamond.GetWidth();
+    reticle.warningTriangle.GetPoints();
+    reticle.routePolyline.GetPoints();
+    reticle.guideBezier.GetControlPoints();
+    reticle.scanArc.GetRadius();
 
     std::vector<mfd::UserCommand> commands;
     EXPECT_FALSE(reticle.AppendCommands(commands));

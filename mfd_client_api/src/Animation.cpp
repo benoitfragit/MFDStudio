@@ -440,6 +440,60 @@ const mfd::PrimitivePatch* FindPrimitivePatch(const mfd::ReticlePatch& patch, co
     const auto it = patch.primitivePatches.find(std::string(primitiveId));
     return it != patch.primitivePatches.end() ? &it->second : nullptr;
 }
+
+/**
+ * @brief Resolves the effective width shared by every rectangular-size primitive.
+ * @return `width` override, else the x of a `size` override, else `baselineWidth`.
+ */
+float ResolvePrimitiveWidth(const mfd::PrimitivePatch* patch, const float baselineWidth) noexcept
+{
+    if (patch != nullptr && patch->width.has_value())
+    {
+        return *patch->width;
+    }
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return patch->size->x;
+    }
+    return baselineWidth;
+}
+
+/**
+ * @brief Resolves the effective height shared by every rectangular-size primitive.
+ * @return `height` override, else the y of a `size` override, else `baselineHeight`.
+ */
+float ResolvePrimitiveHeight(const mfd::PrimitivePatch* patch, const float baselineHeight) noexcept
+{
+    if (patch != nullptr && patch->height.has_value())
+    {
+        return *patch->height;
+    }
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return patch->size->y;
+    }
+    return baselineHeight;
+}
+
+/**
+ * @brief Resolves the effective size shared by every rectangular-size primitive.
+ * @return `size` override, else `{width, height}` when either is individually
+ * overridden, else the authored baseline size.
+ */
+mfd::Vec2 ResolvePrimitiveSize(const mfd::PrimitivePatch* patch,
+                               const float baselineWidth,
+                               const float baselineHeight) noexcept
+{
+    if (patch != nullptr && patch->size.has_value())
+    {
+        return *patch->size;
+    }
+    if (patch != nullptr && (patch->width.has_value() || patch->height.has_value()))
+    {
+        return mfd::Vec2 {ResolvePrimitiveWidth(patch, baselineWidth), ResolvePrimitiveHeight(patch, baselineHeight)};
+    }
+    return mfd::Vec2 {baselineWidth, baselineHeight};
+}
 } // namespace
 
 BlinkType::BlinkType(const std::string_view name, const mfd::TransportId transportId) :
@@ -1161,44 +1215,17 @@ void RectangleHandle::SetSize(const mfd::Vec2 size)
 
 float RectangleHandle::GetWidth() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->width.has_value())
-    {
-        return *patch->width;
-    }
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return patch->size->x;
-    }
-    return Baseline().width;
+    return ResolvePrimitiveWidth(Patch(), Baseline().width);
 }
 
 float RectangleHandle::GetHeight() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->height.has_value())
-    {
-        return *patch->height;
-    }
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return patch->size->y;
-    }
-    return Baseline().height;
+    return ResolvePrimitiveHeight(Patch(), Baseline().height);
 }
 
 mfd::Vec2 RectangleHandle::GetSize() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return *patch->size;
-    }
-    if (patch != nullptr && (patch->width.has_value() || patch->height.has_value()))
-    {
-        return mfd::Vec2 {GetWidth(), GetHeight()};
-    }
-    return mfd::Vec2 {Baseline().width, Baseline().height};
+    return ResolvePrimitiveSize(Patch(), Baseline().width, Baseline().height);
 }
 
 EllipseHandle::EllipseHandle(mfd::ReticlePatch& patch,
@@ -1241,44 +1268,17 @@ void EllipseHandle::SetSize(const mfd::Vec2 size)
 
 float EllipseHandle::GetWidth() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->width.has_value())
-    {
-        return *patch->width;
-    }
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return patch->size->x;
-    }
-    return Baseline().width;
+    return ResolvePrimitiveWidth(Patch(), Baseline().width);
 }
 
 float EllipseHandle::GetHeight() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->height.has_value())
-    {
-        return *patch->height;
-    }
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return patch->size->y;
-    }
-    return Baseline().height;
+    return ResolvePrimitiveHeight(Patch(), Baseline().height);
 }
 
 mfd::Vec2 EllipseHandle::GetSize() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return *patch->size;
-    }
-    if (patch != nullptr && (patch->width.has_value() || patch->height.has_value()))
-    {
-        return mfd::Vec2 {GetWidth(), GetHeight()};
-    }
-    return mfd::Vec2 {Baseline().width, Baseline().height};
+    return ResolvePrimitiveSize(Patch(), Baseline().width, Baseline().height);
 }
 
 SquareHandle::SquareHandle(mfd::ReticlePatch& patch,
@@ -1353,44 +1353,17 @@ void DiamondHandle::SetSize(const mfd::Vec2 size)
 
 float DiamondHandle::GetWidth() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->width.has_value())
-    {
-        return *patch->width;
-    }
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return patch->size->x;
-    }
-    return Baseline().width;
+    return ResolvePrimitiveWidth(Patch(), Baseline().width);
 }
 
 float DiamondHandle::GetHeight() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->height.has_value())
-    {
-        return *patch->height;
-    }
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return patch->size->y;
-    }
-    return Baseline().height;
+    return ResolvePrimitiveHeight(Patch(), Baseline().height);
 }
 
 mfd::Vec2 DiamondHandle::GetSize() const noexcept
 {
-    const auto* patch = Patch();
-    if (patch != nullptr && patch->size.has_value())
-    {
-        return *patch->size;
-    }
-    if (patch != nullptr && (patch->width.has_value() || patch->height.has_value()))
-    {
-        return mfd::Vec2 {GetWidth(), GetHeight()};
-    }
-    return mfd::Vec2 {Baseline().width, Baseline().height};
+    return ResolvePrimitiveSize(Patch(), Baseline().width, Baseline().height);
 }
 
 TriangleHandle::TriangleHandle(mfd::ReticlePatch& patch,
