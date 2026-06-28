@@ -1649,6 +1649,13 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         recentWindows_.Save(documentState_.assetPaths.DefaultAssetPath(kRecentWindowsFileName));
         workflowState_.lastRuntimeError.clear();
         RebuildStatus("Editor loaded '" + documentState_.loaded.window.title + "'.", false);
+        // A freshly opened asset may carry validation problems the author must see right away.
+        // Dock the Problems panel automatically instead of relying on the sidebar badge alone, so
+        // opening an invalid asset never looks like a silent no-op.
+        if (!BuildPagePreviewProblems().empty())
+        {
+            layoutState_.pagePreviewViewOptions.showProblemsPanel = true;
+        }
         return true;
     }
     catch (const std::exception& exception)

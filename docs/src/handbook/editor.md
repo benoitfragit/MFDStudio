@@ -62,3 +62,9 @@ The page-preview header carries a compact glyph toolbar to the left of the help
 
 Zoom box and smart select are one-shot: after a drag (or `Esc`) they disarm and the
 left button returns to normal selection and dragging.
+
+## Validation problems
+
+A line near the sidebar filter surfaces pending validation problems; clicking it
+opens the docked **Problems** panel. Opening an asset that still has validation
+problems reveals that panel automatically so an invalid asset never loads silently.
