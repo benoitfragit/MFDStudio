@@ -691,8 +691,10 @@ TEST(AnimationTests, PrimitiveGettersReturnModelDefaultWhenConstructedWithoutAut
     EXPECT_FLOAT_EQ(geometry.cursorCircle.GetRadius(), 0.0208f);
     EXPECT_FLOAT_EQ(geometry.uncertaintyEllipse.GetWidth(), 0.0417f);
     EXPECT_FLOAT_EQ(geometry.uncertaintyEllipse.GetHeight(), 0.0208f);
-    EXPECT_FLOAT_EQ(geometry.targetSquare.GetSize(), 0.0417f);
-    EXPECT_FLOAT_EQ(geometry.steerDiamond.GetWidth(), 0.0417f);
+    // SquareGeometry/DiamondGeometry's own model default is 0.0208f for both
+    // sides, distinct from RectangleGeometry/EllipseGeometry's 0.0417f/0.0208f.
+    EXPECT_FLOAT_EQ(geometry.targetSquare.GetSize(), 0.0208f);
+    EXPECT_FLOAT_EQ(geometry.steerDiamond.GetWidth(), 0.0208f);
     EXPECT_FLOAT_EQ(geometry.steerDiamond.GetHeight(), 0.0208f);
 }
 

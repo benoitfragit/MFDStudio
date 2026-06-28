@@ -301,6 +301,23 @@ struct PrimitiveBaseline
 };
 
 /**
+ * @brief Builds the baseline used when a `SquareHandle`/`DiamondHandle` is
+ * constructed without an authored baseline.
+ *
+ * `SquareGeometry`/`DiamondGeometry`'s own model defaults are
+ * `width = height = 0.0208f`, which differs from `PrimitiveBaseline`'s plain
+ * `width`/`height` defaults (`0.0417f`/`0.0208f`, matching
+ * `RectangleGeometry`/`EllipseGeometry` instead).
+ */
+inline PrimitiveBaseline MakeSquareDiamondPrimitiveBaseline() noexcept
+{
+    PrimitiveBaseline baseline {};
+    baseline.width = 0.0208f;
+    baseline.height = 0.0208f;
+    return baseline;
+}
+
+/**
  * @brief Authored baseline values for a reticle's own transform/text fields,
  * resolved once at generated-construction time from the source JSON.
  */
@@ -647,7 +664,7 @@ public:
                  std::string_view primitiveId,
                  mfd::TransportId transportId = 0,
                  std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
-                 PrimitiveBaseline baseline = {});
+                 PrimitiveBaseline baseline = MakeSquareDiamondPrimitiveBaseline());
 
     using PrimitiveHandle::GetVisible;
     using PrimitiveHandle::GetPosition;
@@ -684,7 +701,7 @@ public:
                   std::string_view primitiveId,
                   mfd::TransportId transportId = 0,
                   std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
-                  PrimitiveBaseline baseline = {});
+                  PrimitiveBaseline baseline = MakeSquareDiamondPrimitiveBaseline());
 
     using PrimitiveHandle::GetVisible;
     using PrimitiveHandle::GetPosition;

@@ -1367,6 +1367,13 @@ class GenerateUiTests(unittest.TestCase):
             self.assertIn(_expected_primitive_baseline(), source_content)
             self.assertNotIn("10.0f", source_content)
 
+            # SquareGeometry/DiamondGeometry's own model default is 0.0208 for
+            # both sides, distinct from RectangleGeometry/EllipseGeometry's
+            # 0.0417/0.0208 (which PRIMITIVE_BASELINE_DEFAULTS["width"] uses).
+            square_diamond_baseline = _expected_primitive_baseline(width=0.0208, height=0.0208)
+            self.assertIn(square_diamond_baseline, source_content)
+            self.assertEqual(source_content.count(square_diamond_baseline), 2)
+
     def test_primitive_baseline_initializer_reflects_authored_json_values(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -431,14 +431,19 @@ def parse_primitive_geometry_baseline(element: dict, primitive_type: str) -> dic
         result["height"] = float(height) if isinstance(height, (int, float)) else default_height
 
     elif primitive_type == "square":
+        # SquareGeometry's own model default is 0.0208 for both sides, distinct
+        # from PRIMITIVE_BASELINE_DEFAULTS["width"] (0.0417), which matches
+        # RectangleGeometry/EllipseGeometry instead.
         side = find_alias_field(element, ("size", "width", "height"))
-        side = float(side) if isinstance(side, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["width"]
+        side = float(side) if isinstance(side, (int, float)) else 0.0208
         result["width"] = side
         result["height"] = side
 
     elif primitive_type == "diamond":
+        # DiamondGeometry's own model default is 0.0208 for both sides, same
+        # rationale as the square case above.
         size = element.get("size")
-        default_side = float(size) if isinstance(size, (int, float)) else PRIMITIVE_BASELINE_DEFAULTS["width"]
+        default_side = float(size) if isinstance(size, (int, float)) else 0.0208
         width = element.get("width")
         height = element.get("height")
         result["width"] = float(width) if isinstance(width, (int, float)) else default_side
