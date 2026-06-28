@@ -841,10 +841,10 @@ void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProbl
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-    DisabledTextWrapped("Use the View menu to toggle preview-only overlays without touching authored JSON assets.");
+    // The former "Page preview" header banner only restated that overlays live in the View menu.
+    // It carried no tutorial dependency and ate vertical space, so the workspace now starts directly
+    // with the canvas; the tutorial coach still renders inline when a guided step is active.
     tutorial_->DrawCoach();
-    ImGui::Separator();
 
     DrawPagePreviewWorkspace(
         pagePreviewProblems,
