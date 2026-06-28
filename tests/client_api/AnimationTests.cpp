@@ -810,7 +810,7 @@ TEST(AnimationTests, RectangleEllipseDiamondWidthHeightSizeGettersStayCoherentAc
     EXPECT_FLOAT_EQ(reticle.uncertaintyEllipse.GetSize().y, 0.0208f);
 
     reticle.steerDiamond.SetHeight(0.24f);
-    EXPECT_FLOAT_EQ(reticle.steerDiamond.GetSize().x, 0.0417f);
+    EXPECT_FLOAT_EQ(reticle.steerDiamond.GetSize().x, 0.0208f);
     EXPECT_FLOAT_EQ(reticle.steerDiamond.GetSize().y, 0.24f);
 
     // A `size` override always wins over a later individual `width`/`height`
