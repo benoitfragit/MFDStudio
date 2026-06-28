@@ -506,7 +506,13 @@ void EditorApplication::DrawRootLayout()
 
     if (layout.sidebar.visible)
     {
-        ImGui::BeginChild("Sidebar", ImVec2(std::floor(layout.sidebar.width), 0.0f), true);
+        // The sidebar itself must never scroll: its Pages and Reticle sections are each sized to
+        // fit the available height and own their own scroll regions. Without these flags rounding
+        // can spill a few pixels and raise a spurious outer scrollbar over the two inner ones.
+        ImGui::BeginChild("Sidebar",
+                          ImVec2(std::floor(layout.sidebar.width), 0.0f),
+                          true,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         DrawSidebar(sidebarProblems);
         ImGui::EndChild();
 

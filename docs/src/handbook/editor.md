@@ -47,6 +47,9 @@ one section:
 The branch holding the current selection stays expanded, and the first filtered
 match opens automatically so results never hide behind a collapsed page.
 
+The sidebar container itself never scrolls: the **Pages** and **Reticle library**
+sections each own their scroll region so only the long list under the pointer moves.
+
 ## Page preview toolbar
 
 The page-preview header carries a compact glyph toolbar to the left of the help
