@@ -46,3 +46,19 @@ one section:
 
 The branch holding the current selection stays expanded, and the first filtered
 match opens automatically so results never hide behind a collapsed page.
+
+## Page preview toolbar
+
+The page-preview header carries a compact glyph toolbar to the left of the help
+(`?`) button:
+
+- **Zoom box** — arm it, then drag a rectangle over the preview to zoom the page
+  camera onto that region (same result as the mouse wheel, framed precisely).
+- **Smart select** — arm it, then drag a rectangle to add every reticle inside it
+  to the selection. With a layer focused in the layer inspector the pick is limited
+  to that layer; in full view it spans every visible layer.
+- **Fit to page** — scale and recenter the drawn reticles so their bounding box
+  fills the page border. It is a single undoable step (`Ctrl+Z`).
+
+Zoom box and smart select are one-shot: after a drag (or `Esc`) they disarm and the
+left button returns to normal selection and dragging.

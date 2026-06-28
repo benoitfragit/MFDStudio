@@ -244,6 +244,83 @@ void PaintMoveDown(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
     drawList.AddLine(apex, ImVec2(m.center.x, m.center.y - m.radius * 0.85f), col, m.thickness);
 }
 
+void PaintZoomBox(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Drag-a-box-to-zoom: a square lens carrying a '+' with a short magnifier handle.
+    const float lens = m.radius * 0.72f;
+    const ImVec2 lensCenter(m.center.x - m.radius * 0.18f, m.center.y - m.radius * 0.18f);
+    drawList.AddRect(ImVec2(lensCenter.x - lens, lensCenter.y - lens),
+                     ImVec2(lensCenter.x + lens, lensCenter.y + lens),
+                     col,
+                     m.radius * 0.16f,
+                     0,
+                     m.thickness);
+    const float plus = lens * 0.5f;
+    drawList.AddLine(ImVec2(lensCenter.x - plus, lensCenter.y), ImVec2(lensCenter.x + plus, lensCenter.y), col, m.thickness);
+    drawList.AddLine(ImVec2(lensCenter.x, lensCenter.y - plus), ImVec2(lensCenter.x, lensCenter.y + plus), col, m.thickness);
+    drawList.AddLine(ImVec2(lensCenter.x + lens * 0.78f, lensCenter.y + lens * 0.78f),
+                     ImVec2(m.center.x + m.radius, m.center.y + m.radius),
+                     col,
+                     m.thickness * 1.25f);
+}
+
+void PaintSmartSelect(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Rectangular picker: a dashed marquee with a small pointer cursor resting inside it.
+    const float r = m.radius * 0.92f;
+    const float dash = r * 0.5f;
+    const ImVec2 topLeft(m.center.x - r, m.center.y - r);
+    const ImVec2 topRight(m.center.x + r, m.center.y - r);
+    const ImVec2 bottomRight(m.center.x + r, m.center.y + r);
+    const ImVec2 bottomLeft(m.center.x - r, m.center.y + r);
+    drawList.AddLine(topLeft, ImVec2(topLeft.x + dash, topLeft.y), col, m.thickness);
+    drawList.AddLine(ImVec2(topRight.x - dash, topRight.y), topRight, col, m.thickness);
+    drawList.AddLine(topRight, ImVec2(topRight.x, topRight.y + dash), col, m.thickness);
+    drawList.AddLine(ImVec2(bottomRight.x, bottomRight.y - dash), bottomRight, col, m.thickness);
+    drawList.AddLine(bottomRight, ImVec2(bottomRight.x - dash, bottomRight.y), col, m.thickness);
+    drawList.AddLine(ImVec2(bottomLeft.x + dash, bottomLeft.y), bottomLeft, col, m.thickness);
+    drawList.AddLine(bottomLeft, ImVec2(bottomLeft.x, bottomLeft.y - dash), col, m.thickness);
+    drawList.AddLine(ImVec2(topLeft.x, topLeft.y + dash), topLeft, col, m.thickness);
+
+    const ImVec2 pointer(m.center.x - m.radius * 0.12f, m.center.y - m.radius * 0.12f);
+    drawList.AddTriangleFilled(pointer,
+                               ImVec2(pointer.x, pointer.y + m.radius * 0.82f),
+                               ImVec2(pointer.x + m.radius * 0.58f, pointer.y + m.radius * 0.5f),
+                               col);
+}
+
+void PaintInwardCornerArrow(ImDrawList& drawList,
+                            const ImVec2 corner,
+                            const float signX,
+                            const float signY,
+                            const float inset,
+                            const float length,
+                            const ImU32 col,
+                            const float thickness)
+{
+    const ImVec2 tip(corner.x + signX * inset, corner.y + signY * inset);
+    drawList.AddLine(tip, ImVec2(tip.x + signX * length, tip.y), col, thickness);
+    drawList.AddLine(tip, ImVec2(tip.x, tip.y + signY * length), col, thickness);
+}
+
+void PaintFitToPage(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Scale-content-to-fit: a page frame with four inward-pointing corner arrows.
+    const float r = m.radius;
+    drawList.AddRect(ImVec2(m.center.x - r, m.center.y - r),
+                     ImVec2(m.center.x + r, m.center.y + r),
+                     col,
+                     r * 0.12f,
+                     0,
+                     m.thickness);
+    const float inset = r * 0.30f;
+    const float length = r * 0.46f;
+    PaintInwardCornerArrow(drawList, ImVec2(m.center.x - r, m.center.y - r), 1.0f, 1.0f, inset, length, col, m.thickness);
+    PaintInwardCornerArrow(drawList, ImVec2(m.center.x + r, m.center.y - r), -1.0f, 1.0f, inset, length, col, m.thickness);
+    PaintInwardCornerArrow(drawList, ImVec2(m.center.x + r, m.center.y + r), -1.0f, -1.0f, inset, length, col, m.thickness);
+    PaintInwardCornerArrow(drawList, ImVec2(m.center.x - r, m.center.y + r), 1.0f, -1.0f, inset, length, col, m.thickness);
+}
+
 void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLeft, const float boxSize, const ImU32 col)
 {
     GlyphMetrics metrics {};
@@ -300,6 +377,15 @@ void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLe
         return;
     case EditorIcon::MoveDown:
         PaintMoveDown(drawList, metrics, col);
+        return;
+    case EditorIcon::ZoomBox:
+        PaintZoomBox(drawList, metrics, col);
+        return;
+    case EditorIcon::SmartSelect:
+        PaintSmartSelect(drawList, metrics, col);
+        return;
+    case EditorIcon::FitToPage:
+        PaintFitToPage(drawList, metrics, col);
         return;
     }
 }

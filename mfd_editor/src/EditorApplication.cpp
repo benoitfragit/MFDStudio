@@ -1138,12 +1138,27 @@ struct ViewportToolbarLayout
 {
     ImVec2 toolbarMin {};
     ImVec2 toolbarMax {};
+    ImVec2 leadingToolsPos {};
     ImVec2 helpButtonPos {};
     ImVec2 resetButtonPos {};
     ImVec2 buttonSize {};
     ImVec2 textPos {};
     std::array<char, 96> infoLabel {};
 };
+
+/** @brief One-shot page-preview tool a leading toolbar button requested this frame. */
+enum class ViewportToolAction
+{
+    None,
+    ZoomBox,
+    SmartSelect,
+    FitToPage
+};
+
+bool ScreenRectsOverlap(const ImVec2 aMin, const ImVec2 aMax, const ImVec2 bMin, const ImVec2 bMax) noexcept
+{
+    return aMin.x <= bMax.x && aMax.x >= bMin.x && aMin.y <= bMax.y && aMax.y >= bMin.y;
+}
 
 class ScopedImGuiId
 {
@@ -1161,7 +1176,8 @@ public:
 
 ViewportToolbarLayout ComputeViewportToolbarLayout(const ImVec2 viewportOrigin,
                                                    const float zoom,
-                                                   const std::optional<mfd::Vec2>& mouseLogical)
+                                                   const std::optional<mfd::Vec2>& mouseLogical,
+                                                   const int leadingToolCount = 0)
 {
     ViewportToolbarLayout layout;
 
@@ -1173,16 +1189,77 @@ ViewportToolbarLayout ComputeViewportToolbarLayout(const ImVec2 viewportOrigin,
     // Square, frame-height buttons so the glyph toolbar aligns with the standard widgets.
     const float buttonExtent = ImGui::GetFrameHeight();
     layout.buttonSize = ImVec2(buttonExtent, buttonExtent);
-    layout.helpButtonPos = ImVec2(viewportOrigin.x + 12.0f, viewportOrigin.y + 12.0f);
+    // Optional one-shot tool buttons occupy the leftmost slots, shifting the help/recenter pair
+    // and the zoom label to their right so the new tools read "to the left of the ? button".
+    layout.leadingToolsPos = ImVec2(viewportOrigin.x + 12.0f, viewportOrigin.y + 12.0f);
+    const float leadingWidth =
+        leadingToolCount > 0 ? static_cast<float>(leadingToolCount) * (layout.buttonSize.x + style.ItemSpacing.x) : 0.0f;
+    layout.helpButtonPos = ImVec2(viewportOrigin.x + 12.0f + leadingWidth, viewportOrigin.y + 12.0f);
     layout.resetButtonPos = ImVec2(layout.helpButtonPos.x + layout.buttonSize.x + style.ItemSpacing.x,
                                    layout.helpButtonPos.y);
     layout.textPos = ImVec2(layout.resetButtonPos.x + layout.buttonSize.x + style.ItemSpacing.x,
                             layout.helpButtonPos.y + style.FramePadding.y);
-    layout.toolbarMin = layout.helpButtonPos;
+    // The hit rectangle starts at the leading tools so canvas drags never begin under any button.
+    layout.toolbarMin = layout.leadingToolsPos;
     layout.toolbarMax = ImVec2(
         layout.textPos.x + textSize.x,
         layout.helpButtonPos.y + std::max(layout.buttonSize.y, textSize.y + style.FramePadding.y * 2.0f));
     return layout;
+}
+
+/**
+ * @brief Draws the page-preview leading tool buttons (zoom-box, smart-select, fit-to-page).
+ * @return The tool the user clicked this frame, or ViewportToolAction::None.
+ * @note Pure presentation: the caller owns arming, undo and the fit mutation.
+ */
+ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout, const editor::app::PreviewTool armedTool)
+{
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    const float stride = layout.buttonSize.x + spacing;
+    ViewportToolAction action = ViewportToolAction::None;
+
+    const ImVec2 zoomBoxPos = layout.leadingToolsPos;
+    ImGui::SetCursorScreenPos(zoomBoxPos);
+    if (IconButton("##PagePreviewZoomBox",
+                   editor::ui::EditorIcon::ZoomBox,
+                   "Zoom to a box: drag a rectangle over the preview to zoom the page view onto it."))
+    {
+        action = ViewportToolAction::ZoomBox;
+    }
+
+    const ImVec2 smartSelectPos(zoomBoxPos.x + stride, zoomBoxPos.y);
+    ImGui::SetCursorScreenPos(smartSelectPos);
+    if (IconButton("##PagePreviewSmartSelect",
+                   editor::ui::EditorIcon::SmartSelect,
+                   "Smart select: drag a rectangle to add the reticles inside it to the selection. "
+                   "Restricted to the focused layer when one is focused in the layer inspector."))
+    {
+        action = ViewportToolAction::SmartSelect;
+    }
+
+    const ImVec2 fitPos(smartSelectPos.x + stride, zoomBoxPos.y);
+    ImGui::SetCursorScreenPos(fitPos);
+    if (IconButton("##PagePreviewFitToPage",
+                   editor::ui::EditorIcon::FitToPage,
+                   "Fit to page: scale and recenter the drawn reticles to fill the page border. Undoable with Ctrl+Z."))
+    {
+        action = ViewportToolAction::FitToPage;
+    }
+
+    // Outline the armed marquee tool so the one-shot mode stays visible while the user lines up a drag.
+    if (armedTool != editor::app::PreviewTool::None)
+    {
+        const ImVec2 armedPos = armedTool == editor::app::PreviewTool::ZoomBox ? zoomBoxPos : smartSelectPos;
+        ImGui::GetWindowDrawList()->AddRect(
+            armedPos,
+            ImVec2(armedPos.x + layout.buttonSize.x, armedPos.y + layout.buttonSize.y),
+            IM_COL32(84, 219, 201, 255),
+            ImGui::GetStyle().FrameRounding,
+            0,
+            2.0f);
+    }
+
+    return action;
 }
 
 void DrawViewportHelpPopupContent(const bool libraryPreview)
@@ -1209,6 +1286,10 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
         ImGui::BulletText("Blue handle: rotate the selected reticle or strobe.");
         ImGui::BulletText("Corner handles: scale the selected reticle or strobe.");
         ImGui::BulletText("Toolbar recenter button: recenter the page camera.");
+        ImGui::BulletText("Toolbar zoom-box: arm, then drag a rectangle to zoom the view onto it.");
+        ImGui::BulletText("Toolbar smart-select: arm, then drag a rectangle to add the framed reticles to the selection.");
+        ImGui::BulletText("Toolbar fit-to-page: scale and recenter the drawn reticles to the page border (Ctrl+Z to undo).");
+        ImGui::BulletText("Esc: disarm the zoom-box or smart-select tool.");
         ImGui::BulletText("Mouse wheel: zoom the page camera.");
         ImGui::BulletText("Right-drag: pan the page camera.");
         ImGui::BulletText("Right-click: open selection and clipping actions.");
@@ -1239,9 +1320,10 @@ bool DrawViewportToolbar(const ImVec2 viewportOrigin,
                          const char* helpButtonId,
                          const char* resetButtonId,
                          const char* popupId,
-                         const bool libraryPreview)
+                         const bool libraryPreview,
+                         const int leadingToolCount = 0)
 {
-    const ViewportToolbarLayout layout = ComputeViewportToolbarLayout(viewportOrigin, zoom, mouseLogical);
+    const ViewportToolbarLayout layout = ComputeViewportToolbarLayout(viewportOrigin, zoom, mouseLogical, leadingToolCount);
     bool resetRequested = false;
 
     ImGui::SetCursorScreenPos(layout.helpButtonPos);
@@ -3474,6 +3556,33 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         ImGui::EndDragDropTarget();
     }
 
+    // Three one-shot marquee tools sit to the left of the help button; the toolbar reserves their
+    // leading slots so the help/recenter pair and the zoom label shift right to make room.
+    constexpr int kPagePreviewLeadingToolCount = 3;
+    const ViewportToolbarLayout toolLayout = ComputeViewportToolbarLayout(
+        viewport.origin,
+        mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom),
+        mouseLogical,
+        kPagePreviewLeadingToolCount);
+    switch (DrawViewportLeadingTools(toolLayout, layoutState_.armedPreviewTool))
+    {
+    case ViewportToolAction::ZoomBox:
+        layoutState_.armedPreviewTool = layoutState_.armedPreviewTool == PreviewTool::ZoomBox
+                                            ? PreviewTool::None
+                                            : PreviewTool::ZoomBox;
+        break;
+    case ViewportToolAction::SmartSelect:
+        layoutState_.armedPreviewTool = layoutState_.armedPreviewTool == PreviewTool::SmartSelect
+                                            ? PreviewTool::None
+                                            : PreviewTool::SmartSelect;
+        break;
+    case ViewportToolAction::FitToPage:
+        FitActivePageContentToPageBorder();
+        break;
+    case ViewportToolAction::None:
+        break;
+    }
+
     if (DrawViewportToolbar(
         viewport.origin,
         mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom),
@@ -3481,7 +3590,8 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         "?##PagePreviewHelp",
         "R##PagePreviewRecenter",
         kPagePreviewHelpPopupId,
-        false))
+        false,
+        kPagePreviewLeadingToolCount))
     {
         ResetPagePreviewView();
     }
@@ -4950,6 +5060,245 @@ void EditorApplication::CancelPreviewInteraction() noexcept
     interactionState_.startReticleTransforms.clear();
 }
 
+bool EditorApplication::HandleArmedPreviewToolInteraction(const ViewportState& viewport, const ImVec2 mouse)
+{
+    const bool zoomDragging = interactionState_.mode == InteractionMode::ZoomBoxDrag;
+    const bool selectDragging = interactionState_.mode == InteractionMode::SmartSelectDrag;
+    if (!zoomDragging && !selectDragging && layoutState_.armedPreviewTool == PreviewTool::None)
+    {
+        return false;
+    }
+
+    // Esc disarms the tool or abandons an in-progress marquee without acting on it.
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+    {
+        CancelPreviewInteraction();
+        layoutState_.armedPreviewTool = PreviewTool::None;
+        return true;
+    }
+
+    if (!zoomDragging && !selectDragging)
+    {
+        // Armed but idle: only consume the left press that starts the marquee, leaving wheel zoom,
+        // panning and the context menu reachable while the user lines the drag up.
+        if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            return false;
+        }
+
+        interactionState_.mode = layoutState_.armedPreviewTool == PreviewTool::ZoomBox
+                                     ? InteractionMode::ZoomBoxDrag
+                                     : InteractionMode::SmartSelectDrag;
+        interactionState_.startCornerScreen = mouse;
+        interactionState_.reticleIndex = -1;
+        interactionState_.reticleIndices.clear();
+        interactionState_.startReticleTransforms.clear();
+        return true;
+    }
+
+    const ImVec2 start = interactionState_.startCornerScreen;
+    const ImVec2 rectMin(std::min(start.x, mouse.x), std::min(start.y, mouse.y));
+    const ImVec2 rectMax(std::max(start.x, mouse.x), std::max(start.y, mouse.y));
+
+    ImDrawList* const drawList = ImGui::GetWindowDrawList();
+    const ImU32 fillColor = zoomDragging ? IM_COL32(110, 180, 250, 36) : IM_COL32(84, 219, 201, 36);
+    const ImU32 lineColor = zoomDragging ? IM_COL32(110, 180, 250, 230) : IM_COL32(84, 219, 201, 230);
+    drawList->AddRectFilled(rectMin, rectMax, fillColor);
+    drawList->AddRect(rectMin, rectMax, lineColor, 0.0f, 0, 1.5f);
+
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+    {
+        if (zoomDragging)
+        {
+            ZoomPagePreviewToScreenRect(viewport, rectMin, rectMax);
+        }
+        else
+        {
+            SmartSelectPageReticlesInScreenRect(viewport, rectMin, rectMax);
+        }
+        CancelPreviewInteraction();
+        layoutState_.armedPreviewTool = PreviewTool::None; // one-shot: revert to normal selection.
+    }
+    return true;
+}
+
+void EditorApplication::ZoomPagePreviewToScreenRect(const ViewportState& viewport, const ImVec2 rectMin, const ImVec2 rectMax)
+{
+    const float pixelWidth = rectMax.x - rectMin.x;
+    const float pixelHeight = rectMax.y - rectMin.y;
+    if (pixelWidth < 4.0f || pixelHeight < 4.0f)
+    {
+        return; // ignore a stray click or a degenerate box.
+    }
+
+    const mfd::Vec2 cornerA = viewport.ToLogical(rectMin);
+    const mfd::Vec2 cornerB = viewport.ToLogical(rectMax);
+
+    constexpr float kMinPageZoom = 0.1f;
+    constexpr float kMaxPageZoom = 20.0f;
+    const float currentZoom = std::clamp(mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom), kMinPageZoom, kMaxPageZoom);
+    const float fitRatio = std::min(viewport.size.x / pixelWidth, viewport.size.y / pixelHeight);
+    const float nextZoom = std::clamp(currentZoom * fitRatio, kMinPageZoom, kMaxPageZoom);
+
+    layoutState_.pagePreviewView.center = {(cornerA.x + cornerB.x) * 0.5f, (cornerA.y + cornerB.y) * 0.5f};
+    layoutState_.pagePreviewView.zoom = nextZoom;
+}
+
+void EditorApplication::SmartSelectPageReticlesInScreenRect(const ViewportState& viewport, const ImVec2 rectMin, const ImVec2 rectMax)
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr || (rectMax.x - rectMin.x < 3.0f && rectMax.y - rectMin.y < 3.0f))
+    {
+        return;
+    }
+
+    std::vector<int> hits;
+    for (int reticleIndex = 0; reticleIndex < static_cast<int>(page->staticReticles.size()); ++reticleIndex)
+    {
+        const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+        // Only visible, currently selectable reticles qualify: IsPageReticleSelectableInCurrentFocus
+        // already restricts the picker to the focused layer, or to every layer in full view.
+        if (!IsReticleVisibleInEditor(*page, reticle) || !IsPageReticleSelectableInCurrentFocus(*page, reticle))
+        {
+            continue;
+        }
+
+        const LogicalBounds bounds = ComputeReticleWorldBounds(reticle);
+        if (!bounds.valid)
+        {
+            continue;
+        }
+
+        const ImVec2 cornerA = viewport.ToScreen(bounds.min);
+        const ImVec2 cornerB = viewport.ToScreen(bounds.max);
+        const ImVec2 reticleMin(std::min(cornerA.x, cornerB.x), std::min(cornerA.y, cornerB.y));
+        const ImVec2 reticleMax(std::max(cornerA.x, cornerB.x), std::max(cornerA.y, cornerB.y));
+        if (ScreenRectsOverlap(rectMin, rectMax, reticleMin, reticleMax))
+        {
+            hits.push_back(reticleIndex);
+        }
+    }
+
+    if (hits.empty())
+    {
+        return;
+    }
+
+    AddPageReticlesToSelection(documentState_.selection.pageIndex, hits);
+}
+
+void EditorApplication::AddPageReticlesToSelection(const int pageIndex, const std::vector<int>& reticleIndices)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()) || reticleIndices.empty())
+    {
+        return;
+    }
+
+    mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
+
+    // Widen an existing page-reticle selection on the same page; any other selection kind (title,
+    // strobe, library or a different page) is replaced by the marquee result.
+    std::vector<int> indices;
+    if (documentState_.selection.kind == SelectionKind::PageReticle && documentState_.selection.pageIndex == pageIndex)
+    {
+        indices = documentState_.selection.pageReticleIndices;
+    }
+
+    for (const int reticleIndex : reticleIndices)
+    {
+        if (reticleIndex < 0 || reticleIndex >= static_cast<int>(page.staticReticles.size()) ||
+            !IsPageReticleSelectableInCurrentFocus(page, page.staticReticles[static_cast<std::size_t>(reticleIndex)]))
+        {
+            continue;
+        }
+        if (std::find(indices.begin(), indices.end(), reticleIndex) == indices.end())
+        {
+            indices.push_back(reticleIndex);
+        }
+    }
+
+    if (indices.empty())
+    {
+        return;
+    }
+
+    std::sort(indices.begin(), indices.end());
+    documentState_.selection.kind = SelectionKind::PageReticle;
+    documentState_.selection.pageIndex = pageIndex;
+    documentState_.selection.pageReticleIndices = indices;
+    documentState_.selection.pageReticleIndex = indices.back();
+    interactionState_.mode = InteractionMode::None;
+    interactionState_.reticleIndex = -1;
+    interactionState_.reticleIndices.clear();
+    interactionState_.startReticleTransforms.clear();
+    interactionState_.primitiveIndex = -1;
+    interactionState_.handleIndex = -1;
+    interactionState_.handleKind = PrimitiveHandleKind::None;
+}
+
+void EditorApplication::FitActivePageContentToPageBorder()
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    // The "drawn content" is the set of visible static reticles; bound them in logical space.
+    LogicalBounds content;
+    std::vector<int> fitIndices;
+    for (int reticleIndex = 0; reticleIndex < static_cast<int>(page->staticReticles.size()); ++reticleIndex)
+    {
+        const mfd::ReticleGroup& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+        if (!IsReticleVisibleInEditor(*page, reticle))
+        {
+            continue;
+        }
+
+        const LogicalBounds bounds = ComputeReticleWorldBounds(reticle);
+        if (!bounds.valid)
+        {
+            continue;
+        }
+
+        IncludeLogicalBounds(content, bounds);
+        fitIndices.push_back(reticleIndex);
+    }
+
+    if (!content.valid || fitIndices.empty())
+    {
+        RebuildStatus("Fit to page: no visible page reticle to fit.", true);
+        return;
+    }
+
+    const mfd::Vec2 border = editor::app::ComputePageBorderHalfExtent(
+        documentState_.loaded.window.width, documentState_.loaded.window.height);
+    const float contentHalfX = std::max(1e-4f, (content.max.x - content.min.x) * 0.5f);
+    const float contentHalfY = std::max(1e-4f, (content.max.y - content.min.y) * 0.5f);
+
+    // Leave a small breathing band inside the border so the content never kisses the edges.
+    constexpr float kFitMargin = 0.92f;
+    const float scale = std::min(border.x * kFitMargin / contentHalfX, border.y * kFitMargin / contentHalfY);
+    if (!std::isfinite(scale) || scale <= 0.0f)
+    {
+        return;
+    }
+
+    const mfd::Vec2 contentCenter {(content.min.x + content.max.x) * 0.5f, (content.min.y + content.max.y) * 0.5f};
+
+    // Snapshot before mutating so the whole fit is a single Ctrl+Z step.
+    PushUndoSnapshot();
+    for (const int reticleIndex : fitIndices)
+    {
+        mfd::Transform2D& transform = page->staticReticles[static_cast<std::size_t>(reticleIndex)].transform;
+        transform.position = {(transform.position.x - contentCenter.x) * scale,
+                              (transform.position.y - contentCenter.y) * scale};
+        transform.scale = {transform.scale.x * scale, transform.scale.y * scale};
+    }
+
+    RebuildStatus("Fit to page: scaled and centered the page content inside the page border.", false);
+}
+
 void EditorApplication::BeginReticleHandleInteraction(const InteractionMode mode,
                                                       const ImVec2 cornerScreen,
                                                       const ViewportState& viewport,
@@ -5006,8 +5355,13 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     const std::optional<mfd::Vec2> mouseLogical =
         IsPointInsideRect(mouse, viewport.origin, viewportMax) ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
                                                                : std::nullopt;
+    // Mirror the page-preview toolbar's leading tool slots so a drag never starts under a button.
+    constexpr int kPagePreviewLeadingToolCount = 3;
     const ViewportToolbarLayout toolbarLayout =
-        ComputeViewportToolbarLayout(viewport.origin, mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom), mouseLogical);
+        ComputeViewportToolbarLayout(viewport.origin,
+                                     mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom),
+                                     mouseLogical,
+                                     kPagePreviewLeadingToolCount);
     const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
     const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
     const bool anyPopupOpen = ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId);
@@ -5026,6 +5380,13 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                 CancelPreviewInteraction();
             }
         }
+        return;
+    }
+
+    // One-shot marquee tools (zoom-box / smart-select) take over the left button while armed or
+    // while a marquee drag is already in progress, before any selection or move handling runs.
+    if (HandleArmedPreviewToolInteraction(interactiveViewport, mouse))
+    {
         return;
     }
 

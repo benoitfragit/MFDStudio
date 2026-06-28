@@ -39,7 +39,10 @@ enum class EditorIcon
     Help,             ///< Question-mark silhouette used to open a view's controls summary.
     Recenter,         ///< Crosshair silhouette used to recenter a preview camera.
     MoveUp,           ///< Upward chevron used to move an ordered entry one slot earlier.
-    MoveDown          ///< Downward chevron used to move an ordered entry one slot later.
+    MoveDown,         ///< Downward chevron used to move an ordered entry one slot later.
+    ZoomBox,          ///< Magnifier-over-a-square used to arm the drag-a-box-to-zoom tool.
+    SmartSelect,      ///< Dashed marquee with a pointer used to arm the rectangular reticle picker.
+    FitToPage         ///< Frame with inward corner arrows used to scale page content to the border.
 };
 
 /**

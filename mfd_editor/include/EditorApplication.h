@@ -86,6 +86,7 @@ private:
     static constexpr std::size_t kPathTextCapacity = editor::app::kPathTextCapacity;
     using SelectionKind = editor::app::SelectionKind;
     using InteractionMode = editor::app::InteractionMode;
+    using PreviewTool = editor::app::PreviewTool;
     using PrimitiveHandleKind = editor::app::PrimitiveHandleKind;
     using Selection = editor::app::Selection;
     using ViewportState = editor::app::ViewportState;
@@ -403,6 +404,21 @@ private:
     std::string ActiveInsertionLayerId(const mfd::PageDefinition& page) const;
     /** @brief Handles drag interactions in the page preview. */
     void HandlePreviewInteraction(const ViewportState& viewport);
+    /**
+     * @brief Drives the one-shot zoom-box / smart-select marquee tools while one is armed or dragging.
+     * @param viewport Interactive page-preview viewport carrying the current view state.
+     * @param mouse Current mouse position in screen space.
+     * @return `true` when the marquee tool consumed the interaction this frame.
+     */
+    bool HandleArmedPreviewToolInteraction(const ViewportState& viewport, ImVec2 mouse);
+    /** @brief Recenters and zooms the page preview so the dragged screen rectangle fills the view. */
+    void ZoomPagePreviewToScreenRect(const ViewportState& viewport, ImVec2 rectMin, ImVec2 rectMax);
+    /** @brief Adds the page reticles framed by the dragged screen rectangle to the selection. */
+    void SmartSelectPageReticlesInScreenRect(const ViewportState& viewport, ImVec2 rectMin, ImVec2 rectMax);
+    /** @brief Adds the given page reticles to the current selection, respecting layer focus. */
+    void AddPageReticlesToSelection(int pageIndex, const std::vector<int>& reticleIndices);
+    /** @brief Scales and recenters the visible page reticles to fill the page border (undoable). */
+    void FitActivePageContentToPageBorder();
     /** @brief Draws the page-preview context menu for reticle-specific actions. */
     void DrawPageReticleContextMenu();
     /** @brief Draws overlays specific to the library-studio preview. */

@@ -71,7 +71,17 @@ enum class InteractionMode
     RotateReticle,
     ScaleReticle,
     MovePrimitive,
-    EditPrimitiveHandle
+    EditPrimitiveHandle,
+    ZoomBoxDrag,    ///< Dragging the zoom-box marquee to frame a region to zoom into.
+    SmartSelectDrag ///< Dragging the smart-select marquee to add page reticles to the selection.
+};
+
+/** @brief One-shot page-preview marquee tool armed from the viewport toolbar. */
+enum class PreviewTool
+{
+    None,       ///< No tool armed: the left button selects and drags reticles as usual.
+    ZoomBox,    ///< Next left-drag frames a region and zooms the page preview to fit it.
+    SmartSelect ///< Next left-drag adds the framed page reticles to the current selection.
 };
 
 /** @brief Type of primitive handle currently manipulated inside the reticle studio. */
@@ -434,6 +444,8 @@ struct LayoutState
     mfd::PageViewState pagePreviewView {};
     mfd::PageViewState libraryPreviewView {};
     mfd::Vec2 minimapDragOffsetLogical {};
+    /** @brief One-shot marquee tool armed from the page-preview toolbar; session-only, not persisted. */
+    PreviewTool armedPreviewTool = PreviewTool::None;
     bool suppressNextPagePreviewContextMenu = false;
     bool suppressNextLibraryPreviewContextMenu = false;
     std::vector<int> pagePreviewContextReticleIndices {};
