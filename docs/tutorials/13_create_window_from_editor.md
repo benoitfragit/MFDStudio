@@ -4,6 +4,9 @@ This tutorial shows how to create a brand-new window directly from the editor UI
 
 ![Editor screenshot](../images/mfd_editor_capture.png)
 
+This workspace capture shows the editor with the left navigation tree, the
+central preview, and the right inspector visible at the same time.
+
 You will learn how to:
 - launch the integrated guided tutorial from the editor
 - create a window file from scratch
@@ -49,6 +52,8 @@ The coach is integrated at the top of the page preview as one scrollable panel. 
 3. Use **Open window asset...** if you want to browse to one existing window JSON from the file explorer.
 4. For this tutorial, open the top menu: **File > New window from scratch**.
 
+![Empty editor workspace](../images/mfd_editor_empty_workspace.png)
+
 The popup creates an in-memory window draft. Nothing is written on disk until you click **File > Save**.
 
 By default, the editor seeds creation paths from the repository source
@@ -57,6 +62,11 @@ By default, the editor seeds creation paths from the repository source
 ```powershell
 mfd_editor.exe --asset-directory C:\Path\To\assets
 ```
+
+If you need to inspect an existing window before creating a new one, the native
+picker opens directly on the repository window assets:
+
+![Open window asset dialog](../images/mfd_editor_open_window_dialog.png)
 
 ## Step 2 - Fill the window fields
 

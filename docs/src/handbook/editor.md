@@ -6,6 +6,10 @@ in the editor, or mix both.
 
 ![Editor capture](../images/mfd_editor_capture.png)
 
+This overview uses the cockpit demo because it exposes the menu bar, the left
+navigation sidebar, the central page preview, and the right inspector in one
+stable workspace.
+
 ## Start
 
 ```powershell
@@ -13,8 +17,26 @@ cmake --build --preset debug-win32 --target mfd_editor
 ```
 
 The editor starts empty by design. Open a source window JSON or create a new
-window from scratch — it never auto-loads staged `_Exec` copies, so you do not
+window from scratch: it never auto-loads staged `_Exec` copies, so you do not
 accidentally edit runtime artifacts instead of the repository assets.
+
+![Editor empty workspace](../images/mfd_editor_empty_workspace.png)
+
+The empty workspace keeps the first actions explicit: open one existing window
+asset, create one new window, or launch the integrated tutorial from the start
+screen.
+
+## Open existing assets
+
+Use **Open window** from the empty workspace or **File > Open window asset...**
+from the menu bar to browse one authored window JSON under the repository
+`assets/` tree.
+
+![Open window asset dialog](../images/mfd_editor_open_window_dialog.png)
+
+The native picker opens on the window assets folder and lets you load one real
+source file such as `demo_pages_cockpit.json` instead of editing staged runtime
+copies.
 
 ## Authoring model
 
@@ -31,6 +53,11 @@ then auto-collapses the sidebar and inspector instead of blocking the resize.
 Auto-collapse is temporary and never changes saved panel widths; use the **View**
 menu or widen the window to bring panels back.
 
+In the fully loaded workspace, the left sidebar exposes pages and reticles, the
+center keeps the preview tools visible, and the right inspector follows the
+current selection. This is the recommended layout for authoring and for the
+documentation screenshots used in this handbook.
+
 ## Navigation sidebar
 
 The **Pages** and **Reticle library** headers show live counts of entries passing
@@ -40,9 +67,9 @@ problems (click it to open the Problems panel).
 The filter box matches page and reticle names by default. Prefix the text to aim
 one section:
 
-- `page:` — pages only
-- `reticle:` — reticles only
-- `problem:` — only entries that still have validation issues
+- `page:` - pages only
+- `reticle:` - reticles only
+- `problem:` - only entries that still have validation issues
 
 The branch holding the current selection stays expanded, and the first filtered
 match opens automatically so results never hide behind a collapsed page.
@@ -55,12 +82,12 @@ sections each own their scroll region so only the long list under the pointer mo
 The page-preview header carries a compact glyph toolbar to the left of the help
 (`?`) button:
 
-- **Zoom box** — arm it, then drag a rectangle over the preview to zoom the page
+- **Zoom box** - arm it, then drag a rectangle over the preview to zoom the page
   camera onto that region (same result as the mouse wheel, framed precisely).
-- **Smart select** — arm it, then drag a rectangle to add every reticle inside it
+- **Smart select** - arm it, then drag a rectangle to add every reticle inside it
   to the selection. With a layer focused in the layer inspector the pick is limited
   to that layer; in full view it spans every visible layer.
-- **Fit to page** — scale and recenter the drawn reticles so their bounding box
+- **Fit to page** - scale and recenter the drawn reticles so their bounding box
   fills the page border. It is a single undoable step (`Ctrl+Z`).
 
 Zoom box and smart select are one-shot: after a drag (or `Esc`) they disarm and the
