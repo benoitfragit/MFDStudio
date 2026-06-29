@@ -7,19 +7,21 @@ The historical technical prefix `mfd` remains in namespaces, targets, folders,
 and APIs.
 
 [![PR CI](https://img.shields.io/github/actions/workflow/status/benoitfragit/MFDStudio/ci.yml?label=PR%20CI&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/actions/workflow/status/benoitfragit/MFDStudio/release.yml?label=Release&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/actions/workflows/release.yml)
-[![Docs Deploy](https://img.shields.io/github/actions/workflow/status/benoitfragit/MFDStudio/docs-pages.yml?label=Docs%20Deploy&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/actions/workflows/docs-pages.yml)
 [![Latest Release](https://img.shields.io/github/v/release/benoitfragit/MFDStudio?display_name=tag&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/releases/latest)
+[![Release Workflow](https://img.shields.io/github/actions/workflow/status/benoitfragit/MFDStudio/release.yml?label=Release%20Workflow&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/actions/workflows/release.yml)
+[![Docs Deploy](https://img.shields.io/github/actions/workflow/status/benoitfragit/MFDStudio/docs-pages.yml?label=Docs%20Deploy&style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/actions/workflows/docs-pages.yml)
+[![License](https://img.shields.io/github/license/benoitfragit/MFDStudio?style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/blob/master/LICENSE)
 [![Docs Online](https://img.shields.io/badge/Docs-Online-8250df?style=for-the-badge)](https://benoitfragit.github.io/MFDStudio)
 
-![Cockpit runtime screenshot](./docs/images/mfd_window_cockpit_capture.png)
+![Cockpit runtime screenshot](./docs/src/images/mfd_window_cockpit_capture.png)
 
 ## Documentation
 
 The full documentation is published as a site, combining a guide portal (mdBook)
-and the C++ API reference (Doxygen):
+and the C++ API reference (Doxygen). `Latest Release` tracks the published GitHub
+release, while `Release Workflow` reflects the most recent `release.yml` run:
 
-**➡️ https://benoitfragit.github.io/MFDStudio**
+**https://benoitfragit.github.io/MFDStudio**
 
 | Step | Page |
 | --- | --- |

@@ -1,5 +1,5 @@
 param(
-    [string]$InputDirectory = "docs/images",
+    [string]$InputDirectory = "docs/src/images",
     [string]$ServerUrl = "https://kroki.io/plantuml/svg"
 )
 

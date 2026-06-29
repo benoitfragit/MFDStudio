@@ -159,10 +159,11 @@ truth.
   clear error naming the missing one.
 - **Fix.** Install the missing tool, then re-run
   `docs/BuildDocsSite.ps1`. The diagrams in this book render client-side from
-  Mermaid; the committed PlantUML diagrams ship as SVGs under `docs/images/`.
+  Mermaid; the committed PlantUML diagrams ship as SVGs under `docs/src/images/`.
 
 ## Where are diagrams and screenshots?
 
-Under `docs/images/`. The repository versions PlantUML sources, rendered SVGs,
-and runtime/editor/client screenshots. The [Gallery](../gallery.md) collects the
-main captures with links to the matching pages.
+Under `docs/src/images/`. The repository versions PlantUML sources, rendered
+SVGs, and runtime/editor/client screenshots in one published asset folder. The
+[Gallery](../gallery.md) collects the main captures with links to the matching
+pages.

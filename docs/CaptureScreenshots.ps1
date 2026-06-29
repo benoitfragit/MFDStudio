@@ -1,7 +1,7 @@
 param(
     [string]$RuntimeDirectory = "",
-    [string]$WindowFile = "assets/windows/demo_pages.json",
-    [string]$OutputDirectory = "docs/images"
+    [string]$WindowFile = "assets/windows/demo_pages_cockpit.json",
+    [string]$OutputDirectory = "docs/src/images"
 )
 
 $ErrorActionPreference = "Stop"
@@ -200,8 +200,10 @@ $clientExe = Join-Path $runtimeDirectory "client_mockup.exe"
 $editorExe = Join-Path $runtimeDirectory "mfd_editor.exe"
 $resolvedWindowFile = (Resolve-Path (Join-Path $repoRoot $WindowFile)).Path
 $resolvedOutputDirectory = Join-Path $repoRoot $OutputDirectory
+$resolvedEditorOutputDirectory = Join-Path $resolvedOutputDirectory "editor"
 
 New-Item -ItemType Directory -Force -Path $resolvedOutputDirectory | Out-Null
+New-Item -ItemType Directory -Force -Path $resolvedEditorOutputDirectory | Out-Null
 
 $screenBounds = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $runtimeProcess = $null
@@ -226,9 +228,9 @@ try
     Start-Sleep -Seconds 2
 
     $captures = @(
-        @{ Process = $runtimeProcess; File = (Join-Path $resolvedOutputDirectory "mfd_window_demo.png") },
+        @{ Process = $runtimeProcess; File = (Join-Path $resolvedOutputDirectory "mfd_window_cockpit_capture.png") },
         @{ Process = $clientProcess; File = (Join-Path $resolvedOutputDirectory "client_mockup_demo.png") },
-        @{ Process = $editorProcess; File = (Join-Path $resolvedOutputDirectory "mfd_editor_home.png") }
+        @{ Process = $editorProcess; File = (Join-Path $resolvedEditorOutputDirectory "editor-startpage.png") }
     )
 
     foreach ($capture in $captures)

@@ -1,5 +1,5 @@
 PROJECT_NAME           = "MFDStudio"
-PROJECT_NUMBER         = "2.4.3"
+PROJECT_NUMBER         = "2.4.4"
 PROJECT_BRIEF          = "C++ API reference for the MFDStudio toolkit"
 OUTPUT_DIRECTORY       = build/docs/doxygen
 OUTPUT_LANGUAGE        = English
@@ -103,7 +103,7 @@ DOT_GRAPH_MAX_NODES    = 80
 MAX_DOT_GRAPH_DEPTH    = 2
 DOT_CLEANUP            = YES
 IMAGE_PATH             = docs \
-                         docs/images
+                         docs/src/images
 PLANTUML_JAR_PATH      =
 PLANTUML_CFG_FILE      = docs/doxygen/plantuml-theme.puml
 PREDEFINED             = MFD_API= \

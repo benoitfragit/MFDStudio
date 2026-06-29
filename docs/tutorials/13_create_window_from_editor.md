@@ -2,10 +2,14 @@
 
 This tutorial shows how to create a brand-new window directly from the editor UI, without starting from an existing preset JSON file.
 
-![Editor screenshot](../images/mfd_editor_capture.png)
+![Editor screenshot](../src/images/editor/editor-showcase.png)
 
-This workspace capture shows the editor with the left navigation tree, the
-central preview, and the right inspector visible at the same time.
+This workspace capture shows the editor in its normal loaded state:
+
+- left sidebar: page tree plus reticle library
+- center preview: the current authored page with editor tools
+- helper panels: layer inspector, minimap, and validation dock
+- right inspector: the editable fields of the selected page or reticle
 
 You will learn how to:
 - launch the integrated guided tutorial from the editor
@@ -52,7 +56,7 @@ The coach is integrated at the top of the page preview as one scrollable panel. 
 3. Use **Open window asset...** if you want to browse to one existing window JSON from the file explorer.
 4. For this tutorial, open the top menu: **File > New window from scratch**.
 
-![Empty editor workspace](../images/mfd_editor_empty_workspace.png)
+![Empty editor workspace](../src/images/editor/editor-startpage.png)
 
 The popup creates an in-memory window draft. Nothing is written on disk until you click **File > Save**.
 
@@ -63,10 +67,14 @@ By default, the editor seeds creation paths from the repository source
 mfd_editor.exe --asset-directory C:\Path\To\assets
 ```
 
-If you need to inspect an existing window before creating a new one, the native
-picker opens directly on the repository window assets:
+If you need to inspect one existing window before creating a new one, loading
+that asset switches the editor from the start screen to the normal authoring
+workspace:
 
-![Open window asset dialog](../images/mfd_editor_open_window_dialog.png)
+![Loaded editor workspace](../src/images/editor/editor-asset-loaded.png)
+
+From there, the native picker still opens directly on the repository window
+assets when you use **File > Open window asset...**.
 
 ## Step 2 - Fill the window fields
 
