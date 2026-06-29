@@ -823,10 +823,11 @@ void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProbl
 
     if (fullscreenPreviewActive)
     {
-        ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Page preview");
-        DisabledTextWrapped("Fullscreen preview keeps the page canvas interactive. Press F11 or Esc to restore the editor layout.");
+        // The fullscreen preview no longer opens with a "Page preview" header banner: it only
+        // restated the F11/Esc shortcut already advertised in the menu and ate vertical space that
+        // fullscreen is meant to reclaim. The tutorial coach still renders inline when a guided
+        // step is active.
         tutorial_->DrawCoach();
-        ImGui::Separator();
 
         DrawPagePreviewWorkspace(
             pagePreviewProblems,
@@ -952,10 +953,10 @@ void EditorApplication::DrawReticleStudioPanel(const float width)
 {
     const float panelWidth = width > 0.0f ? width : std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
     ImGui::BeginChild("ReticleStudioPanel", ImVec2(panelWidth, 0.0f), true);
-    ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "Reticle studio");
-    DisabledTextWrapped("Click a primitive to focus it, drag the handles to edit its geometry, then use Ctrl+C / Ctrl+V to duplicate it.");
+    // The reticle studio no longer opens with a "Reticle studio" header banner: the title and the
+    // primitive-editing hint only consumed vertical space above the canvas. The tutorial coach still
+    // renders inline when a guided step is active.
     tutorial_->DrawCoach();
-    ImGui::Separator();
 
     ViewportState studioViewport;
     studioViewport.origin = ImGui::GetCursorScreenPos();
