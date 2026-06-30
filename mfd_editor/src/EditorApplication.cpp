@@ -1454,6 +1454,10 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     {
         layoutState_.pagePreviewViewOptions.gridStepLogical = *uiState.gridStepLogical;
     }
+    if (uiState.sidebarPagesSplitFraction.has_value())
+    {
+        layoutState_.sidebarPagesSplitFraction = std::clamp(*uiState.sidebarPagesSplitFraction, 0.0f, 1.0f);
+    }
     layoutState_.inspectorSectionOpen = uiState.sectionOpen;
     editor::ui::SetInspectorSectionStateStore(&layoutState_.inspectorSectionOpen);
 
@@ -1481,6 +1485,7 @@ EditorApplication::~EditorApplication()
     uiState.showPageBorder = layoutState_.pagePreviewViewOptions.showPageBorder;
     uiState.snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
     uiState.gridStepLogical = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
+    uiState.sidebarPagesSplitFraction = layoutState_.sidebarPagesSplitFraction;
     uiState.sectionOpen = layoutState_.inspectorSectionOpen;
     editor::SaveEditorUiState(documentState_.assetPaths.DefaultAssetPath(kUiStateFileName), uiState);
 

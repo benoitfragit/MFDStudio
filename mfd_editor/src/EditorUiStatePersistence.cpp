@@ -10,6 +10,7 @@
  * @brief Implementation of the editor workspace layout persistence helpers.
  */
 
+#include <algorithm>
 #include <cmath>
 #include <exception>
 #include <fstream>
@@ -51,6 +52,20 @@ void ReadOptionalFlag(const json& root, const char* key, std::optional<bool>& de
     }
 
     destination = root.at(key).get<bool>();
+}
+
+void ReadOptionalFraction(const json& root, const char* key, std::optional<float>& destination)
+{
+    if (!root.contains(key) || !root.at(key).is_number())
+    {
+        return;
+    }
+
+    const double value = root.at(key).get<double>();
+    if (std::isfinite(value) && value >= 0.0 && value <= 1.0)
+    {
+        destination = static_cast<float>(value);
+    }
 }
 
 void ReadOptionalGridStep(const json& root, const char* key, std::optional<float>& destination)
@@ -103,6 +118,7 @@ EditorUiPersistentState LoadEditorUiState(const std::filesystem::path& file)
         ReadOptionalFlag(root, "showPageBorder", state.showPageBorder);
         ReadOptionalFlag(root, "snapToGrid", state.snapToGrid);
         ReadOptionalGridStep(root, "gridStepLogical", state.gridStepLogical);
+        ReadOptionalFraction(root, "sidebarPagesSplitFraction", state.sidebarPagesSplitFraction);
 
         if (root.contains("sections") && root.at("sections").is_object())
         {
@@ -159,6 +175,10 @@ void SaveEditorUiState(const std::filesystem::path& file, const EditorUiPersiste
         if (state.gridStepLogical.has_value())
         {
             root["gridStepLogical"] = editor::app::SanitizeGridStepLogical(*state.gridStepLogical);
+        }
+        if (state.sidebarPagesSplitFraction.has_value())
+        {
+            root["sidebarPagesSplitFraction"] = std::clamp(*state.sidebarPagesSplitFraction, 0.0f, 1.0f);
         }
 
         json sections = json::object();

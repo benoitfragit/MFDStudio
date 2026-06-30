@@ -45,7 +45,6 @@ constexpr float kMinWorkspaceWidth = 360.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr float kSidebarSectionMinVisibleRows = 3.0f;
-constexpr float kSidebarPagesPreferredVisibleRows = 8.0f;
 
 void DrawRuntimeErrorBanner(const std::string& runtimeError)
 {
@@ -637,27 +636,36 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const int visiblePages = CountVisibleSidebarPages(filter, problems);
     const int visibleReticles = CountVisibleSidebarReticles(filter, problems);
 
-    const ImGuiStyle& style = ImGui::GetStyle();
     const float sidebarBodyHeight = std::max(0.0f, ImGui::GetContentRegionAvail().y);
+    const float sidebarBodyWidth = std::max(0.0f, ImGui::GetContentRegionAvail().x);
     const float sectionRowHeight = ImGui::GetFrameHeightWithSpacing();
     const float sectionChromeHeight =
         ImGui::GetFrameHeightWithSpacing() +
         ImGui::GetFrameHeightWithSpacing() +
-        style.ItemSpacing.y;
+        ImGui::GetStyle().ItemSpacing.y;
     const float minSectionHeight =
         sectionChromeHeight + sectionRowHeight * kSidebarSectionMinVisibleRows;
-    const float pagesPreferredHeight =
-        sectionChromeHeight +
-        sectionRowHeight *
-            std::min(static_cast<float>(std::max(visiblePages, 1)), kSidebarPagesPreferredVisibleRows);
+
+    // The Pages/Reticle split is user-driven: a stored fraction (0.5 = even) drives the preferred
+    // Pages height, and the draggable splitter below feeds the fraction back. The splitter gap is
+    // reserved as the section spacing so both sections plus the handle exactly fill the body.
+    const float splitterThickness = editor::ui::kPaneSplitterWidth;
+    const float distributableHeight = std::max(0.0f, sidebarBodyHeight - splitterThickness);
+    const float pagesFraction = std::clamp(layoutState_.sidebarPagesSplitFraction, 0.0f, 1.0f);
+    const float pagesPreferredHeight = distributableHeight * pagesFraction;
     const editor::app::SidebarSectionLayoutResult sectionLayout =
         editor::app::ComputeSidebarSectionLayout(
-            {sidebarBodyHeight, style.ItemSpacing.y, pagesPreferredHeight, minSectionHeight, minSectionHeight});
+            {sidebarBodyHeight, splitterThickness, pagesPreferredHeight, minSectionHeight, minSectionHeight});
 
     DrawSidebarPagesSection(filter, problems, visiblePages, sectionLayout.pagesHeight);
     if (sectionLayout.sectionSpacing > 0.0f)
     {
-        ImGui::Dummy(ImVec2(0.0f, sectionLayout.sectionSpacing));
+        if (editor::ui::DrawHorizontalSplitter("##SidebarSectionSplitter", sidebarBodyWidth, sectionLayout.sectionSpacing))
+        {
+            layoutState_.sidebarPagesSplitFraction = editor::app::ResolveSidebarPagesFraction(
+                sectionLayout.pagesHeight, ImGui::GetIO().MouseDelta.y, distributableHeight);
+        }
+        ShowItemTooltip("Drag to resize the Pages and Reticle library sections.");
     }
     DrawSidebarReticleSection(filter, problems, visibleReticles, sectionLayout.reticlesHeight);
 }

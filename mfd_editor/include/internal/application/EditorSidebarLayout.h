@@ -49,4 +49,14 @@ struct SidebarSectionLayoutResult
  */
 [[nodiscard]] SidebarSectionLayoutResult ComputeSidebarSectionLayout(
     const SidebarSectionLayoutRequest& request) noexcept;
+
+/**
+ * @brief Translates a section splitter drag into a new Pages fraction of the body height.
+ * @param currentPagesHeight Pages-section height drawn this frame, used as the drag origin.
+ * @param dragDeltaY Vertical mouse delta applied to the splitter this frame.
+ * @param distributableHeight Height shared by both sections, excluding the splitter gap.
+ * @return New Pages fraction clamped to `[0, 1]`, or `0.5` when no height is distributable.
+ */
+[[nodiscard]] float ResolveSidebarPagesFraction(
+    float currentPagesHeight, float dragDeltaY, float distributableHeight) noexcept;
 } // namespace editor::app

@@ -74,4 +74,19 @@ SidebarSectionLayoutResult ComputeSidebarSectionLayout(const SidebarSectionLayou
     result.reticlesHeight = std::max(0.0f, distributableHeight - result.pagesHeight);
     return result;
 }
+
+float ResolveSidebarPagesFraction(
+    const float currentPagesHeight, const float dragDeltaY, const float distributableHeight) noexcept
+{
+    const float safeDistributable = SanitizeNonNegativeDimension(distributableHeight);
+    if (safeDistributable <= 0.0f)
+    {
+        return 0.5f;
+    }
+
+    const float safePagesHeight = SanitizeNonNegativeDimension(currentPagesHeight);
+    const float safeDelta = std::isfinite(dragDeltaY) ? dragDeltaY : 0.0f;
+    const float draggedHeight = safePagesHeight + safeDelta;
+    return std::clamp(draggedHeight / safeDistributable, 0.0f, 1.0f);
+}
 } // namespace editor::app

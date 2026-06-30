@@ -12,6 +12,7 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -101,6 +102,32 @@ bool DrawVerticalSplitter(const char* id, const float height)
                                    : ImVec4(0.16f, 0.28f, 0.34f, 0.75f));
     const float centerX = std::floor((min.x + max.x) * 0.5f) + 0.5f;
     drawList->AddLine(ImVec2(centerX, min.y + 4.0f), ImVec2(centerX, max.y - 4.0f), color, active ? 2.0f : 1.5f);
+
+    return pressed || active;
+}
+
+bool DrawHorizontalSplitter(const char* id, const float width, const float thickness)
+{
+    const bool pressed = ImGui::InvisibleButton(id, ImVec2(width, std::max(1.0f, thickness)));
+    const bool hovered = ImGui::IsItemHovered();
+    const bool active = ImGui::IsItemActive();
+
+    if (hovered || active)
+    {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+    }
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max = ImGui::GetItemRectMax();
+    const ImU32 color =
+        ImGui::GetColorU32(active
+                               ? ImVec4(0.33f, 0.86f, 0.78f, 0.95f)
+                               : hovered
+                                   ? ImVec4(0.24f, 0.72f, 0.83f, 0.70f)
+                                   : ImVec4(0.16f, 0.28f, 0.34f, 0.75f));
+    const float centerY = std::floor((min.y + max.y) * 0.5f) + 0.5f;
+    drawList->AddLine(ImVec2(min.x + 4.0f, centerY), ImVec2(max.x - 4.0f, centerY), color, active ? 2.0f : 1.5f);
 
     return pressed || active;
 }

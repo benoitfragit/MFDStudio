@@ -44,6 +44,15 @@ bool AccentButton(const char* label);
 bool DrawVerticalSplitter(const char* id, float height);
 
 /**
+ * @brief Draws a draggable horizontal splitter handle stacked between two sections.
+ * @param id Stable ImGui id.
+ * @param width Splitter width in pixels.
+ * @param thickness Splitter height in pixels reserved for the grab handle.
+ * @return `true` while the splitter is pressed or active.
+ */
+bool DrawHorizontalSplitter(const char* id, float width, float thickness);
+
+/**
  * @brief Shows a delayed tooltip for the last item when hovered.
  * @param text Tooltip text.
  */

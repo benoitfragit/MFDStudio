@@ -43,6 +43,8 @@ struct EditorUiPersistentState
     std::optional<bool> snapToGrid {};
     /** @brief Persisted shared logical step used by the visible grid and snapping. */
     std::optional<float> gridStepLogical {};
+    /** @brief Persisted fraction (0..1) of the sidebar body given to the Pages section. */
+    std::optional<float> sidebarPagesSplitFraction {};
     /** @brief Persisted open-state map for inspector sections keyed by their stable id. */
     std::map<std::string, bool> sectionOpen {};
 };

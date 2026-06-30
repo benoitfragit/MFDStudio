@@ -436,6 +436,8 @@ struct LayoutState
     /** @brief Last page-preview validation result, stashed so the menu-bar View entry can flag issues. */
     bool pagePreviewHasProblems = false;
     std::array<char, 96> sidebarFilter {};
+    /** @brief User-chosen fraction (0..1) of the sidebar body given to the Pages section; 0.5 = even split. */
+    float sidebarPagesSplitFraction = 0.5f;
     std::map<std::string, bool> inspectorSectionOpen {};
     bool libraryStudioShowPrimitiveLabels = true;
     bool libraryStudioShowGizmos = true;

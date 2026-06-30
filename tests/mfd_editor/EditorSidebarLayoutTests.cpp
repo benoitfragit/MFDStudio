@@ -65,3 +65,22 @@ TEST(EditorSidebarLayoutTests, SanitizesInvalidInputs)
     EXPECT_FLOAT_EQ(layout.sectionSpacing, 0.0f);
     EXPECT_FLOAT_EQ(layout.reticlesHeight, 0.0f);
 }
+
+TEST(EditorSidebarLayoutTests, DragGrowsPagesFractionProportionally)
+{
+    EXPECT_FLOAT_EQ(editor::app::ResolveSidebarPagesFraction(200.0f, 50.0f, 500.0f), 0.5f);
+    EXPECT_FLOAT_EQ(editor::app::ResolveSidebarPagesFraction(200.0f, -50.0f, 500.0f), 0.3f);
+}
+
+TEST(EditorSidebarLayoutTests, ClampsDraggedFractionToUnitRange)
+{
+    EXPECT_FLOAT_EQ(editor::app::ResolveSidebarPagesFraction(480.0f, 200.0f, 500.0f), 1.0f);
+    EXPECT_FLOAT_EQ(editor::app::ResolveSidebarPagesFraction(20.0f, -200.0f, 500.0f), 0.0f);
+}
+
+TEST(EditorSidebarLayoutTests, FallsBackToEvenSplitWhenNoHeightIsDistributable)
+{
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_FLOAT_EQ(editor::app::ResolveSidebarPagesFraction(100.0f, 10.0f, 0.0f), 0.5f);
+    EXPECT_FLOAT_EQ(editor::app::ResolveSidebarPagesFraction(100.0f, nan, 500.0f), 0.2f);
+}
