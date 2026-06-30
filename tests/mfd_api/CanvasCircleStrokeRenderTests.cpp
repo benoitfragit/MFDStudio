@@ -44,6 +44,23 @@ mfd::ReticleGroup MakeCircleReticle(const mfd::LineStyle lineStyle)
     return reticle;
 }
 
+mfd::ReticleGroup MakeDegenerateCircleReticle()
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "degenerate_circle";
+
+    mfd::Primitive primitive;
+    primitive.id = "scope";
+    primitive.type = mfd::PrimitiveType::Circle;
+    primitive.geometry = mfd::CircleGeometry {0.0f};
+    primitive.style.color = Green();
+    primitive.style.thickness = 0.04f;
+    primitive.style.lineStyle = mfd::LineStyle::Solid;
+    primitive.style.filled = false;
+    reticle.primitives.push_back(std::move(primitive));
+    return reticle;
+}
+
 mfd::Rgba32Framebuffer RenderReticle(const mfd::ReticleGroup& reticle)
 {
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
@@ -87,4 +104,11 @@ TEST(CanvasCircleStrokeRenderTests, DashedCircleRendersLessStrokeCoverageThanSol
     EXPECT_GT(solidPixels, 400U);
     EXPECT_GT(dashedPixels, 200U);
     EXPECT_GT(solidPixels, dashedPixels + dashedPixels / 4U);
+}
+
+TEST(CanvasCircleStrokeRenderTests, DegenerateSolidCircleDrawsNothing)
+{
+    const mfd::Rgba32Framebuffer framebuffer = RenderReticle(MakeDegenerateCircleReticle());
+
+    EXPECT_EQ(CountForegroundPixels(framebuffer), 0U);
 }

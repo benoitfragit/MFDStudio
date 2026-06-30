@@ -35,6 +35,7 @@ constexpr float kMinSegmentLength = 0.0001f;
 constexpr float kTargetCirclePixelsPerSegment = 3.0f;
 constexpr int kMaxPrimitiveSegments = 1024;
 constexpr std::size_t kMaxStrokeFragmentsPerSegment = 4096U;
+constexpr float kIsotropicScaleEpsilon = 1.0e-4f;
 
 Color ToRayColor(const ColorRgba& color)
 {
@@ -222,6 +223,39 @@ int EstimateCircleSegmentCount(const float radiusPixels, const int minimum) noex
     const float circumferencePixels = 2.0f * PI * radiusPixels;
     const int estimated = static_cast<int>(std::ceil(circumferencePixels / kTargetCirclePixelsPerSegment));
     return SanitizeSegmentCount(std::max(minimum, estimated), minimum);
+}
+
+// Returns true when a primitive's world scale maps a circle to a true screen-space
+// circle (i.e. both axes scale identically), so the cheap raylib ring fast path is
+// geometrically exact rather than an approximation of a squashed ellipse.
+bool IsIsotropicScale(const Vec2& scale) noexcept
+{
+    const float scaleX = std::abs(scale.x);
+    const float scaleY = std::abs(scale.y);
+    return std::abs(scaleX - scaleY) <= kIsotropicScaleEpsilon * std::max({1.0f, scaleX, scaleY});
+}
+
+// Fast path for a solid, isotropic circle outline: raylib tessellates the ring in a
+// single batched call instead of re-sampling sin/cos and emitting one DrawLineEx per
+// segment from C++ every frame. This is the dominant per-frame cost in Debug builds.
+void DrawCircleOutlineFast(const Vector2 center,
+                           const float radius,
+                           const float thickness,
+                           const Color color) noexcept
+{
+    // A degenerate circle drew nothing on the polyline path because every sampled segment had
+    // zero length and was filtered out. Preserve that: without this guard DrawRing would still
+    // paint a visible dot of outer radius thickness/2.
+    if (radius <= 0.0f)
+    {
+        return;
+    }
+
+    const float halfThickness = thickness * 0.5f;
+    const float innerRadius = std::max(0.0f, radius - halfThickness);
+    const float outerRadius = radius + halfThickness;
+    const int segments = EstimateCircleSegmentCount(radius, 64);
+    DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segments, color);
 }
 
 void DrawPolylineStroke(const ArrayView<const Vector2> points,
@@ -799,6 +833,12 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         if (style.filled)
         {
             DrawCircleV(center, radius, fillColor);
+        }
+
+        if (style.lineStyle == LineStyle::Solid && IsIsotropicScale(combinedTransform.scale))
+        {
+            DrawCircleOutlineFast(center, radius, strokeThickness, strokeColor);
+            break;
         }
 
         const int segmentCount = EstimateCircleSegmentCount(radius, 64);
