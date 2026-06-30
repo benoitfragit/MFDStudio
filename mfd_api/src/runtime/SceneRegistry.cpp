@@ -342,6 +342,27 @@ bool IsInsideCaptureArea(const Vec2& strobePosition,
     return false;
 }
 
+// Returns true when the capture area can still match at least one candidate, matching the exact
+// per-candidate semantics of IsInsideCaptureArea so the early-out never changes behavior.
+//
+// A circle compares distanceSquared <= radius*radius, which still holds at the exact center
+// (0 <= radius*radius) for every radius, including 0 and negatives, so a circle capture is never
+// degenerate. A rectangle compares against half extents and matches a centered candidate only
+// when both extents are non-negative; strictly negative extents can never match and are skipped.
+bool CaptureAreaCanMatch(const StrobeCaptureConfig& capture) noexcept
+{
+    switch (capture.shape)
+    {
+    case StrobeCaptureShape::Circle:
+        return true;
+
+    case StrobeCaptureShape::Rectangle:
+        return capture.size.x >= 0.0f && capture.size.y >= 0.0f;
+    }
+
+    return false;
+}
+
 PrimitiveStyle ResolveStrobeMagnetVisualStyle(const ReticleGroup& reticle) noexcept
 {
     if (reticle.primitives.empty())
@@ -1595,63 +1616,7 @@ std::optional<StrobeMagnetSummary> SceneRegistry::ActiveStrobeMagnetSummary() co
 
 std::optional<StrobeMagnetSummary> SceneRegistry::StrobeMagnetForPageKey(const std::string_view pageName) const
 {
-    if (!IsActivePageKey(pageName))
-    {
-        return std::nullopt;
-    }
-
-    const entt::entity strobeEntity = FindActiveStrobeEntity(pageName);
-    if (strobeEntity == entt::null)
-    {
-        return std::nullopt;
-    }
-
-    const auto* reticle = registry_.try_get<ReticleComponent>(strobeEntity);
-    const auto* behavior = registry_.try_get<StrobeBehaviorComponent>(strobeEntity);
-    const PageComponent* page = FindPage(pageName);
-    if (reticle == nullptr || behavior == nullptr || page == nullptr)
-    {
-        return std::nullopt;
-    }
-
-    StrobeMagnetSummary summary;
-    summary.enabled = behavior->magnet.enabled;
-    summary.radius = behavior->magnet.radius;
-    summary.strength = behavior->magnet.strength;
-
-    const BlinkClock::time_point now = BlinkClock::now();
-
-    if (!page->IsReticleVisibleNow(reticle->group, now) ||
-        !behavior->magnet.enabled || behavior->magnet.radius <= 0.0f)
-    {
-        return summary;
-    }
-
-    if (const ReticleComponent* lockedTarget =
-            FindLockedStrobeMagnetTarget(pageName, behavior->lockedReticleId);
-        lockedTarget != nullptr)
-    {
-        summary.magnetized = true;
-        summary.runtimeReticleId = lockedTarget->runtimeReticleId;
-        summary.reticleId = lockedTarget->group.id;
-        summary.targetPosition = lockedTarget->group.transform.position;
-        summary.distance = 0.0f;
-        return summary;
-    }
-
-    if (const ReticleComponent* nearestTarget =
-            FindNearestStrobeMagnetTarget(pageName, reticle->group.transform.position, behavior->magnet.radius);
-        nearestTarget != nullptr)
-    {
-        summary.magnetized = true;
-        summary.runtimeReticleId = nearestTarget->runtimeReticleId;
-        summary.reticleId = nearestTarget->group.id;
-        summary.targetPosition = nearestTarget->group.transform.position;
-        summary.distance = std::sqrt(
-            DistanceSquared(reticle->group.transform.position, nearestTarget->group.transform.position));
-    }
-
-    return summary;
+    return ScanStrobeByKey(pageName).magnet;
 }
 
 ColorRgba SceneRegistry::ActiveBackgroundColor() const noexcept
@@ -2909,15 +2874,27 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureActivePageStrobe() cons
 
 std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std::string_view pageName) const
 {
+    return ScanStrobeByKey(pageName).capture;
+}
+
+StrobeScanResult SceneRegistry::ScanStrobeForPage(const std::string_view pageName) const
+{
+    return ScanStrobeByKey(NormalizePageName(pageName));
+}
+
+StrobeScanResult SceneRegistry::ScanStrobeByKey(const std::string_view pageName) const
+{
+    StrobeScanResult result;
+
     if (!IsActivePageKey(pageName))
     {
-        return std::nullopt;
+        return result;
     }
 
     const entt::entity strobeEntity = FindActiveStrobeEntity(pageName);
     if (strobeEntity == entt::null)
     {
-        return std::nullopt;
+        return result;
     }
 
     const auto* strobe = registry_.try_get<ReticleComponent>(strobeEntity);
@@ -2925,25 +2902,58 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
     const PageComponent* page = FindPage(pageName);
     if (strobe == nullptr || behavior == nullptr || page == nullptr)
     {
-        return std::nullopt;
+        return result;
     }
+
+    StrobeMagnetSummary magnetSummary;
+    magnetSummary.enabled = behavior->magnet.enabled;
+    magnetSummary.radius = behavior->magnet.radius;
+    magnetSummary.strength = behavior->magnet.strength;
+    result.magnet = magnetSummary;
 
     const BlinkClock::time_point now = BlinkClock::now();
     if (!page->IsReticleVisibleNow(strobe->group, now))
     {
-        return std::nullopt;
+        // A hidden strobe is neither magnetized nor able to capture: leave the magnet summary
+        // in its non-magnetized state and the capture result empty.
+        return result;
     }
 
+    // The locked magnet target, when still valid, both freezes magnetization and shifts the
+    // capture reference position. Resolve it once and share it across magnet and capture.
+    const ReticleComponent* lockedTarget = FindLockedStrobeMagnetTarget(pageName, behavior->lockedReticleId);
+
     Vec2 strobePosition = strobe->group.transform.position;
-    if (const ReticleComponent* lockedTarget =
-            FindLockedStrobeMagnetTarget(pageName, behavior->lockedReticleId);
-        lockedTarget != nullptr)
+    if (lockedTarget != nullptr)
     {
         strobePosition = lockedTarget->group.transform.position;
     }
 
-    std::optional<StrobeCaptureResult> bestCapture;
-    float bestDistanceSquared = std::numeric_limits<float>::max();
+    const bool magnetActive = behavior->magnet.enabled && behavior->magnet.radius > 0.0f;
+    if (magnetActive && lockedTarget != nullptr)
+    {
+        result.magnet->magnetized = true;
+        result.magnet->runtimeReticleId = lockedTarget->runtimeReticleId;
+        result.magnet->reticleId = lockedTarget->group.id;
+        result.magnet->targetPosition = lockedTarget->group.transform.position;
+        result.magnet->distance = 0.0f;
+    }
+
+    // Real early-out: skip the O(N) dynamic-reticle pass when neither a magnet search (only
+    // needed when magnetization is active and no target is locked yet) nor a capture test can
+    // ever match. A locked strobe still scans for capture because the lock only fixes the
+    // magnet target, not the capture outcome.
+    const bool runMagnetScan = magnetActive && lockedTarget == nullptr;
+    const bool runCaptureScan = CaptureAreaCanMatch(behavior->capture);
+    if (!runMagnetScan && !runCaptureScan)
+    {
+        return result;
+    }
+
+    const float magnetRadiusSquared = behavior->magnet.radius * behavior->magnet.radius;
+    float bestMagnetDistanceSquared = magnetRadiusSquared;
+    const ReticleComponent* bestMagnetTarget = nullptr;
+    float bestCaptureDistanceSquared = std::numeric_limits<float>::max();
 
     auto dynamicView = registry_.view<ReticleComponent, PageMembership, DynamicTag>();
     for (const entt::entity entity : dynamicView)
@@ -2963,34 +2973,49 @@ std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobeKey(const std
         }
 
         const Vec2 candidatePosition = reticle.transform.position;
-        if (!IsInsideCaptureArea(strobePosition, candidatePosition, behavior->capture))
-        {
-            continue;
-        }
-
         const float distanceSquared = DistanceSquared(strobePosition, candidatePosition);
-        if (distanceSquared >= bestDistanceSquared)
+
+        if (runCaptureScan &&
+            distanceSquared < bestCaptureDistanceSquared &&
+            IsInsideCaptureArea(strobePosition, candidatePosition, behavior->capture))
         {
-            continue;
+            bestCaptureDistanceSquared = distanceSquared;
+            result.capture = StrobeCaptureResult {
+                page->name,
+                page->transportId,
+                strobe->group.id,
+                reticleComponent.runtimeReticleId,
+                reticle.id,
+                reticleComponent.sourceTemplateTransportId,
+                reticle.sourceTemplateId,
+                reticle.info.label,
+                reticle.info.category,
+                candidatePosition,
+                std::sqrt(distanceSquared),
+                reticle.info.metadata};
         }
 
-        bestDistanceSquared = distanceSquared;
-        bestCapture = StrobeCaptureResult {
-            page->name,
-            page->transportId,
-            strobe->group.id,
-            reticleComponent.runtimeReticleId,
-            reticle.id,
-            reticleComponent.sourceTemplateTransportId,
-            reticle.sourceTemplateId,
-            reticle.info.label,
-            reticle.info.category,
-            candidatePosition,
-            std::sqrt(distanceSquared),
-            reticle.info.metadata};
+        if (runMagnetScan &&
+            std::isfinite(distanceSquared) &&
+            distanceSquared <= magnetRadiusSquared &&
+            distanceSquared < bestMagnetDistanceSquared &&
+            IsDynamicTemplateStrobeMagnetEnabled(pageName, reticle.sourceTemplateId))
+        {
+            bestMagnetDistanceSquared = distanceSquared;
+            bestMagnetTarget = &reticleComponent;
+        }
     }
 
-    return bestCapture;
+    if (bestMagnetTarget != nullptr)
+    {
+        result.magnet->magnetized = true;
+        result.magnet->runtimeReticleId = bestMagnetTarget->runtimeReticleId;
+        result.magnet->reticleId = bestMagnetTarget->group.id;
+        result.magnet->targetPosition = bestMagnetTarget->group.transform.position;
+        result.magnet->distance = std::sqrt(bestMagnetDistanceSquared);
+    }
+
+    return result;
 }
 
 void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, ReticleGroup reticle)

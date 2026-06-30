@@ -382,11 +382,13 @@ public:
         feedback.active = strobe->visible;
         feedback.position = strobe->position;
         feedback.capture = strobe->capture;
-        feedback.magnet = ToFeedbackMagnet(scene_.StrobeMagnetForPage(pageName));
 
-        if (const auto capture = scene_.CaptureWithStrobe(pageName); capture.has_value())
+        // Resolve magnetization and capture in a single dynamic-reticle pass instead of two.
+        const StrobeScanResult scan = scene_.ScanStrobeForPage(pageName);
+        feedback.magnet = ToFeedbackMagnet(scan.magnet);
+        if (scan.capture.has_value())
         {
-            feedback.captureResult = ToFeedbackCapture(*capture);
+            feedback.captureResult = ToFeedbackCapture(*scan.capture);
         }
 
         return feedback;

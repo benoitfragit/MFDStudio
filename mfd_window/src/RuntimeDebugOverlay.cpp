@@ -1220,8 +1220,9 @@ void RuntimeDebugOverlay::Draw(const SceneRegistry& liveScene,
         {
             const std::optional<StrobeSummary> liveStrobe = liveScene.StrobeForPage(strobePageName);
             const std::optional<StrobeSummary> previewStrobe = displayScene.StrobeForPage(strobePageName);
-            const std::optional<StrobeMagnetSummary> previewMagnet = displayScene.StrobeMagnetForPage(strobePageName);
-            const std::optional<StrobeCaptureResult> previewCapture = displayScene.CaptureWithStrobe(strobePageName);
+            const StrobeScanResult previewScan = displayScene.ScanStrobeForPage(strobePageName);
+            const std::optional<StrobeMagnetSummary>& previewMagnet = previewScan.magnet;
+            const std::optional<StrobeCaptureResult>& previewCapture = previewScan.capture;
             const PageStrobeDefinition* authoredActiveStrobe = FindActivePageStrobeDefinition(*strobePageDefinition);
 
             std::string previewStrobeName;

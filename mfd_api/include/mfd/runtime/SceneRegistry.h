@@ -129,6 +129,21 @@ struct StrobeCaptureResult
 };
 
 /**
+ * @brief Combined strobe magnet and capture state resolved in a single dynamic-reticle pass.
+ *
+ * The runtime feedback path needs both the magnetization summary and the capture result every
+ * frame the strobe is published. Computing them together avoids scanning the dynamic reticle set
+ * twice per frame.
+ */
+struct StrobeScanResult
+{
+    /** @brief Magnetization summary, present whenever the active page owns a strobe. */
+    std::optional<StrobeMagnetSummary> magnet;
+    /** @brief Capture result, present only when the strobe captured a dynamic reticle. */
+    std::optional<StrobeCaptureResult> capture;
+};
+
+/**
  * @brief Whole-window display properties applied after page rendering.
  */
 struct WindowDisplayState
@@ -343,6 +358,8 @@ public:
     std::optional<StrobeCaptureResult> CaptureWithStrobe(std::string_view pageName) const;
     /** @brief Attempts to capture a dynamic reticle with the active page strobe. */
     std::optional<StrobeCaptureResult> CaptureActivePageStrobe() const;
+    /** @brief Resolves the strobe magnet and capture state of a page in a single dynamic-reticle pass. */
+    StrobeScanResult ScanStrobeForPage(std::string_view pageName) const;
 
     /** @brief Creates or updates a dynamic reticle on a page. */
     void UpsertDynamicReticle(std::string_view pageName, ReticleGroup reticle);
@@ -493,6 +510,8 @@ private:
     std::optional<StrobeMagnetSummary> StrobeMagnetForPageKey(std::string_view pageName) const;
     /** @brief Attempts one strobe capture using a normalized page key. */
     std::optional<StrobeCaptureResult> CaptureWithStrobeKey(std::string_view pageName) const;
+    /** @brief Resolves magnet and capture state for a normalized page key in one dynamic-reticle pass. */
+    StrobeScanResult ScanStrobeByKey(std::string_view pageName) const;
     /** @brief Returns the currently locked magnet target of one strobe when it is still valid. */
     const ReticleComponent* FindLockedStrobeMagnetTarget(std::string_view normalizedPageName,
                                                          std::string_view reticleId) const noexcept;

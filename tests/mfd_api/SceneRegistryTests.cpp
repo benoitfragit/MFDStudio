@@ -1214,6 +1214,122 @@ TEST(SceneRegistryTests, StrobeCaptureIgnoresDynamicSetMagnetEligibility)
     EXPECT_EQ(capture->reticleId, "track_alpha");
 }
 
+TEST(SceneRegistryTests, ScanStrobeForPageCapturesReticleExactlyAtCenterWithZeroCaptureRadius)
+{
+    mfd::PageDefinition page = MakeRuntimePage();
+    mfd::PageStrobeDefinition* strobe = mfd::FindActivePageStrobeDefinition(page);
+    ASSERT_NE(strobe, nullptr);
+    strobe->capture.shape = mfd::StrobeCaptureShape::Circle;
+    strobe->capture.radius = 0.0f;
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
+    track.sourceTemplateId = "track_template";
+    track.transform.position = {0.1f, -0.05f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.1f, -0.05f}));
+
+    const mfd::StrobeScanResult scan = registry.ScanStrobeForPage("Radar");
+    ASSERT_TRUE(scan.capture.has_value());
+    EXPECT_EQ(scan.capture->reticleId, "track_alpha");
+    EXPECT_FLOAT_EQ(scan.capture->distance, 0.0f);
+}
+
+TEST(SceneRegistryTests, ScanStrobeForPageDoesNotCaptureReticleOutsideCaptureArea)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
+    track.sourceTemplateId = "track_template";
+    track.transform.position = {0.6f, 0.6f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.0f, 0.0f}));
+
+    const mfd::StrobeScanResult scan = registry.ScanStrobeForPage("Radar");
+    EXPECT_FALSE(scan.capture.has_value());
+    ASSERT_TRUE(scan.magnet.has_value());
+    EXPECT_FALSE(scan.magnet->magnetized);
+}
+
+TEST(SceneRegistryTests, ScanStrobeForPageIgnoresInvisibleReticle)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
+    track.sourceTemplateId = "track_template";
+    track.transform.position = {0.1f, 0.0f};
+    track.visible = false;
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "track_template", true));
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.1f, 0.0f}));
+
+    const mfd::StrobeScanResult scan = registry.ScanStrobeForPage("Radar");
+    EXPECT_FALSE(scan.capture.has_value());
+    ASSERT_TRUE(scan.magnet.has_value());
+    EXPECT_FALSE(scan.magnet->magnetized);
+}
+
+TEST(SceneRegistryTests, ScanStrobeForPageReportsMagnetEnabledButNotMagnetizedWhenTemplateNotEligible)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
+    track.sourceTemplateId = "track_template";
+    track.transform.position = {0.1f, 0.0f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    // Magnet is enabled on the strobe but the dynamic template is not magnet-eligible.
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.02f}));
+
+    const mfd::StrobeScanResult scan = registry.ScanStrobeForPage("Radar");
+    ASSERT_TRUE(scan.magnet.has_value());
+    EXPECT_TRUE(scan.magnet->enabled);
+    EXPECT_FALSE(scan.magnet->magnetized);
+    EXPECT_TRUE(scan.magnet->reticleId.empty());
+    ASSERT_TRUE(scan.capture.has_value());
+    EXPECT_EQ(scan.capture->reticleId, "track_alpha");
+}
+
+TEST(SceneRegistryTests, ScanStrobeForPageReportsLockedMagnetTarget)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    mfd::ReticleGroup track = MakeDynamicTextReticle("track_alpha", "track_template");
+    track.sourceTemplateId = "track_template";
+    track.transform.position = {0.1f, 0.0f};
+    registry.UpsertDynamicReticle("Radar", std::move(track));
+
+    ASSERT_TRUE(registry.SetDynamicReticleSetStrobeMagnetEnabled("Radar", "track_template", true));
+    ASSERT_TRUE(registry.SetStrobePosition("Radar", {0.08f, 0.02f}));
+
+    const mfd::StrobeScanResult scan = registry.ScanStrobeForPage("Radar");
+    ASSERT_TRUE(scan.magnet.has_value());
+    EXPECT_TRUE(scan.magnet->magnetized);
+    EXPECT_EQ(scan.magnet->reticleId, "track_alpha");
+    EXPECT_FLOAT_EQ(scan.magnet->distance, 0.0f);
+    EXPECT_FLOAT_EQ(scan.magnet->targetPosition.x, 0.1f);
+    EXPECT_FLOAT_EQ(scan.magnet->targetPosition.y, 0.0f);
+}
+
 TEST(SceneRegistryTests, DisablingDynamicSetMagnetStopsStickyFollow)
 {
     mfd::MfdDocument document;
