@@ -2862,6 +2862,65 @@ bool SceneRegistry::OffsetStrobe(const std::string_view pageName, const Vec2 del
     return false;
 }
 
+bool SceneRegistry::ApplyStrobeUpdate(const std::string_view pageName,
+                                      const std::string_view strobeName,
+                                      const std::optional<bool> active,
+                                      const std::optional<Vec2> position) noexcept
+{
+    const std::string normalizedPageName = NormalizePageName(pageName);
+    const PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr || !page->hasStrobe)
+    {
+        return false;
+    }
+
+    // Validation phase: prove every requested change will succeed before mutating anything.
+    // The strobe that activation/position act on is the selected variant when one is named,
+    // otherwise the currently active strobe.
+    entt::entity targetStrobe = entt::null;
+    if (!strobeName.empty())
+    {
+        targetStrobe = FindStrobeEntity(normalizedPageName, NormalizePageName(strobeName));
+        if (targetStrobe == entt::null || !registry_.all_of<StrobeBehaviorComponent>(targetStrobe))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        targetStrobe = FindActiveStrobeEntity(normalizedPageName);
+    }
+
+    if (position.has_value() && !IsValidVec2(*position))
+    {
+        return false;
+    }
+
+    if ((active.has_value() || position.has_value()) &&
+        (targetStrobe == entt::null || !registry_.all_of<ReticleComponent>(targetStrobe)))
+    {
+        return false;
+    }
+
+    // Mutation phase: preconditions hold, so none of these can fail and leave a partial state.
+    if (!strobeName.empty() && !SelectStrobe(normalizedPageName, strobeName))
+    {
+        return false;
+    }
+
+    if (active.has_value() && !SetStrobeActive(normalizedPageName, *active))
+    {
+        return false;
+    }
+
+    if (position.has_value() && !SetStrobePosition(normalizedPageName, *position))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 std::optional<StrobeCaptureResult> SceneRegistry::CaptureWithStrobe(const std::string_view pageName) const
 {
     return CaptureWithStrobeKey(NormalizePageName(pageName));

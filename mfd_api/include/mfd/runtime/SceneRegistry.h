@@ -354,6 +354,23 @@ public:
     bool SetStrobePosition(std::string_view pageName, Vec2 position) noexcept;
     /** @brief Offsets the strobe position by a delta. */
     bool OffsetStrobe(std::string_view pageName, Vec2 delta) noexcept;
+    /**
+     * @brief Applies an optional strobe selection, activation and position change atomically.
+     *
+     * Every precondition is validated before any mutation, so the call either applies all the
+     * requested changes or leaves the scene untouched. This removes the need for a whole-scene
+     * snapshot and rollback on the hot strobe-movement path.
+     *
+     * @param pageName Target page; must currently own a strobe.
+     * @param strobeName Optional strobe variant to select first; empty keeps the active variant.
+     * @param active Optional new visibility for the resulting active strobe.
+     * @param position Optional new position; must be finite.
+     * @return `true` when every requested change applied, `false` when nothing was changed.
+     */
+    bool ApplyStrobeUpdate(std::string_view pageName,
+                           std::string_view strobeName,
+                           std::optional<bool> active,
+                           std::optional<Vec2> position) noexcept;
     /** @brief Attempts to capture a dynamic reticle with a page strobe when that page is currently active. */
     std::optional<StrobeCaptureResult> CaptureWithStrobe(std::string_view pageName) const;
     /** @brief Attempts to capture a dynamic reticle with the active page strobe. */
