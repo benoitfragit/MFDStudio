@@ -1038,6 +1038,10 @@ struct SceneRegistry::ReticleComponent
     // the only runtime mutation of layerId is in UpsertDynamicReticle, which already recomputes
     // this alongside drawOrder.
     std::size_t cachedLayerOrder = 0;
+    // Normalized once at creation/update time; source of truth to avoid
+    // NormalizePageName(sourceTemplateId) per reticle per frame in the render/strobe-scan path.
+    // sourceTemplateId itself is only mutated inside UpsertDynamicReticle.
+    std::string normalizedSourceTemplateId;
 };
 
 struct SceneRegistry::DynamicTag
@@ -1196,6 +1200,7 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
                                             page.staticReticles[index],
                                             index)};
             component.cachedLayerOrder = component.drawOrder.layerOrder;
+            component.normalizedSourceTemplateId = NormalizePageName(component.group.sourceTemplateId);
             registry_.emplace<ReticleComponent>(reticleEntity, std::move(component));
             registry_.emplace<PageMembership>(reticleEntity, PageMembership {page.normalizedName});
             registry_.emplace<StaticTag>(reticleEntity);
@@ -1208,6 +1213,7 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
             const entt::entity strobeEntity = registry_.create();
             ReticleComponent component {strobeDefinition.reticle, MakeStrobeDrawOrderKey()};
             component.cachedLayerOrder = storedPageComponent.ResolveLayerOrder(component.group.layerId);
+            component.normalizedSourceTemplateId = NormalizePageName(component.group.sourceTemplateId);
             registry_.emplace<ReticleComponent>(strobeEntity, std::move(component));
             registry_.emplace<PageMembership>(strobeEntity, PageMembership {page.normalizedName});
             StrobeBehaviorComponent behavior;
@@ -1965,7 +1971,7 @@ void SceneRegistry::CollectPageReticleViewsByKey(const std::string_view pageName
         bool visible = page->IsReticleVisibleNow(reticle->group, now);
         if (visible && registry_.all_of<DynamicTag>(entity))
         {
-            visible = IsDynamicTemplateVisible(pageName, reticle->group.sourceTemplateId);
+            visible = IsDynamicTemplateVisibleByNormalizedId(pageName, reticle->normalizedSourceTemplateId);
         }
 
         destination.push_back(ReticleRenderView {
@@ -3033,7 +3039,7 @@ StrobeScanResult SceneRegistry::ScanStrobeByKey(const std::string_view pageName)
         const auto& reticleComponent = dynamicView.get<ReticleComponent>(entity);
         const auto& reticle = reticleComponent.group;
         if (!page->IsReticleVisibleNow(reticle, now) ||
-            !IsDynamicTemplateVisible(pageName, reticle.sourceTemplateId))
+            !IsDynamicTemplateVisibleByNormalizedId(pageName, reticleComponent.normalizedSourceTemplateId))
         {
             continue;
         }
@@ -3065,7 +3071,7 @@ StrobeScanResult SceneRegistry::ScanStrobeByKey(const std::string_view pageName)
             std::isfinite(distanceSquared) &&
             distanceSquared <= magnetRadiusSquared &&
             distanceSquared < bestMagnetDistanceSquared &&
-            IsDynamicTemplateStrobeMagnetEnabled(pageName, reticle.sourceTemplateId))
+            IsDynamicTemplateStrobeMagnetEnabledByNormalizedId(pageName, reticleComponent.normalizedSourceTemplateId))
         {
             bestMagnetDistanceSquared = distanceSquared;
             bestMagnetTarget = &reticleComponent;
@@ -3111,6 +3117,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
             {
                 component->drawOrder = page->BuildDynamicReticleDrawOrderKey(reticle, component->dynamicCreationSequence);
                 component->cachedLayerOrder = component->drawOrder.layerOrder;
+                component->normalizedSourceTemplateId = NormalizePageName(reticle.sourceTemplateId);
                 component->group = std::move(reticle);
                 RemoveReticleFromPageDrawList(normalizedPageName, existingEntity);
                 InsertReticleIntoPageDrawList(normalizedPageName, existingEntity);
@@ -3123,8 +3130,10 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
     const entt::entity entity = registry_.create();
     const std::uint64_t creationSequence = nextDynamicCreationSequence_++;
     const ReticleDrawOrderKey drawOrder = page->BuildDynamicReticleDrawOrderKey(reticle, creationSequence);
+    std::string normalizedSourceTemplateId = NormalizePageName(reticle.sourceTemplateId);
     ReticleComponent component {std::move(reticle), drawOrder, 0, 0, creationSequence};
     component.cachedLayerOrder = drawOrder.layerOrder;
+    component.normalizedSourceTemplateId = std::move(normalizedSourceTemplateId);
     registry_.emplace<ReticleComponent>(entity, std::move(component));
     registry_.emplace<PageMembership>(entity, PageMembership {normalizedPageName});
     registry_.emplace<DynamicTag>(entity);
@@ -3329,7 +3338,12 @@ std::string SceneRegistry::MakeDynamicTemplateLookupKey(const std::string_view n
 bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPageName,
                                              const std::string_view templateId) const noexcept
 {
-    const std::string normalizedTemplateId = NormalizePageName(templateId);
+    return IsDynamicTemplateVisibleByNormalizedId(normalizedPageName, NormalizePageName(templateId));
+}
+
+bool SceneRegistry::IsDynamicTemplateVisibleByNormalizedId(const std::string_view normalizedPageName,
+                                                           const std::string_view normalizedTemplateId) const noexcept
+{
     if (normalizedTemplateId.empty())
     {
         return true;
@@ -3348,7 +3362,12 @@ bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPa
 bool SceneRegistry::IsDynamicTemplateStrobeMagnetEnabled(const std::string_view normalizedPageName,
                                                          const std::string_view templateId) const noexcept
 {
-    const std::string normalizedTemplateId = NormalizePageName(templateId);
+    return IsDynamicTemplateStrobeMagnetEnabledByNormalizedId(normalizedPageName, NormalizePageName(templateId));
+}
+
+bool SceneRegistry::IsDynamicTemplateStrobeMagnetEnabledByNormalizedId(
+    const std::string_view normalizedPageName, const std::string_view normalizedTemplateId) const noexcept
+{
     if (normalizedTemplateId.empty())
     {
         return false;
