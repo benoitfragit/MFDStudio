@@ -132,6 +132,19 @@ mfd::ReticleGroup MakeDynamicTextReticle(const std::string_view id,
     return reticle;
 }
 
+const mfd::ReticleRenderView* FindViewById(const std::vector<mfd::ReticleRenderView>& views,
+                                           const std::string_view id)
+{
+    for (const auto& view : views)
+    {
+        if (view.group != nullptr && view.group->id == id)
+        {
+            return &view;
+        }
+    }
+    return nullptr;
+}
+
 mfd::PageDefinition MakeBlinkPage()
 {
     mfd::PageDefinition page;
@@ -393,6 +406,39 @@ TEST(SceneRegistryTests, CollectPageReticleViewsCarryLayerOrderAndPreserveClipEr
     EXPECT_EQ(views[1].group->id, "symbol");
     EXPECT_EQ(views[1].layerOrder, 1U);
     EXPECT_TRUE(views[1].group->clipping.eraseLayerOnly);
+}
+
+TEST(SceneRegistryTests, CollectPageReticleViewsCarryLayerOrderForDynamicReticlesAndRecomputeOnUpdate)
+{
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.normalizedName = "radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"background"});
+    page.layers.push_back(mfd::PageLayerDefinition {"overlay"});
+    page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"track_template", "background", 0});
+    page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"marker_template", "overlay", 0});
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    registry.UpsertDynamicReticle("Radar", MakeDynamicTextReticle("blip", "track_template"));
+    const std::vector<mfd::ReticleRenderView> viewsAfterCreate = registry.CollectPageReticleViews("Radar");
+    const mfd::ReticleRenderView* createdView = FindViewById(viewsAfterCreate, "blip");
+    ASSERT_NE(createdView, nullptr);
+    // Bound to the "background" layer (index 0) via the dynamic-reticle binding.
+    EXPECT_EQ(createdView->layerOrder, 0U);
+
+    // Re-upserting the same reticle id under a template bound to a different layer must
+    // recompute the cached layer order, not keep the stale value from creation.
+    registry.UpsertDynamicReticle("Radar", MakeDynamicTextReticle("blip", "marker_template"));
+    const std::vector<mfd::ReticleRenderView> viewsAfterUpdate = registry.CollectPageReticleViews("Radar");
+    const mfd::ReticleRenderView* updatedView = FindViewById(viewsAfterUpdate, "blip");
+    ASSERT_NE(updatedView, nullptr);
+    // Now bound to the "overlay" layer (index 1).
+    EXPECT_EQ(updatedView->layerOrder, 1U);
 }
 
 TEST(SceneRegistryTests, ActivatesMarkedDefaultPageWhenPresent)

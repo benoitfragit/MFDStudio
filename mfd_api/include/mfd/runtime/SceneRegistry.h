@@ -584,6 +584,14 @@ private:
     /** @brief Returns whether one dynamic template set is currently eligible for strobe magnetization on one page. */
     bool IsDynamicTemplateStrobeMagnetEnabled(std::string_view normalizedPageName,
                                               std::string_view templateId) const noexcept;
+    /** @brief Same as IsDynamicTemplateVisible, but takes an already-normalized template id to
+     *  avoid renormalizing it per reticle on the render/strobe-scan hot path. */
+    bool IsDynamicTemplateVisibleByNormalizedId(std::string_view normalizedPageName,
+                                                std::string_view normalizedTemplateId) const noexcept;
+    /** @brief Same as IsDynamicTemplateStrobeMagnetEnabled, but takes an already-normalized
+     *  template id to avoid renormalizing it per reticle on the strobe-scan hot path. */
+    bool IsDynamicTemplateStrobeMagnetEnabledByNormalizedId(std::string_view normalizedPageName,
+                                                            std::string_view normalizedTemplateId) const noexcept;
     /** @brief Returns the dynamic reticle binding configured for one page/template pair, when it exists. */
     const DynamicReticleLayerBinding* FindDynamicReticleLayerBinding(std::string_view normalizedPageName,
                                                                      std::string_view templateId) const noexcept;

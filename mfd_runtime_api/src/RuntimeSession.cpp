@@ -471,7 +471,10 @@ public:
             sentHeartbeat = true;
         }
 
-        if (scene_.ActivePageHasStrobe())
+        // BuildStrobeFeedback() scans the scene's dynamic reticles; skip it entirely when
+        // neither a changed nor a heartbeat feedback could be sent this frame anyway.
+        const bool feedbackDue = changedDue || heartbeatDue;
+        if (scene_.ActivePageHasStrobe() && feedbackDue)
         {
             std::optional<StrobeStatusFeedback> feedback = BuildStrobeFeedback(activePageName);
             if (feedback.has_value())
