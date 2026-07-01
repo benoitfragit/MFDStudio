@@ -1550,6 +1550,21 @@ private:
             KEY_EIGHT,
             KEY_NINE};
 
+        bool anyPageKeyPressed = false;
+        for (const int key : keyBindings)
+        {
+            if (IsKeyPressed(key))
+            {
+                anyPageKeyPressed = true;
+                break;
+            }
+        }
+
+        if (!anyPageKeyPressed)
+        {
+            return;
+        }
+
         const auto pages = runtimeSession_.Pages();
         for (std::size_t index = 0; index < pages.size() && index < keyBindings.size(); ++index)
         {
