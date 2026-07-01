@@ -216,6 +216,29 @@ TEST(CanvasTextRenderTests, TextAndTimePrimitivesStillRenderVisiblePixels)
     EXPECT_GE(stats.staticHits, 1U);
 }
 
+TEST(CanvasTextRenderTests, TextAndTimePrimitivesRenderWithoutInjectedTextLayoutCache)
+{
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(kRenderSize, kRenderSize, "mfd_canvas_text_no_cache_tests");
+    ASSERT_TRUE(IsWindowReady());
+
+    const mfd::ReticleGroup reticle = MakeTextAndTimeReticle();
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+    mfd::Canvas2D canvas(kRenderSize, kRenderSize, {}, nullptr, BLACK, false, nullptr, nullptr, nullptr);
+    canvas.DrawReticle(reticle);
+    const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
+    EndDrawing();
+
+    CloseWindow();
+
+    const std::size_t topPixels = CountForegroundPixels(framebuffer, 20, 18, 108, 58);
+    const std::size_t bottomPixels = CountForegroundPixels(framebuffer, 20, 70, 108, 110);
+    EXPECT_GT(topPixels, 12U);
+    EXPECT_GT(bottomPixels, 12U);
+}
+
 TEST(CanvasTextRenderTests, SmallTextSubPixelTranslationKeepsRasterStable)
 {
     SetConfigFlags(FLAG_WINDOW_HIDDEN);

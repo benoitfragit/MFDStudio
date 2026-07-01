@@ -417,6 +417,43 @@ void DrawAlignedText(const std::string& text,
                 letterSpacing,
                 color);
 }
+
+void DrawStaticTextLayout(TextLayoutCache& layoutCache,
+                          const std::string& text,
+                          const Font& font,
+                          const float fontSize,
+                          const float letterSpacing,
+                          const Align align,
+                          const Vector2 screenPosition,
+                          const float rotationDegrees,
+                          const Color color)
+{
+    const CachedTextLayout& layout = layoutCache.ResolveStaticText(text, font, fontSize, letterSpacing, align);
+    if (!IsFiniteVector(layout.size) || !IsFiniteVector(layout.origin))
+    {
+        return;
+    }
+
+    DrawAlignedText(layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
+}
+
+void DrawTimeTextLayout(TextLayoutCache& layoutCache,
+                        const TimeGeometry& time,
+                        const Font& font,
+                        const float fontSize,
+                        const float letterSpacing,
+                        const Vector2 screenPosition,
+                        const float rotationDegrees,
+                        const Color color)
+{
+    const CachedTextLayout& layout = layoutCache.ResolveTimeText(time, font, fontSize, letterSpacing);
+    if (!IsFiniteVector(layout.size) || !IsFiniteVector(layout.origin))
+    {
+        return;
+    }
+
+    DrawAlignedText(layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
+}
 } // namespace
 
 Canvas2D::Canvas2D(const int width,
@@ -741,23 +778,17 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        TextLayoutCache localTextLayoutCache;
-        TextLayoutCache& layoutCache = textLayoutCache_ != nullptr ? *textLayoutCache_ : localTextLayoutCache;
-        const CachedTextLayout& layout = layoutCache.ResolveStaticText(text->text, font, fontSize, letterSpacing, text->align);
-
-        if (!IsFiniteVector(layout.size) || !IsFiniteVector(layout.origin))
+        if (textLayoutCache_ != nullptr)
         {
-            break;
+            DrawStaticTextLayout(*textLayoutCache_, text->text, font, fontSize, letterSpacing, text->align,
+                                screenPosition, -combinedTransform.rotationDegrees, strokeColor);
         }
-
-        DrawAlignedText(layout.text,
-                        font,
-                        fontSize,
-                        letterSpacing,
-                        screenPosition,
-                        layout.origin,
-                        -combinedTransform.rotationDegrees,
-                        strokeColor);
+        else
+        {
+            TextLayoutCache localTextLayoutCache;
+            DrawStaticTextLayout(localTextLayoutCache, text->text, font, fontSize, letterSpacing, text->align,
+                                screenPosition, -combinedTransform.rotationDegrees, strokeColor);
+        }
         break;
     }
     case PrimitiveType::Time:
@@ -781,23 +812,17 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        TextLayoutCache localTextLayoutCache;
-        TextLayoutCache& layoutCache = textLayoutCache_ != nullptr ? *textLayoutCache_ : localTextLayoutCache;
-        const CachedTextLayout& layout = layoutCache.ResolveTimeText(*time, font, fontSize, letterSpacing);
-
-        if (!IsFiniteVector(layout.size) || !IsFiniteVector(layout.origin))
+        if (textLayoutCache_ != nullptr)
         {
-            break;
+            DrawTimeTextLayout(*textLayoutCache_, *time, font, fontSize, letterSpacing,
+                              screenPosition, -combinedTransform.rotationDegrees, strokeColor);
         }
-
-        DrawAlignedText(layout.text,
-                        font,
-                        fontSize,
-                        letterSpacing,
-                        screenPosition,
-                        layout.origin,
-                        -combinedTransform.rotationDegrees,
-                        strokeColor);
+        else
+        {
+            TextLayoutCache localTextLayoutCache;
+            DrawTimeTextLayout(localTextLayoutCache, *time, font, fontSize, letterSpacing,
+                              screenPosition, -combinedTransform.rotationDegrees, strokeColor);
+        }
         break;
     }
     case PrimitiveType::Line:
