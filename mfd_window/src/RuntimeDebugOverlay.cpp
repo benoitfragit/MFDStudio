@@ -765,6 +765,11 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
                                       const std::string_view feedbackStatus,
                                       const std::vector<CommandBatch>& drainedBatches)
 {
+    if (!state_.Active())
+    {
+        return;
+    }
+
     std::size_t commandCount = 0;
     for (const CommandBatch& batch : drainedBatches)
     {
@@ -788,11 +793,6 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
 
     state_.NoteCommandTraffic(drainedBatches.size(), commandCount);
     RecordObservedRuntimeState(liveScene, drainedBatches);
-
-    if (!state_.Active())
-    {
-        return;
-    }
 
     if (!state_.HasInteractiveOverrides())
     {

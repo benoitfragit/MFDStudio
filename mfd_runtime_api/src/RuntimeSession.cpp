@@ -271,7 +271,10 @@ public:
                     if (batchApplied)
                     {
                         appliedCommands += batchCommandCount;
-                        appliedCommandBatches_.push_back(batch);
+                        if (debugTelemetryEnabled_)
+                        {
+                            appliedCommandBatches_.push_back(batch);
+                        }
                     }
                     else
                     {
@@ -447,6 +450,15 @@ public:
     {
         commandTransactionMode_ = mode;
         commandProcessor_.SetBatchTransactionMode(ToCommandProcessorTransactionMode(mode));
+    }
+
+    void SetDebugTelemetryEnabled(const bool enabled) noexcept
+    {
+        debugTelemetryEnabled_ = enabled;
+        if (!debugTelemetryEnabled_)
+        {
+            appliedCommandBatches_.clear();
+        }
     }
 
     [[nodiscard]] RuntimeCommandTransactionMode CommandTransactionMode() const noexcept
@@ -640,6 +652,7 @@ private:
     std::unordered_map<std::string, StrobeStatusFeedback> lastPublishedStrobeFeedbacks_ {};
     std::optional<std::string> lastPublishedActivePage_ {};
     RuntimeCommandTransactionMode commandTransactionMode_ = RuntimeCommandTransactionMode::Transactional;
+    bool debugTelemetryEnabled_ = false;
     std::uint32_t nextFeedbackSequence_ = 1U;
     bool lifecycleHeartbeatPending_ = true;
     bool closingNotified_ = false;
@@ -772,4 +785,11 @@ const std::vector<CommandBatch>& RuntimeSessionInternalAccess::AppliedCommandBat
     return session.impl_ == nullptr ? kEmptyBatches : session.impl_->AppliedCommandBatches();
 }
 
+void RuntimeSessionInternalAccess::SetDebugTelemetryEnabled(RuntimeSession& session, const bool enabled) noexcept
+{
+    if (session.impl_ != nullptr)
+    {
+        session.impl_->SetDebugTelemetryEnabled(enabled);
+    }
+}
 } // namespace mfd::runtime_api::internal

@@ -22,8 +22,10 @@
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "mfd/window/debug/RuntimeDebugInspectorFrameState.hpp"
+#include "mfd/window/debug/RuntimeDebugOverlay.hpp"
 #include "mfd/window/debug/RuntimeDebugPreview.hpp"
 #include "mfd/window/debug/RuntimeDebugState.hpp"
+#include "internal/RuntimeDebugOverlayInternalAccess.hpp"
 
 namespace
 {
@@ -431,6 +433,72 @@ TEST(RuntimeDebugStateTests, UpdateTransportStateStoresUdpMetricsSnapshot)
     EXPECT_EQ(state.Transport().metrics.outboundQueueDepth, 4U);
     EXPECT_EQ(state.Transport().commandStatus, "command warning");
     EXPECT_EQ(state.Transport().feedbackStatus, "feedback warning");
+}
+
+/**
+ * @brief Confirms an inactive overlay returns before storing any transport or batch telemetry.
+ */
+TEST(RuntimeDebugOverlayTests, SynchronizeDoesNothingWhenOverlayIsInactive)
+{
+    mfd::window::debug::RuntimeDebugOverlay overlay;
+    mfd::SceneRegistry liveScene = MakeScene();
+
+    mfd::UpdateReticleCommand update;
+    update.target.page = "Radar";
+    update.target.reticle = "Ownship";
+    update.patch.position = mfd::Vec2 {0.25f, -0.10f};
+
+    mfd::CommandBatch batch;
+    batch.sequence = 1U;
+    batch.commands.push_back(std::move(update));
+
+    overlay.Synchronize(liveScene, nullptr, "command status", "feedback status", {batch});
+
+    const mfd::window::debug::RuntimeDebugState& state =
+        mfd::window::debug::internal::RuntimeDebugOverlayInternalAccess::State(overlay);
+    EXPECT_FALSE(state.Active());
+    EXPECT_FALSE(state.Transport().commandConfigured);
+    EXPECT_FALSE(state.Transport().feedbackConfigured);
+    EXPECT_FALSE(state.Transport().observedCommandTraffic);
+    EXPECT_EQ(state.Transport().observedBatchCount, 0U);
+    EXPECT_EQ(state.Transport().observedCommandCount, 0U);
+    EXPECT_TRUE(state.Transport().commandStatus.empty());
+    EXPECT_TRUE(state.Transport().feedbackStatus.empty());
+    EXPECT_LT(state.SecondsSinceLastCommandTraffic(), 0.0);
+}
+
+/**
+ * @brief Confirms an active overlay still records the telemetry it needs from live batches.
+ */
+TEST(RuntimeDebugOverlayTests, SynchronizeRecordsTelemetryWhenOverlayIsActive)
+{
+    mfd::window::debug::RuntimeDebugOverlay overlay;
+    mfd::SceneRegistry liveScene = MakeScene();
+
+    mfd::UpdateReticleCommand update;
+    update.target.page = "Radar";
+    update.target.reticle = "Ownship";
+    update.patch.position = mfd::Vec2 {0.25f, -0.10f};
+
+    mfd::CommandBatch batch;
+    batch.sequence = 1U;
+    batch.commands.push_back(std::move(update));
+
+    mfd::window::debug::RuntimeDebugState& state =
+        mfd::window::debug::internal::RuntimeDebugOverlayInternalAccess::State(overlay);
+    state.Activate();
+
+    overlay.Synchronize(liveScene, nullptr, "command status", "feedback status", {batch});
+
+    EXPECT_TRUE(state.Active());
+    EXPECT_FALSE(state.Transport().commandConfigured);
+    EXPECT_FALSE(state.Transport().feedbackConfigured);
+    EXPECT_TRUE(state.Transport().observedCommandTraffic);
+    EXPECT_EQ(state.Transport().observedBatchCount, 1U);
+    EXPECT_EQ(state.Transport().observedCommandCount, 1U);
+    EXPECT_EQ(state.Transport().commandStatus, "command status");
+    EXPECT_EQ(state.Transport().feedbackStatus, "feedback status");
+    EXPECT_GE(state.SecondsSinceLastCommandTraffic(), 0.0);
 }
 
 /**

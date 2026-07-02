@@ -1390,6 +1390,13 @@ private:
                         : mfd::runtime_api::RuntimeCommandTransactionMode::Transactional);
     }
 
+    void ApplyRuntimeDebugTelemetrySetting() noexcept
+    {
+        mfd::runtime_api::internal::RuntimeSessionInternalAccess::SetDebugTelemetryEnabled(
+            runtimeSession_,
+            debugOverlay_.Active());
+    }
+
     void RefreshBranding()
     {
         resolvedIconFile_ = mfd::ResolveWindowBrandingIconFile(windowDefinition_.iconFile, windowFile_);
@@ -1599,13 +1606,17 @@ private:
 
     void Update(const float deltaSeconds)
     {
+        ApplyRuntimeDebugTelemetrySetting();
         runtimeSession_.Advance(deltaSeconds);
-        debugOverlay_.Synchronize(
-            RuntimeScene(),
-            RuntimeBridge(),
-            runtimeSession_.LastCommandStatus(),
-            runtimeSession_.LastFeedbackStatus(),
-            AppliedCommandBatches());
+        if (debugOverlay_.Active())
+        {
+            debugOverlay_.Synchronize(
+                RuntimeScene(),
+                RuntimeBridge(),
+                runtimeSession_.LastCommandStatus(),
+                runtimeSession_.LastFeedbackStatus(),
+                AppliedCommandBatches());
+        }
     }
 
     void PrintStartupSummary() const

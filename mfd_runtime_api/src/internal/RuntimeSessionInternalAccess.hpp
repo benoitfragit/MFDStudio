@@ -31,5 +31,6 @@ struct MFD_RUNTIME_API RuntimeSessionInternalAccess
     [[nodiscard]] static UdpRuntimeBridge* RuntimeBridge(RuntimeSession& session) noexcept;
     [[nodiscard]] static const UdpRuntimeBridge* RuntimeBridge(const RuntimeSession& session) noexcept;
     [[nodiscard]] static const std::vector<CommandBatch>& AppliedCommandBatches(const RuntimeSession& session) noexcept;
+    static void SetDebugTelemetryEnabled(RuntimeSession& session, bool enabled) noexcept;
 };
 } // namespace mfd::runtime_api::internal

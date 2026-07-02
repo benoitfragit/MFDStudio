@@ -24,6 +24,11 @@
 
 namespace mfd::window::debug
 {
+namespace internal
+{
+struct RuntimeDebugOverlayInternalAccess;
+}
+
 /**
  * @brief Facade orchestrating the runtime debug state, preview scene and ImGui overlay.
  */
@@ -111,6 +116,8 @@ public:
               std::string_view runtimeError);
 
 private:
+    friend struct internal::RuntimeDebugOverlayInternalAccess;
+
     bool Activate();
     void Deactivate();
     bool RefreshPreviewFromLive(const SceneRegistry& liveScene);
