@@ -468,15 +468,34 @@ private:
         std::vector<StrobeState> strobes;
         std::vector<DynamicTemplateVisibilityState> dynamicTemplateVisibility;
         std::vector<DynamicTemplateStrobeMagnetState> dynamicTemplateStrobeMagnet;
+        /** @brief Normalized page keys covered by a page-scoped snapshot (`scoped == true`). */
+        std::vector<std::string> scopedPageKeys;
         std::uint64_t nextDynamicCreationSequence = 1;
         std::string activePage;
         WindowDisplayState windowDisplay {};
+        /** @brief `true` when the snapshot only covers `scopedPageKeys` instead of the whole scene. */
+        bool scoped = false;
     };
 
     /** @brief Captures the full mutable runtime state needed to roll back one failed batch. */
     RuntimeSnapshot CaptureRuntimeSnapshot() const;
+    /**
+     * @brief Captures the mutable state of a bounded page set plus scene-wide state.
+     * @param normalizedPageKeys Normalized page keys mutated by the batch to protect.
+     * @note Cost is proportional to the touched pages instead of the whole scene, so
+     * transactional batches no longer pay a full-scene copy on the nominal path.
+     */
+    RuntimeSnapshot CaptureRuntimeSnapshotForPages(std::vector<std::string> normalizedPageKeys) const;
     /** @brief Restores one previously captured mutable runtime state. */
     void RestoreRuntimeSnapshot(const RuntimeSnapshot& snapshot);
+    /** @brief Sorts snapshot rows so restoration order stays deterministic. */
+    static void SortRuntimeSnapshot(RuntimeSnapshot& snapshot);
+    /** @brief Re-applies one captured snapshot onto the current scene state. */
+    void ApplySnapshotState(const RuntimeSnapshot& snapshot);
+    /** @brief Restores a page-scoped snapshot without reloading the whole document. */
+    void RestoreScopedRuntimeSnapshot(const RuntimeSnapshot& snapshot);
+    /** @brief Removes every dynamic template visibility/magnet override of one page. */
+    void EraseDynamicTemplateOverridesForPage(std::string_view normalizedPageName);
 
     /** @brief Per-page runtime component stored in the EnTT registry. */
     struct PageComponent;
@@ -518,6 +537,14 @@ private:
         TransportId pageId = 0;
         std::string strobeName;
     };
+
+    /** @brief Copies one page's mutable runtime state into a snapshot under construction. */
+    void CapturePageStateInto(RuntimeSnapshot& snapshot, const PageComponent& page) const;
+    /** @brief Copies one reticle, strobe or dynamic entity state into a snapshot under construction. */
+    void CaptureReticleEntityInto(RuntimeSnapshot& snapshot,
+                                  entt::entity entity,
+                                  const PageMembership& membership,
+                                  const ReticleComponent& reticle) const;
 
     /** @brief Returns `true` when a normalized page key exists in the scene indexes. */
     bool HasNormalizedPage(std::string_view pageName) const noexcept;

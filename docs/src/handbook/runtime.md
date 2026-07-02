@@ -33,6 +33,12 @@ This keeps earlier commands of the same runtime batch applied when a later
 command fails. The default remains transactional: without `--no-snapshot`, a
 multi-command batch still rolls back as one unit.
 
+The transactional rollback snapshot only covers the pages a batch actually
+touches (plus scene-wide state such as the active page and the window display),
+so the default mode stays cheap even on large scenes with high-rate batches.
+`--no-snapshot` is therefore mostly a debugging escape hatch, not a performance
+requirement.
+
 `Start-MfdMinimal.bat` starts `mfd_window` with the sample framebuffer plugin
 enabled.
 

@@ -28,6 +28,11 @@ class SceneRegistry;
 
 /**
  * @brief Chooses how multi-command submissions behave when one command fails.
+ *
+ * @note The transactional rollback snapshot only covers the pages a batch
+ * touches, so its cost is proportional to the touched pages instead of the
+ * whole scene. `NonTransactional` is kept as an explicit opt-out for hosts
+ * that prefer keeping earlier commands applied, not as a performance escape.
  */
 enum class CommandBatchTransactionMode
 {

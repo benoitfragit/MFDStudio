@@ -56,6 +56,97 @@ std::size_t BuildSequencedBatchFingerprint(const CommandBatch& batch)
     return HashBatchFingerprintPayload(SerializeCommandBatch(batch));
 }
 
+// Collects the pages a command can mutate, with one explicit overload per command type, so a
+// transactional batch only snapshots the touched pages instead of the whole scene. This
+// visitor intentionally has no generic fallback: adding a new UserCommand alternative must
+// fail to compile here until its rollback footprint is written.
+struct CommandRollbackFootprintCollector
+{
+    std::vector<std::string>& touchedPages;
+    bool& touchesWholeScene;
+    bool& touchesActivePageSelection;
+
+    void operator()(const ActivatePageCommand& command) const
+    {
+        // Switching pages also mutates the previously active page (active flag, sticky
+        // strobe refresh), so the current active page joins the footprint at capture time.
+        touchedPages.push_back(command.page);
+        touchesActivePageSelection = true;
+    }
+
+    void operator()(const SetPageViewCommand& command) const
+    {
+        touchedPages.push_back(command.page);
+    }
+
+    void operator()(const UpdateWindowDisplayCommand&) const noexcept
+    {
+        // Whole-window display state is scene-wide and always captured with the snapshot.
+    }
+
+    void operator()(const UpdateReticleCommand& command) const
+    {
+        touchedPages.push_back(command.target.page);
+    }
+
+    void operator()(const UpdateStrobeCommand& command) const
+    {
+        touchedPages.push_back(command.page);
+    }
+
+    void operator()(const UpsertDynamicReticleCommand& command) const
+    {
+        touchedPages.push_back(command.target.page);
+    }
+
+    void operator()(const UpsertDynamicReticlesCommand& command) const
+    {
+        touchedPages.push_back(command.page);
+    }
+
+    void operator()(const SetDynamicReticleSetVisibilityCommand& command) const
+    {
+        touchedPages.push_back(command.page);
+    }
+
+    void operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
+    {
+        touchedPages.push_back(command.page);
+    }
+
+    void operator()(const RemoveDynamicReticleCommand& command) const
+    {
+        touchedPages.push_back(command.target.page);
+    }
+
+    void operator()(const ResetWindowCommand&) const noexcept
+    {
+        touchesWholeScene = true;
+    }
+};
+
+std::vector<std::string> BuildRollbackPageKeys(const std::vector<std::string>& touchedPages,
+                                               const std::string& activePageName)
+{
+    std::vector<std::string> normalizedPageKeys;
+    normalizedPageKeys.reserve(touchedPages.size() + 1U);
+    for (const std::string& pageName : touchedPages)
+    {
+        std::string pageKey = NormalizePageName(pageName);
+        if (!pageKey.empty())
+        {
+            normalizedPageKeys.push_back(std::move(pageKey));
+        }
+    }
+
+    if (!activePageName.empty())
+    {
+        normalizedPageKeys.push_back(NormalizePageName(activePageName));
+    }
+
+    return normalizedPageKeys;
+}
+
 } // namespace
 
 CommandProcessor::CommandProcessor(SceneRegistry& scene)
@@ -188,7 +279,22 @@ bool CommandProcessor::SubmitCommandsTransactional(const ArrayView<const UserCom
         return false;
     }
 
-    const SceneRegistry::RuntimeSnapshot snapshot = scene_.CaptureRuntimeSnapshot();
+    std::vector<std::string> touchedPages;
+    touchedPages.reserve(resolvedCommands.size());
+    bool touchesWholeScene = false;
+    bool touchesActivePageSelection = false;
+    for (const UserCommand& command : resolvedCommands)
+    {
+        std::visit(
+            CommandRollbackFootprintCollector {touchedPages, touchesWholeScene, touchesActivePageSelection},
+            command);
+    }
+
+    const std::string activePageName = touchesActivePageSelection ? scene_.ActivePageName() : std::string {};
+    const SceneRegistry::RuntimeSnapshot snapshot =
+        touchesWholeScene
+            ? scene_.CaptureRuntimeSnapshot()
+            : scene_.CaptureRuntimeSnapshotForPages(BuildRollbackPageKeys(touchedPages, activePageName));
     for (const UserCommand& command : resolvedCommands)
     {
         if (DispatchResolved(command))
