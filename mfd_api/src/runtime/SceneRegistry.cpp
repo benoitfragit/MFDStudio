@@ -3210,16 +3210,6 @@ void SceneRegistry::ResetToInitialState()
     LoadDocument(document_, transportMap_);
 }
 
-entt::registry& SceneRegistry::Raw() noexcept
-{
-    return registry_;
-}
-
-const entt::registry& SceneRegistry::Raw() const noexcept
-{
-    return registry_;
-}
-
 entt::entity SceneRegistry::FindReticleEntity(const std::string_view normalizedPageName,
                                               const std::string_view reticleId) const noexcept
 {

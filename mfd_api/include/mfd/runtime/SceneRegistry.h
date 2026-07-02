@@ -394,12 +394,16 @@ public:
      */
     void ResetToInitialState();
 
-    /** @brief Returns the underlying EnTT registry. */
-    entt::registry& Raw() noexcept;
-    /** @brief Returns the underlying EnTT registry. */
-    const entt::registry& Raw() const noexcept;
-
 private:
+    /**
+     * @brief CommandProcessor is the command-application half of the runtime scene module.
+     *
+     * @note The processor relies on private identifier resolution
+     * (`Resolve*`), runtime-id bookkeeping (`SetDynamicReticleRuntimeIdentifiers`),
+     * layer binding lookup and snapshot capture/restore. These operations are
+     * deliberately not public: exposing them would let callers bypass command
+     * validation, sequencing and transactional rollback.
+     */
     friend class CommandProcessor;
 
     /**
