@@ -242,6 +242,8 @@ public:
     void Advance(const float deltaSeconds)
     {
         appliedCommandBatches_.clear();
+        lastAppliedBatchCount_ = 0U;
+        lastAppliedCommandCount_ = 0U;
 
         if (runtimeBridge_ != nullptr)
         {
@@ -263,7 +265,13 @@ public:
                     if (batchApplied)
                     {
                         appliedCommands += batchCommandCount;
-                        appliedCommandBatches_.push_back(batch);
+                        ++lastAppliedBatchCount_;
+                        // Retaining deep batch copies exists only for host debug telemetry;
+                        // skip it entirely on the default hot path.
+                        if (commandTelemetryEnabled_)
+                        {
+                            appliedCommandBatches_.push_back(batch);
+                        }
                     }
                     else
                     {
@@ -271,17 +279,24 @@ public:
                     }
                 }
 
+                lastAppliedCommandCount_ = appliedCommands;
                 runtimeBridge_->RecordCommandProcessingResult(appliedCommands, skippedCommands, 0U);
 
                 if (success)
                 {
                     lastCommandStatus_ = "Applied " + std::to_string(appliedCommands) +
                                          " command(s) from the UDP I/O thread.";
-                    const UdpRuntimeBridgeMetrics metrics = runtimeBridge_->MetricsSnapshot();
-                    if (metrics.inboundQueueDepth > 0U)
+                    // The queue-depth detail needs a metrics snapshot that locks the queues
+                    // shared with the UDP I/O thread; only pay for it when host debug
+                    // telemetry actually displays it.
+                    if (commandTelemetryEnabled_)
                     {
-                        lastCommandStatus_ += " " + std::to_string(metrics.inboundQueueDepth) +
-                                              " batch(es) remain queued by the frame budget.";
+                        const UdpRuntimeBridgeMetrics metrics = runtimeBridge_->MetricsSnapshot();
+                        if (metrics.inboundQueueDepth > 0U)
+                        {
+                            lastCommandStatus_ += " " + std::to_string(metrics.inboundQueueDepth) +
+                                                  " batch(es) remain queued by the frame budget.";
+                        }
                     }
                 }
                 else if (!commandProcessor_.LastError().empty())
@@ -289,24 +304,31 @@ public:
                     lastCommandStatus_ = commandProcessor_.LastError();
                 }
             }
-            else
+            else if (!runtimeBridge_->LastCommandStatus().empty())
             {
-                const UdpRuntimeBridgeMetrics metrics = runtimeBridge_->MetricsSnapshot();
-                if (metrics.inboundQueueDepth > 0U)
-                {
-                    lastCommandStatus_ = "UDP command queue is frame-budget limited; " +
-                                         std::to_string(metrics.inboundQueueDepth) +
-                                         " batch(es) remain queued.";
-                }
-                else if (!runtimeBridge_->LastCommandStatus().empty())
-                {
-                    lastCommandStatus_ = runtimeBridge_->LastCommandStatus();
-                }
+                // A budget-limited drain always takes at least the front batch, so draining
+                // nothing means the inbound queue was empty; no metrics snapshot is needed.
+                lastCommandStatus_ = runtimeBridge_->LastCommandStatus();
             }
         }
 
         PublishWindowLifecycleHeartbeat(deltaSeconds);
         PublishRuntimeFeedback(deltaSeconds);
+    }
+
+    void SetCommandTelemetryEnabled(const bool enabled) noexcept
+    {
+        commandTelemetryEnabled_ = enabled;
+    }
+
+    [[nodiscard]] std::size_t LastAppliedBatchCount() const noexcept
+    {
+        return lastAppliedBatchCount_;
+    }
+
+    [[nodiscard]] std::size_t LastAppliedCommandCount() const noexcept
+    {
+        return lastAppliedCommandCount_;
     }
 
     [[nodiscard]] bool ApplyLoadedWindowConfiguration(LoadedWindowConfiguration loaded, std::string& error)
@@ -618,6 +640,9 @@ private:
     RuntimeFeedbackThrottle lifecycleThrottle_ {};
     std::vector<CommandBatch> pendingCommandBatches_ {};
     std::vector<CommandBatch> appliedCommandBatches_ {};
+    bool commandTelemetryEnabled_ = false;
+    std::size_t lastAppliedBatchCount_ = 0U;
+    std::size_t lastAppliedCommandCount_ = 0U;
     std::unordered_map<std::string, StrobeStatusFeedback> lastPublishedStrobeFeedbacks_ {};
     std::optional<std::string> lastPublishedActivePage_ {};
     std::uint32_t nextFeedbackSequence_ = 1U;
@@ -737,5 +762,23 @@ const std::vector<CommandBatch>& RuntimeSessionInternalAccess::AppliedCommandBat
 {
     static const std::vector<CommandBatch> kEmptyBatches;
     return session.impl_ == nullptr ? kEmptyBatches : session.impl_->AppliedCommandBatches();
+}
+
+void RuntimeSessionInternalAccess::SetCommandTelemetryEnabled(RuntimeSession& session, const bool enabled) noexcept
+{
+    if (session.impl_ != nullptr)
+    {
+        session.impl_->SetCommandTelemetryEnabled(enabled);
+    }
+}
+
+std::size_t RuntimeSessionInternalAccess::LastAppliedBatchCount(const RuntimeSession& session) noexcept
+{
+    return session.impl_ == nullptr ? 0U : session.impl_->LastAppliedBatchCount();
+}
+
+std::size_t RuntimeSessionInternalAccess::LastAppliedCommandCount(const RuntimeSession& session) noexcept
+{
+    return session.impl_ == nullptr ? 0U : session.impl_->LastAppliedCommandCount();
 }
 } // namespace mfd::runtime_api::internal

@@ -543,7 +543,7 @@ bool RuntimeDebugPreview::ResetFromLive(const SceneRegistry& liveScene, const Ru
 
         ready_ = true;
         lastError_.clear();
-        if (!ApplyDynamicTemplateVisibility(state) || !ApplyStateOverrides(state))
+        if (!RestoreHiddenDynamicReticleSets(liveScene) || !ApplyStateOverrides(state))
         {
             return false;
         }
@@ -593,11 +593,6 @@ bool RuntimeDebugPreview::ApplyLiveBatches(const std::vector<CommandBatch>& batc
 bool RuntimeDebugPreview::ApplyStateOverrides(const RuntimeDebugState& state)
 {
     if (!ready_)
-    {
-        return false;
-    }
-
-    if (!ApplyDynamicTemplateVisibility(state))
     {
         return false;
     }
@@ -696,14 +691,17 @@ bool RuntimeDebugPreview::ApplyReticleDraft(const ReticleBypassState& bypass)
     return true;
 }
 
-bool RuntimeDebugPreview::ApplyDynamicTemplateVisibility(const RuntimeDebugState& state)
+// Dynamic reticles rebuilt through UpsertDynamicReticle default to visible, so the
+// hidden sets tracked by the live scene must be re-applied once per rebuild. Later
+// visibility changes flow through the shared command batches in ApplyLiveBatches.
+bool RuntimeDebugPreview::RestoreHiddenDynamicReticleSets(const SceneRegistry& liveScene)
 {
-    for (const auto& [key, visible] : state.DynamicTemplateVisibilityEntries())
+    for (const HiddenDynamicReticleSet& hiddenSet : liveScene.HiddenDynamicReticleSets())
     {
-        if (!scene_.SetDynamicReticleSetVisible(key.pageName, key.templateId, visible))
+        if (!scene_.SetDynamicReticleSetVisible(hiddenSet.pageName, hiddenSet.templateId, false))
         {
-            lastError_ =
-                "Unable to restore dynamic template visibility for '" + key.templateId + "' on page '" + key.pageName + "'.";
+            lastError_ = "Unable to restore dynamic template visibility for '" + hiddenSet.templateId +
+                         "' on page '" + hiddenSet.pageName + "'.";
             ready_ = false;
             return false;
         }

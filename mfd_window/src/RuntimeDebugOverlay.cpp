@@ -23,7 +23,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -348,57 +347,6 @@ const char* ReticleKindLabel(const ReticleKind kind) noexcept
 const PageDefinition* FindPage(const MfdDocument& document, std::string_view pageName)
 {
     return FindPageDefinition(document, pageName);
-}
-
-const TransportMapPageEntry* FindTransportPageEntry(const GeneratedTransportMap& map, const TransportId pageId) noexcept
-{
-    const auto iterator = std::find_if(
-        map.pages.begin(),
-        map.pages.end(),
-        [pageId](const TransportMapPageEntry& page)
-        {
-            return page.id == pageId;
-        });
-    return iterator == map.pages.end() ? nullptr : &(*iterator);
-}
-
-const TransportMapTemplateEntry* FindTransportTemplateEntry(const GeneratedTransportMap& map,
-                                                           const TransportId templateId) noexcept
-{
-    const auto iterator = std::find_if(
-        map.templates.begin(),
-        map.templates.end(),
-        [templateId](const TransportMapTemplateEntry& entry)
-        {
-            return entry.id == templateId;
-        });
-    return iterator == map.templates.end() ? nullptr : &(*iterator);
-}
-
-std::string ResolveTransportPageName(const std::optional<GeneratedTransportMap>& transportMap,
-                                     const std::string_view pageName,
-                                     const TransportId pageId)
-{
-    if (!pageName.empty() || !transportMap.has_value() || pageId == 0)
-    {
-        return std::string(pageName);
-    }
-
-    const TransportMapPageEntry* pageEntry = FindTransportPageEntry(*transportMap, pageId);
-    return pageEntry == nullptr ? std::string(pageName) : pageEntry->name;
-}
-
-std::string ResolveTransportTemplateId(const std::optional<GeneratedTransportMap>& transportMap,
-                                       const std::string_view templateId,
-                                       const TransportId templateTransportId)
-{
-    if (!templateId.empty() || !transportMap.has_value() || templateTransportId == 0)
-    {
-        return std::string(templateId);
-    }
-
-    const TransportMapTemplateEntry* templateEntry = FindTransportTemplateEntry(*transportMap, templateTransportId);
-    return templateEntry == nullptr ? std::string(templateId) : templateEntry->templateId;
 }
 
 const PageBlinkDefinition* ResolvePageDefaultBlink(const PageDefinition& page)
@@ -763,19 +711,24 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
                                       const UdpRuntimeBridge* const bridge,
                                       const std::string_view commandStatus,
                                       const std::string_view feedbackStatus,
-                                      const std::vector<CommandBatch>& drainedBatches)
+                                      const std::vector<CommandBatch>& appliedBatches,
+                                      const std::size_t appliedBatchCount,
+                                      const std::size_t appliedCommandCount)
 {
-    std::size_t commandCount = 0;
-    for (const CommandBatch& batch : drainedBatches)
+    state_.NoteCommandTraffic(appliedBatchCount, appliedCommandCount);
+
+    // The transport snapshot below locks bridge state shared with the UDP I/O thread
+    // and copies both status strings; skip all of it while nothing displays it.
+    if (!state_.Active())
     {
-        commandCount += batch.commands.size();
+        return;
     }
 
     const bool commandConfigured = bridge != nullptr && bridge->HasCommandReceiver();
     const bool commandReady = bridge != nullptr && bridge->CommandTransportReady();
     const bool feedbackConfigured = bridge != nullptr && bridge->HasFeedbackSender();
     const bool feedbackReady = bridge != nullptr && bridge->FeedbackTransportReady();
-    const UdpRuntimeBridgeMetrics metrics = CollectTransportMetrics(bridge, commandCount);
+    const UdpRuntimeBridgeMetrics metrics = CollectTransportMetrics(bridge, appliedCommandCount);
 
     state_.UpdateTransportState(
         commandConfigured,
@@ -785,14 +738,6 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
         metrics,
         std::string(commandStatus),
         std::string(feedbackStatus));
-
-    state_.NoteCommandTraffic(drainedBatches.size(), commandCount);
-    RecordObservedRuntimeState(liveScene, drainedBatches);
-
-    if (!state_.Active())
-    {
-        return;
-    }
 
     if (!state_.HasInteractiveOverrides())
     {
@@ -805,7 +750,7 @@ void RuntimeDebugOverlay::Synchronize(const SceneRegistry& liveScene,
         return;
     }
 
-    if (!preview_.ApplyLiveBatches(drainedBatches, state_))
+    if (!preview_.ApplyLiveBatches(appliedBatches, state_))
     {
         state_.SetTestPanelStatus(preview_.LastError());
     }
@@ -1988,43 +1933,13 @@ bool RuntimeDebugOverlay::RefreshPreviewFromLive(const SceneRegistry& liveScene)
     return preview_.ResetFromLive(liveScene, state_);
 }
 
-void RuntimeDebugOverlay::RecordObservedRuntimeState(const SceneRegistry& liveScene,
-                                                     const std::vector<CommandBatch>& drainedBatches)
-{
-    for (const CommandBatch& batch : drainedBatches)
-    {
-        for (const UserCommand& command : batch.commands)
-        {
-            std::visit(
-                [this, &liveScene](const auto& value)
-                {
-                    using Command = std::decay_t<decltype(value)>;
-
-                    if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
-                    {
-                        state_.SetDynamicTemplateVisibility(
-                            ResolveTransportPageName(liveScene.TransportMap(), value.page, value.pageId),
-                            ResolveTransportTemplateId(
-                                liveScene.TransportMap(),
-                                value.templateId,
-                                value.templateTransportId),
-                            value.visible);
-                    }
-                    else if constexpr (std::is_same_v<Command, ResetWindowCommand>)
-                    {
-                        state_.ClearDynamicTemplateVisibility();
-                    }
-                },
-                command);
-        }
-    }
-}
-
 bool RuntimeDebugOverlay::UsesPreviewScene() const noexcept
 {
     return state_.Active() && state_.HasInteractiveOverrides() && preview_.Ready();
 }
 
+// Only called while the overlay is active: Synchronize() skips the transport
+// snapshot entirely when nothing displays it.
 UdpRuntimeBridgeMetrics RuntimeDebugOverlay::CollectTransportMetrics(const UdpRuntimeBridge* const bridge,
                                                                     const std::size_t observedCommandCount)
 {
@@ -2034,11 +1949,6 @@ UdpRuntimeBridgeMetrics RuntimeDebugOverlay::CollectTransportMetrics(const UdpRu
     }
 
     UdpRuntimeBridgeMetrics metrics = state_.Transport().metrics;
-    if (!state_.Active())
-    {
-        return metrics;
-    }
-
     const RuntimeDebugState::Clock::time_point now = RuntimeDebugState::Clock::now();
     const bool refreshDue =
         !transportMetricsRefreshInitialized_ ||

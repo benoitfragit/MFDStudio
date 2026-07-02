@@ -10,6 +10,7 @@
  * @brief Integrated runtime debug overlay used by `mfd_window`.
  */
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -55,17 +56,28 @@ public:
 
     /**
      * @brief Synchronizes transport telemetry and preview batches with the live runtime.
+     *
+     * Only the command-traffic counters are updated while the overlay is inactive; the
+     * transport snapshot and the preview batches are consumed only when it is active.
+     *
      * @param liveScene Current live runtime scene.
      * @param bridge Active UDP bridge, or `nullptr` when none exists.
      * @param commandStatus Last command-side status.
      * @param feedbackStatus Last feedback-side status.
-     * @param drainedBatches Command batches already accepted by the live runtime.
+     * @param appliedBatches Command batches applied by the live runtime this frame. The
+     * host keeps this list empty while the overlay is inactive.
+     * @param appliedBatchCount Number of batches applied this frame, tracked even when
+     * `appliedBatches` retention is disabled.
+     * @param appliedCommandCount Number of commands applied this frame, tracked even when
+     * `appliedBatches` retention is disabled.
      */
     void Synchronize(const SceneRegistry& liveScene,
                      const UdpRuntimeBridge* bridge,
                      std::string_view commandStatus,
                      std::string_view feedbackStatus,
-                     const std::vector<CommandBatch>& drainedBatches);
+                     const std::vector<CommandBatch>& appliedBatches,
+                     std::size_t appliedBatchCount,
+                     std::size_t appliedCommandCount);
 
     /**
      * @brief Returns whether the runtime debug mode is currently active.
@@ -114,7 +126,6 @@ private:
     bool Activate();
     void Deactivate();
     bool RefreshPreviewFromLive(const SceneRegistry& liveScene);
-    void RecordObservedRuntimeState(const SceneRegistry& liveScene, const std::vector<CommandBatch>& drainedBatches);
     void SelectFirstReticleOnActivePage(const SceneRegistry& displayScene, std::string* statusOut);
     [[nodiscard]] const ReticleGroup* FindSelectedReticle(const SceneRegistry& displayScene) const;
     template <typename Mutation, typename... Args>

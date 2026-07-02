@@ -1627,6 +1627,25 @@ TEST(SceneRegistryTests, DynamicTemplateVisibilityMasksOnlyMatchingDynamicReticl
     EXPECT_TRUE(views[4].visible);
 }
 
+TEST(SceneRegistryTests, HiddenDynamicReticleSetsListsOnlyHiddenTemplates)
+{
+    mfd::MfdDocument document;
+    document.pages.push_back(MakeRuntimePage());
+
+    mfd::SceneRegistry registry(std::move(document));
+
+    EXPECT_TRUE(registry.HiddenDynamicReticleSets().empty());
+
+    ASSERT_TRUE(registry.SetDynamicReticleSetVisible("Radar", "radar_tracks", false));
+    const std::vector<mfd::HiddenDynamicReticleSet> hiddenSets = registry.HiddenDynamicReticleSets();
+    ASSERT_EQ(hiddenSets.size(), 1U);
+    EXPECT_EQ(hiddenSets.front().pageName, "radar");
+    EXPECT_EQ(hiddenSets.front().templateId, "radar_tracks");
+
+    ASSERT_TRUE(registry.SetDynamicReticleSetVisible("Radar", "radar_tracks", true));
+    EXPECT_TRUE(registry.HiddenDynamicReticleSets().empty());
+}
+
 TEST(SceneRegistryTests, ResetToInitialStateRestoresDefaultPageWindowAndViewsAndClearsDynamics)
 {
     mfd::PageDefinition radarPage = MakeRuntimePage();

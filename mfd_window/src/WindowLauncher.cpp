@@ -1373,6 +1373,21 @@ private:
         return mfd::runtime_api::internal::RuntimeSessionInternalAccess::AppliedCommandBatches(runtimeSession_);
     }
 
+    void SetCommandTelemetryEnabled(const bool enabled) noexcept
+    {
+        mfd::runtime_api::internal::RuntimeSessionInternalAccess::SetCommandTelemetryEnabled(runtimeSession_, enabled);
+    }
+
+    [[nodiscard]] std::size_t LastAppliedBatchCount() const noexcept
+    {
+        return mfd::runtime_api::internal::RuntimeSessionInternalAccess::LastAppliedBatchCount(runtimeSession_);
+    }
+
+    [[nodiscard]] std::size_t LastAppliedCommandCount() const noexcept
+    {
+        return mfd::runtime_api::internal::RuntimeSessionInternalAccess::LastAppliedCommandCount(runtimeSession_);
+    }
+
     void RefreshBranding()
     {
         resolvedIconFile_ = mfd::ResolveWindowBrandingIconFile(windowDefinition_.iconFile, windowFile_);
@@ -1581,13 +1596,18 @@ private:
 
     void Update(const float deltaSeconds)
     {
+        // Applied-batch retention only feeds the debug overlay; keep the runtime
+        // hot path free of per-frame batch copies while the overlay is closed.
+        SetCommandTelemetryEnabled(debugOverlay_.Active());
         runtimeSession_.Advance(deltaSeconds);
         debugOverlay_.Synchronize(
             RuntimeScene(),
             RuntimeBridge(),
             runtimeSession_.LastCommandStatus(),
             runtimeSession_.LastFeedbackStatus(),
-            AppliedCommandBatches());
+            AppliedCommandBatches(),
+            LastAppliedBatchCount(),
+            LastAppliedCommandCount());
     }
 
     void PrintStartupSummary() const

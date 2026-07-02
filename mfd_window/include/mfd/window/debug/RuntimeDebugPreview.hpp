@@ -80,7 +80,7 @@ public:
 
 private:
     bool ApplyReticleDraft(const ReticleBypassState& bypass);
-    bool ApplyDynamicTemplateVisibility(const RuntimeDebugState& state);
+    bool RestoreHiddenDynamicReticleSets(const SceneRegistry& liveScene);
 
     SceneRegistry scene_ {};
     std::unique_ptr<CommandProcessor> processor_ {};

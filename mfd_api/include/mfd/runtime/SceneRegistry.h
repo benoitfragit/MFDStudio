@@ -170,6 +170,17 @@ struct ReticleRenderView
 };
 
 /**
+ * @brief Identity of one dynamic reticle set currently hidden at runtime.
+ */
+struct HiddenDynamicReticleSet
+{
+    /** @brief Normalized name of the owning page. */
+    std::string pageName;
+    /** @brief Normalized template id identifying the dynamic set. */
+    std::string templateId;
+};
+
+/**
  * @brief Runtime scene built on top of EnTT for pages, reticles and strobes.
  *
  * @note `SceneRegistry` is the central state container used by the renderer,
@@ -339,6 +350,11 @@ public:
     bool SetDynamicReticleSetVisible(std::string_view pageName,
                                      std::string_view templateId,
                                      bool visible) noexcept;
+    /**
+     * @brief Lists every dynamic reticle set currently hidden by `SetDynamicReticleSetVisible`.
+     * @return Hidden sets with normalized identifiers, ordered by page then template.
+     */
+    std::vector<HiddenDynamicReticleSet> HiddenDynamicReticleSets() const;
     /** @brief Enables or disables strobe-magnet eligibility for all dynamic reticles matching one page/template set.
      *  @note Dynamic sets are non-magnetized by default until explicitly enabled.
      */

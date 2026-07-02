@@ -33,14 +33,6 @@ std::size_t ReticleKeyHash::operator()(const ReticleKey& key) const noexcept
     return seed;
 }
 
-std::size_t DynamicTemplateKeyHash::operator()(const DynamicTemplateKey& key) const noexcept
-{
-    std::size_t seed = 0U;
-    HashCombine(seed, key.pageName);
-    HashCombine(seed, key.templateId);
-    return seed;
-}
-
 void RuntimeDebugState::Activate()
 {
     active_ = true;
@@ -70,7 +62,6 @@ void RuntimeDebugState::ResetInteractiveState()
 
 void RuntimeDebugState::ResetObservedRuntimeState()
 {
-    dynamicTemplateVisibility_.clear();
     transport_ = {};
     lastCommandTrafficAt_.reset();
 }
@@ -226,41 +217,6 @@ bool RuntimeDebugState::HasInteractiveOverrides() const noexcept
     return pageBypassed_ || !strobeBypasses_.empty() || !reticleBypasses_.empty();
 }
 
-void RuntimeDebugState::SetDynamicTemplateVisibility(std::string pageName, std::string templateId, const bool visible)
-{
-    dynamicTemplateVisibility_[DynamicTemplateKey {std::move(pageName), std::move(templateId)}] = visible;
-}
-
-void RuntimeDebugState::ClearDynamicTemplateVisibility()
-{
-    dynamicTemplateVisibility_.clear();
-}
-
-std::optional<bool> RuntimeDebugState::DynamicTemplateVisibility(const std::string_view pageName,
-                                                                 const std::string_view templateId) const
-{
-    const auto iterator = dynamicTemplateVisibility_.find(DynamicTemplateKey {std::string(pageName), std::string(templateId)});
-    if (iterator == dynamicTemplateVisibility_.end())
-    {
-        return std::nullopt;
-    }
-
-    return iterator->second;
-}
-
-std::vector<std::pair<DynamicTemplateKey, bool>> RuntimeDebugState::DynamicTemplateVisibilityEntries() const
-{
-    std::vector<std::pair<DynamicTemplateKey, bool>> entries;
-    entries.reserve(dynamicTemplateVisibility_.size());
-
-    for (const auto& entry : dynamicTemplateVisibility_)
-    {
-        entries.push_back(entry);
-    }
-
-    return entries;
-}
-
 void RuntimeDebugState::UpdateTransportState(const bool commandConfigured,
                                              const bool commandReady,
                                              const bool feedbackConfigured,
@@ -321,10 +277,5 @@ const std::string& RuntimeDebugState::TestPanelStatus() const noexcept
 bool operator==(const ReticleKey& lhs, const ReticleKey& rhs) noexcept
 {
     return lhs.pageName == rhs.pageName && lhs.reticleId == rhs.reticleId && lhs.kind == rhs.kind;
-}
-
-bool operator==(const DynamicTemplateKey& lhs, const DynamicTemplateKey& rhs) noexcept
-{
-    return lhs.pageName == rhs.pageName && lhs.templateId == rhs.templateId;
 }
 } // namespace mfd::window::debug

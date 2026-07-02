@@ -3335,6 +3335,44 @@ std::string SceneRegistry::MakeDynamicTemplateLookupKey(const std::string_view n
     return std::string(normalizedPageName) + '\x1F' + std::string(templateId);
 }
 
+std::vector<HiddenDynamicReticleSet> SceneRegistry::HiddenDynamicReticleSets() const
+{
+    std::vector<HiddenDynamicReticleSet> hiddenSets;
+    hiddenSets.reserve(dynamicTemplateVisibility_.size());
+
+    for (const auto& pageEntry : pageEntities_)
+    {
+        const PageComponent* page = registry_.try_get<PageComponent>(pageEntry.second);
+        if (page == nullptr)
+        {
+            continue;
+        }
+
+        for (const auto& bindingEntry : page->dynamicBindingsByTemplate)
+        {
+            const std::string& normalizedTemplateId = bindingEntry.first;
+            if (!IsDynamicTemplateVisibleByNormalizedId(page->normalizedName, normalizedTemplateId))
+            {
+                hiddenSets.push_back(HiddenDynamicReticleSet {page->normalizedName, normalizedTemplateId});
+            }
+        }
+    }
+
+    std::sort(hiddenSets.begin(),
+              hiddenSets.end(),
+              [](const HiddenDynamicReticleSet& lhs, const HiddenDynamicReticleSet& rhs)
+              {
+                  if (lhs.pageName != rhs.pageName)
+                  {
+                      return lhs.pageName < rhs.pageName;
+                  }
+
+                  return lhs.templateId < rhs.templateId;
+              });
+
+    return hiddenSets;
+}
+
 bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPageName,
                                              const std::string_view templateId) const noexcept
 {

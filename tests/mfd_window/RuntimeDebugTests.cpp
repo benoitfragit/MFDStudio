@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -120,6 +121,24 @@ mfd::MfdDocument MakeRuntimeDebugDocumentWithStrobes()
         page.strobes.push_back(MakeStrobe("Strobe1", "AlternativeStrobe", mfd::Vec2 {0.42f, -0.18f}));
         page.activeStrobeName = "Default";
         page.normalizedActiveStrobeName = mfd::NormalizePageName(page.activeStrobeName);
+        break;
+    }
+
+    return document;
+}
+
+mfd::MfdDocument MakeRuntimeDebugDocumentWithDynamicSet()
+{
+    mfd::MfdDocument document = MakeRuntimeDebugDocument();
+    for (mfd::PageDefinition& page : document.pages)
+    {
+        if (page.name != "Radar")
+        {
+            continue;
+        }
+
+        page.layers.push_back(mfd::PageLayerDefinition {"overlay"});
+        page.dynamicReticleBindings.push_back(mfd::DynamicReticleLayerBinding {"tracks", "overlay", 0});
         break;
     }
 
@@ -329,7 +348,6 @@ TEST(RuntimeDebugStateTests, DeactivateClearsInteractiveOverridesButKeepsObserve
     state.EnableStrobeBypass("Radar", "Strobe1");
     state.SelectReticle(key);
     state.EnsureReticleBypass(key, MakeReticle("Ownship"));
-    state.SetDynamicTemplateVisibility("Radar", "tracks", false);
     state.UpdateTransportState(true, true, false, false, MakeTransportMetrics(), "ready", "feedback disabled");
     state.NoteCommandTraffic(1U, 3U);
     state.SetTestPanelStatus("mutated");
@@ -344,8 +362,6 @@ TEST(RuntimeDebugStateTests, DeactivateClearsInteractiveOverridesButKeepsObserve
     EXPECT_FALSE(state.SelectedReticle().has_value());
     EXPECT_TRUE(state.BypassedReticles().empty());
     EXPECT_TRUE(state.TestPanelStatus().empty());
-    ASSERT_TRUE(state.DynamicTemplateVisibility("Radar", "tracks").has_value());
-    EXPECT_FALSE(*state.DynamicTemplateVisibility("Radar", "tracks"));
     EXPECT_TRUE(state.Transport().commandConfigured);
     EXPECT_TRUE(state.Transport().observedCommandTraffic);
     EXPECT_EQ(state.Transport().metrics.appliedCommands, 21U);
@@ -382,20 +398,18 @@ TEST(RuntimeDebugStateTests, HasInteractiveOverridesTracksPageAndReticleBypasses
 }
 
 /**
- * @brief Confirms observed runtime telemetry can be reset independently from interactive state.
+ * @brief Confirms observed transport telemetry can be reset independently from interactive state.
  */
-TEST(RuntimeDebugStateTests, ResetObservedRuntimeStateClearsTransportAndTemplateVisibility)
+TEST(RuntimeDebugStateTests, ResetObservedRuntimeStateClearsTransportTelemetry)
 {
     using namespace mfd::window::debug;
 
     RuntimeDebugState state;
-    state.SetDynamicTemplateVisibility("Radar", "tracks", true);
     state.UpdateTransportState(true, true, true, true, MakeTransportMetrics(), "commands ready", "feedback ready");
     state.NoteCommandTraffic(2U, 5U);
 
     state.ResetObservedRuntimeState();
 
-    EXPECT_FALSE(state.DynamicTemplateVisibility("Radar", "tracks").has_value());
     EXPECT_FALSE(state.Transport().commandConfigured);
     EXPECT_FALSE(state.Transport().feedbackConfigured);
     EXPECT_FALSE(state.Transport().observedCommandTraffic);
@@ -571,6 +585,38 @@ TEST(RuntimeDebugPreviewTests, ResetFromLiveMirrorsCurrentActiveStrobe)
     EXPECT_EQ(previewStrobe->reticleId, "AlternativeStrobe");
     EXPECT_FLOAT_EQ(previewStrobe->position.x, 0.26f);
     EXPECT_FLOAT_EQ(previewStrobe->position.y, -0.14f);
+}
+
+/**
+ * @brief Ensures dynamic sets hidden on the live scene stay hidden after one preview rebuild.
+ */
+TEST(RuntimeDebugPreviewTests, ResetFromLiveRestoresHiddenDynamicReticleSets)
+{
+    using namespace mfd::window::debug;
+
+    mfd::SceneRegistry liveScene(MakeRuntimeDebugDocumentWithDynamicSet());
+    liveScene.SetActivePage("Radar");
+    mfd::ReticleGroup track = MakeReticle("track_1");
+    track.sourceTemplateId = "tracks";
+    liveScene.UpsertDynamicReticle("Radar", std::move(track));
+    ASSERT_TRUE(liveScene.SetDynamicReticleSetVisible("Radar", "tracks", false));
+
+    RuntimeDebugState state;
+    state.Activate();
+
+    RuntimeDebugPreview preview;
+    ASSERT_TRUE(preview.ResetFromLive(liveScene, state));
+
+    const auto previewViews = preview.Scene().CollectPageReticleViews("Radar");
+    const auto trackView = std::find_if(
+        previewViews.begin(),
+        previewViews.end(),
+        [](const mfd::ReticleRenderView& view)
+        {
+            return view.group != nullptr && view.group->id == "track_1";
+        });
+    ASSERT_NE(trackView, previewViews.end());
+    EXPECT_FALSE(trackView->visible);
 }
 
 /**

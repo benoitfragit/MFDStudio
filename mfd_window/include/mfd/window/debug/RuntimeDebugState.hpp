@@ -59,30 +59,6 @@ struct ReticleKeyHash
 };
 
 /**
- * @brief Key identifying one dynamic reticle template visibility override.
- */
-struct DynamicTemplateKey
-{
-    /** @brief Owning page name. */
-    std::string pageName;
-    /** @brief Template id owning the dynamic-reticle set. */
-    std::string templateId;
-};
-
-/**
- * @brief Hash helper used by unordered template-visibility indexes.
- */
-struct DynamicTemplateKeyHash
-{
-    /**
-     * @brief Returns one stable hash for a dynamic-template key.
-     * @param key Dynamic-template key to hash.
-     * @return Hash value suitable for unordered containers.
-     */
-    std::size_t operator()(const DynamicTemplateKey& key) const noexcept;
-};
-
-/**
  * @brief Locally bypassed reticle draft stored while the debug overlay owns one reticle.
  */
 struct ReticleBypassState
@@ -168,7 +144,7 @@ public:
     void ResetInteractiveState();
 
     /**
-     * @brief Clears every state derived from previously observed UDP commands.
+     * @brief Clears the transport telemetry accumulated from previously observed UDP traffic.
      */
     void ResetObservedRuntimeState();
 
@@ -315,34 +291,6 @@ public:
     [[nodiscard]] bool HasInteractiveOverrides() const noexcept;
 
     /**
-     * @brief Stores the last known visibility of one dynamic-reticle template set.
-     * @param pageName Owning page name.
-     * @param templateId Template id identifying the set.
-     * @param visible Visibility currently enforced by the runtime scene.
-     */
-    void SetDynamicTemplateVisibility(std::string pageName, std::string templateId, bool visible);
-
-    /**
-     * @brief Clears every tracked dynamic-template visibility override.
-     */
-    void ClearDynamicTemplateVisibility();
-
-    /**
-     * @brief Returns one dynamic-template visibility override when it exists.
-     * @param pageName Owning page name.
-     * @param templateId Template id identifying the set.
-     * @return Optional visibility override.
-     */
-    [[nodiscard]] std::optional<bool> DynamicTemplateVisibility(std::string_view pageName,
-                                                                std::string_view templateId) const;
-
-    /**
-     * @brief Returns every dynamic-template visibility override currently tracked.
-     * @return Flat copy of the visibility map.
-     */
-    [[nodiscard]] std::vector<std::pair<DynamicTemplateKey, bool>> DynamicTemplateVisibilityEntries() const;
-
-    /**
      * @brief Updates the transport telemetry displayed by the overlay.
      * @param commandConfigured Whether the command receiver is configured.
      * @param commandReady Whether the command receiver is ready.
@@ -401,7 +349,6 @@ private:
     std::optional<ReticleKey> selectedReticle_ {};
     std::unordered_map<std::string, std::string> strobeBypasses_ {};
     std::unordered_map<ReticleKey, ReticleBypassState, ReticleKeyHash> reticleBypasses_ {};
-    std::unordered_map<DynamicTemplateKey, bool, DynamicTemplateKeyHash> dynamicTemplateVisibility_ {};
     TransportState transport_ {};
     std::optional<Clock::time_point> lastCommandTrafficAt_ {};
     std::string testPanelStatus_ {};
@@ -414,12 +361,4 @@ private:
  * @return `true` when both keys are identical.
  */
 bool operator==(const ReticleKey& lhs, const ReticleKey& rhs) noexcept;
-
-/**
- * @brief Returns whether two dynamic-template keys refer to the same set.
- * @param lhs Left-hand key.
- * @param rhs Right-hand key.
- * @return `true` when both keys are identical.
- */
-bool operator==(const DynamicTemplateKey& lhs, const DynamicTemplateKey& rhs) noexcept;
 } // namespace mfd::window::debug
