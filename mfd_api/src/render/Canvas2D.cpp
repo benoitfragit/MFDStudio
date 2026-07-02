@@ -235,13 +235,14 @@ bool IsIsotropicScale(const Vec2& scale) noexcept
     return std::abs(scaleX - scaleY) <= kIsotropicScaleEpsilon * std::max({1.0f, scaleX, scaleY});
 }
 
-// Fast path for a solid, isotropic circle outline: raylib tessellates the ring in a
-// single batched call instead of re-sampling sin/cos and emitting one DrawLineEx per
+// Fast path for a solid circle outline of known tessellation: raylib draws the stroke
+// as one batched ring instead of re-sampling sin/cos and emitting one DrawLineEx per
 // segment from C++ every frame. This is the dominant per-frame cost in Debug builds.
-void DrawCircleOutlineFast(const Vector2 center,
-                           const float radius,
-                           const float thickness,
-                           const Color color) noexcept
+void DrawCircleStrokeRing(const Vector2 center,
+                          const float radius,
+                          const float thickness,
+                          const int segments,
+                          const Color color) noexcept
 {
     // A degenerate circle drew nothing on the polyline path because every sampled segment had
     // zero length and was filtered out. Preserve that: without this guard DrawRing would still
@@ -254,8 +255,16 @@ void DrawCircleOutlineFast(const Vector2 center,
     const float halfThickness = thickness * 0.5f;
     const float innerRadius = std::max(0.0f, radius - halfThickness);
     const float outerRadius = radius + halfThickness;
-    const int segments = EstimateCircleSegmentCount(radius, 64);
     DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segments, color);
+}
+
+// Fast path for a solid, isotropic circle outline; see DrawCircleStrokeRing.
+void DrawCircleOutlineFast(const Vector2 center,
+                           const float radius,
+                           const float thickness,
+                           const Color color) noexcept
+{
+    DrawCircleStrokeRing(center, radius, thickness, EstimateCircleSegmentCount(radius, 64), color);
 }
 
 void DrawPolylineStroke(const ArrayView<const Vector2> points,
@@ -883,11 +892,35 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        const float outerRadiusPixels =
-            std::max(0.0f,
-                     std::abs(ToViewPixels(ring->outerRadius * PrimitiveAverageScale(primitive, group))));
+        const float ringScale = PrimitiveAverageScale(primitive, group);
+        const float outerRadiusPixels = std::max(0.0f, std::abs(ToViewPixels(ring->outerRadius * ringScale)));
         const int segmentCount =
             std::max(SanitizeSegmentCount(ring->segments, 12), EstimateCircleSegmentCount(outerRadiusPixels, 64));
+
+        // Fast path for a solid, isotropic ring: both outlines and the fill band are
+        // exact concentric circles, so raylib tessellates them in three batched ring
+        // calls instead of per-segment DrawLineEx and DrawTriangle emissions.
+        if (style.lineStyle == LineStyle::Solid && IsIsotropicScale(combinedTransform.scale))
+        {
+            const float innerRadiusPixels = std::max(0.0f, std::abs(ToViewPixels(ring->innerRadius * ringScale)));
+            const Vector2 ringCenter = ToScreen(TransformPoint({}, primitive, group));
+            if (!std::isfinite(innerRadiusPixels) || !std::isfinite(outerRadiusPixels) ||
+                !IsFiniteVector(ringCenter))
+            {
+                // The generic path filters every non-finite screen point and draws nothing.
+                break;
+            }
+
+            if (style.filled && std::max(innerRadiusPixels, outerRadiusPixels) > 0.0f)
+            {
+                DrawRing(ringCenter, innerRadiusPixels, outerRadiusPixels, 0.0f, 360.0f, segmentCount, fillColor);
+            }
+
+            DrawCircleStrokeRing(ringCenter, outerRadiusPixels, strokeThickness, segmentCount, strokeColor);
+            DrawCircleStrokeRing(ringCenter, innerRadiusPixels, strokeThickness, segmentCount, strokeColor);
+            break;
+        }
+
         SampleEllipseInto(
             EllipseGeometry {ring->outerRadius * 2.0f, ring->outerRadius * 2.0f},
             segmentCount,
