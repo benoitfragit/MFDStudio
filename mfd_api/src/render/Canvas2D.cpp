@@ -9,6 +9,7 @@
  */
 
 #include "Canvas2D.h"
+#include "CanvasFastPath.h"
 
 #include <algorithm>
 #include <array>
@@ -256,6 +257,24 @@ void DrawCircleOutlineFast(const Vector2 center,
     const float outerRadius = radius + halfThickness;
     const int segments = EstimateCircleSegmentCount(radius, 64);
     DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segments, color);
+}
+
+void DrawSolidRingFast(const Vector2 center,
+                       const float innerRadius,
+                       const float outerRadius,
+                       const bool filled,
+                       const float strokeThickness,
+                       const Color strokeColor,
+                       const Color fillColor) noexcept
+{
+    if (filled && outerRadius > innerRadius)
+    {
+        const int segments = EstimateCircleSegmentCount(outerRadius, 64);
+        DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segments, fillColor);
+    }
+
+    DrawCircleOutlineFast(center, outerRadius, strokeThickness, strokeColor);
+    DrawCircleOutlineFast(center, innerRadius, strokeThickness, strokeColor);
 }
 
 void DrawPolylineStroke(const ArrayView<const Vector2> points,
@@ -740,6 +759,20 @@ void Canvas2D::BuildScreenPointsInto(const Vec2* points,
     }
 }
 
+bool mfd::detail::CanUseFastSolidRingPath(const LineStyle lineStyle,
+                                          const Vec2& scale,
+                                          const float innerRadiusPixels,
+                                          const float outerRadiusPixels) noexcept
+{
+    return lineStyle == LineStyle::Solid &&
+           IsIsotropicScale(scale) &&
+           std::isfinite(innerRadiusPixels) &&
+           std::isfinite(outerRadiusPixels) &&
+           innerRadiusPixels >= 0.0f &&
+           outerRadiusPixels > 0.0f &&
+           innerRadiusPixels <= outerRadiusPixels;
+}
+
 void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& group) const
 {
     const PrimitiveStyle style = MergeStyle(primitive.style, group.overrides);
@@ -883,9 +916,34 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
+        const float innerRadiusPixels =
+            std::max(0.0f,
+                     std::abs(ToViewPixels(ring->innerRadius * PrimitiveAverageScale(primitive, group))));
         const float outerRadiusPixels =
             std::max(0.0f,
                      std::abs(ToViewPixels(ring->outerRadius * PrimitiveAverageScale(primitive, group))));
+        const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
+        if (!std::isfinite(innerRadiusPixels) ||
+            !std::isfinite(outerRadiusPixels) ||
+            innerRadiusPixels > outerRadiusPixels ||
+            !IsFiniteVector(center))
+        {
+            break;
+        }
+
+        if (detail::CanUseFastSolidRingPath(style.lineStyle, combinedTransform.scale, innerRadiusPixels, outerRadiusPixels))
+        {
+            DrawSolidRingFast(
+                center,
+                innerRadiusPixels,
+                outerRadiusPixels,
+                style.filled,
+                strokeThickness,
+                strokeColor,
+                fillColor);
+            break;
+        }
+
         const int segmentCount =
             std::max(SanitizeSegmentCount(ring->segments, 12), EstimateCircleSegmentCount(outerRadiusPixels, 64));
         SampleEllipseInto(
