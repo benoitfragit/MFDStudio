@@ -10,6 +10,8 @@
 
 #include "mfd/control/UdpRuntimeBridge.h"
 
+#include "UdpRuntimeBridgeInternal.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -22,6 +24,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
@@ -54,16 +57,25 @@ enum class CommandCoalescingKind
     SetPageView,
     UpdateWindowDisplay,
     UpdateReticle,
-    UpdateStrobe
+    UpdateStrobe,
+    UpsertDynamicReticle,
+    SetDynamicReticleSetVisibility,
+    SetDynamicReticleSetStrobeMagnetEnabled
+};
+
+struct CoalescingIdentifier
+{
+    std::uint64_t numericId = 0U;
+    std::string text {};
 };
 
 struct CommandCoalescingKey
 {
     CommandCoalescingKind kind = CommandCoalescingKind::ActivatePage;
-    std::string page;
-    std::string reticle;
-    TransportId pageId = 0;
-    TransportId reticleId = 0;
+    CoalescingIdentifier page {};
+    CoalescingIdentifier reticle {};
+    CoalescingIdentifier dynamicTemplate {};
+    CoalescingIdentifier strobe {};
 };
 
 struct UdpRuntimeCounters
@@ -85,13 +97,30 @@ struct UdpRuntimeCounters
     std::atomic<std::uint64_t> feedbackDropped {0};
 };
 
+CoalescingIdentifier MakeCoalescingIdentifier(const std::uint64_t numericId, const std::string_view fallbackText)
+{
+    CoalescingIdentifier identifier;
+    identifier.numericId = numericId;
+    if (numericId == 0U && !fallbackText.empty())
+    {
+        identifier.text = std::string(fallbackText);
+    }
+
+    return identifier;
+}
+
+bool operator==(const CoalescingIdentifier& lhs, const CoalescingIdentifier& rhs) noexcept
+{
+    return lhs.numericId == rhs.numericId && lhs.text == rhs.text;
+}
+
 bool operator==(const CommandCoalescingKey& lhs, const CommandCoalescingKey& rhs) noexcept
 {
     return lhs.kind == rhs.kind &&
            lhs.page == rhs.page &&
            lhs.reticle == rhs.reticle &&
-           lhs.pageId == rhs.pageId &&
-           lhs.reticleId == rhs.reticleId;
+           lhs.dynamicTemplate == rhs.dynamicTemplate &&
+           lhs.strobe == rhs.strobe;
 }
 
 template <typename Value>
@@ -100,16 +129,25 @@ void HashCombine(std::size_t& seed, const Value& value) noexcept
     seed ^= std::hash<Value> {}(value) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
 }
 
+void HashIdentifier(std::size_t& seed, const CoalescingIdentifier& identifier) noexcept
+{
+    HashCombine(seed, identifier.numericId);
+    if (identifier.numericId == 0U && !identifier.text.empty())
+    {
+        HashCombine(seed, identifier.text);
+    }
+}
+
 struct CommandCoalescingKeyHash
 {
     std::size_t operator()(const CommandCoalescingKey& key) const noexcept
     {
         std::size_t seed = 0U;
         HashCombine(seed, static_cast<std::size_t>(key.kind));
-        HashCombine(seed, key.page);
-        HashCombine(seed, key.reticle);
-        HashCombine(seed, key.pageId);
-        HashCombine(seed, key.reticleId);
+        HashIdentifier(seed, key.page);
+        HashIdentifier(seed, key.reticle);
+        HashIdentifier(seed, key.dynamicTemplate);
+        HashIdentifier(seed, key.strobe);
         return seed;
     }
 };
@@ -371,8 +409,7 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::SetPageView;
-        key.page = command.page;
-        key.pageId = command.pageId;
+        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
         return key;
     }
 
@@ -385,25 +422,46 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::UpdateReticle;
-        key.page = command.target.page;
-        key.reticle = command.target.reticle;
-        key.pageId = command.target.pageId;
-        key.reticleId = command.target.reticleId;
+        key.page = MakeCoalescingIdentifier(command.target.pageId, command.target.page);
+        key.reticle = MakeCoalescingIdentifier(command.target.reticleId, command.target.reticle);
         return key;
     }
 
-std::optional<CommandCoalescingKey> operator()(const UpdateStrobeCommand& command) const
-{
-    if (command.strobeId != 0 || !command.strobe.empty())
+    std::optional<CommandCoalescingKey> operator()(const UpdateStrobeCommand& command) const
     {
-        return std::nullopt;
+        CommandCoalescingKey key;
+        key.kind = CommandCoalescingKind::UpdateStrobe;
+        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
+        key.strobe = MakeCoalescingIdentifier(command.strobeId, command.strobe);
+        return key;
     }
 
-    CommandCoalescingKey key;
-    key.kind = CommandCoalescingKind::UpdateStrobe;
-    key.page = command.page;
-    key.pageId = command.pageId;
-    return key;
+    std::optional<CommandCoalescingKey> operator()(const UpsertDynamicReticleCommand& command) const
+    {
+        CommandCoalescingKey key;
+        key.kind = CommandCoalescingKind::UpsertDynamicReticle;
+        key.page = MakeCoalescingIdentifier(command.target.pageId, command.target.page);
+        key.reticle = MakeCoalescingIdentifier(command.target.runtimeReticleId, command.target.reticleId);
+        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        return key;
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const SetDynamicReticleSetVisibilityCommand& command) const
+    {
+        CommandCoalescingKey key;
+        key.kind = CommandCoalescingKind::SetDynamicReticleSetVisibility;
+        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
+        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        return key;
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
+    {
+        CommandCoalescingKey key;
+        key.kind = CommandCoalescingKind::SetDynamicReticleSetStrobeMagnetEnabled;
+        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
+        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        return key;
     }
 
     template <typename Command>
@@ -446,6 +504,16 @@ void MergeCoalescedCommand(UserCommand& target, const UserCommand& source)
         if (targetCommand != nullptr)
         {
             MergeStrobeCommand(*targetCommand, *sourceCommand);
+            return;
+        }
+    }
+
+    if (const auto* sourceCommand = std::get_if<UpsertDynamicReticleCommand>(&source))
+    {
+        auto* targetCommand = std::get_if<UpsertDynamicReticleCommand>(&target);
+        if (targetCommand != nullptr)
+        {
+            MergeReticlePatch(targetCommand->patch, sourceCommand->patch);
             return;
         }
     }
@@ -534,6 +602,11 @@ std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
 
 } // namespace
 
+std::size_t mfd::detail::CoalesceCommandBatch(CommandBatch& batch)
+{
+    return CommandCoalescer {}.Coalesce(batch);
+}
+
 struct UdpRuntimeBridge::Impl
 {
     WindowCommandTransportConfig commandConfig {};
@@ -601,7 +674,7 @@ struct UdpRuntimeBridge::Impl
             return;
         }
 
-        const std::size_t coalescedCommandCount = CommandCoalescer {}.Coalesce(batch);
+        const std::size_t coalescedCommandCount = detail::CoalesceCommandBatch(batch);
         if (coalescedCommandCount > 0U)
         {
             AddCounter(counters.coalescedCommands, static_cast<std::uint64_t>(coalescedCommandCount));

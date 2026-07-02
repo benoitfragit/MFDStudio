@@ -51,6 +51,7 @@ target_compile_features(mfd_api_tests PRIVATE cxx_std_17)
 target_include_directories(mfd_api_tests
     PRIVATE
         ${CMAKE_BINARY_DIR}/mfd_common_api/generated
+        ${MFD_ROOT_DIR}/mfd_api/src/control
         ${MFD_ROOT_DIR}/mfd_api/src/io/json
         ${MFD_ROOT_DIR}/mfd_api/src/runtime
         ${MFD_ROOT_DIR}/mfd_api/src/render)

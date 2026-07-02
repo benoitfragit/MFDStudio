@@ -30,6 +30,7 @@
 #include "mfd/control/UdpRuntimeBridge.h"
 #include "mfd/control/WindowFeedback.h"
 #include "mfd/ipc/ExchangeChannel.h"
+#include "UdpRuntimeBridgeInternal.hpp"
 
 namespace
 {
@@ -190,6 +191,18 @@ mfd::UserCommand MakeReticlePositionCommand(const float x)
 }
 
 /**
+ * @brief Builds one string-addressed reticle position update command for fallback coalescing tests.
+ */
+mfd::UserCommand MakeNamedReticlePositionCommand(const float x)
+{
+    mfd::UpdateReticleCommand command;
+    command.target.page = "Radar";
+    command.target.reticle = "HeadingBox";
+    command.patch.position = mfd::Vec2 {x, 0.0f};
+    return command;
+}
+
+/**
  * @brief Builds one reticle time-value update command for primitive-level coalescing tests.
  */
 mfd::UserCommand MakeReticleTimeValueCommand()
@@ -255,6 +268,65 @@ mfd::UserCommand MakeWindowDisabledCommand(const bool disabled)
 {
     mfd::UpdateWindowDisplayCommand command;
     command.patch.disabled = disabled;
+    return command;
+}
+
+/**
+ * @brief Builds one generated strobe update command for numeric-id coalescing tests.
+ */
+mfd::UserCommand MakeGeneratedStrobeCommand(const std::optional<bool> active, const std::optional<mfd::Vec2> position)
+{
+    mfd::UpdateStrobeCommand command;
+    command.pageId = 11U;
+    command.strobeId = 101U;
+    command.active = active;
+    command.position = position;
+    return command;
+}
+
+/**
+ * @brief Builds one generated dynamic-reticle upsert command for numeric-id coalescing tests.
+ */
+mfd::UserCommand MakeGeneratedDynamicUpsertCommand(const std::optional<mfd::Vec2> position,
+                                                   const std::optional<bool> visible)
+{
+    mfd::UpsertDynamicReticleCommand command;
+    command.target.pageId = 11U;
+    command.target.runtimeReticleId = 501U;
+    command.templateTransportId = 301U;
+    if (position.has_value())
+    {
+        command.patch.position = *position;
+    }
+    if (visible.has_value())
+    {
+        command.patch.visible = *visible;
+    }
+
+    return command;
+}
+
+/**
+ * @brief Builds one generated dynamic-set visibility command for numeric-id coalescing tests.
+ */
+mfd::UserCommand MakeGeneratedDynamicSetVisibilityCommand(const bool visible)
+{
+    mfd::SetDynamicReticleSetVisibilityCommand command;
+    command.pageId = 11U;
+    command.templateTransportId = 301U;
+    command.visible = visible;
+    return command;
+}
+
+/**
+ * @brief Builds one generated dynamic-set strobe-magnet command for numeric-id coalescing tests.
+ */
+mfd::UserCommand MakeGeneratedDynamicSetStrobeMagnetCommand(const bool enabled)
+{
+    mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand command;
+    command.pageId = 11U;
+    command.templateTransportId = 301U;
+    command.enabled = enabled;
     return command;
 }
 } // namespace
@@ -478,6 +550,24 @@ TEST(UdpRuntimeBridgeTests, CoalescesRepeatedStateLikeCommandsInQueuedBatch)
     bridge.Stop();
 }
 
+TEST(UdpRuntimeBridgeTests, CoalescingFallsBackToStringAddressingWhenIdsAreAbsent)
+{
+    mfd::CommandBatch batch;
+    batch.sequence = 31U;
+    batch.commands.push_back(MakeNamedReticlePositionCommand(0.1f));
+    batch.commands.push_back(MakeNamedReticlePositionCommand(0.2f));
+
+    EXPECT_EQ(mfd::detail::CoalesceCommandBatch(batch), 1U);
+    ASSERT_EQ(batch.commands.size(), 1U);
+
+    const auto* command = std::get_if<mfd::UpdateReticleCommand>(&batch.commands.front());
+    ASSERT_NE(command, nullptr);
+    EXPECT_EQ(command->target.page, "Radar");
+    EXPECT_EQ(command->target.reticle, "HeadingBox");
+    ASSERT_TRUE(command->patch.position.has_value());
+    EXPECT_FLOAT_EQ(command->patch.position->x, 0.2f);
+}
+
 TEST(UdpRuntimeBridgeTests, CoalescingPreservesEventLikeCommandBarriers)
 {
     auto receiverState = std::make_shared<FakeChannelState>();
@@ -662,6 +752,193 @@ TEST(UdpRuntimeBridgeTests, CoalescingLetsClearTimeOverrideReplaceEarlierTimeVal
     ASSERT_TRUE(primitivePatch.timeUtc.has_value());
     EXPECT_TRUE(*primitivePatch.timeUtc);
     EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 2U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingUsesGeneratedStrobeIdsWhenAvailable)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 36U;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(MakeGeneratedStrobeCommand(true, std::nullopt));
+    batch.commands.push_back(MakeGeneratedStrobeCommand(std::nullopt, mfd::Vec2 {0.45f, -0.15f}));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+
+    const auto* command = std::get_if<mfd::UpdateStrobeCommand>(&drained.front().commands.front());
+    ASSERT_NE(command, nullptr);
+    EXPECT_EQ(command->pageId, 11U);
+    EXPECT_EQ(command->strobeId, 101U);
+    ASSERT_TRUE(command->active.has_value());
+    EXPECT_TRUE(*command->active);
+    ASSERT_TRUE(command->position.has_value());
+    EXPECT_FLOAT_EQ(command->position->x, 0.45f);
+    EXPECT_FLOAT_EQ(command->position->y, -0.15f);
+    EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 1U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingMergesGeneratedDynamicReticleUpserts)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 37U;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(MakeGeneratedDynamicUpsertCommand(mfd::Vec2 {0.25f, -0.10f}, std::nullopt));
+    batch.commands.push_back(MakeGeneratedDynamicUpsertCommand(std::nullopt, false));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+
+    const auto* command = std::get_if<mfd::UpsertDynamicReticleCommand>(&drained.front().commands.front());
+    ASSERT_NE(command, nullptr);
+    EXPECT_EQ(command->target.pageId, 11U);
+    EXPECT_EQ(command->target.runtimeReticleId, 501U);
+    EXPECT_EQ(command->templateTransportId, 301U);
+    ASSERT_TRUE(command->patch.position.has_value());
+    EXPECT_FLOAT_EQ(command->patch.position->x, 0.25f);
+    EXPECT_FLOAT_EQ(command->patch.position->y, -0.10f);
+    ASSERT_TRUE(command->patch.visible.has_value());
+    EXPECT_FALSE(*command->patch.visible);
+    EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 1U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingUsesGeneratedDynamicSetVisibilityIdsWhenAvailable)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 38U;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(MakeGeneratedDynamicSetVisibilityCommand(false));
+    batch.commands.push_back(MakeGeneratedDynamicSetVisibilityCommand(true));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+
+    const auto* command =
+        std::get_if<mfd::SetDynamicReticleSetVisibilityCommand>(&drained.front().commands.front());
+    ASSERT_NE(command, nullptr);
+    EXPECT_EQ(command->pageId, 11U);
+    EXPECT_EQ(command->templateTransportId, 301U);
+    EXPECT_TRUE(command->visible);
+    EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 1U);
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingUsesGeneratedDynamicSetStrobeMagnetIdsWhenAvailable)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+
+    mfd::CommandBatch batch;
+    batch.sequence = 39U;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(MakeGeneratedDynamicSetStrobeMagnetCommand(false));
+    batch.commands.push_back(MakeGeneratedDynamicSetStrobeMagnetCommand(true));
+    receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().inboundQueueDepth == 1U;
+        }));
+
+    std::vector<mfd::CommandBatch> drained;
+    ASSERT_EQ(bridge.DrainReceivedBatchesForCommandBudget(drained, 4U), 1U);
+    ASSERT_EQ(drained.size(), 1U);
+    ASSERT_EQ(drained.front().commands.size(), 1U);
+
+    const auto* command =
+        std::get_if<mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand>(&drained.front().commands.front());
+    ASSERT_NE(command, nullptr);
+    EXPECT_EQ(command->pageId, 11U);
+    EXPECT_EQ(command->templateTransportId, 301U);
+    EXPECT_TRUE(command->enabled);
+    EXPECT_EQ(bridge.MetricsSnapshot().coalescedCommands, 1U);
     bridge.Stop();
 }
 
