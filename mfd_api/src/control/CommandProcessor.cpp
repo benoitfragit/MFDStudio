@@ -13,7 +13,6 @@
 #include <cstddef>
 #include <cstring>
 #include <vector>
-#include <type_traits>
 #include <utility>
 
 #include "mfd/ipc/ExchangeChannel.h"
@@ -673,6 +672,100 @@ bool CommandProcessor::ResolveGeneratedPatchPrimitiveIds(ReticlePatch& patch,
     return true;
 }
 
+/**
+ * @brief Resolves generated transport identifiers with one explicit overload per command type.
+ *
+ * @note This visitor intentionally has no generic fallback: adding a new `UserCommand`
+ * alternative must fail to compile here until its runtime resolution rule is written.
+ */
+struct CommandProcessor::IdentifierResolver
+{
+    CommandProcessor& processor;
+
+    bool operator()(ActivatePageCommand& command) const
+    {
+        return processor.ResolveGeneratedPage(command.page, command.pageId);
+    }
+
+    bool operator()(SetPageViewCommand& command) const
+    {
+        return processor.ResolveGeneratedPage(command.page, command.pageId);
+    }
+
+    bool operator()(UpdateWindowDisplayCommand&) const noexcept
+    {
+        return true;
+    }
+
+    bool operator()(UpdateReticleCommand& command) const
+    {
+        return processor.ResolveGeneratedStaticReticle(command.target) &&
+               processor.ResolveGeneratedPatchPrimitiveIds(
+                   command.patch, command.target.pageId, command.target.reticleId, 0);
+    }
+
+    bool operator()(UpdateStrobeCommand& command) const
+    {
+        return processor.ResolveGeneratedPage(command.page, command.pageId) &&
+               processor.ResolveGeneratedStrobe(command.pageId, command.strobe, command.strobeId);
+    }
+
+    bool operator()(UpsertDynamicReticleCommand& command) const
+    {
+        return processor.ResolveGeneratedDynamicReticle(command.target) &&
+               processor.ResolveGeneratedTemplate(command.templateId, command.templateTransportId) &&
+               processor.ResolveGeneratedPatchPrimitiveIds(
+                   command.patch, command.target.pageId, 0, command.templateTransportId);
+    }
+
+    bool operator()(UpsertDynamicReticlesCommand& command) const
+    {
+        if (!processor.ResolveGeneratedPage(command.page, command.pageId) ||
+            !processor.ResolveGeneratedTemplate(command.templateId, command.templateTransportId))
+        {
+            return false;
+        }
+
+        for (DynamicReticleState& state : command.reticles)
+        {
+            if (state.runtimeReticleId != 0 && state.reticleId.empty())
+            {
+                state.reticleId = MakeRuntimeDynamicReticleAlias(state.runtimeReticleId);
+            }
+
+            if ((state.runtimeReticleId == 0 && state.reticleId.empty()) ||
+                !processor.ResolveGeneratedPatchPrimitiveIds(state.patch, command.pageId, 0, command.templateTransportId))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool operator()(SetDynamicReticleSetVisibilityCommand& command) const
+    {
+        return processor.ResolveGeneratedPage(command.page, command.pageId) &&
+               processor.ResolveGeneratedTemplate(command.templateId, command.templateTransportId);
+    }
+
+    bool operator()(SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
+    {
+        return processor.ResolveGeneratedPage(command.page, command.pageId) &&
+               processor.ResolveGeneratedTemplate(command.templateId, command.templateTransportId);
+    }
+
+    bool operator()(RemoveDynamicReticleCommand& command) const
+    {
+        return processor.ResolveGeneratedDynamicReticle(command.target);
+    }
+
+    bool operator()(ResetWindowCommand&) const noexcept
+    {
+        return true;
+    }
+};
+
 bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std::string_view mappingHash)
 {
     if (mappingHash.empty())
@@ -686,81 +779,7 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
         return true;
     }
 
-    return std::visit(
-        [this](auto& value) -> bool
-        {
-            using Command = std::decay_t<decltype(value)>;
-
-            if constexpr (std::is_same_v<Command, ActivatePageCommand> ||
-                          std::is_same_v<Command, SetPageViewCommand>)
-            {
-                return ResolveGeneratedPage(value.page, value.pageId);
-            }
-            else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand> ||
-                               std::is_same_v<Command, ResetWindowCommand>)
-            {
-                return true;
-            }
-            else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
-            {
-                return ResolveGeneratedStaticReticle(value.target) &&
-                       ResolveGeneratedPatchPrimitiveIds(value.patch, value.target.pageId, value.target.reticleId, 0);
-            }
-            else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
-            {
-                return ResolveGeneratedPage(value.page, value.pageId) &&
-                       ResolveGeneratedStrobe(value.pageId, value.strobe, value.strobeId);
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
-            {
-                return ResolveGeneratedDynamicReticle(value.target) &&
-                       ResolveGeneratedTemplate(value.templateId, value.templateTransportId) &&
-                       ResolveGeneratedPatchPrimitiveIds(value.patch, value.target.pageId, 0, value.templateTransportId);
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
-            {
-                if (!ResolveGeneratedPage(value.page, value.pageId) ||
-                    !ResolveGeneratedTemplate(value.templateId, value.templateTransportId))
-                {
-                    return false;
-                }
-
-                for (auto& state : value.reticles)
-                {
-                    if (state.runtimeReticleId != 0 && state.reticleId.empty())
-                    {
-                        state.reticleId = MakeRuntimeDynamicReticleAlias(state.runtimeReticleId);
-                    }
-
-                    if ((state.runtimeReticleId == 0 && state.reticleId.empty()) ||
-                        !ResolveGeneratedPatchPrimitiveIds(state.patch, value.pageId, 0, value.templateTransportId))
-                    {
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
-            {
-                return ResolveGeneratedPage(value.page, value.pageId) &&
-                       ResolveGeneratedTemplate(value.templateId, value.templateTransportId);
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
-            {
-                return ResolveGeneratedPage(value.page, value.pageId) &&
-                       ResolveGeneratedTemplate(value.templateId, value.templateTransportId);
-            }
-            else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
-            {
-                return ResolveGeneratedDynamicReticle(value.target);
-            }
-            else
-            {
-                return true;
-            }
-        },
-        command);
+    return std::visit(IdentifierResolver {*this}, command);
 }
 
 void CommandProcessor::OnActivatePage(const ActivatePageCommand& command)

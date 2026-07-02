@@ -16,7 +16,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -53,11 +52,6 @@ constexpr std::size_t kMaxCommandPayloadBytes = 1024ULL * 1024ULL;
 constexpr std::size_t kMaxCommandsPerEnvelope = 1024U;
 constexpr std::size_t kMaxPatchEntryCount = 2048U;
 constexpr std::size_t kMaxDynamicReticlesPerBatch = 4096U;
-
-template <typename>
-struct AlwaysFalse : std::false_type
-{
-};
 
 void ValidateFiniteAbs(const float value, const char* fieldName, const float maxAbs)
 {
@@ -389,121 +383,136 @@ void ValidateDynamicReticleState(const DynamicReticleState& state)
     ValidateReticlePatch(state.patch);
 }
 
+// Validates semantic command preconditions with one explicit overload per command type.
+// This visitor intentionally has no generic fallback: adding a new UserCommand alternative
+// must fail to compile here until its validation rule is written.
+struct UserCommandValidator
+{
+    void operator()(const ActivatePageCommand& command) const
+    {
+        if (command.pageId == 0 && command.page.empty())
+        {
+            throw std::runtime_error("ActivatePageCommand requires a pageId or page name");
+        }
+    }
+
+    void operator()(const SetPageViewCommand& command) const
+    {
+        if (command.pageId == 0 && command.page.empty())
+        {
+            throw std::runtime_error("SetPageViewCommand requires a pageId or page name");
+        }
+
+        ValidatePageViewState(command.view);
+    }
+
+    void operator()(const UpdateWindowDisplayCommand& command) const
+    {
+        ValidateWindowDisplayPatch(command.patch);
+    }
+
+    void operator()(const UpdateReticleCommand& command) const
+    {
+        if ((command.target.pageId == 0 && command.target.page.empty()) ||
+            (command.target.reticleId == 0 && command.target.reticle.empty()))
+        {
+            throw std::runtime_error("UpdateReticleCommand requires a target page and reticle");
+        }
+
+        ValidateReticlePatch(command.patch);
+    }
+
+    void operator()(const UpdateStrobeCommand& command) const
+    {
+        if (command.pageId == 0 && command.page.empty())
+        {
+            throw std::runtime_error("UpdateStrobeCommand requires a pageId or page name");
+        }
+
+        if (command.strobeId == 0 && !command.strobe.empty())
+        {
+            if (NormalizePageName(command.strobe).empty())
+            {
+                throw std::runtime_error("UpdateStrobeCommand.strobe must not be empty");
+            }
+        }
+
+        if (command.position.has_value())
+        {
+            ValidateVec2(*command.position, "UpdateStrobeCommand.position");
+        }
+    }
+
+    void operator()(const UpsertDynamicReticleCommand& command) const
+    {
+        if ((command.target.pageId == 0 && command.target.page.empty()) ||
+            (command.target.runtimeReticleId == 0 && command.target.reticleId.empty()) ||
+            (command.templateTransportId == 0 && command.templateId.empty()))
+        {
+            throw std::runtime_error(
+                "UpsertDynamicReticleCommand requires page, target reticle and template identifiers");
+        }
+
+        ValidateReticlePatch(command.patch);
+    }
+
+    void operator()(const UpsertDynamicReticlesCommand& command) const
+    {
+        if ((command.pageId == 0 && command.page.empty()) ||
+            (command.templateTransportId == 0 && command.templateId.empty()))
+        {
+            throw std::runtime_error(
+                "UpsertDynamicReticlesCommand requires page and template identifiers");
+        }
+
+        ValidateContainerSize(
+            command.reticles.size(),
+            kMaxDynamicReticlesPerBatch,
+            "UpsertDynamicReticlesCommand.reticles");
+        for (const DynamicReticleState& state : command.reticles)
+        {
+            ValidateDynamicReticleState(state);
+        }
+    }
+
+    void operator()(const SetDynamicReticleSetVisibilityCommand& command) const
+    {
+        if ((command.pageId == 0 && command.page.empty()) ||
+            (command.templateTransportId == 0 && command.templateId.empty()))
+        {
+            throw std::runtime_error(
+                "SetDynamicReticleSetVisibilityCommand requires page and template identifiers");
+        }
+    }
+
+    void operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
+    {
+        if ((command.pageId == 0 && command.page.empty()) ||
+            (command.templateTransportId == 0 && command.templateId.empty()))
+        {
+            throw std::runtime_error(
+                "SetDynamicReticleSetStrobeMagnetEnabledCommand requires page and template identifiers");
+        }
+    }
+
+    void operator()(const RemoveDynamicReticleCommand& command) const
+    {
+        if ((command.target.pageId == 0 && command.target.page.empty()) ||
+            (command.target.runtimeReticleId == 0 && command.target.reticleId.empty()))
+        {
+            throw std::runtime_error("RemoveDynamicReticleCommand requires a target page and reticle");
+        }
+    }
+
+    void operator()(const ResetWindowCommand&) const noexcept
+    {
+        // A window reset carries no payload: there is nothing to validate.
+    }
+};
+
 void ValidateUserCommand(const UserCommand& command)
 {
-    std::visit(
-        [](const auto& value)
-        {
-            using Command = std::decay_t<decltype(value)>;
-
-            if constexpr (std::is_same_v<Command, ActivatePageCommand>)
-            {
-                if (value.pageId == 0 && value.page.empty())
-                {
-                    throw std::runtime_error("ActivatePageCommand requires a pageId or page name");
-                }
-            }
-            else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
-            {
-                if (value.pageId == 0 && value.page.empty())
-                {
-                    throw std::runtime_error("SetPageViewCommand requires a pageId or page name");
-                }
-
-                ValidatePageViewState(value.view);
-            }
-            else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand>)
-            {
-                ValidateWindowDisplayPatch(value.patch);
-            }
-            else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
-            {
-                if ((value.target.pageId == 0 && value.target.page.empty()) ||
-                    (value.target.reticleId == 0 && value.target.reticle.empty()))
-                {
-                    throw std::runtime_error("UpdateReticleCommand requires a target page and reticle");
-                }
-
-                ValidateReticlePatch(value.patch);
-            }
-            else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
-            {
-                if (value.pageId == 0 && value.page.empty())
-                {
-                    throw std::runtime_error("UpdateStrobeCommand requires a pageId or page name");
-                }
-
-                if (value.strobeId == 0 && !value.strobe.empty())
-                {
-                    if (NormalizePageName(value.strobe).empty())
-                    {
-                        throw std::runtime_error("UpdateStrobeCommand.strobe must not be empty");
-                    }
-                }
-
-                if (value.position.has_value())
-                {
-                    ValidateVec2(*value.position, "UpdateStrobeCommand.position");
-                }
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
-            {
-                if ((value.target.pageId == 0 && value.target.page.empty()) ||
-                    (value.target.runtimeReticleId == 0 && value.target.reticleId.empty()) ||
-                    (value.templateTransportId == 0 && value.templateId.empty()))
-                {
-                    throw std::runtime_error(
-                        "UpsertDynamicReticleCommand requires page, target reticle and template identifiers");
-                }
-
-                ValidateReticlePatch(value.patch);
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
-            {
-                if ((value.pageId == 0 && value.page.empty()) ||
-                    (value.templateTransportId == 0 && value.templateId.empty()))
-                {
-                    throw std::runtime_error(
-                        "UpsertDynamicReticlesCommand requires page and template identifiers");
-                }
-
-                ValidateContainerSize(
-                    value.reticles.size(),
-                    kMaxDynamicReticlesPerBatch,
-                    "UpsertDynamicReticlesCommand.reticles");
-                for (const DynamicReticleState& state : value.reticles)
-                {
-                    ValidateDynamicReticleState(state);
-                }
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
-            {
-                if ((value.pageId == 0 && value.page.empty()) ||
-                    (value.templateTransportId == 0 && value.templateId.empty()))
-                {
-                    throw std::runtime_error(
-                        "SetDynamicReticleSetVisibilityCommand requires page and template identifiers");
-                }
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
-            {
-                if ((value.pageId == 0 && value.page.empty()) ||
-                    (value.templateTransportId == 0 && value.templateId.empty()))
-                {
-                    throw std::runtime_error(
-                        "SetDynamicReticleSetStrobeMagnetEnabledCommand requires page and template identifiers");
-                }
-            }
-            else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
-            {
-                if ((value.target.pageId == 0 && value.target.page.empty()) ||
-                    (value.target.runtimeReticleId == 0 && value.target.reticleId.empty()))
-                {
-                    throw std::runtime_error("RemoveDynamicReticleCommand requires a target page and reticle");
-                }
-            }
-        },
-        command);
+    std::visit(UserCommandValidator {}, command);
 }
 
 void ValidateCommandBatch(const CommandBatch& batch)
@@ -1189,158 +1198,167 @@ void FillDynamicReticleStateFromProto(const pb::DynamicReticleState& value, Dyna
     }
 }
 
+// Serializes one typed command into its proto message with one explicit overload per command
+// type. This visitor intentionally has no generic fallback: adding a new UserCommand
+// alternative must fail to compile here until its wire mapping is written.
+struct UserCommandProtoWriter
+{
+    pb::UserCommand* target = nullptr;
+
+    void operator()(const ActivatePageCommand& command) const
+    {
+        auto* message = target->mutable_activate_page();
+        if (command.pageId == 0)
+        {
+            throw std::runtime_error("ActivatePageCommand serialization requires generated pageId");
+        }
+
+        message->set_page_id(command.pageId);
+    }
+
+    void operator()(const SetPageViewCommand& command) const
+    {
+        auto* message = target->mutable_set_page_view();
+        FillProtoVec2(command.view.center, message->mutable_center());
+        message->set_zoom(command.view.zoom);
+        if (command.pageId == 0)
+        {
+            throw std::runtime_error("SetPageViewCommand serialization requires generated pageId");
+        }
+
+        message->set_page_id(command.pageId);
+    }
+
+    void operator()(const UpdateWindowDisplayCommand& command) const
+    {
+        FillProtoWindowDisplayPatch(command.patch, target->mutable_update_window_display()->mutable_patch());
+    }
+
+    void operator()(const UpdateReticleCommand& command) const
+    {
+        auto* message = target->mutable_update_reticle();
+        FillProtoStaticHandle(command.target, message->mutable_target());
+        FillProtoReticlePatch(command.patch, message->mutable_patch());
+    }
+
+    void operator()(const UpdateStrobeCommand& command) const
+    {
+        auto* message = target->mutable_update_strobe();
+        if (command.pageId == 0)
+        {
+            throw std::runtime_error("UpdateStrobeCommand serialization requires generated pageId");
+        }
+
+        message->set_page_id(command.pageId);
+
+        if (command.active.has_value())
+        {
+            message->set_active(*command.active);
+        }
+
+        if (command.position.has_value())
+        {
+            FillProtoVec2(*command.position, message->mutable_position());
+        }
+
+        if (command.strobeId != 0)
+        {
+            message->set_strobe_id(command.strobeId);
+        }
+    }
+
+    void operator()(const UpsertDynamicReticleCommand& command) const
+    {
+        auto* message = target->mutable_upsert_dynamic_reticle();
+        FillProtoDynamicHandle(command.target, message->mutable_target());
+        FillProtoReticlePatch(command.patch, message->mutable_patch());
+        if (command.templateTransportId == 0)
+        {
+            throw std::runtime_error(
+                "UpsertDynamicReticleCommand serialization requires templateTransportId");
+        }
+
+        message->set_template_transport_id(command.templateTransportId);
+    }
+
+    void operator()(const UpsertDynamicReticlesCommand& command) const
+    {
+        auto* message = target->mutable_upsert_dynamic_reticles();
+        if (command.pageId == 0)
+        {
+            throw std::runtime_error(
+                "UpsertDynamicReticlesCommand serialization requires generated pageId");
+        }
+
+        if (command.templateTransportId == 0)
+        {
+            throw std::runtime_error(
+                "UpsertDynamicReticlesCommand serialization requires templateTransportId");
+        }
+
+        message->set_page_id(command.pageId);
+        message->set_template_transport_id(command.templateTransportId);
+
+        for (const DynamicReticleState& reticle : command.reticles)
+        {
+            FillProtoDynamicReticleState(reticle, message->add_reticles());
+        }
+    }
+
+    void operator()(const SetDynamicReticleSetVisibilityCommand& command) const
+    {
+        auto* message = target->mutable_set_dynamic_reticle_set_visibility();
+        message->set_visible(command.visible);
+        if (command.pageId == 0)
+        {
+            throw std::runtime_error(
+                "SetDynamicReticleSetVisibilityCommand serialization requires generated pageId");
+        }
+
+        if (command.templateTransportId == 0)
+        {
+            throw std::runtime_error(
+                "SetDynamicReticleSetVisibilityCommand serialization requires templateTransportId");
+        }
+
+        message->set_page_id(command.pageId);
+        message->set_template_transport_id(command.templateTransportId);
+    }
+
+    void operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
+    {
+        auto* message = target->mutable_set_dynamic_reticle_set_strobe_magnet_enabled();
+        message->set_enabled(command.enabled);
+        if (command.pageId == 0)
+        {
+            throw std::runtime_error(
+                "SetDynamicReticleSetStrobeMagnetEnabledCommand serialization requires generated pageId");
+        }
+
+        if (command.templateTransportId == 0)
+        {
+            throw std::runtime_error(
+                "SetDynamicReticleSetStrobeMagnetEnabledCommand serialization requires templateTransportId");
+        }
+
+        message->set_page_id(command.pageId);
+        message->set_template_transport_id(command.templateTransportId);
+    }
+
+    void operator()(const RemoveDynamicReticleCommand& command) const
+    {
+        FillProtoDynamicHandle(command.target, target->mutable_remove_dynamic_reticle()->mutable_target());
+    }
+
+    void operator()(const ResetWindowCommand&) const
+    {
+        target->mutable_reset_window();
+    }
+};
+
 void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
 {
-    std::visit(
-        [target](const auto& value)
-        {
-            using Command = std::decay_t<decltype(value)>;
-
-            if constexpr (std::is_same_v<Command, ActivatePageCommand>)
-            {
-                auto* message = target->mutable_activate_page();
-                if (value.pageId == 0)
-                {
-                    throw std::runtime_error("ActivatePageCommand serialization requires generated pageId");
-                }
-
-                message->set_page_id(value.pageId);
-            }
-            else if constexpr (std::is_same_v<Command, SetPageViewCommand>)
-            {
-                auto* message = target->mutable_set_page_view();
-                FillProtoVec2(value.view.center, message->mutable_center());
-                message->set_zoom(value.view.zoom);
-                if (value.pageId == 0)
-                {
-                    throw std::runtime_error("SetPageViewCommand serialization requires generated pageId");
-                }
-
-                message->set_page_id(value.pageId);
-            }
-            else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand>)
-            {
-                FillProtoWindowDisplayPatch(value.patch, target->mutable_update_window_display()->mutable_patch());
-            }
-            else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
-            {
-                auto* message = target->mutable_update_reticle();
-                FillProtoStaticHandle(value.target, message->mutable_target());
-                FillProtoReticlePatch(value.patch, message->mutable_patch());
-            }
-            else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
-            {
-                auto* message = target->mutable_update_strobe();
-                if (value.pageId == 0)
-                {
-                    throw std::runtime_error("UpdateStrobeCommand serialization requires generated pageId");
-                }
-
-                message->set_page_id(value.pageId);
-
-                if (value.active.has_value())
-                {
-                    message->set_active(*value.active);
-                }
-
-                if (value.position.has_value())
-                {
-                    FillProtoVec2(*value.position, message->mutable_position());
-                }
-
-                if (value.strobeId != 0)
-                {
-                    message->set_strobe_id(value.strobeId);
-                }
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
-            {
-                auto* message = target->mutable_upsert_dynamic_reticle();
-                FillProtoDynamicHandle(value.target, message->mutable_target());
-                FillProtoReticlePatch(value.patch, message->mutable_patch());
-                if (value.templateTransportId == 0)
-                {
-                    throw std::runtime_error(
-                        "UpsertDynamicReticleCommand serialization requires templateTransportId");
-                }
-
-                message->set_template_transport_id(value.templateTransportId);
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
-            {
-                auto* message = target->mutable_upsert_dynamic_reticles();
-                if (value.pageId == 0)
-                {
-                    throw std::runtime_error(
-                        "UpsertDynamicReticlesCommand serialization requires generated pageId");
-                }
-
-                if (value.templateTransportId == 0)
-                {
-                    throw std::runtime_error(
-                        "UpsertDynamicReticlesCommand serialization requires templateTransportId");
-                }
-
-                message->set_page_id(value.pageId);
-                message->set_template_transport_id(value.templateTransportId);
-
-                for (const DynamicReticleState& reticle : value.reticles)
-                {
-                    FillProtoDynamicReticleState(reticle, message->add_reticles());
-                }
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
-            {
-                auto* message = target->mutable_set_dynamic_reticle_set_visibility();
-                message->set_visible(value.visible);
-                if (value.pageId == 0)
-                {
-                    throw std::runtime_error(
-                        "SetDynamicReticleSetVisibilityCommand serialization requires generated pageId");
-                }
-
-                if (value.templateTransportId == 0)
-                {
-                    throw std::runtime_error(
-                        "SetDynamicReticleSetVisibilityCommand serialization requires templateTransportId");
-                }
-
-                message->set_page_id(value.pageId);
-                message->set_template_transport_id(value.templateTransportId);
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
-            {
-                auto* message = target->mutable_set_dynamic_reticle_set_strobe_magnet_enabled();
-                message->set_enabled(value.enabled);
-                if (value.pageId == 0)
-                {
-                    throw std::runtime_error(
-                        "SetDynamicReticleSetStrobeMagnetEnabledCommand serialization requires generated pageId");
-                }
-
-                if (value.templateTransportId == 0)
-                {
-                    throw std::runtime_error(
-                        "SetDynamicReticleSetStrobeMagnetEnabledCommand serialization requires templateTransportId");
-                }
-
-                message->set_page_id(value.pageId);
-                message->set_template_transport_id(value.templateTransportId);
-            }
-            else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
-            {
-                FillProtoDynamicHandle(value.target, target->mutable_remove_dynamic_reticle()->mutable_target());
-            }
-            else if constexpr (std::is_same_v<Command, ResetWindowCommand>)
-            {
-                target->mutable_reset_window();
-            }
-            else
-            {
-                static_assert(AlwaysFalse<Command>::value, "Unsupported user command type");
-            }
-        },
-        command);
+    std::visit(UserCommandProtoWriter {target}, command);
 }
 
 // Deserializes one proto command directly into a new element of the target vector, without

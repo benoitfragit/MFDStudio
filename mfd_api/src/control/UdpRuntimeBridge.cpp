@@ -398,6 +398,11 @@ void MergeStrobeCommand(UpdateStrobeCommand& target, const UpdateStrobeCommand& 
     }
 }
 
+// Maps one typed command to its coalescing key with one explicit overload per command type.
+// Returning std::nullopt marks the command as a coalescing barrier: it is never merged and
+// stops earlier commands from being merged across it. This visitor intentionally has no
+// generic fallback: adding a new UserCommand alternative must fail to compile here until
+// its coalescing rule is written.
 struct CommandCoalescingKeyVisitor
 {
     std::optional<CommandCoalescingKey> operator()(const ActivatePageCommand&) const
@@ -464,9 +469,23 @@ struct CommandCoalescingKeyVisitor
         return key;
     }
 
-    template <typename Command>
-    std::optional<CommandCoalescingKey> operator()(const Command&) const
+    std::optional<CommandCoalescingKey> operator()(const UpsertDynamicReticlesCommand&) const
     {
+        // Bulk upserts stay coalescing barriers: merging two bulk updates would require
+        // per-reticle reconciliation that the latest-batch publisher already performs.
+        return std::nullopt;
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const RemoveDynamicReticleCommand&) const
+    {
+        // Removals stay coalescing barriers so an upsert-remove-upsert sequence keeps its
+        // observable lifecycle ordering.
+        return std::nullopt;
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const ResetWindowCommand&) const
+    {
+        // A window reset invalidates every earlier command and must never be merged away.
         return std::nullopt;
     }
 };

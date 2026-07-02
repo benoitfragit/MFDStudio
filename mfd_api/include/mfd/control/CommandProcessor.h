@@ -149,6 +149,9 @@ private:
         std::unordered_set<std::size_t> acceptedFingerprints {};
     };
 
+    /** @brief Per-command-type identifier resolution visitor (defined in the implementation file). */
+    struct IdentifierResolver;
+
     void OnActivatePage(const ActivatePageCommand& command);
     void OnSetPageView(const SetPageViewCommand& command);
     void OnUpdateWindowDisplay(const UpdateWindowDisplayCommand& command);

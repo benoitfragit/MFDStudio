@@ -76,6 +76,12 @@ normalization, runtime id resolution, runtime dispatch, batching/coalescing, and
 tests. Prefer internal command helpers or command traits over duplicating a rule
 across files.
 
+Each of these stages dispatches over `UserCommand` through a visitor with one
+explicit overload per command type and no generic fallback. Adding a new
+`UserCommand` alternative therefore fails to compile at every stage until its
+per-stage rule is written explicitly, instead of silently falling into a default
+branch.
+
 ```mermaid
 flowchart LR
     Def["Command type<br/>definition"] --> Val[Validation]
