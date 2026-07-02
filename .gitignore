@@ -43,6 +43,7 @@
 /_Exec/*
 /_Deliveries/*
 /build/*
+/build-*/
 /AGENTS.md
 /Review.md
 /assets/windows/*.generated.map
