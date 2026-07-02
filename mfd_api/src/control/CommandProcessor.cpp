@@ -145,60 +145,9 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
         }
     }
 
-    if (batch.commands.size() <= 1U)
+    if (!SubmitCommandsWithCurrentTransactionMode(batch.commands, batch.mappingHash))
     {
-        for (const UserCommand& command : batch.commands)
-        {
-            if (!SubmitResolved(command, batch.mappingHash))
-            {
-                return false;
-            }
-        }
-    }
-    else
-    {
-        std::vector<UserCommand> resolvedCommands;
-        resolvedCommands.reserve(batch.commands.size());
-
-        for (const UserCommand& command : batch.commands)
-        {
-            UserCommand resolved = command;
-            if (!ResolveCommandIdentifiers(resolved, batch.mappingHash))
-            {
-                return false;
-            }
-
-            resolvedCommands.push_back(std::move(resolved));
-        }
-
-        const SceneRegistry::RuntimeSnapshot snapshot = scene_.CaptureRuntimeSnapshot();
-        for (const UserCommand& command : resolvedCommands)
-        {
-            if (DispatchResolved(command))
-            {
-                continue;
-            }
-
-            const std::string failure = lastError_;
-            try
-            {
-                scene_.RestoreRuntimeSnapshot(snapshot);
-            }
-            catch (const std::exception& exception)
-            {
-                SetFailure(failure + " (runtime rollback failed: " + std::string(exception.what()) + ")");
-                return false;
-            }
-            catch (...)
-            {
-                SetFailure(failure + " (runtime rollback failed: unknown exception)");
-                return false;
-            }
-
-            lastCommandSucceeded_ = false;
-            lastError_ = failure;
-            return false;
-        }
+        return false;
     }
 
     if (batch.sequence != 0 && !batch.mappingHash.empty())
@@ -214,6 +163,108 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
         {
             sequenceState.acceptedFingerprints.insert(*batchFingerprint);
         }
+    }
+
+    return true;
+}
+
+void CommandProcessor::SetBatchTransactionMode(const CommandBatchTransactionMode mode) noexcept
+{
+    batchTransactionMode_ = mode;
+}
+
+CommandBatchTransactionMode CommandProcessor::BatchTransactionMode() const noexcept
+{
+    return batchTransactionMode_;
+}
+
+bool CommandProcessor::SubmitCommandsWithCurrentTransactionMode(const ArrayView<const UserCommand> commands,
+                                                               const std::string_view mappingHash)
+{
+    if (commands.size() <= 1U)
+    {
+        return SubmitCommandsNonTransactional(commands, mappingHash);
+    }
+
+    if (batchTransactionMode_ == CommandBatchTransactionMode::NonTransactional)
+    {
+        return SubmitCommandsNonTransactional(commands, mappingHash);
+    }
+
+    return SubmitCommandsTransactional(commands, mappingHash);
+}
+
+bool CommandProcessor::SubmitCommandsTransactional(const ArrayView<const UserCommand> commands,
+                                                   const std::string_view mappingHash)
+{
+    std::vector<UserCommand> resolvedCommands;
+    if (!ResolveBatchCommands(commands, mappingHash, resolvedCommands))
+    {
+        return false;
+    }
+
+    const SceneRegistry::RuntimeSnapshot snapshot = scene_.CaptureRuntimeSnapshot();
+    for (const UserCommand& command : resolvedCommands)
+    {
+        if (DispatchResolved(command))
+        {
+            continue;
+        }
+
+        const std::string failure = lastError_;
+        try
+        {
+            scene_.RestoreRuntimeSnapshot(snapshot);
+        }
+        catch (const std::exception& exception)
+        {
+            SetFailure(failure + " (runtime rollback failed: " + std::string(exception.what()) + ")");
+            return false;
+        }
+        catch (...)
+        {
+            SetFailure(failure + " (runtime rollback failed: unknown exception)");
+            return false;
+        }
+
+        lastCommandSucceeded_ = false;
+        lastError_ = failure;
+        return false;
+    }
+
+    return true;
+}
+
+bool CommandProcessor::SubmitCommandsNonTransactional(const ArrayView<const UserCommand> commands,
+                                                      const std::string_view mappingHash)
+{
+    for (const UserCommand& command : commands)
+    {
+        if (!SubmitResolved(command, mappingHash))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool CommandProcessor::ResolveBatchCommands(const ArrayView<const UserCommand> commands,
+                                            const std::string_view mappingHash,
+                                            std::vector<UserCommand>& resolvedCommands)
+{
+    resolvedCommands.clear();
+    resolvedCommands.reserve(commands.size());
+
+    for (const UserCommand& command : commands)
+    {
+        UserCommand resolved = command;
+        if (!ResolveCommandIdentifiers(resolved, mappingHash))
+        {
+            return false;
+        }
+
+        resolvedCommands.push_back(std::move(resolved));
     }
 
     return true;
@@ -257,63 +308,7 @@ bool CommandProcessor::Submit(const ArrayView<const UserCommand> commands)
     lastCommandSucceeded_ = true;
     lastError_.clear();
 
-    if (commands.size() <= 1U)
-    {
-        for (const UserCommand& command : commands)
-        {
-            if (!SubmitResolved(command, {}))
-            {
-                return false;
-            }
-        }
-    }
-    else
-    {
-        std::vector<UserCommand> resolvedCommands;
-        resolvedCommands.reserve(commands.size());
-
-        for (const UserCommand& command : commands)
-        {
-            UserCommand resolved = command;
-            if (!ResolveCommandIdentifiers(resolved, {}))
-            {
-                return false;
-            }
-
-            resolvedCommands.push_back(std::move(resolved));
-        }
-
-        const SceneRegistry::RuntimeSnapshot snapshot = scene_.CaptureRuntimeSnapshot();
-        for (const UserCommand& command : resolvedCommands)
-        {
-            if (DispatchResolved(command))
-            {
-                continue;
-            }
-
-            const std::string failure = lastError_;
-            try
-            {
-                scene_.RestoreRuntimeSnapshot(snapshot);
-            }
-            catch (const std::exception& exception)
-            {
-                SetFailure(failure + " (runtime rollback failed: " + std::string(exception.what()) + ")");
-                return false;
-            }
-            catch (...)
-            {
-                SetFailure(failure + " (runtime rollback failed: unknown exception)");
-                return false;
-            }
-
-            lastCommandSucceeded_ = false;
-            lastError_ = failure;
-            return false;
-        }
-    }
-
-    return true;
+    return SubmitCommandsWithCurrentTransactionMode(commands, {});
 }
 
 bool CommandProcessor::Submit(const std::string_view payload)

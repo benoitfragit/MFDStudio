@@ -232,6 +232,32 @@ mfd::SceneRegistry MakeMultiStrobeRuntimeRegistry()
 
     return mfd::SceneRegistry(std::move(document), std::move(map));
 }
+
+std::size_t CountRuntimeDynamicReticles(const mfd::SceneRegistry& registry, const std::string_view pageName)
+{
+    std::size_t dynamicTrackCount = 0;
+    for (const mfd::ReticleGroup* reticle : registry.CollectPageReticlePointers(pageName))
+    {
+        if (reticle != nullptr && reticle->id.rfind("__runtime_dynamic_", 0U) == 0U)
+        {
+            ++dynamicTrackCount;
+        }
+    }
+
+    return dynamicTrackCount;
+}
+
+mfd::UpsertDynamicReticleCommand MakeDynamicTrackUpsertCommand()
+{
+    mfd::UpsertDynamicReticleCommand command;
+    command.target.pageId = 11U;
+    command.target.runtimeReticleId = 9001U;
+    command.templateTransportId = 55U;
+    command.patch.visible = true;
+    command.patch.position = mfd::Vec2 {0.1f, -0.2f};
+    command.patch.text = "T1";
+    return command;
+}
 } // namespace
 
 TEST(CommandProcessorTests, PollDoesNotOverrideSuccessfulDispatchWithStickyChannelError)
@@ -625,6 +651,36 @@ TEST(CommandProcessorTests, BatchRollsBackEarlierMutationsWhenALaterCommandFails
     EXPECT_EQ(text->text, "000");
 }
 
+TEST(CommandProcessorTests, NonTransactionalBatchKeepsEarlierMutationsWhenALaterCommandFails)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+    processor.SetBatchTransactionMode(mfd::CommandBatchTransactionMode::NonTransactional);
+
+    mfd::ReticlePatch firstPatch;
+    firstPatch.text = "111";
+
+    mfd::ReticlePatch thirdPatch;
+    thirdPatch.text = "222";
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, firstPatch});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, thirdPatch});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    const auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->text, "111");
+}
+
 TEST(CommandProcessorTests, BatchRollbackRestoresPreviouslySelectedRuntimeStrobe)
 {
     mfd::SceneRegistry registry = MakeMultiStrobeRuntimeRegistry();
@@ -658,6 +714,39 @@ TEST(CommandProcessorTests, BatchRollbackRestoresPreviouslySelectedRuntimeStrobe
     EXPECT_EQ(after->reticleId, "strobe_alt");
     EXPECT_FLOAT_EQ(after->position.x, before->position.x);
     EXPECT_FLOAT_EQ(after->position.y, before->position.y);
+}
+
+TEST(CommandProcessorTests, TransactionalDynamicUpsertBatchRollsBackFailedFollowUpCommand)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+    EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 0U);
+}
+
+TEST(CommandProcessorTests, NonTransactionalDynamicUpsertBatchKeepsCreatedReticleWhenFollowUpCommandFails)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+    processor.SetBatchTransactionMode(mfd::CommandBatchTransactionMode::NonTransactional);
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+    EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 1U);
 }
 
 TEST(CommandProcessorTests, ArrayViewSubmissionStopsOnFirstFailureAndKeepsDiagnostic)

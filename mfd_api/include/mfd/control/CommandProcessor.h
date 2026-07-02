@@ -29,6 +29,17 @@ class IExchangeChannel;
 class SceneRegistry;
 
 /**
+ * @brief Chooses how multi-command submissions behave when one command fails.
+ */
+enum class CommandBatchTransactionMode
+{
+    /** @brief Roll back every earlier command of the same multi-command submission. */
+    Transactional,
+    /** @brief Keep earlier commands applied and stop at the first failing command. */
+    NonTransactional
+};
+
+/**
  * @brief Dispatches user commands to a scene registry.
  *
  * @note This class is typically owned by the host application that receives
@@ -100,6 +111,20 @@ public:
     bool Poll(IExchangeChannel& channel);
 
     /**
+     * @brief Chooses how multi-command submissions handle later failures.
+     * @param mode Transaction mode used by `Submit(const CommandBatch&)` and
+     * `Submit(ArrayView<const UserCommand>)` when more than one command is
+     * submitted together.
+     */
+    void SetBatchTransactionMode(CommandBatchTransactionMode mode) noexcept;
+
+    /**
+     * @brief Returns the current multi-command transaction mode.
+     * @return Active transaction mode.
+     */
+    [[nodiscard]] CommandBatchTransactionMode BatchTransactionMode() const noexcept;
+
+    /**
      * @brief Returns the last error produced by a submission or a poll.
      * @return Error string, or an empty string if the last operation succeeded.
      */
@@ -136,6 +161,12 @@ private:
     void OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
     void OnResetWindow(const ResetWindowCommand& command);
 
+    bool SubmitCommandsWithCurrentTransactionMode(ArrayView<const UserCommand> commands, std::string_view mappingHash);
+    bool SubmitCommandsTransactional(ArrayView<const UserCommand> commands, std::string_view mappingHash);
+    bool SubmitCommandsNonTransactional(ArrayView<const UserCommand> commands, std::string_view mappingHash);
+    bool ResolveBatchCommands(ArrayView<const UserCommand> commands,
+                              std::string_view mappingHash,
+                              std::vector<UserCommand>& resolvedCommands);
     bool SubmitResolved(UserCommand command, std::string_view mappingHash);
     bool DispatchResolved(const UserCommand& command);
     bool ResolveCommandIdentifiers(UserCommand& command, std::string_view mappingHash);
@@ -158,6 +189,7 @@ private:
     entt::dispatcher dispatcher_ {};
     std::string lastError_ {};
     std::unordered_map<std::string, SequencedBatchState> sequencedBatchesByMappingHash_ {};
+    CommandBatchTransactionMode batchTransactionMode_ = CommandBatchTransactionMode::Transactional;
     bool lastCommandSucceeded_ = true;
 };
 } // namespace mfd

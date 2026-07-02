@@ -54,6 +54,17 @@ struct RuntimePageInfo
 };
 
 /**
+ * @brief Chooses whether multi-command runtime batches roll back as one transaction.
+ */
+enum class RuntimeCommandTransactionMode
+{
+    /** @brief Preserve the historical all-or-nothing multi-command runtime behavior. */
+    Transactional,
+    /** @brief Keep earlier commands applied and stop at the first failing command. */
+    NonTransactional
+};
+
+/**
  * @brief Reusable host runtime for one authored window without exposing `mfd_api`.
  */
 class MFD_RUNTIME_API RuntimeSession
@@ -98,6 +109,21 @@ public:
      * client side through the absence of the lifecycle heartbeat.
      */
     void NotifyClosing();
+
+    /**
+     * @brief Chooses how multi-command runtime batches behave when one command fails.
+     * @param mode Transaction mode applied to later `Advance()` calls.
+     *
+     * @note The default mode is `RuntimeCommandTransactionMode::Transactional`.
+     * Hosts must opt in explicitly to `NonTransactional`.
+     */
+    void SetCommandTransactionMode(RuntimeCommandTransactionMode mode) noexcept;
+
+    /**
+     * @brief Returns the current runtime batch transaction mode.
+     * @return Active command transaction mode.
+     */
+    [[nodiscard]] RuntimeCommandTransactionMode CommandTransactionMode() const noexcept;
 
     /**
      * @brief Returns the loaded root window JSON file path.

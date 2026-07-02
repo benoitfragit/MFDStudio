@@ -33,6 +33,14 @@ namespace
 constexpr std::size_t kMaxCommandsPerFrame = 512U;
 constexpr float kMinimumIntervalSeconds = 0.001f;
 
+mfd::CommandBatchTransactionMode ToCommandProcessorTransactionMode(
+    const RuntimeCommandTransactionMode mode) noexcept
+{
+    return mode == RuntimeCommandTransactionMode::NonTransactional
+               ? mfd::CommandBatchTransactionMode::NonTransactional
+               : mfd::CommandBatchTransactionMode::Transactional;
+}
+
 class RuntimeFeedbackThrottle
 {
 public:
@@ -435,6 +443,17 @@ public:
         closingNotified_ = true;
     }
 
+    void SetCommandTransactionMode(const RuntimeCommandTransactionMode mode) noexcept
+    {
+        commandTransactionMode_ = mode;
+        commandProcessor_.SetBatchTransactionMode(ToCommandProcessorTransactionMode(mode));
+    }
+
+    [[nodiscard]] RuntimeCommandTransactionMode CommandTransactionMode() const noexcept
+    {
+        return commandTransactionMode_;
+    }
+
     void PublishRuntimeFeedback(const float deltaSeconds)
     {
         if (runtimeBridge_ == nullptr || !runtimeBridge_->FeedbackTransportReady())
@@ -620,6 +639,7 @@ private:
     std::vector<CommandBatch> appliedCommandBatches_ {};
     std::unordered_map<std::string, StrobeStatusFeedback> lastPublishedStrobeFeedbacks_ {};
     std::optional<std::string> lastPublishedActivePage_ {};
+    RuntimeCommandTransactionMode commandTransactionMode_ = RuntimeCommandTransactionMode::Transactional;
     std::uint32_t nextFeedbackSequence_ = 1U;
     bool lifecycleHeartbeatPending_ = true;
     bool closingNotified_ = false;
@@ -659,6 +679,19 @@ void RuntimeSession::NotifyClosing()
     {
         impl_->NotifyClosing();
     }
+}
+
+void RuntimeSession::SetCommandTransactionMode(const RuntimeCommandTransactionMode mode) noexcept
+{
+    if (impl_ != nullptr)
+    {
+        impl_->SetCommandTransactionMode(mode);
+    }
+}
+
+RuntimeCommandTransactionMode RuntimeSession::CommandTransactionMode() const noexcept
+{
+    return impl_ == nullptr ? RuntimeCommandTransactionMode::Transactional : impl_->CommandTransactionMode();
 }
 
 const std::filesystem::path& RuntimeSession::WindowFile() const noexcept
@@ -738,4 +771,5 @@ const std::vector<CommandBatch>& RuntimeSessionInternalAccess::AppliedCommandBat
     static const std::vector<CommandBatch> kEmptyBatches;
     return session.impl_ == nullptr ? kEmptyBatches : session.impl_->AppliedCommandBatches();
 }
+
 } // namespace mfd::runtime_api::internal

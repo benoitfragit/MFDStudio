@@ -44,6 +44,15 @@ TEST(RuntimeSessionTests, LoadWindowFileExposesPublicWindowInfoAndPages)
     EXPECT_FALSE(session.ActivePageName().empty());
 }
 
+TEST(RuntimeSessionTests, CommandTransactionModeDefaultsToTransactional)
+{
+    mfd::runtime_api::RuntimeSession session;
+
+    EXPECT_EQ(
+        session.CommandTransactionMode(),
+        mfd::runtime_api::RuntimeCommandTransactionMode::Transactional);
+}
+
 TEST(RuntimeSessionTests, ReloadPreservesCurrentActivePageWhenItStillExists)
 {
     mfd::runtime_api::RuntimeSession session;
@@ -62,4 +71,21 @@ TEST(RuntimeSessionTests, ReloadPreservesCurrentActivePageWhenItStillExists)
 
     ASSERT_TRUE(session.Reload(error)) << error;
     EXPECT_EQ(session.ActivePageName(), pages[1].name);
+}
+
+TEST(RuntimeSessionTests, CommandTransactionModePersistsAcrossReload)
+{
+    mfd::runtime_api::RuntimeSession session;
+    session.SetCommandTransactionMode(mfd::runtime_api::RuntimeCommandTransactionMode::NonTransactional);
+    std::string error;
+
+    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/demo_pages_minimal.json", error)) << error;
+    EXPECT_EQ(
+        session.CommandTransactionMode(),
+        mfd::runtime_api::RuntimeCommandTransactionMode::NonTransactional);
+
+    ASSERT_TRUE(session.Reload(error)) << error;
+    EXPECT_EQ(
+        session.CommandTransactionMode(),
+        mfd::runtime_api::RuntimeCommandTransactionMode::NonTransactional);
 }
