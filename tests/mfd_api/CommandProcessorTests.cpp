@@ -1096,3 +1096,123 @@ TEST(CommandProcessorTests, TransactionalRollbackRestoresDynamicTemplateVisibili
     EXPECT_TRUE(visibleAfter.back().visible);
     EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 1U);
 }
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresFirstPageWhenSecondPageCommandFails)
+{
+    mfd::SceneRegistry registry = MakeTwoPageRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch navPatch;
+    navPatch.text = "NAV-99";
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Nav", "nav_box"}, navPatch});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    EXPECT_EQ(ReadFirstReticleText(registry, "Nav"), "NAV");
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresWindowDisplayState)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::WindowDisplayPatch initialPatch;
+    initialPatch.brightness = 0.8f;
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {mfd::UpdateWindowDisplayCommand {initialPatch}}));
+    ASSERT_FLOAT_EQ(registry.WindowDisplay().brightness, 0.8f);
+
+    mfd::WindowDisplayPatch failedPatch;
+    failedPatch.invertColors = true;
+    failedPatch.brightness = 0.2f;
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(mfd::UpdateWindowDisplayCommand {failedPatch});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    const mfd::WindowDisplayState display = registry.WindowDisplay();
+    EXPECT_FALSE(display.invertColors);
+    EXPECT_FLOAT_EQ(display.brightness, 0.8f);
+    EXPECT_FALSE(display.disabled);
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresDynamicReticleAndMagnetizedStrobeTogether)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch upsertBatch;
+    upsertBatch.mappingHash = "map_hash";
+    upsertBatch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    ASSERT_TRUE(processor.Submit(upsertBatch));
+    ASSERT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 1U);
+
+    mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand enableMagnet;
+    enableMagnet.page = "Radar";
+    enableMagnet.templateId = "radar_track";
+    enableMagnet.enabled = true;
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {enableMagnet}));
+
+    mfd::UpdateStrobeCommand magnetize;
+    magnetize.page = "Radar";
+    magnetize.position = mfd::Vec2 {0.12f, -0.18f};
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {magnetize}));
+
+    const auto strobeBefore = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeBefore.has_value());
+    // The magnet radius (0.15) covers the distance to the dynamic track at (0.1, -0.2),
+    // so the strobe locks onto the track position before the failing batch runs.
+    ASSERT_FLOAT_EQ(strobeBefore->position.x, 0.1f);
+    ASSERT_FLOAT_EQ(strobeBefore->position.y, -0.2f);
+
+    mfd::UpsertDynamicReticleCommand moveTrack = MakeDynamicTrackUpsertCommand();
+    moveTrack.patch.position = mfd::Vec2 {0.6f, 0.6f};
+    moveTrack.patch.text = "T2";
+
+    mfd::UpdateStrobeCommand moveStrobe;
+    moveStrobe.page = "Radar";
+    moveStrobe.position = mfd::Vec2 {0.55f, 0.55f};
+
+    mfd::CommandBatch failingBatch;
+    failingBatch.mappingHash = "map_hash";
+    failingBatch.commands.push_back(moveTrack);
+    failingBatch.commands.push_back(moveStrobe);
+    failingBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(failingBatch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 1U);
+
+    const mfd::ReticleGroup* track = nullptr;
+    for (const mfd::ReticleGroup* reticle : registry.CollectPageReticlePointers("Radar"))
+    {
+        if (reticle != nullptr && reticle->id.rfind("__runtime_dynamic_", 0U) == 0U)
+        {
+            track = reticle;
+        }
+    }
+
+    ASSERT_NE(track, nullptr);
+    EXPECT_FLOAT_EQ(track->transform.position.x, 0.1f);
+    EXPECT_FLOAT_EQ(track->transform.position.y, -0.2f);
+    const auto* trackText = std::get_if<mfd::TextGeometry>(&track->primitives.front().geometry);
+    ASSERT_NE(trackText, nullptr);
+    EXPECT_EQ(trackText->text, "T1");
+
+    const auto strobeAfter = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeAfter.has_value());
+    EXPECT_FLOAT_EQ(strobeAfter->position.x, strobeBefore->position.x);
+    EXPECT_FLOAT_EQ(strobeAfter->position.y, strobeBefore->position.y);
+}
