@@ -45,6 +45,19 @@ void HashCombine(std::uint64_t& hash, const std::uint64_t value) noexcept
     hash *= kFnvPrime;
 }
 
+void HashCombineText(std::uint64_t& hash, const std::string_view text) noexcept
+{
+    for (const char character : text)
+    {
+        HashCombine(hash, static_cast<std::uint64_t>(static_cast<unsigned char>(character)));
+    }
+}
+
+std::uint64_t AlignOrdinal(const Align align) noexcept
+{
+    return align == Align::Left ? 0U : (align == Align::Right ? 2U : 1U);
+}
+
 std::time_t QuantizeVisibleTimeKeySecond(const std::time_t raw,
                                          const std::optional<TimeFieldVisibility>& fields) noexcept
 {
@@ -250,18 +263,35 @@ const CachedTextLayout& TextLayoutCache::ResolveStaticText(const std::string_vie
                                                            const float letterSpacing,
                                                            const Align align)
 {
-    StaticKey key;
-    key.text = std::string(text);
-    key.fontFingerprint = ComputeFontFingerprint(font);
-    key.fontSizeBits = FloatBits(fontSize);
-    key.letterSpacingBits = FloatBits(letterSpacing);
-    key.align = align;
+    const std::size_t fontFingerprint = ComputeFontFingerprint(font);
+    const std::uint32_t fontSizeBits = FloatBits(fontSize);
+    const std::uint32_t letterSpacingBits = FloatBits(letterSpacing);
+    const std::uint64_t fingerprint =
+        FingerprintStaticText(text, fontFingerprint, fontSizeBits, letterSpacingBits, align);
 
-    auto iterator = staticEntries_.find(key);
-    if (iterator != staticEntries_.end())
+    const auto iterator = staticEntries_.find(fingerprint);
+    if (iterator != staticEntries_.end() &&
+        MatchesStaticEntry(iterator->second, text, fontFingerprint, fontSizeBits, letterSpacingBits, align))
     {
         ++stats_.staticHits;
         iterator->second.lastUseSerial = nextUseSerial_++;
+        return iterator->second.layout;
+    }
+
+    StaticEntry entry;
+    entry.fontFingerprint = fontFingerprint;
+    entry.fontSizeBits = fontSizeBits;
+    entry.letterSpacingBits = letterSpacingBits;
+    entry.align = align;
+    entry.lastUseSerial = nextUseSerial_++;
+    entry.layout = BuildLayout(std::string(text), font, fontSize, letterSpacing, align, measureText_);
+    ++stats_.staticMisses;
+
+    if (iterator != staticEntries_.end())
+    {
+        // Fingerprint collision: the colliding layout is replaced so hits stay provably
+        // correct; the replaced entry simply rebuilds on its next use.
+        iterator->second = std::move(entry);
         return iterator->second.layout;
     }
 
@@ -270,11 +300,7 @@ const CachedTextLayout& TextLayoutCache::ResolveStaticText(const std::string_vie
         EvictLeastRecentlyUsed(staticEntries_);
     }
 
-    Entry entry;
-    entry.lastUseSerial = nextUseSerial_++;
-    entry.layout = BuildLayout(key.text, font, fontSize, letterSpacing, align, measureText_);
-    ++stats_.staticMisses;
-    return staticEntries_.emplace(std::move(key), std::move(entry)).first->second.layout;
+    return staticEntries_.emplace(fingerprint, std::move(entry)).first->second.layout;
 }
 
 const CachedTextLayout& TextLayoutCache::ResolveTimeText(const TimeGeometry& geometry,
@@ -283,33 +309,46 @@ const CachedTextLayout& TextLayoutCache::ResolveTimeText(const TimeGeometry& geo
                                                          const float letterSpacing,
                                                          const std::chrono::system_clock::time_point now)
 {
-    TimeKey key;
-    key.format = geometry.format;
-    key.utc = EffectiveUtc(geometry);
-    key.second = geometry.runtimeValueOverride.has_value()
-                     ? 0
-                     : QuantizeVisibleTimeKeySecond(std::chrono::system_clock::to_time_t(now),
-                                                    geometry.runtimeFields);
-    key.hasValueOverride = geometry.runtimeValueOverride.has_value();
-    if (geometry.runtimeValueOverride.has_value())
-    {
-        key.valueOverride = *geometry.runtimeValueOverride;
-    }
-    key.hasStructuredFields = geometry.runtimeFields.has_value();
-    if (geometry.runtimeFields.has_value())
-    {
-        key.structuredFields = *geometry.runtimeFields;
-    }
-    key.fontFingerprint = ComputeFontFingerprint(font);
-    key.fontSizeBits = FloatBits(fontSize);
-    key.letterSpacingBits = FloatBits(letterSpacing);
-    key.align = geometry.align;
+    const bool utc = EffectiveUtc(geometry);
+    const std::time_t second = geometry.runtimeValueOverride.has_value()
+                                   ? 0
+                                   : QuantizeVisibleTimeKeySecond(std::chrono::system_clock::to_time_t(now),
+                                                                  geometry.runtimeFields);
+    const std::size_t fontFingerprint = ComputeFontFingerprint(font);
+    const std::uint32_t fontSizeBits = FloatBits(fontSize);
+    const std::uint32_t letterSpacingBits = FloatBits(letterSpacing);
+    const std::uint64_t fingerprint =
+        FingerprintTimeText(geometry, utc, second, fontFingerprint, fontSizeBits, letterSpacingBits);
 
-    auto iterator = timeEntries_.find(key);
-    if (iterator != timeEntries_.end())
+    const auto iterator = timeEntries_.find(fingerprint);
+    if (iterator != timeEntries_.end() &&
+        MatchesTimeEntry(iterator->second, geometry, utc, second, fontFingerprint, fontSizeBits, letterSpacingBits))
     {
         ++stats_.timeHits;
         iterator->second.lastUseSerial = nextUseSerial_++;
+        return iterator->second.layout;
+    }
+
+    TimeEntry entry;
+    entry.format = geometry.format;
+    entry.utc = utc;
+    entry.second = second;
+    entry.valueOverride = geometry.runtimeValueOverride;
+    entry.structuredFields = geometry.runtimeFields;
+    entry.fontFingerprint = fontFingerprint;
+    entry.fontSizeBits = fontSizeBits;
+    entry.letterSpacingBits = letterSpacingBits;
+    entry.align = geometry.align;
+    entry.lastUseSerial = nextUseSerial_++;
+    entry.layout =
+        BuildLayout(formatTime_(geometry, second), font, fontSize, letterSpacing, geometry.align, measureText_);
+    ++stats_.timeMisses;
+
+    if (iterator != timeEntries_.end())
+    {
+        // Fingerprint collision: the colliding layout is replaced so hits stay provably
+        // correct; the replaced entry simply rebuilds on its next use.
+        iterator->second = std::move(entry);
         return iterator->second.layout;
     }
 
@@ -318,11 +357,7 @@ const CachedTextLayout& TextLayoutCache::ResolveTimeText(const TimeGeometry& geo
         EvictLeastRecentlyUsed(timeEntries_);
     }
 
-    Entry entry;
-    entry.lastUseSerial = nextUseSerial_++;
-    entry.layout = BuildLayout(formatTime_(geometry, key.second), font, fontSize, letterSpacing, geometry.align, measureText_);
-    ++stats_.timeMisses;
-    return timeEntries_.emplace(std::move(key), std::move(entry)).first->second.layout;
+    return timeEntries_.emplace(fingerprint, std::move(entry)).first->second.layout;
 }
 
 void TextLayoutCache::Clear() noexcept
@@ -348,72 +383,87 @@ TextLayoutCache::Stats TextLayoutCache::CacheStats() const noexcept
     return stats_;
 }
 
-bool TextLayoutCache::StaticKey::operator==(const StaticKey& other) const noexcept
-{
-    return text == other.text &&
-           fontFingerprint == other.fontFingerprint &&
-           fontSizeBits == other.fontSizeBits &&
-           letterSpacingBits == other.letterSpacingBits &&
-           align == other.align;
-}
-
-bool TextLayoutCache::TimeKey::operator==(const TimeKey& other) const noexcept
-{
-    return format == other.format &&
-           utc == other.utc &&
-           second == other.second &&
-           hasValueOverride == other.hasValueOverride &&
-           valueOverride == other.valueOverride &&
-           hasStructuredFields == other.hasStructuredFields &&
-           structuredFields == other.structuredFields &&
-           fontFingerprint == other.fontFingerprint &&
-           fontSizeBits == other.fontSizeBits &&
-           letterSpacingBits == other.letterSpacingBits &&
-           align == other.align;
-}
-
-std::size_t TextLayoutCache::StaticKeyHasher::operator()(const StaticKey& key) const noexcept
+std::uint64_t TextLayoutCache::FingerprintStaticText(const std::string_view text,
+                                                     const std::size_t fontFingerprint,
+                                                     const std::uint32_t fontSizeBits,
+                                                     const std::uint32_t letterSpacingBits,
+                                                     const Align align) noexcept
 {
     std::uint64_t hash = kFnvOffsetBasis;
-    for (const char character : key.text)
-    {
-        HashCombine(hash, static_cast<std::uint64_t>(static_cast<unsigned char>(character)));
-    }
-    HashCombine(hash, static_cast<std::uint64_t>(key.fontFingerprint));
-    HashCombine(hash, static_cast<std::uint64_t>(key.fontSizeBits));
-    HashCombine(hash, static_cast<std::uint64_t>(key.letterSpacingBits));
-    HashCombine(hash, static_cast<std::uint64_t>(key.align == Align::Left ? 0U : (key.align == Align::Right ? 2U : 1U)));
-    return static_cast<std::size_t>(hash);
+    HashCombineText(hash, text);
+    HashCombine(hash, static_cast<std::uint64_t>(fontFingerprint));
+    HashCombine(hash, static_cast<std::uint64_t>(fontSizeBits));
+    HashCombine(hash, static_cast<std::uint64_t>(letterSpacingBits));
+    HashCombine(hash, AlignOrdinal(align));
+    return hash;
 }
 
-std::size_t TextLayoutCache::TimeKeyHasher::operator()(const TimeKey& key) const noexcept
+bool TextLayoutCache::MatchesStaticEntry(const StaticEntry& entry,
+                                         const std::string_view text,
+                                         const std::size_t fontFingerprint,
+                                         const std::uint32_t fontSizeBits,
+                                         const std::uint32_t letterSpacingBits,
+                                         const Align align) noexcept
 {
+    return entry.fontFingerprint == fontFingerprint &&
+           entry.fontSizeBits == fontSizeBits &&
+           entry.letterSpacingBits == letterSpacingBits &&
+           entry.align == align &&
+           entry.layout.text == text;
+}
+
+std::uint64_t TextLayoutCache::FingerprintTimeText(const TimeGeometry& geometry,
+                                                   const bool utc,
+                                                   const std::time_t second,
+                                                   const std::size_t fontFingerprint,
+                                                   const std::uint32_t fontSizeBits,
+                                                   const std::uint32_t letterSpacingBits) noexcept
+{
+    const TimeValue valueOverride = geometry.runtimeValueOverride.value_or(TimeValue {});
+    const TimeFieldVisibility structuredFields = geometry.runtimeFields.value_or(TimeFieldVisibility {});
+
     std::uint64_t hash = kFnvOffsetBasis;
-    for (const char character : key.format)
-    {
-        HashCombine(hash, static_cast<std::uint64_t>(static_cast<unsigned char>(character)));
-    }
-    HashCombine(hash, static_cast<std::uint64_t>(key.utc ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(static_cast<std::int64_t>(key.second)));
-    HashCombine(hash, static_cast<std::uint64_t>(key.hasValueOverride ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.year));
-    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.month));
-    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.day));
-    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.hour));
-    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.minute));
-    HashCombine(hash, static_cast<std::uint64_t>(key.valueOverride.second));
-    HashCombine(hash, static_cast<std::uint64_t>(key.hasStructuredFields ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.year ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.month ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.day ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.hour ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.minute ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(key.structuredFields.second ? 1U : 0U));
-    HashCombine(hash, static_cast<std::uint64_t>(key.fontFingerprint));
-    HashCombine(hash, static_cast<std::uint64_t>(key.fontSizeBits));
-    HashCombine(hash, static_cast<std::uint64_t>(key.letterSpacingBits));
-    HashCombine(hash, static_cast<std::uint64_t>(key.align == Align::Left ? 0U : (key.align == Align::Right ? 2U : 1U)));
-    return static_cast<std::size_t>(hash);
+    HashCombineText(hash, geometry.format);
+    HashCombine(hash, static_cast<std::uint64_t>(utc ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(static_cast<std::int64_t>(second)));
+    HashCombine(hash, static_cast<std::uint64_t>(geometry.runtimeValueOverride.has_value() ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(valueOverride.year));
+    HashCombine(hash, static_cast<std::uint64_t>(valueOverride.month));
+    HashCombine(hash, static_cast<std::uint64_t>(valueOverride.day));
+    HashCombine(hash, static_cast<std::uint64_t>(valueOverride.hour));
+    HashCombine(hash, static_cast<std::uint64_t>(valueOverride.minute));
+    HashCombine(hash, static_cast<std::uint64_t>(valueOverride.second));
+    HashCombine(hash, static_cast<std::uint64_t>(geometry.runtimeFields.has_value() ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(structuredFields.year ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(structuredFields.month ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(structuredFields.day ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(structuredFields.hour ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(structuredFields.minute ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(structuredFields.second ? 1U : 0U));
+    HashCombine(hash, static_cast<std::uint64_t>(fontFingerprint));
+    HashCombine(hash, static_cast<std::uint64_t>(fontSizeBits));
+    HashCombine(hash, static_cast<std::uint64_t>(letterSpacingBits));
+    HashCombine(hash, AlignOrdinal(geometry.align));
+    return hash;
+}
+
+bool TextLayoutCache::MatchesTimeEntry(const TimeEntry& entry,
+                                       const TimeGeometry& geometry,
+                                       const bool utc,
+                                       const std::time_t second,
+                                       const std::size_t fontFingerprint,
+                                       const std::uint32_t fontSizeBits,
+                                       const std::uint32_t letterSpacingBits) noexcept
+{
+    return entry.utc == utc &&
+           entry.second == second &&
+           entry.valueOverride == geometry.runtimeValueOverride &&
+           entry.structuredFields == geometry.runtimeFields &&
+           entry.fontFingerprint == fontFingerprint &&
+           entry.fontSizeBits == fontSizeBits &&
+           entry.letterSpacingBits == letterSpacingBits &&
+           entry.align == geometry.align &&
+           entry.format == geometry.format;
 }
 
 Vector2 TextLayoutCache::MeasureTextWithRaylib(const std::string_view text,

@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -43,6 +44,11 @@ struct CachedTextLayout
  * @note This helper stays private to the raylib renderer. It avoids repeated
  * `MeasureTextEx` and `strftime` work while keeping the public model and draw
  * behaviour unchanged.
+ *
+ * @note Entries are indexed by a 64-bit fingerprint of the lookup inputs so a
+ * cache hit never allocates. Every hit re-verifies the stored inputs against
+ * the probe; a fingerprint collision is therefore handled as a miss that
+ * rebuilds and replaces the colliding entry.
  */
 class TextLayoutCache
 {
@@ -134,49 +140,63 @@ public:
     [[nodiscard]] Stats CacheStats() const noexcept;
 
 private:
-    struct StaticKey
+    /**
+     * @brief Cached static-text layout with the inputs verified on every fingerprint hit.
+     *
+     * @note `layout.text` stores the exact key text, so no separate text copy is kept.
+     */
+    struct StaticEntry
     {
-        std::string text {};
         std::size_t fontFingerprint = 0U;
         std::uint32_t fontSizeBits = 0U;
         std::uint32_t letterSpacingBits = 0U;
         Align align = Align::Center;
-
-        [[nodiscard]] bool operator==(const StaticKey& other) const noexcept;
+        std::size_t lastUseSerial = 0U;
+        CachedTextLayout layout {};
     };
 
-    struct TimeKey
+    /**
+     * @brief Cached time layout with the inputs verified on every fingerprint hit.
+     */
+    struct TimeEntry
     {
         std::string format {};
         bool utc = false;
         std::time_t second = 0;
-        bool hasValueOverride = false;
-        TimeValue valueOverride {};
-        bool hasStructuredFields = false;
-        TimeFieldVisibility structuredFields {};
+        std::optional<TimeValue> valueOverride {};
+        std::optional<TimeFieldVisibility> structuredFields {};
         std::size_t fontFingerprint = 0U;
         std::uint32_t fontSizeBits = 0U;
         std::uint32_t letterSpacingBits = 0U;
         Align align = Align::Center;
-
-        [[nodiscard]] bool operator==(const TimeKey& other) const noexcept;
-    };
-
-    struct StaticKeyHasher
-    {
-        [[nodiscard]] std::size_t operator()(const StaticKey& key) const noexcept;
-    };
-
-    struct TimeKeyHasher
-    {
-        [[nodiscard]] std::size_t operator()(const TimeKey& key) const noexcept;
-    };
-
-    struct Entry
-    {
         std::size_t lastUseSerial = 0U;
         CachedTextLayout layout {};
     };
+
+    static std::uint64_t FingerprintStaticText(std::string_view text,
+                                               std::size_t fontFingerprint,
+                                               std::uint32_t fontSizeBits,
+                                               std::uint32_t letterSpacingBits,
+                                               Align align) noexcept;
+    static bool MatchesStaticEntry(const StaticEntry& entry,
+                                   std::string_view text,
+                                   std::size_t fontFingerprint,
+                                   std::uint32_t fontSizeBits,
+                                   std::uint32_t letterSpacingBits,
+                                   Align align) noexcept;
+    static std::uint64_t FingerprintTimeText(const TimeGeometry& geometry,
+                                             bool utc,
+                                             std::time_t second,
+                                             std::size_t fontFingerprint,
+                                             std::uint32_t fontSizeBits,
+                                             std::uint32_t letterSpacingBits) noexcept;
+    static bool MatchesTimeEntry(const TimeEntry& entry,
+                                 const TimeGeometry& geometry,
+                                 bool utc,
+                                 std::time_t second,
+                                 std::size_t fontFingerprint,
+                                 std::uint32_t fontSizeBits,
+                                 std::uint32_t letterSpacingBits) noexcept;
 
     static Vector2 MeasureTextWithRaylib(std::string_view text,
                                          const Font& font,
@@ -195,8 +215,8 @@ private:
 
     MeasureTextCallback measureText_ = nullptr;
     FormatTimeCallback formatTime_ = nullptr;
-    std::unordered_map<StaticKey, Entry, StaticKeyHasher> staticEntries_ {};
-    std::unordered_map<TimeKey, Entry, TimeKeyHasher> timeEntries_ {};
+    std::unordered_map<std::uint64_t, StaticEntry> staticEntries_ {};
+    std::unordered_map<std::uint64_t, TimeEntry> timeEntries_ {};
     std::size_t nextUseSerial_ = 1U;
     Stats stats_ {};
 };
