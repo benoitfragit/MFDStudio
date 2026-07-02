@@ -542,11 +542,11 @@ void FillProtoVec2(const Vec2& value, pb::Vec2* target)
     target->set_y(value.y);
 }
 
+// Trivially small proto conversions below stay by-value. Coordinate and time payloads are
+// validated exactly once per command by ValidateUserCommand() after in-place deserialization.
 Vec2 FromProtoVec2(const pb::Vec2& value)
 {
-    const Vec2 result {value.x(), value.y()};
-    ValidateVec2(result, "Protocol Buffers Vec2");
-    return result;
+    return Vec2 {value.x(), value.y()};
 }
 
 void FillProtoTimeValue(const TimeValue& value, pb::TimeValue* target)
@@ -568,7 +568,6 @@ TimeValue FromProtoTimeValue(const pb::TimeValue& value)
     result.hour = value.hour();
     result.minute = value.minute();
     result.second = value.second();
-    ValidateTimeValue(result, "Protocol Buffers TimeValue");
     return result;
 }
 
@@ -591,7 +590,6 @@ TimeFieldVisibility FromProtoTimeFieldVisibility(const pb::TimeFieldVisibility& 
     result.hour = value.hour();
     result.minute = value.minute();
     result.second = value.second();
-    ValidateTimeFieldVisibility(result, "Protocol Buffers TimeFieldVisibility");
     return result;
 }
 
@@ -773,10 +771,8 @@ void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* ta
     }
 }
 
-PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
+void FillPrimitivePatchFromProto(const pb::PrimitivePatch& value, PrimitivePatch& patch)
 {
-    PrimitivePatch patch;
-
     if (value.has_visible())
     {
         patch.visible = value.visible();
@@ -819,11 +815,6 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
 
     if (value.has_line_style())
     {
-        if (value.line_style() == pb::PRIMITIVE_LINE_STYLE_UNSPECIFIED)
-        {
-            throw std::runtime_error("PrimitivePatch.lineStyle cannot be explicitly set to UNSPECIFIED");
-        }
-
         patch.lineStyle = FromProtoLineStyle(value.line_style());
     }
 
@@ -883,13 +874,12 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
             static_cast<std::size_t>(value.points_size()),
             kMaxPrimitivePoints,
             "Protocol Buffers PrimitivePatch.points");
-        std::vector<Vec2> points;
-        points.reserve(static_cast<std::size_t>(value.points_size()));
+        patch.points.emplace();
+        patch.points->reserve(static_cast<std::size_t>(value.points_size()));
         for (const pb::Vec2& point : value.points())
         {
-            points.push_back(FromProtoVec2(point));
+            patch.points->push_back(FromProtoVec2(point));
         }
-        patch.points = std::move(points);
     }
 
     if (value.has_closed())
@@ -931,9 +921,6 @@ PrimitivePatch FromProtoPrimitivePatch(const pb::PrimitivePatch& value)
     {
         patch.timeFields = FromProtoTimeFieldVisibility(value.time_fields());
     }
-
-    ValidatePrimitivePatch(patch);
-    return patch;
 }
 
 void FillProtoWindowDisplayPatch(const WindowDisplayPatch& patch, pb::WindowDisplayPatch* target)
@@ -954,10 +941,8 @@ void FillProtoWindowDisplayPatch(const WindowDisplayPatch& patch, pb::WindowDisp
     }
 }
 
-WindowDisplayPatch FromProtoWindowDisplayPatch(const pb::WindowDisplayPatch& value)
+void FillWindowDisplayPatchFromProto(const pb::WindowDisplayPatch& value, WindowDisplayPatch& patch)
 {
-    WindowDisplayPatch patch;
-
     if (value.has_invert_colors())
     {
         patch.invertColors = value.invert_colors();
@@ -972,9 +957,6 @@ WindowDisplayPatch FromProtoWindowDisplayPatch(const pb::WindowDisplayPatch& val
     {
         patch.disabled = value.disabled();
     }
-
-    ValidateWindowDisplayPatch(patch);
-    return patch;
 }
 
 void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
@@ -1067,10 +1049,8 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
     }
 }
 
-ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
+void FillReticlePatchFromProto(const pb::ReticlePatch& value, ReticlePatch& patch)
 {
-    ReticlePatch patch;
-
     if (value.has_visible())
     {
         patch.visible = value.visible();
@@ -1117,6 +1097,7 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
     }
 
     ValidateContainerSize(value.texts_by_id().size(), kMaxPatchEntryCount, "Protocol Buffers ReticlePatch.textsById");
+    patch.textsById.reserve(static_cast<std::size_t>(value.texts_by_id().size()));
     for (const auto& [primitiveId, text] : value.texts_by_id())
     {
         patch.textsById.emplace(primitiveId, text);
@@ -1131,6 +1112,7 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
         value.letter_spacings_by_id().size(),
         kMaxPatchEntryCount,
         "Protocol Buffers ReticlePatch.letterSpacingsById");
+    patch.letterSpacingsById.reserve(static_cast<std::size_t>(value.letter_spacings_by_id().size()));
     for (const auto& [primitiveId, spacing] : value.letter_spacings_by_id())
     {
         patch.letterSpacingsById.emplace(primitiveId, spacing);
@@ -1140,13 +1122,12 @@ ReticlePatch FromProtoReticlePatch(const pb::ReticlePatch& value)
         value.primitive_patches_by_id().size(),
         kMaxPatchEntryCount,
         "Protocol Buffers ReticlePatch.primitivePatchesById");
+    patch.primitivePatchesById.reserve(static_cast<std::size_t>(value.primitive_patches_by_id().size()));
     for (const auto& [primitiveId, primitivePatch] : value.primitive_patches_by_id())
     {
-        patch.primitivePatchesById.emplace(primitiveId, FromProtoPrimitivePatch(primitivePatch));
+        PrimitivePatch& primitiveTarget = patch.primitivePatchesById.try_emplace(primitiveId).first->second;
+        FillPrimitivePatchFromProto(primitivePatch, primitiveTarget);
     }
-
-    ValidateReticlePatch(patch);
-    return patch;
 }
 
 void FillProtoStaticHandle(const StaticReticleHandle& handle, pb::StaticReticleHandle* target)
@@ -1198,16 +1179,13 @@ void FillProtoDynamicReticleState(const DynamicReticleState& state, pb::DynamicR
     FillProtoReticlePatch(state.patch, target->mutable_patch());
 }
 
-DynamicReticleState FromProtoDynamicReticleState(const pb::DynamicReticleState& value)
+void FillDynamicReticleStateFromProto(const pb::DynamicReticleState& value, DynamicReticleState& state)
 {
-    DynamicReticleState state;
     state.runtimeReticleId = value.runtime_reticle_id();
     if (value.has_patch())
     {
-        state.patch = FromProtoReticlePatch(value.patch());
+        FillReticlePatchFromProto(value.patch(), state.patch);
     }
-    ValidateDynamicReticleState(state);
-    return state;
 }
 
 void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
@@ -1364,54 +1342,55 @@ void FillProtoUserCommand(const UserCommand& command, pb::UserCommand* target)
         command);
 }
 
-UserCommand FromProtoUserCommand(const pb::UserCommand& value)
+// Deserializes one proto command directly into a new element of the target vector, without
+// building command temporaries. Appends exactly one command or throws without appending.
+void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<UserCommand>& target)
 {
     switch (value.command_case())
     {
     case pb::UserCommand::kActivatePage:
     {
-        ActivatePageCommand command;
+        auto& command = std::get<ActivatePageCommand>(target.emplace_back(ActivatePageCommand {}));
         command.pageId = value.activate_page().page_id();
-        return command;
+        return;
     }
 
     case pb::UserCommand::kSetPageView:
     {
-        SetPageViewCommand command;
+        auto& command = std::get<SetPageViewCommand>(target.emplace_back(SetPageViewCommand {}));
         if (value.set_page_view().has_center())
         {
             command.view.center = FromProtoVec2(value.set_page_view().center());
         }
         command.view.zoom = value.set_page_view().zoom();
         command.pageId = value.set_page_view().page_id();
-        ValidatePageViewState(command.view);
-        return command;
+        return;
     }
 
     case pb::UserCommand::kUpdateWindowDisplay:
     {
-        UpdateWindowDisplayCommand command;
+        auto& command = std::get<UpdateWindowDisplayCommand>(target.emplace_back(UpdateWindowDisplayCommand {}));
         if (value.update_window_display().has_patch())
         {
-            command.patch = FromProtoWindowDisplayPatch(value.update_window_display().patch());
+            FillWindowDisplayPatchFromProto(value.update_window_display().patch(), command.patch);
         }
-        return command;
+        return;
     }
 
     case pb::UserCommand::kUpdateReticle:
     {
-        UpdateReticleCommand command;
+        auto& command = std::get<UpdateReticleCommand>(target.emplace_back(UpdateReticleCommand {}));
         command.target = FromProtoStaticHandle(value.update_reticle().target());
         if (value.update_reticle().has_patch())
         {
-            command.patch = FromProtoReticlePatch(value.update_reticle().patch());
+            FillReticlePatchFromProto(value.update_reticle().patch(), command.patch);
         }
-        return command;
+        return;
     }
 
     case pb::UserCommand::kUpdateStrobe:
     {
-        UpdateStrobeCommand command;
+        auto& command = std::get<UpdateStrobeCommand>(target.emplace_back(UpdateStrobeCommand {}));
         command.pageId = value.update_strobe().page_id();
         command.strobeId = value.update_strobe().strobe_id();
         if (value.update_strobe().has_active())
@@ -1422,69 +1401,83 @@ UserCommand FromProtoUserCommand(const pb::UserCommand& value)
         {
             command.position = FromProtoVec2(value.update_strobe().position());
         }
-        return command;
+        return;
     }
 
     case pb::UserCommand::kUpsertDynamicReticle:
     {
-        UpsertDynamicReticleCommand command;
+        auto& command = std::get<UpsertDynamicReticleCommand>(target.emplace_back(UpsertDynamicReticleCommand {}));
         command.target = FromProtoDynamicHandle(value.upsert_dynamic_reticle().target());
         command.templateTransportId = value.upsert_dynamic_reticle().template_transport_id();
         if (value.upsert_dynamic_reticle().has_patch())
         {
-            command.patch = FromProtoReticlePatch(value.upsert_dynamic_reticle().patch());
+            FillReticlePatchFromProto(value.upsert_dynamic_reticle().patch(), command.patch);
         }
-        return command;
+        return;
     }
 
     case pb::UserCommand::kUpsertDynamicReticles:
     {
-        UpsertDynamicReticlesCommand command;
+        auto& command = std::get<UpsertDynamicReticlesCommand>(target.emplace_back(UpsertDynamicReticlesCommand {}));
         command.pageId = value.upsert_dynamic_reticles().page_id();
         command.templateTransportId = value.upsert_dynamic_reticles().template_transport_id();
         ValidateContainerSize(
             static_cast<std::size_t>(value.upsert_dynamic_reticles().reticles_size()),
             kMaxDynamicReticlesPerBatch,
             "Protocol Buffers UpsertDynamicReticlesCommand.reticles");
-        command.reticles.reserve(value.upsert_dynamic_reticles().reticles_size());
+        command.reticles.reserve(static_cast<std::size_t>(value.upsert_dynamic_reticles().reticles_size()));
 
         for (const pb::DynamicReticleState& reticle : value.upsert_dynamic_reticles().reticles())
         {
-            command.reticles.push_back(FromProtoDynamicReticleState(reticle));
+            DynamicReticleState& state = command.reticles.emplace_back();
+            FillDynamicReticleStateFromProto(reticle, state);
         }
 
-        return command;
+        return;
     }
 
     case pb::UserCommand::kSetDynamicReticleSetVisibility:
     {
-        SetDynamicReticleSetVisibilityCommand command;
+        auto& command = std::get<SetDynamicReticleSetVisibilityCommand>(
+            target.emplace_back(SetDynamicReticleSetVisibilityCommand {}));
         command.visible = value.set_dynamic_reticle_set_visibility().visible();
         command.pageId = value.set_dynamic_reticle_set_visibility().page_id();
         command.templateTransportId = value.set_dynamic_reticle_set_visibility().template_transport_id();
-        return command;
+        return;
     }
 
     case pb::UserCommand::kSetDynamicReticleSetStrobeMagnetEnabled:
     {
-        SetDynamicReticleSetStrobeMagnetEnabledCommand command;
+        auto& command = std::get<SetDynamicReticleSetStrobeMagnetEnabledCommand>(
+            target.emplace_back(SetDynamicReticleSetStrobeMagnetEnabledCommand {}));
         command.enabled = value.set_dynamic_reticle_set_strobe_magnet_enabled().enabled();
         command.pageId = value.set_dynamic_reticle_set_strobe_magnet_enabled().page_id();
         command.templateTransportId = value.set_dynamic_reticle_set_strobe_magnet_enabled().template_transport_id();
-        return command;
+        return;
     }
 
     case pb::UserCommand::kRemoveDynamicReticle:
-        return RemoveDynamicReticleCommand {FromProtoDynamicHandle(value.remove_dynamic_reticle().target())};
+    {
+        auto& command = std::get<RemoveDynamicReticleCommand>(target.emplace_back(RemoveDynamicReticleCommand {}));
+        command.target = FromProtoDynamicHandle(value.remove_dynamic_reticle().target());
+        return;
+    }
 
     case pb::UserCommand::kResetWindow:
-        return ResetWindowCommand {};
+        target.emplace_back(ResetWindowCommand {});
+        return;
 
     case pb::UserCommand::COMMAND_NOT_SET:
         break;
     }
 
     throw std::runtime_error("Protocol Buffers command payload is empty");
+}
+
+void AppendUserCommandFromProto(const pb::UserCommand& value, std::vector<UserCommand>& target)
+{
+    AppendParsedUserCommandFromProto(value, target);
+    ValidateUserCommand(target.back());
 }
 
 pb::CommandEnvelope BuildEnvelope(const CommandBatch& batch)
@@ -1584,14 +1577,13 @@ std::optional<CommandBatch> DeserializeCommandBatch(const std::string_view paylo
             static_cast<std::size_t>(envelope.commands_size()),
             kMaxCommandsPerEnvelope,
             "Protocol Buffers CommandEnvelope.commands");
-        batch.commands.reserve(envelope.commands_size());
+        batch.commands.reserve(static_cast<std::size_t>(envelope.commands_size()));
 
         for (const pb::UserCommand& command : envelope.commands())
         {
-            batch.commands.push_back(FromProtoUserCommand(command));
+            AppendUserCommandFromProto(command, batch.commands);
         }
 
-        ValidateCommandBatch(batch);
         return batch;
     }
     catch (const std::exception& exception)
