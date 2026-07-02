@@ -41,6 +41,7 @@ constexpr char kDefaultWindowFile[] = "assets/windows/demo_pages_minimal.json";
 struct CommandLineOptions
 {
     std::filesystem::path windowFile = kDefaultWindowFile;
+    bool noSnapshot = false;
     bool showHelp = false;
 };
 
@@ -94,6 +95,12 @@ bool ParseCommandLine(const int argc, char** argv, CommandLineOptions& options, 
             continue;
         }
 
+        if (argument == "--no-snapshot")
+        {
+            options.noSnapshot = true;
+            continue;
+        }
+
         if (!argument.empty() && argument.front() == '-')
         {
             error = "Unknown argument: " + argument;
@@ -111,11 +118,13 @@ std::string BuildUsageText()
     std::string usage;
     usage += "Usage:\n";
     usage += "  offscreen_viewer [--window <window.json>]\n";
+    usage += "  offscreen_viewer [--window <window.json>] [--no-snapshot]\n";
     usage += "  offscreen_viewer <window.json>\n";
     usage += "  offscreen_viewer --help\n";
     usage += "\n";
     usage += "The example hosts the runtime offscreen through mfd_runtime_api,\n";
     usage += "keeps UDP in/out enabled, and displays two independent images.\n";
+    usage += "--no-snapshot keeps earlier commands of one runtime batch applied when a later command fails.\n";
     usage += "Example tutorial asset: assets/windows/mfd_tutorial.json\n";
     return usage;
 }
@@ -613,6 +622,10 @@ int MainImpl(const int argc, char** argv)
     options.windowFile = resolvedWindowFile.path;
 
     mfd::runtime_api::RuntimeSession runtimeSession;
+    if (options.noSnapshot)
+    {
+        runtimeSession.SetCommandTransactionMode(mfd::runtime_api::RuntimeCommandTransactionMode::NonTransactional);
+    }
     if (!runtimeSession.LoadWindowFile(options.windowFile, error))
     {
         throw std::runtime_error("Unable to load window JSON '" + options.windowFile.string() + "': " + error);
@@ -637,6 +650,8 @@ int MainImpl(const int argc, char** argv)
     std::cout << "offscreen_viewer\n";
     std::cout << "Window JSON: " << options.windowFile.string() << '\n';
     std::cout << "UDP in/out stays active through mfd_runtime_api.\n";
+    std::cout << "Runtime command batches: "
+              << (options.noSnapshot ? "non-transactional (--no-snapshot)" : "transactional") << '\n';
     std::cout << "The resizable host window displays two independent offscreen images.\n";
 
     while (!WindowShouldClose())

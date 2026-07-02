@@ -16,6 +16,9 @@ JSON through `mfd_runtime_api`, renders two independent offscreen surfaces, and
 displays the uploaded images in a resizable host window — without using
 `WindowLauncher` scripts.
 
+For the same non-transactional runtime mode as `mfd_window`, launch the example
+with `--no-snapshot`. The default remains transactional.
+
 ## Minimal usage
 
 `RuntimeSession` owns the authored window and its command/feedback contract;

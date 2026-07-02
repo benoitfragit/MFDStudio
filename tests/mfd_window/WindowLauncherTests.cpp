@@ -33,6 +33,7 @@ TEST(WindowLauncherTests, BuildUsageTextReflectsConfiguredApplicationAndWindow)
     EXPECT_NE(usage.find("cockpit_host --window <window.json>"), std::string::npos);
     EXPECT_NE(usage.find("assets/windows/demo_pages_cockpit.json"), std::string::npos);
     EXPECT_NE(usage.find("--framebuffer-plugin <plugin.dll>"), std::string::npos);
+    EXPECT_NE(usage.find("--no-snapshot"), std::string::npos);
     EXPECT_NE(usage.find(mfd::window::kLauncherFramebufferPluginEntryPointName), std::string::npos);
     EXPECT_NE(usage.find("F1 toggles the integrated runtime debug overlay"), std::string::npos);
     EXPECT_NE(usage.find("1..9 activate the first nine authored pages"), std::string::npos);
@@ -72,6 +73,7 @@ TEST(WindowLauncherTests, ParseCommandLineUsesConfiguredDefaultWindow)
     EXPECT_FALSE(options.showHelp);
     EXPECT_EQ(options.windowFile.generic_string(), "assets/windows/demo_pages_minimal.json");
     EXPECT_TRUE(options.framebufferPluginFile.empty());
+    EXPECT_FALSE(options.noSnapshot);
 }
 
 /**
@@ -92,6 +94,7 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsWindowFlagAndHelp)
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(options.windowFile.generic_string(), "custom/window.json");
     EXPECT_FALSE(options.showHelp);
+    EXPECT_FALSE(options.noSnapshot);
 
     char help[] = "--help";
     char* helpArgv[] = {program, help, nullptr};
@@ -120,6 +123,28 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsFramebufferPluginFlag)
     EXPECT_EQ(options.windowFile.generic_string(), "custom/window.json");
     EXPECT_EQ(options.framebufferPluginFile.generic_string(), "plugins/framebuffer.dll");
     EXPECT_FALSE(options.showHelp);
+    EXPECT_FALSE(options.noSnapshot);
+}
+
+/**
+ * @brief Parses the no-snapshot option independently from the window path.
+ */
+TEST(WindowLauncherTests, ParseCommandLineAcceptsNoSnapshotFlag)
+{
+    mfd::window::LauncherConfig config;
+
+    char program[] = "mfd_window";
+    char windowFlag[] = "--window";
+    char windowPath[] = "custom/window.json";
+    char noSnapshot[] = "--no-snapshot";
+    char* argv[] = {program, windowFlag, windowPath, noSnapshot, nullptr};
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(4, argv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "custom/window.json");
+    EXPECT_TRUE(options.noSnapshot);
 }
 
 /**
@@ -140,6 +165,7 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsShortAliases)
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(options.windowFile.generic_string(), "short/path.json");
     EXPECT_TRUE(options.framebufferPluginFile.empty());
+    EXPECT_FALSE(options.noSnapshot);
     EXPECT_FALSE(options.showHelp);
 
     char shortHelp[] = "-h";
@@ -155,6 +181,7 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsShortAliases)
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(options.framebufferPluginFile.generic_string(), "short/plugin.dll");
     EXPECT_EQ(options.windowFile.generic_string(), "short/path.json");
+    EXPECT_FALSE(options.noSnapshot);
 }
 
 /**
@@ -174,6 +201,7 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsPositionalWindowPath)
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(options.windowFile.generic_string(), "assets/windows/radar.json");
     EXPECT_TRUE(options.framebufferPluginFile.empty());
+    EXPECT_FALSE(options.noSnapshot);
     EXPECT_FALSE(options.showHelp);
 }
 

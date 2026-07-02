@@ -23,6 +23,16 @@ It can also pass a framebuffer plugin:
 .\Scripts\Start-MfdWindow.bat assets/windows/demo_pages_minimal.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
 ```
 
+For heavy live-debug sessions, `mfd_window` also accepts `--no-snapshot`:
+
+```powershell
+.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages_minimal.json --no-snapshot
+```
+
+This keeps earlier commands of the same runtime batch applied when a later
+command fails. The default remains transactional: without `--no-snapshot`, a
+multi-command batch still rolls back as one unit.
+
 `Start-MfdMinimal.bat` starts `mfd_window` with the sample framebuffer plugin
 enabled.
 

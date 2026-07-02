@@ -66,6 +66,10 @@ and options.
 Then launch `client_mockup`, activate a page, and move a reticle. Press `F1` in
 `mfd_window` for the runtime debug overlay.
 
+For heavy live-UDP debug sessions, `mfd_window` and `offscreen_viewer` also
+accept `--no-snapshot` to keep earlier commands of one runtime batch applied
+when a later command fails. The default remains transactional.
+
 ## Build the documentation locally
 
 ```powershell

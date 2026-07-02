@@ -789,6 +789,7 @@ struct CommandLineOptions
 {
     std::filesystem::path windowFile;
     std::filesystem::path framebufferPluginFile;
+    bool noSnapshot = false;
     bool showHelp = false;
 };
 
@@ -1214,6 +1215,12 @@ bool ParseCommandLine(const int argc,
             continue;
         }
 
+        if (argument == "--no-snapshot")
+        {
+            options.noSnapshot = true;
+            continue;
+        }
+
         if (!argument.empty() && argument.front() == '-')
         {
             error = "Unknown option: " + std::string(argument);
@@ -1249,13 +1256,16 @@ class GenericWindowApplication
 public:
     GenericWindowApplication(std::string applicationName,
                              std::filesystem::path windowFile,
+                             const bool noSnapshot,
                              mfd::window::LauncherFramebufferCallback framebufferCallback,
                              const MfdWindowFramebufferPixelFormat framebufferPixelFormat) :
         applicationName_(std::move(applicationName)),
         windowFile_(std::move(windowFile)),
+        noSnapshot_(noSnapshot),
         framebufferCallback_(std::move(framebufferCallback)),
         framebufferPixelFormat_(framebufferPixelFormat)
     {
+        ApplyRuntimeCommandTransactionMode();
         if (framebufferCallback_)
         {
             framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_);
@@ -1371,6 +1381,13 @@ private:
     [[nodiscard]] const std::vector<mfd::CommandBatch>& AppliedCommandBatches() const noexcept
     {
         return mfd::runtime_api::internal::RuntimeSessionInternalAccess::AppliedCommandBatches(runtimeSession_);
+    }
+
+    void ApplyRuntimeCommandTransactionMode() noexcept
+    {
+        runtimeSession_.SetCommandTransactionMode(
+            noSnapshot_ ? mfd::runtime_api::RuntimeCommandTransactionMode::NonTransactional
+                        : mfd::runtime_api::RuntimeCommandTransactionMode::Transactional);
     }
 
     void RefreshBranding()
@@ -1498,6 +1515,7 @@ private:
             return false;
         }
 
+        ApplyRuntimeCommandTransactionMode();
         windowDefinition_ = RuntimeWindowDefinition();
         renderer_.SetTextFontFile(windowDefinition_.fontFile);
         lastRuntimeError_.clear();
@@ -1600,6 +1618,8 @@ private:
             std::cout << "Branding icon: " << resolvedIconFile_.string() << '\n';
         }
         std::cout << "Pages: " << runtimeSession_.Pages().size() << '\n';
+        std::cout << "Runtime command batches: "
+                  << (noSnapshot_ ? "non-transactional (--no-snapshot)" : "transactional") << '\n';
         std::cout << "Shortcuts: F1 toggles runtime debug, R reloads, 1..9 switch pages\n";
     }
 
@@ -1686,6 +1706,7 @@ private:
 
     std::string applicationName_;
     std::filesystem::path windowFile_;
+    bool noSnapshot_ = false;
     mfd::window::LauncherFramebufferCallback framebufferCallback_ {};
     MfdWindowFramebufferPixelFormat framebufferPixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
     mfd::runtime_api::RuntimeSession runtimeSession_ {};
@@ -1713,6 +1734,7 @@ std::string BuildUsageText(const LauncherConfig& config)
     output << "Usage:\n";
     output << "  " << applicationName << " <window.json>\n";
     output << "  " << applicationName << " --window <window.json>\n";
+    output << "  " << applicationName << " --window <window.json> --no-snapshot\n";
     output << "  " << applicationName << " --window <window.json> --framebuffer-plugin <plugin.dll>\n";
     output << "  " << applicationName << " --help\n";
     output << '\n';
@@ -1727,6 +1749,7 @@ std::string BuildUsageText(const LauncherConfig& config)
     }
     output << "Optional framebuffer plugins must export '" << kLauncherFramebufferPluginEntryPointName
            << "' and implement the stable framebuffer-plugin ABI.\n";
+    output << "--no-snapshot keeps earlier commands of one runtime batch applied when a later command fails.\n";
     output << "Shortcuts:\n";
     output << "  F1 toggles the integrated runtime debug overlay\n";
     output << "  R reloads the current window JSON from disk\n";
@@ -1744,6 +1767,7 @@ bool ParseLauncherCommandLine(const int argc,
     const bool parsed = ParseCommandLine(argc, argv, config, internalOptions, error);
     options.windowFile = std::move(internalOptions.windowFile);
     options.framebufferPluginFile = std::move(internalOptions.framebufferPluginFile);
+    options.noSnapshot = internalOptions.noSnapshot;
     options.showHelp = internalOptions.showHelp;
     return parsed;
 }
@@ -1804,6 +1828,7 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
         GenericWindowApplication application(
             applicationName,
             options.windowFile,
+            options.noSnapshot,
             std::move(effectiveFramebufferCallback),
             effectiveFramebufferPixelFormat);
         return application.Run();
@@ -1815,6 +1840,7 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
         GenericWindowApplication application(
             applicationName,
             options.windowFile,
+            options.noSnapshot,
             std::move(effectiveFramebufferCallback),
             effectiveFramebufferPixelFormat);
         return application.Run();

@@ -40,6 +40,8 @@ struct LauncherOptions
     std::filesystem::path windowFile;
     /** @brief Optional framebuffer plugin DLL passed from the command line. */
     std::filesystem::path framebufferPluginFile;
+    /** @brief Disables runtime multi-command rollback when `true`. */
+    bool noSnapshot = false;
     /** @brief Whether the caller requested the usage text. */
     bool showHelp = false;
 };
