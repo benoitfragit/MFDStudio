@@ -19,6 +19,7 @@
 #include "mfd/model/Reticle.h"
 #include "mfd/runtime/SceneRegistry.h"
 #include "mfd/control/internal/CommandIdentifierHelpers.h"
+#include "mfd/control/internal/CommandTraits.h"
 
 namespace mfd
 {
@@ -70,13 +71,13 @@ struct CommandRollbackFootprintCollector
     {
         // Switching pages also mutates the previously active page (active flag, sticky
         // strobe refresh), so the current active page joins the footprint at capture time.
-        touchedPages.push_back(command.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
         touchesActivePageSelection = true;
     }
 
     void operator()(const SetPageViewCommand& command) const
     {
-        touchedPages.push_back(command.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
     }
 
     void operator()(const UpdateWindowDisplayCommand&) const noexcept
@@ -86,37 +87,37 @@ struct CommandRollbackFootprintCollector
 
     void operator()(const UpdateReticleCommand& command) const
     {
-        touchedPages.push_back(command.target.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
     }
 
     void operator()(const UpdateStrobeCommand& command) const
     {
-        touchedPages.push_back(command.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
     }
 
     void operator()(const UpsertDynamicReticleCommand& command) const
     {
-        touchedPages.push_back(command.target.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
     }
 
     void operator()(const UpsertDynamicReticlesCommand& command) const
     {
-        touchedPages.push_back(command.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
     }
 
     void operator()(const SetDynamicReticleSetVisibilityCommand& command) const
     {
-        touchedPages.push_back(command.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
     }
 
     void operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
     {
-        touchedPages.push_back(command.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
     }
 
     void operator()(const RemoveDynamicReticleCommand& command) const
     {
-        touchedPages.push_back(command.target.page);
+        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
     }
 
     void operator()(const ResetWindowCommand&) const noexcept

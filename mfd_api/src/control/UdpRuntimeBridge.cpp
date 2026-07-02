@@ -36,6 +36,7 @@
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/control/WindowFeedback.h"
+#include "mfd/control/internal/CommandTraits.h"
 #include "mfd/ipc/ExchangeChannel.h"
 
 namespace mfd
@@ -107,6 +108,18 @@ CoalescingIdentifier MakeCoalescingIdentifier(const std::uint64_t numericId, con
     }
 
     return identifier;
+}
+
+CoalescingIdentifier MakeCoalescingIdentifier(const detail::CommandPageBinding& binding)
+{
+    return MakeCoalescingIdentifier(binding.pageId,
+                                    binding.pageName == nullptr ? std::string_view {} : *binding.pageName);
+}
+
+CoalescingIdentifier MakeCoalescingIdentifier(const detail::CommandTemplateBinding& binding)
+{
+    return MakeCoalescingIdentifier(binding.templateTransportId,
+                                    binding.templateId == nullptr ? std::string_view {} : *binding.templateId);
 }
 
 bool operator==(const CoalescingIdentifier& lhs, const CoalescingIdentifier& rhs) noexcept
@@ -414,7 +427,7 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::SetPageView;
-        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
         return key;
     }
 
@@ -427,7 +440,7 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::UpdateReticle;
-        key.page = MakeCoalescingIdentifier(command.target.pageId, command.target.page);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
         key.reticle = MakeCoalescingIdentifier(command.target.reticleId, command.target.reticle);
         return key;
     }
@@ -436,7 +449,7 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::UpdateStrobe;
-        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
         key.strobe = MakeCoalescingIdentifier(command.strobeId, command.strobe);
         return key;
     }
@@ -445,9 +458,9 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::UpsertDynamicReticle;
-        key.page = MakeCoalescingIdentifier(command.target.pageId, command.target.page);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
         key.reticle = MakeCoalescingIdentifier(command.target.runtimeReticleId, command.target.reticleId);
-        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        key.dynamicTemplate = MakeCoalescingIdentifier(detail::TemplateBindingOf(command));
         return key;
     }
 
@@ -455,8 +468,8 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::SetDynamicReticleSetVisibility;
-        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
-        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
+        key.dynamicTemplate = MakeCoalescingIdentifier(detail::TemplateBindingOf(command));
         return key;
     }
 
@@ -464,8 +477,8 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::SetDynamicReticleSetStrobeMagnetEnabled;
-        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
-        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
+        key.dynamicTemplate = MakeCoalescingIdentifier(detail::TemplateBindingOf(command));
         return key;
     }
 

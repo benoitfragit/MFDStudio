@@ -3,6 +3,7 @@
 #include <variant>
 
 #include "mfd/control/CommandTypes.h"
+#include "mfd/control/internal/CommandTraits.h"
 
 namespace mfd::detail
 {
@@ -34,12 +35,12 @@ struct CommandGeneratedIdentifierProbe
 {
     bool operator()(const ActivatePageCommand& command) const noexcept
     {
-        return command.pageId != 0;
+        return PageBindingOf(command).pageId != 0;
     }
 
     bool operator()(const SetPageViewCommand& command) const noexcept
     {
-        return command.pageId != 0;
+        return PageBindingOf(command).pageId != 0;
     }
 
     bool operator()(const UpdateWindowDisplayCommand&) const noexcept
@@ -55,19 +56,19 @@ struct CommandGeneratedIdentifierProbe
 
     bool operator()(const UpdateStrobeCommand& command) const noexcept
     {
-        return command.pageId != 0 || command.strobeId != 0;
+        return PageBindingOf(command).pageId != 0 || command.strobeId != 0;
     }
 
     bool operator()(const UpsertDynamicReticleCommand& command) const noexcept
     {
         return DynamicHandleUsesGeneratedIdentifiers(command.target) ||
-               command.templateTransportId != 0 ||
+               TemplateBindingOf(command).templateTransportId != 0 ||
                PatchUsesGeneratedIdentifiers(command.patch);
     }
 
     bool operator()(const UpsertDynamicReticlesCommand& command) const noexcept
     {
-        if (command.pageId != 0 || command.templateTransportId != 0)
+        if (PageBindingOf(command).pageId != 0 || TemplateBindingOf(command).templateTransportId != 0)
         {
             return true;
         }
@@ -85,12 +86,12 @@ struct CommandGeneratedIdentifierProbe
 
     bool operator()(const SetDynamicReticleSetVisibilityCommand& command) const noexcept
     {
-        return command.pageId != 0 || command.templateTransportId != 0;
+        return PageBindingOf(command).pageId != 0 || TemplateBindingOf(command).templateTransportId != 0;
     }
 
     bool operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const noexcept
     {
-        return command.pageId != 0 || command.templateTransportId != 0;
+        return PageBindingOf(command).pageId != 0 || TemplateBindingOf(command).templateTransportId != 0;
     }
 
     bool operator()(const RemoveDynamicReticleCommand& command) const noexcept
