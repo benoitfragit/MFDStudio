@@ -2491,7 +2491,7 @@ bool SceneRegistry::DynamicReticleUsesTemplate(const std::string_view pageName,
     return entity != entt::null &&
            registry_.all_of<DynamicTag>(entity) &&
            reticle != nullptr &&
-           NormalizePageName(reticle->group.sourceTemplateId) == NormalizePageName(templateId);
+           PageNamesEqual(reticle->group.sourceTemplateId, templateId);
 }
 
 bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,

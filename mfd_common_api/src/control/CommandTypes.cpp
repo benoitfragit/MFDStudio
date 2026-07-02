@@ -431,7 +431,7 @@ struct UserCommandValidator
 
         if (command.strobeId == 0 && !command.strobe.empty())
         {
-            if (NormalizePageName(command.strobe).empty())
+            if (PageNameIsBlank(command.strobe))
             {
                 throw std::runtime_error("UpdateStrobeCommand.strobe must not be empty");
             }

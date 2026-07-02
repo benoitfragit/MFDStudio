@@ -11,6 +11,7 @@
 #include "mfd/model/PageName.h"
 
 #include <cctype>
+#include <cstddef>
 
 namespace mfd
 {
@@ -53,6 +54,28 @@ std::string NormalizePageName(const std::string_view value)
 
 bool PageNamesEqual(const std::string_view lhs, const std::string_view rhs)
 {
-    return NormalizePageName(lhs) == NormalizePageName(rhs);
+    const std::string_view left = TrimAsciiWhitespace(lhs);
+    const std::string_view right = TrimAsciiWhitespace(rhs);
+    if (left.size() != right.size())
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < left.size(); ++index)
+    {
+        const int leftLowered = std::tolower(static_cast<unsigned char>(left[index]));
+        const int rightLowered = std::tolower(static_cast<unsigned char>(right[index]));
+        if (leftLowered != rightLowered)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool PageNameIsBlank(const std::string_view value) noexcept
+{
+    return TrimAsciiWhitespace(value).empty();
 }
 } // namespace mfd

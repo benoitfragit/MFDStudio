@@ -470,7 +470,7 @@ bool CommandProcessor::ResolveGeneratedPage(std::string& page, TransportId& page
         return false;
     }
 
-    if (!page.empty() && NormalizePageName(page) != NormalizePageName(*resolvedPage))
+    if (!page.empty() && !PageNamesEqual(page, *resolvedPage))
     {
         SetFailure("Generated page transport id " + std::to_string(pageId) + " does not match page '" + page + "'");
         return false;
@@ -486,7 +486,7 @@ bool CommandProcessor::ResolveGeneratedStrobe(const TransportId pageId,
 {
     if (strobeId == 0)
     {
-        return strobeName.empty() || !NormalizePageName(strobeName).empty();
+        return strobeName.empty() || !PageNameIsBlank(strobeName);
     }
 
     const std::string* resolvedStrobe = scene_.ResolveStrobeName(pageId, strobeId);
@@ -496,7 +496,7 @@ bool CommandProcessor::ResolveGeneratedStrobe(const TransportId pageId,
         return false;
     }
 
-    if (!strobeName.empty() && NormalizePageName(strobeName) != NormalizePageName(*resolvedStrobe))
+    if (!strobeName.empty() && !PageNamesEqual(strobeName, *resolvedStrobe))
     {
         SetFailure("Generated strobe transport id " + std::to_string(strobeId) +
                    " does not match strobe '" + strobeName + "'");
@@ -528,14 +528,14 @@ bool CommandProcessor::ResolveGeneratedStaticReticle(StaticReticleHandle& target
         return false;
     }
 
-    if (!target.page.empty() && NormalizePageName(target.page) != NormalizePageName(resolvedReticle->pageName))
+    if (!target.page.empty() && !PageNamesEqual(target.page, resolvedReticle->pageName))
     {
         SetFailure("Generated static reticle transport id " + std::to_string(target.reticleId) +
                    " does not belong to page '" + target.page + "'");
         return false;
     }
 
-    if (!target.reticle.empty() && NormalizePageName(target.reticle) != NormalizePageName(resolvedReticle->reticleId))
+    if (!target.reticle.empty() && !PageNamesEqual(target.reticle, resolvedReticle->reticleId))
     {
         SetFailure("Generated static reticle transport id " + std::to_string(target.reticleId) +
                    " does not match reticle '" + target.reticle + "'");
@@ -582,7 +582,7 @@ bool CommandProcessor::ResolveGeneratedTemplate(std::string& templateId, const T
         return false;
     }
 
-    if (!templateId.empty() && NormalizePageName(templateId) != NormalizePageName(*resolvedTemplate))
+    if (!templateId.empty() && !PageNamesEqual(templateId, *resolvedTemplate))
     {
         SetFailure("Generated template transport id " + std::to_string(templateTransportId) +
                    " does not match template '" + templateId + "'");
@@ -637,7 +637,7 @@ bool CommandProcessor::ResolveGeneratedPatchPrimitiveIds(ReticlePatch& patch,
             }
 
             if (patch.blinkType.has_value() &&
-                NormalizePageName(*patch.blinkType) != NormalizePageName(*resolvedBlinkType))
+                !PageNamesEqual(*patch.blinkType, *resolvedBlinkType))
             {
                 SetFailure("Generated blink transport id " + std::to_string(*patch.blinkTypeId) +
                            " does not match blink type '" + *patch.blinkType + "'");
