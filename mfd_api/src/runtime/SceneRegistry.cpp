@@ -2578,7 +2578,12 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
 
 bool SceneRegistry::HasDynamicReticle(const std::string_view pageName, const std::string_view reticleId) const noexcept
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    return HasDynamicReticleByKey(NormalizePageName(pageName), reticleId);
+}
+
+bool SceneRegistry::HasDynamicReticleByKey(const std::string_view normalizedPageName,
+                                           const std::string_view reticleId) const noexcept
+{
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
     return entity != entt::null && registry_.all_of<DynamicTag>(entity);
 }
@@ -2587,7 +2592,13 @@ bool SceneRegistry::DynamicReticleUsesTemplate(const std::string_view pageName,
                                                const std::string_view reticleId,
                                                const std::string_view templateId) const noexcept
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    return DynamicReticleUsesTemplateByKey(NormalizePageName(pageName), reticleId, templateId);
+}
+
+bool SceneRegistry::DynamicReticleUsesTemplateByKey(const std::string_view normalizedPageName,
+                                                    const std::string_view reticleId,
+                                                    const std::string_view templateId) const noexcept
+{
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
     const ReticleComponent* reticle = FindReticle(normalizedPageName, reticleId);
     return entity != entt::null &&
@@ -2600,12 +2611,18 @@ bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
                                              const std::string_view reticleId,
                                              const ReticlePatch& patch) noexcept
 {
+    return ApplyDynamicReticlePatchByKey(NormalizePageName(pageName), reticleId, patch);
+}
+
+bool SceneRegistry::ApplyDynamicReticlePatchByKey(const std::string_view normalizedPageName,
+                                                  const std::string_view reticleId,
+                                                  const ReticlePatch& patch) noexcept
+{
     if (!IsValidReticlePatch(patch))
     {
         return false;
     }
 
-    const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
     if (page == nullptr || entity == entt::null || !registry_.all_of<DynamicTag>(entity))
@@ -3194,7 +3211,11 @@ StrobeScanResult SceneRegistry::ScanStrobeByKey(const std::string_view pageName)
 
 void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, ReticleGroup reticle)
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    UpsertDynamicReticleByKey(NormalizePageName(pageName), std::move(reticle));
+}
+
+void SceneRegistry::UpsertDynamicReticleByKey(const std::string_view normalizedPageName, ReticleGroup reticle)
+{
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr || NormalizeReticleId(reticle.id).empty())
     {
@@ -3237,7 +3258,7 @@ void SceneRegistry::UpsertDynamicReticle(const std::string_view pageName, Reticl
     component.cachedLayerOrder = drawOrder.layerOrder;
     component.normalizedSourceTemplateId = std::move(normalizedSourceTemplateId);
     registry_.emplace<ReticleComponent>(entity, std::move(component));
-    registry_.emplace<PageMembership>(entity, PageMembership {normalizedPageName});
+    registry_.emplace<PageMembership>(entity, PageMembership {std::string(normalizedPageName)});
     registry_.emplace<DynamicTag>(entity);
     IndexReticle(normalizedPageName, registry_.get<ReticleComponent>(entity).group, entity);
     InsertReticleIntoPageDrawList(normalizedPageName, entity);

@@ -615,6 +615,19 @@ private:
     /** @brief Returns whether one dynamic template set is currently eligible for strobe magnetization on one page. */
     bool IsDynamicTemplateStrobeMagnetEnabled(std::string_view normalizedPageName,
                                               std::string_view templateId) const noexcept;
+    /** @brief Same as HasDynamicReticle, but takes an already-normalized page key to avoid
+     *  renormalizing it per reticle on the bulk dynamic command hot path. */
+    bool HasDynamicReticleByKey(std::string_view normalizedPageName, std::string_view reticleId) const noexcept;
+    /** @brief Same as DynamicReticleUsesTemplate, but takes an already-normalized page key. */
+    bool DynamicReticleUsesTemplateByKey(std::string_view normalizedPageName,
+                                         std::string_view reticleId,
+                                         std::string_view templateId) const noexcept;
+    /** @brief Same as ApplyDynamicReticlePatch, but takes an already-normalized page key. */
+    bool ApplyDynamicReticlePatchByKey(std::string_view normalizedPageName,
+                                       std::string_view reticleId,
+                                       const ReticlePatch& patch) noexcept;
+    /** @brief Same as UpsertDynamicReticle, but takes an already-normalized page key. */
+    void UpsertDynamicReticleByKey(std::string_view normalizedPageName, ReticleGroup reticle);
     /** @brief Same as IsDynamicTemplateVisible, but takes an already-normalized template id to
      *  avoid renormalizing it per reticle on the render/strobe-scan hot path. */
     bool IsDynamicTemplateVisibleByNormalizedId(std::string_view normalizedPageName,

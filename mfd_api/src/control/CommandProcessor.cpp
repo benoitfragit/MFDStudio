@@ -988,8 +988,10 @@ CommandProcessor::CommandResult CommandProcessor::OnUpdateStrobe(const UpdateStr
 
 CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command)
 {
+    // The page key is normalized once and reused by every scene call below through the
+    // private *ByKey entry points, instead of renormalizing the page name per call.
     const std::string normalizedPageName = mfd::NormalizePageName(command.target.page);
-    if (!scene_.HasPage(command.target.page))
+    if (!scene_.HasNormalizedPage(normalizedPageName))
     {
         return CommandResult::Failure("Unknown page: " + command.target.page);
     }
@@ -1008,21 +1010,21 @@ CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticle(const U
                                       "' is not bound on page '" + command.target.page + "'");
     }
 
-    if (scene_.HasDynamicReticle(command.target.page, command.target.reticleId) &&
-        !scene_.DynamicReticleUsesTemplate(command.target.page, command.target.reticleId, command.templateId))
+    if (scene_.HasDynamicReticleByKey(normalizedPageName, command.target.reticleId) &&
+        !scene_.DynamicReticleUsesTemplateByKey(normalizedPageName, command.target.reticleId, command.templateId))
     {
         return CommandResult::Failure("Dynamic reticle '" + command.target.reticleId + "' on page '" +
                                       command.target.page + "' already belongs to another template");
     }
 
-    if (scene_.HasDynamicReticle(command.target.page, command.target.reticleId))
+    if (scene_.HasDynamicReticleByKey(normalizedPageName, command.target.reticleId))
     {
         scene_.SetDynamicReticleRuntimeIdentifiers(
             normalizedPageName,
             command.target.reticleId,
             command.target.runtimeReticleId,
             command.templateTransportId);
-        if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticleId, command.patch))
+        if (!scene_.ApplyDynamicReticlePatchByKey(normalizedPageName, command.target.reticleId, command.patch))
         {
             return CommandResult::Failure("Unable to update dynamic reticle '" + command.target.reticleId + "'");
         }
@@ -1032,14 +1034,14 @@ CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticle(const U
 
     ReticleGroup reticle = InstantiateReticle(templateIterator->second, command.target.reticleId);
     reticle.layerId = binding->layerId;
-    scene_.UpsertDynamicReticle(command.target.page, std::move(reticle));
+    scene_.UpsertDynamicReticleByKey(normalizedPageName, std::move(reticle));
     scene_.SetDynamicReticleRuntimeIdentifiers(
         normalizedPageName,
         command.target.reticleId,
         command.target.runtimeReticleId,
         command.templateTransportId);
 
-    if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticleId, command.patch))
+    if (!scene_.ApplyDynamicReticlePatchByKey(normalizedPageName, command.target.reticleId, command.patch))
     {
         return CommandResult::Failure("Unable to initialize dynamic reticle '" + command.target.reticleId + "'");
     }
@@ -1049,8 +1051,11 @@ CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticle(const U
 
 CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command)
 {
+    // The page key is normalized once for the whole bulk command: every per-reticle scene
+    // call below goes through the private *ByKey entry points, which removes one page-name
+    // normalization per reticle from the hottest dynamic update path.
     const std::string normalizedPageName = mfd::NormalizePageName(command.page);
-    if (!scene_.HasPage(command.page))
+    if (!scene_.HasNormalizedPage(normalizedPageName))
     {
         return CommandResult::Failure("Unknown page: " + command.page);
     }
@@ -1071,21 +1076,21 @@ CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticles(const 
 
     for (const DynamicReticleState& state : command.reticles)
     {
-        if (scene_.HasDynamicReticle(command.page, state.reticleId) &&
-            !scene_.DynamicReticleUsesTemplate(command.page, state.reticleId, command.templateId))
+        if (scene_.HasDynamicReticleByKey(normalizedPageName, state.reticleId) &&
+            !scene_.DynamicReticleUsesTemplateByKey(normalizedPageName, state.reticleId, command.templateId))
         {
             return CommandResult::Failure("Dynamic reticle '" + state.reticleId + "' on page '" + command.page +
                                           "' already belongs to another template");
         }
 
-        if (scene_.HasDynamicReticle(command.page, state.reticleId))
+        if (scene_.HasDynamicReticleByKey(normalizedPageName, state.reticleId))
         {
             scene_.SetDynamicReticleRuntimeIdentifiers(
                 normalizedPageName,
                 state.reticleId,
                 state.runtimeReticleId,
                 command.templateTransportId);
-            if (!scene_.ApplyDynamicReticlePatch(command.page, state.reticleId, state.patch))
+            if (!scene_.ApplyDynamicReticlePatchByKey(normalizedPageName, state.reticleId, state.patch))
             {
                 return CommandResult::Failure("Unable to update dynamic reticle '" + state.reticleId + "'");
             }
@@ -1095,14 +1100,14 @@ CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticles(const 
 
         ReticleGroup reticle = InstantiateReticle(templateIterator->second, state.reticleId);
         reticle.layerId = binding->layerId;
-        scene_.UpsertDynamicReticle(command.page, std::move(reticle));
+        scene_.UpsertDynamicReticleByKey(normalizedPageName, std::move(reticle));
         scene_.SetDynamicReticleRuntimeIdentifiers(
             normalizedPageName,
             state.reticleId,
             state.runtimeReticleId,
             command.templateTransportId);
 
-        if (!scene_.ApplyDynamicReticlePatch(command.page, state.reticleId, state.patch))
+        if (!scene_.ApplyDynamicReticlePatchByKey(normalizedPageName, state.reticleId, state.patch))
         {
             return CommandResult::Failure("Unable to initialize dynamic reticle '" + state.reticleId + "'");
         }
