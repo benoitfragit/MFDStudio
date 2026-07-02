@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "mfd_commands.pb.h"
@@ -1350,14 +1351,14 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
     {
     case pb::UserCommand::kActivatePage:
     {
-        auto& command = std::get<ActivatePageCommand>(target.emplace_back(ActivatePageCommand {}));
+        auto& command = std::get<ActivatePageCommand>(target.emplace_back(std::in_place_type<ActivatePageCommand>));
         command.pageId = value.activate_page().page_id();
         return;
     }
 
     case pb::UserCommand::kSetPageView:
     {
-        auto& command = std::get<SetPageViewCommand>(target.emplace_back(SetPageViewCommand {}));
+        auto& command = std::get<SetPageViewCommand>(target.emplace_back(std::in_place_type<SetPageViewCommand>));
         if (value.set_page_view().has_center())
         {
             command.view.center = FromProtoVec2(value.set_page_view().center());
@@ -1369,7 +1370,8 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
 
     case pb::UserCommand::kUpdateWindowDisplay:
     {
-        auto& command = std::get<UpdateWindowDisplayCommand>(target.emplace_back(UpdateWindowDisplayCommand {}));
+        auto& command = std::get<UpdateWindowDisplayCommand>(
+            target.emplace_back(std::in_place_type<UpdateWindowDisplayCommand>));
         if (value.update_window_display().has_patch())
         {
             FillWindowDisplayPatchFromProto(value.update_window_display().patch(), command.patch);
@@ -1379,7 +1381,7 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
 
     case pb::UserCommand::kUpdateReticle:
     {
-        auto& command = std::get<UpdateReticleCommand>(target.emplace_back(UpdateReticleCommand {}));
+        auto& command = std::get<UpdateReticleCommand>(target.emplace_back(std::in_place_type<UpdateReticleCommand>));
         command.target = FromProtoStaticHandle(value.update_reticle().target());
         if (value.update_reticle().has_patch())
         {
@@ -1390,7 +1392,7 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
 
     case pb::UserCommand::kUpdateStrobe:
     {
-        auto& command = std::get<UpdateStrobeCommand>(target.emplace_back(UpdateStrobeCommand {}));
+        auto& command = std::get<UpdateStrobeCommand>(target.emplace_back(std::in_place_type<UpdateStrobeCommand>));
         command.pageId = value.update_strobe().page_id();
         command.strobeId = value.update_strobe().strobe_id();
         if (value.update_strobe().has_active())
@@ -1406,7 +1408,8 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
 
     case pb::UserCommand::kUpsertDynamicReticle:
     {
-        auto& command = std::get<UpsertDynamicReticleCommand>(target.emplace_back(UpsertDynamicReticleCommand {}));
+        auto& command = std::get<UpsertDynamicReticleCommand>(
+            target.emplace_back(std::in_place_type<UpsertDynamicReticleCommand>));
         command.target = FromProtoDynamicHandle(value.upsert_dynamic_reticle().target());
         command.templateTransportId = value.upsert_dynamic_reticle().template_transport_id();
         if (value.upsert_dynamic_reticle().has_patch())
@@ -1418,7 +1421,8 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
 
     case pb::UserCommand::kUpsertDynamicReticles:
     {
-        auto& command = std::get<UpsertDynamicReticlesCommand>(target.emplace_back(UpsertDynamicReticlesCommand {}));
+        auto& command = std::get<UpsertDynamicReticlesCommand>(
+            target.emplace_back(std::in_place_type<UpsertDynamicReticlesCommand>));
         command.pageId = value.upsert_dynamic_reticles().page_id();
         command.templateTransportId = value.upsert_dynamic_reticles().template_transport_id();
         ValidateContainerSize(
@@ -1439,7 +1443,7 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
     case pb::UserCommand::kSetDynamicReticleSetVisibility:
     {
         auto& command = std::get<SetDynamicReticleSetVisibilityCommand>(
-            target.emplace_back(SetDynamicReticleSetVisibilityCommand {}));
+            target.emplace_back(std::in_place_type<SetDynamicReticleSetVisibilityCommand>));
         command.visible = value.set_dynamic_reticle_set_visibility().visible();
         command.pageId = value.set_dynamic_reticle_set_visibility().page_id();
         command.templateTransportId = value.set_dynamic_reticle_set_visibility().template_transport_id();
@@ -1449,7 +1453,7 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
     case pb::UserCommand::kSetDynamicReticleSetStrobeMagnetEnabled:
     {
         auto& command = std::get<SetDynamicReticleSetStrobeMagnetEnabledCommand>(
-            target.emplace_back(SetDynamicReticleSetStrobeMagnetEnabledCommand {}));
+            target.emplace_back(std::in_place_type<SetDynamicReticleSetStrobeMagnetEnabledCommand>));
         command.enabled = value.set_dynamic_reticle_set_strobe_magnet_enabled().enabled();
         command.pageId = value.set_dynamic_reticle_set_strobe_magnet_enabled().page_id();
         command.templateTransportId = value.set_dynamic_reticle_set_strobe_magnet_enabled().template_transport_id();
@@ -1458,13 +1462,14 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
 
     case pb::UserCommand::kRemoveDynamicReticle:
     {
-        auto& command = std::get<RemoveDynamicReticleCommand>(target.emplace_back(RemoveDynamicReticleCommand {}));
+        auto& command = std::get<RemoveDynamicReticleCommand>(
+            target.emplace_back(std::in_place_type<RemoveDynamicReticleCommand>));
         command.target = FromProtoDynamicHandle(value.remove_dynamic_reticle().target());
         return;
     }
 
     case pb::UserCommand::kResetWindow:
-        target.emplace_back(ResetWindowCommand {});
+        target.emplace_back(std::in_place_type<ResetWindowCommand>);
         return;
 
     case pb::UserCommand::COMMAND_NOT_SET:
