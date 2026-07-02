@@ -21,6 +21,7 @@
 
 #include "mfd_commands.pb.h"
 #include "mfd/model/PageName.h"
+#include "mfd/control/internal/CommandWireSizeHelpers.h"
 #include "mfd/model/RuntimeBudgets.h"
 
 namespace mfd
@@ -1629,5 +1630,12 @@ std::optional<std::vector<UserCommand>> DeserializeUserCommands(const std::strin
     }
 
     return batch->commands;
+}
+
+std::size_t detail::DynamicReticleStateWireSize(const DynamicReticleState& state)
+{
+    pb::DynamicReticleState message;
+    FillProtoDynamicReticleState(state, &message);
+    return message.ByteSizeLong();
 }
 } // namespace mfd

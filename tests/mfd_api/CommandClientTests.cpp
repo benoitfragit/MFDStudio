@@ -607,3 +607,86 @@ TEST(CommandClientTests, RejectsBulkDynamicReticleUpdatesBeyondRuntimeSafetyLimi
     EXPECT_FALSE(client.SendBatch(batch));
     EXPECT_NE(client.LastError().find("safety limits"), std::string::npos);
 }
+
+TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesEveryReticleInOrderWithinPayloadLimit)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::UpsertDynamicReticlesCommand command;
+    command.pageId = 11U;
+    command.templateTransportId = 77U;
+
+    constexpr std::size_t kTrackCount = 60U;
+    for (std::size_t index = 0; index < kTrackCount; ++index)
+    {
+        mfd::DynamicReticleState state;
+        state.reticleId = "track_" + std::to_string(index);
+        state.patch.text = "payload_" + std::to_string(index) + "_" +
+                           std::string(200U, static_cast<char>('a' + (index % 26U)));
+        command.reticles.push_back(std::move(state));
+    }
+
+    mfd::CommandBatch batch;
+    batch.sequence = 7U;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(command);
+
+    ASSERT_TRUE(client.SendBatch(batch));
+    ASSERT_GT(rawChannel->SentPayloads().size(), 1U);
+
+    std::vector<mfd::DynamicReticleState> reassembled;
+    reassembled.reserve(kTrackCount);
+    for (const std::vector<std::byte>& payloadBytes : rawChannel->SentPayloads())
+    {
+        EXPECT_LE(payloadBytes.size(), mfd::kUdpDefaultPayloadBytes);
+
+        const auto decodedBatch = DecodeBatchPayload(payloadBytes);
+        ASSERT_TRUE(decodedBatch.has_value());
+        ASSERT_EQ(decodedBatch->commands.size(), 1U);
+
+        const auto* splitCommand = std::get_if<mfd::UpsertDynamicReticlesCommand>(&decodedBatch->commands.front());
+        ASSERT_NE(splitCommand, nullptr);
+        EXPECT_EQ(splitCommand->pageId, 11U);
+        EXPECT_EQ(splitCommand->templateTransportId, 77U);
+        ASSERT_FALSE(splitCommand->reticles.empty());
+        reassembled.insert(reassembled.end(), splitCommand->reticles.begin(), splitCommand->reticles.end());
+    }
+
+    ASSERT_EQ(reassembled.size(), kTrackCount);
+    for (std::size_t index = 0; index < kTrackCount; ++index)
+    {
+        // Transport normalization replaces each named reticle id with a stable numeric
+        // runtime id, so ordering is asserted through the per-reticle payload text.
+        EXPECT_NE(reassembled[index].runtimeReticleId, 0U);
+        ASSERT_TRUE(reassembled[index].patch.text.has_value());
+        EXPECT_EQ(*reassembled[index].patch.text, *command.reticles[index].patch.text);
+    }
+}
+
+TEST(CommandClientTests, SplitReportsOversizedSingleDynamicReticleUpdate)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::UpsertDynamicReticlesCommand command;
+    command.pageId = 11U;
+    command.templateTransportId = 77U;
+
+    mfd::DynamicReticleState oversized;
+    oversized.reticleId = "track_huge";
+    oversized.patch.text = std::string(8U * 1024U, 'x');
+    command.reticles.push_back(std::move(oversized));
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(std::move(command));
+
+    EXPECT_FALSE(client.SendBatch(batch));
+    EXPECT_NE(client.LastError().find("exceeds the configured UDP payload limit"), std::string::npos);
+}

@@ -24,6 +24,7 @@
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/PageName.h"
 #include "mfd/control/internal/CommandIdentifierHelpers.h"
+#include "mfd/control/internal/CommandWireSizeHelpers.h"
 
 namespace mfd
 {
@@ -607,6 +608,31 @@ bool NormalizePatchForTransport(const std::optional<GeneratedTransportMap>& tran
                *map, patch.primitivePatches, patch.primitivePatchesById, ownerKind, ownerId, lastError, context);
 }
 
+// Upper bound of the wire overhead wrapped around one serialized dynamic reticle state
+// inside the enclosing command message: the repeated-field tag (at most 2 bytes for
+// field numbers up to 2047) plus the length-prefix varint of the entry payload. Using an
+// upper bound keeps the greedy chunk estimate safe; the one serialization per final
+// chunk below still validates the real size defensively.
+constexpr std::size_t kRepeatedFieldTagUpperBoundBytes = 2U;
+
+std::size_t VarintWireSize(std::size_t value) noexcept
+{
+    std::size_t bytes = 1U;
+    while (value >= 0x80U)
+    {
+        value >>= 7U;
+        ++bytes;
+    }
+
+    return bytes;
+}
+
+std::size_t EstimatedDynamicReticleStateChunkBytes(const DynamicReticleState& state)
+{
+    const std::size_t payloadBytes = detail::DynamicReticleStateWireSize(state);
+    return kRepeatedFieldTagUpperBoundBytes + VarintWireSize(payloadBytes) + payloadBytes;
+}
+
 // Splits one oversized command into transport-sized chunks with one explicit overload per
 // command type. Only bulk dynamic reticle updates can shrink; every other command type
 // states explicitly that it cannot. This visitor intentionally has no generic fallback:
@@ -669,71 +695,97 @@ struct OversizedCommandSplitter
             return std::nullopt;
         }
 
+        // The envelope cost (batch framing plus the command without its entries) is
+        // measured with one serialization; every chunk then adds its entries' estimated
+        // wire contributions on top instead of serializing a full candidate batch per
+        // probe as the previous binary search did.
+        UpsertDynamicReticlesCommand chunkPrototype;
+        chunkPrototype.page = command.page;
+        chunkPrototype.pageId = command.pageId;
+        chunkPrototype.templateId = command.templateId;
+        chunkPrototype.templateTransportId = command.templateTransportId;
+
+        const auto emptyChunkPayload = TrySerializeBatch(
+            MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {UserCommand {chunkPrototype}}),
+            error);
+        if (!emptyChunkPayload.has_value())
+        {
+            return std::nullopt;
+        }
+
+        if (emptyChunkPayload->size() >= maxPayloadBytes)
+        {
+            return RejectUnsplittableCommand();
+        }
+
+        const std::size_t chunkEntryBudget = maxPayloadBytes - emptyChunkPayload->size();
+
+        std::vector<std::size_t> entryBytes;
+        entryBytes.reserve(command.reticles.size());
+        std::size_t totalEntryBytes = 0U;
+        for (const DynamicReticleState& state : command.reticles)
+        {
+            entryBytes.push_back(EstimatedDynamicReticleStateChunkBytes(state));
+            totalEntryBytes += entryBytes.back();
+        }
+
         std::vector<UserCommand> splitCommands;
-        splitCommands.reserve(command.reticles.size());
+        splitCommands.reserve(totalEntryBytes / chunkEntryBudget + 1U);
 
         std::size_t firstIndex = 0U;
         while (firstIndex < command.reticles.size())
         {
-            std::size_t bestCount = 0U;
-            std::size_t left = 1U;
-            std::size_t right = command.reticles.size() - firstIndex;
-
-            while (left <= right)
+            std::size_t entryCount = 0U;
+            std::size_t usedBudget = 0U;
+            while (firstIndex + entryCount < command.reticles.size() &&
+                   usedBudget + entryBytes[firstIndex + entryCount] <= chunkEntryBudget)
             {
-                const std::size_t middle = left + (right - left) / 2U;
-
-                UpsertDynamicReticlesCommand candidate;
-                candidate.page = command.page;
-                candidate.pageId = command.pageId;
-                candidate.templateId = command.templateId;
-                candidate.templateTransportId = command.templateTransportId;
-                candidate.reticles.assign(command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex),
-                                          command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + middle));
-
-                auto payload = TrySerializeBatch(
-                    MakeBatch(sequence,
-                              std::string(mappingHash),
-                              std::vector<UserCommand> {UserCommand {std::move(candidate)}}),
-                    error);
-
-                if (payload.has_value() && payload->size() <= maxPayloadBytes)
-                {
-                    bestCount = middle;
-                    left = middle + 1U;
-                }
-                else
-                {
-                    if (!payload.has_value())
-                    {
-                        return std::nullopt;
-                    }
-
-                    if (middle == 0U)
-                    {
-                        break;
-                    }
-
-                    right = middle - 1U;
-                }
+                usedBudget += entryBytes[firstIndex + entryCount];
+                ++entryCount;
             }
 
-            if (bestCount == 0U)
+            if (entryCount == 0U)
             {
                 error = "One dynamic reticle update exceeds the configured UDP payload limit of " +
                         std::to_string(maxPayloadBytes) + " bytes";
                 return std::nullopt;
             }
 
-            UpsertDynamicReticlesCommand chunk;
-            chunk.page = command.page;
-            chunk.pageId = command.pageId;
-            chunk.templateId = command.templateId;
-            chunk.templateTransportId = command.templateTransportId;
+            UpsertDynamicReticlesCommand chunk = chunkPrototype;
             chunk.reticles.assign(command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex),
-                                  command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + bestCount));
+                                  command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + entryCount));
+
+            // Defensive validation: the estimate uses upper bounds and is expected to fit
+            // on the first try; shrinking one entry at a time keeps the guarantee exact
+            // even if the wire format ever grows past the estimated overhead.
+            while (true)
+            {
+                const auto chunkPayload = TrySerializeBatch(
+                    MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {UserCommand {chunk}}),
+                    error);
+                if (!chunkPayload.has_value())
+                {
+                    return std::nullopt;
+                }
+
+                if (chunkPayload->size() <= maxPayloadBytes)
+                {
+                    break;
+                }
+
+                if (chunk.reticles.size() == 1U)
+                {
+                    error = "One dynamic reticle update exceeds the configured UDP payload limit of " +
+                            std::to_string(maxPayloadBytes) + " bytes";
+                    return std::nullopt;
+                }
+
+                chunk.reticles.pop_back();
+                --entryCount;
+            }
+
             splitCommands.emplace_back(std::move(chunk));
-            firstIndex += bestCount;
+            firstIndex += entryCount;
         }
 
         return splitCommands;
