@@ -61,25 +61,12 @@ std::size_t BuildSequencedBatchFingerprint(const CommandBatch& batch)
 CommandProcessor::CommandProcessor(SceneRegistry& scene)
     : scene_(scene)
 {
-    dispatcher_.sink<ActivatePageCommand>().connect<&CommandProcessor::OnActivatePage>(*this);
-    dispatcher_.sink<SetPageViewCommand>().connect<&CommandProcessor::OnSetPageView>(*this);
-    dispatcher_.sink<UpdateWindowDisplayCommand>().connect<&CommandProcessor::OnUpdateWindowDisplay>(*this);
-    dispatcher_.sink<UpdateReticleCommand>().connect<&CommandProcessor::OnUpdateReticle>(*this);
-    dispatcher_.sink<UpdateStrobeCommand>().connect<&CommandProcessor::OnUpdateStrobe>(*this);
-    dispatcher_.sink<UpsertDynamicReticleCommand>().connect<&CommandProcessor::OnUpsertDynamicReticle>(*this);
-    dispatcher_.sink<UpsertDynamicReticlesCommand>().connect<&CommandProcessor::OnUpsertDynamicReticles>(*this);
-    dispatcher_.sink<SetDynamicReticleSetVisibilityCommand>().connect<&CommandProcessor::OnSetDynamicReticleSetVisibility>(*this);
-    dispatcher_.sink<SetDynamicReticleSetStrobeMagnetEnabledCommand>()
-        .connect<&CommandProcessor::OnSetDynamicReticleSetStrobeMagnetEnabled>(*this);
-    dispatcher_.sink<RemoveDynamicReticleCommand>().connect<&CommandProcessor::OnRemoveDynamicReticle>(*this);
-    dispatcher_.sink<ResetWindowCommand>().connect<&CommandProcessor::OnResetWindow>(*this);
 }
 
 CommandProcessor::~CommandProcessor() = default;
 
 bool CommandProcessor::Submit(const UserCommand& command)
 {
-    lastCommandSucceeded_ = true;
     lastError_.clear();
 
     return SubmitResolved(command, {});
@@ -87,7 +74,6 @@ bool CommandProcessor::Submit(const UserCommand& command)
 
 bool CommandProcessor::Submit(const CommandBatch& batch)
 {
-    lastCommandSucceeded_ = true;
     lastError_.clear();
 
     if (!batch.mappingHash.empty() && !scene_.HasMatchingTransportMap(batch.mappingHash))
@@ -226,7 +212,6 @@ bool CommandProcessor::SubmitCommandsTransactional(const ArrayView<const UserCom
             return false;
         }
 
-        lastCommandSucceeded_ = false;
         lastError_ = failure;
         return false;
     }
@@ -279,32 +264,99 @@ bool CommandProcessor::SubmitResolved(UserCommand command, const std::string_vie
     return DispatchResolved(command);
 }
 
+/**
+ * @brief Routes one resolved command to its handler with one explicit overload per command type.
+ *
+ * @note This visitor intentionally has no generic fallback: adding a new `UserCommand`
+ * alternative must fail to compile here until its runtime handler is written.
+ */
+struct CommandProcessor::ResolvedCommandDispatcher
+{
+    CommandProcessor& processor;
+
+    CommandResult operator()(const ActivatePageCommand& command) const
+    {
+        return processor.OnActivatePage(command);
+    }
+
+    CommandResult operator()(const SetPageViewCommand& command) const
+    {
+        return processor.OnSetPageView(command);
+    }
+
+    CommandResult operator()(const UpdateWindowDisplayCommand& command) const
+    {
+        return processor.OnUpdateWindowDisplay(command);
+    }
+
+    CommandResult operator()(const UpdateReticleCommand& command) const
+    {
+        return processor.OnUpdateReticle(command);
+    }
+
+    CommandResult operator()(const UpdateStrobeCommand& command) const
+    {
+        return processor.OnUpdateStrobe(command);
+    }
+
+    CommandResult operator()(const UpsertDynamicReticleCommand& command) const
+    {
+        return processor.OnUpsertDynamicReticle(command);
+    }
+
+    CommandResult operator()(const UpsertDynamicReticlesCommand& command) const
+    {
+        return processor.OnUpsertDynamicReticles(command);
+    }
+
+    CommandResult operator()(const SetDynamicReticleSetVisibilityCommand& command) const
+    {
+        return processor.OnSetDynamicReticleSetVisibility(command);
+    }
+
+    CommandResult operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
+    {
+        return processor.OnSetDynamicReticleSetStrobeMagnetEnabled(command);
+    }
+
+    CommandResult operator()(const RemoveDynamicReticleCommand& command) const
+    {
+        return processor.OnRemoveDynamicReticle(command);
+    }
+
+    CommandResult operator()(const ResetWindowCommand& command) const
+    {
+        return processor.OnResetWindow(command);
+    }
+};
+
 bool CommandProcessor::DispatchResolved(const UserCommand& command)
 {
+    CommandResult result = CommandResult::Success();
     try
     {
-        std::visit(
-            [this](const auto& value)
-            {
-                dispatcher_.trigger(value);
-            },
-            command);
+        result = std::visit(ResolvedCommandDispatcher {*this}, command);
     }
     catch (const std::exception& exception)
     {
-        SetFailure(exception.what());
+        result = CommandResult::Failure(exception.what());
     }
     catch (...)
     {
-        SetFailure("Unknown exception while dispatching a command");
+        result = CommandResult::Failure("Unknown exception while dispatching a command");
     }
 
-    return lastCommandSucceeded_;
+    if (!result.succeeded)
+    {
+        lastError_ = std::move(result.error);
+        return false;
+    }
+
+    return true;
 }
 
 bool CommandProcessor::Submit(const ArrayView<const UserCommand> commands)
 {
-    lastCommandSucceeded_ = true;
     lastError_.clear();
 
     return SubmitCommandsWithCurrentTransactionMode(commands, {});
@@ -388,16 +440,6 @@ bool CommandProcessor::Poll(IExchangeChannel& channel)
 std::string CommandProcessor::LastError() const
 {
     return lastError_;
-}
-
-entt::dispatcher& CommandProcessor::Dispatcher() noexcept
-{
-    return dispatcher_;
-}
-
-const entt::dispatcher& CommandProcessor::Dispatcher() const noexcept
-{
-    return dispatcher_;
 }
 
 bool CommandProcessor::ResolveGeneratedPage(std::string& page, TransportId& pageId)
@@ -782,83 +824,88 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
     return std::visit(IdentifierResolver {*this}, command);
 }
 
-void CommandProcessor::OnActivatePage(const ActivatePageCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnActivatePage(const ActivatePageCommand& command)
 {
     if (!scene_.HasPage(command.page))
     {
-        SetFailure("Unknown page: " + command.page);
-        return;
+        return CommandResult::Failure("Unknown page: " + command.page);
     }
 
     scene_.SetActivePage(command.page);
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnSetPageView(const SetPageViewCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnSetPageView(const SetPageViewCommand& command)
 {
     if (!scene_.SetPageView(command.page, command.view))
     {
-        SetFailure("Unable to update page view for page: " + command.page);
+        return CommandResult::Failure("Unable to update page view for page: " + command.page);
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnUpdateWindowDisplay(const UpdateWindowDisplayCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnUpdateWindowDisplay(const UpdateWindowDisplayCommand& command)
 {
     if (!scene_.ApplyWindowDisplayPatch(command.patch))
     {
-        SetFailure("Unable to update whole-window display properties");
+        return CommandResult::Failure("Unable to update whole-window display properties");
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnUpdateReticle(const UpdateReticleCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnUpdateReticle(const UpdateReticleCommand& command)
 {
     if (!scene_.ApplyReticlePatch(command.target.page, command.target.reticle, command.patch))
     {
-        SetFailure("Unable to update reticle '" + command.target.reticle + "' on page '" + command.target.page + "'");
+        return CommandResult::Failure(
+            "Unable to update reticle '" + command.target.reticle + "' on page '" + command.target.page + "'");
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnUpdateStrobe(const UpdateStrobeCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnUpdateStrobe(const UpdateStrobeCommand& command)
 {
     // The update validates all preconditions before mutating, so a failure leaves the strobe
     // untouched without any whole-scene snapshot or rollback. Genuine multi-command batches
     // still get their transactional snapshot in SubmitBatch.
     if (!scene_.ApplyStrobeUpdate(command.page, command.strobe, command.active, command.position))
     {
-        SetFailure("Unable to update strobe on page '" + command.page + "'");
+        return CommandResult::Failure("Unable to update strobe on page '" + command.page + "'");
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command)
 {
     const std::string normalizedPageName = mfd::NormalizePageName(command.target.page);
     if (!scene_.HasPage(command.target.page))
     {
-        SetFailure("Unknown page: " + command.target.page);
-        return;
+        return CommandResult::Failure("Unknown page: " + command.target.page);
     }
 
     const auto templateIterator = scene_.Library().find(command.templateId);
     if (templateIterator == scene_.Library().end())
     {
-        SetFailure("Unknown reticle template: " + command.templateId);
-        return;
+        return CommandResult::Failure("Unknown reticle template: " + command.templateId);
     }
 
     const DynamicReticleLayerBinding* binding =
         scene_.FindDynamicReticleLayerBinding(normalizedPageName, command.templateId);
     if (binding == nullptr)
     {
-        SetFailure("Dynamic reticle template '" + command.templateId +
-                   "' is not bound on page '" + command.target.page + "'");
-        return;
+        return CommandResult::Failure("Dynamic reticle template '" + command.templateId +
+                                      "' is not bound on page '" + command.target.page + "'");
     }
 
     if (scene_.HasDynamicReticle(command.target.page, command.target.reticleId) &&
         !scene_.DynamicReticleUsesTemplate(command.target.page, command.target.reticleId, command.templateId))
     {
-        SetFailure("Dynamic reticle '" + command.target.reticleId + "' on page '" + command.target.page +
-                   "' already belongs to another template");
-        return;
+        return CommandResult::Failure("Dynamic reticle '" + command.target.reticleId + "' on page '" +
+                                      command.target.page + "' already belongs to another template");
     }
 
     if (scene_.HasDynamicReticle(command.target.page, command.target.reticleId))
@@ -870,10 +917,10 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
             command.templateTransportId);
         if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticleId, command.patch))
         {
-            SetFailure("Unable to update dynamic reticle '" + command.target.reticleId + "'");
+            return CommandResult::Failure("Unable to update dynamic reticle '" + command.target.reticleId + "'");
         }
 
-        return;
+        return CommandResult::Success();
     }
 
     ReticleGroup reticle = InstantiateReticle(templateIterator->second, command.target.reticleId);
@@ -887,33 +934,32 @@ void CommandProcessor::OnUpsertDynamicReticle(const UpsertDynamicReticleCommand&
 
     if (!scene_.ApplyDynamicReticlePatch(command.target.page, command.target.reticleId, command.patch))
     {
-        SetFailure("Unable to initialize dynamic reticle '" + command.target.reticleId + "'");
+        return CommandResult::Failure("Unable to initialize dynamic reticle '" + command.target.reticleId + "'");
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command)
 {
     const std::string normalizedPageName = mfd::NormalizePageName(command.page);
     if (!scene_.HasPage(command.page))
     {
-        SetFailure("Unknown page: " + command.page);
-        return;
+        return CommandResult::Failure("Unknown page: " + command.page);
     }
 
     const auto templateIterator = scene_.Library().find(command.templateId);
     if (templateIterator == scene_.Library().end())
     {
-        SetFailure("Unknown reticle template: " + command.templateId);
-        return;
+        return CommandResult::Failure("Unknown reticle template: " + command.templateId);
     }
 
     const DynamicReticleLayerBinding* binding =
         scene_.FindDynamicReticleLayerBinding(normalizedPageName, command.templateId);
     if (binding == nullptr)
     {
-        SetFailure("Dynamic reticle template '" + command.templateId +
-                   "' is not bound on page '" + command.page + "'");
-        return;
+        return CommandResult::Failure("Dynamic reticle template '" + command.templateId +
+                                      "' is not bound on page '" + command.page + "'");
     }
 
     for (const DynamicReticleState& state : command.reticles)
@@ -921,9 +967,8 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
         if (scene_.HasDynamicReticle(command.page, state.reticleId) &&
             !scene_.DynamicReticleUsesTemplate(command.page, state.reticleId, command.templateId))
         {
-            SetFailure("Dynamic reticle '" + state.reticleId + "' on page '" + command.page +
-                       "' already belongs to another template");
-            return;
+            return CommandResult::Failure("Dynamic reticle '" + state.reticleId + "' on page '" + command.page +
+                                          "' already belongs to another template");
         }
 
         if (scene_.HasDynamicReticle(command.page, state.reticleId))
@@ -935,8 +980,7 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
                 command.templateTransportId);
             if (!scene_.ApplyDynamicReticlePatch(command.page, state.reticleId, state.patch))
             {
-                SetFailure("Unable to update dynamic reticle '" + state.reticleId + "'");
-                return;
+                return CommandResult::Failure("Unable to update dynamic reticle '" + state.reticleId + "'");
             }
 
             continue;
@@ -953,48 +997,56 @@ void CommandProcessor::OnUpsertDynamicReticles(const UpsertDynamicReticlesComman
 
         if (!scene_.ApplyDynamicReticlePatch(command.page, state.reticleId, state.patch))
         {
-            SetFailure("Unable to initialize dynamic reticle '" + state.reticleId + "'");
-            return;
+            return CommandResult::Failure("Unable to initialize dynamic reticle '" + state.reticleId + "'");
         }
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command)
 {
     if (!scene_.RemoveDynamicReticle(command.target.page, command.target.reticleId))
     {
-        SetFailure("Unable to remove dynamic reticle '" + command.target.reticleId +
-                   "' from page '" + command.target.page + "'");
+        return CommandResult::Failure("Unable to remove dynamic reticle '" + command.target.reticleId +
+                                      "' from page '" + command.target.page + "'");
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnSetDynamicReticleSetVisibility(const SetDynamicReticleSetVisibilityCommand& command)
+CommandProcessor::CommandResult CommandProcessor::OnSetDynamicReticleSetVisibility(
+    const SetDynamicReticleSetVisibilityCommand& command)
 {
     if (!scene_.SetDynamicReticleSetVisible(command.page, command.templateId, command.visible))
     {
-        SetFailure("Unable to update dynamic reticle set visibility for template '" + command.templateId +
-                   "' on page '" + command.page + "'");
+        return CommandResult::Failure("Unable to update dynamic reticle set visibility for template '" +
+                                      command.templateId + "' on page '" + command.page + "'");
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnSetDynamicReticleSetStrobeMagnetEnabled(
+CommandProcessor::CommandResult CommandProcessor::OnSetDynamicReticleSetStrobeMagnetEnabled(
     const SetDynamicReticleSetStrobeMagnetEnabledCommand& command)
 {
     if (!scene_.SetDynamicReticleSetStrobeMagnetEnabled(command.page, command.templateId, command.enabled))
     {
-        SetFailure("Unable to update dynamic reticle set strobe-magnet eligibility for template '" +
-                   command.templateId + "' on page '" + command.page + "'");
+        return CommandResult::Failure("Unable to update dynamic reticle set strobe-magnet eligibility for template '" +
+                                      command.templateId + "' on page '" + command.page + "'");
     }
+
+    return CommandResult::Success();
 }
 
-void CommandProcessor::OnResetWindow(const ResetWindowCommand&)
+CommandProcessor::CommandResult CommandProcessor::OnResetWindow(const ResetWindowCommand&)
 {
     scene_.ResetToInitialState();
+    return CommandResult::Success();
 }
 
 void CommandProcessor::SetFailure(std::string message)
 {
-    lastCommandSucceeded_ = false;
     lastError_ = std::move(message);
 }
 } // namespace mfd
