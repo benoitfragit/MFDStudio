@@ -394,12 +394,28 @@ public:
      */
     void ResetToInitialState();
 
-    /** @brief Returns the underlying EnTT registry. */
-    entt::registry& Raw() noexcept;
-    /** @brief Returns the underlying EnTT registry. */
-    const entt::registry& Raw() const noexcept;
-
 private:
+    /**
+     * @brief CommandProcessor is the command-application half of the runtime scene module.
+     *
+     * This friendship is a deliberate, documented seam. The processor uses exactly four
+     * families of private operations, none of which may become public because each one
+     * bypasses command validation, sequencing or transactional rollback when called
+     * directly:
+     * - identity resolution: `ResolvePageRef`, `ResolveTemplateRef`,
+     *   `ResolveStaticReticleRef`, `Resolve*` transport lookups, `NormalizedPageKeyFor`,
+     *   `HasMatchingTransportMap`;
+     * - pre-resolved mutation entry points: the `*ByKey`/`*ByRef` variants of the public
+     *   string-based API plus `SetDynamicReticleRuntimeIdentifiers` and
+     *   `CheckDynamicReticleUpsert`;
+     * - rollback: `CaptureRuntimeSnapshot(ForPages)` / `RestoreRuntimeSnapshot` and the
+     *   `RuntimeSnapshot` type;
+     * - layer binding lookup: `FindDynamicReticleLayerBinding`.
+     *
+     * A forwarding access class would re-list ~30 one-line delegates in this header
+     * without changing what the processor can reach; the friendship is kept instead and
+     * any new use outside these families must extend this list during review.
+     */
     friend class CommandProcessor;
 
     /**
@@ -464,15 +480,34 @@ private:
         std::vector<StrobeState> strobes;
         std::vector<DynamicTemplateVisibilityState> dynamicTemplateVisibility;
         std::vector<DynamicTemplateStrobeMagnetState> dynamicTemplateStrobeMagnet;
+        /** @brief Normalized page keys covered by a page-scoped snapshot (`scoped == true`). */
+        std::vector<std::string> scopedPageKeys;
         std::uint64_t nextDynamicCreationSequence = 1;
         std::string activePage;
         WindowDisplayState windowDisplay {};
+        /** @brief `true` when the snapshot only covers `scopedPageKeys` instead of the whole scene. */
+        bool scoped = false;
     };
 
     /** @brief Captures the full mutable runtime state needed to roll back one failed batch. */
     RuntimeSnapshot CaptureRuntimeSnapshot() const;
+    /**
+     * @brief Captures the mutable state of a bounded page set plus scene-wide state.
+     * @param normalizedPageKeys Normalized page keys mutated by the batch to protect.
+     * @note Cost is proportional to the touched pages instead of the whole scene, so
+     * transactional batches no longer pay a full-scene copy on the nominal path.
+     */
+    RuntimeSnapshot CaptureRuntimeSnapshotForPages(std::vector<std::string> normalizedPageKeys) const;
     /** @brief Restores one previously captured mutable runtime state. */
     void RestoreRuntimeSnapshot(const RuntimeSnapshot& snapshot);
+    /** @brief Sorts snapshot rows so restoration order stays deterministic. */
+    static void SortRuntimeSnapshot(RuntimeSnapshot& snapshot);
+    /** @brief Re-applies one captured snapshot onto the current scene state. */
+    void ApplySnapshotState(const RuntimeSnapshot& snapshot);
+    /** @brief Restores a page-scoped snapshot without reloading the whole document. */
+    void RestoreScopedRuntimeSnapshot(const RuntimeSnapshot& snapshot);
+    /** @brief Removes every dynamic template visibility/magnet override of one page. */
+    void EraseDynamicTemplateOverridesForPage(std::string_view normalizedPageName);
 
     /** @brief Per-page runtime component stored in the EnTT registry. */
     struct PageComponent;
@@ -514,6 +549,14 @@ private:
         TransportId pageId = 0;
         std::string strobeName;
     };
+
+    /** @brief Copies one page's mutable runtime state into a snapshot under construction. */
+    void CapturePageStateInto(RuntimeSnapshot& snapshot, const PageComponent& page) const;
+    /** @brief Copies one reticle, strobe or dynamic entity state into a snapshot under construction. */
+    void CaptureReticleEntityInto(RuntimeSnapshot& snapshot,
+                                  entt::entity entity,
+                                  const PageMembership& membership,
+                                  const ReticleComponent& reticle) const;
 
     /** @brief Returns `true` when a normalized page key exists in the scene indexes. */
     bool HasNormalizedPage(std::string_view pageName) const noexcept;
@@ -584,6 +627,131 @@ private:
     /** @brief Returns whether one dynamic template set is currently eligible for strobe magnetization on one page. */
     bool IsDynamicTemplateStrobeMagnetEnabled(std::string_view normalizedPageName,
                                               std::string_view templateId) const noexcept;
+    /**
+     * @brief Command-path view of one resolved page identity.
+     *
+     * @note Views and pointers reference scene-owned storage (`PageComponent`); they stay
+     * valid for the duration of one command handler, which never destroys pages.
+     */
+    struct ResolvedPageRef
+    {
+        entt::entity entity = entt::null;
+        PageComponent* page = nullptr;
+        std::string_view normalizedName;
+        const std::string* authoredName = nullptr;
+        TransportId transportId = 0;
+    };
+
+    /** @brief Command-path view of one resolved reticle template identity. */
+    struct ResolvedTemplateRef
+    {
+        const ReticleGroup* reticle = nullptr;
+        const std::string* templateId = nullptr;
+        TransportId transportId = 0;
+    };
+
+    /**
+     * @brief Command-path view of one resolved static reticle identity.
+     *
+     * @note By name the lookup can also reach a dynamic reticle, matching the historical
+     * behavior of `ApplyReticlePatch`; by transport id it always targets a static reticle.
+     */
+    struct ResolvedStaticReticleRef
+    {
+        entt::entity entity = entt::null;
+        ReticleComponent* reticle = nullptr;
+        PageComponent* page = nullptr;
+        std::string_view normalizedPageName;
+        TransportId transportId = 0;
+    };
+
+    /**
+     * @brief Resolves one page identity, generated transport id first, authored name as fallback.
+     * @return Resolved reference, or `std::nullopt` when the page does not exist.
+     * @note The id path is one integer-hash lookup with no string allocation.
+     */
+    std::optional<ResolvedPageRef> ResolvePageRef(TransportId pageId, std::string_view pageName) noexcept;
+    /** @brief Resolves one reticle template identity, generated transport id first. */
+    std::optional<ResolvedTemplateRef> ResolveTemplateRef(TransportId templateTransportId,
+                                                          std::string_view templateId) const;
+    /** @brief Resolves one static reticle identity, generated transport id first. */
+    std::optional<ResolvedStaticReticleRef> ResolveStaticReticleRef(TransportId reticleTransportId,
+                                                                    std::string_view pageName,
+                                                                    std::string_view reticleId) noexcept;
+
+    /** @brief Outcome of the pre-mutation applicability check of one dynamic reticle upsert. */
+    enum class DynamicReticleUpsertCheck
+    {
+        Applicable,
+        UnknownPage,
+        BlankReticleId,
+        IdCollidesWithNonDynamicReticle,
+        TemplateConflict,
+        InvalidPatch,
+        UnresolvableBlink
+    };
+    /**
+     * @brief Checks whether one dynamic reticle upsert will apply, without mutating anything.
+     * @note Mirrors the failure conditions of `UpsertDynamicReticleByKey` +
+     * `ApplyDynamicReticlePatchByKey` so a bulk command can validate every reticle before
+     * its first mutation and stay atomic outside of the transactional batch path.
+     */
+    DynamicReticleUpsertCheck CheckDynamicReticleUpsert(std::string_view normalizedPageName,
+                                                        std::string_view reticleId,
+                                                        std::string_view templateId,
+                                                        const ReticleGroup& templateReticle,
+                                                        const ReticlePatch& patch) const;
+    /** @brief Builds the user-facing failure message of one failed upsert applicability check. */
+    static std::string DescribeDynamicReticleUpsertCheck(DynamicReticleUpsertCheck check,
+                                                         std::string_view reticleId,
+                                                         std::string_view pageName);
+    /** @brief Same as SetActivePage, but takes an already-normalized page key. */
+    void SetActivePageByKey(std::string_view normalizedPageName) noexcept;
+    /** @brief Same as SetPageView, but takes an already-normalized page key. */
+    bool SetPageViewByKey(std::string_view normalizedPageName, const PageViewState& view) noexcept;
+    /**
+     * @brief Normalized page key of one command page identity, generated id first.
+     * @return Normalized key, or an empty string when the identity matches no known page.
+     * @note Used by the transactional rollback footprint so id-only commands map to their
+     * page without rehydrating authored names into the commands.
+     */
+    std::string NormalizedPageKeyFor(TransportId pageId, std::string_view pageName) const;
+    /** @brief Same as ApplyReticlePatch, but consumes one already-resolved reticle reference. */
+    bool ApplyReticlePatchByRef(const ResolvedStaticReticleRef& reticleRef, const ReticlePatch& patch) noexcept;
+    /** @brief Same as ApplyStrobeUpdate, but takes an already-normalized page key. */
+    bool ApplyStrobeUpdateByKey(std::string_view normalizedPageName,
+                                std::string_view strobeName,
+                                std::optional<bool> active,
+                                std::optional<Vec2> position) noexcept;
+    /** @brief Same as SelectStrobe, but takes an already-normalized page key. */
+    bool SelectStrobeByKey(std::string_view normalizedPageName, std::string_view strobeName) noexcept;
+    /** @brief Same as SetStrobeActive, but takes an already-normalized page key. */
+    bool SetStrobeActiveByKey(std::string_view normalizedPageName, bool active) noexcept;
+    /** @brief Same as SetStrobePosition, but takes an already-normalized page key. */
+    bool SetStrobePositionByKey(std::string_view normalizedPageName, Vec2 position) noexcept;
+    /** @brief Same as HasDynamicReticle, but takes an already-normalized page key to avoid
+     *  renormalizing it per reticle on the bulk dynamic command hot path. */
+    bool HasDynamicReticleByKey(std::string_view normalizedPageName, std::string_view reticleId) const noexcept;
+    /** @brief Same as DynamicReticleUsesTemplate, but takes an already-normalized page key. */
+    bool DynamicReticleUsesTemplateByKey(std::string_view normalizedPageName,
+                                         std::string_view reticleId,
+                                         std::string_view templateId) const noexcept;
+    /** @brief Same as ApplyDynamicReticlePatch, but takes an already-normalized page key. */
+    bool ApplyDynamicReticlePatchByKey(std::string_view normalizedPageName,
+                                       std::string_view reticleId,
+                                       const ReticlePatch& patch) noexcept;
+    /** @brief Same as UpsertDynamicReticle, but takes an already-normalized page key. */
+    void UpsertDynamicReticleByKey(std::string_view normalizedPageName, ReticleGroup reticle);
+    /** @brief Same as RemoveDynamicReticle, but takes an already-normalized page key. */
+    bool RemoveDynamicReticleByKey(std::string_view normalizedPageName, std::string_view reticleId);
+    /** @brief Same as SetDynamicReticleSetVisible, but takes an already-normalized page key. */
+    bool SetDynamicReticleSetVisibleByKey(std::string_view normalizedPageName,
+                                          std::string_view templateId,
+                                          bool visible) noexcept;
+    /** @brief Same as SetDynamicReticleSetStrobeMagnetEnabled, but takes an already-normalized page key. */
+    bool SetDynamicReticleSetStrobeMagnetEnabledByKey(std::string_view normalizedPageName,
+                                                      std::string_view templateId,
+                                                      bool enabled) noexcept;
     /** @brief Same as IsDynamicTemplateVisible, but takes an already-normalized template id to
      *  avoid renormalizing it per reticle on the render/strobe-scan hot path. */
     bool IsDynamicTemplateVisibleByNormalizedId(std::string_view normalizedPageName,
@@ -643,6 +811,10 @@ private:
         dynamicTemplateStrobeMagnetEnabled_ {};
     /** @brief Generated page-name lookup indexed by generated transport id. */
     std::unordered_map<TransportId, std::string> transportPageNames_ {};
+    /** @brief Page entity lookup indexed by generated transport id (rebuilt with the document). */
+    std::unordered_map<TransportId, entt::entity> transportPageEntities_ {};
+    /** @brief Static reticle entity lookup indexed by generated transport id (rebuilt with the document). */
+    std::unordered_map<TransportId, entt::entity> transportReticleEntities_ {};
     /** @brief Generated static-reticle lookup indexed by generated transport id. */
     std::unordered_map<TransportId, TransportReticleLookup> transportReticles_ {};
     /** @brief Generated template lookup indexed by generated transport id. */

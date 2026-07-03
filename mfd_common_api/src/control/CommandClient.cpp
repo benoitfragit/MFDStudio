@@ -17,7 +17,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -25,6 +24,7 @@
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/PageName.h"
 #include "mfd/control/internal/CommandIdentifierHelpers.h"
+#include "mfd/control/internal/CommandWireSizeHelpers.h"
 
 namespace mfd
 {
@@ -608,6 +608,210 @@ bool NormalizePatchForTransport(const std::optional<GeneratedTransportMap>& tran
                *map, patch.primitivePatches, patch.primitivePatchesById, ownerKind, ownerId, lastError, context);
 }
 
+// Upper bound of the wire overhead wrapped around one serialized dynamic reticle state
+// inside the enclosing command message: the repeated-field tag (at most 2 bytes for
+// field numbers up to 2047) plus the length-prefix varint of the entry payload. Using an
+// upper bound keeps the greedy chunk estimate safe; the one serialization per final
+// chunk below still validates the real size defensively.
+constexpr std::size_t kRepeatedFieldTagUpperBoundBytes = 2U;
+
+std::size_t VarintWireSize(std::size_t value) noexcept
+{
+    std::size_t bytes = 1U;
+    while (value >= 0x80U)
+    {
+        value >>= 7U;
+        ++bytes;
+    }
+
+    return bytes;
+}
+
+std::size_t EstimatedDynamicReticleStateChunkBytes(const DynamicReticleState& state)
+{
+    const std::size_t payloadBytes = detail::DynamicReticleStateWireSize(state);
+    return kRepeatedFieldTagUpperBoundBytes + VarintWireSize(payloadBytes) + payloadBytes;
+}
+
+// Splits one oversized command into transport-sized chunks with one explicit overload per
+// command type. Only bulk dynamic reticle updates can shrink; every other command type
+// states explicitly that it cannot. This visitor intentionally has no generic fallback:
+// adding a new UserCommand alternative must fail to compile here until its splitting rule
+// is written.
+struct OversizedCommandSplitter
+{
+    std::uint32_t sequence = 0;
+    std::string_view mappingHash;
+    std::size_t maxPayloadBytes = 0;
+    std::string& error;
+
+    std::optional<std::vector<UserCommand>> RejectUnsplittableCommand() const
+    {
+        error = "A single command exceeds the configured UDP payload limit of " +
+                std::to_string(maxPayloadBytes) + " bytes";
+        return std::nullopt;
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const ActivatePageCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const SetPageViewCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const UpdateWindowDisplayCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const UpdateReticleCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const UpdateStrobeCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const UpsertDynamicReticleCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const UpsertDynamicReticlesCommand& command) const
+    {
+        if (command.reticles.empty())
+        {
+            return RejectUnsplittableCommand();
+        }
+
+        if (command.reticles.size() > kMaxDynamicReticlesPerSplit)
+        {
+            error = "Dynamic reticle bulk update exceeds runtime safety limits";
+            return std::nullopt;
+        }
+
+        // The envelope cost (batch framing plus the command without its entries) is
+        // measured with one serialization; every chunk then adds its entries' estimated
+        // wire contributions on top instead of serializing a full candidate batch per
+        // probe as the previous binary search did.
+        UpsertDynamicReticlesCommand chunkPrototype;
+        chunkPrototype.page = command.page;
+        chunkPrototype.pageId = command.pageId;
+        chunkPrototype.templateId = command.templateId;
+        chunkPrototype.templateTransportId = command.templateTransportId;
+
+        const auto emptyChunkPayload = TrySerializeBatch(
+            MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {UserCommand {chunkPrototype}}),
+            error);
+        if (!emptyChunkPayload.has_value())
+        {
+            return std::nullopt;
+        }
+
+        if (emptyChunkPayload->size() >= maxPayloadBytes)
+        {
+            return RejectUnsplittableCommand();
+        }
+
+        const std::size_t chunkEntryBudget = maxPayloadBytes - emptyChunkPayload->size();
+
+        std::vector<std::size_t> entryBytes;
+        entryBytes.reserve(command.reticles.size());
+        std::size_t totalEntryBytes = 0U;
+        for (const DynamicReticleState& state : command.reticles)
+        {
+            entryBytes.push_back(EstimatedDynamicReticleStateChunkBytes(state));
+            totalEntryBytes += entryBytes.back();
+        }
+
+        std::vector<UserCommand> splitCommands;
+        splitCommands.reserve(totalEntryBytes / chunkEntryBudget + 1U);
+
+        std::size_t firstIndex = 0U;
+        while (firstIndex < command.reticles.size())
+        {
+            std::size_t entryCount = 0U;
+            std::size_t usedBudget = 0U;
+            while (firstIndex + entryCount < command.reticles.size() &&
+                   usedBudget + entryBytes[firstIndex + entryCount] <= chunkEntryBudget)
+            {
+                usedBudget += entryBytes[firstIndex + entryCount];
+                ++entryCount;
+            }
+
+            if (entryCount == 0U)
+            {
+                error = "One dynamic reticle update exceeds the configured UDP payload limit of " +
+                        std::to_string(maxPayloadBytes) + " bytes";
+                return std::nullopt;
+            }
+
+            UpsertDynamicReticlesCommand chunk = chunkPrototype;
+            chunk.reticles.assign(command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex),
+                                  command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + entryCount));
+
+            // Defensive validation: the estimate uses upper bounds and is expected to fit
+            // on the first try; shrinking one entry at a time keeps the guarantee exact
+            // even if the wire format ever grows past the estimated overhead.
+            while (true)
+            {
+                const auto chunkPayload = TrySerializeBatch(
+                    MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {UserCommand {chunk}}),
+                    error);
+                if (!chunkPayload.has_value())
+                {
+                    return std::nullopt;
+                }
+
+                if (chunkPayload->size() <= maxPayloadBytes)
+                {
+                    break;
+                }
+
+                if (chunk.reticles.size() == 1U)
+                {
+                    error = "One dynamic reticle update exceeds the configured UDP payload limit of " +
+                            std::to_string(maxPayloadBytes) + " bytes";
+                    return std::nullopt;
+                }
+
+                chunk.reticles.pop_back();
+                --entryCount;
+            }
+
+            splitCommands.emplace_back(std::move(chunk));
+            firstIndex += entryCount;
+        }
+
+        return splitCommands;
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const SetDynamicReticleSetVisibilityCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const RemoveDynamicReticleCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
+    std::optional<std::vector<UserCommand>> operator()(const ResetWindowCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+};
+
 std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand& command,
                                                               const std::uint32_t sequence,
                                                               const std::string_view mappingHash,
@@ -619,104 +823,173 @@ std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand&
         return std::vector<UserCommand> {command};
     }
 
-    return std::visit(
-        [sequence, mappingHash, maxPayloadBytes, &error](const auto& value) -> std::optional<std::vector<UserCommand>>
-        {
-            using Command = std::decay_t<decltype(value)>;
-
-            if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
-            {
-                if (value.reticles.empty())
-                {
-                    error = "A single command exceeds the configured UDP payload limit of " +
-                            std::to_string(maxPayloadBytes) + " bytes";
-                    return std::nullopt;
-                }
-
-                if (value.reticles.size() > kMaxDynamicReticlesPerSplit)
-                {
-                    error = "Dynamic reticle bulk update exceeds runtime safety limits";
-                    return std::nullopt;
-                }
-
-                std::vector<UserCommand> splitCommands;
-                splitCommands.reserve(value.reticles.size());
-
-                std::size_t firstIndex = 0U;
-                while (firstIndex < value.reticles.size())
-                {
-                    std::size_t bestCount = 0U;
-                    std::size_t left = 1U;
-                    std::size_t right = value.reticles.size() - firstIndex;
-
-                    while (left <= right)
-                    {
-                        const std::size_t middle = left + (right - left) / 2U;
-
-                        UpsertDynamicReticlesCommand candidate;
-                        candidate.page = value.page;
-                        candidate.pageId = value.pageId;
-                        candidate.templateId = value.templateId;
-                        candidate.templateTransportId = value.templateTransportId;
-                        candidate.reticles.assign(value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex),
-                                                  value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + middle));
-
-                        auto payload = TrySerializeBatch(
-                            MakeBatch(sequence,
-                                      std::string(mappingHash),
-                                      std::vector<UserCommand> {UserCommand {std::move(candidate)}}),
-                            error);
-
-                        if (payload.has_value() && payload->size() <= maxPayloadBytes)
-                        {
-                            bestCount = middle;
-                            left = middle + 1U;
-                        }
-                        else
-                        {
-                            if (!payload.has_value())
-                            {
-                                return std::nullopt;
-                            }
-
-                            if (middle == 0U)
-                            {
-                                break;
-                            }
-
-                            right = middle - 1U;
-                        }
-                    }
-
-                    if (bestCount == 0U)
-                    {
-                        error = "One dynamic reticle update exceeds the configured UDP payload limit of " +
-                                std::to_string(maxPayloadBytes) + " bytes";
-                        return std::nullopt;
-                    }
-
-                    UpsertDynamicReticlesCommand chunk;
-                    chunk.page = value.page;
-                    chunk.pageId = value.pageId;
-                    chunk.templateId = value.templateId;
-                    chunk.templateTransportId = value.templateTransportId;
-                    chunk.reticles.assign(value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex),
-                                          value.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + bestCount));
-                    splitCommands.emplace_back(std::move(chunk));
-                    firstIndex += bestCount;
-                }
-
-                return splitCommands;
-            }
-            else
-            {
-                error = "A single command exceeds the configured UDP payload limit of " +
-                        std::to_string(maxPayloadBytes) + " bytes";
-                return std::nullopt;
-            }
-        },
-        command);
+    return std::visit(OversizedCommandSplitter {sequence, mappingHash, maxPayloadBytes, error}, command);
 }
+
+// Rewrites one typed command into its transport form (generated ids resolved, named fields
+// moved to id-keyed fields) with one explicit overload per command type. This visitor
+// intentionally has no generic fallback: adding a new UserCommand alternative must fail to
+// compile here until its transport normalization rule is written.
+struct CommandTransportNormalizer
+{
+    const std::optional<GeneratedTransportMap>& transportMap;
+    std::string& lastError;
+
+    bool operator()(ActivatePageCommand& command) const
+    {
+        return ResolveGeneratedPage(transportMap, lastError, command.page, command.pageId, "ActivatePageCommand");
+    }
+
+    bool operator()(SetPageViewCommand& command) const
+    {
+        return ResolveGeneratedPage(transportMap, lastError, command.page, command.pageId, "SetPageViewCommand");
+    }
+
+    bool operator()(UpdateWindowDisplayCommand&) const noexcept
+    {
+        return true;
+    }
+
+    bool operator()(UpdateReticleCommand& command) const
+    {
+        return ResolveGeneratedPage(
+                   transportMap, lastError, command.target.page, command.target.pageId, "UpdateReticleCommand") &&
+               ResolveGeneratedStaticReticle(transportMap, lastError, command.target, "UpdateReticleCommand") &&
+               NormalizePatchForTransport(
+                   transportMap,
+                   lastError,
+                   command.patch,
+                   command.target.pageId,
+                   TransportPrimitiveOwnerKind::Reticle,
+                   command.target.reticleId,
+                   "UpdateReticleCommand");
+    }
+
+    bool operator()(UpdateStrobeCommand& command) const
+    {
+        return ResolveGeneratedPage(transportMap, lastError, command.page, command.pageId, "UpdateStrobeCommand") &&
+               ResolveGeneratedStrobe(
+                   transportMap,
+                   lastError,
+                   command.pageId,
+                   command.strobe,
+                   command.strobeId,
+                   "UpdateStrobeCommand");
+    }
+
+    bool operator()(UpsertDynamicReticleCommand& command) const
+    {
+        return ResolveGeneratedPage(
+                   transportMap,
+                   lastError,
+                   command.target.page,
+                   command.target.pageId,
+                   "UpsertDynamicReticleCommand") &&
+               ResolveDynamicRuntimeId(
+                   lastError, command.target.page, command.target, "UpsertDynamicReticleCommand") &&
+               ResolveGeneratedTemplate(
+                   transportMap,
+                   lastError,
+                   command.templateId,
+                   command.templateTransportId,
+                   "UpsertDynamicReticleCommand") &&
+               NormalizePatchForTransport(
+                   transportMap,
+                   lastError,
+                   command.patch,
+                   command.target.pageId,
+                   TransportPrimitiveOwnerKind::Template,
+                   command.templateTransportId,
+                   "UpsertDynamicReticleCommand");
+    }
+
+    bool operator()(UpsertDynamicReticlesCommand& command) const
+    {
+        if (!ResolveGeneratedPage(
+                transportMap,
+                lastError,
+                command.page,
+                command.pageId,
+                "UpsertDynamicReticlesCommand") ||
+            !ResolveGeneratedTemplate(
+                transportMap,
+                lastError,
+                command.templateId,
+                command.templateTransportId,
+                "UpsertDynamicReticlesCommand") ||
+            !ResolveDynamicStateIds(
+                lastError, command.page, command.reticles, "UpsertDynamicReticlesCommand"))
+        {
+            return false;
+        }
+
+        for (DynamicReticleState& state : command.reticles)
+        {
+            if (!NormalizePatchForTransport(
+                    transportMap,
+                    lastError,
+                    state.patch,
+                    command.pageId,
+                    TransportPrimitiveOwnerKind::Template,
+                    command.templateTransportId,
+                    "UpsertDynamicReticlesCommand"))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool operator()(SetDynamicReticleSetVisibilityCommand& command) const
+    {
+        return ResolveGeneratedPage(
+                   transportMap,
+                   lastError,
+                   command.page,
+                   command.pageId,
+                   "SetDynamicReticleSetVisibilityCommand") &&
+               ResolveGeneratedTemplate(
+                   transportMap,
+                   lastError,
+                   command.templateId,
+                   command.templateTransportId,
+                   "SetDynamicReticleSetVisibilityCommand");
+    }
+
+    bool operator()(SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
+    {
+        return ResolveGeneratedPage(
+                   transportMap,
+                   lastError,
+                   command.page,
+                   command.pageId,
+                   "SetDynamicReticleSetStrobeMagnetEnabledCommand") &&
+               ResolveGeneratedTemplate(
+                   transportMap,
+                   lastError,
+                   command.templateId,
+                   command.templateTransportId,
+                   "SetDynamicReticleSetStrobeMagnetEnabledCommand");
+    }
+
+    bool operator()(RemoveDynamicReticleCommand& command) const
+    {
+        return ResolveGeneratedPage(
+                   transportMap,
+                   lastError,
+                   command.target.page,
+                   command.target.pageId,
+                   "RemoveDynamicReticleCommand") &&
+               ResolveDynamicRuntimeId(
+                   lastError, command.target.page, command.target, "RemoveDynamicReticleCommand");
+    }
+
+    bool operator()(ResetWindowCommand&) const noexcept
+    {
+        return true;
+    }
+};
 } // namespace
 
 CommandClient::CommandClient(std::unique_ptr<IExchangeChannel> channel, std::optional<GeneratedTransportMap> transportMap)
@@ -750,159 +1023,7 @@ bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, 
 
     for (UserCommand& command : normalizedBatch.commands)
     {
-        const bool ok = std::visit(
-            [this](auto& value) -> bool
-            {
-                using Command = std::decay_t<decltype(value)>;
-
-                if constexpr (std::is_same_v<Command, ActivatePageCommand> ||
-                              std::is_same_v<Command, SetPageViewCommand>)
-                {
-                    constexpr const char* kCommandName =
-                        std::is_same_v<Command, ActivatePageCommand> ? "ActivatePageCommand" : "SetPageViewCommand";
-                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, kCommandName);
-                }
-                else if constexpr (std::is_same_v<Command, UpdateWindowDisplayCommand> ||
-                                   std::is_same_v<Command, ResetWindowCommand>)
-                {
-                    return true;
-                }
-                else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
-                {
-                    return ResolveGeneratedPage(
-                               transportMap_, lastError_, value.target.page, value.target.pageId, "UpdateReticleCommand") &&
-                           ResolveGeneratedStaticReticle(transportMap_, lastError_, value.target, "UpdateReticleCommand") &&
-                           NormalizePatchForTransport(
-                               transportMap_,
-                               lastError_,
-                               value.patch,
-                               value.target.pageId,
-                               TransportPrimitiveOwnerKind::Reticle,
-                               value.target.reticleId,
-                               "UpdateReticleCommand");
-                }
-                else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
-                {
-                    return ResolveGeneratedPage(transportMap_, lastError_, value.page, value.pageId, "UpdateStrobeCommand") &&
-                           ResolveGeneratedStrobe(
-                               transportMap_,
-                               lastError_,
-                               value.pageId,
-                               value.strobe,
-                               value.strobeId,
-                               "UpdateStrobeCommand");
-                }
-                else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
-                {
-                    return ResolveGeneratedPage(
-                               transportMap_,
-                               lastError_,
-                               value.target.page,
-                               value.target.pageId,
-                               "UpsertDynamicReticleCommand") &&
-                           ResolveDynamicRuntimeId(
-                               lastError_, value.target.page, value.target, "UpsertDynamicReticleCommand") &&
-                           ResolveGeneratedTemplate(
-                               transportMap_,
-                               lastError_,
-                               value.templateId,
-                               value.templateTransportId,
-                               "UpsertDynamicReticleCommand") &&
-                           NormalizePatchForTransport(
-                               transportMap_,
-                               lastError_,
-                               value.patch,
-                               value.target.pageId,
-                               TransportPrimitiveOwnerKind::Template,
-                               value.templateTransportId,
-                               "UpsertDynamicReticleCommand");
-                }
-                else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
-                {
-                    if (!ResolveGeneratedPage(
-                            transportMap_,
-                            lastError_,
-                            value.page,
-                            value.pageId,
-                            "UpsertDynamicReticlesCommand") ||
-                        !ResolveGeneratedTemplate(
-                            transportMap_,
-                            lastError_,
-                            value.templateId,
-                            value.templateTransportId,
-                            "UpsertDynamicReticlesCommand") ||
-                        !ResolveDynamicStateIds(
-                            lastError_, value.page, value.reticles, "UpsertDynamicReticlesCommand"))
-                    {
-                        return false;
-                    }
-
-                    for (DynamicReticleState& state : value.reticles)
-                    {
-                        if (!NormalizePatchForTransport(
-                                transportMap_,
-                                lastError_,
-                                state.patch,
-                                value.pageId,
-                                TransportPrimitiveOwnerKind::Template,
-                                value.templateTransportId,
-                                "UpsertDynamicReticlesCommand"))
-                        {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                }
-                else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
-                {
-                    return ResolveGeneratedPage(
-                               transportMap_,
-                               lastError_,
-                               value.page,
-                               value.pageId,
-                               "SetDynamicReticleSetVisibilityCommand") &&
-                           ResolveGeneratedTemplate(
-                               transportMap_,
-                               lastError_,
-                               value.templateId,
-                               value.templateTransportId,
-                               "SetDynamicReticleSetVisibilityCommand");
-                }
-                else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
-                {
-                    return ResolveGeneratedPage(
-                               transportMap_,
-                               lastError_,
-                               value.page,
-                               value.pageId,
-                               "SetDynamicReticleSetStrobeMagnetEnabledCommand") &&
-                           ResolveGeneratedTemplate(
-                               transportMap_,
-                               lastError_,
-                               value.templateId,
-                               value.templateTransportId,
-                               "SetDynamicReticleSetStrobeMagnetEnabledCommand");
-                }
-                else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
-                {
-                    return ResolveGeneratedPage(
-                               transportMap_,
-                               lastError_,
-                               value.target.page,
-                               value.target.pageId,
-                               "RemoveDynamicReticleCommand") &&
-                           ResolveDynamicRuntimeId(
-                               lastError_, value.target.page, value.target, "RemoveDynamicReticleCommand");
-                }
-                else
-                {
-                    return true;
-                }
-            },
-            command);
-
-        if (!ok)
+        if (!std::visit(CommandTransportNormalizer {transportMap_, lastError_}, command))
         {
             return false;
         }

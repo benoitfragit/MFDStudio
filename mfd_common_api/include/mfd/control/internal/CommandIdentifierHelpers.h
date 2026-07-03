@@ -1,8 +1,9 @@
 #pragma once
 
-#include <type_traits>
+#include <variant>
 
 #include "mfd/control/CommandTypes.h"
+#include "mfd/control/internal/CommandTraits.h"
 
 namespace mfd::detail
 {
@@ -24,67 +25,88 @@ inline bool DynamicHandleUsesGeneratedIdentifiers(const DynamicReticleHandle& ha
     return handle.pageId != 0;
 }
 
+/**
+ * @brief Detects generated transport identifiers with one explicit overload per command type.
+ *
+ * @note This visitor intentionally has no generic fallback: adding a new `UserCommand`
+ * alternative must fail to compile here until its generated-identifier rule is written.
+ */
+struct CommandGeneratedIdentifierProbe
+{
+    bool operator()(const ActivatePageCommand& command) const noexcept
+    {
+        return PageBindingOf(command).pageId != 0;
+    }
+
+    bool operator()(const SetPageViewCommand& command) const noexcept
+    {
+        return PageBindingOf(command).pageId != 0;
+    }
+
+    bool operator()(const UpdateWindowDisplayCommand&) const noexcept
+    {
+        return false;
+    }
+
+    bool operator()(const UpdateReticleCommand& command) const noexcept
+    {
+        return StaticHandleUsesGeneratedIdentifiers(command.target) ||
+               PatchUsesGeneratedIdentifiers(command.patch);
+    }
+
+    bool operator()(const UpdateStrobeCommand& command) const noexcept
+    {
+        return PageBindingOf(command).pageId != 0 || command.strobeId != 0;
+    }
+
+    bool operator()(const UpsertDynamicReticleCommand& command) const noexcept
+    {
+        return DynamicHandleUsesGeneratedIdentifiers(command.target) ||
+               TemplateBindingOf(command).templateTransportId != 0 ||
+               PatchUsesGeneratedIdentifiers(command.patch);
+    }
+
+    bool operator()(const UpsertDynamicReticlesCommand& command) const noexcept
+    {
+        if (PageBindingOf(command).pageId != 0 || TemplateBindingOf(command).templateTransportId != 0)
+        {
+            return true;
+        }
+
+        for (const DynamicReticleState& state : command.reticles)
+        {
+            if (PatchUsesGeneratedIdentifiers(state.patch))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool operator()(const SetDynamicReticleSetVisibilityCommand& command) const noexcept
+    {
+        return PageBindingOf(command).pageId != 0 || TemplateBindingOf(command).templateTransportId != 0;
+    }
+
+    bool operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const noexcept
+    {
+        return PageBindingOf(command).pageId != 0 || TemplateBindingOf(command).templateTransportId != 0;
+    }
+
+    bool operator()(const RemoveDynamicReticleCommand& command) const noexcept
+    {
+        return DynamicHandleUsesGeneratedIdentifiers(command.target);
+    }
+
+    bool operator()(const ResetWindowCommand&) const noexcept
+    {
+        return false;
+    }
+};
+
 inline bool CommandUsesGeneratedIdentifiers(const UserCommand& command) noexcept
 {
-    return std::visit(
-        [](const auto& value) noexcept -> bool
-        {
-            using Command = std::decay_t<decltype(value)>;
-
-            if constexpr (std::is_same_v<Command, ActivatePageCommand> ||
-                          std::is_same_v<Command, SetPageViewCommand>)
-            {
-                return value.pageId != 0;
-            }
-            else if constexpr (std::is_same_v<Command, UpdateStrobeCommand>)
-            {
-                return value.pageId != 0 || value.strobeId != 0;
-            }
-            else if constexpr (std::is_same_v<Command, UpdateReticleCommand>)
-            {
-                return StaticHandleUsesGeneratedIdentifiers(value.target) ||
-                       PatchUsesGeneratedIdentifiers(value.patch);
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticleCommand>)
-            {
-                return DynamicHandleUsesGeneratedIdentifiers(value.target) ||
-                       value.templateTransportId != 0 ||
-                       PatchUsesGeneratedIdentifiers(value.patch);
-            }
-            else if constexpr (std::is_same_v<Command, UpsertDynamicReticlesCommand>)
-            {
-                if (value.pageId != 0 || value.templateTransportId != 0)
-                {
-                    return true;
-                }
-
-                for (const DynamicReticleState& state : value.reticles)
-                {
-                    if (PatchUsesGeneratedIdentifiers(state.patch))
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetVisibilityCommand>)
-            {
-                return value.pageId != 0 || value.templateTransportId != 0;
-            }
-            else if constexpr (std::is_same_v<Command, SetDynamicReticleSetStrobeMagnetEnabledCommand>)
-            {
-                return value.pageId != 0 || value.templateTransportId != 0;
-            }
-            else if constexpr (std::is_same_v<Command, RemoveDynamicReticleCommand>)
-            {
-                return DynamicHandleUsesGeneratedIdentifiers(value.target);
-            }
-            else
-            {
-                return false;
-            }
-        },
-        command);
+    return std::visit(CommandGeneratedIdentifierProbe {}, command);
 }
 } // namespace mfd::detail

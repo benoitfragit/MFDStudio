@@ -70,6 +70,16 @@ MFD_API std::string NormalizePageName(std::string_view value);
  * @param lhs First page name.
  * @param rhs Second page name.
  * @return `true` if both names refer to the same normalized identifier.
+ * @note The comparison is performed in place, without building the normalized
+ * strings, so it is safe to call on hot command-resolution paths.
  */
 MFD_API bool PageNamesEqual(std::string_view lhs, std::string_view rhs);
+
+/**
+ * @brief Tells whether a page-like identifier normalizes to an empty string.
+ * @param value Raw identifier provided by JSON or by user code.
+ * @return `true` if the identifier contains no meaningful character.
+ * @note Equivalent to `NormalizePageName(value).empty()` without the allocation.
+ */
+MFD_API bool PageNameIsBlank(std::string_view value) noexcept;
 } // namespace mfd

@@ -258,6 +258,43 @@ mfd::UpsertDynamicReticleCommand MakeDynamicTrackUpsertCommand()
     command.patch.text = "T1";
     return command;
 }
+
+mfd::SceneRegistry MakeTwoPageRegistry()
+{
+    mfd::MfdDocument document = MakeStaticRegistryDocument();
+
+    mfd::PageDefinition navPage;
+    navPage.name = "Nav";
+    navPage.normalizedName = "nav";
+    navPage.title = "Nav";
+    navPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+
+    mfd::ReticleGroup navReticle;
+    navReticle.id = "nav_box";
+    navReticle.layerId = std::string(kDefaultLayerId);
+
+    mfd::Primitive navPrimitive;
+    navPrimitive.id = "nav_value";
+    navPrimitive.type = mfd::PrimitiveType::Text;
+    navPrimitive.geometry = mfd::TextGeometry {"NAV", 0.04f, 0.002f};
+    navReticle.primitives.push_back(std::move(navPrimitive));
+    navPage.staticReticles.push_back(std::move(navReticle));
+    document.pages.push_back(std::move(navPage));
+
+    return mfd::SceneRegistry(std::move(document));
+}
+
+std::string ReadFirstReticleText(const mfd::SceneRegistry& registry, const std::string_view pageName)
+{
+    const auto reticles = registry.CollectPageReticlePointers(pageName);
+    if (reticles.empty() || reticles.front() == nullptr || reticles.front()->primitives.empty())
+    {
+        return {};
+    }
+
+    const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
+    return text == nullptr ? std::string {} : text->text;
+}
 } // namespace
 
 TEST(CommandProcessorTests, PollDoesNotOverrideSuccessfulDispatchWithStickyChannelError)
@@ -960,4 +997,395 @@ TEST(CommandProcessorTests, ResetToInitialStatePreservesGeneratedTransportMapLoo
     const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(text->text, "456");
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackKeepsUntouchedPagesIntact)
+{
+    mfd::SceneRegistry registry = MakeTwoPageRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch navPatch;
+    navPatch.text = "NAV-42";
+    ASSERT_TRUE(processor.Submit(
+        mfd::UserCommand {mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Nav", "nav_box"}, navPatch}}));
+    ASSERT_EQ(ReadFirstReticleText(registry, "Nav"), "NAV-42");
+
+    mfd::ReticlePatch radarPatch;
+    radarPatch.text = "111";
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, radarPatch});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+    EXPECT_EQ(ReadFirstReticleText(registry, "Nav"), "NAV-42");
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresPreviousActivePage)
+{
+    mfd::SceneRegistry registry = MakeTwoPageRegistry();
+    mfd::CommandProcessor processor(registry);
+    ASSERT_EQ(registry.ActivePageName(), "Radar");
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(mfd::ActivatePageCommand {"Nav"});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Nav", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+    EXPECT_EQ(registry.ActivePageName(), "Radar");
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackAfterWindowResetRestoresRuntimeState)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch patch;
+    patch.text = "111";
+    ASSERT_TRUE(processor.Submit(
+        mfd::UserCommand {mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "heading_box"}, patch}}));
+    ASSERT_EQ(ReadFirstReticleText(registry, "Radar"), "111");
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(mfd::ResetWindowCommand {});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "111");
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresDynamicTemplateVisibility)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch upsertBatch;
+    upsertBatch.mappingHash = "map_hash";
+    upsertBatch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    ASSERT_TRUE(processor.Submit(upsertBatch));
+    ASSERT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 1U);
+
+    const auto visibleBefore = registry.CollectPageReticles("Radar");
+    ASSERT_FALSE(visibleBefore.empty());
+    ASSERT_TRUE(visibleBefore.back().visible);
+
+    mfd::SetDynamicReticleSetVisibilityCommand hideCommand;
+    hideCommand.page = "Radar";
+    hideCommand.templateId = "radar_track";
+    hideCommand.visible = false;
+
+    mfd::CommandBatch failingBatch;
+    failingBatch.commands.push_back(hideCommand);
+    failingBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(failingBatch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    const auto visibleAfter = registry.CollectPageReticles("Radar");
+    ASSERT_FALSE(visibleAfter.empty());
+    EXPECT_TRUE(visibleAfter.back().visible);
+    EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 1U);
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresFirstPageWhenSecondPageCommandFails)
+{
+    mfd::SceneRegistry registry = MakeTwoPageRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch navPatch;
+    navPatch.text = "NAV-99";
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Nav", "nav_box"}, navPatch});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    EXPECT_EQ(ReadFirstReticleText(registry, "Nav"), "NAV");
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresWindowDisplayState)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::WindowDisplayPatch initialPatch;
+    initialPatch.brightness = 0.8f;
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {mfd::UpdateWindowDisplayCommand {initialPatch}}));
+    ASSERT_FLOAT_EQ(registry.WindowDisplay().brightness, 0.8f);
+
+    mfd::WindowDisplayPatch failedPatch;
+    failedPatch.invertColors = true;
+    failedPatch.brightness = 0.2f;
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(mfd::UpdateWindowDisplayCommand {failedPatch});
+    batch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    const mfd::WindowDisplayState display = registry.WindowDisplay();
+    EXPECT_FALSE(display.invertColors);
+    EXPECT_FLOAT_EQ(display.brightness, 0.8f);
+    EXPECT_FALSE(display.disabled);
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresDynamicReticleAndMagnetizedStrobeTogether)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch upsertBatch;
+    upsertBatch.mappingHash = "map_hash";
+    upsertBatch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    ASSERT_TRUE(processor.Submit(upsertBatch));
+    ASSERT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 1U);
+
+    mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand enableMagnet;
+    enableMagnet.page = "Radar";
+    enableMagnet.templateId = "radar_track";
+    enableMagnet.enabled = true;
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {enableMagnet}));
+
+    mfd::UpdateStrobeCommand magnetize;
+    magnetize.page = "Radar";
+    magnetize.position = mfd::Vec2 {0.12f, -0.18f};
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {magnetize}));
+
+    const auto strobeBefore = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeBefore.has_value());
+    // The magnet radius (0.15) covers the distance to the dynamic track at (0.1, -0.2),
+    // so the strobe locks onto the track position before the failing batch runs.
+    ASSERT_FLOAT_EQ(strobeBefore->position.x, 0.1f);
+    ASSERT_FLOAT_EQ(strobeBefore->position.y, -0.2f);
+
+    mfd::UpsertDynamicReticleCommand moveTrack = MakeDynamicTrackUpsertCommand();
+    moveTrack.patch.position = mfd::Vec2 {0.6f, 0.6f};
+    moveTrack.patch.text = "T2";
+
+    mfd::UpdateStrobeCommand moveStrobe;
+    moveStrobe.page = "Radar";
+    moveStrobe.position = mfd::Vec2 {0.55f, 0.55f};
+
+    mfd::CommandBatch failingBatch;
+    failingBatch.mappingHash = "map_hash";
+    failingBatch.commands.push_back(moveTrack);
+    failingBatch.commands.push_back(moveStrobe);
+    failingBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(failingBatch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+
+    EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 1U);
+
+    const mfd::ReticleGroup* track = nullptr;
+    for (const mfd::ReticleGroup* reticle : registry.CollectPageReticlePointers("Radar"))
+    {
+        if (reticle != nullptr && reticle->id.rfind("__runtime_dynamic_", 0U) == 0U)
+        {
+            track = reticle;
+        }
+    }
+
+    ASSERT_NE(track, nullptr);
+    EXPECT_FLOAT_EQ(track->transform.position.x, 0.1f);
+    EXPECT_FLOAT_EQ(track->transform.position.y, -0.2f);
+    const auto* trackText = std::get_if<mfd::TextGeometry>(&track->primitives.front().geometry);
+    ASSERT_NE(trackText, nullptr);
+    EXPECT_EQ(trackText->text, "T1");
+
+    const auto strobeAfter = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeAfter.has_value());
+    EXPECT_FLOAT_EQ(strobeAfter->position.x, strobeBefore->position.x);
+    EXPECT_FLOAT_EQ(strobeAfter->position.y, strobeBefore->position.y);
+}
+
+TEST(CommandProcessorTests, SingleBulkDynamicUpsertCommandIsAtomicWhenOneReticleIsInvalid)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand enableMagnet;
+    enableMagnet.page = "Radar";
+    enableMagnet.templateId = "radar_track";
+    enableMagnet.enabled = true;
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {enableMagnet}));
+
+    const auto strobeBefore = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeBefore.has_value());
+
+    mfd::UpsertDynamicReticlesCommand bulk;
+    bulk.page = "Radar";
+    bulk.templateId = "radar_track";
+
+    mfd::DynamicReticleState validState;
+    validState.reticleId = "track_ok";
+    validState.patch.visible = true;
+    validState.patch.text = "T1";
+    validState.patch.position = strobeBefore->position;
+    bulk.reticles.push_back(std::move(validState));
+
+    mfd::DynamicReticleState invalidState;
+    invalidState.reticleId = "track_bad";
+    invalidState.patch.position = mfd::Vec2 {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+    bulk.reticles.push_back(std::move(invalidState));
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(std::move(bulk));
+    ASSERT_EQ(batch.commands.size(), 1U);
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_FALSE(processor.LastError().empty());
+
+    // One failing reticle must fail the whole command without leaving partial state, even
+    // though a single-command batch never takes the transactional multi-command path.
+    EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 0U);
+
+    const auto strobeAfter = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeAfter.has_value());
+    EXPECT_FLOAT_EQ(strobeAfter->position.x, strobeBefore->position.x);
+    EXPECT_FLOAT_EQ(strobeAfter->position.y, strobeBefore->position.y);
+
+    const auto magnet = registry.ActiveStrobeMagnetSummary();
+    if (magnet.has_value())
+    {
+        EXPECT_FALSE(magnet->magnetized);
+    }
+}
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresPagesTouchedByIdOnlyCommands)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch initialPatch;
+    initialPatch.text = "111";
+
+    mfd::CommandBatch initialBatch;
+    initialBatch.mappingHash = "map_hash";
+    initialBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, initialPatch});
+    ASSERT_TRUE(processor.Submit(initialBatch));
+    ASSERT_EQ(ReadFirstReticleText(registry, "Radar"), "111");
+
+    // The failing batch touches the page exclusively through generated transport ids:
+    // the rollback footprint must resolve the page key from the id, without any
+    // rehydrated authored name inside the commands.
+    mfd::ReticlePatch failedPatch;
+    failedPatch.text = "222";
+
+    mfd::CommandBatch failingBatch;
+    failingBatch.mappingHash = "map_hash";
+    failingBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, failedPatch});
+    failingBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(failingBatch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "111");
+}
+
+TEST(CommandProcessorTests, IdOnlyDynamicSetVisibilityCommandHidesTemplateReticles)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch upsertBatch;
+    upsertBatch.mappingHash = "map_hash";
+    upsertBatch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    ASSERT_TRUE(processor.Submit(upsertBatch));
+
+    const auto findDynamicTrack = [](const std::vector<mfd::ReticleGroup>& reticles) -> const mfd::ReticleGroup*
+    {
+        for (const mfd::ReticleGroup& reticle : reticles)
+        {
+            if (reticle.id.rfind("__runtime_dynamic_", 0U) == 0U)
+            {
+                return &reticle;
+            }
+        }
+
+        return nullptr;
+    };
+
+    const auto reticlesBefore = registry.CollectPageReticles("Radar");
+    const mfd::ReticleGroup* trackBefore = findDynamicTrack(reticlesBefore);
+    ASSERT_NE(trackBefore, nullptr);
+    ASSERT_TRUE(trackBefore->visible);
+
+    // Pure id-only command: no authored page name, no authored template id.
+    mfd::SetDynamicReticleSetVisibilityCommand hideCommand;
+    hideCommand.pageId = 11U;
+    hideCommand.templateTransportId = 55U;
+    hideCommand.visible = false;
+    ASSERT_TRUE(hideCommand.page.empty());
+    ASSERT_TRUE(hideCommand.templateId.empty());
+
+    mfd::CommandBatch hideBatch;
+    hideBatch.mappingHash = "map_hash";
+    hideBatch.commands.push_back(hideCommand);
+
+    EXPECT_TRUE(processor.Submit(hideBatch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto reticlesAfter = registry.CollectPageReticles("Radar");
+    const mfd::ReticleGroup* trackAfter = findDynamicTrack(reticlesAfter);
+    ASSERT_NE(trackAfter, nullptr);
+    EXPECT_FALSE(trackAfter->visible);
+}
+
+TEST(CommandProcessorTests, IdOnlyDynamicSetStrobeMagnetCommandEnablesMagnetization)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch upsertBatch;
+    upsertBatch.mappingHash = "map_hash";
+    upsertBatch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    ASSERT_TRUE(processor.Submit(upsertBatch));
+
+    // Pure id-only command: no authored page name, no authored template id.
+    mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand enableMagnet;
+    enableMagnet.pageId = 11U;
+    enableMagnet.templateTransportId = 55U;
+    enableMagnet.enabled = true;
+    ASSERT_TRUE(enableMagnet.page.empty());
+    ASSERT_TRUE(enableMagnet.templateId.empty());
+
+    mfd::CommandBatch magnetBatch;
+    magnetBatch.mappingHash = "map_hash";
+    magnetBatch.commands.push_back(enableMagnet);
+
+    EXPECT_TRUE(processor.Submit(magnetBatch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    // With the template now magnet-eligible, moving the strobe near the dynamic track
+    // (radius 0.15) must lock the strobe onto the track position at (0.1, -0.2).
+    mfd::UpdateStrobeCommand magnetize;
+    magnetize.page = "Radar";
+    magnetize.position = mfd::Vec2 {0.12f, -0.18f};
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {magnetize}));
+
+    const auto strobe = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobe.has_value());
+    EXPECT_FLOAT_EQ(strobe->position.x, 0.1f);
+    EXPECT_FLOAT_EQ(strobe->position.y, -0.2f);
 }

@@ -18,8 +18,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <entt/entt.hpp>
-
 #include "mfd/MfdExport.h"
 #include "mfd/control/CommandTypes.h"
 
@@ -30,6 +28,11 @@ class SceneRegistry;
 
 /**
  * @brief Chooses how multi-command submissions behave when one command fails.
+ *
+ * @note The transactional rollback snapshot only covers the pages a batch
+ * touches, so its cost is proportional to the touched pages instead of the
+ * whole scene. `NonTransactional` is kept as an explicit opt-out for hosts
+ * that prefer keeping earlier commands applied, not as a performance escape.
  */
 enum class CommandBatchTransactionMode
 {
@@ -130,18 +133,6 @@ public:
      */
     std::string LastError() const;
 
-    /**
-     * @brief Returns the underlying EnTT dispatcher.
-     * @return Mutable dispatcher reference.
-     */
-    entt::dispatcher& Dispatcher() noexcept;
-
-    /**
-     * @brief Returns the underlying EnTT dispatcher.
-     * @return Const dispatcher reference.
-     */
-    const entt::dispatcher& Dispatcher() const noexcept;
-
 private:
     struct SequencedBatchState
     {
@@ -149,17 +140,45 @@ private:
         std::unordered_set<std::size_t> acceptedFingerprints {};
     };
 
-    void OnActivatePage(const ActivatePageCommand& command);
-    void OnSetPageView(const SetPageViewCommand& command);
-    void OnUpdateWindowDisplay(const UpdateWindowDisplayCommand& command);
-    void OnUpdateReticle(const UpdateReticleCommand& command);
-    void OnUpdateStrobe(const UpdateStrobeCommand& command);
-    void OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command);
-    void OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command);
-    void OnSetDynamicReticleSetVisibility(const SetDynamicReticleSetVisibilityCommand& command);
-    void OnSetDynamicReticleSetStrobeMagnetEnabled(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command);
-    void OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
-    void OnResetWindow(const ResetWindowCommand& command);
+    /** @brief Per-command-type identifier resolution visitor (defined in the implementation file). */
+    struct IdentifierResolver;
+
+    /** @brief Per-command-type dispatch visitor (defined in the implementation file). */
+    struct ResolvedCommandDispatcher;
+
+    /**
+     * @brief Outcome of one dispatched command: success, or one failure message.
+     *
+     * @note Command handlers report failures through this return value so command
+     * dispatch has a single error path instead of a mutable side channel.
+     */
+    struct CommandResult
+    {
+        static CommandResult Success()
+        {
+            return CommandResult {};
+        }
+
+        static CommandResult Failure(std::string message)
+        {
+            return CommandResult {false, std::move(message)};
+        }
+
+        bool succeeded = true;
+        std::string error {};
+    };
+
+    CommandResult OnActivatePage(const ActivatePageCommand& command);
+    CommandResult OnSetPageView(const SetPageViewCommand& command);
+    CommandResult OnUpdateWindowDisplay(const UpdateWindowDisplayCommand& command);
+    CommandResult OnUpdateReticle(const UpdateReticleCommand& command);
+    CommandResult OnUpdateStrobe(const UpdateStrobeCommand& command);
+    CommandResult OnUpsertDynamicReticle(const UpsertDynamicReticleCommand& command);
+    CommandResult OnUpsertDynamicReticles(const UpsertDynamicReticlesCommand& command);
+    CommandResult OnSetDynamicReticleSetVisibility(const SetDynamicReticleSetVisibilityCommand& command);
+    CommandResult OnSetDynamicReticleSetStrobeMagnetEnabled(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command);
+    CommandResult OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
+    CommandResult OnResetWindow(const ResetWindowCommand& command);
 
     bool SubmitCommandsWithCurrentTransactionMode(ArrayView<const UserCommand> commands, std::string_view mappingHash);
     bool SubmitCommandsTransactional(ArrayView<const UserCommand> commands, std::string_view mappingHash);
@@ -186,10 +205,8 @@ private:
     void SetFailure(std::string message);
 
     SceneRegistry& scene_;
-    entt::dispatcher dispatcher_ {};
     std::string lastError_ {};
     std::unordered_map<std::string, SequencedBatchState> sequencedBatchesByMappingHash_ {};
     CommandBatchTransactionMode batchTransactionMode_ = CommandBatchTransactionMode::Transactional;
-    bool lastCommandSucceeded_ = true;
 };
 } // namespace mfd

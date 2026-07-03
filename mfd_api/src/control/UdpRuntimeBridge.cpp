@@ -36,6 +36,7 @@
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/control/WindowFeedback.h"
+#include "mfd/control/internal/CommandTraits.h"
 #include "mfd/ipc/ExchangeChannel.h"
 
 namespace mfd
@@ -107,6 +108,18 @@ CoalescingIdentifier MakeCoalescingIdentifier(const std::uint64_t numericId, con
     }
 
     return identifier;
+}
+
+CoalescingIdentifier MakeCoalescingIdentifier(const detail::CommandPageBinding& binding)
+{
+    return MakeCoalescingIdentifier(binding.pageId,
+                                    binding.pageName == nullptr ? std::string_view {} : *binding.pageName);
+}
+
+CoalescingIdentifier MakeCoalescingIdentifier(const detail::CommandTemplateBinding& binding)
+{
+    return MakeCoalescingIdentifier(binding.templateTransportId,
+                                    binding.templateId == nullptr ? std::string_view {} : *binding.templateId);
 }
 
 bool operator==(const CoalescingIdentifier& lhs, const CoalescingIdentifier& rhs) noexcept
@@ -398,6 +411,11 @@ void MergeStrobeCommand(UpdateStrobeCommand& target, const UpdateStrobeCommand& 
     }
 }
 
+// Maps one typed command to its coalescing key with one explicit overload per command type.
+// Returning std::nullopt marks the command as a coalescing barrier: it is never merged and
+// stops earlier commands from being merged across it. This visitor intentionally has no
+// generic fallback: adding a new UserCommand alternative must fail to compile here until
+// its coalescing rule is written.
 struct CommandCoalescingKeyVisitor
 {
     std::optional<CommandCoalescingKey> operator()(const ActivatePageCommand&) const
@@ -409,7 +427,7 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::SetPageView;
-        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
         return key;
     }
 
@@ -422,7 +440,7 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::UpdateReticle;
-        key.page = MakeCoalescingIdentifier(command.target.pageId, command.target.page);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
         key.reticle = MakeCoalescingIdentifier(command.target.reticleId, command.target.reticle);
         return key;
     }
@@ -431,7 +449,7 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::UpdateStrobe;
-        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
         key.strobe = MakeCoalescingIdentifier(command.strobeId, command.strobe);
         return key;
     }
@@ -440,9 +458,9 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::UpsertDynamicReticle;
-        key.page = MakeCoalescingIdentifier(command.target.pageId, command.target.page);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
         key.reticle = MakeCoalescingIdentifier(command.target.runtimeReticleId, command.target.reticleId);
-        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        key.dynamicTemplate = MakeCoalescingIdentifier(detail::TemplateBindingOf(command));
         return key;
     }
 
@@ -450,8 +468,8 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::SetDynamicReticleSetVisibility;
-        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
-        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
+        key.dynamicTemplate = MakeCoalescingIdentifier(detail::TemplateBindingOf(command));
         return key;
     }
 
@@ -459,14 +477,28 @@ struct CommandCoalescingKeyVisitor
     {
         CommandCoalescingKey key;
         key.kind = CommandCoalescingKind::SetDynamicReticleSetStrobeMagnetEnabled;
-        key.page = MakeCoalescingIdentifier(command.pageId, command.page);
-        key.dynamicTemplate = MakeCoalescingIdentifier(command.templateTransportId, command.templateId);
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
+        key.dynamicTemplate = MakeCoalescingIdentifier(detail::TemplateBindingOf(command));
         return key;
     }
 
-    template <typename Command>
-    std::optional<CommandCoalescingKey> operator()(const Command&) const
+    std::optional<CommandCoalescingKey> operator()(const UpsertDynamicReticlesCommand&) const
     {
+        // Bulk upserts stay coalescing barriers: merging two bulk updates would require
+        // per-reticle reconciliation that the latest-batch publisher already performs.
+        return std::nullopt;
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const RemoveDynamicReticleCommand&) const
+    {
+        // Removals stay coalescing barriers so an upsert-remove-upsert sequence keeps its
+        // observable lifecycle ordering.
+        return std::nullopt;
+    }
+
+    std::optional<CommandCoalescingKey> operator()(const ResetWindowCommand&) const
+    {
+        // A window reset invalidates every earlier command and must never be merged away.
         return std::nullopt;
     }
 };

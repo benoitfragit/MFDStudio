@@ -19,6 +19,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedTransportMapTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonNumberParsingTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/PageNameTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/PolygonTriangulationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/PublicRenderFacadeHeadersTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/RenderResourceLifetimeTests.cpp

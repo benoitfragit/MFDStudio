@@ -76,6 +76,37 @@ normalization, runtime id resolution, runtime dispatch, batching/coalescing, and
 tests. Prefer internal command helpers or command traits over duplicating a rule
 across files.
 
+Each of these stages dispatches over `UserCommand` through a visitor with one
+explicit overload per command type and no generic fallback. Adding a new
+`UserCommand` alternative therefore fails to compile at every stage until its
+per-stage rule is written explicitly, instead of silently falling into a default
+branch. The per-command page and template identity rules shared by several
+stages live in `mfd/control/internal/CommandTraits.h`.
+
+### Runtime identifier resolution — next phase design
+
+The runtime still resolves generated transport ids back to authored name
+strings at the command boundary, and most `SceneRegistry` entry points
+re-normalize those names on every call. The intended next step keeps names at
+the boundaries only, flowing small resolved references through the hot paths
+instead:
+
+- `ResolvedPageRef` — normalized page key plus page entity;
+- `ResolvedStaticReticleRef`, `ResolvedTemplateRef`, `ResolvedPrimitiveRef` —
+  resolved once after runtime identifier resolution and reused by dispatch,
+  coalescing and the scene entry points.
+
+`CommandProcessor` already normalizes the page key once per dynamic-set command
+and reuses it through the private `*ByKey` scene entry points; extending the
+same pattern to strobe updates and reticle patches, then replacing the
+normalized string keys with `TransportId`-to-entity maps, removes string
+normalization and hashing from the hot path without changing the public API.
+
+Once commands flow as resolved references, a per-command inverse journal (each
+handler records the pre-mutation state of only the entities it touches) can
+replace the page-scoped rollback snapshot. That journal is a design target for
+a later phase, not part of the current implementation.
+
 ```mermaid
 flowchart LR
     Def["Command type<br/>definition"] --> Val[Validation]
