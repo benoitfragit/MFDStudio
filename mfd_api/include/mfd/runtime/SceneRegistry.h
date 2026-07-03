@@ -706,6 +706,16 @@ private:
                                        const ReticlePatch& patch) noexcept;
     /** @brief Same as UpsertDynamicReticle, but takes an already-normalized page key. */
     void UpsertDynamicReticleByKey(std::string_view normalizedPageName, ReticleGroup reticle);
+    /** @brief Same as RemoveDynamicReticle, but takes an already-normalized page key. */
+    bool RemoveDynamicReticleByKey(std::string_view normalizedPageName, std::string_view reticleId);
+    /** @brief Same as SetDynamicReticleSetVisible, but takes an already-normalized page key. */
+    bool SetDynamicReticleSetVisibleByKey(std::string_view normalizedPageName,
+                                          std::string_view templateId,
+                                          bool visible) noexcept;
+    /** @brief Same as SetDynamicReticleSetStrobeMagnetEnabled, but takes an already-normalized page key. */
+    bool SetDynamicReticleSetStrobeMagnetEnabledByKey(std::string_view normalizedPageName,
+                                                      std::string_view templateId,
+                                                      bool enabled) noexcept;
     /** @brief Same as IsDynamicTemplateVisible, but takes an already-normalized template id to
      *  avoid renormalizing it per reticle on the render/strobe-scan hot path. */
     bool IsDynamicTemplateVisibleByNormalizedId(std::string_view normalizedPageName,

@@ -2871,7 +2871,13 @@ bool SceneRegistry::SetDynamicReticleSetVisible(const std::string_view pageName,
                                                 const std::string_view templateId,
                                                 const bool visible) noexcept
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    return SetDynamicReticleSetVisibleByKey(NormalizePageName(pageName), templateId, visible);
+}
+
+bool SceneRegistry::SetDynamicReticleSetVisibleByKey(const std::string_view normalizedPageName,
+                                                     const std::string_view templateId,
+                                                     const bool visible) noexcept
+{
     const std::string normalizedTemplateId = NormalizePageName(templateId);
     if (!HasNormalizedPage(normalizedPageName) || normalizedTemplateId.empty() ||
         FindDynamicReticleLayerBinding(normalizedPageName, normalizedTemplateId) == nullptr)
@@ -2897,7 +2903,13 @@ bool SceneRegistry::SetDynamicReticleSetStrobeMagnetEnabled(const std::string_vi
                                                             const std::string_view templateId,
                                                             const bool enabled) noexcept
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    return SetDynamicReticleSetStrobeMagnetEnabledByKey(NormalizePageName(pageName), templateId, enabled);
+}
+
+bool SceneRegistry::SetDynamicReticleSetStrobeMagnetEnabledByKey(const std::string_view normalizedPageName,
+                                                                 const std::string_view templateId,
+                                                                 const bool enabled) noexcept
+{
     const std::string normalizedTemplateId = NormalizePageName(templateId);
     if (!HasNormalizedPage(normalizedPageName) || normalizedTemplateId.empty() ||
         FindDynamicReticleLayerBinding(normalizedPageName, normalizedTemplateId) == nullptr)
@@ -3477,7 +3489,12 @@ void SceneRegistry::UpsertDynamicReticleByKey(const std::string_view normalizedP
 
 bool SceneRegistry::RemoveDynamicReticle(const std::string_view pageName, const std::string_view reticleId)
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    return RemoveDynamicReticleByKey(NormalizePageName(pageName), reticleId);
+}
+
+bool SceneRegistry::RemoveDynamicReticleByKey(const std::string_view normalizedPageName,
+                                              const std::string_view reticleId)
+{
     const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
     if (entity == entt::null || !registry_.all_of<DynamicTag>(entity))
     {
