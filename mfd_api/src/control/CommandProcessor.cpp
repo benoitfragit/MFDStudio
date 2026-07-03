@@ -1160,8 +1160,11 @@ CommandProcessor::CommandResult CommandProcessor::OnSetDynamicReticleSetVisibili
     const SetDynamicReticleSetVisibilityCommand& command)
 {
     const auto pageRef = scene_.ResolvePageRef(command.pageId, command.page);
-    if (!pageRef.has_value() ||
-        !scene_.SetDynamicReticleSetVisibleByKey(pageRef->normalizedName, command.templateId, command.visible))
+    const auto templateRef = pageRef.has_value()
+                                 ? scene_.ResolveTemplateRef(command.templateTransportId, command.templateId)
+                                 : std::nullopt;
+    if (!templateRef.has_value() ||
+        !scene_.SetDynamicReticleSetVisibleByKey(pageRef->normalizedName, *templateRef->templateId, command.visible))
     {
         return CommandResult::Failure("Unable to update dynamic reticle set visibility for template '" +
                                       command.templateId + "' on page '" + command.page + "'");
@@ -1174,8 +1177,12 @@ CommandProcessor::CommandResult CommandProcessor::OnSetDynamicReticleSetStrobeMa
     const SetDynamicReticleSetStrobeMagnetEnabledCommand& command)
 {
     const auto pageRef = scene_.ResolvePageRef(command.pageId, command.page);
-    if (!pageRef.has_value() ||
-        !scene_.SetDynamicReticleSetStrobeMagnetEnabledByKey(pageRef->normalizedName, command.templateId, command.enabled))
+    const auto templateRef = pageRef.has_value()
+                                 ? scene_.ResolveTemplateRef(command.templateTransportId, command.templateId)
+                                 : std::nullopt;
+    if (!templateRef.has_value() ||
+        !scene_.SetDynamicReticleSetStrobeMagnetEnabledByKey(
+            pageRef->normalizedName, *templateRef->templateId, command.enabled))
     {
         return CommandResult::Failure("Unable to update dynamic reticle set strobe-magnet eligibility for template '" +
                                       command.templateId + "' on page '" + command.page + "'");

@@ -1302,3 +1302,90 @@ TEST(CommandProcessorTests, TransactionalRollbackRestoresPagesTouchedByIdOnlyCom
     EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
     EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "111");
 }
+
+TEST(CommandProcessorTests, IdOnlyDynamicSetVisibilityCommandHidesTemplateReticles)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch upsertBatch;
+    upsertBatch.mappingHash = "map_hash";
+    upsertBatch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    ASSERT_TRUE(processor.Submit(upsertBatch));
+
+    const auto findDynamicTrack = [](const std::vector<mfd::ReticleGroup>& reticles) -> const mfd::ReticleGroup*
+    {
+        for (const mfd::ReticleGroup& reticle : reticles)
+        {
+            if (reticle.id.rfind("__runtime_dynamic_", 0U) == 0U)
+            {
+                return &reticle;
+            }
+        }
+
+        return nullptr;
+    };
+
+    const auto reticlesBefore = registry.CollectPageReticles("Radar");
+    const mfd::ReticleGroup* trackBefore = findDynamicTrack(reticlesBefore);
+    ASSERT_NE(trackBefore, nullptr);
+    ASSERT_TRUE(trackBefore->visible);
+
+    // Pure id-only command: no authored page name, no authored template id.
+    mfd::SetDynamicReticleSetVisibilityCommand hideCommand;
+    hideCommand.pageId = 11U;
+    hideCommand.templateTransportId = 55U;
+    hideCommand.visible = false;
+    ASSERT_TRUE(hideCommand.page.empty());
+    ASSERT_TRUE(hideCommand.templateId.empty());
+
+    mfd::CommandBatch hideBatch;
+    hideBatch.mappingHash = "map_hash";
+    hideBatch.commands.push_back(hideCommand);
+
+    EXPECT_TRUE(processor.Submit(hideBatch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    const auto reticlesAfter = registry.CollectPageReticles("Radar");
+    const mfd::ReticleGroup* trackAfter = findDynamicTrack(reticlesAfter);
+    ASSERT_NE(trackAfter, nullptr);
+    EXPECT_FALSE(trackAfter->visible);
+}
+
+TEST(CommandProcessorTests, IdOnlyDynamicSetStrobeMagnetCommandEnablesMagnetization)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch upsertBatch;
+    upsertBatch.mappingHash = "map_hash";
+    upsertBatch.commands.push_back(MakeDynamicTrackUpsertCommand());
+    ASSERT_TRUE(processor.Submit(upsertBatch));
+
+    // Pure id-only command: no authored page name, no authored template id.
+    mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand enableMagnet;
+    enableMagnet.pageId = 11U;
+    enableMagnet.templateTransportId = 55U;
+    enableMagnet.enabled = true;
+    ASSERT_TRUE(enableMagnet.page.empty());
+    ASSERT_TRUE(enableMagnet.templateId.empty());
+
+    mfd::CommandBatch magnetBatch;
+    magnetBatch.mappingHash = "map_hash";
+    magnetBatch.commands.push_back(enableMagnet);
+
+    EXPECT_TRUE(processor.Submit(magnetBatch));
+    EXPECT_TRUE(processor.LastError().empty());
+
+    // With the template now magnet-eligible, moving the strobe near the dynamic track
+    // (radius 0.15) must lock the strobe onto the track position at (0.1, -0.2).
+    mfd::UpdateStrobeCommand magnetize;
+    magnetize.page = "Radar";
+    magnetize.position = mfd::Vec2 {0.12f, -0.18f};
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {magnetize}));
+
+    const auto strobe = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobe.has_value());
+    EXPECT_FLOAT_EQ(strobe->position.x, 0.1f);
+    EXPECT_FLOAT_EQ(strobe->position.y, -0.2f);
+}
