@@ -1126,6 +1126,8 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
     dynamicTemplateVisibility_.clear();
     dynamicTemplateStrobeMagnetEnabled_.clear();
     transportPageNames_.clear();
+    transportPageEntities_.clear();
+    transportReticleEntities_.clear();
     transportReticles_.clear();
     transportTemplates_.clear();
     templateTransportIds_.clear();
@@ -1273,6 +1275,8 @@ bool SceneRegistry::HasTransportMap() const noexcept
 void SceneRegistry::RebuildTransportIndexes()
 {
     transportPageNames_.clear();
+    transportPageEntities_.clear();
+    transportReticleEntities_.clear();
     transportReticles_.clear();
     transportTemplates_.clear();
     templateTransportIds_.clear();
@@ -1306,6 +1310,12 @@ void SceneRegistry::RebuildTransportIndexes()
         {
             pageComponent->transportId = page.id;
         }
+
+        const auto pageEntityIt = pageEntities_.find(page.normalizedName);
+        if (pageEntityIt != pageEntities_.end())
+        {
+            transportPageEntities_.emplace(page.id, pageEntityIt->second);
+        }
     }
 
     for (const auto& reticle : transportMap_->reticles)
@@ -1322,9 +1332,16 @@ void SceneRegistry::RebuildTransportIndexes()
             pageName = pageNameIt->second;
         }
 
+        const std::string normalizedPageName = NormalizePageName(pageName);
         transportReticles_.emplace(
             reticle.id,
             TransportReticleLookup {reticle.pageId, std::move(pageName), reticle.reticleId});
+
+        const entt::entity reticleEntity = FindReticleEntity(normalizedPageName, reticle.reticleId);
+        if (reticleEntity != entt::null)
+        {
+            transportReticleEntities_.emplace(reticle.id, reticleEntity);
+        }
     }
 
     for (const auto& templ : transportMap_->templates)
@@ -2605,6 +2622,108 @@ bool SceneRegistry::DynamicReticleUsesTemplateByKey(const std::string_view norma
            registry_.all_of<DynamicTag>(entity) &&
            reticle != nullptr &&
            PageNamesEqual(reticle->group.sourceTemplateId, templateId);
+}
+
+std::optional<SceneRegistry::ResolvedPageRef> SceneRegistry::ResolvePageRef(const TransportId pageId,
+                                                                             const std::string_view pageName) noexcept
+{
+    entt::entity entity = entt::null;
+    if (pageId != 0)
+    {
+        const auto iterator = transportPageEntities_.find(pageId);
+        if (iterator == transportPageEntities_.end())
+        {
+            return std::nullopt;
+        }
+
+        entity = iterator->second;
+    }
+    else
+    {
+        const auto iterator = pageEntities_.find(NormalizePageName(pageName));
+        if (iterator == pageEntities_.end())
+        {
+            return std::nullopt;
+        }
+
+        entity = iterator->second;
+    }
+
+    PageComponent* page = registry_.try_get<PageComponent>(entity);
+    if (page == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return ResolvedPageRef {entity, page, page->normalizedName, &page->name, page->transportId};
+}
+
+std::optional<SceneRegistry::ResolvedTemplateRef> SceneRegistry::ResolveTemplateRef(
+    const TransportId templateTransportId,
+    const std::string_view templateId) const
+{
+    const std::string* authoredTemplateId = nullptr;
+    if (templateTransportId != 0)
+    {
+        const auto iterator = transportTemplates_.find(templateTransportId);
+        if (iterator == transportTemplates_.end())
+        {
+            return std::nullopt;
+        }
+
+        authoredTemplateId = &iterator->second;
+    }
+
+    const auto libraryIterator = authoredTemplateId != nullptr
+                                     ? document_.reticleLibrary.find(*authoredTemplateId)
+                                     : document_.reticleLibrary.find(std::string(templateId));
+    if (libraryIterator == document_.reticleLibrary.end())
+    {
+        return std::nullopt;
+    }
+
+    return ResolvedTemplateRef {&libraryIterator->second, &libraryIterator->first, templateTransportId};
+}
+
+std::optional<SceneRegistry::ResolvedStaticReticleRef> SceneRegistry::ResolveStaticReticleRef(
+    const TransportId reticleTransportId,
+    const std::string_view pageName,
+    const std::string_view reticleId) noexcept
+{
+    entt::entity entity = entt::null;
+    if (reticleTransportId != 0)
+    {
+        const auto iterator = transportReticleEntities_.find(reticleTransportId);
+        if (iterator == transportReticleEntities_.end())
+        {
+            return std::nullopt;
+        }
+
+        entity = iterator->second;
+    }
+    else
+    {
+        entity = FindReticleEntity(NormalizePageName(pageName), reticleId);
+        if (entity == entt::null)
+        {
+            return std::nullopt;
+        }
+    }
+
+    ReticleComponent* reticle = registry_.try_get<ReticleComponent>(entity);
+    const PageMembership* membership = registry_.try_get<PageMembership>(entity);
+    if (reticle == nullptr || membership == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    PageComponent* page = FindPage(membership->pageName);
+    if (page == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return ResolvedStaticReticleRef {entity, reticle, page, membership->pageName, reticleTransportId};
 }
 
 std::string SceneRegistry::DescribeDynamicReticleUpsertCheck(const DynamicReticleUpsertCheck check,
