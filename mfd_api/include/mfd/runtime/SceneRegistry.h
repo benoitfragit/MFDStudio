@@ -398,11 +398,23 @@ private:
     /**
      * @brief CommandProcessor is the command-application half of the runtime scene module.
      *
-     * @note The processor relies on private identifier resolution
-     * (`Resolve*`), runtime-id bookkeeping (`SetDynamicReticleRuntimeIdentifiers`),
-     * layer binding lookup and snapshot capture/restore. These operations are
-     * deliberately not public: exposing them would let callers bypass command
-     * validation, sequencing and transactional rollback.
+     * This friendship is a deliberate, documented seam. The processor uses exactly four
+     * families of private operations, none of which may become public because each one
+     * bypasses command validation, sequencing or transactional rollback when called
+     * directly:
+     * - identity resolution: `ResolvePageRef`, `ResolveTemplateRef`,
+     *   `ResolveStaticReticleRef`, `Resolve*` transport lookups, `NormalizedPageKeyFor`,
+     *   `HasMatchingTransportMap`;
+     * - pre-resolved mutation entry points: the `*ByKey`/`*ByRef` variants of the public
+     *   string-based API plus `SetDynamicReticleRuntimeIdentifiers` and
+     *   `CheckDynamicReticleUpsert`;
+     * - rollback: `CaptureRuntimeSnapshot(ForPages)` / `RestoreRuntimeSnapshot` and the
+     *   `RuntimeSnapshot` type;
+     * - layer binding lookup: `FindDynamicReticleLayerBinding`.
+     *
+     * A forwarding access class would re-list ~30 one-line delegates in this header
+     * without changing what the processor can reach; the friendship is kept instead and
+     * any new use outside these families must extend this list during review.
      */
     friend class CommandProcessor;
 
