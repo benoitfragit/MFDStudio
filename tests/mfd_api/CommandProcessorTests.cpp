@@ -1269,3 +1269,36 @@ TEST(CommandProcessorTests, SingleBulkDynamicUpsertCommandIsAtomicWhenOneReticle
         EXPECT_FALSE(magnet->magnetized);
     }
 }
+
+TEST(CommandProcessorTests, TransactionalRollbackRestoresPagesTouchedByIdOnlyCommands)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch initialPatch;
+    initialPatch.text = "111";
+
+    mfd::CommandBatch initialBatch;
+    initialBatch.mappingHash = "map_hash";
+    initialBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, initialPatch});
+    ASSERT_TRUE(processor.Submit(initialBatch));
+    ASSERT_EQ(ReadFirstReticleText(registry, "Radar"), "111");
+
+    // The failing batch touches the page exclusively through generated transport ids:
+    // the rollback footprint must resolve the page key from the id, without any
+    // rehydrated authored name inside the commands.
+    mfd::ReticlePatch failedPatch;
+    failedPatch.text = "222";
+
+    mfd::CommandBatch failingBatch;
+    failingBatch.mappingHash = "map_hash";
+    failingBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, failedPatch});
+    failingBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"Radar", "missing_reticle"}, {}});
+
+    EXPECT_FALSE(processor.Submit(failingBatch));
+    EXPECT_NE(processor.LastError().find("missing_reticle"), std::string::npos);
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "111");
+}
