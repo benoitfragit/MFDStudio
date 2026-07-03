@@ -693,6 +693,19 @@ private:
     static std::string DescribeDynamicReticleUpsertCheck(DynamicReticleUpsertCheck check,
                                                          std::string_view reticleId,
                                                          std::string_view pageName);
+    /** @brief Same as ApplyReticlePatch, but consumes one already-resolved reticle reference. */
+    bool ApplyReticlePatchByRef(const ResolvedStaticReticleRef& reticleRef, const ReticlePatch& patch) noexcept;
+    /** @brief Same as ApplyStrobeUpdate, but takes an already-normalized page key. */
+    bool ApplyStrobeUpdateByKey(std::string_view normalizedPageName,
+                                std::string_view strobeName,
+                                std::optional<bool> active,
+                                std::optional<Vec2> position) noexcept;
+    /** @brief Same as SelectStrobe, but takes an already-normalized page key. */
+    bool SelectStrobeByKey(std::string_view normalizedPageName, std::string_view strobeName) noexcept;
+    /** @brief Same as SetStrobeActive, but takes an already-normalized page key. */
+    bool SetStrobeActiveByKey(std::string_view normalizedPageName, bool active) noexcept;
+    /** @brief Same as SetStrobePosition, but takes an already-normalized page key. */
+    bool SetStrobePositionByKey(std::string_view normalizedPageName, Vec2 position) noexcept;
     /** @brief Same as HasDynamicReticle, but takes an already-normalized page key to avoid
      *  renormalizing it per reticle on the bulk dynamic command hot path. */
     bool HasDynamicReticleByKey(std::string_view normalizedPageName, std::string_view reticleId) const noexcept;

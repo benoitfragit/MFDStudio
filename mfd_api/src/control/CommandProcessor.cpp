@@ -964,7 +964,9 @@ CommandProcessor::CommandResult CommandProcessor::OnUpdateWindowDisplay(const Up
 
 CommandProcessor::CommandResult CommandProcessor::OnUpdateReticle(const UpdateReticleCommand& command)
 {
-    if (!scene_.ApplyReticlePatch(command.target.page, command.target.reticle, command.patch))
+    const auto reticleRef =
+        scene_.ResolveStaticReticleRef(command.target.reticleId, command.target.page, command.target.reticle);
+    if (!reticleRef.has_value() || !scene_.ApplyReticlePatchByRef(*reticleRef, command.patch))
     {
         return CommandResult::Failure(
             "Unable to update reticle '" + command.target.reticle + "' on page '" + command.target.page + "'");
@@ -978,7 +980,9 @@ CommandProcessor::CommandResult CommandProcessor::OnUpdateStrobe(const UpdateStr
     // The update validates all preconditions before mutating, so a failure leaves the strobe
     // untouched without any whole-scene snapshot or rollback. Genuine multi-command batches
     // still get their transactional snapshot in SubmitBatch.
-    if (!scene_.ApplyStrobeUpdate(command.page, command.strobe, command.active, command.position))
+    const auto pageRef = scene_.ResolvePageRef(command.pageId, command.page);
+    if (!pageRef.has_value() ||
+        !scene_.ApplyStrobeUpdateByKey(pageRef->normalizedName, command.strobe, command.active, command.position))
     {
         return CommandResult::Failure("Unable to update strobe on page '" + command.page + "'");
     }

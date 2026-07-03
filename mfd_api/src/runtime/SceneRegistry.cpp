@@ -2546,15 +2546,21 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
                                       const std::string_view reticleId,
                                       const ReticlePatch& patch) noexcept
 {
+    const auto reticleRef = ResolveStaticReticleRef(0, pageName, reticleId);
+    return reticleRef.has_value() && ApplyReticlePatchByRef(*reticleRef, patch);
+}
+
+bool SceneRegistry::ApplyReticlePatchByRef(const ResolvedStaticReticleRef& reticleRef,
+                                           const ReticlePatch& patch) noexcept
+{
     if (!IsValidReticlePatch(patch))
     {
         return false;
     }
 
-    const std::string normalizedPageName = NormalizePageName(pageName);
-    PageComponent* page = FindPage(normalizedPageName);
-    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
-    ReticleComponent* reticle = entity == entt::null ? nullptr : registry_.try_get<ReticleComponent>(entity);
+    PageComponent* page = reticleRef.page;
+    const entt::entity entity = reticleRef.entity;
+    ReticleComponent* reticle = reticleRef.reticle;
     if (page == nullptr || reticle == nullptr)
     {
         return false;
@@ -3095,7 +3101,11 @@ void SceneRegistry::RefreshStickyStrobePosition(const std::string_view normalize
 
 bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool active) noexcept
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    return SetStrobeActiveByKey(NormalizePageName(pageName), active);
+}
+
+bool SceneRegistry::SetStrobeActiveByKey(const std::string_view normalizedPageName, const bool active) noexcept
+{
     const entt::entity strobeEntity = FindActiveStrobeEntity(normalizedPageName);
     if (strobeEntity == entt::null)
     {
@@ -3113,7 +3123,12 @@ bool SceneRegistry::SetStrobeActive(const std::string_view pageName, const bool 
 
 bool SceneRegistry::SelectStrobe(const std::string_view pageName, const std::string_view strobeName) noexcept
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    return SelectStrobeByKey(NormalizePageName(pageName), strobeName);
+}
+
+bool SceneRegistry::SelectStrobeByKey(const std::string_view normalizedPageName,
+                                      const std::string_view strobeName) noexcept
+{
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr || !page->hasStrobe)
     {
@@ -3153,12 +3168,16 @@ bool SceneRegistry::SelectStrobe(const std::string_view pageName, const std::str
 
 bool SceneRegistry::SetStrobePosition(const std::string_view pageName, const Vec2 position) noexcept
 {
+    return SetStrobePositionByKey(NormalizePageName(pageName), position);
+}
+
+bool SceneRegistry::SetStrobePositionByKey(const std::string_view normalizedPageName, const Vec2 position) noexcept
+{
     if (!IsValidVec2(position))
     {
         return false;
     }
 
-    const std::string normalizedPageName = NormalizePageName(pageName);
     const entt::entity strobeEntity = FindActiveStrobeEntity(normalizedPageName);
     if (strobeEntity == entt::null)
     {
@@ -3221,7 +3240,14 @@ bool SceneRegistry::ApplyStrobeUpdate(const std::string_view pageName,
                                       const std::optional<bool> active,
                                       const std::optional<Vec2> position) noexcept
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    return ApplyStrobeUpdateByKey(NormalizePageName(pageName), strobeName, active, position);
+}
+
+bool SceneRegistry::ApplyStrobeUpdateByKey(const std::string_view normalizedPageName,
+                                           const std::string_view strobeName,
+                                           const std::optional<bool> active,
+                                           const std::optional<Vec2> position) noexcept
+{
     const PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr || !page->hasStrobe)
     {
@@ -3257,17 +3283,17 @@ bool SceneRegistry::ApplyStrobeUpdate(const std::string_view pageName,
     }
 
     // Mutation phase: preconditions hold, so none of these can fail and leave a partial state.
-    if (!strobeName.empty() && !SelectStrobe(normalizedPageName, strobeName))
+    if (!strobeName.empty() && !SelectStrobeByKey(normalizedPageName, strobeName))
     {
         return false;
     }
 
-    if (active.has_value() && !SetStrobeActive(normalizedPageName, *active))
+    if (active.has_value() && !SetStrobeActiveByKey(normalizedPageName, *active))
     {
         return false;
     }
 
-    if (position.has_value() && !SetStrobePosition(normalizedPageName, *position))
+    if (position.has_value() && !SetStrobePositionByKey(normalizedPageName, *position))
     {
         return false;
     }
