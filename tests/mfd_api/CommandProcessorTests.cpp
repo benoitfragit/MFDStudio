@@ -1216,3 +1216,56 @@ TEST(CommandProcessorTests, TransactionalRollbackRestoresDynamicReticleAndMagnet
     EXPECT_FLOAT_EQ(strobeAfter->position.x, strobeBefore->position.x);
     EXPECT_FLOAT_EQ(strobeAfter->position.y, strobeBefore->position.y);
 }
+
+TEST(CommandProcessorTests, SingleBulkDynamicUpsertCommandIsAtomicWhenOneReticleIsInvalid)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand enableMagnet;
+    enableMagnet.page = "Radar";
+    enableMagnet.templateId = "radar_track";
+    enableMagnet.enabled = true;
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {enableMagnet}));
+
+    const auto strobeBefore = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeBefore.has_value());
+
+    mfd::UpsertDynamicReticlesCommand bulk;
+    bulk.page = "Radar";
+    bulk.templateId = "radar_track";
+
+    mfd::DynamicReticleState validState;
+    validState.reticleId = "track_ok";
+    validState.patch.visible = true;
+    validState.patch.text = "T1";
+    validState.patch.position = strobeBefore->position;
+    bulk.reticles.push_back(std::move(validState));
+
+    mfd::DynamicReticleState invalidState;
+    invalidState.reticleId = "track_bad";
+    invalidState.patch.position = mfd::Vec2 {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+    bulk.reticles.push_back(std::move(invalidState));
+
+    mfd::CommandBatch batch;
+    batch.commands.push_back(std::move(bulk));
+    ASSERT_EQ(batch.commands.size(), 1U);
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_FALSE(processor.LastError().empty());
+
+    // One failing reticle must fail the whole command without leaving partial state, even
+    // though a single-command batch never takes the transactional multi-command path.
+    EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 0U);
+
+    const auto strobeAfter = registry.ActiveStrobeSummary();
+    ASSERT_TRUE(strobeAfter.has_value());
+    EXPECT_FLOAT_EQ(strobeAfter->position.x, strobeBefore->position.x);
+    EXPECT_FLOAT_EQ(strobeAfter->position.y, strobeBefore->position.y);
+
+    const auto magnet = registry.ActiveStrobeMagnetSummary();
+    if (magnet.has_value())
+    {
+        EXPECT_FALSE(magnet->magnetized);
+    }
+}
