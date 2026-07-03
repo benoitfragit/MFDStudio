@@ -615,6 +615,32 @@ private:
     /** @brief Returns whether one dynamic template set is currently eligible for strobe magnetization on one page. */
     bool IsDynamicTemplateStrobeMagnetEnabled(std::string_view normalizedPageName,
                                               std::string_view templateId) const noexcept;
+    /** @brief Outcome of the pre-mutation applicability check of one dynamic reticle upsert. */
+    enum class DynamicReticleUpsertCheck
+    {
+        Applicable,
+        UnknownPage,
+        BlankReticleId,
+        IdCollidesWithNonDynamicReticle,
+        TemplateConflict,
+        InvalidPatch,
+        UnresolvableBlink
+    };
+    /**
+     * @brief Checks whether one dynamic reticle upsert will apply, without mutating anything.
+     * @note Mirrors the failure conditions of `UpsertDynamicReticleByKey` +
+     * `ApplyDynamicReticlePatchByKey` so a bulk command can validate every reticle before
+     * its first mutation and stay atomic outside of the transactional batch path.
+     */
+    DynamicReticleUpsertCheck CheckDynamicReticleUpsert(std::string_view normalizedPageName,
+                                                        std::string_view reticleId,
+                                                        std::string_view templateId,
+                                                        const ReticleGroup& templateReticle,
+                                                        const ReticlePatch& patch) const;
+    /** @brief Builds the user-facing failure message of one failed upsert applicability check. */
+    static std::string DescribeDynamicReticleUpsertCheck(DynamicReticleUpsertCheck check,
+                                                         std::string_view reticleId,
+                                                         std::string_view pageName);
     /** @brief Same as HasDynamicReticle, but takes an already-normalized page key to avoid
      *  renormalizing it per reticle on the bulk dynamic command hot path. */
     bool HasDynamicReticleByKey(std::string_view normalizedPageName, std::string_view reticleId) const noexcept;

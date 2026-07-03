@@ -1010,11 +1010,12 @@ CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticle(const U
                                       "' is not bound on page '" + command.target.page + "'");
     }
 
-    if (scene_.HasDynamicReticleByKey(normalizedPageName, command.target.reticleId) &&
-        !scene_.DynamicReticleUsesTemplateByKey(normalizedPageName, command.target.reticleId, command.templateId))
+    const SceneRegistry::DynamicReticleUpsertCheck check = scene_.CheckDynamicReticleUpsert(
+        normalizedPageName, command.target.reticleId, command.templateId, templateIterator->second, command.patch);
+    if (check != SceneRegistry::DynamicReticleUpsertCheck::Applicable)
     {
-        return CommandResult::Failure("Dynamic reticle '" + command.target.reticleId + "' on page '" +
-                                      command.target.page + "' already belongs to another template");
+        return CommandResult::Failure(
+            SceneRegistry::DescribeDynamicReticleUpsertCheck(check, command.target.reticleId, command.target.page));
     }
 
     if (scene_.HasDynamicReticleByKey(normalizedPageName, command.target.reticleId))
@@ -1074,15 +1075,24 @@ CommandProcessor::CommandResult CommandProcessor::OnUpsertDynamicReticles(const 
                                       "' is not bound on page '" + command.page + "'");
     }
 
+    // Validation phase: prove every reticle of the bulk command will apply before mutating
+    // anything, so one failing reticle cannot leave earlier reticles of the same command
+    // applied. A single-command batch never takes the transactional multi-command path,
+    // which makes this pre-mutation check the atomicity guarantee of the command itself.
     for (const DynamicReticleState& state : command.reticles)
     {
-        if (scene_.HasDynamicReticleByKey(normalizedPageName, state.reticleId) &&
-            !scene_.DynamicReticleUsesTemplateByKey(normalizedPageName, state.reticleId, command.templateId))
+        const SceneRegistry::DynamicReticleUpsertCheck check = scene_.CheckDynamicReticleUpsert(
+            normalizedPageName, state.reticleId, command.templateId, templateIterator->second, state.patch);
+        if (check != SceneRegistry::DynamicReticleUpsertCheck::Applicable)
         {
-            return CommandResult::Failure("Dynamic reticle '" + state.reticleId + "' on page '" + command.page +
-                                          "' already belongs to another template");
+            return CommandResult::Failure(SceneRegistry::DescribeDynamicReticleUpsertCheck(check, state.reticleId, command.page));
         }
+    }
 
+    // Mutation phase: the checks above mirror every failure condition of the calls below,
+    // so the remaining failure returns are defensive and not expected to trigger.
+    for (const DynamicReticleState& state : command.reticles)
+    {
         if (scene_.HasDynamicReticleByKey(normalizedPageName, state.reticleId))
         {
             scene_.SetDynamicReticleRuntimeIdentifiers(

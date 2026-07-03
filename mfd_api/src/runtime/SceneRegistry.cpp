@@ -963,7 +963,7 @@ struct SceneRegistry::PageComponent
         return true;
     }
 
-    [[nodiscard]] BlinkPatchResult EvaluateBlinkPatch(const ReticleGroup& reticle,
+    [[nodiscard]] BlinkPatchResult EvaluateBlinkPatch(const ReticleBlinkState& currentBlink,
                                                       const ReticlePatch& patch) const noexcept
     {
         if (!patch.blinkEnabled.has_value() && !patch.blinkType.has_value())
@@ -973,7 +973,7 @@ struct SceneRegistry::PageComponent
 
         BlinkPatchResult result;
         result.status = BlinkPatchResult::Status::Applied;
-        result.blink = reticle.blink;
+        result.blink = currentBlink;
 
         if (patch.blinkType.has_value())
         {
@@ -2543,7 +2543,7 @@ bool SceneRegistry::ApplyReticlePatch(const std::string_view pageName,
         return false;
     }
 
-    const BlinkPatchResult blinkResult = page->EvaluateBlinkPatch(reticle->group, patch);
+    const BlinkPatchResult blinkResult = page->EvaluateBlinkPatch(reticle->group.blink, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Invalid)
     {
         return false;
@@ -2607,6 +2607,97 @@ bool SceneRegistry::DynamicReticleUsesTemplateByKey(const std::string_view norma
            PageNamesEqual(reticle->group.sourceTemplateId, templateId);
 }
 
+std::string SceneRegistry::DescribeDynamicReticleUpsertCheck(const DynamicReticleUpsertCheck check,
+                                                              const std::string_view reticleId,
+                                                              const std::string_view pageName)
+{
+    switch (check)
+    {
+    case DynamicReticleUpsertCheck::UnknownPage:
+        return "Unknown page: " + std::string(pageName);
+    case DynamicReticleUpsertCheck::BlankReticleId:
+        return "Dynamic reticle updates require a non-blank reticle id on page '" + std::string(pageName) + "'";
+    case DynamicReticleUpsertCheck::IdCollidesWithNonDynamicReticle:
+        return "Dynamic reticle '" + std::string(reticleId) + "' on page '" + std::string(pageName) +
+               "' collides with an authored reticle id";
+    case DynamicReticleUpsertCheck::TemplateConflict:
+        return "Dynamic reticle '" + std::string(reticleId) + "' on page '" + std::string(pageName) +
+               "' already belongs to another template";
+    case DynamicReticleUpsertCheck::InvalidPatch:
+    case DynamicReticleUpsertCheck::UnresolvableBlink:
+        return "Unable to update dynamic reticle '" + std::string(reticleId) + "'";
+    case DynamicReticleUpsertCheck::Applicable:
+        break;
+    }
+
+    return {};
+}
+
+SceneRegistry::DynamicReticleUpsertCheck SceneRegistry::CheckDynamicReticleUpsert(
+    const std::string_view normalizedPageName,
+    const std::string_view reticleId,
+    const std::string_view templateId,
+    const ReticleGroup& templateReticle,
+    const ReticlePatch& patch) const
+{
+    const PageComponent* page = FindPage(normalizedPageName);
+    if (page == nullptr)
+    {
+        return DynamicReticleUpsertCheck::UnknownPage;
+    }
+
+    if (NormalizeReticleId(reticleId).empty())
+    {
+        return DynamicReticleUpsertCheck::BlankReticleId;
+    }
+
+    if (!IsValidReticlePatch(patch))
+    {
+        return DynamicReticleUpsertCheck::InvalidPatch;
+    }
+
+    ReticleBlinkState blinkBeforePatch {};
+    const entt::entity entity = FindReticleEntity(normalizedPageName, reticleId);
+    if (entity != entt::null)
+    {
+        const ReticleComponent* existing = registry_.try_get<ReticleComponent>(entity);
+        if (existing == nullptr || !registry_.all_of<DynamicTag>(entity))
+        {
+            return DynamicReticleUpsertCheck::IdCollidesWithNonDynamicReticle;
+        }
+
+        if (!PageNamesEqual(existing->group.sourceTemplateId, templateId))
+        {
+            return DynamicReticleUpsertCheck::TemplateConflict;
+        }
+
+        blinkBeforePatch = existing->group.blink;
+    }
+    else
+    {
+        // A new reticle starts from the template blink, which UpsertDynamicReticleByKey
+        // resolves through ResolveBlinkForReticle (clearing it when unresolvable) before
+        // the patch is evaluated on top.
+        blinkBeforePatch = templateReticle.blink;
+        std::uint32_t durationMs = blinkBeforePatch.durationMs;
+        if (page->TryResolveBlinkSelection(blinkBeforePatch, durationMs))
+        {
+            blinkBeforePatch.durationMs = durationMs;
+        }
+        else
+        {
+            blinkBeforePatch = {};
+        }
+    }
+
+    if (page->EvaluateBlinkPatch(blinkBeforePatch, patch).status == BlinkPatchResult::Status::Invalid)
+    {
+        return DynamicReticleUpsertCheck::UnresolvableBlink;
+    }
+
+    return DynamicReticleUpsertCheck::Applicable;
+}
+
 bool SceneRegistry::ApplyDynamicReticlePatch(const std::string_view pageName,
                                              const std::string_view reticleId,
                                              const ReticlePatch& patch) noexcept
@@ -2636,7 +2727,7 @@ bool SceneRegistry::ApplyDynamicReticlePatchByKey(const std::string_view normali
         return false;
     }
 
-    const BlinkPatchResult blinkResult = page->EvaluateBlinkPatch(reticle->group, patch);
+    const BlinkPatchResult blinkResult = page->EvaluateBlinkPatch(reticle->group.blink, patch);
     if (blinkResult.status == BlinkPatchResult::Status::Invalid)
     {
         return false;
