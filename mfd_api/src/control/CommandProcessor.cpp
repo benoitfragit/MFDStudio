@@ -63,7 +63,7 @@ std::size_t BuildSequencedBatchFingerprint(const CommandBatch& batch)
 // fail to compile here until its rollback footprint is written.
 struct CommandRollbackFootprintCollector
 {
-    std::vector<std::string>& touchedPages;
+    std::vector<detail::CommandPageBinding>& touchedPages;
     bool& touchesWholeScene;
     bool& touchesActivePageSelection;
 
@@ -71,13 +71,13 @@ struct CommandRollbackFootprintCollector
     {
         // Switching pages also mutates the previously active page (active flag, sticky
         // strobe refresh), so the current active page joins the footprint at capture time.
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
         touchesActivePageSelection = true;
     }
 
     void operator()(const SetPageViewCommand& command) const
     {
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
     }
 
     void operator()(const UpdateWindowDisplayCommand&) const noexcept
@@ -87,37 +87,37 @@ struct CommandRollbackFootprintCollector
 
     void operator()(const UpdateReticleCommand& command) const
     {
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
     }
 
     void operator()(const UpdateStrobeCommand& command) const
     {
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
     }
 
     void operator()(const UpsertDynamicReticleCommand& command) const
     {
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
     }
 
     void operator()(const UpsertDynamicReticlesCommand& command) const
     {
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
     }
 
     void operator()(const SetDynamicReticleSetVisibilityCommand& command) const
     {
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
     }
 
     void operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command) const
     {
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
     }
 
     void operator()(const RemoveDynamicReticleCommand& command) const
     {
-        touchedPages.push_back(*detail::PageBindingOf(command).pageName);
+        touchedPages.push_back(detail::PageBindingOf(command));
     }
 
     void operator()(const ResetWindowCommand&) const noexcept
@@ -125,28 +125,6 @@ struct CommandRollbackFootprintCollector
         touchesWholeScene = true;
     }
 };
-
-std::vector<std::string> BuildRollbackPageKeys(const std::vector<std::string>& touchedPages,
-                                               const std::string& activePageName)
-{
-    std::vector<std::string> normalizedPageKeys;
-    normalizedPageKeys.reserve(touchedPages.size() + 1U);
-    for (const std::string& pageName : touchedPages)
-    {
-        std::string pageKey = NormalizePageName(pageName);
-        if (!pageKey.empty())
-        {
-            normalizedPageKeys.push_back(std::move(pageKey));
-        }
-    }
-
-    if (!activePageName.empty())
-    {
-        normalizedPageKeys.push_back(NormalizePageName(activePageName));
-    }
-
-    return normalizedPageKeys;
-}
 
 } // namespace
 
@@ -280,7 +258,7 @@ bool CommandProcessor::SubmitCommandsTransactional(const ArrayView<const UserCom
         return false;
     }
 
-    std::vector<std::string> touchedPages;
+    std::vector<detail::CommandPageBinding> touchedPages;
     touchedPages.reserve(resolvedCommands.size());
     bool touchesWholeScene = false;
     bool touchesActivePageSelection = false;
@@ -291,11 +269,31 @@ bool CommandProcessor::SubmitCommandsTransactional(const ArrayView<const UserCom
             command);
     }
 
-    const std::string activePageName = touchesActivePageSelection ? scene_.ActivePageName() : std::string {};
+    std::vector<std::string> normalizedPageKeys;
+    normalizedPageKeys.reserve(touchedPages.size() + 1U);
+    for (const detail::CommandPageBinding& binding : touchedPages)
+    {
+        std::string pageKey = scene_.NormalizedPageKeyFor(
+            binding.pageId, binding.pageName == nullptr ? std::string_view {} : *binding.pageName);
+        if (!pageKey.empty())
+        {
+            normalizedPageKeys.push_back(std::move(pageKey));
+        }
+    }
+
+    if (touchesActivePageSelection)
+    {
+        std::string activePageKey = scene_.NormalizedPageKeyFor(0, scene_.ActivePageName());
+        if (!activePageKey.empty())
+        {
+            normalizedPageKeys.push_back(std::move(activePageKey));
+        }
+    }
+
     const SceneRegistry::RuntimeSnapshot snapshot =
         touchesWholeScene
             ? scene_.CaptureRuntimeSnapshot()
-            : scene_.CaptureRuntimeSnapshotForPages(BuildRollbackPageKeys(touchedPages, activePageName));
+            : scene_.CaptureRuntimeSnapshotForPages(std::move(normalizedPageKeys));
     for (const UserCommand& command : resolvedCommands)
     {
         if (DispatchResolved(command))
@@ -559,14 +557,6 @@ bool CommandProcessor::ResolveGeneratedPage(std::string& page, TransportId& page
         }
 
         pageId = scene_.ResolvePageTransportId(page);
-        if (pageId != 0)
-        {
-            if (const std::string* resolvedPage = scene_.ResolvePageName(pageId); resolvedPage != nullptr)
-            {
-                page = *resolvedPage;
-            }
-        }
-
         return true;
     }
 
@@ -583,7 +573,6 @@ bool CommandProcessor::ResolveGeneratedPage(std::string& page, TransportId& page
         return false;
     }
 
-    page = *resolvedPage;
     return true;
 }
 
@@ -610,7 +599,8 @@ bool CommandProcessor::ResolveGeneratedStrobe(const TransportId pageId,
         return false;
     }
 
-    strobeName = *resolvedStrobe;
+    // The command keeps its authored strobe name (possibly empty): the runtime addresses
+    // the strobe through the generated id and the resolved page key, not through the name.
     return true;
 }
 
@@ -649,9 +639,9 @@ bool CommandProcessor::ResolveGeneratedStaticReticle(StaticReticleHandle& target
         return false;
     }
 
+    // Only the numeric page id is enriched: the handlers resolve the reticle by its
+    // generated transport id, so the authored strings stay untouched diagnostics.
     target.pageId = resolvedReticle->pageId;
-    target.page = resolvedReticle->pageName;
-    target.reticle = resolvedReticle->reticleId;
     return true;
 }
 
@@ -696,7 +686,8 @@ bool CommandProcessor::ResolveGeneratedTemplate(std::string& templateId, const T
         return false;
     }
 
-    templateId = *resolvedTemplate;
+    // The command keeps its authored template id (possibly empty): the handlers resolve
+    // the template by its generated transport id through ResolveTemplateRef.
     return true;
 }
 
@@ -933,18 +924,20 @@ bool CommandProcessor::ResolveCommandIdentifiers(UserCommand& command, const std
 
 CommandProcessor::CommandResult CommandProcessor::OnActivatePage(const ActivatePageCommand& command)
 {
-    if (!scene_.HasPage(command.page))
+    const auto pageRef = scene_.ResolvePageRef(command.pageId, command.page);
+    if (!pageRef.has_value())
     {
         return CommandResult::Failure("Unknown page: " + command.page);
     }
 
-    scene_.SetActivePage(command.page);
+    scene_.SetActivePageByKey(pageRef->normalizedName);
     return CommandResult::Success();
 }
 
 CommandProcessor::CommandResult CommandProcessor::OnSetPageView(const SetPageViewCommand& command)
 {
-    if (!scene_.SetPageView(command.page, command.view))
+    const auto pageRef = scene_.ResolvePageRef(command.pageId, command.page);
+    if (!pageRef.has_value() || !scene_.SetPageViewByKey(pageRef->normalizedName, command.view))
     {
         return CommandResult::Failure("Unable to update page view for page: " + command.page);
     }
@@ -981,8 +974,26 @@ CommandProcessor::CommandResult CommandProcessor::OnUpdateStrobe(const UpdateStr
     // untouched without any whole-scene snapshot or rollback. Genuine multi-command batches
     // still get their transactional snapshot in SubmitBatch.
     const auto pageRef = scene_.ResolvePageRef(command.pageId, command.page);
-    if (!pageRef.has_value() ||
-        !scene_.ApplyStrobeUpdateByKey(pageRef->normalizedName, command.strobe, command.active, command.position))
+    if (!pageRef.has_value())
+    {
+        return CommandResult::Failure("Unable to update strobe on page '" + command.page + "'");
+    }
+
+    // A generated strobe id designates one authored strobe variant; the authored name is
+    // resolved here from the id instead of being rehydrated into the command upstream.
+    std::string_view strobeName = command.strobe;
+    if (command.strobeId != 0)
+    {
+        const std::string* resolvedStrobeName = scene_.ResolveStrobeName(pageRef->transportId, command.strobeId);
+        if (resolvedStrobeName == nullptr)
+        {
+            return CommandResult::Failure("Unable to update strobe on page '" + command.page + "'");
+        }
+
+        strobeName = *resolvedStrobeName;
+    }
+
+    if (!scene_.ApplyStrobeUpdateByKey(pageRef->normalizedName, strobeName, command.active, command.position))
     {
         return CommandResult::Failure("Unable to update strobe on page '" + command.page + "'");
     }

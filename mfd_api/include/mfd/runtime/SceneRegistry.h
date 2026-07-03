@@ -693,6 +693,17 @@ private:
     static std::string DescribeDynamicReticleUpsertCheck(DynamicReticleUpsertCheck check,
                                                          std::string_view reticleId,
                                                          std::string_view pageName);
+    /** @brief Same as SetActivePage, but takes an already-normalized page key. */
+    void SetActivePageByKey(std::string_view normalizedPageName) noexcept;
+    /** @brief Same as SetPageView, but takes an already-normalized page key. */
+    bool SetPageViewByKey(std::string_view normalizedPageName, const PageViewState& view) noexcept;
+    /**
+     * @brief Normalized page key of one command page identity, generated id first.
+     * @return Normalized key, or an empty string when the identity matches no known page.
+     * @note Used by the transactional rollback footprint so id-only commands map to their
+     * page without rehydrating authored names into the commands.
+     */
+    std::string NormalizedPageKeyFor(TransportId pageId, std::string_view pageName) const;
     /** @brief Same as ApplyReticlePatch, but consumes one already-resolved reticle reference. */
     bool ApplyReticlePatchByRef(const ResolvedStaticReticleRef& reticleRef, const ReticlePatch& patch) noexcept;
     /** @brief Same as ApplyStrobeUpdate, but takes an already-normalized page key. */

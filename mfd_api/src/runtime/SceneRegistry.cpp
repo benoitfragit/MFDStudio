@@ -1529,14 +1529,18 @@ bool SceneRegistry::IsActivePageKey(const std::string_view pageName) const noexc
 
 void SceneRegistry::SetActivePage(const std::string_view pageName) noexcept
 {
-    const std::string normalizedPageName = NormalizePageName(pageName);
+    SetActivePageByKey(NormalizePageName(pageName));
+}
+
+void SceneRegistry::SetActivePageByKey(const std::string_view normalizedPageName) noexcept
+{
     if (!HasNormalizedPage(normalizedPageName))
     {
         return;
     }
 
     SetActiveFlag(activePage_, false);
-    activePage_ = normalizedPageName;
+    activePage_ = std::string(normalizedPageName);
     SetActiveFlag(activePage_, true);
     RefreshStickyStrobePosition(activePage_);
 }
@@ -2149,12 +2153,16 @@ std::vector<const ReticleGroup*> SceneRegistry::CollectActiveReticlePointers() c
 
 bool SceneRegistry::SetPageView(const std::string_view pageName, const PageViewState& view) noexcept
 {
+    return SetPageViewByKey(NormalizePageName(pageName), view);
+}
+
+bool SceneRegistry::SetPageViewByKey(const std::string_view normalizedPageName, const PageViewState& view) noexcept
+{
     if (!IsValidPageView(view))
     {
         return false;
     }
 
-    const std::string normalizedPageName = NormalizePageName(pageName);
     PageComponent* page = FindPage(normalizedPageName);
     if (page == nullptr)
     {
@@ -2628,6 +2636,23 @@ bool SceneRegistry::DynamicReticleUsesTemplateByKey(const std::string_view norma
            registry_.all_of<DynamicTag>(entity) &&
            reticle != nullptr &&
            PageNamesEqual(reticle->group.sourceTemplateId, templateId);
+}
+
+std::string SceneRegistry::NormalizedPageKeyFor(const TransportId pageId, const std::string_view pageName) const
+{
+    if (pageId != 0)
+    {
+        const auto iterator = transportPageEntities_.find(pageId);
+        if (iterator == transportPageEntities_.end())
+        {
+            return {};
+        }
+
+        const PageComponent* page = registry_.try_get<PageComponent>(iterator->second);
+        return page == nullptr ? std::string {} : page->normalizedName;
+    }
+
+    return NormalizePageName(pageName);
 }
 
 std::optional<SceneRegistry::ResolvedPageRef> SceneRegistry::ResolvePageRef(const TransportId pageId,
