@@ -289,7 +289,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "Open the tutorial index and continue with the runtime and generated-client documentation from there.",
      "",
      "docs/tutorials/README.md",
-     "Continue with the mockup, the generated client API tutorial, then the generated-client standard and architecture notes.",
+     "Continue with the demo client, the generated client API tutorial, then the generated-client standard and architecture notes.",
      "Finish"},
 }};
 } // namespace

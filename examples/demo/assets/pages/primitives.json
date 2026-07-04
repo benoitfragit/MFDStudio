@@ -1,0 +1,36 @@
+{
+  "bg": "#050A0EFF",
+  "layers": [
+    {
+      "id": "default"
+    }
+  ],
+  "name": "Primitives",
+  "staticReticles": [
+    {
+      "id": "primitive_showcase",
+      "layerId": "default",
+      "scale": 0.92,
+      "stroke": "#E6F8FFFF",
+      "template": "geometry_showcase"
+    },
+    {
+      "elements": [
+        {
+          "at": [
+            0.0,
+            -0.87
+          ],
+          "id": "caption_text",
+          "size": 0.033,
+          "text": "Primitive page: shapes, text, time, polylines and bezier",
+          "type": "text"
+        }
+      ],
+      "id": "page_caption",
+      "layerId": "default",
+      "stroke": "#8FE6D9FF"
+    }
+  ],
+  "title": "Primitives"
+}

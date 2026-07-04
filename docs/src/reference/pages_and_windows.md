@@ -3,8 +3,8 @@
 Exact JSON fields for window files, page files, static reticle instances, and
 strobe catalogs. See [JSON Syntax](./json.md) for shared conventions.
 
-By convention, window files live in `assets/windows` and page files in
-`assets/pages`.
+By convention, window files live in `examples/demo/assets/windows` and page files in
+`examples/demo/assets/pages`.
 
 ```mermaid
 flowchart TB
@@ -29,7 +29,7 @@ of primitives.
   "position": [80, 60],
   "targetFps": 60,
   "fontFile": "../fonts/ocr_a.ttf",
-  "iconFile": "../../branding/mfdstudio_app_icon.png",
+  "iconFile": "../../../branding/mfdstudio_app_icon.png",
   "reticleLibraryFolder": "../reticles",
   "commands": { "udp": { "enabled": true, "address": "127.0.0.1", "port": 47300, "maxPacketSize": 16384 } },
   "feedback": {

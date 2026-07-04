@@ -39,7 +39,7 @@ std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path
     while (true)
     {
         if (std::filesystem::exists(current / "CMakeLists.txt") &&
-            std::filesystem::exists(current / "assets") &&
+            std::filesystem::exists(current / "examples") &&
             std::filesystem::exists(current / "mfd_editor"))
         {
             return current;
@@ -104,20 +104,34 @@ bool PathContainsSegment(const std::filesystem::path& path, const std::string_vi
     return false;
 }
 
-std::filesystem::path StripLeadingAssetsSegment(const std::filesystem::path& path)
+std::filesystem::path StripLeadingAssetRootPrefix(const std::filesystem::path& path)
 {
+    bool containsAssetRoot = false;
+    for (const auto& part : path)
+    {
+        if (Lowercase(part.string()) == "assets")
+        {
+            containsAssetRoot = true;
+            break;
+        }
+    }
+
+    if (!containsAssetRoot)
+    {
+        return path;
+    }
+
     std::filesystem::path stripped;
-    bool firstSegment = true;
+    bool insideAssetRoot = false;
 
     for (const auto& part : path)
     {
-        if (firstSegment && Lowercase(part.string()) == "assets")
+        if (!insideAssetRoot)
         {
-            firstSegment = false;
+            insideAssetRoot = Lowercase(part.string()) == "assets";
             continue;
         }
 
-        firstSegment = false;
         stripped /= part;
     }
 
@@ -153,7 +167,7 @@ std::filesystem::path EditorAssetPathService::DefaultAssetPath(const std::string
 
     if (HasConfiguredAssetDirectory())
     {
-        return (configuredAssetDirectory_ / StripLeadingAssetsSegment(requested)).lexically_normal();
+        return (configuredAssetDirectory_ / StripLeadingAssetRootPrefix(requested)).lexically_normal();
     }
 
     if (const auto projectRoot = FindProjectRoot(std::filesystem::current_path()); projectRoot.has_value())
@@ -170,7 +184,7 @@ std::filesystem::path EditorAssetPathService::DefaultSiblingAssetFile(const std:
 {
     if (anchorFile.empty())
     {
-        return (DefaultAssetPath((std::filesystem::path("assets") / std::filesystem::path(siblingFolder)).generic_string()) /
+        return (DefaultAssetPath((std::filesystem::path("examples/demo/assets") / std::filesystem::path(siblingFolder)).generic_string()) /
                 std::filesystem::path(fileName))
             .lexically_normal();
     }
@@ -196,7 +210,7 @@ std::filesystem::path EditorAssetPathService::ResolveAssetRootForPath(const std:
         return configuredAssetDirectory_;
     }
 
-    return DefaultAssetPath("assets");
+    return DefaultAssetPath("examples/demo/assets");
 }
 
 std::filesystem::path EditorAssetPathService::CurrentPageImportTargetFolder(const std::filesystem::path& windowFile,
@@ -218,17 +232,17 @@ std::filesystem::path EditorAssetPathService::CurrentPageImportTargetFolder(cons
         }
     }
 
-    if (const auto assetsRoot = FindAncestorNamed(windowFile.parent_path(), "assets"); assetsRoot.has_value())
-    {
-        return (*assetsRoot / "pages").lexically_normal();
-    }
-
     if (Lowercase(windowFile.parent_path().filename().string()) == "windows" && windowFile.parent_path().has_parent_path())
     {
         return (windowFile.parent_path().parent_path() / "pages").lexically_normal();
     }
 
-    return windowFile.empty() ? DefaultAssetPath("assets/pages") : windowFile.parent_path().lexically_normal();
+    if (const auto assetsRoot = FindAncestorNamed(windowFile.parent_path(), "assets"); assetsRoot.has_value())
+    {
+        return (*assetsRoot / "pages").lexically_normal();
+    }
+
+    return windowFile.empty() ? DefaultAssetPath("examples/demo/assets/pages") : windowFile.parent_path().lexically_normal();
 }
 
 std::filesystem::path EditorAssetPathService::ConfiguredPathFolder(const std::filesystem::path& configuredPath)

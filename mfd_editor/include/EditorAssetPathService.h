@@ -32,7 +32,7 @@ public:
      * @brief Builds the path service.
      * @param assetDirectory Optional authored `assets` root used as the editor default.
      * @note When `assetDirectory` is empty, the service discovers the repository
-     * root from the current working directory and falls back to `./assets`.
+     * root from the current working directory and falls back to `./examples/demo/assets`.
      */
     explicit EditorAssetPathService(std::filesystem::path assetDirectory = {});
 
@@ -50,11 +50,12 @@ public:
 
     /**
      * @brief Resolves a default path under the editor asset root.
-     * @param relativeAssetPath Relative path such as `assets/windows/demo.json`
-     * or `assets/reticles`.
+     * @param relativeAssetPath Relative path such as `examples/demo/assets/windows/demo.json`
+     * or `examples/demo/assets/reticles`.
      * @return Absolute normalized path.
      * @note When an explicit asset directory exists, a leading `assets` segment
-     * is stripped so `--asset-directory X` maps `assets/windows` to `X/windows`.
+     * prefix is stripped so `--asset-directory X` maps `examples/demo/assets/windows`
+     * to `X/windows`.
      */
     [[nodiscard]] std::filesystem::path DefaultAssetPath(std::string_view relativeAssetPath) const;
 
@@ -73,7 +74,7 @@ public:
      * @brief Resolves the asset root that should be scanned for one authored file.
      * @param path Authored asset path used as the scan anchor.
      * @return The nearest ancestor named `assets`, the configured asset root, or
-     * the discovered repository asset root.
+     * the discovered repository demo asset root.
      */
     [[nodiscard]] std::filesystem::path ResolveAssetRootForPath(const std::filesystem::path& path) const;
 

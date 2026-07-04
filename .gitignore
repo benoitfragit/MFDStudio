@@ -46,10 +46,16 @@
 /build-*/
 /AGENTS.md
 /Review.md
-/assets/windows/*.generated.map
-/examples/client_mockup/generated/*
-/examples/client_mockup_minimal/generated/*
-/examples/client_tutorial/generated/*
+/examples/demo/assets/windows/*.generated.map
+/examples/hud/assets/windows/*.generated.map
+/examples/radar_load/assets/windows/*.generated.map
+/examples/tutorial/assets/windows/*.generated.map
+/examples/client_test_package/assets/windows/*.generated.map
+/examples/demo/client/generated/*
+/examples/hud/client/generated/*
+/examples/radar_load/client/generated/*
+/examples/tutorial/client/generated/*
+/examples/client_test_package/generated/*
 
 /examples/client_test_package/generated/PackageTestUi.cpp
 /examples/client_test_package/generated/PackageTestUi.h
@@ -57,6 +63,10 @@
 *.cpython-37.pyc
 /outputs/*
 
-# Editor runtime state written next to the assets (not authored content)
-/assets/.editor_recovery.json
-/assets/.editor_ui_state.json
+# Editor runtime state written next to the example assets (not authored content)
+/examples/demo/assets/.editor_recovery.json
+/examples/demo/assets/.editor_ui_state.json
+/examples/demo/assets/.editor_recent_windows.json
+/examples/tutorial/assets/.editor_tutorial_progress
+
+/Tasks/*

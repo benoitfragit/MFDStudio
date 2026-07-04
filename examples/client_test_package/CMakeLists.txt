@@ -75,8 +75,10 @@ find_package(MFDStudioClientApi REQUIRED CONFIG
     PATHS "${MFD_CLIENT_TEST_PACKAGE_DEV_ROOT}"
     NO_DEFAULT_PATH)
 
+set(MFD_CLIENT_TEST_PACKAGE_ASSET_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 set(MFD_CLIENT_TEST_PACKAGE_WINDOW_JSON
-    "${MFD_ROOT_DIR}/assets/windows/package_test_window.json")
+    "${MFD_CLIENT_TEST_PACKAGE_ASSET_DIR}/windows/package_test_window.json")
 set(MFD_CLIENT_TEST_PACKAGE_GENERATED_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 set(MFD_CLIENT_TEST_PACKAGE_GENERATED_HEADER
@@ -84,7 +86,7 @@ set(MFD_CLIENT_TEST_PACKAGE_GENERATED_HEADER
 set(MFD_CLIENT_TEST_PACKAGE_GENERATED_SOURCE
     "${MFD_CLIENT_TEST_PACKAGE_GENERATED_DIR}/PackageTestUi.cpp")
 set(MFD_CLIENT_TEST_PACKAGE_GENERATED_MAP
-    "${MFD_ROOT_DIR}/assets/windows/package_test_window.generated.map")
+    "${MFD_CLIENT_TEST_PACKAGE_ASSET_DIR}/windows/package_test_window.generated.map")
 set(MFD_CLIENT_TEST_PACKAGE_RUNTIME_DLL
     "$<$<CONFIG:Debug>:${MFD_CLIENT_TEST_PACKAGE_DEBUG_DLL}>$<$<NOT:$<CONFIG:Debug>>:${MFD_CLIENT_TEST_PACKAGE_RELEASE_DLL}>")
 
@@ -131,6 +133,12 @@ endif()
 add_custom_command(
     TARGET client_test_package
     POST_BUILD
+    COMMAND
+        ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${MFD_CLIENT_TEST_PACKAGE_ASSET_DIR}"
+        "-DDEST_DIR=$<TARGET_FILE_DIR:client_test_package>/assets"
+        -P
+        "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
     COMMAND
         ${CMAKE_COMMAND}
         "-DSOURCE=${MFD_CLIENT_TEST_PACKAGE_RUNTIME_DLL}"

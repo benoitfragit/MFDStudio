@@ -52,7 +52,7 @@ The deprecated `USE_LOCALE_PACKAGE` cache entry is still accepted as an alias.
 Build just enough to validate the main workflow:
 
 ```powershell
-cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin client_mockup
+cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin demo_client demo_hud_client
 ```
 
 Build the editor:

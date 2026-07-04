@@ -23,15 +23,15 @@ Build the runtime and a client:
 
 ```powershell
 cmake --preset vs2022-win32
-cmake --build --preset debug-win32 --target mfd_window client_mockup mfd_window_tests
+cmake --build --preset debug-win32 --target mfd_window demo_client mfd_window_tests
 ```
 
 Then launch:
 
 1. `.\Scripts\Start-MfdDemo.bat`
-2. `client_mockup`
+2. `demo_client`
 
-Use the mockup to activate `Radar` and send at least one reticle update.
+Use the demo client to activate `Radar` and send at least one reticle update.
 
 ## Step 1 - Open the overlay
 

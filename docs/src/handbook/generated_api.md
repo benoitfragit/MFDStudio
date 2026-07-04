@@ -91,7 +91,7 @@ The normal sequence is:
 
 mfd::JsonLoader loader;
 const mfd::LoadedWindowConfiguration loaded =
-    loader.LoadWindowConfiguration("assets/windows/mfd_tutorial.json");
+    loader.LoadWindowConfiguration("examples/tutorial/assets/windows/mfd_tutorial.json");
 
 mfd::CommandClient client(
     *loaded.window.commandTransports.udp,
@@ -116,7 +116,7 @@ client.SendBatch(batch);
 ```
 
 The full compiling example remains
-[`examples/client_tutorial/src/main.cpp`](https://github.com/benoitfragit/MFDStudio/blob/master/examples/client_tutorial/src/main.cpp).
+[`examples/tutorial/client/src/main.cpp`](https://github.com/benoitfragit/MFDStudio/blob/master/examples/tutorial/client/src/main.cpp).
 
 ## Local cycle model
 

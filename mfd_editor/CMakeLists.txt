@@ -111,6 +111,8 @@ endif()
 set_target_properties(mfd_editor PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_editor>")
 
+set(MFD_EDITOR_DEMO_ASSET_DIR "${MFD_ROOT_DIR}/examples/demo/assets")
+
 add_custom_command(
     TARGET mfd_editor
     POST_BUILD
@@ -122,7 +124,7 @@ add_custom_command(
         "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake"
     COMMAND
         ${CMAKE_COMMAND}
-        "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+        "-DSOURCE_DIR=${MFD_EDITOR_DEMO_ASSET_DIR}"
         "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_editor>/assets"
         -P
         "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
@@ -134,7 +136,11 @@ add_custom_command(
         "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
     VERBATIM)
 
-mfd_stage_runtime(mfd_editor WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
+mfd_stage_runtime(
+    mfd_editor
+    WITH_BRANDING
+    WITH_RUNTIME_DLLS
+    ROOT_ASSET_DIRS "${MFD_EDITOR_DEMO_ASSET_DIR}")
 
 install(TARGETS mfd_editor
     RUNTIME DESTINATION .

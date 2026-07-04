@@ -55,6 +55,21 @@ std::filesystem::path RepositoryRoot()
     return testFile.parent_path().parent_path().parent_path();
 }
 
+std::filesystem::path TutorialWindowFile()
+{
+    return RepositoryRoot() / "examples/tutorial/assets/windows/mfd_tutorial.json";
+}
+
+bool TutorialAssetsAreMissing(const std::filesystem::path& windowFile)
+{
+    if (!std::filesystem::exists(windowFile))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 mfd::ColorRgba Green() noexcept
 {
     return {0, 255, 0, 255};
@@ -221,7 +236,7 @@ TEST(OffscreenSurfaceTests, ClippingRemainsValidWhenRenderedOffscreen)
 {
     mfd::runtime_api::RuntimeSession session;
     std::string error;
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/demo_pages_minimal.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "examples/demo/assets/windows/demo_window.json", error)) << error;
     OverrideSessionDocument(session, MakeMaskedDocument(mfd::ReticleClipMode::Outer));
 
     mfd::runtime_api::OffscreenSurface surface(kRenderSize, kRenderSize);
@@ -239,7 +254,7 @@ TEST(OffscreenSurfaceTests, TwoSurfacesKeepIndependentFrames)
 {
     mfd::runtime_api::RuntimeSession session;
     std::string error;
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/demo_pages_minimal.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "examples/demo/assets/windows/demo_window.json", error)) << error;
 
     mfd::runtime_api::OffscreenSurface leftSurface(kRenderSize, kRenderSize);
     mfd::runtime_api::OffscreenSurface rightSurface(kRenderSize, kRenderSize);
@@ -278,9 +293,15 @@ TEST(OffscreenSurfaceTests, SurfaceDestructionAfterHostWindowCloseDoesNotRequire
 
 TEST(OffscreenSurfaceTests, TutorialWindowRendersVisiblePixelsOffscreen)
 {
+    const std::filesystem::path windowFile = TutorialWindowFile();
+    if (TutorialAssetsAreMissing(windowFile))
+    {
+        GTEST_SKIP() << "Tutorial assets have not been generated yet: " << windowFile.string();
+    }
+
     mfd::runtime_api::RuntimeSession session;
     std::string error;
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/mfd_tutorial.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(windowFile, error)) << error;
 
     mfd::runtime_api::OffscreenSurface surface(kRenderSize, kRenderSize);
     ASSERT_TRUE(surface.Render(session));
@@ -292,13 +313,19 @@ TEST(OffscreenSurfaceTests, TutorialWindowRendersVisiblePixelsOffscreen)
 
 TEST(OffscreenSurfaceTests, TutorialWindowRendersWithExistingHostWindow)
 {
+    const std::filesystem::path windowFile = TutorialWindowFile();
+    if (TutorialAssetsAreMissing(windowFile))
+    {
+        GTEST_SKIP() << "Tutorial assets have not been generated yet: " << windowFile.string();
+    }
+
     SetConfigFlags(FLAG_WINDOW_HIDDEN | FLAG_MSAA_4X_HINT);
     InitWindow(320, 240, "mfd_runtime_api_host_window");
     ASSERT_TRUE(IsWindowReady());
 
     mfd::runtime_api::RuntimeSession session;
     std::string error;
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/mfd_tutorial.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(windowFile, error)) << error;
 
     mfd::runtime_api::OffscreenSurface surface(kRenderSize, kRenderSize);
     ASSERT_TRUE(surface.Render(session));
@@ -312,13 +339,19 @@ TEST(OffscreenSurfaceTests, TutorialWindowRendersWithExistingHostWindow)
 
 TEST(OffscreenSurfaceTests, TutorialFrameUploadsIntoConsumerTexture)
 {
+    const std::filesystem::path windowFile = TutorialWindowFile();
+    if (TutorialAssetsAreMissing(windowFile))
+    {
+        GTEST_SKIP() << "Tutorial assets have not been generated yet: " << windowFile.string();
+    }
+
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
     InitWindow(320, 240, "mfd_runtime_api_texture_upload");
     ASSERT_TRUE(IsWindowReady());
 
     mfd::runtime_api::RuntimeSession session;
     std::string error;
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/mfd_tutorial.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(windowFile, error)) << error;
 
     mfd::runtime_api::OffscreenSurface surface(kRenderSize, kRenderSize);
     ASSERT_TRUE(surface.Render(session));
@@ -351,7 +384,7 @@ TEST(OffscreenSurfaceTests, HostRaylibCanPresentOffscreenFrameWithoutBlackOutput
 
     mfd::runtime_api::RuntimeSession session;
     std::string error;
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/demo_pages_minimal.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "examples/demo/assets/windows/demo_window.json", error)) << error;
     OverrideSessionDocument(session, MakeSolidDocument(Green()));
 
     mfd::runtime_api::OffscreenSurface surface(kRenderSize, kRenderSize);
@@ -399,7 +432,7 @@ TEST(OffscreenSurfaceTests, OffscreenRenderRestoresHostNativeGlContext)
 
     mfd::runtime_api::RuntimeSession session;
     std::string error;
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/demo_pages_minimal.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "examples/demo/assets/windows/demo_window.json", error)) << error;
     OverrideSessionDocument(session, MakeSolidDocument(Green()));
 
     const NativeGlContextHandle hostContextBeforeRender = CaptureCurrentNativeGlContext();

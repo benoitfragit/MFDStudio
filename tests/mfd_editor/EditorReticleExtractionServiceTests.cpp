@@ -356,7 +356,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRenamesTemplateFileWhenPreferredPat
 TEST(ReticleExtractionServiceTests, BuildPlanRejectsEmptySelection)
 {
     mfd::LoadedWindowConfiguration loaded;
-    loaded.window.reticleLibraryFolder = "assets/reticles";
+    loaded.window.reticleLibraryFolder = "examples/demo/assets/reticles";
     loaded.document.pages.push_back(mfd::PageDefinition {});
 
     editor::EditorFileLayout files;
@@ -371,7 +371,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRejectsEmptySelection)
 TEST(ReticleExtractionServiceTests, BuildPlanRejectsUnsupportedClippingSelection)
 {
     mfd::LoadedWindowConfiguration loaded;
-    loaded.window.reticleLibraryFolder = "assets/reticles";
+    loaded.window.reticleLibraryFolder = "examples/demo/assets/reticles";
 
     mfd::PageDefinition page;
     page.name = "Radar";
@@ -400,7 +400,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRejectsUnsupportedClippingSelection
 TEST(ReticleExtractionServiceTests, BuildPlanRejectsNonContiguousSelection)
 {
     mfd::LoadedWindowConfiguration loaded;
-    loaded.window.reticleLibraryFolder = "assets/reticles";
+    loaded.window.reticleLibraryFolder = "examples/demo/assets/reticles";
 
     mfd::PageDefinition page;
     page.name = "Radar";
@@ -474,7 +474,7 @@ TEST(ReticleExtractionServiceTests, BuildPlanRejectsImageDependencyOutsideAssets
 TEST(ReticleExtractionServiceTests, CallerSnapshotCanRestoreStateAfterExecute)
 {
     mfd::LoadedWindowConfiguration loaded;
-    loaded.window.reticleLibraryFolder = "assets/reticles";
+    loaded.window.reticleLibraryFolder = "examples/demo/assets/reticles";
 
     mfd::PageDefinition page;
     page.name = "Radar";

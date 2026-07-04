@@ -119,6 +119,16 @@ if(DEFINED ASSET_SOURCE_DIR OR DEFINED ASSET_TARGET_DIR)
         RELATIVE "${ASSET_TARGET_DIR}"
         "${ASSET_TARGET_DIR}/*")
 
+    file(GLOB_RECURSE asset_source_entries
+        LIST_DIRECTORIES true
+        RELATIVE "${ASSET_SOURCE_DIR}"
+        "${ASSET_SOURCE_DIR}/*")
+
+    file(GLOB_RECURSE asset_target_entries
+        LIST_DIRECTORIES true
+        RELATIVE "${ASSET_TARGET_DIR}"
+        "${ASSET_TARGET_DIR}/*")
+
     set(missing_asset_files)
     foreach(asset_file IN LISTS asset_source_files)
         if(NOT EXISTS "${ASSET_TARGET_DIR}/${asset_file}")
@@ -127,15 +137,49 @@ if(DEFINED ASSET_SOURCE_DIR OR DEFINED ASSET_TARGET_DIR)
     endforeach()
 
     set(stale_asset_files)
-    foreach(asset_file IN LISTS asset_target_files)
-        if(NOT EXISTS "${ASSET_SOURCE_DIR}/${asset_file}")
-            list(APPEND stale_asset_files "${asset_file}")
+    if(NOT ALLOW_EXTRA_ASSETS)
+        foreach(asset_file IN LISTS asset_target_files)
+            if(NOT EXISTS "${ASSET_SOURCE_DIR}/${asset_file}")
+                list(APPEND stale_asset_files "${asset_file}")
+            endif()
+        endforeach()
+    endif()
+
+    set(asset_source_dirs)
+    foreach(asset_entry IN LISTS asset_source_entries)
+        if(IS_DIRECTORY "${ASSET_SOURCE_DIR}/${asset_entry}")
+            list(APPEND asset_source_dirs "${asset_entry}")
         endif()
     endforeach()
 
-    if(missing_asset_files OR stale_asset_files)
+    set(asset_target_dirs)
+    foreach(asset_entry IN LISTS asset_target_entries)
+        if(IS_DIRECTORY "${ASSET_TARGET_DIR}/${asset_entry}")
+            list(APPEND asset_target_dirs "${asset_entry}")
+        endif()
+    endforeach()
+
+    set(missing_asset_dirs)
+    foreach(asset_dir IN LISTS asset_source_dirs)
+        if(NOT IS_DIRECTORY "${ASSET_TARGET_DIR}/${asset_dir}")
+            list(APPEND missing_asset_dirs "${asset_dir}")
+        endif()
+    endforeach()
+
+    set(stale_asset_dirs)
+    if(NOT ALLOW_EXTRA_ASSETS)
+        foreach(asset_dir IN LISTS asset_target_dirs)
+            if(NOT IS_DIRECTORY "${ASSET_SOURCE_DIR}/${asset_dir}")
+                list(APPEND stale_asset_dirs "${asset_dir}")
+            endif()
+        endforeach()
+    endif()
+
+    if(missing_asset_files OR stale_asset_files OR missing_asset_dirs OR stale_asset_dirs)
         list(REMOVE_DUPLICATES missing_asset_files)
         list(REMOVE_DUPLICATES stale_asset_files)
+        list(REMOVE_DUPLICATES missing_asset_dirs)
+        list(REMOVE_DUPLICATES stale_asset_dirs)
 
         set(asset_error_message "Staged assets do not match the source asset tree.")
         if(missing_asset_files)
@@ -146,6 +190,16 @@ if(DEFINED ASSET_SOURCE_DIR OR DEFINED ASSET_TARGET_DIR)
         if(stale_asset_files)
             string(JOIN "\n  - " stale_asset_files_text ${stale_asset_files})
             string(APPEND asset_error_message "\nUnexpected staged files:\n  - ${stale_asset_files_text}")
+        endif()
+
+        if(missing_asset_dirs)
+            string(JOIN "\n  - " missing_asset_dirs_text ${missing_asset_dirs})
+            string(APPEND asset_error_message "\nMissing staged directories:\n  - ${missing_asset_dirs_text}")
+        endif()
+
+        if(stale_asset_dirs)
+            string(JOIN "\n  - " stale_asset_dirs_text ${stale_asset_dirs})
+            string(APPEND asset_error_message "\nUnexpected staged directories:\n  - ${stale_asset_dirs_text}")
         endif()
 
         message(FATAL_ERROR "${asset_error_message}")

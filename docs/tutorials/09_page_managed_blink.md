@@ -59,7 +59,7 @@ Notes:
 Use the generated reticle wrapper when the client targets one authored window:
 
 ```cpp
-full_demo_ui::FullDemoMockupUi ui;
+full_demo_ui::FullDemoDemo ClientUi ui;
 auto& radar = ui.Radar();
 
 radar.fixedTrackAlpha.SetBlinkEnabled(true);
@@ -73,7 +73,7 @@ The generated API still emits one `ReticlePatch` internally when you change
 several fields together:
 
 ```cpp
-full_demo_ui::FullDemoMockupUi ui;
+full_demo_ui::FullDemoDemo ClientUi ui;
 auto& radar = ui.Radar();
 
 radar.fixedTrackAlpha.SetVisible(true);
@@ -89,7 +89,7 @@ client.SendBatch(ui.BuildBatch());
 To keep blinking enabled but remove the explicit type, clear the type:
 
 ```cpp
-full_demo_ui::FullDemoMockupUi ui;
+full_demo_ui::FullDemoDemo ClientUi ui;
 auto& radar = ui.Radar();
 
 radar.fixedTrackAlpha.SetBlinkEnabled(true);
@@ -104,7 +104,7 @@ This makes the reticle use `defaultBlink`.
 You can switch from one group to another at any time:
 
 ```cpp
-full_demo_ui::FullDemoMockupUi ui;
+full_demo_ui::FullDemoDemo ClientUi ui;
 auto& radar = ui.Radar();
 
 radar.fixedTrackAlpha.SetBlinkType(radar.slow);
@@ -137,9 +137,9 @@ above remain available, but they are the low-level fallback path. The
 recommended client-facing path stays the generated wrapper plus
 `client.SendBatch(ui.BuildBatch())`.
 
-## Step 7 - Validate it with `client_mockup`
+## Step 7 - Validate it with `demo_client`
 
-The mockup now shows:
+The demo client now shows:
 
 - the blink types declared by the selected page
 - a blink enable toggle for static reticles

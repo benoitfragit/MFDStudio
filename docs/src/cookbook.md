@@ -13,8 +13,8 @@ C++ snippets here use real, verified method and class names from the
 generated client API and `mfd_client_api` headers, but most are condensed
 patterns, not standalone compilable units (transports, error handling, and
 loop boilerplate are cut for brevity). The one fully compilable, buildable
-reference is [`examples/client_tutorial`](https://github.com/benoitfragit/MFDStudio/tree/master/examples/client_tutorial)
-(target `client_tutorial`); the "Drive a page from the generated API" recipe
+reference is [`examples/tutorial`](https://github.com/benoitfragit/MFDStudio/tree/master/examples/tutorial)
+(target `tutorial_client`); the "Drive a page from the generated API" recipe
 below is condensed directly from it.
 
 **Recipes on this page:**
@@ -39,7 +39,7 @@ below is condensed directly from it.
 
 **Objective.** Get one named, loadable page with a single layer.
 
-**Files.** A page JSON under `assets/pages/`, referenced from a window JSON.
+**Files.** A page JSON under `examples/demo/assets/pages/`, referenced from a window JSON.
 
 ```json
 {
@@ -88,7 +88,7 @@ served by a library `template` (see [Pages And Windows](./reference/pages_and_wi
 
 **Files.** Generated `*_Ui.h/.cpp`, the window `.generated.map`, your client.
 **Status: Supported** — condensed from the compiling
-[`client_tutorial`](https://github.com/benoitfragit/MFDStudio/blob/master/examples/client_tutorial/src/main.cpp)
+[`tutorial_client`](https://github.com/benoitfragit/MFDStudio/blob/master/examples/tutorial/client/src/main.cpp)
 example; see the full, runnable version there and in
 [Generated Client API](./handbook/generated_api.md#minimal-usage).
 
@@ -303,7 +303,7 @@ transport; live strobe/capture state is reported for the **active** page only.
 
 ```cpp
 mfd::runtime_api::RuntimeSession session;
-session.LoadWindowFile("assets/windows/demo_pages_minimal.json", error);
+session.LoadWindowFile("examples/demo/assets/windows/demo_window.json", error);
 mfd::runtime_api::OffscreenSurface surface(960, 540);
 
 session.Advance(deltaSeconds);
@@ -327,7 +327,7 @@ check `OffscreenFrameView::Ready()` before sampling the buffer.
 See [Framebuffer Capture](./handbook/framebuffer.md).
 
 ```powershell
-.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages_minimal.json `
+.\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json `
   --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
 ```
 

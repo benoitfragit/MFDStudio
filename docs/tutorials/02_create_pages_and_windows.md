@@ -43,9 +43,9 @@ Then continue below to understand the exact JSON fields produced by that workflo
 
 ## Step 1 - Create a page file
 
-Each page lives in its own JSON file inside `assets/pages`.
+Each page lives in its own JSON file inside `examples/demo/assets/pages`.
 
-Create `assets/pages/tutorial_page.json`:
+Create `examples/demo/assets/pages/tutorial_page.json`:
 
 ```json
 {
@@ -112,7 +112,7 @@ The root window JSON defines:
 - list of page files
 - optional default page name
 
-Create `assets/windows/tutorial_window.json`:
+Create `examples/demo/assets/windows/tutorial_window.json`:
 
 ```json
 {
@@ -121,7 +121,7 @@ Create `assets/windows/tutorial_window.json`:
   "position": [80, 60],
   "targetFps": 60,
   "fontFile": "../fonts/ocr_a.ttf",
-  "iconFile": "../../branding/mfdstudio_app_icon.png",
+  "iconFile": "../../../branding/mfdstudio_app_icon.png",
   "reticleLibraryFolder": "../reticles",
   "commands": {
     "udp": {
@@ -167,7 +167,7 @@ Use `mfd::JsonLoader`:
 
 mfd::JsonLoader loader;
 const mfd::LoadedWindowConfiguration loaded =
-    loader.LoadWindowConfiguration("assets/windows/tutorial_window.json");
+    loader.LoadWindowConfiguration("examples/demo/assets/windows/tutorial_window.json");
 ```
 
 `loaded.window` gives you:

@@ -49,10 +49,13 @@ mfd_add_runtime_layout_smoke_test(
     EXTRA_FILES
         Start-MfdWindow.bat
         Start-MfdDemo.bat
-        Start-MfdCockpit.bat
-        Start-MfdMinimal.bat
-        Start-MfdTutorial.bat
+        Start-DemoHUD.bat
+        Start-RadarLoad.bat
+        Start-MfdPackageTest.bat
+        Start-Tutorial.bat
     VERIFY_ASSETS
+    ALLOW_EXTRA_ASSETS
+    ASSET_SOURCE_DIR "${MFD_ROOT_DIR}/examples/demo/assets"
     LABELS runtime)
 
 gtest_discover_tests(mfd_window_tests

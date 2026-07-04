@@ -167,7 +167,7 @@ private:
     /** @brief Micro-step index inside the current tutorial step. */
     int stepPhase_ = 0;
     /** @brief Small progress file used to resume tutorial state across launches. */
-    std::filesystem::path progressFile_ {"assets/tutorial/.editor_tutorial_progress"};
+    std::filesystem::path progressFile_ {"examples/tutorial/assets/.editor_tutorial_progress"};
     /** @brief Reticle instance created by the tutorial and reused by later guidance. */
     std::string trackedReticleId_ {};
     /** @brief Editor layer currently highlighted by the tutorial, when applicable. */

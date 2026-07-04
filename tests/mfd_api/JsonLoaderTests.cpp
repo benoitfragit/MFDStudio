@@ -1229,16 +1229,18 @@ TEST(JsonLoaderTests, LoadDocumentRejectsTemplateChainingInReticleLibrary)
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
 
-TEST(JsonLoaderTests, LoadRepositoryCockpitWindowConfigurationSmokeTest)
+TEST(JsonLoaderTests, LoadRepositoryRadarLoadWindowConfigurationSmokeTest)
 {
     mfd::JsonLoader loader;
-    const std::filesystem::path windowFile = RepositoryRoot() / "assets/windows/demo_pages_cockpit.json";
+    const std::filesystem::path windowFile = RepositoryRoot() / "examples/radar_load/assets/windows/radar_load_window.json";
 
     const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
 
     ASSERT_EQ(loaded.document.pages.size(), 1U);
     const mfd::PageDefinition& page = loaded.document.pages.front();
-    EXPECT_EQ(page.name, "Cockpit");
+    EXPECT_EQ(page.name, "RadarLoad");
+    EXPECT_TRUE(page.defaultPage);
+    EXPECT_FALSE(page.dynamicReticleBindings.empty());
     EXPECT_FALSE(page.staticReticles.empty());
     EXPECT_FALSE(loaded.document.reticleLibrary.empty());
 }
@@ -1246,59 +1248,41 @@ TEST(JsonLoaderTests, LoadRepositoryCockpitWindowConfigurationSmokeTest)
 TEST(JsonLoaderTests, LoadRepositoryDemoWindowConfigurationSmokeTest)
 {
     mfd::JsonLoader loader;
-    const std::filesystem::path windowFile = RepositoryRoot() / "assets/windows/demo_pages.json";
+    const std::filesystem::path windowFile = RepositoryRoot() / "examples/demo/assets/windows/demo_window.json";
 
     const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
 
-    ASSERT_EQ(loaded.document.pages.size(), 6U);
-    EXPECT_EQ(loaded.document.pages[0].name, "Pfd");
-    EXPECT_EQ(loaded.document.pages[1].name, "Navigation");
-    EXPECT_EQ(loaded.document.pages[2].name, "AircraftCentric");
-    EXPECT_EQ(loaded.document.pages[3].name, "Radar");
-    EXPECT_EQ(loaded.document.pages[4].name, "Tactical");
-    EXPECT_EQ(loaded.document.pages[5].name, "PictureDemo");
+    ASSERT_EQ(loaded.document.pages.size(), 3U);
+    EXPECT_EQ(loaded.document.pages[0].name, "Primitives");
+    EXPECT_EQ(loaded.document.pages[1].name, "BlinkStrobe");
+    EXPECT_EQ(loaded.document.pages[2].name, "Clipping");
     EXPECT_FALSE(loaded.document.reticleLibrary.empty());
 
-    const auto picturePageIt = std::find_if(
+    const auto clippingPageIt = std::find_if(
         loaded.document.pages.begin(),
         loaded.document.pages.end(),
         [](const mfd::PageDefinition& page)
         {
-            return page.name == "PictureDemo";
+            return page.name == "Clipping";
         });
-    ASSERT_NE(picturePageIt, loaded.document.pages.end());
+    ASSERT_NE(clippingPageIt, loaded.document.pages.end());
 
-    const auto pictureReticleIt = std::find_if(
-        picturePageIt->staticReticles.begin(),
-        picturePageIt->staticReticles.end(),
+    const auto clippingReticleIt = std::find_if(
+        clippingPageIt->staticReticles.begin(),
+        clippingPageIt->staticReticles.end(),
         [](const mfd::ReticleGroup& reticle)
         {
-            return reticle.id == "picture_demo";
+            return reticle.id == "ball_clip";
         });
-    ASSERT_NE(pictureReticleIt, picturePageIt->staticReticles.end());
-    EXPECT_TRUE(pictureReticleIt->drawOnTop);
-
-    const auto picturePrimitiveIt = std::find_if(
-        pictureReticleIt->primitives.begin(),
-        pictureReticleIt->primitives.end(),
-        [](const mfd::Primitive& primitive)
-        {
-            return primitive.id == "demo_picture";
-        });
-    ASSERT_NE(picturePrimitiveIt, pictureReticleIt->primitives.end());
-    EXPECT_EQ(picturePrimitiveIt->type, mfd::PrimitiveType::Image);
-
-    const auto* image = std::get_if<mfd::ImageGeometry>(&picturePrimitiveIt->geometry);
-    ASSERT_NE(image, nullptr);
-    EXPECT_EQ(
-        image->file.lexically_normal(),
-        (RepositoryRoot() / "assets" / "picture" / "mfdstudio_badge.png").lexically_normal());
+    ASSERT_NE(clippingReticleIt, clippingPageIt->staticReticles.end());
+    EXPECT_EQ(clippingReticleIt->clipping.mode, mfd::ReticleClipMode::Outer);
+    EXPECT_EQ(clippingReticleIt->clipping.primitiveId, "ball_outer_circle");
 }
 
-TEST(JsonLoaderTests, LoadRepositoryMinimalWindowConfigurationMarksRadarAsDefaultPage)
+TEST(JsonLoaderTests, LoadRepositoryDemoWindowConfigurationMarksPrimitivesAsDefaultPage)
 {
     mfd::JsonLoader loader;
-    const std::filesystem::path windowFile = RepositoryRoot() / "assets/windows/demo_pages_minimal.json";
+    const std::filesystem::path windowFile = RepositoryRoot() / "examples/demo/assets/windows/demo_window.json";
 
     const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
 
@@ -1317,23 +1301,18 @@ TEST(JsonLoaderTests, LoadRepositoryMinimalWindowConfigurationMarksRadarAsDefaul
 
     ASSERT_EQ(defaultPageCount, 1U);
     ASSERT_NE(defaultPage, nullptr);
-    EXPECT_EQ(defaultPage->name, "Radar");
+    EXPECT_EQ(defaultPage->name, "Primitives");
 }
 
-TEST(JsonLoaderTests, LoadRepositoryInspiredWindowConfigurationSmokeTest)
+TEST(JsonLoaderTests, LoadRepositoryHudWindowConfigurationSmokeTest)
 {
     mfd::JsonLoader loader;
-    const std::filesystem::path windowFile = RepositoryRoot() / "assets/windows/demo_pages_inspired.json";
+    const std::filesystem::path windowFile = RepositoryRoot() / "examples/hud/assets/windows/demo_hud_window.json";
 
     const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
 
-    ASSERT_EQ(loaded.document.pages.size(), 6U);
-    EXPECT_EQ(loaded.document.pages[0].name, "HSD_INSPIRED");
-    EXPECT_EQ(loaded.document.pages[1].name, "FCR_INSPIRED");
-    EXPECT_EQ(loaded.document.pages[2].name, "HAD_INSPIRED");
-    EXPECT_EQ(loaded.document.pages[3].name, "TGP_INSPIRED");
-    EXPECT_EQ(loaded.document.pages[4].name, "SMS_INSPIRED");
-    EXPECT_EQ(loaded.document.pages[5].name, "FLCS_INSPIRED");
+    ASSERT_EQ(loaded.document.pages.size(), 1U);
+    EXPECT_EQ(loaded.document.pages[0].name, "HUD");
 
     std::size_t defaultPageCount = 0U;
     const mfd::PageDefinition* defaultPage = nullptr;
@@ -1350,7 +1329,7 @@ TEST(JsonLoaderTests, LoadRepositoryInspiredWindowConfigurationSmokeTest)
 
     ASSERT_EQ(defaultPageCount, 1U);
     ASSERT_NE(defaultPage, nullptr);
-    EXPECT_EQ(defaultPage->name, "HSD_INSPIRED");
+    EXPECT_EQ(defaultPage->name, "HUD");
     EXPECT_FALSE(loaded.document.reticleLibrary.empty());
 }
 

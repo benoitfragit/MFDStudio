@@ -31,8 +31,8 @@ using editor::ui::AccentButton;
 using editor::ui::DisabledTextWrapped;
 
 constexpr int kTutorialStepMin = 0;
-constexpr std::string_view kEditorDefaultWindowFile = "assets/windows/demo_pages.json";
-constexpr std::string_view kTutorialWindowFile = "assets/windows/mfd_tutorial.json";
+constexpr std::string_view kEditorDefaultWindowFile = "examples/demo/assets/windows/demo_window.json";
+constexpr std::string_view kTutorialWindowFile = "examples/tutorial/assets/windows/mfd_tutorial.json";
 constexpr std::array<std::string_view, 4> kBuildConfigurations {
     "Debug",
     "Release",
@@ -229,17 +229,17 @@ void RemoveEmptyDirectoryChain(const std::filesystem::path& start, const std::fi
 void RemoveTutorialGeneratedSourceFiles(const std::filesystem::path& projectRoot)
 {
     const std::array<std::filesystem::path, 11> generatedFiles {{
-        projectRoot / "assets/windows/mfd_tutorial.json",
-        projectRoot / "assets/windows/mfd_tutorial.generated.map",
-        projectRoot / "assets/pages/mfd_tutorial_page1.json",
-        projectRoot / "assets/pages/mfd_tutorial_page2.json",
-        projectRoot / "assets/pages/mfd_tutor.json",
-        projectRoot / "assets/reticles/mfd_tutorial_radar_track.json",
-        projectRoot / "assets/reticles/mfd_tutorial_aircraft.json",
-        projectRoot / "assets/reticles/mfd_tutorial_circle.json",
-        projectRoot / "assets/reticles/mfd_tutorial_progress_bar.json",
-        projectRoot / "assets/reticles/mfd_tutorial_text.json",
-        projectRoot / "assets/reticles/mfd_tutorial_strobe_cursor.json",
+        projectRoot / "examples/tutorial/assets/windows/mfd_tutorial.json",
+        projectRoot / "examples/tutorial/assets/windows/mfd_tutorial.generated.map",
+        projectRoot / "examples/tutorial/assets/pages/mfd_tutorial_page1.json",
+        projectRoot / "examples/tutorial/assets/pages/mfd_tutorial_page2.json",
+        projectRoot / "examples/tutorial/assets/pages/mfd_tutor.json",
+        projectRoot / "examples/tutorial/assets/reticles/mfd_tutorial_radar_track.json",
+        projectRoot / "examples/tutorial/assets/reticles/mfd_tutorial_aircraft.json",
+        projectRoot / "examples/tutorial/assets/reticles/mfd_tutorial_circle.json",
+        projectRoot / "examples/tutorial/assets/reticles/mfd_tutorial_progress_bar.json",
+        projectRoot / "examples/tutorial/assets/reticles/mfd_tutorial_text.json",
+        projectRoot / "examples/tutorial/assets/reticles/mfd_tutorial_strobe_cursor.json",
     }};
 
     for (const auto& path : generatedFiles)
@@ -253,14 +253,11 @@ void RemoveTutorialBuildOutputs(const std::filesystem::path& projectRoot)
     const std::vector<std::filesystem::path> buildDirectories = EnumerateConfiguredBuildDirectories(projectRoot);
     for (const auto& buildDirectory : buildDirectories)
     {
-        for (const std::string_view targetName : {"client_tutorial"})
+        const std::filesystem::path targetRoot = buildDirectory / "examples" / "tutorial" / "client";
+        for (const std::string_view configuration : kBuildConfigurations)
         {
-            const std::filesystem::path targetRoot = buildDirectory / "examples" / std::string(targetName);
-            for (const std::string_view configuration : kBuildConfigurations)
-            {
-                RemovePathQuietly(targetRoot / std::string(configuration));
-                RemovePathQuietly(targetRoot / (std::string(targetName) + ".dir") / std::string(configuration));
-            }
+            RemovePathQuietly(targetRoot / std::string(configuration));
+            RemovePathQuietly(targetRoot / "tutorial_client.dir" / std::string(configuration));
         }
     }
 }
@@ -274,13 +271,11 @@ void RemoveTutorialStageArtifacts(const std::filesystem::path& projectRoot)
     }
 
     const std::unordered_set<std::string> artifactNames {
-        "client_tutorial.exe",
-        "client_tutorial.ilk",
-        "client_tutorial.pdb",
+        "tutorial_client.exe",
+        "tutorial_client.ilk",
+        "tutorial_client.pdb",
         "tutorialui.h",
         "tutorialui.cpp",
-        "mfdtutorialmockupui.h",
-        "mfdtutorialmockupui.cpp",
         "mfd_tutorial.json",
         "mfd_tutorial.generated.map",
         "mfd_tutorial_page1.json",
@@ -344,7 +339,7 @@ constexpr std::array<TutorialStageInfo, 4> kTutorialStages {{
      static_cast<int>(editor::tutorial::TutorialStepId::OpenTutorialFollowUpGuide),
      static_cast<int>(editor::tutorial::TutorialStepId::OpenTutorialFollowUpGuide)},
     {"Stage 4 - Continue In Docs",
-     "Leave the editor with the right next reading path for the runtime mockup, the generated client API, and the deeper architecture notes.",
+     "Leave the editor with the right next reading path for the demo client, the generated client API, and the deeper architecture notes.",
      static_cast<int>(editor::tutorial::TutorialStepId::ReviewDocumentationPath),
      static_cast<int>(editor::tutorial::TutorialStepId::ReviewDocumentationPath)},
 }};

@@ -17,13 +17,13 @@ The repository ships a sample plugin, `mfd_framebuffer_stdout_plugin` (which
 requests `BGRA32`). Launch it through the generic launcher:
 
 ```powershell
-.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages_minimal.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
+.\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
 ```
 
 Or use the shipped preset:
 
 ```powershell
-.\Scripts\Start-MfdMinimal.bat
+.\Scripts\Start-MfdDemo.bat
 ```
 
 ## Choosing a path

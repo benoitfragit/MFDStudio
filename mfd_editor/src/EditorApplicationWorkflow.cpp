@@ -302,7 +302,7 @@ void EditorApplication::ToggleFullscreenPagePreview()
 void EditorApplication::OpenDesignExportPopup()
 {
     const std::filesystem::path defaultFolder =
-        documentState_.windowFile.empty() ? (documentState_.assetPaths.DefaultAssetPath("assets").parent_path() / "MFDStudioDesignExport")
+        documentState_.windowFile.empty() ? (documentState_.assetPaths.DefaultAssetPath("examples/demo/assets").parent_path() / "MFDStudioDesignExport")
                             : (documentState_.windowFile.parent_path() / std::filesystem::path("MFDStudioDesignExport"));
     CopyTextBuffer(workflowState_.designExportPopup.outputFolder, defaultFolder.lexically_normal().string());
     workflowState_.designExportPopup.exportCompleted = false;
@@ -614,7 +614,7 @@ bool EditorApplication::OpenWindowAssetFromFileExplorer()
 {
     const std::filesystem::path initialFolder =
         HasOpenWindow() && documentState_.windowFile.has_parent_path() ? documentState_.windowFile.parent_path()
-                                                         : documentState_.assetPaths.DefaultAssetPath("assets/windows");
+                                                         : documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/windows");
     std::string error;
     const std::optional<std::filesystem::path> selectedFile = editor::OpenWindowAssetFileDialog(initialFolder, &error);
     if (!selectedFile.has_value())
@@ -658,7 +658,7 @@ void EditorApplication::BrowseNewWindowFile()
     const std::filesystem::path currentFile =
         std::filesystem::path(workflowState_.newWindowDraft.windowFile.data()).lexically_normal();
     const std::filesystem::path suggestedFile =
-        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("assets/windows/new_window.json") : currentFile;
+        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/windows/new_window.json") : currentFile;
 
     std::string error;
     const std::optional<std::filesystem::path> selectedFile =
@@ -679,7 +679,7 @@ void EditorApplication::BrowseNewWindowFontFile()
     const std::filesystem::path currentFile =
         std::filesystem::path(workflowState_.newWindowDraft.fontFile.data()).lexically_normal();
     const std::filesystem::path initialFolder =
-        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("assets/fonts")
+        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/fonts")
                             : editor::EditorAssetPathService::ConfiguredPathFolder(currentFile);
 
     std::string error;
@@ -701,7 +701,7 @@ void EditorApplication::BrowseNewWindowReticleLibraryFolder()
         std::filesystem::path(workflowState_.newWindowDraft.reticleLibraryFolder.data()).lexically_normal());
     if (initialFolder.empty())
     {
-        initialFolder = documentState_.assetPaths.DefaultAssetPath("assets/reticles");
+        initialFolder = documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/reticles");
     }
 
     std::string error;
@@ -723,7 +723,7 @@ void EditorApplication::BrowseNewWindowFirstPageFile()
     const std::filesystem::path currentFile =
         std::filesystem::path(workflowState_.newWindowDraft.firstPageFile.data()).lexically_normal();
     const std::filesystem::path suggestedFile =
-        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("assets/pages/page1.json") : currentFile;
+        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/pages/page1.json") : currentFile;
 
     std::string error;
     const std::optional<std::filesystem::path> selectedFile =
@@ -743,7 +743,7 @@ void EditorApplication::BrowseNewPageFile()
 {
     const std::filesystem::path currentFile = std::filesystem::path(workflowState_.newPageDraft.fileName.data()).lexically_normal();
     const std::filesystem::path suggestedFile =
-        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("assets/pages/new_page.json") : currentFile;
+        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/pages/new_page.json") : currentFile;
 
     std::string error;
     const std::optional<std::filesystem::path> selectedFile =
@@ -768,7 +768,7 @@ void EditorApplication::BrowseWindowFontFile()
 
     const std::filesystem::path currentFile = documentState_.loaded.window.fontFile;
     const std::filesystem::path initialFolder =
-        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("assets/fonts")
+        currentFile.empty() ? documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/fonts")
                             : editor::EditorAssetPathService::ConfiguredPathFolder(currentFile);
 
     std::string error;
@@ -796,7 +796,7 @@ void EditorApplication::BrowseWindowReticleLibraryFolder()
         editor::EditorAssetPathService::ConfiguredPathFolder(documentState_.loaded.window.reticleLibraryFolder);
     if (initialFolder.empty())
     {
-        initialFolder = documentState_.assetPaths.DefaultAssetPath("assets/reticles");
+        initialFolder = documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/reticles");
     }
 
     std::string error;
@@ -828,7 +828,7 @@ void EditorApplication::BrowseSelectedPrimitiveImageFile()
     }
 
     const std::filesystem::path initialFolder =
-        image->file.empty() ? documentState_.assetPaths.DefaultAssetPath("assets")
+        image->file.empty() ? documentState_.assetPaths.DefaultAssetPath("examples/demo/assets")
                             : editor::EditorAssetPathService::ConfiguredPathFolder(image->file);
 
     std::string error;
@@ -1600,13 +1600,13 @@ void EditorApplication::DrawPageManagementPopup()
     const editor::PageRemovePlan removePlan =
         services_.pageManagement.BuildRemovePlan(documentState_.loaded,
                                                documentState_.files,
-                                               editor::PageRemoveRequest {workflowState_.pageManagementPopup.pageIndex, replacementPageIndex});
+                                                                          editor::PageRemoveRequest {workflowState_.pageManagementPopup.pageIndex, replacementPageIndex});
     const editor::PageDeletePlan deletePlan =
         services_.pageManagement.BuildDeletePlan(documentState_.loaded,
                                                documentState_.files,
                                                editor::PageDeleteRequest {workflowState_.pageManagementPopup.pageIndex,
                                                                           replacementPageIndex,
-                                                                          documentState_.assetPaths.DefaultAssetPath("assets"),
+                                                                          documentState_.assetPaths.DefaultAssetPath("examples/demo/assets"),
                                                                           workflowState_.pageManagementPopup.allowOutsideAssetsRoot});
 
     if (deleteAsset)
@@ -1741,14 +1741,14 @@ void EditorApplication::PrepareTutorialStep()
     {
     case static_cast<int>(TutorialStepId::CreateWindow):
         tutorial_->ClearTrackedReticle();
-        CopyTextBuffer(workflowState_.newWindowDraft.windowFile, documentState_.assetPaths.DefaultAssetPath("assets/windows/mfd_tutorial.json").string());
+        CopyTextBuffer(workflowState_.newWindowDraft.windowFile, documentState_.assetPaths.DefaultAssetPath("examples/tutorial/assets/windows/mfd_tutorial.json").string());
         CopyTextBuffer(workflowState_.newWindowDraft.title, "MFD Tutorial");
         workflowState_.newWindowDraft.width = 480;
         workflowState_.newWindowDraft.height = 480;
         workflowState_.newWindowDraft.positionX = 120;
         workflowState_.newWindowDraft.positionY = 80;
         CopyTextBuffer(workflowState_.newWindowDraft.fontFile, "");
-        CopyTextBuffer(workflowState_.newWindowDraft.reticleLibraryFolder, documentState_.assetPaths.DefaultAssetPath("assets/reticles").string());
+        CopyTextBuffer(workflowState_.newWindowDraft.reticleLibraryFolder, documentState_.assetPaths.DefaultAssetPath("examples/tutorial/assets/reticles").string());
         workflowState_.newWindowDraft.commandUdpExposed = true;
         workflowState_.newWindowDraft.commandUdpEnabled = true;
         CopyTextBuffer(workflowState_.newWindowDraft.commandAddress, "127.0.0.1");
@@ -1764,7 +1764,7 @@ void EditorApplication::PrepareTutorialStep()
         workflowState_.newWindowDraft.createInitialPage = false;
         CopyTextBuffer(workflowState_.newWindowDraft.firstPageName, "Page1");
         CopyTextBuffer(workflowState_.newWindowDraft.firstPageTitle, "Page 1");
-        CopyTextBuffer(workflowState_.newWindowDraft.firstPageFile, documentState_.assetPaths.DefaultAssetPath("assets/pages/mfd_tutorial_page1.json").string());
+        CopyTextBuffer(workflowState_.newWindowDraft.firstPageFile, documentState_.assetPaths.DefaultAssetPath("examples/tutorial/assets/pages/mfd_tutorial_page1.json").string());
         workflowState_.newWindowDraft.firstPageBackground = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
     case static_cast<int>(TutorialStepId::CreateRadarTrackReticle):
@@ -1794,7 +1794,7 @@ void EditorApplication::PrepareTutorialStep()
     case static_cast<int>(TutorialStepId::CreatePage1):
         CopyTextBuffer(workflowState_.newPageDraft.name, "Page1");
         CopyTextBuffer(workflowState_.newPageDraft.title, "Page 1");
-        CopyTextBuffer(workflowState_.newPageDraft.fileName, documentState_.assetPaths.DefaultAssetPath("assets/pages/mfd_tutorial_page1.json").string());
+        CopyTextBuffer(workflowState_.newPageDraft.fileName, documentState_.assetPaths.DefaultAssetPath("examples/tutorial/assets/pages/mfd_tutorial_page1.json").string());
         workflowState_.newPageDraft.background = ImVec4(0.0f, 0.125f, 0.376f, 1.0f);
         break;
     case static_cast<int>(TutorialStepId::SelectPage1TitleChrome):
@@ -1884,7 +1884,7 @@ void EditorApplication::PrepareTutorialStep()
     case static_cast<int>(TutorialStepId::CreatePage2):
         CopyTextBuffer(workflowState_.newPageDraft.name, "Page2");
         CopyTextBuffer(workflowState_.newPageDraft.title, "Page 2");
-        CopyTextBuffer(workflowState_.newPageDraft.fileName, documentState_.assetPaths.DefaultAssetPath("assets/pages/mfd_tutorial_page2.json").string());
+        CopyTextBuffer(workflowState_.newPageDraft.fileName, documentState_.assetPaths.DefaultAssetPath("examples/tutorial/assets/pages/mfd_tutorial_page2.json").string());
         workflowState_.newPageDraft.background = ImVec4(0.04f, 0.08f, 0.14f, 1.0f);
         break;
     case static_cast<int>(TutorialStepId::CreateProgressBarReticle):

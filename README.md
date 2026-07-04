@@ -13,7 +13,7 @@ and APIs.
 [![License](https://img.shields.io/github/license/benoitfragit/MFDStudio?style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/blob/master/LICENSE)
 [![Docs Online](https://img.shields.io/badge/Docs-Online-8250df?style=for-the-badge)](https://benoitfragit.github.io/MFDStudio)
 
-![Cockpit runtime screenshot](./docs/src/images/mfd_window_cockpit_capture.png)
+![Runtime screenshot](./docs/src/images/mfd_window_runtime_capture.png)
 
 ## Documentation
 
@@ -30,9 +30,10 @@ release, while `Release Workflow` reflects the most recent `release.yml` run:
 | 3. The JSON model | [Concepts](https://benoitfragit.github.io/MFDStudio/concepts.html) |
 | 4. Drive from typed C++ | [Generated Client API](https://benoitfragit.github.io/MFDStudio/handbook/generated_api.html) |
 | 5. Run the runtime | [Runtime](https://benoitfragit.github.io/MFDStudio/handbook/runtime.html) |
-| 6. Embed offscreen | [Offscreen Embedding](https://benoitfragit.github.io/MFDStudio/handbook/offscreen.html) |
-| 7. Build and contribute | [Development](https://benoitfragit.github.io/MFDStudio/dev/build.html) |
-| 8. Browse the public headers | [C++ API Reference (Doxygen)](https://benoitfragit.github.io/MFDStudio/api/index.html) |
+| 6. Explore the HUD demo | [Demo HUD](https://benoitfragit.github.io/MFDStudio/handbook/demo_hud.html) |
+| 7. Embed offscreen | [Offscreen Embedding](https://benoitfragit.github.io/MFDStudio/handbook/offscreen.html) |
+| 8. Build and contribute | [Development](https://benoitfragit.github.io/MFDStudio/dev/build.html) |
+| 9. Browse the public headers | [C++ API Reference (Doxygen)](https://benoitfragit.github.io/MFDStudio/api/index.html) |
 
 Task-focused recipes live in the
 [Cookbook](https://benoitfragit.github.io/MFDStudio/cookbook.html), and what you
@@ -49,7 +50,7 @@ test subset that passes locally but fails on the hosted `windows-2022` runner.
 
 ```powershell
 cmake --preset vs2022-win32
-cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin client_mockup
+cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin demo_client radar_load_client demo_hud_client
 ```
 
 Requires Visual Studio 2022, CMake 3.25+, Python 3, and C++17. The first
@@ -63,8 +64,18 @@ and options.
 .\Scripts\Start-MfdDemo.bat
 ```
 
-Then launch `client_mockup`, activate a page, and move a reticle. Press `F1` in
-`mfd_window` for the runtime debug overlay.
+Then launch `demo_client`; it cycles through the simplified demo pages and sends
+live updates for blink, strobe and clipping. Press `F1` in `mfd_window` for the
+runtime debug overlay.
+
+For the radar load example, launch `.\Scripts\Start-RadarLoad.bat`, then start
+`radar_load_client.exe`. It ramps dynamic radar tracks from 10 up to 300 and
+prints the current track count and client publish FPS in the runtime view.
+
+For the dedicated Demo HUD, launch the runtime window with
+`.\Scripts\Start-DemoHUD.bat`, then start `demo_hud_client.exe`. The HUD asset
+lives under `examples/hud/assets` and is staged automatically with the demo client
+assets.
 
 For heavy live-UDP debug sessions, `mfd_window` and `offscreen_viewer` also
 accept `--no-snapshot` to keep earlier commands of one runtime batch applied

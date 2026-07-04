@@ -25,12 +25,29 @@ file(GLOB_RECURSE dest_files
     RELATIVE "${DEST_DIR}"
     "${DEST_DIR}/*")
 
+file(GLOB_RECURSE dest_entries
+    LIST_DIRECTORIES true
+    RELATIVE "${DEST_DIR}"
+    "${DEST_DIR}/*")
+
 foreach(dest_file IN LISTS dest_files)
     if(EXISTS "${SOURCE_DIR}/${dest_file}")
         continue()
     endif()
 
     file(REMOVE "${DEST_DIR}/${dest_file}")
+endforeach()
+
+foreach(dest_entry IN LISTS dest_entries)
+    if(NOT IS_DIRECTORY "${DEST_DIR}/${dest_entry}")
+        continue()
+    endif()
+
+    if(IS_DIRECTORY "${SOURCE_DIR}/${dest_entry}")
+        continue()
+    endif()
+
+    file(REMOVE_RECURSE "${DEST_DIR}/${dest_entry}")
 endforeach()
 
 execute_process(

@@ -1,5 +1,5 @@
 PROJECT_NAME           = "MFDStudio"
-PROJECT_NUMBER         = "2.6.0"
+PROJECT_NUMBER         = "2.7.0"
 PROJECT_BRIEF          = "C++ API reference for the MFDStudio toolkit"
 OUTPUT_DIRECTORY       = build/docs/doxygen
 OUTPUT_LANGUAGE        = English
@@ -40,7 +40,9 @@ INPUT                  = docs/API_REFERENCE_MAINPAGE.md \
                          mfd_client_api/include \
                          mfd_runtime_api/include \
                          mfd_window/include \
-                         mfd_window_plugin_api/include
+                         mfd_window_plugin_api/include \
+                         examples/hud/client/src/DemoHudSimulation.h \
+                         examples/hud/client/src/DemoHudController.h
 USE_MDFILE_AS_MAINPAGE = docs/API_REFERENCE_MAINPAGE.md
 STRIP_FROM_PATH        = .
 FULL_PATH_NAMES        = YES

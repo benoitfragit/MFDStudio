@@ -44,7 +44,7 @@ Important idea:
 
 The project now ships an example page:
 
-- `assets/pages/aircraft_centric.json`
+- `examples/demo/assets/pages/aircraft_centric.json`
 
 Its goal is to visualize a classic offset-origin use case:
 
@@ -52,14 +52,14 @@ Its goal is to visualize a classic offset-origin use case:
 - the page still uses normal logical coordinates
 - labels explain the axis mapping used by the example
 
-The integrated `client_tutorial` now uses the same pattern on `Page1`: the
+The integrated `tutorial_client` now uses the same pattern on `Page1`: the
 static aircraft symbol stays anchored at `x = 0.0`, `y = -0.7`, while dynamic
 tracks are stored in nautical miles and radians before the client projects them
 to page space.
 
 This page is already listed in:
 
-- `assets/windows/demo_pages.json`
+- `examples/demo/assets/windows/demo_window.json`
 
 ## Step 2 - Understand the frame you want to project
 

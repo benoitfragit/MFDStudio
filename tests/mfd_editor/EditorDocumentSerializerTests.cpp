@@ -49,12 +49,12 @@ private:
 
 TEST(EditorDocumentSerializerTests, DefaultPathsUseNormalizedPageName)
 {
-    const auto pagePath = editor::DefaultPageFilePath("/tmp/assets/windows/demo.json", "Page 01");
-    const auto templatePath = editor::DefaultTemplateFilePath("/tmp/assets/reticles", "Radar Track");
+    const auto pagePath = editor::DefaultPageFilePath("/tmp/examples/demo/assets/windows/demo.json", "Page 01");
+    const auto templatePath = editor::DefaultTemplateFilePath("/tmp/examples/demo/assets/reticles", "Radar Track");
 
-    const auto expectedPage = std::filesystem::path("/tmp/assets/windows") /
+    const auto expectedPage = std::filesystem::path("/tmp/examples/demo/assets/windows") /
                               std::filesystem::path(mfd::NormalizePageName("Page 01") + ".json");
-    const auto expectedTemplate = std::filesystem::path("/tmp/assets/reticles") /
+    const auto expectedTemplate = std::filesystem::path("/tmp/examples/demo/assets/reticles") /
                                   std::filesystem::path(mfd::NormalizePageName("Radar Track") + ".json");
 
     EXPECT_EQ(pagePath.lexically_normal(), expectedPage.lexically_normal());
@@ -679,11 +679,11 @@ TEST(EditorDocumentSerializerTests, SerializeReticleTemplateWritesImageGeometryA
     mfd::Primitive primitive;
     primitive.id = "badge";
     primitive.type = mfd::PrimitiveType::Image;
-    primitive.geometry = mfd::ImageGeometry {std::filesystem::path("/tmp/assets/picture/badge.png"), 0.28f, 0.16f};
+    primitive.geometry = mfd::ImageGeometry {std::filesystem::path("/tmp/examples/demo/assets/picture/badge.png"), 0.28f, 0.16f};
     reticle.primitives.push_back(std::move(primitive));
 
     const std::string jsonText =
-        editor::SerializeReticleTemplateToJsonString(reticle, std::filesystem::path("/tmp/assets/reticles"));
+        editor::SerializeReticleTemplateToJsonString(reticle, std::filesystem::path("/tmp/examples/demo/assets/reticles"));
     const auto jsonNode = nlohmann::json::parse(jsonText);
 
     EXPECT_TRUE(jsonNode.at("drawOnTop").get<bool>());
@@ -772,7 +772,7 @@ TEST(EditorDocumentSerializerTests, SerializeWindowFallsBackToAbsolutePathsWhenR
     window.sourceFile = std::filesystem::path("C:/workspace/window.json");
     window.title = "Demo";
     window.fontFile = std::filesystem::path("D:/assets/fonts/hud.ttf");
-    window.reticleLibraryFolder = std::filesystem::path("D:/assets/reticles");
+    window.reticleLibraryFolder = std::filesystem::path("D:/examples/demo/assets/reticles");
 
     mfd::PageDefinition page;
     page.name = "Radar";
@@ -783,14 +783,14 @@ TEST(EditorDocumentSerializerTests, SerializeWindowFallsBackToAbsolutePathsWhenR
     document.pages.push_back(std::move(page));
 
     editor::EditorFileLayout layout;
-    layout.pageFiles.push_back(std::filesystem::path("D:/assets/pages/radar.json"));
+    layout.pageFiles.push_back(std::filesystem::path("D:/examples/demo/assets/pages/radar.json"));
 
     const auto jsonNode = nlohmann::json::parse(editor::SerializeWindowToJsonString(window, document, layout));
 
     EXPECT_EQ(jsonNode.at("fontFile").get<std::string>(), "D:/assets/fonts/hud.ttf");
-    EXPECT_EQ(jsonNode.at("reticleLibraryFolder").get<std::string>(), "D:/assets/reticles");
+    EXPECT_EQ(jsonNode.at("reticleLibraryFolder").get<std::string>(), "D:/examples/demo/assets/reticles");
     ASSERT_EQ(jsonNode.at("pages").size(), 1U);
-    EXPECT_EQ(jsonNode.at("pages").at(0).get<std::string>(), "D:/assets/pages/radar.json");
+    EXPECT_EQ(jsonNode.at("pages").at(0).get<std::string>(), "D:/examples/demo/assets/pages/radar.json");
 #endif
 }
 

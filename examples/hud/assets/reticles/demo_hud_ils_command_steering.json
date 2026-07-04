@@ -1,0 +1,22 @@
+{
+  "id": "demo_hud_ils_command_steering",
+  "elements": [
+    {
+      "id": "cmd_circle",
+      "type": "circle",
+      "radius": 0.044,
+      "filled": false,
+      "stroke": "#7BFFB4FF",
+      "thickness": 0.0048,
+      "segments": 48
+    },
+    {
+      "id": "cmd_pitch_bar",
+      "type": "line",
+      "start": [0.0, 0.044],
+      "end": [0.0, 0.126],
+      "stroke": "#7BFFB4FF",
+      "thickness": 0.0048
+    }
+  ]
+}

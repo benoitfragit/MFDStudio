@@ -6,7 +6,7 @@ multi-function display (MFD) windows from JSON.
 The historical technical prefix `mfd` remains in namespaces, targets, folders,
 and APIs.
 
-![Cockpit runtime screenshot](./images/mfd_window_cockpit_capture.png)
+![Runtime screenshot](./images/mfd_window_runtime_capture.png)
 
 ## Pick Your Path
 
@@ -35,7 +35,8 @@ A visual tour of the runtime, editor, and client is in the
 | Entry point | Purpose |
 | --- | --- |
 | `mfd_window` | Runtime host that loads one window JSON file |
-| `client_mockup` | Live UDP client to validate pages, reticles, blink, strobe, feedback |
+| `demo_client` | Live UDP client to validate pages, reticles, blink, strobe, feedback |
+| `demo_hud_client` | Dear ImGui + DirectX11 client that drives the dedicated Demo HUD asset |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 | `offscreen_viewer` | Example embedding `mfd_runtime_api` and displaying offscreen images |
 | `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin for the `mfd_window` capture ABI |

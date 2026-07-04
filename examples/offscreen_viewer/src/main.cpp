@@ -36,7 +36,13 @@ constexpr int kInnerPadding = 12;
 constexpr int kPreviewAspectWidth = 4;
 constexpr int kPreviewAspectHeight = 3;
 constexpr float kPanelLabelHeight = 24.0f;
-constexpr char kDefaultWindowFile[] = "assets/windows/demo_pages_minimal.json";
+constexpr char kDefaultWindowFile[] = "assets/windows/demo_window.json";
+constexpr std::array<const char*, 5> kWindowAssetFolders {
+    "assets/windows",
+    "examples/demo/assets/windows",
+    "examples/radar_load/assets/windows",
+    "examples/hud/assets/windows",
+    "examples/tutorial/assets/windows"};
 
 struct CommandLineOptions
 {
@@ -125,7 +131,7 @@ std::string BuildUsageText()
     usage += "The example hosts the runtime offscreen through mfd_runtime_api,\n";
     usage += "keeps UDP in/out enabled, and displays two independent images.\n";
     usage += "--no-snapshot keeps earlier commands of one runtime batch applied when a later command fails.\n";
-    usage += "Example tutorial asset: assets/windows/mfd_tutorial.json\n";
+    usage += "Example tutorial asset: examples/tutorial/assets/windows/mfd_tutorial.json\n";
     return usage;
 }
 
@@ -189,7 +195,10 @@ void AppendWindowCandidates(const std::filesystem::path& requestedPath,
     {
         for (const std::filesystem::path& root : roots)
         {
-            AppendUniquePath(candidates, root / "assets" / "windows" / requestedFileName);
+            for (const char* windowAssetFolder : kWindowAssetFolders)
+            {
+                AppendUniquePath(candidates, root / windowAssetFolder / requestedFileName);
+            }
         }
     }
 }
@@ -247,22 +256,25 @@ void AppendSuggestedWindows(const std::filesystem::path& requestedPath,
 {
     for (const std::filesystem::path& root : roots)
     {
-        const std::filesystem::path windowDirectory = root / "assets" / "windows";
-        if (!std::filesystem::exists(windowDirectory))
+        for (const char* windowAssetFolder : kWindowAssetFolders)
         {
-            continue;
-        }
-
-        for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(windowDirectory))
-        {
-            if (!entry.is_regular_file() || entry.path().extension() != ".json")
+            const std::filesystem::path windowDirectory = root / windowAssetFolder;
+            if (!std::filesystem::exists(windowDirectory))
             {
                 continue;
             }
 
-            if (SharesMeaningfulToken(requestedPath, entry.path()))
+            for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(windowDirectory))
             {
-                AppendUniquePath(suggestions, entry.path());
+                if (!entry.is_regular_file() || entry.path().extension() != ".json")
+                {
+                    continue;
+                }
+
+                if (SharesMeaningfulToken(requestedPath, entry.path()))
+                {
+                    AppendUniquePath(suggestions, entry.path());
+                }
             }
         }
     }

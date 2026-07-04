@@ -1,0 +1,31 @@
+{
+  "id": "demo_hud_ccip_pipper",
+  "elements": [
+    {
+      "id": "ccip_pipper_circle",
+      "type": "circle",
+      "radius": 0.052,
+      "filled": false,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0052,
+      "segments": 64
+    },
+    {
+      "id": "ccip_pipper_dot",
+      "type": "circle",
+      "radius": 0.010,
+      "filled": true,
+      "fill": "#33FF88FF",
+      "stroke": "#33FF88FF",
+      "thickness": 0.002
+    },
+    {
+      "id": "ccip_release_caret",
+      "type": "triangle",
+      "points": [[0.0, 0.076], [-0.018, 0.044], [0.018, 0.044]],
+      "filled": false,
+      "stroke": "#33FF88FF",
+      "thickness": 0.004
+    }
+  ]
+}

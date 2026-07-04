@@ -1,0 +1,36 @@
+{
+  "title": "MFD Radar Load",
+  "size": [
+    720,
+    720
+  ],
+  "position": [
+    120,
+    120
+  ],
+  "targetFps": 60,
+  "iconFile": "../../../../branding/mfdstudio_app_icon.png",
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47230,
+      "maxPacketSize": 16384
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47231,
+      "maxPacketSize": 4096
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
+  },
+  "defaultPage": "RadarLoad",
+  "pages": [
+    "../pages/radar_load.json"
+  ]
+}

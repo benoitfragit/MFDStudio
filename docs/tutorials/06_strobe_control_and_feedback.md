@@ -387,11 +387,11 @@ generated `StrobeType` members such as `defaultStrobe` or `designatorStrobe`.
 Always pair `StrobeStatusFeedback` with the latest `ActivePageFeedback`,
 because only the active page strobe is live.
 
-## Step 9 - Test quickly with the mockup
+## Step 9 - Test quickly with the demo client
 
 You do not need to write the client first.
 
-Use `client_mockup`:
+Use `demo_client`:
 
 1. select a page with a strobe
 2. send a strobe update

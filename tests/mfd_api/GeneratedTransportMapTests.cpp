@@ -98,8 +98,8 @@ void WriteBasicWindowAssets(const TemporaryFolder& workspace)
 
 TEST(GeneratedTransportMapTests, CompanionPathUsesWindowStemNextToWindowFile)
 {
-    const std::filesystem::path windowFile = "C:/repo/assets/windows/demo_pages.json";
-    const std::filesystem::path expected = "C:/repo/assets/windows/demo_pages.generated.map";
+    const std::filesystem::path windowFile = "C:/repo/examples/demo/assets/windows/demo_window.json";
+    const std::filesystem::path expected = "C:/repo/examples/demo/assets/windows/demo_window.generated.map";
 
     EXPECT_EQ(mfd::CompanionGeneratedTransportMapPath(windowFile).lexically_normal(),
               expected.lexically_normal());

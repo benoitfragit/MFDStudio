@@ -40,7 +40,7 @@ Dynamic reticles are ideal for:
 Dynamic reticles still come from one authored template in the reticle library.
 
 For example, the project already provides `radar_track` in
-`assets/reticles/radar_track.json`.
+`examples/demo/assets/reticles/radar_track.json`.
 
 The authored template stays the source of truth for geometry and exposed
 primitive names.
@@ -50,9 +50,9 @@ primitive names.
 With generated client bindings, you start from the page accessor:
 
 ```cpp
-#include "MinimalRadarMockupUi.h"
+#include "MinimalRadarDemo ClientUi.h"
 
-minimal_radar_ui::MinimalRadarMockupUi ui;
+minimal_radar_ui::MinimalRadarDemo ClientUi ui;
 auto& tracks = ui.Radar().DynamicRadarTrack();
 std::vector<minimal_radar_ui::RadarTrackDynamicReticle*> activeTracks;
 ```
@@ -107,7 +107,7 @@ Important behavior:
 - the set can remain capturable through runtime feedback even while
   `SetStrobeMagnetEnabled(false)` prevents the strobe from snapping to it
 
-The integrated `client_tutorial` uses that split explicitly:
+The integrated `tutorial_client` uses that split explicitly:
 
 - `DynamicMfdTutorialRadarTrack().SetStrobeMagnetEnabled(true)` for the
   waypoint-like radar contacts

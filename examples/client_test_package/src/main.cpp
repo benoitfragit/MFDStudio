@@ -26,6 +26,7 @@
 namespace
 {
 constexpr std::chrono::milliseconds kSimulationTick {20};
+constexpr std::string_view kWindowFile = "assets/windows/package_test_window.json";
 constexpr float kSimulationTickSeconds = 0.020f;
 constexpr float kCircleRadius = 0.12f;
 constexpr float kMinPosition = -0.82f;
@@ -84,7 +85,7 @@ ExampleConfig LoadExampleConfig()
 {
     mfd::JsonLoader loader;
     const mfd::LoadedWindowConfiguration loaded =
-        loader.LoadWindowConfiguration(std::string(package_test_ui::PackageTestUi::WindowFile()));
+        loader.LoadWindowConfiguration(std::string(kWindowFile));
 
     if (!loaded.window.commandTransports.udp.has_value() || !loaded.window.commandTransports.udp->enabled)
     {
@@ -174,7 +175,7 @@ int mainImpl()
     Require(client.SendBatch(ui.BuildCommandBatch(state.sequence++)), client, "Unable to send package-test startup batch");
 
     std::cout << "client_test_package\n";
-    std::cout << "Window asset: " << package_test_ui::PackageTestUi::WindowFile() << '\n';
+    std::cout << "Window asset: " << kWindowFile << '\n';
     std::cout << "Launch Scripts\\Start-MfdPackageTest.bat or the staged Start-MfdPackageTest.bat separately.\n";
     std::cout << "Press Ctrl+C here to stop.\n";
 

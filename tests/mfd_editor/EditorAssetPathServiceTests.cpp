@@ -46,7 +46,7 @@ private:
 };
 } // namespace
 
-TEST(EditorAssetPathServiceTests, ConfiguredAssetDirectoryStripsLeadingAssetsSegment)
+TEST(EditorAssetPathServiceTests, ConfiguredAssetDirectoryStripsLeadingAssetRootPrefix)
 {
     ScopedTempDir tempDir;
     const std::filesystem::path assetRoot = tempDir.Path() / "authored_assets";
@@ -54,9 +54,9 @@ TEST(EditorAssetPathServiceTests, ConfiguredAssetDirectoryStripsLeadingAssetsSeg
     const editor::EditorAssetPathService service(assetRoot);
 
     EXPECT_TRUE(service.HasConfiguredAssetDirectory());
-    EXPECT_EQ(service.DefaultAssetPath("assets/windows/new_window.json"),
+    EXPECT_EQ(service.DefaultAssetPath("examples/demo/assets/windows/new_window.json"),
               (assetRoot / "windows" / "new_window.json").lexically_normal());
-    EXPECT_EQ(service.DefaultAssetPath("assets/reticles"),
+    EXPECT_EQ(service.DefaultAssetPath("examples/demo/assets/reticles"),
               (assetRoot / "reticles").lexically_normal());
 }
 
@@ -110,5 +110,5 @@ TEST(EditorAssetPathServiceTests, ExecStagingPathDetectionIsCaseInsensitive)
         std::filesystem::path("build") / "_exec" / "assets" / "windows" / "demo.json";
 
     EXPECT_TRUE(editor::EditorAssetPathService::IsExecStagingPath(stagedPath));
-    EXPECT_FALSE(editor::EditorAssetPathService::IsExecStagingPath("assets/windows/demo.json"));
+    EXPECT_FALSE(editor::EditorAssetPathService::IsExecStagingPath("examples/demo/assets/windows/demo.json"));
 }

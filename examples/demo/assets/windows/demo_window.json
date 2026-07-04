@@ -1,0 +1,38 @@
+{
+  "title": "MFD Demo",
+  "size": [
+    900,
+    720
+  ],
+  "position": [
+    80,
+    80
+  ],
+  "targetFps": 60,
+  "iconFile": "../../../../branding/mfdstudio_app_icon.png",
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47220,
+      "maxPacketSize": 16384
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47221,
+      "maxPacketSize": 4096
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
+  },
+  "defaultPage": "Primitives",
+  "pages": [
+    "../pages/primitives.json",
+    "../pages/blink_strobe.json",
+    "../pages/clipping.json"
+  ]
+}

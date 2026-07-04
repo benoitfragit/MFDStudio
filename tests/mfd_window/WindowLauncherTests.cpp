@@ -25,13 +25,13 @@
 TEST(WindowLauncherTests, BuildUsageTextReflectsConfiguredApplicationAndWindow)
 {
     mfd::window::LauncherConfig config;
-    config.applicationName = "cockpit_host";
-    config.defaultWindowFile = "assets/windows/demo_pages_cockpit.json";
+    config.applicationName = "radar_host";
+    config.defaultWindowFile = "examples/radar_load/assets/windows/radar_load_window.json";
 
     const std::string usage = mfd::window::BuildUsageText(config);
 
-    EXPECT_NE(usage.find("cockpit_host --window <window.json>"), std::string::npos);
-    EXPECT_NE(usage.find("assets/windows/demo_pages_cockpit.json"), std::string::npos);
+    EXPECT_NE(usage.find("radar_host --window <window.json>"), std::string::npos);
+    EXPECT_NE(usage.find("examples/radar_load/assets/windows/radar_load_window.json"), std::string::npos);
     EXPECT_NE(usage.find("--framebuffer-plugin <plugin.dll>"), std::string::npos);
     EXPECT_NE(usage.find("--no-snapshot"), std::string::npos);
     EXPECT_NE(usage.find(mfd::window::kLauncherFramebufferPluginEntryPointName), std::string::npos);
@@ -61,7 +61,7 @@ TEST(WindowLauncherTests, BuildUsageTextRequiresExplicitWindowWhenNoDefaultIsCon
 TEST(WindowLauncherTests, ParseCommandLineUsesConfiguredDefaultWindow)
 {
     mfd::window::LauncherConfig config;
-    config.defaultWindowFile = "assets/windows/demo_pages_minimal.json";
+    config.defaultWindowFile = "examples/demo/assets/windows/demo_window.json";
 
     char program[] = "mfd_window";
     char* argv[] = {program, nullptr};
@@ -71,7 +71,7 @@ TEST(WindowLauncherTests, ParseCommandLineUsesConfiguredDefaultWindow)
     EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(1, argv, config, options, error));
     EXPECT_TRUE(error.empty());
     EXPECT_FALSE(options.showHelp);
-    EXPECT_EQ(options.windowFile.generic_string(), "assets/windows/demo_pages_minimal.json");
+    EXPECT_EQ(options.windowFile.generic_string(), "examples/demo/assets/windows/demo_window.json");
     EXPECT_TRUE(options.framebufferPluginFile.empty());
     EXPECT_FALSE(options.noSnapshot);
 }
@@ -192,14 +192,14 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsPositionalWindowPath)
     mfd::window::LauncherConfig config;
 
     char program[] = "mfd_window";
-    char positional[] = "assets/windows/radar.json";
+    char positional[] = "examples/radar_load/assets/windows/radar_load_window.json";
     char* argv[] = {program, positional, nullptr};
 
     mfd::window::LauncherOptions options;
     std::string error;
     EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(2, argv, config, options, error));
     EXPECT_TRUE(error.empty());
-    EXPECT_EQ(options.windowFile.generic_string(), "assets/windows/radar.json");
+    EXPECT_EQ(options.windowFile.generic_string(), "examples/radar_load/assets/windows/radar_load_window.json");
     EXPECT_TRUE(options.framebufferPluginFile.empty());
     EXPECT_FALSE(options.noSnapshot);
     EXPECT_FALSE(options.showHelp);

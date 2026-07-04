@@ -1,0 +1,120 @@
+{
+  "bg": "#05080CFF",
+  "layers": [
+    {
+      "id": "default"
+    }
+  ],
+  "name": "Clipping",
+  "staticReticles": [
+    {
+      "at": [
+        0.0,
+        0.0
+      ],
+      "fill": "#4F93CCFF",
+      "filled": true,
+      "id": "ball_sky",
+      "layerId": "default",
+      "stroke": "#4F93CCFF",
+      "template": "adi_ball_sky"
+    },
+    {
+      "at": [
+        0.0,
+        0.0
+      ],
+      "fill": "#8B6338FF",
+      "filled": true,
+      "id": "ball_ground",
+      "layerId": "default",
+      "stroke": "#8B6338FF",
+      "template": "adi_ball_ground"
+    },
+    {
+      "at": [
+        0.0,
+        0.0
+      ],
+      "id": "ball_horizon",
+      "layerId": "default",
+      "lineWidth": 0.0054,
+      "stroke": "#FFF4D2FF",
+      "template": "adi_ball_horizon"
+    },
+    {
+      "at": [
+        0.0,
+        0.0
+      ],
+      "id": "ball_ladder",
+      "layerId": "default",
+      "letterSpacings": {
+        "m20_tl": 0.002,
+        "m20_tr": 0.002,
+        "m40_tl": 0.002,
+        "m40_tr": 0.002,
+        "p20_tl": 0.002,
+        "p20_tr": 0.002,
+        "p40_tl": 0.002,
+        "p40_tr": 0.002
+      },
+      "lineWidth": 0.0032,
+      "stroke": "#FFF9E6FF",
+      "template": "adi_ball_ladder",
+      "texts": {
+        "m20_tl": "-20",
+        "m20_tr": "-20",
+        "m40_tl": "-40",
+        "m40_tr": "-40",
+        "p20_tl": "20",
+        "p20_tr": "20",
+        "p40_tl": "40",
+        "p40_tr": "40"
+      }
+    },
+    {
+      "at": [
+        0.0,
+        0.0
+      ],
+      "clipping": {
+        "mode": "outer",
+        "primitive": "ball_outer_circle"
+      },
+      "id": "ball_clip",
+      "layerId": "default",
+      "lineWidth": 0.003,
+      "stroke": "#9BBAD2FF",
+      "template": "adi_ball_bezel"
+    },
+    {
+      "elements": [
+        {
+          "at": [
+            0.0,
+            0.78
+          ],
+          "id": "title_text",
+          "size": 0.055,
+          "text": "Layer clipping",
+          "type": "text"
+        },
+        {
+          "at": [
+            0.0,
+            -0.78
+          ],
+          "id": "caption_text",
+          "size": 0.033,
+          "text": "Outer clipping keeps the attitude ball inside its bezel",
+          "type": "text"
+        }
+      ],
+      "id": "clipping_caption",
+      "layerId": "default",
+      "stroke": "#D7E6F7FF"
+    }
+  ],
+  "title": "Clipping"
+}

@@ -1,4 +1,6 @@
 @echo off
 setlocal
-call "%~dp0Start-MfdWindow.bat" "assets/windows/package_test_window.json" %*
+set "WINDOW_FILE=%~dp0..\examples\client_test_package\assets\windows\package_test_window.json"
+if not exist "%WINDOW_FILE%" set "WINDOW_FILE=assets\windows\package_test_window.json"
+call "%~dp0Start-MfdWindow.bat" "%WINDOW_FILE%" %*
 exit /b %ERRORLEVEL%

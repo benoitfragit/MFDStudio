@@ -3,14 +3,14 @@
 This tutorial shows how an external application can animate reticles in real
 time without knowing anything about the window UI implementation.
 
-If you already explored `client_mockup`, this tutorial is the natural next step:
+If you already explored `demo_client`, this tutorial is the natural next step:
 
-- the mockup showed the API from an operator UI
+- the demo client showed the API from an operator UI
 - this page shows the same API from a standalone application loop
 
-For the detailed mapping between mockup controls and public client calls, also
+For the detailed mapping between demo client controls and public client calls, also
 read
-[11 Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md).
+[11 Use The Demo Client As A Client API Reference](./11_use_the_demo_client_as_a_client_api_reference.md).
 
 ## At A Glance
 
@@ -77,7 +77,7 @@ range.
 #include "mfd/client/ClientSdk.h"
 
 mfd::JsonLoader loader;
-const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages.json");
+const auto loaded = loader.LoadWindowConfiguration("examples/demo/assets/windows/demo_window.json");
 
 if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
 {
@@ -113,7 +113,7 @@ JSON loading entirely and send typed id-based commands directly.
 With generated bindings, pass the generated page wrapper:
 
 ```cpp
-full_demo_ui::FullDemoMockupUi ui;
+full_demo_ui::FullDemoDemo ClientUi ui;
 client.ActivatePage(ui.Radar());
 ```
 
@@ -130,7 +130,7 @@ client.SetPageView(ui.Radar(), {0.0f, 0.0f}, 1.0f);
 
 Do this once when the operator changes context, not every frame.
 
-This is exactly the same semantic action as `Activate page now` in the mockup.
+This is exactly the same semantic action as `Activate page now` in the demo client.
 
 ## Step 4 - Adjust whole-window display when needed
 
@@ -149,14 +149,14 @@ This is useful for:
 - hardware-driven blanking or maintenance black screens
 - hardware display states that affect the whole rendered window at once
 
-This matches the mockup `Window display` panel.
+This matches the demo client `Window display` panel.
 
 ## Step 5 - Animate one reticle every cycle
 
 This example updates one reticle every 20 ms through the generated API:
 
 ```cpp
-#include "FullDemoMockupUi.h"
+#include "FullDemoDemo ClientUi.h"
 #include "mfd/client/ClientSdk.h"
 
 #include <chrono>
@@ -166,7 +166,7 @@ This example updates one reticle every 20 ms through the generated API:
 int main()
 {
     mfd::JsonLoader loader;
-    const auto loaded = loader.LoadWindowConfiguration("assets/windows/demo_pages.json");
+    const auto loaded = loader.LoadWindowConfiguration("examples/demo/assets/windows/demo_window.json");
     if (!loaded.window.commandTransports.udp.has_value() || !loaded.generatedTransportMap.has_value())
     {
         return 1;
@@ -174,7 +174,7 @@ int main()
 
     mfd::CommandClient client(*loaded.window.commandTransports.udp, loaded.generatedTransportMap);
 
-    full_demo_ui::FullDemoMockupUi ui;
+    full_demo_ui::FullDemoDemo ClientUi ui;
     auto& radar = ui.Radar();
     auto& track = radar.fixedTrackAlpha;
     client.ActivatePage(radar);
@@ -202,7 +202,7 @@ int main()
 }
 ```
 
-This matches the mockup `Reticle` inspector, but without the operator UI.
+This matches the demo client `Reticle` inspector, but without the operator UI.
 `CommandClient` stays on the send boundary while the generated wrapper owns the
 page, reticle, and blink addressing details.
 
@@ -211,7 +211,7 @@ page, reticle, and blink addressing details.
 If several reticles must update together, prefer a batch:
 
 ```cpp
-full_demo_ui::FullDemoMockupUi ui;
+full_demo_ui::FullDemoDemo ClientUi ui;
 auto& radar = ui.Radar();
 
 radar.fixedTrackAlpha.SetVisible(true);
@@ -234,8 +234,8 @@ client.SendBatch(ui.BuildCommandBatch(42U));
 Use one `sequence` value per external cycle if you want a stable cycle id in the
 transport stream.
 
-This is the same batching principle used by the cockpit simulator in the
-mockup.
+This is the same batching principle used by the radar load simulator in the
+demo client.
 
 ## Step 7 - Use dynamic reticles for runtime-owned symbols
 
@@ -245,7 +245,7 @@ reticles instead of trying to patch static JSON content into existence.
 One symbol:
 
 ```cpp
-full_demo_ui::FullDemoMockupUi ui;
+full_demo_ui::FullDemoDemo ClientUi ui;
 auto& tracks = ui.Radar().DynamicRadarTrack();
 auto& track = tracks.Create();
 
@@ -274,7 +274,7 @@ for (const Track& track : tracks)
 client.SendBatch(ui.BuildBatch());
 ```
 
-This is the same public pattern as the mockup radar simulator. If you
+This is the same public pattern as the demo client radar simulator. If you
 intentionally stay on raw `CommandClient`, the name-based
 `UpsertDynamicReticle(...)` and `UpsertDynamicReticles(...)` helpers still
 exist, but they are now the explicit low-level alternative.
@@ -338,9 +338,9 @@ The client API can update:
 - strobe position
 - dynamic reticles
 
-## Step 10 - Apply the same practical rules as the mockup
+## Step 10 - Apply the same practical rules as the demo client
 
-The mockup is a good model here. Copy these habits:
+The demo client is a good model here. Copy these habits:
 
 - check `client.IsReady()` before entering the live loop
 - surface `client.LastError()` when a send fails
@@ -384,8 +384,8 @@ if (liveness.ConsumeDisconnect())
 }
 ```
 
-`client_tutorial` and `client_mockup` rebuild their transports and reconnect on
-this signal; `client_mockup_minimal` detects it and stops cleanly. See the end
+`tutorial_client` and `demo_client` rebuild their transports and reconnect on
+this signal; `radar_load_client` detects it and stops cleanly. See the end
 to end user guide section 6.20 for the full pattern.
 
 ## What You Should See

@@ -184,6 +184,6 @@ TEST(EditorTutorialDataTests, TutorialMetadataPointsToFollowUpDocuments)
 
     const auto& documentationStep = Step(editor::tutorial::TutorialStepId::ReviewDocumentationPath);
     EXPECT_STREQ(documentationStep.filePath, "docs/tutorials/README.md");
-    EXPECT_NE(std::string_view(documentationStep.explanation).find("mockup"), std::string_view::npos);
+    EXPECT_NE(std::string_view(documentationStep.explanation).find("demo client"), std::string_view::npos);
     EXPECT_NE(std::string_view(documentationStep.explanation).find("generated client API"), std::string_view::npos);
 }

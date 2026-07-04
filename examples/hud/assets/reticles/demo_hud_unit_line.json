@@ -1,0 +1,13 @@
+{
+  "id": "demo_hud_unit_line",
+  "elements": [
+    {
+      "id": "unit_line",
+      "type": "line",
+      "start": [-0.5, 0.0],
+      "end": [0.5, 0.0],
+      "stroke": "#33FF88FF",
+      "thickness": 0.005
+    }
+  ]
+}

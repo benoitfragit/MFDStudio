@@ -1,0 +1,14 @@
+{
+  "id": "demo_hud_eegs_batr",
+  "elements": [
+    {
+      "id": "batr_circle",
+      "type": "circle",
+      "radius": 0.0336,
+      "filled": false,
+      "stroke": "#7BFFB4FF",
+      "thickness": 0.0046,
+      "segments": 56
+    }
+  ]
+}

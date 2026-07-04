@@ -32,7 +32,7 @@ renders into as many surfaces as it needs:
 
 mfd::runtime_api::RuntimeSession session;
 std::string error;
-if (!session.LoadWindowFile("assets/windows/demo_pages_minimal.json", error))
+if (!session.LoadWindowFile("examples/demo/assets/windows/demo_window.json", error))
 {
     // handle error
 }

@@ -6,7 +6,7 @@ The shortest path from zero to a live `mfd_window` with a client driving it.
 
 ```powershell
 cmake --preset vs2022-win32
-cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin client_mockup
+cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin demo_client
 ```
 
 Add the editor if you want it:
@@ -26,7 +26,7 @@ Use a shipped launcher for a first run:
 Or point the generic launcher at any window JSON:
 
 ```powershell
-.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages.json
+.\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json
 ```
 
 The launcher resolves `mfd_window.exe` and passes `--window` (plus
@@ -34,21 +34,17 @@ The launcher resolves `mfd_window.exe` and passes `--window` (plus
 
 ## 3. Launch the client
 
-Start `client_mockup`. From here:
+Start `demo_client`. From here:
 
 - `mfd_window` owns rendering and runtime state
-- `client_mockup` sends live UDP commands
+- `demo_client` sends live UDP commands
 - both target the same authored window model
 
-## 4. Activate a page and move a reticle
+## 4. Watch the automatic demo
 
-In `client_mockup`:
-
-1. select the window preset matching the launched runtime
-2. choose a page and click `Activate selected page`
-3. open a static reticle, change its `Position`, click `Send reticle update`
-
-The runtime window updates live.
+`demo_client` cycles through the simplified demo pages. It updates one moving
+radar track, the active strobe, blink states, and the clipped attitude-ball page
+without any control panel.
 
 ## 5. Inspect the runtime
 

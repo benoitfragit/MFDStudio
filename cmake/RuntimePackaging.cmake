@@ -38,11 +38,18 @@ function(mfd_resolve_stage_dir out_var)
     set(${out_var} "${stage_dir}" PARENT_SCOPE)
 endfunction()
 
-function(_mfd_runtime_stage_register target_name stage_subdir copy_assets copy_branding copy_runtime_dlls script_source_dir)
+function(_mfd_runtime_stage_register
+         target_name
+         stage_subdir
+         copy_assets
+         copy_branding
+         copy_runtime_dlls
+         root_asset_dirs_encoded
+         script_source_dir)
     set(script_names ${ARGN})
     string(JOIN "#" script_names_encoded ${script_names})
     set(registration
-        "${target_name}|${stage_subdir}|${copy_assets}|${copy_branding}|${copy_runtime_dlls}|${script_source_dir}|${script_names_encoded}")
+        "${target_name}|${stage_subdir}|${copy_assets}|${copy_branding}|${copy_runtime_dlls}|${root_asset_dirs_encoded}|${script_source_dir}|${script_names_encoded}")
     set_property(GLOBAL APPEND PROPERTY MFD_RUNTIME_STAGE_REGISTRATIONS "${registration}")
 endfunction()
 
@@ -70,7 +77,7 @@ endfunction()
 function(mfd_stage_runtime target_name)
     set(options WITH_ASSETS WITH_BRANDING WITH_RUNTIME_DLLS)
     set(one_value_args STAGE_SUBDIR SCRIPT_SOURCE_DIR)
-    set(multi_value_args SCRIPT_NAMES)
+    set(multi_value_args SCRIPT_NAMES ROOT_ASSET_DIRS)
     cmake_parse_arguments(MFD_STAGE_RUNTIME "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
 
     set(copy_assets ${MFD_STAGE_RUNTIME_WITH_ASSETS})
@@ -107,6 +114,38 @@ function(mfd_stage_runtime target_name)
                 "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake")
     endif()
 
+    set(root_asset_names)
+    foreach(root_asset_dir IN LISTS MFD_STAGE_RUNTIME_ROOT_ASSET_DIRS)
+        if(NOT EXISTS "${root_asset_dir}")
+            message(FATAL_ERROR "Root asset directory does not exist: ${root_asset_dir}")
+        endif()
+
+        get_filename_component(root_asset_name "${root_asset_dir}" NAME)
+        string(MAKE_C_IDENTIFIER "${root_asset_name}" root_asset_key)
+        list(FIND root_asset_names "${root_asset_key}" root_asset_name_index)
+        if(root_asset_name_index EQUAL -1)
+            list(APPEND root_asset_names "${root_asset_key}")
+            set(root_asset_destination_name_${root_asset_key} "${root_asset_name}")
+            set(root_asset_sources_${root_asset_key})
+        endif()
+
+        list(APPEND root_asset_sources_${root_asset_key} "${root_asset_dir}")
+    endforeach()
+
+    set(root_asset_commands)
+    foreach(root_asset_key IN LISTS root_asset_names)
+        string(JOIN "#" root_asset_source_list_encoded ${root_asset_sources_${root_asset_key}})
+        set(root_asset_name "${root_asset_destination_name_${root_asset_key}}")
+        list(APPEND root_asset_commands
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_DIRS_ENCODED=${root_asset_source_list_encoded}"
+                "-DDEST_DIR=${stage_dir}/${root_asset_name}"
+                "-DCLEAN_DEST=OFF"
+                -P
+                "${MFD_ROOT_DIR}/cmake/SyncMergedAssetTrees.cmake")
+    endforeach()
+
     set(branding_commands)
     if(copy_branding)
         list(APPEND branding_commands
@@ -120,13 +159,13 @@ function(mfd_stage_runtime target_name)
 
     set(runtime_script_commands)
     if(MFD_STAGE_RUNTIME_SCRIPT_NAMES)
-        string(JOIN ";" runtime_script_list ${MFD_STAGE_RUNTIME_SCRIPT_NAMES})
+        string(JOIN "#" runtime_script_list_encoded ${MFD_STAGE_RUNTIME_SCRIPT_NAMES})
         list(APPEND runtime_script_commands
             COMMAND
                 ${CMAKE_COMMAND}
                 "-DSOURCE_DIR=${MFD_STAGE_RUNTIME_SCRIPT_SOURCE_DIR}"
                 "-DDEST_DIR=${stage_dir}"
-                "-DFILE_NAMES=${runtime_script_list}"
+                "-DFILE_NAMES_ENCODED=${runtime_script_list_encoded}"
                 -P
                 "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake")
     endif()
@@ -138,16 +177,19 @@ function(mfd_stage_runtime target_name)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${target_name}>" "${stage_dir}"
         ${runtime_dll_commands}
         ${asset_commands}
+        ${root_asset_commands}
         ${branding_commands}
         ${runtime_script_commands}
         VERBATIM)
 
+    string(JOIN "#" root_asset_dirs_encoded ${MFD_STAGE_RUNTIME_ROOT_ASSET_DIRS})
     _mfd_runtime_stage_register(
         "${target_name}"
         "${MFD_STAGE_RUNTIME_STAGE_SUBDIR}"
         "${copy_assets}"
         "${copy_branding}"
         "${copy_runtime_dlls}"
+        "${root_asset_dirs_encoded}"
         "${MFD_STAGE_RUNTIME_SCRIPT_SOURCE_DIR}"
         ${MFD_STAGE_RUNTIME_SCRIPT_NAMES})
 endfunction()
@@ -174,7 +216,7 @@ function(mfd_finalize_runtime_stage_targets)
         endif()
     endforeach()
 
-    add_custom_target(stage_exec)
+    add_custom_target(stage_exec ALL)
 
     foreach(stage_key IN LISTS runtime_stage_keys)
         if(stage_key STREQUAL "__root__")
@@ -191,6 +233,7 @@ function(mfd_finalize_runtime_stage_targets)
             COMMAND ${CMAKE_COMMAND} -E rm -rf "${stage_dir}"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${stage_dir}")
         set(stage_dependencies)
+        set(stage_root_asset_dirs)
 
         foreach(registration IN LISTS runtime_stage_registrations)
             string(REPLACE "|" ";" registration_fields "${registration}")
@@ -199,8 +242,9 @@ function(mfd_finalize_runtime_stage_targets)
             list(GET registration_fields 2 copy_assets)
             list(GET registration_fields 3 copy_branding)
             list(GET registration_fields 4 copy_runtime_dlls)
-            list(GET registration_fields 5 script_source_dir)
-            list(GET registration_fields 6 script_names_encoded)
+            list(GET registration_fields 5 root_asset_dirs_encoded)
+            list(GET registration_fields 6 script_source_dir)
+            list(GET registration_fields 7 script_names_encoded)
 
             if(stage_subdir STREQUAL "")
                 if(NOT registration_stage_subdir STREQUAL "")
@@ -236,6 +280,11 @@ function(mfd_finalize_runtime_stage_targets)
                         "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake")
             endif()
 
+            if(NOT root_asset_dirs_encoded STREQUAL "")
+                string(REPLACE "#" ";" root_asset_dirs "${root_asset_dirs_encoded}")
+                list(APPEND stage_root_asset_dirs ${root_asset_dirs})
+            endif()
+
             if(copy_branding)
                 list(APPEND stage_commands
                     COMMAND
@@ -248,16 +297,42 @@ function(mfd_finalize_runtime_stage_targets)
 
             if(NOT script_names_encoded STREQUAL "")
                 string(REPLACE "#" ";" script_names "${script_names_encoded}")
-                string(JOIN ";" script_name_list ${script_names})
+                string(JOIN "#" script_name_list_encoded ${script_names})
                 list(APPEND stage_commands
                     COMMAND
                         ${CMAKE_COMMAND}
                         "-DSOURCE_DIR=${script_source_dir}"
                         "-DDEST_DIR=${stage_dir}"
-                        "-DFILE_NAMES=${script_name_list}"
+                        "-DFILE_NAMES_ENCODED=${script_name_list_encoded}"
                         -P
-                        "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake")
+                "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake")
             endif()
+        endforeach()
+
+        set(stage_root_asset_names)
+        foreach(root_asset_dir IN LISTS stage_root_asset_dirs)
+            get_filename_component(root_asset_name "${root_asset_dir}" NAME)
+            string(MAKE_C_IDENTIFIER "${root_asset_name}" root_asset_key)
+            list(FIND stage_root_asset_names "${root_asset_key}" root_asset_name_index)
+            if(root_asset_name_index EQUAL -1)
+                list(APPEND stage_root_asset_names "${root_asset_key}")
+                set(stage_root_asset_destination_name_${root_asset_key} "${root_asset_name}")
+                set(stage_root_asset_sources_${root_asset_key})
+            endif()
+
+            list(APPEND stage_root_asset_sources_${root_asset_key} "${root_asset_dir}")
+        endforeach()
+
+        foreach(root_asset_key IN LISTS stage_root_asset_names)
+            string(JOIN "#" root_asset_source_list_encoded ${stage_root_asset_sources_${root_asset_key}})
+            set(root_asset_name "${stage_root_asset_destination_name_${root_asset_key}}")
+            list(APPEND stage_commands
+                COMMAND
+                    ${CMAKE_COMMAND}
+                    "-DSOURCE_DIRS_ENCODED=${root_asset_source_list_encoded}"
+                    "-DDEST_DIR=${stage_dir}/${root_asset_name}"
+                    -P
+                    "${MFD_ROOT_DIR}/cmake/SyncMergedAssetTrees.cmake")
         endforeach()
 
         add_custom_target(${stage_target_name}
@@ -273,8 +348,8 @@ function(mfd_add_runtime_layout_smoke_test target_name)
         return()
     endif()
 
-    set(options VERIFY_ASSETS)
-    set(one_value_args NAME)
+    set(options VERIFY_ASSETS ALLOW_EXTRA_ASSETS)
+    set(one_value_args NAME ASSET_SOURCE_DIR)
     set(multi_value_args EXTRA_RUNTIME_TARGETS EXTRA_FILES LABELS)
     cmake_parse_arguments(MFD_RUNTIME_SMOKE
         "${options}"
@@ -291,6 +366,11 @@ function(mfd_add_runtime_layout_smoke_test target_name)
         string(APPEND expected_runtime_dlls "|$<JOIN:$<TARGET_RUNTIME_DLLS:${runtime_target}>,|>")
     endforeach()
 
+    set(asset_source_dir "${MFD_ROOT_DIR}/assets")
+    if(MFD_RUNTIME_SMOKE_ASSET_SOURCE_DIR)
+        set(asset_source_dir "${MFD_RUNTIME_SMOKE_ASSET_SOURCE_DIR}")
+    endif()
+
     add_test(
         NAME ${MFD_RUNTIME_SMOKE_NAME}
         COMMAND
@@ -301,8 +381,9 @@ function(mfd_add_runtime_layout_smoke_test target_name)
             "-DTARGET_DIRECTORY=$<TARGET_FILE_DIR:${target_name}>"
             "-DEXPECTED_RUNTIME_DLLS=${expected_runtime_dlls}"
             "-DEXPECTED_FILES=$<JOIN:${MFD_RUNTIME_SMOKE_EXTRA_FILES},|>"
-            "$<$<BOOL:${MFD_RUNTIME_SMOKE_VERIFY_ASSETS}>:-DASSET_SOURCE_DIR=${MFD_ROOT_DIR}/assets>"
+            "$<$<BOOL:${MFD_RUNTIME_SMOKE_VERIFY_ASSETS}>:-DASSET_SOURCE_DIR=${asset_source_dir}>"
             "$<$<BOOL:${MFD_RUNTIME_SMOKE_VERIFY_ASSETS}>:-DASSET_TARGET_DIR=$<TARGET_FILE_DIR:${target_name}>/assets>"
+            "$<$<BOOL:${MFD_RUNTIME_SMOKE_ALLOW_EXTRA_ASSETS}>:-DALLOW_EXTRA_ASSETS=ON>"
             -P
             "${MFD_ROOT_DIR}/cmake/VerifyRuntimeLayout.cmake")
 

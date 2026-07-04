@@ -64,7 +64,7 @@ tell an authoring issue from a client or transport issue.
 ### The client cannot drive the runtime / UDP not received
 
 - **Cause.** Client and runtime are not on the same UDP endpoint.
-- **Diagnostic.** In `client_mockup`, use **Window display** → **Send window
+- **Diagnostic.** In `demo_client`, use **Window display** → **Send window
   display**. A reaction means the UDP path is alive and the problem is command
   content. No reaction means the transport itself is wrong.
 - **Fix.** Match the client target to the window `commands.udp` `address`/`port`.

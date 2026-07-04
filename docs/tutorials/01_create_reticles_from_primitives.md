@@ -34,7 +34,7 @@ You will build a small status widget composed of:
 - one `time`
 
 The project already ships a working example in
-`assets/reticles/status_clock.json`.
+`examples/demo/assets/reticles/status_clock.json`.
 
 Visually, think of something like this:
 
@@ -46,13 +46,13 @@ Visually, think of something like this:
 
 ## Step 1 - Go to the reticle library folder
 
-Reusable reticles live in `assets/reticles`.
+Reusable reticles live in `examples/demo/assets/reticles`.
 
 Each `.json` file in that folder is loaded as one template.
 
 ## Step 2 - Create a new reticle file
 
-Create a file such as `assets/reticles/my_status_widget.json`.
+Create a file such as `examples/demo/assets/reticles/my_status_widget.json`.
 
 Start with this content:
 
@@ -209,7 +209,7 @@ Example:
 
 ## Step 8 - Reuse the reticle in pages
 
-Once the file is in `assets/reticles`, it becomes part of the template
+Once the file is in `examples/demo/assets/reticles`, it becomes part of the template
 library.
 
 You can then instantiate it inside any page with:

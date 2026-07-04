@@ -45,7 +45,7 @@ That guided flow is intentionally split into four phases:
 1. **Author in editor**: create the tutorial window, pages, the framed `Page1` title chrome, shared reticles including the triangle-based `mfd_tutorial_aircraft`, right-align its exposed label, rename the local Page1 ownship instance, add two distinct Page1 strobes, `RadarTrackLayer`, and the exposed primitives used by the generated client.
 2. **Explore editor tools**: use the integrated coach panel in the page preview, inspect the helper overlays, and open the import / rename / export workflows without mutating the tutorial assets.
 3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
-4. **Continue in docs**: follow the mockup, generated-client, and architecture reading path.
+4. **Continue in docs**: follow the demo client, generated-client, and architecture reading path.
 
 The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step.
 
@@ -61,7 +61,7 @@ The coach is integrated at the top of the page preview as one scrollable panel. 
 The popup creates an in-memory window draft. Nothing is written on disk until you click **File > Save**.
 
 By default, the editor seeds creation paths from the repository source
-`assets/` tree. If your authored assets live elsewhere, launch:
+`examples/demo/assets` tree. If your authored assets live elsewhere, launch:
 
 ```powershell
 mfd_editor.exe --asset-directory C:\Path\To\assets
@@ -79,12 +79,12 @@ assets when you use **File > Open window asset...**.
 ## Step 2 - Fill the window fields
 
 In **Create new window**, set:
-- **Window file** (for example `assets/windows/my_window.json`)
+- **Window file** (for example `examples/demo/assets/windows/my_window.json`)
 - **Window title**
 - **Size (px)** (`width`, `height`)
 - **Position (px)** (`x`, `y`)
-- **Font file (optional)** (for example `assets/fonts/ShareTechMono-Regular.ttf`)
-- **Reticle library folder** (usually `assets/reticles`)
+- **Font file (optional)** (for example `examples/demo/assets/fonts/ShareTechMono-Regular.ttf`)
+- **Reticle library folder** (usually `examples/demo/assets/reticles`)
 
 These fields map directly to the root window JSON.
 
@@ -94,17 +94,17 @@ Use the **Browse window file...**, **Browse page file...**, and
 from those native pickers keeps the **Create new window** popup open so you can
 finish the draft without re-opening the wizard.
 
-The editor still guides you toward the source `assets/` tree because that is
-the safest place to keep authored JSON, fonts, and images under version control.
+The editor guides you toward source `examples/*/assets` trees because those are
+the safest places to keep authored JSON, fonts, and images under version control.
 
-The editor no longer treats `_Exec` as one blocked special case during authoring or reference scans. You can still open or scan staged runtime copies when needed, but the source `assets/` tree remains the recommended location for long-term editing and generated-client workflows.
+The editor no longer treats `_Exec` as one blocked special case during authoring or reference scans. You can still open or scan staged runtime copies when needed, but source `examples/*/assets` trees remain the recommended location for long-term editing and generated-client workflows.
 
-This also matters for the integrated tutorial: `client_tutorial` is already
+This also matters for the integrated tutorial: `tutorial_client` is already
 registered in `examples/CMakeLists.txt`, but its own
-`examples/client_tutorial/CMakeLists.txt` returns immediately while the
+`examples/tutorial/client/CMakeLists.txt` returns immediately while the
 tutorial assets are missing. The walkthrough now writes only the tutorial
-assets under `assets/`, then hands off to one follow-up doc that tells you
-which runtime files to inspect next. `Scripts/Start-MfdTutorial.bat` becomes
+assets under `examples/tutorial/assets/`, then hands off to one follow-up doc that tells you
+which runtime files to inspect next. `Scripts/Start-Tutorial.bat` becomes
 usable as soon as the assets exist and the target has been configured.
 
 That source-tree discipline also feeds the editor asset reference index used by upcoming safe import, rename, highlight, and diagnostics workflows. Keeping authored windows, pages, reticles, fonts, and images under the real repository asset tree is what lets those tools resolve dependencies reliably.
@@ -563,21 +563,21 @@ By the end of the integrated flow, the user should understand the full chain:
 
 ## Step 18 - Open the follow-up guide, then continue with the generated API docs
 
-`client_tutorial` is part of the examples tree by default, but it still
+`tutorial_client` is part of the examples tree by default, but it still
 self-skips while the tutorial assets do not exist.
 
 The integrated walkthrough now keeps the repository source tree stable:
 
-- `examples/CMakeLists.txt` already registers `client_tutorial`
-- `examples/client_tutorial/CMakeLists.txt` still self-skips when the tutorial asset set is incomplete
-- the walkthrough itself only writes the tutorial assets under `assets/`
+- `examples/CMakeLists.txt` already registers `tutorial_client`
+- `examples/tutorial/client/CMakeLists.txt` still self-skips when the tutorial asset set is incomplete
+- the walkthrough itself only writes the tutorial assets under `examples/tutorial/assets/`
 - the saved-file and runtime follow-up now lives in [Review The Integrated Editor Tutorial Outputs](./15_review_integrated_editor_tutorial_outputs.md)
 
 After the integrated tour, the recommended follow-up order is:
 
 1. [Review The Integrated Editor Tutorial Outputs](./15_review_integrated_editor_tutorial_outputs.md)
-2. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
-3. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
+2. [Test A Window With The Demo Client](./03_test_with_mfd_demo.md)
+3. [Use The Demo Client As A Client API Reference](./11_use_the_demo_client_as_a_client_api_reference.md)
 4. [Generated Client API](../src/handbook/generated_api.md)
 5. [Capture The Window As Raw Pixels](./07_framebuffer_rgba32_capture.md)
 
@@ -612,7 +612,7 @@ Saving (`Ctrl+S`) or reloading clears the unsaved state.
 ## Crash recovery
 
 While a window has unsaved changes, the editor periodically writes a recovery snapshot next to the
-assets (`assets/.editor_recovery.json`). A clean exit or a save deletes it. If the editor stops
+active source assets (`examples/demo/assets/.editor_recovery.json` by default). A clean exit or a save deletes it. If the editor stops
 unexpectedly, the next launch finds the leftover snapshot and offers to **Recover** the work or
 **Discard** it. Recovering writes the snapshot back to the authored files and reloads them.
 

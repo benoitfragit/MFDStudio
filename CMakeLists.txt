@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(MFD
-    VERSION 2.6.0
+    VERSION 2.7.0
     DESCRIPTION "2D Multi-Function Display framework with JSON pages and reusable reticles"
     LANGUAGES C CXX)
 
@@ -184,3 +184,18 @@ if(MFD_BUILD_DEMO)
 endif()
 
 mfd_finalize_runtime_stage_targets()
+
+if(MFD_BUILD_TESTS AND WIN32)
+    add_test(
+        NAME stage_exec_runtime_layout_smoke
+        COMMAND
+            ${CMAKE_COMMAND}
+            "-DBUILD_DIRECTORY=${CMAKE_BINARY_DIR}"
+            "-DBUILD_CONFIG=$<CONFIG>"
+            "-DEXEC_ROOT=${MFD_ROOT_DIR}/_Exec"
+            "-DTOOLSET=${MFD_EXEC_COMPILER_DIR}"
+            "-DPLATFORM=${MFD_EXEC_PLATFORM_DIR}"
+            -P
+            "${MFD_ROOT_DIR}/cmake/VerifyExecLayout.cmake")
+    set_tests_properties(stage_exec_runtime_layout_smoke PROPERTIES LABELS "smoke;runtime")
+endif()

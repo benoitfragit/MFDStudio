@@ -1,0 +1,26 @@
+{
+  "id": "demo_hud_missile_diamond",
+  "elements": [
+    {
+      "id": "diamond",
+      "type": "diamond",
+      "size": 0.092,
+      "filled": false,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0058
+    },
+    {
+      "id": "seeker_dot",
+      "type": "circle",
+      "position": [
+        0.0,
+        0.0
+      ],
+      "radius": 0.014,
+      "filled": true,
+      "fill": "#33FF88FF",
+      "stroke": "#33FF88FF",
+      "thickness": 0.0024
+    }
+  ]
+}

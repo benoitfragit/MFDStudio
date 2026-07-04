@@ -8,25 +8,26 @@ runtime state, and accepts public commands over UDP from a client.
 The simplest path is a shipped launcher:
 
 - `.\Scripts\Start-MfdDemo.bat`
-- `.\Scripts\Start-MfdCockpit.bat`
-- `.\Scripts\Start-MfdMinimal.bat`
+- `.\Scripts\Start-RadarLoad.bat`
+- `.\Scripts\Start-Tutorial.bat`
+- `.\Scripts\Start-DemoHUD.bat`
 
 For an explicit window, use the generic launcher:
 
 ```powershell
-.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages.json
+.\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json
 ```
 
 It can also pass a framebuffer plugin:
 
 ```powershell
-.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages_minimal.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
+.\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
 ```
 
 For heavy live-debug sessions, `mfd_window` also accepts `--no-snapshot`:
 
 ```powershell
-.\Scripts\Start-MfdWindow.bat assets/windows/demo_pages_minimal.json --no-snapshot
+.\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json --no-snapshot
 ```
 
 This keeps earlier commands of the same runtime batch applied when a later
@@ -39,8 +40,18 @@ so the default mode stays cheap even on large scenes with high-rate batches.
 `--no-snapshot` is therefore mostly a debugging escape hatch, not a performance
 requirement.
 
-`Start-MfdMinimal.bat` starts `mfd_window` with the sample framebuffer plugin
-enabled.
+`Start-MfdDemo.bat` starts the simplified demo asset under
+`examples/demo/assets`.
+
+`Start-RadarLoad.bat` starts the radar load asset under
+`examples/radar_load/assets`. Drive it with `radar_load_client.exe` to ramp
+dynamic tracks from 10 to 300 and display track count versus client publish FPS
+inside the page.
+
+`Start-DemoHUD.bat` starts the dedicated Demo HUD asset from
+`examples/hud/assets/windows/demo_hud_window.json`. Drive it with
+`demo_hud_client.exe`; the demo is documented in
+[Demo HUD](./demo_hud.md).
 
 ## Debug overlay
 
@@ -57,12 +68,12 @@ client-side command issue or a runtime-side state issue.
 
 ## Checking the transport quickly
 
-In `client_mockup`, use the `Window display` controls: toggle `Invert colors`,
-change `Brightness`, then click `Send window display`. If the runtime reacts,
-the UDP control path is alive.
+Run `demo_client` next to `Start-MfdDemo.bat`. The client automatically cycles
+pages and sends reticle/strobe updates over UDP; if the runtime view changes,
+the control path is alive.
 
 ## Client relationship
 
-`client_mockup` is a normal standalone UDP client. It loads the same window JSON
+`demo_client` is a normal standalone UDP client. It loads the same window JSON
 locally for discovery, then sends public commands to the runtime — it shares no
 memory with `mfd_window`, which is exactly why it is a good reference client.

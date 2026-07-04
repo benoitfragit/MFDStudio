@@ -9,6 +9,10 @@ if(NOT DEFINED DEST_DIR OR DEST_DIR STREQUAL "")
     message(FATAL_ERROR "DEST_DIR must be provided to SyncLaunchScripts.cmake")
 endif()
 
+if(DEFINED FILE_NAMES_ENCODED AND NOT FILE_NAMES_ENCODED STREQUAL "")
+    string(REPLACE "#" ";" FILE_NAMES "${FILE_NAMES_ENCODED}")
+endif()
+
 if(NOT DEFINED FILE_NAMES OR FILE_NAMES STREQUAL "")
     message(FATAL_ERROR "FILE_NAMES must be provided to SyncLaunchScripts.cmake")
 endif()

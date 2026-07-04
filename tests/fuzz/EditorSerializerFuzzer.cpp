@@ -39,7 +39,7 @@ std::filesystem::path RepositoryRoot()
 
 std::unique_ptr<mfd::LoadedWindowConfiguration> LoadSeedWindow()
 {
-    const std::filesystem::path windowFile = RepositoryRoot() / "assets" / "windows" / "demo_pages_minimal.json";
+    const std::filesystem::path windowFile = RepositoryRoot() / "examples" / "demo" / "assets" / "windows" / "demo_window.json";
     mfd::JsonLoader loader;
 
     try

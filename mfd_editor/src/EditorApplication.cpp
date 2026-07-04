@@ -222,9 +222,9 @@ constexpr float kLayerInspectorPreviewHeight = 84.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
-constexpr const char* kUiStateFileName = "assets/.editor_ui_state.json";
-constexpr const char* kRecoveryFileName = "assets/.editor_recovery.json";
-constexpr const char* kRecentWindowsFileName = "assets/.editor_recent_windows.json";
+constexpr const char* kUiStateFileName = "examples/demo/assets/.editor_ui_state.json";
+constexpr const char* kRecoveryFileName = "examples/demo/assets/.editor_recovery.json";
+constexpr const char* kRecentWindowsFileName = "examples/demo/assets/.editor_recent_windows.json";
 
 enum class DroppedJsonDocumentKind
 {
@@ -1403,15 +1403,15 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     tutorial_ = std::make_unique<EditorTutorialController>(*this);
     CopyTextBuffer(workflowState_.newPageDraft.name, "NewPage");
     CopyTextBuffer(workflowState_.newPageDraft.title, "New Page");
-    CopyTextBuffer(workflowState_.newPageDraft.fileName, documentState_.assetPaths.DefaultAssetPath("assets/pages/new_page.json").string());
-    CopyTextBuffer(workflowState_.newWindowDraft.windowFile, documentState_.assetPaths.DefaultAssetPath("assets/windows/new_window.json").string());
+    CopyTextBuffer(workflowState_.newPageDraft.fileName, documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/pages/new_page.json").string());
+    CopyTextBuffer(workflowState_.newWindowDraft.windowFile, documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/windows/new_window.json").string());
     CopyTextBuffer(workflowState_.newWindowDraft.title, "New MFD Window");
-    CopyTextBuffer(workflowState_.newWindowDraft.reticleLibraryFolder, documentState_.assetPaths.DefaultAssetPath("assets/reticles").string());
+    CopyTextBuffer(workflowState_.newWindowDraft.reticleLibraryFolder, documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/reticles").string());
     CopyTextBuffer(workflowState_.newWindowDraft.commandAddress, "127.0.0.1");
     CopyTextBuffer(workflowState_.newWindowDraft.feedbackAddress, "127.0.0.1");
     CopyTextBuffer(workflowState_.newWindowDraft.firstPageName, "Page1");
     CopyTextBuffer(workflowState_.newWindowDraft.firstPageTitle, "Page 1");
-    CopyTextBuffer(workflowState_.newWindowDraft.firstPageFile, documentState_.assetPaths.DefaultAssetPath("assets/pages/page1.json").string());
+    CopyTextBuffer(workflowState_.newWindowDraft.firstPageFile, documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/pages/page1.json").string());
     CopyTextBuffer(workflowState_.newLibraryReticleDraft.id, "new_reticle");
     CopyTextBuffer(workflowState_.duplicateLibraryReticleDraft.id, "reticle_copy");
     ResetPagePreviewView();
@@ -8701,7 +8701,7 @@ void EditorApplication::SeedNewWindowAssetDraftPaths()
     const std::filesystem::path windowFile = std::filesystem::path(workflowState_.newWindowDraft.windowFile.data()).lexically_normal();
     if (windowFile.empty() || !windowFile.is_absolute() || editor::EditorAssetPathService::IsExecStagingPath(windowFile))
     {
-        CopyTextBuffer(workflowState_.newWindowDraft.windowFile, documentState_.assetPaths.DefaultAssetPath("assets/windows/new_window.json").string());
+        CopyTextBuffer(workflowState_.newWindowDraft.windowFile, documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/windows/new_window.json").string());
     }
 
     const std::filesystem::path resolvedWindowFile = std::filesystem::path(workflowState_.newWindowDraft.windowFile.data()).lexically_normal();
@@ -8727,7 +8727,7 @@ void EditorApplication::SeedNewPageAssetDraftPath()
     }
 
     const std::filesystem::path windowFile = documentState_.loaded.window.sourceFile.empty()
-                                                 ? documentState_.assetPaths.DefaultAssetPath("assets/windows/new_window.json")
+                                                 ? documentState_.assetPaths.DefaultAssetPath("examples/demo/assets/windows/new_window.json")
                                                  : documentState_.loaded.window.sourceFile;
     const std::filesystem::path defaultFileName =
         editor::EditorAssetPathService::JsonFileNameOrFallback(pageFile, "new_page.json");

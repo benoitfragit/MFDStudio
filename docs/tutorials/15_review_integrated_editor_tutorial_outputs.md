@@ -8,16 +8,16 @@ the tutorial saved, then continue with the runtime and generated-client docs.
 
 ## What The Tutorial Changes
 
-- only the tutorial assets under `assets/`
+- only the tutorial assets under `examples/tutorial/assets/`
 - no repository source rewrite during the walkthrough
-- `examples/CMakeLists.txt` already contains `add_subdirectory(client_tutorial)` in Git
-- `examples/client_tutorial/CMakeLists.txt` still returns immediately when the tutorial assets are missing
+- `examples/CMakeLists.txt` already contains `add_subdirectory(tutorial/client)` in Git
+- `examples/tutorial/client/CMakeLists.txt` still returns immediately when the tutorial assets are missing
 
 ## Step 1 - Inspect `Page1`
 
 Open:
 
-- `assets/pages/mfd_tutorial_page1.json`
+- `examples/tutorial/assets/pages/mfd_tutorial_page1.json`
 
 Focus on these authored sections:
 
@@ -32,7 +32,7 @@ The important Page1 rule is:
 - the tutorial frames the generated page title through `titleDisplay`
 - `mfd_tutorial_aircraft` is instantiated once as the static ownship reference at `x = 0.0`, `y = -0.7`
 - that static ownship instance is then renamed locally to `page1_ownship`, while its `template` still points to `mfd_tutorial_aircraft`
-- `inspired_steering_cue` stays where it already was
+- `inspired_steering_cue` is seeded in the tutorial reticle folder and stays bound on the overlay layer
 - the tutorial adds `mfd_tutorial_radar_track` on `RadarTrackLayer`
 - `Default` and `Strobe1` now use two distinct templates
 - the default strobe cursor exposes its line primitives for generated-client mutation
@@ -74,13 +74,13 @@ following the guided title step.
 
 Open:
 
-- `assets/windows/mfd_tutorial.json`
+- `examples/tutorial/assets/windows/mfd_tutorial.json`
 
 Confirm that the window points to:
 
 - the tutorial page files
 - the tutorial reticle library folder
-- the UDP command / feedback setup used by `client_tutorial`
+- the UDP command / feedback setup used by `tutorial_client`
 - the explicit `fastIntervalMs` / `heartbeatIntervalMs` cadence fields used for
   active-page strobe feedback
 
@@ -88,13 +88,14 @@ Confirm that the window points to:
 
 Open these files as needed:
 
-- `assets/reticles/mfd_tutorial_radar_track.json`
-- `assets/reticles/mfd_tutorial_aircraft.json`
-- `assets/reticles/mfd_tutorial_circle.json`
-- `assets/reticles/mfd_tutorial_progress_bar.json`
-- `assets/reticles/mfd_tutorial_strobe_cursor.json`
+- `examples/tutorial/assets/reticles/mfd_tutorial_radar_track.json`
+- `examples/tutorial/assets/reticles/mfd_tutorial_aircraft.json`
+- `examples/tutorial/assets/reticles/mfd_tutorial_circle.json`
+- `examples/tutorial/assets/reticles/mfd_tutorial_progress_bar.json`
+- `examples/tutorial/assets/reticles/mfd_tutorial_strobe_cursor.json`
+- `examples/tutorial/assets/reticles/inspired_steering_cue.json`
 
-These are the only authored reticle templates created by the integrated
+These are the authored reticle templates created or seeded by the integrated
 tutorial flow.
 
 Focus especially on:
@@ -106,7 +107,7 @@ Focus especially on:
 
 Open:
 
-- `assets/windows/mfd_tutorial.generated.map`
+- `examples/tutorial/assets/windows/mfd_tutorial.generated.map`
 
 Use it to confirm that:
 
@@ -120,7 +121,7 @@ Use it to confirm that:
 
 Open:
 
-- `examples/client_tutorial/src/main.cpp`
+- `examples/tutorial/client/src/main.cpp`
 
 This file shows how the saved assets are consumed:
 
@@ -137,15 +138,16 @@ This file shows how the saved assets are consumed:
 
 Open:
 
-- `examples/client_tutorial/CMakeLists.txt`
+- `examples/tutorial/client/CMakeLists.txt`
 
 The tutorial client is part of the examples tree by default, but the target
 still self-skips until these assets exist:
 
-- `assets/windows/mfd_tutorial.json`
-- `assets/pages/mfd_tutorial_page1.json`
-- `assets/pages/mfd_tutorial_page2.json`
+- `examples/tutorial/assets/windows/mfd_tutorial.json`
+- `examples/tutorial/assets/pages/mfd_tutorial_page1.json`
+- `examples/tutorial/assets/pages/mfd_tutorial_page2.json`
 - the tutorial reticle JSON files
+- `examples/tutorial/assets/reticles/inspired_steering_cue.json`
 
 That keeps a fresh clone buildable while avoiding any tutorial-time rewrite of
 repository source files.
@@ -155,7 +157,7 @@ repository source files.
 Continue with:
 
 1. [Create A Window From Scratch In `mfd_editor`](./13_create_window_from_editor.md)
-2. [Test A Window With The Mockup](./03_test_with_mfd_mockup.md)
-3. [Use The Mockup As A Client API Reference](./11_use_the_mockup_as_a_client_api_reference.md)
+2. [Test A Window With The Demo Client](./03_test_with_mfd_demo.md)
+3. [Use The Demo Client As A Client API Reference](./11_use_the_demo_client_as_a_client_api_reference.md)
 4. [Generated Client API](../src/handbook/generated_api.md)
 5. [Capture The Window As Raw Pixels](./07_framebuffer_rgba32_capture.md)

@@ -30,7 +30,7 @@ TEST(RuntimeSessionTests, LoadWindowFileExposesPublicWindowInfoAndPages)
     mfd::runtime_api::RuntimeSession session;
     std::string error;
 
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/demo_pages_minimal.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "examples/demo/assets/windows/demo_window.json", error)) << error;
     EXPECT_TRUE(error.empty());
     EXPECT_FALSE(session.WindowFile().empty());
 
@@ -58,12 +58,12 @@ TEST(RuntimeSessionTests, ReloadPreservesCurrentActivePageWhenItStillExists)
     mfd::runtime_api::RuntimeSession session;
     std::string error;
 
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/demo_pages_minimal.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "examples/demo/assets/windows/demo_window.json", error)) << error;
 
     const std::vector<mfd::runtime_api::RuntimePageInfo> pages = session.Pages();
     if (pages.size() < 2U)
     {
-        GTEST_SKIP() << "The demo_pages_minimal fixture does not expose a secondary page.";
+        GTEST_SKIP() << "The demo_window fixture does not expose a secondary page.";
     }
 
     ASSERT_TRUE(session.SetActivePage(pages[1].name));
@@ -79,7 +79,7 @@ TEST(RuntimeSessionTests, CommandTransactionModePersistsAcrossReload)
     session.SetCommandTransactionMode(mfd::runtime_api::RuntimeCommandTransactionMode::NonTransactional);
     std::string error;
 
-    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "assets/windows/demo_pages_minimal.json", error)) << error;
+    ASSERT_TRUE(session.LoadWindowFile(RepositoryRoot() / "examples/demo/assets/windows/demo_window.json", error)) << error;
     EXPECT_EQ(
         session.CommandTransactionMode(),
         mfd::runtime_api::RuntimeCommandTransactionMode::NonTransactional);

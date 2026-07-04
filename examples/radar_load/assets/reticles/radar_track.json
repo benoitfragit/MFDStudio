@@ -1,0 +1,48 @@
+{
+  "elements": [
+    {
+      "end": [
+        0.0,
+        -0.18330000340938568
+      ],
+      "id": "track_vector",
+      "start": [
+        0.0,
+        -0.03750000149011612
+      ],
+      "type": "line"
+    },
+    {
+      "filled": false,
+      "id": "track_head",
+      "size": 0.05829999968409538,
+      "type": "diamond"
+    },
+    {
+      "end": [
+        0.02500000037252903,
+        0.0
+      ],
+      "id": "track_cross",
+      "start": [
+        -0.02500000037252903,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "at": [
+        0.05829999968409538,
+        0.016699999570846558
+      ],
+      "id": "track_label",
+      "reticleRotationSensitive": false,
+      "reticleScaleSensitive": false,
+      "size": 0.03750000149011612,
+      "text": "TRK",
+      "type": "text"
+    }
+  ],
+  "id": "radar_track",
+  "lineWidth": 0.00419999985024333
+}

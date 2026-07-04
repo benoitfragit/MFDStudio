@@ -1,0 +1,66 @@
+{
+  "elements": [
+    {
+      "exposed": true,
+      "filled": false,
+      "id": "ring",
+      "radius": 0.08749999850988388,
+      "type": "circle"
+    },
+    {
+      "end": [
+        -0.05829999968409538,
+        0.0
+      ],
+      "exposed": true,
+      "id": "left_tick",
+      "start": [
+        -0.12080000340938568,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        0.12080000340938568,
+        0.0
+      ],
+      "exposed": true,
+      "id": "right_tick",
+      "start": [
+        0.05829999968409538,
+        0.0
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        0.0,
+        0.05829999968409538
+      ],
+      "exposed": true,
+      "id": "top_tick",
+      "start": [
+        0.0,
+        0.12080000340938568
+      ],
+      "type": "line"
+    },
+    {
+      "end": [
+        0.0,
+        -0.12080000340938568
+      ],
+      "exposed": true,
+      "id": "bottom_tick",
+      "start": [
+        0.0,
+        -0.05829999968409538
+      ],
+      "type": "line"
+    }
+  ],
+  "id": "strobe_cursor",
+  "lineWidth": 0.00419999985024333,
+  "stroke": "#FFFFFFFF"
+}

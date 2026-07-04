@@ -32,7 +32,7 @@ Important scope choice:
 
 - the suite is intentionally focused on runtime logic and loading
 - it does not try to pixel-compare rendered frames
-- it does not depend on the mockup or the editor UI
+- it does not depend on the demo client or the editor UI
 
 This keeps the tests fast, deterministic, and useful for day-to-day work.
 
@@ -73,7 +73,7 @@ live physically under `mfd_common_api/include`, `mfd_common_api/src`, and
 - loading page-local blink definitions and default blink resolution
 - rejecting an unknown page default blink type
 - rejecting an unknown reticle blink type
-- a smoke test on the repository cockpit window configuration
+- a smoke test on the repository radar load window configuration
 
 `RuntimeValidationTests.cpp` covers:
 
@@ -193,6 +193,6 @@ When you touch the runtime or loading code:
 1. build the project
 2. refresh `_Exec` with `stage_exec` if you plan to launch from the staged tree
 3. run `mfd_api_tests` from `build/<preset>/tests/<config>/`
-4. launch the mockup only after the automated suite is green
+4. launch the demo client only after the automated suite is green
 
 This gives a faster and more reliable feedback loop than manual checking alone.

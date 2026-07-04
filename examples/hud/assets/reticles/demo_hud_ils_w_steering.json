@@ -1,0 +1,14 @@
+{
+  "id": "demo_hud_ils_w_steering",
+  "elements": [
+    {
+      "id": "w_text",
+      "type": "text",
+      "text": "W",
+      "position": [0.0, 0.0],
+      "fontSize": 0.052,
+      "align": "center",
+      "stroke": "#7BFFB4FF"
+    }
+  ]
+}

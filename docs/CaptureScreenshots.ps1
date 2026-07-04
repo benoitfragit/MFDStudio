@@ -1,6 +1,6 @@
 param(
     [string]$RuntimeDirectory = "",
-    [string]$WindowFile = "assets/windows/demo_pages_cockpit.json",
+    [string]$WindowFile = "examples/demo/assets/windows/demo_window.json",
     [string]$OutputDirectory = "docs/src/images"
 )
 
@@ -196,7 +196,7 @@ function Stop-GuiProcess
 
 $runtimeDirectory = Resolve-RuntimeDirectory -RequestedDirectory $RuntimeDirectory
 $runtimeExe = Join-Path $runtimeDirectory "mfd_window.exe"
-$clientExe = Join-Path $runtimeDirectory "client_mockup.exe"
+$clientExe = Join-Path $runtimeDirectory "demo_client.exe"
 $editorExe = Join-Path $runtimeDirectory "mfd_editor.exe"
 $resolvedWindowFile = (Resolve-Path (Join-Path $repoRoot $WindowFile)).Path
 $resolvedOutputDirectory = Join-Path $repoRoot $OutputDirectory
@@ -216,9 +216,6 @@ try
     Set-WindowBounds -Process $runtimeProcess -X ($screenBounds.Left + 40) -Y ($screenBounds.Top + 40) -Width ([Math]::Min(1320, $screenBounds.Width - 80)) -Height ([Math]::Min(860, $screenBounds.Height - 100))
     [Win32DocCapture]::SetForegroundWindow($runtimeProcess.MainWindowHandle) | Out-Null
     Start-Sleep -Milliseconds 400
-    [System.Windows.Forms.SendKeys]::SendWait("4")
-    Start-Sleep -Milliseconds 800
-
     $clientProcess = Wait-MainWindow (Start-GuiProcess -FilePath $clientExe -WorkingDirectory $runtimeDirectory)
     Set-WindowBounds -Process $clientProcess -X ($screenBounds.Left + 80) -Y ($screenBounds.Top + 80) -Width ([Math]::Min(620, $screenBounds.Width - 160)) -Height ([Math]::Min(900, $screenBounds.Height - 140))
 
@@ -228,8 +225,8 @@ try
     Start-Sleep -Seconds 2
 
     $captures = @(
-        @{ Process = $runtimeProcess; File = (Join-Path $resolvedOutputDirectory "mfd_window_cockpit_capture.png") },
-        @{ Process = $clientProcess; File = (Join-Path $resolvedOutputDirectory "client_mockup_demo.png") },
+        @{ Process = $runtimeProcess; File = (Join-Path $resolvedOutputDirectory "mfd_window_runtime_capture.png") },
+        @{ Process = $clientProcess; File = (Join-Path $resolvedOutputDirectory "demo_client.png") },
         @{ Process = $editorProcess; File = (Join-Path $resolvedEditorOutputDirectory "editor-startpage.png") }
     )
 

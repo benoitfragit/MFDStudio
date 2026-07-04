@@ -62,20 +62,27 @@ set_target_properties(mfd_window PROPERTIES
 mfd_enable_target_warnings(mfd_window)
 
 set(MFD_WINDOW_SCRIPT_SOURCE_DIR "${MFD_ROOT_DIR}/Scripts")
+set(MFD_WINDOW_ASSET_SOURCE_DIRS
+    "${MFD_ROOT_DIR}/examples/demo/assets"
+    "${MFD_ROOT_DIR}/examples/hud/assets"
+    "${MFD_ROOT_DIR}/examples/radar_load/assets"
+    "${MFD_ROOT_DIR}/examples/client_test_package/assets")
+string(JOIN "#" MFD_WINDOW_ASSET_SOURCE_LIST_ENCODED ${MFD_WINDOW_ASSET_SOURCE_DIRS})
+
 set(MFD_WINDOW_LAUNCH_SCRIPT_NAMES
     Start-MfdWindow.bat
     Start-MfdDemo.bat
-    Start-MfdCockpit.bat
-    Start-MfdMinimal.bat
+    Start-DemoHUD.bat
+    Start-RadarLoad.bat
     Start-MfdPackageTest.bat
-    Start-MfdTutorial.bat)
+    Start-Tutorial.bat)
 
 set(MFD_WINDOW_LAUNCH_SCRIPTS)
 foreach(mfd_window_script_name IN LISTS MFD_WINDOW_LAUNCH_SCRIPT_NAMES)
     list(APPEND MFD_WINDOW_LAUNCH_SCRIPTS "${MFD_WINDOW_SCRIPT_SOURCE_DIR}/${mfd_window_script_name}")
 endforeach()
 
-string(JOIN ";" MFD_WINDOW_LAUNCH_SCRIPT_LIST ${MFD_WINDOW_LAUNCH_SCRIPT_NAMES})
+string(JOIN "#" MFD_WINDOW_LAUNCH_SCRIPT_LIST_ENCODED ${MFD_WINDOW_LAUNCH_SCRIPT_NAMES})
 
 set_source_files_properties(${MFD_WINDOW_LAUNCH_SCRIPTS} PROPERTIES HEADER_FILE_ONLY TRUE)
 target_sources(mfd_window PRIVATE ${MFD_WINDOW_LAUNCH_SCRIPTS})
@@ -92,10 +99,10 @@ if(WIN32)
             "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake"
         COMMAND
             ${CMAKE_COMMAND}
-            "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+            "-DSOURCE_DIRS_ENCODED=${MFD_WINDOW_ASSET_SOURCE_LIST_ENCODED}"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/assets"
             -P
-            "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
+            "${MFD_ROOT_DIR}/cmake/SyncMergedAssetTrees.cmake"
         COMMAND
             ${CMAKE_COMMAND}
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>"
@@ -106,7 +113,7 @@ if(WIN32)
             ${CMAKE_COMMAND}
             "-DSOURCE_DIR=${MFD_WINDOW_SCRIPT_SOURCE_DIR}"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>"
-            "-DFILE_NAMES=${MFD_WINDOW_LAUNCH_SCRIPT_LIST}"
+            "-DFILE_NAMES_ENCODED=${MFD_WINDOW_LAUNCH_SCRIPT_LIST_ENCODED}"
             -P
             "${MFD_ROOT_DIR}/cmake/SyncLaunchScripts.cmake"
         VERBATIM)
@@ -122,18 +129,19 @@ else()
             "${MFD_ROOT_DIR}/cmake/SyncDirectoryTree.cmake"
         COMMAND
             ${CMAKE_COMMAND}
-            "-DSOURCE_DIR=${MFD_ROOT_DIR}/assets"
+            "-DSOURCE_DIRS_ENCODED=${MFD_WINDOW_ASSET_SOURCE_LIST_ENCODED}"
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_window>/assets"
             -P
-            "${MFD_ROOT_DIR}/cmake/SyncAssetTree.cmake"
+            "${MFD_ROOT_DIR}/cmake/SyncMergedAssetTrees.cmake"
         VERBATIM)
 endif()
 
 mfd_stage_runtime(
     mfd_window
-    WITH_ASSETS
     WITH_BRANDING
     WITH_RUNTIME_DLLS
+    ROOT_ASSET_DIRS
+        ${MFD_WINDOW_ASSET_SOURCE_DIRS}
     SCRIPT_SOURCE_DIR "${MFD_WINDOW_SCRIPT_SOURCE_DIR}"
     SCRIPT_NAMES
         ${MFD_WINDOW_LAUNCH_SCRIPT_NAMES})

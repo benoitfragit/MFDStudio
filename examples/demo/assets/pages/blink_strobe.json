@@ -1,0 +1,144 @@
+{
+  "activeStrobe": "Default",
+  "bg": "#061006FF",
+  "blinkTypes": [
+    {
+      "durationMs": 1000,
+      "name": "slow"
+    },
+    {
+      "durationMs": 300,
+      "name": "fast"
+    },
+    {
+      "durationMs": 650,
+      "name": "caution"
+    }
+  ],
+  "defaultBlink": "slow",
+  "layers": [
+    {
+      "id": "default"
+    }
+  ],
+  "name": "BlinkStrobe",
+  "staticReticles": [
+    {
+      "angle": 18.0,
+      "at": [
+        -0.45,
+        0.18
+      ],
+      "blink": "slow",
+      "id": "track_slow",
+      "layerId": "default",
+      "letterSpacings": {
+        "track_label": 0.002
+      },
+      "lineWidth": 0.0042,
+      "stroke": "#4DE0FFFF",
+      "template": "radar_track",
+      "texts": {
+        "track_label": "SLOW"
+      }
+    },
+    {
+      "angle": -32.0,
+      "at": [
+        0.0,
+        -0.05
+      ],
+      "blink": "fast",
+      "id": "track_fast",
+      "layerId": "default",
+      "letterSpacings": {
+        "track_label": 0.002
+      },
+      "lineWidth": 0.0042,
+      "stroke": "#56F4A2FF",
+      "template": "radar_track",
+      "texts": {
+        "track_label": "FAST"
+      }
+    },
+    {
+      "angle": 42.0,
+      "at": [
+        0.42,
+        0.24
+      ],
+      "blink": "caution",
+      "id": "track_caution",
+      "layerId": "default",
+      "letterSpacings": {
+        "track_label": 0.002
+      },
+      "lineWidth": 0.0042,
+      "stroke": "#FFD666FF",
+      "template": "radar_track",
+      "texts": {
+        "track_label": "CAUT"
+      }
+    },
+    {
+      "elements": [
+        {
+          "at": [
+            0.0,
+            0.78
+          ],
+          "id": "title_text",
+          "size": 0.055,
+          "text": "Blink + strobe",
+          "type": "text"
+        },
+        {
+          "at": [
+            0.0,
+            -0.76
+          ],
+          "id": "hint_text",
+          "size": 0.033,
+          "text": "The demo client moves the active strobe and one track automatically",
+          "type": "text"
+        }
+      ],
+      "id": "strobe_caption",
+      "layerId": "default",
+      "stroke": "#CBFFE1FF"
+    }
+  ],
+  "strobes": [
+    {
+      "capture": {
+        "radius": 0.10,
+        "shape": "circle"
+      },
+      "id": "default_strobe",
+      "lineWidth": 0.0042,
+      "magnet": {
+        "enabled": true,
+        "radius": 0.075,
+        "strength": 1.0
+      },
+      "name": "Default",
+      "stroke": "#FFFFFFFF",
+      "template": "strobe_cursor"
+    },
+    {
+      "capture": {
+        "shape": "rectangle",
+        "size": [
+          0.28,
+          0.18
+        ]
+      },
+      "id": "designator_strobe",
+      "lineWidth": 0.0034,
+      "name": "Designator",
+      "stroke": "#FFD666FF",
+      "template": "inspired_sensor_crosshair"
+    }
+  ],
+  "title": "Blink + Strobe"
+}

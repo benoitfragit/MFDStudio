@@ -3,13 +3,13 @@
 A visual tour of the main pieces. Every image here already ships in the
 repository under `docs/src/images/`; each links to the page that explains it.
 
-## Cockpit runtime
+## Runtime
 
-![Cockpit runtime](./images/mfd_window_cockpit_capture.png)
+![Runtime](./images/mfd_window_runtime_capture.png)
 
-`mfd_window` running the cockpit demo: ADI, HUD, and radar panels driven live
-over UDP. Reproduce it with `Scripts\Start-MfdCockpit.bat` and the
-`client_mockup_minimal` headless client.
+`mfd_window` running a shipped asset driven live over UDP. Reproduce the simple
+demo with `Scripts\Start-MfdDemo.bat` and `demo_client`, or the load scenario
+with `Scripts\Start-RadarLoad.bat` and `radar_load_client`.
 
 -> [Runtime](./handbook/runtime.md) | [Getting Started Tutorial](./getting-started.md)
 
@@ -30,11 +30,11 @@ The matching handbook page zooms in on the main zones:
 
 -> [Editor](./handbook/editor.md)
 
-## Client mockup
+## Demo Client
 
-![Client mockup](./images/client_mockup_demo.png)
+![Demo client](./images/demo_client.png)
 
-`client_mockup`, the shipped GUI client. It loads a window JSON for discovery and
+`demo_client`, the shipped GUI client. It loads a window JSON for discovery and
 sends live commands to the runtime, which makes it a good reference client.
 
 -> [Quick Start](./quickstart.md) | [Generated Client API](./handbook/generated_api.md)

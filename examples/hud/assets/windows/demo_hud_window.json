@@ -1,0 +1,36 @@
+{
+  "title": "Demo HUD",
+  "size": [
+    1024,
+    1024
+  ],
+  "position": [
+    80,
+    80
+  ],
+  "targetFps": 60,
+  "iconFile": "../../../../branding/mfdstudio_app_icon.png",
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47330,
+      "maxPacketSize": 16384
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47331,
+      "maxPacketSize": 4096
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
+  },
+  "defaultPage": "HUD",
+  "pages": [
+    "../pages/demo_hud.json"
+  ]
+}

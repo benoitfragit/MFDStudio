@@ -37,10 +37,10 @@ The start page keeps the first actions explicit:
 ## Open existing assets
 
 Use **Open window** from the start page or **File > Open window asset...** from
-the menu bar to browse one authored window JSON under the repository `assets/`
-tree.
+the menu bar to browse one authored window JSON under one repository example
+asset tree, such as `examples/demo/assets/windows`.
 
-The editor still opens source assets under `assets/` and never auto-loads
+The editor opens source assets under `examples/*/assets` and never auto-loads
 staged `_Exec` copies, so you stay on the authored files that belong under
 version control.
 

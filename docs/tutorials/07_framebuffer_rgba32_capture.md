@@ -111,13 +111,13 @@ The generic runtime host now accepts one optional plugin DLL on the command
 line:
 
 ```powershell
-.\Scripts\Start-MfdMinimal.bat
+.\Scripts\Start-MfdDemo.bat
 ```
 
 Under the hood this launches:
 
 ```powershell
-mfd_window --window assets/windows/demo_pages_minimal.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
+mfd_window --window examples/demo/assets/windows/demo_window.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
 ```
 
 The sample plugin target is `mfd_framebuffer_stdout_plugin`. It exports one
@@ -177,7 +177,7 @@ int main(int argc, char** argv)
 {
     mfd::window::LauncherConfig config;
     config.applicationName = "my_window_host";
-    config.defaultWindowFile = "assets/windows/demo_pages_minimal.json";
+    config.defaultWindowFile = "examples/demo/assets/windows/demo_window.json";
 
     return mfd::window::RunLauncher(
         argc,
