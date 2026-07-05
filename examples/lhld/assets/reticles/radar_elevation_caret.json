@@ -1,0 +1,8 @@
+{
+  "id": "radar_elevation_caret",
+  "lineWidth": 0.004,
+  "elements": [
+    { "id": "caret_top",    "type": "line", "start": [-0.755, 0.045], "end": [-0.70, 0.0] },
+    { "id": "caret_bottom", "type": "line", "start": [-0.755,-0.045], "end": [-0.70, 0.0] }
+  ]
+}

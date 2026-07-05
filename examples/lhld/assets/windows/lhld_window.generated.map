@@ -1,0 +1,2218 @@
+{
+  "schemaVersion": 1,
+  "mappingHash": "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68",
+  "window": {
+    "name": "lhld_window",
+    "title": "LHLD",
+    "source": "lhld_window.json"
+  },
+  "pages": [
+    {
+      "id": 12522798620474048056,
+      "name": "Ag",
+      "normalizedName": "ag",
+      "hasStrobe": false,
+      "defaultPage": false
+    },
+    {
+      "id": 4521275237489847181,
+      "name": "Nav",
+      "normalizedName": "nav",
+      "hasStrobe": false,
+      "defaultPage": false
+    },
+    {
+      "id": 9637022363458486384,
+      "name": "Radar",
+      "normalizedName": "radar",
+      "hasStrobe": false,
+      "defaultPage": true
+    },
+    {
+      "id": 1024964660204535383,
+      "name": "Sms",
+      "normalizedName": "sms",
+      "hasStrobe": false,
+      "defaultPage": false
+    }
+  ],
+  "reticles": [
+    {
+      "id": 2290635106447976548,
+      "pageId": 12522798620474048056,
+      "reticleId": "ag_bomb_symbol",
+      "normalizedReticleId": "ag_bomb_symbol",
+      "source": "static"
+    },
+    {
+      "id": 8090989696557863213,
+      "pageId": 12522798620474048056,
+      "reticleId": "ag_header",
+      "normalizedReticleId": "ag_header",
+      "source": "static"
+    },
+    {
+      "id": 10936172339984027992,
+      "pageId": 12522798620474048056,
+      "reticleId": "ag_profile",
+      "normalizedReticleId": "ag_profile",
+      "source": "static"
+    },
+    {
+      "id": 7211081812214664729,
+      "pageId": 12522798620474048056,
+      "reticleId": "ag_status",
+      "normalizedReticleId": "ag_status",
+      "source": "static"
+    },
+    {
+      "id": 18182142305293209087,
+      "pageId": 12522798620474048056,
+      "reticleId": "osb_legends",
+      "normalizedReticleId": "osb_legends",
+      "source": "static"
+    },
+    {
+      "id": 10178784478083570854,
+      "pageId": 4521275237489847181,
+      "reticleId": "flight_leg_1",
+      "normalizedReticleId": "flight_leg_1",
+      "source": "static"
+    },
+    {
+      "id": 12074727870126944699,
+      "pageId": 4521275237489847181,
+      "reticleId": "flight_leg_2",
+      "normalizedReticleId": "flight_leg_2",
+      "source": "static"
+    },
+    {
+      "id": 8030820908688166721,
+      "pageId": 4521275237489847181,
+      "reticleId": "flight_leg_3",
+      "normalizedReticleId": "flight_leg_3",
+      "source": "static"
+    },
+    {
+      "id": 8390038148276660740,
+      "pageId": 4521275237489847181,
+      "reticleId": "flight_leg_4",
+      "normalizedReticleId": "flight_leg_4",
+      "source": "static"
+    },
+    {
+      "id": 13248291275810705796,
+      "pageId": 4521275237489847181,
+      "reticleId": "flight_leg_5",
+      "normalizedReticleId": "flight_leg_5",
+      "source": "static"
+    },
+    {
+      "id": 17388545571383673911,
+      "pageId": 4521275237489847181,
+      "reticleId": "flight_leg_6",
+      "normalizedReticleId": "flight_leg_6",
+      "source": "static"
+    },
+    {
+      "id": 11974589824225742633,
+      "pageId": 4521275237489847181,
+      "reticleId": "flight_leg_7",
+      "normalizedReticleId": "flight_leg_7",
+      "source": "static"
+    },
+    {
+      "id": 9747942909479619109,
+      "pageId": 4521275237489847181,
+      "reticleId": "nav_bullseye",
+      "normalizedReticleId": "nav_bullseye",
+      "source": "static"
+    },
+    {
+      "id": 13539533474620061881,
+      "pageId": 4521275237489847181,
+      "reticleId": "nav_compass",
+      "normalizedReticleId": "nav_compass",
+      "source": "static"
+    },
+    {
+      "id": 7766987787403055220,
+      "pageId": 4521275237489847181,
+      "reticleId": "nav_data",
+      "normalizedReticleId": "nav_data",
+      "source": "static"
+    },
+    {
+      "id": 912436581939796056,
+      "pageId": 4521275237489847181,
+      "reticleId": "nav_heading_box",
+      "normalizedReticleId": "nav_heading_box",
+      "source": "static"
+    },
+    {
+      "id": 11792412510846934032,
+      "pageId": 4521275237489847181,
+      "reticleId": "nav_ownship",
+      "normalizedReticleId": "nav_ownship",
+      "source": "static"
+    },
+    {
+      "id": 11050727961470153069,
+      "pageId": 4521275237489847181,
+      "reticleId": "nav_status",
+      "normalizedReticleId": "nav_status",
+      "source": "static"
+    },
+    {
+      "id": 6786013924787651681,
+      "pageId": 4521275237489847181,
+      "reticleId": "osb_legends",
+      "normalizedReticleId": "osb_legends",
+      "source": "static"
+    },
+    {
+      "id": 15898794864623625288,
+      "pageId": 4521275237489847181,
+      "reticleId": "stpt_1",
+      "normalizedReticleId": "stpt_1",
+      "source": "static"
+    },
+    {
+      "id": 13687332337662849846,
+      "pageId": 4521275237489847181,
+      "reticleId": "stpt_2",
+      "normalizedReticleId": "stpt_2",
+      "source": "static"
+    },
+    {
+      "id": 8743790444241000997,
+      "pageId": 4521275237489847181,
+      "reticleId": "stpt_3",
+      "normalizedReticleId": "stpt_3",
+      "source": "static"
+    },
+    {
+      "id": 5489343672459092539,
+      "pageId": 4521275237489847181,
+      "reticleId": "stpt_4",
+      "normalizedReticleId": "stpt_4",
+      "source": "static"
+    },
+    {
+      "id": 9907321963152065060,
+      "pageId": 4521275237489847181,
+      "reticleId": "stpt_5",
+      "normalizedReticleId": "stpt_5",
+      "source": "static"
+    },
+    {
+      "id": 5778990059917202590,
+      "pageId": 4521275237489847181,
+      "reticleId": "stpt_6",
+      "normalizedReticleId": "stpt_6",
+      "source": "static"
+    },
+    {
+      "id": 14223817340695567013,
+      "pageId": 4521275237489847181,
+      "reticleId": "stpt_7",
+      "normalizedReticleId": "stpt_7",
+      "source": "static"
+    },
+    {
+      "id": 7635411807111030070,
+      "pageId": 4521275237489847181,
+      "reticleId": "stpt_8",
+      "normalizedReticleId": "stpt_8",
+      "source": "static"
+    },
+    {
+      "id": 9085931033594965621,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_01",
+      "normalizedReticleId": "contact_01",
+      "source": "static"
+    },
+    {
+      "id": 10356154936319957853,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_02",
+      "normalizedReticleId": "contact_02",
+      "source": "static"
+    },
+    {
+      "id": 5383231330859149623,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_03",
+      "normalizedReticleId": "contact_03",
+      "source": "static"
+    },
+    {
+      "id": 13342688759934410237,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_04",
+      "normalizedReticleId": "contact_04",
+      "source": "static"
+    },
+    {
+      "id": 9927653876851739677,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_05",
+      "normalizedReticleId": "contact_05",
+      "source": "static"
+    },
+    {
+      "id": 16932608227915268409,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_06",
+      "normalizedReticleId": "contact_06",
+      "source": "static"
+    },
+    {
+      "id": 17949234781045604367,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_07",
+      "normalizedReticleId": "contact_07",
+      "source": "static"
+    },
+    {
+      "id": 13044546668574874783,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_08",
+      "normalizedReticleId": "contact_08",
+      "source": "static"
+    },
+    {
+      "id": 8527551583820943095,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_09",
+      "normalizedReticleId": "contact_09",
+      "source": "static"
+    },
+    {
+      "id": 13415773420186990900,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_10",
+      "normalizedReticleId": "contact_10",
+      "source": "static"
+    },
+    {
+      "id": 2530427218959995615,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_11",
+      "normalizedReticleId": "contact_11",
+      "source": "static"
+    },
+    {
+      "id": 6117628619303221452,
+      "pageId": 9637022363458486384,
+      "reticleId": "contact_12",
+      "normalizedReticleId": "contact_12",
+      "source": "static"
+    },
+    {
+      "id": 5335176751285382191,
+      "pageId": 9637022363458486384,
+      "reticleId": "osb_legends",
+      "normalizedReticleId": "osb_legends",
+      "source": "static"
+    },
+    {
+      "id": 3500597299456941462,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_bscope_frame",
+      "normalizedReticleId": "radar_bscope_frame",
+      "source": "static"
+    },
+    {
+      "id": 1712911784726496237,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_bugged_target",
+      "normalizedReticleId": "radar_bugged_target",
+      "source": "static"
+    },
+    {
+      "id": 5317400876400328359,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_cursor",
+      "normalizedReticleId": "radar_cursor",
+      "source": "static"
+    },
+    {
+      "id": 7943573145641400727,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_datablock",
+      "normalizedReticleId": "radar_datablock",
+      "source": "static"
+    },
+    {
+      "id": 11408728800835168976,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_elevation_caret",
+      "normalizedReticleId": "radar_elevation_caret",
+      "source": "static"
+    },
+    {
+      "id": 10873039906535990210,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_scale",
+      "normalizedReticleId": "radar_scale",
+      "source": "static"
+    },
+    {
+      "id": 12184991532423583120,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_scan_line",
+      "normalizedReticleId": "radar_scan_line",
+      "source": "static"
+    },
+    {
+      "id": 4044906131749056143,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_status",
+      "normalizedReticleId": "radar_status",
+      "source": "static"
+    },
+    {
+      "id": 7684135775943981792,
+      "pageId": 1024964660204535383,
+      "reticleId": "osb_legends",
+      "normalizedReticleId": "osb_legends",
+      "source": "static"
+    },
+    {
+      "id": 1867297639708269777,
+      "pageId": 1024964660204535383,
+      "reticleId": "sms_header",
+      "normalizedReticleId": "sms_header",
+      "source": "static"
+    },
+    {
+      "id": 15122246768144666587,
+      "pageId": 1024964660204535383,
+      "reticleId": "sms_select_box",
+      "normalizedReticleId": "sms_select_box",
+      "source": "static"
+    },
+    {
+      "id": 8179299028465325326,
+      "pageId": 1024964660204535383,
+      "reticleId": "sms_selected",
+      "normalizedReticleId": "sms_selected",
+      "source": "static"
+    },
+    {
+      "id": 18085398326586845665,
+      "pageId": 1024964660204535383,
+      "reticleId": "sms_stations",
+      "normalizedReticleId": "sms_stations",
+      "source": "static"
+    },
+    {
+      "id": 18052466768008234388,
+      "pageId": 1024964660204535383,
+      "reticleId": "sms_status",
+      "normalizedReticleId": "sms_status",
+      "source": "static"
+    }
+  ],
+  "primitives": [
+    {
+      "id": 7743989249349695963,
+      "ownerKind": "reticle",
+      "ownerId": 8090989696557863213,
+      "primitiveId": "arm",
+      "normalizedPrimitiveId": "arm",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1624098423346760411,
+      "ownerKind": "reticle",
+      "ownerId": 8090989696557863213,
+      "primitiveId": "cntl",
+      "normalizedPrimitiveId": "cntl",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16517511466249502027,
+      "ownerKind": "reticle",
+      "ownerId": 8090989696557863213,
+      "primitiveId": "inv",
+      "normalizedPrimitiveId": "inv",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1900597251226987379,
+      "ownerKind": "reticle",
+      "ownerId": 8090989696557863213,
+      "primitiveId": "master_mode",
+      "normalizedPrimitiveId": "master_mode",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10430637746305474268,
+      "ownerKind": "reticle",
+      "ownerId": 8090989696557863213,
+      "primitiveId": "submode",
+      "normalizedPrimitiveId": "submode",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9531707750902550391,
+      "ownerKind": "reticle",
+      "ownerId": 8090989696557863213,
+      "primitiveId": "weapon",
+      "normalizedPrimitiveId": "weapon",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10974923062889293567,
+      "ownerKind": "reticle",
+      "ownerId": 8090989696557863213,
+      "primitiveId": "weapon_family",
+      "normalizedPrimitiveId": "weapon_family",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10867571773792299029,
+      "ownerKind": "reticle",
+      "ownerId": 8090989696557863213,
+      "primitiveId": "weapon_weight",
+      "normalizedPrimitiveId": "weapon_weight",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 8372276407835005848,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "config_label",
+      "normalizedPrimitiveId": "config_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4679565989825920763,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "config_value",
+      "normalizedPrimitiveId": "config_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14156193455498420264,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "dispense_label",
+      "normalizedPrimitiveId": "dispense_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11303253503827274694,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "dispense_value",
+      "normalizedPrimitiveId": "dispense_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 73756616571868750,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "fuzing_label",
+      "normalizedPrimitiveId": "fuzing_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3779141167633848588,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "fuzing_value",
+      "normalizedPrimitiveId": "fuzing_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7166207673449150996,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "interval_label",
+      "normalizedPrimitiveId": "interval_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16149721120055226634,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "interval_value",
+      "normalizedPrimitiveId": "interval_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1323619654794814321,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "mode_label",
+      "normalizedPrimitiveId": "mode_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2518831664602606237,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "mode_value",
+      "normalizedPrimitiveId": "mode_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1534166805578728336,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "nose_tail_label",
+      "normalizedPrimitiveId": "nose_tail_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2966120256182128110,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "nose_tail_value",
+      "normalizedPrimitiveId": "nose_tail_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2712760594099278060,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "pair_label",
+      "normalizedPrimitiveId": "pair_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4055075300070733143,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "pair_value",
+      "normalizedPrimitiveId": "pair_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15798078294209230203,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "profile_value",
+      "normalizedPrimitiveId": "profile_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 748828552494752187,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "qty_label",
+      "normalizedPrimitiveId": "qty_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6461753788249723669,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "qty_value",
+      "normalizedPrimitiveId": "qty_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12418985359311475132,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "range_state",
+      "normalizedPrimitiveId": "range_state",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14373776819597620420,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "ripple_label",
+      "normalizedPrimitiveId": "ripple_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16864403373024928741,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "ripple_value",
+      "normalizedPrimitiveId": "ripple_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 18420473799136769398,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "station_label",
+      "normalizedPrimitiveId": "station_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11861413191997730575,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "station_value",
+      "normalizedPrimitiveId": "station_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16001883988715210658,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "target_label",
+      "normalizedPrimitiveId": "target_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3530434236773984237,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "target_value",
+      "normalizedPrimitiveId": "target_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16885626162821346747,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "time_label",
+      "normalizedPrimitiveId": "time_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9893936136320210636,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "time_value",
+      "normalizedPrimitiveId": "time_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7531383742827758196,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "weapon_label",
+      "normalizedPrimitiveId": "weapon_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11306136586983191126,
+      "ownerKind": "reticle",
+      "ownerId": 10936172339984027992,
+      "primitiveId": "weapon_value",
+      "normalizedPrimitiveId": "weapon_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14422147938633847216,
+      "ownerKind": "reticle",
+      "ownerId": 7211081812214664729,
+      "primitiveId": "status_text",
+      "normalizedPrimitiveId": "status_text",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7144566165891901396,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_01",
+      "normalizedPrimitiveId": "osb_01",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 17623910274592485944,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_02",
+      "normalizedPrimitiveId": "osb_02",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4420621050051967137,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_03",
+      "normalizedPrimitiveId": "osb_03",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 8314466981832051324,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_04",
+      "normalizedPrimitiveId": "osb_04",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14743517192897875912,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_05",
+      "normalizedPrimitiveId": "osb_05",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15599711374963909001,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_06",
+      "normalizedPrimitiveId": "osb_06",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 941710361188670064,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_07",
+      "normalizedPrimitiveId": "osb_07",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10983320311555867371,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_08",
+      "normalizedPrimitiveId": "osb_08",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5346639663065393162,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_09",
+      "normalizedPrimitiveId": "osb_09",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11160734934642259887,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_10",
+      "normalizedPrimitiveId": "osb_10",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7608542563115674149,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_11",
+      "normalizedPrimitiveId": "osb_11",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2777368840677144014,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_12",
+      "normalizedPrimitiveId": "osb_12",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1589505832946129986,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_13",
+      "normalizedPrimitiveId": "osb_13",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 367033122432986157,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_14",
+      "normalizedPrimitiveId": "osb_14",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5164449972014577214,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_15",
+      "normalizedPrimitiveId": "osb_15",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 157250236551244421,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_16",
+      "normalizedPrimitiveId": "osb_16",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5693151935247998248,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_17",
+      "normalizedPrimitiveId": "osb_17",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3254464800164527309,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_18",
+      "normalizedPrimitiveId": "osb_18",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7544614601610608365,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_19",
+      "normalizedPrimitiveId": "osb_19",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12960066794731509288,
+      "ownerKind": "reticle",
+      "ownerId": 18182142305293209087,
+      "primitiveId": "osb_20",
+      "normalizedPrimitiveId": "osb_20",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1119848066010019904,
+      "ownerKind": "reticle",
+      "ownerId": 10178784478083570854,
+      "primitiveId": "leg",
+      "normalizedPrimitiveId": "leg",
+      "primitiveType": "line",
+      "exposed": true
+    },
+    {
+      "id": 3245549715650877083,
+      "ownerKind": "reticle",
+      "ownerId": 12074727870126944699,
+      "primitiveId": "leg",
+      "normalizedPrimitiveId": "leg",
+      "primitiveType": "line",
+      "exposed": true
+    },
+    {
+      "id": 2221119905166394540,
+      "ownerKind": "reticle",
+      "ownerId": 8030820908688166721,
+      "primitiveId": "leg",
+      "normalizedPrimitiveId": "leg",
+      "primitiveType": "line",
+      "exposed": true
+    },
+    {
+      "id": 2329469646518999646,
+      "ownerKind": "reticle",
+      "ownerId": 8390038148276660740,
+      "primitiveId": "leg",
+      "normalizedPrimitiveId": "leg",
+      "primitiveType": "line",
+      "exposed": true
+    },
+    {
+      "id": 4547196910215431882,
+      "ownerKind": "reticle",
+      "ownerId": 13248291275810705796,
+      "primitiveId": "leg",
+      "normalizedPrimitiveId": "leg",
+      "primitiveType": "line",
+      "exposed": true
+    },
+    {
+      "id": 5000832024142755443,
+      "ownerKind": "reticle",
+      "ownerId": 17388545571383673911,
+      "primitiveId": "leg",
+      "normalizedPrimitiveId": "leg",
+      "primitiveType": "line",
+      "exposed": true
+    },
+    {
+      "id": 16583065727800527370,
+      "ownerKind": "reticle",
+      "ownerId": 11974589824225742633,
+      "primitiveId": "leg",
+      "normalizedPrimitiveId": "leg",
+      "primitiveType": "line",
+      "exposed": true
+    },
+    {
+      "id": 6543711333079675347,
+      "ownerKind": "reticle",
+      "ownerId": 13539533474620061881,
+      "primitiveId": "label_e",
+      "normalizedPrimitiveId": "label_e",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 13847773444296641461,
+      "ownerKind": "reticle",
+      "ownerId": 13539533474620061881,
+      "primitiveId": "label_n",
+      "normalizedPrimitiveId": "label_n",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12294609344462156060,
+      "ownerKind": "reticle",
+      "ownerId": 13539533474620061881,
+      "primitiveId": "label_s",
+      "normalizedPrimitiveId": "label_s",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14095050843674697296,
+      "ownerKind": "reticle",
+      "ownerId": 13539533474620061881,
+      "primitiveId": "label_w",
+      "normalizedPrimitiveId": "label_w",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10751161208580205560,
+      "ownerKind": "reticle",
+      "ownerId": 7766987787403055220,
+      "primitiveId": "brg",
+      "normalizedPrimitiveId": "brg",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7622442067196421277,
+      "ownerKind": "reticle",
+      "ownerId": 7766987787403055220,
+      "primitiveId": "eta",
+      "normalizedPrimitiveId": "eta",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7726277783148185525,
+      "ownerKind": "reticle",
+      "ownerId": 7766987787403055220,
+      "primitiveId": "gs",
+      "normalizedPrimitiveId": "gs",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15799379848162237037,
+      "ownerKind": "reticle",
+      "ownerId": 7766987787403055220,
+      "primitiveId": "mach",
+      "normalizedPrimitiveId": "mach",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10316257117468999973,
+      "ownerKind": "reticle",
+      "ownerId": 7766987787403055220,
+      "primitiveId": "rng",
+      "normalizedPrimitiveId": "rng",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 18443038918382543870,
+      "ownerKind": "reticle",
+      "ownerId": 7766987787403055220,
+      "primitiveId": "stpt",
+      "normalizedPrimitiveId": "stpt",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6331566104465020560,
+      "ownerKind": "reticle",
+      "ownerId": 912436581939796056,
+      "primitiveId": "hdg_value",
+      "normalizedPrimitiveId": "hdg_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14023979226494621786,
+      "ownerKind": "reticle",
+      "ownerId": 11050727961470153069,
+      "primitiveId": "cntl",
+      "normalizedPrimitiveId": "cntl",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 487128769976430859,
+      "ownerKind": "reticle",
+      "ownerId": 11050727961470153069,
+      "primitiveId": "dcpl",
+      "normalizedPrimitiveId": "dcpl",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 18212734889151403528,
+      "ownerKind": "reticle",
+      "ownerId": 11050727961470153069,
+      "primitiveId": "dep",
+      "normalizedPrimitiveId": "dep",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10914126465849580980,
+      "ownerKind": "reticle",
+      "ownerId": 11050727961470153069,
+      "primitiveId": "l16",
+      "normalizedPrimitiveId": "l16",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 17149064513721899791,
+      "ownerKind": "reticle",
+      "ownerId": 11050727961470153069,
+      "primitiveId": "rng_label",
+      "normalizedPrimitiveId": "rng_label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16727112033455335953,
+      "ownerKind": "reticle",
+      "ownerId": 11050727961470153069,
+      "primitiveId": "status_text",
+      "normalizedPrimitiveId": "status_text",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9288432071966913418,
+      "ownerKind": "reticle",
+      "ownerId": 11050727961470153069,
+      "primitiveId": "xmt",
+      "normalizedPrimitiveId": "xmt",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 8611742273486975447,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_01",
+      "normalizedPrimitiveId": "osb_01",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16379618858479564014,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_02",
+      "normalizedPrimitiveId": "osb_02",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2164552323727400510,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_03",
+      "normalizedPrimitiveId": "osb_03",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15757007162434142436,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_04",
+      "normalizedPrimitiveId": "osb_04",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15733847654193672206,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_05",
+      "normalizedPrimitiveId": "osb_05",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2062670397163347085,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_06",
+      "normalizedPrimitiveId": "osb_06",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10324058730039195223,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_07",
+      "normalizedPrimitiveId": "osb_07",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16200566878201743611,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_08",
+      "normalizedPrimitiveId": "osb_08",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15274649285728230899,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_09",
+      "normalizedPrimitiveId": "osb_09",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10124426371838396604,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_10",
+      "normalizedPrimitiveId": "osb_10",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3316896293855128647,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_11",
+      "normalizedPrimitiveId": "osb_11",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 13138291753214453447,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_12",
+      "normalizedPrimitiveId": "osb_12",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12018360612550691942,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_13",
+      "normalizedPrimitiveId": "osb_13",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14253538581833763975,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_14",
+      "normalizedPrimitiveId": "osb_14",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11033309095837703764,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_15",
+      "normalizedPrimitiveId": "osb_15",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6056120166771506538,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_16",
+      "normalizedPrimitiveId": "osb_16",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12938199678382104631,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_17",
+      "normalizedPrimitiveId": "osb_17",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4943089533475133194,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_18",
+      "normalizedPrimitiveId": "osb_18",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1041105442988024643,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_19",
+      "normalizedPrimitiveId": "osb_19",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5878065711900619990,
+      "ownerKind": "reticle",
+      "ownerId": 6786013924787651681,
+      "primitiveId": "osb_20",
+      "normalizedPrimitiveId": "osb_20",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 17771937045534115329,
+      "ownerKind": "reticle",
+      "ownerId": 15898794864623625288,
+      "primitiveId": "stpt_num",
+      "normalizedPrimitiveId": "stpt_num",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3152362790677968693,
+      "ownerKind": "reticle",
+      "ownerId": 13687332337662849846,
+      "primitiveId": "stpt_num",
+      "normalizedPrimitiveId": "stpt_num",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 881943421739980245,
+      "ownerKind": "reticle",
+      "ownerId": 8743790444241000997,
+      "primitiveId": "stpt_num",
+      "normalizedPrimitiveId": "stpt_num",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4117906666999875231,
+      "ownerKind": "reticle",
+      "ownerId": 5489343672459092539,
+      "primitiveId": "stpt_num",
+      "normalizedPrimitiveId": "stpt_num",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7674652026236213756,
+      "ownerKind": "reticle",
+      "ownerId": 9907321963152065060,
+      "primitiveId": "stpt_num",
+      "normalizedPrimitiveId": "stpt_num",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7386341037014489492,
+      "ownerKind": "reticle",
+      "ownerId": 5778990059917202590,
+      "primitiveId": "stpt_num",
+      "normalizedPrimitiveId": "stpt_num",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 13586955358869209847,
+      "ownerKind": "reticle",
+      "ownerId": 14223817340695567013,
+      "primitiveId": "stpt_num",
+      "normalizedPrimitiveId": "stpt_num",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5418055449947250191,
+      "ownerKind": "reticle",
+      "ownerId": 7635411807111030070,
+      "primitiveId": "stpt_num",
+      "normalizedPrimitiveId": "stpt_num",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3762785098899115207,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_01",
+      "normalizedPrimitiveId": "osb_01",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9894862836002768372,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_02",
+      "normalizedPrimitiveId": "osb_02",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6577719914847412548,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_03",
+      "normalizedPrimitiveId": "osb_03",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7347951616971593294,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_04",
+      "normalizedPrimitiveId": "osb_04",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3525789913318395285,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_05",
+      "normalizedPrimitiveId": "osb_05",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14909450514631167784,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_06",
+      "normalizedPrimitiveId": "osb_06",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 881893186076790656,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_07",
+      "normalizedPrimitiveId": "osb_07",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4040250786001011785,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_08",
+      "normalizedPrimitiveId": "osb_08",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16369370959545138261,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_09",
+      "normalizedPrimitiveId": "osb_09",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 18138567163351097066,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_10",
+      "normalizedPrimitiveId": "osb_10",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1099595801354904209,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_11",
+      "normalizedPrimitiveId": "osb_11",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 613862442837566759,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_12",
+      "normalizedPrimitiveId": "osb_12",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16802576243067049352,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_13",
+      "normalizedPrimitiveId": "osb_13",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 17916266657734340786,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_14",
+      "normalizedPrimitiveId": "osb_14",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 13795576320411967759,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_15",
+      "normalizedPrimitiveId": "osb_15",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7556603724350725220,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_16",
+      "normalizedPrimitiveId": "osb_16",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7207480646310997260,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_17",
+      "normalizedPrimitiveId": "osb_17",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4896775062357350066,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_18",
+      "normalizedPrimitiveId": "osb_18",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15433596215042109257,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_19",
+      "normalizedPrimitiveId": "osb_19",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9387337141493396795,
+      "ownerKind": "reticle",
+      "ownerId": 5335176751285382191,
+      "primitiveId": "osb_20",
+      "normalizedPrimitiveId": "osb_20",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10239663155942804586,
+      "ownerKind": "reticle",
+      "ownerId": 7943573145641400727,
+      "primitiveId": "tgt_alt_value",
+      "normalizedPrimitiveId": "tgt_alt_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11178778372744812545,
+      "ownerKind": "reticle",
+      "ownerId": 7943573145641400727,
+      "primitiveId": "tgt_aspect_value",
+      "normalizedPrimitiveId": "tgt_aspect_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2663713194770507325,
+      "ownerKind": "reticle",
+      "ownerId": 7943573145641400727,
+      "primitiveId": "tgt_closure_value",
+      "normalizedPrimitiveId": "tgt_closure_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3997375332142002268,
+      "ownerKind": "reticle",
+      "ownerId": 7943573145641400727,
+      "primitiveId": "tgt_gs_value",
+      "normalizedPrimitiveId": "tgt_gs_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6427579040954066794,
+      "ownerKind": "reticle",
+      "ownerId": 7943573145641400727,
+      "primitiveId": "tgt_hdg_value",
+      "normalizedPrimitiveId": "tgt_hdg_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5415352705471202640,
+      "ownerKind": "reticle",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "bars",
+      "normalizedPrimitiveId": "bars",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14600220755514577646,
+      "ownerKind": "reticle",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "bull",
+      "normalizedPrimitiveId": "bull",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10638476267567207591,
+      "ownerKind": "reticle",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "prf",
+      "normalizedPrimitiveId": "prf",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3547530838288159762,
+      "ownerKind": "reticle",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "range_mid",
+      "normalizedPrimitiveId": "range_mid",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9672775536434477013,
+      "ownerKind": "reticle",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "range_top",
+      "normalizedPrimitiveId": "range_top",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1428794935483242118,
+      "ownerKind": "reticle",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "scan",
+      "normalizedPrimitiveId": "scan",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15928499362539303668,
+      "ownerKind": "reticle",
+      "ownerId": 12184991532423583120,
+      "primitiveId": "sweep",
+      "normalizedPrimitiveId": "sweep",
+      "primitiveType": "line",
+      "exposed": true
+    },
+    {
+      "id": 14260332756364011828,
+      "ownerKind": "reticle",
+      "ownerId": 4044906131749056143,
+      "primitiveId": "status_text",
+      "normalizedPrimitiveId": "status_text",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5083126250717218698,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_01",
+      "normalizedPrimitiveId": "osb_01",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 8656780181402156861,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_02",
+      "normalizedPrimitiveId": "osb_02",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12169068785753279279,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_03",
+      "normalizedPrimitiveId": "osb_03",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2949061639700548409,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_04",
+      "normalizedPrimitiveId": "osb_04",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 754962621766362083,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_05",
+      "normalizedPrimitiveId": "osb_05",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2339891828411326350,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_06",
+      "normalizedPrimitiveId": "osb_06",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10560589162590429901,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_07",
+      "normalizedPrimitiveId": "osb_07",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5876356849567841193,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_08",
+      "normalizedPrimitiveId": "osb_08",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14635093390602173919,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_09",
+      "normalizedPrimitiveId": "osb_09",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15520270647561950118,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_10",
+      "normalizedPrimitiveId": "osb_10",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2077445183636235764,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_11",
+      "normalizedPrimitiveId": "osb_11",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2036851969411082346,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_12",
+      "normalizedPrimitiveId": "osb_12",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5121603946402050951,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_13",
+      "normalizedPrimitiveId": "osb_13",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15779816275154430496,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_14",
+      "normalizedPrimitiveId": "osb_14",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9619299969054764024,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_15",
+      "normalizedPrimitiveId": "osb_15",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2783373086115195006,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_16",
+      "normalizedPrimitiveId": "osb_16",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2073712831177191535,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_17",
+      "normalizedPrimitiveId": "osb_17",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4565251252532136628,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_18",
+      "normalizedPrimitiveId": "osb_18",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 18316698844316718112,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_19",
+      "normalizedPrimitiveId": "osb_19",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11768661475573319674,
+      "ownerKind": "reticle",
+      "ownerId": 7684135775943981792,
+      "primitiveId": "osb_20",
+      "normalizedPrimitiveId": "osb_20",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5860903192808709072,
+      "ownerKind": "reticle",
+      "ownerId": 1867297639708269777,
+      "primitiveId": "arm",
+      "normalizedPrimitiveId": "arm",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7298431363515871125,
+      "ownerKind": "reticle",
+      "ownerId": 1867297639708269777,
+      "primitiveId": "cntl",
+      "normalizedPrimitiveId": "cntl",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3786867582565869628,
+      "ownerKind": "reticle",
+      "ownerId": 1867297639708269777,
+      "primitiveId": "inv",
+      "normalizedPrimitiveId": "inv",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11310901214488186726,
+      "ownerKind": "reticle",
+      "ownerId": 1867297639708269777,
+      "primitiveId": "master_mode",
+      "normalizedPrimitiveId": "master_mode",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 776450344471342795,
+      "ownerKind": "reticle",
+      "ownerId": 1867297639708269777,
+      "primitiveId": "submode",
+      "normalizedPrimitiveId": "submode",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 18129266464094140450,
+      "ownerKind": "reticle",
+      "ownerId": 1867297639708269777,
+      "primitiveId": "weapon",
+      "normalizedPrimitiveId": "weapon",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9402815601405101847,
+      "ownerKind": "reticle",
+      "ownerId": 15122246768144666587,
+      "primitiveId": "box",
+      "normalizedPrimitiveId": "box",
+      "primitiveType": "square",
+      "exposed": true
+    },
+    {
+      "id": 8930063026296159611,
+      "ownerKind": "reticle",
+      "ownerId": 8179299028465325326,
+      "primitiveId": "count",
+      "normalizedPrimitiveId": "count",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1840567686677655202,
+      "ownerKind": "reticle",
+      "ownerId": 8179299028465325326,
+      "primitiveId": "param_1",
+      "normalizedPrimitiveId": "param_1",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 1880160493344801932,
+      "ownerKind": "reticle",
+      "ownerId": 8179299028465325326,
+      "primitiveId": "param_2",
+      "normalizedPrimitiveId": "param_2",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 14902195997603991193,
+      "ownerKind": "reticle",
+      "ownerId": 8179299028465325326,
+      "primitiveId": "param_3",
+      "normalizedPrimitiveId": "param_3",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 13906232597705322810,
+      "ownerKind": "reticle",
+      "ownerId": 8179299028465325326,
+      "primitiveId": "profile",
+      "normalizedPrimitiveId": "profile",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6344292884569909289,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "config_title",
+      "normalizedPrimitiveId": "config_title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7248390062367280094,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "mode_title",
+      "normalizedPrimitiveId": "mode_title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15391064105137895226,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "nose_tail_title",
+      "normalizedPrimitiveId": "nose_tail_title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11229973166633603665,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "pair_title",
+      "normalizedPrimitiveId": "pair_title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4321510259991077143,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "qty_title",
+      "normalizedPrimitiveId": "qty_title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 17859894095420349823,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_1",
+      "normalizedPrimitiveId": "sta_1",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 2499441322300134011,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_2",
+      "normalizedPrimitiveId": "sta_2",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 17841620752084364705,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_3",
+      "normalizedPrimitiveId": "sta_3",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6617730133692478122,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_4",
+      "normalizedPrimitiveId": "sta_4",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 3940573831929952929,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_5",
+      "normalizedPrimitiveId": "sta_5",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7608497842069435449,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_6",
+      "normalizedPrimitiveId": "sta_6",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 7480223980440522301,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_7",
+      "normalizedPrimitiveId": "sta_7",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5096965105234419472,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_8",
+      "normalizedPrimitiveId": "sta_8",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 9355370914296482267,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "sta_9",
+      "normalizedPrimitiveId": "sta_9",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11070521113774183926,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "station_title",
+      "normalizedPrimitiveId": "station_title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15720116802143088729,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "time_title",
+      "normalizedPrimitiveId": "time_title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16517158352132993651,
+      "ownerKind": "reticle",
+      "ownerId": 18085398326586845665,
+      "primitiveId": "weapon_title",
+      "normalizedPrimitiveId": "weapon_title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4720770598318478300,
+      "ownerKind": "reticle",
+      "ownerId": 18052466768008234388,
+      "primitiveId": "status_text",
+      "normalizedPrimitiveId": "status_text",
+      "primitiveType": "text",
+      "exposed": true
+    }
+  ],
+  "templates": [],
+  "blinkTypes": [
+    {
+      "id": 5680692014090325816,
+      "pageId": 12522798620474048056,
+      "blinkType": "caution",
+      "normalizedBlinkType": "caution",
+      "durationMs": 700
+    },
+    {
+      "id": 3123656001615415717,
+      "pageId": 12522798620474048056,
+      "blinkType": "fast",
+      "normalizedBlinkType": "fast",
+      "durationMs": 300
+    },
+    {
+      "id": 1059193891256534603,
+      "pageId": 4521275237489847181,
+      "blinkType": "caution",
+      "normalizedBlinkType": "caution",
+      "durationMs": 700
+    },
+    {
+      "id": 12023542112829656971,
+      "pageId": 4521275237489847181,
+      "blinkType": "fast",
+      "normalizedBlinkType": "fast",
+      "durationMs": 300
+    },
+    {
+      "id": 16267563161619148549,
+      "pageId": 9637022363458486384,
+      "blinkType": "caution",
+      "normalizedBlinkType": "caution",
+      "durationMs": 700
+    },
+    {
+      "id": 10579882429258731661,
+      "pageId": 9637022363458486384,
+      "blinkType": "fast",
+      "normalizedBlinkType": "fast",
+      "durationMs": 300
+    },
+    {
+      "id": 8524480141115302654,
+      "pageId": 1024964660204535383,
+      "blinkType": "caution",
+      "normalizedBlinkType": "caution",
+      "durationMs": 700
+    },
+    {
+      "id": 5919364228754407593,
+      "pageId": 1024964660204535383,
+      "blinkType": "fast",
+      "normalizedBlinkType": "fast",
+      "durationMs": 300
+    }
+  ],
+  "strobes": []
+}

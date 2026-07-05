@@ -1,0 +1,9 @@
+{
+  "id": "radar_bugged_target",
+  "lineWidth": 0.0045,
+  "elements": [
+    { "id": "lock_box", "type": "square", "reticleRotationSensitive": false, "size": 0.06, "filled": true, "fill": "#33FF88FF" },
+    { "id": "td_ring",  "type": "circle", "reticleRotationSensitive": false, "radius": 0.075, "filled": false },
+    { "id": "aspect",   "type": "line", "reticleScaleSensitive": false, "start": [0.0, 0.075], "end": [0.0, 0.16] }
+  ]
+}

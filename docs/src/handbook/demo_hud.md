@@ -8,6 +8,12 @@ The HUD example is a standalone asset/client pair under `examples/hud`.
 - Client target: `demo_hud_client`
 - Tests: `demo_hud_client_tests`
 
+The HUD window uses the bundled `ShareTechMono-Regular.ttf` font under the SIL
+Open Font License 1.1. The `.ttf` and `OFL-ShareTechMono.txt` files live under
+`examples/hud/assets/fonts` and are staged with the HUD assets. Text primitives
+also define explicit letter spacing so the HUD does not fall back to raylib's
+default font metrics.
+
 Build the runtime and client:
 
 ```powershell
@@ -270,11 +276,11 @@ an old reticle visible through retained runtime state.
 The demo EEGS funnel is not a certified ballistic solver, but it is not a
 static cone: its exposed Bezier control points are derived from the semantic
 aircraft/target sample, including flight path, load factor, target line of
-sight, range/wingspan and target acceleration. The authored funnel keeps the
-long-range bottom section narrow and opens wider toward the top/minimum-range
-section near boresight. Wind is intentionally not faked; an external aircraft
-model should add a documented semantic input before wind is projected into the
-HUD.
+sight, range/wingspan and target acceleration. The authored funnel now uses a
+central spine and range-sampled wall half-widths, keeping the visible cue as a
+long, narrow gunnery corridor instead of a decorative V shape. Wind is
+intentionally not faked; an external aircraft model should add a documented
+semantic input before wind is projected into the HUD.
 
 Visual reference captures used for the current HUD mode work are kept in
 `examples/hud/visual_ref`. They are documentation/reference material only and
@@ -316,9 +322,10 @@ aircraft and target values through `HudInputSample`, and
 `DemoHudProjection.cpp` computes the five-point Bezier rails used by the
 generated `eegsFunnel` reticle.
 
-The funnel width is derived from target range and `targetWingspanMeters`. The
-projection then adjusts scale, drift, curvature and skew from flight-path
-marker position, normal load factor, airspeed, target line-of-sight position
-and `targetAccelerationMps2`. The lower/narrow end represents the longer-range
-part of the funnel and the upper/wider end represents closer range near
-boresight.
+The funnel is built from a central spine. Each Bezier sample represents a
+range station; the wall offset at that station is the normalized angular
+half-width of the target wingspan at that range. The projection then adjusts
+scale, drift, curvature and skew from flight-path marker position, normal load
+factor, airspeed, target line-of-sight position and
+`targetAccelerationMps2`. The far end stays narrow and the near end opens
+without creating a broad vase-shaped cue.

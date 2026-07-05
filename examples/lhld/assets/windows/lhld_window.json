@@ -1,0 +1,40 @@
+{
+  "title": "LHLD",
+  "size": [
+    600,
+    600
+  ],
+  "position": [
+    120,
+    120
+  ],
+  "targetFps": 60,
+  "iconFile": "../../../../branding/mfdstudio_app_icon.png",
+  "fontFile": "../fonts/ShareTechMono-Regular.ttf",
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47340,
+      "maxPacketSize": 16384
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47341,
+      "maxPacketSize": 4096
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
+  },
+  "defaultPage": "Radar",
+  "pages": [
+    "../pages/radar.json",
+    "../pages/sms.json",
+    "../pages/nav.json",
+    "../pages/ag.json"
+  ]
+}

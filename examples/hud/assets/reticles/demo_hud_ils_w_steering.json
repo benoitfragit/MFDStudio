@@ -5,10 +5,14 @@
       "id": "w_text",
       "type": "text",
       "text": "W",
-      "position": [0.0, 0.0],
+      "position": [
+        0,
+        0
+      ],
       "fontSize": 0.052,
       "align": "center",
-      "stroke": "#7BFFB4FF"
+      "stroke": "#7BFFB4FF",
+      "letterSpacing": 0.006
     }
   ]
 }

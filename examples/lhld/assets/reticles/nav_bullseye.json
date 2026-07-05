@@ -1,0 +1,10 @@
+{
+  "id": "nav_bullseye",
+  "lineWidth": 0.0035,
+  "elements": [
+    { "id": "ring_inner", "type": "circle", "radius": 0.04, "filled": false },
+    { "id": "ring_outer", "type": "circle", "radius": 0.09, "filled": false },
+    { "id": "cross_h", "type": "line", "start": [-0.12, 0.0], "end": [0.12, 0.0] },
+    { "id": "cross_v", "type": "line", "start": [0.0, -0.12], "end": [0.0, 0.12] }
+  ]
+}

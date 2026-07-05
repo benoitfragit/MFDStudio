@@ -11,6 +11,7 @@ The simplest path is a shipped launcher:
 - `.\Scripts\Start-RadarLoad.bat`
 - `.\Scripts\Start-Tutorial.bat`
 - `.\Scripts\Start-DemoHUD.bat`
+- `.\Scripts\Start-LHLD.bat`
 
 For an explicit window, use the generic launcher:
 
@@ -53,6 +54,10 @@ inside the page.
 `demo_hud_client.exe`; the demo is documented in
 [Demo HUD](./demo_hud.md).
 
+`Start-LHLD.bat` starts the LHLD in-process client from the staged runtime tree.
+It hosts the runtime offscreen inside its own DX11/ImGui window, so it does not
+launch `mfd_window`.
+
 ## Debug overlay
 
 Press `F1` inside `mfd_window` to open the integrated runtime debug overlay. It
@@ -75,5 +80,5 @@ the control path is alive.
 ## Client relationship
 
 `demo_client` is a normal standalone UDP client. It loads the same window JSON
-locally for discovery, then sends public commands to the runtime — it shares no
+locally for discovery, then sends public commands to the runtime - it shares no
 memory with `mfd_window`, which is exactly why it is a good reference client.

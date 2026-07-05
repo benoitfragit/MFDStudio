@@ -67,7 +67,8 @@
       "text": "5",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p5_label_right",
@@ -79,7 +80,8 @@
       "text": "5",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n5_left_0",
@@ -211,7 +213,8 @@
       "text": "5",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n5_label_right",
@@ -223,7 +226,8 @@
       "text": "5",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p10_left",
@@ -291,7 +295,8 @@
       "text": "10",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p10_label_right",
@@ -303,7 +308,8 @@
       "text": "10",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n10_left_0",
@@ -435,7 +441,8 @@
       "text": "10",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n10_label_right",
@@ -447,7 +454,8 @@
       "text": "10",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p15_left",
@@ -515,7 +523,8 @@
       "text": "15",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p15_label_right",
@@ -527,7 +536,8 @@
       "text": "15",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n15_left_0",
@@ -659,7 +669,8 @@
       "text": "15",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n15_label_right",
@@ -671,7 +682,8 @@
       "text": "15",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p20_left",
@@ -739,7 +751,8 @@
       "text": "20",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p20_label_right",
@@ -751,7 +764,8 @@
       "text": "20",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n20_left_0",
@@ -883,7 +897,8 @@
       "text": "20",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n20_label_right",
@@ -895,7 +910,8 @@
       "text": "20",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p25_left",
@@ -963,7 +979,8 @@
       "text": "25",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p25_label_right",
@@ -975,7 +992,8 @@
       "text": "25",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n25_left_0",
@@ -1107,7 +1125,8 @@
       "text": "25",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n25_label_right",
@@ -1119,7 +1138,8 @@
       "text": "25",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p30_left",
@@ -1187,7 +1207,8 @@
       "text": "30",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p30_label_right",
@@ -1199,7 +1220,8 @@
       "text": "30",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n30_left_0",
@@ -1331,7 +1353,8 @@
       "text": "30",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n30_label_right",
@@ -1343,7 +1366,8 @@
       "text": "30",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p35_left",
@@ -1411,7 +1435,8 @@
       "text": "35",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p35_label_right",
@@ -1423,7 +1448,8 @@
       "text": "35",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n35_left_0",
@@ -1555,7 +1581,8 @@
       "text": "35",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n35_label_right",
@@ -1567,7 +1594,8 @@
       "text": "35",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p40_left",
@@ -1635,7 +1663,8 @@
       "text": "40",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p40_label_right",
@@ -1647,7 +1676,8 @@
       "text": "40",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n40_left_0",
@@ -1779,7 +1809,8 @@
       "text": "40",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n40_label_right",
@@ -1791,7 +1822,8 @@
       "text": "40",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p45_left",
@@ -1859,7 +1891,8 @@
       "text": "45",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p45_label_right",
@@ -1871,7 +1904,8 @@
       "text": "45",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n45_left_0",
@@ -2003,7 +2037,8 @@
       "text": "45",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n45_label_right",
@@ -2015,7 +2050,8 @@
       "text": "45",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p50_left",
@@ -2083,7 +2119,8 @@
       "text": "50",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p50_label_right",
@@ -2095,7 +2132,8 @@
       "text": "50",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n50_left_0",
@@ -2227,7 +2265,8 @@
       "text": "50",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n50_label_right",
@@ -2239,7 +2278,8 @@
       "text": "50",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p55_left",
@@ -2307,7 +2347,8 @@
       "text": "55",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p55_label_right",
@@ -2319,7 +2360,8 @@
       "text": "55",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n55_left_0",
@@ -2451,7 +2493,8 @@
       "text": "55",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n55_label_right",
@@ -2463,7 +2506,8 @@
       "text": "55",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p60_left",
@@ -2531,7 +2575,8 @@
       "text": "60",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p60_label_right",
@@ -2543,7 +2588,8 @@
       "text": "60",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n60_left_0",
@@ -2675,7 +2721,8 @@
       "text": "60",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n60_label_right",
@@ -2687,7 +2734,8 @@
       "text": "60",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p65_left",
@@ -2755,7 +2803,8 @@
       "text": "65",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p65_label_right",
@@ -2767,7 +2816,8 @@
       "text": "65",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n65_left_0",
@@ -2899,7 +2949,8 @@
       "text": "65",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n65_label_right",
@@ -2911,7 +2962,8 @@
       "text": "65",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p70_left",
@@ -2979,7 +3031,8 @@
       "text": "70",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p70_label_right",
@@ -2991,7 +3044,8 @@
       "text": "70",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n70_left_0",
@@ -3123,7 +3177,8 @@
       "text": "70",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n70_label_right",
@@ -3135,7 +3190,8 @@
       "text": "70",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p75_left",
@@ -3203,7 +3259,8 @@
       "text": "75",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p75_label_right",
@@ -3215,7 +3272,8 @@
       "text": "75",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n75_left_0",
@@ -3347,7 +3405,8 @@
       "text": "75",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n75_label_right",
@@ -3359,7 +3418,8 @@
       "text": "75",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p80_left",
@@ -3427,7 +3487,8 @@
       "text": "80",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p80_label_right",
@@ -3439,7 +3500,8 @@
       "text": "80",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n80_left_0",
@@ -3571,7 +3633,8 @@
       "text": "80",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n80_label_right",
@@ -3583,7 +3646,8 @@
       "text": "80",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p85_left",
@@ -3651,7 +3715,8 @@
       "text": "85",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "p85_label_right",
@@ -3663,7 +3728,8 @@
       "text": "85",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n85_left_0",
@@ -3795,7 +3861,8 @@
       "text": "85",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     },
     {
       "id": "n85_label_right",
@@ -3807,7 +3874,8 @@
       "text": "85",
       "fontSize": 0.054,
       "color": "#33FF88FF",
-      "align": "center"
+      "align": "center",
+      "letterSpacing": 0.006
     }
   ]
 }

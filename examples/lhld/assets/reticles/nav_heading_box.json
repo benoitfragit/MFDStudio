@@ -1,0 +1,49 @@
+{
+  "id": "nav_heading_box",
+  "lineWidth": 0.0035,
+  "elements": [
+    {
+      "id": "lubber",
+      "type": "triangle",
+      "points": [
+        [
+          0,
+          0.8
+        ],
+        [
+          -0.03,
+          0.86
+        ],
+        [
+          0.03,
+          0.86
+        ]
+      ],
+      "filled": true,
+      "fill": "#7BFFB4FF"
+    },
+    {
+      "id": "hdg_box",
+      "type": "rectangle",
+      "width": 0.16,
+      "height": 0.09,
+      "at": [
+        0,
+        0.93
+      ],
+      "filled": false
+    },
+    {
+      "id": "hdg_value",
+      "type": "text",
+      "at": [
+        0,
+        0.93
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "270",
+      "letterSpacing": 0.006
+    }
+  ]
+}

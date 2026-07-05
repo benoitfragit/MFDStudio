@@ -73,6 +73,7 @@ set(MFD_WINDOW_LAUNCH_SCRIPT_NAMES
     Start-MfdWindow.bat
     Start-MfdDemo.bat
     Start-DemoHUD.bat
+    Start-LHLD.bat
     Start-RadarLoad.bat
     Start-MfdPackageTest.bat
     Start-Tutorial.bat)

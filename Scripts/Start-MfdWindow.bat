@@ -11,6 +11,8 @@ set "LAUNCH_ROOT=%SCRIPT_DIR%"
 if not exist "%LAUNCH_ROOT%assets" (
     if exist "%SCRIPT_DIR%..\assets" (
         for %%I in ("%SCRIPT_DIR%..") do set "LAUNCH_ROOT=%%~fI\"
+    ) else if exist "%SCRIPT_DIR%..\_Exec" (
+        for %%I in ("%SCRIPT_DIR%..") do set "LAUNCH_ROOT=%%~fI\"
     )
 )
 

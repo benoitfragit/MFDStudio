@@ -34,10 +34,14 @@ constexpr float kPitchToHudUnits = 0.034f;
 constexpr float kHudHorizonLimit = 0.58f;
 constexpr float kDlzBottomY = -0.245f;
 constexpr float kDlzHeight = 0.49f;
-constexpr float kEegsFunnelBottomY = 0.305f;
-constexpr float kEegsFunnelTopY = 0.700f;
-constexpr float kEegsFunnelBottomHalfWidth = 0.052f;
-constexpr float kEegsFunnelTopHalfWidth = 0.200f;
+constexpr float kEegsFunnelFarY = 0.205f;
+constexpr float kEegsFunnelNearY = 0.765f;
+constexpr float kEegsFunnelFarRangeMeters = 1700.0f;
+constexpr float kEegsFunnelNearRangeMeters = 450.0f;
+constexpr float kEegsFunnelReferenceRangeMeters = 900.0f;
+constexpr float kEegsFunnelReferenceHalfWidth = 0.082f;
+constexpr float kEegsFunnelFarHalfWidth = 0.038f;
+constexpr float kEegsFunnelNearHalfWidth = 0.124f;
 
 float Clamp(const float value, const float low, const float high) noexcept
 {
@@ -106,41 +110,84 @@ HudVec2 RotateHudVector(const HudVec2 offset, const float degrees) noexcept
         offset.x * sine + offset.y * cosine};
 }
 
-HudVec2 BuildFunnelControlPoint(const HudVec2 base,
-                                const float side,
-                                const float widthScale,
-                                const float heightScale,
-                                const HudVec2 center,
-                                const float curvature,
-                                const float skew) noexcept
+float SmoothStep(const float value) noexcept
 {
-    const float travel =
-        Clamp((base.y - kEegsFunnelBottomY) / (kEegsFunnelTopY - kEegsFunnelBottomY), 0.0f, 1.0f);
-    const float widthDamping = 1.0f - Clamp(curvature * 1.20f, -0.04f, 0.18f) * travel;
-    const float leadLift = curvature * travel * travel * 0.65f;
+    const float t = Clamp(value, 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+float FunnelSampleRangeMeters(const float travel) noexcept
+{
+    const float rangeTravel = std::pow(Clamp(travel, 0.0f, 1.0f), 1.18f);
+    return kEegsFunnelFarRangeMeters +
+           (kEegsFunnelNearRangeMeters - kEegsFunnelFarRangeMeters) * rangeTravel;
+}
+
+float FunnelSampleHalfWidth(const float travel) noexcept
+{
+    const float referenceAngle =
+        std::atan((kDefaultTargetWingspanMeters * 0.5f) / kEegsFunnelReferenceRangeMeters);
+    const float sampleAngle =
+        std::atan((kDefaultTargetWingspanMeters * 0.5f) / FunnelSampleRangeMeters(travel));
+
+    return Clamp(
+        kEegsFunnelReferenceHalfWidth * sampleAngle / std::max(referenceAngle, 0.0001f),
+        kEegsFunnelFarHalfWidth,
+        kEegsFunnelNearHalfWidth);
+}
+
+HudVec2 BuildFunnelSpinePoint(const float travel,
+                              const float heightScale,
+                              const HudVec2 center,
+                              const float curvature,
+                              const float skew) noexcept
+{
+    const float screenTravel = Clamp(travel, 0.0f, 1.0f);
+    const float shapedTravel = SmoothStep(screenTravel);
+    const float leadBend = curvature * screenTravel * screenTravel * 0.52f;
+
     return HudVec2 {
-        center.x + side * std::fabs(base.x) * widthScale * widthDamping + skew * travel * travel,
-        center.y + base.y * heightScale + leadLift};
+        center.x + skew * (0.20f + 0.80f * shapedTravel) + leadBend * 0.55f,
+        center.y + kEegsFunnelFarY + (kEegsFunnelNearY - kEegsFunnelFarY) * screenTravel * heightScale +
+            leadBend};
 }
 
 /**
  * @brief Builds one base range sample of an EEGS funnel rail.
- * @param travel Normalized range travel, 0 at the lower long-range/narrow end
- * and 1 at the upper close-range/wide end.
- * @return HUD-space point before dynamic drift, scale and curvature.
+ * @param side Rail side, negative for left and positive for right.
+ * @param travel Normalized range travel, 0 at the far/narrow end and 1 at the
+ * near/wider end.
+ * @param widthScale Runtime range and target-wingspan width correction.
+ * @param heightScale Runtime airspeed and load-factor vertical stretch.
+ * @param center HUD-space drift of the funnel spine.
+ * @param curvature Load and speed driven lead curvature.
+ * @param skew Lateral lead offset shared by both rails.
+ * @return HUD-space wall point after range width and lead correction.
  *
- * The funnel is intentionally encoded as range samples instead of a fixed
- * decorative cone. The lower rail point is narrower because it represents a
- * farther target; the upper rail point opens as range closes toward boresight.
+ * The wall is built around a central spine, then offset by the angular
+ * half-wingspan for the sample range. This follows the same principle as
+ * practical EEGS implementations: the target should fit between the walls at
+ * the corresponding range instead of seeing a decorative V shape.
  */
-HudVec2 BuildFunnelBasePoint(const float travel) noexcept
+HudVec2 BuildFunnelWallPoint(const float side,
+                             const float travel,
+                             const float widthScale,
+                             const float heightScale,
+                             const HudVec2 center,
+                             const float curvature,
+                             const float skew) noexcept
 {
-    const float screenTravel = Clamp(travel, 0.0f, 1.0f);
-    const float shapedTaper = std::pow(screenTravel, 0.62f);
+    const HudVec2 firstSpine = BuildFunnelSpinePoint(0.0f, heightScale, center, curvature, skew);
+    const HudVec2 lastSpine = BuildFunnelSpinePoint(1.0f, heightScale, center, curvature, skew);
+    const float tangentX = lastSpine.x - firstSpine.x;
+    const float tangentY = lastSpine.y - firstSpine.y;
+    const float tangentLength = std::sqrt(tangentX * tangentX + tangentY * tangentY);
+    const float perpendicularX = tangentLength > 0.0001f ? tangentY / tangentLength : 1.0f;
+    const float perpendicularY = tangentLength > 0.0001f ? -tangentX / tangentLength : 0.0f;
 
-    return HudVec2 {
-        kEegsFunnelBottomHalfWidth + (kEegsFunnelTopHalfWidth - kEegsFunnelBottomHalfWidth) * shapedTaper,
-        kEegsFunnelBottomY + (kEegsFunnelTopY - kEegsFunnelBottomY) * screenTravel};
+    const float halfWidth = FunnelSampleHalfWidth(travel) * widthScale;
+    const HudVec2 spine = BuildFunnelSpinePoint(travel, heightScale, center, curvature, skew);
+    return HudVec2 {spine.x + side * perpendicularX * halfWidth, spine.y + side * perpendicularY * halfWidth};
 }
 
 HudFunnelControlPoints BuildEegsFunnelRail(const float side,
@@ -154,9 +201,9 @@ HudFunnelControlPoints BuildEegsFunnelRail(const float side,
     for (std::size_t index = 0; index < rail.size(); ++index)
     {
         const float travel = static_cast<float>(index) / static_cast<float>(rail.size() - 1U);
-        rail[index] = BuildFunnelControlPoint(
-            BuildFunnelBasePoint(travel),
+        rail[index] = BuildFunnelWallPoint(
             side,
+            travel,
             widthScale,
             heightScale,
             center,

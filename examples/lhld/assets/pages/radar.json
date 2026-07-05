@@ -1,0 +1,44 @@
+{
+  "name": "Radar",
+  "title": "FCR",
+  "bg": "#020A04FF",
+  "titleDisplay": { "visible": false },
+  "blinkTypes": [
+    { "name": "fast", "durationMs": 300 },
+    { "name": "caution", "durationMs": 700 }
+  ],
+  "defaultBlink": "fast",
+  "layers": [
+    { "id": "background" },
+    { "id": "scan" },
+    { "id": "contacts" },
+    { "id": "tracks" },
+    { "id": "overlay" }
+  ],
+  "staticReticles": [
+    { "id": "radar_bscope_frame", "layerId": "background", "template": "radar_bscope_frame", "stroke": "#2E7D51FF" },
+    { "id": "radar_scale", "layerId": "background", "template": "radar_scale", "stroke": "#8CE0B4FF" },
+    { "id": "radar_elevation_caret", "layerId": "scan", "template": "radar_elevation_caret", "stroke": "#8CE0B4FF" },
+    { "id": "radar_scan_line", "layerId": "scan", "template": "radar_scan_line", "stroke": "#1F6B43FF" },
+
+    { "id": "contact_01", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_02", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_03", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_04", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_05", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_06", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_07", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_08", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_09", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_10", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_11", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+    { "id": "contact_12", "layerId": "contacts", "template": "radar_contact_tpl", "show": false, "stroke": "#33FF88FF" },
+
+    { "id": "radar_bugged_target", "layerId": "tracks", "template": "radar_bugged_target", "show": false, "stroke": "#7BFFB4FF" },
+    { "id": "radar_datablock", "layerId": "tracks", "template": "radar_datablock", "show": false, "stroke": "#8CE0B4FF" },
+    { "id": "radar_cursor", "layerId": "tracks", "template": "radar_cursor", "stroke": "#7BFFB4FF" },
+
+    { "id": "radar_status", "layerId": "overlay", "template": "radar_status", "stroke": "#B9FFD6FF" },
+    { "id": "osb_legends", "layerId": "overlay", "template": "osb_legends_tpl", "stroke": "#B9FFD6FF" }
+  ]
+}

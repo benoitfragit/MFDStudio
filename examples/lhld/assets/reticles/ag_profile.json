@@ -1,0 +1,401 @@
+{
+  "id": "ag_profile",
+  "lineWidth": 0.003,
+  "elements": [
+    {
+      "id": "station_label",
+      "type": "text",
+      "at": [
+        -0.76,
+        0.58
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "STATION",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "station_value",
+      "type": "text",
+      "at": [
+        -0.70,
+        0.49
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "[ 3 ]",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "qty_label",
+      "type": "text",
+      "at": [
+        -0.76,
+        0.35
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "QTY",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "qty_value",
+      "type": "text",
+      "at": [
+        -0.70,
+        0.26
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "[ 1 ]",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "config_label",
+      "type": "text",
+      "at": [
+        -0.76,
+        0.12
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "CONFIG",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "config_value",
+      "type": "text",
+      "at": [
+        -0.76,
+        0.03
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "SGL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "mode_label",
+      "type": "text",
+      "at": [
+        -0.76,
+        -0.11
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "MODE",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "mode_value",
+      "type": "text",
+      "at": [
+        -0.76,
+        -0.20
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "CCRP",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "fuzing_label",
+      "type": "text",
+      "at": [
+        -0.76,
+        -0.34
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "FUZING",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "fuzing_value",
+      "type": "text",
+      "at": [
+        -0.76,
+        -0.43
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "INST",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "dispense_label",
+      "type": "text",
+      "at": [
+        -0.76,
+        -0.57
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "DISPENSE",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "dispense_value",
+      "type": "text",
+      "at": [
+        -0.76,
+        -0.66
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "SGL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "weapon_label",
+      "type": "text",
+      "at": [
+        0.54,
+        0.58
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "WPN",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "weapon_value",
+      "type": "text",
+      "at": [
+        0.54,
+        0.49
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "03",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "time_label",
+      "type": "text",
+      "at": [
+        0.54,
+        0.35
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "TT",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "time_value",
+      "type": "text",
+      "at": [
+        0.54,
+        0.26
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "20",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "pair_label",
+      "type": "text",
+      "at": [
+        0.54,
+        0.12
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "SGL/PAIR",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "pair_value",
+      "type": "text",
+      "at": [
+        0.54,
+        0.03
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "SGL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "nose_tail_label",
+      "type": "text",
+      "at": [
+        0.54,
+        -0.11
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "NOSE/TAIL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "nose_tail_value",
+      "type": "text",
+      "at": [
+        0.54,
+        -0.20
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "NOSE",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "ripple_label",
+      "type": "text",
+      "at": [
+        0.54,
+        -0.34
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "RIPPLE",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "ripple_value",
+      "type": "text",
+      "at": [
+        0.54,
+        -0.43
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "OFF",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "interval_label",
+      "type": "text",
+      "at": [
+        0.54,
+        -0.57
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "INTVL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "interval_value",
+      "type": "text",
+      "at": [
+        0.54,
+        -0.66
+      ],
+      "size": 0.06,
+      "align": "left",
+      "text": "0.50",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "target_label",
+      "type": "text",
+      "at": [
+        0,
+        -0.36
+      ],
+      "size": 0.052,
+      "align": "center",
+      "text": "TARGET",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "target_value",
+      "type": "text",
+      "at": [
+        0,
+        -0.45
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "T04 120/55",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "range_state",
+      "type": "text",
+      "at": [
+        0,
+        -0.64
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "IN RNG",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "profile_value",
+      "type": "text",
+      "at": [
+        0,
+        -0.76
+      ],
+      "size": 0.052,
+      "align": "center",
+      "text": "PROF 1",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "bottom_separator",
+      "type": "line",
+      "start": [
+        -0.76,
+        -0.80
+      ],
+      "end": [
+        0.76,
+        -0.80
+      ]
+    },
+    {
+      "id": "target_range_box",
+      "type": "rectangle",
+      "at": [
+        0,
+        -0.55
+      ],
+      "width": 0.23,
+      "height": 0.065,
+      "filled": false
+    },
+    {
+      "id": "target_range_mid",
+      "type": "line",
+      "start": [
+        0,
+        -0.582
+      ],
+      "end": [
+        0,
+        -0.518
+      ]
+    },
+    {
+      "id": "target_range_left_tick",
+      "type": "line",
+      "start": [
+        -0.085,
+        -0.582
+      ],
+      "end": [
+        -0.085,
+        -0.545
+      ]
+    },
+    {
+      "id": "target_range_right_tick",
+      "type": "line",
+      "start": [
+        0.085,
+        -0.582
+      ],
+      "end": [
+        0.085,
+        -0.545
+      ]
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "id": "nav_data",
+  "lineWidth": 0.003,
+  "elements": [
+    {
+      "id": "stpt",
+      "type": "text",
+      "at": [
+        -0.93,
+        -0.66
+      ],
+      "size": 0.05,
+      "align": "left",
+      "text": "STPT 4",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "brg",
+      "type": "text",
+      "at": [
+        -0.93,
+        -0.74
+      ],
+      "size": 0.05,
+      "align": "left",
+      "text": "BRG 087",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "rng",
+      "type": "text",
+      "at": [
+        -0.93,
+        -0.82
+      ],
+      "size": 0.05,
+      "align": "left",
+      "text": "RNG 42.1",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "eta",
+      "type": "text",
+      "at": [
+        0.93,
+        -0.66
+      ],
+      "size": 0.05,
+      "align": "right",
+      "text": "ETA 00:34",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "gs",
+      "type": "text",
+      "at": [
+        0.93,
+        -0.74
+      ],
+      "size": 0.05,
+      "align": "right",
+      "text": "GS 420",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "mach",
+      "type": "text",
+      "at": [
+        0.93,
+        -0.82
+      ],
+      "size": 0.05,
+      "align": "right",
+      "text": "M 0.72",
+      "letterSpacing": 0.006
+    }
+  ]
+}

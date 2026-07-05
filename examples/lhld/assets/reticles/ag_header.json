@@ -1,0 +1,102 @@
+{
+  "id": "ag_header",
+  "lineWidth": 0.003,
+  "elements": [
+    {
+      "id": "master_mode",
+      "type": "text",
+      "at": [
+        -0.58,
+        0.86
+      ],
+      "size": 0.06,
+      "align": "center",
+      "text": "A-G",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "weapon",
+      "type": "text",
+      "at": [
+        0,
+        0.66
+      ],
+      "size": 0.058,
+      "align": "center",
+      "text": "GBU-12",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "weapon_family",
+      "type": "text",
+      "at": [
+        0,
+        0.56
+      ],
+      "size": 0.056,
+      "align": "center",
+      "text": "MK-82",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "weapon_weight",
+      "type": "text",
+      "at": [
+        0,
+        0.47
+      ],
+      "size": 0.056,
+      "align": "center",
+      "text": "500 LB",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "submode",
+      "type": "text",
+      "at": [
+        -0.31,
+        0.86
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "CCRP",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "inv",
+      "type": "text",
+      "at": [
+        0.08,
+        0.86
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "INV",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "cntl",
+      "type": "text",
+      "at": [
+        0.35,
+        0.86
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "CNTL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "arm",
+      "type": "text",
+      "at": [
+        0.64,
+        0.86
+      ],
+      "size": 0.06,
+      "align": "center",
+      "text": "SIM",
+      "letterSpacing": 0.006
+    }
+  ]
+}
