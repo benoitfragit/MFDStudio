@@ -110,6 +110,8 @@ if(MFD_BUILD_TESTS)
         VERIFY_ASSETS
         ASSET_SOURCE_DIR "${MFD_DEMO_HUD_ASSET_DIR}"
         EXTRA_FILES
+            assets/fonts/ShareTechMono-Regular.ttf
+            assets/fonts/OFL-ShareTechMono.txt
             assets/windows/demo_hud_window.json
         LABELS examples)
 endif()

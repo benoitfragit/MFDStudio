@@ -1,0 +1,23 @@
+{
+  "name": "Ag",
+  "title": "A-G",
+  "bg": "#020A04FF",
+  "titleDisplay": { "visible": false },
+  "blinkTypes": [
+    { "name": "fast", "durationMs": 300 },
+    { "name": "caution", "durationMs": 700 }
+  ],
+  "defaultBlink": "fast",
+  "layers": [
+    { "id": "background" },
+    { "id": "profile" },
+    { "id": "overlay" }
+  ],
+  "staticReticles": [
+    { "id": "ag_bomb_symbol", "layerId": "background", "template": "ag_bomb_symbol", "stroke": "#FFE800FF" },
+    { "id": "ag_header", "layerId": "overlay", "template": "ag_header", "stroke": "#FFE800FF" },
+    { "id": "ag_profile", "layerId": "profile", "template": "ag_profile", "stroke": "#FFE800FF" },
+    { "id": "ag_status", "layerId": "overlay", "template": "ag_status", "stroke": "#FFE800FF" },
+    { "id": "osb_legends", "layerId": "overlay", "template": "osb_legends_tpl", "stroke": "#FFE800FF" }
+  ]
+}

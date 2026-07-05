@@ -1,0 +1,14 @@
+{
+  "id": "nav_ownship",
+  "lineWidth": 0.0035,
+  "elements": [
+    { "id": "nose_cap", "type": "polyline", "points": [[-0.088, 0.082], [-0.048, 0.103], [0.0, 0.110], [0.048, 0.103], [0.088, 0.082]], "closed": false },
+    { "id": "left_planform", "type": "line", "start": [-0.088, 0.082], "end": [0.0, -0.105] },
+    { "id": "right_planform", "type": "line", "start": [0.088, 0.082], "end": [0.0, -0.105] },
+    { "id": "body", "type": "line", "start": [0.0, -0.105], "end": [0.0, -0.275] },
+    { "id": "wing", "type": "line", "start": [-0.062, -0.160], "end": [0.062, -0.160] },
+    { "id": "tailplane", "type": "line", "start": [-0.035, -0.235], "end": [0.035, -0.235] },
+    { "id": "tail_tick", "type": "line", "start": [-0.020, -0.265], "end": [0.020, -0.265] },
+    { "id": "heading_tick", "type": "line", "start": [0.0, -0.275], "end": [0.0, -0.315] }
+  ]
+}

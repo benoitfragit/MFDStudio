@@ -72,6 +72,20 @@ float HorizontalGap(const mfd::Vec2 left, const mfd::Vec2 right)
     return std::fabs(right.x - left.x);
 }
 
+float HorizontalGapAt(const demo_hud::HudFunnelControlPoints& leftRail,
+                      const demo_hud::HudFunnelControlPoints& rightRail,
+                      const std::size_t index)
+{
+    return HorizontalGap(leftRail[index], rightRail[index]);
+}
+
+float HorizontalGapAt(const std::vector<mfd::Vec2>& leftRail,
+                      const std::vector<mfd::Vec2>& rightRail,
+                      const std::size_t index)
+{
+    return HorizontalGap(leftRail[index], rightRail[index]);
+}
+
 void ExpectAirToAirMissileReticlesHidden(demo_hud_ui::HUDMockupPage& hud)
 {
     EXPECT_FALSE(hud.targetDesignator.GetVisible());
@@ -545,6 +559,43 @@ TEST(DemoHudSimulationTests, EegsWithoutLockShowsFunnelAndMrgsScaledByWingspan)
         narrowFrame.gun.eegsFunnelRightControlPoints.front().y,
         narrowFrame.gun.mrgsPosition.y + 0.12f);
     EXPECT_GT(wideFrame.gun.eegsFunnelScaleX, narrowFrame.gun.eegsFunnelScaleX);
+    EXPECT_GT(
+        HorizontalGapAt(
+            wideFrame.gun.eegsFunnelLeftControlPoints,
+            wideFrame.gun.eegsFunnelRightControlPoints,
+            wideFrame.gun.eegsFunnelLeftControlPoints.size() - 1U),
+        HorizontalGapAt(
+            narrowFrame.gun.eegsFunnelLeftControlPoints,
+            narrowFrame.gun.eegsFunnelRightControlPoints,
+            narrowFrame.gun.eegsFunnelLeftControlPoints.size() - 1U));
+}
+
+TEST(DemoHudSimulationTests, EegsFunnelUsesNarrowRangeSampledWalls)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToAir;
+    input.weapon.weaponMode = HudWeaponMode::AirToAirGun;
+    input.weapon.gunMode = HudGunMode::Eegs;
+    input.target.rangeMeters = 900.0f;
+
+    const demo_hud::HudFrame frame = BuildHudFrame(input);
+    const demo_hud::HudFunnelControlPoints& left = frame.gun.eegsFunnelLeftControlPoints;
+    const demo_hud::HudFunnelControlPoints& right = frame.gun.eegsFunnelRightControlPoints;
+    ASSERT_EQ(left.size(), right.size());
+
+    float previousGap = HorizontalGapAt(left, right, 0U);
+    EXPECT_LT(previousGap, 0.095f);
+    for (std::size_t index = 1U; index < left.size(); ++index)
+    {
+        const float currentGap = HorizontalGapAt(left, right, index);
+        EXPECT_GT(currentGap, previousGap);
+        previousGap = currentGap;
+    }
+
+    const float nearGap = HorizontalGapAt(left, right, left.size() - 1U);
+    EXPECT_GT(nearGap, 0.18f);
+    EXPECT_LT(nearGap, 0.25f);
+    EXPECT_GT(left.back().y - left.front().y, 0.48f);
 }
 
 TEST(DemoHudSimulationTests, EegsFunnelRespondsToFlightPathLoadAndTargetDynamics)

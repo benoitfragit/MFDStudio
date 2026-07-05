@@ -1,0 +1,25 @@
+{
+  "id": "hsd_steerpoint_tpl",
+  "lineWidth": 0.0032,
+  "elements": [
+    {
+      "id": "mark",
+      "type": "circle",
+      "radius": 0.024,
+      "filled": false
+    },
+    {
+      "id": "stpt_num",
+      "type": "text",
+      "reticleRotationSensitive": false,
+      "reticleScaleSensitive": false,
+      "at": [
+        0.044,
+        0.026
+      ],
+      "size": 0.035,
+      "text": "1",
+      "letterSpacing": 0.006
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "radar_scan_line",
+  "lineWidth": 0.0035,
+  "elements": [
+    { "id": "sweep", "type": "line", "start": [0.0, -0.75], "end": [0.0, 0.75] }
+  ]
+}

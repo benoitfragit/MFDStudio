@@ -39,10 +39,10 @@
   "defaultBlink": "slow",
   "view": {
     "center": [
-      0.0,
-      0.0
+      0,
+      0
     ],
-    "zoom": 1.0
+    "zoom": 1
   },
   "staticReticles": [
     {
@@ -50,7 +50,7 @@
       "template": "demo_hud_boresight",
       "layerId": "fixed",
       "position": [
-        0.0,
+        0,
         0.9
       ]
     },
@@ -62,7 +62,7 @@
           "id": "boresight_diamond",
           "type": "diamond",
           "position": [
-            0.0,
+            0,
             0.64
           ],
           "size": 0.06,
@@ -93,14 +93,15 @@
           "fontSize": 0.044,
           "align": "center",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "bottom_fly_up_triangle",
           "type": "triangle",
           "points": [
             [
-              0.0,
+              0,
               -0.8
             ],
             [
@@ -188,11 +189,11 @@
           "type": "line",
           "start": [
             -0.62,
-            0.0
+            0
           ],
           "end": [
             -0.075,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.0045
@@ -202,11 +203,11 @@
           "type": "line",
           "start": [
             0.075,
-            0.0
+            0
           ],
           "end": [
             0.62,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.0045
@@ -224,11 +225,11 @@
           "lineStyle": "dashed",
           "start": [
             -0.7,
-            0.0
+            0
           ],
           "end": [
             -0.09,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.004
@@ -239,11 +240,11 @@
           "lineStyle": "dashed",
           "start": [
             0.09,
-            0.0
+            0
           ],
           "end": [
             0.7,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.004
@@ -259,11 +260,11 @@
           "id": "zenith_arm_vertical",
           "type": "line",
           "start": [
-            0.0,
+            0,
             -0.05
           ],
           "end": [
-            0.0,
+            0,
             0.05
           ],
           "stroke": "#33FF88FF",
@@ -274,11 +275,11 @@
           "type": "line",
           "start": [
             -0.05,
-            0.0
+            0
           ],
           "end": [
             0.05,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.004
@@ -330,11 +331,11 @@
           "id": "nadir_horizon_pointer",
           "type": "line",
           "start": [
-            0.0,
+            0,
             0.031
           ],
           "end": [
-            0.0,
+            0,
             0.062
           ],
           "stroke": "#33FF88FF",
@@ -428,11 +429,11 @@
           "id": "bank_tick_0",
           "type": "line",
           "start": [
-            0.0,
+            0,
             0.1564
           ],
           "end": [
-            0.0,
+            0,
             0.1794
           ],
           "stroke": "#33FF88FF",
@@ -563,7 +564,7 @@
       "template": "demo_hud_energy_chevron",
       "layerId": "flight",
       "visible": false,
-      "rotation": 180.0
+      "rotation": 180
     },
     {
       "id": "levelRecoveryCue",
@@ -575,7 +576,7 @@
           "type": "line",
           "start": [
             -0.18,
-            0.0
+            0
           ],
           "end": [
             -0.05,
@@ -589,7 +590,7 @@
           "type": "line",
           "start": [
             0.18,
-            0.0
+            0
           ],
           "end": [
             0.05,
@@ -603,12 +604,13 @@
           "type": "text",
           "text": "LVL",
           "position": [
-            0.0,
+            0,
             -0.112
           ],
           "fontSize": 0.035,
           "align": "center",
-          "stroke": "#F9D66FFF"
+          "stroke": "#F9D66FFF",
+          "letterSpacing": 0.006
         }
       ]
     },
@@ -845,11 +847,11 @@
           "type": "line",
           "start": [
             -0.43,
-            0.0
+            0
           ],
           "end": [
             -0.488,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.005
@@ -1078,7 +1080,7 @@
             ],
             [
               -0.465,
-              0.0
+              0
             ],
             [
               -0.505,
@@ -1100,12 +1102,13 @@
           "text": "430",
           "position": [
             -0.61,
-            0.0
+            0
           ],
           "fontSize": 0.078,
           "align": "center",
           "stroke": "#7BFFB4FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "speed_kind",
@@ -1118,7 +1121,8 @@
           "fontSize": 0.05,
           "align": "center",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "speed_top",
@@ -1131,7 +1135,8 @@
           "fontSize": 0.052,
           "align": "right",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "speed_bottom",
@@ -1144,7 +1149,8 @@
           "fontSize": 0.052,
           "align": "right",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         }
       ]
     },
@@ -1381,11 +1387,11 @@
           "type": "line",
           "start": [
             0.43,
-            0.0
+            0
           ],
           "end": [
             0.488,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.005
@@ -1622,7 +1628,7 @@
             ],
             [
               0.465,
-              0.0
+              0
             ]
           ],
           "closed": true,
@@ -1636,12 +1642,13 @@
           "text": "15000",
           "position": [
             0.61,
-            0.0
+            0
           ],
           "fontSize": 0.073,
           "align": "center",
           "stroke": "#7BFFB4FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "alt_mode",
@@ -1654,7 +1661,8 @@
           "fontSize": 0.05,
           "align": "center",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "alt_top",
@@ -1667,7 +1675,8 @@
           "fontSize": 0.052,
           "align": "right",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "alt_bottom",
@@ -1680,7 +1689,8 @@
           "fontSize": 0.052,
           "align": "right",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         }
       ]
     },
@@ -1847,11 +1857,11 @@
           "type": "line",
           "start": [
             0.835,
-            0.0
+            0
           ],
           "end": [
             0.87,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.0042
@@ -2002,7 +2012,7 @@
           "points": [
             [
               0.805,
-              0.0
+              0
             ],
             [
               0.838,
@@ -2014,7 +2024,7 @@
             ],
             [
               0.805,
-              0.0
+              0
             ]
           ],
           "closed": false,
@@ -2029,12 +2039,13 @@
           "text": "+00",
           "position": [
             0.878,
-            0.0
+            0
           ],
           "fontSize": 0.041,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "vvi_label_p2000",
@@ -2046,7 +2057,8 @@
           ],
           "fontSize": 0.041,
           "align": "left",
-          "stroke": "#33FF88FF"
+          "stroke": "#33FF88FF",
+          "letterSpacing": 0.006
         },
         {
           "id": "vvi_label_p1000",
@@ -2058,7 +2070,8 @@
           ],
           "fontSize": 0.041,
           "align": "left",
-          "stroke": "#33FF88FF"
+          "stroke": "#33FF88FF",
+          "letterSpacing": 0.006
         },
         {
           "id": "vvi_label_m1000",
@@ -2070,7 +2083,8 @@
           ],
           "fontSize": 0.041,
           "align": "left",
-          "stroke": "#33FF88FF"
+          "stroke": "#33FF88FF",
+          "letterSpacing": 0.006
         },
         {
           "id": "vvi_label_m2000",
@@ -2082,7 +2096,8 @@
           ],
           "fontSize": 0.041,
           "align": "left",
-          "stroke": "#33FF88FF"
+          "stroke": "#33FF88FF",
+          "letterSpacing": 0.006
         }
       ],
       "visible": false
@@ -2109,7 +2124,7 @@
           "id": "heading_box",
           "type": "rectangle",
           "position": [
-            0.0,
+            0,
             -0.545
           ],
           "width": 0.19,
@@ -2123,13 +2138,14 @@
           "type": "text",
           "text": "000",
           "position": [
-            0.0,
+            0,
             -0.545
           ],
           "fontSize": 0.06,
           "align": "center",
           "stroke": "#7BFFB4FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "heading_left",
@@ -2142,7 +2158,8 @@
           "fontSize": 0.049,
           "align": "center",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "heading_right",
@@ -2155,7 +2172,8 @@
           "fontSize": 0.049,
           "align": "center",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "heading_tick_left_mid",
@@ -2189,11 +2207,11 @@
           "id": "heading_tick_center",
           "type": "line",
           "start": [
-            0.0,
+            0,
             -0.45
           ],
           "end": [
-            0.0,
+            0,
             -0.415
           ],
           "stroke": "#33FF88FF",
@@ -2232,7 +2250,7 @@
           "type": "triangle",
           "points": [
             [
-              0.0,
+              0,
               -0.405
             ],
             [
@@ -2265,7 +2283,8 @@
           "fontSize": 0.052,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "g_value",
@@ -2278,7 +2297,8 @@
           "fontSize": 0.052,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "mode_value",
@@ -2291,7 +2311,8 @@
           "fontSize": 0.052,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "weapon_value",
@@ -2304,7 +2325,8 @@
           "fontSize": 0.052,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         }
       ]
     },
@@ -2323,7 +2345,8 @@
           "fontSize": 0.049,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "energy_value",
@@ -2336,7 +2359,8 @@
           "fontSize": 0.049,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "target_value",
@@ -2349,7 +2373,8 @@
           "fontSize": 0.049,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "time_value",
@@ -2362,7 +2387,8 @@
           "fontSize": 0.049,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         },
         {
           "id": "status_caption",
@@ -2375,7 +2401,8 @@
           "fontSize": 0.049,
           "align": "left",
           "stroke": "#33FF88FF",
-          "exposed": true
+          "exposed": true,
+          "letterSpacing": 0.006
         }
       ]
     },
@@ -2398,7 +2425,7 @@
           "type": "rectangle",
           "position": [
             0.16,
-            0.0
+            0
           ],
           "width": 0.074,
           "height": 0.074,
@@ -2411,11 +2438,11 @@
           "id": "td_cross_vertical",
           "type": "line",
           "start": [
-            0.0,
+            0,
             -0.05
           ],
           "end": [
-            0.0,
+            0,
             0.05
           ],
           "stroke": "#33FF88FF",
@@ -2426,11 +2453,11 @@
           "type": "line",
           "start": [
             -0.05,
-            0.0
+            0
           ],
           "end": [
             0.05,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.0048
@@ -2461,11 +2488,11 @@
           "id": "range_mark_12",
           "type": "line",
           "start": [
-            0.0,
+            0,
             0.5488
           ],
           "end": [
-            0.0,
+            0,
             0.5958
           ],
           "stroke": "#33FF88FF",
@@ -2476,11 +2503,11 @@
           "type": "line",
           "start": [
             -0.5488,
-            0.0
+            0
           ],
           "end": [
             -0.5958,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.005
@@ -2489,11 +2516,11 @@
           "id": "range_mark_6",
           "type": "line",
           "start": [
-            0.0,
+            0,
             -0.5488
           ],
           "end": [
-            0.0,
+            0,
             -0.5958
           ],
           "stroke": "#33FF88FF",
@@ -2504,11 +2531,11 @@
           "type": "line",
           "start": [
             0.5488,
-            0.0
+            0
           ],
           "end": [
             0.5958,
-            0.0
+            0
           ],
           "stroke": "#33FF88FF",
           "thickness": 0.005
@@ -2631,7 +2658,7 @@
           "points": [
             [
               0.312,
-              0.0
+              0
             ],
             [
               0.345,
@@ -2701,11 +2728,11 @@
           "id": "asc_tail",
           "type": "line",
           "start": [
-            0.0,
+            0,
             -0.078
           ],
           "end": [
-            0.0,
+            0,
             -0.148
           ],
           "stroke": "#33FF88FF",
@@ -2786,8 +2813,8 @@
       "visible": false,
       "rotationDegrees": 90,
       "scale": [
-        1.0,
-        1.0
+        1,
+        1
       ]
     },
     {

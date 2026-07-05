@@ -1,0 +1,66 @@
+{
+  "id": "sms_selected",
+  "lineWidth": 0.003,
+  "elements": [
+    {
+      "id": "param_1",
+      "type": "text",
+      "at": [
+        -0.66,
+        -0.55
+      ],
+      "size": 0.05,
+      "align": "left",
+      "text": "RP 1",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "param_2",
+      "type": "text",
+      "at": [
+        -0.66,
+        -0.63
+      ],
+      "size": 0.05,
+      "align": "left",
+      "text": "PR 1",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "param_3",
+      "type": "text",
+      "at": [
+        -0.66,
+        -0.71
+      ],
+      "size": 0.05,
+      "align": "left",
+      "text": "TF 20",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "count",
+      "type": "text",
+      "at": [
+        0.66,
+        -0.55
+      ],
+      "size": 0.05,
+      "align": "right",
+      "text": "RDY 4",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "profile",
+      "type": "text",
+      "at": [
+        0.66,
+        -0.63
+      ],
+      "size": 0.05,
+      "align": "right",
+      "text": "PROF 1",
+      "letterSpacing": 0.006
+    }
+  ]
+}

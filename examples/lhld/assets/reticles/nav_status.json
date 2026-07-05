@@ -1,0 +1,90 @@
+{
+  "id": "nav_status",
+  "lineWidth": 0.003,
+  "elements": [
+    {
+      "id": "status_text",
+      "type": "text",
+      "at": [
+        0,
+        -0.93
+      ],
+      "size": 0.05,
+      "align": "center",
+      "text": "HSD",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "dep",
+      "type": "text",
+      "at": [
+        -0.52,
+        0.83
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "DEP",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "dcpl",
+      "type": "text",
+      "at": [
+        -0.22,
+        0.83
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "DCPL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "cntl",
+      "type": "text",
+      "at": [
+        0.52,
+        0.83
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "CNTL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "xmt",
+      "type": "text",
+      "at": [
+        0.78,
+        0.62
+      ],
+      "size": 0.052,
+      "align": "left",
+      "text": "XMT",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "l16",
+      "type": "text",
+      "at": [
+        0.78,
+        0.53
+      ],
+      "size": 0.052,
+      "align": "left",
+      "text": "L16",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "rng_label",
+      "type": "text",
+      "at": [
+        -0.88,
+        0.35
+      ],
+      "size": 0.05,
+      "align": "left",
+      "text": "RNG",
+      "letterSpacing": 0.006
+    }
+  ]
+}

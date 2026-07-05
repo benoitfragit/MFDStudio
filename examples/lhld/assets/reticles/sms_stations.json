@@ -1,0 +1,474 @@
+{
+  "id": "sms_stations",
+  "lineWidth": 0.0035,
+  "elements": [
+    {
+      "id": "station_title",
+      "type": "text",
+      "at": [
+        -0.76,
+        0.62
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "STATION",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "qty_title",
+      "type": "text",
+      "at": [
+        -0.76,
+        0.42
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "QTY",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "config_title",
+      "type": "text",
+      "at": [
+        -0.76,
+        0.22
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "CONFIG",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "mode_title",
+      "type": "text",
+      "at": [
+        -0.76,
+        0.02
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "MODE",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "weapon_title",
+      "type": "text",
+      "at": [
+        0.55,
+        0.62
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "WPN",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "time_title",
+      "type": "text",
+      "at": [
+        0.55,
+        0.42
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "TT",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "pair_title",
+      "type": "text",
+      "at": [
+        0.55,
+        0.22
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "SGL/PAIR",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "nose_tail_title",
+      "type": "text",
+      "at": [
+        0.55,
+        0.02
+      ],
+      "size": 0.055,
+      "align": "left",
+      "text": "NOSE/TAIL",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "fuselage",
+      "type": "polyline",
+      "closed": true,
+      "points": [
+        [
+          0,
+          0.44
+        ],
+        [
+          -0.045,
+          0.35
+        ],
+        [
+          -0.055,
+          0.1
+        ],
+        [
+          -0.04,
+          -0.24
+        ],
+        [
+          -0.02,
+          -0.44
+        ],
+        [
+          0,
+          -0.56
+        ],
+        [
+          0.02,
+          -0.44
+        ],
+        [
+          0.04,
+          -0.24
+        ],
+        [
+          0.055,
+          0.1
+        ],
+        [
+          0.045,
+          0.35
+        ]
+      ],
+      "filled": false
+    },
+    {
+      "id": "left_wing",
+      "type": "polyline",
+      "closed": true,
+      "points": [
+        [
+          -0.04,
+          0.17
+        ],
+        [
+          -0.39,
+          0.03
+        ],
+        [
+          -0.44,
+          -0.05
+        ],
+        [
+          -0.055,
+          -0.03
+        ]
+      ],
+      "filled": false
+    },
+    {
+      "id": "right_wing",
+      "type": "polyline",
+      "closed": true,
+      "points": [
+        [
+          0.04,
+          0.17
+        ],
+        [
+          0.39,
+          0.03
+        ],
+        [
+          0.44,
+          -0.05
+        ],
+        [
+          0.055,
+          -0.03
+        ]
+      ],
+      "filled": false
+    },
+    {
+      "id": "left_tail",
+      "type": "polyline",
+      "closed": true,
+      "points": [
+        [
+          -0.025,
+          -0.37
+        ],
+        [
+          -0.2,
+          -0.48
+        ],
+        [
+          -0.13,
+          -0.53
+        ],
+        [
+          -0.01,
+          -0.45
+        ]
+      ],
+      "filled": false
+    },
+    {
+      "id": "right_tail",
+      "type": "polyline",
+      "closed": true,
+      "points": [
+        [
+          0.025,
+          -0.37
+        ],
+        [
+          0.2,
+          -0.48
+        ],
+        [
+          0.13,
+          -0.53
+        ],
+        [
+          0.01,
+          -0.45
+        ]
+      ],
+      "filled": false
+    },
+    {
+      "id": "centerline",
+      "type": "line",
+      "start": [
+        0,
+        0.44
+      ],
+      "end": [
+        0,
+        -0.56
+      ]
+    },
+    {
+      "id": "pylon_1",
+      "type": "line",
+      "start": [
+        -0.52,
+        -0.13
+      ],
+      "end": [
+        -0.44,
+        -0.13
+      ]
+    },
+    {
+      "id": "pylon_2",
+      "type": "line",
+      "start": [
+        -0.37,
+        -0.02
+      ],
+      "end": [
+        -0.29,
+        -0.02
+      ]
+    },
+    {
+      "id": "pylon_3",
+      "type": "line",
+      "start": [
+        -0.23,
+        0.06
+      ],
+      "end": [
+        -0.15,
+        0.06
+      ]
+    },
+    {
+      "id": "pylon_4",
+      "type": "line",
+      "start": [
+        -0.11,
+        0.12
+      ],
+      "end": [
+        -0.03,
+        0.12
+      ]
+    },
+    {
+      "id": "pylon_5",
+      "type": "line",
+      "start": [
+        -0.04,
+        -0.2
+      ],
+      "end": [
+        0.04,
+        -0.2
+      ]
+    },
+    {
+      "id": "pylon_6",
+      "type": "line",
+      "start": [
+        0.03,
+        0.12
+      ],
+      "end": [
+        0.11,
+        0.12
+      ]
+    },
+    {
+      "id": "pylon_7",
+      "type": "line",
+      "start": [
+        0.15,
+        0.06
+      ],
+      "end": [
+        0.23,
+        0.06
+      ]
+    },
+    {
+      "id": "pylon_8",
+      "type": "line",
+      "start": [
+        0.29,
+        -0.02
+      ],
+      "end": [
+        0.37,
+        -0.02
+      ]
+    },
+    {
+      "id": "pylon_9",
+      "type": "line",
+      "start": [
+        0.44,
+        -0.13
+      ],
+      "end": [
+        0.52,
+        -0.13
+      ]
+    },
+    {
+      "id": "sta_1",
+      "type": "text",
+      "at": [
+        -0.58,
+        -0.1
+      ],
+      "size": 0.045,
+      "align": "right",
+      "text": "1 AIM-9",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "sta_2",
+      "type": "text",
+      "at": [
+        -0.43,
+        0.01
+      ],
+      "size": 0.045,
+      "align": "right",
+      "text": "2 AIM-9",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "sta_3",
+      "type": "text",
+      "at": [
+        -0.29,
+        0.1
+      ],
+      "size": 0.045,
+      "align": "right",
+      "text": "3 GBU-12",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "sta_4",
+      "type": "text",
+      "at": [
+        -0.13,
+        0.2
+      ],
+      "size": 0.045,
+      "align": "right",
+      "text": "4 TGP",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "sta_5",
+      "type": "text",
+      "at": [
+        0,
+        -0.18
+      ],
+      "size": 0.045,
+      "align": "center",
+      "text": "5 CTR",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "sta_6",
+      "type": "text",
+      "at": [
+        0.13,
+        0.2
+      ],
+      "size": 0.045,
+      "align": "left",
+      "text": "6 GBU-12",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "sta_7",
+      "type": "text",
+      "at": [
+        0.29,
+        0.1
+      ],
+      "size": 0.045,
+      "align": "left",
+      "text": "7 GBU-12",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "sta_8",
+      "type": "text",
+      "at": [
+        0.43,
+        0.01
+      ],
+      "size": 0.045,
+      "align": "left",
+      "text": "8 AIM-9",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "sta_9",
+      "type": "text",
+      "at": [
+        0.58,
+        -0.1
+      ],
+      "size": 0.045,
+      "align": "left",
+      "text": "9 AIM-9",
+      "letterSpacing": 0.006
+    }
+  ]
+}

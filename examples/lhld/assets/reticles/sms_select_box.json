@@ -1,0 +1,7 @@
+{
+  "id": "sms_select_box",
+  "lineWidth": 0.004,
+  "elements": [
+    { "id": "box", "type": "square", "size": 0.10, "filled": false }
+  ]
+}

@@ -1,0 +1,154 @@
+{
+  "id": "ag_bomb_symbol",
+  "lineWidth": 0.004,
+  "elements": [
+    {
+      "id": "bomb_body",
+      "type": "polyline",
+      "closed": true,
+      "points": [
+        [
+          0,
+          0.30
+        ],
+        [
+          -0.055,
+          0.20
+        ],
+        [
+          -0.055,
+          -0.16
+        ],
+        [
+          -0.034,
+          -0.31
+        ],
+        [
+          0,
+          -0.40
+        ],
+        [
+          0.034,
+          -0.31
+        ],
+        [
+          0.055,
+          -0.16
+        ],
+        [
+          0.055,
+          0.20
+        ]
+      ],
+      "filled": false
+    },
+    {
+      "id": "left_fin",
+      "type": "polyline",
+      "closed": true,
+      "points": [
+        [
+          -0.055,
+          0.18
+        ],
+        [
+          -0.20,
+          0.34
+        ],
+        [
+          -0.18,
+          0.17
+        ],
+        [
+          -0.055,
+          0.05
+        ]
+      ],
+      "filled": false
+    },
+    {
+      "id": "right_fin",
+      "type": "polyline",
+      "closed": true,
+      "points": [
+        [
+          0.055,
+          0.18
+        ],
+        [
+          0.20,
+          0.34
+        ],
+        [
+          0.18,
+          0.17
+        ],
+        [
+          0.055,
+          0.05
+        ]
+      ],
+      "filled": false
+    },
+    {
+      "id": "centerline",
+      "type": "line",
+      "start": [
+        0,
+        0.30
+      ],
+      "end": [
+        0,
+        -0.39
+      ]
+    },
+    {
+      "id": "range_bar",
+      "type": "line",
+      "start": [
+        -0.16,
+        -0.55
+      ],
+      "end": [
+        0.16,
+        -0.55
+      ]
+    },
+    {
+      "id": "range_left",
+      "type": "line",
+      "start": [
+        -0.16,
+        -0.55
+      ],
+      "end": [
+        -0.16,
+        -0.50
+      ]
+    },
+    {
+      "id": "range_center",
+      "type": "line",
+      "start": [
+        0,
+        -0.55
+      ],
+      "end": [
+        0,
+        -0.50
+      ]
+    },
+    {
+      "id": "range_right",
+      "type": "line",
+      "start": [
+        0.16,
+        -0.55
+      ],
+      "end": [
+        0.16,
+        -0.50
+      ]
+    }
+  ]
+}

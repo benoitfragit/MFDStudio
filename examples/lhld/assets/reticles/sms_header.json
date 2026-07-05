@@ -1,0 +1,78 @@
+{
+  "id": "sms_header",
+  "lineWidth": 0.003,
+  "elements": [
+    {
+      "id": "master_mode",
+      "type": "text",
+      "at": [
+        -0.56,
+        0.86
+      ],
+      "size": 0.06,
+      "align": "center",
+      "text": "A-G",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "weapon",
+      "type": "text",
+      "at": [
+        0,
+        0.66
+      ],
+      "size": 0.06,
+      "align": "center",
+      "text": "GBU-12",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "submode",
+      "type": "text",
+      "at": [
+        0,
+        0.56
+      ],
+      "size": 0.052,
+      "align": "center",
+      "text": "CCRP",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "arm",
+      "type": "text",
+      "at": [
+        0.58,
+        0.86
+      ],
+      "size": 0.06,
+      "align": "center",
+      "text": "SIM",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "inv",
+      "type": "text",
+      "at": [
+        -0.1,
+        0.86
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "INV",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "cntl",
+      "type": "text",
+      "at": [
+        0.16,
+        0.86
+      ],
+      "size": 0.055,
+      "align": "center",
+      "text": "CNTL",
+      "letterSpacing": 0.006
+    }
+  ]
+}

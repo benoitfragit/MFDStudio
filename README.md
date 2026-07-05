@@ -50,7 +50,7 @@ test subset that passes locally but fails on the hosted `windows-2022` runner.
 
 ```powershell
 cmake --preset vs2022-win32
-cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin demo_client radar_load_client demo_hud_client
+cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin demo_client radar_load_client demo_hud_client lhld_client
 ```
 
 Requires Visual Studio 2022, CMake 3.25+, Python 3, and C++17. The first
@@ -76,6 +76,10 @@ For the dedicated Demo HUD, launch the runtime window with
 `.\Scripts\Start-DemoHUD.bat`, then start `demo_hud_client.exe`. The HUD asset
 lives under `examples/hud/assets` and is staged automatically with the demo client
 assets.
+
+For LHLD, launch `.\Scripts\Start-LHLD.bat`. The LHLD client hosts the runtime
+offscreen inside its own DX11/ImGui window, so it does not require a separate
+`mfd_window` process.
 
 For heavy live-UDP debug sessions, `mfd_window` and `offscreen_viewer` also
 accept `--no-snapshot` to keep earlier commands of one runtime batch applied

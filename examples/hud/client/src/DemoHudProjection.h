@@ -34,8 +34,8 @@ namespace demo_hud
  * provides aircraft and target facts, not generated Bezier coordinates:
  *
  * - aircraft pitch/roll and NED velocity provide the flight-path marker;
- * - normal load factor, speed and FPM position bend and drift the funnel;
- * - target range and `targetWingspanMeters` set the funnel width;
+ * - normal load factor, speed and FPM position bend and drift the funnel spine;
+ * - target range and `targetWingspanMeters` scale range-sampled wall widths;
  * - target azimuth/elevation and `targetAccelerationMps2` add lead/skew;
  * - the result is two five-point Bezier rails in `HudGunFrame`.
  */

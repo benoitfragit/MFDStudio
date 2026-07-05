@@ -1,0 +1,263 @@
+{
+  "id": "nav_compass",
+  "lineWidth": 0.0032,
+  "elements": [
+    {
+      "id": "outer_range_ring",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.78,
+      "startAngleDegrees": -35.0,
+      "endAngleDegrees": 215.0,
+      "segments": 96
+    },
+    {
+      "id": "inner_ring_000",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 0.0,
+      "endAngleDegrees": 18.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_030",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 30.0,
+      "endAngleDegrees": 48.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_060",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 60.0,
+      "endAngleDegrees": 78.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_090",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 90.0,
+      "endAngleDegrees": 108.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_120",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 120.0,
+      "endAngleDegrees": 138.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_150",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 150.0,
+      "endAngleDegrees": 168.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_180",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 180.0,
+      "endAngleDegrees": 198.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_210",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 210.0,
+      "endAngleDegrees": 228.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_240",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 240.0,
+      "endAngleDegrees": 258.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_270",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 270.0,
+      "endAngleDegrees": 288.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_300",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 300.0,
+      "endAngleDegrees": 318.0,
+      "segments": 6
+    },
+    {
+      "id": "inner_ring_330",
+      "type": "arc",
+      "position": [0, 0],
+      "radius": 0.43,
+      "startAngleDegrees": 330.0,
+      "endAngleDegrees": 348.0,
+      "segments": 6
+    },
+    {
+      "id": "tick_n",
+      "type": "line",
+      "start": [
+        0,
+        0.72
+      ],
+      "end": [
+        0,
+        0.64
+      ]
+    },
+    {
+      "id": "tick_e",
+      "type": "line",
+      "start": [
+        0.72,
+        0
+      ],
+      "end": [
+        0.64,
+        0
+      ]
+    },
+    {
+      "id": "tick_s",
+      "type": "line",
+      "start": [
+        0,
+        -0.72
+      ],
+      "end": [
+        0,
+        -0.64
+      ]
+    },
+    {
+      "id": "tick_w",
+      "type": "line",
+      "start": [
+        -0.72,
+        0
+      ],
+      "end": [
+        -0.64,
+        0
+      ]
+    },
+    {
+      "id": "tick_ne",
+      "type": "line",
+      "start": [
+        0.509,
+        0.509
+      ],
+      "end": [
+        0.452,
+        0.452
+      ]
+    },
+    {
+      "id": "tick_se",
+      "type": "line",
+      "start": [
+        0.509,
+        -0.509
+      ],
+      "end": [
+        0.452,
+        -0.452
+      ]
+    },
+    {
+      "id": "tick_sw",
+      "type": "line",
+      "start": [
+        -0.509,
+        -0.509
+      ],
+      "end": [
+        -0.452,
+        -0.452
+      ]
+    },
+    {
+      "id": "tick_nw",
+      "type": "line",
+      "start": [
+        -0.509,
+        0.509
+      ],
+      "end": [
+        -0.452,
+        0.452
+      ]
+    },
+    {
+      "id": "label_n",
+      "type": "text",
+      "at": [
+        0,
+        0.84
+      ],
+      "size": 0.05,
+      "text": "N",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "label_e",
+      "type": "text",
+      "at": [
+        0.84,
+        0
+      ],
+      "size": 0.05,
+      "text": "E",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "label_s",
+      "type": "text",
+      "at": [
+        0,
+        -0.84
+      ],
+      "size": 0.05,
+      "text": "S",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "label_w",
+      "type": "text",
+      "at": [
+        -0.84,
+        0
+      ],
+      "size": 0.05,
+      "text": "W",
+      "letterSpacing": 0.006
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "Sms",
+  "title": "SMS",
+  "bg": "#020A04FF",
+  "titleDisplay": { "visible": false },
+  "blinkTypes": [
+    { "name": "fast", "durationMs": 300 },
+    { "name": "caution", "durationMs": 700 }
+  ],
+  "defaultBlink": "fast",
+  "layers": [
+    { "id": "background" },
+    { "id": "tracks" },
+    { "id": "overlay" }
+  ],
+  "staticReticles": [
+    { "id": "sms_stations", "layerId": "background", "template": "sms_stations", "stroke": "#FFE800FF" },
+    { "id": "sms_select_box", "layerId": "tracks", "template": "sms_select_box", "show": false, "stroke": "#FFE800FF" },
+    { "id": "sms_header", "layerId": "overlay", "template": "sms_header", "stroke": "#FFE800FF" },
+    { "id": "sms_selected", "layerId": "overlay", "template": "sms_selected", "stroke": "#FFE800FF" },
+    { "id": "sms_status", "layerId": "overlay", "template": "sms_status", "stroke": "#FFE800FF" },
+    { "id": "osb_legends", "layerId": "overlay", "template": "osb_legends_tpl", "stroke": "#FFE800FF" }
+  ]
+}
