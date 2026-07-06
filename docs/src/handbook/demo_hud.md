@@ -297,12 +297,46 @@ projection would be meaningless.
 
 ### Out-of-field-of-view behavior
 
-The projection never silently clamps a conformal symbol to the glass edge.
+Conformal symbols are not hidden just because they leave the field of view.
 `ProjectBoresightAngularOffsetToHud()` returns a `ProjectedHudPoint` with an
-explicit `insideFov` flag, and the projection hides the corresponding cue when
-it is false: a target, TD circle, CCIP pipper or strafe pipper outside the field
-of view is masked rather than pinned to the edge where it would misreport the
-angle. No new off-boresight locator symbology is invented for this task.
+explicit `insideFov` flag; the owning symbology clamps the cue to the field-of-
+view edge, keeps it visible, and reports the clamp through a `limited` flag.
+This follows BMS/F-16 behavior rather than blanking the cue where the angle is
+lost.
+
+The reference behaviors implemented here are:
+
+- **AIM-120 / missile diamond**: when the target falls outside the HUD FOV the
+  diamond stays at the FOV edge (`missileDiamondLimited`) and a geometric
+  limit-X is overlaid on it (`missileLimitXVisible`, `missileLimitX` reticle).
+- **AIM-9 / SRM diamond**: the demo does not separate the seeker line of sight
+  from the target line of sight, so the same clamped target projection is used
+  and the same limit-X marks a restricted diamond. A real, independent AIM-9
+  seeker LOS is out of scope until a dedicated semantic input exists.
+- **EEGS TD circle**: a locked A-A gun track outside the FOV is clamped and
+  flagged (`tdCircleLimited`) with its own limit-X (`tdCircleLimitX`).
+- **CCIP pipper**: when the pipper reaches the total-FOV edge it stays visible,
+  clamped, and a limit-X is overlaid (`ccipPipperLimited`, `ccipLimitX`). The
+  CCIP solution cue and pull-up anticipation cue are likewise clamped and
+  flagged (`solutionCueLimited`, `pullupAnticipationCueLimited`), never dropped
+  silently.
+- **STRF pipper**: clamped to the edge and flagged (`strafePipperLimited`).
+  There is no dedicated strafe limit-X reticle in the current model, so only the
+  flag is exposed.
+
+These distinct semantics must not be confused:
+
+- the **geometric limit-X** means "this conformal cue is clamped at the FOV
+  edge"; it uses the `demo_hud_limit_x` reticle;
+- the **Break-X** (`breakXVisible`) is the missile *too-close* caution tied to
+  `launchZone.tooClose`; it is a separate field and reticle and can be active at
+  the same time as a limit-X. The Break-X is never reused to signal out-of-FOV;
+- the **A/G target locator line (AGTLL)** is a CCRP/DTOS presentation that
+  replaces the TD box when the target is outside the HUD FOV. The demo HUD does
+  not model CCRP/DTOS target designation, so the AGTLL is out of scope until
+  that mode and its primitives exist;
+- the **dynamic launch zone** is a range scale, not an angular projection, so it
+  never depends on `insideFov` and is not affected by FOV limiting.
 
 Missile threat detection is out of scope. `WeaponInputSample` exposes
 `missileInFlight`, `activeMissileTimeRemainingSeconds` and `activeMissilePhase`,
@@ -320,14 +354,15 @@ rotation and scale from the projected `HudFrame`; it does not switch pages.
 
 The current contextual reticles are:
 
-- Air-to-air missile: target designator, missile diamond, missile circle,
-  dynamic launch zone, range cue, break X and attack steering cue.
-- Air-to-air gun / EEGS: funnel, MRGS, FEDS, TD circle, 1G pipper, Max-G
-  pipper, solution circle and BATR.
+- Air-to-air missile: target designator, missile diamond, missile limit-X,
+  missile circle, dynamic launch zone, range cue, break X and attack steering
+  cue.
+- Air-to-air gun / EEGS: funnel, MRGS, FEDS, TD circle, TD circle limit-X, 1G
+  pipper, Max-G pipper, solution circle and BATR.
 - Air-to-ground / STRF: 50 mR / 40 mR strafe reticle, 2 mR in-range cue,
   moving-target indices, 1 mR pipper and bullet-track line.
-- Air-to-ground / CCIP: bomb-fall line, CCIP pipper, solution cue and pull-up
-  anticipation cue.
+- Air-to-ground / CCIP: bomb-fall line, CCIP pipper, CCIP limit-X, solution cue
+  and pull-up anticipation cue.
 - Landing / ILS: -2.5 degree landing pitch line, ILS localizer/glideslope
   bars, command steering cue and W-steering fallback.
 

@@ -521,10 +521,18 @@ struct HudWeaponFrame
     bool airToAirVisible = false;
     /** True when a valid target should be displayed. */
     bool targetVisible = false;
-    /** Target designator HUD position. */
+    /** Target designator HUD position, clamped to the HUD field of view. */
     HudVec2 targetPosition {};
-    /** Missile diamond HUD position. */
+    /** True when the target designator was clamped to the field-of-view edge. */
+    bool targetLimited = false;
+    /** Missile diamond HUD position, clamped to the HUD field of view. */
     HudVec2 missileDiamondPosition {};
+    /** True when the missile diamond was clamped to the field-of-view edge. */
+    bool missileDiamondLimited = false;
+    /** True when a geometric limit-X should overlay a field-of-view-limited diamond. */
+    bool missileLimitXVisible = false;
+    /** Limit-X HUD position, coincident with the clamped missile diamond. */
+    HudVec2 missileLimitXPosition {};
     /** Missile diamond scale multiplier. */
     float missileDiamondScale = 1.0f;
     /** True when the missile circle should be visible. */
@@ -584,8 +592,14 @@ struct HudGunFrame
     bool fedsVisible = false;
     /** True when a locked target designator circle should be shown. */
     bool tdCircleVisible = false;
-    /** Locked target designator circle position. */
+    /** Locked target designator circle position, clamped to the HUD field of view. */
     HudVec2 tdCirclePosition {};
+    /** True when the TD circle was clamped to the field-of-view edge. */
+    bool tdCircleLimited = false;
+    /** True when a geometric limit-X should overlay a field-of-view-limited TD circle. */
+    bool tdCircleLimitXVisible = false;
+    /** Limit-X HUD position, coincident with the clamped TD circle. */
+    HudVec2 tdCircleLimitXPosition {};
     /** True when the 1G pipper should be displayed. */
     bool oneGPipperVisible = false;
     /** 1G pipper position. */
@@ -606,8 +620,10 @@ struct HudGunFrame
     HudVec2 batrPosition {};
     /** True when A-G strafe symbology should be available. */
     bool strafeVisible = false;
-    /** A-G strafe pipper position. */
+    /** A-G strafe pipper position, clamped to the HUD field of view. */
     HudVec2 strafePipperPosition {};
+    /** True when the strafe pipper was clamped to the field-of-view edge. */
+    bool strafePipperLimited = false;
     /** True when strafe in-range cue should be displayed. */
     bool strafeInRangeCueVisible = false;
     /** Bullet-track end position. */
@@ -625,18 +641,28 @@ struct HudAirGroundFrame
 {
     /** True when CCIP symbology should be displayed. */
     bool ccipVisible = false;
-    /** CCIP pipper HUD position. */
+    /** CCIP pipper HUD position, clamped to the HUD field of view. */
     HudVec2 ccipPipperPosition {};
+    /** True when the CCIP pipper was clamped to the field-of-view edge. */
+    bool ccipPipperLimited = false;
+    /** True when a limit-X should overlay a field-of-view-limited CCIP pipper. */
+    bool ccipLimitXVisible = false;
+    /** Limit-X HUD position, coincident with the clamped CCIP pipper. */
+    HudVec2 ccipLimitXPosition {};
     /** Bomb-fall-line X position in HUD space. */
     float bombFallLineX = 0.0f;
     /** True when CCIP solution cue should be displayed. */
     bool solutionCueVisible = false;
-    /** CCIP solution cue position. */
+    /** CCIP solution cue position, clamped to the HUD field of view. */
     HudVec2 solutionCuePosition {};
+    /** True when the CCIP solution cue was clamped to the field-of-view edge. */
+    bool solutionCueLimited = false;
     /** True when pull-up anticipation cue should be displayed. */
     bool pullupAnticipationCueVisible = false;
-    /** Pull-up anticipation cue position. */
+    /** Pull-up anticipation cue position, clamped to the HUD field of view. */
     HudVec2 pullupAnticipationCuePosition {};
+    /** True when the pull-up anticipation cue was clamped to the field-of-view edge. */
+    bool pullupAnticipationCueLimited = false;
     /** CCIP slant range in feet. */
     float slantRangeFeet = 0.0f;
     /** CCIP time to release in seconds. */

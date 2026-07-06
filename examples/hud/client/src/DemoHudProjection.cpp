@@ -403,11 +403,16 @@ HudWeaponFrame BuildWeaponFrame(const HudInputSample& input) noexcept
 {
     HudWeaponFrame frame;
     frame.airToAirVisible = IsAirToAirMissileMode(input.weapon) && IsWeaponArmedForHud(input.weapon);
-    // A target outside the HUD field of view is hidden rather than clamped to the
-    // edge, so the designator never lies about where the track is.
+    // A target outside the HUD field of view is clamped to the edge and flagged
+    // as limited, not hidden: BMS keeps the AIM-120 diamond at the FOV edge and
+    // overlays a geometric limit-X on it.
     const ProjectedHudPoint targetPoint = ProjectTargetToHud(input.target);
-    frame.targetVisible = frame.airToAirVisible && input.target.valid && targetPoint.insideFov;
+    frame.targetVisible = frame.airToAirVisible && input.target.valid;
     frame.targetPosition = targetPoint.position;
+    frame.targetLimited = frame.targetVisible && !targetPoint.insideFov;
+    frame.missileDiamondLimited = frame.targetLimited;
+    frame.missileLimitXVisible = frame.targetLimited;
+    frame.missileLimitXPosition = frame.targetPosition;
     frame.missileDiamondPosition = frame.targetPosition;
     frame.missileDiamondScale = input.weapon.selectedMissile == MissileType::Aim120C ? 0.92f : 1.15f;
     frame.attackSteeringCueVisible = frame.targetVisible;
@@ -462,11 +467,13 @@ HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& a
     frame.eegsFunnelVisible = airToAirGun && !input.weapon.targetLocked;
     frame.mrgsVisible = frame.eegsFunnelVisible;
     frame.fedsVisible = frame.eegsFunnelVisible && input.weapon.triggerHeld;
-    // The locked target designator circle is conformal, so it follows the same
-    // field-of-view masking as the missile target designator.
-    frame.tdCircleVisible =
-        airToAirGun && input.weapon.targetLocked && input.target.valid && targetPoint.insideFov;
+    // The locked target designator circle is conformal: when the track leaves the
+    // field of view it is clamped to the edge and flagged, not hidden.
+    frame.tdCircleVisible = airToAirGun && input.weapon.targetLocked && input.target.valid;
     frame.tdCirclePosition = targetPosition;
+    frame.tdCircleLimited = frame.tdCircleVisible && !targetPoint.insideFov;
+    frame.tdCircleLimitXVisible = frame.tdCircleLimited;
+    frame.tdCircleLimitXPosition = targetPosition;
     frame.targetRangeFeet = std::max(FiniteOr(input.target.rangeMeters, 0.0f), 0.0f) * kMetersToFeet;
 
     const float targetRangeMeters = std::max(FiniteOr(input.target.rangeMeters, 0.0f), 500.0f);
@@ -553,10 +560,12 @@ HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& a
     const ProjectedHudPoint strafePipper = ProjectConformalPoint(
         input.airGround.pipperAzimuthRad, -FiniteOr(input.airGround.pipperDepressionRad, 0.0f));
     // The strafe pipper is conformal; when the aim point leaves the HUD field of
-    // view the strafe symbology is masked instead of pinned to the glass edge.
-    frame.strafeVisible = strafeGun && strafePipper.insideFov;
+    // view it is clamped to the edge and flagged, not hidden. The current model
+    // has no dedicated strafe limit-X reticle, so only the flag is exposed.
+    frame.strafeVisible = strafeGun;
     frame.strafeSlantRangeFeet = std::max(FiniteOr(input.airGround.slantRangeMeters, 0.0f), 0.0f) * kMetersToFeet;
     frame.strafePipperPosition = strafePipper.position;
+    frame.strafePipperLimited = frame.strafeVisible && !strafePipper.insideFov;
     frame.strafeInRangeCueVisible = frame.strafeVisible && frame.strafeSlantRangeFeet <= EffectiveStrafeInRangeFeet(input.weapon);
     frame.bulletTrackEndPosition = HudVec2 {
         Clamp(frame.strafePipperPosition.x * 0.72f, -0.42f, 0.42f),
@@ -572,23 +581,27 @@ HudAirGroundFrame BuildAirGroundFrame(const HudInputSample& input) noexcept
         input.weapon.weaponMode == HudWeaponMode::AirToGroundCcip &&
         IsWeaponArmedForHud(input.weapon) &&
         input.airGround.valid;
-    // The CCIP pipper is conformal; when it leaves the HUD field of view the CCIP
-    // cues are masked rather than clamped to the edge.
+    // The CCIP pipper is conformal; when it reaches the total field-of-view edge
+    // it is clamped there and a limit-X is overlaid, matching BMS, instead of the
+    // pipper disappearing.
     const ProjectedHudPoint ccipPipper = ProjectConformalPoint(
         input.airGround.pipperAzimuthRad, -FiniteOr(input.airGround.pipperDepressionRad, 0.0f));
-    frame.ccipVisible = ccipMode && ccipPipper.insideFov;
+    frame.ccipVisible = ccipMode;
     frame.ccipPipperPosition = ccipPipper.position;
+    frame.ccipPipperLimited = frame.ccipVisible && !ccipPipper.insideFov;
+    frame.ccipLimitXVisible = frame.ccipPipperLimited;
+    frame.ccipLimitXPosition = ccipPipper.position;
     frame.bombFallLineX = ProjectConformalPoint(input.airGround.fallLineAzimuthRad, 0.0f).position.x;
+    const ProjectedHudPoint solutionCue = ProjectConformalPoint(
+        input.airGround.fallLineAzimuthRad, -FiniteOr(input.airGround.solutionCueDepressionRad, 0.0f));
     frame.solutionCueVisible = frame.ccipVisible && input.airGround.solutionCueValid;
-    frame.solutionCuePosition = ProjectConformalPoint(
-                                    input.airGround.fallLineAzimuthRad,
-                                    -FiniteOr(input.airGround.solutionCueDepressionRad, 0.0f))
-                                    .position;
+    frame.solutionCuePosition = solutionCue.position;
+    frame.solutionCueLimited = frame.solutionCueVisible && !solutionCue.insideFov;
+    const ProjectedHudPoint pullupCue = ProjectConformalPoint(
+        input.airGround.fallLineAzimuthRad, -FiniteOr(input.airGround.pullupAnticipationCueDepressionRad, 0.0f));
     frame.pullupAnticipationCueVisible = frame.ccipVisible && input.airGround.pullupAnticipationCueValid;
-    frame.pullupAnticipationCuePosition = ProjectConformalPoint(
-                                              input.airGround.fallLineAzimuthRad,
-                                              -FiniteOr(input.airGround.pullupAnticipationCueDepressionRad, 0.0f))
-                                              .position;
+    frame.pullupAnticipationCuePosition = pullupCue.position;
+    frame.pullupAnticipationCueLimited = frame.pullupAnticipationCueVisible && !pullupCue.insideFov;
     frame.slantRangeFeet = std::max(FiniteOr(input.airGround.slantRangeMeters, 0.0f), 0.0f) * kMetersToFeet;
     frame.timeToReleaseSeconds = std::max(FiniteOr(input.airGround.timeToReleaseSeconds, 0.0f), 0.0f);
     frame.timeToGoSeconds = std::max(FiniteOr(input.airGround.timeToGoSeconds, 0.0f), 0.0f);

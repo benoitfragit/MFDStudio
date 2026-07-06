@@ -44,9 +44,10 @@ struct HudAngularProjection
 /**
  * @brief One conformal symbol position with explicit field-of-view state.
  *
- * `insideFov` and `limited` are exposed so callers never silently clamp a cue:
- * a symbol outside the field of view is meant to be hidden, not pinned to the
- * edge.
+ * `insideFov` and `limited` are exposed so callers never silently clamp a cue.
+ * A symbol outside the field of view is explicitly reported as limited; the
+ * owning symbology decides whether to clamp with a limit-X, use a locator line,
+ * or hide it only when the real mode requires it.
  */
 struct ProjectedHudPoint
 {

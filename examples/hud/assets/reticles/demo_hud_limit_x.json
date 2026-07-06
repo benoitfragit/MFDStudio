@@ -1,0 +1,33 @@
+{
+  "id": "demo_hud_limit_x",
+  "elements": [
+    {
+      "id": "limit_x_0",
+      "type": "line",
+      "start": [
+        -0.05,
+        -0.05
+      ],
+      "end": [
+        0.05,
+        0.05
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.006
+    },
+    {
+      "id": "limit_x_1",
+      "type": "line",
+      "start": [
+        -0.05,
+        0.05
+      ],
+      "end": [
+        0.05,
+        -0.05
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.006
+    }
+  ]
+}

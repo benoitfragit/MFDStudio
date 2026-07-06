@@ -306,12 +306,14 @@ void HideAirToAirGunReticles(demo_hud_ui::HUDMockupPage& hud)
     hud.eegsMaxGPipper.SetVisible(false);
     hud.eegsSolutionCircle.SetVisible(false);
     hud.eegsBatr.SetVisible(false);
+    hud.tdCircleLimitX.SetVisible(false);
 }
 
 void ResetContextualReticles(demo_hud_ui::HUDMockupPage& hud)
 {
     hud.targetDesignator.SetVisible(false);
     hud.missileDiamond.SetVisible(false);
+    hud.missileLimitX.SetVisible(false);
     hud.missileCircle.SetVisible(false);
     hud.dynamicLaunchZone.SetVisible(false);
     hud.rangeCue.SetVisible(false);
@@ -321,6 +323,8 @@ void ResetContextualReticles(demo_hud_ui::HUDMockupPage& hud)
     hud.breakX.Blink = nullptr;
 
     HideAirToAirGunReticles(hud);
+
+    hud.ccipLimitX.SetVisible(false);
 
     hud.strafeReticle.SetVisible(false);
     hud.strafeInRangeCue.SetVisible(false);
@@ -484,6 +488,11 @@ void ApplyAirToAirMissile(demo_hud_ui::HUDMockupPage& hud, const HudFrame& frame
         hud.missileDiamond.Blink = nullptr;
     }
 
+    // The geometric limit-X marks a field-of-view-limited diamond. It is a
+    // different cue from the too-close Break-X and uses its own reticle.
+    hud.missileLimitX.SetVisible(weapon.missileLimitXVisible);
+    hud.missileLimitX.SetPosition(ToMfdVec2(weapon.missileLimitXPosition));
+
     hud.missileCircle.SetVisible(weapon.missileCircleVisible);
     // The missile circle is centered on the FPM to express steering relative
     // to the current flight path, not the screen center.
@@ -516,6 +525,7 @@ void ApplyAirToAirMissile(demo_hud_ui::HUDMockupPage& hud, const HudFrame& frame
         // last positions, but they must not remain visible in NAV mode.
         hud.targetDesignator.SetVisible(false);
         hud.missileDiamond.SetVisible(false);
+        hud.missileLimitX.SetVisible(false);
         hud.missileCircle.SetVisible(false);
         hud.dynamicLaunchZone.SetVisible(false);
         hud.rangeCue.SetVisible(false);
@@ -555,6 +565,10 @@ void ApplyAirToAirGun(demo_hud_ui::HUDMockupPage& hud, const HudFrame& frame)
     hud.eegsTdCircle.SetVisible(gun.tdCircleVisible);
     hud.eegsTdCircle.SetPosition(ToMfdVec2(gun.tdCirclePosition));
 
+    // Limit-X overlay when the locked track is clamped to the field-of-view edge.
+    hud.tdCircleLimitX.SetVisible(gun.tdCircleLimitXVisible);
+    hud.tdCircleLimitX.SetPosition(ToMfdVec2(gun.tdCircleLimitXPosition));
+
     hud.eegsOneGPipper.SetVisible(gun.oneGPipperVisible);
     hud.eegsOneGPipper.SetPosition(ToMfdVec2(gun.oneGPipperPosition));
 
@@ -581,6 +595,11 @@ void ApplyAirToGroundCcip(demo_hud_ui::HUDMockupPage& hud, const HudFrame& frame
     const HudAirGroundFrame& airGround = frame.airGround;
     hud.ccipPipper.SetVisible(airGround.ccipVisible);
     hud.ccipPipper.SetPosition(ToMfdVec2(airGround.ccipPipperPosition));
+
+    // When the CCIP pipper reaches the field-of-view edge it stays visible and a
+    // limit-X is overlaid on the cue, matching BMS behavior.
+    hud.ccipLimitX.SetVisible(airGround.ccipLimitXVisible);
+    hud.ccipLimitX.SetPosition(ToMfdVec2(airGround.ccipLimitXPosition));
 
     hud.ccipBombFallLine.SetVisible(airGround.ccipVisible);
     const HudVec2 fallLineTop {airGround.bombFallLineX, 0.46f};

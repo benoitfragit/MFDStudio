@@ -997,7 +997,7 @@ TEST(DemoHudProjectionTests, ConformalProjectionCenterEdgesAndOutsideFov)
     EXPECT_LE(std::fabs(outsideElevation.position.y), projection.halfHeightUnits + 1.0e-5f);
 }
 
-TEST(DemoHudProjectionTests, TargetOutsideFovIsHiddenNotClampedToEdge)
+TEST(DemoHudProjectionTests, TargetOutsideFovIsClampedAndLimitXIsPublished)
 {
     HudInputSample input;
     input.weapon.masterMode = HudMasterMode::AirToAir;
@@ -1006,13 +1006,117 @@ TEST(DemoHudProjectionTests, TargetOutsideFovIsHiddenNotClampedToEdge)
     input.target.valid = true;
 
     input.target.azimuthRad = 3.0f * kDegreesToRadians;
-    input.target.elevationRad = 0.0f;
     const demo_hud::HudFrame insideFrame = BuildHudFrame(input);
     EXPECT_TRUE(insideFrame.weapon.targetVisible);
+    EXPECT_FALSE(insideFrame.weapon.targetLimited);
+    EXPECT_FALSE(insideFrame.weapon.missileLimitXVisible);
 
+    const demo_hud::HudAngularProjection projection = HudConformalProjection();
     input.target.azimuthRad = 24.0f * kDegreesToRadians;
     const demo_hud::HudFrame outsideFrame = BuildHudFrame(input);
-    EXPECT_FALSE(outsideFrame.weapon.targetVisible);
+    // The diamond is not hidden: it stays visible, clamped to the FOV edge, and a
+    // geometric limit-X is published on it (BMS AIM-120 behavior).
+    EXPECT_TRUE(outsideFrame.weapon.targetVisible);
+    EXPECT_TRUE(outsideFrame.weapon.targetLimited);
+    EXPECT_TRUE(outsideFrame.weapon.missileDiamondLimited);
+    EXPECT_TRUE(outsideFrame.weapon.missileLimitXVisible);
+    EXPECT_NEAR(outsideFrame.weapon.targetPosition.x, projection.halfWidthUnits, 1.0e-3f);
+    EXPECT_NEAR(outsideFrame.weapon.missileLimitXPosition.x, outsideFrame.weapon.targetPosition.x, 1.0e-6f);
+}
+
+TEST(DemoHudProjectionTests, ControllerShowsMissileDiamondAndLimitXWhenTargetOutsideFov)
+{
+    demo_hud_ui::DemoHudUi ui;
+    ui.Initialize();
+
+    DemoHudController controller;
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToAir;
+    input.weapon.weaponMode = HudWeaponMode::AirToAirMissile;
+    input.weapon.simulateMode = true;
+    input.target.valid = true;
+    input.target.azimuthRad = 24.0f * kDegreesToRadians;
+
+    controller.Populate(ui, input);
+    EXPECT_TRUE(ui.HUD().missileDiamond.GetVisible());
+    EXPECT_TRUE(ui.HUD().missileLimitX.GetVisible());
+    // The limit-X is distinct from the too-close Break-X, which stays hidden here.
+    EXPECT_FALSE(ui.HUD().breakX.GetVisible());
+}
+
+TEST(DemoHudProjectionTests, BreakXStaysTooCloseCueAndIsSeparateFromLimitX)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToAir;
+    input.weapon.weaponMode = HudWeaponMode::AirToAirMissile;
+    input.weapon.simulateMode = true;
+    input.weapon.selectedMissile = MissileType::Aim120C;
+    input.target.valid = true;
+    // Inside AIM-120 rmin1 (1.15 NM) and simultaneously outside the HUD FOV.
+    input.target.rangeMeters = 0.2f * 1852.0f;
+    input.target.azimuthRad = 24.0f * kDegreesToRadians;
+
+    const demo_hud::HudFrame frame = BuildHudFrame(input);
+    EXPECT_TRUE(frame.weapon.launchZone.tooClose);
+    // Break-X depends on too-close, not on the field of view.
+    EXPECT_TRUE(frame.weapon.breakXVisible);
+    // Limit-X is the separate geometric cue; both can be active at once.
+    EXPECT_TRUE(frame.weapon.missileLimitXVisible);
+}
+
+TEST(DemoHudProjectionTests, CcipPipperOutsideFovStaysVisibleWithLimitX)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToGround;
+    input.weapon.weaponMode = HudWeaponMode::AirToGroundCcip;
+    input.airGround.valid = true;
+    input.airGround.pipperDepressionRad = 24.0f * kDegreesToRadians;
+
+    const demo_hud::HudFrame frame = BuildHudFrame(input);
+    EXPECT_TRUE(frame.airGround.ccipVisible);
+    EXPECT_TRUE(frame.airGround.ccipPipperLimited);
+    EXPECT_TRUE(frame.airGround.ccipLimitXVisible);
+    EXPECT_NEAR(frame.airGround.ccipPipperPosition.y, -HudConformalProjection().halfHeightUnits, 1.0e-3f);
+    EXPECT_TRUE(IsFiniteHudVec(frame.airGround.ccipPipperPosition));
+    EXPECT_NEAR(frame.airGround.ccipLimitXPosition.y, frame.airGround.ccipPipperPosition.y, 1.0e-6f);
+}
+
+TEST(DemoHudProjectionTests, CcipSolutionCueAndPuacClampedNotHiddenOutsideFov)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToGround;
+    input.weapon.weaponMode = HudWeaponMode::AirToGroundCcip;
+    input.airGround.valid = true;
+    input.airGround.pipperDepressionRad = 5.0f * kDegreesToRadians;
+    input.airGround.solutionCueValid = true;
+    input.airGround.solutionCueDepressionRad = 24.0f * kDegreesToRadians;
+    input.airGround.pullupAnticipationCueValid = true;
+    input.airGround.pullupAnticipationCueDepressionRad = 26.0f * kDegreesToRadians;
+
+    const demo_hud::HudFrame frame = BuildHudFrame(input);
+    // Cues are not silently dropped: they stay visible, clamped, and flagged.
+    EXPECT_TRUE(frame.airGround.solutionCueVisible);
+    EXPECT_TRUE(frame.airGround.solutionCueLimited);
+    EXPECT_TRUE(frame.airGround.pullupAnticipationCueVisible);
+    EXPECT_TRUE(frame.airGround.pullupAnticipationCueLimited);
+    EXPECT_TRUE(IsFiniteHudVec(frame.airGround.solutionCuePosition));
+    EXPECT_TRUE(IsFiniteHudVec(frame.airGround.pullupAnticipationCuePosition));
+}
+
+TEST(DemoHudProjectionTests, StrafePipperOutsideFovStaysVisibleAndLimited)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToGround;
+    input.weapon.weaponMode = HudWeaponMode::AirToGroundStrafe;
+    input.weapon.gunMode = HudGunMode::Strafe;
+    input.airGround.valid = true;
+    input.airGround.slantRangeMeters = 900.0f;
+    input.airGround.pipperDepressionRad = 24.0f * kDegreesToRadians;
+
+    const demo_hud::HudFrame frame = BuildHudFrame(input);
+    EXPECT_TRUE(frame.gun.strafeVisible);
+    EXPECT_TRUE(frame.gun.strafePipperLimited);
+    EXPECT_TRUE(IsFiniteHudVec(frame.gun.strafePipperPosition));
 }
 
 TEST(DemoHudProjectionTests, CcipPipperAndBombFallLineShareTheConformalScale)
@@ -1074,8 +1178,9 @@ TEST(DemoHudProjectionTests, PitchLadderJsonMatchesCppAngularScale)
     ASSERT_FALSE(content.empty()) << "Unable to read " << ladderPath.string();
 
     // Every authored bar Y must equal the C++ pitch-ladder projection for its
-    // degree, so the JSON scale cannot drift away from the code.
-    for (const int degrees : {5, 10, 15, 20, 30})
+    // degree, so the JSON scale cannot drift away from the code. The 85 degree
+    // bar also guards that the full +/-5..+/-85 ladder is still present.
+    for (const int degrees : {5, 10, 15, 20, 30, 85})
     {
         const std::string positiveId = "p" + std::to_string(degrees) + "_left";
         const std::string negativeId = "n" + std::to_string(degrees) + "_left_0";

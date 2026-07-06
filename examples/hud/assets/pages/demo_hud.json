@@ -2471,6 +2471,12 @@
       "visible": false
     },
     {
+      "id": "missileLimitX",
+      "template": "demo_hud_limit_x",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
       "id": "missileCircle",
       "layerId": "weapon",
       "visible": false,
@@ -2789,6 +2795,12 @@
       "visible": false
     },
     {
+      "id": "tdCircleLimitX",
+      "template": "demo_hud_limit_x",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
       "id": "strafeReticle",
       "template": "demo_hud_strafe_reticle",
       "layerId": "weapon",
@@ -2832,6 +2844,12 @@
     {
       "id": "ccipPullupAnticipationCue",
       "template": "demo_hud_ccip_puac",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "ccipLimitX",
+      "template": "demo_hud_limit_x",
       "layerId": "weapon",
       "visible": false
     },
