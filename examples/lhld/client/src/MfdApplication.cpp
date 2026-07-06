@@ -559,7 +559,21 @@ void MfdApplication::DrawFrame(const float deltaSeconds)
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
     DrawPageSelectorBar();
+
+    // Reserve room for the control panel below the visualization so the square
+    // MFD unit cannot consume the whole height and hide DrawControlPanel().
+    const float contentHeight = ImGui::GetContentRegionAvail().y;
+    const float reservedControlPanelHeight = std::clamp(contentHeight * 0.34f, 220.0f, 360.0f);
+    const float mfdRegionHeight = std::max(240.0f, contentHeight - reservedControlPanelHeight);
+
+    ImGui::BeginChild(
+        "##mfd_region",
+        ImVec2(0.0f, mfdRegionHeight),
+        ImGuiChildFlags_None,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     DrawMfdUnit(deltaSeconds);
+    ImGui::EndChild();
+
     ImGui::Separator();
     DrawControlPanel();
 
