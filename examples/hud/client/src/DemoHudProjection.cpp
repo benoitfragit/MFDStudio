@@ -57,7 +57,11 @@ constexpr float kHudUnitsPerVerticalDegree =
 constexpr float kPitchToHudUnits =
     (2.0f * kHudConformalHalfHeightUnits) / kHudPitchLadderVerticalFovDeg;
 
-constexpr float kHudHorizonLimit = 0.58f;
+// Pitch beyond which the true horizon leaves the visible aperture and ghosts to
+// the edge. Derived from the pitch ladder scale so it tracks the HUD field of
+// view instead of being a magic HUD-unit constant.
+constexpr float kGhostHorizonLimitDeg = 8.7f;
+constexpr float kHudHorizonLimit = kGhostHorizonLimitDeg * kPitchToHudUnits;
 constexpr float kDlzBottomY = -0.245f;
 constexpr float kDlzHeight = 0.49f;
 constexpr float kEegsFunnelFarY = 0.205f;
