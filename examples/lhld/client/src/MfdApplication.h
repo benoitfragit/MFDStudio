@@ -12,7 +12,7 @@
  * Draws a 20-button MFD bezel in ImGui with the authored MFD page rendered
  * offscreen and composited into a DX11 texture at its center. The control
  * surface (bezel and panel) is kept separate from the deterministic radar
- * mini-simulation, exactly like the Demo HUD client.
+ * mini-simulation, exactly like the HUD client.
  */
 
 #include <cstdint>

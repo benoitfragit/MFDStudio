@@ -1,0 +1,29 @@
+{
+  "id": "hud_ccip_puac",
+  "elements": [
+    {
+      "id": "puac_left",
+      "type": "line",
+      "start": [-0.055, -0.030],
+      "end": [-0.055, 0.030],
+      "stroke": "#33FF88FF",
+      "thickness": 0.005
+    },
+    {
+      "id": "puac_right",
+      "type": "line",
+      "start": [0.055, -0.030],
+      "end": [0.055, 0.030],
+      "stroke": "#33FF88FF",
+      "thickness": 0.005
+    },
+    {
+      "id": "puac_bottom",
+      "type": "line",
+      "start": [-0.055, -0.030],
+      "end": [0.055, -0.030],
+      "stroke": "#33FF88FF",
+      "thickness": 0.005
+    }
+  ]
+}

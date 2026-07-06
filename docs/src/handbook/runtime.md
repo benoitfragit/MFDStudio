@@ -10,7 +10,7 @@ The simplest path is a shipped launcher:
 - `.\Scripts\Start-MfdDemo.bat`
 - `.\Scripts\Start-RadarLoad.bat`
 - `.\Scripts\Start-Tutorial.bat`
-- `.\Scripts\Start-DemoHUD.bat`
+- `.\Scripts\Start-HUD.bat`
 - `.\Scripts\Start-LHLD.bat`
 
 For an explicit window, use the generic launcher:
@@ -49,10 +49,10 @@ requirement.
 dynamic tracks from 10 to 300 and display track count versus client publish FPS
 inside the page.
 
-`Start-DemoHUD.bat` starts the dedicated Demo HUD asset from
-`examples/hud/assets/windows/demo_hud_window.json`. Drive it with
-`demo_hud_client.exe`; the demo is documented in
-[Demo HUD](./demo_hud.md).
+`Start-HUD.bat` starts the dedicated HUD asset from
+`examples/hud/assets/windows/hud_window.json`. Drive it with
+`hud_client.exe`; the HUD workflow is documented in
+[HUD](./hud.md).
 
 `Start-LHLD.bat` starts the LHLD in-process client from the staged runtime tree.
 It hosts the runtime offscreen inside its own DX11/ImGui window, so it does not

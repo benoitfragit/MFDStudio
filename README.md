@@ -30,7 +30,7 @@ release, while `Release Workflow` reflects the most recent `release.yml` run:
 | 3. The JSON model | [Concepts](https://benoitfragit.github.io/MFDStudio/concepts.html) |
 | 4. Drive from typed C++ | [Generated Client API](https://benoitfragit.github.io/MFDStudio/handbook/generated_api.html) |
 | 5. Run the runtime | [Runtime](https://benoitfragit.github.io/MFDStudio/handbook/runtime.html) |
-| 6. Explore the HUD demo | [Demo HUD](https://benoitfragit.github.io/MFDStudio/handbook/demo_hud.html) |
+| 6. Explore the HUD | [HUD](https://benoitfragit.github.io/MFDStudio/handbook/hud.html) |
 | 7. Embed offscreen | [Offscreen Embedding](https://benoitfragit.github.io/MFDStudio/handbook/offscreen.html) |
 | 8. Build and contribute | [Development](https://benoitfragit.github.io/MFDStudio/dev/build.html) |
 | 9. Browse the public headers | [C++ API Reference (Doxygen)](https://benoitfragit.github.io/MFDStudio/api/index.html) |
@@ -50,7 +50,7 @@ test subset that passes locally but fails on the hosted `windows-2022` runner.
 
 ```powershell
 cmake --preset vs2022-win32
-cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin demo_client radar_load_client demo_hud_client lhld_client
+cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin demo_client radar_load_client hud_client lhld_client
 ```
 
 Requires Visual Studio 2022, CMake 3.25+, Python 3, and C++17. The first
@@ -72,9 +72,9 @@ For the radar load example, launch `.\Scripts\Start-RadarLoad.bat`, then start
 `radar_load_client.exe`. It ramps dynamic radar tracks from 10 up to 300 and
 prints the current track count and client publish FPS in the runtime view.
 
-For the dedicated Demo HUD, launch the runtime window with
-`.\Scripts\Start-DemoHUD.bat`, then start `demo_hud_client.exe`. The HUD asset
-lives under `examples/hud/assets` and is staged automatically with the demo client
+For the dedicated HUD, launch the runtime window with
+`.\Scripts\Start-HUD.bat`, then start `hud_client.exe`. The HUD asset
+lives under `examples/hud/assets` and is staged automatically with the HUD client
 assets.
 
 For LHLD, launch `.\Scripts\Start-LHLD.bat`. The LHLD client hosts the runtime

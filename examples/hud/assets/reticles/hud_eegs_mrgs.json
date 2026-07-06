@@ -1,0 +1,53 @@
+{
+  "id": "hud_eegs_mrgs",
+  "elements": [
+    {
+      "id": "mrgs_left_low",
+      "type": "bezier",
+      "controlPoints": [
+        [-0.125, 0.045],
+        [-0.100, 0.015],
+        [-0.060, 0.004]
+      ],
+      "segments": 12,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0046
+    },
+    {
+      "id": "mrgs_left_high",
+      "type": "bezier",
+      "controlPoints": [
+        [-0.112, 0.160],
+        [-0.088, 0.128],
+        [-0.052, 0.116]
+      ],
+      "segments": 12,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0046
+    },
+    {
+      "id": "mrgs_right_low",
+      "type": "bezier",
+      "controlPoints": [
+        [0.125, 0.045],
+        [0.100, 0.015],
+        [0.060, 0.004]
+      ],
+      "segments": 12,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0046
+    },
+    {
+      "id": "mrgs_right_high",
+      "type": "bezier",
+      "controlPoints": [
+        [0.112, 0.160],
+        [0.088, 0.128],
+        [0.052, 0.116]
+      ],
+      "segments": 12,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0046
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "hud_eegs_solution_circle",
+  "elements": [
+    {
+      "id": "solution_circle",
+      "type": "circle",
+      "radius": 0.0224,
+      "filled": false,
+      "stroke": "#7BFFB4FF",
+      "thickness": 0.0042,
+      "segments": 48
+    }
+  ]
+}

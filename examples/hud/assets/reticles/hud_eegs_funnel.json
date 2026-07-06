@@ -1,0 +1,45 @@
+{
+  "id": "hud_eegs_funnel",
+  "elements": [
+    {
+      "id": "funnel_left",
+      "type": "bezier",
+      "exposed": true,
+      "controlPoints": [
+        [-0.043412, 0.205],
+        [-0.050669, 0.345],
+        [-0.064269, 0.485],
+        [-0.091132, 0.625],
+        [-0.124, 0.765]
+      ],
+      "segments": 36,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0046
+    },
+    {
+      "id": "funnel_right",
+      "type": "bezier",
+      "exposed": true,
+      "controlPoints": [
+        [0.043412, 0.205],
+        [0.050669, 0.345],
+        [0.064269, 0.485],
+        [0.091132, 0.625],
+        [0.124, 0.765]
+      ],
+      "segments": 36,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0046
+    },
+    {
+      "id": "range_dot",
+      "type": "circle",
+      "position": [0.0, 0.44],
+      "radius": 0.011,
+      "filled": true,
+      "fill": "#33FF88FF",
+      "stroke": "#33FF88FF",
+      "thickness": 0.002
+    }
+  ]
+}

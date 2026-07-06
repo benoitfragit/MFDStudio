@@ -1,0 +1,81 @@
+{
+  "id": "hud_strafe_reticle",
+  "elements": [
+    {
+      "id": "strafe_outer_50mr",
+      "type": "circle",
+      "radius": 0.140,
+      "filled": false,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "segments": 96
+    },
+    {
+      "id": "strafe_inner_40mr",
+      "type": "arc",
+      "radius": 0.112,
+      "startAngleDegrees": 18,
+      "endAngleDegrees": 342,
+      "segments": 88,
+      "stroke": "#33FF88FF",
+      "thickness": 0.0048
+    },
+    {
+      "id": "range_tick_top",
+      "type": "line",
+      "start": [0.0, 0.140],
+      "end": [0.0, 0.185],
+      "stroke": "#33FF88FF",
+      "thickness": 0.005
+    },
+    {
+      "id": "range_tick_bottom",
+      "type": "line",
+      "start": [0.0, -0.140],
+      "end": [0.0, -0.185],
+      "stroke": "#33FF88FF",
+      "thickness": 0.005
+    },
+    {
+      "id": "range_tick_left",
+      "type": "line",
+      "start": [-0.140, 0.0],
+      "end": [-0.185, 0.0],
+      "stroke": "#33FF88FF",
+      "thickness": 0.005
+    },
+    {
+      "id": "range_tick_right",
+      "type": "line",
+      "start": [0.140, 0.0],
+      "end": [0.185, 0.0],
+      "stroke": "#33FF88FF",
+      "thickness": 0.005
+    },
+    {
+      "id": "moving_index_left",
+      "type": "line",
+      "start": [-0.072, -0.030],
+      "end": [-0.072, 0.030],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0046
+    },
+    {
+      "id": "moving_index_right",
+      "type": "line",
+      "start": [0.072, -0.030],
+      "end": [0.072, 0.030],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0046
+    },
+    {
+      "id": "strafe_pipper",
+      "type": "circle",
+      "radius": 0.0056,
+      "filled": true,
+      "fill": "#33FF88FF",
+      "stroke": "#33FF88FF",
+      "thickness": 0.0018
+    }
+  ]
+}

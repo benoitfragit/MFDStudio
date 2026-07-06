@@ -1,0 +1,3881 @@
+{
+  "id": "hud_pitch_ladder",
+  "elements": [
+    {
+      "id": "p5_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        0.333333
+      ],
+      "end": [
+        -0.115,
+        0.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p5_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        0.333333
+      ],
+      "end": [
+        -0.115,
+        0.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p5_right",
+      "type": "line",
+      "start": [
+        0.115,
+        0.333333
+      ],
+      "end": [
+        0.315,
+        0.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p5_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        0.333333
+      ],
+      "end": [
+        0.115,
+        0.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p5_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        0.333333
+      ],
+      "text": "5",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p5_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        0.333333
+      ],
+      "text": "5",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n5_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -0.333333
+      ],
+      "end": [
+        -0.265,
+        -0.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n5_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -0.333333
+      ],
+      "end": [
+        -0.18,
+        -0.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n5_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -0.333333
+      ],
+      "end": [
+        -0.115,
+        -0.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n5_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -0.333333
+      ],
+      "end": [
+        -0.115,
+        -0.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n5_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -0.333333
+      ],
+      "end": [
+        0.265,
+        -0.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n5_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -0.333333
+      ],
+      "end": [
+        0.18,
+        -0.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n5_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -0.333333
+      ],
+      "end": [
+        0.115,
+        -0.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n5_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -0.333333
+      ],
+      "end": [
+        0.115,
+        -0.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n5_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -0.333333
+      ],
+      "text": "5",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n5_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -0.333333
+      ],
+      "text": "5",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p10_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        0.666667
+      ],
+      "end": [
+        -0.115,
+        0.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p10_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        0.666667
+      ],
+      "end": [
+        -0.115,
+        0.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p10_right",
+      "type": "line",
+      "start": [
+        0.115,
+        0.666667
+      ],
+      "end": [
+        0.315,
+        0.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p10_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        0.666667
+      ],
+      "end": [
+        0.115,
+        0.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p10_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        0.666667
+      ],
+      "text": "10",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p10_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        0.666667
+      ],
+      "text": "10",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n10_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -0.666667
+      ],
+      "end": [
+        -0.265,
+        -0.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n10_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -0.666667
+      ],
+      "end": [
+        -0.18,
+        -0.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n10_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -0.666667
+      ],
+      "end": [
+        -0.115,
+        -0.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n10_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -0.666667
+      ],
+      "end": [
+        -0.115,
+        -0.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n10_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -0.666667
+      ],
+      "end": [
+        0.265,
+        -0.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n10_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -0.666667
+      ],
+      "end": [
+        0.18,
+        -0.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n10_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -0.666667
+      ],
+      "end": [
+        0.115,
+        -0.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n10_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -0.666667
+      ],
+      "end": [
+        0.115,
+        -0.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n10_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -0.666667
+      ],
+      "text": "10",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n10_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -0.666667
+      ],
+      "text": "10",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p15_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        1.0
+      ],
+      "end": [
+        -0.115,
+        1.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p15_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        1.0
+      ],
+      "end": [
+        -0.115,
+        0.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p15_right",
+      "type": "line",
+      "start": [
+        0.115,
+        1.0
+      ],
+      "end": [
+        0.315,
+        1.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p15_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        1.0
+      ],
+      "end": [
+        0.115,
+        0.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p15_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        1.0
+      ],
+      "text": "15",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p15_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        1.0
+      ],
+      "text": "15",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n15_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -1.0
+      ],
+      "end": [
+        -0.265,
+        -1.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n15_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -1.0
+      ],
+      "end": [
+        -0.18,
+        -1.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n15_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -1.0
+      ],
+      "end": [
+        -0.115,
+        -1.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n15_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -1.0
+      ],
+      "end": [
+        -0.115,
+        -0.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n15_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -1.0
+      ],
+      "end": [
+        0.265,
+        -1.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n15_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -1.0
+      ],
+      "end": [
+        0.18,
+        -1.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n15_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -1.0
+      ],
+      "end": [
+        0.115,
+        -1.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n15_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -1.0
+      ],
+      "end": [
+        0.115,
+        -0.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n15_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -1.0
+      ],
+      "text": "15",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n15_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -1.0
+      ],
+      "text": "15",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p20_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        1.333333
+      ],
+      "end": [
+        -0.115,
+        1.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p20_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        1.333333
+      ],
+      "end": [
+        -0.115,
+        1.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p20_right",
+      "type": "line",
+      "start": [
+        0.115,
+        1.333333
+      ],
+      "end": [
+        0.315,
+        1.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p20_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        1.333333
+      ],
+      "end": [
+        0.115,
+        1.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p20_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        1.333333
+      ],
+      "text": "20",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p20_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        1.333333
+      ],
+      "text": "20",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n20_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -1.333333
+      ],
+      "end": [
+        -0.265,
+        -1.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n20_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -1.333333
+      ],
+      "end": [
+        -0.18,
+        -1.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n20_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -1.333333
+      ],
+      "end": [
+        -0.115,
+        -1.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n20_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -1.333333
+      ],
+      "end": [
+        -0.115,
+        -1.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n20_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -1.333333
+      ],
+      "end": [
+        0.265,
+        -1.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n20_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -1.333333
+      ],
+      "end": [
+        0.18,
+        -1.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n20_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -1.333333
+      ],
+      "end": [
+        0.115,
+        -1.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n20_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -1.333333
+      ],
+      "end": [
+        0.115,
+        -1.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n20_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -1.333333
+      ],
+      "text": "20",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n20_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -1.333333
+      ],
+      "text": "20",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p25_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        1.666667
+      ],
+      "end": [
+        -0.115,
+        1.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p25_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        1.666667
+      ],
+      "end": [
+        -0.115,
+        1.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p25_right",
+      "type": "line",
+      "start": [
+        0.115,
+        1.666667
+      ],
+      "end": [
+        0.315,
+        1.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p25_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        1.666667
+      ],
+      "end": [
+        0.115,
+        1.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p25_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        1.666667
+      ],
+      "text": "25",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p25_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        1.666667
+      ],
+      "text": "25",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n25_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -1.666667
+      ],
+      "end": [
+        -0.265,
+        -1.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n25_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -1.666667
+      ],
+      "end": [
+        -0.18,
+        -1.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n25_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -1.666667
+      ],
+      "end": [
+        -0.115,
+        -1.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n25_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -1.666667
+      ],
+      "end": [
+        -0.115,
+        -1.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n25_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -1.666667
+      ],
+      "end": [
+        0.265,
+        -1.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n25_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -1.666667
+      ],
+      "end": [
+        0.18,
+        -1.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n25_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -1.666667
+      ],
+      "end": [
+        0.115,
+        -1.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n25_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -1.666667
+      ],
+      "end": [
+        0.115,
+        -1.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n25_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -1.666667
+      ],
+      "text": "25",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n25_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -1.666667
+      ],
+      "text": "25",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p30_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        2.0
+      ],
+      "end": [
+        -0.115,
+        2.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p30_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        2.0
+      ],
+      "end": [
+        -0.115,
+        1.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p30_right",
+      "type": "line",
+      "start": [
+        0.115,
+        2.0
+      ],
+      "end": [
+        0.315,
+        2.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p30_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        2.0
+      ],
+      "end": [
+        0.115,
+        1.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p30_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        2.0
+      ],
+      "text": "30",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p30_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        2.0
+      ],
+      "text": "30",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n30_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -2.0
+      ],
+      "end": [
+        -0.265,
+        -2.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n30_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -2.0
+      ],
+      "end": [
+        -0.18,
+        -2.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n30_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -2.0
+      ],
+      "end": [
+        -0.115,
+        -2.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n30_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -2.0
+      ],
+      "end": [
+        -0.115,
+        -1.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n30_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -2.0
+      ],
+      "end": [
+        0.265,
+        -2.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n30_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -2.0
+      ],
+      "end": [
+        0.18,
+        -2.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n30_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -2.0
+      ],
+      "end": [
+        0.115,
+        -2.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n30_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -2.0
+      ],
+      "end": [
+        0.115,
+        -1.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n30_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -2.0
+      ],
+      "text": "30",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n30_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -2.0
+      ],
+      "text": "30",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p35_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        2.333333
+      ],
+      "end": [
+        -0.115,
+        2.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p35_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        2.333333
+      ],
+      "end": [
+        -0.115,
+        2.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p35_right",
+      "type": "line",
+      "start": [
+        0.115,
+        2.333333
+      ],
+      "end": [
+        0.315,
+        2.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p35_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        2.333333
+      ],
+      "end": [
+        0.115,
+        2.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p35_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        2.333333
+      ],
+      "text": "35",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p35_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        2.333333
+      ],
+      "text": "35",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n35_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -2.333333
+      ],
+      "end": [
+        -0.265,
+        -2.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n35_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -2.333333
+      ],
+      "end": [
+        -0.18,
+        -2.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n35_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -2.333333
+      ],
+      "end": [
+        -0.115,
+        -2.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n35_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -2.333333
+      ],
+      "end": [
+        -0.115,
+        -2.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n35_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -2.333333
+      ],
+      "end": [
+        0.265,
+        -2.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n35_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -2.333333
+      ],
+      "end": [
+        0.18,
+        -2.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n35_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -2.333333
+      ],
+      "end": [
+        0.115,
+        -2.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n35_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -2.333333
+      ],
+      "end": [
+        0.115,
+        -2.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n35_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -2.333333
+      ],
+      "text": "35",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n35_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -2.333333
+      ],
+      "text": "35",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p40_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        2.666667
+      ],
+      "end": [
+        -0.115,
+        2.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p40_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        2.666667
+      ],
+      "end": [
+        -0.115,
+        2.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p40_right",
+      "type": "line",
+      "start": [
+        0.115,
+        2.666667
+      ],
+      "end": [
+        0.315,
+        2.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p40_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        2.666667
+      ],
+      "end": [
+        0.115,
+        2.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p40_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        2.666667
+      ],
+      "text": "40",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p40_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        2.666667
+      ],
+      "text": "40",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n40_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -2.666667
+      ],
+      "end": [
+        -0.265,
+        -2.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n40_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -2.666667
+      ],
+      "end": [
+        -0.18,
+        -2.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n40_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -2.666667
+      ],
+      "end": [
+        -0.115,
+        -2.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n40_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -2.666667
+      ],
+      "end": [
+        -0.115,
+        -2.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n40_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -2.666667
+      ],
+      "end": [
+        0.265,
+        -2.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n40_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -2.666667
+      ],
+      "end": [
+        0.18,
+        -2.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n40_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -2.666667
+      ],
+      "end": [
+        0.115,
+        -2.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n40_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -2.666667
+      ],
+      "end": [
+        0.115,
+        -2.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n40_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -2.666667
+      ],
+      "text": "40",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n40_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -2.666667
+      ],
+      "text": "40",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p45_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        3.0
+      ],
+      "end": [
+        -0.115,
+        3.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p45_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        3.0
+      ],
+      "end": [
+        -0.115,
+        2.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p45_right",
+      "type": "line",
+      "start": [
+        0.115,
+        3.0
+      ],
+      "end": [
+        0.315,
+        3.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p45_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        3.0
+      ],
+      "end": [
+        0.115,
+        2.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p45_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        3.0
+      ],
+      "text": "45",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p45_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        3.0
+      ],
+      "text": "45",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n45_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -3.0
+      ],
+      "end": [
+        -0.265,
+        -3.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n45_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -3.0
+      ],
+      "end": [
+        -0.18,
+        -3.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n45_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -3.0
+      ],
+      "end": [
+        -0.115,
+        -3.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n45_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -3.0
+      ],
+      "end": [
+        -0.115,
+        -2.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n45_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -3.0
+      ],
+      "end": [
+        0.265,
+        -3.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n45_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -3.0
+      ],
+      "end": [
+        0.18,
+        -3.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n45_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -3.0
+      ],
+      "end": [
+        0.115,
+        -3.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n45_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -3.0
+      ],
+      "end": [
+        0.115,
+        -2.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n45_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -3.0
+      ],
+      "text": "45",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n45_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -3.0
+      ],
+      "text": "45",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p50_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        3.333333
+      ],
+      "end": [
+        -0.115,
+        3.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p50_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        3.333333
+      ],
+      "end": [
+        -0.115,
+        3.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p50_right",
+      "type": "line",
+      "start": [
+        0.115,
+        3.333333
+      ],
+      "end": [
+        0.315,
+        3.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p50_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        3.333333
+      ],
+      "end": [
+        0.115,
+        3.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p50_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        3.333333
+      ],
+      "text": "50",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p50_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        3.333333
+      ],
+      "text": "50",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n50_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -3.333333
+      ],
+      "end": [
+        -0.265,
+        -3.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n50_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -3.333333
+      ],
+      "end": [
+        -0.18,
+        -3.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n50_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -3.333333
+      ],
+      "end": [
+        -0.115,
+        -3.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n50_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -3.333333
+      ],
+      "end": [
+        -0.115,
+        -3.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n50_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -3.333333
+      ],
+      "end": [
+        0.265,
+        -3.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n50_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -3.333333
+      ],
+      "end": [
+        0.18,
+        -3.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n50_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -3.333333
+      ],
+      "end": [
+        0.115,
+        -3.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n50_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -3.333333
+      ],
+      "end": [
+        0.115,
+        -3.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n50_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -3.333333
+      ],
+      "text": "50",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n50_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -3.333333
+      ],
+      "text": "50",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p55_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        3.666667
+      ],
+      "end": [
+        -0.115,
+        3.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p55_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        3.666667
+      ],
+      "end": [
+        -0.115,
+        3.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p55_right",
+      "type": "line",
+      "start": [
+        0.115,
+        3.666667
+      ],
+      "end": [
+        0.315,
+        3.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p55_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        3.666667
+      ],
+      "end": [
+        0.115,
+        3.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p55_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        3.666667
+      ],
+      "text": "55",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p55_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        3.666667
+      ],
+      "text": "55",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n55_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -3.666667
+      ],
+      "end": [
+        -0.265,
+        -3.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n55_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -3.666667
+      ],
+      "end": [
+        -0.18,
+        -3.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n55_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -3.666667
+      ],
+      "end": [
+        -0.115,
+        -3.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n55_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -3.666667
+      ],
+      "end": [
+        -0.115,
+        -3.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n55_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -3.666667
+      ],
+      "end": [
+        0.265,
+        -3.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n55_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -3.666667
+      ],
+      "end": [
+        0.18,
+        -3.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n55_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -3.666667
+      ],
+      "end": [
+        0.115,
+        -3.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n55_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -3.666667
+      ],
+      "end": [
+        0.115,
+        -3.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n55_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -3.666667
+      ],
+      "text": "55",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n55_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -3.666667
+      ],
+      "text": "55",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p60_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        4.0
+      ],
+      "end": [
+        -0.115,
+        4.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p60_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        4.0
+      ],
+      "end": [
+        -0.115,
+        3.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p60_right",
+      "type": "line",
+      "start": [
+        0.115,
+        4.0
+      ],
+      "end": [
+        0.315,
+        4.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p60_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        4.0
+      ],
+      "end": [
+        0.115,
+        3.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p60_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        4.0
+      ],
+      "text": "60",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p60_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        4.0
+      ],
+      "text": "60",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n60_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -4.0
+      ],
+      "end": [
+        -0.265,
+        -4.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n60_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -4.0
+      ],
+      "end": [
+        -0.18,
+        -4.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n60_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -4.0
+      ],
+      "end": [
+        -0.115,
+        -4.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n60_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -4.0
+      ],
+      "end": [
+        -0.115,
+        -3.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n60_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -4.0
+      ],
+      "end": [
+        0.265,
+        -4.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n60_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -4.0
+      ],
+      "end": [
+        0.18,
+        -4.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n60_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -4.0
+      ],
+      "end": [
+        0.115,
+        -4.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n60_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -4.0
+      ],
+      "end": [
+        0.115,
+        -3.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n60_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -4.0
+      ],
+      "text": "60",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n60_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -4.0
+      ],
+      "text": "60",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p65_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        4.333333
+      ],
+      "end": [
+        -0.115,
+        4.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p65_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        4.333333
+      ],
+      "end": [
+        -0.115,
+        4.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p65_right",
+      "type": "line",
+      "start": [
+        0.115,
+        4.333333
+      ],
+      "end": [
+        0.315,
+        4.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p65_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        4.333333
+      ],
+      "end": [
+        0.115,
+        4.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p65_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        4.333333
+      ],
+      "text": "65",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p65_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        4.333333
+      ],
+      "text": "65",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n65_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -4.333333
+      ],
+      "end": [
+        -0.265,
+        -4.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n65_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -4.333333
+      ],
+      "end": [
+        -0.18,
+        -4.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n65_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -4.333333
+      ],
+      "end": [
+        -0.115,
+        -4.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n65_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -4.333333
+      ],
+      "end": [
+        -0.115,
+        -4.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n65_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -4.333333
+      ],
+      "end": [
+        0.265,
+        -4.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n65_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -4.333333
+      ],
+      "end": [
+        0.18,
+        -4.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n65_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -4.333333
+      ],
+      "end": [
+        0.115,
+        -4.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n65_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -4.333333
+      ],
+      "end": [
+        0.115,
+        -4.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n65_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -4.333333
+      ],
+      "text": "65",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n65_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -4.333333
+      ],
+      "text": "65",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p70_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        4.666667
+      ],
+      "end": [
+        -0.115,
+        4.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p70_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        4.666667
+      ],
+      "end": [
+        -0.115,
+        4.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p70_right",
+      "type": "line",
+      "start": [
+        0.115,
+        4.666667
+      ],
+      "end": [
+        0.315,
+        4.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p70_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        4.666667
+      ],
+      "end": [
+        0.115,
+        4.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p70_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        4.666667
+      ],
+      "text": "70",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p70_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        4.666667
+      ],
+      "text": "70",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n70_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -4.666667
+      ],
+      "end": [
+        -0.265,
+        -4.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n70_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -4.666667
+      ],
+      "end": [
+        -0.18,
+        -4.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n70_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -4.666667
+      ],
+      "end": [
+        -0.115,
+        -4.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n70_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -4.666667
+      ],
+      "end": [
+        -0.115,
+        -4.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n70_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -4.666667
+      ],
+      "end": [
+        0.265,
+        -4.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n70_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -4.666667
+      ],
+      "end": [
+        0.18,
+        -4.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n70_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -4.666667
+      ],
+      "end": [
+        0.115,
+        -4.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n70_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -4.666667
+      ],
+      "end": [
+        0.115,
+        -4.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n70_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -4.666667
+      ],
+      "text": "70",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n70_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -4.666667
+      ],
+      "text": "70",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p75_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        5.0
+      ],
+      "end": [
+        -0.115,
+        5.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p75_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        5.0
+      ],
+      "end": [
+        -0.115,
+        4.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p75_right",
+      "type": "line",
+      "start": [
+        0.115,
+        5.0
+      ],
+      "end": [
+        0.315,
+        5.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p75_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        5.0
+      ],
+      "end": [
+        0.115,
+        4.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p75_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        5.0
+      ],
+      "text": "75",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p75_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        5.0
+      ],
+      "text": "75",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n75_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -5.0
+      ],
+      "end": [
+        -0.265,
+        -5.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n75_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -5.0
+      ],
+      "end": [
+        -0.18,
+        -5.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n75_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -5.0
+      ],
+      "end": [
+        -0.115,
+        -5.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n75_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -5.0
+      ],
+      "end": [
+        -0.115,
+        -4.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n75_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -5.0
+      ],
+      "end": [
+        0.265,
+        -5.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n75_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -5.0
+      ],
+      "end": [
+        0.18,
+        -5.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n75_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -5.0
+      ],
+      "end": [
+        0.115,
+        -5.0
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n75_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -5.0
+      ],
+      "end": [
+        0.115,
+        -4.948
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n75_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -5.0
+      ],
+      "text": "75",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n75_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -5.0
+      ],
+      "text": "75",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p80_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        5.333333
+      ],
+      "end": [
+        -0.115,
+        5.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p80_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        5.333333
+      ],
+      "end": [
+        -0.115,
+        5.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p80_right",
+      "type": "line",
+      "start": [
+        0.115,
+        5.333333
+      ],
+      "end": [
+        0.315,
+        5.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p80_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        5.333333
+      ],
+      "end": [
+        0.115,
+        5.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p80_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        5.333333
+      ],
+      "text": "80",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p80_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        5.333333
+      ],
+      "text": "80",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n80_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -5.333333
+      ],
+      "end": [
+        -0.265,
+        -5.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n80_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -5.333333
+      ],
+      "end": [
+        -0.18,
+        -5.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n80_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -5.333333
+      ],
+      "end": [
+        -0.115,
+        -5.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n80_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -5.333333
+      ],
+      "end": [
+        -0.115,
+        -5.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n80_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -5.333333
+      ],
+      "end": [
+        0.265,
+        -5.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n80_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -5.333333
+      ],
+      "end": [
+        0.18,
+        -5.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n80_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -5.333333
+      ],
+      "end": [
+        0.115,
+        -5.333333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n80_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -5.333333
+      ],
+      "end": [
+        0.115,
+        -5.281333
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n80_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -5.333333
+      ],
+      "text": "80",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n80_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -5.333333
+      ],
+      "text": "80",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p85_left",
+      "type": "line",
+      "start": [
+        -0.315,
+        5.666667
+      ],
+      "end": [
+        -0.115,
+        5.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p85_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        5.666667
+      ],
+      "end": [
+        -0.115,
+        5.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p85_right",
+      "type": "line",
+      "start": [
+        0.115,
+        5.666667
+      ],
+      "end": [
+        0.315,
+        5.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p85_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        5.666667
+      ],
+      "end": [
+        0.115,
+        5.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054
+    },
+    {
+      "id": "p85_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        5.666667
+      ],
+      "text": "85",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "p85_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        5.666667
+      ],
+      "text": "85",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n85_left_0",
+      "type": "line",
+      "start": [
+        -0.315,
+        -5.666667
+      ],
+      "end": [
+        -0.265,
+        -5.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n85_left_1",
+      "type": "line",
+      "start": [
+        -0.232,
+        -5.666667
+      ],
+      "end": [
+        -0.18,
+        -5.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n85_left_2",
+      "type": "line",
+      "start": [
+        -0.148,
+        -5.666667
+      ],
+      "end": [
+        -0.115,
+        -5.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n85_left_tick",
+      "type": "line",
+      "start": [
+        -0.115,
+        -5.666667
+      ],
+      "end": [
+        -0.115,
+        -5.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n85_right_0",
+      "type": "line",
+      "start": [
+        0.315,
+        -5.666667
+      ],
+      "end": [
+        0.265,
+        -5.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n85_right_1",
+      "type": "line",
+      "start": [
+        0.232,
+        -5.666667
+      ],
+      "end": [
+        0.18,
+        -5.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n85_right_2",
+      "type": "line",
+      "start": [
+        0.148,
+        -5.666667
+      ],
+      "end": [
+        0.115,
+        -5.666667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n85_right_tick",
+      "type": "line",
+      "start": [
+        0.115,
+        -5.666667
+      ],
+      "end": [
+        0.115,
+        -5.614667
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0054,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "n85_label_left",
+      "type": "text",
+      "position": [
+        -0.35,
+        -5.666667
+      ],
+      "text": "85",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    },
+    {
+      "id": "n85_label_right",
+      "type": "text",
+      "position": [
+        0.35,
+        -5.666667
+      ],
+      "text": "85",
+      "fontSize": 0.054,
+      "color": "#33FF88FF",
+      "align": "center",
+      "letterSpacing": 0.006
+    }
+  ]
+}

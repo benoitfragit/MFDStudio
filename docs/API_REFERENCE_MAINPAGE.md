@@ -18,13 +18,13 @@ The reference covers the public headers of:
 - `mfd_window/include` — runtime host integration points
 - `mfd_window_plugin_api/include` — public framebuffer-plugin SDK
 
-The reference also includes the Demo HUD integration headers:
+The reference also includes the HUD integration headers:
 
-- `examples/hud/client/src/DemoHudSimulation.h`
-- `examples/hud/client/src/DemoHudController.h`
+- `examples/hud/client/src/HudSimulation.h`
+- `examples/hud/client/src/HudController.h`
 
 Those two files document the semantic SI-unit contract used to hand the shipped
-Demo HUD example to an external aircraft adapter.
+HUD example to an external aircraft adapter.
 
 ## Client Integration Entry Points
 
@@ -33,8 +33,8 @@ For customer-facing client code, two umbrella headers matter most:
 - `mfd/client/ClientSdk.h` for standalone applications and shipped examples
 - `mfd/client/GeneratedUiSupport.h` for generated source files emitted by the
   client API generator
-- `demo_hud::HudInputSample` plus `demo_hud::DemoHudController::Populate()` for
-  handing the Demo HUD example to an external aircraft adapter
+- `hud::HudInputSample` plus `hud::HudController::Populate()` for
+  handing the HUD example to an external aircraft adapter
 
 Generated code and shipped examples should link only `mfd_client_api`, even when
 they reach lower-level helpers such as `CommandClient`, `JsonLoader`, or

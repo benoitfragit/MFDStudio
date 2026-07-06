@@ -19,7 +19,7 @@ Open Font License 1.1. The `.ttf` and `OFL-ShareTechMono.txt` files live under
 primitives define explicit letter spacing to avoid the overly tight raylib
 default-font look.
 
-Unlike the Demo HUD, which drives a separate `mfd_window` process over UDP, the
+Unlike the HUD, which drives a separate `mfd_window` process over UDP, the
 MFD client **hosts the runtime in-process**: it embeds `mfd_runtime_api`
 (`RuntimeSession` + `OffscreenSurface`), renders the active page offscreen, and
 composites the resulting image into a DX11 texture drawn at the center of a
@@ -44,7 +44,7 @@ inside the client and shown in the bezel.
 
 ## Layering
 
-The client mirrors the Demo HUD layering so an external avionics producer can
+The client mirrors the HUD layering so an external avionics producer can
 replace the mini-simulation while keeping the projection, controller and
 generated UI:
 
@@ -67,7 +67,7 @@ generated UI:
 
 ## Control is separate from the simulation
 
-Exactly like the Demo HUD, the control surface (the 20 OSB bezel and the
+Exactly like the HUD, the control surface (the 20 OSB bezel and the
 collapsible control panel) only collects operator intent into
 `RadarSettings`, `StoresState`, the shared `MasterMode` and the navigation
 selection. That intent is pushed into the simulation once per frame; the

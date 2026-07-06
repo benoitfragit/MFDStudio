@@ -1,0 +1,2887 @@
+{
+  "name": "HUD",
+  "title": "HUD",
+  "titleDisplay": {
+    "visible": false
+  },
+  "backgroundColor": "#000000FF",
+  "layers": [
+    {
+      "id": "ladder"
+    },
+    {
+      "id": "fixed"
+    },
+    {
+      "id": "flight"
+    },
+    {
+      "id": "weapon"
+    },
+    {
+      "id": "labels"
+    }
+  ],
+  "blinkTypes": [
+    {
+      "name": "slow",
+      "durationMs": 900
+    },
+    {
+      "name": "fast",
+      "durationMs": 280
+    },
+    {
+      "name": "caution",
+      "durationMs": 520
+    }
+  ],
+  "defaultBlink": "slow",
+  "view": {
+    "center": [
+      0,
+      0
+    ],
+    "zoom": 1
+  },
+  "staticReticles": [
+    {
+      "id": "boresightCross",
+      "template": "hud_boresight",
+      "layerId": "fixed",
+      "position": [
+        0,
+        0.9
+      ]
+    },
+    {
+      "id": "referenceCuePack",
+      "layerId": "fixed",
+      "elements": [
+        {
+          "id": "boresight_diamond",
+          "type": "diamond",
+          "position": [
+            0,
+            0.64
+          ],
+          "size": 0.06,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0054
+        },
+        {
+          "id": "target_altitude_circle",
+          "type": "circle",
+          "position": [
+            0.28,
+            0.59
+          ],
+          "radius": 0.061,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "target_altitude_text",
+          "type": "text",
+          "text": "19",
+          "position": [
+            0.28,
+            0.59
+          ],
+          "fontSize": 0.044,
+          "align": "center",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "bottom_fly_up_triangle",
+          "type": "triangle",
+          "points": [
+            [
+              0,
+              -0.8
+            ],
+            [
+              -0.04,
+              -0.885
+            ],
+            [
+              0.04,
+              -0.885
+            ]
+          ],
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "bottom_x_0",
+          "type": "line",
+          "start": [
+            -0.03,
+            -1.015
+          ],
+          "end": [
+            0.03,
+            -0.955
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "bottom_x_1",
+          "type": "line",
+          "start": [
+            -0.03,
+            -0.955
+          ],
+          "end": [
+            0.03,
+            -1.015
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "bottom_x_2",
+          "type": "line",
+          "start": [
+            -0.02,
+            -1.015
+          ],
+          "end": [
+            0.04,
+            -0.955
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "bottom_x_3",
+          "type": "line",
+          "start": [
+            -0.04,
+            -0.955
+          ],
+          "end": [
+            0.02,
+            -1.015
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        }
+      ]
+    },
+    {
+      "id": "pitchLadder",
+      "template": "hud_pitch_ladder",
+      "layerId": "ladder"
+    },
+    {
+      "id": "trueHorizon",
+      "layerId": "ladder",
+      "elements": [
+        {
+          "id": "horizon_left",
+          "type": "line",
+          "start": [
+            -0.62,
+            0
+          ],
+          "end": [
+            -0.075,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0045
+        },
+        {
+          "id": "horizon_right",
+          "type": "line",
+          "start": [
+            0.075,
+            0
+          ],
+          "end": [
+            0.62,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0045
+        }
+      ]
+    },
+    {
+      "id": "ghostHorizon",
+      "layerId": "ladder",
+      "visible": false,
+      "elements": [
+        {
+          "id": "ghost_left",
+          "type": "line",
+          "lineStyle": "dashed",
+          "start": [
+            -0.7,
+            0
+          ],
+          "end": [
+            -0.09,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "ghost_right",
+          "type": "line",
+          "lineStyle": "dashed",
+          "start": [
+            0.09,
+            0
+          ],
+          "end": [
+            0.7,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        }
+      ]
+    },
+    {
+      "id": "zenithCue",
+      "layerId": "flight",
+      "visible": false,
+      "elements": [
+        {
+          "id": "zenith_arm_vertical",
+          "type": "line",
+          "start": [
+            0,
+            -0.05
+          ],
+          "end": [
+            0,
+            0.05
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "zenith_arm_horizontal",
+          "type": "line",
+          "start": [
+            -0.05,
+            0
+          ],
+          "end": [
+            0.05,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "zenith_arm_diag_0",
+          "type": "line",
+          "start": [
+            -0.03,
+            -0.03
+          ],
+          "end": [
+            0.03,
+            0.03
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "zenith_arm_diag_1",
+          "type": "line",
+          "start": [
+            -0.03,
+            0.03
+          ],
+          "end": [
+            0.03,
+            -0.03
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        }
+      ]
+    },
+    {
+      "id": "nadirCue",
+      "layerId": "flight",
+      "visible": false,
+      "elements": [
+        {
+          "id": "nadir_circle",
+          "type": "circle",
+          "radius": 0.031,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "nadir_horizon_pointer",
+          "type": "line",
+          "start": [
+            0,
+            0.031
+          ],
+          "end": [
+            0,
+            0.062
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "nadir_inner_high",
+          "type": "line",
+          "start": [
+            -0.02,
+            0.012
+          ],
+          "end": [
+            0.02,
+            0.012
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.003
+        },
+        {
+          "id": "nadir_inner_low",
+          "type": "line",
+          "start": [
+            -0.02,
+            -0.012
+          ],
+          "end": [
+            0.02,
+            -0.012
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.003
+        }
+      ]
+    },
+    {
+      "id": "flightPathMarker",
+      "template": "hud_fpm",
+      "layerId": "flight"
+    },
+    {
+      "id": "fpmLimitX",
+      "layerId": "flight",
+      "visible": false,
+      "elements": [
+        {
+          "id": "limit_x_0",
+          "type": "line",
+          "start": [
+            -0.05,
+            -0.05
+          ],
+          "end": [
+            0.05,
+            0.05
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0045
+        },
+        {
+          "id": "limit_x_1",
+          "type": "line",
+          "start": [
+            -0.05,
+            0.05
+          ],
+          "end": [
+            0.05,
+            -0.05
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0045
+        }
+      ]
+    },
+    {
+      "id": "bankAngleIndicator",
+      "layerId": "flight",
+      "elements": [
+        {
+          "id": "bank_arc",
+          "type": "arc",
+          "radius": 0.156,
+          "startAngleDegrees": 30,
+          "endAngleDegrees": 150,
+          "segments": 48,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0048
+        },
+        {
+          "id": "bank_tick_0",
+          "type": "line",
+          "start": [
+            0,
+            0.1564
+          ],
+          "end": [
+            0,
+            0.1794
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0048
+        },
+        {
+          "id": "bank_tick_left_10",
+          "type": "line",
+          "start": [
+            -0.0271,
+            0.154
+          ],
+          "end": [
+            -0.0296,
+            0.1677
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "bank_tick_right_10",
+          "type": "line",
+          "start": [
+            0.0271,
+            0.154
+          ],
+          "end": [
+            0.0296,
+            0.1677
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "bank_tick_left_20",
+          "type": "line",
+          "start": [
+            -0.0535,
+            0.147
+          ],
+          "end": [
+            -0.0582,
+            0.16
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "bank_tick_right_20",
+          "type": "line",
+          "start": [
+            0.0535,
+            0.147
+          ],
+          "end": [
+            0.0582,
+            0.16
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "bank_tick_left_30",
+          "type": "line",
+          "start": [
+            -0.0782,
+            0.1355
+          ],
+          "end": [
+            -0.0897,
+            0.1554
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0048
+        },
+        {
+          "id": "bank_tick_right_30",
+          "type": "line",
+          "start": [
+            0.0782,
+            0.1355
+          ],
+          "end": [
+            0.0897,
+            0.1554
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0048
+        },
+        {
+          "id": "bank_tick_left_60",
+          "type": "line",
+          "start": [
+            -0.1355,
+            0.0782
+          ],
+          "end": [
+            -0.1554,
+            0.0897
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0048
+        },
+        {
+          "id": "bank_tick_right_60",
+          "type": "line",
+          "start": [
+            0.1355,
+            0.0782
+          ],
+          "end": [
+            0.1554,
+            0.0897
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0048
+        }
+      ]
+    },
+    {
+      "id": "energyChevronUp",
+      "template": "hud_energy_chevron",
+      "layerId": "flight",
+      "visible": false
+    },
+    {
+      "id": "energyChevronDown",
+      "template": "hud_energy_chevron",
+      "layerId": "flight",
+      "visible": false,
+      "rotation": 180
+    },
+    {
+      "id": "levelRecoveryCue",
+      "layerId": "flight",
+      "visible": false,
+      "elements": [
+        {
+          "id": "recover_left",
+          "type": "line",
+          "start": [
+            -0.18,
+            0
+          ],
+          "end": [
+            -0.05,
+            -0.055
+          ],
+          "stroke": "#F9D66FFF",
+          "thickness": 0.006
+        },
+        {
+          "id": "recover_right",
+          "type": "line",
+          "start": [
+            0.18,
+            0
+          ],
+          "end": [
+            0.05,
+            -0.055
+          ],
+          "stroke": "#F9D66FFF",
+          "thickness": 0.006
+        },
+        {
+          "id": "recover_text",
+          "type": "text",
+          "text": "LVL",
+          "position": [
+            0,
+            -0.112
+          ],
+          "fontSize": 0.035,
+          "align": "center",
+          "stroke": "#F9D66FFF",
+          "letterSpacing": 0.006
+        }
+      ]
+    },
+    {
+      "id": "speedTape",
+      "layerId": "labels",
+      "elements": [
+        {
+          "id": "speed_rail",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.38
+          ],
+          "end": [
+            -0.43,
+            0.38
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "speed_tick_0",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.36
+          ],
+          "end": [
+            -0.488,
+            -0.36
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "speed_tick_1",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.336
+          ],
+          "end": [
+            -0.46,
+            -0.336
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_2",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.312
+          ],
+          "end": [
+            -0.46,
+            -0.312
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_3",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.288
+          ],
+          "end": [
+            -0.46,
+            -0.288
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_4",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.264
+          ],
+          "end": [
+            -0.46,
+            -0.264
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_5",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.24
+          ],
+          "end": [
+            -0.488,
+            -0.24
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "speed_tick_6",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.216
+          ],
+          "end": [
+            -0.46,
+            -0.216
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_7",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.192
+          ],
+          "end": [
+            -0.46,
+            -0.192
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_8",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.168
+          ],
+          "end": [
+            -0.46,
+            -0.168
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_9",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.144
+          ],
+          "end": [
+            -0.46,
+            -0.144
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_10",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.12
+          ],
+          "end": [
+            -0.488,
+            -0.12
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "speed_tick_11",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.096
+          ],
+          "end": [
+            -0.46,
+            -0.096
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_12",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.072
+          ],
+          "end": [
+            -0.46,
+            -0.072
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_13",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.048
+          ],
+          "end": [
+            -0.46,
+            -0.048
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_14",
+          "type": "line",
+          "start": [
+            -0.43,
+            -0.024
+          ],
+          "end": [
+            -0.46,
+            -0.024
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_15",
+          "type": "line",
+          "start": [
+            -0.43,
+            0
+          ],
+          "end": [
+            -0.488,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "speed_tick_16",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.024
+          ],
+          "end": [
+            -0.46,
+            0.024
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_17",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.048
+          ],
+          "end": [
+            -0.46,
+            0.048
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_18",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.072
+          ],
+          "end": [
+            -0.46,
+            0.072
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_19",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.096
+          ],
+          "end": [
+            -0.46,
+            0.096
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_20",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.12
+          ],
+          "end": [
+            -0.488,
+            0.12
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "speed_tick_21",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.144
+          ],
+          "end": [
+            -0.46,
+            0.144
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_22",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.168
+          ],
+          "end": [
+            -0.46,
+            0.168
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_23",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.192
+          ],
+          "end": [
+            -0.46,
+            0.192
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_24",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.216
+          ],
+          "end": [
+            -0.46,
+            0.216
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_25",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.24
+          ],
+          "end": [
+            -0.488,
+            0.24
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "speed_tick_26",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.264
+          ],
+          "end": [
+            -0.46,
+            0.264
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_27",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.288
+          ],
+          "end": [
+            -0.46,
+            0.288
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_28",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.312
+          ],
+          "end": [
+            -0.46,
+            0.312
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_29",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.336
+          ],
+          "end": [
+            -0.46,
+            0.336
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "speed_tick_30",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.36
+          ],
+          "end": [
+            -0.488,
+            0.36
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "speed_box",
+          "type": "polyline",
+          "points": [
+            [
+              -0.715,
+              -0.055
+            ],
+            [
+              -0.505,
+              -0.055
+            ],
+            [
+              -0.465,
+              0
+            ],
+            [
+              -0.505,
+              0.055
+            ],
+            [
+              -0.715,
+              0.055
+            ]
+          ],
+          "closed": true,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0056
+        },
+        {
+          "id": "speed_value",
+          "type": "text",
+          "text": "430",
+          "position": [
+            -0.61,
+            0
+          ],
+          "fontSize": 0.078,
+          "align": "center",
+          "stroke": "#7BFFB4FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "speed_kind",
+          "type": "text",
+          "text": "C",
+          "position": [
+            -0.49,
+            -0.075
+          ],
+          "fontSize": 0.05,
+          "align": "center",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "speed_top",
+          "type": "text",
+          "text": "45",
+          "position": [
+            -0.505,
+            0.24
+          ],
+          "fontSize": 0.052,
+          "align": "right",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "speed_bottom",
+          "type": "text",
+          "text": "35",
+          "position": [
+            -0.505,
+            -0.24
+          ],
+          "fontSize": 0.052,
+          "align": "right",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        }
+      ]
+    },
+    {
+      "id": "altitudeTape",
+      "layerId": "labels",
+      "elements": [
+        {
+          "id": "alt_rail",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.38
+          ],
+          "end": [
+            0.43,
+            0.38
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "alt_tick_0",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.36
+          ],
+          "end": [
+            0.488,
+            -0.36
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "alt_tick_1",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.336
+          ],
+          "end": [
+            0.46,
+            -0.336
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_2",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.312
+          ],
+          "end": [
+            0.46,
+            -0.312
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_3",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.288
+          ],
+          "end": [
+            0.46,
+            -0.288
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_4",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.264
+          ],
+          "end": [
+            0.46,
+            -0.264
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_5",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.24
+          ],
+          "end": [
+            0.488,
+            -0.24
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "alt_tick_6",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.216
+          ],
+          "end": [
+            0.46,
+            -0.216
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_7",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.192
+          ],
+          "end": [
+            0.46,
+            -0.192
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_8",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.168
+          ],
+          "end": [
+            0.46,
+            -0.168
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_9",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.144
+          ],
+          "end": [
+            0.46,
+            -0.144
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_10",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.12
+          ],
+          "end": [
+            0.488,
+            -0.12
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "alt_tick_11",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.096
+          ],
+          "end": [
+            0.46,
+            -0.096
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_12",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.072
+          ],
+          "end": [
+            0.46,
+            -0.072
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_13",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.048
+          ],
+          "end": [
+            0.46,
+            -0.048
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_14",
+          "type": "line",
+          "start": [
+            0.43,
+            -0.024
+          ],
+          "end": [
+            0.46,
+            -0.024
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_15",
+          "type": "line",
+          "start": [
+            0.43,
+            0
+          ],
+          "end": [
+            0.488,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "alt_tick_16",
+          "type": "line",
+          "start": [
+            0.43,
+            0.024
+          ],
+          "end": [
+            0.46,
+            0.024
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_17",
+          "type": "line",
+          "start": [
+            0.43,
+            0.048
+          ],
+          "end": [
+            0.46,
+            0.048
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_18",
+          "type": "line",
+          "start": [
+            0.43,
+            0.072
+          ],
+          "end": [
+            0.46,
+            0.072
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_19",
+          "type": "line",
+          "start": [
+            0.43,
+            0.096
+          ],
+          "end": [
+            0.46,
+            0.096
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_20",
+          "type": "line",
+          "start": [
+            0.43,
+            0.12
+          ],
+          "end": [
+            0.488,
+            0.12
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "alt_tick_21",
+          "type": "line",
+          "start": [
+            0.43,
+            0.144
+          ],
+          "end": [
+            0.46,
+            0.144
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_22",
+          "type": "line",
+          "start": [
+            0.43,
+            0.168
+          ],
+          "end": [
+            0.46,
+            0.168
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_23",
+          "type": "line",
+          "start": [
+            0.43,
+            0.192
+          ],
+          "end": [
+            0.46,
+            0.192
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_24",
+          "type": "line",
+          "start": [
+            0.43,
+            0.216
+          ],
+          "end": [
+            0.46,
+            0.216
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_25",
+          "type": "line",
+          "start": [
+            0.43,
+            0.24
+          ],
+          "end": [
+            0.488,
+            0.24
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "alt_tick_26",
+          "type": "line",
+          "start": [
+            0.43,
+            0.264
+          ],
+          "end": [
+            0.46,
+            0.264
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_27",
+          "type": "line",
+          "start": [
+            0.43,
+            0.288
+          ],
+          "end": [
+            0.46,
+            0.288
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_28",
+          "type": "line",
+          "start": [
+            0.43,
+            0.312
+          ],
+          "end": [
+            0.46,
+            0.312
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_29",
+          "type": "line",
+          "start": [
+            0.43,
+            0.336
+          ],
+          "end": [
+            0.46,
+            0.336
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0036
+        },
+        {
+          "id": "alt_tick_30",
+          "type": "line",
+          "start": [
+            0.43,
+            0.36
+          ],
+          "end": [
+            0.488,
+            0.36
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "alt_box",
+          "type": "polyline",
+          "points": [
+            [
+              0.505,
+              -0.055
+            ],
+            [
+              0.715,
+              -0.055
+            ],
+            [
+              0.715,
+              0.055
+            ],
+            [
+              0.505,
+              0.055
+            ],
+            [
+              0.465,
+              0
+            ]
+          ],
+          "closed": true,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0056
+        },
+        {
+          "id": "alt_value",
+          "type": "text",
+          "text": "15000",
+          "position": [
+            0.61,
+            0
+          ],
+          "fontSize": 0.073,
+          "align": "center",
+          "stroke": "#7BFFB4FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "alt_mode",
+          "type": "text",
+          "text": "R",
+          "position": [
+            0.49,
+            -0.075
+          ],
+          "fontSize": 0.05,
+          "align": "center",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "alt_top",
+          "type": "text",
+          "text": "15.5",
+          "position": [
+            0.37,
+            0.24
+          ],
+          "fontSize": 0.052,
+          "align": "right",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "alt_bottom",
+          "type": "text",
+          "text": "14.5",
+          "position": [
+            0.37,
+            -0.24
+          ],
+          "fontSize": 0.052,
+          "align": "right",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        }
+      ]
+    },
+    {
+      "id": "verticalVelocity",
+      "layerId": "labels",
+      "elements": [
+        {
+          "id": "vvi_rail",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.43
+          ],
+          "end": [
+            0.835,
+            0.43
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_0",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.42
+          ],
+          "end": [
+            0.87,
+            -0.42
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_1",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.378
+          ],
+          "end": [
+            0.855,
+            -0.378
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_2",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.336
+          ],
+          "end": [
+            0.855,
+            -0.336
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_3",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.294
+          ],
+          "end": [
+            0.855,
+            -0.294
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_4",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.252
+          ],
+          "end": [
+            0.855,
+            -0.252
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_5",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.21
+          ],
+          "end": [
+            0.87,
+            -0.21
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_6",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.168
+          ],
+          "end": [
+            0.855,
+            -0.168
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_7",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.126
+          ],
+          "end": [
+            0.855,
+            -0.126
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_8",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.084
+          ],
+          "end": [
+            0.855,
+            -0.084
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_9",
+          "type": "line",
+          "start": [
+            0.835,
+            -0.042
+          ],
+          "end": [
+            0.855,
+            -0.042
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_10",
+          "type": "line",
+          "start": [
+            0.835,
+            0
+          ],
+          "end": [
+            0.87,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_11",
+          "type": "line",
+          "start": [
+            0.835,
+            0.042
+          ],
+          "end": [
+            0.855,
+            0.042
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_12",
+          "type": "line",
+          "start": [
+            0.835,
+            0.084
+          ],
+          "end": [
+            0.855,
+            0.084
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_13",
+          "type": "line",
+          "start": [
+            0.835,
+            0.126
+          ],
+          "end": [
+            0.855,
+            0.126
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_14",
+          "type": "line",
+          "start": [
+            0.835,
+            0.168
+          ],
+          "end": [
+            0.855,
+            0.168
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_15",
+          "type": "line",
+          "start": [
+            0.835,
+            0.21
+          ],
+          "end": [
+            0.87,
+            0.21
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_16",
+          "type": "line",
+          "start": [
+            0.835,
+            0.252
+          ],
+          "end": [
+            0.855,
+            0.252
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_17",
+          "type": "line",
+          "start": [
+            0.835,
+            0.294
+          ],
+          "end": [
+            0.855,
+            0.294
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_18",
+          "type": "line",
+          "start": [
+            0.835,
+            0.336
+          ],
+          "end": [
+            0.855,
+            0.336
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_19",
+          "type": "line",
+          "start": [
+            0.835,
+            0.378
+          ],
+          "end": [
+            0.855,
+            0.378
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_tick_20",
+          "type": "line",
+          "start": [
+            0.835,
+            0.42
+          ],
+          "end": [
+            0.87,
+            0.42
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042
+        },
+        {
+          "id": "vvi_caret",
+          "type": "polyline",
+          "points": [
+            [
+              0.805,
+              0
+            ],
+            [
+              0.838,
+              0.026
+            ],
+            [
+              0.838,
+              -0.026
+            ],
+            [
+              0.805,
+              0
+            ]
+          ],
+          "closed": false,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0042,
+          "exposed": true
+        },
+        {
+          "id": "vvi_value",
+          "type": "text",
+          "text": "+00",
+          "position": [
+            0.878,
+            0
+          ],
+          "fontSize": 0.041,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "vvi_label_p2000",
+          "type": "text",
+          "text": "2",
+          "position": [
+            0.885,
+            -0.42
+          ],
+          "fontSize": 0.041,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "vvi_label_p1000",
+          "type": "text",
+          "text": "1",
+          "position": [
+            0.885,
+            -0.21
+          ],
+          "fontSize": 0.041,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "vvi_label_m1000",
+          "type": "text",
+          "text": "1",
+          "position": [
+            0.885,
+            0.21
+          ],
+          "fontSize": 0.041,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "vvi_label_m2000",
+          "type": "text",
+          "text": "2",
+          "position": [
+            0.885,
+            0.42
+          ],
+          "fontSize": 0.041,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "letterSpacing": 0.006
+        }
+      ],
+      "visible": false
+    },
+    {
+      "id": "headingTape",
+      "layerId": "labels",
+      "elements": [
+        {
+          "id": "heading_rail",
+          "type": "line",
+          "start": [
+            -0.34,
+            -0.47
+          ],
+          "end": [
+            0.34,
+            -0.47
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "heading_box",
+          "type": "rectangle",
+          "position": [
+            0,
+            -0.545
+          ],
+          "width": 0.19,
+          "height": 0.092,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "heading_value",
+          "type": "text",
+          "text": "000",
+          "position": [
+            0,
+            -0.545
+          ],
+          "fontSize": 0.06,
+          "align": "center",
+          "stroke": "#7BFFB4FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "heading_left",
+          "type": "text",
+          "text": "35",
+          "position": [
+            -0.3,
+            -0.545
+          ],
+          "fontSize": 0.049,
+          "align": "center",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "heading_right",
+          "type": "text",
+          "text": "01",
+          "position": [
+            0.3,
+            -0.545
+          ],
+          "fontSize": 0.049,
+          "align": "center",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "heading_tick_left_mid",
+          "type": "line",
+          "start": [
+            -0.165,
+            -0.45
+          ],
+          "end": [
+            -0.165,
+            -0.42
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "heading_tick_center_left",
+          "type": "line",
+          "start": [
+            -0.075,
+            -0.45
+          ],
+          "end": [
+            -0.075,
+            -0.425
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "heading_tick_center",
+          "type": "line",
+          "start": [
+            0,
+            -0.45
+          ],
+          "end": [
+            0,
+            -0.415
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "heading_tick_center_right",
+          "type": "line",
+          "start": [
+            0.075,
+            -0.45
+          ],
+          "end": [
+            0.075,
+            -0.425
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "heading_tick_right_mid",
+          "type": "line",
+          "start": [
+            0.165,
+            -0.45
+          ],
+          "end": [
+            0.165,
+            -0.42
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.004
+        },
+        {
+          "id": "heading_index",
+          "type": "triangle",
+          "points": [
+            [
+              0,
+              -0.405
+            ],
+            [
+              -0.012,
+              -0.44
+            ],
+            [
+              0.012,
+              -0.44
+            ]
+          ],
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        }
+      ]
+    },
+    {
+      "id": "leftStatus",
+      "layerId": "labels",
+      "elements": [
+        {
+          "id": "mach_value",
+          "type": "text",
+          "text": "M 0.72",
+          "position": [
+            -0.64,
+            -0.57
+          ],
+          "fontSize": 0.052,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "g_value",
+          "type": "text",
+          "text": "G 1.0",
+          "position": [
+            -0.64,
+            -0.63
+          ],
+          "fontSize": 0.052,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "mode_value",
+          "type": "text",
+          "text": "NAV",
+          "position": [
+            -0.64,
+            -0.75
+          ],
+          "fontSize": 0.052,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "weapon_value",
+          "type": "text",
+          "text": "A120C 4",
+          "position": [
+            -0.64,
+            -0.69
+          ],
+          "fontSize": 0.052,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        }
+      ]
+    },
+    {
+      "id": "rightStatus",
+      "layerId": "labels",
+      "elements": [
+        {
+          "id": "radar_altitude_value",
+          "type": "text",
+          "text": "R 14900",
+          "position": [
+            0.56,
+            -0.57
+          ],
+          "fontSize": 0.049,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "energy_value",
+          "type": "text",
+          "text": "E +0.0",
+          "position": [
+            0.56,
+            -0.63
+          ],
+          "fontSize": 0.049,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "target_value",
+          "type": "text",
+          "text": "TGT 18.0",
+          "position": [
+            0.56,
+            -0.69
+          ],
+          "fontSize": 0.049,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "time_value",
+          "type": "text",
+          "text": "T 000",
+          "position": [
+            0.56,
+            -0.75
+          ],
+          "fontSize": 0.049,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        },
+        {
+          "id": "status_caption",
+          "type": "text",
+          "text": "HUD",
+          "position": [
+            0.56,
+            -0.81
+          ],
+          "fontSize": 0.049,
+          "align": "left",
+          "stroke": "#33FF88FF",
+          "exposed": true,
+          "letterSpacing": 0.006
+        }
+      ]
+    },
+    {
+      "id": "targetDesignator",
+      "layerId": "weapon",
+      "visible": false,
+      "elements": [
+        {
+          "id": "td_box",
+          "type": "rectangle",
+          "width": 0.124,
+          "height": 0.124,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0058
+        },
+        {
+          "id": "secondary_td_box",
+          "type": "rectangle",
+          "position": [
+            0.16,
+            0
+          ],
+          "width": 0.074,
+          "height": 0.074,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.005,
+          "lineStyle": "dashed"
+        },
+        {
+          "id": "td_cross_vertical",
+          "type": "line",
+          "start": [
+            0,
+            -0.05
+          ],
+          "end": [
+            0,
+            0.05
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0048
+        },
+        {
+          "id": "td_cross_horizontal",
+          "type": "line",
+          "start": [
+            -0.05,
+            0
+          ],
+          "end": [
+            0.05,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0048
+        }
+      ]
+    },
+    {
+      "id": "missileDiamond",
+      "template": "hud_missile_diamond",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "missileLimitX",
+      "template": "hud_limit_x",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "missileCircle",
+      "layerId": "weapon",
+      "visible": false,
+      "elements": [
+        {
+          "id": "missile_circle",
+          "type": "circle",
+          "radius": 0.55,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052,
+          "segments": 112
+        },
+        {
+          "id": "range_mark_12",
+          "type": "line",
+          "start": [
+            0,
+            0.5488
+          ],
+          "end": [
+            0,
+            0.5958
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "range_mark_9",
+          "type": "line",
+          "start": [
+            -0.5488,
+            0
+          ],
+          "end": [
+            -0.5958,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "range_mark_6",
+          "type": "line",
+          "start": [
+            0,
+            -0.5488
+          ],
+          "end": [
+            0,
+            -0.5958
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        },
+        {
+          "id": "range_mark_3",
+          "type": "line",
+          "start": [
+            0.5488,
+            0
+          ],
+          "end": [
+            0.5958,
+            0
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.005
+        }
+      ]
+    },
+    {
+      "id": "dynamicLaunchZone",
+      "layerId": "weapon",
+      "visible": false,
+      "elements": [
+        {
+          "id": "dlz_range_line",
+          "type": "line",
+          "start": [
+            0.345,
+            -0.2907
+          ],
+          "end": [
+            0.345,
+            0.2907
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "dlz_rmax1",
+          "type": "line",
+          "start": [
+            0.345,
+            0.2907
+          ],
+          "end": [
+            0.397,
+            0.2907
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "dlz_rmax2",
+          "type": "line",
+          "start": [
+            0.345,
+            0.1254
+          ],
+          "end": [
+            0.397,
+            0.1254
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "dlz_rtr",
+          "type": "line",
+          "start": [
+            0.345,
+            0.0399
+          ],
+          "end": [
+            0.38,
+            0.0399
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "dlz_raa",
+          "type": "line",
+          "start": [
+            0.345,
+            -0.0912
+          ],
+          "end": [
+            0.38,
+            -0.0912
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "dlz_rmin2",
+          "type": "line",
+          "start": [
+            0.345,
+            -0.1824
+          ],
+          "end": [
+            0.397,
+            -0.1824
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        },
+        {
+          "id": "dlz_rmin1",
+          "type": "line",
+          "start": [
+            0.345,
+            -0.2907
+          ],
+          "end": [
+            0.397,
+            -0.2907
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0052
+        }
+      ]
+    },
+    {
+      "id": "rangeCue",
+      "layerId": "weapon",
+      "visible": false,
+      "elements": [
+        {
+          "id": "range_cue",
+          "type": "triangle",
+          "points": [
+            [
+              0.312,
+              0
+            ],
+            [
+              0.345,
+              0.0274
+            ],
+            [
+              0.345,
+              -0.0274
+            ]
+          ],
+          "filled": true,
+          "fill": "#33FF88FF",
+          "stroke": "#33FF88FF",
+          "thickness": 0.0035
+        }
+      ]
+    },
+    {
+      "id": "breakX",
+      "layerId": "weapon",
+      "visible": false,
+      "elements": [
+        {
+          "id": "break_x_0",
+          "type": "line",
+          "start": [
+            -0.115,
+            -0.115
+          ],
+          "end": [
+            0.115,
+            0.115
+          ],
+          "stroke": "#F9D66FFF",
+          "thickness": 0.008
+        },
+        {
+          "id": "break_x_1",
+          "type": "line",
+          "start": [
+            -0.115,
+            0.115
+          ],
+          "end": [
+            0.115,
+            -0.115
+          ],
+          "stroke": "#F9D66FFF",
+          "thickness": 0.008
+        }
+      ]
+    },
+    {
+      "id": "attackSteeringCue",
+      "layerId": "weapon",
+      "visible": false,
+      "elements": [
+        {
+          "id": "asc_circle",
+          "type": "circle",
+          "radius": 0.054,
+          "filled": false,
+          "stroke": "#33FF88FF",
+          "thickness": 0.0054
+        },
+        {
+          "id": "asc_tail",
+          "type": "line",
+          "start": [
+            0,
+            -0.078
+          ],
+          "end": [
+            0,
+            -0.148
+          ],
+          "stroke": "#33FF88FF",
+          "thickness": 0.0054
+        }
+      ]
+    },
+    {
+      "id": "eegsFunnel",
+      "template": "hud_eegs_funnel",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "eegsMrgs",
+      "template": "hud_eegs_mrgs",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "eegsFeds",
+      "template": "hud_eegs_feds",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "eegsTdCircle",
+      "template": "hud_eegs_td_circle",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "eegsOneGPipper",
+      "template": "hud_eegs_pipper_plus",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "eegsMaxGPipper",
+      "template": "hud_eegs_pipper_minus",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "eegsSolutionCircle",
+      "template": "hud_eegs_solution_circle",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "eegsBatr",
+      "template": "hud_eegs_batr",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "tdCircleLimitX",
+      "template": "hud_limit_x",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "strafeReticle",
+      "template": "hud_strafe_reticle",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "strafeInRangeCue",
+      "template": "hud_strafe_in_range",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "strafeBulletTrack",
+      "template": "hud_unit_line",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "ccipBombFallLine",
+      "template": "hud_unit_line",
+      "layerId": "weapon",
+      "visible": false,
+      "rotationDegrees": 90,
+      "scale": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "ccipPipper",
+      "template": "hud_ccip_pipper",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "ccipSolutionCue",
+      "template": "hud_ccip_solution_cue",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "ccipPullupAnticipationCue",
+      "template": "hud_ccip_puac",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "ccipLimitX",
+      "template": "hud_limit_x",
+      "layerId": "weapon",
+      "visible": false
+    },
+    {
+      "id": "landingPitchLine",
+      "template": "hud_landing_pitch_line",
+      "layerId": "flight",
+      "visible": false
+    },
+    {
+      "id": "ilsLocalizerBar",
+      "template": "hud_ils_localizer",
+      "layerId": "flight",
+      "visible": false
+    },
+    {
+      "id": "ilsGlideslopeBar",
+      "template": "hud_ils_glideslope",
+      "layerId": "flight",
+      "visible": false
+    },
+    {
+      "id": "ilsCommandSteeringCue",
+      "template": "hud_ils_command_steering",
+      "layerId": "flight",
+      "visible": false
+    },
+    {
+      "id": "ilsWSteeringCue",
+      "template": "hud_ils_w_steering",
+      "layerId": "flight",
+      "visible": false
+    }
+  ]
+}

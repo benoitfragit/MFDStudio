@@ -1,0 +1,33 @@
+{
+  "id": "hud_energy_chevron",
+  "elements": [
+    {
+      "id": "chevron_left",
+      "type": "line",
+      "start": [
+        -0.055,
+        0.031
+      ],
+      "end": [
+        0.0,
+        -0.031
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0056
+    },
+    {
+      "id": "chevron_right",
+      "type": "line",
+      "start": [
+        0.055,
+        0.031
+      ],
+      "end": [
+        0.0,
+        -0.031
+      ],
+      "stroke": "#33FF88FF",
+      "thickness": 0.0056
+    }
+  ]
+}

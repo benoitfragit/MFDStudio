@@ -5,14 +5,14 @@
  */
 /**
  * @file
- * @brief Entry point for the interactive Demo HUD demonstration client.
+ * @brief Entry point for the interactive HUD client.
  */
 
 #include <exception>
 #include <iostream>
 #include <string>
 
-#include "DemoHudApplication.h"
+#include "HudApplication.h"
 #include "Win32Dx11ImGuiHost.h"
 
 int main()
@@ -27,7 +27,7 @@ int main()
         hostConfig.height = 820;
         hostConfig.minWidth = 620;
         hostConfig.minHeight = 600;
-        hostConfig.title = "Demo HUD Controls";
+        hostConfig.title = "HUD Controls";
 
         std::string error;
         if (!host.Initialize(hostConfig, error))
@@ -36,10 +36,10 @@ int main()
             return 1;
         }
 
-        demo_hud::DemoHudApplication application;
+        hud::HudApplication application;
         if (!application.Initialize(error))
         {
-            std::cerr << "Unable to initialize the Demo HUD demo: " << error << '\n';
+            std::cerr << "Unable to initialize the HUD: " << error << '\n';
             return 1;
         }
 

@@ -1307,7 +1307,7 @@ TEST(JsonLoaderTests, LoadRepositoryDemoWindowConfigurationMarksPrimitivesAsDefa
 TEST(JsonLoaderTests, LoadRepositoryHudWindowConfigurationSmokeTest)
 {
     mfd::JsonLoader loader;
-    const std::filesystem::path windowFile = RepositoryRoot() / "examples/hud/assets/windows/demo_hud_window.json";
+    const std::filesystem::path windowFile = RepositoryRoot() / "examples/hud/assets/windows/hud_window.json";
 
     const mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
 

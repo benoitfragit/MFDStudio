@@ -72,7 +72,7 @@ string(JOIN "#" MFD_WINDOW_ASSET_SOURCE_LIST_ENCODED ${MFD_WINDOW_ASSET_SOURCE_D
 set(MFD_WINDOW_LAUNCH_SCRIPT_NAMES
     Start-MfdWindow.bat
     Start-MfdDemo.bat
-    Start-DemoHUD.bat
+    Start-HUD.bat
     Start-LHLD.bat
     Start-RadarLoad.bat
     Start-MfdPackageTest.bat

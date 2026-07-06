@@ -7,7 +7,7 @@ usage.
 | --- | --- |
 | `demo_client` | cycles pages and publishes static reticle, strobe, blink and clipping updates |
 | `radar_load_client` | ramps dynamic radar contacts from 10 to 300 tracks |
-| `demo_hud_client` | drives the dedicated HUD asset with deterministic simulated input |
+| `hud_client` | drives the dedicated HUD asset with deterministic simulated input |
 
 ## Generated Map Setup
 
@@ -79,6 +79,6 @@ out of the steady-state tick unless their values actually changed.
 ## Validation
 
 ```powershell
-cmake --build --preset debug-win32 --target demo_client radar_load_client demo_hud_client
-ctest --preset test-debug-win32 -R "runtime_layout|demo_hud" --output-on-failure
+cmake --build --preset debug-win32 --target demo_client radar_load_client hud_client
+ctest --preset test-debug-win32 -R "runtime_layout|hud" --output-on-failure
 ```

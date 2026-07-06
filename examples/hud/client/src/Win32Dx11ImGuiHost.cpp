@@ -5,7 +5,7 @@
  */
 /**
  * @file
- * @brief Implementation of the private Win32 + DX11 host used by `demo_hud_client`.
+ * @brief Implementation of the private Win32 + DX11 host used by `hud_client`.
  */
 
 #include "Win32Dx11ImGuiHost.h"
@@ -87,7 +87,7 @@ struct Win32Dx11ImGuiHost::Impl
     bool closeRequested = false;
     float clearColor[4] {8.0f / 255.0f, 13.0f / 255.0f, 18.0f / 255.0f, 1.0f};
 
-    static constexpr const wchar_t* kWindowClassName = L"MfdClientDemoHudWin32Dx11Host";
+    static constexpr const wchar_t* kWindowClassName = L"MfdClientHudWin32Dx11Host";
 
     static LRESULT CALLBACK WindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
     {
@@ -143,7 +143,7 @@ struct Win32Dx11ImGuiHost::Impl
             if ((wParam & 0xFFF0u) == SC_KEYMENU)
             {
                 // Disable the Alt menu activation so keyboard controls remain
-                // available to the ImGui demo panel.
+                // available to the ImGui sample panel.
                 return 0;
             }
             break;
@@ -221,7 +221,7 @@ struct Win32Dx11ImGuiHost::Impl
 
     bool CreateDevice(HWND hostWindow, std::string& error)
     {
-        // The demo uses a simple double-buffered swap chain; no multisampling is
+        // The HUD client uses a simple double-buffered swap chain; no multisampling is
         // needed for the ImGui-only control surface.
         DXGI_SWAP_CHAIN_DESC swapChainDescription {};
         swapChainDescription.BufferCount = 2;

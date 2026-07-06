@@ -7,7 +7,7 @@
 
 /**
  * @file
- * @brief Win32 + DX11 host used by the Demo HUD demonstration client.
+ * @brief Win32 + DX11 host used by the HUD client.
  */
 
 #include <cstdint>
@@ -17,7 +17,7 @@
 /**
  * @brief Minimal Dear ImGui shell backed by Win32 and Direct3D 11.
  *
- * @details This host is intentionally local to `demo_hud_client`.
+ * @details This host is intentionally local to `hud_client`.
  * It keeps their business logic focused on the public client/runtime APIs.
  */
 class Win32Dx11ImGuiHost
@@ -32,7 +32,7 @@ public:
         int height = 920;
         int minWidth = 1180;
         int minHeight = 720;
-        std::string title = "Demo HUD Demo Client";
+        std::string title = "HUD Client";
     };
 
     Win32Dx11ImGuiHost();
@@ -95,7 +95,7 @@ public:
 
 private:
     /**
-     * @brief Platform implementation hidden from consumers of the demo client.
+     * @brief Platform implementation hidden from consumers of the HUD client.
      *
      * The PImpl keeps Win32 and Direct3D headers out of most translation units
      * while preserving deterministic RAII cleanup in the `.cpp` file.

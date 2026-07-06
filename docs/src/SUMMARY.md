@@ -12,7 +12,7 @@
 - [Editor](./handbook/editor.md)
 - [Generated Client API](./handbook/generated_api.md)
 - [Runtime](./handbook/runtime.md)
-- [Demo HUD](./handbook/demo_hud.md)
+- [HUD](./handbook/hud.md)
 - [LHLD](./handbook/lhld.md)
 - [Offscreen Embedding](./handbook/offscreen.md)
 - [Framebuffer Capture](./handbook/framebuffer.md)

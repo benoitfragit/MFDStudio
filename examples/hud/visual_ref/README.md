@@ -1,10 +1,10 @@
 # HUD Visual References
 
-This folder keeps the visual references used while shaping the demo HUD
+This folder keeps the visual references used while shaping the HUD
 symbology. They are reference-only files and are not runtime assets.
 
 Runtime HUD assets remain under `examples/hud/assets`. Do not wire files from
-this folder into `demo_hud_window.json`, generated UI code or packaging scripts.
+this folder into `hud_window.json`, generated UI code or packaging scripts.
 
 ## Source Documents
 
@@ -42,6 +42,6 @@ C:\Users\33761\Documents\Projets\F16-BMS\datapackage\public_references\views
 | `hud_ag_ccip_reference.png` | CCIP pipper, bomb-fall line and cue reference |
 | `page413_hud_ccip.png` | Dash-34 CCIP page crop used for fall-line and solution-cue placement |
 
-Keep any future screenshots here with a source document/page note so the demo
+Keep any future screenshots here with a source document/page note so the HUD
 HUD can be visually audited without mixing reference material into runtime
 assets.

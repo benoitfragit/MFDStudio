@@ -49,7 +49,7 @@ mfd_add_runtime_layout_smoke_test(
     EXTRA_FILES
         Start-MfdWindow.bat
         Start-MfdDemo.bat
-        Start-DemoHUD.bat
+        Start-HUD.bat
         Start-LHLD.bat
         Start-RadarLoad.bat
         Start-MfdPackageTest.bat
