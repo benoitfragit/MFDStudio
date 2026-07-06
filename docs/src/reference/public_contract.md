@@ -20,7 +20,9 @@ These are the supported surfaces for external use:
 - **The offscreen runtime package** — `mfd_runtime_api` (`RuntimeSession`,
   `OffscreenSurface`) for embedding without `mfd_window`.
 - **The framebuffer plugin ABI** — `mfd_window_plugin_api`, the stable boundary
-  for capturing `mfd_window` output.
+  for capturing `mfd_window` output and reading the host launch arguments
+  forwarded during plugin initialization, including arguments outside the
+  window launcher contract.
 - **The UDP command and feedback contract** — the same wire behavior whether a
   client targets standalone `mfd_window` or an embedded `mfd_runtime_api`
   surface.

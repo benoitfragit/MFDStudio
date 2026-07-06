@@ -11,6 +11,9 @@
  */
 
 #include <algorithm>
+#include <cstdint>
+
+#include "mfd/window/WindowLauncherPlugin.h"
 
 namespace mfd::window::detail
 {
@@ -44,5 +47,31 @@ inline FramebufferCaptureSize ResolvePluginFramebufferCaptureSize(const int host
     }
 
     return FramebufferCaptureSize {std::clamp(pageViewportWidth, 1, hostRenderWidth), hostRenderHeight};
+}
+
+/**
+ * @brief Builds the host ABI descriptor passed to a framebuffer plugin.
+ * @param outputPixelFormat Pixel layout selected after reading the plugin descriptor.
+ * @param launchArgumentCount Number of launcher arguments forwarded to the plugin.
+ * @param launchArguments Borrowed launcher argument pointer array.
+ * @return Fully initialized host ABI descriptor.
+ */
+inline MfdWindowFramebufferPluginHostApi BuildFramebufferPluginHostApi(
+    const MfdWindowFramebufferPixelFormat outputPixelFormat,
+    const int launchArgumentCount,
+    const char* const* launchArguments) noexcept
+{
+    MfdWindowFramebufferPluginHostApi hostApi {};
+    hostApi.struct_size = sizeof(hostApi);
+    hostApi.abi_version = MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION;
+    hostApi.output_pixel_format = static_cast<std::uint32_t>(outputPixelFormat);
+
+    if (launchArgumentCount > 0 && launchArguments != nullptr)
+    {
+        hostApi.launch_argc = static_cast<std::int32_t>(launchArgumentCount);
+        hostApi.launch_argv = launchArguments;
+    }
+
+    return hostApi;
 }
 } // namespace mfd::window::detail

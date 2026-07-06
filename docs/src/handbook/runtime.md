@@ -25,6 +25,10 @@ It can also pass a framebuffer plugin:
 .\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
 ```
 
+`mfd_window` parses only its own launcher contract. When a framebuffer plugin
+is configured, the original `argc` / `argv` command line is forwarded to the
+plugin through the plugin host ABI.
+
 For heavy live-debug sessions, `mfd_window` also accepts `--no-snapshot`:
 
 ```powershell

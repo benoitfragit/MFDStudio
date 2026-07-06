@@ -35,6 +35,7 @@ TEST(WindowLauncherTests, BuildUsageTextReflectsConfiguredApplicationAndWindow)
     EXPECT_NE(usage.find("--framebuffer-plugin <plugin.dll>"), std::string::npos);
     EXPECT_NE(usage.find("--no-snapshot"), std::string::npos);
     EXPECT_NE(usage.find(mfd::window::kLauncherFramebufferPluginEntryPointName), std::string::npos);
+    EXPECT_NE(usage.find("mfd_window parses only this launcher contract"), std::string::npos);
     EXPECT_NE(usage.find("F1 toggles the integrated runtime debug overlay"), std::string::npos);
     EXPECT_NE(usage.find("1..9 activate the first nine authored pages"), std::string::npos);
 }
@@ -53,6 +54,7 @@ TEST(WindowLauncherTests, BuildUsageTextRequiresExplicitWindowWhenNoDefaultIsCon
     EXPECT_NE(usage.find("mfd_window <window.json>"), std::string::npos);
     EXPECT_NE(usage.find("No default window JSON is configured"), std::string::npos);
     EXPECT_NE(usage.find("--framebuffer-plugin <plugin.dll>"), std::string::npos);
+    EXPECT_NE(usage.find("mfd_window parses only this launcher contract"), std::string::npos);
 }
 
 /**
@@ -121,6 +123,67 @@ TEST(WindowLauncherTests, ParseCommandLineAcceptsFramebufferPluginFlag)
     EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(5, argv, config, options, error));
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(options.windowFile.generic_string(), "custom/window.json");
+    EXPECT_EQ(options.framebufferPluginFile.generic_string(), "plugins/framebuffer.dll");
+    EXPECT_FALSE(options.showHelp);
+    EXPECT_FALSE(options.noSnapshot);
+}
+
+/**
+ * @brief Allows plugin-specific arguments once a framebuffer plugin is configured.
+ */
+TEST(WindowLauncherTests, ParseCommandLineAcceptsPluginSpecificArgumentsWhenPluginIsConfigured)
+{
+    mfd::window::LauncherConfig config;
+
+    char program[] = "mfd_window";
+    char pluginOption[] = "--stdout-label";
+    char pluginOptionValue[] = "Cockpit";
+    char windowFlag[] = "--window";
+    char windowPath[] = "custom/window.json";
+    char pluginFlag[] = "--framebuffer-plugin";
+    char pluginPath[] = "plugins/framebuffer.dll";
+    char pluginPositional[] = "capture.raw";
+    char* argv[] = {
+        program,
+        pluginOption,
+        pluginOptionValue,
+        windowFlag,
+        windowPath,
+        pluginFlag,
+        pluginPath,
+        pluginPositional,
+        nullptr};
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(8, argv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "custom/window.json");
+    EXPECT_EQ(options.framebufferPluginFile.generic_string(), "plugins/framebuffer.dll");
+    EXPECT_FALSE(options.showHelp);
+    EXPECT_FALSE(options.noSnapshot);
+}
+
+/**
+ * @brief Keeps the configured default window when an unknown plugin option has a value.
+ */
+TEST(WindowLauncherTests, ParseCommandLineKeepsDefaultWindowForPluginSpecificOptionValue)
+{
+    mfd::window::LauncherConfig config;
+    config.defaultWindowFile = "default/window.json";
+
+    char program[] = "mfd_window";
+    char pluginOption[] = "--stdout-label";
+    char pluginOptionValue[] = "Cockpit";
+    char pluginFlag[] = "--framebuffer-plugin";
+    char pluginPath[] = "plugins/framebuffer.dll";
+    char* argv[] = {program, pluginOption, pluginOptionValue, pluginFlag, pluginPath, nullptr};
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(5, argv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "default/window.json");
     EXPECT_EQ(options.framebufferPluginFile.generic_string(), "plugins/framebuffer.dll");
     EXPECT_FALSE(options.showHelp);
     EXPECT_FALSE(options.noSnapshot);
@@ -242,9 +305,37 @@ TEST(WindowLauncherTests, ParseCommandLineRejectsMissingWindowWhenNoDefaultIsCon
 }
 
 /**
- * @brief Rejects malformed command line combinations and reports precise errors.
+ * @brief Ignores arguments outside the window launcher contract.
  */
-TEST(WindowLauncherTests, ParseCommandLineRejectsInvalidArgumentCombinations)
+TEST(WindowLauncherTests, ParseCommandLineIgnoresArgumentsOutsideWindowContract)
+{
+    mfd::window::LauncherConfig config;
+    config.defaultWindowFile = "default/window.json";
+
+    mfd::window::LauncherOptions options;
+    std::string error;
+
+    char program[] = "mfd_window";
+    char unknown[] = "--bad";
+    char unknownValue[] = "plugin-value";
+    char* unknownArgv[] = {program, unknown, unknownValue, nullptr};
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(3, unknownArgv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "default/window.json");
+
+    char windowFlag[] = "--window";
+    char windowPath[] = "custom/window.json";
+    char extra[] = "plugin-positional";
+    char* extraArgv[] = {program, windowFlag, windowPath, extra, nullptr};
+    EXPECT_TRUE(mfd::window::ParseLauncherCommandLine(4, extraArgv, config, options, error));
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(options.windowFile.generic_string(), "custom/window.json");
+}
+
+/**
+ * @brief Rejects malformed known launcher options and reports precise errors.
+ */
+TEST(WindowLauncherTests, ParseCommandLineRejectsMalformedKnownOptions)
 {
     mfd::window::LauncherConfig config;
     mfd::window::LauncherOptions options;
@@ -254,7 +345,7 @@ TEST(WindowLauncherTests, ParseCommandLineRejectsInvalidArgumentCombinations)
     char unknown[] = "--bad";
     char* unknownArgv[] = {program, unknown, nullptr};
     EXPECT_FALSE(mfd::window::ParseLauncherCommandLine(2, unknownArgv, config, options, error));
-    EXPECT_NE(error.find("Unknown option"), std::string::npos);
+    EXPECT_NE(error.find("No window JSON path"), std::string::npos);
 
     char windowFlag[] = "--window";
     char* missingArgv[] = {program, windowFlag, nullptr};
@@ -267,13 +358,6 @@ TEST(WindowLauncherTests, ParseCommandLineRejectsInvalidArgumentCombinations)
     error.clear();
     EXPECT_FALSE(mfd::window::ParseLauncherCommandLine(2, missingPluginArgv, config, options, error));
     EXPECT_NE(error.find("Missing path"), std::string::npos);
-
-    char first[] = "one.json";
-    char second[] = "two.json";
-    char* extraArgv[] = {program, first, second, nullptr};
-    error.clear();
-    EXPECT_FALSE(mfd::window::ParseLauncherCommandLine(3, extraArgv, config, options, error));
-    EXPECT_NE(error.find("Only one window JSON path"), std::string::npos);
 }
 
 /**
@@ -283,6 +367,52 @@ TEST(WindowLauncherTests, FramebufferCallbackCanRemainEmpty)
 {
     mfd::window::LauncherFramebufferCallback callback;
     EXPECT_FALSE(static_cast<bool>(callback));
+}
+
+/**
+ * @brief Builds the plugin host ABI descriptor with the original launcher arguments.
+ */
+TEST(WindowLauncherTests, FramebufferPluginHostApiCarriesLauncherArguments)
+{
+    const std::array<const char*, 5> launchArguments {
+        "mfd_window",
+        "--window",
+        "custom/window.json",
+        "--framebuffer-plugin",
+        "plugins/framebuffer.dll"};
+
+    const MfdWindowFramebufferPluginHostApi hostApi =
+        mfd::window::detail::BuildFramebufferPluginHostApi(
+            MfdWindowFramebufferPixelFormat_Bgra32,
+            static_cast<int>(launchArguments.size()),
+            launchArguments.data());
+
+    EXPECT_EQ(hostApi.struct_size, sizeof(MfdWindowFramebufferPluginHostApi));
+    EXPECT_EQ(hostApi.abi_version, MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION);
+    EXPECT_EQ(hostApi.output_pixel_format, MfdWindowFramebufferPixelFormat_Bgra32);
+    EXPECT_EQ(hostApi.launch_argc, static_cast<int>(launchArguments.size()));
+    ASSERT_NE(hostApi.launch_argv, nullptr);
+    EXPECT_STREQ(hostApi.launch_argv[0], "mfd_window");
+    EXPECT_STREQ(hostApi.launch_argv[2], "custom/window.json");
+    EXPECT_STREQ(hostApi.launch_argv[4], "plugins/framebuffer.dll");
+}
+
+/**
+ * @brief Normalizes absent launcher arguments to a null plugin argument view.
+ */
+TEST(WindowLauncherTests, FramebufferPluginHostApiNormalizesMissingLauncherArguments)
+{
+    const MfdWindowFramebufferPluginHostApi hostApi =
+        mfd::window::detail::BuildFramebufferPluginHostApi(
+            MfdWindowFramebufferPixelFormat_Rgba32,
+            2,
+            nullptr);
+
+    EXPECT_EQ(hostApi.struct_size, sizeof(MfdWindowFramebufferPluginHostApi));
+    EXPECT_EQ(hostApi.abi_version, MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION);
+    EXPECT_EQ(hostApi.output_pixel_format, MfdWindowFramebufferPixelFormat_Rgba32);
+    EXPECT_EQ(hostApi.launch_argc, 0);
+    EXPECT_EQ(hostApi.launch_argv, nullptr);
 }
 
 /**

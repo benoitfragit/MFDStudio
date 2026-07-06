@@ -881,7 +881,10 @@ public:
 
     LoadedFramebufferPlugin() = default;
 
-    [[nodiscard]] bool Load([[maybe_unused]] const std::filesystem::path& pluginFile, std::string& error)
+    [[nodiscard]] bool Load(const std::filesystem::path& pluginFile,
+                            const int launchArgumentCount,
+                            char** launchArguments,
+                            std::string& error)
     {
         Unload();
 
@@ -890,6 +893,18 @@ public:
             error = "The framebuffer plugin DLL path is empty.";
             return false;
         }
+
+        launchArgumentPointers_.clear();
+        if (launchArgumentCount > 0 && launchArguments != nullptr)
+        {
+            launchArgumentPointers_.reserve(static_cast<std::size_t>(launchArgumentCount));
+            for (int index = 0; index < launchArgumentCount; ++index)
+            {
+                launchArgumentPointers_.push_back(launchArguments[index]);
+            }
+        }
+
+        hostApi_ = {};
 
 #if defined(_WIN32)
         handle_ = ::LoadLibraryW(pluginFile.c_str());
@@ -916,10 +931,6 @@ public:
             Unload();
             return false;
         }
-
-        hostApi_ = {};
-        hostApi_.struct_size = sizeof(hostApi_);
-        hostApi_.abi_version = MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION;
 
         std::array<char, kPluginErrorBufferCapacity> errorStorage {};
         MfdWindowUtf8Buffer errorBuffer {};
@@ -977,7 +988,10 @@ public:
             return false;
         }
 
-        hostApi_.output_pixel_format = static_cast<uint32_t>(outputPixelFormat_);
+        hostApi_ = mfd::window::detail::BuildFramebufferPluginHostApi(
+            outputPixelFormat_,
+            static_cast<int>(launchArgumentPointers_.size()),
+            launchArgumentPointers_.empty() ? nullptr : launchArgumentPointers_.data());
 
         ResetPluginErrorBuffer(errorBuffer, errorStorage.data(), errorStorage.size());
         try
@@ -1147,6 +1161,7 @@ private:
         pluginInitialized_ = false;
         pluginApi_ = {};
         hostApi_ = {};
+        launchArgumentPointers_.clear();
         outputPixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
         lastRuntimeError_.clear();
         lastReportedRuntimeError_.clear();
@@ -1165,6 +1180,7 @@ private:
 #endif
     MfdWindowFramebufferPluginHostApi hostApi_ {};
     MfdWindowFramebufferPluginApi pluginApi_ {};
+    std::vector<const char*> launchArgumentPointers_ {};
     MfdWindowFramebufferPixelFormat outputPixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
     bool pluginInitialized_ = false;
     std::string lastRuntimeError_ {};
@@ -1223,14 +1239,20 @@ bool ParseCommandLine(const int argc,
 
         if (!argument.empty() && argument.front() == '-')
         {
-            error = "Unknown option: " + std::string(argument);
-            return false;
+            if (index + 1 < argc && argv[index + 1] != nullptr)
+            {
+                const std::string_view nextArgument {argv[index + 1]};
+                if (!nextArgument.empty() && nextArgument.front() != '-')
+                {
+                    ++index;
+                }
+            }
+            continue;
         }
 
         if (positionalWindowConsumed)
         {
-            error = "Only one window JSON path can be provided.";
-            return false;
+            continue;
         }
 
         options.windowFile = std::filesystem::path {std::string(argument)};
@@ -1760,6 +1782,7 @@ std::string BuildUsageText(const LauncherConfig& config)
     }
     output << "Optional framebuffer plugins must export '" << kLauncherFramebufferPluginEntryPointName
            << "' and implement the stable framebuffer-plugin ABI.\n";
+    output << "mfd_window parses only this launcher contract; loaded plugins receive the original argc/argv.\n";
     output << "--no-snapshot keeps earlier commands of one runtime batch applied when a later command fails.\n";
     output << "Shortcuts:\n";
     output << "  F1 toggles the integrated runtime debug overlay\n";
@@ -1823,7 +1846,7 @@ int RunLauncher(int argc, char** argv, const LauncherConfig& config, LauncherFra
 
         framebufferPlugin = std::make_unique<LoadedFramebufferPlugin>();
         // cppcheck-suppress knownConditionTrueFalse
-        if (!framebufferPlugin->Load(options.framebufferPluginFile, error))
+        if (!framebufferPlugin->Load(options.framebufferPluginFile, argc, argv, error))
         {
             ReportFatalError(applicationName, error);
             return 1;

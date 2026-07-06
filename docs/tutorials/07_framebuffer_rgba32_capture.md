@@ -117,7 +117,7 @@ line:
 Under the hood this launches:
 
 ```powershell
-mfd_window --window examples/demo/assets/windows/demo_window.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
+mfd_window --window examples/demo/assets/windows/demo_window.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll --stdout-label demo
 ```
 
 The sample plugin target is `mfd_framebuffer_stdout_plugin`. It exports one
@@ -135,6 +135,31 @@ MfdGetWindowFramebufferPluginApi(MfdWindowFramebufferPluginApi* outApi, MfdWindo
     return MfdWindowFramebufferPluginResultCode_Success;
 }
 ```
+
+Before frames start flowing, `mfd_window` calls the plugin `init` callback with
+the ABI host descriptor. That descriptor includes the same launch arguments the
+host received:
+
+```cpp
+MfdWindowFramebufferPluginResultCode MFD_WINDOW_PLUGIN_CALL InitPlugin(
+    void* pluginContext,
+    const MfdWindowFramebufferPluginHostApi* host,
+    MfdWindowUtf8Buffer*) noexcept
+{
+    auto* context = static_cast<MyPluginContext*>(pluginContext);
+    context->launchArgumentCount = host->launch_argc;
+    context->programName =
+        (host->launch_argc > 0 && host->launch_argv[0] != nullptr) ? host->launch_argv[0] : "";
+    return MfdWindowFramebufferPluginResultCode_Success;
+}
+```
+
+`host->launch_argc` and `host->launch_argv` match the `argc` / `argv` passed to
+`mfd_window`. Treat them as borrowed, read-only pointers and copy values that
+the plugin needs to keep after it is unloaded. `mfd_window` parses only the
+arguments needed by the window launcher. When a framebuffer plugin is loaded,
+the plugin receives the original command line, including plugin-specific
+arguments such as the sample `--stdout-label demo` shown above.
 
 During `submit_frame`, the plugin receives one raw descriptor containing the
 rendered runtime page viewport only:
@@ -188,13 +213,10 @@ int main(int argc, char** argv)
             static bool printed = false;
             if (!printed)
             {
-                std::cout << "Here we receive the pixel buffer." << '\n';
+                std::cout << "Received " << width << "x" << height
+                          << " bytes=" << pixels.size() << '\n';
                 printed = true;
             }
-
-            (void)width;
-            (void)height;
-            (void)pixels;
         });
 }
 ```

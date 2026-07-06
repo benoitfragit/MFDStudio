@@ -12,12 +12,17 @@ loop: the host reads the rendered surface back as raw pixels each frame.
 
 Capture from `mfd_window` through the stable framebuffer plugin ABI defined in
 `mfd_window_plugin_api`. The plugin selects `RGBA32` or `BGRA32` output.
+During initialization, it also receives the same `argc` / `argv` launch
+arguments that were passed to `mfd_window`, exposed through the host ABI
+descriptor as a borrowed, read-only argument view.
+`mfd_window` parses only its own launcher contract; if a plugin is configured,
+it forwards the original command line to that plugin.
 
 The repository ships a sample plugin, `mfd_framebuffer_stdout_plugin` (which
 requests `BGRA32`). Launch it through the generic launcher:
 
 ```powershell
-.\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll
+.\Scripts\Start-MfdWindow.bat examples/demo/assets/windows/demo_window.json --framebuffer-plugin mfd_framebuffer_stdout_plugin.dll --stdout-label demo
 ```
 
 Or use the shipped preset:

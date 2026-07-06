@@ -50,7 +50,7 @@ extern "C"
 /** @brief ABI revision implemented by the framebuffer plugin contract. */
 enum
 {
-    MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION = 2u
+    MFD_WINDOW_FRAMEBUFFER_PLUGIN_ABI_VERSION = 3u
 };
 
 /** @brief Exported symbol name returning the framebuffer plugin callback table. */
@@ -132,6 +132,15 @@ typedef struct MfdWindowFramebufferPluginHostApi
     uint32_t abi_version;
     /** @brief Pixel format selected by the host for `submit_frame`. */
     uint32_t output_pixel_format;
+    /** @brief Number of process launch arguments forwarded from `mfd_window`. */
+    int32_t launch_argc;
+    /**
+     * @brief Borrowed UTF-8 launch argument array forwarded from `mfd_window`.
+     *
+     * @note The array and string pointers must be treated as read-only. Plugins
+     * should copy any value that must outlive their loaded instance.
+     */
+    const char* const* launch_argv;
 } MfdWindowFramebufferPluginHostApi;
 
 /**
