@@ -244,6 +244,73 @@ Run the focused validation:
 ctest --preset test-debug-win32 -R "demo_hud|DemoHudSimulation" --output-on-failure
 ```
 
+## HUD angular projection
+
+Every conformal HUD symbol shares one explicit field of view, resolved in a
+single place in `DemoHudProjection.cpp`. This removes the previous mix of
+independent scales (a ~58 degree pitch scale, an 18 degree azimuth scale and a
+14 degree elevation scale) that made the pitch ladder, radar/target cues and
+A-G cues disagree with each other.
+
+The default field of view is:
+
+- `kHudPitchLadderVerticalFovDeg = 30.0f` (total vertical);
+- `kHudConformalVerticalFovDeg = 30.0f` and
+  `kHudConformalHorizontalFovDeg = 30.0f`;
+- `kHudConformalHalfWidthUnits = 1.0f` and `kHudConformalHalfHeightUnits = 1.0f`.
+
+This is a deliberate product choice to reduce visual saturation. The BMS ACM
+mode is 30 degrees horizontal by 20 degrees vertical and covers slightly more
+than the HUD field of view; the demo instead uses a 30 degree total vertical
+HUD so the pitch ladder is legible at a glance.
+
+The authored HUD page spans `[-1, +1]`, and half the field of view maps to the
+`1.0` unit half-extent. The scale is therefore:
+
+- `2.0 / 30.0 = 0.0666667` HUD units per degree, identical horizontally and
+  vertically, so conformal symbols keep the BMS 1:1 attitude-bar ratio;
+- pitch ladder bars every 5 degrees at `y = degrees * 0.0666667`
+  (`5 -> 0.333333`, `10 -> 0.666667`, `15 -> 1.0`).
+
+At level flight only the `+/-5`, `+/-10` and `+/-15` bars (plus the horizon)
+reach the aperture, so `+/-20`, `+/-25` and `+/-30` are no longer drawn. Bars
+above the horizon are solid; bars below are dashed; the `-2.5` degree bar is a
+separate landing-mode reticle. The authored
+`examples/hud/assets/reticles/demo_hud_pitch_ladder.json` encodes exactly this
+scale, and `DemoHudProjectionTests.PitchLadderJsonMatchesCppAngularScale` fails
+if the JSON and C++ scales ever drift apart.
+
+### Conformal versus non-conformal symbology
+
+Only symbols that represent a boresight-relative angle go through the shared
+projection: the target designator, missile diamond, TD circle, CCIP pipper,
+strafe pipper, bomb fall line, CCIP solution cue and pull-up anticipation cue.
+They all call `ProjectBoresightAngularOffsetToHud()` (or the pitch equivalent
+`ProjectPitchOffsetToHud()`), so a given angle always lands at the same HUD
+position regardless of which cue it drives.
+
+Non-conformal elements keep their own reference frames and are intentionally
+excluded: the dynamic launch zone, range cue, speed/altitude tapes, heading
+tape, textual readouts, timers and range scales. They encode magnitudes or
+ranges, not line-of-sight angles, so forcing them through the angular
+projection would be meaningless.
+
+### Out-of-field-of-view behavior
+
+The projection never silently clamps a conformal symbol to the glass edge.
+`ProjectBoresightAngularOffsetToHud()` returns a `ProjectedHudPoint` with an
+explicit `insideFov` flag, and the projection hides the corresponding cue when
+it is false: a target, TD circle, CCIP pipper or strafe pipper outside the field
+of view is masked rather than pinned to the edge where it would misreport the
+angle. No new off-boresight locator symbology is invented for this task.
+
+Missile threat detection is out of scope. `WeaponInputSample` exposes
+`missileInFlight`, `activeMissileTimeRemainingSeconds` and `activeMissilePhase`,
+which describe the ownship's own launched missile timeline, not a detected
+hostile missile. There is no `missileThreatDetected` / inbound-missile
+line-of-sight input, so no inbound-missile symbology is projected. Adding one
+would require a new documented and tested semantic input.
+
 ## HUD modes and reticles
 
 The HUD remains a single-page asset. `examples/hud/assets/pages/demo_hud.json`

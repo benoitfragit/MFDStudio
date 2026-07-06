@@ -22,6 +22,83 @@ namespace demo_hud
  */
 
 /**
+ * @brief Single angular projection model shared by every conformal HUD symbol.
+ *
+ * The HUD uses one explicit field of view so pitch ladder bars, radar/target
+ * cues, missile cues and A-G cues all map angles to authored HUD units with the
+ * same 1:1 scale. All values are resolved in `DemoHudProjection.cpp`; this
+ * struct only exposes them so integrations and tests can reason about the scale.
+ */
+struct HudAngularProjection
+{
+    /** Total horizontal field of view in degrees. */
+    float horizontalFovDeg = 30.0f;
+    /** Total vertical field of view in degrees. */
+    float verticalFovDeg = 30.0f;
+    /** Authored HUD half-width mapped to half the horizontal field of view. */
+    float halfWidthUnits = 1.0f;
+    /** Authored HUD half-height mapped to half the vertical field of view. */
+    float halfHeightUnits = 1.0f;
+};
+
+/**
+ * @brief One conformal symbol position with explicit field-of-view state.
+ *
+ * `insideFov` and `limited` are exposed so callers never silently clamp a cue:
+ * a symbol outside the field of view is meant to be hidden, not pinned to the
+ * edge.
+ */
+struct ProjectedHudPoint
+{
+    /** Projected HUD position, clamped to the authored conformal extent. */
+    HudVec2 position {};
+    /** True when the source angles are inside the conformal field of view. */
+    bool insideFov = true;
+    /** True when the position was clamped to the conformal extent. */
+    bool limited = false;
+};
+
+/**
+ * @brief Returns the shared conformal HUD field of view and extent.
+ * @return The single projection model used by all conformal symbols.
+ */
+HudAngularProjection HudConformalProjection() noexcept;
+
+/**
+ * @brief Returns the total vertical field of view of the pitch ladder, degrees.
+ * @return `kHudPitchLadderVerticalFovDeg` (30 degrees by default).
+ * @note The authored `demo_hud_pitch_ladder.json` bar positions must match this
+ * scale; a regression test guards the C++/JSON consistency.
+ */
+float HudPitchLadderVerticalFovDegrees() noexcept;
+
+/**
+ * @brief Projects a boresight-relative angular offset into HUD space.
+ * @param azimuthRad Azimuth relative to boresight in radians; right is positive.
+ * @param elevationRad Elevation relative to boresight in radians; up is positive.
+ * @return Clamped HUD position with field-of-view and clamp flags.
+ * @note Non-finite inputs are treated as zero so the output is always finite.
+ */
+ProjectedHudPoint ProjectBoresightAngularOffsetToHud(float azimuthRad, float elevationRad) noexcept;
+
+/**
+ * @brief Projects a vertical pitch offset into a HUD ladder position.
+ * @param pitchOffsetDeg Pitch line minus displayed pitch, in degrees.
+ * @return HUD position on the vertical axis using the pitch ladder scale.
+ * @note The ladder is allowed to move beyond the visible aperture, so this
+ * value is not clamped.
+ */
+HudVec2 ProjectPitchOffsetToHud(float pitchOffsetDeg) noexcept;
+
+/**
+ * @brief Tests whether a boresight-relative angle is inside the HUD field of view.
+ * @param azimuthRad Azimuth relative to boresight in radians.
+ * @param elevationRad Elevation relative to boresight in radians.
+ * @return True when both angles are within half the conformal field of view.
+ */
+bool IsInsideHudFov(float azimuthRad, float elevationRad) noexcept;
+
+/**
  * @brief Builds one projected HUD frame from a physical input sample.
  * @param input SI-unit aircraft, target, weapon, A-G, approach and ILS values.
  * @return Projected HUD symbology state consumed by `DemoHudController`.

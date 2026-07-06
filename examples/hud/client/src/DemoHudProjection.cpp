@@ -30,7 +30,33 @@ constexpr float kMetersPerSecondToFeetPerMinute = 196.850394f;
 constexpr float kSeaLevelMachMetersPerSecond = 340.294f;
 constexpr float kHudUnitsPerMil = 0.0056f;
 constexpr float kDefaultTargetWingspanMeters = 35.0f * kFeetToMeters;
-constexpr float kPitchToHudUnits = 0.034f;
+
+// --- Single HUD angular projection model -------------------------------------
+// One explicit field of view drives every conformal symbol (pitch ladder,
+// target/radar cues, missile cues and A-G cues). Changing the HUD field of view
+// is done here and nowhere else.
+//
+// Product decision: a 30-degree total vertical field of view for the pitch
+// ladder reduces the visual saturation of the previous ~58-degree scale. At
+// level flight only the +/-15 degree bars reach the aperture, so the +/-20,
+// +/-25 and +/-30 bars are no longer drawn.
+constexpr float kHudPitchLadderVerticalFovDeg = 30.0f;
+constexpr float kHudConformalVerticalFovDeg = 30.0f;
+constexpr float kHudConformalHorizontalFovDeg = 30.0f;
+// The authored HUD page spans [-1, +1]; half the field of view maps to this
+// half-extent, so a symbol at the field-of-view edge sits at the page edge.
+constexpr float kHudConformalHalfWidthUnits = 1.0f;
+constexpr float kHudConformalHalfHeightUnits = 1.0f;
+// HUD units per degree. Horizontal and vertical are equal, giving conformal
+// symbols the 1:1 angular scale required by the BMS attitude bars.
+constexpr float kHudUnitsPerHorizontalDegree =
+    kHudConformalHalfWidthUnits / (kHudConformalHorizontalFovDeg * 0.5f);
+constexpr float kHudUnitsPerVerticalDegree =
+    kHudConformalHalfHeightUnits / (kHudConformalVerticalFovDeg * 0.5f);
+// The pitch ladder shares the vertical conformal scale over its 2.0-unit height.
+constexpr float kPitchToHudUnits =
+    (2.0f * kHudConformalHalfHeightUnits) / kHudPitchLadderVerticalFovDeg;
+
 constexpr float kHudHorizonLimit = 0.58f;
 constexpr float kDlzBottomY = -0.245f;
 constexpr float kDlzHeight = 0.49f;
@@ -322,18 +348,29 @@ HudAirDataFrame BuildAirDataFrame(const AircraftInputSample& aircraftInput, cons
     return frame;
 }
 
-HudVec2 ProjectTargetToHud(const TargetInputSample& target) noexcept
+// Single conformal projector: every boresight-relative symbol goes through this
+// helper, so the HUD keeps one angular scale and one field-of-view rule.
+ProjectedHudPoint ProjectConformalPoint(const float azimuthRad, const float elevationRad) noexcept
 {
-    return HudVec2 {
-        Clamp(FiniteOr(target.azimuthRad, 0.0f) / (18.0f * kDegreesToRadians) * 0.46f, -0.52f, 0.52f),
-        Clamp(FiniteOr(target.elevationRad, 0.0f) / (14.0f * kDegreesToRadians) * 0.36f, -0.40f, 0.42f)};
+    const float azimuthDeg = FiniteOr(azimuthRad, 0.0f) * kRadiansToDegrees;
+    const float elevationDeg = FiniteOr(elevationRad, 0.0f) * kRadiansToDegrees;
+    const float rawX = azimuthDeg * kHudUnitsPerHorizontalDegree;
+    const float rawY = elevationDeg * kHudUnitsPerVerticalDegree;
+    const float x = Clamp(rawX, -kHudConformalHalfWidthUnits, kHudConformalHalfWidthUnits);
+    const float y = Clamp(rawY, -kHudConformalHalfHeightUnits, kHudConformalHalfHeightUnits);
+
+    ProjectedHudPoint point;
+    point.position = HudVec2 {x, y};
+    point.insideFov =
+        std::fabs(azimuthDeg) <= kHudConformalHorizontalFovDeg * 0.5f &&
+        std::fabs(elevationDeg) <= kHudConformalVerticalFovDeg * 0.5f;
+    point.limited = x != rawX || y != rawY;
+    return point;
 }
 
-HudVec2 ProjectAngularOffsetToHud(const float azimuthRad, const float elevationRad) noexcept
+ProjectedHudPoint ProjectTargetToHud(const TargetInputSample& target) noexcept
 {
-    return HudVec2 {
-        Clamp(FiniteOr(azimuthRad, 0.0f) / (18.0f * kDegreesToRadians) * 0.46f, -0.52f, 0.52f),
-        Clamp(FiniteOr(elevationRad, 0.0f) / (14.0f * kDegreesToRadians) * 0.36f, -0.50f, 0.50f)};
+    return ProjectConformalPoint(target.azimuthRad, target.elevationRad);
 }
 
 float DefaultStrafeInRangeFeet(const HudAmmoType ammoType) noexcept
@@ -366,8 +403,11 @@ HudWeaponFrame BuildWeaponFrame(const HudInputSample& input) noexcept
 {
     HudWeaponFrame frame;
     frame.airToAirVisible = IsAirToAirMissileMode(input.weapon) && IsWeaponArmedForHud(input.weapon);
-    frame.targetVisible = frame.airToAirVisible && input.target.valid;
-    frame.targetPosition = ProjectTargetToHud(input.target);
+    // A target outside the HUD field of view is hidden rather than clamped to the
+    // edge, so the designator never lies about where the track is.
+    const ProjectedHudPoint targetPoint = ProjectTargetToHud(input.target);
+    frame.targetVisible = frame.airToAirVisible && input.target.valid && targetPoint.insideFov;
+    frame.targetPosition = targetPoint.position;
     frame.missileDiamondPosition = frame.targetPosition;
     frame.missileDiamondScale = input.weapon.selectedMissile == MissileType::Aim120C ? 0.92f : 1.15f;
     frame.attackSteeringCueVisible = frame.targetVisible;
@@ -416,12 +456,16 @@ HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& a
         input.weapon.gunRoundsRemaining > 0 &&
         input.airGround.valid;
 
-    const HudVec2 targetPosition = ProjectTargetToHud(input.target);
+    const ProjectedHudPoint targetPoint = ProjectTargetToHud(input.target);
+    const HudVec2 targetPosition = targetPoint.position;
     frame.airToAirGunVisible = airToAirGun;
     frame.eegsFunnelVisible = airToAirGun && !input.weapon.targetLocked;
     frame.mrgsVisible = frame.eegsFunnelVisible;
     frame.fedsVisible = frame.eegsFunnelVisible && input.weapon.triggerHeld;
-    frame.tdCircleVisible = airToAirGun && input.weapon.targetLocked && input.target.valid;
+    // The locked target designator circle is conformal, so it follows the same
+    // field-of-view masking as the missile target designator.
+    frame.tdCircleVisible =
+        airToAirGun && input.weapon.targetLocked && input.target.valid && targetPoint.insideFov;
     frame.tdCirclePosition = targetPosition;
     frame.targetRangeFeet = std::max(FiniteOr(input.target.rangeMeters, 0.0f), 0.0f) * kMetersToFeet;
 
@@ -506,11 +550,14 @@ HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& a
         frame.batrPosition = frame.solutionCirclePosition;
     }
 
-    frame.strafeVisible = strafeGun;
+    const ProjectedHudPoint strafePipper = ProjectConformalPoint(
+        input.airGround.pipperAzimuthRad, -FiniteOr(input.airGround.pipperDepressionRad, 0.0f));
+    // The strafe pipper is conformal; when the aim point leaves the HUD field of
+    // view the strafe symbology is masked instead of pinned to the glass edge.
+    frame.strafeVisible = strafeGun && strafePipper.insideFov;
     frame.strafeSlantRangeFeet = std::max(FiniteOr(input.airGround.slantRangeMeters, 0.0f), 0.0f) * kMetersToFeet;
-    frame.strafePipperPosition =
-        ProjectAngularOffsetToHud(input.airGround.pipperAzimuthRad, -FiniteOr(input.airGround.pipperDepressionRad, 0.0f));
-    frame.strafeInRangeCueVisible = strafeGun && frame.strafeSlantRangeFeet <= EffectiveStrafeInRangeFeet(input.weapon);
+    frame.strafePipperPosition = strafePipper.position;
+    frame.strafeInRangeCueVisible = frame.strafeVisible && frame.strafeSlantRangeFeet <= EffectiveStrafeInRangeFeet(input.weapon);
     frame.bulletTrackEndPosition = HudVec2 {
         Clamp(frame.strafePipperPosition.x * 0.72f, -0.42f, 0.42f),
         Clamp(frame.strafePipperPosition.y + 0.22f, -0.42f, 0.52f)};
@@ -525,19 +572,23 @@ HudAirGroundFrame BuildAirGroundFrame(const HudInputSample& input) noexcept
         input.weapon.weaponMode == HudWeaponMode::AirToGroundCcip &&
         IsWeaponArmedForHud(input.weapon) &&
         input.airGround.valid;
-    frame.ccipVisible = ccipMode;
-    frame.ccipPipperPosition =
-        ProjectAngularOffsetToHud(input.airGround.pipperAzimuthRad, -FiniteOr(input.airGround.pipperDepressionRad, 0.0f));
-    frame.bombFallLineX =
-        Clamp(FiniteOr(input.airGround.fallLineAzimuthRad, 0.0f) / (18.0f * kDegreesToRadians) * 0.46f, -0.42f, 0.42f);
-    frame.solutionCueVisible = ccipMode && input.airGround.solutionCueValid;
-    frame.solutionCuePosition = ProjectAngularOffsetToHud(
-        input.airGround.fallLineAzimuthRad,
-        -FiniteOr(input.airGround.solutionCueDepressionRad, 0.0f));
-    frame.pullupAnticipationCueVisible = ccipMode && input.airGround.pullupAnticipationCueValid;
-    frame.pullupAnticipationCuePosition = ProjectAngularOffsetToHud(
-        input.airGround.fallLineAzimuthRad,
-        -FiniteOr(input.airGround.pullupAnticipationCueDepressionRad, 0.0f));
+    // The CCIP pipper is conformal; when it leaves the HUD field of view the CCIP
+    // cues are masked rather than clamped to the edge.
+    const ProjectedHudPoint ccipPipper = ProjectConformalPoint(
+        input.airGround.pipperAzimuthRad, -FiniteOr(input.airGround.pipperDepressionRad, 0.0f));
+    frame.ccipVisible = ccipMode && ccipPipper.insideFov;
+    frame.ccipPipperPosition = ccipPipper.position;
+    frame.bombFallLineX = ProjectConformalPoint(input.airGround.fallLineAzimuthRad, 0.0f).position.x;
+    frame.solutionCueVisible = frame.ccipVisible && input.airGround.solutionCueValid;
+    frame.solutionCuePosition = ProjectConformalPoint(
+                                    input.airGround.fallLineAzimuthRad,
+                                    -FiniteOr(input.airGround.solutionCueDepressionRad, 0.0f))
+                                    .position;
+    frame.pullupAnticipationCueVisible = frame.ccipVisible && input.airGround.pullupAnticipationCueValid;
+    frame.pullupAnticipationCuePosition = ProjectConformalPoint(
+                                              input.airGround.fallLineAzimuthRad,
+                                              -FiniteOr(input.airGround.pullupAnticipationCueDepressionRad, 0.0f))
+                                              .position;
     frame.slantRangeFeet = std::max(FiniteOr(input.airGround.slantRangeMeters, 0.0f), 0.0f) * kMetersToFeet;
     frame.timeToReleaseSeconds = std::max(FiniteOr(input.airGround.timeToReleaseSeconds, 0.0f), 0.0f);
     frame.timeToGoSeconds = std::max(FiniteOr(input.airGround.timeToGoSeconds, 0.0f), 0.0f);
@@ -595,6 +646,35 @@ HudIlsFrame BuildIlsFrame(const HudInputSample& input, const HudApproachFrame& a
     return frame;
 }
 } // namespace
+
+HudAngularProjection HudConformalProjection() noexcept
+{
+    return HudAngularProjection {
+        kHudConformalHorizontalFovDeg,
+        kHudConformalVerticalFovDeg,
+        kHudConformalHalfWidthUnits,
+        kHudConformalHalfHeightUnits};
+}
+
+float HudPitchLadderVerticalFovDegrees() noexcept
+{
+    return kHudPitchLadderVerticalFovDeg;
+}
+
+ProjectedHudPoint ProjectBoresightAngularOffsetToHud(const float azimuthRad, const float elevationRad) noexcept
+{
+    return ProjectConformalPoint(azimuthRad, elevationRad);
+}
+
+HudVec2 ProjectPitchOffsetToHud(const float pitchOffsetDeg) noexcept
+{
+    return HudVec2 {0.0f, FiniteOr(pitchOffsetDeg, 0.0f) * kPitchToHudUnits};
+}
+
+bool IsInsideHudFov(const float azimuthRad, const float elevationRad) noexcept
+{
+    return ProjectConformalPoint(azimuthRad, elevationRad).insideFov;
+}
 
 AircraftState BuildAircraftStateForHud(const AircraftInputSample& aircraft) noexcept
 {

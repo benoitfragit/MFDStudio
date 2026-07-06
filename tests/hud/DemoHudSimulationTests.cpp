@@ -13,7 +13,11 @@
 #include "DemoHudUi.h"
 
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <limits>
+#include <sstream>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -32,8 +36,52 @@ using demo_hud::HudGunMode;
 using demo_hud::HudWeaponMode;
 using demo_hud::MissileType;
 using demo_hud::PilotControls;
+using demo_hud::HudConformalProjection;
+using demo_hud::HudPitchLadderVerticalFovDegrees;
+using demo_hud::ProjectBoresightAngularOffsetToHud;
+using demo_hud::ProjectPitchOffsetToHud;
 
 constexpr float kDegreesToRadians = 0.017453292519943295f;
+
+// Locates the repository root from this test's own path so asset-consistency
+// tests do not depend on the runtime working directory.
+std::filesystem::path RepositoryRoot()
+{
+    const std::filesystem::path testFile = std::filesystem::path(__FILE__).lexically_normal();
+    return testFile.parent_path().parent_path().parent_path();
+}
+
+std::string ReadFileText(const std::filesystem::path& path)
+{
+    std::ifstream stream(path);
+    std::stringstream buffer;
+    buffer << stream.rdbuf();
+    return buffer.str();
+}
+
+// Extracts the vertical coordinate of a pitch-ladder bar's `start` point from the
+// authored reticle JSON. The layout is generated and stable, so a small explicit
+// scan keeps the test free of a JSON dependency.
+float ReadLadderBarStartY(const std::string& content, const std::string& elementId)
+{
+    const std::string key = "\"id\": \"" + elementId + "\"";
+    const std::size_t idPosition = content.find(key);
+    if (idPosition == std::string::npos)
+    {
+        return std::numeric_limits<float>::quiet_NaN();
+    }
+
+    const std::size_t startPosition = content.find("\"start\"", idPosition);
+    const std::size_t openBracket = content.find('[', startPosition);
+    const std::size_t comma = content.find(',', openBracket);
+    const std::size_t closeBracket = content.find(']', comma);
+    if (comma == std::string::npos || closeBracket == std::string::npos)
+    {
+        return std::numeric_limits<float>::quiet_NaN();
+    }
+
+    return std::stof(content.substr(comma + 1, closeBracket - comma - 1));
+}
 
 void StepMany(DemoHudSimulation& simulation, const PilotControls& controls, const int steps)
 {
@@ -879,5 +927,164 @@ TEST(DemoHudSimulationTests, ImpactMissileIsRetainedBrieflyThenRemoved)
     StepMany(simulation, controls, stepsUntilRetentionExpired);
 
     EXPECT_TRUE(simulation.MissileShots().empty());
+}
+
+TEST(DemoHudProjectionTests, PitchLadderUsesThirtyDegreeVerticalFov)
+{
+    EXPECT_FLOAT_EQ(HudPitchLadderVerticalFovDegrees(), 30.0f);
+
+    // 2.0 useful units over 30 degrees gives 0.0666667 units per degree.
+    EXPECT_NEAR(ProjectPitchOffsetToHud(5.0f).y, 0.333333f, 1.0e-4f);
+    EXPECT_NEAR(ProjectPitchOffsetToHud(10.0f).y, 0.666667f, 1.0e-4f);
+    EXPECT_NEAR(ProjectPitchOffsetToHud(15.0f).y, 1.0f, 1.0e-4f);
+    EXPECT_NEAR(ProjectPitchOffsetToHud(0.0f).y, 0.0f, 1.0e-6f);
+    // The ladder must sit on the horizon at level flight, then move one bar down
+    // per five degrees of nose-up pitch.
+    EXPECT_NEAR(ProjectPitchOffsetToHud(-5.0f).y, -0.333333f, 1.0e-4f);
+}
+
+TEST(DemoHudProjectionTests, PitchZeroPlacesLadderAtCenterAndPlusFiveMovesOneBar)
+{
+    HudInputSample level;
+    level.aircraft.pitchRad = 0.0f;
+    level.aircraft.rollRad = 0.0f;
+    level.aircraft.northSpeedMps = 200.0f;
+    level.aircraft.eastSpeedMps = 0.0f;
+    level.aircraft.downSpeedMps = 0.0f;
+
+    const demo_hud::HudFrame levelFrame = BuildHudFrame(level);
+    EXPECT_NEAR(levelFrame.attitude.ladderPosition.x, 0.0f, 1.0e-5f);
+    EXPECT_NEAR(levelFrame.attitude.ladderPosition.y, 0.0f, 1.0e-5f);
+
+    HudInputSample climbing = level;
+    climbing.aircraft.pitchRad = 5.0f * kDegreesToRadians;
+    const demo_hud::HudFrame climbingFrame = BuildHudFrame(climbing);
+    // A +5 degree pitch drives the ladder down by exactly one 5-degree bar.
+    EXPECT_NEAR(climbingFrame.attitude.ladderPosition.y, -0.333333f, 1.0e-3f);
+}
+
+TEST(DemoHudProjectionTests, ConformalProjectionCenterEdgesAndOutsideFov)
+{
+    const demo_hud::HudAngularProjection projection = HudConformalProjection();
+    ASSERT_FLOAT_EQ(projection.horizontalFovDeg, 30.0f);
+    ASSERT_FLOAT_EQ(projection.verticalFovDeg, 30.0f);
+
+    const demo_hud::ProjectedHudPoint center = ProjectBoresightAngularOffsetToHud(0.0f, 0.0f);
+    EXPECT_NEAR(center.position.x, 0.0f, 1.0e-5f);
+    EXPECT_NEAR(center.position.y, 0.0f, 1.0e-5f);
+    EXPECT_TRUE(center.insideFov);
+
+    const float halfHorizontalRad = (projection.horizontalFovDeg * 0.5f) * kDegreesToRadians;
+    const float halfVerticalRad = (projection.verticalFovDeg * 0.5f) * kDegreesToRadians;
+
+    const demo_hud::ProjectedHudPoint rightEdge = ProjectBoresightAngularOffsetToHud(halfHorizontalRad, 0.0f);
+    EXPECT_NEAR(rightEdge.position.x, projection.halfWidthUnits, 1.0e-3f);
+
+    const demo_hud::ProjectedHudPoint topEdge = ProjectBoresightAngularOffsetToHud(0.0f, halfVerticalRad);
+    EXPECT_NEAR(topEdge.position.y, projection.halfHeightUnits, 1.0e-3f);
+
+    // Beyond the field of view the projector must report the symbol as outside,
+    // and must clamp rather than run off the page.
+    const demo_hud::ProjectedHudPoint outsideAzimuth =
+        ProjectBoresightAngularOffsetToHud(halfHorizontalRad + 4.0f * kDegreesToRadians, 0.0f);
+    EXPECT_FALSE(outsideAzimuth.insideFov);
+    EXPECT_TRUE(outsideAzimuth.limited);
+    EXPECT_LE(std::fabs(outsideAzimuth.position.x), projection.halfWidthUnits + 1.0e-5f);
+
+    const demo_hud::ProjectedHudPoint outsideElevation =
+        ProjectBoresightAngularOffsetToHud(0.0f, halfVerticalRad + 4.0f * kDegreesToRadians);
+    EXPECT_FALSE(outsideElevation.insideFov);
+    EXPECT_LE(std::fabs(outsideElevation.position.y), projection.halfHeightUnits + 1.0e-5f);
+}
+
+TEST(DemoHudProjectionTests, TargetOutsideFovIsHiddenNotClampedToEdge)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToAir;
+    input.weapon.weaponMode = HudWeaponMode::AirToAirMissile;
+    input.weapon.simulateMode = true;
+    input.target.valid = true;
+
+    input.target.azimuthRad = 3.0f * kDegreesToRadians;
+    input.target.elevationRad = 0.0f;
+    const demo_hud::HudFrame insideFrame = BuildHudFrame(input);
+    EXPECT_TRUE(insideFrame.weapon.targetVisible);
+
+    input.target.azimuthRad = 24.0f * kDegreesToRadians;
+    const demo_hud::HudFrame outsideFrame = BuildHudFrame(input);
+    EXPECT_FALSE(outsideFrame.weapon.targetVisible);
+}
+
+TEST(DemoHudProjectionTests, CcipPipperAndBombFallLineShareTheConformalScale)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToGround;
+    input.weapon.weaponMode = HudWeaponMode::AirToGroundCcip;
+    input.airGround.valid = true;
+    input.airGround.pipperAzimuthRad = 0.0f;
+    input.airGround.pipperDepressionRad = 6.0f * kDegreesToRadians;
+    input.airGround.fallLineAzimuthRad = 4.0f * kDegreesToRadians;
+
+    const demo_hud::HudFrame frame = BuildHudFrame(input);
+    ASSERT_TRUE(frame.airGround.ccipVisible);
+
+    // A 6 degree depression is a downward elevation on the shared vertical scale.
+    EXPECT_NEAR(frame.airGround.ccipPipperPosition.y, ProjectPitchOffsetToHud(-6.0f).y, 1.0e-4f);
+    // The bomb fall line X uses the same horizontal scale as any conformal symbol.
+    const demo_hud::ProjectedHudPoint fallLine =
+        ProjectBoresightAngularOffsetToHud(4.0f * kDegreesToRadians, 0.0f);
+    EXPECT_NEAR(frame.airGround.bombFallLineX, fallLine.position.x, 1.0e-4f);
+}
+
+TEST(DemoHudProjectionTests, NonFiniteAnglesNeverProduceNonFiniteOutput)
+{
+    const demo_hud::ProjectedHudPoint point = ProjectBoresightAngularOffsetToHud(
+        std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity());
+    EXPECT_TRUE(std::isfinite(point.position.x));
+    EXPECT_TRUE(std::isfinite(point.position.y));
+    EXPECT_TRUE(std::isfinite(ProjectPitchOffsetToHud(std::numeric_limits<float>::quiet_NaN()).y));
+
+    HudInputSample input;
+    input.aircraft.pitchRad = std::numeric_limits<float>::quiet_NaN();
+    input.target.azimuthRad = std::numeric_limits<float>::infinity();
+    input.target.elevationRad = -std::numeric_limits<float>::infinity();
+    const demo_hud::HudFrame frame = BuildHudFrame(input);
+    EXPECT_TRUE(IsFiniteHudVec(frame.attitude.ladderPosition));
+    EXPECT_TRUE(IsFiniteHudVec(frame.weapon.targetPosition));
+}
+
+TEST(DemoHudProjectionTests, PluggableProjectionBuildsFrameFromSemanticInputAlone)
+{
+    // The projection is reachable with a hand-built HudInputSample only: no demo
+    // simulation, control panel or generated UI is required to obtain a frame.
+    HudInputSample input;
+    input.aircraft.pitchRad = 7.5f * kDegreesToRadians;
+    input.target.valid = true;
+
+    const demo_hud::HudFrame frame = BuildHudFrame(input);
+    EXPECT_TRUE(IsFiniteHudVec(frame.attitude.ladderPosition));
+    EXPECT_NEAR(frame.attitude.ladderPosition.y, ProjectPitchOffsetToHud(-7.5f).y, 1.0e-3f);
+}
+
+TEST(DemoHudProjectionTests, PitchLadderJsonMatchesCppAngularScale)
+{
+    const std::filesystem::path ladderPath =
+        RepositoryRoot() / "examples" / "hud" / "assets" / "reticles" / "demo_hud_pitch_ladder.json";
+    const std::string content = ReadFileText(ladderPath);
+    ASSERT_FALSE(content.empty()) << "Unable to read " << ladderPath.string();
+
+    // Every authored bar Y must equal the C++ pitch-ladder projection for its
+    // degree, so the JSON scale cannot drift away from the code.
+    for (const int degrees : {5, 10, 15, 20, 30})
+    {
+        const std::string positiveId = "p" + std::to_string(degrees) + "_left";
+        const std::string negativeId = "n" + std::to_string(degrees) + "_left_0";
+        const float expected = ProjectPitchOffsetToHud(static_cast<float>(degrees)).y;
+
+        EXPECT_NEAR(ReadLadderBarStartY(content, positiveId), expected, 1.0e-3f)
+            << "positive bar " << degrees << " degrees";
+        EXPECT_NEAR(ReadLadderBarStartY(content, negativeId), -expected, 1.0e-3f)
+            << "negative bar " << degrees << " degrees";
+    }
 }
 } // namespace
