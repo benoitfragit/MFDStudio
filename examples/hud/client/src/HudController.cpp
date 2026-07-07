@@ -130,7 +130,7 @@ const char* WeaponModeCaption(const WeaponInputSample& weapon) noexcept
     case HudWeaponMode::None:
         return "";
     case HudWeaponMode::AirToAirMissile:
-        return weapon.selectedMissile == MissileType::Aim120C ? "AIM-120C" : "AIM-9M";
+        return MissileLabel(weapon.selectedMissile);
     case HudWeaponMode::AirToAirGun:
         return "EEGS";
     case HudWeaponMode::AirToGroundCcip:

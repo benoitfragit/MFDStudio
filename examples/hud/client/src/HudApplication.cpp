@@ -38,6 +38,46 @@ constexpr float kStickPovRadius = 66.0f;
 constexpr float kStickPovDeadZone = 0.10f;
 constexpr ImGuiTreeNodeFlags kDefaultOpenPanel = ImGuiTreeNodeFlags_DefaultOpen;
 
+/**
+ * @brief Normalized stick command produced by a scripted maneuver.
+ */
+struct ScriptedStickCommand
+{
+    /** Normalized pitch-stick command in [-1, 1]. */
+    float pitch = 0.0f;
+    /** Normalized roll-stick command in [-1, 1]. */
+    float roll = 0.0f;
+};
+
+constexpr float kLoopPitchCommand = 1.0f;
+constexpr float kLoopRollCommand = 0.0f;
+constexpr float kBarrelRollPitchCommand = 0.35f;
+constexpr float kBarrelRollRollCommand = 1.0f;
+
+/**
+ * @brief Resolves the scripted stick command for one panel-selected maneuver.
+ *
+ * Kept as a small pure function so the maneuver constants stay out of ImGui
+ * callbacks and can be replaced independently of the HUD publishing path.
+ *
+ * @param maneuver Active scripted maneuver.
+ * @return Normalized pitch/roll stick command.
+ */
+ScriptedStickCommand ScriptedManeuverCommand(const HudManeuver maneuver) noexcept
+{
+    switch (maneuver)
+    {
+    case HudManeuver::Loop:
+        return ScriptedStickCommand {kLoopPitchCommand, kLoopRollCommand};
+    case HudManeuver::BarrelRoll:
+        return ScriptedStickCommand {kBarrelRollPitchCommand, kBarrelRollRollCommand};
+    case HudManeuver::Manual:
+        return ScriptedStickCommand {0.0f, 0.0f};
+    }
+
+    return ScriptedStickCommand {0.0f, 0.0f};
+}
+
 // Keep mode labels centralized so the control panel and telemetry never drift.
 const char* MasterModeLabel(const HudMasterMode mode) noexcept
 {
@@ -438,21 +478,17 @@ void HudApplication::SelectManeuver(const HudManeuver maneuver) noexcept
 
 void HudApplication::ApplyManeuverControls() noexcept
 {
-    // Scripted maneuvers write the same control fields as manual input; there
-    // is no alternate path into the HUD or simulation.
-    switch (maneuver_)
+    // Scripted maneuvers write the same control fields as manual input. The
+    // command constants live in `ScriptedManeuverCommand`, so this method only
+    // forwards resolved panel intent.
+    if (maneuver_ == HudManeuver::Manual)
     {
-    case HudManeuver::Loop:
-        controls_.pitchCommand = 1.0f;
-        controls_.rollCommand = 0.0f;
-        break;
-    case HudManeuver::BarrelRoll:
-        controls_.pitchCommand = 0.35f;
-        controls_.rollCommand = 1.0f;
-        break;
-    case HudManeuver::Manual:
-        break;
+        return;
     }
+
+    const ScriptedStickCommand command = ScriptedManeuverCommand(maneuver_);
+    controls_.pitchCommand = command.pitch;
+    controls_.rollCommand = command.roll;
 }
 
 void HudApplication::SyncHudInputBufferFromSimulation() noexcept

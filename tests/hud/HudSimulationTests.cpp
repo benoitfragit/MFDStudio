@@ -30,10 +30,12 @@ using hud::HudSimulation;
 using hud::HudController;
 using hud::BuildAircraftStateForHud;
 using hud::BuildHudFrame;
+using hud::ComputeMissileTimeOfFlight;
 using hud::HudInputSample;
 using hud::HudMasterMode;
 using hud::HudGunMode;
 using hud::HudWeaponMode;
+using hud::MissileLabel;
 using hud::MissileType;
 using hud::PilotControls;
 using hud::HudConformalProjection;
@@ -349,6 +351,57 @@ TEST(HudSimulationTests, LaunchZoneRemainsOrderedAndDetectsNoEscapeZone)
     EXPECT_GT(zone.rmin2Nm, zone.rmin1Nm);
     EXPECT_EQ(zone.inNoEscapeZone, target.rangeNm >= zone.rmin2Nm && target.rangeNm <= zone.rmax2Nm);
     EXPECT_FALSE(zone.tooClose);
+}
+
+// Expected demo-profile facts checked by the DLZ/time-of-flight regression test.
+struct MissileProfileExpectation
+{
+    MissileType missile;
+    const char* label;
+    const char* mnemonic;
+    float minTimeOfFlightSeconds;
+    float maxTimeOfFlightSeconds;
+};
+
+TEST(HudSimulationTests, DemoMissileProfilesKeepDlzOrderingAndTimeOfFlightBounds)
+{
+    // The AIM-120C/AIM-9M tuning lives in typed demo profiles; verify each
+    // profile still yields an ordered DLZ and a bounded time of flight across a
+    // range of engagement geometries. Bounds match the demo profile limits.
+    const MissileProfileExpectation expectations[] = {
+        {MissileType::Aim120C, "AIM-120C", "MRM", 3.0f, 68.0f},
+        {MissileType::Aim9M, "AIM-9M", "SRM", 3.0f, 28.0f}};
+
+    for (const MissileProfileExpectation& expectation : expectations)
+    {
+        EXPECT_STREQ(MissileLabel(expectation.missile), expectation.label);
+        EXPECT_STREQ(hud::MissileMnemonic(expectation.missile), expectation.mnemonic);
+
+        for (float altitudeMeters = 0.0f; altitudeMeters <= 12000.0f; altitudeMeters += 4000.0f)
+        {
+            for (float rangeMeters = 800.0f; rangeMeters <= 55000.0f; rangeMeters += 9000.0f)
+            {
+                HudInputSample input;
+                input.aircraft.altitudeMeters = altitudeMeters;
+                input.aircraft.northSpeedMps = 240.0f;
+                input.aircraft.specificEnergyRateMps = 15.0f;
+                input.target.rangeMeters = rangeMeters;
+                input.target.closingSpeedMps = 200.0f;
+
+                const hud::LaunchZone zone =
+                    ComputeLaunchZone(input.aircraft, input.target, expectation.missile);
+                EXPECT_GT(zone.rmax1Nm, zone.rmax2Nm);
+                EXPECT_GT(zone.rmax2Nm, zone.rmin2Nm);
+                EXPECT_GT(zone.rmin2Nm, zone.rmin1Nm);
+
+                const float timeOfFlight =
+                    ComputeMissileTimeOfFlight(input.aircraft, input.target, expectation.missile);
+                EXPECT_TRUE(std::isfinite(timeOfFlight));
+                EXPECT_GE(timeOfFlight, expectation.minTimeOfFlightSeconds);
+                EXPECT_LE(timeOfFlight, expectation.maxTimeOfFlightSeconds);
+            }
+        }
+    }
 }
 
 TEST(HudSimulationTests, ExternalSiInputsDriveHudFrameWithoutPanelControls)

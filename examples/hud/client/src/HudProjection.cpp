@@ -244,26 +244,95 @@ HudFunnelControlPoints BuildEegsFunnelRail(const float side,
     return rail;
 }
 
-float MissileSpeedMetersPerSecond(const MissileType type) noexcept
+// --- Demo-only missile and launch-zone tuning --------------------------------
+// A production avionics adapter should provide already-resolved weapon state and
+// launch-zone values instead of relying on these sample profiles. They exist so
+// the bundled AIM-120C/AIM-9M demo keeps coherent speed, time-of-flight, DLZ and
+// label values in one typed place per weapon, rather than as magic numbers
+// scattered through the projection helpers.
+struct DemoMissileProfile
 {
-    return type == MissileType::Aim120C ? 1209.0f : 849.0f;
+    /** HUD inventory label such as "AIM-120C". */
+    const char* label = "";
+    /** Short HUD mnemonic such as "MRM". */
+    const char* mnemonic = "";
+    /** Nominal missile speed in meters per second. */
+    float nominalSpeedMps = 0.0f;
+    /** Lower bound on effective closing speed used for time-of-flight, m/s. */
+    float minEffectiveSpeedMps = 0.0f;
+    /** Minimum displayed time of flight in seconds. */
+    float minTimeOfFlightSeconds = 0.0f;
+    /** Maximum displayed time of flight in seconds. */
+    float maxTimeOfFlightSeconds = 0.0f;
+    /** Base aerodynamic range before DLZ scaling, nautical miles. */
+    float baseRangeNm = 0.0f;
+    /** Floor applied to the scaled maximum range, nautical miles. */
+    float minRmax1Nm = 0.0f;
+    /** No-escape maximum range as a fraction of rmax1. */
+    float rmax2Factor = 0.0f;
+    /** Minimum launch range in nautical miles. */
+    float rmin1Nm = 0.0f;
+    /** No-escape minimum range offset above rmin1, nautical miles. */
+    float rmin2OffsetNm = 0.0f;
+    /** Missile diamond scale multiplier for this weapon. */
+    float diamondScale = 1.0f;
+};
+
+// Coefficients shared by every demo weapon's launch-zone and time-of-flight math.
+struct DemoLaunchZoneTuning
+{
+    float altitudeBonusDivisorMeters = 12192.0f;
+    float altitudeBonusScale = 0.35f;
+    float closureBonusDivisorMps = 463.0f;
+    float closureBonusMin = -0.35f;
+    float closureBonusMax = 0.65f;
+    float closureBonusScale = 0.28f;
+    float energyBonusDivisorMps = 72.0f;
+    float energyBonusMin = -0.25f;
+    float energyBonusMax = 0.45f;
+    float afterburnerBonus = 0.09f;
+    float aspectPenaltyScale = 0.18f;
+    float closingSpeedFloorMps = -77.0f;
+    float closingSpeedContribution = 0.40f;
+    float ownshipSpeedContribution = 0.25f;
+};
+
+constexpr DemoMissileProfile kAim120CProfile {
+    "AIM-120C", // label
+    "MRM",      // mnemonic
+    1209.0f,    // nominalSpeedMps
+    154.0f,     // minEffectiveSpeedMps
+    3.0f,       // minTimeOfFlightSeconds
+    68.0f,      // maxTimeOfFlightSeconds
+    24.0f,      // baseRangeNm
+    10.0f,      // minRmax1Nm
+    0.68f,      // rmax2Factor
+    1.15f,      // rmin1Nm
+    1.15f,      // rmin2OffsetNm
+    0.92f};     // diamondScale
+constexpr DemoMissileProfile kAim9MProfile {
+    "AIM-9M", // label
+    "SRM",    // mnemonic
+    849.0f,   // nominalSpeedMps
+    154.0f,   // minEffectiveSpeedMps
+    3.0f,     // minTimeOfFlightSeconds
+    28.0f,    // maxTimeOfFlightSeconds
+    8.2f,     // baseRangeNm
+    3.0f,     // minRmax1Nm
+    0.62f,    // rmax2Factor
+    0.42f,    // rmin1Nm
+    0.55f,    // rmin2OffsetNm
+    1.15f};   // diamondScale
+constexpr DemoLaunchZoneTuning kDemoLaunchZoneTuning {};
+
+const DemoMissileProfile& DemoMissileProfileFor(const MissileType type) noexcept
+{
+    return type == MissileType::Aim120C ? kAim120CProfile : kAim9MProfile;
 }
 
 int InventoryCount(const MissileInventory& inventory, const MissileType type) noexcept
 {
     return type == MissileType::Aim120C ? inventory.aim120c : inventory.aim9m;
-}
-
-float ComputeMissileTimeOfFlight(const AircraftInputSample& aircraft,
-                                 const TargetInputSample& target,
-                                 const MissileType selectedMissile) noexcept
-{
-    const float closingSpeedMps = std::max(FiniteOr(target.closingSpeedMps, 0.0f), -77.0f);
-    const float ownshipSpeedMps = TrueSpeedMetersPerSecond(aircraft);
-    const float effectiveSpeedMps =
-        MissileSpeedMetersPerSecond(selectedMissile) + closingSpeedMps * 0.40f + ownshipSpeedMps * 0.25f;
-    const float seconds = FiniteOr(target.rangeMeters, 0.0f) / std::max(effectiveSpeedMps, 154.0f);
-    return Clamp(seconds, 3.0f, selectedMissile == MissileType::Aim120C ? 68.0f : 28.0f);
 }
 
 HudAttitudeFrame ResolveHudAttitude(const AircraftInputSample& aircraftInput) noexcept
@@ -418,7 +487,7 @@ HudWeaponFrame BuildWeaponFrame(const HudInputSample& input) noexcept
     frame.missileLimitXVisible = frame.targetLimited;
     frame.missileLimitXPosition = frame.targetPosition;
     frame.missileDiamondPosition = frame.targetPosition;
-    frame.missileDiamondScale = input.weapon.selectedMissile == MissileType::Aim120C ? 0.92f : 1.15f;
+    frame.missileDiamondScale = DemoMissileProfileFor(input.weapon.selectedMissile).diamondScale;
     frame.attackSteeringCueVisible = frame.targetVisible;
     frame.attackSteeringCuePosition = HudVec2 {
         Clamp(frame.targetPosition.x * 0.55f, -0.30f, 0.30f),
@@ -728,25 +797,50 @@ TargetState BuildTargetStateForHud(const TargetInputSample& target) noexcept
     return state;
 }
 
+float ComputeMissileTimeOfFlight(const AircraftInputSample& aircraft,
+                                 const TargetInputSample& target,
+                                 const MissileType selectedMissile) noexcept
+{
+    const DemoMissileProfile& profile = DemoMissileProfileFor(selectedMissile);
+    const DemoLaunchZoneTuning& tuning = kDemoLaunchZoneTuning;
+    const float closingSpeedMps = std::max(FiniteOr(target.closingSpeedMps, 0.0f), tuning.closingSpeedFloorMps);
+    const float ownshipSpeedMps = TrueSpeedMetersPerSecond(aircraft);
+    const float effectiveSpeedMps =
+        profile.nominalSpeedMps +
+        closingSpeedMps * tuning.closingSpeedContribution +
+        ownshipSpeedMps * tuning.ownshipSpeedContribution;
+    const float seconds =
+        FiniteOr(target.rangeMeters, 0.0f) / std::max(effectiveSpeedMps, profile.minEffectiveSpeedMps);
+    return Clamp(seconds, profile.minTimeOfFlightSeconds, profile.maxTimeOfFlightSeconds);
+}
+
 LaunchZone ComputeLaunchZone(const AircraftInputSample& aircraft,
                              const TargetInputSample& target,
                              const MissileType selectedMissile) noexcept
 {
-    const float altitudeBonus = Clamp(FiniteOr(aircraft.altitudeMeters, 0.0f) / 12192.0f, 0.0f, 1.0f);
-    const float closureBonus = Clamp(FiniteOr(target.closingSpeedMps, 0.0f) / 463.0f, -0.35f, 0.65f);
-    const float energyBonus = Clamp(FiniteOr(aircraft.specificEnergyRateMps, 0.0f) / 72.0f, -0.25f, 0.45f);
-    const float afterburnerBonus = aircraft.afterburnerActive ? 0.09f : 0.0f;
+    const DemoMissileProfile& profile = DemoMissileProfileFor(selectedMissile);
+    const DemoLaunchZoneTuning& tuning = kDemoLaunchZoneTuning;
+    const float altitudeBonus =
+        Clamp(FiniteOr(aircraft.altitudeMeters, 0.0f) / tuning.altitudeBonusDivisorMeters, 0.0f, 1.0f);
+    const float closureBonus = Clamp(
+        FiniteOr(target.closingSpeedMps, 0.0f) / tuning.closureBonusDivisorMps,
+        tuning.closureBonusMin,
+        tuning.closureBonusMax);
+    const float energyBonus = Clamp(
+        FiniteOr(aircraft.specificEnergyRateMps, 0.0f) / tuning.energyBonusDivisorMps,
+        tuning.energyBonusMin,
+        tuning.energyBonusMax);
+    const float afterburnerBonus = aircraft.afterburnerActive ? tuning.afterburnerBonus : 0.0f;
     const float targetAspectRad = FiniteOr(target.aspectRad, 0.0f);
-    const float aspectPenalty = Clamp(std::fabs(targetAspectRad - kPi) / kPi, 0.0f, 1.0f) * 0.18f;
-    const float baseRangeNm = selectedMissile == MissileType::Aim120C ? 24.0f : 8.2f;
-    const float scale =
-        1.0f + altitudeBonus * 0.35f + closureBonus * 0.28f + energyBonus + afterburnerBonus - aspectPenalty;
+    const float aspectPenalty = Clamp(std::fabs(targetAspectRad - kPi) / kPi, 0.0f, 1.0f) * tuning.aspectPenaltyScale;
+    const float scale = 1.0f + altitudeBonus * tuning.altitudeBonusScale + closureBonus * tuning.closureBonusScale +
+                        energyBonus + afterburnerBonus - aspectPenalty;
 
     LaunchZone zone;
-    zone.rmax1Nm = std::max(baseRangeNm * scale, selectedMissile == MissileType::Aim120C ? 10.0f : 3.0f);
-    zone.rmax2Nm = zone.rmax1Nm * (selectedMissile == MissileType::Aim120C ? 0.68f : 0.62f);
-    zone.rmin1Nm = selectedMissile == MissileType::Aim120C ? 1.15f : 0.42f;
-    zone.rmin2Nm = zone.rmin1Nm + (selectedMissile == MissileType::Aim120C ? 1.15f : 0.55f);
+    zone.rmax1Nm = std::max(profile.baseRangeNm * scale, profile.minRmax1Nm);
+    zone.rmax2Nm = zone.rmax1Nm * profile.rmax2Factor;
+    zone.rmin1Nm = profile.rmin1Nm;
+    zone.rmin2Nm = zone.rmin1Nm + profile.rmin2OffsetNm;
     const TargetState displayTarget = BuildTargetStateForHud(target);
     zone.inNoEscapeZone = displayTarget.rangeNm >= zone.rmin2Nm && displayTarget.rangeNm <= zone.rmax2Nm;
     zone.tooClose = displayTarget.rangeNm < zone.rmin1Nm;
@@ -773,6 +867,11 @@ std::string FormatHeading(const float headingDegrees)
     return buffer;
 }
 
+const char* MissileLabel(const MissileType selectedMissile) noexcept
+{
+    return DemoMissileProfileFor(selectedMissile).label;
+}
+
 std::string FormatMissileInventory(const MissileType selectedMissile, const MissileInventory& inventory)
 {
     char buffer[32] {};
@@ -780,14 +879,14 @@ std::string FormatMissileInventory(const MissileType selectedMissile, const Miss
         buffer,
         sizeof(buffer),
         "%s %d",
-        selectedMissile == MissileType::Aim120C ? "AIM-120C" : "AIM-9M",
+        MissileLabel(selectedMissile),
         InventoryCount(inventory, selectedMissile));
     return buffer;
 }
 
 const char* MissileMnemonic(const MissileType selectedMissile) noexcept
 {
-    return selectedMissile == MissileType::Aim120C ? "MRM" : "SRM";
+    return DemoMissileProfileFor(selectedMissile).mnemonic;
 }
 
 const char* MissilePhaseMnemonic(const MissileFlightPhase phase) noexcept

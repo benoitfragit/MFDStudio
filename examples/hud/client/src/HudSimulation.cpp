@@ -26,8 +26,82 @@ constexpr float kMetersPerSecondToKnots = 1.94384449f;
 constexpr float kNauticalMileToMeters = 1852.0f;
 constexpr float kSeaLevelMachMetersPerSecond = 340.294f;
 constexpr float kGravityMetersPerSecondSquared = 9.80665f;
-constexpr float kPitchCommandTimeConstantSeconds = 0.70f;
-constexpr float kRollCommandTimeConstantSeconds = 0.60f;
+
+/**
+ * @brief Named tuning parameters for the demo aircraft mini-simulation.
+ *
+ * All aircraft dynamics constants live here instead of being scattered as magic
+ * numbers inside `HudSimulation::Step`. The defaults preserve the existing demo
+ * behavior while making the fake simulation easier to replace or retune.
+ *
+ * @note This is a demo-only tuning block. A real aircraft adapter fills
+ * `HudInputSample` directly and never instantiates this configuration.
+ */
+struct HudMiniSimulationConfig
+{
+    /** Pitch-stick command low-pass time constant in seconds. */
+    float pitchCommandTimeConstantSeconds = 0.70f;
+    /** Roll-stick command low-pass time constant in seconds. */
+    float rollCommandTimeConstantSeconds = 0.60f;
+    /** Base commanded pitch rate at low speed in degrees per second. */
+    float pitchRateBaseDegPerSecond = 48.0f;
+    /** Extra commanded pitch rate per knot of true airspeed. */
+    float pitchRateSpeedGainDegPerSecondPerKnot = 0.018f;
+    /** Commanded roll rate in degrees per second. */
+    float rollRateDegPerSecond = 118.0f;
+    /** Throttle-ratio slew rate toward the commanded throttle, per second. */
+    float throttleResponseRatePerSecond = 0.85f;
+    /** Throttle ratio above which afterburner may light. */
+    float afterburnerThrottleThreshold = 0.90f;
+    /** Turn-rate gain per knot of true airspeed, degrees per second. */
+    float turnRateGainDegPerSecondPerKnot = 0.030f;
+    /** Minimum bank-derived turn rate in degrees per second. */
+    float turnRateMinDegPerSecond = 5.0f;
+    /** Maximum bank-derived turn rate in degrees per second. */
+    float turnRateMaxDegPerSecond = 24.0f;
+    /** Commanded load factor gain per unit of filtered pitch command. */
+    float commandedLoadPitchGain = 4.6f;
+    /** Commanded load factor gain per unit of bank sine. */
+    float commandedLoadBankGain = 1.35f;
+    /** Minimum modeled normal load factor in g. */
+    float normalLoadMin = -3.0f;
+    /** Maximum modeled normal load factor in g. */
+    float normalLoadMax = 9.0f;
+    /** Flight-path slope gain applied to the pitch attitude. */
+    float flightPathPitchGain = 0.62f;
+    /** Throttle ratio treated as neutral trim for the flight path. */
+    float trimThrottleRatio = 0.54f;
+    /** Flight-path slope contribution of excess throttle, degrees at full range. */
+    float flightPathThrottleGainDegrees = 9.0f;
+    /** Extra commanded climb slope while afterburner is lit, degrees. */
+    float flightPathAfterburnerBonusDegrees = 3.2f;
+    /** Slope penalty proportional to bank angle, degrees. */
+    float flightPathBankPenaltyDegrees = 4.2f;
+    /** Slope penalty proportional to load factor above 1 g, degrees. */
+    float flightPathLoadPenaltyDegrees = 0.65f;
+    /** Safety bound on the commanded flight-path slope magnitude, degrees. */
+    float flightPathAngleMaxDegrees = 82.0f;
+    /** Rate at which the flight path tracks its commanded slope, degrees per second. */
+    float flightPathResponseRateDegPerSecond = 32.0f;
+    /** Thrust acceleration at full military throttle in knots per second. */
+    float thrustAccelerationKtsPerSecond = 34.0f;
+    /** Additional acceleration while afterburner is active, knots per second. */
+    float afterburnerAccelerationKtsPerSecond = 22.0f;
+    /** Baseline parasite drag deceleration in knots per second. */
+    float dragBaseKtsPerSecond = 8.0f;
+    /** Divisor turning airspeed squared into speed-dependent drag. */
+    float dragSpeedSquaredDivisor = 72000.0f;
+    /** Induced-drag deceleration per g of load factor above 1, knots per second. */
+    float dragLoadFactorKtsPerSecond = 2.4f;
+    /** Energy cost of climbing at full slope in knots per second. */
+    float climbCostKtsPerSecond = 24.0f;
+    /** Minimum sustained true airspeed in knots. */
+    float minSpeedKts = 120.0f;
+    /** Maximum sustained true airspeed in knots. */
+    float maxSpeedKts = 910.0f;
+};
+
+constexpr HudMiniSimulationConfig kMiniSimulationConfig {};
 
 float Clamp(const float value, const float low, const float high) noexcept
 {
@@ -119,26 +193,13 @@ float TerrainElevationMeters(const float elapsedSeconds, const float headingRad)
            22.8f * std::sin(elapsedSeconds * 0.017f);
 }
 
-float MissileSpeedMetersPerSecond(const MissileType type) noexcept
-{
-    return type == MissileType::Aim120C ? 1209.0f : 849.0f;
-}
-
+// Mutable inventory slot accessor used when a launch consumes a round. The
+// missile speed, time-of-flight and DLZ tuning live with the demo profiles in
+// `HudProjection.cpp`; this simulation reuses the projection helper rather than
+// duplicating those constants.
 int& InventorySlot(MissileInventory& inventory, const MissileType type) noexcept
 {
     return type == MissileType::Aim120C ? inventory.aim120c : inventory.aim9m;
-}
-
-float ComputeMissileTimeOfFlight(const AircraftInputSample& aircraft,
-                                 const TargetInputSample& target,
-                                 const MissileType selectedMissile) noexcept
-{
-    const float closingSpeedMps = std::max(FiniteOr(target.closingSpeedMps, 0.0f), -77.0f);
-    const float ownshipSpeedMps = TrueSpeedMetersPerSecond(aircraft);
-    const float effectiveSpeedMps =
-        MissileSpeedMetersPerSecond(selectedMissile) + closingSpeedMps * 0.40f + ownshipSpeedMps * 0.25f;
-    const float seconds = FiniteOr(target.rangeMeters, 0.0f) / std::max(effectiveSpeedMps, 154.0f);
-    return Clamp(seconds, 3.0f, selectedMissile == MissileType::Aim120C ? 68.0f : 28.0f);
 }
 
 bool IsWeaponArmedForHud(const WeaponInputSample& weapon) noexcept
@@ -217,57 +278,68 @@ void HudSimulation::Step(const float deltaSeconds) noexcept
         return;
     }
 
+    const HudMiniSimulationConfig& cfg = kMiniSimulationConfig;
     AircraftInputSample& aircraft = inputs_.aircraft;
     aircraft.elapsedSeconds += dt;
     filteredPitchCommand_ =
-        SmoothCommand(filteredPitchCommand_, controls_.pitchCommand, dt, kPitchCommandTimeConstantSeconds);
+        SmoothCommand(filteredPitchCommand_, controls_.pitchCommand, dt, cfg.pitchCommandTimeConstantSeconds);
     filteredRollCommand_ =
-        SmoothCommand(filteredRollCommand_, controls_.rollCommand, dt, kRollCommandTimeConstantSeconds);
+        SmoothCommand(filteredRollCommand_, controls_.rollCommand, dt, cfg.rollCommandTimeConstantSeconds);
 
     const float speedKts = TrueSpeedMetersPerSecond(aircraft) * kMetersPerSecondToKnots;
+    const float pitchRateDegPerSecond =
+        cfg.pitchRateBaseDegPerSecond + speedKts * cfg.pitchRateSpeedGainDegPerSecondPerKnot;
     aircraft.pitchRad = NormalizeRadiansPi(
-        aircraft.pitchRad + filteredPitchCommand_ * (48.0f + speedKts * 0.018f) * kDegreesToRadians * dt);
-    aircraft.rollRad = NormalizeRadiansPi(aircraft.rollRad + filteredRollCommand_ * 118.0f * kDegreesToRadians * dt);
-    aircraft.throttleRatio = Approach(aircraft.throttleRatio, controls_.throttle, 0.85f * dt);
-    aircraft.afterburnerActive = controls_.afterburnerRequested && aircraft.throttleRatio > 0.90f;
+        aircraft.pitchRad + filteredPitchCommand_ * pitchRateDegPerSecond * kDegreesToRadians * dt);
+    aircraft.rollRad =
+        NormalizeRadiansPi(aircraft.rollRad + filteredRollCommand_ * cfg.rollRateDegPerSecond * kDegreesToRadians * dt);
+    aircraft.throttleRatio = Approach(aircraft.throttleRatio, controls_.throttle, cfg.throttleResponseRatePerSecond * dt);
+    aircraft.afterburnerActive =
+        controls_.afterburnerRequested && aircraft.throttleRatio > cfg.afterburnerThrottleThreshold;
 
     const float turnRateRadPerSecond =
         std::sin(aircraft.rollRad) *
-        Clamp(speedKts * 0.030f, 5.0f, 24.0f) *
+        Clamp(speedKts * cfg.turnRateGainDegPerSecondPerKnot, cfg.turnRateMinDegPerSecond, cfg.turnRateMaxDegPerSecond) *
         kDegreesToRadians *
         std::cos(aircraft.pitchRad);
     aircraft.headingRad = WrapRadiansTwoPi(aircraft.headingRad + turnRateRadPerSecond * dt);
     aircraft.yawRad = aircraft.headingRad;
 
     const float commandedLoad =
-        1.0f + filteredPitchCommand_ * 4.6f + std::fabs(std::sin(aircraft.rollRad)) * 1.35f;
+        1.0f + filteredPitchCommand_ * cfg.commandedLoadPitchGain +
+        std::fabs(std::sin(aircraft.rollRad)) * cfg.commandedLoadBankGain;
     const float attitudeLoad = std::cos(aircraft.rollRad) * std::cos(aircraft.pitchRad);
-    aircraft.normalLoadFactor = Clamp(attitudeLoad + commandedLoad - 1.0f, -3.0f, 9.0f);
+    aircraft.normalLoadFactor = Clamp(attitudeLoad + commandedLoad - 1.0f, cfg.normalLoadMin, cfg.normalLoadMax);
 
+    const float flightPathAngleMaxRad = cfg.flightPathAngleMaxDegrees * kDegreesToRadians;
     const float targetFlightPathSlopeRad = Clamp(
-        NormalizeRadiansPi(aircraft.pitchRad) * 0.62f +
-            (aircraft.throttleRatio - 0.54f) * 9.0f * kDegreesToRadians +
-            (aircraft.afterburnerActive ? 3.2f * kDegreesToRadians : 0.0f) -
-            std::fabs(std::sin(aircraft.rollRad)) * 4.2f * kDegreesToRadians -
-            std::max(aircraft.normalLoadFactor - 1.0f, 0.0f) * 0.65f * kDegreesToRadians,
-        -82.0f * kDegreesToRadians,
-        82.0f * kDegreesToRadians);
+        NormalizeRadiansPi(aircraft.pitchRad) * cfg.flightPathPitchGain +
+            (aircraft.throttleRatio - cfg.trimThrottleRatio) * cfg.flightPathThrottleGainDegrees * kDegreesToRadians +
+            (aircraft.afterburnerActive ? cfg.flightPathAfterburnerBonusDegrees * kDegreesToRadians : 0.0f) -
+            std::fabs(std::sin(aircraft.rollRad)) * cfg.flightPathBankPenaltyDegrees * kDegreesToRadians -
+            std::max(aircraft.normalLoadFactor - 1.0f, 0.0f) * cfg.flightPathLoadPenaltyDegrees * kDegreesToRadians,
+        -flightPathAngleMaxRad,
+        flightPathAngleMaxRad);
     const float flightPathSlopeRad =
-        Approach(FlightPathSlopeRadians(aircraft), targetFlightPathSlopeRad, 32.0f * kDegreesToRadians * dt);
+        Approach(
+            FlightPathSlopeRadians(aircraft),
+            targetFlightPathSlopeRad,
+            cfg.flightPathResponseRateDegPerSecond * kDegreesToRadians * dt);
 
     const float thrustAccelerationKtsPerSecond =
-        aircraft.throttleRatio * 34.0f + (aircraft.afterburnerActive ? 22.0f : 0.0f);
+        aircraft.throttleRatio * cfg.thrustAccelerationKtsPerSecond +
+        (aircraft.afterburnerActive ? cfg.afterburnerAccelerationKtsPerSecond : 0.0f);
     const float dragAccelerationKtsPerSecond =
-        8.0f + speedKts * speedKts / 72000.0f +
-        std::max(aircraft.normalLoadFactor - 1.0f, 0.0f) * 2.4f;
-    const float climbCostKtsPerSecond = std::max(0.0f, std::sin(flightPathSlopeRad)) * 24.0f;
+        cfg.dragBaseKtsPerSecond + speedKts * speedKts / cfg.dragSpeedSquaredDivisor +
+        std::max(aircraft.normalLoadFactor - 1.0f, 0.0f) * cfg.dragLoadFactorKtsPerSecond;
+    const float climbCostKtsPerSecond = std::max(0.0f, std::sin(flightPathSlopeRad)) * cfg.climbCostKtsPerSecond;
     const float accelerationMps2 =
         (thrustAccelerationKtsPerSecond - dragAccelerationKtsPerSecond - climbCostKtsPerSecond) *
         kKnotsToMetersPerSecond;
     const float newSpeedMps = Clamp(
         TrueSpeedMetersPerSecond(aircraft) + accelerationMps2 * dt,
-        120.0f * kKnotsToMetersPerSecond,
-        910.0f * kKnotsToMetersPerSecond);
+        cfg.minSpeedKts * kKnotsToMetersPerSecond,
+        cfg.maxSpeedKts * kKnotsToMetersPerSecond);
 
     const float horizontalSpeedMps = std::max(newSpeedMps * std::cos(flightPathSlopeRad), 0.0f);
     aircraft.northSpeedMps = horizontalSpeedMps * std::cos(aircraft.headingRad);
