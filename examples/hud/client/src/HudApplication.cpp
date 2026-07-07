@@ -38,6 +38,62 @@ constexpr float kStickPovRadius = 66.0f;
 constexpr float kStickPovDeadZone = 0.10f;
 constexpr ImGuiTreeNodeFlags kDefaultOpenPanel = ImGuiTreeNodeFlags_DefaultOpen;
 
+/**
+ * @brief Normalized stick command produced by a scripted maneuver at a given time.
+ */
+struct ScriptedStickCommand
+{
+    /** Normalized pitch-stick command in [-1, 1]. */
+    float pitch = 0.0f;
+    /** Normalized roll-stick command in [-1, 1]. */
+    float roll = 0.0f;
+};
+
+// Deterministic LOOP timeline. The maneuver is a bounded, repeating cycle rather
+// than a permanent pitch-up: a level entry, a pitch-up loop segment, then a
+// neutral-stick recovery window that lets the simulation release-to-trim bring
+// the flight path back to level before the next pull. This is what keeps the
+// scripted loop from parking the aircraft at an extreme, dominant sink/climb.
+constexpr float kLoopEntrySeconds = 1.0f;
+constexpr float kLoopPullSeconds = 6.0f;
+constexpr float kLoopRecoverySeconds = 6.0f;
+
+// Deterministic BARREL-ROLL command: a steady roll with a light pitch bias.
+constexpr float kBarrelRollPitchCommand = 0.35f;
+
+/**
+ * @brief Resolves the scripted stick command for a maneuver at a scenario time.
+ *
+ * Kept as a small pure function so the maneuver timeline stays out of the ImGui
+ * callbacks and can be reasoned about independently of rendering.
+ *
+ * @param maneuver Active scripted maneuver.
+ * @param elapsedSeconds Seconds since the maneuver was selected; negative and
+ * non-finite values are treated as zero.
+ * @return Normalized pitch/roll stick command for this scenario time.
+ */
+ScriptedStickCommand ScriptedManeuverCommand(const HudManeuver maneuver, const float elapsedSeconds) noexcept
+{
+    if (maneuver == HudManeuver::BarrelRoll)
+    {
+        return ScriptedStickCommand {kBarrelRollPitchCommand, 1.0f};
+    }
+    if (maneuver != HudManeuver::Loop)
+    {
+        return ScriptedStickCommand {0.0f, 0.0f};
+    }
+
+    const float scenarioSeconds = std::isfinite(elapsedSeconds) ? std::max(elapsedSeconds, 0.0f) : 0.0f;
+    if (scenarioSeconds < kLoopEntrySeconds)
+    {
+        return ScriptedStickCommand {0.0f, 0.0f};
+    }
+
+    const float cycleSeconds = std::fmod(scenarioSeconds - kLoopEntrySeconds, kLoopPullSeconds + kLoopRecoverySeconds);
+    const float pitchCommand = cycleSeconds < kLoopPullSeconds ? 1.0f : 0.0f;
+    return ScriptedStickCommand {pitchCommand, 0.0f};
+}
+
 // Keep mode labels centralized so the control panel and telemetry never drift.
 const char* MasterModeLabel(const HudMasterMode mode) noexcept
 {
@@ -378,6 +434,9 @@ void HudApplication::UpdateHudInputBufferFromUi(const float deltaSeconds) noexce
     simulation_.SetControls(controls_);
     if (running_)
     {
+        // Advance the scenario clock with the same delta as the simulation so a
+        // paused client freezes the scripted maneuver instead of drifting.
+        maneuverElapsedSeconds_ += std::max(deltaSeconds, 0.0f);
         simulation_.Step(deltaSeconds);
     }
     SyncHudInputBufferFromSimulation();
@@ -429,6 +488,9 @@ void HudApplication::ApplyKeyboardControls()
 void HudApplication::SelectManeuver(const HudManeuver maneuver) noexcept
 {
     maneuver_ = maneuver;
+    // Restart the scenario clock so a scripted maneuver always begins at its
+    // deterministic level-entry phase.
+    maneuverElapsedSeconds_ = 0.0f;
     if (maneuver_ == HudManeuver::Manual)
     {
         controls_.pitchCommand = 0.0f;
@@ -438,21 +500,17 @@ void HudApplication::SelectManeuver(const HudManeuver maneuver) noexcept
 
 void HudApplication::ApplyManeuverControls() noexcept
 {
-    // Scripted maneuvers write the same control fields as manual input; there
-    // is no alternate path into the HUD or simulation.
-    switch (maneuver_)
+    // Scripted maneuvers write the same control fields as manual input; the
+    // timeline itself lives in `ScriptedManeuverCommand`, so this method only
+    // forwards the resolved intent. Manual mode leaves operator input untouched.
+    if (maneuver_ == HudManeuver::Manual)
     {
-    case HudManeuver::Loop:
-        controls_.pitchCommand = 1.0f;
-        controls_.rollCommand = 0.0f;
-        break;
-    case HudManeuver::BarrelRoll:
-        controls_.pitchCommand = 0.35f;
-        controls_.rollCommand = 1.0f;
-        break;
-    case HudManeuver::Manual:
-        break;
+        return;
     }
+
+    const ScriptedStickCommand command = ScriptedManeuverCommand(maneuver_, maneuverElapsedSeconds_);
+    controls_.pitchCommand = command.pitch;
+    controls_.rollCommand = command.roll;
 }
 
 void HudApplication::SyncHudInputBufferFromSimulation() noexcept
@@ -845,6 +903,7 @@ void HudApplication::ResetScene()
     controls_.masterMode = HudMasterMode::Nav;
     SyncHudInputBufferFromSimulation();
     maneuver_ = HudManeuver::Manual;
+    maneuverElapsedSeconds_ = 0.0f;
     lastFireAccepted_ = false;
     ui_.Initialize();
     SetStatus("Scene reset.", false);

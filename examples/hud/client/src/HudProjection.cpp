@@ -301,6 +301,11 @@ HudAttitudeFrame ResolveHudAttitude(const AircraftInputSample& aircraftInput) no
     frame.ghostHorizonPosition = RotateHudVector(HudVec2 {0.0f, ghostHorizonY}, rollRotationDegrees);
     frame.ghostHorizonRotationDegrees = rollRotationDegrees;
 
+    // The flight-path marker is driven by the real trajectory: `flightPathAngleDegrees`
+    // comes from the NED velocity vector (see FlightPathSlopeRadians), never from
+    // attitude alone. The clamp below and `fpmLimited` are a display-only aperture
+    // limit: they bound where the marker is drawn and report that it was clipped,
+    // but they do not feed back into any aircraft state or later computation.
     const float fpmRawX = std::sin(displayRoll * kDegreesToRadians) * 0.08f;
     const float fpmRawY = (aircraft.flightPathAngleDegrees - displayPitch) * kPitchToHudUnits;
     frame.fpmPosition = HudVec2 {Clamp(fpmRawX, -0.54f, 0.54f), Clamp(fpmRawY, -0.52f, 0.52f)};

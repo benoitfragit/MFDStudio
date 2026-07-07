@@ -179,6 +179,8 @@ private:
     PilotControls controls_ {};
     /** Current source of pilot commands. */
     HudManeuver maneuver_ = HudManeuver::Manual;
+    /** Seconds since the active scripted maneuver was selected, drives its timeline. */
+    float maneuverElapsedSeconds_ = 0.0f;
     /** Parsed asset and transport configuration reused across reconnects. */
     HudConfig config_ {};
     /** Reliable startup client used for initial scene submission. */

@@ -307,6 +307,95 @@ TEST(HudSimulationTests, FullLoopKeepsAttitudeSymbologyFinite)
     }
 }
 
+TEST(HudSimulationTests, LoopRecoveryReturnsToCoherentFlightPath)
+{
+    HudSimulation simulation;
+
+    // Aggressive bounded loop: full pitch-up pull with afterburner.
+    PilotControls controls;
+    controls.pitchCommand = 1.0f;
+    controls.throttle = 0.95f;
+    controls.afterburnerRequested = true;
+    StepMany(simulation, controls, 60);
+
+    // Release the stick and settle throttle. The airframe must level back toward
+    // a coherent flight path instead of holding an extreme, dominant sink/climb.
+    controls.pitchCommand = 0.0f;
+    controls.rollCommand = 0.0f;
+    controls.throttle = 0.75f;
+    controls.afterburnerRequested = false;
+    StepMany(simulation, controls, 220);
+
+    const hud::HudInputSample& inputs = simulation.Inputs();
+    const float horizontalSpeed = std::sqrt(
+        inputs.aircraft.northSpeedMps * inputs.aircraft.northSpeedMps +
+        inputs.aircraft.eastSpeedMps * inputs.aircraft.eastSpeedMps);
+
+    const hud::AircraftState aircraft = simulation.Aircraft();
+    const hud::HudFrame frame = simulation.BuildHudFrame();
+
+    EXPECT_TRUE(std::isfinite(horizontalSpeed));
+    EXPECT_TRUE(std::isfinite(inputs.aircraft.downSpeedMps));
+    // Horizontal speed dominates: the reconstructed velocity no longer lets the
+    // NED down component exceed the horizontal one after recovery.
+    EXPECT_GT(horizontalSpeed, std::fabs(inputs.aircraft.downSpeedMps));
+    // Flight-path angle is bounded well under 45 degrees (max slope is 35).
+    EXPECT_LT(std::fabs(aircraft.flightPathAngleDegrees), 12.0f);
+    // The FPM is back inside the aperture, so the display-only clamp is inactive.
+    EXPECT_FALSE(frame.attitude.fpmLimited);
+    EXPECT_LT(std::fabs(frame.attitude.fpmPosition.y), 0.20f);
+}
+
+TEST(HudSimulationTests, BoundedFlightPathKeepsHorizontalSpeedDominantThroughLoop)
+{
+    HudSimulation simulation;
+    PilotControls controls;
+    controls.pitchCommand = 1.0f;
+    controls.throttle = 0.95f;
+    controls.afterburnerRequested = true;
+    simulation.SetControls(controls);
+
+    // Even at the most extreme part of the loop the bounded slope must keep the
+    // horizontal velocity component at least as large as the vertical one.
+    for (int index = 0; index < 200; ++index)
+    {
+        simulation.Step(0.080f);
+        const hud::HudInputSample& inputs = simulation.Inputs();
+        const float horizontalSpeed = std::sqrt(
+            inputs.aircraft.northSpeedMps * inputs.aircraft.northSpeedMps +
+            inputs.aircraft.eastSpeedMps * inputs.aircraft.eastSpeedMps);
+        ASSERT_TRUE(std::isfinite(horizontalSpeed));
+        ASSERT_TRUE(std::isfinite(inputs.aircraft.downSpeedMps));
+        ASSERT_GE(horizontalSpeed, std::fabs(inputs.aircraft.downSpeedMps) - 1.0e-3f);
+        ASSERT_LT(std::fabs(simulation.Aircraft().flightPathAngleDegrees), 36.0f);
+    }
+}
+
+TEST(HudSimulationTests, FpmLimitedIsDisplayOnlyAndDoesNotAlterAircraftState)
+{
+    // A steep real trajectory clips the FPM to the aperture (display limit) but
+    // must not change the underlying velocity-derived aircraft state.
+    HudInputSample input;
+    input.aircraft.pitchRad = 0.0f;
+    input.aircraft.northSpeedMps = 150.0f;
+    input.aircraft.eastSpeedMps = 0.0f;
+    input.aircraft.downSpeedMps = -150.0f; // ~45 degree climb, well past the aperture
+
+    const hud::HudFrame frame = BuildHudFrame(input);
+    const hud::AircraftState aircraft = BuildAircraftStateForHud(input.aircraft);
+
+    // The marker is clamped and flagged...
+    EXPECT_TRUE(frame.attitude.fpmLimited);
+    EXPECT_LE(std::fabs(frame.attitude.fpmPosition.y), 0.52f + 1.0e-4f);
+    // ...yet the flight-path angle still reflects the real trajectory unclamped.
+    EXPECT_GT(aircraft.flightPathAngleDegrees, 40.0f);
+    EXPECT_TRUE(std::isfinite(aircraft.verticalSpeedFpm));
+    // Projection is stateless: a second call with the same input is identical.
+    const hud::HudFrame frameAgain = BuildHudFrame(input);
+    EXPECT_FLOAT_EQ(frame.attitude.fpmPosition.y, frameAgain.attitude.fpmPosition.y);
+    EXPECT_EQ(frame.attitude.fpmLimited, frameAgain.attitude.fpmLimited);
+}
+
 TEST(HudSimulationTests, PitchCommandIsSmoothedAcrossSeveralFrames)
 {
     HudSimulation simulation;
