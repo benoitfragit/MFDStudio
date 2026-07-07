@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <exception>
 #include <cstddef>
+#include <iterator>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -197,8 +198,258 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
     }
 }
 
-void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandBatch>& pendingBatch,
-                                                     mfd::CommandBatch&& newestBatch)
+using StaticUpdateKeyToIndex = std::unordered_map<std::string, std::size_t>;
+
+std::string MakeStaticReticleKey(const mfd::StaticReticleHandle& target)
+{
+    if (target.pageId != 0 && target.reticleId != 0)
+    {
+        return '\x02' + std::to_string(target.pageId) + '\x1F' + std::to_string(target.reticleId);
+    }
+
+    if (!target.page.empty() && !target.reticle.empty())
+    {
+        return '\x01' + target.page + '\x1F' + target.reticle;
+    }
+
+    return {};
+}
+
+template <typename FieldType>
+void FillOptionalIfNewestAbsent(std::optional<FieldType>& newestField, const std::optional<FieldType>& pendingField)
+{
+    if (!newestField.has_value() && pendingField.has_value())
+    {
+        newestField = pendingField;
+    }
+}
+
+template <typename ScalarMap>
+void CarryMapEntriesIfNewestAbsent(ScalarMap& newestMap, const ScalarMap& pendingMap)
+{
+    newestMap.reserve(newestMap.size() + pendingMap.size());
+    for (const auto& entry : pendingMap)
+    {
+        newestMap.try_emplace(entry.first, entry.second);
+    }
+}
+
+void MergePrimitivePatchFillingNewestAbsentFields(mfd::PrimitivePatch& newest, const mfd::PrimitivePatch& pending)
+{
+    FillOptionalIfNewestAbsent(newest.visible, pending.visible);
+    FillOptionalIfNewestAbsent(newest.position, pending.position);
+    FillOptionalIfNewestAbsent(newest.rotationDegrees, pending.rotationDegrees);
+    FillOptionalIfNewestAbsent(newest.scale, pending.scale);
+    FillOptionalIfNewestAbsent(newest.color, pending.color);
+    FillOptionalIfNewestAbsent(newest.fillColor, pending.fillColor);
+    FillOptionalIfNewestAbsent(newest.filled, pending.filled);
+    FillOptionalIfNewestAbsent(newest.thickness, pending.thickness);
+    FillOptionalIfNewestAbsent(newest.lineStyle, pending.lineStyle);
+    FillOptionalIfNewestAbsent(newest.text, pending.text);
+    FillOptionalIfNewestAbsent(newest.letterSpacing, pending.letterSpacing);
+    FillOptionalIfNewestAbsent(newest.lineStart, pending.lineStart);
+    FillOptionalIfNewestAbsent(newest.lineEnd, pending.lineEnd);
+    FillOptionalIfNewestAbsent(newest.radius, pending.radius);
+    FillOptionalIfNewestAbsent(newest.innerRadius, pending.innerRadius);
+    FillOptionalIfNewestAbsent(newest.outerRadius, pending.outerRadius);
+    FillOptionalIfNewestAbsent(newest.width, pending.width);
+    FillOptionalIfNewestAbsent(newest.height, pending.height);
+    FillOptionalIfNewestAbsent(newest.size, pending.size);
+    FillOptionalIfNewestAbsent(newest.points, pending.points);
+    FillOptionalIfNewestAbsent(newest.closed, pending.closed);
+    FillOptionalIfNewestAbsent(newest.segments, pending.segments);
+    FillOptionalIfNewestAbsent(newest.startAngleDegrees, pending.startAngleDegrees);
+    FillOptionalIfNewestAbsent(newest.endAngleDegrees, pending.endAngleDegrees);
+    FillOptionalIfNewestAbsent(newest.timeUtc, pending.timeUtc);
+    FillOptionalIfNewestAbsent(newest.timeFields, pending.timeFields);
+
+    // The numeric time override is exclusive: `timeValue` and the `clearTimeValue`
+    // flag must never coexist. The newest patch decides the time semantics whenever
+    // it already carries either signal; only an otherwise-silent newest patch may
+    // inherit the pending time intent.
+    const bool newestDecidesTime = newest.timeValue.has_value() || newest.clearTimeValue;
+    if (!newestDecidesTime)
+    {
+        if (pending.timeValue.has_value())
+        {
+            newest.timeValue = pending.timeValue;
+        }
+        else if (pending.clearTimeValue)
+        {
+            newest.clearTimeValue = true;
+        }
+    }
+}
+
+template <typename PrimitivePatchMap>
+void MergePrimitivePatchMap(PrimitivePatchMap& newestMap, const PrimitivePatchMap& pendingMap)
+{
+    newestMap.reserve(newestMap.size() + pendingMap.size());
+    for (const auto& entry : pendingMap)
+    {
+        const auto [insertIt, inserted] = newestMap.try_emplace(entry.first, entry.second);
+        if (!inserted)
+        {
+            MergePrimitivePatchFillingNewestAbsentFields(insertIt->second, entry.second);
+        }
+    }
+}
+
+void FillStaticReticleScalarFields(mfd::ReticlePatch& newest, const mfd::ReticlePatch& pending)
+{
+    FillOptionalIfNewestAbsent(newest.visible, pending.visible);
+    FillOptionalIfNewestAbsent(newest.blinkEnabled, pending.blinkEnabled);
+    FillOptionalIfNewestAbsent(newest.blinkType, pending.blinkType);
+    FillOptionalIfNewestAbsent(newest.blinkTypeId, pending.blinkTypeId);
+    FillOptionalIfNewestAbsent(newest.position, pending.position);
+    FillOptionalIfNewestAbsent(newest.rotationDegrees, pending.rotationDegrees);
+    FillOptionalIfNewestAbsent(newest.scale, pending.scale);
+    FillOptionalIfNewestAbsent(newest.color, pending.color);
+    FillOptionalIfNewestAbsent(newest.thickness, pending.thickness);
+    FillOptionalIfNewestAbsent(newest.text, pending.text);
+    FillOptionalIfNewestAbsent(newest.letterSpacing, pending.letterSpacing);
+}
+
+void MergeStaticReticleMapsWithinSameIdentificationSpace(mfd::ReticlePatch& newest, const mfd::ReticlePatch& pending)
+{
+    CarryMapEntriesIfNewestAbsent(newest.texts, pending.texts);
+    CarryMapEntriesIfNewestAbsent(newest.textsById, pending.textsById);
+    CarryMapEntriesIfNewestAbsent(newest.letterSpacings, pending.letterSpacings);
+    CarryMapEntriesIfNewestAbsent(newest.letterSpacingsById, pending.letterSpacingsById);
+
+    MergePrimitivePatchMap(newest.primitivePatches, pending.primitivePatches);
+    MergePrimitivePatchMap(newest.primitivePatchesById, pending.primitivePatchesById);
+}
+
+// True when folding `pending` into `newest` would place a name-addressed primitive
+// entry and a generated-id primitive entry in the same command. Transport
+// normalization resolves each named entry to its generated id inside a single
+// command (see NormalizePatchForTransport / MoveNamedPrimitiveFields, which does an
+// insert_or_assign), so a stale pending named write could overwrite the newest
+// generated-id write for the same primitive. Such pairs must stay in separate
+// commands so ordering alone keeps "latest wins" true.
+bool StaticReticlePatchesHaveNameIdConflict(const mfd::ReticlePatch& newest, const mfd::ReticlePatch& pending)
+{
+    const bool textsConflict = (!pending.texts.empty() && !newest.textsById.empty()) ||
+                               (!pending.textsById.empty() && !newest.texts.empty());
+    const bool letterSpacingsConflict =
+        (!pending.letterSpacings.empty() && !newest.letterSpacingsById.empty()) ||
+        (!pending.letterSpacingsById.empty() && !newest.letterSpacings.empty());
+    const bool primitivePatchesConflict =
+        (!pending.primitivePatches.empty() && !newest.primitivePatchesById.empty()) ||
+        (!pending.primitivePatchesById.empty() && !newest.primitivePatches.empty());
+
+    return textsConflict || letterSpacingsConflict || primitivePatchesConflict;
+}
+
+void MergeStaticReticlePatchFillingNewestAbsentFields(mfd::ReticlePatch& newest, const mfd::ReticlePatch& pending)
+{
+    FillStaticReticleScalarFields(newest, pending);
+    MergeStaticReticleMapsWithinSameIdentificationSpace(newest, pending);
+}
+
+// Folds a pending static delta into the newest command targeting the same reticle.
+// Simple top-level fields always merge field by field (newest wins). Map families are
+// folded in place only when pending and newest share the same identification space;
+// when a name/id conflict exists the pending maps are moved into `carried` so the
+// caller can apply them *before* the newest command, keeping "latest wins" true after
+// transport normalization. Returns true when `carried` received maps to apply.
+bool FoldPendingStaticPatchIntoNewestKeepingLatestWins(mfd::ReticlePatch& newest,
+                                                       mfd::ReticlePatch& pending,
+                                                       mfd::ReticlePatch& carried)
+{
+    FillStaticReticleScalarFields(newest, pending);
+
+    if (!StaticReticlePatchesHaveNameIdConflict(newest, pending))
+    {
+        MergeStaticReticleMapsWithinSameIdentificationSpace(newest, pending);
+        return false;
+    }
+
+    carried.texts = std::move(pending.texts);
+    carried.textsById = std::move(pending.textsById);
+    carried.letterSpacings = std::move(pending.letterSpacings);
+    carried.letterSpacingsById = std::move(pending.letterSpacingsById);
+    carried.primitivePatches = std::move(pending.primitivePatches);
+    carried.primitivePatchesById = std::move(pending.primitivePatchesById);
+    return true;
+}
+
+// Collects the pending static reticle deltas, coalescing repeated updates for the
+// same reticle into a single "latest pending state" per identity (the later update
+// wins field by field). Two updates for the same reticle that would mix the named and
+// the generated-id primitive spaces are kept as separate ordered entries instead of
+// being coalesced, so their order alone keeps the later write winning. Updates whose
+// identity cannot be demonstrated are gathered separately so they can be carried
+// without being merged into an ambiguous target.
+void CollectStaticReticleUpdates(const std::vector<mfd::UserCommand>& source,
+                                 std::vector<mfd::UpdateReticleCommand>& identifiedUpdates,
+                                 StaticUpdateKeyToIndex& identifiedIndexes,
+                                 std::vector<mfd::UpdateReticleCommand>& unidentifiableUpdates)
+{
+    identifiedUpdates.reserve(source.size());
+    identifiedIndexes.reserve(source.size());
+
+    for (const mfd::UserCommand& command : source)
+    {
+        const mfd::UpdateReticleCommand* update = std::get_if<mfd::UpdateReticleCommand>(&command);
+        if (update == nullptr)
+        {
+            continue;
+        }
+
+        const std::string key = MakeStaticReticleKey(update->target);
+        if (key.empty())
+        {
+            unidentifiableUpdates.push_back(*update);
+            continue;
+        }
+
+        const auto [indexIt, inserted] = identifiedIndexes.try_emplace(key, identifiedUpdates.size());
+        if (inserted)
+        {
+            identifiedUpdates.push_back(*update);
+            continue;
+        }
+
+        const std::size_t storedIndex = indexIt->second;
+        if (StaticReticlePatchesHaveNameIdConflict(identifiedUpdates[storedIndex].patch, update->patch))
+        {
+            indexIt->second = identifiedUpdates.size();
+            identifiedUpdates.push_back(*update);
+            continue;
+        }
+
+        mfd::UpdateReticleCommand laterUpdate = *update;
+        MergeStaticReticlePatchFillingNewestAbsentFields(laterUpdate.patch, identifiedUpdates[storedIndex].patch);
+        identifiedUpdates[storedIndex] = std::move(laterUpdate);
+    }
+}
+
+void IndexStaticReticleUpdates(const std::vector<mfd::UserCommand>& commands, StaticUpdateKeyToIndex& indexes)
+{
+    indexes.reserve(commands.size());
+
+    for (std::size_t index = 0; index < commands.size(); ++index)
+    {
+        const mfd::UpdateReticleCommand* update = std::get_if<mfd::UpdateReticleCommand>(&commands[index]);
+        if (update == nullptr)
+        {
+            continue;
+        }
+
+        const std::string key = MakeStaticReticleKey(update->target);
+        if (key.empty())
+        {
+            continue;
+        }
+
+        indexes.try_emplace(key, index);
+    }
+}
+
+void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatch>& pendingBatch,
+                                                  mfd::CommandBatch&& newestBatch)
 {
     if (!pendingBatch.has_value())
     {
@@ -222,39 +473,81 @@ void MergePendingBatchKeepingDynamicReticleLifecycle(std::optional<mfd::CommandB
     }
 
     std::vector<DynamicLifecycleOperation> pendingDynamicOperations;
-    DynamicOperationMap pendingIndexes;
+    DynamicOperationMap pendingDynamicIndexes;
+    std::vector<mfd::UpdateReticleCommand> pendingStaticUpdates;
+    StaticUpdateKeyToIndex pendingStaticIndexes;
+    std::vector<mfd::UpdateReticleCommand> unidentifiablePendingStaticUpdates;
     if (!pendingHasReset)
     {
-        CollectDynamicLifecycleCommands(pendingBatch->commands, pendingDynamicOperations, pendingIndexes);
+        CollectDynamicLifecycleCommands(pendingBatch->commands, pendingDynamicOperations, pendingDynamicIndexes);
+        CollectStaticReticleUpdates(pendingBatch->commands,
+                                    pendingStaticUpdates,
+                                    pendingStaticIndexes,
+                                    unidentifiablePendingStaticUpdates);
     }
 
     std::vector<DynamicLifecycleOperation> newestDynamicOperations;
-    DynamicOperationMap newestIndexes;
-    CollectDynamicLifecycleCommands(newestBatch.commands, newestDynamicOperations, newestIndexes);
+    DynamicOperationMap newestDynamicIndexes;
+    CollectDynamicLifecycleCommands(newestBatch.commands, newestDynamicOperations, newestDynamicIndexes);
+
+    mfd::CommandBatch mergedBatch = std::move(newestBatch);
+
+    StaticUpdateKeyToIndex newestStaticIndexes;
+    IndexStaticReticleUpdates(mergedBatch.commands, newestStaticIndexes);
 
     std::vector<mfd::UserCommand> carriedOperations;
-    carriedOperations.reserve(pendingDynamicOperations.size());
+    carriedOperations.reserve(pendingDynamicOperations.size() + pendingStaticUpdates.size() +
+                              unidentifiablePendingStaticUpdates.size());
 
     for (DynamicLifecycleOperation& operation : pendingDynamicOperations)
     {
-        if (newestIndexes.find(operation.key) == newestIndexes.end())
+        if (newestDynamicIndexes.find(operation.key) == newestDynamicIndexes.end())
         {
             carriedOperations.push_back(std::move(operation.command));
         }
+    }
+
+    for (mfd::UpdateReticleCommand& pendingUpdate : pendingStaticUpdates)
+    {
+        const std::string key = MakeStaticReticleKey(pendingUpdate.target);
+        const auto newestIt = newestStaticIndexes.find(key);
+        if (newestIt == newestStaticIndexes.end())
+        {
+            carriedOperations.push_back(mfd::UserCommand {std::move(pendingUpdate)});
+            continue;
+        }
+
+        mfd::UpdateReticleCommand& newestUpdate =
+            std::get<mfd::UpdateReticleCommand>(mergedBatch.commands[newestIt->second]);
+
+        mfd::UpdateReticleCommand carriedUpdate;
+        carriedUpdate.target = pendingUpdate.target;
+        if (FoldPendingStaticPatchIntoNewestKeepingLatestWins(newestUpdate.patch,
+                                                              pendingUpdate.patch,
+                                                              carriedUpdate.patch))
+        {
+            carriedOperations.push_back(mfd::UserCommand {std::move(carriedUpdate)});
+        }
+    }
+
+    for (mfd::UpdateReticleCommand& pendingUpdate : unidentifiablePendingStaticUpdates)
+    {
+        carriedOperations.push_back(mfd::UserCommand {std::move(pendingUpdate)});
     }
 
     if (carriedOperations.empty())
     {
         if (pendingHasReset)
         {
-            PrependResetWindowCommand(newestBatch.commands);
+            PrependResetWindowCommand(mergedBatch.commands);
         }
-        pendingBatch = std::move(newestBatch);
+        pendingBatch = std::move(mergedBatch);
         return;
     }
 
-    mfd::CommandBatch mergedBatch = std::move(newestBatch);
-    mergedBatch.commands.insert(mergedBatch.commands.begin(), carriedOperations.begin(), carriedOperations.end());
+    mergedBatch.commands.insert(mergedBatch.commands.begin(),
+                                std::make_move_iterator(carriedOperations.begin()),
+                                std::make_move_iterator(carriedOperations.end()));
     if (pendingHasReset)
     {
         PrependResetWindowCommand(mergedBatch.commands);
@@ -444,7 +737,7 @@ bool LatestBatchPublisher::SubmitLatest(mfd::CommandBatch batch)
             return false;
         }
 
-        MergePendingBatchKeepingDynamicReticleLifecycle(impl_->pendingBatch, std::move(batch));
+        MergePendingBatchPreservingUndeliveredDeltas(impl_->pendingBatch, std::move(batch));
     }
 
     impl_->wakeCondition.notify_one();

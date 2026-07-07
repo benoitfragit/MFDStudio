@@ -31,6 +31,10 @@ namespace mfd::client
  * @note Dynamic reticle lifecycle actions (create/update from template and remove)
  * are preserved across pending-batch replacement to keep a coherent dynamic
  * reticle state between sends.
+ *
+ * @note Static reticle deltas (`UpdateReticleCommand`) are likewise preserved:
+ * their per-field patches are merged into the newest batch so an undelivered
+ * delta is never dropped when a newer same-mapping batch does not rewrite it.
  */
 class MFD_CLIENT_API LatestBatchPublisher
 {
