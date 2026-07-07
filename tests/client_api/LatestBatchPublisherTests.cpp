@@ -42,6 +42,39 @@ bool ContainsCommandType(const mfd::CommandBatch& batch)
 
     return false;
 }
+
+const mfd::UpdateReticleCommand* FindStaticReticleUpdate(const mfd::CommandBatch& batch,
+                                                         const std::string& page,
+                                                         const std::string& reticle)
+{
+    for (const mfd::UserCommand& command : batch.commands)
+    {
+        const auto* update = std::get_if<mfd::UpdateReticleCommand>(&command);
+        if (update != nullptr && update->target.page == page && update->target.reticle == reticle)
+        {
+            return update;
+        }
+    }
+
+    return nullptr;
+}
+
+std::size_t CountStaticReticleUpdates(const mfd::CommandBatch& batch,
+                                      const std::string& page,
+                                      const std::string& reticle)
+{
+    std::size_t count = 0;
+    for (const mfd::UserCommand& command : batch.commands)
+    {
+        const auto* update = std::get_if<mfd::UpdateReticleCommand>(&command);
+        if (update != nullptr && update->target.page == page && update->target.reticle == reticle)
+        {
+            ++count;
+        }
+    }
+
+    return count;
+}
 } // namespace
 
 TEST(LatestBatchPublisherTests, FlushDeliversAcceptedBatch)
@@ -627,6 +660,397 @@ TEST(LatestBatchPublisherTests, PreservesGeneratedIdentifiersWhenFlatteningBulkD
     EXPECT_EQ(upsert->target.runtimeReticleId, 9001U);
     EXPECT_EQ(upsert->templateId, "radar_track");
     EXPECT_EQ(upsert->templateTransportId, 77U);
+}
+
+TEST(LatestBatchPublisherTests, PreservesPendingStaticReticleVisibilityDeltaWhenNewestBatchDoesNotRewriteIt)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            std::chrono::seconds {1},
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::ReticlePatch hiddenPatch;
+    hiddenPatch.visible = false;
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    secondBatch.mappingHash = "hash-alpha";
+    secondBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"HUD", "fpmLimitX"}, hiddenPatch});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.mappingHash = "hash-alpha";
+    thirdBatch.commands.push_back(mfd::ActivatePageCommand {"HUD"});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(deliveredBatches[1].sequence, 3U);
+    EXPECT_TRUE(ContainsCommandType<mfd::ActivatePageCommand>(deliveredBatches[1]));
+
+    const mfd::UpdateReticleCommand* carried = FindStaticReticleUpdate(deliveredBatches[1], "HUD", "fpmLimitX");
+    ASSERT_NE(carried, nullptr);
+    ASSERT_TRUE(carried->patch.visible.has_value());
+    EXPECT_FALSE(carried->patch.visible.value());
+}
+
+TEST(LatestBatchPublisherTests, NewestStaticReticleVisibilityOverridesPendingStaticVisibility)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            std::chrono::seconds {1},
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::ReticlePatch shownPatch;
+    shownPatch.visible = true;
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    secondBatch.mappingHash = "hash-alpha";
+    secondBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"HUD", "fpmLimitX"}, shownPatch});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::ReticlePatch hiddenPatch;
+    hiddenPatch.visible = false;
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.mappingHash = "hash-alpha";
+    thirdBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"HUD", "fpmLimitX"}, hiddenPatch});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(deliveredBatches[1].sequence, 3U);
+    EXPECT_EQ(CountStaticReticleUpdates(deliveredBatches[1], "HUD", "fpmLimitX"), 1U);
+
+    const mfd::UpdateReticleCommand* update = FindStaticReticleUpdate(deliveredBatches[1], "HUD", "fpmLimitX");
+    ASSERT_NE(update, nullptr);
+    ASSERT_TRUE(update->patch.visible.has_value());
+    EXPECT_FALSE(update->patch.visible.value());
+}
+
+TEST(LatestBatchPublisherTests, MergesPendingStaticReticlePatchFieldsWithoutOverridingNewestFields)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            std::chrono::seconds {1},
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::ReticlePatch pendingPatch;
+    pendingPatch.visible = false;
+    pendingPatch.position = mfd::Vec2 {0.1f, 0.2f};
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    secondBatch.mappingHash = "hash-alpha";
+    secondBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"HUD", "fpmLimitX"}, pendingPatch});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::ReticlePatch newestPatch;
+    newestPatch.position = mfd::Vec2 {0.3f, 0.4f};
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.mappingHash = "hash-alpha";
+    thirdBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"HUD", "fpmLimitX"}, newestPatch});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(CountStaticReticleUpdates(deliveredBatches[1], "HUD", "fpmLimitX"), 1U);
+
+    const mfd::UpdateReticleCommand* update = FindStaticReticleUpdate(deliveredBatches[1], "HUD", "fpmLimitX");
+    ASSERT_NE(update, nullptr);
+    ASSERT_TRUE(update->patch.visible.has_value());
+    EXPECT_FALSE(update->patch.visible.value());
+    ASSERT_TRUE(update->patch.position.has_value());
+    EXPECT_FLOAT_EQ(update->patch.position->x, 0.3f);
+    EXPECT_FLOAT_EQ(update->patch.position->y, 0.4f);
+}
+
+TEST(LatestBatchPublisherTests, DoesNotCarryPendingStaticReticleUpdatesAcrossDifferentMappingHashes)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+
+    mfd::CommandBatch firstBatch;
+    firstBatch.sequence = 1U;
+    firstBatch.mappingHash = "hash-alpha";
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(firstBatch)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            std::chrono::seconds {1},
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::ReticlePatch hiddenPatch;
+    hiddenPatch.visible = false;
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    secondBatch.mappingHash = "hash-alpha";
+    secondBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"HUD", "fpmLimitX"}, hiddenPatch});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.mappingHash = "hash-beta";
+    thirdBatch.commands.push_back(mfd::ActivatePageCommand {"HUD"});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(deliveredBatches[1].sequence, 3U);
+    EXPECT_EQ(deliveredBatches[1].mappingHash, "hash-beta");
+    EXPECT_TRUE(ContainsCommandType<mfd::ActivatePageCommand>(deliveredBatches[1]));
+    EXPECT_EQ(FindStaticReticleUpdate(deliveredBatches[1], "HUD", "fpmLimitX"), nullptr);
+}
+
+TEST(LatestBatchPublisherTests, NewestResetWindowCommandDropsOlderPendingStaticReticleUpdate)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            std::chrono::seconds {1},
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::ReticlePatch hiddenPatch;
+    hiddenPatch.visible = false;
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    secondBatch.mappingHash = "hash-alpha";
+    secondBatch.commands.push_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"HUD", "fpmLimitX"}, hiddenPatch});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.mappingHash = "hash-alpha";
+    thirdBatch.commands.push_back(mfd::ResetWindowCommand {});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(deliveredBatches[1].sequence, 3U);
+    EXPECT_TRUE(ContainsCommandType<mfd::ResetWindowCommand>(deliveredBatches[1]));
+    EXPECT_EQ(FindStaticReticleUpdate(deliveredBatches[1], "HUD", "fpmLimitX"), nullptr);
 }
 
 
