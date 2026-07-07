@@ -346,7 +346,7 @@ TEST(HudSimulationTests, LoopRecoveryReturnsToCoherentFlightPath)
     EXPECT_LT(std::fabs(frame.attitude.fpmPosition.y), 0.20f);
 }
 
-TEST(HudSimulationTests, BoundedFlightPathKeepsHorizontalSpeedDominantThroughLoop)
+TEST(HudSimulationTests, LoopStaysBoundedAndMayGoVerticalThenRecovers)
 {
     HudSimulation simulation;
     PilotControls controls;
@@ -355,20 +355,52 @@ TEST(HudSimulationTests, BoundedFlightPathKeepsHorizontalSpeedDominantThroughLoo
     controls.afterburnerRequested = true;
     simulation.SetControls(controls);
 
-    // Even at the most extreme part of the loop the bounded slope must keep the
-    // horizontal velocity component at least as large as the vertical one.
+    // During the loop the model must stay finite and bounded, but - unlike an
+    // artificial slope cap - it is allowed to briefly go more vertical than
+    // horizontal, exactly as a real looping trajectory does.
+    bool verticalExceededHorizontal = false;
     for (int index = 0; index < 200; ++index)
     {
         simulation.Step(0.080f);
         const hud::HudInputSample& inputs = simulation.Inputs();
+        const hud::AircraftState aircraft = simulation.Aircraft();
         const float horizontalSpeed = std::sqrt(
             inputs.aircraft.northSpeedMps * inputs.aircraft.northSpeedMps +
             inputs.aircraft.eastSpeedMps * inputs.aircraft.eastSpeedMps);
+
         ASSERT_TRUE(std::isfinite(horizontalSpeed));
         ASSERT_TRUE(std::isfinite(inputs.aircraft.downSpeedMps));
-        ASSERT_GE(horizontalSpeed, std::fabs(inputs.aircraft.downSpeedMps) - 1.0e-3f);
-        ASSERT_LT(std::fabs(simulation.Aircraft().flightPathAngleDegrees), 36.0f);
+        ASSERT_TRUE(std::isfinite(inputs.aircraft.altitudeMeters));
+        ASSERT_GE(inputs.aircraft.altitudeMeters, 0.0f);
+        // Speed stays inside the configured envelope (no runaway / no NaN).
+        ASSERT_GT(aircraft.speedKts, 100.0f);
+        ASSERT_LT(aircraft.speedKts, 950.0f);
+        if (std::fabs(inputs.aircraft.downSpeedMps) > horizontalSpeed)
+        {
+            verticalExceededHorizontal = true;
+        }
     }
+    // The trajectory genuinely went vertical at some point; nothing forces the
+    // horizontal component to stay dominant during the maneuver.
+    EXPECT_TRUE(verticalExceededHorizontal);
+
+    // Release the stick and let the damped dynamics recover.
+    controls.pitchCommand = 0.0f;
+    controls.rollCommand = 0.0f;
+    controls.throttle = 0.75f;
+    controls.afterburnerRequested = false;
+    StepMany(simulation, controls, 220);
+
+    const hud::HudInputSample& recovered = simulation.Inputs();
+    const float recoveredHorizontal = std::sqrt(
+        recovered.aircraft.northSpeedMps * recovered.aircraft.northSpeedMps +
+        recovered.aircraft.eastSpeedMps * recovered.aircraft.eastSpeedMps);
+    const hud::AircraftState aircraft = simulation.Aircraft();
+    const hud::HudFrame frame = simulation.BuildHudFrame();
+
+    EXPECT_GT(recoveredHorizontal, std::fabs(recovered.aircraft.downSpeedMps));
+    EXPECT_LT(std::fabs(aircraft.flightPathAngleDegrees), 12.0f);
+    EXPECT_FALSE(frame.attitude.fpmLimited);
 }
 
 TEST(HudSimulationTests, FpmLimitedIsDisplayOnlyAndDoesNotAlterAircraftState)

@@ -32,10 +32,11 @@ constexpr float kGravityMetersPerSecondSquared = 9.80665f;
  *
  * All aircraft dynamics constants live here instead of being scattered as magic
  * numbers inside `HudSimulation::Step`. The defaults describe a generic agile
- * fighter and are intentionally conservative: the flight-path angle is bounded
- * well below 45 degrees so the reconstructed NED velocity always keeps its
- * horizontal component dominant over the vertical one, and a release-to-trim
- * response levels the airframe once the pilot stops commanding pitch or roll.
+ * fighter. The model bounds rates, accelerations and energy rather than the
+ * trajectory shape: a loop may legitimately go more vertical than horizontal.
+ * What keeps the flight path coherent after a maneuver is the damped
+ * release-to-trim response, which levels the airframe once the pilot stops
+ * commanding pitch or roll.
  *
  * @note This is a demo-only tuning block. A real aircraft adapter fills
  * `HudInputSample` directly and never instantiates this configuration.
@@ -58,8 +59,17 @@ struct HudMiniSimulationConfig
     float pitchTrimRateDegPerSecond = 26.0f;
     /** Release-to-trim roll leveling rate in degrees per second. */
     float rollTrimRateDegPerSecond = 55.0f;
-    /** Maximum flight-path angle magnitude in degrees; kept below 45 on purpose. */
-    float flightPathAngleMaxDegrees = 35.0f;
+    /**
+     * @brief Safety bound on the commanded flight-path slope magnitude, degrees.
+     *
+     * Steep loops legitimately drive the vertical speed above the horizontal
+     * speed, so this is intentionally close to 90 and does not enforce any
+     * horizontal-dominance invariant. Its only role is to keep the slope away
+     * from the exact +/-90 degree singularity where the velocity reconstruction
+     * `cos(slope)` collapses. Recovery is produced by the damped release-to-trim
+     * convergence below, not by this bound.
+     */
+    float flightPathAngleMaxDegrees = 85.0f;
     /** Rate at which the flight path tracks its commanded slope, degrees per second. */
     float flightPathResponseRateDegPerSecond = 38.0f;
     /** Flight-path slope gain applied to the pitch attitude. */
@@ -368,10 +378,12 @@ void HudSimulation::Step(const float deltaSeconds) noexcept
     const float attitudeLoad = std::cos(aircraft.rollRad) * std::cos(aircraft.pitchRad);
     aircraft.normalLoadFactor = Clamp(attitudeLoad + commandedLoad - 1.0f, cfg.normalLoadMin, cfg.normalLoadMax);
 
-    // The flight-path slope is bounded to `flightPathAngleMaxDegrees` (< 45) so
-    // the reconstructed velocity below can never make the vertical component
-    // exceed the horizontal one. The FPM saturation reported after a loop was a
-    // symptom of an over-extreme slope here, not of the HUD clamp.
+    // The flight-path slope may become steep during a loop (the vertical speed is
+    // then allowed to exceed the horizontal one, as in real aerobatics). It is
+    // only bounded away from the +/-90 degree reconstruction singularity. What
+    // fixed the post-loop FPM saturation is the damped release-to-trim above,
+    // which converges the attitude - and therefore the slope - back toward level
+    // once the pitch command goes neutral; the slope is never forced small here.
     const float flightPathAngleMaxRad = cfg.flightPathAngleMaxDegrees * kDegreesToRadians;
     const float targetFlightPathSlopeRad = Clamp(
         NormalizeRadiansPi(aircraft.pitchRad) * cfg.flightPathPitchGain +
