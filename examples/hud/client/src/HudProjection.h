@@ -147,6 +147,26 @@ LaunchZone ComputeLaunchZone(const AircraftInputSample& aircraft,
                              MissileType selectedMissile) noexcept;
 
 /**
+ * @brief Computes the demo missile time of flight from physical SI inputs.
+ * @param aircraft SI-unit aircraft input sample.
+ * @param target SI-unit target input sample.
+ * @param selectedMissile Selected missile type.
+ * @return Time of flight in seconds, bounded by the selected demo profile.
+ * @note Uses the bundled demo missile profiles. A production adapter should
+ * provide an already-resolved time of flight instead.
+ */
+float ComputeMissileTimeOfFlight(const AircraftInputSample& aircraft,
+                                 const TargetInputSample& target,
+                                 MissileType selectedMissile) noexcept;
+
+/**
+ * @brief Returns the HUD inventory label of one demo missile type.
+ * @param selectedMissile Missile type.
+ * @return `"AIM-120C"` or `"AIM-9M"` from the bundled demo profile.
+ */
+const char* MissileLabel(MissileType selectedMissile) noexcept;
+
+/**
  * @brief Formats a heading as a three-digit HUD value.
  * @param headingDegrees Heading in degrees; values are wrapped into [0, 360).
  * @return Three-character heading such as `"000"` or `"275"`.

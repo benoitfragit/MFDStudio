@@ -232,26 +232,13 @@ float TerrainElevationMeters(const float elapsedSeconds, const float headingRad)
            22.8f * std::sin(elapsedSeconds * 0.017f);
 }
 
-float MissileSpeedMetersPerSecond(const MissileType type) noexcept
-{
-    return type == MissileType::Aim120C ? 1209.0f : 849.0f;
-}
-
+// Mutable inventory slot accessor used when a launch consumes a round. The
+// missile speed, time-of-flight and DLZ tuning live with the demo profiles in
+// `HudProjection.cpp`; this simulation reuses `hud::ComputeMissileTimeOfFlight`
+// rather than duplicating those constants.
 int& InventorySlot(MissileInventory& inventory, const MissileType type) noexcept
 {
     return type == MissileType::Aim120C ? inventory.aim120c : inventory.aim9m;
-}
-
-float ComputeMissileTimeOfFlight(const AircraftInputSample& aircraft,
-                                 const TargetInputSample& target,
-                                 const MissileType selectedMissile) noexcept
-{
-    const float closingSpeedMps = std::max(FiniteOr(target.closingSpeedMps, 0.0f), -77.0f);
-    const float ownshipSpeedMps = TrueSpeedMetersPerSecond(aircraft);
-    const float effectiveSpeedMps =
-        MissileSpeedMetersPerSecond(selectedMissile) + closingSpeedMps * 0.40f + ownshipSpeedMps * 0.25f;
-    const float seconds = FiniteOr(target.rangeMeters, 0.0f) / std::max(effectiveSpeedMps, 154.0f);
-    return Clamp(seconds, 3.0f, selectedMissile == MissileType::Aim120C ? 68.0f : 28.0f);
 }
 
 bool IsWeaponArmedForHud(const WeaponInputSample& weapon) noexcept

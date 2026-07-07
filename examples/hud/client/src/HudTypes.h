@@ -107,14 +107,14 @@ enum class HudAmmoType
 /**
  * @brief Missile type selectable in the A-A sample.
  *
- * @note Demo armament. `Aim9M`/`Aim120C`, their labels, mnemonics, speeds and
- * DLZ parameters describe the example loadout shipped with this HUD client, not
- * a HUD-core requirement. A real avionics integration selects its own weapons
- * and fills `WeaponInputSample`/`LaunchZone` with already-resolved values. These
- * types still live in the shared header because the sample projection helpers
- * (`ComputeLaunchZone`, `FormatMissileInventory`, `MissileMnemonic`) are exposed
- * for regression tests; extracting them into a separate demo-armament module is
- * a larger refactor tracked as a remaining item rather than done inline here.
+ * @note Demo armament, not a HUD-core requirement. The concrete AIM-120C/AIM-9M
+ * values (labels, mnemonics, speeds, time-of-flight and DLZ parameters) are
+ * grouped in the demo missile profiles inside `HudProjection.cpp`, not scattered
+ * through the projection helpers. A real avionics integration selects its own
+ * weapons and fills `WeaponInputSample`/`LaunchZone` with already-resolved
+ * values. Only this enum still lives in the shared header, because the sample
+ * projection helpers and their regression tests are typed on it; moving the enum
+ * out into a separate demo-armament module remains a larger follow-up.
  */
 enum class MissileType
 {
