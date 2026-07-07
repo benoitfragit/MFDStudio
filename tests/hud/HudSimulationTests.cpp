@@ -311,7 +311,7 @@ TEST(HudSimulationTests, LoopRecoveryReturnsToCoherentFlightPath)
 {
     HudSimulation simulation;
 
-    // Aggressive bounded loop: full pitch-up pull with afterburner.
+    // Aggressive loop: full pitch-up pull with afterburner.
     PilotControls controls;
     controls.pitchCommand = 1.0f;
     controls.throttle = 0.95f;
@@ -339,7 +339,9 @@ TEST(HudSimulationTests, LoopRecoveryReturnsToCoherentFlightPath)
     // Horizontal speed dominates: the reconstructed velocity no longer lets the
     // NED down component exceed the horizontal one after recovery.
     EXPECT_GT(horizontalSpeed, std::fabs(inputs.aircraft.downSpeedMps));
-    // Flight-path angle is bounded well under 45 degrees (max slope is 35).
+    // After recovery, the flight-path angle returns near level. This is produced
+    // by the damped release-to-trim convergence, not by any slope cap: the loop
+    // above was free to go fully vertical.
     EXPECT_LT(std::fabs(aircraft.flightPathAngleDegrees), 12.0f);
     // The FPM is back inside the aperture, so the display-only clamp is inactive.
     EXPECT_FALSE(frame.attitude.fpmLimited);
