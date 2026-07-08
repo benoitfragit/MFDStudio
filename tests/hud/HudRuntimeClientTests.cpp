@@ -121,6 +121,15 @@ TEST(HudRuntimeLibraryTests, DefaultInputSampleIsNeutral)
     EXPECT_FLOAT_EQ(input.aircraft.altitudeMeters, 0.0f);
     EXPECT_FLOAT_EQ(input.aircraft.pitchRad, 0.0f);
 
+    // Air-to-ground delivery data must carry no implicit scenario values.
+    EXPECT_FALSE(input.airGround.valid);
+    EXPECT_FALSE(input.airGround.solutionCueValid);
+    EXPECT_FALSE(input.airGround.pullupAnticipationCueValid);
+    EXPECT_FLOAT_EQ(input.airGround.slantRangeMeters, 0.0f);
+    EXPECT_FLOAT_EQ(input.airGround.pipperDepressionRad, 0.0f);
+    EXPECT_FLOAT_EQ(input.airGround.solutionCueDepressionRad, 0.0f);
+    EXPECT_FLOAT_EQ(input.airGround.pullupAnticipationCueDepressionRad, 0.0f);
+
     // A neutral sample must not publish any weapon or target symbology.
     const hud::HudFrame frame = hud::BuildHudFrame(input);
     EXPECT_FALSE(frame.weapon.airToAirVisible);

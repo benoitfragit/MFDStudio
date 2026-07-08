@@ -372,6 +372,14 @@ struct ClientSceneSample
      * and hands the already-resolved value to the runtime.
      */
     float strafeInRangeFeet = 12000.0f;
+    /** Initial A-G slant range to the computed impact point in meters. */
+    float airGroundSlantRangeMeters = 1828.8f;
+    /** Initial A-G pipper depression in radians below boresight. */
+    float airGroundPipperDepressionRad = 0.045f;
+    /** Initial CCIP solution cue depression in radians below boresight. */
+    float airGroundSolutionCueDepressionRad = 0.020f;
+    /** Initial pull-up anticipation cue depression in radians below boresight. */
+    float airGroundPullupAnticipationCueDepressionRad = 0.006f;
 };
 
 constexpr ClientSceneSample kClientSceneSample {};
@@ -397,6 +405,14 @@ void ApplyClientSceneSample(HudInputSample& inputs) noexcept
     inputs.weapon.gunRoundsRemaining = scene.gunRoundsRemaining;
     inputs.weapon.targetWingspanMeters = scene.targetWingspanMeters;
     inputs.weapon.strafeInRangeFeet = scene.strafeInRangeFeet;
+
+    // A-G delivery data stays invalid until a delivery mode is selected; only
+    // the geometric seed values are primed. `Step()` recomputes them per frame.
+    inputs.airGround.slantRangeMeters = scene.airGroundSlantRangeMeters;
+    inputs.airGround.pipperDepressionRad = scene.airGroundPipperDepressionRad;
+    inputs.airGround.solutionCueValid = true;
+    inputs.airGround.solutionCueDepressionRad = scene.airGroundSolutionCueDepressionRad;
+    inputs.airGround.pullupAnticipationCueDepressionRad = scene.airGroundPullupAnticipationCueDepressionRad;
 }
 } // namespace
 

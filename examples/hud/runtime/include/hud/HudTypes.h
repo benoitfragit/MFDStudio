@@ -333,21 +333,21 @@ struct AirGroundInputSample
     /** True when A-G delivery data are valid enough to show CCIP/STRF cues. */
     bool valid = false;
     /** Slant range to the computed impact point in meters. */
-    float slantRangeMeters = 1828.8f;
+    float slantRangeMeters = 0.0f;
     /** Computed impact point azimuth in radians relative to boresight; right is positive. */
     float pipperAzimuthRad = 0.0f;
     /** Computed impact point depression in radians below boresight; down is positive. */
-    float pipperDepressionRad = 0.045f;
+    float pipperDepressionRad = 0.0f;
     /** Bomb-fall-line azimuth in radians relative to boresight; right is positive. */
     float fallLineAzimuthRad = 0.0f;
     /** True when a CCIP solution cue is available. */
-    bool solutionCueValid = true;
+    bool solutionCueValid = false;
     /** CCIP solution cue depression in radians below boresight; down is positive. */
-    float solutionCueDepressionRad = 0.020f;
+    float solutionCueDepressionRad = 0.0f;
     /** True when pull-up anticipation cue data are available. */
     bool pullupAnticipationCueValid = false;
     /** Pull-up anticipation cue depression in radians below boresight; down is positive. */
-    float pullupAnticipationCueDepressionRad = 0.006f;
+    float pullupAnticipationCueDepressionRad = 0.0f;
     /** Optional time to release in seconds; <= 0 hides release timing. */
     float timeToReleaseSeconds = 0.0f;
     /** Optional time to steerpoint/target in seconds; <= 0 hides time-to-go. */
