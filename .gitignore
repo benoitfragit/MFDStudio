@@ -70,3 +70,4 @@
 /examples/tutorial/assets/.editor_tutorial_progress
 
 /Tasks/*
+/examples/hud/client/generated/*
