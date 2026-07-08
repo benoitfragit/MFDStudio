@@ -41,8 +41,7 @@ INPUT                  = docs/API_REFERENCE_MAINPAGE.md \
                          mfd_runtime_api/include \
                          mfd_window/include \
                          mfd_window_plugin_api/include \
-                         examples/hud/client/src/HudSimulation.h \
-                         examples/hud/client/src/HudController.h
+                         examples/hud/runtime/include/hud
 USE_MDFILE_AS_MAINPAGE = docs/API_REFERENCE_MAINPAGE.md
 STRIP_FROM_PATH        = .
 FULL_PATH_NAMES        = YES

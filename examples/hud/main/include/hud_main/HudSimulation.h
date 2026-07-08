@@ -7,21 +7,108 @@
 
 /**
  * @file
- * @brief Deterministic mini-simulation used only by the interactive HUD client.
+ * @brief Deterministic mini-simulation and sample armament owned by the
+ * interactive HUD client.
+ *
+ * Everything in this header is main-client scenario material: pilot controls,
+ * the AIM-120C/AIM-9M sample armament and the launch-zone/time-of-flight
+ * models. None of it belongs to the reusable `hud_runtime` contract; the
+ * simulation resolves these facts and hands them to the HUD through the
+ * generic `hud::WeaponInputSample` fields.
  */
 
+#include <string>
 #include <vector>
 
-#include "HudProjection.h"
+#include "hud/HudProjection.h"
 
-namespace hud
+namespace hud_main
 {
+/**
+ * @brief Missile type selectable in the sample A-A inventory.
+ *
+ * This is main-client armament, not a HUD contract: the reusable HUD runtime
+ * only receives the resolved label, mnemonic, quantity, launch zone and time
+ * of flight through `hud::WeaponInputSample`.
+ */
+enum class MissileType
+{
+    /** Short-range infrared missile cue. */
+    Aim9M,
+    /** Medium-range radar missile cue. */
+    Aim120C
+};
+
+/**
+ * @brief Missile inventory owned by the sample client.
+ */
+struct MissileInventory
+{
+    /** Remaining AIM-9M missiles. */
+    int aim9m = 2;
+    /** Remaining AIM-120C missiles. */
+    int aim120c = 4;
+};
+
+/**
+ * @brief Computes dynamic launch zone values from physical SI inputs.
+ * @param aircraft SI-unit aircraft input sample.
+ * @param target SI-unit target input sample.
+ * @param selectedMissile Selected sample missile type.
+ * @return Simplified but ordered DLZ values in nautical miles.
+ * @note Sample armament model. A production avionics integration computes its
+ * own launch zone and fills `hud::WeaponInputSample::launchZone` directly.
+ */
+hud::LaunchZone ComputeLaunchZone(const hud::AircraftInputSample& aircraft,
+                                  const hud::TargetInputSample& target,
+                                  MissileType selectedMissile) noexcept;
+
+/**
+ * @brief Computes the sample missile time of flight from physical SI inputs.
+ * @param aircraft SI-unit aircraft input sample.
+ * @param target SI-unit target input sample.
+ * @param selectedMissile Selected sample missile type.
+ * @return Time of flight in seconds, bounded by the selected sample profile.
+ */
+float ComputeMissileTimeOfFlight(const hud::AircraftInputSample& aircraft,
+                                 const hud::TargetInputSample& target,
+                                 MissileType selectedMissile) noexcept;
+
+/**
+ * @brief Returns the HUD inventory label of one sample missile type.
+ * @param selectedMissile Missile type.
+ * @return `"AIM-120C"` or `"AIM-9M"`.
+ */
+const char* MissileLabel(MissileType selectedMissile) noexcept;
+
+/**
+ * @brief Returns the short HUD mnemonic of one sample missile type.
+ * @param selectedMissile Missile type.
+ * @return `"MRM"` for AIM-120C and `"SRM"` for AIM-9M.
+ */
+const char* MissileMnemonic(MissileType selectedMissile) noexcept;
+
+/**
+ * @brief Returns the missile diamond scale of one sample missile type.
+ * @param selectedMissile Missile type.
+ * @return Scale multiplier applied to the HUD missile diamond.
+ */
+float MissileDiamondScale(MissileType selectedMissile) noexcept;
+
+/**
+ * @brief Formats the selected missile label plus remaining quantity.
+ * @param selectedMissile Missile type whose remaining count should be shown.
+ * @param inventory Current missile inventory.
+ * @return HUD text such as `"AIM-120C 4"` or `"AIM-9M 2"`.
+ */
+std::string FormatMissileInventory(MissileType selectedMissile, const MissileInventory& inventory);
+
 /**
  * @brief Pilot controls sampled once per simulation step.
  *
  * These values are sample-only inputs for the bundled mini-simulation. They are
  * intentionally not a HUD integration contract: a real aircraft adapter should
- * provide `HudInputSample` directly through `HudProjection.h`.
+ * provide `hud::HudInputSample` directly through `hud/HudRuntimeClient.h`.
  */
 struct PilotControls
 {
@@ -34,11 +121,11 @@ struct PilotControls
     /** True when the pilot requests afterburner at high throttle. */
     bool afterburnerRequested = false;
     /** Panel-selected HUD master mode. */
-    HudMasterMode masterMode = HudMasterMode::Nav;
+    hud::HudMasterMode masterMode = hud::HudMasterMode::Nav;
     /** Panel-selected weapon symbology mode. */
-    HudWeaponMode weaponMode = HudWeaponMode::None;
+    hud::HudWeaponMode weaponMode = hud::HudWeaponMode::None;
     /** Panel-selected gun sight mode. */
-    HudGunMode gunMode = HudGunMode::None;
+    hud::HudGunMode gunMode = hud::HudGunMode::None;
     /** Panel-resolved master arm state. */
     bool masterArm = true;
     /** Panel-resolved SIM state. */
@@ -77,7 +164,7 @@ struct MissileShot
     /** Target range at launch in nautical miles. */
     float launchRangeNm = 0.0f;
     /** Current display phase of the missile. */
-    MissileFlightPhase phase = MissileFlightPhase::Boost;
+    hud::MissileFlightPhase phase = hud::MissileFlightPhase::Boost;
 };
 
 /**
@@ -86,8 +173,8 @@ struct MissileShot
  * @note This model is deliberately simplified. It preserves coherent relations
  * between attitude, energy, speed, altitude, A-A mode and missile symbology
  * rather than attempting to be a flight dynamics simulator. Its only integration
- * output is `HudInputSample`, so a real aircraft can replace this class and keep
- * the same HUD controller and funnel projection.
+ * output is `hud::HudInputSample`, so a real aircraft can replace this class and
+ * keep the same HUD runtime, controller and funnel projection.
  */
 class HudSimulation
 {
@@ -98,7 +185,7 @@ public:
      * @brief Restores aircraft, target, inventory and in-flight missiles.
      * @post `Inputs()` returns the default semantic HUD sample.
      */
-    void Reset() noexcept;
+    void Reset();
 
     /**
      * @brief Replaces the pilot controls used by the next call to `Step`.
@@ -111,50 +198,51 @@ public:
      * @param deltaSeconds Wall-clock delta in seconds; non-finite and negative
      * values are discarded, very large values are clamped.
      */
-    void Step(float deltaSeconds) noexcept;
+    void Step(float deltaSeconds);
 
     /**
      * @brief Selects the active missile type shown by the HUD.
      * @param type Missile type to select.
-     * @post `Inputs().weapon.selectedMissile` matches `type`.
+     * @post `SelectedMissile()` matches `type` and the generic weapon
+     * presentation in `Inputs()` is refreshed.
      */
-    void SelectMissile(MissileType type) noexcept;
+    void SelectMissile(MissileType type);
 
     /**
      * @brief Cycles to the next available missile type.
-     * @post `Inputs().weapon.selectedMissile` is toggled between supported missile types.
+     * @post `SelectedMissile()` is toggled between supported missile types.
      */
-    void CycleSelectedMissile() noexcept;
+    void CycleSelectedMissile();
 
     /**
      * @brief Attempts to launch the selected missile through simulated launch gates.
      * @return `true` if inventory was consumed and a missile shot was created.
      */
-    bool FireSelectedMissile() noexcept;
+    bool FireSelectedMissile();
 
     /**
      * @brief Builds the current projected HUD frame from the simulation input sample.
      * @return Stateless HUD projection equivalent to `hud::BuildHudFrame(Inputs())`.
      */
-    HudFrame BuildHudFrame() const noexcept;
+    hud::HudFrame BuildHudFrame() const noexcept;
 
     /**
      * @brief Returns the current semantic HUD input sample.
-     * @return Complete SI-unit input sample ready for `HudController`.
+     * @return Complete SI-unit input sample ready for `hud::HudRuntimeClient`.
      */
-    const HudInputSample& Inputs() const noexcept;
+    const hud::HudInputSample& Inputs() const noexcept;
 
     /**
      * @brief Returns the current derived aircraft display state.
      * @return Aircraft state converted to HUD display units.
      */
-    AircraftState Aircraft() const noexcept;
+    hud::AircraftState Aircraft() const noexcept;
 
     /**
      * @brief Returns the current derived target display state.
      * @return Target state converted to HUD display units.
      */
-    TargetState Target() const noexcept;
+    hud::TargetState Target() const noexcept;
 
     /**
      * @brief Returns the current missile inventory.
@@ -178,13 +266,26 @@ public:
      * @brief Returns the current master mode.
      * @return Active HUD master mode.
      */
-    HudMasterMode MasterMode() const noexcept;
+    hud::HudMasterMode MasterMode() const noexcept;
 
 private:
+    /**
+     * @brief Resolves the sample armament into the generic weapon presentation.
+     *
+     * Fills the label, mnemonic, quantity, diamond scale, launch zone and time
+     * of flight expected by `hud::WeaponInputSample`. This is exactly what a
+     * real avionics integration does before publishing a HUD frame.
+     */
+    void RefreshWeaponPresentation();
+
     /** Semantic aircraft, target and weapon sample produced by the simulation. */
-    HudInputSample inputs_ {};
+    hud::HudInputSample inputs_ {};
     /** Latest pilot intent after UI and scripted maneuver collection. */
     PilotControls controls_ {};
+    /** Missile type currently selected by the sample client. */
+    MissileType selectedMissile_ = MissileType::Aim120C;
+    /** Remaining sample inventory by missile type. */
+    MissileInventory inventory_ {};
     /** Low-pass filtered pitch command used to avoid frame-to-frame jumps. */
     float filteredPitchCommand_ = 0.0f;
     /** Low-pass filtered roll command used to avoid frame-to-frame jumps. */
@@ -192,4 +293,4 @@ private:
     /** Active and recently impacted missiles retained for HUD timing/status. */
     std::vector<MissileShot> missileShots_ {};
 };
-} // namespace hud
+} // namespace hud_main

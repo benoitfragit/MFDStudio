@@ -12,8 +12,8 @@
 #include <iostream>
 #include <string>
 
-#include "HudApplication.h"
-#include "Win32Dx11ImGuiHost.h"
+#include "hud_main/HudApplication.h"
+#include "hud_main/Win32Dx11ImGuiHost.h"
 
 int main()
 {
@@ -36,7 +36,7 @@ int main()
             return 1;
         }
 
-        hud::HudApplication application;
+        hud_main::HudApplication application;
         if (!application.Initialize(error))
         {
             std::cerr << "Unable to initialize the HUD: " << error << '\n';

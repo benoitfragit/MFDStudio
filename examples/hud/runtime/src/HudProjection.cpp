@@ -8,7 +8,7 @@
  * @brief Stateless HUD projection and EEGS funnel implementation.
  */
 
-#include "HudProjection.h"
+#include "hud/HudProjection.h"
 
 #include <algorithm>
 #include <cmath>
@@ -18,7 +18,6 @@ namespace hud
 {
 namespace
 {
-constexpr float kPi = 3.14159265358979323846f;
 constexpr float kDegreesToRadians = 0.017453292519943295f;
 constexpr float kRadiansToDegrees = 57.29577951308232f;
 constexpr float kFeetToMeters = 0.3048f;
@@ -244,95 +243,29 @@ HudFunnelControlPoints BuildEegsFunnelRail(const float side,
     return rail;
 }
 
-// --- Demo-only missile and launch-zone tuning --------------------------------
-// A production avionics adapter should provide already-resolved weapon state and
-// launch-zone values instead of relying on these sample profiles. They exist so
-// the bundled AIM-120C/AIM-9M demo keeps coherent speed, time-of-flight, DLZ and
-// label values in one typed place per weapon, rather than as magic numbers
-// scattered through the projection helpers.
-struct DemoMissileProfile
+// Weapon-specific facts (launch zone, time of flight, labels, quantities and
+// per-weapon symbol scale) are caller-resolved inputs of `WeaponInputSample`.
+// The projection only sanitizes them before use, so the HUD runtime never
+// embeds airframe- or client-specific armament models.
+float SanitizedMissileDiamondScale(const float scale) noexcept
 {
-    /** HUD inventory label such as "AIM-120C". */
-    const char* label = "";
-    /** Short HUD mnemonic such as "MRM". */
-    const char* mnemonic = "";
-    /** Nominal missile speed in meters per second. */
-    float nominalSpeedMps = 0.0f;
-    /** Lower bound on effective closing speed used for time-of-flight, m/s. */
-    float minEffectiveSpeedMps = 0.0f;
-    /** Minimum displayed time of flight in seconds. */
-    float minTimeOfFlightSeconds = 0.0f;
-    /** Maximum displayed time of flight in seconds. */
-    float maxTimeOfFlightSeconds = 0.0f;
-    /** Base aerodynamic range before DLZ scaling, nautical miles. */
-    float baseRangeNm = 0.0f;
-    /** Floor applied to the scaled maximum range, nautical miles. */
-    float minRmax1Nm = 0.0f;
-    /** No-escape maximum range as a fraction of rmax1. */
-    float rmax2Factor = 0.0f;
-    /** Minimum launch range in nautical miles. */
-    float rmin1Nm = 0.0f;
-    /** No-escape minimum range offset above rmin1, nautical miles. */
-    float rmin2OffsetNm = 0.0f;
-    /** Missile diamond scale multiplier for this weapon. */
-    float diamondScale = 1.0f;
-};
-
-// Coefficients shared by every demo weapon's launch-zone and time-of-flight math.
-struct DemoLaunchZoneTuning
-{
-    float altitudeBonusDivisorMeters = 12192.0f;
-    float altitudeBonusScale = 0.35f;
-    float closureBonusDivisorMps = 463.0f;
-    float closureBonusMin = -0.35f;
-    float closureBonusMax = 0.65f;
-    float closureBonusScale = 0.28f;
-    float energyBonusDivisorMps = 72.0f;
-    float energyBonusMin = -0.25f;
-    float energyBonusMax = 0.45f;
-    float afterburnerBonus = 0.09f;
-    float aspectPenaltyScale = 0.18f;
-    float closingSpeedFloorMps = -77.0f;
-    float closingSpeedContribution = 0.40f;
-    float ownshipSpeedContribution = 0.25f;
-};
-
-constexpr DemoMissileProfile kAim120CProfile {
-    "AIM-120C", // label
-    "MRM",      // mnemonic
-    1209.0f,    // nominalSpeedMps
-    154.0f,     // minEffectiveSpeedMps
-    3.0f,       // minTimeOfFlightSeconds
-    68.0f,      // maxTimeOfFlightSeconds
-    24.0f,      // baseRangeNm
-    10.0f,      // minRmax1Nm
-    0.68f,      // rmax2Factor
-    1.15f,      // rmin1Nm
-    1.15f,      // rmin2OffsetNm
-    0.92f};     // diamondScale
-constexpr DemoMissileProfile kAim9MProfile {
-    "AIM-9M", // label
-    "SRM",    // mnemonic
-    849.0f,   // nominalSpeedMps
-    154.0f,   // minEffectiveSpeedMps
-    3.0f,     // minTimeOfFlightSeconds
-    28.0f,    // maxTimeOfFlightSeconds
-    8.2f,     // baseRangeNm
-    3.0f,     // minRmax1Nm
-    0.62f,    // rmax2Factor
-    0.42f,    // rmin1Nm
-    0.55f,    // rmin2OffsetNm
-    1.15f};   // diamondScale
-constexpr DemoLaunchZoneTuning kDemoLaunchZoneTuning {};
-
-const DemoMissileProfile& DemoMissileProfileFor(const MissileType type) noexcept
-{
-    return type == MissileType::Aim120C ? kAim120CProfile : kAim9MProfile;
+    const float finiteScale = FiniteOr(scale, 1.0f);
+    return finiteScale > 0.0f ? finiteScale : 1.0f;
 }
 
-int InventoryCount(const MissileInventory& inventory, const MissileType type) noexcept
+float SanitizedNonNegative(const float value) noexcept
 {
-    return type == MissileType::Aim120C ? inventory.aim120c : inventory.aim9m;
+    return std::max(FiniteOr(value, 0.0f), 0.0f);
+}
+
+LaunchZone SanitizedLaunchZone(const LaunchZone& launchZone) noexcept
+{
+    LaunchZone zone = launchZone;
+    zone.rmax1Nm = SanitizedNonNegative(zone.rmax1Nm);
+    zone.rmax2Nm = SanitizedNonNegative(zone.rmax2Nm);
+    zone.rmin2Nm = SanitizedNonNegative(zone.rmin2Nm);
+    zone.rmin1Nm = SanitizedNonNegative(zone.rmin1Nm);
+    return zone;
 }
 
 HudAttitudeFrame ResolveHudAttitude(const AircraftInputSample& aircraftInput) noexcept
@@ -487,12 +420,14 @@ HudWeaponFrame BuildWeaponFrame(const HudInputSample& input) noexcept
     frame.missileLimitXVisible = frame.targetLimited;
     frame.missileLimitXPosition = frame.targetPosition;
     frame.missileDiamondPosition = frame.targetPosition;
-    frame.missileDiamondScale = DemoMissileProfileFor(input.weapon.selectedMissile).diamondScale;
+    frame.missileDiamondScale = SanitizedMissileDiamondScale(input.weapon.missileDiamondScale);
     frame.attackSteeringCueVisible = frame.targetVisible;
     frame.attackSteeringCuePosition = HudVec2 {
         Clamp(frame.targetPosition.x * 0.55f, -0.30f, 0.30f),
         Clamp(frame.targetPosition.y * 0.45f - 0.04f, -0.26f, 0.26f)};
-    frame.launchZone = ComputeLaunchZone(input.aircraft, input.target, input.weapon.selectedMissile);
+    // The launch zone and time of flight are avionics facts computed by the
+    // caller; the projection only positions the range cue on the DLZ scale.
+    frame.launchZone = SanitizedLaunchZone(input.weapon.launchZone);
     frame.dynamicLaunchZoneVisible = frame.targetVisible;
     frame.rangeCueVisible = frame.targetVisible;
     const TargetState target = BuildTargetStateForHud(input.target);
@@ -501,13 +436,13 @@ HudWeaponFrame BuildWeaponFrame(const HudInputSample& input) noexcept
     frame.breakXVisible = frame.airToAirVisible && input.target.valid && frame.launchZone.tooClose;
     frame.missileCircleVisible = frame.airToAirVisible;
     frame.selectedMissileTimeOfFlightSeconds =
-        ComputeMissileTimeOfFlight(input.aircraft, input.target, input.weapon.selectedMissile);
+        SanitizedNonNegative(input.weapon.selectedMissileTimeOfFlightSeconds);
 
     frame.missileInFlight = input.weapon.missileInFlight;
     frame.activeMissileTimeRemainingSeconds = input.weapon.activeMissileTimeRemainingSeconds;
     frame.activeMissilePhase = input.weapon.activeMissilePhase;
 
-    if (InventoryCount(input.weapon.inventory, input.weapon.selectedMissile) <= 0)
+    if (input.weapon.selectedWeaponQuantity <= 0)
     {
         frame.rangeCueVisible = false;
     }
@@ -797,56 +732,6 @@ TargetState BuildTargetStateForHud(const TargetInputSample& target) noexcept
     return state;
 }
 
-float ComputeMissileTimeOfFlight(const AircraftInputSample& aircraft,
-                                 const TargetInputSample& target,
-                                 const MissileType selectedMissile) noexcept
-{
-    const DemoMissileProfile& profile = DemoMissileProfileFor(selectedMissile);
-    const DemoLaunchZoneTuning& tuning = kDemoLaunchZoneTuning;
-    const float closingSpeedMps = std::max(FiniteOr(target.closingSpeedMps, 0.0f), tuning.closingSpeedFloorMps);
-    const float ownshipSpeedMps = TrueSpeedMetersPerSecond(aircraft);
-    const float effectiveSpeedMps =
-        profile.nominalSpeedMps +
-        closingSpeedMps * tuning.closingSpeedContribution +
-        ownshipSpeedMps * tuning.ownshipSpeedContribution;
-    const float seconds =
-        FiniteOr(target.rangeMeters, 0.0f) / std::max(effectiveSpeedMps, profile.minEffectiveSpeedMps);
-    return Clamp(seconds, profile.minTimeOfFlightSeconds, profile.maxTimeOfFlightSeconds);
-}
-
-LaunchZone ComputeLaunchZone(const AircraftInputSample& aircraft,
-                             const TargetInputSample& target,
-                             const MissileType selectedMissile) noexcept
-{
-    const DemoMissileProfile& profile = DemoMissileProfileFor(selectedMissile);
-    const DemoLaunchZoneTuning& tuning = kDemoLaunchZoneTuning;
-    const float altitudeBonus =
-        Clamp(FiniteOr(aircraft.altitudeMeters, 0.0f) / tuning.altitudeBonusDivisorMeters, 0.0f, 1.0f);
-    const float closureBonus = Clamp(
-        FiniteOr(target.closingSpeedMps, 0.0f) / tuning.closureBonusDivisorMps,
-        tuning.closureBonusMin,
-        tuning.closureBonusMax);
-    const float energyBonus = Clamp(
-        FiniteOr(aircraft.specificEnergyRateMps, 0.0f) / tuning.energyBonusDivisorMps,
-        tuning.energyBonusMin,
-        tuning.energyBonusMax);
-    const float afterburnerBonus = aircraft.afterburnerActive ? tuning.afterburnerBonus : 0.0f;
-    const float targetAspectRad = FiniteOr(target.aspectRad, 0.0f);
-    const float aspectPenalty = Clamp(std::fabs(targetAspectRad - kPi) / kPi, 0.0f, 1.0f) * tuning.aspectPenaltyScale;
-    const float scale = 1.0f + altitudeBonus * tuning.altitudeBonusScale + closureBonus * tuning.closureBonusScale +
-                        energyBonus + afterburnerBonus - aspectPenalty;
-
-    LaunchZone zone;
-    zone.rmax1Nm = std::max(profile.baseRangeNm * scale, profile.minRmax1Nm);
-    zone.rmax2Nm = zone.rmax1Nm * profile.rmax2Factor;
-    zone.rmin1Nm = profile.rmin1Nm;
-    zone.rmin2Nm = zone.rmin1Nm + profile.rmin2OffsetNm;
-    const TargetState displayTarget = BuildTargetStateForHud(target);
-    zone.inNoEscapeZone = displayTarget.rangeNm >= zone.rmin2Nm && displayTarget.rangeNm <= zone.rmax2Nm;
-    zone.tooClose = displayTarget.rangeNm < zone.rmin1Nm;
-    return zone;
-}
-
 HudFrame BuildHudFrame(const HudInputSample& input) noexcept
 {
     HudFrame frame;
@@ -865,28 +750,6 @@ std::string FormatHeading(const float headingDegrees)
     char buffer[16] {};
     std::snprintf(buffer, sizeof(buffer), "%03d", static_cast<int>(std::lround(WrapDegrees360(headingDegrees))) % 360);
     return buffer;
-}
-
-const char* MissileLabel(const MissileType selectedMissile) noexcept
-{
-    return DemoMissileProfileFor(selectedMissile).label;
-}
-
-std::string FormatMissileInventory(const MissileType selectedMissile, const MissileInventory& inventory)
-{
-    char buffer[32] {};
-    std::snprintf(
-        buffer,
-        sizeof(buffer),
-        "%s %d",
-        MissileLabel(selectedMissile),
-        InventoryCount(inventory, selectedMissile));
-    return buffer;
-}
-
-const char* MissileMnemonic(const MissileType selectedMissile) noexcept
-{
-    return DemoMissileProfileFor(selectedMissile).mnemonic;
 }
 
 const char* MissilePhaseMnemonic(const MissileFlightPhase phase) noexcept

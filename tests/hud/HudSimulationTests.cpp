@@ -8,9 +8,9 @@
  * @brief Regression tests for the HUD simulation rules.
  */
 
-#include "HudSimulation.h"
-#include "HudController.h"
 #include "HudUi.h"
+#include "hud/HudController.h"
+#include "hud_main/HudSimulation.h"
 
 #include <cmath>
 #include <filesystem>
@@ -25,23 +25,23 @@
 
 namespace
 {
-using hud::ComputeLaunchZone;
-using hud::HudSimulation;
-using hud::HudController;
 using hud::BuildAircraftStateForHud;
 using hud::BuildHudFrame;
-using hud::ComputeMissileTimeOfFlight;
+using hud::HudConformalProjection;
+using hud::HudController;
+using hud::HudGunMode;
 using hud::HudInputSample;
 using hud::HudMasterMode;
-using hud::HudGunMode;
-using hud::HudWeaponMode;
-using hud::MissileLabel;
-using hud::MissileType;
-using hud::PilotControls;
-using hud::HudConformalProjection;
 using hud::HudPitchLadderVerticalFovDegrees;
+using hud::HudWeaponMode;
 using hud::ProjectBoresightAngularOffsetToHud;
 using hud::ProjectPitchOffsetToHud;
+using hud_main::ComputeLaunchZone;
+using hud_main::ComputeMissileTimeOfFlight;
+using hud_main::HudSimulation;
+using hud_main::MissileLabel;
+using hud_main::MissileType;
+using hud_main::PilotControls;
 
 constexpr float kDegreesToRadians = 0.017453292519943295f;
 
@@ -351,9 +351,30 @@ TEST(HudSimulationTests, LaunchZoneRemainsOrderedAndDetectsNoEscapeZone)
     EXPECT_GT(zone.rmin2Nm, zone.rmin1Nm);
     EXPECT_EQ(zone.inNoEscapeZone, target.rangeNm >= zone.rmin2Nm && target.rangeNm <= zone.rmax2Nm);
     EXPECT_FALSE(zone.tooClose);
+
+    // The simulation must publish the same resolved launch zone through the
+    // generic weapon contract consumed by the HUD runtime.
+    EXPECT_FLOAT_EQ(simulation.Inputs().weapon.launchZone.rmax1Nm, zone.rmax1Nm);
+    EXPECT_FLOAT_EQ(simulation.Inputs().weapon.launchZone.rmin1Nm, zone.rmin1Nm);
 }
 
-// Expected demo-profile facts checked by the DLZ/time-of-flight regression test.
+TEST(HudSimulationTests, SimulationPublishesResolvedWeaponPresentation)
+{
+    // The reusable HUD runtime consumes only generic weapon facts; verify the
+    // sample simulation resolves its typed armament into that contract.
+    HudSimulation simulation;
+    EXPECT_EQ(simulation.Inputs().weapon.selectedWeaponLabel, "AIM-120C");
+    EXPECT_EQ(simulation.Inputs().weapon.selectedWeaponMnemonic, "MRM");
+    EXPECT_EQ(simulation.Inputs().weapon.selectedWeaponQuantity, 4);
+    EXPECT_GT(simulation.Inputs().weapon.selectedMissileTimeOfFlightSeconds, 0.0f);
+
+    simulation.SelectMissile(MissileType::Aim9M);
+    EXPECT_EQ(simulation.Inputs().weapon.selectedWeaponLabel, "AIM-9M");
+    EXPECT_EQ(simulation.Inputs().weapon.selectedWeaponMnemonic, "SRM");
+    EXPECT_EQ(simulation.Inputs().weapon.selectedWeaponQuantity, 2);
+}
+
+// Expected sample-profile facts checked by the DLZ/time-of-flight regression test.
 struct MissileProfileExpectation
 {
     MissileType missile;
@@ -363,11 +384,11 @@ struct MissileProfileExpectation
     float maxTimeOfFlightSeconds;
 };
 
-TEST(HudSimulationTests, DemoMissileProfilesKeepDlzOrderingAndTimeOfFlightBounds)
+TEST(HudSimulationTests, SampleMissileProfilesKeepDlzOrderingAndTimeOfFlightBounds)
 {
-    // The AIM-120C/AIM-9M tuning lives in typed demo profiles; verify each
-    // profile still yields an ordered DLZ and a bounded time of flight across a
-    // range of engagement geometries. Bounds match the demo profile limits.
+    // The AIM-120C/AIM-9M tuning lives in typed main-client profiles; verify
+    // each profile still yields an ordered DLZ and a bounded time of flight
+    // across a range of engagement geometries. Bounds match the profile limits.
     const MissileProfileExpectation expectations[] = {
         {MissileType::Aim120C, "AIM-120C", "MRM", 3.0f, 68.0f},
         {MissileType::Aim9M, "AIM-9M", "SRM", 3.0f, 28.0f}};
@@ -375,7 +396,7 @@ TEST(HudSimulationTests, DemoMissileProfilesKeepDlzOrderingAndTimeOfFlightBounds
     for (const MissileProfileExpectation& expectation : expectations)
     {
         EXPECT_STREQ(MissileLabel(expectation.missile), expectation.label);
-        EXPECT_STREQ(hud::MissileMnemonic(expectation.missile), expectation.mnemonic);
+        EXPECT_STREQ(hud_main::MissileMnemonic(expectation.missile), expectation.mnemonic);
 
         for (float altitudeMeters = 0.0f; altitudeMeters <= 12000.0f; altitudeMeters += 4000.0f)
         {
@@ -841,12 +862,12 @@ TEST(HudSimulationTests, EegsTriggerSelectsFedsOrBatrByLockState)
 
 TEST(HudSimulationTests, MissileInventoryUsesHudWeaponFamilyLabel)
 {
-    hud::MissileInventory inventory;
+    hud_main::MissileInventory inventory;
     inventory.aim120c = 4;
     inventory.aim9m = 2;
 
-    EXPECT_EQ(hud::FormatMissileInventory(MissileType::Aim120C, inventory), "AIM-120C 4");
-    EXPECT_EQ(hud::FormatMissileInventory(MissileType::Aim9M, inventory), "AIM-9M 2");
+    EXPECT_EQ(hud_main::FormatMissileInventory(MissileType::Aim120C, inventory), "AIM-120C 4");
+    EXPECT_EQ(hud_main::FormatMissileInventory(MissileType::Aim9M, inventory), "AIM-9M 2");
 }
 
 TEST(HudSimulationTests, StrafeInRangeCueUsesAmmoThreshold)
@@ -1103,11 +1124,13 @@ TEST(HudProjectionTests, BreakXStaysTooCloseCueAndIsSeparateFromLimitX)
     input.weapon.masterMode = HudMasterMode::AirToAir;
     input.weapon.weaponMode = HudWeaponMode::AirToAirMissile;
     input.weapon.simulateMode = true;
-    input.weapon.selectedMissile = MissileType::Aim120C;
     input.target.valid = true;
     // Inside AIM-120 rmin1 (1.15 NM) and simultaneously outside the HUD FOV.
     input.target.rangeMeters = 0.2f * 1852.0f;
     input.target.azimuthRad = 24.0f * kDegreesToRadians;
+    // The launch zone is a caller-resolved fact; the sample armament model of
+    // the main client computes it before the HUD runtime draws it.
+    input.weapon.launchZone = ComputeLaunchZone(input.aircraft, input.target, MissileType::Aim120C);
 
     const hud::HudFrame frame = BuildHudFrame(input);
     EXPECT_TRUE(frame.weapon.launchZone.tooClose);

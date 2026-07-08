@@ -18,13 +18,13 @@ The reference covers the public headers of:
 - `mfd_window/include` — runtime host integration points
 - `mfd_window_plugin_api/include` — public framebuffer-plugin SDK
 
-The reference also includes the HUD integration headers:
+The reference also includes the public HUD runtime headers:
 
-- `examples/hud/client/src/HudSimulation.h`
-- `examples/hud/client/src/HudController.h`
+- `examples/hud/runtime/include/hud`
 
-Those two files document the semantic SI-unit contract used to hand the shipped
-HUD example to an external aircraft adapter.
+Those headers document `hud::HudRuntimeClient` and the semantic SI-unit
+contract used to hand the shipped HUD example to an external aircraft adapter
+through the `hud_runtime` shared library.
 
 ## Client Integration Entry Points
 

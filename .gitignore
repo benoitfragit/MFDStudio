@@ -52,7 +52,7 @@
 /examples/tutorial/assets/windows/*.generated.map
 /examples/client_test_package/assets/windows/*.generated.map
 /examples/demo/client/generated/*
-/examples/hud/client/generated/*
+/examples/hud/runtime/generated/*
 /examples/radar_load/client/generated/*
 /examples/tutorial/client/generated/*
 /examples/client_test_package/generated/*

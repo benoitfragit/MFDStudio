@@ -8,7 +8,7 @@
  * @brief Implementation of the HUD generated-UI adapter.
  */
 
-#include "HudController.h"
+#include "hud/HudController.h"
 
 #include <algorithm>
 #include <cmath>
@@ -123,14 +123,16 @@ const char* MasterModeCaption(const HudMasterMode mode) noexcept
     return "NAV";
 }
 
-const char* WeaponModeCaption(const WeaponInputSample& weapon) noexcept
+std::string WeaponModeCaption(const WeaponInputSample& weapon)
 {
     switch (weapon.weaponMode)
     {
     case HudWeaponMode::None:
         return "";
     case HudWeaponMode::AirToAirMissile:
-        return MissileLabel(weapon.selectedMissile);
+        // The label is an avionics-resolved fact; the HUD does not know which
+        // concrete missile type the aircraft carries.
+        return weapon.selectedWeaponLabel;
     case HudWeaponMode::AirToAirGun:
         return "EEGS";
     case HudWeaponMode::AirToGroundCcip:
@@ -140,6 +142,18 @@ const char* WeaponModeCaption(const WeaponInputSample& weapon) noexcept
     }
 
     return "";
+}
+
+std::string FormatWeaponInventoryText(const WeaponInputSample& weapon)
+{
+    char buffer[48] {};
+    std::snprintf(
+        buffer,
+        sizeof(buffer),
+        "%s %d",
+        weapon.selectedWeaponLabel.c_str(),
+        weapon.selectedWeaponQuantity);
+    return buffer;
 }
 
 std::string FormatRangeText(const TargetState& target, const HudInputSample& input, const HudFrame& frame)
@@ -251,7 +265,13 @@ std::string FormatStatusCaption(const HudInputSample& input, const HudFrame& fra
 
     if (frame.weapon.airToAirVisible)
     {
-        return std::string(MissileMnemonic(input.weapon.selectedMissile)) + " RDY";
+        // The mnemonic is caller-resolved; an empty value degrades to "RDY".
+        std::string caption = input.weapon.selectedWeaponMnemonic;
+        if (!caption.empty())
+        {
+            caption += ' ';
+        }
+        return caption + "RDY";
     }
 
     return "";
@@ -431,7 +451,7 @@ void ApplyAirData(hud_ui::HUDMockupPage& hud,
     if (input.weapon.masterMode == HudMasterMode::AirToAir &&
         input.weapon.weaponMode == HudWeaponMode::AirToAirMissile)
     {
-        hud.leftStatus.WeaponValue().SetText(FormatMissileInventory(input.weapon.selectedMissile, input.weapon.inventory));
+        hud.leftStatus.WeaponValue().SetText(FormatWeaponInventoryText(input.weapon));
     }
     else if (input.weapon.weaponMode == HudWeaponMode::AirToAirGun ||
              input.weapon.weaponMode == HudWeaponMode::AirToGroundStrafe)
@@ -694,8 +714,9 @@ void HudController::Populate(hud_ui::HudUi& ui, const HudInputSample& input) con
     //   normalLoadFactor and specificEnergyRateMps.
     // - Put A-A target data in `input.target`: rangeMeters, closingSpeedMps,
     //   aspectRad, azimuthRad, elevationRad and altitudeMeters.
-    // - Put resolved avionics state in `input.weapon`: masterMode,
-    //   selectedMissile, missile inventory and in-flight missile timing.
+    // - Put resolved avionics state in `input.weapon`: masterMode, the generic
+    //   selected-weapon label/mnemonic/quantity, the already-computed launch
+    //   zone and time of flight, and in-flight missile timing.
     //
     // This function is the only place where semantic aircraft data is converted
     // to generated HUD commands. Raw UI/panel commands must not be wired to

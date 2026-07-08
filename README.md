@@ -73,9 +73,11 @@ For the radar load example, launch `.\Scripts\Start-RadarLoad.bat`, then start
 prints the current track count and client publish FPS in the runtime view.
 
 For the dedicated HUD, launch the runtime window with
-`.\Scripts\Start-HUD.bat`, then start `hud_client.exe`. The HUD asset
-lives under `examples/hud/assets` and is staged automatically with the HUD client
-assets.
+`.\Scripts\Start-HUD.bat`, then start `hud_client.exe`. The HUD publishing
+logic lives in the reusable `hud_runtime` DLL/shared library
+(`examples/hud/runtime`), which external simulations can link directly; the
+HUD asset lives under `examples/hud/assets` and is staged automatically next
+to the HUD client together with `hud_runtime.dll`.
 
 For LHLD, launch `.\Scripts\Start-LHLD.bat`. The LHLD client hosts the runtime
 offscreen inside its own DX11/ImGui window, so it does not require a separate

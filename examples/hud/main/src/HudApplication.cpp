@@ -8,24 +8,22 @@
  * @brief Implementation of the Dear ImGui HUD client application.
  */
 
-#include "HudApplication.h"
+#include "hud_main/HudApplication.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <exception>
 #include <utility>
 
 #include <imgui.h>
 
-#include "mfd/control/CommandClient.h"
-#include "mfd/control/FeedbackTransport.h"
-#include "mfd/io/JsonLoader.h"
-#include "mfd/model/PageDefinition.h"
-#include "mfd/model/PageName.h"
-
-namespace hud
+namespace hud_main
 {
+// Generic HUD contract enums used across the panel code.
+using hud::HudGunMode;
+using hud::HudMasterMode;
+using hud::HudWeaponMode;
+
 namespace
 {
 constexpr float kModeButtonWidth = 102.0f;
@@ -108,20 +106,6 @@ std::string FormatIntegerText(const char* label, const float value, const char* 
 {
     char buffer[64] {};
     std::snprintf(buffer, sizeof(buffer), "%s %d %s", label, static_cast<int>(std::lround(value)), unit);
-    return buffer;
-}
-
-std::string FormatConnectionText(const mfd::WindowUdpCommandTransport& transport)
-{
-    char buffer[96] {};
-    // The endpoint is operator-facing only; transport validation is handled by
-    // the JSON loader and `CommandClient` construction path.
-    std::snprintf(
-        buffer,
-        sizeof(buffer),
-        "%s:%u",
-        transport.address.c_str(),
-        transport.port);
     return buffer;
 }
 
@@ -256,16 +240,10 @@ HudApplication::HudApplication()
 
 bool HudApplication::Initialize(std::string& error)
 {
-    HudConfig loadedConfig;
-    // Loading and connecting are deliberately separate so reconnects can reuse
-    // the already validated asset configuration.
-    if (!LoadConfig(loadedConfig, error))
-    {
-        return false;
-    }
-
-    config_ = loadedConfig;
-    if (!Connect(config_, error))
+    // Loading, validation and transport creation all belong to the reusable
+    // HUD runtime client; the application only tracks the connection state.
+    connected_ = hudRuntime_.Initialize(error);
+    if (!connected_)
     {
         return false;
     }
@@ -274,94 +252,8 @@ bool HudApplication::Initialize(std::string& error)
     return true;
 }
 
-bool HudApplication::LoadConfig(HudConfig& config, std::string& error) const
-{
-    try
-    {
-        mfd::JsonLoader loader;
-        // The generated UI class owns the canonical window-json path. Reading
-        // it here keeps the HUD client synchronized with regenerated assets.
-        const mfd::LoadedWindowConfiguration loaded =
-            loader.LoadWindowConfiguration(std::string(hud_ui::HudUi::WindowFile()));
-
-        const mfd::PageDefinition* hudPage =
-            mfd::FindPageDefinition(loaded.document, hud_ui::HUDMockupPage::Name());
-        if (hudPage == nullptr)
-        {
-            error = "The HUD asset does not expose a page named 'HUD'.";
-            return false;
-        }
-
-        if (!loaded.window.commandTransports.udp.has_value() || !loaded.window.commandTransports.udp->enabled)
-        {
-            // The HUD runtime is driven by generated UDP command ids; without
-            // this transport the client cannot publish any visible frame.
-            error = "The HUD window JSON has no enabled UDP command transport.";
-            return false;
-        }
-
-        if (!loaded.generatedTransportMap.has_value())
-        {
-            // The transport map binds generated UI handles to runtime command
-            // identifiers. Failing early avoids silently sending unusable ids.
-            error = "The HUD generated transport map is missing.";
-            return false;
-        }
-
-        config.commandTransport = *loaded.window.commandTransports.udp;
-        config.feedbackTransport = loaded.window.feedbackTransports;
-        config.generatedTransportMap = *loaded.generatedTransportMap;
-        config.pageView = hudPage->view;
-        return true;
-    }
-    catch (const std::exception& exception)
-    {
-        error = exception.what();
-        return false;
-    }
-}
-
-bool HudApplication::Connect(const HudConfig& config, std::string& error)
-{
-    // The startup client sends the complete initial generated scene state. The
-    // realtime publisher then sends only the latest command batch each frame.
-    startupClient_ = std::make_unique<mfd::CommandClient>(config.commandTransport, config.generatedTransportMap);
-    if (startupClient_ == nullptr || !startupClient_->IsReady())
-    {
-        error = startupClient_ == nullptr ? "Unable to create the HUD startup client." : startupClient_->LastError();
-        connected_ = false;
-        return false;
-    }
-
-    publisher_ = std::make_unique<mfd::client::LatestBatchPublisher>(config.commandTransport);
-    if (publisher_ == nullptr || !publisher_->IsReady())
-    {
-        error = publisher_ == nullptr ? "Unable to create the HUD realtime publisher." : publisher_->LastError();
-        connected_ = false;
-        return false;
-    }
-
-    feedbackReceiver_ = mfd::CreateFeedbackReceiverChannel(config.feedbackTransport);
-    livenessMonitor_.Reset();
-    ui_.Initialize();
-    // `SendStartup` also seeds generated baselines, so later `SubmitLatest`
-    // calls can remain compact and only carry changed handles.
-    if (!ui_.SendStartup(*startupClient_, config.pageView, "HUD | READY"))
-    {
-        error = startupClient_->LastError();
-        connected_ = false;
-        return false;
-    }
-
-    connected_ = true;
-    return true;
-}
-
 void HudApplication::DrawFrame(const float deltaSeconds)
 {
-    // The liveness monitor uses application time instead of wall-clock queries
-    // so replay and tests can drive a deterministic delta source.
-    elapsedSeconds_ += std::max(deltaSeconds, 0.0f);
     ApplyKeyboardControls();
     // Apply once before drawing so the panel displays the active scripted
     // command, then again after drawing to catch mode changes made this frame.
@@ -394,10 +286,9 @@ void HudApplication::DrawFrame(const float deltaSeconds)
     UpdateHudInputBufferFromUi(deltaSeconds);
 
     PublishFrame();
-    PollFeedback();
 }
 
-void HudApplication::UpdateHudInputBufferFromUi(const float deltaSeconds) noexcept
+void HudApplication::UpdateHudInputBufferFromUi(const float deltaSeconds)
 {
     // This is the HUD-client adapter boundary. In a real integration, replace
     // this block with code that fills `hudInputs_` from the aircraft state:
@@ -413,8 +304,8 @@ void HudApplication::UpdateHudInputBufferFromUi(const float deltaSeconds) noexce
     //   hudInputs_.weapon.*                      = resolved avionics/weapon state.
     //
     // Do not send raw ImGui/panel commands directly to generated HUD handles.
-    // They must first become this semantic SI buffer, then `HudController`
-    // converts the buffer to HUD commands.
+    // They must first become this semantic SI buffer, then the HUD runtime
+    // client converts the buffer to HUD commands.
     simulation_.SetControls(controls_);
     if (running_)
     {
@@ -425,13 +316,10 @@ void HudApplication::UpdateHudInputBufferFromUi(const float deltaSeconds) noexce
 
 void HudApplication::Shutdown()
 {
-    if (publisher_ != nullptr && publisher_->IsReady())
-    {
-        // The final caption helps distinguish a clean client shutdown from a
-        // lost feedback/transport failure in the HUD window.
-        ui_.SubmitShutdown(*publisher_, sequence_++, "HUD | CLIENT STOPPED");
-        publisher_->Flush();
-    }
+    // The runtime client emits the final shutdown caption and flushes the
+    // realtime transport before releasing it.
+    hudRuntime_.Shutdown();
+    connected_ = false;
 }
 
 void HudApplication::ApplyKeyboardControls()
@@ -491,7 +379,7 @@ void HudApplication::ApplyManeuverControls() noexcept
     controls_.rollCommand = command.roll;
 }
 
-void HudApplication::SyncHudInputBufferFromSimulation() noexcept
+void HudApplication::SyncHudInputBufferFromSimulation()
 {
     // Keep the buffer copy explicit. This makes the sample boundary obvious and
     // leaves room for a future external-aircraft producer to replace it.
@@ -500,9 +388,10 @@ void HudApplication::SyncHudInputBufferFromSimulation() noexcept
 
 void HudApplication::DrawConnectionPanel()
 {
-    const std::string endpointText = FormatConnectionText(config_.commandTransport);
     // This panel is intentionally read-heavy: it exposes transport health and
     // lifecycle actions without mutating the semantic HUD buffer directly.
+    // The UDP endpoint itself is a runtime-client implementation detail read
+    // from the HUD window JSON, so only the stream state is displayed here.
     if (ImGui::BeginTable("##connection_header", 3, ImGuiTableFlags_SizingStretchProp))
     {
         ImGui::TableSetupColumn("Title", ImGuiTableColumnFlags_WidthStretch, 0.34f);
@@ -512,7 +401,7 @@ void HudApplication::DrawConnectionPanel()
         ImGui::TableSetColumnIndex(0);
         ImGui::TextUnformatted("HUD CONTROL PANEL");
         ImGui::TableSetColumnIndex(1);
-        ImGui::Text("UDP %s", endpointText.c_str());
+        ImGui::TextUnformatted("UDP HUD stream");
         ImGui::TextColored(
             connected_ ? ImVec4(0.35f, 0.95f, 0.58f, 1.0f) : ImVec4(1.0f, 0.55f, 0.42f, 1.0f),
             "%s",
@@ -552,9 +441,10 @@ void HudApplication::DrawConnectionPanel()
             "Reconnect the UDP publisher and resend the generated HUD startup state."))
     {
         std::string error;
-        // Reconnect rebuilds transport resources but keeps the parsed asset
-        // configuration stable; this avoids a hidden JSON reload mid-session.
-        if (!Connect(config_, error))
+        // Reconnect re-initializes the runtime client, which reloads the
+        // validated asset configuration and resends the generated startup state.
+        connected_ = hudRuntime_.Initialize(error);
+        if (!connected_)
         {
             SetStatus(error, true);
         }
@@ -718,10 +608,10 @@ void HudApplication::DrawWeaponControls()
 
     if (BeginControlPanel("Missile"))
     {
-        int selectedMissile = hudInputs_.weapon.selectedMissile == MissileType::Aim120C ? 0 : 1;
+        const bool aim120Selected = simulation_.SelectedMissile() == MissileType::Aim120C;
         if (DrawPanelButton(
                 "AIM-120C",
-                selectedMissile == 0,
+                aim120Selected,
                 ImVec2(kToggleButtonWidth, kToggleButtonHeight),
                 "Select AIM-120C for missile inventory and launch-zone timing."))
         {
@@ -730,7 +620,7 @@ void HudApplication::DrawWeaponControls()
         ImGui::SameLine();
         if (DrawPanelButton(
                 "AIM-9M",
-                selectedMissile == 1,
+                !aim120Selected,
                 ImVec2(kToggleButtonWidth, kToggleButtonHeight),
                 "Select AIM-9M for missile inventory and timing display."))
         {
@@ -760,7 +650,7 @@ void HudApplication::DrawWeaponControls()
 
         ImGui::Text(
             "Inventory %s",
-            FormatMissileInventory(hudInputs_.weapon.selectedMissile, hudInputs_.weapon.inventory).c_str());
+            FormatMissileInventory(simulation_.SelectedMissile(), simulation_.Inventory()).c_str());
         ImGui::SameLine(180.0f);
         ImGui::Text("%s", lastFireAccepted_ ? "Launch accepted" : "Launch gated");
     }
@@ -804,10 +694,10 @@ void HudApplication::DrawTelemetryPanel()
         return;
     }
 
-    // Telemetry uses the same conversion helpers as the HUD controller. That
+    // Telemetry uses the same conversion helpers as the HUD runtime. That
     // keeps the debug panel from inventing display units independently.
-    const AircraftState aircraft = BuildAircraftStateForHud(hudInputs_.aircraft);
-    const TargetState target = BuildTargetStateForHud(hudInputs_.target);
+    const hud::AircraftState aircraft = hud::BuildAircraftStateForHud(hudInputs_.aircraft);
+    const hud::TargetState target = hud::BuildTargetStateForHud(hudInputs_.target);
     ImGui::Text("%s", FormatIntegerText("Speed", aircraft.speedKts, "KT").c_str());
     ImGui::Text("%s", FormatFloatText("Mach", aircraft.mach, "").c_str());
     ImGui::Text("%s", FormatFloatText("Pitch", aircraft.pitchDegrees, "deg").c_str());
@@ -822,59 +712,27 @@ void HudApplication::DrawTelemetryPanel()
 
 void HudApplication::PublishFrame()
 {
-    if (!connected_ || publisher_ == nullptr || !publisher_->IsReady())
+    if (!connected_)
     {
         return;
     }
 
-    // `Run` closes the previous generated-UI cycle. `Populate` then writes
-    // fresh handles from the semantic buffer before `SubmitLatest` builds the
-    // dirty command batch for this frame.
-    ui_.Run();
-    controller_.Populate(ui_, hudInputs_);
-    if (!ui_.SubmitLatest(*publisher_, sequence_++))
+    // The runtime client owns the whole publishing pipeline: generated-UI
+    // cycle, semantic conversion, batch submission and feedback liveness.
+    std::string error;
+    if (!hudRuntime_.Publish(hudInputs_, error))
     {
-        SetStatus(publisher_->LastError(), true);
+        // Treat publish errors as a lost connection so the panel stops
+        // claiming that realtime updates are still flowing.
+        SetStatus(error, true);
         connected_ = false;
-        return;
-    }
-
-    const std::string publisherError = publisher_->LastError();
-    if (!publisherError.empty())
-    {
-        // Treat asynchronous publisher errors as a lost connection so the panel
-        // stops claiming that realtime updates are still flowing.
-        SetStatus(publisherError, true);
-        connected_ = false;
-    }
-}
-
-void HudApplication::PollFeedback()
-{
-    if (feedbackReceiver_ == nullptr)
-    {
-        return;
-    }
-
-    std::string feedbackError;
-    // Feedback is best-effort. The liveness monitor only needs packet counters
-    // and the runtime close flag to detect a stale HUD window.
-    ui_.PollFeedback(*feedbackReceiver_, 16, &feedbackError);
-    livenessMonitor_.Observe(
-        ui_.TotalDecodedFeedbackPackets(),
-        ui_.WindowReportedClosing(),
-        elapsedSeconds_);
-    if (livenessMonitor_.ConsumeDisconnect())
-    {
-        connected_ = false;
-        SetStatus("HUD window feedback lost or closed.", true);
     }
 }
 
 void HudApplication::ResetScene()
 {
-    // Reset both simulation and generated UI state so the next published batch
-    // is based on fresh baselines instead of stale dirty handles.
+    // Reset the simulation and panel intent; the runtime client keeps its
+    // generated baselines and simply publishes the fresh sample as a delta.
     simulation_.Reset();
     controls_ = {};
     controls_.throttle = simulation_.Aircraft().throttle;
@@ -882,7 +740,6 @@ void HudApplication::ResetScene()
     SyncHudInputBufferFromSimulation();
     maneuver_ = HudManeuver::Manual;
     lastFireAccepted_ = false;
-    ui_.Initialize();
     SetStatus("Scene reset.", false);
 }
 
@@ -896,7 +753,7 @@ void HudApplication::FireSelectedMissile()
     SetStatus(lastFireAccepted_ ? "Missile launched." : "Launch inhibited.", !lastFireAccepted_);
 }
 
-void HudApplication::SelectMissile(const MissileType missileType) noexcept
+void HudApplication::SelectMissile(const MissileType missileType)
 {
     // Selection is persisted in the simulation-owned weapon sample and then
     // copied back to the publish buffer.
@@ -940,4 +797,4 @@ void HudApplication::SetStatus(std::string status, const bool error)
     status_ = std::move(status);
     statusIsError_ = error;
 }
-} // namespace hud
+} // namespace hud_main

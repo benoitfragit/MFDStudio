@@ -36,7 +36,8 @@ A visual tour of the runtime, editor, and client is in the
 | --- | --- |
 | `mfd_window` | Runtime host that loads one window JSON file |
 | `demo_client` | Live UDP client to validate pages, reticles, blink, strobe, feedback |
-| `hud_client` | Dear ImGui + DirectX11 client that drives the dedicated HUD asset |
+| `hud_runtime` | Reusable DLL/shared library publishing the HUD from a `hud::HudInputSample` |
+| `hud_client` | Dear ImGui + DirectX11 client consuming `hud_runtime` to drive the dedicated HUD asset |
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 | `offscreen_viewer` | Example embedding `mfd_runtime_api` and displaying offscreen images |
 | `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin for the `mfd_window` capture ABI |

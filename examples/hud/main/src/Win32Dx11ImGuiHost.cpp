@@ -8,7 +8,7 @@
  * @brief Implementation of the private Win32 + DX11 host used by `hud_client`.
  */
 
-#include "Win32Dx11ImGuiHost.h"
+#include "hud_main/Win32Dx11ImGuiHost.h"
 
 #include <chrono>
 #include <iterator>

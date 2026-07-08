@@ -10,16 +10,12 @@
  * @brief Dear ImGui front-end for the HUD client.
  */
 
-#include <cstdint>
-#include <memory>
 #include <string>
 
-#include "HudController.h"
-#include "HudSimulation.h"
-#include "HudUi.h"
-#include "mfd/client/ClientSdk.h"
+#include "hud/HudRuntimeClient.h"
+#include "hud_main/HudSimulation.h"
 
-namespace hud
+namespace hud_main
 {
 /**
  * @brief Scripted maneuver used to exercise HUD behavior through all attitudes.
@@ -33,6 +29,12 @@ enum class HudManeuver
 
 /**
  * @brief Interactive HUD client application.
+ *
+ * The application is a consumer of the reusable `hud_runtime` library: it owns
+ * the ImGui control panel and the mini-simulation, fills one
+ * `hud::HudInputSample` per frame and publishes it through
+ * `hud::HudRuntimeClient`. All transport and generated-UI details live inside
+ * the runtime library.
  */
 class HudApplication
 {
@@ -40,7 +42,7 @@ public:
     HudApplication();
 
     /**
-     * @brief Loads the HUD window configuration and prepares UDP publishers.
+     * @brief Initializes the HUD runtime client from the staged asset layout.
      * @param error Human-readable failure reason populated on initialization failure.
      * @return `true` when the client can publish HUD frames.
      */
@@ -53,35 +55,11 @@ public:
     void DrawFrame(float deltaSeconds);
 
     /**
-     * @brief Flushes pending HUD commands and emits a shutdown caption.
+     * @brief Shuts the HUD runtime client down and emits a shutdown caption.
      */
     void Shutdown();
 
 private:
-    /**
-     * @brief Runtime configuration extracted from the generated HUD window JSON.
-     *
-     * The application keeps the parsed transports and page view together so
-     * reconnects can reuse the same validated asset configuration.
-     */
-    struct HudConfig
-    {
-        mfd::WindowUdpCommandTransport commandTransport {};
-        mfd::WindowFeedbackTransportConfig feedbackTransport {};
-        mfd::GeneratedTransportMap generatedTransportMap {};
-        mfd::PageViewState pageView {};
-    };
-
-    /**
-     * @brief Reads the generated HUD window JSON and validates required runtime transports.
-     */
-    bool LoadConfig(HudConfig& config, std::string& error) const;
-
-    /**
-     * @brief Creates the command clients, feedback receiver and generated UI startup state.
-     */
-    bool Connect(const HudConfig& config, std::string& error);
-
     /**
      * @brief Samples keyboard state and converts it to normalized pilot controls.
      */
@@ -100,12 +78,12 @@ private:
     /**
      * @brief Advances the mini-simulation and refreshes the semantic HUD input sample.
      */
-    void UpdateHudInputBufferFromUi(float deltaSeconds) noexcept;
+    void UpdateHudInputBufferFromUi(float deltaSeconds);
 
     /**
      * @brief Copies the simulation-produced SI sample into the publishing buffer.
      */
-    void SyncHudInputBufferFromSimulation() noexcept;
+    void SyncHudInputBufferFromSimulation();
 
     /**
      * @brief Draws connection state, liveness state and lifecycle buttons.
@@ -128,17 +106,12 @@ private:
     void DrawTelemetryPanel();
 
     /**
-     * @brief Converts the current HUD input sample to generated commands and sends one batch.
+     * @brief Publishes the current semantic HUD sample through the runtime client.
      */
     void PublishFrame();
 
     /**
-     * @brief Consumes feedback packets and updates the window liveness monitor.
-     */
-    void PollFeedback();
-
-    /**
-     * @brief Restores the simulation, UI and pilot controls to their initial sample state.
+     * @brief Restores the simulation and pilot controls to their initial sample state.
      */
     void ResetScene();
 
@@ -150,15 +123,17 @@ private:
     /**
      * @brief Selects a missile type in the simulation and refreshes the HUD buffer.
      */
-    void SelectMissile(MissileType missileType) noexcept;
+    void SelectMissile(MissileType missileType);
 
     /**
      * @brief Selects the resolved HUD mode without touching generated HUD handles.
      */
-    void SelectHudMode(HudMasterMode masterMode, HudWeaponMode weaponMode, HudGunMode gunMode) noexcept;
+    void SelectHudMode(hud::HudMasterMode masterMode,
+                       hud::HudWeaponMode weaponMode,
+                       hud::HudGunMode gunMode) noexcept;
 
     /**
-     * @brief Toggles the panel ILS avionics state used to fill `HudInputSample`.
+     * @brief Toggles the panel ILS avionics state used to fill `hud::HudInputSample`.
      */
     void SetIlsEnabled(bool enabled) noexcept;
 
@@ -167,32 +142,16 @@ private:
      */
     void SetStatus(std::string status, bool error);
 
-    /** Generated UI command wrapper for `examples/hud/assets`. */
-    hud_ui::HudUi ui_ {};
+    /** Reusable HUD publishing client owning transports and generated UI. */
+    hud::HudRuntimeClient hudRuntime_ {};
     /** Deterministic SI-unit state producer used by the sample controls. */
     HudSimulation simulation_ {};
-    /** Stateless adapter from semantic HUD inputs to generated UI handles. */
-    HudController controller_ {};
     /** Latest semantic aircraft/target/weapon sample published to the HUD. */
-    HudInputSample hudInputs_ {};
+    hud::HudInputSample hudInputs_ {};
     /** Pilot intent collected from ImGui controls or scripted maneuvers. */
     PilotControls controls_ {};
     /** Current source of pilot commands. */
     HudManeuver maneuver_ = HudManeuver::Manual;
-    /** Parsed asset and transport configuration reused across reconnects. */
-    HudConfig config_ {};
-    /** Reliable startup client used for initial scene submission. */
-    std::unique_ptr<mfd::CommandClient> startupClient_ {};
-    /** Latest-batch UDP publisher used for realtime HUD updates. */
-    std::unique_ptr<mfd::client::LatestBatchPublisher> publisher_ {};
-    /** Optional feedback receiver for window close and packet-liveness signals. */
-    std::unique_ptr<mfd::IExchangeChannel> feedbackReceiver_ {};
-    /** Detects stale or closed runtime windows from decoded feedback packets. */
-    mfd::client::WindowLivenessMonitor livenessMonitor_ {2.0};
-    /** Monotonic command sequence number sent with generated command batches. */
-    std::uint32_t sequence_ = 1;
-    /** Application uptime used as the liveness-monitor clock. */
-    double elapsedSeconds_ = 0.0;
     /** True while command publishing is available. */
     bool connected_ = false;
     /** True while the mini-simulation should advance each frame. */
@@ -204,4 +163,4 @@ private:
     /** True when `status_` should be rendered as an error. */
     bool statusIsError_ = false;
 };
-} // namespace hud
+} // namespace hud_main

@@ -12,7 +12,8 @@
 
 #include <string>
 
-#include "HudTypes.h"
+#include "hud/HudRuntimeExport.h"
+#include "hud/HudTypes.h"
 
 namespace hud
 {
@@ -63,7 +64,7 @@ struct ProjectedHudPoint
  * @brief Returns the shared conformal HUD field of view and extent.
  * @return The single projection model used by all conformal symbols.
  */
-HudAngularProjection HudConformalProjection() noexcept;
+HUD_RUNTIME_API HudAngularProjection HudConformalProjection() noexcept;
 
 /**
  * @brief Returns the total vertical field of view of the pitch ladder, degrees.
@@ -71,7 +72,7 @@ HudAngularProjection HudConformalProjection() noexcept;
  * @note The authored `hud_pitch_ladder.json` bar positions must match this
  * scale; a regression test guards the C++/JSON consistency.
  */
-float HudPitchLadderVerticalFovDegrees() noexcept;
+HUD_RUNTIME_API float HudPitchLadderVerticalFovDegrees() noexcept;
 
 /**
  * @brief Projects a boresight-relative angular offset into HUD space.
@@ -80,7 +81,7 @@ float HudPitchLadderVerticalFovDegrees() noexcept;
  * @return Clamped HUD position with field-of-view and clamp flags.
  * @note Non-finite inputs are treated as zero so the output is always finite.
  */
-ProjectedHudPoint ProjectBoresightAngularOffsetToHud(float azimuthRad, float elevationRad) noexcept;
+HUD_RUNTIME_API ProjectedHudPoint ProjectBoresightAngularOffsetToHud(float azimuthRad, float elevationRad) noexcept;
 
 /**
  * @brief Projects a vertical pitch offset into a HUD ladder position.
@@ -89,7 +90,7 @@ ProjectedHudPoint ProjectBoresightAngularOffsetToHud(float azimuthRad, float ele
  * @note The ladder is allowed to move beyond the visible aperture, so this
  * value is not clamped.
  */
-HudVec2 ProjectPitchOffsetToHud(float pitchOffsetDeg) noexcept;
+HUD_RUNTIME_API HudVec2 ProjectPitchOffsetToHud(float pitchOffsetDeg) noexcept;
 
 /**
  * @brief Tests whether a boresight-relative angle is inside the HUD field of view.
@@ -97,7 +98,7 @@ HudVec2 ProjectPitchOffsetToHud(float pitchOffsetDeg) noexcept;
  * @param elevationRad Elevation relative to boresight in radians.
  * @return True when both angles are within half the conformal field of view.
  */
-bool IsInsideHudFov(float azimuthRad, float elevationRad) noexcept;
+HUD_RUNTIME_API bool IsInsideHudFov(float azimuthRad, float elevationRad) noexcept;
 
 /**
  * @brief Builds one projected HUD frame from a physical input sample.
@@ -116,8 +117,12 @@ bool IsInsideHudFov(float azimuthRad, float elevationRad) noexcept;
  * - target range and `targetWingspanMeters` scale range-sampled wall widths;
  * - target azimuth/elevation and `targetAccelerationMps2` add lead/skew;
  * - the result is two five-point Bezier rails in `HudGunFrame`.
+ *
+ * Weapon-specific values are the opposite: launch zone, time of flight, labels
+ * and quantities are caller-resolved facts read from `WeaponInputSample`, never
+ * computed by the HUD runtime.
  */
-HudFrame BuildHudFrame(const HudInputSample& input) noexcept;
+HUD_RUNTIME_API HudFrame BuildHudFrame(const HudInputSample& input) noexcept;
 
 /**
  * @brief Converts SI aircraft inputs into legacy HUD display units.
@@ -125,7 +130,7 @@ HudFrame BuildHudFrame(const HudInputSample& input) noexcept;
  * @return Derived state in knots, feet, degrees and normalized energy cue units.
  * @note Non-finite values are defensively replaced by safe fallbacks.
  */
-AircraftState BuildAircraftStateForHud(const AircraftInputSample& aircraft) noexcept;
+HUD_RUNTIME_API AircraftState BuildAircraftStateForHud(const AircraftInputSample& aircraft) noexcept;
 
 /**
  * @brief Converts SI target inputs into legacy HUD display units.
@@ -133,66 +138,20 @@ AircraftState BuildAircraftStateForHud(const AircraftInputSample& aircraft) noex
  * @return Derived target state in nautical miles, knots, feet and degrees.
  * @note Non-finite values are defensively replaced by safe fallbacks.
  */
-TargetState BuildTargetStateForHud(const TargetInputSample& target) noexcept;
-
-/**
- * @brief Computes dynamic launch zone values from physical SI inputs.
- * @param aircraft SI-unit aircraft input sample.
- * @param target SI-unit target input sample.
- * @param selectedMissile Selected missile type.
- * @return Simplified but ordered DLZ values in nautical miles.
- */
-LaunchZone ComputeLaunchZone(const AircraftInputSample& aircraft,
-                             const TargetInputSample& target,
-                             MissileType selectedMissile) noexcept;
-
-/**
- * @brief Computes the demo missile time of flight from physical SI inputs.
- * @param aircraft SI-unit aircraft input sample.
- * @param target SI-unit target input sample.
- * @param selectedMissile Selected missile type.
- * @return Time of flight in seconds, bounded by the selected demo profile.
- * @note Uses the bundled demo missile profiles. A production adapter should
- * provide an already-resolved time of flight instead.
- */
-float ComputeMissileTimeOfFlight(const AircraftInputSample& aircraft,
-                                 const TargetInputSample& target,
-                                 MissileType selectedMissile) noexcept;
-
-/**
- * @brief Returns the HUD inventory label of one demo missile type.
- * @param selectedMissile Missile type.
- * @return `"AIM-120C"` or `"AIM-9M"` from the bundled demo profile.
- */
-const char* MissileLabel(MissileType selectedMissile) noexcept;
+HUD_RUNTIME_API TargetState BuildTargetStateForHud(const TargetInputSample& target) noexcept;
 
 /**
  * @brief Formats a heading as a three-digit HUD value.
  * @param headingDegrees Heading in degrees; values are wrapped into [0, 360).
  * @return Three-character heading such as `"000"` or `"275"`.
  */
-std::string FormatHeading(float headingDegrees);
-
-/**
- * @brief Formats the selected missile mnemonic plus quantity.
- * @param selectedMissile Missile type whose remaining count should be shown.
- * @param inventory Current missile inventory.
- * @return HUD text such as `"AIM-120C 4"` or `"AIM-9M 2"`.
- */
-std::string FormatMissileInventory(MissileType selectedMissile, const MissileInventory& inventory);
-
-/**
- * @brief Returns the short HUD mnemonic of one missile type.
- * @param selectedMissile Missile type.
- * @return `"MRM"` for AIM-120C and `"SRM"` for AIM-9M.
- */
-const char* MissileMnemonic(MissileType selectedMissile) noexcept;
+HUD_RUNTIME_API std::string FormatHeading(float headingDegrees);
 
 /**
  * @brief Returns the short HUD mnemonic of one missile flight phase.
  * @param phase Missile phase.
  * @return Stable uppercase HUD status mnemonic.
  */
-const char* MissilePhaseMnemonic(MissileFlightPhase phase) noexcept;
+HUD_RUNTIME_API const char* MissilePhaseMnemonic(MissileFlightPhase phase) noexcept;
 /** @} */
 } // namespace hud

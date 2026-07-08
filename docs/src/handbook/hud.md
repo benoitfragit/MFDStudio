@@ -1,12 +1,27 @@
 # HUD
 
-The HUD example is a standalone asset/client pair under `examples/hud`.
+The HUD example is split into a reusable shared library and a main client
+under `examples/hud`.
 
 - Assets: `examples/hud/assets`
-- Client: `examples/hud/client`
+- Reusable HUD runtime (DLL/shared library): `examples/hud/runtime`, target
+  `hud_runtime`
+- Main HUD client (executable): `examples/hud/main`, target `hud_client`
 - Runtime window: `examples/hud/assets/windows/hud_window.json`
-- Client target: `hud_client`
-- Tests: `hud_client_tests`
+- Tests: `hud_client_tests` (white-box) and `hud_runtime_client_tests`
+  (linked against the hud_runtime shared library)
+
+`hud_runtime` contains everything an external aeronautical simulation needs to
+publish HUD frames from a `hud::HudInputSample`: the semantic input contract,
+the projection and symbology geometry (including the EEGS funnel), the
+generated `HudUi` wrapper, the transport lifecycle and the runtime assets/font
+staging. It never links ImGui, d3d11 or dxgi and never includes
+`HudApplication`, `HudSimulation`, `PilotControls` or `Win32Dx11ImGuiHost`.
+
+`hud_client` is the interactive Win32/DX11 ImGui client. It owns the operator
+panel, the mini-simulation and the sample armament constants, and consumes
+`hud_runtime` exactly like an external integration would. `hud_runtime.dll` is
+copied next to `hud_client` by the build.
 
 The HUD window uses the bundled `ShareTechMono-Regular.ttf` font under the SIL
 Open Font License 1.1. The `.ttf` and `OFL-ShareTechMono.txt` files live under
@@ -14,10 +29,10 @@ Open Font License 1.1. The `.ttf` and `OFL-ShareTechMono.txt` files live under
 also define explicit letter spacing so the HUD does not fall back to raylib's
 default font metrics.
 
-Build the runtime and client:
+Build the runtime window, the HUD library and the client:
 
 ```powershell
-cmake --build --preset debug-win32 --target mfd_window hud_client hud_client_tests
+cmake --build --preset debug-win32 --target mfd_window hud_runtime hud_client hud_client_tests hud_runtime_client_tests
 ```
 
 Launch the runtime window:
@@ -29,14 +44,16 @@ Launch the runtime window:
 Then start the client:
 
 ```powershell
-.\build\vs2022-win32\examples\hud\client\Debug\hud_client.exe
+.\build\vs2022-win32\examples\hud\main\Debug\hud_client.exe
 ```
 
-The client loads `assets/windows/hud_window.json` from its own staged
-runtime directory and drives the generated transport map next to the authored
-window JSON. The runtime staging also copies the HUD asset tree into the shared
-`assets` directory so the launch script works from `_Exec` without relying on
-repository-root assets.
+The runtime client resolves `assets/windows/hud_window.json` from the staged
+layout next to its working directory first, then falls back to the
+in-repository asset path, and drives the generated transport map next to the
+authored window JSON. `mfd_stage_hud_runtime_assets()` copies the HUD asset
+tree (window JSON, generated map, pages, reticles and the HUD font) next to
+any consumer executable, and the `_Exec` staging also receives
+`hud_runtime.dll` through the runtime-DLL copy step.
 
 ## Replacing the ImGui sample panel
 
@@ -51,35 +68,24 @@ and telemetry. The circular stick POV writes normalized pitch/roll intent into
 `PilotControls`; dragging the knob down is treated like pulling the stick and
 commands nose-up pitch.
 
-An external simulator, aircraft model, or plugin can remove the ImGui shell and
-drive the same HUD by keeping the generated UI and the semantic adapter:
+An external simulator, aircraft model, or plugin removes the ImGui shell by
+linking only `hud_runtime`:
 
-- Keep `examples/hud/assets`; these are the authored HUD window, page and
-  reticles.
-- Keep the generated `HudUi` wrapper emitted from
-  `hud_window.json`.
-- Keep `hud::HudInputSample` from `HudTypes.h`.
-- Keep `hud::BuildHudFrame()` from `HudProjection.h`; this is where
-  the HUD projection and EEGS funnel algorithm live.
-- Keep `hud::HudController::Populate()` from
-  `HudController.h`.
-- Keep the normal MFD client publishing path: startup client,
-  `mfd::client::LatestBatchPublisher`, sequence number and optional feedback
-  polling.
-- Remove `Win32Dx11ImGuiHost`, the ImGui draw panels, keyboard handling and the
-  bundled `HudSimulation` if the external model already provides aircraft
-  state.
+- Keep `examples/hud/assets` (staged by `mfd_stage_hud_runtime_assets()`);
+  these are the authored HUD window, page, reticles and font.
+- Keep `hud::HudRuntimeClient` from `hud/HudRuntimeClient.h`; it owns the
+  generated UI, the startup client, the realtime publisher and the feedback
+  liveness internally.
+- Keep `hud::HudInputSample` from `hud/HudTypes.h`.
+- Do not link ImGui, d3d11 or dxgi, and do not embed `HudApplication`,
+  `HudSimulation` or `PilotControls`; they belong to the main client only.
 
 The replacement application has one responsibility: build a complete
 `hud::HudInputSample` from the external model once per HUD frame, then let
-`HudController` convert it to generated UI commands.
+`hud::HudRuntimeClient::Publish()` convert it to generated UI commands.
 
 ```cpp
-#include "HudController.h"
-#include "HudUi.h"
-
-#include "mfd/client/ClientSdk.h"
-#include "mfd/control/CommandClient.h"
+#include "hud/HudRuntimeClient.h"
 
 hud::HudInputSample BuildHudInputFromAircraft(const AircraftModel& aircraft)
 {
@@ -140,11 +146,14 @@ hud::HudInputSample BuildHudInputFromAircraft(const AircraftModel& aircraft)
     }
     input.weapon.masterArm = aircraft.MasterArm();
     input.weapon.simulateMode = aircraft.SimulateMode();
-    input.weapon.selectedMissile = aircraft.SelectedMissileIsAim120()
-        ? hud::MissileType::Aim120C
-        : hud::MissileType::Aim9M;
-    input.weapon.inventory.aim9m = aircraft.Aim9Remaining();
-    input.weapon.inventory.aim120c = aircraft.Aim120Remaining();
+    // Weapon facts are already resolved by the aircraft weapon system. The HUD
+    // never decides which concrete missile type is loaded.
+    input.weapon.selectedWeaponLabel = aircraft.SelectedWeaponHudLabel();
+    input.weapon.selectedWeaponMnemonic = aircraft.SelectedWeaponHudMnemonic();
+    input.weapon.selectedWeaponQuantity = aircraft.SelectedWeaponRemaining();
+    input.weapon.missileDiamondScale = aircraft.SelectedWeaponHudDiamondScale();
+    input.weapon.launchZone = aircraft.ComputedLaunchZoneForHud();
+    input.weapon.selectedMissileTimeOfFlightSeconds = aircraft.SelectedWeaponTimeOfFlightSeconds();
     input.weapon.gunRoundsRemaining = aircraft.GunRoundsRemaining();
     input.weapon.triggerHeld = aircraft.GunTriggerHeld();
     input.weapon.targetLocked = aircraft.HasGunTargetLock();
@@ -187,31 +196,36 @@ hud::HudInputSample BuildHudInputFromAircraft(const AircraftModel& aircraft)
 }
 ```
 
-The realtime publishing loop stays small:
+The realtime publishing loop stays small; the external simulation keeps its
+own main loop and decides when a frame is published:
 
 ```cpp
-hud_ui::HudUi ui;
-hud::HudController controller;
-std::uint32_t sequence = 1;
+hud::HudRuntimeConfig config;
+config.assetRoot = ".../assets";
 
-ui.Initialize();
-ui.SendStartup(startupClient, pageView, "HUD | READY");
+hud::HudRuntimeClient hud;
+std::string error;
 
-while (model.IsRunning())
+if (!hud.Initialize(config, error))
 {
-    const hud::HudInputSample input = BuildHudInputFromAircraft(model.Aircraft());
-    ui.Run();
-    controller.Populate(ui, input);
-
-    if (!ui.SubmitLatest(publisher, sequence++))
-    {
-        break;
-    }
+    // handle error
 }
 
-ui.SubmitShutdown(publisher, sequence++, "HUD | CLIENT STOPPED");
-publisher.Flush();
+while (running)
+{
+    hud::HudInputSample input {};
+    // fill input from external aircraft simulation
+    hud.Publish(input, error);
+}
+
+hud.Shutdown();
 ```
+
+`HudRuntimeConfig::assetRoot` points to the directory containing the staged
+HUD assets (`windows/`, `pages/`, `reticles/`, `fonts/`). With the default
+`Initialize(error)` overload the client looks for `assets/windows/
+hud_window.json` next to the working directory (the staged layout), then falls
+back to the in-repository asset path.
 
 The important boundary is `HudInputSample`. It uses SI units and radians:
 
@@ -220,23 +234,24 @@ The important boundary is `HudInputSample`. It uses SI units and radians:
   negative while climbing;
 - target azimuth/elevation are line-of-sight errors relative to the aircraft
   nose;
-- `WeaponInputSample` must already contain resolved avionics state. Do not wire
-  raw cockpit, panel, HOTAS or ImGui commands directly to generated HUD handles.
+- `WeaponInputSample` must already contain resolved avionics state, including
+  the generic selected-weapon label/mnemonic/quantity, the computed launch zone
+  and the computed time of flight. Do not wire raw cockpit, panel, HOTAS or
+  ImGui commands directly to generated HUD handles.
 - `AirGroundInputSample`, `ApproachInputSample` and `IlsInputSample` are also
   semantic aircraft/avionics state. They are not generated UI coordinates.
 
 For a concrete local reference, read
-`HudApplication::UpdateHudInputBufferFromUi()`. That function is the sample boundary
-client boundary where UI controls become a semantic `HudInputSample`; an
-external integration should replace that data producer, not the HUD projection
-or generated UI command path.
+`hud_main::HudApplication::UpdateHudInputBufferFromUi()` and
+`hud_main::HudSimulation::RefreshWeaponPresentation()`. Those functions are the
+sample client boundary where UI controls and typed sample armament become a
+semantic `HudInputSample`; an external integration replaces those data
+producers, not the HUD projection or generated UI command path.
 
-`HudSimulation` and the ImGui panel are optional sample producers. A real
-integration can remove them while keeping `HudTypes.h`,
-`HudProjection.h/.cpp`, `HudController.h/.cpp` and the generated
-`HudUi` wrapper. In that arrangement the external model only fills
-`HudInputSample`; `BuildHudFrame()` still computes the EEGS funnel and
-`HudController` still sends the Bezier rails through the generated UI API.
+`HudSimulation` and the ImGui panel are main-client sample producers only. A
+real integration removes them and links `hud_runtime`; the external model only
+fills `HudInputSample`, `BuildHudFrame()` still computes the EEGS funnel and
+the runtime still sends the Bezier rails through the generated UI API.
 
 Run the focused validation:
 
@@ -247,7 +262,7 @@ ctest --preset test-debug-win32 -R "hud|HudSimulation" --output-on-failure
 ## HUD angular projection
 
 Every conformal HUD symbol shares one explicit field of view, resolved in a
-single place in `HudProjection.cpp`. This removes the previous mix of
+single place in `runtime/src/HudProjection.cpp`. This removes the previous mix of
 independent scales (a ~58 degree pitch scale, an 18 degree azimuth scale and a
 14 degree elevation scale) that made the pitch ladder, radar/target cues and
 A-G cues disagree with each other.
@@ -396,9 +411,10 @@ semantic sub-samples:
 - `aircraft`: attitude, velocity, altitude, energy and throttle in SI units.
 - `target`: air-to-air target range, closure, aspect and line-of-sight in SI
   units and radians.
-- `weapon`: resolved master mode, weapon mode, gun mode, arm/sim state,
-  selected missile, inventory, gun rounds, trigger, target lock, target
-  wingspan and ammunition family.
+- `weapon`: resolved master mode, weapon mode, gun mode, arm/sim state, the
+  generic selected-weapon label/mnemonic/quantity, the computed launch zone and
+  time of flight, gun rounds, trigger, target lock, target wingspan and
+  ammunition family.
 - `airGround`: CCIP/STRF impact-point range and angular offsets, bomb-fall-line
   azimuth, solution cue, PUAC and optional timing.
 - `approach`: landing gear, weight-on-wheels, landing mode, landing declutter,

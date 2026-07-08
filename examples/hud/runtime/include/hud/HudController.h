@@ -10,7 +10,8 @@
  * @brief Adapter from semantic HUD inputs to the generated HUD UI.
  */
 
-#include "HudProjection.h"
+#include "hud/HudProjection.h"
+#include "hud/HudRuntimeExport.h"
 
 namespace hud_ui
 {
@@ -27,7 +28,7 @@ namespace hud
  * semantic input sample, projects it into HUD-space values, and writes every
  * generated handle needed by the current frame.
  */
-class HudController
+class HUD_RUNTIME_API HudController
 {
 public:
     /**

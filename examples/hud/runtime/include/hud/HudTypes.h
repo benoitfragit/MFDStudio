@@ -11,6 +11,7 @@
  */
 
 #include <array>
+#include <string>
 
 namespace hud
 {
@@ -19,8 +20,9 @@ namespace hud
  * @brief Semantic SI-unit API used to drive the generated HUD.
  *
  * External aircraft code should fill `HudInputSample` once per rendered HUD
- * frame, then pass it to `HudController::Populate()`. The generated
- * `HudUi` API remains the only writer to the authored HUD page handles.
+ * frame, then pass it to `HudRuntimeClient::Publish()` (or, for in-process
+ * integrations, to `HudController::Populate()`). The generated `HudUi` API
+ * remains the only writer to the authored HUD page handles.
  *
  * @note The integration boundary is semantic state, not raw cockpit commands.
  * Panel/HOTAS inputs must be resolved by the aircraft adapter before filling
@@ -102,26 +104,6 @@ enum class HudAmmoType
     M56,
     /** PGU-28 ammunition, default STRF in-range value 12000 ft. */
     Pgu28
-};
-
-/**
- * @brief Missile type selectable in the A-A sample.
- *
- * @note Demo armament, not a HUD-core requirement. The concrete AIM-120C/AIM-9M
- * values (labels, mnemonics, speeds, time-of-flight and DLZ parameters) are
- * grouped in the demo missile profiles inside `HudProjection.cpp`, not scattered
- * through the projection helpers. A real avionics integration selects its own
- * weapons and fills `WeaponInputSample`/`LaunchZone` with already-resolved
- * values. Only this enum still lives in the shared header, because the sample
- * projection helpers and their regression tests are typed on it; moving the enum
- * out into a separate demo-armament module remains a larger follow-up.
- */
-enum class MissileType
-{
-    /** Short-range infrared missile cue. */
-    Aim9M,
-    /** Medium-range radar missile cue. */
-    Aim120C
 };
 
 /**
@@ -264,14 +246,26 @@ struct TargetState
 };
 
 /**
- * @brief Missile inventory used by the HUD adapter.
+ * @brief Dynamic launch zone values in nautical miles.
+ *
+ * The launch zone is an already-resolved avionics fact: the aircraft weapon
+ * system (or the sample client armament model) computes it and hands it to the
+ * HUD through `WeaponInputSample::launchZone`. The HUD only draws it.
  */
-struct MissileInventory
+struct LaunchZone
 {
-    /** Remaining AIM-9M missiles. Must not be negative in external adapters. */
-    int aim9m = 2;
-    /** Remaining AIM-120C missiles. Must not be negative in external adapters. */
-    int aim120c = 4;
+    /** Maximum aerodynamic range in nautical miles. */
+    float rmax1Nm = 0.0f;
+    /** No-escape maximum range in nautical miles. */
+    float rmax2Nm = 0.0f;
+    /** No-escape minimum range in nautical miles. */
+    float rmin2Nm = 0.0f;
+    /** Minimum launch range in nautical miles. */
+    float rmin1Nm = 0.0f;
+    /** True when target range is between `rmin2Nm` and `rmax2Nm`. */
+    bool inNoEscapeZone = false;
+    /** True when target range is below `rmin1Nm`. */
+    bool tooClose = false;
 };
 
 /**
@@ -279,7 +273,9 @@ struct MissileInventory
  *
  * These are already semantic avionics values. They are not raw panel commands:
  * the aircraft integration layer must resolve HOTAS/panel state into the active
- * master mode, selected missile and inventory before calling the HUD adapter.
+ * master mode, selected weapon presentation, launch zone and timing before
+ * calling the HUD adapter. The HUD never decides which concrete missile type is
+ * loaded; it only displays the generic facts provided here.
  */
 struct WeaponInputSample
 {
@@ -293,10 +289,18 @@ struct WeaponInputSample
     bool masterArm = true;
     /** True when avionics are in SIM mode and should show armed symbology without expenditure. */
     bool simulateMode = false;
-    /** Missile type selected by avionics for HUD cues and inventory text. */
-    MissileType selectedMissile = MissileType::Aim120C;
-    /** Remaining inventory by missile type. */
-    MissileInventory inventory {};
+    /** HUD inventory label of the selected weapon, e.g. an airframe-specific missile name. */
+    std::string selectedWeaponLabel {};
+    /** Short HUD status mnemonic of the selected weapon family. */
+    std::string selectedWeaponMnemonic {};
+    /** Remaining quantity of the selected weapon. `<= 0` hides the DLZ range cue. */
+    int selectedWeaponQuantity = 0;
+    /** Missile diamond scale multiplier resolved by the caller; non-positive values fall back to 1. */
+    float missileDiamondScale = 1.0f;
+    /** Dynamic launch zone already computed by the aircraft weapon system. */
+    LaunchZone launchZone {};
+    /** Selected weapon time of flight in seconds, already computed by the caller. */
+    float selectedMissileTimeOfFlightSeconds = 0.0f;
     /** Gun ammunition family used for range defaults and HUD labels. */
     HudAmmoType ammoType = HudAmmoType::Pgu28;
     /** Remaining gun rounds. Negative values are sanitized to zero by projection. */
@@ -433,25 +437,6 @@ struct HudInputSample
 };
 
 /**
- * @brief Dynamic launch zone values in nautical miles.
- */
-struct LaunchZone
-{
-    /** Maximum aerodynamic range in nautical miles. */
-    float rmax1Nm = 0.0f;
-    /** No-escape maximum range in nautical miles. */
-    float rmax2Nm = 0.0f;
-    /** No-escape minimum range in nautical miles. */
-    float rmin2Nm = 0.0f;
-    /** Minimum launch range in nautical miles. */
-    float rmin1Nm = 0.0f;
-    /** True when target range is between `rmin2Nm` and `rmax2Nm`. */
-    bool inNoEscapeZone = false;
-    /** True when target range is below `rmin1Nm`. */
-    bool tooClose = false;
-};
-
-/**
  * @brief HUD-projected attitude and flight-path cues.
  */
 struct HudAttitudeFrame
@@ -558,9 +543,9 @@ struct HudWeaponFrame
     bool attackSteeringCueVisible = false;
     /** Attack-steering cue HUD position. */
     HudVec2 attackSteeringCuePosition {};
-    /** Dynamic launch zone values for the selected missile. */
+    /** Sanitized dynamic launch zone values for the selected weapon. */
     LaunchZone launchZone {};
-    /** Computed selected-missile time of flight in seconds. */
+    /** Selected weapon time of flight in seconds, sanitized from the input sample. */
     float selectedMissileTimeOfFlightSeconds = 0.0f;
     /** True when a launched missile status should be displayed. */
     bool missileInFlight = false;
