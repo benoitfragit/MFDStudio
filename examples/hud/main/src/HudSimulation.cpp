@@ -332,6 +332,72 @@ void SyncWeaponInputFromMissileShots(HudInputSample& inputs, const std::vector<M
     inputs.weapon.activeMissileTimeRemainingSeconds = shot.timeRemainingSeconds;
     inputs.weapon.activeMissilePhase = shot.phase;
 }
+
+// Initial scene of the bundled client. `hud::HudInputSample{}` is a neutral
+// runtime contract (grounded, no target, no weapon), so the client writes the
+// airborne scene it previously inherited from the runtime defaults explicitly.
+struct ClientSceneSample
+{
+    /** Aircraft pitch in radians (~2 degrees nose-up cruise). */
+    float pitchRad = 0.034906585f;
+    /** Mean sea level altitude in meters (~15000 ft). */
+    float altitudeMeters = 4572.0f;
+    /** Radar altitude above ground level in meters. */
+    float radioAltitudeMeters = 4419.6f;
+    /** North velocity component in meters per second (~430 kts cruise). */
+    float northSpeedMps = 221.21f;
+    /** Down velocity component in meters per second; negative while climbing. */
+    float downSpeedMps = -3.86f;
+    /** Cruise Mach number. */
+    float mach = 0.65f;
+    /** Cruise throttle ratio. */
+    float throttleRatio = 0.62f;
+    /** Slant range to the scripted target in meters (5.4 NM). */
+    float targetRangeMeters = 5.4f * kNauticalMileToMeters;
+    /** Target closing speed in meters per second (360 kts). */
+    float targetClosingSpeedMps = 360.0f * kKnotsToMetersPerSecond;
+    /** Target aspect angle in radians (~125 degrees). */
+    float targetAspectRad = 2.1816616f;
+    /** Target altitude in meters MSL (~20000 ft). */
+    float targetAltitudeMeters = 6096.0f;
+    /** Remaining gun rounds carried by the client aircraft. */
+    int gunRoundsRemaining = 510;
+    /** Target wingspan in meters used for the EEGS funnel width (~35 ft). */
+    float targetWingspanMeters = 10.668f;
+    /**
+     * @brief Client-resolved STRF in-range threshold in feet.
+     *
+     * The bundled client carries a single PGU-28 loadout, so it resolves the
+     * ammunition threshold itself (M56 would be 4000 ft, PGU-28 is 12000 ft)
+     * and hands the already-resolved value to the runtime.
+     */
+    float strafeInRangeFeet = 12000.0f;
+};
+
+constexpr ClientSceneSample kClientSceneSample {};
+
+// Writes the client's airborne scene into a neutral HUD input sample.
+void ApplyClientSceneSample(HudInputSample& inputs) noexcept
+{
+    const ClientSceneSample& scene = kClientSceneSample;
+    inputs.aircraft.pitchRad = scene.pitchRad;
+    inputs.aircraft.altitudeMeters = scene.altitudeMeters;
+    inputs.aircraft.radioAltitudeMeters = scene.radioAltitudeMeters;
+    inputs.aircraft.northSpeedMps = scene.northSpeedMps;
+    inputs.aircraft.downSpeedMps = scene.downSpeedMps;
+    inputs.aircraft.mach = scene.mach;
+    inputs.aircraft.throttleRatio = scene.throttleRatio;
+
+    inputs.target.valid = true;
+    inputs.target.rangeMeters = scene.targetRangeMeters;
+    inputs.target.closingSpeedMps = scene.targetClosingSpeedMps;
+    inputs.target.aspectRad = scene.targetAspectRad;
+    inputs.target.altitudeMeters = scene.targetAltitudeMeters;
+
+    inputs.weapon.gunRoundsRemaining = scene.gunRoundsRemaining;
+    inputs.weapon.targetWingspanMeters = scene.targetWingspanMeters;
+    inputs.weapon.strafeInRangeFeet = scene.strafeInRangeFeet;
+}
 } // namespace
 
 LaunchZone ComputeLaunchZone(const AircraftInputSample& aircraft,
@@ -419,6 +485,9 @@ HudSimulation::HudSimulation()
 void HudSimulation::Reset()
 {
     inputs_ = {};
+    // The runtime contract defaults are neutral, so the client restores its own
+    // airborne scene explicitly instead of relying on runtime scene defaults.
+    ApplyClientSceneSample(inputs_);
     controls_ = {};
     selectedMissile_ = MissileType::Aim120C;
     inventory_ = {};

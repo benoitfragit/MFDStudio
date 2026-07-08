@@ -242,16 +242,20 @@ The important boundary is `HudInputSample`. It uses SI units and radians:
   semantic aircraft/avionics state. They are not generated UI coordinates.
 
 For a concrete local reference, read
-`hud_main::HudApplication::UpdateHudInputBufferFromUi()` and
-`hud_main::HudSimulation::RefreshWeaponPresentation()`. Those functions are the
-sample client boundary where UI controls and typed sample armament become a
+`hud_main::HudApplication::UpdateHudInputBufferFromUi()`,
+`hud_main::HudSimulation::Reset()` and
+`hud_main::HudSimulation::RefreshWeaponPresentation()`. `HudInputSample{}` is a
+deliberately neutral runtime contract (grounded aircraft, no target, unarmed),
+so the client writes its own airborne scene explicitly in `Reset()` instead of
+inheriting scene values from runtime defaults. Those functions are the
+client boundary where UI controls and the client-local armament model become a
 semantic `HudInputSample`; an external integration replaces those data
 producers, not the HUD projection or generated UI command path.
 
-`HudSimulation` and the ImGui panel are main-client sample producers only. A
-real integration removes them and links `hud_runtime`; the external model only
-fills `HudInputSample`, `BuildHudFrame()` still computes the EEGS funnel and
-the runtime still sends the Bezier rails through the generated UI API.
+`HudSimulation` and the ImGui panel are client-local producers only. A real
+integration removes them and links `hud_runtime`; the external model only fills
+`HudInputSample`, `BuildHudFrame()` still computes the EEGS funnel and the
+runtime still sends the Bezier rails through the generated UI API.
 
 Run the focused validation:
 
@@ -405,16 +409,21 @@ must not be added to the runtime asset graph.
 
 ## Semantic input contract
 
-`hud::HudInputSample` is the integration boundary. It is split into
-semantic sub-samples:
+`hud::HudInputSample` is the integration boundary. Its defaults are
+deliberately neutral: a default-constructed sample describes a grounded,
+stationary aircraft with no target and no armed weapon, so an integrator sees
+no scene state leaking from the runtime. Scene values are the caller's
+responsibility; in the bundled client they are written by
+`hud_main::HudSimulation`. The sample is split into semantic sub-samples:
 
 - `aircraft`: attitude, velocity, altitude, energy and throttle in SI units.
 - `target`: air-to-air target range, closure, aspect and line-of-sight in SI
   units and radians.
 - `weapon`: resolved master mode, weapon mode, gun mode, arm/sim state, the
   generic selected-weapon label/mnemonic/quantity, the computed launch zone and
-  time of flight, gun rounds, trigger, target lock, target wingspan and
-  ammunition family.
+  time of flight, gun rounds, trigger, target lock, target wingspan and the
+  caller-resolved `strafeInRangeFeet` threshold. The runtime never resolves a
+  concrete ammunition type (M56, PGU-28, …) or an in-range default itself.
 - `airGround`: CCIP/STRF impact-point range and angular offsets, bomb-fall-line
   azimuth, solution cue, PUAC and optional timing.
 - `approach`: landing gear, weight-on-wheels, landing mode, landing declutter,

@@ -53,6 +53,8 @@ TEST(HudRuntimeLibraryTests, FunnelControlPointsAreComputedFromGenericInputSampl
     input.weapon.masterMode = hud::HudMasterMode::AirToAir;
     input.weapon.weaponMode = hud::HudWeaponMode::AirToAirGun;
     input.weapon.gunMode = hud::HudGunMode::Eegs;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
     input.weapon.targetWingspanMeters = 11.0f;
     input.weapon.targetAccelerationMps2 = 20.0f;
     input.aircraft.rollRad = 30.0f * kDegreesToRadians;
@@ -102,6 +104,58 @@ TEST(HudRuntimeLibraryTests, WeaponFactsArePassedThroughNotComputed)
     input.weapon.selectedWeaponQuantity = 0;
     const hud::HudFrame depletedFrame = hud::BuildHudFrame(input);
     EXPECT_FALSE(depletedFrame.weapon.rangeCueVisible);
+}
+
+TEST(HudRuntimeLibraryTests, DefaultInputSampleIsNeutral)
+{
+    // The public runtime contract must default to a grounded, target-free,
+    // unarmed sample so an integrator embedding the DLL sees no scene state.
+    hud::HudInputSample input;
+
+    EXPECT_FALSE(input.target.valid);
+    EXPECT_FALSE(input.weapon.masterArm);
+    EXPECT_EQ(input.weapon.selectedWeaponQuantity, 0);
+    EXPECT_EQ(input.weapon.gunRoundsRemaining, 0);
+    EXPECT_FLOAT_EQ(input.weapon.targetWingspanMeters, 0.0f);
+    EXPECT_FLOAT_EQ(input.weapon.strafeInRangeFeet, 0.0f);
+    EXPECT_FLOAT_EQ(input.aircraft.altitudeMeters, 0.0f);
+    EXPECT_FLOAT_EQ(input.aircraft.pitchRad, 0.0f);
+
+    // A neutral sample must not publish any weapon or target symbology.
+    const hud::HudFrame frame = hud::BuildHudFrame(input);
+    EXPECT_FALSE(frame.weapon.airToAirVisible);
+    EXPECT_FALSE(frame.weapon.targetVisible);
+    EXPECT_FALSE(frame.gun.airToAirGunVisible);
+    EXPECT_FALSE(frame.gun.strafeVisible);
+    EXPECT_FALSE(frame.airGround.ccipVisible);
+}
+
+TEST(HudRuntimeLibraryTests, StrafeInRangeThresholdIsCallerResolved)
+{
+    hud::HudInputSample input;
+    input.weapon.masterMode = hud::HudMasterMode::AirToGround;
+    input.weapon.weaponMode = hud::HudWeaponMode::AirToGroundStrafe;
+    input.weapon.gunMode = hud::HudGunMode::Strafe;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
+    input.airGround.valid = true;
+    input.airGround.slantRangeMeters = 900.0f;
+
+    // No resolved threshold: the runtime must not invent an in-range cue.
+    input.weapon.strafeInRangeFeet = 0.0f;
+    const hud::HudFrame noThresholdFrame = hud::BuildHudFrame(input);
+    EXPECT_TRUE(noThresholdFrame.gun.strafeVisible);
+    EXPECT_FALSE(noThresholdFrame.gun.strafeInRangeCueVisible);
+
+    // Range at or below the caller threshold shows the cue.
+    input.weapon.strafeInRangeFeet = 12000.0f;
+    const hud::HudFrame inRangeFrame = hud::BuildHudFrame(input);
+    EXPECT_TRUE(inRangeFrame.gun.strafeInRangeCueVisible);
+
+    // Range beyond the caller threshold hides the cue.
+    input.weapon.strafeInRangeFeet = 1000.0f;
+    const hud::HudFrame outOfRangeFrame = hud::BuildHudFrame(input);
+    EXPECT_FALSE(outOfRangeFrame.gun.strafeInRangeCueVisible);
 }
 
 TEST(HudRuntimeClientTests, PublishWithoutInitializeFailsGracefully)

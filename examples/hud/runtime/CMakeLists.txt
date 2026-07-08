@@ -60,8 +60,12 @@ target_include_directories(hud_runtime
     PRIVATE
         ${MFD_HUD_GENERATED_DIR})
 
+# mfd::client is an implementation detail: HudRuntimeClient hides every mfd type
+# behind its PIMPL and no public runtime header includes an mfd header, so the
+# dependency stays PRIVATE. hud_runtime is a shared library, so mfd_client_api
+# remains in the transitive runtime-DLL closure of consumers such as hud_client.
 target_link_libraries(hud_runtime
-    PUBLIC
+    PRIVATE
         mfd::client)
 
 mfd_enable_target_warnings(hud_runtime)

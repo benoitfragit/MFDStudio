@@ -379,17 +379,6 @@ ProjectedHudPoint ProjectTargetToHud(const TargetInputSample& target) noexcept
     return ProjectConformalPoint(target.azimuthRad, target.elevationRad);
 }
 
-float DefaultStrafeInRangeFeet(const HudAmmoType ammoType) noexcept
-{
-    return ammoType == HudAmmoType::M56 ? 4000.0f : 12000.0f;
-}
-
-float EffectiveStrafeInRangeFeet(const WeaponInputSample& weapon) noexcept
-{
-    const float configuredRange = FiniteOr(weapon.strafeInRangeFeet, 0.0f);
-    return configuredRange > 0.0f ? configuredRange : DefaultStrafeInRangeFeet(weapon.ammoType);
-}
-
 bool IsWeaponArmedForHud(const WeaponInputSample& weapon) noexcept
 {
     return weapon.masterArm || weapon.simulateMode;
@@ -485,8 +474,11 @@ HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& a
     frame.targetRangeFeet = std::max(FiniteOr(input.target.rangeMeters, 0.0f), 0.0f) * kMetersToFeet;
 
     const float targetRangeMeters = std::max(FiniteOr(input.target.rangeMeters, 0.0f), 500.0f);
+    // A neutral or non-finite wingspan input falls back to the authored HUD
+    // default; the fallback is a projection concern, not part of the contract.
+    const float providedWingspanMeters = FiniteOr(input.weapon.targetWingspanMeters, 0.0f);
     const float targetWingspanMeters =
-        std::max(FiniteOr(input.weapon.targetWingspanMeters, kDefaultTargetWingspanMeters), kFeetToMeters);
+        providedWingspanMeters > 0.0f ? providedWingspanMeters : kDefaultTargetWingspanMeters;
     const float halfAngleRad = std::atan((targetWingspanMeters * 0.5f) / targetRangeMeters);
     const float referenceHalfAngleRad = std::atan((kDefaultTargetWingspanMeters * 0.5f) / (2500.0f * kFeetToMeters));
     const float rangeScaleX = halfAngleRad / std::max(referenceHalfAngleRad, 0.0001f);
@@ -574,7 +566,11 @@ HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& a
     frame.strafeSlantRangeFeet = std::max(FiniteOr(input.airGround.slantRangeMeters, 0.0f), 0.0f) * kMetersToFeet;
     frame.strafePipperPosition = strafePipper.position;
     frame.strafePipperLimited = frame.strafeVisible && !strafePipper.insideFov;
-    frame.strafeInRangeCueVisible = frame.strafeVisible && frame.strafeSlantRangeFeet <= EffectiveStrafeInRangeFeet(input.weapon);
+    // The in-range threshold is a caller-resolved fact; the runtime never
+    // invents an ammunition default. A non-positive value hides the cue.
+    const float strafeInRangeFeet = FiniteOr(input.weapon.strafeInRangeFeet, 0.0f);
+    frame.strafeInRangeCueVisible =
+        frame.strafeVisible && strafeInRangeFeet > 0.0f && frame.strafeSlantRangeFeet <= strafeInRangeFeet;
     frame.bulletTrackEndPosition = HudVec2 {
         Clamp(frame.strafePipperPosition.x * 0.72f, -0.42f, 0.42f),
         Clamp(frame.strafePipperPosition.y + 0.22f, -0.42f, 0.52f)};

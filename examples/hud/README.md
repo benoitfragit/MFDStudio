@@ -9,17 +9,17 @@ This example is split into two strictly separated targets:
   lifecycle and the asset/font staging. It has no ImGui, Win32, DX11 or
   main-client dependency.
 - `hud_client` — the main interactive executable under `main/`. It owns the
-  Win32/DX11 ImGui shell, the operator panel, the mini-simulation and the
-  sample armament, and consumes `hud_runtime` like any external simulation
-  would.
+  Win32/DX11 ImGui shell, the operator panel, the client-local simulation and
+  its armament model (the AIM-120C/AIM-9M profiles and the STRF in-range
+  threshold), and consumes `hud_runtime` like any external simulation would.
 
 ## Main Entry Points
 
 | Area | File | Keep or Replace |
 |---|---|---|
 | Host startup | `main/src/main.cpp` | Keep unless the application shell changes. |
-| ImGui/DX11 shell and sample controls | `main/.../HudApplication.*` | Replace when embedding the HUD in a real cockpit or another UI. |
-| Fake aircraft, weapons simulation and sample armament | `main/.../HudSimulation.*` | Replace with the real aircraft or simulator adapter. |
+| ImGui/DX11 shell and operator controls | `main/.../HudApplication.*` | Replace when embedding the HUD in a real cockpit or another UI. |
+| Client-local aircraft/weapons simulation and armament model | `main/.../HudSimulation.*` | Replace with the real aircraft or simulator adapter. |
 | Reusable publishing facade | `runtime/include/hud/HudRuntimeClient.h` | Keep. This is the integration entry point. |
 | Semantic HUD input contract | `runtime/include/hud/HudTypes.h` | Keep. This is the handoff boundary. |
 | Stateless projection math | `runtime/.../HudProjection.*` | Keep unless the HUD symbology model changes. |
@@ -59,17 +59,22 @@ while (running)
 hud.Shutdown();
 ```
 
-External aircraft code should fill `HudInputSample` once per rendered frame
-with semantic aircraft, target, weapon, navigation and landing state. Do not
-send raw ImGui button states, keyboard states, HOTAS edge events or simulator
-packet formats into the runtime.
+`HudInputSample{}` is deliberately neutral: it describes a grounded,
+stationary aircraft with no target and no armed weapon. The integrator fills it
+once per rendered frame with semantic aircraft, target, weapon, navigation and
+landing state; the bundled client writes its own airborne scene explicitly in
+`hud_main::HudSimulation::Reset()` rather than relying on runtime defaults. Do
+not send raw ImGui button states, keyboard states, HOTAS edge events or
+simulator packet formats into the runtime.
 
 Weapon facts are caller-resolved: the runtime receives a generic label,
-mnemonic, quantity, an already-computed launch zone and time of flight, and a
-resolved missile phase. The runtime never decides which concrete missile type
-the aircraft carries. In exchange, the runtime keeps computing the HUD
-symbology geometry itself — including the EEGS funnel Bezier control points —
-from those generic facts.
+mnemonic, quantity, an already-computed launch zone and time of flight, a
+resolved missile phase, and the resolved `strafeInRangeFeet` threshold. The
+runtime never decides which concrete missile type the aircraft carries and
+never invents an ammunition in-range default (M56, PGU-28, …); a non-positive
+`strafeInRangeFeet` simply hides the strafe in-range cue. In exchange, the
+runtime keeps computing the HUD symbology geometry itself — including the EEGS
+funnel Bezier control points — from those generic facts.
 
 ## Replacing the Mini Simulation
 

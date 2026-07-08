@@ -51,7 +51,7 @@ struct HudVec2
 using HudFunnelControlPoints = std::array<HudVec2, 5>;
 
 /**
- * @brief HUD master mode exercised by the sample client.
+ * @brief HUD master mode selected by the aircraft avionics.
  */
 enum class HudMasterMode
 {
@@ -96,17 +96,6 @@ enum class HudGunMode
 };
 
 /**
- * @brief Ammunition family used for HUD gunnery thresholds.
- */
-enum class HudAmmoType
-{
-    /** M56 ammunition, default STRF in-range value 4000 ft. */
-    M56,
-    /** PGU-28 ammunition, default STRF in-range value 12000 ft. */
-    Pgu28
-};
-
-/**
  * @brief Simplified missile flight phase used by HUD status text.
  */
 enum class MissileFlightPhase
@@ -130,6 +119,10 @@ enum class MissileFlightPhase
  * north/east are positive horizontally and down is positive toward the earth.
  * A climb therefore has a negative `downSpeedMps`.
  *
+ * @note The defaults are deliberately neutral (grounded, stationary aircraft):
+ * an integrator embedding the HUD runtime must fill this sample from its own
+ * aircraft state. Scene values belong to the caller, not to the contract.
+ *
  * @pre Values should be finite. The projection helpers defensively replace
  * non-finite values with safe fallbacks, but integrations should not rely on
  * that sanitization for normal operation.
@@ -141,27 +134,27 @@ struct AircraftInputSample
     /** Aircraft yaw angle in radians. Kept for adapters that expose full attitude. */
     float yawRad = 0.0f;
     /** Aircraft pitch angle in radians, positive nose-up. */
-    float pitchRad = 0.034906585f;
+    float pitchRad = 0.0f;
     /** Aircraft roll angle in radians, positive right-wing-down. */
     float rollRad = 0.0f;
     /** Navigation heading in radians, wrapped by the HUD as needed. */
     float headingRad = 0.0f;
     /** Mean sea level altitude in meters. */
-    float altitudeMeters = 4572.0f;
+    float altitudeMeters = 0.0f;
     /** Radar/radio altitude above ground level in meters. */
-    float radioAltitudeMeters = 4419.6f;
+    float radioAltitudeMeters = 0.0f;
     /** North velocity component in meters per second, NED frame. */
-    float northSpeedMps = 221.21f;
+    float northSpeedMps = 0.0f;
     /** East velocity component in meters per second, NED frame. */
     float eastSpeedMps = 0.0f;
     /** Down velocity component in meters per second, NED frame; negative while climbing. */
-    float downSpeedMps = -3.86f;
+    float downSpeedMps = 0.0f;
     /** Current Mach number. Set <= 0 to let the HUD derive an approximate fallback. */
-    float mach = 0.65f;
+    float mach = 0.0f;
     /** Normal acceleration in g. */
     float normalLoadFactor = 1.0f;
     /** Throttle ratio in [0, 1]. */
-    float throttleRatio = 0.62f;
+    float throttleRatio = 0.0f;
     /** Specific energy rate in meters per second. */
     float specificEnergyRateMps = 0.0f;
     /** True when afterburner is active. */
@@ -209,19 +202,19 @@ struct AircraftState
 struct TargetInputSample
 {
     /** True when target track data are valid. */
-    bool valid = true;
+    bool valid = false;
     /** Slant range to target in meters. */
-    float rangeMeters = 5.4f * 1852.0f;
+    float rangeMeters = 0.0f;
     /** Closing speed in meters per second; positive means range is decreasing. */
-    float closingSpeedMps = 360.0f * 0.514444444f;
+    float closingSpeedMps = 0.0f;
     /** Target aspect angle in radians. */
-    float aspectRad = 2.1816616f;
+    float aspectRad = 0.0f;
     /** Target azimuth error in radians relative to aircraft nose; right is positive. */
     float azimuthRad = 0.0f;
     /** Target elevation error in radians relative to aircraft nose; up is positive. */
     float elevationRad = 0.0f;
     /** Target altitude in meters MSL. */
-    float altitudeMeters = 6096.0f;
+    float altitudeMeters = 0.0f;
 };
 
 /**
@@ -249,7 +242,7 @@ struct TargetState
  * @brief Dynamic launch zone values in nautical miles.
  *
  * The launch zone is an already-resolved avionics fact: the aircraft weapon
- * system (or the sample client armament model) computes it and hands it to the
+ * system (or the client-local armament model) computes it and hands it to the
  * HUD through `WeaponInputSample::launchZone`. The HUD only draws it.
  */
 struct LaunchZone
@@ -286,7 +279,7 @@ struct WeaponInputSample
     /** Resolved gun sight family. Use `None` unless the active weapon is a gun. */
     HudGunMode gunMode = HudGunMode::None;
     /** True when MASTER ARM is ARM. SIM still enables simulated symbology through `simulateMode`. */
-    bool masterArm = true;
+    bool masterArm = false;
     /** True when avionics are in SIM mode and should show armed symbology without expenditure. */
     bool simulateMode = false;
     /** HUD inventory label of the selected weapon, e.g. an airframe-specific missile name. */
@@ -301,19 +294,24 @@ struct WeaponInputSample
     LaunchZone launchZone {};
     /** Selected weapon time of flight in seconds, already computed by the caller. */
     float selectedMissileTimeOfFlightSeconds = 0.0f;
-    /** Gun ammunition family used for range defaults and HUD labels. */
-    HudAmmoType ammoType = HudAmmoType::Pgu28;
     /** Remaining gun rounds. Negative values are sanitized to zero by projection. */
-    int gunRoundsRemaining = 510;
+    int gunRoundsRemaining = 0;
     /** True while the gun trigger is held by the resolved aircraft control state. */
     bool triggerHeld = false;
     /** True when radar/avionics provide a valid gun target lock. */
     bool targetLocked = false;
-    /** Target wingspan in meters for EEGS funnel width; 35 ft is the default fallback. */
-    float targetWingspanMeters = 10.668f;
+    /** Target wingspan in meters for EEGS funnel width; the projection applies a fallback when <= 0. */
+    float targetWingspanMeters = 0.0f;
     /** Target line-of-sight acceleration in meters per second squared; zero means unavailable. */
     float targetAccelerationMps2 = 0.0f;
-    /** Optional STRF in-range threshold in feet; <= 0 uses the ammunition default. */
+    /**
+     * @brief Caller-resolved STRF in-range threshold in feet.
+     *
+     * When `> 0`, the HUD shows the strafe in-range cue while the STRF slant
+     * range is at or below this value. When `<= 0`, the HUD keeps the cue hidden
+     * and never invents an ammunition threshold: the concrete ammunition family
+     * and its in-range distance are resolved by the caller, not the runtime.
+     */
     float strafeInRangeFeet = 0.0f;
     /** True when the HUD should display an active missile timeline. */
     bool missileInFlight = false;
@@ -367,7 +365,7 @@ struct ApproachInputSample
 {
     /** True when landing gear is down and CAS/landing symbology should be forced. */
     bool landingGearDown = false;
-    /** True when weight-on-wheels is detected; cancels landing declutter in the sample client. */
+    /** True when weight-on-wheels is detected; cancels landing declutter in the interactive client. */
     bool weightOnWheels = false;
     /** True when landing/approach HUD mode is selected by avionics. */
     bool landingModeActive = false;

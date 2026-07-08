@@ -41,12 +41,15 @@ public:
      * @post Generated HUD handles contain a complete frame ready for
      * `HudUi::SubmitLatest()`.
      *
-     * This is the integration entry point for external aircraft code. The sample
-     * mini-simulation is only one possible producer of this semantic sample.
+     * This is the in-process integration entry point for external aircraft code;
+     * the bundled client-local simulation is only one possible producer of this
+     * semantic sample.
      *
      * @note Do not pass raw panel/HOTAS commands here. Convert them first into
-     * `HudInputSample::weapon` fields such as `masterMode`, `selectedMissile`,
-     * inventory and missile timing.
+     * `HudInputSample::weapon` fields such as `masterMode`, `weaponMode`,
+     * `gunMode`, `selectedWeaponLabel`, `selectedWeaponMnemonic`,
+     * `selectedWeaponQuantity`, `launchZone` and
+     * `selectedMissileTimeOfFlightSeconds`.
      */
     void Populate(hud_ui::HudUi& ui, const HudInputSample& input) const;
 

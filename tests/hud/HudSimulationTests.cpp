@@ -514,6 +514,7 @@ TEST(HudSimulationTests, ControllerClearsAirToAirReticlesWhenReturningToNav)
     HudInputSample missileInput;
     missileInput.weapon.masterMode = HudMasterMode::AirToAir;
     missileInput.weapon.weaponMode = HudWeaponMode::AirToAirMissile;
+    missileInput.weapon.masterArm = true;
     missileInput.target.valid = true;
 
     controller.Populate(ui, missileInput);
@@ -546,6 +547,8 @@ TEST(HudSimulationTests, ControllerClearsContextualReticlesWhenChangingModes)
     eegsInput.weapon.masterMode = HudMasterMode::AirToAir;
     eegsInput.weapon.weaponMode = HudWeaponMode::AirToAirGun;
     eegsInput.weapon.gunMode = HudGunMode::Eegs;
+    eegsInput.weapon.masterArm = true;
+    eegsInput.weapon.gunRoundsRemaining = 510;
     eegsInput.target.rangeMeters = 900.0f;
 
     controller.Populate(ui, eegsInput);
@@ -558,6 +561,9 @@ TEST(HudSimulationTests, ControllerClearsContextualReticlesWhenChangingModes)
     strafeInput.weapon.masterMode = HudMasterMode::AirToGround;
     strafeInput.weapon.weaponMode = HudWeaponMode::AirToGroundStrafe;
     strafeInput.weapon.gunMode = HudGunMode::Strafe;
+    strafeInput.weapon.masterArm = true;
+    strafeInput.weapon.gunRoundsRemaining = 510;
+    strafeInput.weapon.strafeInRangeFeet = 12000.0f;
     strafeInput.airGround.valid = true;
     strafeInput.airGround.slantRangeMeters = 900.0f;
     strafeInput.airGround.pipperDepressionRad = 0.040f;
@@ -573,6 +579,7 @@ TEST(HudSimulationTests, ControllerClearsContextualReticlesWhenChangingModes)
     HudInputSample ccipInput;
     ccipInput.weapon.masterMode = HudMasterMode::AirToGround;
     ccipInput.weapon.weaponMode = HudWeaponMode::AirToGroundCcip;
+    ccipInput.weapon.masterArm = true;
     ccipInput.airGround.valid = true;
     ccipInput.airGround.pipperDepressionRad = 0.070f;
     ccipInput.airGround.fallLineAzimuthRad = 0.015f;
@@ -632,6 +639,8 @@ TEST(HudSimulationTests, ControllerPublishesFunnelHideCommandWhenLeavingEegs)
     eegsInput.weapon.masterMode = HudMasterMode::AirToAir;
     eegsInput.weapon.weaponMode = HudWeaponMode::AirToAirGun;
     eegsInput.weapon.gunMode = HudGunMode::Eegs;
+    eegsInput.weapon.masterArm = true;
+    eegsInput.weapon.gunRoundsRemaining = 510;
     eegsInput.target.rangeMeters = 900.0f;
 
     controller.Populate(ui, eegsInput);
@@ -661,6 +670,8 @@ TEST(HudSimulationTests, EegsWithoutLockShowsFunnelAndMrgsScaledByWingspan)
     narrowTarget.weapon.masterMode = HudMasterMode::AirToAir;
     narrowTarget.weapon.weaponMode = HudWeaponMode::AirToAirGun;
     narrowTarget.weapon.gunMode = HudGunMode::Eegs;
+    narrowTarget.weapon.masterArm = true;
+    narrowTarget.weapon.gunRoundsRemaining = 510;
     narrowTarget.weapon.targetLocked = false;
     narrowTarget.weapon.targetWingspanMeters = 8.0f;
     narrowTarget.target.rangeMeters = 900.0f;
@@ -698,6 +709,8 @@ TEST(HudSimulationTests, EegsFunnelUsesNarrowRangeSampledWalls)
     input.weapon.masterMode = HudMasterMode::AirToAir;
     input.weapon.weaponMode = HudWeaponMode::AirToAirGun;
     input.weapon.gunMode = HudGunMode::Eegs;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
     input.target.rangeMeters = 900.0f;
 
     const hud::HudFrame frame = BuildHudFrame(input);
@@ -726,6 +739,8 @@ TEST(HudSimulationTests, EegsFunnelRespondsToFlightPathLoadAndTargetDynamics)
     stableInput.weapon.masterMode = HudMasterMode::AirToAir;
     stableInput.weapon.weaponMode = HudWeaponMode::AirToAirGun;
     stableInput.weapon.gunMode = HudGunMode::Eegs;
+    stableInput.weapon.masterArm = true;
+    stableInput.weapon.gunRoundsRemaining = 510;
     stableInput.target.rangeMeters = 900.0f;
 
     HudInputSample maneuveringInput = stableInput;
@@ -784,6 +799,8 @@ TEST(HudSimulationTests, ControllerPublishesDynamicEegsFunnelBezierRails)
     stableInput.weapon.masterMode = HudMasterMode::AirToAir;
     stableInput.weapon.weaponMode = HudWeaponMode::AirToAirGun;
     stableInput.weapon.gunMode = HudGunMode::Eegs;
+    stableInput.weapon.masterArm = true;
+    stableInput.weapon.gunRoundsRemaining = 510;
     stableInput.target.rangeMeters = 900.0f;
 
     controller.Populate(ui, stableInput);
@@ -827,7 +844,10 @@ TEST(HudSimulationTests, EegsWithLockHidesMrgsAndShowsPippers)
     input.weapon.masterMode = HudMasterMode::AirToAir;
     input.weapon.weaponMode = HudWeaponMode::AirToAirGun;
     input.weapon.gunMode = HudGunMode::Eegs;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
     input.weapon.targetLocked = true;
+    input.target.valid = true;
     input.target.rangeMeters = 2500.0f;
 
     const hud::HudFrame frame = BuildHudFrame(input);
@@ -848,7 +868,10 @@ TEST(HudSimulationTests, EegsTriggerSelectsFedsOrBatrByLockState)
     input.weapon.masterMode = HudMasterMode::AirToAir;
     input.weapon.weaponMode = HudWeaponMode::AirToAirGun;
     input.weapon.gunMode = HudGunMode::Eegs;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
     input.weapon.triggerHeld = true;
+    input.target.valid = true;
 
     const hud::HudFrame unlockedFrame = BuildHudFrame(input);
     EXPECT_TRUE(unlockedFrame.gun.fedsVisible);
@@ -870,13 +893,16 @@ TEST(HudSimulationTests, MissileInventoryUsesHudWeaponFamilyLabel)
     EXPECT_EQ(hud_main::FormatMissileInventory(MissileType::Aim9M, inventory), "AIM-9M 2");
 }
 
-TEST(HudSimulationTests, StrafeInRangeCueUsesAmmoThreshold)
+TEST(HudSimulationTests, StrafeInRangeCueUsesCallerResolvedThreshold)
 {
     HudInputSample input;
     input.weapon.masterMode = HudMasterMode::AirToGround;
     input.weapon.weaponMode = HudWeaponMode::AirToGroundStrafe;
     input.weapon.gunMode = HudGunMode::Strafe;
-    input.weapon.ammoType = hud::HudAmmoType::M56;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
+    // The caller resolves the ammunition threshold; the runtime never invents one.
+    input.weapon.strafeInRangeFeet = 4000.0f;
     input.airGround.valid = true;
     input.airGround.slantRangeMeters = 3500.0f * 0.3048f;
 
@@ -888,6 +914,13 @@ TEST(HudSimulationTests, StrafeInRangeCueUsesAmmoThreshold)
     const hud::HudFrame outOfRangeFrame = BuildHudFrame(input);
     EXPECT_TRUE(outOfRangeFrame.gun.strafeVisible);
     EXPECT_FALSE(outOfRangeFrame.gun.strafeInRangeCueVisible);
+
+    // With no resolved threshold the runtime must not invent an in-range cue.
+    input.weapon.strafeInRangeFeet = 0.0f;
+    input.airGround.slantRangeMeters = 900.0f;
+    const hud::HudFrame noThresholdFrame = BuildHudFrame(input);
+    EXPECT_TRUE(noThresholdFrame.gun.strafeVisible);
+    EXPECT_FALSE(noThresholdFrame.gun.strafeInRangeCueVisible);
 }
 
 TEST(HudSimulationTests, CcipPipperBombFallLineAndSolutionCueRemainFinite)
@@ -895,6 +928,7 @@ TEST(HudSimulationTests, CcipPipperBombFallLineAndSolutionCueRemainFinite)
     HudInputSample input;
     input.weapon.masterMode = HudMasterMode::AirToGround;
     input.weapon.weaponMode = HudWeaponMode::AirToGroundCcip;
+    input.weapon.masterArm = true;
     input.airGround.valid = true;
     input.airGround.pipperAzimuthRad = 2.0f * kDegreesToRadians;
     input.airGround.pipperDepressionRad = 6.0f * kDegreesToRadians;
@@ -1145,6 +1179,7 @@ TEST(HudProjectionTests, CcipPipperOutsideFovStaysVisibleWithLimitX)
     HudInputSample input;
     input.weapon.masterMode = HudMasterMode::AirToGround;
     input.weapon.weaponMode = HudWeaponMode::AirToGroundCcip;
+    input.weapon.masterArm = true;
     input.airGround.valid = true;
     input.airGround.pipperDepressionRad = 24.0f * kDegreesToRadians;
 
@@ -1162,6 +1197,7 @@ TEST(HudProjectionTests, CcipSolutionCueAndPuacClampedNotHiddenOutsideFov)
     HudInputSample input;
     input.weapon.masterMode = HudMasterMode::AirToGround;
     input.weapon.weaponMode = HudWeaponMode::AirToGroundCcip;
+    input.weapon.masterArm = true;
     input.airGround.valid = true;
     input.airGround.pipperDepressionRad = 5.0f * kDegreesToRadians;
     input.airGround.solutionCueValid = true;
@@ -1185,6 +1221,8 @@ TEST(HudProjectionTests, StrafePipperOutsideFovStaysVisibleAndLimited)
     input.weapon.masterMode = HudMasterMode::AirToGround;
     input.weapon.weaponMode = HudWeaponMode::AirToGroundStrafe;
     input.weapon.gunMode = HudGunMode::Strafe;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
     input.airGround.valid = true;
     input.airGround.slantRangeMeters = 900.0f;
     input.airGround.pipperDepressionRad = 24.0f * kDegreesToRadians;
@@ -1200,6 +1238,7 @@ TEST(HudProjectionTests, CcipPipperAndBombFallLineShareTheConformalScale)
     HudInputSample input;
     input.weapon.masterMode = HudMasterMode::AirToGround;
     input.weapon.weaponMode = HudWeaponMode::AirToGroundCcip;
+    input.weapon.masterArm = true;
     input.airGround.valid = true;
     input.airGround.pipperAzimuthRad = 0.0f;
     input.airGround.pipperDepressionRad = 6.0f * kDegreesToRadians;
