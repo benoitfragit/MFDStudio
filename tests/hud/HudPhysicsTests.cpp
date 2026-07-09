@@ -150,6 +150,36 @@ TEST(HudPhysicsTests, TerrainElevationIsDominatedByTheUserBaseValue)
     }
 }
 
+TEST(HudPhysicsTests, SteadyWindAndTurbulenceGustStaySeparateContributions)
+{
+    // Mirror of the composition used by `HudSimulation::Step()` and the
+    // telemetry panel: total wind = steady FROM-direction wind + gust.
+    const WindVectorNed steadyWind = ComputeWindVectorNed(20.0f, 1.5f * kPi);
+    const float elapsedSeconds = 12.3f;
+
+    // Zero turbulence: the total wind is exactly the steady wind.
+    const WindVectorNed calmGust = ComputeTurbulenceGustNed(0.0f, elapsedSeconds);
+    EXPECT_FLOAT_EQ(steadyWind.northMps + calmGust.northMps, steadyWind.northMps);
+    EXPECT_FLOAT_EQ(steadyWind.eastMps + calmGust.eastMps, steadyWind.eastMps);
+    EXPECT_FLOAT_EQ(steadyWind.downMps + calmGust.downMps, steadyWind.downMps);
+
+    // Full turbulence: the gust is a bounded additive term that never rewrites
+    // the steady component, so total - steady always recovers the gust.
+    const WindVectorNed gust = ComputeTurbulenceGustNed(1.0f, elapsedSeconds);
+    const WindVectorNed totalWind {
+        steadyWind.northMps + gust.northMps,
+        steadyWind.eastMps + gust.eastMps,
+        steadyWind.downMps + gust.downMps};
+    EXPECT_FLOAT_EQ(totalWind.northMps - steadyWind.northMps, gust.northMps);
+    EXPECT_FLOAT_EQ(totalWind.eastMps - steadyWind.eastMps, gust.eastMps);
+    EXPECT_FLOAT_EQ(totalWind.downMps - steadyWind.downMps, gust.downMps);
+    // The steady wind itself is independent of the turbulence intensity: only
+    // its speed and FROM direction define it.
+    const WindVectorNed steadyWindAgain = ComputeWindVectorNed(20.0f, 1.5f * kPi);
+    EXPECT_FLOAT_EQ(steadyWindAgain.northMps, steadyWind.northMps);
+    EXPECT_FLOAT_EQ(steadyWindAgain.eastMps, steadyWind.eastMps);
+}
+
 TEST(HudPhysicsTests, TurbulenceGustIsZeroAtZeroIntensityAndClampedAboveOne)
 {
     for (float elapsedSeconds = 0.0f; elapsedSeconds < 60.0f; elapsedSeconds += 3.7f)

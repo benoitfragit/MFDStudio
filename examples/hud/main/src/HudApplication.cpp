@@ -870,7 +870,17 @@ void HudApplication::DrawTelemetryPanel()
     ImGui::Separator();
     ImGui::TextUnformatted("Environment / Air data");
     const EnvironmentControls& environment = simulationControls_.environment;
-    const WindVectorNed wind = ComputeWindVectorNed(environment.windSpeedKts, environment.windDirectionRad);
+    // The simulation applies steady wind + turbulence gust; show both terms and
+    // their sum so the panel never hides the gust part of the published ground
+    // velocity. The gust uses the same simulation time as `HudSimulation::Step()`.
+    const WindVectorNed steadyWind =
+        ComputeWindVectorNed(environment.windSpeedKts, environment.windDirectionRad);
+    const WindVectorNed gust =
+        ComputeTurbulenceGustNed(environment.turbulenceIntensity, hudInputs_.aircraft.elapsedSeconds);
+    const WindVectorNed totalWind {
+        steadyWind.northMps + gust.northMps,
+        steadyWind.eastMps + gust.eastMps,
+        steadyWind.downMps + gust.downMps};
     const float speedOfSoundMps = ComputeSpeedOfSoundMps(environment.outsideAirTemperatureKelvin);
     // `mach = TAS / a` in the simulation, so the true airspeed is recovered
     // exactly while the NED sample itself carries the ground velocity.
@@ -884,7 +894,17 @@ void HudApplication::DrawTelemetryPanel()
         "Wind %.0f kt FROM %.0f deg",
         environment.windSpeedKts,
         environment.windDirectionRad * kRadiansToDegrees);
-    ImGui::Text("Wind NED N %+.1f / E %+.1f / D %+.1f m/s", wind.northMps, wind.eastMps, wind.downMps);
+    ImGui::Text(
+        "Wind steady NED N %+.1f / E %+.1f / D %+.1f m/s",
+        steadyWind.northMps,
+        steadyWind.eastMps,
+        steadyWind.downMps);
+    ImGui::Text("Gust NED N %+.1f / E %+.1f / D %+.1f m/s", gust.northMps, gust.eastMps, gust.downMps);
+    ImGui::Text(
+        "Wind total NED N %+.1f / E %+.1f / D %+.1f m/s",
+        totalWind.northMps,
+        totalWind.eastMps,
+        totalWind.downMps);
     ImGui::Text("TAS %.0f kt / GS %.0f kt / Mach %.2f", trueAirspeedKts, groundSpeedKts, hudInputs_.aircraft.mach);
     ImGui::Text(
         "Terrain %.0f m / Radar alt %.0f ft",

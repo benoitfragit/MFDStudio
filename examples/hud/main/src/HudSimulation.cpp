@@ -187,7 +187,11 @@ float HorizontalSpeedMetersPerSecond(const AircraftInputSample& aircraft) noexce
     return std::sqrt(north * north + east * east);
 }
 
-float TrueSpeedMetersPerSecond(const AircraftInputSample& aircraft) noexcept
+// Magnitude of the published NED velocity. Since `Step()` writes the ground
+// velocity (air velocity NED + wind NED) into the sample, this is the ground
+// speed, not the true airspeed; the simulation keeps the TAS separately in
+// `trueAirspeedMps_`. With zero wind both speeds are identical.
+float GroundSpeedMetersPerSecond(const AircraftInputSample& aircraft) noexcept
 {
     const float horizontal = HorizontalSpeedMetersPerSecond(aircraft);
     const float down = FiniteOr(aircraft.downSpeedMps, 0.0f);
@@ -488,7 +492,7 @@ float ComputeMissileTimeOfFlight(const AircraftInputSample& aircraft,
     const MissileProfile& profile = MissileProfileFor(selectedMissile);
     const LaunchZoneTuning& tuning = kLaunchZoneTuning;
     const float closingSpeedMps = std::max(FiniteOr(target.closingSpeedMps, 0.0f), tuning.closingSpeedFloorMps);
-    const float ownshipSpeedMps = TrueSpeedMetersPerSecond(aircraft);
+    const float ownshipSpeedMps = GroundSpeedMetersPerSecond(aircraft);
     const float effectiveSpeedMps =
         profile.nominalSpeedMps +
         closingSpeedMps * tuning.closingSpeedContribution +
@@ -543,7 +547,7 @@ void HudSimulation::Reset()
     filteredRollCommand_ = 0.0f;
     // The scene sample carries no wind, so the initial air-mass speed and
     // flight-path slope match the published ground-velocity vector exactly.
-    trueAirspeedMps_ = TrueSpeedMetersPerSecond(inputs_.aircraft);
+    trueAirspeedMps_ = GroundSpeedMetersPerSecond(inputs_.aircraft);
     flightPathSlopeRad_ = FlightPathSlopeRadians(inputs_.aircraft);
     missileShots_.clear();
     RefreshWeaponPresentation();
@@ -715,7 +719,7 @@ void HudSimulation::Step(const float deltaSeconds)
     airGround.pullupAnticipationCueDepressionRad = Clamp(airGround.pipperDepressionRad * 0.24f, 0.006f, 0.040f);
     airGround.timeToReleaseSeconds =
         inputs_.weapon.weaponMode == HudWeaponMode::AirToGroundCcip
-            ? Clamp(airGround.slantRangeMeters / std::max(TrueSpeedMetersPerSecond(aircraft), 1.0f), 0.0f, 99.0f)
+            ? Clamp(airGround.slantRangeMeters / std::max(GroundSpeedMetersPerSecond(aircraft), 1.0f), 0.0f, 99.0f)
             : 0.0f;
     airGround.timeToGoSeconds = airGround.timeToReleaseSeconds > 0.0f
         ? Clamp(airGround.timeToReleaseSeconds + 42.0f, 0.0f, 999.0f)
