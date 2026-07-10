@@ -741,6 +741,7 @@ TEST(HudSimulationTests, EegsFunnelRespondsToFlightPathLoadAndTargetDynamics)
     stableInput.weapon.gunMode = HudGunMode::Eegs;
     stableInput.weapon.masterArm = true;
     stableInput.weapon.gunRoundsRemaining = 510;
+    stableInput.aircraft.northSpeedMps = 220.0f;
     stableInput.target.rangeMeters = 900.0f;
 
     HudInputSample maneuveringInput = stableInput;
@@ -779,13 +780,67 @@ TEST(HudSimulationTests, EegsFunnelRespondsToFlightPathLoadAndTargetDynamics)
         HorizontalGap(
             maneuveringFrame.gun.eegsFunnelLeftControlPoints.back(),
             maneuveringFrame.gun.eegsFunnelRightControlPoints.back()));
-    EXPECT_GT(
+    // Hard maneuvering sweeps the far/long time-of-flight end of the tracer
+    // trail well below its stable baseline, while the near end stays much
+    // closer to its anchor: the funnel bends instead of translating rigidly.
+    EXPECT_LT(
         maneuveringFrame.gun.eegsFunnelLeftControlPoints.front().y,
-        maneuveringFrame.gun.mrgsPosition.y + 0.12f);
+        stableFrame.gun.eegsFunnelLeftControlPoints.front().y - 0.15f);
     EXPECT_GT(
-        maneuveringFrame.gun.eegsFunnelRightControlPoints.front().y,
-        maneuveringFrame.gun.mrgsPosition.y + 0.12f);
-    EXPECT_GT(maneuveringFrame.gun.eegsFunnelLeftControlPoints.front().y, 0.0f);
+        std::fabs(
+            maneuveringFrame.gun.eegsFunnelLeftControlPoints.front().y -
+            stableFrame.gun.eegsFunnelLeftControlPoints.front().y),
+        std::fabs(
+            maneuveringFrame.gun.eegsFunnelLeftControlPoints.back().y -
+            stableFrame.gun.eegsFunnelLeftControlPoints.back().y));
+}
+
+TEST(HudSimulationTests, EegsFunnelTrailIsSignedForTurnDirectionAndLoad)
+{
+    HudInputSample levelInput;
+    levelInput.weapon.masterMode = HudMasterMode::AirToAir;
+    levelInput.weapon.weaponMode = HudWeaponMode::AirToAirGun;
+    levelInput.weapon.gunMode = HudGunMode::Eegs;
+    levelInput.weapon.masterArm = true;
+    levelInput.weapon.gunRoundsRemaining = 510;
+    levelInput.aircraft.northSpeedMps = 220.0f;
+    levelInput.target.rangeMeters = 900.0f;
+
+    HudInputSample pullInput = levelInput;
+    pullInput.aircraft.normalLoadFactor = 5.0f;
+
+    HudInputSample leftBankInput = levelInput;
+    leftBankInput.aircraft.rollRad = -60.0f * kDegreesToRadians;
+    leftBankInput.aircraft.normalLoadFactor = 4.0f;
+
+    HudInputSample rightBankInput = levelInput;
+    rightBankInput.aircraft.rollRad = 60.0f * kDegreesToRadians;
+    rightBankInput.aircraft.normalLoadFactor = 4.0f;
+
+    const hud::HudFrame levelFrame = BuildHudFrame(levelInput);
+    const hud::HudFrame pullFrame = BuildHudFrame(pullInput);
+    const hud::HudFrame leftFrame = BuildHudFrame(leftBankInput);
+    const hud::HudFrame rightFrame = BuildHudFrame(rightBankInput);
+
+    // A wings-level pull bends the trail straight down the lift plane: the far
+    // end drops clearly below the 1 g baseline without drifting sideways.
+    EXPECT_LT(
+        pullFrame.gun.eegsFunnelLeftControlPoints.front().y,
+        levelFrame.gun.eegsFunnelLeftControlPoints.front().y - 0.15f);
+    EXPECT_NEAR(
+        pullFrame.gun.eegsFunnelLeftControlPoints.front().x,
+        levelFrame.gun.eegsFunnelLeftControlPoints.front().x,
+        0.01f);
+
+    // Opposite banks bow the trail to opposite sides: the gravity term is
+    // signed with the roll direction instead of using its absolute value.
+    const float leftDeflection = leftFrame.gun.eegsFunnelLeftControlPoints.front().x -
+                                 levelFrame.gun.eegsFunnelLeftControlPoints.front().x;
+    const float rightDeflection = rightFrame.gun.eegsFunnelLeftControlPoints.front().x -
+                                  levelFrame.gun.eegsFunnelLeftControlPoints.front().x;
+    EXPECT_GT(std::fabs(leftDeflection), 0.004f);
+    EXPECT_NEAR(leftDeflection, -rightDeflection, 0.002f);
+    EXPECT_LT(leftDeflection * rightDeflection, 0.0f);
 }
 
 TEST(HudSimulationTests, ControllerPublishesDynamicEegsFunnelBezierRails)
@@ -834,8 +889,12 @@ TEST(HudSimulationTests, ControllerPublishesDynamicEegsFunnelBezierRails)
     EXPECT_LT(
         HorizontalGap(maneuveringLeft.front(), maneuveringRight.front()),
         HorizontalGap(maneuveringLeft.back(), maneuveringRight.back()));
-    EXPECT_GT(maneuveringLeft.front().y, 0.0f);
-    EXPECT_GT(maneuveringRight.front().y, 0.0f);
+    // The far/long time-of-flight end sweeps below its stable baseline during
+    // a hard turn, but the display saturation keeps it inside the aperture.
+    EXPECT_LT(maneuveringLeft.front().y, stableLeft.front().y);
+    EXPECT_LT(maneuveringRight.front().y, stableRight.front().y);
+    EXPECT_GT(maneuveringLeft.front().y, -0.75f);
+    EXPECT_GT(maneuveringRight.front().y, -0.75f);
 }
 
 TEST(HudSimulationTests, EegsWithLockHidesMrgsAndShowsPippers)

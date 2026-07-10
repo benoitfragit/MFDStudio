@@ -71,6 +71,19 @@ constexpr float kEegsFunnelReferenceRangeMeters = 900.0f;
 constexpr float kEegsFunnelReferenceHalfWidth = 0.082f;
 constexpr float kEegsFunnelFarHalfWidth = 0.038f;
 constexpr float kEegsFunnelNearHalfWidth = 0.124f;
+constexpr float kGravityMetersPerSecondSquared = 9.80665f;
+// Drag-decayed mean airspeed of an M61-class round over the funnel ranges,
+// relative to the firing aircraft.
+constexpr float kEegsBulletMeanAirspeedMps = 750.0f;
+// Ownship speed floor keeping the lift-plane rate bounded at taxi speeds.
+constexpr float kEegsMinOwnSpeedMps = 60.0f;
+// Physical bound on the sustained lift-plane rotation rate fed to the trail.
+constexpr float kEegsMaxLiftPlaneRateRadPerSec = 1.5f;
+// Display saturation of the trail deviation in HUD units: like every other
+// HUD cue the funnel is limited near the aperture instead of leaving the
+// combining glass, but the limit is smooth so the motion never hard-stops.
+constexpr float kEegsFunnelMaxDeviation = 0.55f;
+constexpr float kHudUnitsPerRadian = kRadiansToDegrees * kHudUnitsPerVerticalDegree;
 
 float Clamp(const float value, const float low, const float high) noexcept
 {
@@ -139,12 +152,6 @@ HudVec2 RotateHudVector(const HudVec2 offset, const float degrees) noexcept
         offset.x * sine + offset.y * cosine};
 }
 
-float SmoothStep(const float value) noexcept
-{
-    const float t = Clamp(value, 0.0f, 1.0f);
-    return t * t * (3.0f - 2.0f * t);
-}
-
 float FunnelSampleRangeMeters(const float travel) noexcept
 {
     const float rangeTravel = std::pow(Clamp(travel, 0.0f, 1.0f), 1.18f);
@@ -165,20 +172,103 @@ float FunnelSampleHalfWidth(const float travel) noexcept
         kEegsFunnelNearHalfWidth);
 }
 
+/**
+ * @brief Per-frame ballistic state shared by every EEGS funnel sample.
+ *
+ * The funnel is the tracer trail of previously fired rounds: the sample at
+ * range R corresponds to a round with time of flight t = R / mean bullet
+ * speed. Relative to the body-fixed HUD, that round lags behind the current
+ * lift-plane rotation by rate * t radians and keeps its earth-frame gravity
+ * drop of g * t / (2 * mean speed) radians. The authored rail baseline
+ * already draws the trimmed wings-level 1 g trail, so only the deviation
+ * from that trim reference is applied to the control points. This is what
+ * makes the funnel flexible instead of rigid: the far/long time-of-flight
+ * end sweeps several times farther than the near end during a maneuver.
+ */
+struct FunnelBallistics
+{
+    /** Mean bullet speed over the funnel ranges, ownship plus muzzle, m/s. */
+    float bulletMeanSpeedMps = kEegsMinOwnSpeedMps + kEegsBulletMeanAirspeedMps;
+    /** Lift-plane rotation rate in rad/s, positive when pulling toward the canopy. */
+    float liftPlaneRateRadPerSec = 0.0f;
+    /** Earth-down direction in HUD screen coordinates, following the horizon-drawing convention. */
+    HudVec2 earthDown {0.0f, -1.0f};
+};
+
+FunnelBallistics BuildFunnelBallistics(const AircraftState& aircraft,
+                                       const HudAttitudeFrame& attitude) noexcept
+{
+    FunnelBallistics ballistics;
+    const float ownSpeedMps =
+        std::max(aircraft.speedKts / kMetersPerSecondToKnots, kEegsMinOwnSpeedMps);
+    ballistics.bulletMeanSpeedMps = ownSpeedMps + kEegsBulletMeanAirspeedMps;
+
+    // Coordinated-flight lift-plane rate: a curved flight path rotates the
+    // nose at g * (n - cos(roll) * cos(slope)) / V. Trimmed 1 g wings-level
+    // flight yields zero and leaves the funnel on its authored baseline; the
+    // sign follows the load factor, so pull-ups and pushovers bend the trail
+    // in opposite directions.
+    const float rollRadians = attitude.displayRollDegrees * kDegreesToRadians;
+    const float slopeRadians = aircraft.flightPathAngleDegrees * kDegreesToRadians;
+    ballistics.liftPlaneRateRadPerSec = Clamp(
+        kGravityMetersPerSecondSquared *
+            (aircraft.normalLoadG - std::cos(rollRadians) * std::cos(slopeRadians)) / ownSpeedMps,
+        -kEegsMaxLiftPlaneRateRadPerSec,
+        kEegsMaxLiftPlaneRateRadPerSec);
+    // Same screen convention as the horizon/ladder: the below-horizon side is
+    // straight down rotated by the ladder roll rotation. Banking therefore
+    // bows the trail laterally toward the drawn horizon, with the correct
+    // sign for left versus right turns.
+    ballistics.earthDown = RotateHudVector(HudVec2 {0.0f, -1.0f}, -attitude.displayRollDegrees);
+    return ballistics;
+}
+
+/**
+ * @brief Ballistic trail deviation of one funnel range sample, in HUD units.
+ *
+ * Combines the lift-plane lag (screen-down in the body-fixed HUD, since the
+ * lift vector is always screen-up) with the gravity drop relative to the
+ * wings-level trim drop that is already part of the authored baseline. The
+ * combined deviation is smoothly saturated near the HUD aperture; the
+ * saturation is a display limit, not physics, and preserves the direction
+ * and the monotonic growth of the deviation with time of flight.
+ */
+HudVec2 FunnelTrailDeviation(const float travel, const FunnelBallistics& ballistics) noexcept
+{
+    const float timeOfFlight = FunnelSampleRangeMeters(travel) / ballistics.bulletMeanSpeedMps;
+    const float lagRadians = ballistics.liftPlaneRateRadPerSec * timeOfFlight;
+    const float dropRadians =
+        kGravityMetersPerSecondSquared * timeOfFlight / (2.0f * ballistics.bulletMeanSpeedMps);
+    // Deviation = screenDown * lag + (earthDown - screenDown) * drop, with
+    // screenDown = (0, -1); at wings level earthDown equals screenDown and the
+    // gravity term cancels against the authored baseline.
+    const float rawX = ballistics.earthDown.x * dropRadians * kHudUnitsPerRadian;
+    const float rawY = (-lagRadians + (ballistics.earthDown.y + 1.0f) * dropRadians) * kHudUnitsPerRadian;
+
+    const float magnitude = std::sqrt(rawX * rawX + rawY * rawY);
+    if (magnitude < 0.0001f)
+    {
+        return HudVec2 {rawX, rawY};
+    }
+
+    const float limitedMagnitude =
+        kEegsFunnelMaxDeviation * std::tanh(magnitude / kEegsFunnelMaxDeviation);
+    const float scale = limitedMagnitude / magnitude;
+    return HudVec2 {rawX * scale, rawY * scale};
+}
+
 HudVec2 BuildFunnelSpinePoint(const float travel,
                               const float heightScale,
                               const HudVec2 center,
-                              const float curvature,
-                              const float skew) noexcept
+                              const FunnelBallistics& ballistics) noexcept
 {
     const float screenTravel = Clamp(travel, 0.0f, 1.0f);
-    const float shapedTravel = SmoothStep(screenTravel);
-    const float leadBend = curvature * screenTravel * screenTravel * 0.52f;
+    const HudVec2 deviation = FunnelTrailDeviation(screenTravel, ballistics);
 
     return HudVec2 {
-        center.x + skew * (0.20f + 0.80f * shapedTravel) + leadBend * 0.55f,
+        center.x + deviation.x,
         center.y + kEegsFunnelFarY + (kEegsFunnelNearY - kEegsFunnelFarY) * screenTravel * heightScale +
-            leadBend};
+            deviation.y};
 }
 
 /**
@@ -189,33 +279,35 @@ HudVec2 BuildFunnelSpinePoint(const float travel,
  * @param widthScale Runtime range and target-wingspan width correction.
  * @param heightScale Runtime airspeed and load-factor vertical stretch.
  * @param center HUD-space drift of the funnel spine.
- * @param curvature Load and speed driven lead curvature.
- * @param skew Lateral lead offset shared by both rails.
- * @return HUD-space wall point after range width and lead correction.
+ * @param ballistics Per-frame trail kinematics shared by both rails.
+ * @return HUD-space wall point after range width and trail correction.
  *
  * The wall is built around a central spine, then offset by the angular
- * half-wingspan for the sample range. This follows the same principle as
- * practical EEGS implementations: the target should fit between the walls at
- * the corresponding range instead of seeing a decorative V shape.
+ * half-wingspan for the sample range along the local spine normal. This
+ * follows the same principle as practical EEGS implementations: the target
+ * should fit between the walls at the corresponding range, and the walls stay
+ * perpendicular to the bent trail instead of to a fixed chord.
  */
 HudVec2 BuildFunnelWallPoint(const float side,
                              const float travel,
                              const float widthScale,
                              const float heightScale,
                              const HudVec2 center,
-                             const float curvature,
-                             const float skew) noexcept
+                             const FunnelBallistics& ballistics) noexcept
 {
-    const HudVec2 firstSpine = BuildFunnelSpinePoint(0.0f, heightScale, center, curvature, skew);
-    const HudVec2 lastSpine = BuildFunnelSpinePoint(1.0f, heightScale, center, curvature, skew);
-    const float tangentX = lastSpine.x - firstSpine.x;
-    const float tangentY = lastSpine.y - firstSpine.y;
+    constexpr float kTangentStep = 0.12f;
+    const HudVec2 spineAhead = BuildFunnelSpinePoint(
+        std::min(travel + kTangentStep, 1.0f), heightScale, center, ballistics);
+    const HudVec2 spineBehind = BuildFunnelSpinePoint(
+        std::max(travel - kTangentStep, 0.0f), heightScale, center, ballistics);
+    const float tangentX = spineAhead.x - spineBehind.x;
+    const float tangentY = spineAhead.y - spineBehind.y;
     const float tangentLength = std::sqrt(tangentX * tangentX + tangentY * tangentY);
     const float perpendicularX = tangentLength > 0.0001f ? tangentY / tangentLength : 1.0f;
     const float perpendicularY = tangentLength > 0.0001f ? -tangentX / tangentLength : 0.0f;
 
     const float halfWidth = FunnelSampleHalfWidth(travel) * widthScale;
-    const HudVec2 spine = BuildFunnelSpinePoint(travel, heightScale, center, curvature, skew);
+    const HudVec2 spine = BuildFunnelSpinePoint(travel, heightScale, center, ballistics);
     return HudVec2 {spine.x + side * perpendicularX * halfWidth, spine.y + side * perpendicularY * halfWidth};
 }
 
@@ -223,8 +315,7 @@ HudFunnelControlPoints BuildEegsFunnelRail(const float side,
                                            const float widthScale,
                                            const float heightScale,
                                            const HudVec2 center,
-                                           const float curvature,
-                                           const float skew) noexcept
+                                           const FunnelBallistics& ballistics) noexcept
 {
     HudFunnelControlPoints rail {};
     for (std::size_t index = 0; index < rail.size(); ++index)
@@ -236,8 +327,7 @@ HudFunnelControlPoints BuildEegsFunnelRail(const float side,
             widthScale,
             heightScale,
             center,
-            curvature,
-            skew);
+            ballistics);
     }
 
     return rail;
@@ -509,28 +599,19 @@ HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& a
     frame.eegsFunnelPosition = HudVec2 {sightDriftX, sightDriftY};
     frame.eegsFunnelRotationDegrees = rollCouplingDegrees;
 
-    const float funnelCurvature = Clamp(
-        (loadFactor - 1.0f) * 0.014f +
-            std::fabs(attitude.displayRollDegrees) * 0.00075f +
-            (speedScale - 1.0f) * 0.055f,
-        -0.018f,
-        0.115f);
-    const float funnelSkew =
-        Clamp(sightDriftX * 0.45f + targetAcceleration / 620.0f - attitude.displayRollDegrees * 0.0016f, -0.105f, 0.105f);
+    const FunnelBallistics funnelBallistics = BuildFunnelBallistics(aircraft, attitude);
     frame.eegsFunnelLeftControlPoints = BuildEegsFunnelRail(
         -1.0f,
         frame.eegsFunnelScaleX,
         frame.eegsFunnelScaleY,
         frame.eegsFunnelPosition,
-        funnelCurvature,
-        funnelSkew);
+        funnelBallistics);
     frame.eegsFunnelRightControlPoints = BuildEegsFunnelRail(
         1.0f,
         frame.eegsFunnelScaleX,
         frame.eegsFunnelScaleY,
         frame.eegsFunnelPosition,
-        funnelCurvature,
-        funnelSkew);
+        funnelBallistics);
 
     frame.mrgsPosition = HudVec2 {
         Clamp(frame.eegsFunnelPosition.x * 1.12f, -0.20f, 0.20f),

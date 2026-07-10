@@ -441,11 +441,14 @@ cues are published. Every frame starts by hiding contextual weapon, landing and
 ILS reticles before the active mode is applied, so changing modes cannot leave
 an old reticle visible through retained runtime state.
 The HUD EEGS funnel is not a certified ballistic solver, but it is not a
-static cone: its exposed Bezier control points are derived from the semantic
-aircraft/target sample, including flight path, load factor, target line of
-sight, range/wingspan and target acceleration. The authored funnel now uses a
-central spine and range-sampled wall half-widths, keeping the visible cue as a
-long, narrow gunnery corridor instead of a decorative V shape. The runtime
+static cone: its exposed Bezier control points model the tracer trail of
+previously fired rounds. Each range sample maps to a bullet time of flight,
+and the sample deviates from the authored baseline by the lift-plane rotation
+lag (rate x time of flight) plus the roll-signed gravity drop, so the far end
+of the funnel sweeps several times farther than the near end during a
+maneuver. The authored funnel uses a central spine and range-sampled wall
+half-widths, keeping the visible cue as a long, narrow gunnery corridor
+instead of a decorative V shape. The runtime
 never reads a simulated weather: wind influences the funnel only indirectly,
 through the physical facts already resolved by the producer (ground velocity,
 flight path, load factor, energy and target geometry in
@@ -501,8 +504,28 @@ generated `eegsFunnel` reticle.
 
 The funnel is built from a central spine. Each Bezier sample represents a
 range station; the wall offset at that station is the normalized angular
-half-width of the target wingspan at that range. The projection then adjusts
-scale, drift, curvature and skew from flight-path marker position, normal load
-factor, airspeed, target line-of-sight position and
-`targetAccelerationMps2`. The far end stays narrow and the near end opens
-without creating a broad vase-shaped cue.
+half-width of the target wingspan at that range, applied along the local spine
+normal. The spine itself follows the tracer-trail physics of previously fired
+rounds:
+
+- Each range station maps to a bullet time of flight
+  `t = range / (ownship speed + mean bullet airspeed)`.
+- In the body-fixed HUD the lift vector is always screen-up, so the
+  coordinated-flight lift-plane rate `g * (n - cos(roll) * cos(slope)) / V`
+  drags the sample screen-down by `rate * t` radians. The sign follows the
+  load factor: pull-ups and pushovers bend the trail in opposite directions,
+  and trimmed 1 g wings-level flight leaves the funnel on its authored
+  baseline.
+- Gravity drop `g * t / (2 * mean bullet speed)` stays earth-down, using the
+  same screen convention as the horizon drawing. Banking therefore bows the
+  trail laterally toward the drawn horizon, with the correct left/right sign.
+
+Because every deviation is proportional to the sample's time of flight, the
+far/long time-of-flight end of the funnel sweeps several times farther than
+the near end, giving the flexible, lagging motion of practical EEGS
+implementations instead of a rigidly translated cone. The combined deviation
+is smoothly saturated (`tanh`) near the HUD aperture; this is a display limit,
+like the clamped conformal cues, not part of the physics. Scale and drift are
+still adjusted from flight-path marker position, target range/wingspan, target
+line-of-sight position and `targetAccelerationMps2`. The far end stays narrow
+and the near end opens without creating a broad vase-shaped cue.

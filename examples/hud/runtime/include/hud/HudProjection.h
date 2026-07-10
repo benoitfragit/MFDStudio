@@ -113,9 +113,12 @@ HUD_RUNTIME_API bool IsInsideHudFov(float azimuthRad, float elevationRad) noexce
  * provides aircraft and target facts, not generated Bezier coordinates:
  *
  * - aircraft pitch/roll and NED velocity provide the flight-path marker;
- * - normal load factor, speed and FPM position bend and drift the funnel spine;
+ * - the funnel spine follows the tracer trail of previously fired rounds:
+ *   each range sample maps to a bullet time of flight, then lags behind the
+ *   load-factor-driven lift-plane rotation and keeps its roll-signed gravity
+ *   drop, so the far end sweeps farther than the near end while maneuvering;
  * - target range and `targetWingspanMeters` scale range-sampled wall widths;
- * - target azimuth/elevation and `targetAccelerationMps2` add lead/skew;
+ * - target azimuth/elevation and `targetAccelerationMps2` drift the spine;
  * - the result is two five-point Bezier rails in `HudGunFrame`.
  *
  * Weapon-specific values are the opposite: launch zone, time of flight, labels
