@@ -11,16 +11,17 @@
  * interactive HUD client.
  *
  * Everything in this header is main-client scenario material: pilot controls,
- * the AIM-120C/AIM-9M sample armament and the launch-zone/time-of-flight
- * models. None of it belongs to the reusable `hud_runtime` contract; the
- * simulation resolves these facts and hands them to the HUD through the
- * generic `hud::WeaponInputSample` fields.
+ * environment settings, the AIM-120C/AIM-9M sample armament and the
+ * launch-zone/time-of-flight models. None of it belongs to the reusable
+ * `hud_runtime` contract; the simulation resolves these facts and hands them
+ * to the HUD through the generic `hud::HudInputSample` fields.
  */
 
 #include <string>
 #include <vector>
 
 #include "hud/HudProjection.h"
+#include "hud_main/HudPhysics.h"
 
 namespace hud_main
 {
@@ -151,6 +152,23 @@ struct PilotControls
 };
 
 /**
+ * @brief Complete control level consumed by the mini-simulation each step.
+ *
+ * Groups the pilot intent (`PilotControls`) and the environment settings
+ * (`EnvironmentControls` from `hud_main/HudPhysics.h`) collected by the
+ * interactive client. Like both members, this is sample-only material: a real
+ * integration replaces the whole simulation with its own INU/air-data producer
+ * and fills `hud::HudInputSample` directly.
+ */
+struct SimulationControls
+{
+    /** Pilot stick, throttle and panel intent. */
+    PilotControls pilot {};
+    /** Wind, atmosphere and terrain settings. */
+    EnvironmentControls environment {};
+};
+
+/**
  * @brief One simulated missile currently in flight.
  */
 struct MissileShot
@@ -171,10 +189,11 @@ struct MissileShot
  * @brief Stable HUD-focused HUD mini-simulation for the interactive HUD client.
  *
  * @note This model is deliberately simplified. It preserves coherent relations
- * between attitude, energy, speed, altitude, A-A mode and missile symbology
- * rather than attempting to be a flight dynamics simulator. Its only integration
- * output is `hud::HudInputSample`, so a real aircraft can replace this class and
- * keep the same HUD runtime, controller and funnel projection.
+ * between attitude, energy, speed, altitude, wind, atmosphere, terrain, A-A
+ * mode and missile symbology rather than attempting to be a flight dynamics
+ * simulator. Its only integration output is `hud::HudInputSample`, so a real
+ * INU/air-data/environment producer can replace this class and keep the same
+ * HUD runtime, controller and funnel projection.
  */
 class HudSimulation
 {
@@ -188,13 +207,21 @@ public:
     void Reset();
 
     /**
-     * @brief Replaces the pilot controls used by the next call to `Step`.
-     * @param controls Latest pilot controls.
+     * @brief Replaces the pilot and environment controls used by the next call to `Step`.
+     * @param controls Latest pilot intent and environment settings; values are
+     * clamped/wrapped into their valid ranges before being stored.
      */
-    void SetControls(const PilotControls& controls) noexcept;
+    void SetSimulationControls(const SimulationControls& controls) noexcept;
 
     /**
      * @brief Advances the simulation by one bounded deterministic step.
+     *
+     * Pilot commands are read from `SimulationControls::pilot`, wind,
+     * atmosphere and terrain from `SimulationControls::environment`. The
+     * aircraft NED velocity written into `hud::AircraftInputSample` is the
+     * ground velocity (air velocity plus wind), so wind shows up in the HUD
+     * only through the resolved physical data.
+     *
      * @param deltaSeconds Wall-clock delta in seconds; non-finite and negative
      * values are discarded, very large values are clamped.
      */
@@ -280,8 +307,8 @@ private:
 
     /** Semantic aircraft, target and weapon sample produced by the simulation. */
     hud::HudInputSample inputs_ {};
-    /** Latest pilot intent after UI and scripted maneuver collection. */
-    PilotControls controls_ {};
+    /** Latest pilot intent and environment settings after UI collection. */
+    SimulationControls controls_ {};
     /** Missile type currently selected by the sample client. */
     MissileType selectedMissile_ = MissileType::Aim120C;
     /** Remaining sample inventory by missile type. */
@@ -290,6 +317,10 @@ private:
     float filteredPitchCommand_ = 0.0f;
     /** Low-pass filtered roll command used to avoid frame-to-frame jumps. */
     float filteredRollCommand_ = 0.0f;
+    /** Air-mass-relative speed in meters per second; the published NED velocity adds the wind. */
+    float trueAirspeedMps_ = 0.0f;
+    /** Smoothed air-mass flight-path slope in radians, positive while climbing. */
+    float flightPathSlopeRad_ = 0.0f;
     /** Active and recently impacted missiles retained for HUD timing/status. */
     std::vector<MissileShot> missileShots_ {};
 };

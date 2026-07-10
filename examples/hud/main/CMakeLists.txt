@@ -26,12 +26,14 @@ set(MFD_HUD_MAIN_PLATFORM_SOURCES
 
 set(MFD_HUD_MAIN_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HudApplication.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/HudPhysics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HudSimulation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
     ${MFD_HUD_MAIN_PLATFORM_SOURCES})
 
 set(MFD_HUD_MAIN_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/HudApplication.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/HudPhysics.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/HudSimulation.h
     ${MFD_HUD_MAIN_PLATFORM_HEADERS})
 

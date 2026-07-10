@@ -8,10 +8,12 @@ include(GoogleTest)
 # shared library intentionally does not export. HUD_RUNTIME_BUILDING_DLL keeps
 # the HUD_RUNTIME_API decoration in export mode for these local definitions.
 add_executable(hud_client_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/HudPhysicsTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/HudSimulationTests.cpp
     ${MFD_ROOT_DIR}/examples/hud/runtime/generated/HudUi.cpp
     ${MFD_ROOT_DIR}/examples/hud/runtime/src/HudController.cpp
     ${MFD_ROOT_DIR}/examples/hud/runtime/src/HudProjection.cpp
+    ${MFD_ROOT_DIR}/examples/hud/main/src/HudPhysics.cpp
     ${MFD_ROOT_DIR}/examples/hud/main/src/HudSimulation.cpp)
 
 mfd_configure_test_runtime_output(hud_client_tests)

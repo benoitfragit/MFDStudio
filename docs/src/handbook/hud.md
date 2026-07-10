@@ -16,12 +16,37 @@ publish HUD frames from a `hud::HudInputSample`: the semantic input contract,
 the projection and symbology geometry (including the EEGS funnel), the
 generated `HudUi` wrapper, the transport lifecycle and the runtime assets/font
 staging. It never links ImGui, d3d11 or dxgi and never includes
-`HudApplication`, `HudSimulation`, `PilotControls` or `Win32Dx11ImGuiHost`.
+`HudApplication`, `HudSimulation`, `SimulationControls`, `PilotControls`,
+`EnvironmentControls`, `HudPhysics` or `Win32Dx11ImGuiHost`.
 
 `hud_client` is the interactive Win32/DX11 ImGui client. It owns the operator
-panel, the mini-simulation and the sample armament constants, and consumes
-`hud_runtime` exactly like an external integration would. `hud_runtime.dll` is
-copied next to `hud_client` by the build.
+panel, the mini-simulation with its pure physics helpers (`HudPhysics`) and
+the sample armament constants, and consumes `hud_runtime` exactly like an
+external integration would. `hud_runtime.dll` is copied next to `hud_client`
+by the build.
+
+The client data flow keeps the `hud_main` / `hud_runtime` boundary explicit:
+
+```
+ImGui controls
+  ├── PilotControls
+  └── EnvironmentControls
+          |
+          v
+  SimulationControls
+          |
+          v
+  hud_main::HudSimulation
+          |
+          v
+  hud::HudInputSample
+          |
+          v
+  hud_runtime
+          |
+          v
+  generated HUD window
+```
 
 The HUD window uses the bundled `ShareTechMono-Regular.ttf` font under the SIL
 Open Font License 1.1. The `.ttf` and `OFL-ShareTechMono.txt` files live under
@@ -63,10 +88,26 @@ local control panel used by `hud_client` to drive the bundled
 
 The current panel fills a compact native HUD-client window instead of opening
 a floating child panel. Controls are grouped into collapsible categories for
-aircraft, maneuver, stick POV, HUD mode, master/target, missile, landing/ILS
-and telemetry. The circular stick POV writes normalized pitch/roll intent into
-`PilotControls`; dragging the knob down is treated like pulling the stick and
-commands nose-up pitch.
+aircraft, maneuver, stick POV, environment, HUD mode, master/target, missile,
+landing/ILS and telemetry. The circular stick POV writes normalized pitch/roll
+intent into `SimulationControls::pilot`; dragging the knob down is treated
+like pulling the stick and commands nose-up pitch.
+
+The `Environment` section writes wind, turbulence, terrain and atmosphere
+settings into `SimulationControls::environment`. It is a control tool for the
+bundled mini-simulation only: the wind is not a HUD symbology and no
+environment value is sent to the HUD runtime. The wind direction uses the
+meteorological FROM convention (0 degrees = wind coming from the North,
+90 degrees = from the East, 180 degrees = from the South, 270 degrees = from
+the West) and can be set either with the slider or by dragging the arrow
+inside the compass disk. The mini-simulation resolves those settings through
+the pure helpers of `hud_main/HudPhysics.h` (wind vector NED, speed of sound,
+air density, Mach, radio altitude, specific energy rate, terrain elevation)
+and publishes only the resulting physical facts: the aircraft NED velocity in
+`hud::HudInputSample` is the ground velocity (air velocity + wind NED), the
+Mach uses the temperature-dependent speed of sound and the radar altitude
+follows the user-selected terrain elevation. Turbulence is a bounded,
+deterministic sinusoidal perturbation; zero intensity has strictly no effect.
 
 An external simulator, aircraft model, or plugin removes the ImGui shell by
 linking only `hud_runtime`:
@@ -78,7 +119,8 @@ linking only `hud_runtime`:
   liveness internally.
 - Keep `hud::HudInputSample` from `hud/HudTypes.h`.
 - Do not link ImGui, d3d11 or dxgi, and do not embed `HudApplication`,
-  `HudSimulation` or `PilotControls`; they belong to the main client only.
+  `HudSimulation`, `SimulationControls`, `PilotControls`,
+  `EnvironmentControls` or `HudPhysics`; they belong to the main client only.
 
 The replacement application has one responsibility: build a complete
 `hud::HudInputSample` from the external model once per HUD frame, then let
@@ -252,10 +294,14 @@ client boundary where UI controls and the client-local armament model become a
 semantic `HudInputSample`; an external integration replaces those data
 producers, not the HUD projection or generated UI command path.
 
-`HudSimulation` and the ImGui panel are client-local producers only. A real
-integration removes them and links `hud_runtime`; the external model only fills
-`HudInputSample`, `BuildHudFrame()` still computes the EEGS funnel and the
-runtime still sends the Bezier rails through the generated UI API.
+`HudSimulation`, `HudPhysics` and the ImGui panel are client-local producers
+only. `hud_main::HudSimulation` is replaceable by a real INU / Air Data /
+environment producer: a real integration removes them and links `hud_runtime`;
+the external model only fills `HudInputSample`, `BuildHudFrame()` still
+computes the EEGS funnel and the runtime still sends the Bezier rails through
+the generated UI API. `hud_runtime` stays passive in both setups: it consumes
+resolved physical data and never simulates wind, atmosphere or terrain
+itself.
 
 Run the focused validation:
 
@@ -399,9 +445,13 @@ static cone: its exposed Bezier control points are derived from the semantic
 aircraft/target sample, including flight path, load factor, target line of
 sight, range/wingspan and target acceleration. The authored funnel now uses a
 central spine and range-sampled wall half-widths, keeping the visible cue as a
-long, narrow gunnery corridor instead of a decorative V shape. Wind is
-intentionally not faked; an external aircraft model should add a documented
-semantic input before wind is projected into the HUD.
+long, narrow gunnery corridor instead of a decorative V shape. The runtime
+never reads a simulated weather: wind influences the funnel only indirectly,
+through the physical facts already resolved by the producer (ground velocity,
+flight path, load factor, energy and target geometry in
+`hud::HudInputSample`). In the bundled client those facts come from
+`hud_main::HudSimulation` and its `EnvironmentControls`; the funnel control
+points themselves stay computed inside `hud_runtime`.
 
 Visual reference captures used for the current HUD mode work are kept in
 `examples/hud/visual_ref`. They are documentation/reference material only and

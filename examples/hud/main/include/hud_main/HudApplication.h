@@ -96,6 +96,14 @@ private:
     void DrawFlightControls();
 
     /**
+     * @brief Draws wind, turbulence, terrain and atmosphere controls.
+     *
+     * This panel edits `SimulationControls::environment` only: it is a control
+     * tool for the bundled mini-simulation, not a HUD symbology input.
+     */
+    void DrawEnvironmentControls();
+
+    /**
      * @brief Draws master-mode, missile selection and launch controls.
      */
     void DrawWeaponControls();
@@ -148,8 +156,8 @@ private:
     HudSimulation simulation_ {};
     /** Latest semantic aircraft/target/weapon sample published to the HUD. */
     hud::HudInputSample hudInputs_ {};
-    /** Pilot intent collected from ImGui controls or scripted maneuvers. */
-    PilotControls controls_ {};
+    /** Pilot and environment intent collected from ImGui controls or scripted maneuvers. */
+    SimulationControls simulationControls_ {};
     /** Current source of pilot commands. */
     HudManeuver maneuver_ = HudManeuver::Manual;
     /** True while command publishing is available. */

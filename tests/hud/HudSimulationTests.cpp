@@ -41,7 +41,7 @@ using hud_main::ComputeMissileTimeOfFlight;
 using hud_main::HudSimulation;
 using hud_main::MissileLabel;
 using hud_main::MissileType;
-using hud_main::PilotControls;
+using hud_main::SimulationControls;
 
 constexpr float kDegreesToRadians = 0.017453292519943295f;
 
@@ -85,9 +85,9 @@ float ReadLadderBarStartY(const std::string& content, const std::string& element
     return std::stof(content.substr(comma + 1, closeBracket - comma - 1));
 }
 
-void StepMany(HudSimulation& simulation, const PilotControls& controls, const int steps)
+void StepMany(HudSimulation& simulation, const SimulationControls& controls, const int steps)
 {
-    simulation.SetControls(controls);
+    simulation.SetSimulationControls(controls);
     for (int index = 0; index < steps; ++index)
     {
         simulation.Step(0.080f);
@@ -215,9 +215,9 @@ TEST(HudSimulationTests, IgnoresNonFiniteAndClampsLargeDeltas)
     simulation.Step(std::numeric_limits<float>::quiet_NaN());
     EXPECT_FLOAT_EQ(simulation.Aircraft().pitchDegrees, initialPitch);
 
-    PilotControls controls;
-    controls.pitchCommand = 1.0f;
-    simulation.SetControls(controls);
+    SimulationControls controls;
+    controls.pilot.pitchCommand = 1.0f;
+    simulation.SetSimulationControls(controls);
     simulation.Step(10.0f);
 
     EXPECT_TRUE(std::isfinite(simulation.Aircraft().pitchDegrees));
@@ -227,10 +227,10 @@ TEST(HudSimulationTests, IgnoresNonFiniteAndClampsLargeDeltas)
 TEST(HudSimulationTests, LoopingAttitudeKeepsHudPitchBoundedAndMarksInversion)
 {
     HudSimulation simulation;
-    PilotControls controls;
-    controls.pitchCommand = 1.0f;
-    controls.throttle = 0.95f;
-    controls.afterburnerRequested = true;
+    SimulationControls controls;
+    controls.pilot.pitchCommand = 1.0f;
+    controls.pilot.throttle = 0.95f;
+    controls.pilot.afterburnerRequested = true;
 
     StepMany(simulation, controls, 35);
 
@@ -243,10 +243,10 @@ TEST(HudSimulationTests, LoopingAttitudeKeepsHudPitchBoundedAndMarksInversion)
 TEST(HudSimulationTests, LadderPivotsAboutHudCenterUnderBank)
 {
     HudSimulation simulation;
-    PilotControls controls;
-    controls.pitchCommand = 0.4f;
-    controls.rollCommand = 1.0f;
-    controls.throttle = 0.85f;
+    SimulationControls controls;
+    controls.pilot.pitchCommand = 0.4f;
+    controls.pilot.rollCommand = 1.0f;
+    controls.pilot.throttle = 0.85f;
 
     StepMany(simulation, controls, 9);
 
@@ -288,11 +288,11 @@ TEST(HudSimulationTests, LevelRecoveryDoesNotStayVisibleAfterPureRoll)
 TEST(HudSimulationTests, FullLoopKeepsAttitudeSymbologyFinite)
 {
     HudSimulation simulation;
-    PilotControls controls;
-    controls.pitchCommand = 1.0f;
-    controls.throttle = 0.95f;
-    controls.afterburnerRequested = true;
-    simulation.SetControls(controls);
+    SimulationControls controls;
+    controls.pilot.pitchCommand = 1.0f;
+    controls.pilot.throttle = 0.95f;
+    controls.pilot.afterburnerRequested = true;
+    simulation.SetSimulationControls(controls);
 
     for (int index = 0; index < 140; ++index)
     {
@@ -312,9 +312,9 @@ TEST(HudSimulationTests, FullLoopKeepsAttitudeSymbologyFinite)
 TEST(HudSimulationTests, PitchCommandIsSmoothedAcrossSeveralFrames)
 {
     HudSimulation simulation;
-    PilotControls controls;
-    controls.pitchCommand = 1.0f;
-    simulation.SetControls(controls);
+    SimulationControls controls;
+    controls.pilot.pitchCommand = 1.0f;
+    simulation.SetSimulationControls(controls);
 
     const float initialPitch = simulation.Aircraft().pitchDegrees;
     simulation.Step(0.080f);
@@ -329,8 +329,8 @@ TEST(HudSimulationTests, PitchCommandIsSmoothedAcrossSeveralFrames)
 TEST(HudSimulationTests, RadarAltitudeIsBlankedAtHighAltitudeForLargeAttitude)
 {
     HudSimulation simulation;
-    PilotControls controls;
-    controls.pitchCommand = 1.0f;
+    SimulationControls controls;
+    controls.pilot.pitchCommand = 1.0f;
 
     StepMany(simulation, controls, 12);
 
@@ -455,10 +455,10 @@ TEST(HudSimulationTests, ExternalSiInputsDriveHudFrameWithoutPanelControls)
 TEST(HudSimulationTests, AirToAirLaunchConsumesInventoryAndCountsDown)
 {
     HudSimulation simulation;
-    PilotControls controls;
-    controls.masterMode = HudMasterMode::AirToAir;
-    controls.throttle = 0.90f;
-    simulation.SetControls(controls);
+    SimulationControls controls;
+    controls.pilot.masterMode = HudMasterMode::AirToAir;
+    controls.pilot.throttle = 0.90f;
+    simulation.SetSimulationControls(controls);
     simulation.SelectMissile(MissileType::Aim120C);
 
     ASSERT_TRUE(simulation.FireSelectedMissile());
@@ -493,13 +493,13 @@ TEST(HudSimulationTests, MasterArmGatesAirToAirMissileSymbologyAndLaunch)
     EXPECT_TRUE(simulateFrame.weapon.missileCircleVisible);
 
     HudSimulation simulation;
-    PilotControls controls;
-    controls.masterMode = HudMasterMode::AirToAir;
-    controls.weaponMode = HudWeaponMode::AirToAirMissile;
-    controls.masterArm = false;
-    controls.simulateMode = false;
-    controls.throttle = 0.90f;
-    simulation.SetControls(controls);
+    SimulationControls controls;
+    controls.pilot.masterMode = HudMasterMode::AirToAir;
+    controls.pilot.weaponMode = HudWeaponMode::AirToAirMissile;
+    controls.pilot.masterArm = false;
+    controls.pilot.simulateMode = false;
+    controls.pilot.throttle = 0.90f;
+    simulation.SetSimulationControls(controls);
 
     EXPECT_FALSE(simulation.FireSelectedMissile());
     EXPECT_EQ(simulation.Inventory().aim120c, 4);
@@ -1023,9 +1023,9 @@ TEST(HudSimulationTests, WSteeringCueIsElevenMilsBelowBoresightWhenFpmUnavailabl
 TEST(HudSimulationTests, ImpactMissileIsRetainedBrieflyThenRemoved)
 {
     HudSimulation simulation;
-    PilotControls controls;
-    controls.masterMode = HudMasterMode::AirToAir;
-    simulation.SetControls(controls);
+    SimulationControls controls;
+    controls.pilot.masterMode = HudMasterMode::AirToAir;
+    simulation.SetSimulationControls(controls);
 
     ASSERT_TRUE(simulation.FireSelectedMissile());
     ASSERT_EQ(simulation.MissileShots().size(), 1U);
@@ -1035,6 +1035,96 @@ TEST(HudSimulationTests, ImpactMissileIsRetainedBrieflyThenRemoved)
     StepMany(simulation, controls, stepsUntilRetentionExpired);
 
     EXPECT_TRUE(simulation.MissileShots().empty());
+}
+
+TEST(HudSimulationTests, DefaultEnvironmentKeepsZeroWindStandardAtmosphereBehavior)
+{
+    HudSimulation simulation;
+    SimulationControls controls;
+    StepMany(simulation, controls, 25);
+
+    const hud::AircraftInputSample& aircraft = simulation.Inputs().aircraft;
+    const float groundSpeedMps = std::sqrt(
+        aircraft.northSpeedMps * aircraft.northSpeedMps +
+        aircraft.eastSpeedMps * aircraft.eastSpeedMps +
+        aircraft.downSpeedMps * aircraft.downSpeedMps);
+    // The default environment is a standard atmosphere at sea level.
+    const float speedOfSoundMps = hud_main::ComputeSpeedOfSoundMps(288.15f);
+    EXPECT_NEAR(speedOfSoundMps, 340.29f, 0.5f);
+    // With zero wind the published ground velocity equals the air velocity, so
+    // the Mach published to the HUD stays consistent with the legacy TAS/a0 model.
+    EXPECT_NEAR(aircraft.mach, groundSpeedMps / speedOfSoundMps, 1.0e-3f);
+    EXPECT_GT(aircraft.mach, 0.3f);
+}
+
+TEST(HudSimulationTests, WindShiftsGroundVelocityWithoutChangingAirspeed)
+{
+    HudSimulation calmSimulation;
+    HudSimulation windySimulation;
+    SimulationControls calmControls;
+    SimulationControls windyControls;
+    // 40 knots FROM the West (270 degrees): the air mass moves toward the East.
+    windyControls.environment.windSpeedKts = 40.0f;
+    windyControls.environment.windDirectionRad = 270.0f * kDegreesToRadians;
+
+    StepMany(calmSimulation, calmControls, 25);
+    StepMany(windySimulation, windyControls, 25);
+
+    const hud::AircraftInputSample& calm = calmSimulation.Inputs().aircraft;
+    const hud::AircraftInputSample& windy = windySimulation.Inputs().aircraft;
+    const float expectedEastWindMps = 40.0f * 0.514444444f;
+    // The heading stays North in both runs, so the wind shows up as a pure
+    // eastward ground-velocity offset while the air-relative state is identical.
+    EXPECT_NEAR(windy.eastSpeedMps - calm.eastSpeedMps, expectedEastWindMps, 0.2f);
+    EXPECT_NEAR(windy.northSpeedMps, calm.northSpeedMps, 0.2f);
+    EXPECT_FLOAT_EQ(windy.mach, calm.mach);
+}
+
+TEST(HudSimulationTests, TerrainElevationControlDrivesRadioAltitude)
+{
+    HudSimulation defaultSimulation;
+    HudSimulation raisedSimulation;
+    SimulationControls defaultControls;
+    SimulationControls raisedControls;
+    raisedControls.environment.terrainElevationMeters = 1000.0f;
+
+    StepMany(defaultSimulation, defaultControls, 25);
+    StepMany(raisedSimulation, raisedControls, 25);
+
+    const float defaultRadioAltitude = defaultSimulation.Inputs().aircraft.radioAltitudeMeters;
+    const float raisedRadioAltitude = raisedSimulation.Inputs().aircraft.radioAltitudeMeters;
+    // Both runs fly the same trajectory over the same undulation, so the radar
+    // altitude drops by exactly the terrain-base difference (default is 128 m).
+    EXPECT_NEAR(defaultRadioAltitude - raisedRadioAltitude, 1000.0f - 128.0f, 0.5f);
+}
+
+TEST(HudSimulationTests, TurbulenceStaysDeterministicBoundedAndFinite)
+{
+    HudSimulation firstSimulation;
+    HudSimulation secondSimulation;
+    HudSimulation calmSimulation;
+    SimulationControls turbulentControls;
+    turbulentControls.environment.turbulenceIntensity = 1.0f;
+    SimulationControls calmControls;
+
+    StepMany(firstSimulation, turbulentControls, 40);
+    StepMany(secondSimulation, turbulentControls, 40);
+    StepMany(calmSimulation, calmControls, 40);
+
+    const hud::AircraftInputSample& first = firstSimulation.Inputs().aircraft;
+    const hud::AircraftInputSample& second = secondSimulation.Inputs().aircraft;
+    const hud::AircraftInputSample& calm = calmSimulation.Inputs().aircraft;
+    // No random source: two identical runs produce the exact same state.
+    EXPECT_FLOAT_EQ(first.northSpeedMps, second.northSpeedMps);
+    EXPECT_FLOAT_EQ(first.eastSpeedMps, second.eastSpeedMps);
+    EXPECT_FLOAT_EQ(first.downSpeedMps, second.downSpeedMps);
+    EXPECT_FLOAT_EQ(first.altitudeMeters, second.altitudeMeters);
+    // The gusts stay a strictly bounded perturbation around the calm trajectory.
+    EXPECT_LT(std::fabs(first.eastSpeedMps - calm.eastSpeedMps), 10.0f);
+    EXPECT_LT(std::fabs(first.downSpeedMps - calm.downSpeedMps), 10.0f);
+    EXPECT_TRUE(std::isfinite(first.northSpeedMps));
+    EXPECT_TRUE(std::isfinite(first.altitudeMeters));
+    EXPECT_TRUE(std::isfinite(first.specificEnergyRateMps));
 }
 
 TEST(HudProjectionTests, PitchLadderUsesThirtyDegreeVerticalFov)
