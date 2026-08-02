@@ -109,14 +109,16 @@ HUD_RUNTIME_API bool IsInsideHudFov(float azimuthRad, float elevationRad) noexce
  * let `HudController::Populate()` call it before publishing generated UI
  * commands.
  *
- * The EEGS funnel algorithm lives in this projection layer. External code
- * provides aircraft and target facts, not generated Bezier coordinates:
- *
- * - aircraft pitch/roll and NED velocity provide the flight-path marker;
- * - normal load factor, speed and FPM position bend and drift the funnel spine;
- * - target range and `targetWingspanMeters` scale range-sampled wall widths;
- * - target azimuth/elevation and `targetAccelerationMps2` add lead/skew;
- * - the result is two five-point Bezier rails in `HudGunFrame`.
+ * The EEGS funnel algorithm lives in this stateless projection layer. External
+ * code provides sixteen near-to-far, current-aircraft-centered NED range
+ * stations sampled from its ballistic history. The runtime transforms NED to
+ * current body axes, derives azimuth/elevation, projects those angles through
+ * `UserSpaceProjector`, and offsets both rails by the physical angular width
+ * `atan(targetWingspan / (2 * range))`. The projected rail is positioned
+ * relative to the authored gun bore cross, never to the flight-path marker.
+ * A degree-four Bezier fitted from the sixteen physical samples is rendered by
+ * the authored 36-segment rail primitive. Aircraft attitude is applied exactly
+ * once here.
  *
  * Weapon-specific values are the opposite: launch zone, time of flight, labels
  * and quantities are caller-resolved facts read from `WeaponInputSample`, never

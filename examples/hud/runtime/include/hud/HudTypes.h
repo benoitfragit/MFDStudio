@@ -50,6 +50,34 @@ struct HudVec2
  */
 using HudFunnelControlPoints = std::array<HudVec2, 5>;
 
+/** Number of physical ballistic range stations used to construct each EEGS rail. */
+constexpr std::size_t kGunTrajectoryPointCount = 16U;
+
+/** @brief One range-station sample relative to the current aircraft in fixed-orientation NED axes. */
+struct GunTrajectoryPointNed
+{
+    float northMeters = 0.0f;
+    float eastMeters = 0.0f;
+    float downMeters = 0.0f;
+    float ageSeconds = 0.0f;
+    bool valid = false;
+};
+
+/**
+ * @brief Stateless near-to-far EEGS ballistic trajectory snapshot.
+ *
+ * The origin is recentered on the current aircraft each tick, while axes stay
+ * North/East/Down and never follow aircraft attitude. Distances are meters,
+ * ages are seconds, and every valid value must be finite. Stateful producers
+ * should publish at least sixteen stable range stations ordered from 600 to
+ * 3000 feet from a sufficiently dense projectile history. Temporal integration
+ * and filtering do not belong in the runtime.
+ */
+struct GunTrajectoryInputSample
+{
+    std::array<GunTrajectoryPointNed, kGunTrajectoryPointCount> points {};
+};
+
 /**
  * @brief HUD master mode selected by the aircraft avionics.
  */
@@ -426,6 +454,8 @@ struct HudInputSample
     TargetInputSample target {};
     /** Resolved master-mode and weapon state. */
     WeaponInputSample weapon {};
+    /** Current-aircraft-centered NED range stations; the runtime stores no projectile state. */
+    GunTrajectoryInputSample gunTrajectory {};
     /** Resolved air-to-ground delivery data. */
     AirGroundInputSample airGround {};
     /** Resolved landing and runway data. */
@@ -566,7 +596,7 @@ struct HudGunFrame
     float eegsFunnelScaleX = 1.0f;
     /** Vertical EEGS funnel scale derived from speed/load cues. */
     float eegsFunnelScaleY = 1.0f;
-    /** HUD-space funnel center drift. */
+    /** Authored Gun Bore Cross reference used as the funnel's HUD-space origin. */
     HudVec2 eegsFunnelPosition {};
     /** Funnel roll/skew rotation in degrees. */
     float eegsFunnelRotationDegrees = 0.0f;

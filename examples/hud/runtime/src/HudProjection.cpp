@@ -10,6 +10,9 @@
 
 #include "hud/HudProjection.h"
 
+#include "HudLayout.h"
+#include "mfd/control/UserSpaceProjector.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -63,14 +66,6 @@ constexpr float kGhostHorizonLimitDeg = 8.7f;
 constexpr float kHudHorizonLimit = kGhostHorizonLimitDeg * kPitchToHudUnits;
 constexpr float kDlzBottomY = -0.245f;
 constexpr float kDlzHeight = 0.49f;
-constexpr float kEegsFunnelFarY = 0.205f;
-constexpr float kEegsFunnelNearY = 0.765f;
-constexpr float kEegsFunnelFarRangeMeters = 1700.0f;
-constexpr float kEegsFunnelNearRangeMeters = 450.0f;
-constexpr float kEegsFunnelReferenceRangeMeters = 900.0f;
-constexpr float kEegsFunnelReferenceHalfWidth = 0.082f;
-constexpr float kEegsFunnelFarHalfWidth = 0.038f;
-constexpr float kEegsFunnelNearHalfWidth = 0.124f;
 
 float Clamp(const float value, const float low, const float high) noexcept
 {
@@ -139,108 +134,268 @@ HudVec2 RotateHudVector(const HudVec2 offset, const float degrees) noexcept
         offset.x * sine + offset.y * cosine};
 }
 
-float SmoothStep(const float value) noexcept
+struct FunnelSamples
 {
-    const float t = Clamp(value, 0.0f, 1.0f);
-    return t * t * (3.0f - 2.0f * t);
+    static constexpr std::size_t kCapacity = kGunTrajectoryPointCount;
+    std::array<HudVec2, kCapacity> left {};
+    std::array<HudVec2, kCapacity> right {};
+    std::size_t count = 0U;
+};
+
+mfd::UserSpaceProjector BuildAngularProjector() noexcept
+{
+    mfd::UserSpaceFrame frame;
+    frame.userOrigin = mfd::Vec2 {0.0f, 0.0f};
+    frame.pageAnchor = mfd::Vec2 {0.0f, 0.0f};
+    frame.originRotationRadians = 0.0f;
+    frame.pageUnitsPerUserUnit = 1.0f;
+    frame.userXAxisInPage = mfd::Vec2 {1.0f, 0.0f};
+    frame.userYAxisInPage = mfd::Vec2 {0.0f, 1.0f};
+    return mfd::UserSpaceProjector(frame);
 }
 
-float FunnelSampleRangeMeters(const float travel) noexcept
+HudVec2 ProjectAnglesUnclamped(const float azimuthRad, const float elevationRad) noexcept
 {
-    const float rangeTravel = std::pow(Clamp(travel, 0.0f, 1.0f), 1.18f);
-    return kEegsFunnelFarRangeMeters +
-           (kEegsFunnelNearRangeMeters - kEegsFunnelFarRangeMeters) * rangeTravel;
+    const float horizontalHalfFovRad = kHudConformalHorizontalFovDeg * 0.5f * kDegreesToRadians;
+    const float verticalHalfFovRad = kHudConformalVerticalFovDeg * 0.5f * kDegreesToRadians;
+    const mfd::Vec2 page = BuildAngularProjector().ToPagePosition(mfd::Vec2 {
+        FiniteOr(azimuthRad, 0.0f) / horizontalHalfFovRad * kHudConformalHalfWidthUnits,
+        FiniteOr(elevationRad, 0.0f) / verticalHalfFovRad * kHudConformalHalfHeightUnits});
+    return HudVec2 {page.x, page.y};
 }
 
-float FunnelSampleHalfWidth(const float travel) noexcept
+bool ProjectTrajectoryCenter(const GunTrajectoryPointNed& point,
+                             const AircraftInputSample& aircraft,
+                             HudVec2& center,
+                             float& slantRangeMeters) noexcept
 {
-    const float referenceAngle =
-        std::atan((kDefaultTargetWingspanMeters * 0.5f) / kEegsFunnelReferenceRangeMeters);
-    const float sampleAngle =
-        std::atan((kDefaultTargetWingspanMeters * 0.5f) / FunnelSampleRangeMeters(travel));
-
-    return Clamp(
-        kEegsFunnelReferenceHalfWidth * sampleAngle / std::max(referenceAngle, 0.0001f),
-        kEegsFunnelFarHalfWidth,
-        kEegsFunnelNearHalfWidth);
-}
-
-HudVec2 BuildFunnelSpinePoint(const float travel,
-                              const float heightScale,
-                              const HudVec2 center,
-                              const float curvature,
-                              const float skew) noexcept
-{
-    const float screenTravel = Clamp(travel, 0.0f, 1.0f);
-    const float shapedTravel = SmoothStep(screenTravel);
-    const float leadBend = curvature * screenTravel * screenTravel * 0.52f;
-
-    return HudVec2 {
-        center.x + skew * (0.20f + 0.80f * shapedTravel) + leadBend * 0.55f,
-        center.y + kEegsFunnelFarY + (kEegsFunnelNearY - kEegsFunnelFarY) * screenTravel * heightScale +
-            leadBend};
-}
-
-/**
- * @brief Builds one base range sample of an EEGS funnel rail.
- * @param side Rail side, negative for left and positive for right.
- * @param travel Normalized range travel, 0 at the far/narrow end and 1 at the
- * near/wider end.
- * @param widthScale Runtime range and target-wingspan width correction.
- * @param heightScale Runtime airspeed and load-factor vertical stretch.
- * @param center HUD-space drift of the funnel spine.
- * @param curvature Load and speed driven lead curvature.
- * @param skew Lateral lead offset shared by both rails.
- * @return HUD-space wall point after range width and lead correction.
- *
- * The wall is built around a central spine, then offset by the angular
- * half-wingspan for the sample range. This follows the same principle as
- * practical EEGS implementations: the target should fit between the walls at
- * the corresponding range instead of seeing a decorative V shape.
- */
-HudVec2 BuildFunnelWallPoint(const float side,
-                             const float travel,
-                             const float widthScale,
-                             const float heightScale,
-                             const HudVec2 center,
-                             const float curvature,
-                             const float skew) noexcept
-{
-    const HudVec2 firstSpine = BuildFunnelSpinePoint(0.0f, heightScale, center, curvature, skew);
-    const HudVec2 lastSpine = BuildFunnelSpinePoint(1.0f, heightScale, center, curvature, skew);
-    const float tangentX = lastSpine.x - firstSpine.x;
-    const float tangentY = lastSpine.y - firstSpine.y;
-    const float tangentLength = std::sqrt(tangentX * tangentX + tangentY * tangentY);
-    const float perpendicularX = tangentLength > 0.0001f ? tangentY / tangentLength : 1.0f;
-    const float perpendicularY = tangentLength > 0.0001f ? -tangentX / tangentLength : 0.0f;
-
-    const float halfWidth = FunnelSampleHalfWidth(travel) * widthScale;
-    const HudVec2 spine = BuildFunnelSpinePoint(travel, heightScale, center, curvature, skew);
-    return HudVec2 {spine.x + side * perpendicularX * halfWidth, spine.y + side * perpendicularY * halfWidth};
-}
-
-HudFunnelControlPoints BuildEegsFunnelRail(const float side,
-                                           const float widthScale,
-                                           const float heightScale,
-                                           const HudVec2 center,
-                                           const float curvature,
-                                           const float skew) noexcept
-{
-    HudFunnelControlPoints rail {};
-    for (std::size_t index = 0; index < rail.size(); ++index)
+    if (!point.valid || !std::isfinite(point.northMeters) || !std::isfinite(point.eastMeters) ||
+        !std::isfinite(point.downMeters))
     {
-        const float travel = static_cast<float>(index) / static_cast<float>(rail.size() - 1U);
-        rail[index] = BuildFunnelWallPoint(
-            side,
-            travel,
-            widthScale,
-            heightScale,
-            center,
-            curvature,
-            skew);
+        return false;
+    }
+    const float yaw = FiniteOr(aircraft.yawRad, 0.0f);
+    const float pitch = FiniteOr(aircraft.pitchRad, 0.0f);
+    const float roll = FiniteOr(aircraft.rollRad, 0.0f);
+    const float cy = std::cos(yaw);
+    const float sy = std::sin(yaw);
+    const float cp = std::cos(pitch);
+    const float sp = std::sin(pitch);
+    const float cr = std::cos(roll);
+    const float sr = std::sin(roll);
+    const float north = point.northMeters;
+    const float east = point.eastMeters;
+    const float down = point.downMeters;
+    const float forward = cy * cp * north + sy * cp * east - sp * down;
+    const float right = (cy * sp * sr - sy * cr) * north +
+                        (sy * sp * sr + cy * cr) * east + cp * sr * down;
+    const float bodyDown = (cy * sp * cr + sy * sr) * north +
+                           (sy * sp * cr - cy * sr) * east + cp * cr * down;
+    if (!std::isfinite(forward) || forward <= 0.001f)
+    {
+        return false;
+    }
+    const float horizontalRange = std::sqrt(forward * forward + right * right);
+    slantRangeMeters = std::sqrt(north * north + east * east + down * down);
+    const float azimuthRad = std::atan2(right, forward);
+    const float elevationRad = std::atan2(-bodyDown, horizontalRange);
+    if (!std::isfinite(slantRangeMeters) || !std::isfinite(azimuthRad) || !std::isfinite(elevationRad))
+    {
+        return false;
+    }
+    center = ProjectAnglesUnclamped(azimuthRad, elevationRad);
+    return std::isfinite(center.x) && std::isfinite(center.y);
+}
+
+HudVec2 StableFunnelRightNormal(const HudVec2 previous,
+                                const HudVec2 next,
+                                const HudVec2 referenceNormal) noexcept
+{
+    const float tangentX = next.x - previous.x;
+    const float tangentY = next.y - previous.y;
+    const float length = std::sqrt(tangentX * tangentX + tangentY * tangentY);
+    if (length <= 0.000001f)
+    {
+        return referenceNormal;
     }
 
+    HudVec2 normal {-tangentY / length, tangentX / length};
+    const float orientation = normal.x * referenceNormal.x + normal.y * referenceNormal.y;
+    if (orientation < 0.0f)
+    {
+        normal.x = -normal.x;
+        normal.y = -normal.y;
+    }
+    return normal;
+}
+
+bool SolveThreeByThree(float matrix[3][4], float solution[3]) noexcept
+{
+    for (std::size_t column = 0U; column < 3U; ++column)
+    {
+        std::size_t pivot = column;
+        for (std::size_t row = column + 1U; row < 3U; ++row)
+        {
+            if (std::fabs(matrix[row][column]) > std::fabs(matrix[pivot][column]))
+            {
+                pivot = row;
+            }
+        }
+        if (std::fabs(matrix[pivot][column]) < 0.000001f)
+        {
+            return false;
+        }
+        for (std::size_t entry = column; entry < 4U; ++entry)
+        {
+            std::swap(matrix[column][entry], matrix[pivot][entry]);
+        }
+        const float divisor = matrix[column][column];
+        for (std::size_t entry = column; entry < 4U; ++entry)
+        {
+            matrix[column][entry] /= divisor;
+        }
+        for (std::size_t row = 0U; row < 3U; ++row)
+        {
+            if (row == column)
+            {
+                continue;
+            }
+            const float factor = matrix[row][column];
+            for (std::size_t entry = column; entry < 4U; ++entry)
+            {
+                matrix[row][entry] -= factor * matrix[column][entry];
+            }
+        }
+    }
+    for (std::size_t index = 0U; index < 3U; ++index)
+    {
+        solution[index] = matrix[index][3];
+        if (!std::isfinite(solution[index]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+HudFunnelControlPoints LinearFunnelRail(const HudVec2& first, const HudVec2& last) noexcept
+{
+    HudFunnelControlPoints rail {};
+    for (std::size_t index = 0U; index < rail.size(); ++index)
+    {
+        const float t = static_cast<float>(index) / static_cast<float>(rail.size() - 1U);
+        rail[index] = HudVec2 {first.x + (last.x - first.x) * t, first.y + (last.y - first.y) * t};
+    }
     return rail;
+}
+
+HudFunnelControlPoints FitQuarticBezier(
+    const std::array<HudVec2, FunnelSamples::kCapacity>& samples,
+    const std::size_t count) noexcept
+{
+    if (count < 2U)
+    {
+        return {};
+    }
+    HudFunnelControlPoints rail = LinearFunnelRail(samples[0], samples[count - 1U]);
+    float normal[3][3] {};
+    float rhsX[3] {};
+    float rhsY[3] {};
+    for (std::size_t sampleIndex = 0U; sampleIndex < count; ++sampleIndex)
+    {
+        const float t = static_cast<float>(sampleIndex) / static_cast<float>(count - 1U);
+        const float oneMinusT = 1.0f - t;
+        const float basis[3] {
+            4.0f * oneMinusT * oneMinusT * oneMinusT * t,
+            6.0f * oneMinusT * oneMinusT * t * t,
+            4.0f * oneMinusT * t * t * t};
+        const float endpointX = oneMinusT * oneMinusT * oneMinusT * oneMinusT * rail[0].x +
+                                t * t * t * t * rail[4].x;
+        const float endpointY = oneMinusT * oneMinusT * oneMinusT * oneMinusT * rail[0].y +
+                                t * t * t * t * rail[4].y;
+        for (std::size_t row = 0U; row < 3U; ++row)
+        {
+            rhsX[row] += basis[row] * (samples[sampleIndex].x - endpointX);
+            rhsY[row] += basis[row] * (samples[sampleIndex].y - endpointY);
+            for (std::size_t column = 0U; column < 3U; ++column)
+            {
+                normal[row][column] += basis[row] * basis[column];
+            }
+        }
+    }
+    float matrixX[3][4] {};
+    float matrixY[3][4] {};
+    for (std::size_t row = 0U; row < 3U; ++row)
+    {
+        for (std::size_t column = 0U; column < 3U; ++column)
+        {
+            matrixX[row][column] = normal[row][column];
+            matrixY[row][column] = normal[row][column];
+        }
+        matrixX[row][3] = rhsX[row];
+        matrixY[row][3] = rhsY[row];
+    }
+    float solutionX[3] {};
+    float solutionY[3] {};
+    if (!SolveThreeByThree(matrixX, solutionX) || !SolveThreeByThree(matrixY, solutionY))
+    {
+        return rail;
+    }
+    for (std::size_t index = 0U; index < 3U; ++index)
+    {
+        rail[index + 1U] = HudVec2 {solutionX[index], solutionY[index]};
+    }
+    return rail;
+}
+
+void PreserveScreenSideOrdering(HudFunnelControlPoints& left,
+                                HudFunnelControlPoints& right) noexcept
+{
+    for (std::size_t index = 0U; index < left.size(); ++index)
+    {
+        if (left[index].x > right[index].x)
+        {
+            std::swap(left[index], right[index]);
+        }
+    }
+}
+
+FunnelSamples BuildPhysicalFunnelSamples(const HudInputSample& input, const float wingspanMeters) noexcept
+{
+    FunnelSamples samples;
+    std::array<HudVec2, FunnelSamples::kCapacity> centers {};
+    std::array<float, FunnelSamples::kCapacity> ranges {};
+    for (const GunTrajectoryPointNed& point : input.gunTrajectory.points)
+    {
+        HudVec2 center;
+        float range = 0.0f;
+        if (ProjectTrajectoryCenter(point, input.aircraft, center, range))
+        {
+            centers[samples.count] = center;
+            ranges[samples.count] = range;
+            ++samples.count;
+        }
+    }
+    HudVec2 rightNormal {1.0f, 0.0f};
+    for (std::size_t index = 0U; index < samples.count; ++index)
+    {
+        const HudVec2 previous = centers[index == 0U ? index : index - 1U];
+        const HudVec2 next = centers[index + 1U < samples.count ? index + 1U : index];
+        rightNormal = StableFunnelRightNormal(previous, next, rightNormal);
+        // Each ballistic center keeps its own physical range. Consequently the
+        // 600-foot station is the wide end and the 3000-foot station is the
+        // narrow end, exactly matching apparent target angular width.
+        const float halfAngle = std::atan2(wingspanMeters * 0.5f, std::max(ranges[index], 1.0f));
+        const float halfWidth = halfAngle /
+            (kHudConformalHorizontalFovDeg * 0.5f * kDegreesToRadians) * kHudConformalHalfWidthUnits;
+        samples.left[index] = HudVec2 {
+            centers[index].x - rightNormal.x * halfWidth,
+            centers[index].y - rightNormal.y * halfWidth};
+        samples.right[index] = HudVec2 {
+            centers[index].x + rightNormal.x * halfWidth,
+            centers[index].y + rightNormal.y * halfWidth};
+    }
+    return samples;
 }
 
 // Weapon-specific facts (launch zone, time of flight, labels, quantities and
@@ -358,10 +513,13 @@ HudAirDataFrame BuildAirDataFrame(const AircraftInputSample& aircraftInput, cons
 // helper, so the HUD keeps one angular scale and one field-of-view rule.
 ProjectedHudPoint ProjectConformalPoint(const float azimuthRad, const float elevationRad) noexcept
 {
-    const float azimuthDeg = FiniteOr(azimuthRad, 0.0f) * kRadiansToDegrees;
-    const float elevationDeg = FiniteOr(elevationRad, 0.0f) * kRadiansToDegrees;
-    const float rawX = azimuthDeg * kHudUnitsPerHorizontalDegree;
-    const float rawY = elevationDeg * kHudUnitsPerVerticalDegree;
+    const float safeAzimuthRad = FiniteOr(azimuthRad, 0.0f);
+    const float safeElevationRad = FiniteOr(elevationRad, 0.0f);
+    const float azimuthDeg = safeAzimuthRad * kRadiansToDegrees;
+    const float elevationDeg = safeElevationRad * kRadiansToDegrees;
+    const HudVec2 raw = ProjectAnglesUnclamped(safeAzimuthRad, safeElevationRad);
+    const float rawX = raw.x;
+    const float rawY = raw.y;
     const float x = Clamp(rawX, -kHudConformalHalfWidthUnits, kHudConformalHalfWidthUnits);
     const float y = Clamp(rawY, -kHudConformalHalfHeightUnits, kHudConformalHalfHeightUnits);
 
@@ -439,7 +597,7 @@ HudWeaponFrame BuildWeaponFrame(const HudInputSample& input) noexcept
     return frame;
 }
 
-HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& attitude) noexcept
+HudGunFrame BuildGunFrame(const HudInputSample& input) noexcept
 {
     HudGunFrame frame;
     const AircraftState aircraft = BuildAircraftStateForHud(input.aircraft);
@@ -473,68 +631,33 @@ HudGunFrame BuildGunFrame(const HudInputSample& input, const HudAttitudeFrame& a
     frame.tdCircleLimitXPosition = targetPosition;
     frame.targetRangeFeet = std::max(FiniteOr(input.target.rangeMeters, 0.0f), 0.0f) * kMetersToFeet;
 
-    const float targetRangeMeters = std::max(FiniteOr(input.target.rangeMeters, 0.0f), 500.0f);
     // A neutral or non-finite wingspan input falls back to the authored HUD
     // default; the fallback is a projection concern, not part of the contract.
     const float providedWingspanMeters = FiniteOr(input.weapon.targetWingspanMeters, 0.0f);
     const float targetWingspanMeters =
         providedWingspanMeters > 0.0f ? providedWingspanMeters : kDefaultTargetWingspanMeters;
-    const float halfAngleRad = std::atan((targetWingspanMeters * 0.5f) / targetRangeMeters);
-    const float referenceHalfAngleRad = std::atan((kDefaultTargetWingspanMeters * 0.5f) / (2500.0f * kFeetToMeters));
-    const float rangeScaleX = halfAngleRad / std::max(referenceHalfAngleRad, 0.0001f);
-    const float loadFactor = Clamp(FiniteOr(aircraft.normalLoadG, 1.0f), -1.5f, 9.0f);
-    const float speedScale = Clamp(430.0f / std::max(FiniteOr(aircraft.speedKts, 430.0f), 160.0f), 0.78f, 1.28f);
-    const float targetAcceleration = FiniteOr(input.weapon.targetAccelerationMps2, 0.0f);
-    const float ballisticDrop = Clamp((loadFactor - 1.0f) * 0.012f + (speedScale - 1.0f) * 0.045f, -0.035f, 0.080f);
-    const float sightDriftX = Clamp(
-        attitude.fpmPosition.x * 0.35f +
-            (input.target.valid ? targetPosition.x * 0.24f : 0.0f) +
-            Clamp(targetAcceleration / 120.0f, -0.055f, 0.055f),
-        -0.18f,
-        0.18f);
-    const float sightDriftY = Clamp(
-        attitude.fpmPosition.y * 0.30f +
-            (input.target.valid ? targetPosition.y * 0.16f : 0.0f) -
-            ballisticDrop,
-        -0.015f,
-        0.145f);
-    const float rollCouplingDegrees = Clamp(
-        -attitude.displayRollDegrees * 0.18f +
-            (input.target.valid ? targetPosition.x * 28.0f : 0.0f) +
-            Clamp(targetAcceleration * 0.18f, -12.0f, 12.0f),
-        -30.0f,
-        30.0f);
-    frame.eegsFunnelScaleX = Clamp(rangeScaleX * (1.0f + std::fabs(sightDriftX) * 0.35f), 0.52f, 1.72f);
-    frame.eegsFunnelScaleY = Clamp(speedScale * (1.0f + std::max(loadFactor - 1.0f, 0.0f) * 0.030f), 0.76f, 1.36f);
-    frame.eegsFunnelPosition = HudVec2 {sightDriftX, sightDriftY};
-    frame.eegsFunnelRotationDegrees = rollCouplingDegrees;
-
-    const float funnelCurvature = Clamp(
-        (loadFactor - 1.0f) * 0.014f +
-            std::fabs(attitude.displayRollDegrees) * 0.00075f +
-            (speedScale - 1.0f) * 0.055f,
-        -0.018f,
-        0.115f);
-    const float funnelSkew =
-        Clamp(sightDriftX * 0.45f + targetAcceleration / 620.0f - attitude.displayRollDegrees * 0.0016f, -0.105f, 0.105f);
-    frame.eegsFunnelLeftControlPoints = BuildEegsFunnelRail(
-        -1.0f,
-        frame.eegsFunnelScaleX,
-        frame.eegsFunnelScaleY,
-        frame.eegsFunnelPosition,
-        funnelCurvature,
-        funnelSkew);
-    frame.eegsFunnelRightControlPoints = BuildEegsFunnelRail(
-        1.0f,
-        frame.eegsFunnelScaleX,
-        frame.eegsFunnelScaleY,
-        frame.eegsFunnelPosition,
-        funnelCurvature,
-        funnelSkew);
+    const FunnelSamples funnelSamples = BuildPhysicalFunnelSamples(input, targetWingspanMeters);
+    frame.eegsFunnelVisible = frame.eegsFunnelVisible && funnelSamples.count >= 2U;
+    frame.eegsFunnelLeftControlPoints = FitQuarticBezier(funnelSamples.left, funnelSamples.count);
+    frame.eegsFunnelRightControlPoints = FitQuarticBezier(funnelSamples.right, funnelSamples.count);
+    // Independent least-squares fits can overshoot between samples and swap an
+    // internal pair even though every physical sample is correctly oriented.
+    // Keeping every Bezier pair screen ordered makes the rail separation a
+    // positive Bernstein polynomial and therefore prevents crossings.
+    PreserveScreenSideOrdering(
+        frame.eegsFunnelLeftControlPoints,
+        frame.eegsFunnelRightControlPoints);
+    frame.eegsFunnelScaleX = 1.0f;
+    frame.eegsFunnelScaleY = 1.0f;
+    // Control points are angular offsets from the gun line. Translating the
+    // reticle to the authored gun bore cross establishes that reference without
+    // introducing any dependency on the separately computed flight-path marker.
+    frame.eegsFunnelPosition = detail::GunBoreCrossHudPosition();
+    frame.eegsFunnelRotationDegrees = 0.0f;
 
     frame.mrgsPosition = HudVec2 {
-        Clamp(frame.eegsFunnelPosition.x * 1.12f, -0.20f, 0.20f),
-        Clamp(frame.eegsFunnelPosition.y + 0.065f, -0.040f, 0.16f)};
+        0.0f,
+        0.065f};
     frame.mrgsRotationDegrees = frame.eegsFunnelRotationDegrees;
 
     if (frame.tdCircleVisible)
@@ -659,7 +782,10 @@ HudIlsFrame BuildIlsFrame(const HudInputSample& input, const HudApproachFrame& a
         ilsAvailable &&
         !approach.declutterActive &&
         !input.approach.flightPathMarkerAvailable;
-    frame.wSteeringPosition = HudVec2 {0.0f, 0.90f - 11.0f * kHudUnitsPerMil};
+    const HudVec2 gunBoreCrossPosition = detail::GunBoreCrossHudPosition();
+    frame.wSteeringPosition = HudVec2 {
+        gunBoreCrossPosition.x,
+        gunBoreCrossPosition.y - 11.0f * kHudUnitsPerMil};
     return frame;
 }
 } // namespace
@@ -734,7 +860,7 @@ HudFrame BuildHudFrame(const HudInputSample& input) noexcept
     frame.attitude = ResolveHudAttitude(input.aircraft);
     frame.airData = BuildAirDataFrame(input.aircraft, frame.attitude);
     frame.weapon = BuildWeaponFrame(input);
-    frame.gun = BuildGunFrame(input, frame.attitude);
+    frame.gun = BuildGunFrame(input);
     frame.airGround = BuildAirGroundFrame(input);
     frame.approach = BuildApproachFrame(input, frame.attitude);
     frame.ils = BuildIlsFrame(input, frame.approach);

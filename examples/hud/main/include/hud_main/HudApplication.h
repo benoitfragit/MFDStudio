@@ -164,6 +164,8 @@ private:
     bool connected_ = false;
     /** True while the mini-simulation should advance each frame. */
     bool running_ = true;
+    /** Bounded host-frame time waiting to be converted into authoritative fixed ticks. */
+    double simulationAccumulatorSeconds_ = 0.0;
     /** Result of the most recent missile-launch request. */
     bool lastFireAccepted_ = false;
     /** Last operator-facing status message. */

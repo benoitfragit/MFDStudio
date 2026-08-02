@@ -25,6 +25,9 @@
 namespace
 {
 constexpr float kDegreesToRadians = 0.017453292519943295f;
+constexpr float kFeetToMeters = 0.3048f;
+constexpr float kFunnelNearRangeFeet = 600.0f;
+constexpr float kFunnelFarRangeFeet = 3000.0f;
 
 bool IsFiniteHudVec(const hud::HudVec2 value)
 {
@@ -48,7 +51,7 @@ TEST(HudRuntimeLibraryTests, FunnelControlPointsAreComputedFromGenericInputSampl
 {
     // A generic EEGS sample: aircraft/target physics plus resolved avionics
     // state, without any main-client armament type. The runtime must still
-    // build the five-point Bezier rails on its own.
+    // fit the sixteen physical stations into five-point Bezier rails on its own.
     hud::HudInputSample input;
     input.weapon.masterMode = hud::HudMasterMode::AirToAir;
     input.weapon.weaponMode = hud::HudWeaponMode::AirToAirGun;
@@ -57,6 +60,18 @@ TEST(HudRuntimeLibraryTests, FunnelControlPointsAreComputedFromGenericInputSampl
     input.weapon.gunRoundsRemaining = 510;
     input.weapon.targetWingspanMeters = 11.0f;
     input.weapon.targetAccelerationMps2 = 20.0f;
+    for (std::size_t index = 0U; index < input.gunTrajectory.points.size(); ++index)
+    {
+        const float fraction = static_cast<float>(index) /
+            static_cast<float>(input.gunTrajectory.points.size() - 1U);
+        const float rangeFeet =
+            kFunnelNearRangeFeet + (kFunnelFarRangeFeet - kFunnelNearRangeFeet) * fraction;
+        hud::GunTrajectoryPointNed& point = input.gunTrajectory.points[index];
+        point.northMeters = rangeFeet * kFeetToMeters;
+        point.downMeters = 1.0f + 18.0f * fraction * fraction;
+        point.ageSeconds = 0.18f + 0.80f * fraction;
+        point.valid = true;
+    }
     input.aircraft.rollRad = 30.0f * kDegreesToRadians;
     input.aircraft.normalLoadFactor = 4.0f;
     input.target.rangeMeters = 900.0f;
@@ -65,10 +80,11 @@ TEST(HudRuntimeLibraryTests, FunnelControlPointsAreComputedFromGenericInputSampl
     const hud::HudFrame frame = hud::BuildHudFrame(input);
 
     EXPECT_TRUE(frame.gun.eegsFunnelVisible);
+    EXPECT_EQ(input.gunTrajectory.points.size(), 16U);
     EXPECT_TRUE(IsFiniteFunnelRail(frame.gun.eegsFunnelLeftControlPoints));
     EXPECT_TRUE(IsFiniteFunnelRail(frame.gun.eegsFunnelRightControlPoints));
-    // The rails widen from the far end to the near end of the funnel.
-    EXPECT_LT(
+    // The 600-foot end is wide and the 3000-foot end is narrow.
+    EXPECT_GT(
         std::fabs(frame.gun.eegsFunnelRightControlPoints.front().x -
                   frame.gun.eegsFunnelLeftControlPoints.front().x),
         std::fabs(frame.gun.eegsFunnelRightControlPoints.back().x -

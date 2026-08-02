@@ -11,6 +11,7 @@
 #include "hud_main/HudSimulation.h"
 
 #include "hud_main/HudPhysics.h"
+#include "hud_main/HudSimulationTime.h"
 
 #include <algorithm>
 #include <cmath>
@@ -168,16 +169,6 @@ float NormalizeRadiansPi(float value) noexcept
     }
 
     return value - kPi;
-}
-
-float SanitizeDeltaSeconds(const float deltaSeconds) noexcept
-{
-    if (!std::isfinite(deltaSeconds) || deltaSeconds <= 0.0f)
-    {
-        return 0.0f;
-    }
-
-    return Clamp(deltaSeconds, 0.0f, 0.080f);
 }
 
 float HorizontalSpeedMetersPerSecond(const AircraftInputSample& aircraft) noexcept
@@ -550,6 +541,16 @@ void HudSimulation::Reset()
     trueAirspeedMps_ = GroundSpeedMetersPerSecond(inputs_.aircraft);
     flightPathSlopeRad_ = FlightPathSlopeRadians(inputs_.aircraft);
     missileShots_.clear();
+    simulationTickCount_ = 0U;
+    aircraftPositionNedMeters_ = {};
+    const GunLaunchState launchState {
+        aircraftPositionNedMeters_,
+        Vec3d {inputs_.aircraft.northSpeedMps, inputs_.aircraft.eastSpeedMps, inputs_.aircraft.downSpeedMps},
+        inputs_.aircraft.yawRad,
+        inputs_.aircraft.pitchRad,
+        inputs_.aircraft.rollRad};
+    gunProjectiles_.Reset(launchState, controls_.environment);
+    inputs_.gunTrajectory = gunProjectiles_.BuildSnapshot(aircraftPositionNedMeters_);
     RefreshWeaponPresentation();
 }
 
@@ -577,19 +578,16 @@ void HudSimulation::SetSimulationControls(const SimulationControls& controls) no
     inputs_.ils.commandSteeringActive = pilot.ilsCommandSteeringActive;
 }
 
-void HudSimulation::Step(const float deltaSeconds)
+void HudSimulation::Step()
 {
-    const float dt = SanitizeDeltaSeconds(deltaSeconds);
-    if (dt <= 0.0f)
-    {
-        return;
-    }
-
+    constexpr float dt = static_cast<float>(kHudSimulationStepSeconds);
     const HudMiniSimulationConfig& cfg = kMiniSimulationConfig;
     const PilotControls& pilot = controls_.pilot;
     const EnvironmentControls& environment = controls_.environment;
     AircraftInputSample& aircraft = inputs_.aircraft;
-    aircraft.elapsedSeconds += dt;
+    ++simulationTickCount_;
+    aircraft.elapsedSeconds = static_cast<float>(
+        static_cast<double>(simulationTickCount_) * kHudSimulationStepSeconds);
     filteredPitchCommand_ =
         SmoothCommand(filteredPitchCommand_, pilot.pitchCommand, dt, cfg.pitchCommandTimeConstantSeconds);
     filteredRollCommand_ =
@@ -668,6 +666,17 @@ void HudSimulation::Step(const float deltaSeconds)
     aircraft.northSpeedMps = horizontalAirSpeedMps * std::cos(aircraft.headingRad) + steadyWind.northMps + gust.northMps;
     aircraft.eastSpeedMps = horizontalAirSpeedMps * std::sin(aircraft.headingRad) + steadyWind.eastMps + gust.eastMps;
     aircraft.downSpeedMps = -newSpeedMps * std::sin(flightPathSlopeRad) + steadyWind.downMps + gust.downMps;
+    aircraftPositionNedMeters_.x += static_cast<double>(aircraft.northSpeedMps) * kHudSimulationStepSeconds;
+    aircraftPositionNedMeters_.y += static_cast<double>(aircraft.eastSpeedMps) * kHudSimulationStepSeconds;
+    aircraftPositionNedMeters_.z += static_cast<double>(aircraft.downSpeedMps) * kHudSimulationStepSeconds;
+    const GunLaunchState launchState {
+        aircraftPositionNedMeters_,
+        Vec3d {aircraft.northSpeedMps, aircraft.eastSpeedMps, aircraft.downSpeedMps},
+        aircraft.yawRad,
+        aircraft.pitchRad,
+        aircraft.rollRad};
+    gunProjectiles_.Step(launchState, environment);
+    inputs_.gunTrajectory = gunProjectiles_.BuildSnapshot(aircraftPositionNedMeters_);
     aircraft.altitudeMeters = std::max(18.0f, aircraft.altitudeMeters - aircraft.downSpeedMps * dt);
     aircraft.radioAltitudeMeters = ComputeRadioAltitudeMeters(
         aircraft.altitudeMeters,

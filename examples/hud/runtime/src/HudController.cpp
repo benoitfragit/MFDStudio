@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "HudUi.h"
+#include "HudLayout.h"
 #include "mfd/model/Types.h"
 
 namespace hud
@@ -562,9 +563,9 @@ void ApplyAirToAirGun(hud_ui::HUDMockupPage& hud, const HudFrame& frame)
     hud.eegsFunnel.SetVisible(gun.eegsFunnelVisible);
     if (gun.eegsFunnelVisible)
     {
-        hud.eegsFunnel.SetPosition(mfd::Vec2 {0.0f, 0.0f});
-        hud.eegsFunnel.SetRotationDegrees(0.0f);
-        hud.eegsFunnel.SetScale(mfd::Vec2 {1.0f, 1.0f});
+        hud.eegsFunnel.SetPosition(ToMfdVec2(gun.eegsFunnelPosition));
+        hud.eegsFunnel.SetRotationDegrees(gun.eegsFunnelRotationDegrees);
+        hud.eegsFunnel.SetScale(mfd::Vec2 {gun.eegsFunnelScaleX, gun.eegsFunnelScaleY});
         hud.eegsFunnel.FunnelLeft().SetVisible(true);
         hud.eegsFunnel.FunnelRight().SetVisible(true);
         hud.eegsFunnel.FunnelLeft().SetControlPoints(ToMfdVec2Vector(gun.eegsFunnelLeftControlPoints));
@@ -649,13 +650,14 @@ void ApplyAirToGroundStrafe(hud_ui::HUDMockupPage& hud, const HudFrame& frame)
     hud.strafeInRangeCue.SetPosition(ToMfdVec2(gun.strafePipperPosition));
 
     hud.strafeBulletTrack.SetVisible(gun.strafeVisible);
-    const HudVec2 boresightPosition {0.0f, 0.90f};
+    const HudVec2 gunBoreCrossPosition = detail::GunBoreCrossHudPosition();
     const HudVec2 lineCenter {
-        (boresightPosition.x + gun.bulletTrackEndPosition.x) * 0.5f,
-        (boresightPosition.y + gun.bulletTrackEndPosition.y) * 0.5f};
-    const float lineLength = HudDistance(boresightPosition, gun.bulletTrackEndPosition);
+        (gunBoreCrossPosition.x + gun.bulletTrackEndPosition.x) * 0.5f,
+        (gunBoreCrossPosition.y + gun.bulletTrackEndPosition.y) * 0.5f};
+    const float lineLength = HudDistance(gunBoreCrossPosition, gun.bulletTrackEndPosition);
     hud.strafeBulletTrack.SetPosition(ToMfdVec2(lineCenter));
-    hud.strafeBulletTrack.SetRotationDegrees(HudAngleDegrees(boresightPosition, gun.bulletTrackEndPosition));
+    hud.strafeBulletTrack.SetRotationDegrees(
+        HudAngleDegrees(gunBoreCrossPosition, gun.bulletTrackEndPosition));
     hud.strafeBulletTrack.SetScale(mfd::Vec2 {lineLength, 1.0f});
 }
 

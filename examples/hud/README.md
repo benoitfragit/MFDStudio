@@ -149,3 +149,78 @@ cmake --build --preset debug-win32 --target hud_runtime hud_client
 If HUD tests are enabled in the current checkout, rebuild and run the matching
 HUD test targets (`hud_client_tests`, `hud_runtime_client_tests`) before
 trusting a visual or projection change.
+
+# Fixed-step EEGS ballistic funnel
+
+The interactive sample owns a deliberately small ballistic model in
+`hud_main::GunProjectileSimulation`; it does not belong to `hud_runtime` because
+the reusable runtime must remain a stateless consumer of complete semantic
+snapshots. The entire stateful HUD mini-simulation advances through the single
+authoritative `hud_main::kHudSimulationStepSeconds` constant: one `Step()` is
+20 ms (50 Hz). `HudApplication` converts irregular render deltas into fixed
+ticks with a bounded eight-tick catch-up loop. If a frame is later than that
+budget, overdue whole ticks are dropped and only the fractional remainder is
+kept, preventing an unbounded catch-up loop.
+
+The EEGS ballistic history is a fixed `std::array` of 76 virtual projectiles.
+One projectile is launched on every 20 ms tick, giving the simulation a dense
+1.5-second trail without allocation. `Reset()` reconstructs that history
+deterministically by assuming the initial aircraft state and environment were
+constant during the preceding 1.5 seconds. These samples are display geometry
+only: they do not consume ammunition, do not depend on the trigger, and do not
+alter MASTER ARM, SIM, FEDS or BATR rules.
+
+Internally, aircraft and projectile positions use double-precision SI values in
+a fixed local North/East/Down frame established at reset. Each launch captures
+the aircraft absolute NED position, ground velocity, yaw/pitch/roll, body-frame
+muzzle offset and muzzle velocity. After launch, the projectile is independent
+of later aircraft attitude, speed, controls and load factor. Gravity is
+`{0, 0, +9.80665}` m/s2. Wind uses the documented meteorological FROM
+convention and acts only through quadratic drag against air-relative velocity:
+
+`a_drag = -0.5 * density * (CdA / mass) * |v_projectile - v_wind| * (v_projectile - v_wind)`
+
+The semi-implicit Euler update uses the same 20 ms tick as the aircraft and
+missiles, without a ballistic sub-step. A panel wind change is intentionally
+treated as an instantaneous change to one uniform field for every active
+projectile. Invalid/non-finite atmosphere or motion values are sanitized or
+invalidate the affected sample deterministically.
+
+The dense history never crosses the reusable-runtime boundary. The simulation
+interpolates between adjacent physical projectile samples at sixteen stable,
+regularly spaced slant-range stations from 600 to 3000 feet (160-foot steps).
+Sampling fixed ranges removes the former 5 Hz age-phase reset while preserving
+the natural inertia of continuously fired rounds: during a turn, recent launch
+directions reach the near station before they reach the far station.
+
+At the semantic boundary, absolute positions, velocities and the 76-slot
+history stay private. `HudInputSample::gunTrajectory` publishes only sixteen
+finite points ordered nearest-to-farthest, expressed relative to the current
+aircraft but still oriented North/East/Down. The stateless display chain is:
+
+`relative NED -> current body axes -> azimuth/elevation -> UserSpaceProjector -> HUD`
+
+Each station keeps its own physical angular half-width:
+`atan2(targetWingspanMeters / 2, range)`. With the default 35-foot wingspan,
+the 600-foot end is therefore approximately five times wider than the
+3000-foot end. Rail normals retain a consistent screen-left and screen-right
+orientation as local tangents evolve, preventing wall swaps.
+
+The projected rail uses the authored Gun Bore Cross at HUD position
+`{0.0, 0.82}` as its local origin. This places the wide 600-foot end close to
+the gun reference while retaining the upper margin visible in Falcon BMS and
+DCS F-16 Level-II examples. The FPM is calculated and published independently;
+changing aircraft flight-path velocity does not translate the funnel. The
+runtime owns no ballistic history, clock, temporal filter or previous-frame
+state.
+
+In the absence of target orientation, apparent wingspan is placed
+perpendicular to the local trajectory tangent. Finally, the sixteen physical
+stations are fitted by least squares to the three internal control points of
+each five-control-point degree-four Bezier. The near and far endpoints are
+preserved, a deterministic linear fallback handles a degenerate solve without
+allocation, and the authored primitive tessellates each continuous rail into
+36 smooth segments.
+
+Reference figures: Falcon BMS Dash-34 4.36.3, section 2.4.5.1, figure 41; DCS
+F-16C Early Access Guide, EEGS Level-II pages 530-532.

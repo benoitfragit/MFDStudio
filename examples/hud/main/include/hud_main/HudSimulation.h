@@ -18,9 +18,11 @@
  */
 
 #include <string>
+#include <cstdint>
 #include <vector>
 
 #include "hud/HudProjection.h"
+#include "hud_main/GunProjectileSimulation.h"
 #include "hud_main/HudPhysics.h"
 
 namespace hud_main
@@ -214,7 +216,7 @@ public:
     void SetSimulationControls(const SimulationControls& controls) noexcept;
 
     /**
-     * @brief Advances the simulation by one bounded deterministic step.
+     * @brief Advances the complete mini-simulation by exactly one 20 ms fixed tick.
      *
      * Pilot commands are read from `SimulationControls::pilot`, wind,
      * atmosphere and terrain from `SimulationControls::environment`. The
@@ -222,10 +224,10 @@ public:
      * ground velocity (air velocity plus wind), so wind shows up in the HUD
      * only through the resolved physical data.
      *
-     * @param deltaSeconds Wall-clock delta in seconds; non-finite and negative
-     * values are discarded, very large values are clamped.
+     * @post Aircraft, missiles, timers and virtual gun projectiles share the
+     * same incremented integer tick timestamp.
      */
-    void Step(float deltaSeconds);
+    void Step();
 
     /**
      * @brief Selects the active missile type shown by the HUD.
@@ -323,5 +325,11 @@ private:
     float flightPathSlopeRad_ = 0.0f;
     /** Active and recently impacted missiles retained for HUD timing/status. */
     std::vector<MissileShot> missileShots_ {};
+    /** Common integer clock for aircraft, projectiles, missiles and published timestamps. */
+    std::uint64_t simulationTickCount_ = 0U;
+    /** Aircraft absolute position in the fixed local NED frame established by Reset(). */
+    Vec3d aircraftPositionNedMeters_ {};
+    /** Fixed-capacity ballistic history owned by the sample simulation. */
+    GunProjectileSimulation gunProjectiles_ {};
 };
 } // namespace hud_main

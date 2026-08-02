@@ -11,7 +11,10 @@
 #include "HudUi.h"
 #include "hud/HudController.h"
 #include "hud_main/HudSimulation.h"
+#include "hud_main/HudSimulationTime.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -44,6 +47,11 @@ using hud_main::MissileType;
 using hud_main::SimulationControls;
 
 constexpr float kDegreesToRadians = 0.017453292519943295f;
+constexpr float kFeetToMeters = 0.3048f;
+constexpr float kGunBoreCrossHudY = 0.82f;
+constexpr float kHudUnitsPerMil = 0.0056f;
+constexpr float kFunnelNearRangeFeet = 600.0f;
+constexpr float kFunnelFarRangeFeet = 3000.0f;
 
 // Locates the repository root from this test's own path so asset-consistency
 // tests do not depend on the runtime working directory.
@@ -90,7 +98,27 @@ void StepMany(HudSimulation& simulation, const SimulationControls& controls, con
     simulation.SetSimulationControls(controls);
     for (int index = 0; index < steps; ++index)
     {
-        simulation.Step(0.080f);
+        for (int tick = 0; tick < 4; ++tick)
+        {
+            simulation.Step();
+        }
+    }
+}
+
+void PopulateStraightGunTrajectory(HudInputSample& input)
+{
+    for (std::size_t index = 0U; index < input.gunTrajectory.points.size(); ++index)
+    {
+        const float fraction = static_cast<float>(index) /
+            static_cast<float>(input.gunTrajectory.points.size() - 1U);
+        const float rangeFeet =
+            kFunnelNearRangeFeet + (kFunnelFarRangeFeet - kFunnelNearRangeFeet) * fraction;
+        hud::GunTrajectoryPointNed& point = input.gunTrajectory.points[index];
+        point.northMeters = rangeFeet * kFeetToMeters;
+        point.eastMeters = 0.0f;
+        point.downMeters = 1.0f + 18.0f * fraction * fraction;
+        point.ageSeconds = 0.18f + 0.80f * fraction;
+        point.valid = true;
     }
 }
 
@@ -134,6 +162,25 @@ float HorizontalGapAt(const std::vector<mfd::Vec2>& leftRail,
                       const std::size_t index)
 {
     return HorizontalGap(leftRail[index], rightRail[index]);
+}
+
+float ProjectileSlantRangeMeters(const hud::GunTrajectoryPointNed& point)
+{
+    return std::sqrt(
+        point.northMeters * point.northMeters +
+        point.eastMeters * point.eastMeters +
+        point.downMeters * point.downMeters);
+}
+
+float ProjectileBodyAzimuthRad(const hud::GunTrajectoryPointNed& point, const double aircraftYawRad)
+{
+    const double cosineYaw = std::cos(aircraftYawRad);
+    const double sineYaw = std::sin(aircraftYawRad);
+    const double forward = cosineYaw * static_cast<double>(point.northMeters) +
+                           sineYaw * static_cast<double>(point.eastMeters);
+    const double right = -sineYaw * static_cast<double>(point.northMeters) +
+                         cosineYaw * static_cast<double>(point.eastMeters);
+    return static_cast<float>(std::atan2(right, forward));
 }
 
 void ExpectAirToAirMissileReticlesHidden(hud_ui::HUDMockupPage& hud)
@@ -207,21 +254,18 @@ std::size_t CountPrimitiveVisibilityPatches(const mfd::UpdateReticleCommand& upd
     return count;
 }
 
-TEST(HudSimulationTests, IgnoresNonFiniteAndClampsLargeDeltas)
+TEST(HudSimulationTests, UsesOneAuthoritativeFixedTick)
 {
     HudSimulation simulation;
-    const float initialPitch = simulation.Aircraft().pitchDegrees;
-
-    simulation.Step(std::numeric_limits<float>::quiet_NaN());
-    EXPECT_FLOAT_EQ(simulation.Aircraft().pitchDegrees, initialPitch);
-
-    SimulationControls controls;
-    controls.pilot.pitchCommand = 1.0f;
-    simulation.SetSimulationControls(controls);
-    simulation.Step(10.0f);
-
-    EXPECT_TRUE(std::isfinite(simulation.Aircraft().pitchDegrees));
-    EXPECT_LT(std::fabs(simulation.Aircraft().pitchDegrees - initialPitch), 10.0f);
+    simulation.Step();
+    EXPECT_FLOAT_EQ(
+        simulation.Inputs().aircraft.elapsedSeconds,
+        static_cast<float>(hud_main::kHudSimulationStepSeconds));
+    for (int tick = 1; tick < 10; ++tick)
+    {
+        simulation.Step();
+    }
+    EXPECT_FLOAT_EQ(simulation.Inputs().aircraft.elapsedSeconds, 0.2f);
 }
 
 TEST(HudSimulationTests, LoopingAttitudeKeepsHudPitchBoundedAndMarksInversion)
@@ -296,7 +340,10 @@ TEST(HudSimulationTests, FullLoopKeepsAttitudeSymbologyFinite)
 
     for (int index = 0; index < 140; ++index)
     {
-        simulation.Step(0.080f);
+        for (int tick = 0; tick < 4; ++tick)
+        {
+            simulation.Step();
+        }
         const hud::HudFrame frame = simulation.BuildHudFrame();
         ASSERT_TRUE(IsFiniteHudVec(frame.attitude.ladderPosition));
         ASSERT_TRUE(IsFiniteHudVec(frame.attitude.trueHorizonPosition));
@@ -317,7 +364,10 @@ TEST(HudSimulationTests, PitchCommandIsSmoothedAcrossSeveralFrames)
     simulation.SetSimulationControls(controls);
 
     const float initialPitch = simulation.Aircraft().pitchDegrees;
-    simulation.Step(0.080f);
+    for (int tick = 0; tick < 4; ++tick)
+    {
+        simulation.Step();
+    }
     const float firstStepPitch = simulation.Aircraft().pitchDegrees;
 
     StepMany(simulation, controls, 8);
@@ -466,7 +516,7 @@ TEST(HudSimulationTests, AirToAirLaunchConsumesInventoryAndCountsDown)
     ASSERT_EQ(simulation.MissileShots().size(), 1U);
 
     const float initialRemaining = simulation.MissileShots().front().timeRemainingSeconds;
-    simulation.Step(0.5f);
+    simulation.Step();
 
     ASSERT_EQ(simulation.MissileShots().size(), 1U);
     EXPECT_LT(simulation.MissileShots().front().timeRemainingSeconds, initialRemaining);
@@ -550,6 +600,7 @@ TEST(HudSimulationTests, ControllerClearsContextualReticlesWhenChangingModes)
     eegsInput.weapon.masterArm = true;
     eegsInput.weapon.gunRoundsRemaining = 510;
     eegsInput.target.rangeMeters = 900.0f;
+    PopulateStraightGunTrajectory(eegsInput);
 
     controller.Populate(ui, eegsInput);
     EXPECT_TRUE(ui.HUD().eegsFunnel.GetVisible());
@@ -642,6 +693,7 @@ TEST(HudSimulationTests, ControllerPublishesFunnelHideCommandWhenLeavingEegs)
     eegsInput.weapon.masterArm = true;
     eegsInput.weapon.gunRoundsRemaining = 510;
     eegsInput.target.rangeMeters = 900.0f;
+    PopulateStraightGunTrajectory(eegsInput);
 
     controller.Populate(ui, eegsInput);
     const mfd::CommandBatch eegsBatch = ui.BuildCommandBatch(1U);
@@ -675,6 +727,7 @@ TEST(HudSimulationTests, EegsWithoutLockShowsFunnelAndMrgsScaledByWingspan)
     narrowTarget.weapon.targetLocked = false;
     narrowTarget.weapon.targetWingspanMeters = 8.0f;
     narrowTarget.target.rangeMeters = 900.0f;
+    PopulateStraightGunTrajectory(narrowTarget);
 
     HudInputSample wideTarget = narrowTarget;
     wideTarget.weapon.targetWingspanMeters = 14.0f;
@@ -686,24 +739,17 @@ TEST(HudSimulationTests, EegsWithoutLockShowsFunnelAndMrgsScaledByWingspan)
     EXPECT_TRUE(narrowFrame.gun.mrgsVisible);
     EXPECT_FALSE(narrowFrame.gun.tdCircleVisible);
     EXPECT_GT(
-        narrowFrame.gun.eegsFunnelLeftControlPoints.front().y,
-        narrowFrame.gun.mrgsPosition.y + 0.12f);
-    EXPECT_GT(
-        narrowFrame.gun.eegsFunnelRightControlPoints.front().y,
-        narrowFrame.gun.mrgsPosition.y + 0.12f);
-    EXPECT_GT(wideFrame.gun.eegsFunnelScaleX, narrowFrame.gun.eegsFunnelScaleX);
-    EXPECT_GT(
         HorizontalGapAt(
             wideFrame.gun.eegsFunnelLeftControlPoints,
             wideFrame.gun.eegsFunnelRightControlPoints,
-            wideFrame.gun.eegsFunnelLeftControlPoints.size() - 1U),
+            0U),
         HorizontalGapAt(
             narrowFrame.gun.eegsFunnelLeftControlPoints,
             narrowFrame.gun.eegsFunnelRightControlPoints,
-            narrowFrame.gun.eegsFunnelLeftControlPoints.size() - 1U));
+            0U));
 }
 
-TEST(HudSimulationTests, EegsFunnelUsesNarrowRangeSampledWalls)
+TEST(HudSimulationTests, EegsFunnelNarrowsFromSixHundredToThreeThousandFeet)
 {
     HudInputSample input;
     input.weapon.masterMode = HudMasterMode::AirToAir;
@@ -712,28 +758,301 @@ TEST(HudSimulationTests, EegsFunnelUsesNarrowRangeSampledWalls)
     input.weapon.masterArm = true;
     input.weapon.gunRoundsRemaining = 510;
     input.target.rangeMeters = 900.0f;
+    PopulateStraightGunTrajectory(input);
 
     const hud::HudFrame frame = BuildHudFrame(input);
     const hud::HudFunnelControlPoints& left = frame.gun.eegsFunnelLeftControlPoints;
     const hud::HudFunnelControlPoints& right = frame.gun.eegsFunnelRightControlPoints;
     ASSERT_EQ(left.size(), right.size());
 
-    float previousGap = HorizontalGapAt(left, right, 0U);
-    EXPECT_LT(previousGap, 0.095f);
-    for (std::size_t index = 1U; index < left.size(); ++index)
-    {
-        const float currentGap = HorizontalGapAt(left, right, index);
-        EXPECT_GT(currentGap, previousGap);
-        previousGap = currentGap;
-    }
-
-    const float nearGap = HorizontalGapAt(left, right, left.size() - 1U);
-    EXPECT_GT(nearGap, 0.18f);
-    EXPECT_LT(nearGap, 0.25f);
-    EXPECT_GT(left.back().y - left.front().y, 0.48f);
+    const float nearGap = HorizontalGapAt(left, right, 0U);
+    const float farGap = HorizontalGapAt(left, right, left.size() - 1U);
+    ASSERT_GT(farGap, 0.0f);
+    EXPECT_GT(nearGap, farGap);
+    EXPECT_NEAR(nearGap / farGap, 5.0f, 0.05f);
+    EXPECT_TRUE(IsFiniteFunnelRail(left));
+    EXPECT_TRUE(IsFiniteFunnelRail(right));
 }
 
-TEST(HudSimulationTests, EegsFunnelRespondsToFlightPathLoadAndTargetDynamics)
+TEST(HudSimulationTests, EegsFunnelUsesGunBoreReferenceAndDoesNotFollowFpm)
+{
+    HudInputSample levelInput;
+    levelInput.weapon.masterMode = HudMasterMode::AirToAir;
+    levelInput.weapon.weaponMode = HudWeaponMode::AirToAirGun;
+    levelInput.weapon.gunMode = HudGunMode::Eegs;
+    levelInput.weapon.masterArm = true;
+    levelInput.weapon.gunRoundsRemaining = 510;
+    levelInput.aircraft.northSpeedMps = 230.0f;
+    PopulateStraightGunTrajectory(levelInput);
+
+    HudInputSample descendingInput = levelInput;
+    descendingInput.aircraft.downSpeedMps = 60.0f;
+
+    const hud::HudFrame levelFrame = BuildHudFrame(levelInput);
+    const hud::HudFrame descendingFrame = BuildHudFrame(descendingInput);
+
+    EXPECT_NE(levelFrame.attitude.fpmPosition.y, descendingFrame.attitude.fpmPosition.y);
+    EXPECT_FLOAT_EQ(levelFrame.gun.eegsFunnelPosition.x, 0.0f);
+    EXPECT_FLOAT_EQ(levelFrame.gun.eegsFunnelPosition.y, kGunBoreCrossHudY);
+    EXPECT_FLOAT_EQ(
+        levelFrame.gun.eegsFunnelPosition.y,
+        descendingFrame.gun.eegsFunnelPosition.y);
+    for (std::size_t index = 0U; index < levelFrame.gun.eegsFunnelLeftControlPoints.size(); ++index)
+    {
+        EXPECT_FLOAT_EQ(
+            levelFrame.gun.eegsFunnelLeftControlPoints[index].x,
+            descendingFrame.gun.eegsFunnelLeftControlPoints[index].x);
+        EXPECT_FLOAT_EQ(
+            levelFrame.gun.eegsFunnelLeftControlPoints[index].y,
+            descendingFrame.gun.eegsFunnelLeftControlPoints[index].y);
+        EXPECT_FLOAT_EQ(
+            levelFrame.gun.eegsFunnelRightControlPoints[index].x,
+            descendingFrame.gun.eegsFunnelRightControlPoints[index].x);
+        EXPECT_FLOAT_EQ(
+            levelFrame.gun.eegsFunnelRightControlPoints[index].y,
+            descendingFrame.gun.eegsFunnelRightControlPoints[index].y);
+    }
+}
+
+TEST(HudSimulationTests, EegsFunnelHidesWithoutAValidBallisticSolution)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToAir;
+    input.weapon.weaponMode = HudWeaponMode::AirToAirGun;
+    input.weapon.gunMode = HudGunMode::Eegs;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
+
+    EXPECT_FALSE(BuildHudFrame(input).gun.eegsFunnelVisible);
+}
+
+TEST(HudSimulationTests, EegsFixedRangeSamplingKeepsOpeningStableDuringStraightFlight)
+{
+    HudSimulation simulation;
+    SimulationControls controls;
+    controls.pilot.masterMode = HudMasterMode::AirToAir;
+    controls.pilot.weaponMode = HudWeaponMode::AirToAirGun;
+    controls.pilot.gunMode = HudGunMode::Eegs;
+    simulation.SetSimulationControls(controls);
+
+    float minimumWideGap = std::numeric_limits<float>::max();
+    float maximumWideGap = 0.0f;
+    for (std::size_t tick = 0U; tick < 20U; ++tick)
+    {
+        simulation.Step();
+        const hud::HudFrame frame = simulation.BuildHudFrame();
+        ASSERT_TRUE(frame.gun.eegsFunnelVisible);
+        const hud::HudVec2 leftWide = frame.gun.eegsFunnelLeftControlPoints.front();
+        const hud::HudVec2 rightWide = frame.gun.eegsFunnelRightControlPoints.front();
+        const float wideGap = std::hypot(rightWide.x - leftWide.x, rightWide.y - leftWide.y);
+        minimumWideGap = std::min(minimumWideGap, wideGap);
+        maximumWideGap = std::max(maximumWideGap, wideGap);
+    }
+
+    EXPECT_LT(maximumWideGap - minimumWideGap, 0.0001f);
+}
+
+TEST(HudSimulationTests, EegsRailSidesStayStableWhenProjectedTrajectoryReversesVertically)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToAir;
+    input.weapon.weaponMode = HudWeaponMode::AirToAirGun;
+    input.weapon.gunMode = HudGunMode::Eegs;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
+    PopulateStraightGunTrajectory(input);
+    for (std::size_t index = 0U; index < input.gunTrajectory.points.size(); ++index)
+    {
+        input.gunTrajectory.points[index].downMeters = 60.0f - static_cast<float>(index) * 8.0f;
+    }
+
+    const hud::HudFrame frame = BuildHudFrame(input);
+    ASSERT_TRUE(frame.gun.eegsFunnelVisible);
+    for (std::size_t index = 0U; index < frame.gun.eegsFunnelLeftControlPoints.size(); ++index)
+    {
+        EXPECT_LT(
+            frame.gun.eegsFunnelLeftControlPoints[index].x,
+            frame.gun.eegsFunnelRightControlPoints[index].x);
+    }
+}
+
+TEST(HudSimulationTests, EegsBezierEndpointsFollowNearAndFarRangeStations)
+{
+    HudInputSample input;
+    input.weapon.masterMode = HudMasterMode::AirToAir;
+    input.weapon.weaponMode = HudWeaponMode::AirToAirGun;
+    input.weapon.gunMode = HudGunMode::Eegs;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
+    PopulateStraightGunTrajectory(input);
+
+    const hud::HudFrame frame = BuildHudFrame(input);
+    ASSERT_TRUE(frame.gun.eegsFunnelVisible);
+    const hud::HudVec2 leftNear = frame.gun.eegsFunnelLeftControlPoints.front();
+    const hud::HudVec2 rightNear = frame.gun.eegsFunnelRightControlPoints.front();
+    const hud::HudVec2 leftFar = frame.gun.eegsFunnelLeftControlPoints.back();
+    const hud::HudVec2 rightFar = frame.gun.eegsFunnelRightControlPoints.back();
+    const hud::GunTrajectoryPointNed& nearest = input.gunTrajectory.points.front();
+    const hud::GunTrajectoryPointNed& farthest = input.gunTrajectory.points.back();
+    const hud::ProjectedHudPoint expectedNear = ProjectBoresightAngularOffsetToHud(
+        std::atan2(nearest.eastMeters, nearest.northMeters),
+        std::atan2(-nearest.downMeters, std::hypot(nearest.northMeters, nearest.eastMeters)));
+    const hud::ProjectedHudPoint expectedFar = ProjectBoresightAngularOffsetToHud(
+        std::atan2(farthest.eastMeters, farthest.northMeters),
+        std::atan2(-farthest.downMeters, std::hypot(farthest.northMeters, farthest.eastMeters)));
+    const hud::HudVec2 farCenter {
+        (leftFar.x + rightFar.x) * 0.5f,
+        (leftFar.y + rightFar.y) * 0.5f};
+    const hud::HudVec2 nearCenter {
+        (leftNear.x + rightNear.x) * 0.5f,
+        (leftNear.y + rightNear.y) * 0.5f};
+
+    EXPECT_NEAR(farCenter.x, expectedFar.position.x, 0.000001f);
+    EXPECT_NEAR(farCenter.y, expectedFar.position.y, 0.000001f);
+    EXPECT_NEAR(nearCenter.x, expectedNear.position.x, 0.000001f);
+    EXPECT_NEAR(nearCenter.y, expectedNear.position.y, 0.000001f);
+    EXPECT_FLOAT_EQ(frame.gun.eegsFunnelPosition.y, kGunBoreCrossHudY);
+    EXPECT_GT(
+        nearCenter.y + frame.gun.eegsFunnelPosition.y,
+        farCenter.y + frame.gun.eegsFunnelPosition.y);
+}
+
+TEST(GunProjectileSimulationTests, ResetPublishesSixteenRegularRangeStationsNearToFar)
+{
+    hud_main::GunProjectileSimulation projectiles;
+    const hud_main::GunLaunchState aircraft {};
+    projectiles.Reset(aircraft, hud_main::EnvironmentControls {});
+
+    const hud::GunTrajectoryInputSample snapshot = projectiles.BuildSnapshot(aircraft.positionNedMeters);
+    ASSERT_EQ(snapshot.points.size(), 16U);
+    for (std::size_t index = 0U; index < snapshot.points.size(); ++index)
+    {
+        const float fraction =
+            static_cast<float>(index) / static_cast<float>(snapshot.points.size() - 1U);
+        const float expectedRangeMeters =
+            (kFunnelNearRangeFeet + (kFunnelFarRangeFeet - kFunnelNearRangeFeet) * fraction) *
+            kFeetToMeters;
+        EXPECT_TRUE(snapshot.points[index].valid);
+        EXPECT_NEAR(ProjectileSlantRangeMeters(snapshot.points[index]), expectedRangeMeters, 0.05f);
+        if (index > 0U)
+        {
+            EXPECT_LT(snapshot.points[index - 1U].ageSeconds, snapshot.points[index].ageSeconds);
+        }
+    }
+}
+
+TEST(GunProjectileSimulationTests, FixedRangeStationsDoNotDevelopARefreshSawtooth)
+{
+    hud_main::GunProjectileSimulation projectiles;
+    hud_main::GunLaunchState aircraft;
+    aircraft.groundVelocityNedMps = hud_main::Vec3d {230.0, 0.0, 0.0};
+    const hud_main::EnvironmentControls environment {};
+    projectiles.Reset(aircraft, environment);
+
+    std::array<float, hud::kGunTrajectoryPointCount> referenceRanges {};
+    const hud::GunTrajectoryInputSample initial = projectiles.BuildSnapshot(aircraft.positionNedMeters);
+    for (std::size_t index = 0U; index < initial.points.size(); ++index)
+    {
+        ASSERT_TRUE(initial.points[index].valid);
+        referenceRanges[index] = ProjectileSlantRangeMeters(initial.points[index]);
+    }
+
+    for (std::size_t tick = 0U; tick < 25U; ++tick)
+    {
+        aircraft.positionNedMeters.x += aircraft.groundVelocityNedMps.x * hud_main::kHudSimulationStepSeconds;
+        projectiles.Step(aircraft, environment);
+        const hud::GunTrajectoryInputSample snapshot = projectiles.BuildSnapshot(aircraft.positionNedMeters);
+        for (std::size_t index = 0U; index < snapshot.points.size(); ++index)
+        {
+            ASSERT_TRUE(snapshot.points[index].valid);
+            EXPECT_NEAR(ProjectileSlantRangeMeters(snapshot.points[index]), referenceRanges[index], 0.05f);
+        }
+    }
+}
+
+TEST(GunProjectileSimulationTests, GravityProducesRangeDependentDownwardDrop)
+{
+    hud_main::GunProjectileConfig gravityConfig;
+    gravityConfig.dragAreaCoefficientOverMass = 0.0;
+    gravityConfig.muzzleVelocityMps = 1000.0;
+    gravityConfig.muzzleOffsetBodyMeters = {};
+    hud_main::GunProjectileConfig zeroGravityConfig = gravityConfig;
+    zeroGravityConfig.gravityMps2 = 0.0;
+    hud_main::GunProjectileSimulation gravityProjectiles(gravityConfig);
+    hud_main::GunProjectileSimulation zeroGravityProjectiles(zeroGravityConfig);
+    const hud_main::GunLaunchState aircraft {};
+    const hud_main::EnvironmentControls environment {};
+    gravityProjectiles.Reset(aircraft, environment);
+    zeroGravityProjectiles.Reset(aircraft, environment);
+    const hud::GunTrajectoryInputSample gravitySnapshot =
+        gravityProjectiles.BuildSnapshot(aircraft.positionNedMeters);
+    const hud::GunTrajectoryInputSample zeroGravitySnapshot =
+        zeroGravityProjectiles.BuildSnapshot(aircraft.positionNedMeters);
+
+    ASSERT_TRUE(gravitySnapshot.points.front().valid);
+    ASSERT_TRUE(gravitySnapshot.points.back().valid);
+    ASSERT_TRUE(zeroGravitySnapshot.points.front().valid);
+    EXPECT_GT(gravitySnapshot.points.back().downMeters, gravitySnapshot.points.front().downMeters);
+    EXPECT_GT(gravitySnapshot.points.back().downMeters, zeroGravitySnapshot.points.back().downMeters);
+    EXPECT_NEAR(zeroGravitySnapshot.points.back().downMeters, 0.0f, 0.0001f);
+}
+
+TEST(GunProjectileSimulationTests, RightTurnPropagatesFromNearToFarWithBallisticInertia)
+{
+    hud_main::GunProjectileSimulation projectiles;
+    hud_main::GunLaunchState aircraft;
+    constexpr double speedMetersPerSecond = 230.0;
+    constexpr double yawRateRadPerSecond = 25.0 * 0.017453292519943295;
+    aircraft.groundVelocityNedMps = hud_main::Vec3d {speedMetersPerSecond, 0.0, 0.0};
+    const hud_main::EnvironmentControls environment {};
+    projectiles.Reset(aircraft, environment);
+
+    for (std::size_t tick = 0U; tick < 30U; ++tick)
+    {
+        aircraft.yawRad += yawRateRadPerSecond * hud_main::kHudSimulationStepSeconds;
+        aircraft.groundVelocityNedMps = hud_main::Vec3d {
+            speedMetersPerSecond * std::cos(aircraft.yawRad),
+            speedMetersPerSecond * std::sin(aircraft.yawRad),
+            0.0};
+        aircraft.positionNedMeters.x +=
+            aircraft.groundVelocityNedMps.x * hud_main::kHudSimulationStepSeconds;
+        aircraft.positionNedMeters.y +=
+            aircraft.groundVelocityNedMps.y * hud_main::kHudSimulationStepSeconds;
+        projectiles.Step(aircraft, environment);
+    }
+
+    const hud::GunTrajectoryInputSample snapshot = projectiles.BuildSnapshot(aircraft.positionNedMeters);
+    ASSERT_TRUE(snapshot.points.front().valid);
+    ASSERT_TRUE(snapshot.points.back().valid);
+    const float nearAzimuthRad = ProjectileBodyAzimuthRad(snapshot.points.front(), aircraft.yawRad);
+    const float farAzimuthRad = ProjectileBodyAzimuthRad(snapshot.points.back(), aircraft.yawRad);
+    EXPECT_LT(farAzimuthRad, nearAzimuthRad);
+    EXPECT_GT(std::fabs(farAzimuthRad), std::fabs(nearAzimuthRad) + 0.01f);
+}
+
+TEST(GunProjectileSimulationTests, InvalidAtmosphereAndWindNeverPublishNonFiniteValues)
+{
+    hud_main::GunProjectileSimulation projectiles;
+    const hud_main::GunLaunchState aircraft {};
+    hud_main::EnvironmentControls environment;
+    environment.windSpeedKts = std::numeric_limits<float>::infinity();
+    environment.windDirectionRad = std::numeric_limits<float>::quiet_NaN();
+    environment.pressureHpa = -1.0f;
+    environment.outsideAirTemperatureKelvin = std::numeric_limits<float>::quiet_NaN();
+    projectiles.Reset(aircraft, environment);
+    projectiles.Step(aircraft, environment);
+
+    const hud::GunTrajectoryInputSample snapshot = projectiles.BuildSnapshot(aircraft.positionNedMeters);
+    for (const hud::GunTrajectoryPointNed& point : snapshot.points)
+    {
+        EXPECT_TRUE(std::isfinite(point.northMeters));
+        EXPECT_TRUE(std::isfinite(point.eastMeters));
+        EXPECT_TRUE(std::isfinite(point.downMeters));
+        EXPECT_TRUE(std::isfinite(point.ageSeconds));
+    }
+}
+
+TEST(HudSimulationTests, EegsFunnelRespondsToCurrentAttitudeAndBallisticTrajectory)
 {
     HudInputSample stableInput;
     stableInput.weapon.masterMode = HudMasterMode::AirToAir;
@@ -742,14 +1061,14 @@ TEST(HudSimulationTests, EegsFunnelRespondsToFlightPathLoadAndTargetDynamics)
     stableInput.weapon.masterArm = true;
     stableInput.weapon.gunRoundsRemaining = 510;
     stableInput.target.rangeMeters = 900.0f;
+    PopulateStraightGunTrajectory(stableInput);
 
     HudInputSample maneuveringInput = stableInput;
     maneuveringInput.aircraft.rollRad = 55.0f * kDegreesToRadians;
-    maneuveringInput.aircraft.downSpeedMps = -42.0f;
-    maneuveringInput.aircraft.normalLoadFactor = 6.0f;
-    maneuveringInput.target.azimuthRad = 5.0f * kDegreesToRadians;
-    maneuveringInput.target.elevationRad = -2.0f * kDegreesToRadians;
-    maneuveringInput.weapon.targetAccelerationMps2 = 45.0f;
+    for (std::size_t index = 0U; index < maneuveringInput.gunTrajectory.points.size(); ++index)
+    {
+        maneuveringInput.gunTrajectory.points[index].eastMeters = static_cast<float>(index * index) * 2.0f;
+    }
 
     const hud::HudFrame stableFrame = BuildHudFrame(stableInput);
     const hud::HudFrame maneuveringFrame = BuildHudFrame(maneuveringInput);
@@ -759,33 +1078,12 @@ TEST(HudSimulationTests, EegsFunnelRespondsToFlightPathLoadAndTargetDynamics)
     EXPECT_TRUE(IsFiniteFunnelRail(maneuveringFrame.gun.eegsFunnelLeftControlPoints));
     EXPECT_TRUE(IsFiniteFunnelRail(maneuveringFrame.gun.eegsFunnelRightControlPoints));
     EXPECT_TRUE(std::isfinite(maneuveringFrame.gun.eegsFunnelRotationDegrees));
-    EXPECT_NE(maneuveringFrame.gun.eegsFunnelPosition.x, stableFrame.gun.eegsFunnelPosition.x);
-    EXPECT_NE(maneuveringFrame.gun.eegsFunnelPosition.y, stableFrame.gun.eegsFunnelPosition.y);
-    EXPECT_NE(maneuveringFrame.gun.eegsFunnelRotationDegrees, stableFrame.gun.eegsFunnelRotationDegrees);
-    EXPECT_GT(maneuveringFrame.gun.eegsFunnelScaleY, stableFrame.gun.eegsFunnelScaleY);
     EXPECT_NE(
         maneuveringFrame.gun.eegsFunnelLeftControlPoints.back().x,
         stableFrame.gun.eegsFunnelLeftControlPoints.back().x);
     EXPECT_NE(
         maneuveringFrame.gun.eegsFunnelLeftControlPoints.back().y,
         stableFrame.gun.eegsFunnelLeftControlPoints.back().y);
-    EXPECT_LT(
-        maneuveringFrame.gun.eegsFunnelLeftControlPoints.front().y,
-        maneuveringFrame.gun.eegsFunnelLeftControlPoints.back().y);
-    EXPECT_LT(
-        HorizontalGap(
-            maneuveringFrame.gun.eegsFunnelLeftControlPoints.front(),
-            maneuveringFrame.gun.eegsFunnelRightControlPoints.front()),
-        HorizontalGap(
-            maneuveringFrame.gun.eegsFunnelLeftControlPoints.back(),
-            maneuveringFrame.gun.eegsFunnelRightControlPoints.back()));
-    EXPECT_GT(
-        maneuveringFrame.gun.eegsFunnelLeftControlPoints.front().y,
-        maneuveringFrame.gun.mrgsPosition.y + 0.12f);
-    EXPECT_GT(
-        maneuveringFrame.gun.eegsFunnelRightControlPoints.front().y,
-        maneuveringFrame.gun.mrgsPosition.y + 0.12f);
-    EXPECT_GT(maneuveringFrame.gun.eegsFunnelLeftControlPoints.front().y, 0.0f);
 }
 
 TEST(HudSimulationTests, ControllerPublishesDynamicEegsFunnelBezierRails)
@@ -802,9 +1100,12 @@ TEST(HudSimulationTests, ControllerPublishesDynamicEegsFunnelBezierRails)
     stableInput.weapon.masterArm = true;
     stableInput.weapon.gunRoundsRemaining = 510;
     stableInput.target.rangeMeters = 900.0f;
+    PopulateStraightGunTrajectory(stableInput);
 
     controller.Populate(ui, stableInput);
     ASSERT_TRUE(ui.HUD().eegsFunnel.GetVisible());
+    EXPECT_FLOAT_EQ(ui.HUD().boresightCross.GetPosition().y, kGunBoreCrossHudY);
+    EXPECT_FLOAT_EQ(ui.HUD().eegsFunnel.GetPosition().y, kGunBoreCrossHudY);
     const std::vector<mfd::Vec2> stableLeft = ui.HUD().eegsFunnel.FunnelLeft().GetControlPoints();
     const std::vector<mfd::Vec2> stableRight = ui.HUD().eegsFunnel.FunnelRight().GetControlPoints();
     ASSERT_EQ(stableLeft.size(), 5U);
@@ -812,11 +1113,10 @@ TEST(HudSimulationTests, ControllerPublishesDynamicEegsFunnelBezierRails)
 
     HudInputSample maneuveringInput = stableInput;
     maneuveringInput.aircraft.rollRad = 55.0f * kDegreesToRadians;
-    maneuveringInput.aircraft.downSpeedMps = -42.0f;
-    maneuveringInput.aircraft.normalLoadFactor = 6.0f;
-    maneuveringInput.target.azimuthRad = 5.0f * kDegreesToRadians;
-    maneuveringInput.target.elevationRad = -2.0f * kDegreesToRadians;
-    maneuveringInput.weapon.targetAccelerationMps2 = 45.0f;
+    for (std::size_t index = 0U; index < maneuveringInput.gunTrajectory.points.size(); ++index)
+    {
+        maneuveringInput.gunTrajectory.points[index].eastMeters = static_cast<float>(index * index) * 2.0f;
+    }
 
     controller.Populate(ui, maneuveringInput);
     ASSERT_TRUE(ui.HUD().eegsFunnel.GetVisible());
@@ -829,13 +1129,11 @@ TEST(HudSimulationTests, ControllerPublishesDynamicEegsFunnelBezierRails)
     EXPECT_NE(maneuveringLeft.back().y, stableLeft.back().y);
     EXPECT_NE(maneuveringRight.back().x, stableRight.back().x);
     EXPECT_NE(maneuveringRight.back().y, stableRight.back().y);
-    EXPECT_LT(maneuveringLeft.front().y, maneuveringLeft.back().y);
-    EXPECT_LT(maneuveringRight.front().y, maneuveringRight.back().y);
-    EXPECT_LT(
+    EXPECT_GT(
         HorizontalGap(maneuveringLeft.front(), maneuveringRight.front()),
         HorizontalGap(maneuveringLeft.back(), maneuveringRight.back()));
-    EXPECT_GT(maneuveringLeft.front().y, 0.0f);
-    EXPECT_GT(maneuveringRight.front().y, 0.0f);
+    EXPECT_TRUE(std::isfinite(maneuveringLeft.front().y));
+    EXPECT_TRUE(std::isfinite(maneuveringRight.front().y));
 }
 
 TEST(HudSimulationTests, EegsWithLockHidesMrgsAndShowsPippers)
@@ -1017,7 +1315,10 @@ TEST(HudSimulationTests, WSteeringCueIsElevenMilsBelowBoresightWhenFpmUnavailabl
 
     EXPECT_TRUE(frame.ils.wSteeringVisible);
     EXPECT_NEAR(frame.ils.wSteeringPosition.x, 0.0f, 1.0e-5f);
-    EXPECT_NEAR(frame.ils.wSteeringPosition.y, 0.8384f, 1.0e-4f);
+    EXPECT_NEAR(
+        frame.ils.wSteeringPosition.y,
+        kGunBoreCrossHudY - 11.0f * kHudUnitsPerMil,
+        1.0e-4f);
 }
 
 TEST(HudSimulationTests, ImpactMissileIsRetainedBrieflyThenRemoved)

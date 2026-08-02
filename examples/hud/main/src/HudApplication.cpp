@@ -11,6 +11,7 @@
 #include "hud_main/HudApplication.h"
 
 #include "hud_main/HudPhysics.h"
+#include "hud_main/HudSimulationTime.h"
 
 #include <algorithm>
 #include <cmath>
@@ -413,7 +414,27 @@ void HudApplication::UpdateHudInputBufferFromUi(const float deltaSeconds)
     simulation_.SetSimulationControls(simulationControls_);
     if (running_)
     {
-        simulation_.Step(deltaSeconds);
+        const double sanitizedFrameDeltaSeconds =
+            std::isfinite(deltaSeconds) && deltaSeconds > 0.0f ? static_cast<double>(deltaSeconds) : 0.0;
+        simulationAccumulatorSeconds_ += sanitizedFrameDeltaSeconds;
+        std::size_t executedTickCount = 0U;
+        while (simulationAccumulatorSeconds_ >= kHudSimulationStepSeconds &&
+               executedTickCount < kMaximumSimulationTicksPerFrame)
+        {
+            simulation_.Step();
+            simulationAccumulatorSeconds_ -= kHudSimulationStepSeconds;
+            ++executedTickCount;
+        }
+        if (executedTickCount == kMaximumSimulationTicksPerFrame &&
+            simulationAccumulatorSeconds_ >= kHudSimulationStepSeconds)
+        {
+            // Drop whole overdue ticks after the bounded catch-up budget. Keep
+            // only the fractional remainder so one stalled render frame cannot
+            // create an unbounded spiral of death on subsequent frames.
+            simulationAccumulatorSeconds_ = std::fmod(
+                simulationAccumulatorSeconds_,
+                kHudSimulationStepSeconds);
+        }
     }
     SyncHudInputBufferFromSimulation();
 }

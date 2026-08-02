@@ -44,6 +44,7 @@ set(MFD_HUD_RUNTIME_PUBLIC_HEADERS
 
 add_library(hud_runtime SHARED
     ${MFD_HUD_RUNTIME_PUBLIC_HEADERS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/HudLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HudController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HudProjection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HudRuntimeClient.cpp

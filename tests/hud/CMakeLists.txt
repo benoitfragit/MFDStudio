@@ -13,6 +13,7 @@ add_executable(hud_client_tests
     ${MFD_ROOT_DIR}/examples/hud/runtime/generated/HudUi.cpp
     ${MFD_ROOT_DIR}/examples/hud/runtime/src/HudController.cpp
     ${MFD_ROOT_DIR}/examples/hud/runtime/src/HudProjection.cpp
+    ${MFD_ROOT_DIR}/examples/hud/main/src/GunProjectileSimulation.cpp
     ${MFD_ROOT_DIR}/examples/hud/main/src/HudPhysics.cpp
     ${MFD_ROOT_DIR}/examples/hud/main/src/HudSimulation.cpp)
 
