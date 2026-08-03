@@ -1646,6 +1646,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         ResetLibraryPreviewView();
         documentState_.history.Clear();
         InvalidateReticleUsageHighlightCache();
+        InvalidateLayerPreviewThumbnails();
         documentState_.windowFile = path;
         workflowState_.documentDirty = false;
         autosave_.Reset();
@@ -1849,6 +1850,7 @@ void EditorApplication::RestoreSnapshot(UndoSnapshot snapshot)
     SanitizeLayerFocusForActivePage();
     SanitizePageReticleSelectionForCurrentFocus();
     InvalidateReticleUsageHighlightCache();
+    InvalidateLayerPreviewThumbnails();
     workflowState_.documentDirty = true;
 }
 
@@ -1862,6 +1864,7 @@ void EditorApplication::PushUndoSnapshot(UndoSnapshot snapshot)
     documentState_.history.Record(std::move(snapshot));
     workflowState_.documentDirty = true;
     InvalidateReticleUsageHighlightCache();
+    InvalidateLayerPreviewThumbnails();
 }
 
 void EditorApplication::NudgeSelection(const mfd::Vec2 delta)
@@ -2869,9 +2872,26 @@ void EditorApplication::ReleaseLayerPreviewTextures() noexcept
         slot.stencilReady = false;
         slot.width = 0;
         slot.height = 0;
+        slot.contentValid = false;
     }
 
     previewState_.layerPreviewTextures.clear();
+}
+
+void EditorApplication::InvalidateLayerPreviewThumbnails() noexcept
+{
+    ++previewState_.layerPreviewRevision;
+    if (previewState_.layerPreviewRevision != 0U)
+    {
+        return;
+    }
+
+    // A wrap is practically unreachable, but resetting validity preserves the cache invariant.
+    previewState_.layerPreviewRevision = 1U;
+    for (LayerPreviewTextureSlot& slot : previewState_.layerPreviewTextures)
+    {
+        slot.contentValid = false;
+    }
 }
 
 void EditorApplication::ReleasePreviewGpuResources() noexcept
@@ -2914,11 +2934,17 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
         slot.ready = slot.texture.texture.id != 0;
         slot.width = width;
         slot.height = height;
+        slot.contentValid = false;
     }
 
     if (!slot.ready)
     {
         return nullptr;
+    }
+
+    if (slot.Matches(page.name, entry, width, height, previewState_.layerPreviewRevision))
+    {
+        return &slot.texture;
     }
 
     LogicalBounds bounds;
@@ -2999,6 +3025,7 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
         }
     }
     EndTextureMode();
+    slot.MarkRendered(page.name, entry, previewState_.layerPreviewRevision);
 
     return &slot.texture;
 }
@@ -3016,6 +3043,7 @@ void EditorApplication::ApplyPreviewFontFile(std::filesystem::path fontFile)
     }
 
     previewState_.previewTextLayoutCache.Clear();
+    InvalidateLayerPreviewThumbnails();
     ReleasePreviewFont();
     previewState_.previewFontFile = std::move(fontFile);
     previewState_.previewFontLoadAttempted = false;
@@ -8150,6 +8178,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
     }
 
     const mfd::Vec2 mouseLogical = viewport.ToLogical(ImGui::GetMousePos());
+    bool previewContentChanged = false;
 
     switch (interactionState_.mode)
     {
@@ -8178,7 +8207,12 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 
                 mfd::Transform2D nextTransform = interactionState_.startReticleTransforms[index];
                 nextTransform.position = nextTransform.position + appliedDelta;
-                page->staticReticles[static_cast<std::size_t>(movedReticleIndex)].transform = nextTransform;
+                mfd::Transform2D& currentTransform =
+                    page->staticReticles[static_cast<std::size_t>(movedReticleIndex)].transform;
+                previewContentChanged = previewContentChanged ||
+                                        currentTransform.position.x != nextTransform.position.x ||
+                                        currentTransform.position.y != nextTransform.position.y;
+                currentTransform = nextTransform;
             }
         }
         else
@@ -8188,6 +8222,8 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
             {
                 nextPosition = editor::app::SnapToGrid(nextPosition, gridStep);
             }
+            previewContentChanged = reticleTransform->position.x != nextPosition.x ||
+                                    reticleTransform->position.y != nextPosition.y;
             reticleTransform->position = nextPosition;
         }
         break;
@@ -8203,11 +8239,15 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
             180.0f / 3.14159265f;
         const float nextRotationDegrees =
             interactionState_.startTransform.rotationDegrees + (currentAngle - interactionState_.startAngleDegrees);
-        *reticleTransform = BuildTransformKeepingLocalPointWorldPosition(
+        const mfd::Transform2D nextTransform = BuildTransformKeepingLocalPointWorldPosition(
             interactionState_.startTransform,
             interactionState_.startReticleVisualCenterLocal,
             nextRotationDegrees,
             interactionState_.startTransform.scale);
+        previewContentChanged = reticleTransform->position.x != nextTransform.position.x ||
+                                reticleTransform->position.y != nextTransform.position.y ||
+                                reticleTransform->rotationDegrees != nextTransform.rotationDegrees;
+        *reticleTransform = nextTransform;
         break;
     }
 
@@ -8220,16 +8260,26 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         const mfd::Vec2 nextScale {
             std::max(0.05f, interactionState_.startTransform.scale.x * factor),
             std::max(0.05f, interactionState_.startTransform.scale.y * factor)};
-        *reticleTransform = BuildTransformKeepingLocalPointWorldPosition(
+        const mfd::Transform2D nextTransform = BuildTransformKeepingLocalPointWorldPosition(
             interactionState_.startTransform,
             interactionState_.startReticleVisualCenterLocal,
             interactionState_.startTransform.rotationDegrees,
             nextScale);
+        previewContentChanged = reticleTransform->position.x != nextTransform.position.x ||
+                                reticleTransform->position.y != nextTransform.position.y ||
+                                reticleTransform->scale.x != nextTransform.scale.x ||
+                                reticleTransform->scale.y != nextTransform.scale.y;
+        *reticleTransform = nextTransform;
         break;
     }
 
     case InteractionMode::None:
         break;
+    }
+
+    if (documentState_.selection.kind == SelectionKind::PageReticle && previewContentChanged)
+    {
+        InvalidateLayerPreviewThumbnails();
     }
 }
 

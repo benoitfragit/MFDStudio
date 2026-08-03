@@ -453,6 +453,8 @@ private:
     void ReleaseTooltipPreviewTexture();
     /** @brief Releases every cached layer-preview thumbnail texture. */
     void ReleaseLayerPreviewTextures() noexcept;
+    /** @brief Invalidates cached layer-preview pixels after one authored preview mutation. */
+    void InvalidateLayerPreviewThumbnails() noexcept;
     /** @brief Releases every preview-side GPU resource before shutdown. */
     void ReleasePreviewGpuResources() noexcept;
     /** @brief Applies the font file declared by the loaded window configuration. */

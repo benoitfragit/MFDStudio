@@ -10,6 +10,7 @@
  */
 
 #include "internal/application/EditorApplicationInternal.h"
+#include "internal/application/EditorApplicationState.h"
 
 #include <gtest/gtest.h>
 
@@ -19,6 +20,64 @@ TEST(EditorApplicationInternalTests, FooterStatusSeverityLabelMarksErrorsWithout
 {
     EXPECT_STREQ(editor::detail::FooterStatusSeverityLabel(true), "[Error]");
     EXPECT_STREQ(editor::detail::FooterStatusSeverityLabel(false), "");
+}
+
+TEST(EditorApplicationInternalTests, LayerPreviewSlotSkipsRebuildsUntilItsContentKeyChanges)
+{
+    editor::app::LayerPreviewTextureSlot slot;
+    editor::LayerFocusStripEntry entry;
+    entry.layerId = "symbols";
+
+    constexpr int kFrameCount = 300;
+    constexpr int kWidth = 240;
+    constexpr int kHeight = 96;
+    std::uint64_t revision = 7U;
+    int rebuildCount = 0;
+
+    for (int frame = 0; frame < kFrameCount; ++frame)
+    {
+        if (!slot.Matches("Radar", entry, kWidth, kHeight, revision))
+        {
+            slot.width = kWidth;
+            slot.height = kHeight;
+            slot.MarkRendered("Radar", entry, revision);
+            ++rebuildCount;
+        }
+    }
+
+    EXPECT_EQ(rebuildCount, 1);
+
+    ++revision;
+    ASSERT_FALSE(slot.Matches("Radar", entry, kWidth, kHeight, revision));
+    slot.MarkRendered("Radar", entry, revision);
+    ++rebuildCount;
+
+    EXPECT_TRUE(slot.Matches("Radar", entry, kWidth, kHeight, revision));
+    EXPECT_EQ(rebuildCount, 2);
+}
+
+TEST(EditorApplicationInternalTests, LayerPreviewSlotInvalidatesOnlyWhenTheRequestedIdentityChanges)
+{
+    editor::app::LayerPreviewTextureSlot slot;
+    editor::LayerFocusStripEntry symbolsEntry;
+    symbolsEntry.layerId = "symbols";
+    slot.width = 240;
+    slot.height = 96;
+    slot.MarkRendered("Radar", symbolsEntry, 3U);
+
+    editor::LayerFocusStripEntry overlayEntry = symbolsEntry;
+    overlayEntry.layerId = "overlay";
+    editor::LayerFocusStripEntry hiddenSymbolsEntry = symbolsEntry;
+    hiddenSymbolsEntry.visible = false;
+    editor::LayerFocusStripEntry fullViewEntry = symbolsEntry;
+    fullViewEntry.fullView = true;
+
+    EXPECT_TRUE(slot.Matches("Radar", symbolsEntry, 240, 96, 3U));
+    EXPECT_FALSE(slot.Matches("Radar", overlayEntry, 240, 96, 3U));
+    EXPECT_FALSE(slot.Matches("Radar", hiddenSymbolsEntry, 240, 96, 3U));
+    EXPECT_FALSE(slot.Matches("Radar", fullViewEntry, 240, 96, 3U));
+    EXPECT_FALSE(slot.Matches("Navigation", symbolsEntry, 240, 96, 3U));
+    EXPECT_FALSE(slot.Matches("Radar", symbolsEntry, 241, 96, 3U));
 }
 
 TEST(EditorApplicationInternalTests, SeedPrimitiveFillColorIfNeededUsesStrokeWhenFillIsTransparent)

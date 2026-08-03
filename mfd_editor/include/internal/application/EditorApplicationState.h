@@ -11,11 +11,13 @@
  */
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <limits>
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <imgui.h>
@@ -284,11 +286,56 @@ struct DesignExportPopupState
 /** @brief One cached render target reused by one layer-preview thumbnail slot. */
 struct LayerPreviewTextureSlot
 {
+    /**
+     * @brief Returns whether the cached pixels exactly match one thumbnail request.
+     * @param pageName Authored page owning the thumbnail.
+     * @param entry Layer-strip entry represented by the thumbnail.
+     * @param requestedWidth Requested texture width in pixels.
+     * @param requestedHeight Requested texture height in pixels.
+     * @param revision Current preview-content revision.
+     * @return `true` when the existing texture can be reused without rendering.
+     */
+    [[nodiscard]] bool Matches(const std::string_view pageName,
+                               const editor::LayerFocusStripEntry& entry,
+                               const int requestedWidth,
+                               const int requestedHeight,
+                               const std::uint64_t revision) const noexcept
+    {
+        return contentValid && width == requestedWidth && height == requestedHeight &&
+               contentRevision == revision && contentPageName == pageName &&
+               contentLayerId == entry.layerId && contentFullView == entry.fullView &&
+               contentVisible == entry.visible;
+    }
+
+    /**
+     * @brief Records the request represented by the pixels most recently rendered into the texture.
+     * @param pageName Authored page owning the thumbnail.
+     * @param entry Layer-strip entry represented by the thumbnail.
+     * @param revision Current preview-content revision.
+     */
+    void MarkRendered(const std::string_view pageName,
+                      const editor::LayerFocusStripEntry& entry,
+                      const std::uint64_t revision)
+    {
+        contentPageName = pageName;
+        contentLayerId = entry.layerId;
+        contentFullView = entry.fullView;
+        contentVisible = entry.visible;
+        contentRevision = revision;
+        contentValid = true;
+    }
+
     RenderTexture2D texture {};
     bool ready = false;
     bool stencilReady = false;
     int width = 0;
     int height = 0;
+    bool contentValid = false;
+    std::uint64_t contentRevision = 0U;
+    std::string contentPageName {};
+    std::string contentLayerId {};
+    bool contentFullView = false;
+    bool contentVisible = true;
 };
 
 /** @brief Cached highlight result reused while the document and selected template stay unchanged. */
@@ -336,6 +383,7 @@ struct PreviewState
     bool tooltipPreviewTextureReady = false;
     bool tooltipPreviewTextureStencilReady = false;
     std::vector<LayerPreviewTextureSlot> layerPreviewTextures {};
+    std::uint64_t layerPreviewRevision = 1U;
     std::filesystem::path previewFontFile {};
     Font previewFont {};
     bool previewFontReady = false;
