@@ -19,12 +19,212 @@
 
 #include "mfd/model/PageName.h"
 #include "mfd/model/Reticle.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 namespace mfd
 {
 namespace
 {
 constexpr const char* kLibraryPageName = "<reticleLibrary>";
+
+struct DocumentResourceUsage
+{
+    std::size_t reticles = 0;
+    std::size_t layers = 0;
+    std::size_t primitives = 0;
+    std::size_t visiblePrimitives = 0;
+    std::size_t stringBytes = 0;
+};
+
+bool ExceedsResourceBudget(const DocumentResourceUsage& usage) noexcept
+{
+    return usage.reticles > runtime_validation::kMaxDocumentReticles ||
+           usage.layers > runtime_validation::kMaxDocumentLayers ||
+           usage.primitives > runtime_validation::kMaxDocumentPrimitives ||
+           usage.visiblePrimitives > runtime_validation::kMaxDocumentVisiblePrimitives ||
+           usage.stringBytes > runtime_validation::kMaxDocumentStringBytes;
+}
+
+void AddBounded(std::size_t& total, const std::size_t amount, const std::size_t maximum) noexcept
+{
+    if (total > maximum || amount > maximum - total)
+    {
+        total = maximum + 1U;
+        return;
+    }
+
+    total += amount;
+}
+
+void CountString(DocumentResourceUsage& usage, const std::string_view value) noexcept
+{
+    AddBounded(usage.stringBytes, value.size(), runtime_validation::kMaxDocumentStringBytes);
+}
+
+void CountPath(DocumentResourceUsage& usage, const std::filesystem::path& value) noexcept
+{
+    const auto& nativeValue = value.native();
+    AddBounded(
+        usage.stringBytes,
+        nativeValue.size() * sizeof(std::filesystem::path::value_type),
+        runtime_validation::kMaxDocumentStringBytes);
+}
+
+void CountPrimitive(DocumentResourceUsage& usage, const Primitive& primitive, const bool reticleVisible)
+{
+    AddBounded(usage.primitives, 1U, runtime_validation::kMaxDocumentPrimitives);
+    if (reticleVisible && primitive.style.visible)
+    {
+        AddBounded(usage.visiblePrimitives, 1U, runtime_validation::kMaxDocumentVisiblePrimitives);
+    }
+
+    CountString(usage, primitive.id);
+    if (const auto* text = std::get_if<TextGeometry>(&primitive.geometry))
+    {
+        CountString(usage, text->text);
+    }
+    else if (const auto* time = std::get_if<TimeGeometry>(&primitive.geometry))
+    {
+        CountString(usage, time->format);
+    }
+    else if (const auto* image = std::get_if<ImageGeometry>(&primitive.geometry))
+    {
+        CountPath(usage, image->file);
+    }
+}
+
+void CountReticle(DocumentResourceUsage& usage, const ReticleGroup& reticle)
+{
+    AddBounded(usage.reticles, 1U, runtime_validation::kMaxDocumentReticles);
+    CountString(usage, reticle.id);
+    CountString(usage, reticle.sourceTemplateId);
+    CountString(usage, reticle.layerId);
+    CountString(usage, reticle.info.label);
+    CountString(usage, reticle.info.category);
+    CountString(usage, reticle.blink.typeName);
+    CountString(usage, reticle.blink.normalizedTypeName);
+    CountString(usage, reticle.clipping.primitiveId);
+    if (ExceedsResourceBudget(usage))
+    {
+        return;
+    }
+
+    for (const auto& metadataEntry : reticle.info.metadata)
+    {
+        CountString(usage, metadataEntry.first);
+        CountString(usage, metadataEntry.second);
+        if (ExceedsResourceBudget(usage))
+        {
+            return;
+        }
+    }
+
+    for (const Primitive& primitive : reticle.primitives)
+    {
+        CountPrimitive(usage, primitive, reticle.visible);
+        if (ExceedsResourceBudget(usage))
+        {
+            return;
+        }
+    }
+}
+
+DocumentResourceUsage MeasureDocumentResources(const MfdDocument& document)
+{
+    DocumentResourceUsage usage;
+    CountPath(usage, document.sourceFile);
+    CountPath(usage, document.reticleLibraryFolder);
+    if (ExceedsResourceBudget(usage))
+    {
+        return usage;
+    }
+
+    for (const auto& libraryEntry : document.reticleLibrary)
+    {
+        CountString(usage, libraryEntry.first);
+        CountReticle(usage, libraryEntry.second);
+        if (ExceedsResourceBudget(usage))
+        {
+            return usage;
+        }
+    }
+
+    for (const PageDefinition& page : document.pages)
+    {
+        CountString(usage, page.name);
+        CountString(usage, page.normalizedName);
+        CountString(usage, page.title);
+        CountString(usage, page.defaultBlinkTypeName);
+        CountString(usage, page.normalizedDefaultBlinkTypeName);
+        CountString(usage, page.activeStrobeName);
+        CountString(usage, page.normalizedActiveStrobeName);
+        if (ExceedsResourceBudget(usage))
+        {
+            return usage;
+        }
+
+        AddBounded(usage.layers, page.layers.size(), runtime_validation::kMaxDocumentLayers);
+        AddBounded(usage.layers, page.editor.layers.size(), runtime_validation::kMaxDocumentLayers);
+        if (ExceedsResourceBudget(usage))
+        {
+            return usage;
+        }
+        for (const PageLayerDefinition& layer : page.layers)
+        {
+            CountString(usage, layer.id);
+            if (ExceedsResourceBudget(usage))
+            {
+                return usage;
+            }
+        }
+        for (const EditorLayerDefinition& layer : page.editor.layers)
+        {
+            CountString(usage, layer.id);
+            if (ExceedsResourceBudget(usage))
+            {
+                return usage;
+            }
+        }
+        for (const PageBlinkDefinition& blink : page.blinkTypes)
+        {
+            CountString(usage, blink.name);
+            CountString(usage, blink.normalizedName);
+            if (ExceedsResourceBudget(usage))
+            {
+                return usage;
+            }
+        }
+        for (const DynamicReticleLayerBinding& binding : page.dynamicReticleBindings)
+        {
+            CountString(usage, binding.templateId);
+            CountString(usage, binding.layerId);
+            if (ExceedsResourceBudget(usage))
+            {
+                return usage;
+            }
+        }
+        for (const ReticleGroup& reticle : page.staticReticles)
+        {
+            CountReticle(usage, reticle);
+            if (ExceedsResourceBudget(usage))
+            {
+                return usage;
+            }
+        }
+        for (const PageStrobeDefinition& strobe : page.strobes)
+        {
+            CountString(usage, strobe.name);
+            CountString(usage, strobe.normalizedName);
+            CountReticle(usage, strobe.reticle);
+            if (ExceedsResourceBudget(usage))
+            {
+                return usage;
+            }
+        }
+    }
+
+    return usage;
+}
 
 void AddDiagnostic(std::vector<SemanticValidationDiagnostic>& diagnostics,
                    std::string code,
@@ -211,6 +411,96 @@ void ValidateReticleLibrary(const ReticleLibrary& library, std::vector<SemanticV
 std::vector<SemanticValidationDiagnostic> DocumentSemanticValidator::Validate(const MfdDocument& document) const
 {
     std::vector<SemanticValidationDiagnostic> diagnostics;
+    if (document.pages.size() > runtime_validation::kMaxDocumentPages)
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD019",
+            "MFD019: document exceeds the page budget of " +
+                std::to_string(runtime_validation::kMaxDocumentPages) + ".",
+            {},
+            {},
+            {});
+    }
+    if (document.reticleLibrary.size() > runtime_validation::kMaxDocumentTemplates)
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD020",
+            "MFD020: document exceeds the reticle template budget of " +
+                std::to_string(runtime_validation::kMaxDocumentTemplates) + ".",
+            kLibraryPageName,
+            {},
+            {});
+    }
+
+    if (!diagnostics.empty())
+    {
+        return diagnostics;
+    }
+
+    const DocumentResourceUsage usage = MeasureDocumentResources(document);
+    if (usage.reticles > runtime_validation::kMaxDocumentReticles)
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD021",
+            "MFD021: document exceeds the aggregate reticle budget of " +
+                std::to_string(runtime_validation::kMaxDocumentReticles) + ".",
+            {},
+            {},
+            {});
+    }
+    if (usage.layers > runtime_validation::kMaxDocumentLayers)
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD022",
+            "MFD022: document exceeds the aggregate page layer budget of " +
+                std::to_string(runtime_validation::kMaxDocumentLayers) + ".",
+            {},
+            {},
+            {});
+    }
+    if (usage.primitives > runtime_validation::kMaxDocumentPrimitives)
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD023",
+            "MFD023: document exceeds the aggregate primitive budget of " +
+                std::to_string(runtime_validation::kMaxDocumentPrimitives) + ".",
+            {},
+            {},
+            {});
+    }
+    if (usage.visiblePrimitives > runtime_validation::kMaxDocumentVisiblePrimitives)
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD024",
+            "MFD024: document exceeds the initially visible primitive budget of " +
+                std::to_string(runtime_validation::kMaxDocumentVisiblePrimitives) + ".",
+            {},
+            {},
+            {});
+    }
+    if (usage.stringBytes > runtime_validation::kMaxDocumentStringBytes)
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD025",
+            "MFD025: document exceeds the aggregate authored string budget of " +
+                std::to_string(runtime_validation::kMaxDocumentStringBytes) + " bytes.",
+            {},
+            {},
+            {});
+    }
+
+    if (!diagnostics.empty())
+    {
+        return diagnostics;
+    }
+
     ValidateReticleLibrary(document.reticleLibrary, diagnostics);
 
     for (const PageDefinition& page : document.pages)

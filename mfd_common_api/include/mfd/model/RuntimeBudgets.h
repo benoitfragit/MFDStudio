@@ -56,6 +56,22 @@ constexpr std::size_t kMaxBezierControlPoints = 64U;
 constexpr std::size_t kMaxFilledPolygonPoints = 512U;
 /** @brief Maximum number of UTF-8 bytes accepted by runtime text payloads. */
 constexpr std::size_t kMaxTextBytes = 4096U;
+/** @brief Maximum size of one JSON asset before parsing. */
+constexpr std::size_t kMaxJsonFileBytes = 16U * 1024U * 1024U;
+/** @brief Maximum number of pages stored by one runtime document. */
+constexpr std::size_t kMaxDocumentPages = 256U;
+/** @brief Maximum number of reusable reticle templates stored by one runtime document. */
+constexpr std::size_t kMaxDocumentTemplates = 1024U;
+/** @brief Maximum number of page reticles, strobes and templates stored by one runtime document. */
+constexpr std::size_t kMaxDocumentReticles = 16384U;
+/** @brief Maximum number of page layers stored across one runtime document. */
+constexpr std::size_t kMaxDocumentLayers = 4096U;
+/** @brief Maximum number of primitives stored across one runtime document. */
+constexpr std::size_t kMaxDocumentPrimitives = 65536U;
+/** @brief Maximum number of initially visible primitives across one runtime document. */
+constexpr std::size_t kMaxDocumentVisiblePrimitives = 32768U;
+/** @brief Maximum aggregate bytes held by authored strings in one runtime document. */
+constexpr std::size_t kMaxDocumentStringBytes = 4U * 1024U * 1024U;
 /** @brief Minimum accepted year for runtime numeric time overrides. */
 constexpr int kMinTimeYear = 1;
 /** @brief Maximum accepted year for runtime numeric time overrides. */

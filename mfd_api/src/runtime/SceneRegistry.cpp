@@ -13,6 +13,7 @@
 #include "mfd/control/CommandTypes.h"
 #include "mfd/core/internal/CompositeKey.h"
 #include "mfd/model/RuntimeBudgets.h"
+#include "mfd/runtime/DocumentSemanticValidator.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1118,6 +1119,8 @@ void SceneRegistry::LoadDocument(MfdDocument document)
 
 void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTransportMap> transportMap)
 {
+    ThrowIfDocumentSemanticsInvalid(document);
+
     document_ = std::move(document);
     transportMap_ = std::move(transportMap);
     registry_.clear();

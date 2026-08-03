@@ -15,6 +15,8 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "mfd/model/RuntimeBudgets.h"
+
 namespace mfd::json_loader_detail
 {
 std::string_view TrimAsciiWhitespace(const std::string_view value) noexcept
@@ -98,10 +100,30 @@ std::string JsonScalarToString(const nlohmann::json& value)
 
 nlohmann::json LoadJsonFile(const std::filesystem::path& path)
 {
-    std::ifstream stream(path);
+    std::ifstream stream(path, std::ios::binary | std::ios::ate);
     if (!stream.is_open())
     {
         throw std::runtime_error("Unable to open JSON file: " + path.string());
+    }
+
+    const std::ifstream::pos_type fileSize = stream.tellg();
+    if (fileSize < 0)
+    {
+        throw std::runtime_error("Unable to determine JSON file size: " + path.string());
+    }
+
+    if (static_cast<std::uintmax_t>(fileSize) > runtime_validation::kMaxJsonFileBytes)
+    {
+        throw std::runtime_error(
+            "JSON file exceeds the " +
+            std::to_string(runtime_validation::kMaxJsonFileBytes) +
+            " byte runtime budget: " + path.string());
+    }
+
+    stream.seekg(0, std::ios::beg);
+    if (!stream)
+    {
+        throw std::runtime_error("Unable to rewind JSON file: " + path.string());
     }
 
     try

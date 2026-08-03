@@ -10,11 +10,13 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "mfd/runtime/DocumentSemanticValidator.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 namespace
 {
@@ -205,4 +207,128 @@ TEST(DocumentSemanticValidatorTests, ReportsDuplicateStaticReticleAndStrobeIdsAf
         mfd::DocumentSemanticValidator {}.Validate(document);
 
     EXPECT_EQ(DiagnosticCodes(diagnostics), std::vector<std::string> {"MFD018"});
+}
+
+TEST(DocumentSemanticValidatorTests, AcceptsAndRejectsAggregateCardinalityBoundaries)
+{
+    mfd::MfdDocument document;
+    document.pages.resize(mfd::runtime_validation::kMaxDocumentPages);
+    EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(document).empty());
+
+    document.pages.emplace_back();
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
+              std::vector<std::string> {"MFD019"});
+
+    document = {};
+    mfd::PageDefinition page;
+    page.layers.resize(mfd::runtime_validation::kMaxDocumentLayers);
+    document.pages.push_back(std::move(page));
+    EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(document).empty());
+
+    document.pages.front().layers.emplace_back();
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
+              std::vector<std::string> {"MFD022"});
+}
+
+TEST(DocumentSemanticValidatorTests, CountsEditorLayersInAggregateLayerBudget)
+{
+    mfd::MfdDocument document;
+    document.pages.emplace_back();
+    document.pages.front().layers.resize(mfd::runtime_validation::kMaxDocumentLayers / 2U);
+    document.pages.front().editor.layers.resize(
+        mfd::runtime_validation::kMaxDocumentLayers - document.pages.front().layers.size());
+    EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(document).empty());
+
+    document.pages.front().editor.layers.emplace_back();
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
+              std::vector<std::string> {"MFD022"});
+}
+
+TEST(DocumentSemanticValidatorTests, AcceptsAndRejectsAggregatePrimitiveProductBoundary)
+{
+    mfd::ReticleGroup first = MakeReticle("first");
+    first.visible = false;
+    first.primitives.resize(mfd::runtime_validation::kMaxDocumentPrimitives / 2U);
+    mfd::ReticleGroup second = MakeReticle("second");
+    second.visible = false;
+    second.primitives.resize(
+        mfd::runtime_validation::kMaxDocumentPrimitives - first.primitives.size());
+
+    mfd::MfdDocument document = MakeDocumentWithReticle(std::move(first));
+    document.pages.front().staticReticles.push_back(std::move(second));
+    EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(document).empty());
+
+    document.pages.front().staticReticles.back().primitives.emplace_back();
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
+              std::vector<std::string> {"MFD023"});
+}
+
+TEST(DocumentSemanticValidatorTests, AcceptsAndRejectsVisiblePrimitiveBoundary)
+{
+    mfd::ReticleGroup reticle = MakeReticle("visible");
+    reticle.primitives.resize(mfd::runtime_validation::kMaxDocumentVisiblePrimitives);
+    mfd::MfdDocument document = MakeDocumentWithReticle(std::move(reticle));
+    EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(document).empty());
+
+    document.pages.front().staticReticles.front().primitives.emplace_back();
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
+              std::vector<std::string> {"MFD024"});
+}
+
+TEST(DocumentSemanticValidatorTests, AcceptsAndRejectsAggregateStringByteBoundary)
+{
+    mfd::MfdDocument document;
+    document.pages.emplace_back();
+    document.pages.front().title.resize(mfd::runtime_validation::kMaxDocumentStringBytes, 'x');
+    EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(document).empty());
+
+    document.pages.front().title.push_back('x');
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
+              std::vector<std::string> {"MFD025"});
+}
+
+TEST(DocumentSemanticValidatorTests, CountsDocumentPathsInAggregateStringBudget)
+{
+    mfd::MfdDocument document;
+    document.sourceFile = std::filesystem::path(
+        std::string(mfd::runtime_validation::kMaxDocumentStringBytes + 1U, 'x'));
+
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
+              std::vector<std::string> {"MFD025"});
+}
+
+TEST(DocumentSemanticValidatorTests, StopsSemanticChecksAfterCardinalityBudgetFailure)
+{
+    mfd::MfdDocument document;
+    document.pages.resize(mfd::runtime_validation::kMaxDocumentPages + 1U);
+    document.pages.front().staticReticles.push_back(MakeReticle("duplicate"));
+    document.pages.front().staticReticles.push_back(MakeReticle("DUPLICATE"));
+
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
+              std::vector<std::string> {"MFD019"});
+}
+
+TEST(DocumentSemanticValidatorTests, RejectsTemplateAndReticleBoundaryPlusOne)
+{
+    mfd::MfdDocument templates;
+    for (std::size_t index = 0; index < mfd::runtime_validation::kMaxDocumentTemplates; ++index)
+    {
+        const std::string id = "template_" + std::to_string(index);
+        templates.reticleLibrary.emplace(id, MakeReticle(id));
+    }
+    EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(templates).empty());
+
+    templates.reticleLibrary.emplace("template_over_budget", MakeReticle("template_over_budget"));
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(templates)),
+              std::vector<std::string> {"MFD020"});
+
+    mfd::MfdDocument reticles;
+    reticles.pages.emplace_back();
+    reticles.pages.front().staticReticles.resize(
+        mfd::runtime_validation::kMaxDocumentReticles);
+    EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(reticles).empty());
+
+    reticles.pages.front().staticReticles.emplace_back();
+    EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(reticles)),
+              std::vector<std::string> {"MFD021"});
 }

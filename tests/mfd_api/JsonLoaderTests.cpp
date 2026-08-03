@@ -21,6 +21,7 @@
 
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/PageDefinition.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 namespace
 {
@@ -71,6 +72,27 @@ void WriteTextFile(const std::filesystem::path& path, const std::string_view con
     stream.close();
 }
 } // namespace
+
+TEST(JsonLoaderTests, AcceptsJsonFileAtByteBudgetAndRejectsBoundaryPlusOne)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path reticleFolder = workspace.Path() / "reticles";
+    const std::filesystem::path pagesFile = workspace.Path() / "pages.json";
+    std::filesystem::create_directories(reticleFolder);
+
+    std::string json =
+        R"json({"reticleLibraryFolder":"reticles","pages":[{"name":"Main","layers":[{"id":"default"}]}]})json";
+    ASSERT_LT(json.size(), mfd::runtime_validation::kMaxJsonFileBytes);
+    json.resize(mfd::runtime_validation::kMaxJsonFileBytes, ' ');
+    WriteTextFile(pagesFile, json);
+
+    mfd::JsonLoader loader;
+    EXPECT_NO_THROW(loader.LoadDocument(pagesFile));
+
+    json.push_back(' ');
+    WriteTextFile(pagesFile, json);
+    EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
 
 TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefaults)
 {

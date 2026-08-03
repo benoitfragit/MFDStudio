@@ -423,6 +423,13 @@ std::vector<std::filesystem::path> ParsePageFileList(const json& root,
         throw std::runtime_error("Window JSON must contain a pages array of JSON file paths");
     }
 
+    if (pages->size() > runtime_validation::kMaxDocumentPages)
+    {
+        throw std::runtime_error(
+            "Window JSON exceeds the page budget of " +
+            std::to_string(runtime_validation::kMaxDocumentPages));
+    }
+
     std::vector<std::filesystem::path> pageFiles;
     pageFiles.reserve(pages->size());
 
@@ -1841,6 +1848,12 @@ ReticleLibrary LoadReticleLibrary(const std::filesystem::path& folder)
     }
 
     const std::vector<std::filesystem::path> jsonFiles = detail::DiscoverSortedJsonAssetFiles(folder);
+    if (jsonFiles.size() > runtime_validation::kMaxDocumentTemplates)
+    {
+        throw std::runtime_error(
+            "Reticle library exceeds the template budget of " +
+            std::to_string(runtime_validation::kMaxDocumentTemplates));
+    }
     ReticleLibrary library;
     detail::AssetIdentifierOrigins identifierOrigins;
     identifierOrigins.reserve(jsonFiles.size());
@@ -3512,6 +3525,13 @@ MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) con
     if (!root.contains("pages") || !root.at("pages").is_array())
     {
         throw std::runtime_error("Pages JSON must contain a pages array");
+    }
+
+    if (root.at("pages").size() > runtime_validation::kMaxDocumentPages)
+    {
+        throw std::runtime_error(
+            "Pages JSON exceeds the page budget of " +
+            std::to_string(runtime_validation::kMaxDocumentPages));
     }
 
     std::filesystem::path libraryFolder = resolvedPagesFile.parent_path();

@@ -23,6 +23,7 @@
 #include "mfd/control/CommandTypes.h"
 #include "mfd/model/PageDefinition.h"
 #include "mfd/model/Reticle.h"
+#include "mfd/model/RuntimeBudgets.h"
 #include "mfd/runtime/SceneRegistry.h"
 
 namespace
@@ -413,6 +414,7 @@ TEST(SceneRegistryTests, CollectPageReticleViewsCarryLayerOrderAndPreserveClipEr
     mfd::ReticleGroup symbol = MakeReticle("symbol");
     symbol.layerId = "symbols";
     symbol.clipping.mode = mfd::ReticleClipMode::Inner;
+    symbol.clipping.primitiveId = "shape";
     symbol.clipping.eraseLayerOnly = true;
     page.staticReticles.push_back(std::move(background));
     page.staticReticles.push_back(std::move(symbol));
@@ -1874,4 +1876,14 @@ TEST(SceneRegistryTests, MissingTransportPageReferenceLeavesGeneratedReticleLook
 
     EXPECT_FALSE(processor.Submit(batch));
     EXPECT_EQ(processor.LastError(), "Unknown generated static reticle transport id 22");
+}
+
+TEST(SceneRegistryTests, LoadDocumentRejectsProgrammaticModelAboveAggregateBudget)
+{
+    mfd::MfdDocument document;
+    document.pages.resize(mfd::runtime_validation::kMaxDocumentPages + 1U);
+
+    mfd::SceneRegistry registry;
+    EXPECT_THROW(registry.LoadDocument(std::move(document)), std::runtime_error);
+    EXPECT_TRUE(registry.Document().pages.empty());
 }
