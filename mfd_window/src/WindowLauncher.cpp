@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
 #include <cstdint>
 #include <exception>
@@ -21,6 +22,7 @@
 #include <initializer_list>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -1187,6 +1189,99 @@ private:
     std::string lastReportedRuntimeError_ {};
 };
 
+class AsyncFramebufferPublisher
+{
+public:
+    explicit AsyncFramebufferPublisher(mfd::window::LauncherFramebufferCallback callback) :
+        callback_(std::move(callback)),
+        worker_(&AsyncFramebufferPublisher::Run, this)
+    {
+    }
+
+    ~AsyncFramebufferPublisher()
+    {
+        Stop();
+    }
+
+    AsyncFramebufferPublisher(const AsyncFramebufferPublisher&) = delete;
+    AsyncFramebufferPublisher& operator=(const AsyncFramebufferPublisher&) = delete;
+
+    void Submit(CapturedFramebuffer framebuffer)
+    {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (stopRequested_)
+            {
+                return;
+            }
+
+            pendingFramebuffer_ = std::move(framebuffer);
+        }
+        wakeCondition_.notify_one();
+    }
+
+    void Stop() noexcept
+    {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            stopRequested_ = true;
+            pendingFramebuffer_.reset();
+        }
+        wakeCondition_.notify_one();
+
+        if (worker_.joinable())
+        {
+            worker_.join();
+        }
+    }
+
+private:
+    void Run() noexcept
+    {
+        for (;;)
+        {
+            CapturedFramebuffer framebuffer;
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                wakeCondition_.wait(
+                    lock,
+                    [this]() noexcept
+                    {
+                        return stopRequested_ || pendingFramebuffer_.has_value();
+                    });
+
+                if (stopRequested_)
+                {
+                    return;
+                }
+
+                framebuffer = std::move(*pendingFramebuffer_);
+                pendingFramebuffer_.reset();
+            }
+
+            try
+            {
+                callback_(framebuffer.width, framebuffer.height, framebuffer.Bytes());
+            }
+            catch (const std::exception& exception)
+            {
+                std::cerr << "Framebuffer callback threw: " << exception.what() << '\n';
+            }
+            catch (...)
+            {
+                std::cerr << "Framebuffer callback threw an unknown exception.\n";
+            }
+        }
+    }
+
+    mfd::window::LauncherFramebufferCallback callback_ {};
+    std::mutex mutex_ {};
+    std::condition_variable wakeCondition_ {};
+    std::optional<CapturedFramebuffer> pendingFramebuffer_ {};
+    bool stopRequested_ = false;
+    std::thread worker_ {};
+};
+
 bool ParseCommandLine(const int argc,
                       char** argv,
                       const mfd::window::LauncherConfig& config,
@@ -1284,13 +1379,13 @@ public:
         applicationName_(std::move(applicationName)),
         windowFile_(std::move(windowFile)),
         noSnapshot_(noSnapshot),
-        framebufferCallback_(std::move(framebufferCallback)),
         framebufferPixelFormat_(framebufferPixelFormat)
     {
         ApplyRuntimeCommandTransactionMode();
-        if (framebufferCallback_)
+        if (framebufferCallback)
         {
             framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_);
+            framebufferPublisher_ = std::make_unique<AsyncFramebufferPublisher>(std::move(framebufferCallback));
         }
     }
 
@@ -1666,7 +1761,7 @@ private:
 
     [[nodiscard]] bool PrepareFramebufferCapture(const mfd::window::detail::FramebufferCaptureSize captureSize)
     {
-        if (!framebufferCallback_)
+        if (framebufferPublisher_ == nullptr)
         {
             return false;
         }
@@ -1724,11 +1819,16 @@ private:
             return;
         }
 
-        framebufferCallback_(framebuffer->width, framebuffer->height, framebuffer->Bytes());
+        framebufferPublisher_->Submit(std::move(*framebuffer));
     }
 
     void ReleaseRenderResourcesBeforeWindowClose() noexcept
     {
+        if (framebufferPublisher_ != nullptr)
+        {
+            framebufferPublisher_->Stop();
+            framebufferPublisher_.reset();
+        }
         framebufferCapture_.reset();
 
         // Destroy the renderer while the OpenGL context is still valid so its
@@ -1740,12 +1840,12 @@ private:
     std::string applicationName_;
     std::filesystem::path windowFile_;
     bool noSnapshot_ = false;
-    mfd::window::LauncherFramebufferCallback framebufferCallback_ {};
     MfdWindowFramebufferPixelFormat framebufferPixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
     mfd::runtime_api::RuntimeSession runtimeSession_ {};
     mfd::MfdRenderer renderer_ {};
     mfd::window::debug::RuntimeDebugOverlay debugOverlay_ {};
     std::unique_ptr<AsyncFramebufferCapture> framebufferCapture_ {};
+    std::unique_ptr<AsyncFramebufferPublisher> framebufferPublisher_ {};
     mfd::WindowAssetDefinition windowDefinition_ {};
     int lastObservedCaptureWidth_ = 0;
     int lastObservedCaptureHeight_ = 0;

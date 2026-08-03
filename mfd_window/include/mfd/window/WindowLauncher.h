@@ -21,7 +21,7 @@ struct LauncherConfig
 };
 
 /**
- * @brief Optional callback receiving the rendered page viewport as one `RGBA32` buffer once per frame.
+ * @brief Optional callback receiving recent rendered page viewports as `RGBA32` buffers.
  *
  * The byte span is only valid during the callback invocation. Copy it if the
  * data must outlive the call.
@@ -29,6 +29,11 @@ struct LauncherConfig
  * @note The launcher excludes the integrated runtime debug side panel from this
  * buffer so plugins and embedded callbacks always observe only the runtime page
  * image currently displayed by the host.
+ *
+ * @note Delivery runs on an internal worker. When the callback is slower than
+ * rendering, the pending frame is replaced by the newest one to keep memory and
+ * latency bounded. Callback implementations must therefore be thread-safe and
+ * must not rely on receiving every rendered frame.
  */
 using LauncherFramebufferCallback = std::function<void(int width,
                                                        int height,

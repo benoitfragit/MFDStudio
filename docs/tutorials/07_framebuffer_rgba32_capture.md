@@ -235,6 +235,12 @@ required entry points are not available, it falls back to the synchronous
 Copy the byte span inside the callback if another system needs to keep it after
 the function returns.
 
+Frame delivery uses one internal worker and a single pending-frame slot. If the
+consumer is slower than rendering, the newest frame replaces the pending one;
+frames are not queued without a bound. The callback can therefore run outside
+the rendering thread and must be thread-safe. It must not rely on observing
+every rendered frame.
+
 ## What You Should Get
 
 After a capture:
