@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "internal/RuntimeSessionInternalAccess.hpp"
 #include "mfd/runtime_api/RuntimeSession.h"
 
 namespace
@@ -68,9 +69,37 @@ TEST(RuntimeSessionTests, ReloadPreservesCurrentActivePageWhenItStillExists)
 
     ASSERT_TRUE(session.SetActivePage(pages[1].name));
     ASSERT_EQ(session.ActivePageName(), pages[1].name);
+    const mfd::UdpRuntimeBridge* bridgeBeforeReload =
+        mfd::runtime_api::internal::RuntimeSessionInternalAccess::RuntimeBridge(session);
+    ASSERT_NE(bridgeBeforeReload, nullptr);
+    ASSERT_TRUE(bridgeBeforeReload->CommandTransportReady());
 
     ASSERT_TRUE(session.Reload(error)) << error;
     EXPECT_EQ(session.ActivePageName(), pages[1].name);
+    const mfd::UdpRuntimeBridge* bridgeAfterReload =
+        mfd::runtime_api::internal::RuntimeSessionInternalAccess::RuntimeBridge(session);
+    ASSERT_NE(bridgeAfterReload, nullptr);
+    EXPECT_TRUE(bridgeAfterReload->CommandTransportReady());
+}
+
+TEST(RuntimeSessionTests, LoadFailsWhenConfiguredCommandPortIsOccupiedWithoutDisruptingOwner)
+{
+    const std::filesystem::path windowFile =
+        RepositoryRoot() / "examples/demo/assets/windows/demo_window.json";
+    mfd::runtime_api::RuntimeSession owningSession;
+    std::string error;
+    ASSERT_TRUE(owningSession.LoadWindowFile(windowFile, error)) << error;
+
+    mfd::runtime_api::RuntimeSession rejectedSession;
+    ASSERT_FALSE(rejectedSession.LoadWindowFile(windowFile, error));
+    EXPECT_FALSE(error.empty());
+    EXPECT_TRUE(rejectedSession.WindowFile().empty());
+    EXPECT_TRUE(rejectedSession.Pages().empty());
+
+    const mfd::UdpRuntimeBridge* owningBridge =
+        mfd::runtime_api::internal::RuntimeSessionInternalAccess::RuntimeBridge(owningSession);
+    ASSERT_NE(owningBridge, nullptr);
+    EXPECT_TRUE(owningBridge->CommandTransportReady());
 }
 
 TEST(RuntimeSessionTests, CommandTransactionModePersistsAcrossReload)

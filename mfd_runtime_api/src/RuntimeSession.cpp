@@ -204,6 +204,55 @@ bool SameStrobeFeedbackState(const StrobeStatusFeedback& lhs, const StrobeStatus
            SameFeedbackMagnet(lhs.magnet, rhs.magnet) &&
            SameOptionalFeedbackCapture(lhs.captureResult, rhs.captureResult);
 }
+
+/** @brief Returns the first configured transport that failed to become ready. */
+std::string ConfiguredBridgeFailure(const UdpRuntimeBridge& bridge)
+{
+    if (bridge.HasCommandReceiver() && !bridge.CommandTransportReady())
+    {
+        const std::string status = bridge.LastCommandStatus();
+        return status.empty() ? "The configured command transport is not ready." : status;
+    }
+
+    if (bridge.HasFeedbackSender() && !bridge.FeedbackTransportReady())
+    {
+        const std::string status = bridge.LastFeedbackStatus();
+        return status.empty() ? "The configured feedback transport is not ready." : status;
+    }
+
+    return {};
+}
+
+/** @brief Starts a bridge only when every configured transport becomes ready. */
+bool StartConfiguredBridge(UdpRuntimeBridge& bridge, std::string& error)
+{
+    try
+    {
+        const bool started = bridge.Start();
+        const std::string failure = ConfiguredBridgeFailure(bridge);
+        if (!started || !failure.empty())
+        {
+            error = failure.empty() ? "The runtime transport bridge could not start." : failure;
+            bridge.Stop();
+            return false;
+        }
+    }
+    catch (const std::exception& exception)
+    {
+        error = exception.what();
+        bridge.Stop();
+        return false;
+    }
+    catch (...)
+    {
+        error = "Unknown exception while starting the runtime transport bridge.";
+        bridge.Stop();
+        return false;
+    }
+
+    error.clear();
+    return true;
+}
 } // namespace
 
 class RuntimeSession::Impl
@@ -329,50 +378,57 @@ public:
         }
 
         const std::string previousPage = scene_.ActivePageName();
-
-        windowDefinition_ = loaded.window;
-        scene_.LoadDocument(std::move(loaded.document), std::move(loaded.generatedTransportMap));
-
-        auto newBridge = std::make_unique<UdpRuntimeBridge>(
-            windowDefinition_.commandTransports,
-            windowDefinition_.feedbackTransports);
-        newBridge->Start();
-
-        if (scene_.HasPage(previousPage))
+        SceneRegistry candidateScene;
+        std::unique_ptr<UdpRuntimeBridge> candidateBridge;
+        WindowAssetDefinition candidateWindow;
+        std::filesystem::path candidateWindowFile;
+        try
         {
-            scene_.SetActivePage(previousPage);
+            candidateScene.LoadDocument(std::move(loaded.document), std::move(loaded.generatedTransportMap));
+            if (candidateScene.HasPage(previousPage))
+            {
+                candidateScene.SetActivePage(previousPage);
+            }
+
+            candidateWindow = std::move(loaded.window);
+            candidateWindowFile = candidateWindow.sourceFile;
+            candidateBridge = std::make_unique<UdpRuntimeBridge>(
+                candidateWindow.commandTransports,
+                candidateWindow.feedbackTransports);
+        }
+        catch (const std::exception& exception)
+        {
+            error = exception.what();
+            return false;
         }
 
-        runtimeBridge_ = std::move(newBridge);
-        windowFile_ = windowDefinition_.sourceFile;
-        feedbackThrottle_.Reset();
-        lifecycleThrottle_.Reset();
-        pendingCommandBatches_.clear();
-        appliedCommandBatches_.clear();
-        lastPublishedStrobeFeedbacks_.clear();
-        lastPublishedActivePage_.reset();
-        nextFeedbackSequence_ = 1U;
-        lifecycleHeartbeatPending_ = true;
-        closingNotified_ = false;
-        receivedFirstClientCommand_ = false;
-
-        if (runtimeBridge_ == nullptr || !runtimeBridge_->HasCommandReceiver())
+        const bool replacesActiveBridge = runtimeBridge_ != nullptr;
+        if (replacesActiveBridge)
         {
-            lastCommandStatus_ = "No UDP command transport configured in the window JSON.";
-        }
-        else
-        {
-            lastCommandStatus_ = runtimeBridge_->LastCommandStatus();
+            runtimeBridge_->Stop();
         }
 
-        if (runtimeBridge_ == nullptr || !runtimeBridge_->HasFeedbackSender())
+        std::string candidateBridgeError;
+        if (!StartConfiguredBridge(*candidateBridge, candidateBridgeError))
         {
-            lastFeedbackStatus_ = "No UDP feedback transport configured in the window JSON.";
+            std::string restoreError;
+            if (replacesActiveBridge && !StartConfiguredBridge(*runtimeBridge_, restoreError))
+            {
+                error = "Reload transport failed: " + candidateBridgeError +
+                        " The previous transport could not be restored: " + restoreError;
+                return false;
+            }
+
+            error = std::string(replacesActiveBridge ? "Reload transport failed: " : "Runtime transport failed: ") +
+                    candidateBridgeError;
+            return false;
         }
-        else
-        {
-            lastFeedbackStatus_ = runtimeBridge_->LastFeedbackStatus();
-        }
+
+        scene_ = std::move(candidateScene);
+        windowDefinition_ = std::move(candidateWindow);
+        runtimeBridge_ = std::move(candidateBridge);
+        windowFile_ = std::move(candidateWindowFile);
+        ResetLoadedState();
 
         error.clear();
         return true;
@@ -639,6 +695,27 @@ public:
     }
 
 private:
+    void ResetLoadedState()
+    {
+        feedbackThrottle_.Reset();
+        lifecycleThrottle_.Reset();
+        pendingCommandBatches_.clear();
+        appliedCommandBatches_.clear();
+        lastPublishedStrobeFeedbacks_.clear();
+        lastPublishedActivePage_.reset();
+        nextFeedbackSequence_ = 1U;
+        lifecycleHeartbeatPending_ = true;
+        closingNotified_ = false;
+        receivedFirstClientCommand_ = false;
+
+        lastCommandStatus_ = runtimeBridge_ == nullptr || !runtimeBridge_->HasCommandReceiver()
+                                 ? "No UDP command transport configured in the window JSON."
+                                 : runtimeBridge_->LastCommandStatus();
+        lastFeedbackStatus_ = runtimeBridge_ == nullptr || !runtimeBridge_->HasFeedbackSender()
+                                  ? "No UDP feedback transport configured in the window JSON."
+                                  : runtimeBridge_->LastFeedbackStatus();
+    }
+
     std::filesystem::path windowFile_ {};
     JsonLoader loader_ {};
     SceneRegistry scene_ {};
