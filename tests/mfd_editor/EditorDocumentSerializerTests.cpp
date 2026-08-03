@@ -10,6 +10,8 @@
  */
 
 #include "EditorDocumentSerializer.h"
+#include "mfd/ipc/UdpLimits.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 #include <chrono>
 #include <filesystem>
@@ -91,6 +93,90 @@ TEST(EditorDocumentSerializerTests, DiscoverReticleTemplateFilesLoadsValidJsonTe
     ASSERT_EQ(layout.templateFiles.size(), 1U);
     ASSERT_TRUE(layout.templateFiles.find("radar_track") != layout.templateFiles.end());
     EXPECT_EQ(layout.templateFiles.at("radar_track"), validTemplate.lexically_normal());
+}
+
+TEST(EditorDocumentSerializerTests, SerializationRejectsRuntimeBoundaryPlusOne)
+{
+    mfd::WindowAssetDefinition window;
+    window.width = mfd::runtime_validation::kMaxWindowExtent;
+    window.height = 600;
+    editor::EditorFileLayout layout;
+    EXPECT_NO_THROW(editor::SerializeWindowToJsonString(window, {}, layout));
+    window.width = mfd::runtime_validation::kMaxWindowExtent + 1;
+    EXPECT_THROW(editor::SerializeWindowToJsonString(window, {}, layout), std::runtime_error);
+
+    window.width = 800;
+    window.commandTransports.udp = mfd::WindowUdpCommandTransport {};
+    window.commandTransports.udp->maxPacketSize = mfd::kUdpMaxPayloadBytes;
+    EXPECT_NO_THROW(editor::SerializeWindowToJsonString(window, {}, layout));
+    window.commandTransports.udp->maxPacketSize = mfd::kUdpMaxPayloadBytes + 1U;
+    EXPECT_THROW(editor::SerializeWindowToJsonString(window, {}, layout), std::runtime_error);
+}
+
+TEST(EditorDocumentSerializerTests, PrimitiveSerializationRejectsOversizedAndNonFiniteGeometry)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "validated";
+    mfd::Primitive primitive;
+    primitive.id = "path";
+    primitive.type = mfd::PrimitiveType::Polyline;
+    primitive.geometry = mfd::PolylineGeometry {
+        std::vector<mfd::Vec2>(mfd::runtime_validation::kMaxPrimitivePoints, mfd::Vec2 {}), false};
+    reticle.primitives.push_back(primitive);
+    EXPECT_NO_THROW(editor::SerializeReticleTemplateToJsonString(reticle));
+
+    std::get<mfd::PolylineGeometry>(reticle.primitives.front().geometry).points.push_back({});
+    EXPECT_THROW(editor::SerializeReticleTemplateToJsonString(reticle), std::runtime_error);
+
+    reticle.primitives.front().type = mfd::PrimitiveType::Bezier;
+    reticle.primitives.front().geometry = mfd::BezierGeometry {
+        std::vector<mfd::Vec2>(mfd::runtime_validation::kMaxBezierControlPoints, mfd::Vec2 {}), 32};
+    EXPECT_NO_THROW(editor::SerializeReticleTemplateToJsonString(reticle));
+    std::get<mfd::BezierGeometry>(reticle.primitives.front().geometry).controlPoints.push_back({});
+    EXPECT_THROW(editor::SerializeReticleTemplateToJsonString(reticle), std::runtime_error);
+
+    reticle.primitives.front().geometry = mfd::BezierGeometry {{{0.0f, 0.0f}, {1.0f, 1.0f}}, 32};
+    reticle.primitives.front().transform.rotationDegrees = std::numeric_limits<float>::infinity();
+    EXPECT_THROW(editor::SerializeReticleTemplateToJsonString(reticle), std::runtime_error);
+}
+
+TEST(EditorDocumentSerializerTests, PrimitiveSerializationRejectsLossyModelInvariants)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "validated";
+    reticle.primitives.emplace_back();
+    mfd::Primitive& primitive = reticle.primitives.front();
+    primitive.id = "shape";
+    primitive.type = mfd::PrimitiveType::Circle;
+    primitive.geometry = mfd::LineGeometry {};
+    EXPECT_THROW(editor::SerializeReticleTemplateToJsonString(reticle), std::runtime_error);
+
+    primitive.type = mfd::PrimitiveType::Square;
+    primitive.geometry = mfd::SquareGeometry {1.0f, 2.0f};
+    EXPECT_THROW(editor::SerializeReticleTemplateToJsonString(reticle), std::runtime_error);
+}
+
+TEST(EditorDocumentSerializerTests, PageSerializationRejectsInvalidReticleViewAndStrobeValues)
+{
+    editor::EditorFileLayout layout;
+    mfd::PageDefinition page;
+    page.name = "validated";
+
+    page.view.center.x = std::numeric_limits<float>::infinity();
+    EXPECT_THROW(editor::SerializePageToJsonString(page, {}, layout, 0U), std::runtime_error);
+    page.view = {};
+
+    page.staticReticles.emplace_back();
+    page.staticReticles.front().overrides.thickness = 0.0f;
+    EXPECT_THROW(editor::SerializePageToJsonString(page, {}, layout, 0U), std::runtime_error);
+    page.staticReticles.clear();
+
+    page.strobes.emplace_back();
+    page.strobes.front().capture.radius = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_THROW(editor::SerializePageToJsonString(page, {}, layout, 0U), std::runtime_error);
+    page.strobes.front().capture.radius = 0.1f;
+    page.strobes.front().magnet.strength = 1.01f;
+    EXPECT_THROW(editor::SerializePageToJsonString(page, {}, layout, 0U), std::runtime_error);
 }
 
 TEST(EditorDocumentSerializerTests, DiscoverReticleTemplateFilesRejectsCaseInsensitiveDuplicateIds)

@@ -20,6 +20,7 @@
 #include "mfd/model/PageName.h"
 #include "mfd/model/Reticle.h"
 #include "mfd/model/RuntimeBudgets.h"
+#include "mfd/model/internal/RuntimeModelValidation.h"
 
 namespace mfd
 {
@@ -324,6 +325,17 @@ void ValidateReticle(const std::string_view pageName,
                      const ReticleGroup& reticle,
                      std::vector<SemanticValidationDiagnostic>& diagnostics)
 {
+    if (!runtime_validation::internal::IsValidReticle(reticle))
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD026",
+            "MFD026: reticle \"" + ReticleLabel(reticle) +
+                "\" contains numeric or geometry values outside runtime safety limits.",
+            std::string(pageName),
+            reticle.id,
+            {});
+    }
     ValidatePrimitiveIds(pageName, reticle, diagnostics);
     ValidateReticleClipping(pageName, reticle, diagnostics);
 }
@@ -371,6 +383,16 @@ void ValidatePageReticleIds(const PageDefinition& page, std::vector<SemanticVali
 
 void ValidatePage(const PageDefinition& page, std::vector<SemanticValidationDiagnostic>& diagnostics)
 {
+    if (!runtime_validation::internal::IsValidPageView(page.view))
+    {
+        AddDiagnostic(
+            diagnostics,
+            "MFD026",
+            "MFD026: page \"" + page.name + "\" view values exceed runtime safety limits.",
+            page.name,
+            {},
+            {});
+    }
     ValidatePageReticleIds(page, diagnostics);
 
     for (const ReticleGroup& reticle : page.staticReticles)
@@ -381,6 +403,18 @@ void ValidatePage(const PageDefinition& page, std::vector<SemanticValidationDiag
     for (const PageStrobeDefinition& strobe : page.strobes)
     {
         ValidateReticle(page.name, strobe.reticle, diagnostics);
+        if (!runtime_validation::internal::IsValidStrobeCapture(strobe.capture) ||
+            !runtime_validation::internal::IsValidStrobeMagnet(strobe.magnet))
+        {
+            AddDiagnostic(
+                diagnostics,
+                "MFD026",
+                "MFD026: page \"" + page.name + "\" strobe \"" + strobe.name +
+                    "\" values exceed runtime safety limits.",
+                page.name,
+                strobe.reticle.id,
+                {});
+        }
     }
 }
 

@@ -18,6 +18,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "mfd/control/CommandProcessor.h"
 #include "mfd/control/CommandTypes.h"
@@ -1882,6 +1883,45 @@ TEST(SceneRegistryTests, LoadDocumentRejectsProgrammaticModelAboveAggregateBudge
 {
     mfd::MfdDocument document;
     document.pages.resize(mfd::runtime_validation::kMaxDocumentPages + 1U);
+
+    mfd::SceneRegistry registry;
+    EXPECT_THROW(registry.LoadDocument(std::move(document)), std::runtime_error);
+    EXPECT_TRUE(registry.Document().pages.empty());
+}
+
+TEST(SceneRegistryTests, LoadDocumentRejectsUnsafeProgrammaticPrimitiveValues)
+{
+    mfd::MfdDocument document;
+    mfd::PageDefinition page;
+    page.name = "Main";
+    page.normalizedName = "main";
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+    page.staticReticles.push_back(MakeReticle("unsafe"));
+    page.staticReticles.front().primitives.front().transform.position.x =
+        std::numeric_limits<float>::quiet_NaN();
+    document.pages.push_back(std::move(page));
+
+    mfd::SceneRegistry registry;
+    EXPECT_THROW(registry.LoadDocument(std::move(document)), std::runtime_error);
+    EXPECT_TRUE(registry.Document().pages.empty());
+}
+
+TEST(SceneRegistryTests, LoadDocumentRejectsProgrammaticBezierAboveCpuBudget)
+{
+    mfd::MfdDocument document;
+    mfd::PageDefinition page;
+    page.name = "Main";
+    page.normalizedName = "main";
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+
+    mfd::ReticleGroup reticle = MakeReticle("unsafe");
+    mfd::Primitive& primitive = reticle.primitives.front();
+    primitive.type = mfd::PrimitiveType::Bezier;
+    primitive.geometry = mfd::BezierGeometry {
+        std::vector<mfd::Vec2>(mfd::runtime_validation::kMaxBezierControlPoints + 1U, mfd::Vec2 {}),
+        32};
+    page.staticReticles.push_back(std::move(reticle));
+    document.pages.push_back(std::move(page));
 
     mfd::SceneRegistry registry;
     EXPECT_THROW(registry.LoadDocument(std::move(document)), std::runtime_error);

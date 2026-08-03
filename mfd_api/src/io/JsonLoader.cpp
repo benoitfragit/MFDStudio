@@ -24,6 +24,7 @@
 
 #include "mfd/core/internal/JsonAssetDiscovery.h"
 #include "mfd/model/RuntimeBudgets.h"
+#include "mfd/model/internal/RuntimeModelValidation.h"
 #include "json/JsonNumberParsing.h"
 #include "json/JsonValueHelpers.h"
 #include "mfd/runtime/DocumentSemanticValidator.h"
@@ -104,19 +105,8 @@ using json_loader_detail::ParseWindowSize;
 using json_loader_detail::ResolvePath;
 using json_loader_detail::TrimAsciiWhitespace;
 
-using runtime_validation::kMaxAbsAngleDegrees;
-using runtime_validation::kMaxAbsCoordinate;
-using runtime_validation::kMaxAbsScale;
-using runtime_validation::kMaxBezierControlPoints;
-using runtime_validation::kMaxFilledPolygonPoints;
-using runtime_validation::kMaxLogicalSize;
 using runtime_validation::kMaxPrimitivePoints;
-using runtime_validation::kMaxPrimitiveSegments;
-using runtime_validation::kMaxTextBytes;
-using runtime_validation::kMaxThickness;
-using runtime_validation::kMaxZoom;
-
-constexpr int kMaxWindowExtent = 16384;
+using runtime_validation::kMaxWindowExtent;
 
 float ParseFiniteFloat(const json& value, const char* fieldName)
 {
@@ -134,65 +124,12 @@ float ParseFiniteFloat(const json& value, const char* fieldName)
     return parsed;
 }
 
-void ValidateFiniteAbs(const float value, const char* fieldName, const float maxAbs)
-{
-    if (!std::isfinite(value))
-    {
-        throw std::runtime_error(std::string(fieldName) + " must be finite");
-    }
-
-    if (!runtime_validation::IsFiniteAbsWithin(value, maxAbs))
-    {
-        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
-    }
-}
-
-void ValidatePositiveFinite(const float value, const char* fieldName, const float maxValue)
-{
-    if (!std::isfinite(value) || value <= 0.0f)
-    {
-        throw std::runtime_error(std::string(fieldName) + " must be strictly positive and finite");
-    }
-
-    if (!runtime_validation::IsPositiveFiniteWithin(value, maxValue))
-    {
-        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
-    }
-}
-
-void ValidateVec2(const Vec2& value, const char* fieldName, const float maxAbs = kMaxAbsCoordinate)
-{
-    if (!runtime_validation::IsFiniteVec2(value))
-    {
-        throw std::runtime_error(std::string(fieldName) + " must contain finite coordinates");
-    }
-
-    if (!runtime_validation::IsValidVec2(value, maxAbs))
-    {
-        throw std::runtime_error(std::string(fieldName) + " exceeds runtime safety limits");
-    }
-}
-
-void ValidateScale(const Vec2& value, const char* fieldName)
-{
-    ValidateVec2(value, fieldName, kMaxAbsScale);
-}
-
 void ValidateWindowExtent(const int value, const char* fieldName)
 {
-    if (value <= 0 || value > kMaxWindowExtent)
+    if (!runtime_validation::IsValidWindowExtent(value))
     {
         throw std::runtime_error(
             std::string(fieldName) + " must be in [1, " + std::to_string(kMaxWindowExtent) + "]");
-    }
-}
-
-void ValidateSegmentCount(const int value, const char* fieldName)
-{
-    if (value < 2 || value > kMaxPrimitiveSegments)
-    {
-        throw std::runtime_error(std::string(fieldName) + " must stay in [2, " +
-                                 std::to_string(kMaxPrimitiveSegments) + "]");
     }
 }
 
@@ -206,193 +143,44 @@ void ValidatePointCount(const std::size_t value, const std::size_t minimum, cons
     }
 }
 
-void ValidatePrimitiveStyle(const PrimitiveStyle& style)
-{
-    if (!runtime_validation::IsPositiveFiniteWithin(style.thickness, kMaxThickness))
-    {
-        throw std::runtime_error("Primitive thickness exceeds runtime safety limits");
-    }
-}
-
-void ValidateTextGeometry(const TextGeometry& geometry)
-{
-    ValidatePositiveFinite(geometry.fontSize, "Text font size", kMaxLogicalSize);
-    ValidateFiniteAbs(geometry.letterSpacing, "Text letter spacing", kMaxLogicalSize);
-    if (geometry.text.size() > kMaxTextBytes)
-    {
-        throw std::runtime_error("Text payload exceeds runtime safety limits");
-    }
-}
-
-void ValidateTimeGeometry(const TimeGeometry& geometry)
-{
-    ValidatePositiveFinite(geometry.fontSize, "Time font size", kMaxLogicalSize);
-    ValidateFiniteAbs(geometry.letterSpacing, "Time letter spacing", kMaxLogicalSize);
-    if (geometry.format.size() > kMaxTextBytes)
-    {
-        throw std::runtime_error("Time format exceeds runtime safety limits");
-    }
-}
-
-void ValidatePrimitiveForRuntime(const Primitive& primitive)
-{
-    ValidateVec2(primitive.transform.position, "Primitive position");
-    ValidateFiniteAbs(primitive.transform.rotationDegrees, "Primitive rotation", kMaxAbsAngleDegrees);
-    ValidateScale(primitive.transform.scale, "Primitive scale");
-    ValidatePrimitiveStyle(primitive.style);
-
-    std::visit(
-        [](const auto& geometry)
-        {
-            using Geometry = std::decay_t<decltype(geometry)>;
-
-            if constexpr (std::is_same_v<Geometry, TextGeometry>)
-            {
-                ValidateTextGeometry(geometry);
-            }
-            else if constexpr (std::is_same_v<Geometry, TimeGeometry>)
-            {
-                ValidateTimeGeometry(geometry);
-            }
-            else if constexpr (std::is_same_v<Geometry, LineGeometry>)
-            {
-                ValidateVec2(geometry.start, "Line start");
-                ValidateVec2(geometry.end, "Line end");
-            }
-            else if constexpr (std::is_same_v<Geometry, CircleGeometry>)
-            {
-                ValidateFiniteAbs(geometry.radius, "Circle radius", kMaxLogicalSize);
-            }
-            else if constexpr (std::is_same_v<Geometry, RingGeometry>)
-            {
-                ValidateFiniteAbs(geometry.innerRadius, "Ring inner radius", kMaxLogicalSize);
-                ValidateFiniteAbs(geometry.outerRadius, "Ring outer radius", kMaxLogicalSize);
-                ValidateSegmentCount(geometry.segments, "Ring segments");
-            }
-            else if constexpr (std::is_same_v<Geometry, RectangleGeometry> ||
-                               std::is_same_v<Geometry, EllipseGeometry> ||
-                               std::is_same_v<Geometry, SquareGeometry> ||
-                               std::is_same_v<Geometry, DiamondGeometry>)
-            {
-                ValidateFiniteAbs(geometry.width, "Primitive width", kMaxLogicalSize);
-                ValidateFiniteAbs(geometry.height, "Primitive height", kMaxLogicalSize);
-            }
-            else if constexpr (std::is_same_v<Geometry, TriangleGeometry>)
-            {
-                for (const Vec2& point : geometry.points)
-                {
-                    ValidateVec2(point, "Triangle point");
-                }
-            }
-            else if constexpr (std::is_same_v<Geometry, PolylineGeometry>)
-            {
-                ValidatePointCount(geometry.points.size(), 2U, "Polyline point count");
-                if (geometry.closed && geometry.points.size() > kMaxFilledPolygonPoints)
-                {
-                    throw std::runtime_error("Closed polyline exceeds filled polygon runtime safety limits");
-                }
-
-                for (const Vec2& point : geometry.points)
-                {
-                    ValidateVec2(point, "Polyline point");
-                }
-            }
-            else if constexpr (std::is_same_v<Geometry, BezierGeometry>)
-            {
-                ValidatePointCount(geometry.controlPoints.size(), 2U, "Bezier control point count");
-                if (geometry.controlPoints.size() > kMaxBezierControlPoints)
-                {
-                    throw std::runtime_error(
-                        "Bezier control point count exceeds the runtime safety limit of " +
-                        std::to_string(kMaxBezierControlPoints) +
-                        " (De Casteljau sampling cost grows quadratically with the control point count)");
-                }
-                ValidateSegmentCount(geometry.segments, "Bezier segments");
-                for (const Vec2& point : geometry.controlPoints)
-                {
-                    ValidateVec2(point, "Bezier control point");
-                }
-            }
-            else if constexpr (std::is_same_v<Geometry, ArcGeometry>)
-            {
-                ValidateFiniteAbs(geometry.radius, "Arc radius", kMaxLogicalSize);
-                ValidateFiniteAbs(geometry.startAngleDegrees, "Arc start angle", kMaxAbsAngleDegrees);
-                ValidateFiniteAbs(geometry.endAngleDegrees, "Arc end angle", kMaxAbsAngleDegrees);
-                ValidateSegmentCount(geometry.segments, "Arc segments");
-            }
-            else if constexpr (std::is_same_v<Geometry, ImageGeometry>)
-            {
-                ValidateFiniteAbs(geometry.width, "Image width", kMaxLogicalSize);
-                ValidateFiniteAbs(geometry.height, "Image height", kMaxLogicalSize);
-                if (geometry.file.string().size() > kMaxTextBytes)
-                {
-                    throw std::runtime_error("Image path exceeds runtime safety limits");
-                }
-            }
-        },
-        primitive.geometry);
-}
-
 void ValidateReticleGroupForRuntime(const ReticleGroup& group)
 {
-    ValidateVec2(group.transform.position, "Reticle position");
-    ValidateFiniteAbs(group.transform.rotationDegrees, "Reticle rotation", kMaxAbsAngleDegrees);
-    ValidateScale(group.transform.scale, "Reticle scale");
-
-    if (group.overrides.thickness.has_value() &&
-        (!std::isfinite(*group.overrides.thickness) ||
-         *group.overrides.thickness <= 0.0f ||
-         *group.overrides.thickness > kMaxThickness))
+    if (!runtime_validation::internal::IsValidReticle(group))
     {
-        throw std::runtime_error("Reticle override thickness exceeds runtime safety limits");
-    }
-
-    if (!group.clipping.primitiveId.empty() && group.clipping.primitiveId.size() > kMaxTextBytes)
-    {
-        throw std::runtime_error("Reticle clipping primitive id exceeds runtime safety limits");
-    }
-
-    for (const Primitive& primitive : group.primitives)
-    {
-        ValidatePrimitiveForRuntime(primitive);
+        throw std::runtime_error("Reticle values exceed runtime safety limits");
     }
 }
 
 void ValidatePageViewStateForRuntime(const PageViewState& view)
 {
-    ValidateVec2(view.center, "Page view center");
-    ValidatePositiveFinite(view.zoom, "Page view zoom", kMaxZoom);
+    if (!runtime_validation::internal::IsValidPageView(view))
+    {
+        throw std::runtime_error("Page view values exceed runtime safety limits");
+    }
 }
 
 void ValidateStrobeCaptureConfigForRuntime(const StrobeCaptureConfig& config)
 {
-    ValidateFiniteAbs(config.radius, "Strobe capture radius", kMaxLogicalSize);
-    ValidateVec2(config.size, "Strobe capture size", kMaxLogicalSize);
+    if (!runtime_validation::internal::IsValidStrobeCapture(config))
+    {
+        throw std::runtime_error("Strobe capture values exceed runtime safety limits");
+    }
 }
 
 void ValidateStrobeMagnetConfigForRuntime(const StrobeMagnetConfig& config)
 {
-    ValidateFiniteAbs(config.radius, "Strobe magnet radius", kMaxLogicalSize);
-    if (!std::isfinite(config.strength) || config.strength < 0.0f || config.strength > 1.0f)
+    if (!runtime_validation::internal::IsValidStrobeMagnet(config))
     {
-        throw std::runtime_error("Strobe magnet strength must stay in [0, 1]");
+        throw std::runtime_error("Strobe magnet values exceed runtime safety limits");
     }
-
-    ValidatePositiveFinite(config.visualShapeSize, "Strobe visual shape size", kMaxLogicalSize);
 }
 
 void ValidatePageDefinitionForRuntime(const PageDefinition& page)
 {
     ValidatePageViewStateForRuntime(page.view);
 
-    for (const ReticleGroup& reticle : page.staticReticles)
-    {
-        ValidateReticleGroupForRuntime(reticle);
-    }
-
     for (const PageStrobeDefinition& strobe : page.strobes)
     {
-        ValidateReticleGroupForRuntime(strobe.reticle);
         ValidateStrobeCaptureConfigForRuntime(strobe.capture);
         ValidateStrobeMagnetConfigForRuntime(strobe.magnet);
     }

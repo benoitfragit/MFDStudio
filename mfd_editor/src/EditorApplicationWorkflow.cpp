@@ -21,6 +21,8 @@
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorUiTheme.h"
+#include "mfd/ipc/UdpLimits.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 namespace
 {
@@ -2001,8 +2003,10 @@ bool EditorApplication::CreateNewWindow()
     mfd::LoadedWindowConfiguration next {};
     next.window.sourceFile = windowFile;
     next.window.title = windowTitle;
-    next.window.width = std::max(1, workflowState_.newWindowDraft.width);
-    next.window.height = std::max(1, workflowState_.newWindowDraft.height);
+    next.window.width =
+        std::clamp(workflowState_.newWindowDraft.width, 1, mfd::runtime_validation::kMaxWindowExtent);
+    next.window.height =
+        std::clamp(workflowState_.newWindowDraft.height, 1, mfd::runtime_validation::kMaxWindowExtent);
     next.window.positionX = workflowState_.newWindowDraft.positionX;
     next.window.positionY = workflowState_.newWindowDraft.positionY;
     next.window.targetFps = 60;
@@ -2040,7 +2044,10 @@ bool EditorApplication::CreateNewWindow()
         commandUdp.address = workflowState_.newWindowDraft.commandAddress.data();
         commandUdp.port = static_cast<std::uint16_t>(
             std::clamp(workflowState_.newWindowDraft.commandPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
-        commandUdp.maxPacketSize = std::max(512, workflowState_.newWindowDraft.commandMaxPacketSize);
+        commandUdp.maxPacketSize = static_cast<std::size_t>(std::clamp(
+            workflowState_.newWindowDraft.commandMaxPacketSize,
+            static_cast<int>(mfd::kUdpMinPayloadBytes),
+            static_cast<int>(mfd::kUdpMaxPayloadBytes)));
         next.window.commandTransports.udp = commandUdp;
     }
 
@@ -2051,7 +2058,10 @@ bool EditorApplication::CreateNewWindow()
         feedbackUdp.address = workflowState_.newWindowDraft.feedbackAddress.data();
         feedbackUdp.port = static_cast<std::uint16_t>(
             std::clamp(workflowState_.newWindowDraft.feedbackPort, 0, static_cast<int>(std::numeric_limits<std::uint16_t>::max())));
-        feedbackUdp.maxPacketSize = std::max(512, workflowState_.newWindowDraft.feedbackMaxPacketSize);
+        feedbackUdp.maxPacketSize = static_cast<std::size_t>(std::clamp(
+            workflowState_.newWindowDraft.feedbackMaxPacketSize,
+            static_cast<int>(mfd::kUdpMinPayloadBytes),
+            static_cast<int>(mfd::kUdpMaxPayloadBytes)));
         next.window.feedbackTransports.udp = feedbackUdp;
     }
 

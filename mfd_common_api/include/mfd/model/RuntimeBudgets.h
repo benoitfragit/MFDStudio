@@ -18,7 +18,9 @@
 
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "mfd/model/Reticle.h"
@@ -38,6 +40,8 @@ constexpr float kMaxLogicalSize = 1'000'000.0f;
 constexpr float kMaxThickness = 100.0f;
 /** @brief Maximum page zoom accepted by the runtime safety budget. */
 constexpr float kMaxZoom = 1'000.0f;
+/** @brief Maximum window width or height accepted by both authoring and runtime loading. */
+constexpr int kMaxWindowExtent = 16384;
 /** @brief Maximum number of generated line segments accepted by the runtime safety budget. */
 constexpr int kMaxPrimitiveSegments = 1024;
 /** @brief Maximum number of points accepted by runtime polyline and bezier payloads. */
@@ -143,6 +147,27 @@ inline bool IsValidTextPayload(const std::string_view value) noexcept
 }
 
 /**
+ * @brief Returns whether one filesystem path stays within the runtime storage budget.
+ * @param value Path to inspect in its native, allocation-free representation.
+ * @return `true` when native path storage does not exceed the text byte budget.
+ */
+inline bool IsValidPathPayload(const std::filesystem::path& value) noexcept
+{
+    const auto& nativeValue = value.native();
+    return nativeValue.size() <= kMaxTextBytes / sizeof(std::filesystem::path::value_type);
+}
+
+/**
+ * @brief Returns whether a window extent can be authored and loaded by the runtime.
+ * @param value Width or height in pixels.
+ * @return `true` when the extent is in `[1, kMaxWindowExtent]`.
+ */
+inline bool IsValidWindowExtent(const int value) noexcept
+{
+    return value > 0 && value <= kMaxWindowExtent;
+}
+
+/**
  * @brief Returns whether a Gregorian year is a leap year.
  * @param year Year to inspect.
  * @return `true` when February has 29 days.
@@ -217,9 +242,11 @@ inline bool IsValidTimeValue(const TimeValue& value) noexcept
  * @param minimumCount Minimum number of points required by the caller.
  * @return `true` when the point list is large enough, bounded, and finite.
  */
-inline bool AreValidPoints(const std::vector<Vec2>& points, const std::size_t minimumCount) noexcept
+inline bool AreValidPoints(const std::vector<Vec2>& points,
+                           const std::size_t minimumCount,
+                           const std::size_t maximumCount = kMaxPrimitivePoints) noexcept
 {
-    if (points.size() < minimumCount || points.size() > kMaxPrimitivePoints)
+    if (points.size() < minimumCount || points.size() > maximumCount)
     {
         return false;
     }
@@ -233,5 +260,119 @@ inline bool AreValidPoints(const std::vector<Vec2>& points, const std::size_t mi
     }
 
     return true;
+}
+
+/**
+ * @brief Returns whether a primitive satisfies the shared authoring/runtime safety budget.
+ * @param primitive Primitive to inspect without mutation.
+ * @return `true` when transforms, style and geometry are finite and bounded.
+ */
+inline bool IsValidPrimitiveForRuntime(const Primitive& primitive) noexcept
+{
+    const bool geometryMatchesType =
+        (primitive.type == PrimitiveType::Text && std::holds_alternative<TextGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Time && std::holds_alternative<TimeGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Line && std::holds_alternative<LineGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Circle && std::holds_alternative<CircleGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Ring && std::holds_alternative<RingGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Rectangle && std::holds_alternative<RectangleGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Ellipse && std::holds_alternative<EllipseGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Square && std::holds_alternative<SquareGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Diamond && std::holds_alternative<DiamondGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Triangle && std::holds_alternative<TriangleGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Polyline && std::holds_alternative<PolylineGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Bezier && std::holds_alternative<BezierGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Arc && std::holds_alternative<ArcGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::Image && std::holds_alternative<ImageGeometry>(primitive.geometry));
+    if (!geometryMatchesType)
+    {
+        return false;
+    }
+
+    if (!IsValidVec2(primitive.transform.position) ||
+        !IsFiniteAbsWithin(primitive.transform.rotationDegrees, kMaxAbsAngleDegrees) ||
+        !IsValidScale(primitive.transform.scale) ||
+        !IsPositiveFiniteWithin(primitive.style.thickness, kMaxThickness))
+    {
+        return false;
+    }
+
+    if (const auto* geometry = std::get_if<TextGeometry>(&primitive.geometry))
+    {
+        return IsPositiveFiniteWithin(geometry->fontSize, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->letterSpacing, kMaxLogicalSize) &&
+               IsValidTextPayload(geometry->text);
+    }
+    if (const auto* geometry = std::get_if<TimeGeometry>(&primitive.geometry))
+    {
+        return IsPositiveFiniteWithin(geometry->fontSize, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->letterSpacing, kMaxLogicalSize) &&
+               IsValidTextPayload(geometry->format);
+    }
+    if (const auto* geometry = std::get_if<LineGeometry>(&primitive.geometry))
+    {
+        return IsValidVec2(geometry->start) && IsValidVec2(geometry->end);
+    }
+    if (const auto* geometry = std::get_if<CircleGeometry>(&primitive.geometry))
+    {
+        return IsFiniteAbsWithin(geometry->radius, kMaxLogicalSize);
+    }
+    if (const auto* geometry = std::get_if<RingGeometry>(&primitive.geometry))
+    {
+        return IsFiniteAbsWithin(geometry->innerRadius, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->outerRadius, kMaxLogicalSize) &&
+               geometry->segments >= 2 && geometry->segments <= kMaxPrimitiveSegments;
+    }
+    if (const auto* geometry = std::get_if<RectangleGeometry>(&primitive.geometry))
+    {
+        return IsFiniteAbsWithin(geometry->width, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->height, kMaxLogicalSize);
+    }
+    if (const auto* geometry = std::get_if<EllipseGeometry>(&primitive.geometry))
+    {
+        return IsFiniteAbsWithin(geometry->width, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->height, kMaxLogicalSize);
+    }
+    if (const auto* geometry = std::get_if<SquareGeometry>(&primitive.geometry))
+    {
+        return IsFiniteAbsWithin(geometry->width, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->height, kMaxLogicalSize) &&
+               geometry->width == geometry->height;
+    }
+    if (const auto* geometry = std::get_if<DiamondGeometry>(&primitive.geometry))
+    {
+        return IsFiniteAbsWithin(geometry->width, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->height, kMaxLogicalSize);
+    }
+    if (const auto* geometry = std::get_if<TriangleGeometry>(&primitive.geometry))
+    {
+        return IsValidVec2(geometry->points[0]) && IsValidVec2(geometry->points[1]) &&
+               IsValidVec2(geometry->points[2]);
+    }
+    if (const auto* geometry = std::get_if<PolylineGeometry>(&primitive.geometry))
+    {
+        const std::size_t maximumCount = geometry->closed ? kMaxFilledPolygonPoints : kMaxPrimitivePoints;
+        return AreValidPoints(geometry->points, 2U, maximumCount);
+    }
+    if (const auto* geometry = std::get_if<BezierGeometry>(&primitive.geometry))
+    {
+        return AreValidPoints(geometry->controlPoints, 2U, kMaxBezierControlPoints) &&
+               geometry->segments >= 2 && geometry->segments <= kMaxPrimitiveSegments;
+    }
+    if (const auto* geometry = std::get_if<ArcGeometry>(&primitive.geometry))
+    {
+        return IsFiniteAbsWithin(geometry->radius, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->startAngleDegrees, kMaxAbsAngleDegrees) &&
+               IsFiniteAbsWithin(geometry->endAngleDegrees, kMaxAbsAngleDegrees) &&
+               geometry->segments >= 2 && geometry->segments <= kMaxPrimitiveSegments;
+    }
+    if (const auto* geometry = std::get_if<ImageGeometry>(&primitive.geometry))
+    {
+        return IsFiniteAbsWithin(geometry->width, kMaxLogicalSize) &&
+               IsFiniteAbsWithin(geometry->height, kMaxLogicalSize) &&
+               IsValidPathPayload(geometry->file);
+    }
+
+    return false;
 }
 } // namespace mfd::runtime_validation

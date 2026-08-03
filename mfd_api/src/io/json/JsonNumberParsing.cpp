@@ -130,8 +130,7 @@ std::uint16_t ParsePortNumber(const nlohmann::json& value, const char* fieldName
 std::size_t ParsePositivePacketSize(const nlohmann::json& value, const char* fieldName)
 {
     const int packetSize = ParseStrictInteger(value, fieldName);
-    if (packetSize < static_cast<int>(kUdpMinPayloadBytes) ||
-        packetSize > static_cast<int>(kUdpMaxPayloadBytes))
+    if (packetSize < 0 || !IsValidUdpPayloadSize(static_cast<std::size_t>(packetSize)))
     {
         throw std::runtime_error(std::string(fieldName) + " must be in [" +
                                  std::to_string(kUdpMinPayloadBytes) + ", " +

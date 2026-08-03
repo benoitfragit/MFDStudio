@@ -30,7 +30,10 @@
 #include <nlohmann/json.hpp>
 
 #include "mfd/model/Reticle.h"
+#include "mfd/ipc/UdpLimits.h"
+#include "mfd/model/RuntimeBudgets.h"
 #include "mfd/model/Types.h"
+#include "mfd/model/internal/RuntimeModelValidation.h"
 
 namespace editor
 {
@@ -41,6 +44,56 @@ using json = nlohmann::json;
 std::optional<json> SerializeReticleClipping(const mfd::ReticleClipState& clipping);
 std::optional<json> SerializeReticleClippingOverride(const mfd::ReticleClipState& clipping,
                                                      const mfd::ReticleClipState& inherited);
+
+void ValidateReticleRuntimeBudgets(const mfd::ReticleGroup& reticle)
+{
+    if (!mfd::runtime_validation::internal::IsValidReticle(reticle))
+    {
+        throw std::runtime_error(
+            "Reticle '" + reticle.id + "' contains values outside runtime safety limits.");
+    }
+}
+
+void ValidatePageRuntimeBudgets(const mfd::PageDefinition& page)
+{
+    if (!mfd::runtime_validation::internal::IsValidPage(page))
+    {
+        throw std::runtime_error(
+            "Page '" + page.name + "' contains values outside runtime safety limits.");
+    }
+}
+
+void ValidateWindowRuntimeBudgets(const mfd::WindowAssetDefinition& window)
+{
+    if (!mfd::runtime_validation::IsValidWindowExtent(window.width) ||
+        !mfd::runtime_validation::IsValidWindowExtent(window.height))
+    {
+        throw std::runtime_error("Window size must stay within the runtime range [1, 16384].");
+    }
+    if (window.commandTransports.udp.has_value() &&
+        !mfd::IsValidUdpPayloadSize(window.commandTransports.udp->maxPacketSize))
+    {
+        throw std::runtime_error("Command UDP packet size must stay within [64, 65507].");
+    }
+    if (window.feedbackTransports.udp.has_value() &&
+        !mfd::IsValidUdpPayloadSize(window.feedbackTransports.udp->maxPacketSize))
+    {
+        throw std::runtime_error("Feedback UDP packet size must stay within [64, 65507].");
+    }
+}
+
+void ValidateDocumentRuntimeBudgets(const mfd::LoadedWindowConfiguration& loaded)
+{
+    ValidateWindowRuntimeBudgets(loaded.window);
+    for (const mfd::PageDefinition& page : loaded.document.pages)
+    {
+        ValidatePageRuntimeBudgets(page);
+    }
+    for (const auto& templateEntry : loaded.document.reticleLibrary)
+    {
+        ValidateReticleRuntimeBudgets(templateEntry.second);
+    }
+}
 
 std::string Lowercase(std::string_view value)
 {
@@ -1761,6 +1814,7 @@ bool DiscoverReticleTemplateFiles(const std::filesystem::path& libraryFolder,
 std::string SerializeReticleTemplateToJsonString(const mfd::ReticleGroup& reticle,
                                                  const std::filesystem::path& baseFolder)
 {
+    ValidateReticleRuntimeBudgets(reticle);
     return JsonToString(SerializeInlineReticle(reticle, baseFolder));
 }
 
@@ -1768,6 +1822,7 @@ std::string SerializePageReticleToJsonString(const mfd::ReticleGroup& reticle,
                                              const mfd::ReticleLibrary& library,
                                              const std::filesystem::path& baseFolder)
 {
+    ValidateReticleRuntimeBudgets(reticle);
     return JsonToString(SerializePageReticle(reticle, library, baseFolder));
 }
 
@@ -1776,6 +1831,7 @@ std::string SerializePageToJsonString(const mfd::PageDefinition& page,
                                       const EditorFileLayout& layout,
                                       const std::size_t pageIndex)
 {
+    ValidatePageRuntimeBudgets(page);
     const std::filesystem::path baseFolder =
         pageIndex < layout.pageFiles.size() ? layout.pageFiles[pageIndex].parent_path() : std::filesystem::path {};
     return JsonToString(SerializePage(page, library, baseFolder));
@@ -1785,6 +1841,7 @@ std::string SerializeWindowToJsonString(const mfd::WindowAssetDefinition& window
                                         const mfd::MfdDocument& document,
                                         const EditorFileLayout& layout)
 {
+    ValidateWindowRuntimeBudgets(window);
     return JsonToString(SerializeWindow(window, document, layout));
 }
 
@@ -1794,6 +1851,7 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
 {
     try
     {
+        ValidateDocumentRuntimeBudgets(loaded);
         const std::vector<std::pair<std::filesystem::path, json>> files =
             CollectEditorDocumentFiles(loaded, layout);
         ValidateSaveTargets(loaded, layout, files);

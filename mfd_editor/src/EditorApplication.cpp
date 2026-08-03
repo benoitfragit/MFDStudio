@@ -49,6 +49,9 @@
 #include "EditorWorkspaceLayout.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "mfd/model/Types.h"
+#include "mfd/ipc/UdpLimits.h"
+#include "mfd/model/RuntimeBudgets.h"
+#include "mfd/model/internal/RuntimeModelValidation.h"
 #include "Canvas2D.h"
 #include "RenderTextureUtils.h"
 #include "mfd/render/WindowBranding.h"
@@ -656,6 +659,11 @@ void AppendPrimitiveProblems(std::vector<editor::PagePreviewProblem>& messages,
     std::unordered_set<std::string> primitiveIds;
     for (const mfd::Primitive& primitive : primitives)
     {
+        if (!mfd::runtime_validation::IsValidPrimitiveForRuntime(primitive))
+        {
+            PushProblem(messages, ownerId, "Primitive values must stay finite and within runtime safety limits.");
+        }
+
         if (primitive.id.empty())
         {
             continue;
@@ -2894,6 +2902,25 @@ void EditorApplication::InvalidateLayerPreviewThumbnails() noexcept
     }
 }
 
+void AppendReticleRuntimeProblems(std::vector<editor::PagePreviewProblem>& messages,
+                                  const mfd::ReticleGroup& reticle,
+                                  const std::string_view ownerId)
+{
+    if (!mfd::runtime_validation::internal::IsValidTransform(reticle.transform))
+    {
+        PushProblem(messages, ownerId, "Reticle transform must stay finite and within runtime safety limits.");
+    }
+    if (!mfd::runtime_validation::internal::IsValidReticleOverrides(reticle.overrides))
+    {
+        PushProblem(messages, ownerId, "Reticle style overrides must stay within runtime safety limits.");
+    }
+    if (!mfd::runtime_validation::internal::IsValidReticleClipping(reticle.clipping))
+    {
+        PushProblem(messages, ownerId, "Reticle clipping id exceeds the runtime text budget.");
+    }
+    AppendPrimitiveProblems(messages, reticle.primitives, ownerId);
+}
+
 void EditorApplication::ReleasePreviewGpuResources() noexcept
 {
     previewState_.previewBezierCache.Clear();
@@ -3167,6 +3194,22 @@ std::vector<editor::PagePreviewProblem> EditorApplication::BuildPagePreviewProbl
         return messages;
     }
 
+    if (!mfd::runtime_validation::IsValidWindowExtent(documentState_.loaded.window.width) ||
+        !mfd::runtime_validation::IsValidWindowExtent(documentState_.loaded.window.height))
+    {
+        PushProblem(messages, "window", "Window size must stay within the runtime range [1, 16384].");
+    }
+    if (documentState_.loaded.window.commandTransports.udp.has_value() &&
+        !mfd::IsValidUdpPayloadSize(documentState_.loaded.window.commandTransports.udp->maxPacketSize))
+    {
+        PushProblem(messages, "window", "Command UDP packet size must stay within [64, 65507].");
+    }
+    if (documentState_.loaded.window.feedbackTransports.udp.has_value() &&
+        !mfd::IsValidUdpPayloadSize(documentState_.loaded.window.feedbackTransports.udp->maxPacketSize))
+    {
+        PushProblem(messages, "window", "Feedback UDP packet size must stay within [64, 65507].");
+    }
+
     if (!documentState_.loaded.document.pages.empty() && documentState_.files.pageFiles.size() != documentState_.loaded.document.pages.size())
     {
         PushProblem(messages, "window", "Page file layout count must match the number of authored pages.");
@@ -3182,6 +3225,11 @@ std::vector<editor::PagePreviewProblem> EditorApplication::BuildPagePreviewProbl
         if (page.name.empty())
         {
             PushProblem(messages, pageId, "Page name cannot be empty.");
+        }
+
+        if (!mfd::runtime_validation::internal::IsValidPageView(page.view))
+        {
+            PushProblem(messages, pageId, "Page view must stay finite and within runtime safety limits.");
         }
 
         if (!pageNames.insert(normalizedPageId).second)
@@ -3315,7 +3363,7 @@ std::vector<editor::PagePreviewProblem> EditorApplication::BuildPagePreviewProbl
                 PushProblem(messages, reticleId, "Page reticles must reference an existing runtime page layer.");
             }
 
-            AppendPrimitiveProblems(messages, reticle.primitives, reticleId);
+            AppendReticleRuntimeProblems(messages, reticle, reticleId);
             if (reticle.clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(reticle) == nullptr)
             {
                 PushProblem(messages, reticleId, "Reticle clipping must reference an existing supported primitive.");
@@ -3331,19 +3379,30 @@ std::vector<editor::PagePreviewProblem> EditorApplication::BuildPagePreviewProbl
 
         for (const auto& strobe : page.strobes)
         {
+            const std::string strobeId = pageId + "/strobe/" + NormalizeEditorIdentifier(strobe.name);
+            AppendReticleRuntimeProblems(messages, strobe.reticle, strobeId);
+            if (!mfd::runtime_validation::internal::IsValidStrobeCapture(strobe.capture))
+            {
+                PushProblem(messages, strobeId, "Strobe capture values must stay within runtime safety limits.");
+            }
+            if (!mfd::runtime_validation::internal::IsValidStrobeMagnet(strobe.magnet))
+            {
+                PushProblem(messages, strobeId, "Strobe magnet values must stay within runtime safety limits.");
+            }
+
             if (strobe.reticle.blink.enabled &&
                 !strobe.reticle.blink.typeName.empty() &&
                 mfd::FindPageBlinkDefinition(page, strobe.reticle.blink.typeName) == nullptr)
             {
                 PushProblem(messages,
-                            pageId,
+                            strobeId,
                             "Page strobe blink bindings must reference one page-local blink type.");
             }
 
             if (strobe.reticle.clipping.mode != mfd::ReticleClipMode::None &&
                 mfd::ResolveClipPrimitive(strobe.reticle) == nullptr)
             {
-                PushProblem(messages, pageId, "Page strobe clipping must reference an existing supported primitive.");
+                PushProblem(messages, strobeId, "Page strobe clipping must reference an existing supported primitive.");
             }
         }
     }
@@ -3361,7 +3420,7 @@ std::vector<editor::PagePreviewProblem> EditorApplication::BuildPagePreviewProbl
             PushProblem(messages, reticleId, "Missing template file path for reticle asset.");
         }
 
-        AppendPrimitiveProblems(messages, reticle.primitives, reticleId);
+        AppendReticleRuntimeProblems(messages, reticle, reticleId);
         if (reticle.clipping.mode != mfd::ReticleClipMode::None && mfd::ResolveClipPrimitive(reticle) == nullptr)
         {
             PushProblem(messages, reticleId, "Reticle clipping must reference an existing supported primitive.");
@@ -8498,8 +8557,10 @@ void EditorApplication::DrawPopups()
         int windowSize[2] {workflowState_.newWindowDraft.width, workflowState_.newWindowDraft.height};
         if (ImGui::InputInt2("Size (px)", windowSize))
         {
-            workflowState_.newWindowDraft.width = windowSize[0];
-            workflowState_.newWindowDraft.height = windowSize[1];
+            workflowState_.newWindowDraft.width =
+                std::clamp(windowSize[0], 1, mfd::runtime_validation::kMaxWindowExtent);
+            workflowState_.newWindowDraft.height =
+                std::clamp(windowSize[1], 1, mfd::runtime_validation::kMaxWindowExtent);
         }
         int windowPosition[2] {workflowState_.newWindowDraft.positionX, workflowState_.newWindowDraft.positionY};
         if (ImGui::InputInt2("Position (px)", windowPosition))
@@ -8527,7 +8588,13 @@ void EditorApplication::DrawPopups()
             ImGui::Checkbox("Enable command UDP", &workflowState_.newWindowDraft.commandUdpEnabled);
             ImGui::InputText("Command address", workflowState_.newWindowDraft.commandAddress.data(), workflowState_.newWindowDraft.commandAddress.size());
             ImGui::InputInt("Command port", &workflowState_.newWindowDraft.commandPort);
-            ImGui::InputInt("Command max packet", &workflowState_.newWindowDraft.commandMaxPacketSize);
+            if (ImGui::InputInt("Command max packet", &workflowState_.newWindowDraft.commandMaxPacketSize))
+            {
+                workflowState_.newWindowDraft.commandMaxPacketSize = std::clamp(
+                    workflowState_.newWindowDraft.commandMaxPacketSize,
+                    static_cast<int>(mfd::kUdpMinPayloadBytes),
+                    static_cast<int>(mfd::kUdpMaxPayloadBytes));
+            }
         }
 
         ImGui::SeparatorText("Feedback UDP (outgoing)");
@@ -8537,7 +8604,13 @@ void EditorApplication::DrawPopups()
             ImGui::Checkbox("Enable feedback UDP", &workflowState_.newWindowDraft.feedbackUdpEnabled);
             ImGui::InputText("Feedback address", workflowState_.newWindowDraft.feedbackAddress.data(), workflowState_.newWindowDraft.feedbackAddress.size());
             ImGui::InputInt("Feedback port", &workflowState_.newWindowDraft.feedbackPort);
-            ImGui::InputInt("Feedback max packet", &workflowState_.newWindowDraft.feedbackMaxPacketSize);
+            if (ImGui::InputInt("Feedback max packet", &workflowState_.newWindowDraft.feedbackMaxPacketSize))
+            {
+                workflowState_.newWindowDraft.feedbackMaxPacketSize = std::clamp(
+                    workflowState_.newWindowDraft.feedbackMaxPacketSize,
+                    static_cast<int>(mfd::kUdpMinPayloadBytes),
+                    static_cast<int>(mfd::kUdpMaxPayloadBytes));
+            }
             if (ImGui::DragFloat("Fast interval",
                                  &workflowState_.newWindowDraft.feedbackFastIntervalSeconds,
                                  0.001f,

@@ -246,31 +246,33 @@ TEST(DocumentSemanticValidatorTests, CountsEditorLayersInAggregateLayerBudget)
 
 TEST(DocumentSemanticValidatorTests, AcceptsAndRejectsAggregatePrimitiveProductBoundary)
 {
+    const mfd::Primitive validPrimitive = MakePrimitive({}, mfd::PrimitiveType::Line);
     mfd::ReticleGroup first = MakeReticle("first");
     first.visible = false;
-    first.primitives.resize(mfd::runtime_validation::kMaxDocumentPrimitives / 2U);
+    first.primitives.assign(mfd::runtime_validation::kMaxDocumentPrimitives / 2U, validPrimitive);
     mfd::ReticleGroup second = MakeReticle("second");
     second.visible = false;
-    second.primitives.resize(
-        mfd::runtime_validation::kMaxDocumentPrimitives - first.primitives.size());
+    second.primitives.assign(
+        mfd::runtime_validation::kMaxDocumentPrimitives - first.primitives.size(), validPrimitive);
 
     mfd::MfdDocument document = MakeDocumentWithReticle(std::move(first));
     document.pages.front().staticReticles.push_back(std::move(second));
     EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(document).empty());
 
-    document.pages.front().staticReticles.back().primitives.emplace_back();
+    document.pages.front().staticReticles.back().primitives.push_back(validPrimitive);
     EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
               std::vector<std::string> {"MFD023"});
 }
 
 TEST(DocumentSemanticValidatorTests, AcceptsAndRejectsVisiblePrimitiveBoundary)
 {
+    const mfd::Primitive validPrimitive = MakePrimitive({}, mfd::PrimitiveType::Line);
     mfd::ReticleGroup reticle = MakeReticle("visible");
-    reticle.primitives.resize(mfd::runtime_validation::kMaxDocumentVisiblePrimitives);
+    reticle.primitives.assign(mfd::runtime_validation::kMaxDocumentVisiblePrimitives, validPrimitive);
     mfd::MfdDocument document = MakeDocumentWithReticle(std::move(reticle));
     EXPECT_TRUE(mfd::DocumentSemanticValidator {}.Validate(document).empty());
 
-    document.pages.front().staticReticles.front().primitives.emplace_back();
+    document.pages.front().staticReticles.front().primitives.push_back(validPrimitive);
     EXPECT_EQ(DiagnosticCodes(mfd::DocumentSemanticValidator {}.Validate(document)),
               std::vector<std::string> {"MFD024"});
 }

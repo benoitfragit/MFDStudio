@@ -25,6 +25,8 @@
 #include "EditorUiTheme.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "TimeFormatValidation.h"
+#include "mfd/ipc/UdpLimits.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 namespace
 {
@@ -332,8 +334,10 @@ void EditorApplication::DrawWindowInspector()
     }
     if (sizeChanged)
     {
-        documentState_.loaded.window.width = std::max(1, windowSize[0]);
-        documentState_.loaded.window.height = std::max(1, windowSize[1]);
+        documentState_.loaded.window.width =
+            std::clamp(windowSize[0], 1, mfd::runtime_validation::kMaxWindowExtent);
+        documentState_.loaded.window.height =
+            std::clamp(windowSize[1], 1, mfd::runtime_validation::kMaxWindowExtent);
     }
 
     int windowPosition[2] {documentState_.loaded.window.positionX, documentState_.loaded.window.positionY};
@@ -461,7 +465,10 @@ void EditorApplication::DrawWindowInspector()
         }
         if (commandMaxPacketChanged)
         {
-            commandUdp.maxPacketSize = std::max(512, commandMaxPacketSize);
+            commandUdp.maxPacketSize = static_cast<std::size_t>(std::clamp(
+                commandMaxPacketSize,
+                static_cast<int>(mfd::kUdpMinPayloadBytes),
+                static_cast<int>(mfd::kUdpMaxPayloadBytes)));
         }
     }
 
@@ -531,7 +538,10 @@ void EditorApplication::DrawWindowInspector()
         }
         if (feedbackMaxPacketChanged)
         {
-            feedbackUdp.maxPacketSize = std::max(512, feedbackMaxPacketSize);
+            feedbackUdp.maxPacketSize = static_cast<std::size_t>(std::clamp(
+                feedbackMaxPacketSize,
+                static_cast<int>(mfd::kUdpMinPayloadBytes),
+                static_cast<int>(mfd::kUdpMaxPayloadBytes)));
         }
 
         const bool fastIntervalChanged =
@@ -4127,11 +4137,16 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             EditPointArrayField(label.c_str(), polyline->points[static_cast<std::size_t>(index)]);
         }
 
+        const std::size_t maximumPointCount = polyline->closed
+                                                  ? mfd::runtime_validation::kMaxFilledPolygonPoints
+                                                  : mfd::runtime_validation::kMaxPrimitivePoints;
+        ImGui::BeginDisabled(polyline->points.size() >= maximumPointCount);
         if (ImGui::Button("Add point"))
         {
             PushUndoSnapshot();
             polyline->points.push_back({});
         }
+        ImGui::EndDisabled();
         ShowItemTooltip("Append one new point to the end of the polyline.");
         ImGui::SameLine();
         if (ImGui::Button("Remove last point") && !polyline->points.empty())
@@ -4151,11 +4166,13 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             EditPointArrayField(label.c_str(), bezier->controlPoints[static_cast<std::size_t>(index)]);
         }
 
+        ImGui::BeginDisabled(bezier->controlPoints.size() >= mfd::runtime_validation::kMaxBezierControlPoints);
         if (ImGui::Button("Add control point"))
         {
             PushUndoSnapshot();
             bezier->controlPoints.push_back({});
         }
+        ImGui::EndDisabled();
         ShowItemTooltip("Append one new control point to this bezier curve.");
         ImGui::SameLine();
         if (ImGui::Button("Remove last control point") && !bezier->controlPoints.empty())
@@ -4165,13 +4182,15 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         }
         ShowItemTooltip("Remove the last control point from this bezier curve.");
 
-        if (ImGui::DragInt("Segments", &bezier->segments, 1.0f, 2, 128))
+        if (ImGui::DragInt(
+                "Segments", &bezier->segments, 1.0f, 2, mfd::runtime_validation::kMaxPrimitiveSegments))
         {
             if (ImGui::IsItemActivated())
             {
                 PushUndoSnapshot();
             }
-            bezier->segments = std::clamp(bezier->segments, 2, 128);
+            bezier->segments =
+                std::clamp(bezier->segments, 2, mfd::runtime_validation::kMaxPrimitiveSegments);
         }
         ShowItemTooltip("Number of line segments used to approximate the bezier curve.");
         return;
