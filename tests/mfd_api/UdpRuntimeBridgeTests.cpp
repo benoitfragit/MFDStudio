@@ -568,6 +568,41 @@ TEST(UdpRuntimeBridgeTests, CoalescingFallsBackToStringAddressingWhenIdsAreAbsen
     EXPECT_FLOAT_EQ(command->patch.position->x, 0.2f);
 }
 
+TEST(UdpRuntimeBridgeTests, CoalescingPreservesPageActivationOrder)
+{
+    mfd::CommandBatch batch;
+    batch.sequence = 32U;
+    batch.commands.push_back(mfd::ActivatePageCommand {"Radar"});
+    batch.commands.push_back(MakeGeneratedStrobeCommand(true, std::nullopt));
+    batch.commands.push_back(mfd::ActivatePageCommand {"Navigation"});
+
+    EXPECT_EQ(mfd::detail::CoalesceCommandBatch(batch), 0U);
+    ASSERT_EQ(batch.commands.size(), 3U);
+    const auto* firstActivation = std::get_if<mfd::ActivatePageCommand>(&batch.commands[0]);
+    const auto* strobeUpdate = std::get_if<mfd::UpdateStrobeCommand>(&batch.commands[1]);
+    const auto* secondActivation = std::get_if<mfd::ActivatePageCommand>(&batch.commands[2]);
+    ASSERT_NE(firstActivation, nullptr);
+    ASSERT_NE(strobeUpdate, nullptr);
+    ASSERT_NE(secondActivation, nullptr);
+    EXPECT_EQ(firstActivation->page, "Radar");
+    EXPECT_EQ(secondActivation->page, "Navigation");
+}
+
+TEST(UdpRuntimeBridgeTests, CoalescingDoesNotCrossUnrelatedStateCommands)
+{
+    mfd::CommandBatch batch;
+    batch.sequence = 32U;
+    batch.commands.push_back(MakeReticlePositionCommand(0.1f));
+    batch.commands.push_back(MakeWindowBrightnessCommand(0.5f));
+    batch.commands.push_back(MakeReticlePositionCommand(0.2f));
+
+    EXPECT_EQ(mfd::detail::CoalesceCommandBatch(batch), 0U);
+    ASSERT_EQ(batch.commands.size(), 3U);
+    EXPECT_NE(std::get_if<mfd::UpdateReticleCommand>(&batch.commands[0]), nullptr);
+    EXPECT_NE(std::get_if<mfd::UpdateWindowDisplayCommand>(&batch.commands[1]), nullptr);
+    EXPECT_NE(std::get_if<mfd::UpdateReticleCommand>(&batch.commands[2]), nullptr);
+}
+
 TEST(UdpRuntimeBridgeTests, CoalescingPreservesEventLikeCommandBarriers)
 {
     auto receiverState = std::make_shared<FakeChannelState>();

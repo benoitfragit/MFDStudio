@@ -17,7 +17,7 @@
 namespace mfd::detail
 {
 /**
- * @brief Coalesces mergeable state-like commands in place inside one batch.
+ * @brief Coalesces adjacent mergeable state-like commands in place inside one batch.
  * @param batch Batch whose commands may be merged or replaced in place.
  * @return Number of commands removed by coalescing.
  */

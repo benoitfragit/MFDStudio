@@ -27,7 +27,6 @@
 #include <string_view>
 #include <thread>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <variant>
 
@@ -57,7 +56,6 @@ constexpr auto kIdleWait = std::chrono::milliseconds(5);
 
 enum class CommandCoalescingKind
 {
-    ActivatePage,
     SetPageView,
     UpdateWindowDisplay,
     UpdateReticle,
@@ -75,7 +73,7 @@ struct CoalescingIdentifier
 
 struct CommandCoalescingKey
 {
-    CommandCoalescingKind kind = CommandCoalescingKind::ActivatePage;
+    CommandCoalescingKind kind = CommandCoalescingKind::SetPageView;
     CoalescingIdentifier page {};
     CoalescingIdentifier reticle {};
     CoalescingIdentifier dynamicTemplate {};
@@ -151,35 +149,6 @@ bool operator==(const CommandCoalescingKey& lhs, const CommandCoalescingKey& rhs
            lhs.dynamicTemplate == rhs.dynamicTemplate &&
            lhs.strobe == rhs.strobe;
 }
-
-template <typename Value>
-void HashCombine(std::size_t& seed, const Value& value) noexcept
-{
-    seed ^= std::hash<Value> {}(value) + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
-}
-
-void HashIdentifier(std::size_t& seed, const CoalescingIdentifier& identifier) noexcept
-{
-    HashCombine(seed, identifier.numericId);
-    if (identifier.numericId == 0U && !identifier.text.empty())
-    {
-        HashCombine(seed, identifier.text);
-    }
-}
-
-struct CommandCoalescingKeyHash
-{
-    std::size_t operator()(const CommandCoalescingKey& key) const noexcept
-    {
-        std::size_t seed = 0U;
-        HashCombine(seed, static_cast<std::size_t>(key.kind));
-        HashIdentifier(seed, key.page);
-        HashIdentifier(seed, key.reticle);
-        HashIdentifier(seed, key.dynamicTemplate);
-        HashIdentifier(seed, key.strobe);
-        return seed;
-    }
-};
 
 std::uint64_t LoadCounter(const std::atomic<std::uint64_t>& counter) noexcept
 {
@@ -431,7 +400,8 @@ struct CommandCoalescingKeyVisitor
 {
     std::optional<CommandCoalescingKey> operator()(const ActivatePageCommand&) const
     {
-        return CommandCoalescingKey {CommandCoalescingKind::ActivatePage};
+        // Page activation changes the context in which following commands are observed.
+        return std::nullopt;
     }
 
     std::optional<CommandCoalescingKey> operator()(const SetPageViewCommand& command) const
@@ -576,28 +546,20 @@ public:
 
         std::vector<UserCommand> commands;
         commands.reserve(batch.commands.size());
-        std::unordered_map<CommandCoalescingKey, std::size_t, CommandCoalescingKeyHash> indexes;
+        std::optional<CommandCoalescingKey> previousKey;
         std::size_t coalescedCommands = 0;
 
         for (const UserCommand& command : batch.commands)
         {
             const std::optional<CommandCoalescingKey> key = MakeCommandCoalescingKey(command);
-            if (!key.has_value())
+            if (!key.has_value() || !previousKey.has_value() || !(*key == *previousKey))
             {
-                indexes.clear();
                 commands.push_back(command);
+                previousKey = key;
                 continue;
             }
 
-            const auto iterator = indexes.find(*key);
-            if (iterator == indexes.end())
-            {
-                indexes.emplace(*key, commands.size());
-                commands.push_back(command);
-                continue;
-            }
-
-            MergeCoalescedCommand(commands[iterator->second], command);
+            MergeCoalescedCommand(commands.back(), command);
             ++coalescedCommands;
         }
 
