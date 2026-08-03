@@ -5,6 +5,8 @@
  */
 #include "EditorDocumentSerializer.h"
 
+#include "mfd/core/internal/JsonAssetDiscovery.h"
+
 /**
  * @file
  * @brief JSON serializer used by the editor save workflow for windows, pages and reticle templates.
@@ -1718,25 +1720,26 @@ bool DiscoverReticleTemplateFiles(const std::filesystem::path& libraryFolder,
 {
     try
     {
-        layout.templateFiles.clear();
+        const std::vector<std::filesystem::path> jsonFiles = mfd::detail::DiscoverSortedJsonAssetFiles(libraryFolder);
+        decltype(layout.templateFiles) discoveredFiles;
+        discoveredFiles.reserve(jsonFiles.size());
+        mfd::detail::AssetIdentifierOrigins identifierOrigins;
+        identifierOrigins.reserve(jsonFiles.size());
 
-        if (!std::filesystem::exists(libraryFolder))
+        for (const std::filesystem::path& file : jsonFiles)
         {
-            throw std::runtime_error("Reticle library folder does not exist: " + libraryFolder.string());
+            if (auto templateId = TryReadTemplateId(file); templateId.has_value())
+            {
+                if (templateId->empty())
+                {
+                    *templateId = file.stem().string();
+                }
+                mfd::detail::RegisterUniqueAssetIdentifier(identifierOrigins, *templateId, file, "reticle template");
+                discoveredFiles.emplace(*templateId, file);
+            }
         }
 
-        for (const auto& entry : std::filesystem::directory_iterator(libraryFolder))
-        {
-            if (!entry.is_regular_file() || Lowercase(entry.path().extension().string()) != ".json")
-            {
-                continue;
-            }
-
-            if (const auto templateId = TryReadTemplateId(entry.path()); templateId.has_value())
-            {
-                layout.templateFiles.emplace(*templateId, entry.path().lexically_normal());
-            }
-        }
+        layout.templateFiles = std::move(discoveredFiles);
 
         if (error != nullptr)
         {

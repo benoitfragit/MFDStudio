@@ -463,6 +463,36 @@ TEST(JsonLoaderTests, LoadDocumentReportsInvalidJsonPathAndParseContext)
     }
 }
 
+TEST(JsonLoaderTests, LoadWindowConfigurationRejectsCaseInsensitiveDuplicateTemplateIds)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path firstTemplate = workspace.Path() / "reticles" / "a_first.json";
+    const std::filesystem::path secondTemplate = workspace.Path() / "reticles" / "z_second.json";
+    const std::filesystem::path pageFile = workspace.Path() / "pages" / "main.json";
+    const std::filesystem::path windowFile = workspace.Path() / "window.json";
+
+    WriteTextFile(firstTemplate, R"json({"id":"Radar_Track","elements":[]})json");
+    WriteTextFile(secondTemplate, R"json({"id":"radar_track","elements":[]})json");
+    WriteTextFile(pageFile, R"json({"name":"Main","layers":[{"id":"default"}]})json");
+    WriteTextFile(
+        windowFile,
+        R"json({"reticleLibraryFolder":"reticles","pages":["pages/main.json"]})json");
+
+    mfd::JsonLoader loader;
+    try
+    {
+        loader.LoadWindowConfiguration(windowFile);
+        FAIL() << "Expected duplicate template identifiers to be rejected";
+    }
+    catch (const std::runtime_error& exception)
+    {
+        const std::string error = exception.what();
+        EXPECT_NE(error.find("Duplicate reticle template id 'radar_track'"), std::string::npos);
+        EXPECT_NE(error.find(firstTemplate.string()), std::string::npos);
+        EXPECT_NE(error.find(secondTemplate.string()), std::string::npos);
+    }
+}
+
 TEST(JsonLoaderTests, LoadWindowConfigurationAndLoadDocumentSupportWindowAliasesAndPageWrapper)
 {
     TemporaryFolder workspace;

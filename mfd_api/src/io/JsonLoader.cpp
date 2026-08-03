@@ -22,6 +22,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "mfd/core/internal/JsonAssetDiscovery.h"
 #include "mfd/model/RuntimeBudgets.h"
 #include "json/JsonNumberParsing.h"
 #include "json/JsonValueHelpers.h"
@@ -1839,21 +1840,11 @@ ReticleLibrary LoadReticleLibrary(const std::filesystem::path& folder)
         throw std::runtime_error("Reticle library folder does not exist: " + folder.string());
     }
 
-    std::vector<std::filesystem::path> jsonFiles;
-
-    for (const auto& entry : std::filesystem::directory_iterator(folder))
-    {
-        if (!entry.is_regular_file() || entry.path().extension() != ".json")
-        {
-            continue;
-        }
-
-        jsonFiles.push_back(entry.path());
-    }
-
-    std::sort(jsonFiles.begin(), jsonFiles.end());
-
+    const std::vector<std::filesystem::path> jsonFiles = detail::DiscoverSortedJsonAssetFiles(folder);
     ReticleLibrary library;
+    detail::AssetIdentifierOrigins identifierOrigins;
+    identifierOrigins.reserve(jsonFiles.size());
+    library.reserve(jsonFiles.size());
 
     for (const auto& file : jsonFiles)
     {
@@ -1876,7 +1867,8 @@ ReticleLibrary LoadReticleLibrary(const std::filesystem::path& folder)
                 group.sourceTemplateId = group.id;
             }
 
-            library[group.id] = std::move(group);
+            detail::RegisterUniqueAssetIdentifier(identifierOrigins, group.id, file, "reticle template");
+            library.emplace(group.id, std::move(group));
         }
         catch (const std::exception& exception)
         {

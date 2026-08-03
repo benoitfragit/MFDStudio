@@ -93,6 +93,50 @@ TEST(EditorDocumentSerializerTests, DiscoverReticleTemplateFilesLoadsValidJsonTe
     EXPECT_EQ(layout.templateFiles.at("radar_track"), validTemplate.lexically_normal());
 }
 
+TEST(EditorDocumentSerializerTests, DiscoverReticleTemplateFilesRejectsCaseInsensitiveDuplicateIds)
+{
+    ScopedTempDir tempDir;
+    const auto firstTemplate = tempDir.Path() / "a_first.json";
+    const auto secondTemplate = tempDir.Path() / "z_second.json";
+    {
+        std::ofstream out(firstTemplate);
+        out << R"({"id":"Radar_Track","elements":[]})";
+    }
+    {
+        std::ofstream out(secondTemplate);
+        out << R"({"id":"radar_track","elements":[]})";
+    }
+
+    editor::EditorFileLayout layout;
+    layout.templateFiles.emplace("existing", tempDir.Path() / "existing.json");
+    std::string error;
+    const bool ok = editor::DiscoverReticleTemplateFiles(tempDir.Path(), layout, &error);
+
+    EXPECT_FALSE(ok);
+    EXPECT_NE(error.find("Duplicate reticle template id 'radar_track'"), std::string::npos);
+    EXPECT_NE(error.find(firstTemplate.string()), std::string::npos);
+    EXPECT_NE(error.find(secondTemplate.string()), std::string::npos);
+    ASSERT_EQ(layout.templateFiles.size(), 1U);
+    EXPECT_NE(layout.templateFiles.find("existing"), layout.templateFiles.end());
+
+    {
+        std::ofstream out(firstTemplate);
+        out << R"({"id":"radar_track","elements":[]})";
+    }
+    {
+        std::ofstream out(secondTemplate);
+        out << R"({"id":"Radar_Track","elements":[]})";
+    }
+    error.clear();
+
+    EXPECT_FALSE(editor::DiscoverReticleTemplateFiles(tempDir.Path(), layout, &error));
+    EXPECT_NE(error.find("Duplicate reticle template id"), std::string::npos);
+    EXPECT_NE(error.find(firstTemplate.string()), std::string::npos);
+    EXPECT_NE(error.find(secondTemplate.string()), std::string::npos);
+    ASSERT_EQ(layout.templateFiles.size(), 1U);
+    EXPECT_NE(layout.templateFiles.find("existing"), layout.templateFiles.end());
+}
+
 TEST(EditorDocumentSerializerTests, DiscoverReticleTemplateFilesFailsWhenFolderIsMissing)
 {
     editor::EditorFileLayout layout;
