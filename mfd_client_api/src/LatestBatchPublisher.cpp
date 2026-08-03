@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "mfd/control/CommandClient.h"
+#include "mfd/core/internal/CompositeKey.h"
 
 namespace mfd::client
 {
@@ -78,17 +79,32 @@ std::string MakeDynamicReticleKey(const std::string& page,
                                   const std::string& reticleId,
                                   const mfd::RuntimeDynamicId runtimeReticleId = 0)
 {
+    std::string key;
+    key.reserve(1U + page.size() + mfd::detail::kCompositeKeyFieldOverhead +
+                (runtimeReticleId != 0
+                     ? mfd::detail::kCompositeKeyFieldOverhead
+                     : reticleId.size() + mfd::detail::kCompositeKeyFieldOverhead));
+    key.push_back('D');
+    mfd::detail::AppendCompositeStringField(key, 'P', page);
     if (runtimeReticleId != 0)
     {
-        return page + '\x1F' + std::to_string(runtimeReticleId);
+        mfd::detail::AppendCompositeUnsignedField(key, 'R', runtimeReticleId);
+        return key;
     }
 
-    return page + '\x1F' + reticleId;
+    mfd::detail::AppendCompositeStringField(key, 'N', reticleId);
+    return key;
 }
 
 std::string MakeDynamicTemplateKey(const std::string& page, const std::string& templateId)
 {
-    return page + '\x1E' + templateId;
+    std::string key;
+    key.reserve(1U + page.size() + templateId.size() +
+                2U * mfd::detail::kCompositeKeyFieldOverhead);
+    key.push_back('T');
+    mfd::detail::AppendCompositeStringField(key, 'P', page);
+    mfd::detail::AppendCompositeStringField(key, 'T', templateId);
+    return key;
 }
 
 std::string MakeDynamicLifecycleKey(const mfd::UpsertDynamicReticleCommand& command)
@@ -108,7 +124,9 @@ std::string MakeDynamicLifecycleKey(const mfd::SetDynamicReticleSetVisibilityCom
 
 std::string MakeDynamicLifecycleKey(const mfd::SetDynamicReticleSetStrobeMagnetEnabledCommand& command)
 {
-    return MakeDynamicTemplateKey(command.page, command.templateId) + '\x1D' + "strobe_magnet";
+    std::string key = MakeDynamicTemplateKey(command.page, command.templateId);
+    mfd::detail::AppendCompositeStringField(key, 'F', "strobe_magnet");
+    return key;
 }
 
 void PutDynamicLifecycleCommand(std::vector<DynamicLifecycleOperation>& operations,
@@ -202,14 +220,24 @@ using StaticUpdateKeyToIndex = std::unordered_map<std::string, std::size_t>;
 
 std::string MakeStaticReticleKey(const mfd::StaticReticleHandle& target)
 {
+    std::string key;
     if (target.pageId != 0 && target.reticleId != 0)
     {
-        return '\x02' + std::to_string(target.pageId) + '\x1F' + std::to_string(target.reticleId);
+        key.reserve(1U + 2U * mfd::detail::kCompositeKeyFieldOverhead);
+        key.push_back('S');
+        mfd::detail::AppendCompositeUnsignedField(key, 'P', target.pageId);
+        mfd::detail::AppendCompositeUnsignedField(key, 'R', target.reticleId);
+        return key;
     }
 
     if (!target.page.empty() && !target.reticle.empty())
     {
-        return '\x01' + target.page + '\x1F' + target.reticle;
+        key.reserve(1U + target.page.size() + target.reticle.size() +
+                    2U * mfd::detail::kCompositeKeyFieldOverhead);
+        key.push_back('S');
+        mfd::detail::AppendCompositeStringField(key, 'P', target.page);
+        mfd::detail::AppendCompositeStringField(key, 'R', target.reticle);
+        return key;
     }
 
     return {};

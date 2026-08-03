@@ -277,6 +277,34 @@ TEST(SceneRegistryTests, ActivatesFirstPageAndIgnoresUnknownPage)
     EXPECT_EQ(registry.ActivePageName(), "Navigation");
 }
 
+TEST(SceneRegistryTests, CompositeReticleKeysKeepDelimiterBearingIdentifiersDistinct)
+{
+    mfd::PageDefinition firstPage;
+    firstPage.name = "a:b";
+    firstPage.normalizedName = "a:b";
+    firstPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+    firstPage.staticReticles.push_back(MakeReticle("c"));
+
+    mfd::PageDefinition secondPage;
+    secondPage.name = "a";
+    secondPage.normalizedName = "a";
+    secondPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+    secondPage.staticReticles.push_back(MakeReticle("b:c"));
+
+    mfd::MfdDocument document;
+    document.pages.push_back(std::move(firstPage));
+    document.pages.push_back(std::move(secondPage));
+    mfd::SceneRegistry registry(std::move(document));
+
+    ASSERT_TRUE(registry.SetReticleVisible("a:b", "c", false));
+    const mfd::ReticleGroup* firstReticle = FindReticle(registry.CollectPageReticlePointers("a:b"), "c");
+    const mfd::ReticleGroup* secondReticle = FindReticle(registry.CollectPageReticlePointers("a"), "b:c");
+    ASSERT_NE(firstReticle, nullptr);
+    ASSERT_NE(secondReticle, nullptr);
+    EXPECT_FALSE(firstReticle->visible);
+    EXPECT_TRUE(secondReticle->visible);
+}
+
 TEST(SceneRegistryTests, CollectPageReticleViewsDrawsTopReticlesAfterRegularOnes)
 {
     mfd::PageDefinition page;

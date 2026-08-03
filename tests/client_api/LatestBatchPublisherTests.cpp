@@ -280,6 +280,96 @@ TEST(LatestBatchPublisherTests, PreservesPendingDynamicReticleLifecycleCommands)
     EXPECT_FALSE(ContainsCommandType<mfd::SetPageViewCommand>(deliveredBatches[1]));
 }
 
+TEST(LatestBatchPublisherTests, NumericAndTextDynamicIdentifiersDoNotCollideDuringMerge)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0U;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+            if (enteredSendCount == 1U)
+            {
+                condition.wait(
+                    lock,
+                    [&releaseFirstSend]()
+                    {
+                        return releaseFirstSend;
+                    });
+            }
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            std::chrono::seconds {1},
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::DynamicReticleHandle numericHandle;
+    numericHandle.page = "radar";
+    numericHandle.runtimeReticleId = 1U;
+    mfd::CommandBatch numericBatch;
+    numericBatch.sequence = 2U;
+    numericBatch.mappingHash = "hash-alpha";
+    numericBatch.commands.push_back(mfd::RemoveDynamicReticleCommand {numericHandle});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(numericBatch)));
+
+    mfd::DynamicReticleHandle textualHandle;
+    textualHandle.page = "radar";
+    textualHandle.reticleId = "1";
+    mfd::CommandBatch textualBatch;
+    textualBatch.sequence = 3U;
+    textualBatch.mappingHash = "hash-alpha";
+    textualBatch.commands.push_back(mfd::RemoveDynamicReticleCommand {textualHandle});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(textualBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    std::size_t numericRemovalCount = 0U;
+    std::size_t textualRemovalCount = 0U;
+    for (const mfd::UserCommand& command : deliveredBatches[1].commands)
+    {
+        const auto* removal = std::get_if<mfd::RemoveDynamicReticleCommand>(&command);
+        if (removal == nullptr)
+        {
+            continue;
+        }
+
+        if (removal->target.runtimeReticleId == 1U)
+        {
+            ++numericRemovalCount;
+        }
+        if (removal->target.reticleId == "1")
+        {
+            ++textualRemovalCount;
+        }
+    }
+
+    EXPECT_EQ(numericRemovalCount, 1U);
+    EXPECT_EQ(textualRemovalCount, 1U);
+}
+
 TEST(LatestBatchPublisherTests, PreservesPendingResetWindowCommandWhenMergingNewerSameHashBatch)
 {
     std::mutex mutex;

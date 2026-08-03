@@ -11,6 +11,7 @@
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "mfd/control/CommandTypes.h"
+#include "mfd/core/internal/CompositeKey.h"
 #include "mfd/model/RuntimeBudgets.h"
 
 #include <algorithm>
@@ -3671,11 +3672,13 @@ const SceneRegistry::PageComponent* SceneRegistry::FindPage(const std::string_vi
 std::string SceneRegistry::MakeStrobeLookupKey(const std::string_view normalizedPageName,
                                                const std::string_view strobeName) const
 {
+    const std::string normalizedStrobeName = NormalizePageName(strobeName);
     std::string key;
-    key.reserve(normalizedPageName.size() + strobeName.size() + 1U);
-    key.append(normalizedPageName);
-    key.push_back('\x1F');
-    key.append(NormalizePageName(strobeName));
+    key.reserve(1U + normalizedPageName.size() + normalizedStrobeName.size() +
+                2U * detail::kCompositeKeyFieldOverhead);
+    key.push_back('S');
+    detail::AppendCompositeStringField(key, 'P', normalizedPageName);
+    detail::AppendCompositeStringField(key, 'S', normalizedStrobeName);
     return key;
 }
 
@@ -3700,11 +3703,13 @@ entt::entity SceneRegistry::FindActiveStrobeEntity(const std::string_view normal
 std::string SceneRegistry::MakeReticleLookupKey(const std::string_view normalizedPageName,
                                                 const std::string_view reticleId) const
 {
+    const std::string normalizedReticleId = NormalizeReticleId(reticleId);
     std::string key;
-    key.reserve(normalizedPageName.size() + reticleId.size() + 1U);
-    key.append(normalizedPageName);
-    key.push_back(':');
-    key.append(NormalizeReticleId(reticleId));
+    key.reserve(1U + normalizedPageName.size() + normalizedReticleId.size() +
+                2U * detail::kCompositeKeyFieldOverhead);
+    key.push_back('R');
+    detail::AppendCompositeStringField(key, 'P', normalizedPageName);
+    detail::AppendCompositeStringField(key, 'R', normalizedReticleId);
     return key;
 }
 
@@ -3723,7 +3728,13 @@ void SceneRegistry::RemoveReticleIndex(const std::string_view normalizedPageName
 std::string SceneRegistry::MakeDynamicTemplateLookupKey(const std::string_view normalizedPageName,
                                                         const std::string_view templateId) const
 {
-    return std::string(normalizedPageName) + '\x1F' + std::string(templateId);
+    std::string key;
+    key.reserve(1U + normalizedPageName.size() + templateId.size() +
+                2U * detail::kCompositeKeyFieldOverhead);
+    key.push_back('T');
+    detail::AppendCompositeStringField(key, 'P', normalizedPageName);
+    detail::AppendCompositeStringField(key, 'T', templateId);
+    return key;
 }
 
 bool SceneRegistry::IsDynamicTemplateVisible(const std::string_view normalizedPageName,
