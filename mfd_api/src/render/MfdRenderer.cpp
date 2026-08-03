@@ -23,6 +23,7 @@
 #include "Canvas2D.h"
 #include "BezierPolylineCache.h"
 #include "ImageTextureCache.h"
+#include "RenderWorkBudget.h"
 #include "RenderTextureUtils.h"
 #include "TextLayoutCache.h"
 
@@ -184,9 +185,10 @@ struct LayerLocalRestoreContext
     int height = 0;
     std::size_t currentLayerOrder = 0;
     bool eraseLayerOnly = false;
+    detail::RenderWorkBudget restoreVisitBudget {detail::kMaxLayerRestoreVisits};
 };
 
-void RestoreLayerLocalBackground(const LayerLocalRestoreContext& context)
+void RestoreLayerLocalBackground(LayerLocalRestoreContext& context)
 {
     DrawRectangle(0, 0, context.width, context.height, context.background);
     if (!context.eraseLayerOnly || context.canvas == nullptr || context.reticles == nullptr)
@@ -196,6 +198,11 @@ void RestoreLayerLocalBackground(const LayerLocalRestoreContext& context)
 
     for (const ReticleRenderView& view : *context.reticles)
     {
+        if (!context.restoreVisitBudget.TryConsume())
+        {
+            break;
+        }
+
         if (view.group != nullptr && view.visible && view.layerOrder < context.currentLayerOrder)
         {
             context.canvas->DrawReticleWithoutClipping(*view.group, view.visible);

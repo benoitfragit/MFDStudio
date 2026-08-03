@@ -19,6 +19,9 @@
 
 namespace mfd::detail
 {
+/** @brief Maximum geometric tests allowed while triangulating one polygon. */
+constexpr std::size_t kMaxTriangulationTests = 131072U;
+
 /**
  * @brief Returns whether every non-degenerate turn of a polygon uses the same orientation.
  * @param points Polygon vertices in order.
@@ -34,4 +37,15 @@ bool PolygonIsConvex(ArrayView<const Vector2> points) noexcept;
  */
 bool TriangulateSimplePolygon(ArrayView<const Vector2> points,
                               std::vector<std::size_t>& triangleIndices);
+
+/**
+ * @brief Triangulates one polygon with an explicit deterministic work limit.
+ * @param points Polygon vertices in order.
+ * @param triangleIndices Output indices written as consecutive triplets.
+ * @param maximumTests Maximum ear candidates and point-in-triangle tests.
+ * @return `true` when triangulation completed before exhausting the budget.
+ */
+bool TriangulateSimplePolygonWithBudget(ArrayView<const Vector2> points,
+                                        std::vector<std::size_t>& triangleIndices,
+                                        std::size_t maximumTests);
 } // namespace mfd::detail

@@ -14,6 +14,8 @@
 #include <cmath>
 #include <numeric>
 
+#include "RenderWorkBudget.h"
+
 namespace mfd::detail
 {
 namespace
@@ -62,11 +64,24 @@ bool PointInsideOrOnTriangle(const Vector2& point,
            ca >= -kGeometryEpsilon;
 }
 
-bool IsEar(const ArrayView<const Vector2> points,
-           const std::vector<std::size_t>& remainingIndices,
-           const std::size_t candidateIndex,
-           const float orientationSign) noexcept
+enum class EarTestResult
 {
+    NotEar,
+    Ear,
+    BudgetExhausted
+};
+
+EarTestResult TestEar(const ArrayView<const Vector2> points,
+                      const std::vector<std::size_t>& remainingIndices,
+                      const std::size_t candidateIndex,
+                      const float orientationSign,
+                      RenderWorkBudget& workBudget) noexcept
+{
+    if (!workBudget.TryConsume())
+    {
+        return EarTestResult::BudgetExhausted;
+    }
+
     const std::size_t previousIndex =
         remainingIndices[(candidateIndex + remainingIndices.size() - 1U) % remainingIndices.size()];
     const std::size_t currentIndex = remainingIndices[candidateIndex];
@@ -77,11 +92,16 @@ bool IsEar(const ArrayView<const Vector2> points,
     const Vector2& next = points[nextIndex];
     if (Cross(previous, current, next) * orientationSign <= kGeometryEpsilon)
     {
-        return false;
+        return EarTestResult::NotEar;
     }
 
     for (const std::size_t pointIndex : remainingIndices)
     {
+        if (!workBudget.TryConsume())
+        {
+            return EarTestResult::BudgetExhausted;
+        }
+
         if (pointIndex == previousIndex || pointIndex == currentIndex || pointIndex == nextIndex)
         {
             continue;
@@ -89,11 +109,11 @@ bool IsEar(const ArrayView<const Vector2> points,
 
         if (PointInsideOrOnTriangle(points[pointIndex], previous, current, next, orientationSign))
         {
-            return false;
+            return EarTestResult::NotEar;
         }
     }
 
-    return true;
+    return EarTestResult::Ear;
 }
 } // namespace
 
@@ -142,6 +162,13 @@ bool PolygonIsConvex(const ArrayView<const Vector2> points) noexcept
 
 bool TriangulateSimplePolygon(const ArrayView<const Vector2> points, std::vector<std::size_t>& triangleIndices)
 {
+    return TriangulateSimplePolygonWithBudget(points, triangleIndices, kMaxTriangulationTests);
+}
+
+bool TriangulateSimplePolygonWithBudget(const ArrayView<const Vector2> points,
+                                        std::vector<std::size_t>& triangleIndices,
+                                        const std::size_t maximumTests)
+{
     triangleIndices.clear();
     if (points.size() < 3 || points.size() > kMaxFilledPolygonPoints)
     {
@@ -167,13 +194,22 @@ bool TriangulateSimplePolygon(const ArrayView<const Vector2> points, std::vector
 
     const float orientationSign = signedArea > 0.0f ? 1.0f : -1.0f;
     triangleIndices.reserve((points.size() - 2U) * 3U);
+    RenderWorkBudget workBudget(maximumTests);
 
     while (remainingIndices.size() > 3U)
     {
         bool clippedEar = false;
         for (std::size_t candidateIndex = 0; candidateIndex < remainingIndices.size(); ++candidateIndex)
         {
-            if (!IsEar(points, remainingIndices, candidateIndex, orientationSign))
+            const EarTestResult earResult =
+                TestEar(points, remainingIndices, candidateIndex, orientationSign, workBudget);
+            if (earResult == EarTestResult::BudgetExhausted)
+            {
+                triangleIndices.clear();
+                return false;
+            }
+
+            if (earResult == EarTestResult::NotEar)
             {
                 continue;
             }

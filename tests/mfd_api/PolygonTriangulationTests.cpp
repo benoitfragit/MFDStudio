@@ -18,6 +18,7 @@
 #include <raylib.h>
 
 #include "PolygonTriangulation.h"
+#include "RenderWorkBudget.h"
 
 TEST(PolygonTriangulationTests, PolygonIsConvexRejectsConcavePolygons)
 {
@@ -100,4 +101,42 @@ TEST(PolygonTriangulationTests, TriangulateSimplePolygonRejectsOversizedPolygons
     std::vector<std::size_t> triangleIndices;
     EXPECT_FALSE(mfd::detail::TriangulateSimplePolygon(polygon, triangleIndices));
     EXPECT_TRUE(triangleIndices.empty());
+}
+
+TEST(PolygonTriangulationTests, TriangulationStopsWhenItsWorkBudgetIsExhausted)
+{
+    const std::vector<Vector2> polygon {
+        Vector2 {-3.0f, 0.0f},
+        Vector2 {-1.0f, 2.0f},
+        Vector2 {0.0f, 0.5f},
+        Vector2 {1.0f, 2.0f},
+        Vector2 {3.0f, 0.0f},
+        Vector2 {0.0f, -2.0f}};
+    std::vector<std::size_t> triangleIndices;
+
+    EXPECT_FALSE(mfd::detail::TriangulateSimplePolygonWithBudget(polygon, triangleIndices, 1U));
+    EXPECT_TRUE(triangleIndices.empty());
+}
+
+TEST(RenderWorkBudgetTests, NestedConsumersCannotExceedTheSharedLimit)
+{
+    constexpr std::size_t kLimit = 7U;
+    mfd::detail::RenderWorkBudget budget(kLimit);
+
+    std::size_t acceptedWork = 0U;
+    for (std::size_t segment = 0U; segment < 8U; ++segment)
+    {
+        for (std::size_t fragment = 0U; fragment < 8U; ++fragment)
+        {
+            if (!budget.TryConsume())
+            {
+                break;
+            }
+            ++acceptedWork;
+        }
+    }
+
+    EXPECT_EQ(acceptedWork, kLimit);
+    EXPECT_EQ(budget.RemainingUnits(), 0U);
+    EXPECT_FALSE(budget.TryConsume());
 }

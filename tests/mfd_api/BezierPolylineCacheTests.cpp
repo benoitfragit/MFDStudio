@@ -81,3 +81,40 @@ TEST(BezierPolylineCacheTests, ResolveInvalidatesCachedPolylineAfterGeometryMuta
     EXPECT_EQ(cache.CacheStats().hits, 0U);
     EXPECT_EQ(cache.CacheStats().misses, 2U);
 }
+
+TEST(BezierPolylineCacheTests, BuildPolylineBoundsHighDegreeEvaluationWork)
+{
+    mfd::BezierGeometry geometry;
+    geometry.controlPoints.reserve(64U);
+    for (std::size_t index = 0U; index < 64U; ++index)
+    {
+        geometry.controlPoints.push_back(
+            {static_cast<float>(index), static_cast<float>(index % 7U)});
+    }
+    geometry.segments = 1024;
+
+    std::vector<mfd::Vec2> points;
+    mfd::BezierPolylineCache::BuildPolyline(geometry, points);
+
+    const std::size_t lerpsPerSample = 64U * 63U / 2U;
+    ASSERT_GE(points.size(), 2U);
+    EXPECT_LE(points.size() * lerpsPerSample, mfd::kMaxBezierLerpOperations);
+    EXPECT_FLOAT_EQ(points.front().x, geometry.controlPoints.front().x);
+    EXPECT_FLOAT_EQ(points.back().x, geometry.controlPoints.back().x);
+}
+
+TEST(BezierPolylineCacheTests, BuildPolylineAvoidsWin32CostOverflow)
+{
+    mfd::BezierGeometry geometry;
+    geometry.controlPoints.resize(70000U, mfd::Vec2 {1.0f, 2.0f});
+    geometry.controlPoints.front() = {-1.0f, -2.0f};
+    geometry.controlPoints.back() = {3.0f, 4.0f};
+    geometry.segments = 1024;
+
+    std::vector<mfd::Vec2> points;
+    mfd::BezierPolylineCache::BuildPolyline(geometry, points);
+
+    ASSERT_EQ(points.size(), 2U);
+    EXPECT_FLOAT_EQ(points.front().x, -1.0f);
+    EXPECT_FLOAT_EQ(points.back().x, 3.0f);
+}

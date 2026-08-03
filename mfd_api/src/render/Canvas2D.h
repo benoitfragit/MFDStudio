@@ -17,6 +17,7 @@
 #include <raylib.h>
 
 #include "mfd/model/Reticle.h"
+#include "RenderWorkBudget.h"
 
 namespace mfd
 {
@@ -150,5 +151,6 @@ private:
     mutable std::vector<Vector2> screenScratchA_ {};
     mutable std::vector<Vector2> screenScratchB_ {};
     mutable std::vector<std::size_t> triangleIndexScratch_ {};
+    mutable detail::RenderWorkBudget drawBudget_ {detail::kMaxCanvasDrawOperations};
 };
 } // namespace mfd

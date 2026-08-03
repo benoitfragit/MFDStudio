@@ -158,6 +158,7 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderWorkBudget.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/TextLayoutCache.h)
 

@@ -80,7 +80,7 @@ bool TryMeasureFiniteSegment(const Vector2& start, const Vector2& end, float& se
     return std::isfinite(segmentLength) && segmentLength > kMinSegmentLength;
 }
 
-void FillConvexPolygon(const ArrayView<const Vector2> points, const Color color)
+void FillConvexPolygonReserved(const ArrayView<const Vector2> points, const Color color)
 {
     if (points.size() < 3)
     {
@@ -93,9 +93,28 @@ void FillConvexPolygon(const ArrayView<const Vector2> points, const Color color)
     }
 }
 
+void FillConvexPolygon(const ArrayView<const Vector2> points,
+                       const Color color,
+                       detail::RenderWorkBudget& drawBudget)
+{
+    if (points.size() < 3U)
+    {
+        return;
+    }
+
+    const std::size_t triangleCount = points.size() - 2U;
+    if (!drawBudget.TryConsume(triangleCount))
+    {
+        return;
+    }
+
+    FillConvexPolygonReserved(points, color);
+}
+
 void FillIndexedTriangles(const ArrayView<const Vector2> points,
                           const ArrayView<const std::size_t> triangleIndices,
-                          const Color color)
+                          const Color color,
+                          detail::RenderWorkBudget& drawBudget)
 {
     for (std::size_t index = 0; index + 2 < triangleIndices.size(); index += 3U)
     {
@@ -107,6 +126,10 @@ void FillIndexedTriangles(const ArrayView<const Vector2> points,
             continue;
         }
 
+        if (!drawBudget.TryConsume())
+        {
+            break;
+        }
         DrawTriangle(points[a], points[b], points[c], color);
     }
 }
@@ -116,7 +139,8 @@ void DrawDottedStrokeSegment(const Vector2 start,
                              const float dotSpacing,
                              const float dotRadius,
                              const Color color,
-                             float& distanceToNextDot)
+                             float& distanceToNextDot,
+                             detail::RenderWorkBudget& drawBudget)
 {
     float segmentLength = 0.0f;
     if (!TryMeasureFiniteSegment(start, end, segmentLength))
@@ -133,7 +157,8 @@ void DrawDottedStrokeSegment(const Vector2 start,
     while (distanceToNextDot <= segmentLength + 0.0001f)
     {
         const float factor = std::clamp(distanceToNextDot / segmentLength, 0.0f, 1.0f);
-        if (!std::isfinite(factor) || ++fragmentCount > kMaxStrokeFragmentsPerSegment)
+        if (!std::isfinite(factor) || ++fragmentCount > kMaxStrokeFragmentsPerSegment ||
+            !drawBudget.TryConsume())
         {
             break;
         }
@@ -160,7 +185,8 @@ void DrawDashedStrokeSegment(const Vector2 start,
                              const float thickness,
                              const Color color,
                              float& distanceToNextTransition,
-                             bool& drawingDash)
+                             bool& drawingDash,
+                             detail::RenderWorkBudget& drawBudget)
 {
     float segmentLength = 0.0f;
     if (!TryMeasureFiniteSegment(start, end, segmentLength))
@@ -177,7 +203,7 @@ void DrawDashedStrokeSegment(const Vector2 start,
     std::size_t fragmentCount = 0U;
     while (traversedLength < segmentLength)
     {
-        if (++fragmentCount > kMaxStrokeFragmentsPerSegment)
+        if (++fragmentCount > kMaxStrokeFragmentsPerSegment || !drawBudget.TryConsume())
         {
             break;
         }
@@ -312,7 +338,8 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
                         const bool closed,
                         const float thickness,
                         const Color color,
-                        const LineStyle lineStyle)
+                        const LineStyle lineStyle,
+                        detail::RenderWorkBudget& drawBudget)
 {
     if (points.size() < 2 || !std::isfinite(thickness) || thickness <= 0.0f)
     {
@@ -326,6 +353,10 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
             float segmentLength = 0.0f;
             if (TryMeasureFiniteSegment(points[index], points[index + 1], segmentLength))
             {
+                if (!drawBudget.TryConsume())
+                {
+                    break;
+                }
                 DrawLineEx(points[index], points[index + 1], thickness, color);
             }
         }
@@ -333,7 +364,8 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
         if (closed)
         {
             float segmentLength = 0.0f;
-            if (TryMeasureFiniteSegment(points.back(), points.front(), segmentLength))
+            if (TryMeasureFiniteSegment(points.back(), points.front(), segmentLength) &&
+                drawBudget.TryConsume())
             {
                 DrawLineEx(points.back(), points.front(), thickness, color);
             }
@@ -350,12 +382,18 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
 
         for (std::size_t index = 0; index + 1 < points.size(); ++index)
         {
-            DrawDottedStrokeSegment(points[index], points[index + 1], dotSpacing, dotRadius, color, distanceToNextDot);
+            DrawDottedStrokeSegment(
+                points[index], points[index + 1], dotSpacing, dotRadius, color, distanceToNextDot, drawBudget);
+            if (drawBudget.RemainingUnits() == 0U)
+            {
+                break;
+            }
         }
 
         if (closed)
         {
-            DrawDottedStrokeSegment(points.back(), points.front(), dotSpacing, dotRadius, color, distanceToNextDot);
+            DrawDottedStrokeSegment(
+                points.back(), points.front(), dotSpacing, dotRadius, color, distanceToNextDot, drawBudget);
         }
 
         return;
@@ -376,7 +414,12 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
             thickness,
             color,
             distanceToNextTransition,
-            drawingDash);
+            drawingDash,
+            drawBudget);
+        if (drawBudget.RemainingUnits() == 0U)
+        {
+            break;
+        }
     }
 
     if (closed)
@@ -389,13 +432,15 @@ void DrawPolylineStroke(const ArrayView<const Vector2> points,
             thickness,
             color,
             distanceToNextTransition,
-            drawingDash);
+            drawingDash,
+            drawBudget);
     }
 }
 
 void FillRing(const ArrayView<const Vector2> outerPoints,
               const ArrayView<const Vector2> innerPoints,
-              const Color color)
+              const Color color,
+              detail::RenderWorkBudget& drawBudget)
 {
     if (outerPoints.size() < 3 || outerPoints.size() != innerPoints.size())
     {
@@ -404,6 +449,10 @@ void FillRing(const ArrayView<const Vector2> outerPoints,
 
     for (std::size_t index = 0; index < outerPoints.size(); ++index)
     {
+        if (!drawBudget.TryConsume(2U))
+        {
+            break;
+        }
         const std::size_t nextIndex = (index + 1U) % outerPoints.size();
         DrawTriangle(outerPoints[index], outerPoints[nextIndex], innerPoints[nextIndex], color);
         DrawTriangle(outerPoints[index], innerPoints[nextIndex], innerPoints[index], color);
@@ -592,6 +641,11 @@ void Canvas2D::DrawReticlePrimitives(const ReticleGroup& reticle) const
 {
     for (const auto& primitive : reticle.primitives)
     {
+        if (drawBudget_.RemainingUnits() == 0U)
+        {
+            break;
+        }
+
         if (!primitive.style.visible)
         {
             continue;
@@ -619,6 +673,14 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
     const PreparedClipMaskType maskType =
         PrepareClipMaskPrimitive(primitive, group, circleCenter, circleRadius);
     if (maskType == PreparedClipMaskType::None)
+    {
+        return;
+    }
+
+    const std::size_t maskDrawCount = maskType == PreparedClipMaskType::Circle
+                                          ? 1U
+                                          : screenScratchA_.size() - 2U;
+    if (!drawBudget_.TryConsume(maskDrawCount))
     {
         return;
     }
@@ -863,7 +925,7 @@ void Canvas2D::DrawPreparedClipMask(const PreparedClipMaskType maskType,
         DrawCircleV(circleCenter, circleRadius, kClipMaskColor);
         return;
     case PreparedClipMaskType::Polygon:
-        FillConvexPolygon(screenScratchA_, kClipMaskColor);
+        FillConvexPolygonReserved(screenScratchA_, kClipMaskColor);
         return;
     case PreparedClipMaskType::None:
         return;
@@ -886,6 +948,11 @@ bool mfd::detail::CanUseFastSolidRingPath(const LineStyle lineStyle,
 
 void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& group) const
 {
+    if (drawBudget_.RemainingUnits() == 0U)
+    {
+        return;
+    }
+
     const PrimitiveStyle style = MergeStyle(primitive.style, group.overrides);
     const Color strokeColor = ToRayColor(style.color);
     const Color fillColor = ToRayColor(style.fillColor);
@@ -980,7 +1047,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         const Vector2 start = ToScreen(TransformPoint(line->start, primitive, group));
         const Vector2 end = ToScreen(TransformPoint(line->end, primitive, group));
         const std::array<Vector2, 2> linePoints {{start, end}};
-        DrawPolylineStroke(linePoints, false, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(linePoints, false, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Circle:
@@ -1024,10 +1091,10 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled && !usesIsotropicFastPath)
         {
-            FillConvexPolygon(screenScratchA_, fillColor);
+            FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Ring:
@@ -1091,11 +1158,11 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled)
         {
-            FillRing(screenScratchA_, screenScratchB_, fillColor);
+            FillRing(screenScratchA_, screenScratchB_, fillColor, drawBudget_);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
-        DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
+        DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Rectangle:
@@ -1115,10 +1182,10 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled)
         {
-            FillConvexPolygon(screenScratchA_, fillColor);
+            FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Ellipse:
@@ -1134,10 +1201,10 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled)
         {
-            FillConvexPolygon(screenScratchA_, fillColor);
+            FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Square:
@@ -1157,10 +1224,10 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled)
         {
-            FillConvexPolygon(screenScratchA_, fillColor);
+            FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Diamond:
@@ -1180,10 +1247,10 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled)
         {
-            FillConvexPolygon(screenScratchA_, fillColor);
+            FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Triangle:
@@ -1198,10 +1265,10 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled)
         {
-            FillConvexPolygon(screenScratchA_, fillColor);
+            FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
         }
 
-        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Polyline:
@@ -1218,19 +1285,20 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         {
             if (detail::PolygonIsConvex(screenScratchA_))
             {
-                FillConvexPolygon(screenScratchA_, fillColor);
+                FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
             }
             else
             {
                 triangleIndexScratch_.clear();
                 if (detail::TriangulateSimplePolygon(screenScratchA_, triangleIndexScratch_))
                 {
-                    FillIndexedTriangles(screenScratchA_, triangleIndexScratch_, fillColor);
+                    FillIndexedTriangles(screenScratchA_, triangleIndexScratch_, fillColor, drawBudget_);
                 }
             }
         }
 
-        DrawPolylineStroke(screenScratchA_, polyline->closed, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(
+            screenScratchA_, polyline->closed, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Bezier:
@@ -1263,7 +1331,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             primitive,
             group,
             screenScratchA_);
-        DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle);
+        DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         break;
     }
     case PrimitiveType::Arc:
@@ -1284,12 +1352,12 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             logicalScratchB_.push_back(Vec2 {});
             logicalScratchB_.insert(logicalScratchB_.end(), logicalScratchA_.begin(), logicalScratchA_.end());
             BuildScreenPointsInto(logicalScratchB_.data(), logicalScratchB_.size(), primitive, group, screenScratchB_);
-            FillConvexPolygon(screenScratchB_, fillColor);
-            DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor, style.lineStyle);
+            FillConvexPolygon(screenScratchB_, fillColor, drawBudget_);
+            DrawPolylineStroke(screenScratchB_, true, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         }
         else
         {
-            DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle);
+            DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         }
         break;
     }

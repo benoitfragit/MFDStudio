@@ -18,6 +18,9 @@
 
 namespace mfd
 {
+/** @brief Maximum number of De Casteljau interpolations used to flatten one curve. */
+constexpr std::size_t kMaxBezierLerpOperations = 131072U;
+
 /**
  * @brief Reuses sampled Bézier polylines across frames while geometry stays unchanged.
  *

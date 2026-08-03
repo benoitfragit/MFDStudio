@@ -124,7 +124,26 @@ void BezierPolylineCache::BuildPolyline(const BezierGeometry& geometry, std::vec
         return;
     }
 
-    const int segmentCount = SanitizeSegmentCount(geometry.segments, 2);
+    const std::size_t controlPointCount = geometry.controlPoints.size();
+    const std::size_t precedingPointCount = controlPointCount - 1U;
+    if (controlPointCount > (2U * kMaxBezierLerpOperations) / precedingPointCount)
+    {
+        destination = {geometry.controlPoints.front(), geometry.controlPoints.back()};
+        return;
+    }
+
+    const std::size_t lerpsPerSample = controlPointCount * precedingPointCount / 2U;
+    const std::size_t maximumSampleCount = kMaxBezierLerpOperations / lerpsPerSample;
+    if (maximumSampleCount < 3U)
+    {
+        destination = {geometry.controlPoints.front(), geometry.controlPoints.back()};
+        return;
+    }
+
+    const int requestedSegmentCount = SanitizeSegmentCount(geometry.segments, 2);
+    const std::size_t maximumSegmentCount = maximumSampleCount - 1U;
+    const int segmentCount = static_cast<int>(
+        std::min(static_cast<std::size_t>(requestedSegmentCount), maximumSegmentCount));
     destination.clear();
     destination.reserve(static_cast<std::size_t>(segmentCount) + 1U);
 
