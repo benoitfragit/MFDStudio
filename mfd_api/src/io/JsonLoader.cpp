@@ -3068,6 +3068,69 @@ std::string PrimitiveTypeToGeneratedName(const PrimitiveType type)
     return {};
 }
 
+std::size_t CountNamedPrimitives(const ReticleGroup& owner)
+{
+    return static_cast<std::size_t>(std::count_if(
+        owner.primitives.begin(),
+        owner.primitives.end(),
+        [](const Primitive& primitive)
+        {
+            return !primitive.id.empty();
+        }));
+}
+
+bool ShouldExposeGeneratedPrimitive(const Primitive& primitive, const std::size_t namedPrimitiveCount)
+{
+    if (primitive.id.empty())
+    {
+        return false;
+    }
+    if (primitive.exposed || primitive.type == PrimitiveType::Text || primitive.type == PrimitiveType::Time)
+    {
+        return true;
+    }
+
+    return namedPrimitiveCount == 1U;
+}
+
+std::size_t CountGeneratedPrimitives(const ReticleGroup& owner)
+{
+    const std::size_t namedPrimitiveCount = CountNamedPrimitives(owner);
+    return static_cast<std::size_t>(std::count_if(
+        owner.primitives.begin(),
+        owner.primitives.end(),
+        [namedPrimitiveCount](const Primitive& primitive)
+        {
+            return ShouldExposeGeneratedPrimitive(primitive, namedPrimitiveCount);
+        }));
+}
+
+std::size_t CachedNamedPrimitiveCount(std::unordered_map<const ReticleGroup*, std::size_t>& counts,
+                                      const ReticleGroup& owner)
+{
+    const auto iterator = counts.find(&owner);
+    if (iterator != counts.end())
+    {
+        return iterator->second;
+    }
+
+    const std::size_t namedPrimitiveCount = CountNamedPrimitives(owner);
+    counts.emplace(&owner, namedPrimitiveCount);
+    return namedPrimitiveCount;
+}
+
+void RequireGeneratedEntryCount(const std::string_view tableName,
+                                const std::size_t actual,
+                                const std::size_t expected)
+{
+    if (actual != expected)
+    {
+        throw std::runtime_error(
+            "Generated transport map " + std::string(tableName) + " table is incomplete: expected " +
+            std::to_string(expected) + " entries but found " + std::to_string(actual));
+    }
+}
+
 void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& map,
                                                   const std::filesystem::path& windowFile,
                                                   const WindowAssetDefinition& window,
@@ -3175,6 +3238,8 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
         templatesById.emplace(templateEntry.id, &templateEntry);
     }
 
+    std::unordered_map<const ReticleGroup*, std::size_t> namedPrimitiveCounts;
+    namedPrimitiveCounts.reserve(map.reticles.size() + map.templates.size());
     for (const auto& primitiveEntry : map.primitives)
     {
         const ReticleGroup* owner = nullptr;
@@ -3239,6 +3304,13 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
         {
             throw std::runtime_error(
                 "Generated transport map primitive type mismatch for '" + primitiveEntry.primitiveId + "'");
+        }
+
+        if (!primitiveEntry.exposed ||
+            !ShouldExposeGeneratedPrimitive(*primitive, CachedNamedPrimitiveCount(namedPrimitiveCounts, *owner)))
+        {
+            throw std::runtime_error(
+                "Generated transport map exposes an ineligible primitive '" + primitiveEntry.primitiveId + "'");
         }
     }
 
@@ -3320,6 +3392,53 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
                 "Generated transport map active strobe mismatch for '" + strobeEntry.strobeName +
                 "' on page '" + pageIt->second->name + "'");
         }
+    }
+
+    std::size_t expectedReticleCount = 0U;
+    std::size_t expectedPrimitiveCount = 0U;
+    std::size_t expectedBlinkTypeCount = 0U;
+    std::size_t expectedStrobeCount = 0U;
+    std::unordered_set<std::string> expectedTemplateIds;
+    for (const PageDefinition& page : document.pages)
+    {
+        expectedReticleCount += page.staticReticles.size() + page.strobes.size();
+        expectedBlinkTypeCount += page.blinkTypes.size();
+        expectedStrobeCount += page.strobes.size();
+        for (const ReticleGroup& reticle : page.staticReticles)
+        {
+            expectedPrimitiveCount += CountGeneratedPrimitives(reticle);
+        }
+        for (const PageStrobeDefinition& strobe : page.strobes)
+        {
+            expectedPrimitiveCount += CountGeneratedPrimitives(strobe.reticle);
+        }
+        for (const DynamicReticleLayerBinding& binding : page.dynamicReticleBindings)
+        {
+            expectedTemplateIds.insert(NormalizePageName(binding.templateId));
+        }
+    }
+
+    std::unordered_set<std::string> mappedTemplateIds;
+    mappedTemplateIds.reserve(map.templates.size());
+    for (const TransportMapTemplateEntry& templateEntry : map.templates)
+    {
+        mappedTemplateIds.insert(templateEntry.normalizedTemplateId);
+        const auto templateIterator = document.reticleLibrary.find(templateEntry.templateId);
+        if (templateIterator != document.reticleLibrary.end())
+        {
+            expectedPrimitiveCount += CountGeneratedPrimitives(templateIterator->second);
+        }
+    }
+
+    RequireGeneratedEntryCount("pages", map.pages.size(), document.pages.size());
+    RequireGeneratedEntryCount("reticles", map.reticles.size(), expectedReticleCount);
+    RequireGeneratedEntryCount("templates", map.templates.size(), expectedTemplateIds.size());
+    RequireGeneratedEntryCount("primitives", map.primitives.size(), expectedPrimitiveCount);
+    RequireGeneratedEntryCount("blinkTypes", map.blinkTypes.size(), expectedBlinkTypeCount);
+    RequireGeneratedEntryCount("strobes", map.strobes.size(), expectedStrobeCount);
+    if (mappedTemplateIds != expectedTemplateIds)
+    {
+        throw std::runtime_error("Generated transport map templates table does not match dynamic template bindings");
     }
 }
 } // namespace

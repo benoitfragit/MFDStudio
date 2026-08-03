@@ -10,6 +10,8 @@
 
 #include "mfd/runtime/GeneratedTransportMap.h"
 
+#include "Sha256.h"
+
 #include <fstream>
 #include <stdexcept>
 #include <string_view>
@@ -165,7 +167,30 @@ TransportId RequireTransportIdField(const json& node,
         throw std::runtime_error(JoinPathContext(context, fieldName) + " must be an unsigned integer");
     }
 
-    return value.get<TransportId>();
+    if (!value.is_number_unsigned() && value.get<std::int64_t>() <= 0)
+    {
+        throw std::runtime_error(JoinPathContext(context, fieldName) + " must be greater than zero");
+    }
+
+    const TransportId transportId = value.get<TransportId>();
+    if (transportId == 0U)
+    {
+        throw std::runtime_error(JoinPathContext(context, fieldName) + " must be greater than zero");
+    }
+    return transportId;
+}
+
+void ValidateMappingHash(const json& root, const std::string_view declaredHash)
+{
+    json canonicalMap = root;
+    canonicalMap.erase("mappingHash");
+    const std::string canonicalPayload = canonicalMap.dump(-1, ' ', true, json::error_handler_t::strict);
+    const std::string computedHash = detail::ComputeSha256Hex(canonicalPayload);
+    if (declaredHash != computedHash)
+    {
+        throw std::runtime_error(
+            "generatedTransportMap.mappingHash does not match its canonical content: expected " + computedHash);
+    }
 }
 
 TransportPrimitiveOwnerKind ParseOwnerKind(const std::string_view value)
@@ -461,6 +486,7 @@ GeneratedTransportMap ParseGeneratedTransportMap(const std::filesystem::path& so
     {
         throw std::runtime_error("generatedTransportMap.mappingHash cannot be empty");
     }
+    ValidateMappingHash(root, map.mappingHash);
 
     map.window = ParseWindowInfo(RequireObjectField(root, "generatedTransportMap", "window"));
     map.pages = ParsePages(RequireArrayField(root, "generatedTransportMap", "pages"));

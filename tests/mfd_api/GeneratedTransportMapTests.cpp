@@ -79,6 +79,9 @@ void WriteBasicWindowAssets(const TemporaryFolder& workspace)
   "blinkTypes": [
     { "name": "slow", "durationMs": 750 }
   ],
+  "dynamicReticleBindings": [
+    { "templateId": "status_template", "layerId": "default", "orderInLayer": 0 }
+  ],
   "staticReticles": [
     { "id": "status", "template": "status_template", "layerId": "default" }
   ]
@@ -138,6 +141,54 @@ TEST(GeneratedTransportMapTests, InvalidCompanionMapReportsValidationError)
     EXPECT_NE(error.find("schemaVersion"), std::string::npos);
 }
 
+TEST(GeneratedTransportMapTests, CompanionMapRejectsHashThatDoesNotMatchCanonicalContent)
+{
+    TemporaryFolder workspace;
+    WriteTextFile(workspace.Path() / "window.generated.map",
+                  R"json({
+  "schemaVersion": 1,
+  "mappingHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "window": { "name": "window", "title": "", "source": "window.json" },
+  "pages": [],
+  "reticles": [],
+  "primitives": [],
+  "templates": [],
+  "blinkTypes": [],
+  "strobes": []
+})json");
+
+    std::string error;
+    const auto map = mfd::TryLoadGeneratedTransportMap(workspace.Path() / "window.json", &error);
+
+    EXPECT_FALSE(map.has_value());
+    EXPECT_NE(error.find("mappingHash does not match"), std::string::npos);
+}
+
+TEST(GeneratedTransportMapTests, CompanionMapRejectsZeroTransportIdentifiers)
+{
+    TemporaryFolder workspace;
+    WriteTextFile(workspace.Path() / "window.generated.map",
+                  R"json({
+  "schemaVersion": 1,
+  "mappingHash": "98a5f2139faf03c5012a70f0b3461172ed0bf6365108a3879c0757444531f19f",
+  "window": { "name": "window", "title": "", "source": "window.json" },
+  "pages": [
+    { "id": 0, "name": "Main", "normalizedName": "main", "hasStrobe": false, "defaultPage": true }
+  ],
+  "reticles": [],
+  "primitives": [],
+  "templates": [],
+  "blinkTypes": [],
+  "strobes": []
+})json");
+
+    std::string error;
+    const auto map = mfd::TryLoadGeneratedTransportMap(workspace.Path() / "window.json", &error);
+
+    EXPECT_FALSE(map.has_value());
+    EXPECT_NE(error.find("pages[0].id must be greater than zero"), std::string::npos);
+}
+
 TEST(GeneratedTransportMapTests, JsonLoaderLoadsValidatedCompanionMapAndSceneKeepsIt)
 {
     TemporaryFolder workspace;
@@ -145,7 +196,7 @@ TEST(GeneratedTransportMapTests, JsonLoaderLoadsValidatedCompanionMapAndSceneKee
     WriteTextFile(workspace.Path() / "window.generated.map",
                   R"json({
   "schemaVersion": 1,
-  "mappingHash": "abc123",
+  "mappingHash": "e35573aa902a3a6e192d9f03db8d81f83f3885a98fd13e8bdc6787f6378afc54",
   "window": {
     "name": "window",
     "title": "Main Window",
@@ -172,6 +223,15 @@ TEST(GeneratedTransportMapTests, JsonLoaderLoadsValidatedCompanionMapAndSceneKee
   "primitives": [
     {
       "id": 4,
+      "ownerKind": "reticle",
+      "ownerId": 2,
+      "primitiveId": "status_value",
+      "normalizedPrimitiveId": "status_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6,
       "ownerKind": "template",
       "ownerId": 3,
       "primitiveId": "status_value",
@@ -203,9 +263,10 @@ TEST(GeneratedTransportMapTests, JsonLoaderLoadsValidatedCompanionMapAndSceneKee
     mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(workspace.Path() / "window.json");
 
     ASSERT_TRUE(loaded.generatedTransportMap.has_value());
-    EXPECT_EQ(loaded.generatedTransportMap->mappingHash, "abc123");
+    EXPECT_EQ(loaded.generatedTransportMap->mappingHash,
+              "e35573aa902a3a6e192d9f03db8d81f83f3885a98fd13e8bdc6787f6378afc54");
     EXPECT_EQ(loaded.generatedTransportMap->templates.size(), 1U);
-    EXPECT_EQ(loaded.generatedTransportMap->primitives.size(), 1U);
+    EXPECT_EQ(loaded.generatedTransportMap->primitives.size(), 2U);
 
     mfd::SceneRegistry scene(std::move(loaded.document), loaded.generatedTransportMap);
     EXPECT_TRUE(scene.HasTransportMap());
@@ -220,7 +281,7 @@ TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapThatDriftsFromWind
     WriteTextFile(workspace.Path() / "window.generated.map",
                   R"json({
   "schemaVersion": 1,
-  "mappingHash": "abc123",
+  "mappingHash": "cffae4d56d661c8965090e2485cb626b8dd5e867a8ea959fc1e73169124298f2",
   "window": {
     "name": "window",
     "title": "Main Window",
@@ -247,6 +308,15 @@ TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapThatDriftsFromWind
   "primitives": [
     {
       "id": 4,
+      "ownerKind": "reticle",
+      "ownerId": 2,
+      "primitiveId": "status_value",
+      "normalizedPrimitiveId": "status_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 6,
       "ownerKind": "template",
       "ownerId": 3,
       "primitiveId": "status_value",
@@ -285,7 +355,7 @@ TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapWithUnknownReticle
     WriteTextFile(workspace.Path() / "window.generated.map",
                   R"json({
   "schemaVersion": 1,
-  "mappingHash": "abc123",
+  "mappingHash": "b0fad59a5dcd7032c9eac2258f354e52000f6819719a624ff4819b9ceaa04054",
   "window": {
     "name": "window",
     "title": "Main Window",

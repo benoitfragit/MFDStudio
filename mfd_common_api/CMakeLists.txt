@@ -134,6 +134,8 @@ set(MFD_TRANSPORT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/WindowFeedback.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/UdpChannel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/GeneratedTransportMap.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/Sha256.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/Sha256.h
     ${MFD_COMMON_API_PROTO_HEADERS}
     ${MFD_COMMON_API_PROTO_SOURCES})
 
