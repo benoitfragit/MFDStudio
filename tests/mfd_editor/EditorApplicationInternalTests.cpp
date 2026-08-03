@@ -15,6 +15,12 @@
 
 #include <vector>
 
+TEST(EditorApplicationInternalTests, FooterStatusSeverityLabelMarksErrorsWithoutRelyingOnColor)
+{
+    EXPECT_STREQ(editor::detail::FooterStatusSeverityLabel(true), "[Error]");
+    EXPECT_STREQ(editor::detail::FooterStatusSeverityLabel(false), "");
+}
+
 TEST(EditorApplicationInternalTests, SeedPrimitiveFillColorIfNeededUsesStrokeWhenFillIsTransparent)
 {
     mfd::PrimitiveStyle style;

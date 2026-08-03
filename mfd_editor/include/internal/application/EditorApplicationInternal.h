@@ -28,6 +28,16 @@
 namespace editor::detail
 {
 /**
+ * @brief Returns the accessible textual marker displayed before a footer error.
+ * @param isError Whether the current footer status reports an error.
+ * @return A stable error marker, or an empty string for non-error statuses.
+ */
+inline constexpr const char* FooterStatusSeverityLabel(const bool isError) noexcept
+{
+    return isError ? "[Error]" : "";
+}
+
+/**
  * @brief Copies one UTF-8 string into one fixed-size UI buffer.
  * @tparam N Buffer capacity including the null terminator.
  * @param destination Buffer receiving the copied text.

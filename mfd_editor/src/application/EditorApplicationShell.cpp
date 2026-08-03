@@ -434,8 +434,22 @@ void EditorApplication::DrawMenuBar()
         ImGui::SameLine();
         ImGui::TextDisabled("[%s]", documentState_.windowFile.filename().string().c_str());
     }
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", workflowState_.statusMessage.c_str());
+    if (!workflowState_.statusMessage.empty())
+    {
+        ImGui::SameLine();
+        if (workflowState_.statusIsError)
+        {
+            ImGui::TextColored(
+                ImVec4(0.95f, 0.42f, 0.42f, 1.0f),
+                "%s %s",
+                editor::detail::FooterStatusSeverityLabel(true),
+                workflowState_.statusMessage.c_str());
+        }
+        else
+        {
+            ImGui::TextDisabled("%s", workflowState_.statusMessage.c_str());
+        }
+    }
 
     if (layoutState_.shellLayoutMode != editor::ShellLayoutMode::Wide)
     {
