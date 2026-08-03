@@ -11,10 +11,14 @@
 #include "mfd/control/CommandClient.h"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstddef>
 #include <exception>
+#include <limits>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -32,6 +36,32 @@ namespace
 {
 constexpr RuntimeDynamicId kGeneratedDynamicRuntimeIdBit = RuntimeDynamicId {1} << 63U;
 constexpr std::size_t kMaxDynamicReticlesPerSplit = 4096U;
+constexpr std::size_t kMaximumFragmentMetadataBytes = 48U;
+
+std::uint64_t MakeNonZeroTransportIdentity()
+{
+    static std::atomic<std::uint64_t> serial {1U};
+    std::uint64_t randomHigh = 0U;
+    std::uint64_t randomLow = 0U;
+    try
+    {
+        std::random_device randomSource;
+        randomHigh = static_cast<std::uint64_t>(randomSource()) << 32U;
+        randomLow = static_cast<std::uint64_t>(randomSource());
+    }
+    catch (...)
+    {
+        // The clock and process-local serial below still provide a non-zero fallback identity.
+    }
+    const std::uint64_t clockValue = static_cast<std::uint64_t>(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+    std::uint64_t identity = randomHigh ^ randomLow ^ clockValue ^ serial.fetch_add(1U);
+    if (identity == 0U)
+    {
+        identity = serial.fetch_add(1U);
+    }
+    return identity;
+}
 
 std::uint64_t AppendFnv1aHash(std::uint64_t hash, const std::string_view value) noexcept
 {
@@ -1389,27 +1419,15 @@ bool CommandClient::SendPayload(const std::string_view payload)
     return true;
 }
 
-bool CommandClient::FlushPayloadChunk(CommandBatch& currentChunk, std::string& error)
+void CommandClient::InitializeFragmentIdentity()
 {
-    if (currentChunk.commands.empty())
+    if (clientId_ != 0U && sessionEpoch_ != 0U)
     {
-        return true;
+        return;
     }
 
-    const auto payload = TrySerializeBatch(currentChunk, error);
-    if (!payload.has_value())
-    {
-        lastError_ = std::move(error);
-        return false;
-    }
-
-    if (!SendPayload(*payload))
-    {
-        return false;
-    }
-
-    currentChunk.commands.clear();
-    return true;
+    clientId_ = MakeNonZeroTransportIdentity();
+    sessionEpoch_ = MakeNonZeroTransportIdentity();
 }
 
 bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
@@ -1428,6 +1446,24 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
 
     const std::size_t maxPayloadBytes = MaxPayloadBytes();
     std::string error;
+    const auto normalizedPayload = TrySerializeBatch(normalizedBatch, error);
+    if (!normalizedPayload.has_value())
+    {
+        lastError_ = std::move(error);
+        return false;
+    }
+    if (normalizedPayload->size() <= maxPayloadBytes)
+    {
+        return SendPayload(*normalizedPayload);
+    }
+
+    if (maxPayloadBytes <= kMaximumFragmentMetadataBytes)
+    {
+        lastError_ = "The configured UDP payload limit is too small for fragment metadata";
+        return false;
+    }
+    const std::size_t fragmentCommandPayloadLimit = maxPayloadBytes - kMaximumFragmentMetadataBytes;
+
     std::vector<UserCommand> expandedCommands;
     expandedCommands.reserve(normalizedBatch.commands.size());
 
@@ -1437,7 +1473,7 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
             command,
             normalizedBatch.sequence,
             normalizedBatch.mappingHash,
-            maxPayloadBytes,
+            fragmentCommandPayloadLimit,
             error);
         if (!splitCommands.has_value())
         {
@@ -1448,36 +1484,77 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
         expandedCommands.insert(expandedCommands.end(), splitCommands->begin(), splitCommands->end());
     }
 
+    CommandBatch expandedBatch;
+    expandedBatch.sequence = normalizedBatch.sequence;
+    expandedBatch.mappingHash = normalizedBatch.mappingHash;
+    expandedBatch.commands = std::move(expandedCommands);
+    const auto expandedPayload = TrySerializeBatch(expandedBatch, error);
+    if (expandedPayload.has_value() && expandedPayload->size() <= maxPayloadBytes)
+    {
+        return SendPayload(*expandedPayload);
+    }
+
+    InitializeFragmentIdentity();
+    std::uint64_t batchId = nextBatchId_++;
+    if (batchId == 0U)
+    {
+        sessionEpoch_ = MakeNonZeroTransportIdentity();
+        nextBatchId_ = 2U;
+        batchId = 1U;
+    }
+    const CommandBatchFragment sizingFragment {
+        clientId_,
+        sessionEpoch_,
+        batchId,
+        std::numeric_limits<std::uint32_t>::max() - 1U,
+        std::numeric_limits<std::uint32_t>::max()};
+
+    std::vector<CommandBatch> chunks;
     CommandBatch currentChunk;
     currentChunk.sequence = normalizedBatch.sequence;
     currentChunk.mappingHash = normalizedBatch.mappingHash;
+    currentChunk.fragment = sizingFragment;
 
-    for (const UserCommand& command : expandedCommands)
+    for (const UserCommand& command : expandedBatch.commands)
     {
-        CommandBatch candidate = currentChunk;
-        candidate.commands.push_back(command);
+        currentChunk.commands.push_back(command);
 
-        const auto payload = TrySerializeBatch(candidate, error);
+        const auto payload = TrySerializeBatch(currentChunk, error);
         if (!payload.has_value())
         {
-            lastError_ = std::move(error);
-            return false;
+            currentChunk.commands.pop_back();
+            if (currentChunk.commands.empty())
+            {
+                lastError_ = std::move(error);
+                return false;
+            }
+            chunks.push_back(std::move(currentChunk));
+            currentChunk = CommandBatch {};
+            currentChunk.sequence = normalizedBatch.sequence;
+            currentChunk.mappingHash = normalizedBatch.mappingHash;
+            currentChunk.fragment = sizingFragment;
+            currentChunk.commands.push_back(command);
+            continue;
         }
 
         if (payload->size() <= maxPayloadBytes)
         {
-            currentChunk = std::move(candidate);
             continue;
         }
 
-        if (!FlushPayloadChunk(currentChunk, error))
+        currentChunk.commands.pop_back();
+        if (currentChunk.commands.empty())
         {
+            lastError_ = "A single command exceeds the configured UDP payload limit of " +
+                         std::to_string(maxPayloadBytes) + " bytes";
             return false;
         }
+        chunks.push_back(std::move(currentChunk));
 
         CommandBatch singleCommandChunk;
         singleCommandChunk.sequence = normalizedBatch.sequence;
         singleCommandChunk.mappingHash = normalizedBatch.mappingHash;
+        singleCommandChunk.fragment = sizingFragment;
         singleCommandChunk.commands.push_back(command);
 
         const auto singlePayload = TrySerializeBatch(singleCommandChunk, error);
@@ -1497,6 +1574,41 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
         currentChunk = std::move(singleCommandChunk);
     }
 
-    return FlushPayloadChunk(currentChunk, error);
+    if (!currentChunk.commands.empty())
+    {
+        chunks.push_back(std::move(currentChunk));
+    }
+    if (chunks.empty() || chunks.size() > std::numeric_limits<std::uint32_t>::max())
+    {
+        lastError_ = "Unable to create a bounded fragmented command batch";
+        return false;
+    }
+
+    const std::uint32_t chunkCount = static_cast<std::uint32_t>(chunks.size());
+    std::vector<std::string> payloads;
+    payloads.reserve(chunks.size());
+    for (std::size_t chunkIndex = 0U; chunkIndex < chunks.size(); ++chunkIndex)
+    {
+        chunks[chunkIndex].fragment = CommandBatchFragment {
+            clientId_, sessionEpoch_, batchId, static_cast<std::uint32_t>(chunkIndex), chunkCount};
+        const auto payload = TrySerializeBatch(chunks[chunkIndex], error);
+        if (!payload.has_value() || payload->size() > maxPayloadBytes)
+        {
+            lastError_ = payload.has_value()
+                             ? "A fragmented command chunk exceeds the configured UDP payload limit"
+                             : std::move(error);
+            return false;
+        }
+        payloads.push_back(std::move(*payload));
+    }
+
+    for (const std::string& payload : payloads)
+    {
+        if (!SendPayload(payload))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 } // namespace mfd

@@ -528,6 +528,16 @@ void ValidateCommandBatch(const CommandBatch& batch)
     {
         ValidateUserCommand(command);
     }
+
+    if (batch.fragment.has_value())
+    {
+        const CommandBatchFragment& fragment = *batch.fragment;
+        if (fragment.clientId == 0U || fragment.sessionEpoch == 0U || fragment.batchId == 0U ||
+            fragment.chunkCount == 0U || fragment.chunkIndex >= fragment.chunkCount)
+        {
+            throw std::runtime_error("Command batch fragment metadata is incomplete or inconsistent");
+        }
+    }
 }
 
 std::uint32_t PackColor(const ColorRgba& color) noexcept
@@ -1509,6 +1519,15 @@ pb::CommandEnvelope BuildEnvelope(const CommandBatch& batch)
     pb::CommandEnvelope envelope;
     envelope.set_sequence(batch.sequence);
     envelope.set_mapping_hash(batch.mappingHash);
+    if (batch.fragment.has_value())
+    {
+        const CommandBatchFragment& fragment = *batch.fragment;
+        envelope.set_client_id(fragment.clientId);
+        envelope.set_session_epoch(fragment.sessionEpoch);
+        envelope.set_batch_id(fragment.batchId);
+        envelope.set_chunk_index(fragment.chunkIndex);
+        envelope.set_chunk_count(fragment.chunkCount);
+    }
 
     for (const UserCommand& command : batch.commands)
     {
@@ -1592,6 +1611,18 @@ std::optional<CommandBatch> DeserializeCommandBatch(const std::string_view paylo
         CommandBatch batch;
         batch.sequence = envelope.sequence();
         batch.mappingHash = envelope.mapping_hash();
+        const bool hasFragmentMetadata = envelope.client_id() != 0U || envelope.session_epoch() != 0U ||
+                                         envelope.batch_id() != 0U || envelope.chunk_index() != 0U ||
+                                         envelope.chunk_count() != 0U;
+        if (hasFragmentMetadata)
+        {
+            batch.fragment = CommandBatchFragment {
+                envelope.client_id(),
+                envelope.session_epoch(),
+                envelope.batch_id(),
+                envelope.chunk_index(),
+                envelope.chunk_count()};
+        }
         if (envelope.commands_size() == 0)
         {
             throw std::runtime_error("Protocol Buffers command payload is empty");
@@ -1607,6 +1638,8 @@ std::optional<CommandBatch> DeserializeCommandBatch(const std::string_view paylo
         {
             AppendUserCommandFromProto(command, batch.commands);
         }
+
+        ValidateCommandBatch(batch);
 
         return batch;
     }

@@ -478,6 +478,23 @@ using UserCommand = std::variant<ActivatePageCommand,
                                  ResetWindowCommand>;
 
 /**
+ * @brief Wire metadata identifying one chunk of an atomically reassembled command batch.
+ */
+struct CommandBatchFragment
+{
+    /** @brief Random non-zero identity of the sending client instance. */
+    std::uint64_t clientId = 0;
+    /** @brief Non-zero identity separating client sessions and restarts. */
+    std::uint64_t sessionEpoch = 0;
+    /** @brief Non-zero monotonically increasing batch identity within the session. */
+    std::uint64_t batchId = 0;
+    /** @brief Zero-based position of this chunk in the batch. */
+    std::uint32_t chunkIndex = 0;
+    /** @brief Total number of chunks required before the batch may be applied. */
+    std::uint32_t chunkCount = 0;
+};
+
+/**
  * @brief Batch of user commands sent during the same external update cycle.
  *
  * @note `sequence` is user-defined and can be used to tag one simulation frame
@@ -494,6 +511,8 @@ struct CommandBatch
      * generated transport ids instead of authored names.
      */
     std::string mappingHash;
+    /** @brief Optional internal wire-fragment identity used for atomic UDP reassembly. */
+    std::optional<CommandBatchFragment> fragment;
     /** @brief Commands carried by the batch. */
     std::vector<UserCommand> commands;
 };

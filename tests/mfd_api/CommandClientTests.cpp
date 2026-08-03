@@ -20,6 +20,7 @@
 #include "mfd/control/CommandClient.h"
 #include "mfd/control/CommandTypes.h"
 #include "mfd/ipc/UdpLimits.h"
+#include "mfd/model/RuntimeBudgets.h"
 
 namespace
 {
@@ -180,14 +181,30 @@ TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesGeneratedIdentifiers)
     ASSERT_TRUE(client.SendBatch(batch));
     ASSERT_GT(rawChannel->SentPayloads().size(), 1U);
 
-    for (const std::vector<std::byte>& payloadBytes : rawChannel->SentPayloads())
+    std::uint64_t fragmentedBatchId = 0U;
+    for (std::size_t chunkIndex = 0U; chunkIndex < rawChannel->SentPayloads().size(); ++chunkIndex)
     {
+        const std::vector<std::byte>& payloadBytes = rawChannel->SentPayloads()[chunkIndex];
         const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
         const auto decodedBatch = mfd::DeserializeCommandBatch(payload);
 
         ASSERT_TRUE(decodedBatch.has_value());
         EXPECT_EQ(decodedBatch->sequence, 42U);
         EXPECT_EQ(decodedBatch->mappingHash, "map_hash");
+        ASSERT_TRUE(decodedBatch->fragment.has_value());
+        EXPECT_NE(decodedBatch->fragment->clientId, 0U);
+        EXPECT_NE(decodedBatch->fragment->sessionEpoch, 0U);
+        EXPECT_EQ(decodedBatch->fragment->chunkIndex, chunkIndex);
+        EXPECT_EQ(decodedBatch->fragment->chunkCount, rawChannel->SentPayloads().size());
+        if (chunkIndex == 0U)
+        {
+            fragmentedBatchId = decodedBatch->fragment->batchId;
+            EXPECT_NE(fragmentedBatchId, 0U);
+        }
+        else
+        {
+            EXPECT_EQ(decodedBatch->fragment->batchId, fragmentedBatchId);
+        }
         ASSERT_EQ(decodedBatch->commands.size(), 1U);
 
         const auto* splitCommand = std::get_if<mfd::UpsertDynamicReticlesCommand>(&decodedBatch->commands.front());
@@ -680,7 +697,7 @@ TEST(CommandClientTests, SplitReportsOversizedSingleDynamicReticleUpdate)
 
     mfd::DynamicReticleState oversized;
     oversized.reticleId = "track_huge";
-    oversized.patch.text = std::string(8U * 1024U, 'x');
+    oversized.patch.text = std::string(mfd::runtime_validation::kMaxTextBytes, 'x');
     command.reticles.push_back(std::move(oversized));
 
     mfd::CommandBatch batch;
@@ -688,5 +705,6 @@ TEST(CommandClientTests, SplitReportsOversizedSingleDynamicReticleUpdate)
     batch.commands.push_back(std::move(command));
 
     EXPECT_FALSE(client.SendBatch(batch));
-    EXPECT_NE(client.LastError().find("exceeds the configured UDP payload limit"), std::string::npos);
+    EXPECT_NE(client.LastError().find("exceeds the configured UDP payload limit"), std::string::npos)
+        << client.LastError();
 }

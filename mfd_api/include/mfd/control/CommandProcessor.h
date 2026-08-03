@@ -12,11 +12,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include "mfd/core/ArrayView.h"
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "mfd/MfdExport.h"
 #include "mfd/control/CommandTypes.h"
@@ -134,6 +137,23 @@ public:
     std::string LastError() const;
 
 private:
+    struct PendingFragmentChunk
+    {
+        std::string wirePayload {};
+        std::vector<UserCommand> commands {};
+    };
+
+    struct PendingFragmentedBatch
+    {
+        std::uint32_t sequence = 0U;
+        std::string mappingHash {};
+        std::vector<std::optional<PendingFragmentChunk>> chunks {};
+        std::size_t receivedChunkCount = 0U;
+        std::size_t wireBytes = 0U;
+        std::size_t commandCount = 0U;
+        std::chrono::steady_clock::time_point lastUpdate {};
+    };
+
     struct SequencedBatchState
     {
         std::uint32_t lastSequence = 0;
@@ -181,6 +201,11 @@ private:
     CommandResult OnResetWindow(const ResetWindowCommand& command);
 
     bool SubmitCommandsWithCurrentTransactionMode(ArrayView<const UserCommand> commands, std::string_view mappingHash);
+    bool SubmitCompleteBatch(const CommandBatch& batch, std::string sequenceStateKey);
+    bool AcceptFragment(const CommandBatch& chunk,
+                        std::optional<CommandBatch>& completedBatch,
+                        std::string& sequenceStateKey);
+    void ExpireFragmentedBatches(std::chrono::steady_clock::time_point now);
     bool SubmitCommandsTransactional(ArrayView<const UserCommand> commands, std::string_view mappingHash);
     bool SubmitCommandsNonTransactional(ArrayView<const UserCommand> commands, std::string_view mappingHash);
     bool ResolveBatchCommands(ArrayView<const UserCommand> commands,
@@ -207,6 +232,7 @@ private:
     SceneRegistry& scene_;
     std::string lastError_ {};
     std::unordered_map<std::string, SequencedBatchState> sequencedBatchesByMappingHash_ {};
+    std::unordered_map<std::string, PendingFragmentedBatch> pendingFragmentedBatches_ {};
     CommandBatchTransactionMode batchTransactionMode_ = CommandBatchTransactionMode::Transactional;
 };
 } // namespace mfd

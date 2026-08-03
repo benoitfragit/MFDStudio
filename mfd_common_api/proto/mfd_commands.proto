@@ -204,4 +204,9 @@ message CommandEnvelope
   uint32 sequence = 1;
   repeated UserCommand commands = 2;
   string mapping_hash = 3;
+  uint64 client_id = 4;
+  uint64 session_epoch = 5;
+  uint64 batch_id = 6;
+  uint32 chunk_index = 7;
+  uint32 chunk_count = 8;
 }

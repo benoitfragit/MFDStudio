@@ -137,6 +137,25 @@ TEST(CommandTypesTests, CommandBatchRoundTripsMappingHashAndGeneratedIds)
     EXPECT_FALSE(update->patch.primitivePatchesById.at(55U).timeFields->second);
 }
 
+TEST(CommandTypesTests, CommandBatchRoundTripsFragmentIdentity)
+{
+    mfd::CommandBatch batch;
+    batch.sequence = 17U;
+    batch.mappingHash = "map_hash";
+    batch.fragment = mfd::CommandBatchFragment {101U, 202U, 303U, 4U, 9U};
+    batch.commands.emplace_back(mfd::ResetWindowCommand {});
+
+    const auto decoded = mfd::DeserializeCommandBatch(mfd::SerializeCommandBatch(batch));
+
+    ASSERT_TRUE(decoded.has_value());
+    ASSERT_TRUE(decoded->fragment.has_value());
+    EXPECT_EQ(decoded->fragment->clientId, 101U);
+    EXPECT_EQ(decoded->fragment->sessionEpoch, 202U);
+    EXPECT_EQ(decoded->fragment->batchId, 303U);
+    EXPECT_EQ(decoded->fragment->chunkIndex, 4U);
+    EXPECT_EQ(decoded->fragment->chunkCount, 9U);
+}
+
 TEST(CommandTypesTests, SerializeCommandBatchRejectsLegacyNamedTargetsWithoutGeneratedIds)
 {
     mfd::CommandBatch batch;

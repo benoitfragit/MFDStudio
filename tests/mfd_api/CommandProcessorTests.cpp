@@ -295,6 +295,27 @@ std::string ReadFirstReticleText(const mfd::SceneRegistry& registry, const std::
     const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
     return text == nullptr ? std::string {} : text->text;
 }
+
+mfd::CommandBatch MakeFragmentedTextUpdate(const std::uint64_t clientId,
+                                           const std::uint64_t sessionEpoch,
+                                           const std::uint64_t batchId,
+                                           const std::uint32_t chunkIndex,
+                                           const std::uint32_t chunkCount,
+                                           const std::uint32_t sequence,
+                                           std::string text)
+{
+    mfd::ReticlePatch patch;
+    patch.text = std::move(text);
+
+    mfd::CommandBatch chunk;
+    chunk.mappingHash = "map_hash";
+    chunk.sequence = sequence;
+    chunk.fragment = mfd::CommandBatchFragment {
+        clientId, sessionEpoch, batchId, chunkIndex, chunkCount};
+    chunk.commands.emplace_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, std::move(patch)});
+    return chunk;
+}
 } // namespace
 
 TEST(CommandProcessorTests, PollDoesNotOverrideSuccessfulDispatchWithStickyChannelError)
@@ -864,6 +885,66 @@ TEST(CommandProcessorTests, AcceptsDistinctSequencedBatchesWithSameSequenceToSup
     const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(text->text, "321");
+}
+
+TEST(CommandProcessorTests, ReassemblesOutOfOrderFragmentsBeforeApplyingAnyCommand)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+    const mfd::CommandBatch first = MakeFragmentedTextUpdate(1U, 2U, 3U, 0U, 2U, 12U, "FIRST");
+    const mfd::CommandBatch second = MakeFragmentedTextUpdate(1U, 2U, 3U, 1U, 2U, 12U, "ATOMIC");
+
+    ASSERT_TRUE(processor.Submit(second));
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+    EXPECT_TRUE(processor.Submit(second));
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+
+    ASSERT_TRUE(processor.Submit(first));
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "ATOMIC");
+}
+
+TEST(CommandProcessorTests, RejectsConflictingDuplicateFragmentWithoutPartialMutation)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+    const mfd::CommandBatch original = MakeFragmentedTextUpdate(4U, 5U, 6U, 0U, 2U, 3U, "ORIGINAL");
+    const mfd::CommandBatch conflict = MakeFragmentedTextUpdate(4U, 5U, 6U, 0U, 2U, 3U, "CONFLICT");
+
+    ASSERT_TRUE(processor.Submit(original));
+    EXPECT_FALSE(processor.Submit(conflict));
+    EXPECT_EQ(processor.LastError(), "Conflicting duplicate command batch fragment");
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+}
+
+TEST(CommandProcessorTests, ReassemblesMoreThanLegacyFingerprintCap)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+    constexpr std::uint32_t kChunkCount = 257U;
+
+    for (std::uint32_t chunkIndex = 0U; chunkIndex < kChunkCount; ++chunkIndex)
+    {
+        const mfd::CommandBatch chunk = MakeFragmentedTextUpdate(
+            7U, 8U, 9U, chunkIndex, kChunkCount, 21U, std::to_string(chunkIndex));
+        ASSERT_TRUE(processor.Submit(chunk)) << "chunk " << chunkIndex;
+        if (chunkIndex + 1U < kChunkCount)
+        {
+            EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+        }
+    }
+
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "256");
+}
+
+TEST(CommandProcessorTests, SeparatesSequenceHistoryAcrossClientSessions)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    ASSERT_TRUE(processor.Submit(MakeFragmentedTextUpdate(10U, 11U, 1U, 0U, 1U, 99U, "OLD")));
+    ASSERT_TRUE(processor.Submit(MakeFragmentedTextUpdate(10U, 12U, 1U, 0U, 1U, 1U, "RESTART")));
+
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "RESTART");
 }
 
 TEST(CommandProcessorTests, BoundsRetainedFingerprintsForASingleSequence)

@@ -10,16 +10,19 @@
 
 #include "mfd/control/CommandProcessor.h"
 
+#include <chrono>
 #include <cstddef>
 #include <cstring>
-#include <vector>
+#include <iterator>
 #include <utility>
+#include <vector>
 
+#include "mfd/control/internal/CommandIdentifierHelpers.h"
+#include "mfd/control/internal/CommandTraits.h"
+#include "mfd/core/internal/CompositeKey.h"
 #include "mfd/ipc/ExchangeChannel.h"
 #include "mfd/model/Reticle.h"
 #include "mfd/runtime/SceneRegistry.h"
-#include "mfd/control/internal/CommandIdentifierHelpers.h"
-#include "mfd/control/internal/CommandTraits.h"
 
 namespace mfd
 {
@@ -32,6 +35,11 @@ constexpr std::size_t kMaxCommandsPerPoll = 64;
 // client that keeps the same sequence and varies the payload could grow the history without bound on the
 // UDP boundary. The cap is generous for legitimate chunking while keeping the per-sequence history finite.
 constexpr std::size_t kMaxFingerprintsPerSequence = 256;
+constexpr std::size_t kMaxPendingFragmentedBatches = 32U;
+constexpr std::size_t kMaxChunksPerFragmentedBatch = 4096U;
+constexpr std::size_t kMaxCommandsPerReassembledBatch = 65536U;
+constexpr std::size_t kMaxWireBytesPerReassembledBatch = 32U * 1024U * 1024U;
+constexpr std::chrono::seconds kFragmentExpiry {5};
 constexpr std::uint64_t kFnvOffsetBasis = 1469598103934665603ULL;
 constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 
@@ -55,6 +63,27 @@ std::size_t HashBatchFingerprintPayload(const std::string_view payload) noexcept
 std::size_t BuildSequencedBatchFingerprint(const CommandBatch& batch)
 {
     return HashBatchFingerprintPayload(SerializeCommandBatch(batch));
+}
+
+std::string MakeFragmentedBatchKey(const CommandBatchFragment& fragment)
+{
+    std::string key;
+    key.reserve(3U * (1U + sizeof(std::uint64_t)));
+    detail::AppendCompositeUnsignedField(key, 'c', fragment.clientId);
+    detail::AppendCompositeUnsignedField(key, 's', fragment.sessionEpoch);
+    detail::AppendCompositeUnsignedField(key, 'b', fragment.batchId);
+    return key;
+}
+
+std::string MakeFragmentedSequenceKey(const CommandBatchFragment& fragment, const std::string_view mappingHash)
+{
+    std::string key;
+    key.reserve(mappingHash.size() + detail::kCompositeKeyFieldOverhead +
+                2U * (1U + sizeof(std::uint64_t)));
+    detail::AppendCompositeStringField(key, 'm', mappingHash);
+    detail::AppendCompositeUnsignedField(key, 'c', fragment.clientId);
+    detail::AppendCompositeUnsignedField(key, 's', fragment.sessionEpoch);
+    return key;
 }
 
 // Collects the pages a command can mutate, with one explicit overload per command type, so a
@@ -146,6 +175,39 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
 {
     lastError_.clear();
 
+    if (batch.fragment.has_value())
+    {
+        if (!batch.mappingHash.empty() && !scene_.HasMatchingTransportMap(batch.mappingHash))
+        {
+            if (!scene_.HasTransportMap())
+            {
+                SetFailure("Client generated API requires the matching generated transport map loaded by the runtime window");
+            }
+            else
+            {
+                SetFailure("Generated transport map hash mismatch between the client batch and the runtime window");
+            }
+            return false;
+        }
+
+        std::optional<CommandBatch> completedBatch;
+        std::string sequenceStateKey;
+        if (!AcceptFragment(batch, completedBatch, sequenceStateKey))
+        {
+            return false;
+        }
+        if (!completedBatch.has_value())
+        {
+            return true;
+        }
+        return SubmitCompleteBatch(*completedBatch, std::move(sequenceStateKey));
+    }
+
+    return SubmitCompleteBatch(batch, batch.mappingHash);
+}
+
+bool CommandProcessor::SubmitCompleteBatch(const CommandBatch& batch, std::string sequenceStateKey)
+{
     if (!batch.mappingHash.empty() && !scene_.HasMatchingTransportMap(batch.mappingHash))
     {
         if (!scene_.HasTransportMap())
@@ -163,7 +225,7 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
     std::optional<std::size_t> batchFingerprint;
     if (batch.sequence != 0 && !batch.mappingHash.empty())
     {
-        auto& sequenceState = sequencedBatchesByMappingHash_[batch.mappingHash];
+        auto& sequenceState = sequencedBatchesByMappingHash_[sequenceStateKey];
         if (batch.sequence < sequenceState.lastSequence)
         {
             SetFailure("Dropped stale or duplicate command batch");
@@ -207,7 +269,7 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
 
     if (batch.sequence != 0 && !batch.mappingHash.empty())
     {
-        auto& sequenceState = sequencedBatchesByMappingHash_[batch.mappingHash];
+        auto& sequenceState = sequencedBatchesByMappingHash_[sequenceStateKey];
         if (batch.sequence > sequenceState.lastSequence)
         {
             sequenceState.lastSequence = batch.sequence;
@@ -220,6 +282,128 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
         }
     }
 
+    return true;
+}
+
+void CommandProcessor::ExpireFragmentedBatches(const std::chrono::steady_clock::time_point now)
+{
+    for (auto iterator = pendingFragmentedBatches_.begin(); iterator != pendingFragmentedBatches_.end();)
+    {
+        if (now - iterator->second.lastUpdate >= kFragmentExpiry)
+        {
+            iterator = pendingFragmentedBatches_.erase(iterator);
+        }
+        else
+        {
+            ++iterator;
+        }
+    }
+}
+
+bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
+                                      std::optional<CommandBatch>& completedBatch,
+                                      std::string& sequenceStateKey)
+{
+    completedBatch.reset();
+    const CommandBatchFragment& fragment = *chunk.fragment;
+    if (fragment.clientId == 0U || fragment.sessionEpoch == 0U || fragment.batchId == 0U ||
+        fragment.chunkCount == 0U || fragment.chunkIndex >= fragment.chunkCount ||
+        fragment.chunkCount > kMaxChunksPerFragmentedBatch)
+    {
+        SetFailure("Rejected invalid or oversized command batch fragment metadata");
+        return false;
+    }
+
+    std::string wirePayload;
+    try
+    {
+        wirePayload = SerializeCommandBatch(chunk);
+    }
+    catch (const std::exception& exception)
+    {
+        SetFailure(exception.what());
+        return false;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    ExpireFragmentedBatches(now);
+    const std::string batchKey = MakeFragmentedBatchKey(fragment);
+    auto pendingPosition = pendingFragmentedBatches_.find(batchKey);
+    if (pendingPosition == pendingFragmentedBatches_.end())
+    {
+        if (pendingFragmentedBatches_.size() >= kMaxPendingFragmentedBatches)
+        {
+            SetFailure("Too many incomplete fragmented command batches are pending");
+            return false;
+        }
+
+        PendingFragmentedBatch pending;
+        pending.sequence = chunk.sequence;
+        pending.mappingHash = chunk.mappingHash;
+        pending.chunks.resize(fragment.chunkCount);
+        pending.lastUpdate = now;
+        pendingPosition = pendingFragmentedBatches_.emplace(batchKey, std::move(pending)).first;
+    }
+
+    PendingFragmentedBatch& pending = pendingPosition->second;
+    if (pending.sequence != chunk.sequence || pending.mappingHash != chunk.mappingHash ||
+        pending.chunks.size() != fragment.chunkCount)
+    {
+        pendingFragmentedBatches_.erase(pendingPosition);
+        SetFailure("Conflicting metadata for fragmented command batch");
+        return false;
+    }
+
+    std::optional<PendingFragmentChunk>& destination = pending.chunks[fragment.chunkIndex];
+    if (destination.has_value())
+    {
+        if (destination->wirePayload == wirePayload)
+        {
+            pending.lastUpdate = now;
+            return true;
+        }
+
+        pendingFragmentedBatches_.erase(pendingPosition);
+        SetFailure("Conflicting duplicate command batch fragment");
+        return false;
+    }
+
+    if (wirePayload.size() > kMaxWireBytesPerReassembledBatch - pending.wireBytes ||
+        chunk.commands.size() > kMaxCommandsPerReassembledBatch - pending.commandCount)
+    {
+        pendingFragmentedBatches_.erase(pendingPosition);
+        SetFailure("Fragmented command batch exceeds reassembly safety budgets");
+        return false;
+    }
+
+    PendingFragmentChunk storedChunk;
+    storedChunk.wirePayload = std::move(wirePayload);
+    storedChunk.commands = chunk.commands;
+    destination = std::move(storedChunk);
+    pending.wireBytes += destination->wirePayload.size();
+    pending.commandCount += destination->commands.size();
+    ++pending.receivedChunkCount;
+    pending.lastUpdate = now;
+    if (pending.receivedChunkCount != pending.chunks.size())
+    {
+        return true;
+    }
+
+    CommandBatch assembled;
+    assembled.sequence = pending.sequence;
+    assembled.mappingHash = pending.mappingHash;
+    assembled.commands.reserve(pending.commandCount);
+    for (std::optional<PendingFragmentChunk>& stored : pending.chunks)
+    {
+        assembled.commands.insert(
+            assembled.commands.end(),
+            std::make_move_iterator(stored->commands.begin()),
+            std::make_move_iterator(stored->commands.end()));
+    }
+
+    sequenceStateKey = MakeFragmentedSequenceKey(fragment, assembled.mappingHash);
+    completedBatch = std::move(assembled);
+    pendingFragmentedBatches_.erase(pendingPosition);
     return true;
 }
 

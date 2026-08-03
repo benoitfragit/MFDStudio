@@ -319,13 +319,16 @@ private:
      */
     bool SetGeneratedPageView(TransportId pageId, std::string_view mappingHash, Vec2 center, float zoom);
     bool NormalizeBatchForTransport(const CommandBatch& sourceBatch, CommandBatch& normalizedBatch);
-    bool FlushPayloadChunk(CommandBatch& currentChunk, std::string& error);
+    void InitializeFragmentIdentity();
     bool SendPayload(std::string_view payload);
     bool SendBatchedPayloads(const CommandBatch& batch);
 
     std::unique_ptr<IExchangeChannel> channel_ {};
     std::optional<GeneratedTransportMap> transportMap_ {};
     std::size_t maxPayloadBytes_ = 4096;
+    std::uint64_t clientId_ = 0U;
+    std::uint64_t sessionEpoch_ = 0U;
+    std::uint64_t nextBatchId_ = 1U;
     std::string lastError_ {};
 };
 } // namespace mfd
