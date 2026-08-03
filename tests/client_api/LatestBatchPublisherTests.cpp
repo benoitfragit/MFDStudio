@@ -1516,6 +1516,74 @@ TEST(LatestBatchPublisherTests, ReportsNotReadyWhenSendCallbackIsMissing)
 }
 
 /**
+ * @brief Ensures a rejected submission cannot consume generator dirty state.
+ */
+TEST(LatestBatchPublisherTests, DoesNotInvokeBatchBuilderAfterStop)
+{
+    mfd::client::LatestBatchPublisher publisher(
+        [](const mfd::CommandBatch&)
+        {
+            return true;
+        });
+    publisher.Stop();
+
+    bool builderInvoked = false;
+    EXPECT_FALSE(publisher.SubmitLatest(
+        [&builderInvoked]()
+        {
+            builderInvoked = true;
+            return MakeBatch(91U);
+        }));
+
+    EXPECT_FALSE(builderInvoked);
+    EXPECT_EQ(publisher.LastError(), "Latest batch publisher has been stopped");
+}
+
+/**
+ * @brief Ensures an asynchronously failed batch is retained until a later submission retries it.
+ */
+TEST(LatestBatchPublisherTests, RetriesFailedBatchWithNextSubmission)
+{
+    std::mutex mutex;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+    std::size_t sendCount = 0U;
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &deliveredBatches, &sendCount](const mfd::CommandBatch& batch)
+        {
+            std::lock_guard lock(mutex);
+            ++sendCount;
+            deliveredBatches.push_back(batch);
+            return sendCount > 1U;
+        });
+
+    mfd::CommandBatch failedBatch = MakeBatch(17U);
+    mfd::ReticlePatch failedPatch;
+    failedPatch.visible = true;
+    failedBatch.commands.emplace_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"HUD", "retry"}, failedPatch});
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(failedBatch)));
+    publisher.Flush();
+    EXPECT_EQ(publisher.LastError(), "Unable to send the latest command batch");
+    {
+        std::lock_guard lock(mutex);
+        ASSERT_EQ(deliveredBatches.size(), 1U);
+    }
+
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(18U)));
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(deliveredBatches[0].sequence, 17U);
+    EXPECT_EQ(deliveredBatches[1].sequence, 18U);
+    const mfd::UpdateReticleCommand* retryUpdate =
+        FindStaticReticleUpdate(deliveredBatches[1], "HUD", "retry");
+    ASSERT_NE(retryUpdate, nullptr);
+    EXPECT_EQ(retryUpdate->patch.visible, std::optional<bool> {true});
+    EXPECT_TRUE(publisher.LastError().empty());
+}
+
+/**
  * @brief Falls back to the default send-failure error when no transport-specific error callback exists.
  */
 TEST(LatestBatchPublisherTests, TurnsSendFailureIntoDefaultErrorWhenNoErrorCallbackIsProvided)

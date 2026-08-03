@@ -2128,12 +2128,18 @@ mfd::CommandBatch LhldUi::BuildResetCommandBatch(const std::uint32_t sequence)
 
 bool LhldUi::SubmitLatest(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence)
 {
-    return publisher.SubmitLatest(BuildCommandBatch(sequence));
+    return publisher.SubmitLatest([this, sequence]()
+    {
+        return BuildCommandBatch(sequence);
+    });
 }
 
 bool LhldUi::SubmitReset(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence)
 {
-    return publisher.SubmitLatest(BuildResetCommandBatch(sequence));
+    return publisher.SubmitLatest([this, sequence]()
+    {
+        return BuildResetCommandBatch(sequence);
+    });
 }
 
 std::vector<mfd::UserCommand> LhldUi::BuildShutdownBatch(std::string statusText)
@@ -2164,7 +2170,10 @@ bool LhldUi::SubmitShutdown(mfd::client::LatestBatchPublisher& publisher,
                               const std::uint32_t sequence,
                               std::string statusText)
 {
-    return publisher.SubmitLatest(BuildShutdownCommandBatch(sequence, std::move(statusText)));
+    return publisher.SubmitLatest([this, sequence, statusText = std::move(statusText)]() mutable
+    {
+        return BuildShutdownCommandBatch(sequence, std::move(statusText));
+    });
 }
 
 WindowDisplay& LhldUi::Window() noexcept

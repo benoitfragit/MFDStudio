@@ -261,12 +261,18 @@ public:
 
     bool SubmitLatest(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence = 0U)
     {
-        return publisher.SubmitLatest(BuildCommandBatch(sequence));
+        return publisher.SubmitLatest([this, sequence]()
+        {
+            return BuildCommandBatch(sequence);
+        });
     }
 
     bool SubmitReset(mfd::client::LatestBatchPublisher& publisher, const std::uint32_t sequence = 0U)
     {
-        return publisher.SubmitLatest(BuildResetCommandBatch(sequence));
+        return publisher.SubmitLatest([this, sequence]()
+        {
+            return BuildResetCommandBatch(sequence);
+        });
     }
 
     mfd::client::WindowDisplay& Window() noexcept
@@ -405,6 +411,27 @@ TEST(GeneratedUiRuntimeTests, SubmitLatestForwardsGeneratedUiBatchSemantics)
     EXPECT_EQ(upsert->templateTransportId, 77U);
     ASSERT_EQ(upsert->reticles.size(), 1U);
     EXPECT_EQ(*upsert->reticles.front().patch.primitivePatchesById.at(44U).text, "B02");
+}
+
+TEST(GeneratedUiRuntimeTests, RejectedSubmissionPreservesGeneratedDirtyState)
+{
+    mfd::client::LatestBatchPublisher publisher(
+        [](const mfd::CommandBatch&)
+        {
+            return true;
+        });
+    publisher.Stop();
+
+    GeneratedUiFixture ui;
+    ui.Radar().SetStatusCaption("RETRY");
+
+    EXPECT_FALSE(ui.SubmitLatest(publisher, 8U));
+
+    const mfd::CommandBatch retryBatch = ui.BuildCommandBatch(9U);
+    ASSERT_EQ(retryBatch.commands.size(), 1U);
+    const auto* status = std::get_if<mfd::UpdateReticleCommand>(&retryBatch.commands.front());
+    ASSERT_NE(status, nullptr);
+    EXPECT_EQ(*status->patch.primitivePatchesById.at(33U).text, "RETRY");
 }
 
 TEST(GeneratedUiRuntimeTests, RunClearsLocalDirtyStateWithoutInvalidatingGeneratedDynamicReticles)

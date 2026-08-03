@@ -43,6 +43,7 @@ struct LatestBatchPublisher::Impl
     bool ready = false;
     bool stopRequested = false;
     bool sending = false;
+    bool retryBlocked = false;
 };
 
 namespace
@@ -604,7 +605,8 @@ void StartWorker(ImplType& impl)
                         lock,
                         [&impl]()
                         {
-                            return impl.stopRequested || impl.pendingBatch.has_value();
+                            return impl.stopRequested ||
+                                   (impl.pendingBatch.has_value() && !impl.retryBlocked);
                         });
 
                     if (impl.stopRequested && !impl.pendingBatch.has_value())
@@ -644,7 +646,23 @@ void StartWorker(ImplType& impl)
                 {
                     std::lock_guard<std::mutex> lock(impl.mutex);
                     impl.sending = false;
-                    impl.lastError = success ? std::string {} : std::move(error);
+                    if (success)
+                    {
+                        impl.lastError.clear();
+                    }
+                    else
+                    {
+                        std::optional<mfd::CommandBatch> retryBatch {std::move(batch)};
+                        if (impl.pendingBatch.has_value())
+                        {
+                            MergePendingBatchPreservingUndeliveredDeltas(
+                                retryBatch,
+                                std::move(*impl.pendingBatch));
+                        }
+                        impl.pendingBatch = std::move(retryBatch);
+                        impl.retryBlocked = true;
+                        impl.lastError = std::move(error);
+                    }
                 }
 
                 impl.idleCondition.notify_all();
@@ -739,26 +757,32 @@ LatestBatchPublisher::~LatestBatchPublisher()
 
 bool LatestBatchPublisher::IsReady() const noexcept
 {
-    return impl_ != nullptr && impl_->ready;
+    if (impl_ == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->ready && !impl_->stopRequested;
 }
 
 bool LatestBatchPublisher::SubmitLatest(mfd::CommandBatch batch)
 {
-    if (!IsReady())
+    if (impl_ == nullptr)
     {
-        if (impl_ != nullptr)
-        {
-            std::lock_guard<std::mutex> lock(impl_->mutex);
-            if (impl_->lastError.empty())
-            {
-                impl_->lastError = "Latest batch publisher is not ready";
-            }
-        }
         return false;
     }
 
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (!impl_->ready)
+        {
+            if (impl_->lastError.empty())
+            {
+                impl_->lastError = "Latest batch publisher is not ready";
+            }
+            return false;
+        }
         if (impl_->stopRequested)
         {
             impl_->lastError = "Latest batch publisher has been stopped";
@@ -766,6 +790,43 @@ bool LatestBatchPublisher::SubmitLatest(mfd::CommandBatch batch)
         }
 
         MergePendingBatchPreservingUndeliveredDeltas(impl_->pendingBatch, std::move(batch));
+        impl_->retryBlocked = false;
+    }
+
+    impl_->wakeCondition.notify_one();
+    return true;
+}
+
+bool LatestBatchPublisher::SubmitLatest(BatchBuilder batchBuilder)
+{
+    if (impl_ == nullptr)
+    {
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (!impl_->ready)
+        {
+            if (impl_->lastError.empty())
+            {
+                impl_->lastError = "Latest batch publisher is not ready";
+            }
+            return false;
+        }
+        if (impl_->stopRequested)
+        {
+            impl_->lastError = "Latest batch publisher has been stopped";
+            return false;
+        }
+        if (!batchBuilder)
+        {
+            impl_->lastError = "Latest batch publisher requires a valid batch builder";
+            return false;
+        }
+
+        MergePendingBatchPreservingUndeliveredDeltas(impl_->pendingBatch, batchBuilder());
+        impl_->retryBlocked = false;
     }
 
     impl_->wakeCondition.notify_one();
@@ -792,7 +853,7 @@ void LatestBatchPublisher::Flush()
         lock,
         [this]()
         {
-            return !impl_->pendingBatch.has_value() && !impl_->sending;
+            return (!impl_->pendingBatch.has_value() || impl_->retryBlocked) && !impl_->sending;
         });
 }
 
@@ -807,6 +868,7 @@ void LatestBatchPublisher::Stop()
         std::lock_guard<std::mutex> lock(impl_->mutex);
         impl_->stopRequested = true;
         impl_->pendingBatch.reset();
+        impl_->retryBlocked = false;
     }
 
     impl_->wakeCondition.notify_all();

@@ -43,6 +43,8 @@ public:
     using SendFunction = std::function<bool(const mfd::CommandBatch&)>;
     /** @brief Callback returning the last transport-specific error string. */
     using ErrorFunction = std::function<std::string()>;
+    /** @brief Callback building a batch only after the publisher accepts the submission. */
+    using BatchBuilder = std::function<mfd::CommandBatch()>;
 
     /**
      * @brief Creates a publisher owning its own command client from a window transport configuration.
@@ -84,6 +86,14 @@ public:
     bool SubmitLatest(mfd::CommandBatch batch);
 
     /**
+     * @brief Builds and queues the latest batch only when the publisher can accept it.
+     * @param batchBuilder Callback invoked synchronously after readiness and stop checks.
+     * @return `true` when the callback was invoked and its batch was accepted.
+     * @note Use this overload when building a batch commits local dirty-state bookkeeping.
+     */
+    bool SubmitLatest(BatchBuilder batchBuilder);
+
+    /**
      * @brief Convenience overload building the command batch in place.
      * @param commands Commands representing the newest known external state.
      * @param sequence Optional caller-managed sequence identifier.
@@ -92,7 +102,8 @@ public:
     bool SubmitLatest(std::vector<mfd::UserCommand> commands, std::uint32_t sequence = 0);
 
     /**
-     * @brief Blocks until the current send finishes and no pending batch remains.
+     * @brief Blocks until the current send finishes and no immediately sendable batch remains.
+     * @note A failed batch remains retained for the next submission; inspect LastError() after flushing.
      */
     void Flush();
 
