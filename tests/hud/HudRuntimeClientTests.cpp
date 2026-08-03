@@ -51,7 +51,8 @@ TEST(HudRuntimeLibraryTests, FunnelControlPointsAreComputedFromGenericInputSampl
 {
     // A generic EEGS sample: aircraft/target physics plus resolved avionics
     // state, without any main-client armament type. The runtime must still
-    // fit the sixteen physical stations into five-point Bezier rails on its own.
+    // summarize the sixteen physical stations into constrained five-point
+    // Bezier rails on its own.
     hud::HudInputSample input;
     input.weapon.masterMode = hud::HudMasterMode::AirToAir;
     input.weapon.weaponMode = hud::HudWeaponMode::AirToAirGun;

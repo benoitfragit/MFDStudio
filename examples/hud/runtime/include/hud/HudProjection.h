@@ -112,13 +112,16 @@ HUD_RUNTIME_API bool IsInsideHudFov(float azimuthRad, float elevationRad) noexce
  * The EEGS funnel algorithm lives in this stateless projection layer. External
  * code provides sixteen near-to-far, current-aircraft-centered NED range
  * stations sampled from its ballistic history. The runtime transforms NED to
- * current body axes, derives azimuth/elevation, projects those angles through
- * `UserSpaceProjector`, and offsets both rails by the physical angular width
- * `atan(targetWingspan / (2 * range))`. The projected rail is positioned
- * relative to the authored gun bore cross, never to the flight-path marker.
- * A degree-four Bezier fitted from the sixteen physical samples is rendered by
- * the authored 36-segment rail primitive. Aircraft attitude is applied exactly
- * once here.
+ * current body axes, derives azimuth/elevation and projects those angles through
+ * `UserSpaceProjector`. A constrained quadratic centerline summarizes the
+ * ballistic lead without reproducing local history oscillations. Both rails
+ * share one transverse axis and a positive, monotonically decreasing angular
+ * width `atan(targetWingspan / (2 * range))`, so they cannot cross or twist.
+ * The centerline is elevated exactly to the authored degree-four Bezier format
+ * and positioned relative to the gun bore cross, never to the flight-path
+ * marker. Its convex control hull stays inside the rendered HUD aperture,
+ * including during inverted flight. Aircraft attitude is applied exactly once
+ * here.
  *
  * Weapon-specific values are the opposite: launch zone, time of flight, labels
  * and quantities are caller-resolved facts read from `WeaponInputSample`, never

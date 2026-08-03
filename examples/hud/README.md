@@ -122,6 +122,14 @@ velocity (air velocity + wind), so wind, atmosphere and terrain influence the
 HUD — including the EEGS funnel — only through the resolved physical data.
 `hud_runtime` stays a passive consumer and never reads a simulated weather.
 
+A settled, spatially uniform wind does not create a permanent lateral EEGS
+offset by itself: the aircraft and every virtual round share the same air-mass
+translation, and each round inherits the aircraft ground velocity at launch.
+The wind remains visible in ground-referenced aircraft data and during history
+transients. A persistent relative gun-funnel drift would require a wind gradient
+or target-motion model; adding an arbitrary HUD offset would double-count the
+uniform wind.
+
 ## Replacing the Mini Simulation
 
 `HudSimulation` (in `main/`) is only one possible producer. It is replaceable
@@ -203,8 +211,10 @@ aircraft but still oriented North/East/Down. The stateless display chain is:
 Each station keeps its own physical angular half-width:
 `atan2(targetWingspanMeters / 2, range)`. With the default 35-foot wingspan,
 the 600-foot end is therefore approximately five times wider than the
-3000-foot end. Rail normals retain a consistent screen-left and screen-right
-orientation as local tangents evolve, preventing wall swaps.
+3000-foot end. The display preserves those physical endpoint widths and
+interpolates them monotonically along the rendered rails. A defensive display
+bound handles nonsensical external wingspan values without affecting the
+physical 600/3000-foot geometry of supported targets.
 
 The projected rail uses the authored Gun Bore Cross at HUD position
 `{0.0, 0.82}` as its local origin. This places the wide 600-foot end close to
@@ -214,13 +224,21 @@ changing aircraft flight-path velocity does not translate the funnel. The
 runtime owns no ballistic history, clock, temporal filter or previous-frame
 state.
 
-In the absence of target orientation, apparent wingspan is placed
-perpendicular to the local trajectory tangent. Finally, the sixteen physical
-stations are fitted by least squares to the three internal control points of
-each five-control-point degree-four Bezier. The near and far endpoints are
-preserved, a deterministic linear fallback handles a degenerate solve without
-allocation, and the authored primitive tessellates each continuous rail into
-36 smooth segments.
+The sixteen projected stations are summarized by one quadratic centerline.
+Its near offset, useful length, control-point progress and curvature are bounded
+to keep the Level-II sight readable during abrupt pitch and roll changes. Its
+direction continuously blends the current roll-resolved gravity direction with
+the broad ballistic lead direction, with that ballistic contribution faded out
+continuously when its axis becomes too short to be reliable. One transverse
+axis is then used for the entire frame, and the two walls are built as
+`centerline +/- halfWidth`. This construction guarantees positive separation,
+monotonic narrowing and a common curvature: a noisy ballistic history cannot
+turn the sight into an S or make its walls exchange sides. The complete control
+hull is translated only when needed to remain inside the HUD aperture after the
+Gun Bore Cross anchor is applied, including during inverted flight. Exact degree
+elevation converts the quadratic to the authored five-control-point quartic
+Bezier without changing its shape; the primitive tessellates each rail into 36
+smooth segments without allocation or projection-layer history.
 
 Reference figures: Falcon BMS Dash-34 4.36.3, section 2.4.5.1, figure 41; DCS
 F-16C Early Access Guide, EEGS Level-II pages 530-532.

@@ -47,6 +47,7 @@ using hud_main::MissileType;
 using hud_main::SimulationControls;
 
 constexpr float kDegreesToRadians = 0.017453292519943295f;
+constexpr float kPi = 3.14159265358979323846f;
 constexpr float kFeetToMeters = 0.3048f;
 constexpr float kGunBoreCrossHudY = 0.82f;
 constexpr float kHudUnitsPerMil = 0.0056f;
@@ -138,6 +139,194 @@ bool IsFiniteFunnelRail(const hud::HudFunnelControlPoints& rail)
     }
 
     return true;
+}
+
+hud::HudVec2 EvaluateQuarticFunnelRail(const hud::HudFunnelControlPoints& rail, const float t)
+{
+    const float oneMinusT = 1.0f - t;
+    const float oneMinusTSquared = oneMinusT * oneMinusT;
+    const float tSquared = t * t;
+    const float weights[5] {
+        oneMinusTSquared * oneMinusTSquared,
+        4.0f * oneMinusTSquared * oneMinusT * t,
+        6.0f * oneMinusTSquared * tSquared,
+        4.0f * oneMinusT * tSquared * t,
+        tSquared * tSquared};
+
+    hud::HudVec2 point;
+    for (std::size_t index = 0U; index < rail.size(); ++index)
+    {
+        point.x += rail[index].x * weights[index];
+        point.y += rail[index].y * weights[index];
+    }
+    return point;
+}
+
+hud::HudVec2 SubtractHudPoints(const hud::HudVec2 first, const hud::HudVec2 second)
+{
+    return hud::HudVec2 {first.x - second.x, first.y - second.y};
+}
+
+hud::HudVec2 TransformFunnelPoint(const hud::HudGunFrame& gun, const hud::HudVec2 localPoint)
+{
+    const hud::HudVec2 scaled {
+        localPoint.x * gun.eegsFunnelScaleX,
+        localPoint.y * gun.eegsFunnelScaleY};
+    const float rotationRadians = gun.eegsFunnelRotationDegrees * kDegreesToRadians;
+    const float cosine = std::cos(rotationRadians);
+    const float sine = std::sin(rotationRadians);
+    return hud::HudVec2 {
+        gun.eegsFunnelPosition.x + scaled.x * cosine - scaled.y * sine,
+        gun.eegsFunnelPosition.y + scaled.x * sine + scaled.y * cosine};
+}
+
+hud::HudVec2 EvaluateRenderedFunnelRail(const hud::HudGunFrame& gun,
+                                        const hud::HudFunnelControlPoints& rail,
+                                        const float t)
+{
+    return TransformFunnelPoint(gun, EvaluateQuarticFunnelRail(rail, t));
+}
+
+hud::HudVec2 RenderedFunnelCenterAt(const hud::HudGunFrame& gun, const float t)
+{
+    const hud::HudVec2 left = EvaluateRenderedFunnelRail(
+        gun,
+        gun.eegsFunnelLeftControlPoints,
+        t);
+    const hud::HudVec2 right = EvaluateRenderedFunnelRail(
+        gun,
+        gun.eegsFunnelRightControlPoints,
+        t);
+    return hud::HudVec2 {
+        (left.x + right.x) * 0.5f,
+        (left.y + right.y) * 0.5f};
+}
+
+float HudPointDistance(const hud::HudVec2 first, const hud::HudVec2 second)
+{
+    return std::hypot(first.x - second.x, first.y - second.y);
+}
+
+float DotHudVectors(const hud::HudVec2 first, const hud::HudVec2 second)
+{
+    return first.x * second.x + first.y * second.y;
+}
+
+float CrossHudVectors(const hud::HudVec2 first, const hud::HudVec2 second)
+{
+    return first.x * second.y - first.y * second.x;
+}
+
+void ExpectConstrainedFunnelGeometry(const hud::HudFrame& frame)
+{
+    ASSERT_TRUE(frame.gun.eegsFunnelVisible);
+    ASSERT_TRUE(IsFiniteFunnelRail(frame.gun.eegsFunnelLeftControlPoints));
+    ASSERT_TRUE(IsFiniteFunnelRail(frame.gun.eegsFunnelRightControlPoints));
+
+    constexpr std::size_t renderedSampleCount = 101U;
+    const hud::HudVec2 firstLeft = EvaluateRenderedFunnelRail(
+        frame.gun,
+        frame.gun.eegsFunnelLeftControlPoints,
+        0.0f);
+    const hud::HudVec2 firstRight = EvaluateRenderedFunnelRail(
+        frame.gun,
+        frame.gun.eegsFunnelRightControlPoints,
+        0.0f);
+    const hud::HudVec2 firstSeparation = SubtractHudPoints(firstRight, firstLeft);
+    const float firstWidth = std::hypot(firstSeparation.x, firstSeparation.y);
+    ASSERT_GT(firstWidth, 0.0001f);
+
+    const hud::HudVec2 firstCenter = RenderedFunnelCenterAt(frame.gun, 0.0f);
+    const hud::HudVec2 lastCenter = RenderedFunnelCenterAt(frame.gun, 1.0f);
+    const hud::HudVec2 axis = SubtractHudPoints(lastCenter, firstCenter);
+    const float axisLength = std::hypot(axis.x, axis.y);
+    ASSERT_GT(axisLength, 0.0001f);
+
+    float previousWidth = std::numeric_limits<float>::max();
+    hud::HudVec2 previousCenter = firstCenter;
+    hud::HudVec2 previousStep {};
+    int curvatureSign = 0;
+    for (std::size_t index = 0U; index < renderedSampleCount; ++index)
+    {
+        SCOPED_TRACE(::testing::Message() << "funnel sample " << index);
+        const float t = static_cast<float>(index) /
+            static_cast<float>(renderedSampleCount - 1U);
+        const hud::HudVec2 left = EvaluateRenderedFunnelRail(
+            frame.gun,
+            frame.gun.eegsFunnelLeftControlPoints,
+            t);
+        const hud::HudVec2 right = EvaluateRenderedFunnelRail(
+            frame.gun,
+            frame.gun.eegsFunnelRightControlPoints,
+            t);
+        ASSERT_TRUE(IsFiniteHudVec(left));
+        ASSERT_TRUE(IsFiniteHudVec(right));
+        EXPECT_LE(std::fabs(left.x), 1.0001f);
+        EXPECT_LE(std::fabs(left.y), 1.0001f);
+        EXPECT_LE(std::fabs(right.x), 1.0001f);
+        EXPECT_LE(std::fabs(right.y), 1.0001f);
+
+        const hud::HudVec2 separation = SubtractHudPoints(right, left);
+        const float width = std::hypot(separation.x, separation.y);
+        ASSERT_GT(width, 0.0001f);
+        const float separationAlignment = DotHudVectors(
+            separation,
+            firstSeparation) / (width * firstWidth);
+        const float separationTwist = CrossHudVectors(
+            separation,
+            firstSeparation) / (width * firstWidth);
+        EXPECT_GT(separationAlignment, 0.9999f);
+        EXPECT_NEAR(separationTwist, 0.0f, 0.0001f);
+
+        if (index > 0U)
+        {
+            EXPECT_LT(width, previousWidth);
+            const hud::HudVec2 center = RenderedFunnelCenterAt(frame.gun, t);
+            const hud::HudVec2 step = SubtractHudPoints(center, previousCenter);
+            EXPECT_GT(DotHudVectors(step, axis), 0.0f);
+            if (index > 1U)
+            {
+                const float previousStepLength = std::hypot(
+                    previousStep.x,
+                    previousStep.y);
+                const float stepLength = std::hypot(step.x, step.y);
+                const float curvature = CrossHudVectors(previousStep, step) /
+                    (previousStepLength * stepLength);
+                if (std::fabs(curvature) > 0.001f)
+                {
+                    const int currentSign = curvature > 0.0f ? 1 : -1;
+                    if (curvatureSign != 0)
+                    {
+                        EXPECT_EQ(currentSign, curvatureSign);
+                    }
+                    curvatureSign = currentSign;
+                }
+            }
+            previousCenter = center;
+            previousStep = step;
+        }
+        previousWidth = width;
+    }
+}
+
+void ConfigureUnlockedEegs(HudInputSample& input)
+{
+    input.weapon.masterMode = HudMasterMode::AirToAir;
+    input.weapon.weaponMode = HudWeaponMode::AirToAirGun;
+    input.weapon.gunMode = HudGunMode::Eegs;
+    input.weapon.masterArm = true;
+    input.weapon.gunRoundsRemaining = 510;
+    input.weapon.targetLocked = false;
+}
+
+float NormalizeRadiansPiForTest(float radians)
+{
+    radians = std::fmod(radians + kPi, 2.0f * kPi);
+    if (radians < 0.0f)
+    {
+        radians += 2.0f * kPi;
+    }
+    return radians - kPi;
 }
 
 float HorizontalGap(const hud::HudVec2 left, const hud::HudVec2 right)
@@ -765,13 +954,14 @@ TEST(HudSimulationTests, EegsFunnelNarrowsFromSixHundredToThreeThousandFeet)
     const hud::HudFunnelControlPoints& right = frame.gun.eegsFunnelRightControlPoints;
     ASSERT_EQ(left.size(), right.size());
 
-    const float nearGap = HorizontalGapAt(left, right, 0U);
-    const float farGap = HorizontalGapAt(left, right, left.size() - 1U);
+    const float nearGap = HudPointDistance(left.front(), right.front());
+    const float farGap = HudPointDistance(left.back(), right.back());
     ASSERT_GT(farGap, 0.0f);
     EXPECT_GT(nearGap, farGap);
     EXPECT_NEAR(nearGap / farGap, 5.0f, 0.05f);
     EXPECT_TRUE(IsFiniteFunnelRail(left));
     EXPECT_TRUE(IsFiniteFunnelRail(right));
+    ExpectConstrainedFunnelGeometry(frame);
 }
 
 TEST(HudSimulationTests, EegsFunnelUsesGunBoreReferenceAndDoesNotFollowFpm)
@@ -876,7 +1066,7 @@ TEST(HudSimulationTests, EegsRailSidesStayStableWhenProjectedTrajectoryReversesV
     }
 }
 
-TEST(HudSimulationTests, EegsBezierEndpointsFollowNearAndFarRangeStations)
+TEST(HudSimulationTests, EegsFunnelKeepsNearReferenceAndConstrainsFarLead)
 {
     HudInputSample input;
     input.weapon.masterMode = HudMasterMode::AirToAir;
@@ -906,15 +1096,278 @@ TEST(HudSimulationTests, EegsBezierEndpointsFollowNearAndFarRangeStations)
     const hud::HudVec2 nearCenter {
         (leftNear.x + rightNear.x) * 0.5f,
         (leftNear.y + rightNear.y) * 0.5f};
+    const hud::HudVec2 expectedLead = SubtractHudPoints(
+        expectedFar.position,
+        expectedNear.position);
+    const hud::HudVec2 constrainedLead = SubtractHudPoints(farCenter, nearCenter);
+    const float constrainedLeadLength = std::hypot(constrainedLead.x, constrainedLead.y);
 
-    EXPECT_NEAR(farCenter.x, expectedFar.position.x, 0.000001f);
-    EXPECT_NEAR(farCenter.y, expectedFar.position.y, 0.000001f);
     EXPECT_NEAR(nearCenter.x, expectedNear.position.x, 0.000001f);
     EXPECT_NEAR(nearCenter.y, expectedNear.position.y, 0.000001f);
+    EXPECT_GT(DotHudVectors(expectedLead, constrainedLead), 0.0f);
+    EXPECT_NEAR(CrossHudVectors(expectedLead, constrainedLead), 0.0f, 0.000001f);
+    EXPECT_GE(constrainedLeadLength, 0.24f - 0.000001f);
+    EXPECT_LE(constrainedLeadLength, 0.72f + 0.000001f);
     EXPECT_FLOAT_EQ(frame.gun.eegsFunnelPosition.y, kGunBoreCrossHudY);
     EXPECT_GT(
         nearCenter.y + frame.gun.eegsFunnelPosition.y,
         farCenter.y + frame.gun.eegsFunnelPosition.y);
+    ExpectConstrainedFunnelGeometry(frame);
+}
+
+TEST(HudSimulationTests, EegsFunnelRejectsOscillatingBallisticNoise)
+{
+    HudInputSample input;
+    ConfigureUnlockedEegs(input);
+    PopulateStraightGunTrajectory(input);
+    for (std::size_t index = 0U; index < input.gunTrajectory.points.size(); ++index)
+    {
+        const float fraction = static_cast<float>(index) /
+            static_cast<float>(input.gunTrajectory.points.size() - 1U);
+        input.gunTrajectory.points[index].eastMeters =
+            45.0f * std::sin(2.0f * kPi * fraction);
+    }
+
+    const hud::HudFrame frame = BuildHudFrame(input);
+
+    ExpectConstrainedFunnelGeometry(frame);
+}
+
+TEST(HudSimulationTests, EegsFunnelSuppressesNearZeroBallisticAxisJitter)
+{
+    HudInputSample leftInput;
+    HudInputSample rightInput;
+    ConfigureUnlockedEegs(leftInput);
+    ConfigureUnlockedEegs(rightInput);
+    for (std::size_t index = 0U; index < leftInput.gunTrajectory.points.size(); ++index)
+    {
+        const float fraction = static_cast<float>(index) /
+            static_cast<float>(leftInput.gunTrajectory.points.size() - 1U);
+        const float rangeMeters =
+            (600.0f + 2400.0f * fraction) * kFeetToMeters;
+        hud::GunTrajectoryPointNed point;
+        point.northMeters = rangeMeters;
+        point.eastMeters = rangeMeters * fraction * 0.0000005f;
+        point.ageSeconds = fraction * 1.5f;
+        point.valid = true;
+        leftInput.gunTrajectory.points[index] = point;
+        point.eastMeters = -point.eastMeters;
+        rightInput.gunTrajectory.points[index] = point;
+    }
+
+    const hud::HudFrame leftFrame = BuildHudFrame(leftInput);
+    const hud::HudFrame rightFrame = BuildHudFrame(rightInput);
+    ExpectConstrainedFunnelGeometry(leftFrame);
+    ExpectConstrainedFunnelGeometry(rightFrame);
+    const hud::HudVec2 leftAxis = SubtractHudPoints(
+        RenderedFunnelCenterAt(leftFrame.gun, 1.0f),
+        RenderedFunnelCenterAt(leftFrame.gun, 0.0f));
+    const hud::HudVec2 rightAxis = SubtractHudPoints(
+        RenderedFunnelCenterAt(rightFrame.gun, 1.0f),
+        RenderedFunnelCenterAt(rightFrame.gun, 0.0f));
+    const float axisAlignment = DotHudVectors(leftAxis, rightAxis) /
+        (std::hypot(leftAxis.x, leftAxis.y) *
+         std::hypot(rightAxis.x, rightAxis.y));
+    EXPECT_GT(axisAlignment, std::cos(0.1f * kDegreesToRadians));
+}
+
+TEST(HudSimulationTests, EegsFunnelBoundsExcessiveExternalWingspan)
+{
+    HudInputSample input;
+    ConfigureUnlockedEegs(input);
+    PopulateStraightGunTrajectory(input);
+    input.aircraft.rollRad = 135.0f * kDegreesToRadians;
+    input.weapon.targetWingspanMeters = std::numeric_limits<float>::max();
+
+    const hud::HudFrame frame = BuildHudFrame(input);
+
+    ExpectConstrainedFunnelGeometry(frame);
+    const hud::HudVec2 nearLeft = EvaluateRenderedFunnelRail(
+        frame.gun,
+        frame.gun.eegsFunnelLeftControlPoints,
+        0.0f);
+    const hud::HudVec2 nearRight = EvaluateRenderedFunnelRail(
+        frame.gun,
+        frame.gun.eegsFunnelRightControlPoints,
+        0.0f);
+    EXPECT_LE(HudPointDistance(nearLeft, nearRight), 0.8001f);
+}
+
+TEST(HudSimulationTests, EegsFunnelStaysWellFormedAtRepresentativeAttitudes)
+{
+    constexpr std::array<float, 5> rollAnglesDegrees {45.0f, 90.0f, 135.0f, 180.0f, -90.0f};
+    for (const float rollDegrees : rollAnglesDegrees)
+    {
+        SCOPED_TRACE(::testing::Message() << "roll " << rollDegrees);
+        HudInputSample input;
+        ConfigureUnlockedEegs(input);
+        PopulateStraightGunTrajectory(input);
+        input.aircraft.rollRad = rollDegrees * kDegreesToRadians;
+        const hud::HudFrame frame = BuildHudFrame(input);
+        ExpectConstrainedFunnelGeometry(frame);
+        const hud::HudVec2 axis = SubtractHudPoints(
+            RenderedFunnelCenterAt(frame.gun, 1.0f),
+            RenderedFunnelCenterAt(frame.gun, 0.0f));
+        const hud::HudVec2 expectedGravityDirection {
+            std::sin(input.aircraft.rollRad),
+            -std::cos(input.aircraft.rollRad)};
+        const float gravityAlignment = DotHudVectors(
+            axis,
+            expectedGravityDirection) / std::hypot(axis.x, axis.y);
+        EXPECT_GT(gravityAlignment, 0.98f);
+    }
+
+    HudInputSample climbingInput;
+    ConfigureUnlockedEegs(climbingInput);
+    PopulateStraightGunTrajectory(climbingInput);
+    climbingInput.aircraft.pitchRad = 12.0f * kDegreesToRadians;
+    ExpectConstrainedFunnelGeometry(BuildHudFrame(climbingInput));
+
+    HudInputSample descendingInput = climbingInput;
+    descendingInput.aircraft.pitchRad = -12.0f * kDegreesToRadians;
+    ExpectConstrainedFunnelGeometry(BuildHudFrame(descendingInput));
+}
+
+TEST(HudSimulationTests, EegsFunnelStaysWellFormedThroughACompleteRoll)
+{
+    HudSimulation simulation;
+    SimulationControls controls;
+    controls.pilot.masterMode = HudMasterMode::AirToAir;
+    controls.pilot.weaponMode = HudWeaponMode::AirToAirGun;
+    controls.pilot.gunMode = HudGunMode::Eegs;
+    controls.pilot.rollCommand = 1.0f;
+    simulation.SetSimulationControls(controls);
+
+    float accumulatedRollRadians = 0.0f;
+    float previousRollRadians = simulation.Inputs().aircraft.rollRad;
+    const hud::HudFrame initialFrame = simulation.BuildHudFrame();
+    ASSERT_TRUE(initialFrame.gun.eegsFunnelVisible);
+    hud::HudVec2 previousFunnelAxis = SubtractHudPoints(
+        RenderedFunnelCenterAt(initialFrame.gun, 1.0f),
+        RenderedFunnelCenterAt(initialFrame.gun, 0.0f));
+    float previousFunnelAngle = std::atan2(
+        previousFunnelAxis.y,
+        previousFunnelAxis.x);
+    float accumulatedFunnelRotationRadians = 0.0f;
+    for (std::size_t tick = 0U; tick < 220U; ++tick)
+    {
+        SCOPED_TRACE(::testing::Message() << "simulation tick " << tick);
+        simulation.Step();
+        const float currentRollRadians = simulation.Inputs().aircraft.rollRad;
+        accumulatedRollRadians += std::fabs(NormalizeRadiansPiForTest(
+            currentRollRadians - previousRollRadians));
+        previousRollRadians = currentRollRadians;
+        const hud::HudFrame frame = simulation.BuildHudFrame();
+        ExpectConstrainedFunnelGeometry(frame);
+        const hud::HudVec2 currentFunnelAxis = SubtractHudPoints(
+            RenderedFunnelCenterAt(frame.gun, 1.0f),
+            RenderedFunnelCenterAt(frame.gun, 0.0f));
+        const float axisAlignment = DotHudVectors(
+            previousFunnelAxis,
+            currentFunnelAxis) /
+            (std::hypot(previousFunnelAxis.x, previousFunnelAxis.y) *
+             std::hypot(currentFunnelAxis.x, currentFunnelAxis.y));
+        EXPECT_GT(axisAlignment, std::cos(15.0f * kDegreesToRadians));
+        const float currentFunnelAngle = std::atan2(
+            currentFunnelAxis.y,
+            currentFunnelAxis.x);
+        accumulatedFunnelRotationRadians += std::fabs(NormalizeRadiansPiForTest(
+            currentFunnelAngle - previousFunnelAngle));
+        previousFunnelAngle = currentFunnelAngle;
+        previousFunnelAxis = currentFunnelAxis;
+    }
+
+    EXPECT_GE(accumulatedRollRadians, 2.0f * kPi);
+    EXPECT_GE(accumulatedFunnelRotationRadians, 1.8f * kPi);
+}
+
+TEST(HudSimulationTests, EegsFunnelStaysWellFormedDuringClimbAndDescentCommands)
+{
+    HudSimulation climbingSimulation;
+    HudSimulation descendingSimulation;
+    SimulationControls climbingControls;
+    climbingControls.pilot.masterMode = HudMasterMode::AirToAir;
+    climbingControls.pilot.weaponMode = HudWeaponMode::AirToAirGun;
+    climbingControls.pilot.gunMode = HudGunMode::Eegs;
+    climbingControls.pilot.pitchCommand = 0.35f;
+    SimulationControls descendingControls = climbingControls;
+    descendingControls.pilot.pitchCommand = -0.35f;
+    climbingSimulation.SetSimulationControls(climbingControls);
+    descendingSimulation.SetSimulationControls(descendingControls);
+
+    for (std::size_t tick = 0U; tick < 80U; ++tick)
+    {
+        SCOPED_TRACE(::testing::Message() << "simulation tick " << tick);
+        climbingSimulation.Step();
+        descendingSimulation.Step();
+        ExpectConstrainedFunnelGeometry(climbingSimulation.BuildHudFrame());
+        ExpectConstrainedFunnelGeometry(descendingSimulation.BuildHudFrame());
+    }
+
+    const hud::HudVec2 climbingFarCenter = RenderedFunnelCenterAt(
+        climbingSimulation.BuildHudFrame().gun,
+        1.0f);
+    const hud::HudVec2 descendingFarCenter = RenderedFunnelCenterAt(
+        descendingSimulation.BuildHudFrame().gun,
+        1.0f);
+    EXPECT_GT(HudPointDistance(climbingFarCenter, descendingFarCenter), 0.001f);
+}
+
+TEST(HudSimulationTests, EegsFunnelDoesNotDoubleCountSettledUniformWind)
+{
+    hud_main::EnvironmentControls calmEnvironment;
+    hud_main::EnvironmentControls windyEnvironment;
+    // 75 knots FROM the West: the complete air mass translates eastward.
+    windyEnvironment.windSpeedKts = 75.0f;
+    windyEnvironment.windDirectionRad = 270.0f * kDegreesToRadians;
+    const hud_main::WindVectorNed wind = hud_main::ComputeWindVectorNed(
+        windyEnvironment.windSpeedKts,
+        windyEnvironment.windDirectionRad);
+
+    hud_main::GunLaunchState calmAircraft;
+    calmAircraft.groundVelocityNedMps = hud_main::Vec3d {230.0, 0.0, 0.0};
+    hud_main::GunLaunchState windyAircraft = calmAircraft;
+    windyAircraft.groundVelocityNedMps.y += static_cast<double>(wind.eastMps);
+
+    hud_main::GunProjectileSimulation calmProjectiles;
+    hud_main::GunProjectileSimulation windyProjectiles;
+    calmProjectiles.Reset(calmAircraft, calmEnvironment);
+    windyProjectiles.Reset(windyAircraft, windyEnvironment);
+
+    HudInputSample calmInput;
+    HudInputSample windyInput;
+    ConfigureUnlockedEegs(calmInput);
+    ConfigureUnlockedEegs(windyInput);
+    calmInput.gunTrajectory = calmProjectiles.BuildSnapshot(calmAircraft.positionNedMeters);
+    windyInput.gunTrajectory = windyProjectiles.BuildSnapshot(windyAircraft.positionNedMeters);
+
+    const hud::HudFrame calmFrame = BuildHudFrame(calmInput);
+    const hud::HudFrame windyFrame = BuildHudFrame(windyInput);
+    ExpectConstrainedFunnelGeometry(calmFrame);
+    ExpectConstrainedFunnelGeometry(windyFrame);
+    EXPECT_GT(wind.eastMps, 0.0f);
+    for (std::size_t index = 0U;
+         index < calmFrame.gun.eegsFunnelLeftControlPoints.size();
+         ++index)
+    {
+        SCOPED_TRACE(::testing::Message() << "funnel control " << index);
+        EXPECT_NEAR(
+            calmFrame.gun.eegsFunnelLeftControlPoints[index].x,
+            windyFrame.gun.eegsFunnelLeftControlPoints[index].x,
+            0.000001f);
+        EXPECT_NEAR(
+            calmFrame.gun.eegsFunnelLeftControlPoints[index].y,
+            windyFrame.gun.eegsFunnelLeftControlPoints[index].y,
+            0.000001f);
+        EXPECT_NEAR(
+            calmFrame.gun.eegsFunnelRightControlPoints[index].x,
+            windyFrame.gun.eegsFunnelRightControlPoints[index].x,
+            0.000001f);
+        EXPECT_NEAR(
+            calmFrame.gun.eegsFunnelRightControlPoints[index].y,
+            windyFrame.gun.eegsFunnelRightControlPoints[index].y,
+            0.000001f);
+    }
 }
 
 TEST(GunProjectileSimulationTests, ResetPublishesSixteenRegularRangeStationsNearToFar)

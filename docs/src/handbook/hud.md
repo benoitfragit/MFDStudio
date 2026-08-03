@@ -441,17 +441,15 @@ cues are published. Every frame starts by hiding contextual weapon, landing and
 ILS reticles before the active mode is applied, so changing modes cannot leave
 an old reticle visible through retained runtime state.
 The HUD EEGS funnel is not a certified ballistic solver, but it is not a
-static cone: its exposed Bezier control points are derived from the semantic
-aircraft/target sample, including flight path, load factor, target line of
-sight, range/wingspan and target acceleration. The authored funnel now uses a
-central spine and range-sampled wall half-widths, keeping the visible cue as a
-long, narrow gunnery corridor instead of a decorative V shape. The runtime
-never reads a simulated weather: wind influences the funnel only indirectly,
-through the physical facts already resolved by the producer (ground velocity,
-flight path, load factor, energy and target geometry in
-`hud::HudInputSample`). In the bundled client those facts come from
-`hud_main::HudSimulation` and its `EnvironmentControls`; the funnel control
-points themselves stay computed inside `hud_runtime`.
+static cone. Its exposed Bezier rails are derived from sixteen semantic NED
+ballistic stations, the current aircraft attitude and the selected target
+wingspan in `HudInputSample`. The runtime summarizes the projected stations
+with one constrained centerline and applies one common transverse axis to both
+walls. This keeps the visible cue a long, narrowing gunnery corridor without
+letting local trajectory noise twist the rails or create an S. The runtime
+never reads simulated weather. The bundled client resolves wind into aircraft
+ground velocity and its projectile history before publishing the semantic
+stations; `hud_runtime` remains a stateless consumer.
 
 Visual reference captures used for the current HUD mode work are kept in
 `examples/hud/visual_ref`. They are documentation/reference material only and
@@ -499,10 +497,34 @@ aircraft and target values through `HudInputSample`, and
 `HudProjection.cpp` computes the five-point Bezier rails used by the
 generated `eegsFunnel` reticle.
 
-The funnel is built from a central spine. Each Bezier sample represents a
-range station; the wall offset at that station is the normalized angular
-half-width of the target wingspan at that range. The projection then adjusts
-scale, drift, curvature and skew from flight-path marker position, normal load
-factor, airspeed, target line-of-sight position and
-`targetAccelerationMps2`. The far end stays narrow and the near end opens
-without creating a broad vase-shaped cue.
+The bundled producer publishes sixteen current-aircraft-centered NED stations
+from 600 to 3000 feet, ordered near to far. The runtime transforms each valid
+station to current body axes, projects its azimuth and elevation, and computes
+the physical angular half-width `atan2(wingspan / 2, slantRange)`. The 600-foot
+end is therefore wide and the 3000-foot end narrow. A defensive display bound
+keeps an excessive external wingspan from making the complete cue larger than
+the HUD aperture.
+
+One least-squares quadratic centerline summarizes the projected station
+centers. Its near offset, useful length, control-point progress and bend are
+bounded for the finite HUD page. Its direction continuously blends the
+roll-resolved gravity direction with the broad ballistic lead, avoiding
+threshold-driven flips; an unreliable near-zero ballistic axis is faded out
+continuously. Exact degree elevation converts that quadratic to the authored
+five-point quartic Bezier format without changing its shape.
+
+Both rails use one transverse axis for the complete frame. Their control
+points are `centerline +/- halfWidth`, with a positive linear interpolation
+between the physical near and far widths. The resulting walls remain parallel,
+separated and monotonically narrowing for every rendered Bezier parameter;
+they cannot exchange sides or form independent S curves. After applying the
+high Gun Bore Cross anchor, the complete control hull is translated only when
+required to keep it inside the finite HUD aperture, including during inverted
+flight.
+
+A settled spatially uniform wind does not require an artificial lateral funnel
+offset. The virtual rounds inherit aircraft ground velocity, while their drag
+uses air-relative velocity, so the shared air-mass translation cancels after
+the projectile history has settled. Wind changes ground-referenced aircraft
+data and transition history; persistent relative drift requires a wind
+gradient or target-motion model supplied by the producer.

@@ -66,6 +66,21 @@ constexpr float kGhostHorizonLimitDeg = 8.7f;
 constexpr float kHudHorizonLimit = kGhostHorizonLimitDeg * kPitchToHudUnits;
 constexpr float kDlzBottomY = -0.245f;
 constexpr float kDlzHeight = 0.49f;
+constexpr float kFunnelGeometryEpsilon = 0.000001f;
+// The Level-II funnel must remain recognizable when a physically short or
+// abruptly changing ballistic history is projected into the finite HUD page.
+// These bounds affect only its display mechanization; physical endpoint widths
+// still come from target wingspan and the 600/3000-foot slant ranges.
+constexpr float kMinimumFunnelAxisLengthHudUnits = 0.24f;
+constexpr float kMaximumFunnelAxisLengthHudUnits = 0.72f;
+constexpr float kMaximumNearStationOffsetHudUnits = 0.16f;
+constexpr float kMaximumFunnelBendFraction = 0.18f;
+constexpr float kMinimumFunnelControlProgress = 0.20f;
+constexpr float kMaximumFunnelControlProgress = 0.80f;
+constexpr float kFunnelBallisticDirectionWeight = 0.10f;
+constexpr float kMinimumFunnelWidthReductionFraction = 0.01f;
+constexpr float kMaximumFunnelHalfWidthHudUnits = 0.40f;
+constexpr float kFunnelApertureMarginHudUnits = 0.02f;
 
 float Clamp(const float value, const float low, const float high) noexcept
 {
@@ -134,13 +149,73 @@ HudVec2 RotateHudVector(const HudVec2 offset, const float degrees) noexcept
         offset.x * sine + offset.y * cosine};
 }
 
-struct FunnelSamples
+struct ProjectedFunnelStations
 {
     static constexpr std::size_t kCapacity = kGunTrajectoryPointCount;
-    std::array<HudVec2, kCapacity> left {};
-    std::array<HudVec2, kCapacity> right {};
+    std::array<HudVec2, kCapacity> centers {};
+    std::array<float, kCapacity> halfWidths {};
     std::size_t count = 0U;
 };
+
+struct QuadraticHudCurve
+{
+    HudVec2 start {};
+    HudVec2 control {};
+    HudVec2 end {};
+};
+
+struct FunnelRails
+{
+    HudFunnelControlPoints left {};
+    HudFunnelControlPoints right {};
+};
+
+HudVec2 AddHudVectors(const HudVec2 first, const HudVec2 second) noexcept
+{
+    return HudVec2 {first.x + second.x, first.y + second.y};
+}
+
+HudVec2 SubtractHudVectors(const HudVec2 first, const HudVec2 second) noexcept
+{
+    return HudVec2 {first.x - second.x, first.y - second.y};
+}
+
+HudVec2 ScaleHudVector(const HudVec2 value, const float scale) noexcept
+{
+    return HudVec2 {value.x * scale, value.y * scale};
+}
+
+float DotHudVectors(const HudVec2 first, const HudVec2 second) noexcept
+{
+    return first.x * second.x + first.y * second.y;
+}
+
+float HudVectorLength(const HudVec2 value) noexcept
+{
+    return std::sqrt(DotHudVectors(value, value));
+}
+
+HudVec2 NormalizeHudVectorOr(const HudVec2 value, const HudVec2 fallback) noexcept
+{
+    const float length = HudVectorLength(value);
+    if (length <= kFunnelGeometryEpsilon)
+    {
+        return fallback;
+    }
+
+    return ScaleHudVector(value, 1.0f / length);
+}
+
+HudVec2 LimitHudVectorLength(const HudVec2 value, const float maximumLength) noexcept
+{
+    const float length = HudVectorLength(value);
+    if (length <= maximumLength || length <= kFunnelGeometryEpsilon)
+    {
+        return value;
+    }
+
+    return ScaleHudVector(value, maximumLength / length);
+}
 
 mfd::UserSpaceProjector BuildAngularProjector() noexcept
 {
@@ -207,195 +282,253 @@ bool ProjectTrajectoryCenter(const GunTrajectoryPointNed& point,
     return std::isfinite(center.x) && std::isfinite(center.y);
 }
 
-HudVec2 StableFunnelRightNormal(const HudVec2 previous,
-                                const HudVec2 next,
-                                const HudVec2 referenceNormal) noexcept
+ProjectedFunnelStations BuildProjectedFunnelStations(const HudInputSample& input,
+                                                      const float wingspanMeters) noexcept
 {
-    const float tangentX = next.x - previous.x;
-    const float tangentY = next.y - previous.y;
-    const float length = std::sqrt(tangentX * tangentX + tangentY * tangentY);
-    if (length <= 0.000001f)
-    {
-        return referenceNormal;
-    }
-
-    HudVec2 normal {-tangentY / length, tangentX / length};
-    const float orientation = normal.x * referenceNormal.x + normal.y * referenceNormal.y;
-    if (orientation < 0.0f)
-    {
-        normal.x = -normal.x;
-        normal.y = -normal.y;
-    }
-    return normal;
-}
-
-bool SolveThreeByThree(float matrix[3][4], float solution[3]) noexcept
-{
-    for (std::size_t column = 0U; column < 3U; ++column)
-    {
-        std::size_t pivot = column;
-        for (std::size_t row = column + 1U; row < 3U; ++row)
-        {
-            if (std::fabs(matrix[row][column]) > std::fabs(matrix[pivot][column]))
-            {
-                pivot = row;
-            }
-        }
-        if (std::fabs(matrix[pivot][column]) < 0.000001f)
-        {
-            return false;
-        }
-        for (std::size_t entry = column; entry < 4U; ++entry)
-        {
-            std::swap(matrix[column][entry], matrix[pivot][entry]);
-        }
-        const float divisor = matrix[column][column];
-        for (std::size_t entry = column; entry < 4U; ++entry)
-        {
-            matrix[column][entry] /= divisor;
-        }
-        for (std::size_t row = 0U; row < 3U; ++row)
-        {
-            if (row == column)
-            {
-                continue;
-            }
-            const float factor = matrix[row][column];
-            for (std::size_t entry = column; entry < 4U; ++entry)
-            {
-                matrix[row][entry] -= factor * matrix[column][entry];
-            }
-        }
-    }
-    for (std::size_t index = 0U; index < 3U; ++index)
-    {
-        solution[index] = matrix[index][3];
-        if (!std::isfinite(solution[index]))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-HudFunnelControlPoints LinearFunnelRail(const HudVec2& first, const HudVec2& last) noexcept
-{
-    HudFunnelControlPoints rail {};
-    for (std::size_t index = 0U; index < rail.size(); ++index)
-    {
-        const float t = static_cast<float>(index) / static_cast<float>(rail.size() - 1U);
-        rail[index] = HudVec2 {first.x + (last.x - first.x) * t, first.y + (last.y - first.y) * t};
-    }
-    return rail;
-}
-
-HudFunnelControlPoints FitQuarticBezier(
-    const std::array<HudVec2, FunnelSamples::kCapacity>& samples,
-    const std::size_t count) noexcept
-{
-    if (count < 2U)
-    {
-        return {};
-    }
-    HudFunnelControlPoints rail = LinearFunnelRail(samples[0], samples[count - 1U]);
-    float normal[3][3] {};
-    float rhsX[3] {};
-    float rhsY[3] {};
-    for (std::size_t sampleIndex = 0U; sampleIndex < count; ++sampleIndex)
-    {
-        const float t = static_cast<float>(sampleIndex) / static_cast<float>(count - 1U);
-        const float oneMinusT = 1.0f - t;
-        const float basis[3] {
-            4.0f * oneMinusT * oneMinusT * oneMinusT * t,
-            6.0f * oneMinusT * oneMinusT * t * t,
-            4.0f * oneMinusT * t * t * t};
-        const float endpointX = oneMinusT * oneMinusT * oneMinusT * oneMinusT * rail[0].x +
-                                t * t * t * t * rail[4].x;
-        const float endpointY = oneMinusT * oneMinusT * oneMinusT * oneMinusT * rail[0].y +
-                                t * t * t * t * rail[4].y;
-        for (std::size_t row = 0U; row < 3U; ++row)
-        {
-            rhsX[row] += basis[row] * (samples[sampleIndex].x - endpointX);
-            rhsY[row] += basis[row] * (samples[sampleIndex].y - endpointY);
-            for (std::size_t column = 0U; column < 3U; ++column)
-            {
-                normal[row][column] += basis[row] * basis[column];
-            }
-        }
-    }
-    float matrixX[3][4] {};
-    float matrixY[3][4] {};
-    for (std::size_t row = 0U; row < 3U; ++row)
-    {
-        for (std::size_t column = 0U; column < 3U; ++column)
-        {
-            matrixX[row][column] = normal[row][column];
-            matrixY[row][column] = normal[row][column];
-        }
-        matrixX[row][3] = rhsX[row];
-        matrixY[row][3] = rhsY[row];
-    }
-    float solutionX[3] {};
-    float solutionY[3] {};
-    if (!SolveThreeByThree(matrixX, solutionX) || !SolveThreeByThree(matrixY, solutionY))
-    {
-        return rail;
-    }
-    for (std::size_t index = 0U; index < 3U; ++index)
-    {
-        rail[index + 1U] = HudVec2 {solutionX[index], solutionY[index]};
-    }
-    return rail;
-}
-
-void PreserveScreenSideOrdering(HudFunnelControlPoints& left,
-                                HudFunnelControlPoints& right) noexcept
-{
-    for (std::size_t index = 0U; index < left.size(); ++index)
-    {
-        if (left[index].x > right[index].x)
-        {
-            std::swap(left[index], right[index]);
-        }
-    }
-}
-
-FunnelSamples BuildPhysicalFunnelSamples(const HudInputSample& input, const float wingspanMeters) noexcept
-{
-    FunnelSamples samples;
-    std::array<HudVec2, FunnelSamples::kCapacity> centers {};
-    std::array<float, FunnelSamples::kCapacity> ranges {};
+    ProjectedFunnelStations stations;
     for (const GunTrajectoryPointNed& point : input.gunTrajectory.points)
     {
         HudVec2 center;
         float range = 0.0f;
-        if (ProjectTrajectoryCenter(point, input.aircraft, center, range))
+        if (!ProjectTrajectoryCenter(point, input.aircraft, center, range))
         {
-            centers[samples.count] = center;
-            ranges[samples.count] = range;
-            ++samples.count;
+            continue;
         }
+
+        const float halfAngle = std::atan2(wingspanMeters * 0.5f, std::max(range, 1.0f));
+        const float projectedHalfWidth = halfAngle /
+            (kHudConformalHorizontalFovDeg * 0.5f * kDegreesToRadians) *
+            kHudConformalHalfWidthUnits;
+        stations.centers[stations.count] = center;
+        stations.halfWidths[stations.count] = Clamp(
+            projectedHalfWidth,
+            kFunnelGeometryEpsilon,
+            kMaximumFunnelHalfWidthHudUnits);
+        ++stations.count;
     }
-    HudVec2 rightNormal {1.0f, 0.0f};
-    for (std::size_t index = 0U; index < samples.count; ++index)
+
+    return stations;
+}
+
+QuadraticHudCurve FitQuadraticCenterline(const ProjectedFunnelStations& stations) noexcept
+{
+    QuadraticHudCurve curve;
+    curve.start = stations.centers[0];
+    curve.end = stations.centers[stations.count - 1U];
+    curve.control = ScaleHudVector(AddHudVectors(curve.start, curve.end), 0.5f);
+    if (stations.count <= 2U)
     {
-        const HudVec2 previous = centers[index == 0U ? index : index - 1U];
-        const HudVec2 next = centers[index + 1U < samples.count ? index + 1U : index];
-        rightNormal = StableFunnelRightNormal(previous, next, rightNormal);
-        // Each ballistic center keeps its own physical range. Consequently the
-        // 600-foot station is the wide end and the 3000-foot station is the
-        // narrow end, exactly matching apparent target angular width.
-        const float halfAngle = std::atan2(wingspanMeters * 0.5f, std::max(ranges[index], 1.0f));
-        const float halfWidth = halfAngle /
-            (kHudConformalHorizontalFovDeg * 0.5f * kDegreesToRadians) * kHudConformalHalfWidthUnits;
-        samples.left[index] = HudVec2 {
-            centers[index].x - rightNormal.x * halfWidth,
-            centers[index].y - rightNormal.y * halfWidth};
-        samples.right[index] = HudVec2 {
-            centers[index].x + rightNormal.x * halfWidth,
-            centers[index].y + rightNormal.y * halfWidth};
+        return curve;
     }
-    return samples;
+
+    HudVec2 weightedResidual {};
+    float squaredBasisSum = 0.0f;
+    for (std::size_t index = 1U; index + 1U < stations.count; ++index)
+    {
+        const float t = static_cast<float>(index) / static_cast<float>(stations.count - 1U);
+        const float oneMinusT = 1.0f - t;
+        const float controlBasis = 2.0f * oneMinusT * t;
+        const HudVec2 endpointContribution = AddHudVectors(
+            ScaleHudVector(curve.start, oneMinusT * oneMinusT),
+            ScaleHudVector(curve.end, t * t));
+        const HudVec2 residual = SubtractHudVectors(
+            stations.centers[index],
+            endpointContribution);
+        weightedResidual = AddHudVectors(
+            weightedResidual,
+            ScaleHudVector(residual, controlBasis));
+        squaredBasisSum += controlBasis * controlBasis;
+    }
+
+    if (squaredBasisSum > kFunnelGeometryEpsilon)
+    {
+        curve.control = ScaleHudVector(weightedResidual, 1.0f / squaredBasisSum);
+    }
+
+    return curve;
+}
+
+HudVec2 GravityLeadDirection(const AircraftInputSample& aircraft) noexcept
+{
+    const float roll = FiniteOr(aircraft.rollRad, 0.0f);
+    return HudVec2 {std::sin(roll), -std::cos(roll)};
+}
+
+QuadraticHudCurve ConstrainFunnelCenterline(const QuadraticHudCurve& fitted,
+                                            const AircraftInputSample& aircraft) noexcept
+{
+    QuadraticHudCurve constrained;
+    const HudVec2 gravityDirection = GravityLeadDirection(aircraft);
+    const HudVec2 rawAxis = SubtractHudVectors(fitted.end, fitted.start);
+    const float rawAxisLength = HudVectorLength(rawAxis);
+    const HudVec2 rawAxisDirection = NormalizeHudVectorOr(rawAxis, gravityDirection);
+    const float ballisticConfidence = Clamp(
+        rawAxisLength / kMinimumFunnelAxisLengthHudUnits,
+        0.0f,
+        1.0f);
+    const HudVec2 axisDirection = NormalizeHudVectorOr(
+        AddHudVectors(
+            gravityDirection,
+            ScaleHudVector(
+                rawAxisDirection,
+                kFunnelBallisticDirectionWeight * ballisticConfidence)),
+        gravityDirection);
+
+    constrained.start = LimitHudVectorLength(
+        fitted.start,
+        kMaximumNearStationOffsetHudUnits);
+    const float constrainedAxisLength = Clamp(
+        rawAxisLength,
+        kMinimumFunnelAxisLengthHudUnits,
+        kMaximumFunnelAxisLengthHudUnits);
+    constrained.end = AddHudVectors(
+        constrained.start,
+        ScaleHudVector(axisDirection, constrainedAxisLength));
+
+    const HudVec2 rightNormal {-axisDirection.y, axisDirection.x};
+    float controlProgress = 0.5f;
+    float scaledBend = 0.0f;
+    if (rawAxisLength > kFunnelGeometryEpsilon)
+    {
+        const HudVec2 rawRightNormal {-rawAxisDirection.y, rawAxisDirection.x};
+        const HudVec2 rawControlOffset = SubtractHudVectors(fitted.control, fitted.start);
+        const float fittedControlProgress = Clamp(
+            DotHudVectors(rawControlOffset, rawAxisDirection) / rawAxisLength,
+            kMinimumFunnelControlProgress,
+            kMaximumFunnelControlProgress);
+        controlProgress = 0.5f +
+            (fittedControlProgress - 0.5f) * ballisticConfidence;
+        scaledBend = DotHudVectors(rawControlOffset, rawRightNormal) *
+            (constrainedAxisLength /
+             std::max(rawAxisLength, kMinimumFunnelAxisLengthHudUnits)) *
+            ballisticConfidence;
+    }
+
+    const float maximumBend = constrainedAxisLength * kMaximumFunnelBendFraction;
+    scaledBend = Clamp(scaledBend, -maximumBend, maximumBend);
+    constrained.control = AddHudVectors(
+        AddHudVectors(
+            constrained.start,
+            ScaleHudVector(axisDirection, constrainedAxisLength * controlProgress)),
+        ScaleHudVector(rightNormal, scaledBend));
+    return constrained;
+}
+
+HudFunnelControlPoints ElevateQuadraticToQuartic(const QuadraticHudCurve& curve) noexcept
+{
+    HudFunnelControlPoints controls {};
+    controls[0] = curve.start;
+    controls[1] = ScaleHudVector(AddHudVectors(curve.start, curve.control), 0.5f);
+    controls[2] = AddHudVectors(
+        AddHudVectors(
+            ScaleHudVector(curve.start, 1.0f / 6.0f),
+            ScaleHudVector(curve.control, 2.0f / 3.0f)),
+        ScaleHudVector(curve.end, 1.0f / 6.0f));
+    controls[3] = ScaleHudVector(AddHudVectors(curve.control, curve.end), 0.5f);
+    controls[4] = curve.end;
+    return controls;
+}
+
+float NearestApertureTranslation(const float minimumValue,
+                                 const float maximumValue,
+                                 const float minimumAllowed,
+                                 const float maximumAllowed) noexcept
+{
+    const float minimumTranslation = minimumAllowed - minimumValue;
+    const float maximumTranslation = maximumAllowed - maximumValue;
+    if (minimumTranslation > maximumTranslation)
+    {
+        return (minimumTranslation + maximumTranslation) * 0.5f;
+    }
+
+    return Clamp(0.0f, minimumTranslation, maximumTranslation);
+}
+
+HudVec2 FunnelApertureTranslation(const FunnelRails& rails,
+                                  const HudVec2 anchor) noexcept
+{
+    float minimumX = rails.left[0].x;
+    float maximumX = rails.left[0].x;
+    float minimumY = rails.left[0].y;
+    float maximumY = rails.left[0].y;
+    for (std::size_t index = 0U; index < rails.left.size(); ++index)
+    {
+        minimumX = std::min(minimumX, std::min(rails.left[index].x, rails.right[index].x));
+        maximumX = std::max(maximumX, std::max(rails.left[index].x, rails.right[index].x));
+        minimumY = std::min(minimumY, std::min(rails.left[index].y, rails.right[index].y));
+        maximumY = std::max(maximumY, std::max(rails.left[index].y, rails.right[index].y));
+    }
+
+    const float horizontalLimit =
+        kHudConformalHalfWidthUnits - kFunnelApertureMarginHudUnits;
+    const float verticalLimit =
+        kHudConformalHalfHeightUnits - kFunnelApertureMarginHudUnits;
+    return HudVec2 {
+        NearestApertureTranslation(
+            minimumX,
+            maximumX,
+            -horizontalLimit - anchor.x,
+            horizontalLimit - anchor.x),
+        NearestApertureTranslation(
+            minimumY,
+            maximumY,
+            -verticalLimit - anchor.y,
+            verticalLimit - anchor.y)};
+}
+
+void TranslateFunnelRails(FunnelRails& rails, const HudVec2 translation) noexcept
+{
+    for (std::size_t index = 0U; index < rails.left.size(); ++index)
+    {
+        rails.left[index] = AddHudVectors(rails.left[index], translation);
+        rails.right[index] = AddHudVectors(rails.right[index], translation);
+    }
+}
+
+FunnelRails BuildConstrainedFunnelRails(const ProjectedFunnelStations& stations,
+                                        const AircraftInputSample& aircraft) noexcept
+{
+    FunnelRails rails;
+    const QuadraticHudCurve fittedCenterline = FitQuadraticCenterline(stations);
+    const QuadraticHudCurve centerline = ConstrainFunnelCenterline(
+        fittedCenterline,
+        aircraft);
+    const HudFunnelControlPoints centerControls = ElevateQuadraticToQuartic(centerline);
+    const HudVec2 axisDirection = NormalizeHudVectorOr(
+        SubtractHudVectors(centerline.end, centerline.start),
+        GravityLeadDirection(aircraft));
+    const HudVec2 rightNormal {-axisDirection.y, axisDirection.x};
+    const float nearHalfWidth = std::max(
+        stations.halfWidths[0],
+        kFunnelGeometryEpsilon * 2.0f);
+    const float minimumWidthReduction = std::max(
+        kFunnelGeometryEpsilon,
+        nearHalfWidth * kMinimumFunnelWidthReductionFraction);
+    const float maximumFarHalfWidth = std::max(
+        kFunnelGeometryEpsilon,
+        nearHalfWidth - minimumWidthReduction);
+    const float farHalfWidth = Clamp(
+        stations.halfWidths[stations.count - 1U],
+        kFunnelGeometryEpsilon,
+        maximumFarHalfWidth);
+
+    for (std::size_t index = 0U; index < centerControls.size(); ++index)
+    {
+        const float t = static_cast<float>(index) /
+            static_cast<float>(centerControls.size() - 1U);
+        const float halfWidth = nearHalfWidth + (farHalfWidth - nearHalfWidth) * t;
+        const HudVec2 halfWidthOffset = ScaleHudVector(rightNormal, halfWidth);
+        rails.left[index] = SubtractHudVectors(centerControls[index], halfWidthOffset);
+        rails.right[index] = AddHudVectors(centerControls[index], halfWidthOffset);
+    }
+    // The reticle is translated to the high-mounted Gun Bore Cross later. Keep
+    // the complete convex hull inside the rendered aperture now; this prevents
+    // the otherwise valid inverted funnel from disappearing beyond the top edge.
+    const HudVec2 apertureTranslation = FunnelApertureTranslation(
+        rails,
+        detail::GunBoreCrossHudPosition());
+    TranslateFunnelRails(rails, apertureTranslation);
+    return rails;
 }
 
 // Weapon-specific facts (launch zone, time of flight, labels, quantities and
@@ -636,17 +769,22 @@ HudGunFrame BuildGunFrame(const HudInputSample& input) noexcept
     const float providedWingspanMeters = FiniteOr(input.weapon.targetWingspanMeters, 0.0f);
     const float targetWingspanMeters =
         providedWingspanMeters > 0.0f ? providedWingspanMeters : kDefaultTargetWingspanMeters;
-    const FunnelSamples funnelSamples = BuildPhysicalFunnelSamples(input, targetWingspanMeters);
-    frame.eegsFunnelVisible = frame.eegsFunnelVisible && funnelSamples.count >= 2U;
-    frame.eegsFunnelLeftControlPoints = FitQuarticBezier(funnelSamples.left, funnelSamples.count);
-    frame.eegsFunnelRightControlPoints = FitQuarticBezier(funnelSamples.right, funnelSamples.count);
-    // Independent least-squares fits can overshoot between samples and swap an
-    // internal pair even though every physical sample is correctly oriented.
-    // Keeping every Bezier pair screen ordered makes the rail separation a
-    // positive Bernstein polynomial and therefore prevents crossings.
-    PreserveScreenSideOrdering(
-        frame.eegsFunnelLeftControlPoints,
-        frame.eegsFunnelRightControlPoints);
+    const ProjectedFunnelStations funnelStations =
+        BuildProjectedFunnelStations(input, targetWingspanMeters);
+    frame.eegsFunnelVisible = frame.eegsFunnelVisible && funnelStations.count >= 2U;
+    if (frame.eegsFunnelVisible)
+    {
+        // Both walls derive from one constrained quadratic centerline and one
+        // transverse axis. Degree elevation preserves that centerline exactly
+        // while matching the authored five-control-point primitive. A linearly
+        // decreasing physical half-width makes crossings and twists impossible
+        // for every rendered Bezier parameter.
+        const FunnelRails rails = BuildConstrainedFunnelRails(
+            funnelStations,
+            input.aircraft);
+        frame.eegsFunnelLeftControlPoints = rails.left;
+        frame.eegsFunnelRightControlPoints = rails.right;
+    }
     frame.eegsFunnelScaleX = 1.0f;
     frame.eegsFunnelScaleY = 1.0f;
     // Control points are angular offsets from the gun line. Translating the
