@@ -11,6 +11,7 @@
 #include "mfd/render/OpenGlFramebufferReader.h"
 
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -23,6 +24,20 @@ namespace mfd
 {
 namespace
 {
+constexpr int kMaxFramebufferDimension = 8192;
+constexpr std::size_t kMaxFramebufferRgbaBytes = 256U * 1024U * 1024U;
+
+bool IsBoundedRgbaExtent(const int width, const int height) noexcept
+{
+    if (width <= 0 || height <= 0 || width > kMaxFramebufferDimension || height > kMaxFramebufferDimension)
+    {
+        return false;
+    }
+
+    const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    return pixelCount <= kMaxFramebufferRgbaBytes / sizeof(Rgba8Pixel);
+}
+
 static_assert(std::is_trivially_copyable_v<Rgba8Pixel>);
 static_assert(sizeof(Rgba8Pixel) == 4);
 
@@ -34,7 +49,7 @@ int ResolveExtent(const int offset, const int requestedExtent, const int fullExt
     }
 
     const int resolvedExtent = requestedExtent > 0 ? requestedExtent : fullExtent - offset;
-    if (resolvedExtent <= 0 || offset + resolvedExtent > fullExtent)
+    if (resolvedExtent <= 0 || resolvedExtent > fullExtent - offset)
     {
         throw std::runtime_error(std::string("Framebuffer capture ") + axisName + " extent is invalid");
     }
@@ -111,6 +126,11 @@ Rgba32Framebuffer OpenGlFramebufferReader::ReadRgba32(const FramebufferCaptureRe
         throw std::runtime_error("No active OpenGL framebuffer is available");
     }
 
+    if (!IsBoundedRgbaExtent(framebufferWidth, framebufferHeight))
+    {
+        throw std::runtime_error("The active OpenGL framebuffer exceeds the readback safety budget");
+    }
+
     const int captureWidth = ResolveExtent(request.x, request.width, framebufferWidth, "x");
     const int captureHeight = ResolveExtent(request.y, request.height, framebufferHeight, "y");
 
@@ -120,14 +140,16 @@ Rgba32Framebuffer OpenGlFramebufferReader::ReadRgba32(const FramebufferCaptureRe
         glReadY = framebufferHeight - (request.y + captureHeight);
     }
 
-    if (glReadY < 0 || glReadY + captureHeight > framebufferHeight)
+    if (glReadY < 0 || captureHeight > framebufferHeight - glReadY)
     {
         throw std::runtime_error("Framebuffer capture y extent is invalid after origin conversion");
     }
 
     rlDrawRenderBatchActive();
 
-    unsigned char* fullFramebufferPixels = rlReadScreenPixels(framebufferWidth, framebufferHeight);
+    using RaylibPixels = std::unique_ptr<unsigned char, decltype(&MemFree)>;
+    const RaylibPixels fullFramebufferPixels(
+        rlReadScreenPixels(framebufferWidth, framebufferHeight), &MemFree);
     if (fullFramebufferPixels == nullptr)
     {
         throw std::runtime_error("Unable to read the current OpenGL framebuffer");
@@ -153,11 +175,9 @@ Rgba32Framebuffer OpenGlFramebufferReader::ReadRgba32(const FramebufferCaptureRe
         const std::size_t destinationOffset = static_cast<std::size_t>(row) * captureStride;
 
         std::memcpy(reinterpret_cast<std::uint8_t*>(framebuffer.pixels.data()) + destinationOffset,
-                    fullFramebufferPixels + sourceOffset,
+                    fullFramebufferPixels.get() + sourceOffset,
                     captureStride);
     }
-
-    MemFree(fullFramebufferPixels);
 
     if (request.flipVertically)
     {

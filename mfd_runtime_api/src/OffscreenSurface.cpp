@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <memory>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -51,6 +52,26 @@ namespace mfd::runtime_api
 {
 namespace
 {
+constexpr int kMaxOffscreenDimension = 8192;
+constexpr std::size_t kMaxOffscreenRgbaBytes = 256U * 1024U * 1024U;
+
+bool ResolveRgbaByteCount(const int width, const int height, std::size_t& byteCount) noexcept
+{
+    if (width <= 0 || height <= 0 || width > kMaxOffscreenDimension || height > kMaxOffscreenDimension)
+    {
+        return false;
+    }
+
+    const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    if (pixelCount > kMaxOffscreenRgbaBytes / 4U)
+    {
+        return false;
+    }
+
+    byteCount = pixelCount * 4U;
+    return true;
+}
+
 Color ToRayColor(const ColorRgba& color) noexcept
 {
     return Color {color.r, color.g, color.b, color.a};
@@ -126,10 +147,12 @@ bool ReadRgba8Framebuffer(const RenderTexture2D& target,
 
     rlDrawRenderBatchActive();
     rlEnableFramebuffer(target.id);
-    unsigned char* pixels = rlReadScreenPixels(target.texture.width, target.texture.height);
+    using RaylibPixels = std::unique_ptr<unsigned char, decltype(&MemFree)>;
+    const RaylibPixels pixels(rlReadScreenPixels(target.texture.width, target.texture.height), &MemFree);
     rlDisableFramebuffer();
 
-    if (pixels == nullptr)
+    std::size_t byteCount = 0U;
+    if (pixels == nullptr || !ResolveRgbaByteCount(target.texture.width, target.texture.height, byteCount))
     {
         framePixels.clear();
         frameWidth = 0;
@@ -139,15 +162,11 @@ bool ReadRgba8Framebuffer(const RenderTexture2D& target,
 
     frameWidth = target.texture.width;
     frameHeight = target.texture.height;
-    const std::size_t rowStrideBytes = static_cast<std::size_t>(frameWidth) * 4U;
-    const std::size_t byteCount = rowStrideBytes * static_cast<std::size_t>(frameHeight);
     framePixels.resize(byteCount);
     if (!framePixels.empty())
     {
-        std::memcpy(framePixels.data(), pixels, byteCount);
+        std::memcpy(framePixels.data(), pixels.get(), byteCount);
     }
-
-    MemFree(pixels);
     return true;
 }
 
@@ -156,12 +175,16 @@ struct NativeGlContextHandle
 #if defined(_WIN32)
     HDC deviceContext = nullptr;
     HGLRC renderContext = nullptr;
+#endif
 
     [[nodiscard]] bool Valid() const noexcept
     {
+#if defined(_WIN32)
         return deviceContext != nullptr && renderContext != nullptr;
-    }
+#else
+        return true;
 #endif
+    }
 };
 
 NativeGlContextHandle CaptureCurrentNativeGlContext() noexcept
@@ -252,6 +275,12 @@ public:
 #endif
     }
 
+    [[nodiscard]] bool OwnsWindow() noexcept
+    {
+        const std::lock_guard<std::mutex> lock(mutex_);
+        return ownsHiddenWindow_;
+    }
+
     void Release() noexcept
     {
         const std::lock_guard<std::mutex> lock(mutex_);
@@ -285,8 +314,9 @@ private:
 class ScopedRuntimeRenderContext
 {
 public:
-    explicit ScopedRuntimeRenderContext(const bool activateManagedContext) noexcept
-        : active_(!activateManagedContext || HeadlessRenderContext::Instance().Activate())
+    ScopedRuntimeRenderContext(const bool activateManagedContext,
+                               const NativeGlContextHandle& borrowedContext) noexcept
+        : active_(Activate(activateManagedContext, borrowedContext))
     {
     }
 
@@ -299,8 +329,36 @@ public:
     }
 
 private:
+    static bool Activate(const bool activateManagedContext,
+                         const NativeGlContextHandle& borrowedContext) noexcept
+    {
+        if (activateManagedContext)
+        {
+            return HeadlessRenderContext::Instance().Activate();
+        }
+
+        return IsWindowReady() && borrowedContext.Valid() && RestoreNativeGlContext(borrowedContext);
+    }
+
     ScopedNativeGlContextRestore restore_ {};
     bool active_ = false;
+};
+
+class ScopedTextureMode
+{
+public:
+    explicit ScopedTextureMode(const RenderTexture2D& target)
+    {
+        BeginTextureMode(target);
+    }
+
+    ~ScopedTextureMode() noexcept
+    {
+        EndTextureMode();
+    }
+
+    ScopedTextureMode(const ScopedTextureMode&) = delete;
+    ScopedTextureMode& operator=(const ScopedTextureMode&) = delete;
 };
 } // namespace
 
@@ -332,45 +390,52 @@ public:
             return false;
         }
 
+        std::size_t requestedByteCount = 0U;
+        if (!ResolveRgbaByteCount(requestedWidth, requestedHeight, requestedByteCount))
+        {
+            return false;
+        }
+
         if (targetReady_ && width_ == requestedWidth && height_ == requestedHeight)
         {
             return true;
         }
 
+        if (!EnsureRenderContext())
+        {
+            return false;
+        }
+
+        const ScopedRuntimeRenderContext renderContext(ownsManagedContext_, borrowedContext_);
+        if (!renderContext.Active())
+        {
+            return false;
+        }
+
+        bool candidateStencilReady = false;
+        RenderTexture2D candidate = LoadRenderTextureWithStencil(
+            requestedWidth, requestedHeight, &candidateStencilReady);
+        const bool candidateReady = candidate.id != 0U && TextureReady(candidate.texture) &&
+                                    rlFramebufferComplete(candidate.id);
+        if (!candidateReady)
+        {
+            if (candidate.id != 0U)
+            {
+                UnloadRenderTexture(candidate);
+            }
+            return false;
+        }
+
+        SetTextureFilter(candidate.texture, TEXTURE_FILTER_BILINEAR);
         ReleaseTarget();
+        target_ = candidate;
+        targetReady_ = true;
+        targetStencilReady_ = candidateStencilReady;
+        width_ = requestedWidth;
+        height_ = requestedHeight;
         framePixels_.clear();
         frameWidth_ = 0;
         frameHeight_ = 0;
-
-        if (!EnsureRenderContext())
-        {
-            width_ = requestedWidth;
-            height_ = requestedHeight;
-            return false;
-        }
-
-        const ScopedRuntimeRenderContext renderContext(ownsManagedContext_);
-        if (!renderContext.Active())
-        {
-            width_ = requestedWidth;
-            height_ = requestedHeight;
-            return false;
-        }
-
-        target_ = LoadRenderTextureWithStencil(requestedWidth, requestedHeight, &targetStencilReady_);
-        targetReady_ = target_.id != 0U && TextureReady(target_.texture);
-        if (!targetReady_)
-        {
-            target_ = {};
-            targetStencilReady_ = false;
-            width_ = 0;
-            height_ = 0;
-            return false;
-        }
-
-        SetTextureFilter(target_.texture, TEXTURE_FILTER_BILINEAR);
-        width_ = requestedWidth;
-        height_ = requestedHeight;
         return true;
     }
 
@@ -388,7 +453,7 @@ public:
     {
         if (targetReady_)
         {
-            const ScopedRuntimeRenderContext renderContext(ownsManagedContext_);
+            const ScopedRuntimeRenderContext renderContext(ownsManagedContext_, borrowedContext_);
             if (renderContext.Active() && IsWindowReady())
             {
                 UnloadRenderTexture(target_);
@@ -402,7 +467,7 @@ public:
 
     void ReleaseRenderer() noexcept
     {
-        const ScopedRuntimeRenderContext renderContext(ownsManagedContext_);
+        const ScopedRuntimeRenderContext renderContext(ownsManagedContext_, borrowedContext_);
         if (renderContext.Active())
         {
             renderer_.Release();
@@ -411,9 +476,22 @@ public:
 
     [[nodiscard]] bool EnsureRenderContext()
     {
-        if (ownsManagedContext_)
+        if (ownsManagedContext_ || hasBorrowedContext_)
         {
             return IsWindowReady();
+        }
+
+        if (HeadlessRenderContext::Instance().OwnsWindow())
+        {
+            ownsManagedContext_ = HeadlessRenderContext::Instance().Acquire();
+            return ownsManagedContext_;
+        }
+
+        if (IsWindowReady())
+        {
+            borrowedContext_ = CaptureCurrentNativeGlContext();
+            hasBorrowedContext_ = borrowedContext_.Valid();
+            return hasBorrowedContext_;
         }
 
         ownsManagedContext_ = HeadlessRenderContext::Instance().Acquire();
@@ -428,7 +506,7 @@ public:
             return false;
         }
 
-        const ScopedRuntimeRenderContext renderContext(ownsManagedContext_);
+        const ScopedRuntimeRenderContext renderContext(ownsManagedContext_, borrowedContext_);
         if (!renderContext.Active())
         {
             return false;
@@ -443,10 +521,11 @@ public:
             renderer_.SetTextFontFile(textFontFile_);
         }
 
-        BeginTextureMode(target_);
-        ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
-        renderer_.DrawActivePage(scene, width_, height_, targetStencilReady_);
-        EndTextureMode();
+        {
+            const ScopedTextureMode textureMode(target_);
+            ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
+            renderer_.DrawActivePage(scene, width_, height_, targetStencilReady_);
+        }
 
         if (!ReadRgba8Framebuffer(target_, framePixels_, frameWidth_, frameHeight_))
         {
@@ -496,6 +575,8 @@ private:
     bool targetReady_ = false;
     bool targetStencilReady_ = false;
     bool ownsManagedContext_ = false;
+    bool hasBorrowedContext_ = false;
+    NativeGlContextHandle borrowedContext_ {};
     int width_ = 0;
     int height_ = 0;
     int frameWidth_ = 0;

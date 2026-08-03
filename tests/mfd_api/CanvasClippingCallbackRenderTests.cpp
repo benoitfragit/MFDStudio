@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <stdexcept>
 #include <utility>
 
 #include <raylib.h>
@@ -288,4 +289,49 @@ TEST(CanvasClippingCallbackRenderTests, DefaultRestoreErasesClippedRegionToFlatB
     // Runtime behaviour is unchanged: the center stays green and the clipped region holds no grid.
     EXPECT_TRUE(IsGreen(PixelAt(framebuffer, kCenter, kCenter)));
     EXPECT_EQ(CountGridRedInColumn(framebuffer, kCenter), 0U);
+}
+
+TEST(CanvasClippingCallbackRenderTests, ThrowingRestoreCallbackDoesNotLeakStencilOrColorMaskState)
+{
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(kRenderSize, kRenderSize, "mfd_canvas_clipping_exception_state");
+    ASSERT_TRUE(IsWindowReady());
+
+    bool stencilReady = false;
+    RenderTexture2D target = mfd::LoadRenderTextureWithStencil(kRenderSize, kRenderSize, &stencilReady);
+    if (!stencilReady)
+    {
+        UnloadRenderTexture(target);
+        CloseWindow();
+        GTEST_SKIP() << "Stencil render target unavailable on this driver.";
+    }
+
+    BeginTextureMode(target);
+    ClearBackground(BLACK);
+    mfd::Canvas2D canvas(
+        kRenderSize,
+        kRenderSize,
+        {},
+        nullptr,
+        BLACK,
+        true,
+        nullptr,
+        nullptr,
+        nullptr,
+        []()
+        {
+            throw std::runtime_error("injected background restore failure");
+        });
+    EXPECT_THROW(canvas.DrawReticle(MakeOuterClipMask()), std::runtime_error);
+
+    DrawRectangle(0, 0, kRenderSize, kRenderSize, GREEN);
+    const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
+    EndTextureMode();
+
+    const bool frameReady = !framebuffer.Empty();
+    const bool centerIsGreen = frameReady && IsGreen(PixelAt(framebuffer, kCenter, kCenter));
+    UnloadRenderTexture(target);
+    CloseWindow();
+    EXPECT_TRUE(frameReady);
+    EXPECT_TRUE(centerIsGreen);
 }

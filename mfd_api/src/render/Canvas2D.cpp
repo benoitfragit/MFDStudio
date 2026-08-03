@@ -269,6 +269,27 @@ void DrawCircleOutlineFast(const Vector2 center,
     DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segments, color);
 }
 
+class ScopedStencilStateReset
+{
+public:
+    ScopedStencilStateReset() = default;
+
+    ~ScopedStencilStateReset() noexcept
+    {
+        rlDrawRenderBatchActive();
+        detail::OpenGlSetColorWriteMask(true, true, true, true);
+        detail::OpenGlSetStencilMask(0xFF);
+        detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Keep,
+                                          detail::GlStencilOperation::Keep,
+                                          detail::GlStencilOperation::Keep);
+        detail::OpenGlSetStencilFunction(detail::GlStencilCompare::Always, 0, 0xFF);
+        detail::OpenGlSetStencilEnabled(false);
+    }
+
+    ScopedStencilStateReset(const ScopedStencilStateReset&) = delete;
+    ScopedStencilStateReset& operator=(const ScopedStencilStateReset&) = delete;
+};
+
 void DrawSolidRingFast(const Vector2 center,
                        const float innerRadius,
                        const float outerRadius,
@@ -593,6 +614,7 @@ void Canvas2D::RestoreClippedBackground() const
 
 void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const
 {
+    const ScopedStencilStateReset stencilStateReset;
     rlDrawRenderBatchActive();
     detail::OpenGlSetStencilEnabled(true);
     detail::OpenGlSetStencilMask(0xFF);

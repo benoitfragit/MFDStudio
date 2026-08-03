@@ -232,6 +232,36 @@ TEST(OffscreenSurfaceTests, ResizeUsesRequestedSurfaceSizeWithoutVisibleHostWind
     EXPECT_EQ(surface.Height(), 48);
 }
 
+TEST(OffscreenSurfaceTests, OversizedResizePreservesExistingSurface)
+{
+    mfd::runtime_api::OffscreenSurface surface(80, 48);
+    ASSERT_TRUE(surface.Ready());
+
+    EXPECT_FALSE(surface.Resize(8193, 48));
+    EXPECT_TRUE(surface.Ready());
+    EXPECT_EQ(surface.Width(), 80);
+    EXPECT_EQ(surface.Height(), 48);
+}
+
+TEST(OffscreenSurfaceTests, DestroyingBorrowedSurfaceLeavesHostWindowReady)
+{
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(64, 64, "mfd_runtime_api_borrowed_context");
+    ASSERT_TRUE(IsWindowReady());
+
+    {
+        const mfd::runtime_api::OffscreenSurface surface(32, 32);
+        ASSERT_TRUE(surface.Ready());
+    }
+
+    EXPECT_TRUE(IsWindowReady());
+    BeginDrawing();
+    ClearBackground(BLACK);
+    EndDrawing();
+    EXPECT_TRUE(IsWindowReady());
+    CloseWindow();
+}
+
 TEST(OffscreenSurfaceTests, ClippingRemainsValidWhenRenderedOffscreen)
 {
     mfd::runtime_api::RuntimeSession session;
