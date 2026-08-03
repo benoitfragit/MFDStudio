@@ -61,6 +61,23 @@ mfd::ReticleGroup MakeDegenerateCircleReticle()
     return reticle;
 }
 
+mfd::ReticleGroup MakeAnisotropicFilledCircleReticle()
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "anisotropic_filled_circle";
+
+    mfd::Primitive primitive;
+    primitive.id = "ellipse";
+    primitive.type = mfd::PrimitiveType::Circle;
+    primitive.geometry = mfd::CircleGeometry {0.55f};
+    primitive.transform.scale = {1.5f, 0.5f};
+    primitive.style.color = Green();
+    primitive.style.fillColor = Green();
+    primitive.style.filled = true;
+    reticle.primitives.push_back(std::move(primitive));
+    return reticle;
+}
+
 mfd::Rgba32Framebuffer RenderReticle(const mfd::ReticleGroup& reticle)
 {
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
@@ -91,6 +108,15 @@ std::size_t CountForegroundPixels(const mfd::Rgba32Framebuffer& framebuffer)
 
     return count;
 }
+
+bool IsGreenAt(const mfd::Rgba32Framebuffer& framebuffer, const int x, const int y)
+{
+    const std::size_t index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(framebuffer.width) +
+        static_cast<std::size_t>(x);
+    const mfd::Rgba8Pixel& pixel = framebuffer.pixels.at(index);
+    return pixel.g > 80U && pixel.g > pixel.r + 30U && pixel.g > pixel.b + 30U;
+}
 } // namespace
 
 TEST(CanvasCircleStrokeRenderTests, DashedCircleRendersLessStrokeCoverageThanSolidCircle)
@@ -111,4 +137,16 @@ TEST(CanvasCircleStrokeRenderTests, DegenerateSolidCircleDrawsNothing)
     const mfd::Rgba32Framebuffer framebuffer = RenderReticle(MakeDegenerateCircleReticle());
 
     EXPECT_EQ(CountForegroundPixels(framebuffer), 0U);
+}
+
+TEST(CanvasCircleStrokeRenderTests, AnisotropicFilledCircleUsesTheSameTransformAsItsOutline)
+{
+    const mfd::Rgba32Framebuffer framebuffer = RenderReticle(MakeAnisotropicFilledCircleReticle());
+
+    ASSERT_EQ(framebuffer.width, kRenderSize);
+    ASSERT_EQ(framebuffer.height, kRenderSize);
+    const int center = kRenderSize / 2;
+
+    EXPECT_TRUE(IsGreenAt(framebuffer, center + 60, center));
+    EXPECT_FALSE(IsGreenAt(framebuffer, center, center + 40));
 }

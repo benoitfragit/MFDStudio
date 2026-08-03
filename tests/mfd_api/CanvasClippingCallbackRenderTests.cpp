@@ -14,7 +14,9 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -291,6 +293,30 @@ TEST(CanvasClippingCallbackRenderTests, DefaultRestoreErasesClippedRegionToFlatB
     EXPECT_EQ(CountGridRedInColumn(framebuffer, kCenter), 0U);
 }
 
+namespace
+{
+mfd::ReticleGroup MakeNonFiniteTriangleClipMask(const float nonFiniteCoordinate)
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "invalid_triangle_mask";
+    reticle.clipping.mode = mfd::ReticleClipMode::Outer;
+    reticle.clipping.primitiveId = "mask";
+
+    mfd::Primitive primitive;
+    primitive.id = "mask";
+    primitive.type = mfd::PrimitiveType::Triangle;
+    mfd::TriangleGeometry triangle;
+    triangle.points = {{
+        {nonFiniteCoordinate, 0.0f},
+        {-0.4f, -0.4f},
+        {0.4f, -0.4f}}};
+    primitive.geometry = triangle;
+    primitive.style.visible = false;
+    reticle.primitives.push_back(std::move(primitive));
+    return reticle;
+}
+} // namespace
+
 TEST(CanvasClippingCallbackRenderTests, ThrowingRestoreCallbackDoesNotLeakStencilOrColorMaskState)
 {
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
@@ -334,4 +360,59 @@ TEST(CanvasClippingCallbackRenderTests, ThrowingRestoreCallbackDoesNotLeakStenci
     CloseWindow();
     EXPECT_TRUE(frameReady);
     EXPECT_TRUE(centerIsGreen);
+}
+
+TEST(CanvasClippingCallbackRenderTests, NonFiniteTriangleMaskIsRejectedWithoutRestoringBackground)
+{
+    const std::array<float, 3> nonFiniteCoordinates {
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()};
+    for (const float nonFiniteCoordinate : nonFiniteCoordinates)
+    {
+        SetConfigFlags(FLAG_WINDOW_HIDDEN);
+        InitWindow(kRenderSize, kRenderSize, "mfd_canvas_invalid_triangle_clip");
+        ASSERT_TRUE(IsWindowReady());
+
+        bool stencilReady = false;
+        RenderTexture2D target = mfd::LoadRenderTextureWithStencil(kRenderSize, kRenderSize, &stencilReady);
+        if (!stencilReady)
+        {
+            UnloadRenderTexture(target);
+            CloseWindow();
+            GTEST_SKIP() << "Stencil render target unavailable on this driver.";
+        }
+
+        int restoreCount = 0;
+        BeginTextureMode(target);
+        ClearBackground(BLACK);
+        mfd::Canvas2D canvas(
+            kRenderSize,
+            kRenderSize,
+            {},
+            nullptr,
+            BLACK,
+            true,
+            nullptr,
+            nullptr,
+            nullptr,
+            [&restoreCount]()
+            {
+                ++restoreCount;
+                ClearBackground(BLACK);
+            });
+        canvas.DrawReticle(MakeGreenBackdrop());
+        canvas.DrawReticle(MakeNonFiniteTriangleClipMask(nonFiniteCoordinate));
+        const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
+        EndTextureMode();
+
+        const bool frameReady = !framebuffer.Empty();
+        const bool centerIsGreen = frameReady && IsGreen(PixelAt(framebuffer, kCenter, kCenter));
+        UnloadRenderTexture(target);
+        CloseWindow();
+
+        EXPECT_EQ(restoreCount, 0);
+        EXPECT_TRUE(frameReady);
+        EXPECT_TRUE(centerIsGreen);
+    }
 }

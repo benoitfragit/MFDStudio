@@ -614,6 +614,15 @@ void Canvas2D::RestoreClippedBackground() const
 
 void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const
 {
+    Vector2 circleCenter {};
+    float circleRadius = 0.0f;
+    const PreparedClipMaskType maskType =
+        PrepareClipMaskPrimitive(primitive, group, circleCenter, circleRadius);
+    if (maskType == PreparedClipMaskType::None)
+    {
+        return;
+    }
+
     const ScopedStencilStateReset stencilStateReset;
     rlDrawRenderBatchActive();
     detail::OpenGlSetStencilEnabled(true);
@@ -626,18 +635,7 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
     detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Replace,
                                       detail::GlStencilOperation::Replace,
                                       detail::GlStencilOperation::Replace);
-    if (!DrawClipMaskPrimitive(primitive, group))
-    {
-        rlDrawRenderBatchActive();
-        detail::OpenGlSetColorWriteMask(true, true, true, true);
-        detail::OpenGlSetStencilMask(0xFF);
-        detail::OpenGlSetStencilOperation(detail::GlStencilOperation::Keep,
-                                          detail::GlStencilOperation::Keep,
-                                          detail::GlStencilOperation::Keep);
-        detail::OpenGlSetStencilFunction(detail::GlStencilCompare::Always, 0, 0xFF);
-        detail::OpenGlSetStencilEnabled(false);
-        return;
-    }
+    DrawPreparedClipMask(maskType, circleCenter, circleRadius);
 
     rlDrawRenderBatchActive();
     detail::OpenGlSetColorWriteMask(true, true, true, true);
@@ -661,10 +659,11 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
     detail::OpenGlSetStencilEnabled(false);
 }
 
-bool Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGroup& group) const
+Canvas2D::PreparedClipMaskType Canvas2D::PrepareClipMaskPrimitive(const Primitive& primitive,
+                                                                  const ReticleGroup& group,
+                                                                  Vector2& circleCenter,
+                                                                  float& circleRadius) const
 {
-    constexpr Color kClipMaskColor {255, 255, 255, 255};
-
     switch (primitive.type)
     {
     case PrimitiveType::Circle:
@@ -675,16 +674,33 @@ bool Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGr
             break;
         }
 
-        const float radius = std::max(0.0f,
-                                      std::abs(ToViewPixels(circle->radius * PrimitiveAverageScale(primitive, group))));
-        const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
-        if (!std::isfinite(radius) || !IsFiniteVector(center))
+        const Transform2D combinedTransform = ResolvePrimitiveWorldTransform(primitive, group);
+        if (!IsFiniteVec2(combinedTransform.scale))
         {
             break;
         }
 
-        DrawCircleV(center, radius, kClipMaskColor);
-        return true;
+        if (IsIsotropicScale(combinedTransform.scale))
+        {
+            circleRadius = std::max(
+                0.0f,
+                std::abs(ToViewPixels(circle->radius * PrimitiveAverageScale(primitive, group))));
+            circleCenter = ToScreen(TransformPoint({}, primitive, group));
+            if (!std::isfinite(circleRadius) || circleRadius <= 0.0f || !IsFiniteVector(circleCenter))
+            {
+                break;
+            }
+
+            return PreparedClipMaskType::Circle;
+        }
+
+        SampleEllipseInto(
+            EllipseGeometry {circle->radius * 2.0f, circle->radius * 2.0f},
+            64,
+            logicalScratchA_);
+        return PrepareClipMaskPolygon(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group)
+                   ? PreparedClipMaskType::Polygon
+                   : PreparedClipMaskType::None;
     }
     case PrimitiveType::Rectangle:
     {
@@ -699,9 +715,9 @@ bool Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGr
             {rectangle->width * 0.5f, -rectangle->height * 0.5f},
             {rectangle->width * 0.5f, rectangle->height * 0.5f},
             {-rectangle->width * 0.5f, rectangle->height * 0.5f}} };
-        BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
-        FillConvexPolygon(screenScratchA_, kClipMaskColor);
-        return !screenScratchA_.empty();
+        return PrepareClipMaskPolygon(logicalPoints.data(), logicalPoints.size(), primitive, group)
+                   ? PreparedClipMaskType::Polygon
+                   : PreparedClipMaskType::None;
     }
     case PrimitiveType::Ellipse:
     {
@@ -712,9 +728,9 @@ bool Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGr
         }
 
         SampleEllipseInto(*ellipse, 64, logicalScratchA_);
-        BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
-        FillConvexPolygon(screenScratchA_, kClipMaskColor);
-        return !screenScratchA_.empty();
+        return PrepareClipMaskPolygon(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group)
+                   ? PreparedClipMaskType::Polygon
+                   : PreparedClipMaskType::None;
     }
     case PrimitiveType::Square:
     {
@@ -729,9 +745,9 @@ bool Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGr
             {square->width * 0.5f, -square->height * 0.5f},
             {square->width * 0.5f, square->height * 0.5f},
             {-square->width * 0.5f, square->height * 0.5f}} };
-        BuildScreenPointsInto(logicalPoints.data(), logicalPoints.size(), primitive, group, screenScratchA_);
-        FillConvexPolygon(screenScratchA_, kClipMaskColor);
-        return !screenScratchA_.empty();
+        return PrepareClipMaskPolygon(logicalPoints.data(), logicalPoints.size(), primitive, group)
+                   ? PreparedClipMaskType::Polygon
+                   : PreparedClipMaskType::None;
     }
     case PrimitiveType::Triangle:
     {
@@ -741,15 +757,15 @@ bool Canvas2D::DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGr
             break;
         }
 
-        BuildScreenPointsInto(triangle->points.data(), triangle->points.size(), primitive, group, screenScratchA_);
-        FillConvexPolygon(screenScratchA_, kClipMaskColor);
-        return !screenScratchA_.empty();
+        return PrepareClipMaskPolygon(triangle->points.data(), triangle->points.size(), primitive, group)
+                   ? PreparedClipMaskType::Polygon
+                   : PreparedClipMaskType::None;
     }
     default:
         break;
     }
 
-    return false;
+    return PreparedClipMaskType::None;
 }
 
 Vector2 Canvas2D::ToScreen(const Vec2& logical) const noexcept
@@ -788,6 +804,69 @@ void Canvas2D::BuildScreenPointsInto(const Vec2* points,
         {
             destination.push_back(screenPoint);
         }
+    }
+}
+
+bool Canvas2D::BuildScreenPointsExactInto(const Vec2* points,
+                                          const std::size_t pointCount,
+                                          const Primitive& primitive,
+                                          const ReticleGroup& group,
+                                          std::vector<Vector2>& destination) const
+{
+    destination.clear();
+    destination.reserve(pointCount);
+
+    if (points == nullptr && pointCount != 0U)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < pointCount; ++index)
+    {
+        if (!IsFiniteVec2(points[index]))
+        {
+            destination.clear();
+            return false;
+        }
+
+        const Vector2 screenPoint = ToScreen(TransformPoint(points[index], primitive, group));
+        if (!IsFiniteVector(screenPoint))
+        {
+            destination.clear();
+            return false;
+        }
+
+        destination.push_back(screenPoint);
+    }
+
+    return destination.size() == pointCount;
+}
+
+bool Canvas2D::PrepareClipMaskPolygon(const Vec2* points,
+                                      const std::size_t pointCount,
+                                      const Primitive& primitive,
+                                      const ReticleGroup& group) const
+{
+    return pointCount >= 3U &&
+           BuildScreenPointsExactInto(points, pointCount, primitive, group, screenScratchA_);
+}
+
+void Canvas2D::DrawPreparedClipMask(const PreparedClipMaskType maskType,
+                                    const Vector2& circleCenter,
+                                    const float circleRadius) const
+{
+    constexpr Color kClipMaskColor {255, 255, 255, 255};
+
+    switch (maskType)
+    {
+    case PreparedClipMaskType::Circle:
+        DrawCircleV(circleCenter, circleRadius, kClipMaskColor);
+        return;
+    case PreparedClipMaskType::Polygon:
+        FillConvexPolygon(screenScratchA_, kClipMaskColor);
+        return;
+    case PreparedClipMaskType::None:
+        return;
     }
 }
 
@@ -920,12 +999,13 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        if (style.filled)
+        const bool usesIsotropicFastPath = IsIsotropicScale(combinedTransform.scale);
+        if (style.filled && usesIsotropicFastPath)
         {
             DrawCircleV(center, radius, fillColor);
         }
 
-        if (style.lineStyle == LineStyle::Solid && IsIsotropicScale(combinedTransform.scale))
+        if (style.lineStyle == LineStyle::Solid && usesIsotropicFastPath)
         {
             DrawCircleOutlineFast(center, radius, strokeThickness, strokeColor);
             break;
@@ -936,7 +1016,17 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             EllipseGeometry {circle->radius * 2.0f, circle->radius * 2.0f},
             segmentCount,
             logicalScratchA_);
-        BuildScreenPointsInto(logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_);
+        if (!BuildScreenPointsExactInto(
+                logicalScratchA_.data(), logicalScratchA_.size(), primitive, group, screenScratchA_))
+        {
+            break;
+        }
+
+        if (style.filled && !usesIsotropicFastPath)
+        {
+            FillConvexPolygon(screenScratchA_, fillColor);
+        }
+
         DrawPolylineStroke(screenScratchA_, true, strokeThickness, strokeColor, style.lineStyle);
         break;
     }

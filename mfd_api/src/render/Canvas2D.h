@@ -87,6 +87,14 @@ public:
     void DrawReticleWithoutClipping(const ReticleGroup& reticle, bool visible) const;
 
 private:
+    /** @brief Identifies the already validated representation used to draw one clipping mask. */
+    enum class PreparedClipMaskType
+    {
+        None,
+        Circle,
+        Polygon
+    };
+
     Font TextFont() const noexcept;
     float LogicalScale() const noexcept;
     float ToPixels(float logicalValue) const noexcept;
@@ -99,10 +107,32 @@ private:
                                const Primitive& primitive,
                                const ReticleGroup& group,
                                std::vector<Vector2>& destination) const;
+    /**
+     * @brief Transforms every logical point and rejects the complete collection on the first invalid value.
+     * @return `true` only when exactly @p pointCount finite screen points were produced.
+     */
+    bool BuildScreenPointsExactInto(const Vec2* points,
+                                    std::size_t pointCount,
+                                    const Primitive& primitive,
+                                    const ReticleGroup& group,
+                                    std::vector<Vector2>& destination) const;
     void DrawReticlePrimitives(const ReticleGroup& reticle) const;
     void RestoreClippedBackground() const;
     void ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const;
-    bool DrawClipMaskPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
+    /** @brief Prepares one polygonal clip mask without mutating OpenGL state. */
+    bool PrepareClipMaskPolygon(const Vec2* points,
+                                std::size_t pointCount,
+                                const Primitive& primitive,
+                                const ReticleGroup& group) const;
+    /** @brief Validates and prepares one clip mask without mutating OpenGL state. */
+    PreparedClipMaskType PrepareClipMaskPrimitive(const Primitive& primitive,
+                                                  const ReticleGroup& group,
+                                                  Vector2& circleCenter,
+                                                  float& circleRadius) const;
+    /** @brief Draws one previously validated mask into the active stencil pass. */
+    void DrawPreparedClipMask(PreparedClipMaskType maskType,
+                              const Vector2& circleCenter,
+                              float circleRadius) const;
     void DrawPrimitive(const Primitive& primitive, const ReticleGroup& group) const;
 
     int width_ = 0;
