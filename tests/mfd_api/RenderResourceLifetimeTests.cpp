@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <stdexcept>
@@ -58,6 +60,45 @@ public:
 
 private:
     std::filesystem::path path_ {};
+};
+
+class TemporaryPngCollection
+{
+public:
+    explicit TemporaryPngCollection(const std::size_t fileCount)
+    {
+        const auto uniqueSuffix = std::chrono::steady_clock::now().time_since_epoch().count();
+        folder_ = std::filesystem::temp_directory_path() /
+                  ("mfd_image_texture_cache_" + std::to_string(uniqueSuffix));
+        std::filesystem::create_directories(folder_);
+
+        Image image = GenImageColor(2, 2, WHITE);
+        const bool exported = ExportImage(image, Path(0).string().c_str());
+        UnloadImage(image);
+        if (!exported)
+        {
+            throw std::runtime_error("Unable to export the first texture-cache test image.");
+        }
+
+        for (std::size_t fileIndex = 1; fileIndex < fileCount; ++fileIndex)
+        {
+            std::filesystem::copy_file(Path(0), Path(fileIndex));
+        }
+    }
+
+    ~TemporaryPngCollection()
+    {
+        std::error_code error;
+        std::filesystem::remove_all(folder_, error);
+    }
+
+    [[nodiscard]] std::filesystem::path Path(const std::size_t fileIndex) const
+    {
+        return folder_ / ("image_" + std::to_string(fileIndex) + ".png");
+    }
+
+private:
+    std::filesystem::path folder_ {};
 };
 
 mfd::SceneRegistry MakeSceneWithImagePrimitive(const std::filesystem::path& imageFile)
@@ -135,4 +176,34 @@ TEST(RenderResourceLifetimeTests, RendererDestructionAfterWindowCloseDoesNotRequ
     }
 
     SUCCEED();
+}
+
+/**
+ * @brief Verifies least-recently-used images are evicted once the entry budget is exhausted.
+ */
+TEST(RenderResourceLifetimeTests, ImageTextureCacheEvictsLeastRecentlyUsedEntry)
+{
+    constexpr std::size_t kImageCountBeyondCacheBudget = 257;
+    const TemporaryPngCollection imageFiles(kImageCountBeyondCacheBudget);
+
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(32, 32, "mfd_render_resource_lifetime_eviction");
+    ASSERT_TRUE(IsWindowReady());
+
+    mfd::ImageTextureCache cache;
+    for (std::size_t fileIndex = 0; fileIndex < (kImageCountBeyondCacheBudget - 1); ++fileIndex)
+    {
+        ASSERT_NE(cache.Resolve(imageFiles.Path(fileIndex)), nullptr);
+    }
+
+    ASSERT_NE(cache.Resolve(imageFiles.Path(0)), nullptr);
+    ASSERT_NE(cache.Resolve(imageFiles.Path(kImageCountBeyondCacheBudget - 1)), nullptr);
+
+    ASSERT_TRUE(std::filesystem::remove(imageFiles.Path(0)));
+    ASSERT_TRUE(std::filesystem::remove(imageFiles.Path(1)));
+    EXPECT_NE(cache.Resolve(imageFiles.Path(0)), nullptr);
+    EXPECT_EQ(cache.Resolve(imageFiles.Path(1)), nullptr);
+
+    cache.Clear();
+    CloseWindow();
 }
