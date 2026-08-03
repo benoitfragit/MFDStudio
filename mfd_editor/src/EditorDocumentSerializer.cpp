@@ -11,7 +11,9 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -68,6 +70,32 @@ bool IsDefaultTransform(const mfd::Transform2D& transform) noexcept
            IsZero(transform.rotationDegrees) &&
            std::abs(transform.scale.x - 1.0f) < 0.0001f &&
            std::abs(transform.scale.y - 1.0f) < 0.0001f;
+}
+
+mfd::Transform2D ResolveAuthoredTemplateTransform(const mfd::ReticleGroup& instance,
+                                                  const mfd::ReticleGroup& reticleTemplate) noexcept
+{
+    if (!instance.authoredTemplateTransform.has_value())
+    {
+        return instance.transform;
+    }
+
+    mfd::Transform2D authored = *instance.authoredTemplateTransform;
+    const mfd::Vec2 translated = mfd::Rotate(instance.transform.position - reticleTemplate.transform.position,
+                                             -reticleTemplate.transform.rotationDegrees);
+
+    if (!IsZero(reticleTemplate.transform.scale.x))
+    {
+        authored.position.x = translated.x / reticleTemplate.transform.scale.x;
+        authored.scale.x = instance.transform.scale.x / reticleTemplate.transform.scale.x;
+    }
+    if (!IsZero(reticleTemplate.transform.scale.y))
+    {
+        authored.position.y = translated.y / reticleTemplate.transform.scale.y;
+        authored.scale.y = instance.transform.scale.y / reticleTemplate.transform.scale.y;
+    }
+    authored.rotationDegrees = instance.transform.rotationDegrees - reticleTemplate.transform.rotationDegrees;
+    return authored;
 }
 
 std::string ToHexColor(const mfd::ColorRgba& color)
@@ -1042,7 +1070,7 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle,
             node["drawOnTop"] = reticle.drawOnTop;
         }
 
-        WriteTransformFields(node, reticle.transform);
+        WriteTransformFields(node, ResolveAuthoredTemplateTransform(reticle, library.at(reticle.sourceTemplateId)));
         WriteReticleOverrideFields(node, reticle.overrides);
         WriteReticleLayerField(node, reticle, true);
 
@@ -1080,7 +1108,9 @@ json SerializePageReticle(const mfd::ReticleGroup& reticle,
     return node;
 }
 
-json SerializeStrobe(const mfd::PageStrobeDefinition& strobe, const std::filesystem::path& /*baseFolder*/)
+json SerializeStrobe(const mfd::PageStrobeDefinition& strobe,
+                     const mfd::ReticleLibrary& library,
+                     const std::filesystem::path& /*baseFolder*/)
 {
     json node = json::object();
     node["name"] = strobe.name;
@@ -1091,7 +1121,12 @@ json SerializeStrobe(const mfd::PageStrobeDefinition& strobe, const std::filesys
         node["template"] = strobe.reticle.sourceTemplateId;
     }
 
-    WriteTransformFields(node, strobe.reticle.transform);
+    const auto templateIterator = library.find(strobe.reticle.sourceTemplateId);
+    const mfd::Transform2D authoredTransform = templateIterator == library.end()
+                                                   ? strobe.reticle.transform
+                                                   : ResolveAuthoredTemplateTransform(strobe.reticle,
+                                                                                      templateIterator->second);
+    WriteTransformFields(node, authoredTransform);
     WriteReticleOverrideFields(node, strobe.reticle.overrides);
     if (const auto blink = SerializeBlinkBinding(strobe.reticle.blink); blink.has_value())
     {
@@ -1168,7 +1203,7 @@ json SerializePage(const mfd::PageDefinition& page,
         json strobes = json::array();
         for (const auto& strobe : page.strobes)
         {
-            strobes.push_back(SerializeStrobe(strobe, baseFolder));
+            strobes.push_back(SerializeStrobe(strobe, library, baseFolder));
         }
 
         node["strobes"] = std::move(strobes);

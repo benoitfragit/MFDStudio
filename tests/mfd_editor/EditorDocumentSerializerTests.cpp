@@ -763,6 +763,113 @@ TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverride
     EXPECT_FLOAT_EQ(jsonNode.at("letterSpacings").at("track_label").get<float>(), 0.01f);
 }
 
+TEST(EditorDocumentSerializerTests, TemplateInstanceTransformDoesNotDriftAcrossTenLoadSaveCycles)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path windowFile = tempDir.Path() / "window.json";
+    const std::filesystem::path pageFile = tempDir.Path() / "page.json";
+    const std::filesystem::path templateFolder = tempDir.Path() / "reticles";
+    const std::filesystem::path templateFile = templateFolder / "marker.json";
+    std::filesystem::create_directories(templateFolder);
+
+    {
+        std::ofstream stream(templateFile);
+        stream << R"json({
+  "id": "marker",
+  "at": [0.1, -0.2],
+  "angle": 15.0,
+  "scale": [2.0, 0.5],
+  "elements": []
+})json";
+    }
+    {
+        std::ofstream stream(pageFile);
+        stream << R"json({
+  "name": "Main",
+  "title": "Main",
+  "layers": [{"id": "default"}],
+  "staticReticles": [{
+    "id": "instance",
+    "template": "marker",
+    "layerId": "default",
+    "at": [0.2, -0.3],
+    "angle": 20.0,
+    "scale": [0.5, 3.0]
+  }]
+})json";
+    }
+    {
+        std::ofstream stream(windowFile);
+        stream << R"json({
+  "title": "Test",
+  "size": [640, 480],
+  "reticleLibraryFolder": "reticles",
+  "defaultPage": "Main",
+  "pages": ["page.json"]
+})json";
+    }
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(pageFile);
+    layout.templateFiles.emplace("marker", templateFile);
+    mfd::JsonLoader loader;
+    mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(windowFile);
+    const mfd::Transform2D expectedWorld = loaded.document.pages.front().staticReticles.front().transform;
+
+    for (int cycle = 0; cycle < 10; ++cycle)
+    {
+        const std::string pageJson = editor::SerializePageToJsonString(loaded.document.pages.front(),
+                                                                       loaded.document.reticleLibrary,
+                                                                       layout,
+                                                                       0U);
+        std::ofstream stream(pageFile);
+        ASSERT_TRUE(stream.is_open()) << "cycle " << cycle;
+        stream << pageJson;
+        stream.close();
+        loaded = loader.LoadWindowConfiguration(windowFile);
+
+        const mfd::Transform2D& world = loaded.document.pages.front().staticReticles.front().transform;
+        EXPECT_NEAR(world.position.x, expectedWorld.position.x, 0.00001f);
+        EXPECT_NEAR(world.position.y, expectedWorld.position.y, 0.00001f);
+        EXPECT_NEAR(world.rotationDegrees, expectedWorld.rotationDegrees, 0.00001f);
+        EXPECT_NEAR(world.scale.x, expectedWorld.scale.x, 0.00001f);
+        EXPECT_NEAR(world.scale.y, expectedWorld.scale.y, 0.00001f);
+    }
+
+    std::ifstream pageStream(pageFile);
+    const nlohmann::json pageJson = nlohmann::json::parse(pageStream);
+    const nlohmann::json& transform = pageJson.at("staticReticles").front();
+    EXPECT_NEAR(transform.at("at").at(0).get<float>(), 0.2f, 0.00001f);
+    EXPECT_NEAR(transform.at("at").at(1).get<float>(), -0.3f, 0.00001f);
+    EXPECT_NEAR(transform.at("angle").get<float>(), 20.0f, 0.00001f);
+    EXPECT_NEAR(transform.at("scale").at(0).get<float>(), 0.5f, 0.00001f);
+    EXPECT_NEAR(transform.at("scale").at(1).get<float>(), 3.0f, 0.00001f);
+}
+
+TEST(EditorDocumentSerializerTests, TemplateInstancePreservesAuthoredTransformWithNonInvertibleTemplateScale)
+{
+    mfd::ReticleGroup reticleTemplate;
+    reticleTemplate.id = "marker";
+    reticleTemplate.transform.scale = {0.0f, 2.0f};
+
+    mfd::Transform2D authored;
+    authored.position = {0.25f, -0.4f};
+    authored.rotationDegrees = 12.0f;
+    authored.scale = {3.0f, 0.5f};
+    const mfd::ReticleGroup instance = mfd::InstantiateReticle(reticleTemplate, "instance", authored);
+
+    mfd::ReticleLibrary library;
+    library.emplace(reticleTemplate.id, reticleTemplate);
+    const nlohmann::json node =
+        nlohmann::json::parse(editor::SerializePageReticleToJsonString(instance, library));
+
+    EXPECT_NEAR(node.at("at").at(0).get<float>(), authored.position.x, 0.00001f);
+    EXPECT_NEAR(node.at("at").at(1).get<float>(), authored.position.y, 0.00001f);
+    EXPECT_NEAR(node.at("angle").get<float>(), authored.rotationDegrees, 0.00001f);
+    EXPECT_NEAR(node.at("scale").at(0).get<float>(), authored.scale.x, 0.00001f);
+    EXPECT_NEAR(node.at("scale").at(1).get<float>(), authored.scale.y, 0.00001f);
+}
+
 TEST(EditorDocumentSerializerTests, SerializeWindowFallsBackToAbsolutePathsWhenRelativePathsCannotBeComputed)
 {
 #ifndef _WIN32

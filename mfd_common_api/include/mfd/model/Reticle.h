@@ -474,6 +474,13 @@ struct ReticleGroup
     /** @brief Optional local clipping state resolved against one primitive id. */
     ReticleClipState clipping {};
     std::vector<Primitive> primitives;
+    /**
+     * @brief Authored transform relative to the source template for a resolved instance.
+     *
+     * @note Runtime rendering uses @ref transform. This value preserves authoring data when
+     * a template transform cannot be inverted, notably when one scale component is zero.
+     */
+    std::optional<Transform2D> authoredTemplateTransform;
 };
 
 /**
@@ -506,6 +513,7 @@ MFD_API ReticleStyleOverride MergeOverrides(const ReticleStyleOverride& base, co
  * @note The returned instance leaves `layerId` empty. Page-local layer
  * attachment must be assigned explicitly by the page authoring model or the
  * runtime dynamic binding that owns the instance.
+ * @note The relative authored transform is retained separately from the resolved runtime transform.
  * @return New reticle instance ready to be inserted in a page or in the runtime scene.
  */
 MFD_API ReticleGroup InstantiateReticle(const ReticleGroup& templ,

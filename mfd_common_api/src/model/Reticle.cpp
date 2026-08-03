@@ -97,6 +97,7 @@ ReticleGroup InstantiateReticle(const ReticleGroup& templ,
     result.sourceTemplateId = templ.sourceTemplateId.empty() ? templ.id : templ.sourceTemplateId;
     result.layerId.clear();
     result.transform = CombineTransforms(templ.transform, transform);
+    result.authoredTemplateTransform = transform;
     result.overrides = MergeOverrides(templ.overrides, overrides);
     return result;
 }
