@@ -159,8 +159,9 @@ public:
      * @param maxBatches Maximum number of batches drained during this call.
      * @return Number of batches appended to the destination vector.
      *
-     * @note The internal inbound queue is bounded in command batches. When the
-     * queue overflows, the worker drops the oldest batches first.
+     * @note The internal inbound queue is bounded by cumulative batch, command,
+     * wire-byte and estimated-memory budgets. The worker drops the oldest
+     * batches first when admitting newer state would exceed a budget.
      */
     std::size_t DrainReceivedBatches(std::vector<CommandBatch>& destination,
                                      std::size_t maxBatches = 256);

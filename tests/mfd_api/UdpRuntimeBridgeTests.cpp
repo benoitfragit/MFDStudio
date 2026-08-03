@@ -1137,6 +1137,51 @@ TEST(UdpRuntimeBridgeTests, ReportsInboundBatchOverflowUsingBatchTerminology)
 
     std::vector<mfd::CommandBatch> drained;
     EXPECT_EQ(bridge.DrainReceivedBatches(drained, 9000U), 8192U);
-    EXPECT_EQ(bridge.LastCommandStatus(), "UDP command batch queue overflow, dropping oldest batches");
+    EXPECT_EQ(bridge.LastCommandStatus(), "UDP command queue budget exceeded, dropping oldest batches");
+    bridge.Stop();
+}
+
+TEST(UdpRuntimeBridgeTests, BoundsCumulativeInboundCommandAndMemoryPressure)
+{
+    constexpr std::size_t batchCount = 70U;
+    constexpr std::size_t commandsPerBatch = 1024U;
+
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+    const std::vector<std::byte> payload =
+        ToBytes(mfd::SerializeCommandBatch(MakeResetBatch(1U, commandsPerBatch)));
+    receiverState->PushInboundRepeated(payload, batchCount);
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::seconds(2),
+        [&bridge, batchCount]()
+        {
+            return bridge.MetricsSnapshot().decodedBatches == batchCount;
+        }));
+
+    const mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_GT(metrics.droppedBatches, 0U);
+    EXPECT_LE(metrics.inboundQueueDepth, 64U);
+    EXPECT_NE(bridge.LastCommandStatus().find("queue budget exceeded"), std::string::npos);
+
+    std::vector<mfd::CommandBatch> retainedBatches;
+    bridge.DrainReceivedBatches(retainedBatches, batchCount);
+    std::size_t retainedCommandCount = 0U;
+    for (const mfd::CommandBatch& retainedBatch : retainedBatches)
+    {
+        retainedCommandCount += retainedBatch.commands.size();
+    }
+    EXPECT_LE(retainedCommandCount, 65536U);
     bridge.Stop();
 }
