@@ -1314,3 +1314,99 @@ TEST(EditorDocumentSerializerTests, RestoreRecoveryBundleLeavesAuthoredFilesInta
     EXPECT_NE(content.find("\"original\""), std::string::npos);
     EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(validPage).concat(".recovery_tmp")));
 }
+
+TEST(EditorDocumentSerializerTests, SaveRejectsUnsafePageIdentifiersBeforeWriting)
+{
+    ScopedTempDir assetRoot;
+    ScopedTempDir outside;
+    const std::filesystem::path sentinel = outside.Path() / "sentinel.json";
+    {
+        std::ofstream stream(sentinel, std::ios::binary | std::ios::trunc);
+        stream << "unchanged\n";
+    }
+
+    const std::vector<std::string> unsafeNames = {"../x", "..\\x", "C:\\x", "CON", "a/b", "a\\b"};
+    for (const std::string& unsafeName : unsafeNames)
+    {
+        mfd::LoadedWindowConfiguration loaded;
+        loaded.window.sourceFile = assetRoot.Path() / "windows" / "demo.json";
+        loaded.window.reticleLibraryFolder = assetRoot.Path() / "reticles";
+        mfd::PageDefinition page;
+        page.name = unsafeName;
+        page.title = "Unsafe";
+        page.layers.push_back(mfd::PageLayerDefinition {"default"});
+        loaded.document.pages.push_back(std::move(page));
+
+        editor::EditorFileLayout layout;
+        layout.pageFiles.push_back(assetRoot.Path() / "pages" / "page.json");
+        std::string error;
+        EXPECT_FALSE(editor::SaveEditorDocument(loaded, layout, &error)) << unsafeName;
+        EXPECT_FALSE(error.empty()) << unsafeName;
+        EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+    }
+
+    std::ifstream stream(sentinel, std::ios::binary);
+    const std::string sentinelContent((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(sentinelContent, "unchanged\n");
+}
+
+TEST(EditorDocumentSerializerTests, SaveRejectsTargetOutsideAssetRootBeforeWriting)
+{
+    ScopedTempDir assetRoot;
+    ScopedTempDir outside;
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = assetRoot.Path() / "windows" / "demo.json";
+    loaded.window.reticleLibraryFolder = assetRoot.Path() / "reticles";
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    loaded.document.pages.push_back(std::move(page));
+
+    const std::filesystem::path escapingPage = outside.Path() / "radar.json";
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(escapingPage);
+    std::string error;
+    EXPECT_FALSE(editor::SaveEditorDocument(loaded, layout, &error));
+    EXPECT_FALSE(error.empty());
+    EXPECT_FALSE(std::filesystem::exists(escapingPage));
+    EXPECT_FALSE(std::filesystem::exists(loaded.window.sourceFile));
+}
+
+TEST(EditorDocumentSerializerTests, SaveStagingFailurePreservesEveryOriginalFile)
+{
+    ScopedTempDir assetRoot;
+    const std::filesystem::path windowFile = assetRoot.Path() / "windows" / "demo.json";
+    const std::filesystem::path blockedPageFolder = assetRoot.Path() / "pages";
+    std::filesystem::create_directories(windowFile.parent_path());
+    {
+        std::ofstream stream(windowFile, std::ios::binary | std::ios::trunc);
+        stream << "{\"original\":true}\n";
+    }
+    {
+        std::ofstream stream(blockedPageFolder, std::ios::binary | std::ios::trunc);
+        stream << "folder blocker\n";
+    }
+
+    mfd::LoadedWindowConfiguration loaded;
+    loaded.window.sourceFile = windowFile;
+    loaded.window.reticleLibraryFolder = assetRoot.Path() / "reticles";
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    page.title = "Radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    loaded.document.pages.push_back(std::move(page));
+
+    editor::EditorFileLayout layout;
+    layout.pageFiles.push_back(blockedPageFolder / "radar.json");
+    std::string error;
+    EXPECT_FALSE(editor::SaveEditorDocument(loaded, layout, &error));
+    EXPECT_FALSE(error.empty());
+
+    std::ifstream windowStream(windowFile, std::ios::binary);
+    const std::string windowContent((std::istreambuf_iterator<char>(windowStream)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(windowContent, "{\"original\":true}\n");
+    EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(windowFile).concat(".mfd_save_tmp_0")));
+    EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(windowFile).concat(".mfd_save_backup_0")));
+}

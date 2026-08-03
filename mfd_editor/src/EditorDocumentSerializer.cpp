@@ -1367,6 +1367,11 @@ void WriteJsonFile(const std::filesystem::path& path, const json& value)
     }
 
     stream << value.dump(2) << '\n';
+    stream.flush();
+    if (!stream.good())
+    {
+        throw std::runtime_error("Unable to complete file write: " + path.string());
+    }
 }
 
 std::string JsonToString(const json& value)
@@ -1374,38 +1379,247 @@ std::string JsonToString(const json& value)
     return value.dump(2) + '\n';
 }
 
-void DeleteFileIfPresent(const std::filesystem::path& path)
-{
-    if (path.empty())
-    {
-        return;
-    }
-
-    std::error_code error;
-    if (!std::filesystem::exists(path, error))
-    {
-        return;
-    }
-
-    std::filesystem::remove(path, error);
-}
-
 bool IsPathWithinRoot(const std::filesystem::path& candidate, const std::filesystem::path& root)
 {
-    // Reject any bundle path that does not resolve to a descendant of the authored asset root. The
-    // candidate is made absolute against the root when relative, then normalized, so "..", absolute
-    // paths and drive changes that escape the root are refused before any write touches the disk.
-    const std::filesystem::path normalizedRoot = root.lexically_normal();
-    const std::filesystem::path absoluteCandidate =
-        candidate.is_absolute() ? candidate.lexically_normal() : (normalizedRoot / candidate).lexically_normal();
-
-    const std::filesystem::path relative = absoluteCandidate.lexically_relative(normalizedRoot);
+    const std::filesystem::path absoluteRoot = std::filesystem::absolute(root).lexically_normal();
+    const std::filesystem::path absoluteCandidate = candidate.is_absolute()
+                                                        ? candidate.lexically_normal()
+                                                        : (absoluteRoot / candidate).lexically_normal();
+    const std::filesystem::path canonicalRoot = std::filesystem::weakly_canonical(absoluteRoot);
+    const std::filesystem::path canonicalCandidate = std::filesystem::weakly_canonical(absoluteCandidate);
+    const std::filesystem::path relative = canonicalCandidate.lexically_relative(canonicalRoot);
     if (relative.empty())
     {
         return false;
     }
 
-    return *relative.begin() != "..";
+    return !relative.is_absolute() && *relative.begin() != "..";
+}
+
+bool IsPortableAssetIdentifier(const std::string_view identifier)
+{
+    if (identifier.empty() || identifier == "." || identifier == ".." ||
+        identifier.back() == ' ' || identifier.back() == '.')
+    {
+        return false;
+    }
+
+    constexpr std::string_view forbiddenCharacters = "<>:\"/\\|?*";
+    for (const unsigned char character : identifier)
+    {
+        if (character < 32U || forbiddenCharacters.find(static_cast<char>(character)) != std::string_view::npos)
+        {
+            return false;
+        }
+    }
+
+    std::string stem = Lowercase(identifier);
+    const std::size_t extension = stem.find('.');
+    if (extension != std::string::npos)
+    {
+        stem.resize(extension);
+    }
+
+    constexpr std::array<std::string_view, 22> reservedNames = {
+        "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7",
+        "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"};
+    return std::find(reservedNames.begin(), reservedNames.end(), stem) == reservedNames.end();
+}
+
+std::filesystem::path FindAuthoredAssetRoot(const mfd::LoadedWindowConfiguration& loaded)
+{
+    std::filesystem::path current = std::filesystem::absolute(loaded.window.sourceFile).parent_path();
+    while (!current.empty())
+    {
+        if (Lowercase(current.filename().string()) == "assets")
+        {
+            return current.lexically_normal();
+        }
+        if (!current.has_parent_path() || current == current.parent_path())
+        {
+            break;
+        }
+        current = current.parent_path();
+    }
+
+    const std::filesystem::path windowFolder = std::filesystem::absolute(loaded.window.sourceFile).parent_path();
+    if (Lowercase(windowFolder.filename().string()) == "windows" && windowFolder.has_parent_path())
+    {
+        return windowFolder.parent_path().lexically_normal();
+    }
+    return windowFolder.lexically_normal();
+}
+
+void ValidateSaveTargets(const mfd::LoadedWindowConfiguration& loaded,
+                         const EditorFileLayout& layout,
+                         const std::vector<std::pair<std::filesystem::path, json>>& files)
+{
+    for (const mfd::PageDefinition& page : loaded.document.pages)
+    {
+        if (!IsPortableAssetIdentifier(page.name))
+        {
+            throw std::runtime_error("Page name is not a portable asset identifier: " + page.name);
+        }
+    }
+    for (const auto& entry : loaded.document.reticleLibrary)
+    {
+        if (!IsPortableAssetIdentifier(entry.first))
+        {
+            throw std::runtime_error("Template id is not a portable asset identifier: " + entry.first);
+        }
+    }
+
+    const std::filesystem::path assetRoot = FindAuthoredAssetRoot(loaded);
+    std::unordered_set<std::string> targets;
+    targets.reserve(files.size());
+    for (const auto& entry : files)
+    {
+        if (!IsPathWithinRoot(entry.first, assetRoot))
+        {
+            throw std::runtime_error("Save target escapes the authored asset root: " + entry.first.string());
+        }
+        if (!targets.insert(Lowercase(std::filesystem::weakly_canonical(entry.first).generic_string())).second)
+        {
+            throw std::runtime_error("Multiple assets resolve to the same save target: " + entry.first.string());
+        }
+    }
+    for (const std::filesystem::path& removed : layout.removedPageFiles)
+    {
+        if (!removed.empty() && !IsPathWithinRoot(removed, assetRoot))
+        {
+            throw std::runtime_error("Removed page path escapes the authored asset root: " + removed.string());
+        }
+    }
+    for (const std::filesystem::path& removed : layout.removedTemplateFiles)
+    {
+        if (!removed.empty() && !IsPathWithinRoot(removed, assetRoot))
+        {
+            throw std::runtime_error("Removed template path escapes the authored asset root: " + removed.string());
+        }
+    }
+}
+
+struct SaveTransactionEntry
+{
+    std::filesystem::path target;
+    std::filesystem::path staged;
+    std::filesystem::path backup;
+    bool hadOriginal = false;
+    bool promoted = false;
+};
+
+std::filesystem::path MakeSiblingTransactionPath(const std::filesystem::path& target,
+                                                 const std::string_view suffix,
+                                                 const std::size_t index)
+{
+    const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
+    for (std::size_t attempt = 0; attempt < 100U; ++attempt)
+    {
+        std::filesystem::path result = target;
+        result += std::string(suffix) + std::to_string(ticks) + "_" + std::to_string(index) + "_" +
+                  std::to_string(attempt);
+        if (!std::filesystem::exists(result))
+        {
+            return result;
+        }
+    }
+    throw std::runtime_error("Unable to reserve a transaction path beside: " + target.string());
+}
+
+void RemoveTransactionFile(const std::filesystem::path& path) noexcept
+{
+    std::error_code error;
+    std::filesystem::remove(path, error);
+}
+
+void RollBackSaveTransaction(std::vector<SaveTransactionEntry>& entries) noexcept
+{
+    for (auto iterator = entries.rbegin(); iterator != entries.rend(); ++iterator)
+    {
+        SaveTransactionEntry& entry = *iterator;
+        if (entry.promoted)
+        {
+            RemoveTransactionFile(entry.target);
+        }
+        std::error_code backupExistsError;
+        const bool backupExists = std::filesystem::exists(entry.backup, backupExistsError);
+        if (entry.hadOriginal && !backupExistsError && backupExists)
+        {
+            std::error_code restoreError;
+            std::filesystem::rename(entry.backup, entry.target, restoreError);
+        }
+        RemoveTransactionFile(entry.staged);
+    }
+}
+
+void SaveFilesTransactionally(const std::vector<std::pair<std::filesystem::path, json>>& files,
+                              const std::vector<std::filesystem::path>& removedFiles)
+{
+    std::vector<SaveTransactionEntry> entries;
+    entries.reserve(files.size() + removedFiles.size());
+
+    try
+    {
+        for (std::size_t index = 0; index < files.size(); ++index)
+        {
+            const auto& file = files[index];
+            SaveTransactionEntry entry;
+            entry.target = file.first;
+            entry.staged = MakeSiblingTransactionPath(entry.target, ".mfd_save_tmp_", index);
+            entry.backup = MakeSiblingTransactionPath(entry.target, ".mfd_save_backup_", index);
+            entries.push_back(std::move(entry));
+            WriteJsonFile(entries.back().staged, file.second);
+
+            std::ifstream verification(entries.back().staged, std::ios::binary);
+            if (!verification.is_open())
+            {
+                throw std::runtime_error("Unable to verify staged file: " + entries.back().staged.string());
+            }
+            const json stagedDocument = json::parse(verification);
+            if (stagedDocument != file.second)
+            {
+                throw std::runtime_error("Staged JSON verification failed: " + entries.back().staged.string());
+            }
+        }
+
+        for (const std::filesystem::path& removedFile : removedFiles)
+        {
+            SaveTransactionEntry entry;
+            entry.target = removedFile;
+            entry.backup = MakeSiblingTransactionPath(entry.target, ".mfd_save_backup_", entries.size());
+            entries.push_back(std::move(entry));
+        }
+
+        for (SaveTransactionEntry& entry : entries)
+        {
+            std::error_code existsError;
+            entry.hadOriginal = std::filesystem::exists(entry.target, existsError);
+            if (existsError)
+            {
+                throw std::runtime_error("Unable to inspect save target: " + entry.target.string());
+            }
+            if (entry.hadOriginal)
+            {
+                std::filesystem::rename(entry.target, entry.backup);
+            }
+        }
+
+        for (std::size_t index = 0; index < files.size(); ++index)
+        {
+            std::filesystem::rename(entries[index].staged, entries[index].target);
+            entries[index].promoted = true;
+        }
+
+        for (SaveTransactionEntry& entry : entries)
+        {
+            RemoveTransactionFile(entry.backup);
+        }
+    }
+    catch (...)
+    {
+        RollBackSaveTransaction(entries);
+        throw;
+    }
 }
 
 std::optional<std::string> TryReadTemplateId(const std::filesystem::path& path)
@@ -1579,10 +1793,7 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
     {
         const std::vector<std::pair<std::filesystem::path, json>> files =
             CollectEditorDocumentFiles(loaded, layout);
-        for (const auto& [path, document] : files)
-        {
-            WriteJsonFile(path, document);
-        }
+        ValidateSaveTargets(loaded, layout, files);
 
         std::unordered_set<std::string> currentPageFiles;
         currentPageFiles.reserve(layout.pageFiles.size());
@@ -1590,11 +1801,13 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
         {
             currentPageFiles.insert(MakeNormalizedGenericPathKey(pageFile));
         }
+        std::vector<std::filesystem::path> removedFiles;
+        removedFiles.reserve(layout.removedPageFiles.size() + layout.removedTemplateFiles.size());
         for (const auto& removedPageFile : layout.removedPageFiles)
         {
             if (currentPageFiles.find(MakeNormalizedGenericPathKey(removedPageFile)) == currentPageFiles.end())
             {
-                DeleteFileIfPresent(removedPageFile);
+                removedFiles.push_back(removedPageFile);
             }
         }
 
@@ -1609,9 +1822,11 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
         {
             if (currentTemplateFiles.find(MakeNormalizedGenericPathKey(removedTemplateFile)) == currentTemplateFiles.end())
             {
-                DeleteFileIfPresent(removedTemplateFile);
+                removedFiles.push_back(removedTemplateFile);
             }
         }
+
+        SaveFilesTransactionally(files, removedFiles);
 
         if (error != nullptr)
         {
@@ -1657,7 +1872,6 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
                            std::filesystem::path& windowFile,
                            std::string* error)
 {
-    std::vector<std::filesystem::path> stagedTempFiles;
     try
     {
         const json bundle = json::parse(bundleJson);
@@ -1668,7 +1882,10 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
             throw std::runtime_error("Malformed recovery bundle");
         }
 
-        const std::filesystem::path recoveredWindowFile(bundle.at("windowFile").get<std::string>());
+        const std::filesystem::path bundledWindowFile(bundle.at("windowFile").get<std::string>());
+        const std::filesystem::path recoveredWindowFile = bundledWindowFile.is_absolute()
+                                                              ? bundledWindowFile.lexically_normal()
+                                                              : (assetRoot / bundledWindowFile).lexically_normal();
         if (!IsPathWithinRoot(recoveredWindowFile, assetRoot))
         {
             throw std::runtime_error("Recovery bundle window path escapes the asset root: " +
@@ -1676,8 +1893,10 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
         }
 
         // Phase 1: validate every entry and its target path before writing anything to disk.
-        std::vector<std::pair<std::filesystem::path, const json*>> targets;
+        std::vector<std::pair<std::filesystem::path, json>> targets;
+        std::unordered_set<std::string> targetKeys;
         targets.reserve(bundle.at("files").size());
+        targetKeys.reserve(bundle.at("files").size());
         for (const auto& entry : bundle.at("files"))
         {
             if (!entry.is_object() || !entry.contains("path") || !entry.at("path").is_string() ||
@@ -1686,30 +1905,23 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
                 throw std::runtime_error("Malformed recovery bundle entry");
             }
 
-            std::filesystem::path target(entry.at("path").get<std::string>());
-            if (!IsPathWithinRoot(target, assetRoot))
+            const std::filesystem::path bundledTarget(entry.at("path").get<std::string>());
+            if (!IsPathWithinRoot(bundledTarget, assetRoot))
             {
-                throw std::runtime_error("Recovery bundle path escapes the asset root: " + target.string());
+                throw std::runtime_error("Recovery bundle path escapes the asset root: " + bundledTarget.string());
             }
-
-            targets.emplace_back(std::move(target), &entry.at("document"));
+            std::filesystem::path target = bundledTarget.is_absolute()
+                                               ? bundledTarget.lexically_normal()
+                                               : (assetRoot / bundledTarget).lexically_normal();
+            const std::string targetKey = Lowercase(std::filesystem::weakly_canonical(target).generic_string());
+            if (!targetKeys.insert(targetKey).second)
+            {
+                throw std::runtime_error("Recovery bundle contains duplicate target path: " + target.string());
+            }
+            targets.emplace_back(std::move(target), entry.at("document"));
         }
 
-        // Phase 2: stage every document into a temporary sibling file. A failure here leaves the
-        // authored files untouched; the catch removes any temporary already written.
-        for (const auto& [target, document] : targets)
-        {
-            std::filesystem::path tempFile = target;
-            tempFile += ".recovery_tmp";
-            WriteJsonFile(tempFile, *document);
-            stagedTempFiles.push_back(std::move(tempFile));
-        }
-
-        // Phase 3: promote each staged file into place. Same-directory renames are atomic.
-        for (std::size_t index = 0; index < targets.size(); ++index)
-        {
-            std::filesystem::rename(stagedTempFiles[index], targets[index].first);
-        }
+        SaveFilesTransactionally(targets, {});
 
         windowFile = recoveredWindowFile;
         if (error != nullptr)
@@ -1721,12 +1933,6 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
     }
     catch (const std::exception& exception)
     {
-        for (const std::filesystem::path& tempFile : stagedTempFiles)
-        {
-            std::error_code removeError;
-            std::filesystem::remove(tempFile, removeError);
-        }
-
         if (error != nullptr)
         {
             *error = exception.what();

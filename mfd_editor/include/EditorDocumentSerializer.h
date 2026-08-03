@@ -60,7 +60,15 @@ std::string SerializeWindowToJsonString(const mfd::WindowAssetDefinition& window
                                         const mfd::MfdDocument& document,
                                         const EditorFileLayout& layout);
 
-/** @brief Saves all currently loaded editor assets to disk. */
+/**
+ * @brief Saves all currently loaded editor assets to disk as one transaction.
+ * @param loaded Loaded document whose authored assets must be saved.
+ * @param layout Target and obsolete authored file paths.
+ * @param error Optional destination for a human-readable failure description.
+ * @return `true` when every staged file was verified and promoted.
+ * @note Unsafe identifiers, paths outside the authored asset root and target collisions are rejected
+ * before writing. Existing files are restored if staging or promotion fails.
+ */
 bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
                         const EditorFileLayout& layout,
                         std::string* error);
