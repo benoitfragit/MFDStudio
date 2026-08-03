@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <optional>
 #include <random>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 
@@ -22,6 +23,8 @@ namespace mfd::client
 namespace
 {
 constexpr mfd::RuntimeDynamicId kGeneratedDynamicRuntimeIdBit = mfd::RuntimeDynamicId {1} << 63U;
+constexpr std::size_t kMaxRetainedDynamicReticles = 4096U;
+constexpr std::size_t kMaxRetainedFeedbackPages = 256U;
 
 std::string NormalizeFeedbackKey(const std::string_view value)
 {
@@ -574,8 +577,59 @@ bool RuntimeFeedbackState::Apply(const mfd::StrobeStatusFeedback& feedback)
         return false;
     }
 
-    PageCaptureState& state = pageCaptureById_[feedback.pageId];
-    return applyCaptureState(state);
+    auto pageIt = pageCaptureById_.find(feedback.pageId);
+    if (pageIt == pageCaptureById_.end())
+    {
+        MakeRoomForPageCapture();
+        pageIt = pageCaptureById_.emplace(feedback.pageId, PageCaptureState {}).first;
+    }
+
+    PageCaptureState& state = pageIt->second;
+    const bool accepted = !state.hasSequence || SequenceIsNewer(feedback.sequence, state.lastStrobeSequence);
+    const bool changed = applyCaptureState(state);
+    if (accepted)
+    {
+        state.accessOrdinal = ++pageCaptureAccessOrdinal_;
+    }
+    return changed;
+}
+
+void RuntimeFeedbackState::MakeRoomForPageCapture()
+{
+    if (pageCaptureById_.size() < kMaxRetainedFeedbackPages)
+    {
+        return;
+    }
+
+    auto evictionIt = pageCaptureById_.end();
+    for (auto pageIt = pageCaptureById_.begin(); pageIt != pageCaptureById_.end(); ++pageIt)
+    {
+        const bool belongsToActivePage =
+            hasActivePage_ && pageIt->second.pageNameNormalized == activePageNameNormalized_;
+        if (belongsToActivePage)
+        {
+            continue;
+        }
+
+        if (evictionIt == pageCaptureById_.end() ||
+            pageIt->second.accessOrdinal < evictionIt->second.accessOrdinal)
+        {
+            evictionIt = pageIt;
+        }
+    }
+
+    if (evictionIt == pageCaptureById_.end())
+    {
+        evictionIt = std::min_element(
+            pageCaptureById_.begin(),
+            pageCaptureById_.end(),
+            [](const auto& left, const auto& right)
+            {
+                return left.second.accessOrdinal < right.second.accessOrdinal;
+            });
+    }
+
+    pageCaptureById_.erase(evictionIt);
 }
 
 bool RuntimeFeedbackState::Apply(const mfd::ActivePageFeedback& feedback)
@@ -699,6 +753,7 @@ std::size_t RuntimeFeedbackState::Poll(mfd::IExchangeChannel& channel,
 void RuntimeFeedbackState::Reset() noexcept
 {
     pageCaptureById_.clear();
+    pageCaptureAccessOrdinal_ = 0;
     activePageName_.clear();
     activePageNameNormalized_.clear();
     lastActivePageSequence_ = 0;
@@ -2306,12 +2361,27 @@ void GeneratedDynamicReticleSet::SetStrobeMagnetEnabled(const bool enabled)
 
 DynamicReticle& GeneratedDynamicReticleSet::Create()
 {
+    if (reticles_.size() >= kMaxRetainedDynamicReticles)
+    {
+        throw std::length_error("GeneratedDynamicReticleSet retained-reference limit reached");
+    }
+
     DynamicEntry entry;
     entry.reticle = CreateReticle(NextReticleId());
     BindReticleRuntimeFeedback(*entry.reticle);
     entry.reticle->runtimeReticleId_ = NextRuntimeReticleId();
+    DynamicReticle* const createdReticle = entry.reticle.get();
     reticles_.push_back(std::move(entry));
-    return *reticles_.back().reticle;
+    try
+    {
+        reticleIndexByAddress_.emplace(createdReticle, reticles_.size() - 1U);
+    }
+    catch (...)
+    {
+        reticles_.pop_back();
+        throw;
+    }
+    return *createdReticle;
 }
 
 void GeneratedDynamicReticleSet::Remove(DynamicReticle& reticle)
@@ -2490,14 +2560,8 @@ mfd::RuntimeDynamicId GeneratedDynamicReticleSet::NextRuntimeReticleId()
 
 GeneratedDynamicReticleSet::DynamicEntry* GeneratedDynamicReticleSet::FindEntry(const DynamicReticle& reticle) noexcept
 {
-    const auto iterator = std::find_if(
-        reticles_.begin(),
-        reticles_.end(),
-        [&reticle](const DynamicEntry& entry)
-        {
-            return entry.reticle.get() == &reticle;
-        });
-    return iterator == reticles_.end() ? nullptr : &(*iterator);
+    const auto indexIt = reticleIndexByAddress_.find(&reticle);
+    return indexIt == reticleIndexByAddress_.end() ? nullptr : &reticles_[indexIt->second];
 }
 
 void GeneratedDynamicReticleSet::BindReticleRuntimeFeedback(DynamicReticle& reticle) noexcept
@@ -2546,10 +2610,26 @@ DynamicReticle& DynamicReticleSet::Upsert(const std::string_view reticleId)
         return *existing;
     }
 
-    reticles_.push_back(std::make_unique<DynamicReticle>(reticleId));
-    BindReticleRuntimeFeedback(*reticles_.back());
-    reticles_.back()->seenThisCycle_ = true;
-    return *reticles_.back();
+    if (reticles_.size() >= kMaxRetainedDynamicReticles)
+    {
+        throw std::length_error("DynamicReticleSet distinct-identifier limit reached");
+    }
+
+    auto createdReticle = std::make_unique<DynamicReticle>(reticleId);
+    BindReticleRuntimeFeedback(*createdReticle);
+    createdReticle->seenThisCycle_ = true;
+    DynamicReticle* const createdReticleAddress = createdReticle.get();
+    reticles_.push_back(std::move(createdReticle));
+    try
+    {
+        reticlesById_.emplace(createdReticleAddress->Id(), createdReticleAddress);
+    }
+    catch (...)
+    {
+        reticles_.pop_back();
+        throw;
+    }
+    return *createdReticleAddress;
 }
 
 std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& commands)
@@ -2671,14 +2751,8 @@ std::size_t DynamicReticleSet::AppendRemovalCommands(std::vector<mfd::UserComman
 
 DynamicReticle* DynamicReticleSet::Find(const std::string_view reticleId) noexcept
 {
-    const auto iterator = std::find_if(
-        reticles_.begin(),
-        reticles_.end(),
-        [reticleId](const std::unique_ptr<DynamicReticle>& candidate)
-        {
-            return candidate->Id() == reticleId;
-        });
-    return iterator == reticles_.end() ? nullptr : iterator->get();
+    const auto reticleIt = reticlesById_.find(reticleId);
+    return reticleIt == reticlesById_.end() ? nullptr : reticleIt->second;
 }
 
 void DynamicReticleSet::BindReticleRuntimeFeedback(DynamicReticle& reticle) noexcept

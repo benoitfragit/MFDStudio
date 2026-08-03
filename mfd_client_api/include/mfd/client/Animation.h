@@ -254,13 +254,17 @@ private:
     struct PageCaptureState
     {
         std::uint32_t lastStrobeSequence = 0;
+        std::uint64_t accessOrdinal = 0;
         bool hasSequence = false;
         bool captured = false;
         mfd::RuntimeDynamicId capturedRuntimeReticleId = 0;
         std::string pageNameNormalized {};
     };
 
+    void MakeRoomForPageCapture();
+
     std::unordered_map<mfd::TransportId, PageCaptureState> pageCaptureById_ {};
+    std::uint64_t pageCaptureAccessOrdinal_ = 0;
     std::string activePageName_ {};
     std::string activePageNameNormalized_ {};
     std::uint32_t lastActivePageSequence_ = 0;
@@ -1206,6 +1210,13 @@ public:
      *  @note Dynamic sets are non-magnetized by default until this opt-in is enabled.
      */
     void SetStrobeMagnetEnabled(bool enabled);
+    /**
+     * @brief Creates one generated dynamic reticle with stable reference lifetime.
+     * @return Reference remaining valid until this set is destroyed.
+     * @throws std::length_error When 4096 retained references have already been created.
+     * @note Removed entries remain as invalid tombstones because reclaiming their storage
+     * would make previously returned references dangle or alias a newer instance.
+     */
     DynamicReticle& Create();
     void Remove(DynamicReticle& reticle);
     std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);
@@ -1232,6 +1243,7 @@ private:
     mfd::TransportId templateTransportId_ = 0;
     RuntimeFeedbackState* feedbackState_ = nullptr;
     std::vector<DynamicEntry> reticles_ {};
+    std::unordered_map<const DynamicReticle*, std::size_t> reticleIndexByAddress_ {};
     bool desiredVisible_ = true;
     bool lastSentVisible_ = true;
     bool visibilityDirty_ = false;
@@ -1262,6 +1274,12 @@ public:
      *  @note Dynamic sets are non-magnetized by default until this opt-in is enabled.
      */
     void SetStrobeMagnetEnabled(bool enabled);
+    /**
+     * @brief Finds or creates one named dynamic reticle with stable reference lifetime.
+     * @param reticleId Caller-owned identifier of the dynamic reticle.
+     * @return Reference remaining valid until this set is destroyed.
+     * @throws std::length_error When 4096 distinct identifiers are already retained.
+     */
     DynamicReticle& Upsert(std::string_view reticleId);
     std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);
     std::size_t AppendRemovalCommands(std::vector<mfd::UserCommand>& commands);
@@ -1276,6 +1294,7 @@ private:
     mfd::TransportId templateTransportId_ = 0;
     RuntimeFeedbackState* feedbackState_ = nullptr;
     std::vector<std::unique_ptr<DynamicReticle>> reticles_ {};
+    std::unordered_map<std::string_view, DynamicReticle*> reticlesById_ {};
     bool desiredVisible_ = true;
     bool lastSentVisible_ = true;
     bool visibilityDirty_ = false;

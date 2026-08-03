@@ -11,7 +11,9 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstdint>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1112,6 +1114,44 @@ TEST(AnimationTests, GeneratedDynamicReticleSetCreatesPersistentEntriesWithoutUs
     EXPECT_NE(remove->target.runtimeReticleId, 0U);
 }
 
+TEST(AnimationTests, DynamicReticleSetBoundsDistinctIdsWhileKeepingExistingReferencesStable)
+{
+    constexpr std::size_t kDistinctIdentifierLimit = 4096U;
+    mfd::client::DynamicReticleSet set("Radar", "radar_track");
+    mfd::client::DynamicReticle& firstReticle = set.Upsert("track_0");
+
+    for (std::size_t index = 1; index < kDistinctIdentifierLimit; ++index)
+    {
+        set.Upsert("track_" + std::to_string(index));
+    }
+
+    EXPECT_EQ(&set.Upsert("track_0"), &firstReticle);
+    EXPECT_THROW(set.Upsert("beyond_retained_limit"), std::length_error);
+    EXPECT_EQ(firstReticle.Id(), "track_0");
+}
+
+TEST(AnimationTests, GeneratedDynamicReticleSetBoundsTombstonesWithoutAliasingStableReferences)
+{
+    constexpr std::size_t kRetainedReferenceLimit = 4096U;
+    GeneratedDynamicFixtureSet set;
+    GeneratedDynamicFixtureReticle* firstReticle = nullptr;
+
+    for (std::size_t index = 0; index < kRetainedReferenceLimit; ++index)
+    {
+        GeneratedDynamicFixtureReticle& reticle = set.CreateTrack();
+        if (index == 0)
+        {
+            firstReticle = &reticle;
+        }
+        set.Remove(reticle);
+    }
+
+    ASSERT_NE(firstReticle, nullptr);
+    EXPECT_FALSE(firstReticle->IsAlive());
+    EXPECT_THROW(set.CreateTrack(), std::length_error);
+    EXPECT_EQ(firstReticle->Id(), "__generated_dynamic_1");
+}
+
 TEST(AnimationTests, GeneratedDynamicReticleSetResetInvalidatesPublishedHandlesWithoutEmittingPerReticleRemoval)
 {
     GeneratedDynamicFixtureSet set;
@@ -1232,6 +1272,32 @@ TEST(AnimationTests, RuntimeFeedbackStateTracksActivePageAndCapturedDynamicRetic
     cleared.pageName = "Radar";
     EXPECT_TRUE(feedbackState.Apply(cleared));
     EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured(42U, 1001U));
+}
+
+TEST(AnimationTests, RuntimeFeedbackStateEvictsLeastRecentlyAppliedHistoricalPages)
+{
+    mfd::client::RuntimeFeedbackState feedbackState;
+    constexpr mfd::TransportId kNewestPageId = 257U;
+
+    for (mfd::TransportId pageId = 1U; pageId <= kNewestPageId; ++pageId)
+    {
+        mfd::StrobeStatusFeedback feedback;
+        feedback.sequence = static_cast<std::uint32_t>(pageId);
+        feedback.pageId = pageId;
+        feedback.pageName = "Page_" + std::to_string(pageId);
+        mfd::StrobeFeedbackCapture capture;
+        capture.runtimeReticleId = pageId;
+        feedback.captureResult = std::move(capture);
+        EXPECT_TRUE(feedbackState.Apply(feedback));
+    }
+
+    mfd::ActivePageFeedback activePage;
+    activePage.sequence = 1U;
+    activePage.pageName = "Page_257";
+    ASSERT_TRUE(feedbackState.Apply(activePage));
+
+    EXPECT_TRUE(feedbackState.IsDynamicReticleCaptured(kNewestPageId, kNewestPageId));
+    EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured(1U, 1U));
 }
 
 TEST(AnimationTests, RuntimeFeedbackStateTracksWindowLifecycleAndDecodedPacketCount)
