@@ -856,7 +856,8 @@ TEST(EditorDocumentSerializerTests, TemplateInstancePreservesAuthoredTransformWi
     authored.position = {0.25f, -0.4f};
     authored.rotationDegrees = 12.0f;
     authored.scale = {3.0f, 0.5f};
-    const mfd::ReticleGroup instance = mfd::InstantiateReticle(reticleTemplate, "instance", authored);
+    mfd::ReticleGroup instance = mfd::InstantiateReticle(reticleTemplate, "instance", authored);
+    instance.layerId = "default";
 
     mfd::ReticleLibrary library;
     library.emplace(reticleTemplate.id, reticleTemplate);
