@@ -30,7 +30,8 @@ namespace mfd::runtime_api
 {
 namespace
 {
-constexpr std::size_t kMaxCommandsPerFrame = 512U;
+constexpr std::size_t kMaxCommandWorkUnitsPerFrame = 512U;
+constexpr std::size_t kMaxCommandBatchesPerFrame = 4U;
 constexpr float kMinimumIntervalSeconds = 0.001f;
 
 mfd::CommandBatchTransactionMode ToCommandProcessorTransactionMode(
@@ -304,7 +305,8 @@ public:
         {
             pendingCommandBatches_.clear();
             const std::size_t drainedBatches =
-                runtimeBridge_->DrainReceivedBatchesForCommandBudget(pendingCommandBatches_, kMaxCommandsPerFrame);
+                runtimeBridge_->DrainReceivedBatchesForCommandBudget(
+                    pendingCommandBatches_, kMaxCommandWorkUnitsPerFrame, kMaxCommandBatchesPerFrame);
             if (drainedBatches > 0U)
             {
                 receivedFirstClientCommand_ = true;
