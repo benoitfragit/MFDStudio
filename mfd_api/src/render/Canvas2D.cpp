@@ -221,8 +221,18 @@ int EstimateCircleSegmentCount(const float radiusPixels, const int minimum) noex
         return SanitizeSegmentCount(minimum, minimum);
     }
 
-    const float circumferencePixels = 2.0f * PI * radiusPixels;
-    const int estimated = static_cast<int>(std::ceil(circumferencePixels / kTargetCirclePixelsPerSegment));
+    const double circumferencePixels = 2.0 * static_cast<double>(PI) * static_cast<double>(radiusPixels);
+    const double estimatedSegments = std::ceil(
+        circumferencePixels / static_cast<double>(kTargetCirclePixelsPerSegment));
+    if (!std::isfinite(estimatedSegments))
+    {
+        return kMaxPrimitiveSegments;
+    }
+
+    const double boundedEstimate = std::clamp(estimatedSegments,
+                                              static_cast<double>(minimum),
+                                              static_cast<double>(kMaxPrimitiveSegments));
+    const int estimated = static_cast<int>(boundedEstimate);
     return SanitizeSegmentCount(std::max(minimum, estimated), minimum);
 }
 
