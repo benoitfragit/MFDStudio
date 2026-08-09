@@ -8,12 +8,16 @@ include(GoogleTest)
 # shared library intentionally does not export. HUD_RUNTIME_BUILDING_DLL keeps
 # the HUD_RUNTIME_API decoration in export mode for these local definitions.
 add_executable(hud_client_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/HudAircraftDynamicsTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/HudPhysicsTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/HudSimulationTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/HudSpatialTransformTests.cpp
     ${MFD_ROOT_DIR}/examples/hud/runtime/generated/HudUi.cpp
     ${MFD_ROOT_DIR}/examples/hud/runtime/src/HudController.cpp
     ${MFD_ROOT_DIR}/examples/hud/runtime/src/HudProjection.cpp
+    ${MFD_ROOT_DIR}/examples/hud/runtime/src/HudSpatialTransform.cpp
     ${MFD_ROOT_DIR}/examples/hud/main/src/GunProjectileSimulation.cpp
+    ${MFD_ROOT_DIR}/examples/hud/main/src/HudAircraftDynamics.cpp
     ${MFD_ROOT_DIR}/examples/hud/main/src/HudPhysics.cpp
     ${MFD_ROOT_DIR}/examples/hud/main/src/HudSimulation.cpp)
 
@@ -27,6 +31,7 @@ target_include_directories(hud_client_tests
     PRIVATE
         ${MFD_ROOT_DIR}/examples/hud/runtime/generated
         ${MFD_ROOT_DIR}/examples/hud/runtime/include
+        ${MFD_ROOT_DIR}/examples/hud/runtime/src
         ${MFD_ROOT_DIR}/examples/hud/main/include)
 
 mfd_private_library(hud_client_tests GTest::gtest_main mfd::client)

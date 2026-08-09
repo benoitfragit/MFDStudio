@@ -39,7 +39,6 @@ constexpr float kTwoPi = 6.28318530717958647692f;
 constexpr float kDegreesToRadians = 0.017453292519943295f;
 constexpr float kFeetToMeters = 0.3048f;
 constexpr float kKnotsToMetersPerSecond = 0.514444444f;
-constexpr float kMetersPerSecondToKnots = 1.94384449f;
 constexpr float kNauticalMileToMeters = 1852.0f;
 
 /** Wind-speed sanitization bound in knots for the environment controls. */
@@ -53,87 +52,6 @@ constexpr float kOutsideAirTemperatureMaxKelvin = 350.0f;
 /** Static-pressure sanitization bounds in hectopascals. */
 constexpr float kPressureMinHpa = 300.0f;
 constexpr float kPressureMaxHpa = 1100.0f;
-/** Flight-path slope gust amplitude at full turbulence intensity, radians (~0.8 degrees). */
-constexpr float kTurbulenceFlightPathGustMaxRad = 0.014f;
-/** Flight-path slope gust angular frequency in radians per second. */
-constexpr float kTurbulenceFlightPathGustRadPerSecond = 3.1f;
-
-/**
- * @brief Named tuning parameters for the demo aircraft mini-simulation.
- *
- * All aircraft dynamics constants live here instead of being scattered as magic
- * numbers inside `HudSimulation::Step`. The defaults preserve the existing demo
- * behavior while making the fake simulation easier to replace or retune.
- *
- * @note This is a demo-only tuning block. A real aircraft adapter fills
- * `HudInputSample` directly and never instantiates this configuration.
- */
-struct HudMiniSimulationConfig
-{
-    /** Pitch-stick command low-pass time constant in seconds. */
-    float pitchCommandTimeConstantSeconds = 0.70f;
-    /** Roll-stick command low-pass time constant in seconds. */
-    float rollCommandTimeConstantSeconds = 0.60f;
-    /** Base commanded pitch rate at low speed in degrees per second. */
-    float pitchRateBaseDegPerSecond = 48.0f;
-    /** Extra commanded pitch rate per knot of true airspeed. */
-    float pitchRateSpeedGainDegPerSecondPerKnot = 0.018f;
-    /** Commanded roll rate in degrees per second. */
-    float rollRateDegPerSecond = 118.0f;
-    /** Throttle-ratio slew rate toward the commanded throttle, per second. */
-    float throttleResponseRatePerSecond = 0.85f;
-    /** Throttle ratio above which afterburner may light. */
-    float afterburnerThrottleThreshold = 0.90f;
-    /** Turn-rate gain per knot of true airspeed, degrees per second. */
-    float turnRateGainDegPerSecondPerKnot = 0.030f;
-    /** Minimum bank-derived turn rate in degrees per second. */
-    float turnRateMinDegPerSecond = 5.0f;
-    /** Maximum bank-derived turn rate in degrees per second. */
-    float turnRateMaxDegPerSecond = 24.0f;
-    /** Commanded load factor gain per unit of filtered pitch command. */
-    float commandedLoadPitchGain = 4.6f;
-    /** Commanded load factor gain per unit of bank sine. */
-    float commandedLoadBankGain = 1.35f;
-    /** Minimum modeled normal load factor in g. */
-    float normalLoadMin = -3.0f;
-    /** Maximum modeled normal load factor in g. */
-    float normalLoadMax = 9.0f;
-    /** Flight-path slope gain applied to the pitch attitude. */
-    float flightPathPitchGain = 0.62f;
-    /** Throttle ratio treated as neutral trim for the flight path. */
-    float trimThrottleRatio = 0.54f;
-    /** Flight-path slope contribution of excess throttle, degrees at full range. */
-    float flightPathThrottleGainDegrees = 9.0f;
-    /** Extra commanded climb slope while afterburner is lit, degrees. */
-    float flightPathAfterburnerBonusDegrees = 3.2f;
-    /** Slope penalty proportional to bank angle, degrees. */
-    float flightPathBankPenaltyDegrees = 4.2f;
-    /** Slope penalty proportional to load factor above 1 g, degrees. */
-    float flightPathLoadPenaltyDegrees = 0.65f;
-    /** Safety bound on the commanded flight-path slope magnitude, degrees. */
-    float flightPathAngleMaxDegrees = 82.0f;
-    /** Rate at which the flight path tracks its commanded slope, degrees per second. */
-    float flightPathResponseRateDegPerSecond = 32.0f;
-    /** Thrust acceleration at full military throttle in knots per second. */
-    float thrustAccelerationKtsPerSecond = 34.0f;
-    /** Additional acceleration while afterburner is active, knots per second. */
-    float afterburnerAccelerationKtsPerSecond = 22.0f;
-    /** Baseline parasite drag deceleration in knots per second. */
-    float dragBaseKtsPerSecond = 8.0f;
-    /** Divisor turning airspeed squared into speed-dependent drag. */
-    float dragSpeedSquaredDivisor = 72000.0f;
-    /** Induced-drag deceleration per g of load factor above 1, knots per second. */
-    float dragLoadFactorKtsPerSecond = 2.4f;
-    /** Energy cost of climbing at full slope in knots per second. */
-    float climbCostKtsPerSecond = 24.0f;
-    /** Minimum sustained true airspeed in knots. */
-    float minSpeedKts = 120.0f;
-    /** Maximum sustained true airspeed in knots. */
-    float maxSpeedKts = 910.0f;
-};
-
-constexpr HudMiniSimulationConfig kMiniSimulationConfig {};
-
 float Clamp(const float value, const float low, const float high) noexcept
 {
     return std::max(low, std::min(value, high));
@@ -142,22 +60,6 @@ float Clamp(const float value, const float low, const float high) noexcept
 float FiniteOr(const float value, const float fallback) noexcept
 {
     return std::isfinite(value) ? value : fallback;
-}
-
-float Approach(const float current, const float target, const float maxDelta) noexcept
-{
-    if (current < target)
-    {
-        return std::min(current + maxDelta, target);
-    }
-
-    return std::max(current - maxDelta, target);
-}
-
-float SmoothCommand(const float current, const float target, const float deltaSeconds, const float timeConstantSeconds) noexcept
-{
-    const float response = 1.0f - std::exp(-deltaSeconds / std::max(timeConstantSeconds, 0.001f));
-    return current + (target - current) * Clamp(response, 0.0f, 1.0f);
 }
 
 float NormalizeRadiansPi(float value) noexcept
@@ -180,8 +82,7 @@ float HorizontalSpeedMetersPerSecond(const AircraftInputSample& aircraft) noexce
 
 // Magnitude of the published NED velocity. Since `Step()` writes the ground
 // velocity (air velocity NED + wind NED) into the sample, this is the ground
-// speed, not the true airspeed; the simulation keeps the TAS separately in
-// `trueAirspeedMps_`. With zero wind both speeds are identical.
+// speed, not the true airspeed. With zero wind both speeds are identical.
 float GroundSpeedMetersPerSecond(const AircraftInputSample& aircraft) noexcept
 {
     const float horizontal = HorizontalSpeedMetersPerSecond(aircraft);
@@ -198,19 +99,6 @@ float FlightPathSlopeRadians(const AircraftInputSample& aircraft) noexcept
     }
 
     return std::atan2(-FiniteOr(aircraft.downSpeedMps, 0.0f), horizontal);
-}
-
-/**
- * @brief Deterministic flight-path slope gust derived from the turbulence intensity.
- *
- * Uses the same sinusoid-of-elapsed-time strategy as `ComputeTurbulenceGustNed`
- * so a zero intensity produces exactly zero perturbation and two identical runs
- * stay identical.
- */
-float TurbulenceFlightPathGustRad(const float turbulenceIntensity, const float elapsedSeconds) noexcept
-{
-    return Clamp(turbulenceIntensity, 0.0f, 1.0f) * kTurbulenceFlightPathGustMaxRad *
-           std::sin(elapsedSeconds * kTurbulenceFlightPathGustRadPerSecond);
 }
 
 // Sanitizes the raw environment panel values into their supported ranges.
@@ -534,23 +422,33 @@ void HudSimulation::Reset()
     controls_ = {};
     selectedMissile_ = MissileType::Aim120C;
     inventory_ = {};
-    filteredPitchCommand_ = 0.0f;
-    filteredRollCommand_ = 0.0f;
-    // The scene sample carries no wind, so the initial air-mass speed and
-    // flight-path slope match the published ground-velocity vector exactly.
-    trueAirspeedMps_ = GroundSpeedMetersPerSecond(inputs_.aircraft);
-    flightPathSlopeRad_ = FlightPathSlopeRadians(inputs_.aircraft);
+    publishedAttitudeEulerRad_ = EulerAnglesRad {
+        inputs_.aircraft.yawRad,
+        inputs_.aircraft.pitchRad,
+        inputs_.aircraft.rollRad};
+    AircraftDynamicState initialAircraftState;
+    initialAircraftState.positionNedMeters = Vec3d {
+        0.0,
+        0.0,
+        -static_cast<double>(inputs_.aircraft.altitudeMeters)};
+    initialAircraftState.velocityNedMps = Vec3d {
+        inputs_.aircraft.northSpeedMps,
+        inputs_.aircraft.eastSpeedMps,
+        inputs_.aircraft.downSpeedMps};
+    initialAircraftState.attitudeBodyToNed = QuaternionFromEuler321(publishedAttitudeEulerRad_);
+    initialAircraftState.throttleRatio = inputs_.aircraft.throttleRatio;
+    aircraftDynamics_.Reset(initialAircraftState);
     missileShots_.clear();
     simulationTickCount_ = 0U;
-    aircraftPositionNedMeters_ = {};
+    const AircraftDynamicState& aircraftState = aircraftDynamics_.State();
     const GunLaunchState launchState {
-        aircraftPositionNedMeters_,
-        Vec3d {inputs_.aircraft.northSpeedMps, inputs_.aircraft.eastSpeedMps, inputs_.aircraft.downSpeedMps},
+        aircraftState.positionNedMeters,
+        aircraftState.velocityNedMps,
         inputs_.aircraft.yawRad,
         inputs_.aircraft.pitchRad,
         inputs_.aircraft.rollRad};
     gunProjectiles_.Reset(launchState, controls_.environment);
-    inputs_.gunTrajectory = gunProjectiles_.BuildSnapshot(aircraftPositionNedMeters_);
+    inputs_.gunTrajectory = gunProjectiles_.BuildSnapshot(aircraftState.positionNedMeters);
     RefreshWeaponPresentation();
 }
 
@@ -558,9 +456,10 @@ void HudSimulation::SetSimulationControls(const SimulationControls& controls) no
 {
     controls_ = controls;
     PilotControls& pilot = controls_.pilot;
-    pilot.pitchCommand = Clamp(pilot.pitchCommand, -1.0f, 1.0f);
-    pilot.rollCommand = Clamp(pilot.rollCommand, -1.0f, 1.0f);
-    pilot.throttle = Clamp(pilot.throttle, 0.0f, 1.0f);
+    pilot.pitchCommand = Clamp(FiniteOr(pilot.pitchCommand, 0.0f), -1.0f, 1.0f);
+    pilot.rollCommand = Clamp(FiniteOr(pilot.rollCommand, 0.0f), -1.0f, 1.0f);
+    pilot.yawCommand = Clamp(FiniteOr(pilot.yawCommand, 0.0f), -1.0f, 1.0f);
+    pilot.throttle = Clamp(FiniteOr(pilot.throttle, 0.0f), 0.0f, 1.0f);
     SanitizeEnvironmentControls(controls_.environment);
     inputs_.weapon.masterMode = pilot.masterMode;
     inputs_.weapon.weaponMode = pilot.weaponMode;
@@ -581,110 +480,71 @@ void HudSimulation::SetSimulationControls(const SimulationControls& controls) no
 void HudSimulation::Step()
 {
     constexpr float dt = static_cast<float>(kHudSimulationStepSeconds);
-    const HudMiniSimulationConfig& cfg = kMiniSimulationConfig;
     const PilotControls& pilot = controls_.pilot;
     const EnvironmentControls& environment = controls_.environment;
     AircraftInputSample& aircraft = inputs_.aircraft;
     ++simulationTickCount_;
     aircraft.elapsedSeconds = static_cast<float>(
         static_cast<double>(simulationTickCount_) * kHudSimulationStepSeconds);
-    filteredPitchCommand_ =
-        SmoothCommand(filteredPitchCommand_, pilot.pitchCommand, dt, cfg.pitchCommandTimeConstantSeconds);
-    filteredRollCommand_ =
-        SmoothCommand(filteredRollCommand_, pilot.rollCommand, dt, cfg.rollCommandTimeConstantSeconds);
-
-    const float speedKts = trueAirspeedMps_ * kMetersPerSecondToKnots;
-    const float pitchRateDegPerSecond =
-        cfg.pitchRateBaseDegPerSecond + speedKts * cfg.pitchRateSpeedGainDegPerSecondPerKnot;
-    aircraft.pitchRad = NormalizeRadiansPi(
-        aircraft.pitchRad + filteredPitchCommand_ * pitchRateDegPerSecond * kDegreesToRadians * dt);
-    aircraft.rollRad =
-        NormalizeRadiansPi(aircraft.rollRad + filteredRollCommand_ * cfg.rollRateDegPerSecond * kDegreesToRadians * dt);
-    aircraft.throttleRatio = Approach(aircraft.throttleRatio, pilot.throttle, cfg.throttleResponseRatePerSecond * dt);
-    aircraft.afterburnerActive =
-        pilot.afterburnerRequested && aircraft.throttleRatio > cfg.afterburnerThrottleThreshold;
-
-    const float turnRateRadPerSecond =
-        std::sin(aircraft.rollRad) *
-        Clamp(speedKts * cfg.turnRateGainDegPerSecondPerKnot, cfg.turnRateMinDegPerSecond, cfg.turnRateMaxDegPerSecond) *
-        kDegreesToRadians *
-        std::cos(aircraft.pitchRad);
-    aircraft.headingRad = WrapRadiansTwoPi(aircraft.headingRad + turnRateRadPerSecond * dt);
-    aircraft.yawRad = aircraft.headingRad;
-
-    const float commandedLoad =
-        1.0f + filteredPitchCommand_ * cfg.commandedLoadPitchGain +
-        std::fabs(std::sin(aircraft.rollRad)) * cfg.commandedLoadBankGain;
-    const float attitudeLoad = std::cos(aircraft.rollRad) * std::cos(aircraft.pitchRad);
-    aircraft.normalLoadFactor = Clamp(attitudeLoad + commandedLoad - 1.0f, cfg.normalLoadMin, cfg.normalLoadMax);
-
-    const float flightPathAngleMaxRad = cfg.flightPathAngleMaxDegrees * kDegreesToRadians;
-    const float targetFlightPathSlopeRad = Clamp(
-        NormalizeRadiansPi(aircraft.pitchRad) * cfg.flightPathPitchGain +
-            (aircraft.throttleRatio - cfg.trimThrottleRatio) * cfg.flightPathThrottleGainDegrees * kDegreesToRadians +
-            (aircraft.afterburnerActive ? cfg.flightPathAfterburnerBonusDegrees * kDegreesToRadians : 0.0f) -
-            std::fabs(std::sin(aircraft.rollRad)) * cfg.flightPathBankPenaltyDegrees * kDegreesToRadians -
-            std::max(aircraft.normalLoadFactor - 1.0f, 0.0f) * cfg.flightPathLoadPenaltyDegrees * kDegreesToRadians,
-        -flightPathAngleMaxRad,
-        flightPathAngleMaxRad);
-    flightPathSlopeRad_ =
-        Approach(
-            flightPathSlopeRad_,
-            targetFlightPathSlopeRad,
-            cfg.flightPathResponseRateDegPerSecond * kDegreesToRadians * dt);
-    // The gust perturbs only the published trajectory, never the smoothed
-    // slope state, so zero turbulence keeps the simulation strictly unchanged.
-    const float flightPathSlopeRad = Clamp(
-        flightPathSlopeRad_ +
-            TurbulenceFlightPathGustRad(environment.turbulenceIntensity, aircraft.elapsedSeconds),
-        -flightPathAngleMaxRad,
-        flightPathAngleMaxRad);
-
-    const float thrustAccelerationKtsPerSecond =
-        aircraft.throttleRatio * cfg.thrustAccelerationKtsPerSecond +
-        (aircraft.afterburnerActive ? cfg.afterburnerAccelerationKtsPerSecond : 0.0f);
-    const float dragAccelerationKtsPerSecond =
-        cfg.dragBaseKtsPerSecond + speedKts * speedKts / cfg.dragSpeedSquaredDivisor +
-        std::max(aircraft.normalLoadFactor - 1.0f, 0.0f) * cfg.dragLoadFactorKtsPerSecond;
-    const float climbCostKtsPerSecond = std::max(0.0f, std::sin(flightPathSlopeRad)) * cfg.climbCostKtsPerSecond;
-    const float accelerationMps2 =
-        (thrustAccelerationKtsPerSecond - dragAccelerationKtsPerSecond - climbCostKtsPerSecond) *
-        kKnotsToMetersPerSecond;
-    trueAirspeedMps_ = Clamp(
-        trueAirspeedMps_ + accelerationMps2 * dt,
-        cfg.minSpeedKts * kKnotsToMetersPerSecond,
-        cfg.maxSpeedKts * kKnotsToMetersPerSecond);
-    const float newSpeedMps = trueAirspeedMps_;
-
-    // Air velocity NED + wind NED = ground velocity NED. The HUD interprets
-    // `AircraftInputSample::north/east/downSpeedMps` as the NED ground velocity
-    // (that is what an INU would provide), so wind and gusts reach the HUD
-    // symbology only through this resolved velocity vector.
-    const float horizontalAirSpeedMps = std::max(newSpeedMps * std::cos(flightPathSlopeRad), 0.0f);
     const WindVectorNed steadyWind = ComputeWindVectorNed(environment.windSpeedKts, environment.windDirectionRad);
     const WindVectorNed gust = ComputeTurbulenceGustNed(environment.turbulenceIntensity, aircraft.elapsedSeconds);
-    aircraft.northSpeedMps = horizontalAirSpeedMps * std::cos(aircraft.headingRad) + steadyWind.northMps + gust.northMps;
-    aircraft.eastSpeedMps = horizontalAirSpeedMps * std::sin(aircraft.headingRad) + steadyWind.eastMps + gust.eastMps;
-    aircraft.downSpeedMps = -newSpeedMps * std::sin(flightPathSlopeRad) + steadyWind.downMps + gust.downMps;
-    aircraftPositionNedMeters_.x += static_cast<double>(aircraft.northSpeedMps) * kHudSimulationStepSeconds;
-    aircraftPositionNedMeters_.y += static_cast<double>(aircraft.eastSpeedMps) * kHudSimulationStepSeconds;
-    aircraftPositionNedMeters_.z += static_cast<double>(aircraft.downSpeedMps) * kHudSimulationStepSeconds;
+    AircraftEnvironmentInput dynamicsEnvironment;
+    dynamicsEnvironment.windVelocityNedMps = Vec3d {
+        static_cast<double>(steadyWind.northMps + gust.northMps),
+        static_cast<double>(steadyWind.eastMps + gust.eastMps),
+        static_cast<double>(steadyWind.downMps + gust.downMps)};
+    dynamicsEnvironment.airDensityKgPerM3 = ComputeAirDensityKgPerM3(
+        environment.pressureHpa,
+        environment.outsideAirTemperatureKelvin);
+    AircraftControlInput dynamicsControls;
+    dynamicsControls.pitchCommand = pilot.pitchCommand;
+    dynamicsControls.rollCommand = pilot.rollCommand;
+    dynamicsControls.yawCommand = pilot.yawCommand;
+    dynamicsControls.throttleRatio = pilot.throttle;
+    dynamicsControls.afterburnerRequested = pilot.afterburnerRequested;
+    aircraftDynamics_.Step(dynamicsControls, dynamicsEnvironment, kHudSimulationStepSeconds);
+
+    const AircraftDynamicState& aircraftState = aircraftDynamics_.State();
+    const AircraftDynamicsTelemetry& dynamicsTelemetry = aircraftDynamics_.Telemetry();
+    publishedAttitudeEulerRad_ = Euler321Nearest(
+        aircraftState.attitudeBodyToNed,
+        publishedAttitudeEulerRad_);
+    aircraft.yawRad = static_cast<float>(publishedAttitudeEulerRad_.yaw);
+    aircraft.pitchRad = static_cast<float>(publishedAttitudeEulerRad_.pitch);
+    aircraft.rollRad = static_cast<float>(publishedAttitudeEulerRad_.roll);
+    aircraft.headingRad = WrapRadiansTwoPi(aircraft.yawRad);
+    aircraft.northSpeedMps = static_cast<float>(aircraftState.velocityNedMps.x);
+    aircraft.eastSpeedMps = static_cast<float>(aircraftState.velocityNedMps.y);
+    aircraft.downSpeedMps = static_cast<float>(aircraftState.velocityNedMps.z);
+    aircraft.throttleRatio = static_cast<float>(aircraftState.throttleRatio);
+    aircraft.afterburnerActive = dynamicsTelemetry.afterburnerActive;
+    aircraft.normalLoadFactor = static_cast<float>(dynamicsTelemetry.normalLoadFactor);
+    const Vec3d currentAirVelocityNedMps {
+        aircraftState.velocityNedMps.x - dynamicsEnvironment.windVelocityNedMps.x,
+        aircraftState.velocityNedMps.y - dynamicsEnvironment.windVelocityNedMps.y,
+        aircraftState.velocityNedMps.z - dynamicsEnvironment.windVelocityNedMps.z};
+    const float newSpeedMps = static_cast<float>(VectorLength(currentAirVelocityNedMps));
     const GunLaunchState launchState {
-        aircraftPositionNedMeters_,
-        Vec3d {aircraft.northSpeedMps, aircraft.eastSpeedMps, aircraft.downSpeedMps},
+        aircraftState.positionNedMeters,
+        aircraftState.velocityNedMps,
         aircraft.yawRad,
         aircraft.pitchRad,
         aircraft.rollRad};
     gunProjectiles_.Step(launchState, environment);
-    inputs_.gunTrajectory = gunProjectiles_.BuildSnapshot(aircraftPositionNedMeters_);
-    aircraft.altitudeMeters = std::max(18.0f, aircraft.altitudeMeters - aircraft.downSpeedMps * dt);
+    inputs_.gunTrajectory = gunProjectiles_.BuildSnapshot(aircraftState.positionNedMeters);
+    aircraft.altitudeMeters = std::max(
+        18.0f,
+        static_cast<float>(-aircraftState.positionNedMeters.z));
     aircraft.radioAltitudeMeters = ComputeRadioAltitudeMeters(
         aircraft.altitudeMeters,
         ComputeTerrainElevationMeters(environment, aircraft.elapsedSeconds, aircraft.headingRad));
     aircraft.mach =
         ComputeMach(newSpeedMps, ComputeSpeedOfSoundMps(environment.outsideAirTemperatureKelvin));
     aircraft.specificEnergyRateMps =
-        ComputeSpecificEnergyRateMps(newSpeedMps, -aircraft.downSpeedMps, accelerationMps2);
+        ComputeSpecificEnergyRateMps(
+            newSpeedMps,
+            -aircraft.downSpeedMps,
+            static_cast<float>(dynamicsTelemetry.longitudinalAccelerationMps2));
 
     TargetInputSample& target = inputs_.target;
     target.azimuthRad = 7.0f * kDegreesToRadians * std::sin(aircraft.elapsedSeconds * 0.33f);

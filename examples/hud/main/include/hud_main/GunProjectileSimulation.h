@@ -9,18 +9,11 @@
 #include <cstddef>
 
 #include "hud/HudTypes.h"
+#include "hud_main/HudMathTypes.h"
 #include "hud_main/HudPhysics.h"
 
 namespace hud_main
 {
-/** @brief Double-precision vector in the fixed local NED or aircraft-body frame. */
-struct Vec3d
-{
-    double x = 0.0;
-    double y = 0.0;
-    double z = 0.0;
-};
-
 /** @brief Fixed SI configuration of the virtual EEGS projectile model. */
 struct GunProjectileConfig
 {

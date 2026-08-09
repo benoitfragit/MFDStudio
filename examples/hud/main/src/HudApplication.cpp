@@ -449,10 +449,11 @@ void HudApplication::Shutdown()
 
 void HudApplication::ApplyKeyboardControls()
 {
-    // Keyboard arrows are intentionally sampled as digital stick commands. The
-    // simulation applies smoothing, so this layer only collects pilot intent.
+    // Keyboard arrows and Q/E are sampled as digital control commands. The
+    // simulation converts that intent into moments; this layer owns no dynamics.
     int pitchCommand = 0;
     int rollCommand = 0;
+    int yawCommand = 0;
     if (ImGui::IsKeyDown(ImGuiKey_UpArrow))
     {
         ++pitchCommand;
@@ -469,10 +470,19 @@ void HudApplication::ApplyKeyboardControls()
     {
         --rollCommand;
     }
+    if (ImGui::IsKeyDown(ImGuiKey_E))
+    {
+        ++yawCommand;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_Q))
+    {
+        --yawCommand;
+    }
 
     simulationControls_.pilot.pitchCommand = static_cast<float>(std::clamp(pitchCommand, -1, 1));
     simulationControls_.pilot.rollCommand = static_cast<float>(std::clamp(rollCommand, -1, 1));
-    if (pitchCommand != 0 || rollCommand != 0)
+    simulationControls_.pilot.yawCommand = static_cast<float>(std::clamp(yawCommand, -1, 1));
+    if (pitchCommand != 0 || rollCommand != 0 || yawCommand != 0)
     {
         // Any direct pilot input takes ownership back from scripted maneuvers.
         maneuver_ = HudManeuver::Manual;
@@ -486,6 +496,7 @@ void HudApplication::SelectManeuver(const HudManeuver maneuver) noexcept
     {
         simulationControls_.pilot.pitchCommand = 0.0f;
         simulationControls_.pilot.rollCommand = 0.0f;
+        simulationControls_.pilot.yawCommand = 0.0f;
     }
 }
 
@@ -638,6 +649,8 @@ void HudApplication::DrawFlightControls()
         ImGui::Text("Pitch cmd %+.0f", simulationControls_.pilot.pitchCommand);
         ImGui::SameLine(180.0f);
         ImGui::Text("Roll cmd %+.0f", simulationControls_.pilot.rollCommand);
+        ImGui::SameLine(300.0f);
+        ImGui::Text("Yaw cmd %+.0f", simulationControls_.pilot.yawCommand);
     }
 }
 

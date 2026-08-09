@@ -26,6 +26,7 @@ set(MFD_HUD_MAIN_PLATFORM_SOURCES
 
 set(MFD_HUD_MAIN_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/GunProjectileSimulation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/HudAircraftDynamics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HudApplication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HudPhysics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/HudSimulation.cpp
@@ -34,6 +35,8 @@ set(MFD_HUD_MAIN_SOURCES
 
 set(MFD_HUD_MAIN_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/GunProjectileSimulation.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/HudAircraftDynamics.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/HudMathTypes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/HudSimulationTime.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/HudApplication.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/hud_main/HudPhysics.h

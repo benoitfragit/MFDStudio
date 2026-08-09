@@ -465,9 +465,14 @@ TEST(HudSimulationTests, LoopingAttitudeKeepsHudPitchBoundedAndMarksInversion)
     controls.pilot.throttle = 0.95f;
     controls.pilot.afterburnerRequested = true;
 
-    StepMany(simulation, controls, 35);
+    hud::HudFrame frame;
+    for (int tick = 0; tick < 500 && !frame.attitude.inverted; ++tick)
+    {
+        simulation.SetSimulationControls(controls);
+        simulation.Step();
+        frame = simulation.BuildHudFrame();
+    }
 
-    const hud::HudFrame frame = simulation.BuildHudFrame();
     EXPECT_LE(std::fabs(frame.attitude.displayPitchDegrees), 90.0f);
     EXPECT_TRUE(frame.attitude.inverted);
     EXPECT_TRUE(frame.attitude.ghostHorizonVisible || frame.attitude.trueHorizonVisible);
@@ -545,7 +550,7 @@ TEST(HudSimulationTests, FullLoopKeepsAttitudeSymbologyFinite)
     }
 }
 
-TEST(HudSimulationTests, PitchCommandIsSmoothedAcrossSeveralFrames)
+TEST(HudSimulationTests, PitchMomentBuildsAngularResponseAcrossSeveralFrames)
 {
     HudSimulation simulation;
     SimulationControls controls;
@@ -562,7 +567,7 @@ TEST(HudSimulationTests, PitchCommandIsSmoothedAcrossSeveralFrames)
     StepMany(simulation, controls, 8);
 
     EXPECT_LT(firstStepPitch - initialPitch, 0.9f);
-    EXPECT_GT(simulation.Aircraft().pitchDegrees - firstStepPitch, 8.0f);
+    EXPECT_GT(simulation.Aircraft().pitchDegrees - firstStepPitch, 6.0f);
 }
 
 TEST(HudSimulationTests, RadarAltitudeIsBlankedAtHighAltitudeForLargeAttitude)
@@ -1811,7 +1816,7 @@ TEST(HudSimulationTests, DefaultEnvironmentKeepsZeroWindStandardAtmosphereBehavi
     EXPECT_GT(aircraft.mach, 0.3f);
 }
 
-TEST(HudSimulationTests, WindShiftsGroundVelocityWithoutChangingAirspeed)
+TEST(HudSimulationTests, WindChangesAirRelativeForcesWithoutTeleportingGroundVelocity)
 {
     HudSimulation calmSimulation;
     HudSimulation windySimulation;
@@ -1821,17 +1826,59 @@ TEST(HudSimulationTests, WindShiftsGroundVelocityWithoutChangingAirspeed)
     windyControls.environment.windSpeedKts = 40.0f;
     windyControls.environment.windDirectionRad = 270.0f * kDegreesToRadians;
 
+    calmSimulation.SetSimulationControls(calmControls);
+    windySimulation.SetSimulationControls(windyControls);
+    calmSimulation.Step();
+    windySimulation.Step();
+
+    const hud::AircraftInputSample calmFirstTick = calmSimulation.Inputs().aircraft;
+    const hud::AircraftInputSample windyFirstTick = windySimulation.Inputs().aircraft;
+    const float expectedEastWindMps = 40.0f * 0.514444444f;
+    // Wind changes air-relative velocity immediately, but the integrated ground
+    // velocity can change only through a finite aerodynamic acceleration.
+    EXPECT_GT(windyFirstTick.eastSpeedMps, calmFirstTick.eastSpeedMps);
+    EXPECT_LT(
+        std::fabs(windyFirstTick.eastSpeedMps - calmFirstTick.eastSpeedMps),
+        1.0f);
+    EXPECT_NE(windyFirstTick.mach, calmFirstTick.mach);
+
     StepMany(calmSimulation, calmControls, 25);
     StepMany(windySimulation, windyControls, 25);
+    const hud::AircraftInputSample& calmSettling = calmSimulation.Inputs().aircraft;
+    const hud::AircraftInputSample& windySettling = windySimulation.Inputs().aircraft;
+    const float eastGroundVelocityDelta =
+        windySettling.eastSpeedMps - calmSettling.eastSpeedMps;
+    EXPECT_GT(eastGroundVelocityDelta, 1.0f);
+    EXPECT_LT(eastGroundVelocityDelta, expectedEastWindMps);
+}
 
-    const hud::AircraftInputSample& calm = calmSimulation.Inputs().aircraft;
-    const hud::AircraftInputSample& windy = windySimulation.Inputs().aircraft;
-    const float expectedEastWindMps = 40.0f * 0.514444444f;
-    // The heading stays North in both runs, so the wind shows up as a pure
-    // eastward ground-velocity offset while the air-relative state is identical.
-    EXPECT_NEAR(windy.eastSpeedMps - calm.eastSpeedMps, expectedEastWindMps, 0.2f);
-    EXPECT_NEAR(windy.northSpeedMps, calm.northSpeedMps, 0.2f);
-    EXPECT_FLOAT_EQ(windy.mach, calm.mach);
+TEST(HudSimulationTests, ControllerHidesUnprojectableFpmWithoutLeavingLimitCue)
+{
+    hud_ui::HudUi ui;
+    ui.Initialize();
+    HudController controller;
+    HudInputSample forwardInput;
+    forwardInput.aircraft.northSpeedMps = 200.0f;
+
+    controller.Populate(ui, forwardInput);
+    ASSERT_TRUE(ui.HUD().flightPathMarker.GetVisible());
+
+    HudInputSample rearInput;
+    rearInput.aircraft.northSpeedMps = -200.0f;
+    HudInputSample zeroVelocityInput;
+    HudInputSample nonFiniteVelocityInput;
+    nonFiniteVelocityInput.aircraft.northSpeedMps = std::numeric_limits<float>::quiet_NaN();
+    HudInputSample nonFiniteAttitudeInput;
+    nonFiniteAttitudeInput.aircraft.northSpeedMps = 200.0f;
+    nonFiniteAttitudeInput.aircraft.pitchRad = std::numeric_limits<float>::infinity();
+
+    for (const HudInputSample& invalidInput :
+         {rearInput, zeroVelocityInput, nonFiniteVelocityInput, nonFiniteAttitudeInput})
+    {
+        controller.Populate(ui, invalidInput);
+        EXPECT_FALSE(ui.HUD().flightPathMarker.GetVisible());
+        EXPECT_FALSE(ui.HUD().fpmLimitX.GetVisible());
+    }
 }
 
 TEST(HudSimulationTests, TerrainElevationControlDrivesRadioAltitude)

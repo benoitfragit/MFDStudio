@@ -145,7 +145,13 @@ enum class MissileFlightPhase
  *
  * All quantities use SI units. The velocity vector uses an NED navigation frame:
  * north/east are positive horizontally and down is positive toward the earth.
- * A climb therefore has a negative `downSpeedMps`.
+ * A climb therefore has a negative `downSpeedMps`. Velocity is inertial ground
+ * velocity; callers retain responsibility for resolving wind-relative air data.
+ * Attitude uses the aerospace 3-2-1 convention
+ * `bodyToNed = Rz(yaw) * Ry(pitch) * Rx(roll)`, with body axes X-forward,
+ * Y-right and Z-down. Equivalent Euler branches are accepted because runtime
+ * projection reconstructs the rotation directly and never uses folded display
+ * angles as physical inputs.
  *
  * @note The defaults are deliberately neutral (grounded, stationary aircraft):
  * an integrator embedding the HUD runtime must fill this sample from its own
@@ -159,11 +165,11 @@ struct AircraftInputSample
 {
     /** Monotonic aircraft sample time in seconds. */
     float elapsedSeconds = 0.0f;
-    /** Aircraft yaw angle in radians. Kept for adapters that expose full attitude. */
+    /** Physical 3-2-1 yaw angle in radians, rotation about NED down. */
     float yawRad = 0.0f;
-    /** Aircraft pitch angle in radians, positive nose-up. */
+    /** Physical 3-2-1 pitch angle in radians, positive nose-up. */
     float pitchRad = 0.0f;
-    /** Aircraft roll angle in radians, positive right-wing-down. */
+    /** Physical 3-2-1 roll angle in radians, positive right-wing-down. */
     float rollRad = 0.0f;
     /** Navigation heading in radians, wrapped by the HUD as needed. */
     float headingRad = 0.0f;

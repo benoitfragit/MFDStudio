@@ -18,6 +18,7 @@
 
 #include "HudUi.h"
 #include "HudLayout.h"
+#include "HudSpatialTransform.h"
 #include "mfd/model/Types.h"
 
 namespace hud
@@ -670,8 +671,10 @@ void ApplyLandingApproach(hud_ui::HUDMockupPage& hud, const HudInputSample& inpu
 
     hud.bankAngleIndicator.SetVisible(approach.rollIndicatorVisible);
     hud.headingTape.SetPosition(mfd::Vec2 {0.0f, approach.headingTapeShiftedUp ? 1.02f : 0.0f});
-    hud.flightPathMarker.SetVisible(input.approach.flightPathMarkerAvailable);
-    if (!input.approach.flightPathMarkerAvailable)
+    const bool flightPathMarkerVisible = input.approach.flightPathMarkerAvailable &&
+        detail::ResolveAircraftVelocityDirection(input.aircraft).valid;
+    hud.flightPathMarker.SetVisible(flightPathMarkerVisible);
+    if (!flightPathMarkerVisible)
     {
         hud.fpmLimitX.SetVisible(false);
     }

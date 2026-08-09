@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "hud/HudProjection.h"
+#include "hud_main/HudAircraftDynamics.h"
 #include "hud_main/GunProjectileSimulation.h"
 #include "hud_main/HudPhysics.h"
 
@@ -119,6 +120,8 @@ struct PilotControls
     float pitchCommand = 0.0f;
     /** Normalized roll-stick command in [-1, 1]. Positive rolls right. */
     float rollCommand = 0.0f;
+    /** Normalized rudder command in [-1, 1]. Positive yaws right. */
+    float yawCommand = 0.0f;
     /** Normalized throttle command in [0, 1]. */
     float throttle = 0.62f;
     /** True when the pilot requests afterburner at high throttle. */
@@ -190,12 +193,11 @@ struct MissileShot
 /**
  * @brief Stable HUD-focused HUD mini-simulation for the interactive HUD client.
  *
- * @note This model is deliberately simplified. It preserves coherent relations
- * between attitude, energy, speed, altitude, wind, atmosphere, terrain, A-A
- * mode and missile symbology rather than attempting to be a flight dynamics
- * simulator. Its only integration output is `hud::HudInputSample`, so a real
- * INU/air-data/environment producer can replace this class and keep the same
- * HUD runtime, controller and funnel projection.
+ * @note The bundled aircraft uses a deliberately simplified six-degree-of-freedom
+ * force/moment model. `HudSimulation` additionally owns the demonstration
+ * environment, targets and weapons. Its only integration output is
+ * `hud::HudInputSample`, so a real INU/air-data/environment producer replaces
+ * this entire class and keeps the same HUD runtime, controller and projections.
  */
 class HudSimulation
 {
@@ -315,20 +317,14 @@ private:
     MissileType selectedMissile_ = MissileType::Aim120C;
     /** Remaining sample inventory by missile type. */
     MissileInventory inventory_ {};
-    /** Low-pass filtered pitch command used to avoid frame-to-frame jumps. */
-    float filteredPitchCommand_ = 0.0f;
-    /** Low-pass filtered roll command used to avoid frame-to-frame jumps. */
-    float filteredRollCommand_ = 0.0f;
-    /** Air-mass-relative speed in meters per second; the published NED velocity adds the wind. */
-    float trueAirspeedMps_ = 0.0f;
-    /** Smoothed air-mass flight-path slope in radians, positive while climbing. */
-    float flightPathSlopeRad_ = 0.0f;
+    /** Replaceable six-degree-of-freedom aircraft model; never visible to `hud_runtime`. */
+    HudAircraftDynamics aircraftDynamics_ {};
+    /** Euler publication branch nearest the preceding sample; never used by physical equations. */
+    EulerAnglesRad publishedAttitudeEulerRad_ {};
     /** Active and recently impacted missiles retained for HUD timing/status. */
     std::vector<MissileShot> missileShots_ {};
     /** Common integer clock for aircraft, projectiles, missiles and published timestamps. */
     std::uint64_t simulationTickCount_ = 0U;
-    /** Aircraft absolute position in the fixed local NED frame established by Reset(). */
-    Vec3d aircraftPositionNedMeters_ {};
     /** Fixed-capacity ballistic history owned by the sample simulation. */
     GunProjectileSimulation gunProjectiles_ {};
 };

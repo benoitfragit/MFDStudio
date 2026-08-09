@@ -11,6 +11,7 @@
 #include "hud/HudProjection.h"
 
 #include "HudLayout.h"
+#include "HudSpatialTransform.h"
 #include "mfd/control/UserSpaceProjector.h"
 
 #include <algorithm>
@@ -81,6 +82,8 @@ constexpr float kFunnelBallisticDirectionWeight = 0.10f;
 constexpr float kMinimumFunnelWidthReductionFraction = 0.01f;
 constexpr float kMaximumFunnelHalfWidthHudUnits = 0.40f;
 constexpr float kFunnelApertureMarginHudUnits = 0.02f;
+constexpr float kFpmHorizontalLimitHudUnits = 0.54f;
+constexpr float kFpmVerticalLimitHudUnits = 0.52f;
 
 float Clamp(const float value, const float low, const float high) noexcept
 {
@@ -249,36 +252,23 @@ bool ProjectTrajectoryCenter(const GunTrajectoryPointNed& point,
     {
         return false;
     }
-    const float yaw = FiniteOr(aircraft.yawRad, 0.0f);
-    const float pitch = FiniteOr(aircraft.pitchRad, 0.0f);
-    const float roll = FiniteOr(aircraft.rollRad, 0.0f);
-    const float cy = std::cos(yaw);
-    const float sy = std::sin(yaw);
-    const float cp = std::cos(pitch);
-    const float sp = std::sin(pitch);
-    const float cr = std::cos(roll);
-    const float sr = std::sin(roll);
     const float north = point.northMeters;
     const float east = point.eastMeters;
     const float down = point.downMeters;
-    const float forward = cy * cp * north + sy * cp * east - sp * down;
-    const float right = (cy * sp * sr - sy * cr) * north +
-                        (sy * sp * sr + cy * cr) * east + cp * sr * down;
-    const float bodyDown = (cy * sp * cr + sy * sr) * north +
-                           (sy * sp * cr - cy * sr) * east + cp * cr * down;
-    if (!std::isfinite(forward) || forward <= 0.001f)
+    const detail::BodyAngularDirection direction = detail::ResolveBodyAngularDirection(
+        aircraft,
+        detail::NedVector {north, east, down},
+        0.001f);
+    if (!direction.valid)
     {
         return false;
     }
-    const float horizontalRange = std::sqrt(forward * forward + right * right);
     slantRangeMeters = std::sqrt(north * north + east * east + down * down);
-    const float azimuthRad = std::atan2(right, forward);
-    const float elevationRad = std::atan2(-bodyDown, horizontalRange);
-    if (!std::isfinite(slantRangeMeters) || !std::isfinite(azimuthRad) || !std::isfinite(elevationRad))
+    if (!std::isfinite(slantRangeMeters))
     {
         return false;
     }
-    center = ProjectAnglesUnclamped(azimuthRad, elevationRad);
+    center = ProjectAnglesUnclamped(direction.azimuthRad, direction.elevationRad);
     return std::isfinite(center.x) && std::isfinite(center.y);
 }
 
@@ -591,10 +581,26 @@ HudAttitudeFrame ResolveHudAttitude(const AircraftInputSample& aircraftInput) no
     frame.ghostHorizonPosition = RotateHudVector(HudVec2 {0.0f, ghostHorizonY}, rollRotationDegrees);
     frame.ghostHorizonRotationDegrees = rollRotationDegrees;
 
-    const float fpmRawX = std::sin(displayRoll * kDegreesToRadians) * 0.08f;
-    const float fpmRawY = (aircraft.flightPathAngleDegrees - displayPitch) * kPitchToHudUnits;
-    frame.fpmPosition = HudVec2 {Clamp(fpmRawX, -0.54f, 0.54f), Clamp(fpmRawY, -0.52f, 0.52f)};
-    frame.fpmLimited = std::fabs(fpmRawX) > 0.54f || std::fabs(fpmRawY) > 0.52f;
+    const detail::BodyAngularDirection flightPathDirection =
+        detail::ResolveAircraftVelocityDirection(aircraftInput);
+    if (flightPathDirection.valid)
+    {
+        const HudVec2 fpmRawPosition = ProjectAnglesUnclamped(
+            flightPathDirection.azimuthRad,
+            flightPathDirection.elevationRad);
+        frame.fpmPosition = HudVec2 {
+            Clamp(
+                fpmRawPosition.x,
+                -kFpmHorizontalLimitHudUnits,
+                kFpmHorizontalLimitHudUnits),
+            Clamp(
+                fpmRawPosition.y,
+                -kFpmVerticalLimitHudUnits,
+                kFpmVerticalLimitHudUnits)};
+        frame.fpmLimited =
+            std::fabs(fpmRawPosition.x) > kFpmHorizontalLimitHudUnits ||
+            std::fabs(fpmRawPosition.y) > kFpmVerticalLimitHudUnits;
+    }
     frame.bankAngleIndicatorPosition = frame.fpmPosition;
     frame.bankAngleIndicatorRotationDegrees = -displayRoll;
     frame.zenithVisible = displayPitch > 68.0f;

@@ -17,13 +17,15 @@ the projection and symbology geometry (including the EEGS funnel), the
 generated `HudUi` wrapper, the transport lifecycle and the runtime assets/font
 staging. It never links ImGui, d3d11 or dxgi and never includes
 `HudApplication`, `HudSimulation`, `SimulationControls`, `PilotControls`,
-`EnvironmentControls`, `HudPhysics` or `Win32Dx11ImGuiHost`.
+`EnvironmentControls`, `HudAircraftDynamics`, `HudPhysics` or
+`Win32Dx11ImGuiHost`.
 
 `hud_client` is the interactive Win32/DX11 ImGui client. It owns the operator
-panel, the mini-simulation with its pure physics helpers (`HudPhysics`) and
-the sample armament constants, and consumes `hud_runtime` exactly like an
-external integration would. `hud_runtime.dll` is copied next to `hud_client`
-by the build.
+panel, the mini-simulation with its client-local six-degree-of-freedom
+`HudAircraftDynamics`, pure environment helpers (`HudPhysics`) and sample
+armament constants. It consumes `hud_runtime` exactly like an external
+integration would. `hud_runtime.dll` is copied next to `hud_client` by the
+build.
 
 The client data flow keeps the `hud_main` / `hud_runtime` boundary explicit:
 
@@ -120,7 +122,8 @@ linking only `hud_runtime`:
 - Keep `hud::HudInputSample` from `hud/HudTypes.h`.
 - Do not link ImGui, d3d11 or dxgi, and do not embed `HudApplication`,
   `HudSimulation`, `SimulationControls`, `PilotControls`,
-  `EnvironmentControls` or `HudPhysics`; they belong to the main client only.
+  `EnvironmentControls`, `HudAircraftDynamics` or `HudPhysics`; they belong to
+  the main client only.
 
 The replacement application has one responsibility: build a complete
 `hud::HudInputSample` from the external model once per HUD frame, then let
@@ -272,8 +275,10 @@ back to the in-repository asset path.
 The important boundary is `HudInputSample`. It uses SI units and radians:
 
 - altitude is meters, speed is meters per second, and attitude is radians;
-- velocity uses an NED frame, so `downSpeedMps` is positive downward and
-  negative while climbing;
+- velocity is inertial ground velocity in an NED frame, so `downSpeedMps` is
+  positive downward and negative while climbing;
+- attitude uses the aerospace 3-2-1 body-to-NED rotation
+  `Rz(yaw) * Ry(pitch) * Rx(roll)`; body axes are X-forward, Y-right and Z-down;
 - target azimuth/elevation are line-of-sight errors relative to the aircraft
   nose;
 - `WeaponInputSample` must already contain resolved avionics state, including
@@ -302,6 +307,44 @@ computes the EEGS funnel and the runtime still sends the Bezier rails through
 the generated UI API. `hud_runtime` stays passive in both setups: it consumes
 resolved physical data and never simulates wind, atmosphere or terrain
 itself.
+
+### Replaceable sample flight model
+
+The bundled `hud_main::HudAircraftDynamics` owns position and ground velocity
+in local NED axes, a normalized body-to-NED quaternion, body angular velocity
+and throttle response. Its configuration groups mass, diagonal body inertia,
+wing area, thrust, lift/drag/side-force coefficients, control moments, angular
+damping and explicit numerical limits. Commands are normalized intent that
+produce bounded moments and aerodynamic effects; they never overwrite angular
+velocity or trajectory.
+
+The 20 ms integration uses air-relative velocity:
+
+```
+airVelocityNed  = groundVelocityNed - windVelocityNed
+airVelocityBody = RotateNedToBody(attitudeBodyToNed, airVelocityNed)
+qbar            = 0.5 * density * airspeed^2
+I * omegaDot    = moment - omega x (I * omega)
+velocityDotNed  = RotateBodyToNed(forceBody) / mass + gravityNed
+```
+
+Angle of attack is `atan2(bodyDownVelocity, bodyForwardVelocity)` and sideslip
+comes from the normalized body-right velocity. Lift, induced/parasite/high-angle
+drag and side force are finite and bounded. Lift is progressively attenuated
+beyond the configured stall angle. Below the minimum aerodynamic speed,
+aerodynamic forces become zero while gravity and thrust remain active. Position
+and velocity use a semi-implicit update; attitude uses the integrated body
+angular velocity and is normalized after every quaternion update.
+
+The model is intentionally pedagogical. It does not model compressibility,
+fuel burn, detailed actuators/engine spool, structural damage, spatial wind,
+ground collision or certified airframe coefficients. A real simulator replaces
+all of `hud_main` and fills `HudInputSample`; it does not modify or link flight
+dynamics into `hud_runtime`.
+
+Euler angles are derived publication values. An equivalent 3-2-1 branch is
+selected for readable telemetry through vertical attitudes, but no physical
+equation consumes those Euler values.
 
 Run the focused validation:
 
@@ -359,6 +402,33 @@ excluded: the dynamic launch zone, range cue, speed/altitude tapes, heading
 tape, textual readouts, timers and range scales. They encode magnitudes or
 ranges, not line-of-sight angles, so forcing them through the angular
 projection would be meaningless.
+
+### Flight Path Marker projection
+
+The FPM is a conformal projection of inertial ground velocity, not a function
+of the displayed pitch ladder. The runtime-private `HudSpatialTransform`
+converts `(northSpeedMps, eastSpeedMps, downSpeedMps)` to body axes using the
+physical 3-2-1 attitude from `AircraftInputSample`. With body X-forward,
+Y-right and Z-down, its raw angles are:
+
+```
+azimuth   = atan2(bodyRightVelocity, bodyForwardVelocity)
+elevation = atan2(-bodyDownVelocity,
+                  hypot(bodyForwardVelocity, bodyRightVelocity))
+```
+
+Those angles use the common conformal projector before the existing FPM glass
+limits are applied. The pitch and roll values folded for horizon/ladder display
+never enter this calculation. The EEGS ballistic stations use the same private
+NED-to-body transform so trajectory and velocity projection cannot acquire
+different attitude conventions.
+
+The runtime-private direction result is invalid for non-finite, near-zero or
+rear-facing velocity. The generated FPM and its limit X are then hidden because
+a forward-looking HUD cannot represent that direction honestly. Valid forward
+velocity outside the FPM aperture remains clamped with `fpmLimited == true` and
+uses the existing limit-X cue. No public contract field is added for this
+private projection decision.
 
 ### Out-of-field-of-view behavior
 

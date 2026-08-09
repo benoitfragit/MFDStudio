@@ -11,8 +11,9 @@ This example is split into two strictly separated targets:
 - `hud_client` — the main interactive executable under `main/`. It owns the
   Win32/DX11 ImGui shell, the operator panel (including the `Environment`
   section for wind, turbulence, terrain and atmosphere), the client-local
-  simulation with its pure physics helpers (`HudPhysics`) and its armament
-  model (the AIM-120C/AIM-9M profiles and the STRF in-range threshold), and
+  simulation with its six-degree-of-freedom aircraft dynamics, pure environment
+  helpers (`HudPhysics`) and armament model (the AIM-120C/AIM-9M profiles and
+  the STRF in-range threshold), and
   consumes `hud_runtime` like any external simulation would.
 
 The full data flow of the interactive client is:
@@ -45,6 +46,7 @@ ImGui controls
 | Host startup | `main/src/main.cpp` | Keep unless the application shell changes. |
 | ImGui/DX11 shell and operator controls | `main/.../HudApplication.*` | Replace when embedding the HUD in a real cockpit or another UI. |
 | Client-local aircraft/weapons simulation and armament model | `main/.../HudSimulation.*` | Replace with the real INU / Air Data / environment producer. |
+| Client-local aircraft force/moment integration | `main/.../HudAircraftDynamics.*` | Replace with the real flight model; it is never linked by `hud_runtime`. |
 | Pure physics helpers (wind, atmosphere, terrain, energy) | `main/.../HudPhysics.*` | Replace together with the simulation; they feed it, never the runtime. |
 | Reusable publishing facade | `runtime/include/hud/HudRuntimeClient.h` | Keep. This is the integration entry point. |
 | Semantic HUD input contract | `runtime/include/hud/HudTypes.h` | Keep. This is the handoff boundary. |
@@ -130,6 +132,67 @@ transients. A persistent relative gun-funnel drift would require a wind gradient
 or target-motion model; adding an arbitrary HUD offset would double-count the
 uniform wind.
 
+## Replaceable aircraft dynamics
+
+`hud_main::HudAircraftDynamics` is a client-only demonstration model. Its
+continuous state is position and ground velocity in local NED axes, a normalized
+body-to-NED quaternion, body angular velocity and throttle response. Mass,
+diagonal body inertia, wing area, lift/drag/side-force coefficients, thrust,
+control moments, angular damping and numerical bounds live in
+`AircraftDynamicsConfig`; they are parameters, not HUD inputs.
+
+At each 20 ms tick the model computes:
+
+```
+airVelocityNed  = groundVelocityNed - windVelocityNed
+airVelocityBody = RotateNedToBody(attitudeBodyToNed, airVelocityNed)
+qbar            = 0.5 * density * airspeed^2
+I * omegaDot    = moment - omega x (I * omega)
+velocityDotNed  = RotateBodyToNed(forceBody) / mass + gravityNed
+```
+
+Angle of attack, sideslip, lift, drag and side force come from the air-relative
+body velocity. Lift is progressively attenuated beyond the configured stall
+angle; lift, drag, side-force coefficients, angular rates, airspeed used by the
+coefficient model and integration step are explicitly bounded. Below the
+minimum aerodynamic speed the aerodynamic force is zero while thrust and
+gravity remain active. The model integrates velocity and position
+semi-implicitly and integrates the quaternion from body angular velocity before
+normalizing it. No equation uses a folded Euler display angle or a target
+flight-path slope.
+
+This is a stable pedagogical model, not certified aircraft data. It omits fuel
+mass change, compressibility, detailed control-surface/engine dynamics, spatial
+weather gradients, ground contact and structural limits. The configuration is
+therefore suitable for the HUD demonstration only. A production simulator owns
+those behaviors and publishes the same semantic `HudInputSample`.
+
+Euler yaw/pitch/roll are derived only for publication and telemetry. The
+publisher chooses the equivalent 3-2-1 branch nearest the preceding sample so
+the ladder remains readable through a loop, but the physical state and every
+force/moment equation continue to use the quaternion.
+
+The interactive client maps the arrow keys to normalized pitch/roll intent and
+Q/E to normalized yaw intent. LOOP and BARREL still emit only constant stick
+commands; neither the dynamics nor the runtime receives a maneuver name.
+
+## Flight Path Marker
+
+The runtime derives the FPM exclusively from the published inertial ground
+velocity. Its private spatial helper transforms NED velocity into body axes
+(X-forward, Y-right, Z-down), computes
+`atan2(right, forward)` and `atan2(-down, hypot(forward, right))`, then uses the
+same conformal angular projection as the other boresight-relative cues. The
+folded pitch-ladder angles never participate in this calculation. The ballistic
+trajectory projection uses the same private NED-to-body helper, preventing the
+two transformations from drifting apart.
+
+A non-finite, near-zero or rear-facing velocity has no meaningful forward-HUD
+intersection. In that case the runtime-private direction result is invalid and
+the controller hides both the FPM and its limit X; it does not invent a frontal
+position. A valid forward direction outside the FPM aperture remains edge
+limited and displays the existing limit X.
+
 ## Replacing the Mini Simulation
 
 `HudSimulation` (in `main/`) is only one possible producer. It is replaceable
@@ -145,6 +208,11 @@ by a real INU / Air Data / environment producer, which should:
 - keep SI-unit fields in the semantic buffer where the current contract expects
   SI values;
 - let `hud_runtime` remain a stateless consumer.
+
+The replacement does not include or instantiate `HudAircraftDynamics`,
+`HudSimulation`, `PilotControls` or `EnvironmentControls`. It links
+`hud_runtime`, supplies physical 3-2-1 attitude plus ground velocity NED, and
+may otherwise use any internal state representation or flight model.
 
 ## Local Validation
 
